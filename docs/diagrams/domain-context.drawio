@@ -1,59 +1,58 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mxfile host="app.diagrams.net" modified="2026-07-15T00:00:00.000Z" agent="Codex" version="24.7.17">
+<mxfile host="app.diagrams.net" agent="Codex">
   <diagram id="domain-context" name="Domain Context">
-    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" math="0" shadow="0">
+    <mxGraphModel dx="1409" dy="822" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="domain-boundary" value="Learning Feedback Domain Boundary" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=14;" vertex="1" parent="1">
-          <mxGeometry x="310" y="120" width="760" height="500" as="geometry" />
+        <mxCell id="domain-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=14;" value="AI Assessment and Feedback Assistant Boundary" vertex="1">
+          <mxGeometry height="500" width="760" x="310" y="120" as="geometry" />
         </mxCell>
-        <mxCell id="system" value="Hệ thống hỗ trợ đánh giá và phản hồi học tập" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;fontSize=16;" vertex="1" parent="1">
-          <mxGeometry x="510" y="290" width="360" height="120" as="geometry" />
+        <mxCell id="system" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;fontSize=16;" value="Hệ thống hỗ trợ đánh giá và phản hồi học tập" vertex="1">
+          <mxGeometry height="120" width="360" x="510" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="teacher" value="Teacher" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
-          <mxGeometry x="110" y="250" width="80" height="130" as="geometry" />
+        <mxCell id="teacher" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Teacher" vertex="1">
+          <mxGeometry height="130" width="80" x="110" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="student" value="Student" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
-          <mxGeometry x="1190" y="250" width="80" height="130" as="geometry" />
+        <mxCell id="student" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Student" vertex="1">
+          <mxGeometry height="130" width="80" x="1190" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="teacher-in" value="Tạo yêu cầu, duyệt đề, review kết quả cần kiểm tra" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" vertex="1" parent="1">
-          <mxGeometry x="280" y="210" width="210" height="70" as="geometry" />
+        <mxCell id="teacher-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Tạo yêu cầu, duyệt đề, review kết quả cần kiểm tra" vertex="1">
+          <mxGeometry height="70" width="210" x="280" y="210" as="geometry" />
         </mxCell>
-        <mxCell id="teacher-out" value="Đề nháp, kết quả cần review, báo cáo tiến độ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" vertex="1" parent="1">
-          <mxGeometry x="280" y="430" width="210" height="70" as="geometry" />
+        <mxCell id="teacher-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Đề nháp, kết quả cần review, báo cáo tiến độ" vertex="1">
+          <mxGeometry height="70" width="210" x="280" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="student-in" value="Làm bài, nộp câu trả lời, luyện tập tiếp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" vertex="1" parent="1">
-          <mxGeometry x="890" y="210" width="210" height="70" as="geometry" />
+        <mxCell id="student-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm bài, nộp câu trả lời, luyện tập tiếp" vertex="1">
+          <mxGeometry height="70" width="210" x="890" y="210" as="geometry" />
         </mxCell>
-        <mxCell id="student-out" value="Bài được giao, feedback, câu luyện tập mới" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" vertex="1" parent="1">
-          <mxGeometry x="890" y="430" width="210" height="70" as="geometry" />
+        <mxCell id="student-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Bài được giao, feedback, câu luyện tập mới" vertex="1">
+          <mxGeometry height="70" width="210" x="890" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="legend" value="Chú thích&#xa;Khung lớn: domain/system boundary&#xa;Khối trung tâm: hệ thống đang xây dựng&#xa;Actor ngoài khung: người dùng nghiệp vụ&#xa;Các khối nhỏ: nhóm tương tác chính, không phải object nội bộ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;spacing=10;" vertex="1" parent="1">
-          <mxGeometry x="420" y="660" width="540" height="110" as="geometry" />
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;spacing=10;" value="Chú thích&#xa;Khung lớn: domain/system boundary&#xa;Khối trung tâm: hệ thống đang xây dựng&#xa;Actor ngoài khung: người dùng nghiệp vụ&#xa;Các khối nhỏ: nhóm tương tác chính, không phải object nội bộ" vertex="1">
+          <mxGeometry height="110" width="540" x="420" y="660" as="geometry" />
         </mxCell>
-        <mxCell id="e-teacher-in" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="teacher" target="teacher-in">
+        <mxCell id="e-teacher-in" edge="1" parent="1" source="teacher" style="endArrow=block;html=1;rounded=0;" target="teacher-in" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-teacher-in-system" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="teacher-in" target="system">
+        <mxCell id="e-teacher-in-system" edge="1" parent="1" source="teacher-in" style="endArrow=block;html=1;rounded=0;" target="system" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-system-teacher-out" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="system" target="teacher-out">
+        <mxCell id="e-system-teacher-out" edge="1" parent="1" source="system" style="endArrow=block;html=1;rounded=0;" target="teacher-out" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-teacher-out" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="teacher-out" target="teacher">
+        <mxCell id="e-teacher-out" edge="1" parent="1" source="teacher-out" style="endArrow=block;html=1;rounded=0;" target="teacher" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-student-in" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="student" target="student-in">
+        <mxCell id="e-student-in" edge="1" parent="1" source="student" style="endArrow=block;html=1;rounded=0;" target="student-in" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-student-in-system" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="student-in" target="system">
+        <mxCell id="e-student-in-system" edge="1" parent="1" source="student-in" style="endArrow=block;html=1;rounded=0;" target="system" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-system-student-out" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="system" target="student-out">
+        <mxCell id="e-system-student-out" edge="1" parent="1" source="system" style="endArrow=block;html=1;rounded=0;" target="student-out" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-student-out" value="" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="student-out" target="student">
+        <mxCell id="e-student-out" edge="1" parent="1" source="student-out" style="endArrow=block;html=1;rounded=0;" target="student" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>

@@ -30,6 +30,10 @@ Teacher review nếu cần
         ↓
 Student nhận feedback
         ↓
+Hệ thống kiểm tra mastery
+        ↓
+Chưa đạt mastery?
+        ↓
 Hệ thống tạo câu luyện tập thích ứng
         ↓
 Lặp lại đến khi đạt mastery
@@ -144,13 +148,13 @@ Tạo vòng luyện tập giúp Student sửa đúng lỗi sai hoặc misconcept
 
 1. System/AI xác định lỗi sai hoặc misconception.
 2. System/AI xác định learning objective hoặc kỹ năng liên quan.
-3. System/AI tạo câu hỏi luyện tập tương tự.
-4. Câu hỏi mới giữ cùng mục tiêu kiến thức nhưng thay đổi dữ kiện, ngữ cảnh hoặc độ khó.
-5. Student làm câu hỏi luyện tập.
-6. System/AI đánh giá lại.
-7. Hệ thống cập nhật trạng thái mastery.
-8. Nếu chưa đạt mastery, hệ thống tiếp tục tạo câu hỏi mới.
-9. Nếu đạt mastery, vòng luyện tập kết thúc.
+3. Hệ thống cập nhật hoặc kiểm tra trạng thái mastery.
+4. Nếu đã đạt mastery, hệ thống không tạo câu luyện tập mới.
+5. Nếu chưa đạt mastery, System/AI tạo câu hỏi luyện tập tương tự.
+6. Câu hỏi mới giữ cùng mục tiêu kiến thức nhưng thay đổi dữ kiện, ngữ cảnh hoặc độ khó.
+7. Student làm câu hỏi luyện tập.
+8. System/AI đánh giá lại và cập nhật mastery.
+9. Vòng luyện tập lặp lại cho đến khi đạt mastery.
 
 ### Nguyên tắc tạo câu tương tự
 

@@ -31,6 +31,17 @@ Hệ thống nằm bên trong system boundary nên không được xem là actor
 
 Các giải thích dài không đặt trên connector của diagram để tránh rối hình. Điều kiện chi tiết được ghi trong từng use case bên dưới.
 
+## Quy ước màu trong Use Case Diagram
+
+| Màu | Ý nghĩa sử dụng |
+| --- | --- |
+| Xanh dương | Use case thể hiện mục tiêu chính của Teacher. |
+| Xanh lá | Use case thể hiện mục tiêu chính của Student. |
+| Cam | Hành vi hệ thống bắt buộc, thường được dùng trong quan hệ `<<include>>`. |
+| Hồng | Hành vi điều kiện, ngoại lệ hoặc review, thường được dùng trong quan hệ `<<extend>>`. |
+
+Các use case có cùng mục đích nghiệp vụ dùng cùng màu để người đọc nhận ra nhóm chức năng mà không cần đọc toàn bộ quan hệ.
+
 ## UC-01 — Teacher tạo đề nháp
 
 ### Mục tiêu
@@ -115,15 +126,15 @@ Student
 3. Student chọn đáp án.
 4. Student nhập giải thích cách làm nếu bài yêu cầu.
 5. Student nộp bài.
-6. Hệ thống ghi nhận bài nộp.
-7. Hệ thống chấm bài và sinh feedback.
+6. Hệ thống ghi nhận bài nộp để chuyển sang đánh giá.
 
 ### Quan hệ diagram
 
 - `Làm bài thường xuyên` generalizes to `Làm và nộp bài`.
 - `Làm bài nhiều bước/cuối kỳ` generalizes to `Làm và nộp bài`.
 - `Yêu cầu giải thích cách làm` `<<extend>>` `Làm và nộp bài` khi bài khó, bài cuối kỳ hoặc câu hỏi nhiều bước.
-- `Làm và nộp bài` `<<include>>` `Chấm bài và sinh feedback`.
+
+Không dùng `<<include>>` từ `Làm và nộp bài` sang `Chấm bài và sinh feedback` vì chấm bài là bước xử lý sau khi có bài nộp, không phải hành vi bắt buộc để Student hoàn thành mục tiêu nộp bài.
 
 ### Kết quả
 
@@ -155,6 +166,8 @@ Student
 
 - `Xem feedback` `<<include>>` `Chấm bài và sinh feedback`.
 - `Chấm bài và sinh feedback` `<<include>>` `Kiểm tra confidence`.
+
+`Xem feedback` dùng `<<include>>` với `Chấm bài và sinh feedback` vì để Student nhận feedback có căn cứ, hệ thống bắt buộc phải tạo kết quả đánh giá và feedback trước. `Chấm bài và sinh feedback` dùng `<<include>>` với `Kiểm tra confidence` vì mọi kết quả đánh giá đều cần confidence để quyết định có cần Teacher review không.
 
 ### Kết quả
 
@@ -195,7 +208,7 @@ Kết quả cuối cùng được Teacher xác nhận và có thể hiển thị
 
 ### Mục tiêu
 
-Student nhận câu hỏi luyện tập phù hợp với lỗi sai hoặc misconception vừa được phát hiện.
+Student nhận câu hỏi luyện tập phù hợp khi feedback cho thấy Student chưa đạt mastery ở phạm vi đang luyện tập.
 
 ### Actor chính
 
@@ -203,33 +216,36 @@ Student
 
 ### Điều kiện trước
 
-- Hệ thống hoặc Teacher đã xác định lỗi sai, misconception hoặc learning objective cần luyện tập.
+- Student đã xem feedback.
+- Feedback hoặc kết quả đánh giá cho thấy Student chưa đạt mastery ở phạm vi liên quan.
 
 ### Luồng chính
 
-1. Student bắt đầu luyện tập sau khi xem feedback.
-2. Hệ thống tạo câu hỏi luyện tập tương tự.
-3. Student làm câu hỏi mới.
-4. Hệ thống đánh giá câu trả lời.
-5. Hệ thống cập nhật trạng thái mastery ở phạm vi đang luyện tập.
-6. Nếu Student chưa đạt mastery, hệ thống tạo câu hỏi tiếp theo.
-7. Nếu Student đạt mastery, vòng luyện tập kết thúc.
+1. Student xem feedback sau khi bài được đánh giá.
+2. Hệ thống kiểm tra trạng thái mastery ở phạm vi liên quan.
+3. Nếu Student đã đạt mastery, hệ thống không tạo câu luyện tập mới.
+4. Nếu Student chưa đạt mastery, hệ thống tạo câu hỏi luyện tập tương tự.
+5. Student làm câu hỏi luyện tập mới.
+6. Hệ thống đánh giá câu trả lời và cập nhật lại mastery.
+7. Vòng luyện tập tiếp tục cho đến khi đạt mastery.
 
 ### Quan hệ diagram
 
+- `Luyện tập thích ứng` `<<extend>>` `Xem feedback` khi feedback cho thấy Student chưa đạt mastery.
 - `Luyện tập thích ứng` `<<include>>` `Tạo câu luyện tập`.
-- `Luyện tập thích ứng` `<<include>>` `Chấm bài và sinh feedback`.
+
+`Luyện tập thích ứng` là `<<extend>>` của `Xem feedback` vì nó không luôn xảy ra sau feedback. Nếu Student đã đạt mastery, workflow kết thúc. Nếu chưa đạt mastery, hệ thống mở rộng luồng bằng việc tạo practice question. `Tạo câu luyện tập` là `<<include>>` vì adaptive practice không thể bắt đầu nếu hệ thống chưa tạo câu luyện tập.
 
 ### Kết quả
 
-Student tiếp tục luyện tập đúng điểm yếu cho đến khi đạt ngưỡng mastery ở phạm vi đã xác định.
+Student chỉ nhận thêm câu luyện tập khi chưa đạt ngưỡng mastery ở phạm vi đã xác định.
 
 ## Ghi chú điều kiện nghiệp vụ
 
 - `Tạo đề nháp` diễn ra trước `Review và phát hành đề`, nhưng đây là thứ tự workflow nên được mô tả trong Activity Diagram và tài liệu workflow, không ghi như một quan hệ riêng trong Use Case Diagram.
-- Student nộp bài là điều kiện để hệ thống chấm và sinh feedback.
+- Student nộp bài là điều kiện để hệ thống chấm và sinh feedback, nhưng không biểu diễn bằng `<<include>>` vì đây là thứ tự workflow.
 - Kết quả confidence thấp hoặc có mâu thuẫn sẽ mở rộng sang use case Teacher xử lý bài cần review.
-- Lỗi sai, misconception hoặc feedback là đầu vào nghiệp vụ cho vòng luyện tập thích ứng.
+- Feedback chỉ mở rộng sang vòng luyện tập thích ứng khi Student chưa đạt mastery.
 
 ## Nguyên tắc nghiệp vụ chung
 
