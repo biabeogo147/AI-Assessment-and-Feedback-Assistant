@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+**pycache**/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.egg
+MANIFEST
+
+# PyCharm / JetBrains
+.idea/
+
+# VS Code
+.vscode/
+
+# FastAPI / Uvicorn runtime
+*.pid
+*.log
+logs/
+
+# Testing / coverage
+.pytest_cache/
+
+# Type checking / linting
+.pytype/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Database / local storage
+*.sqlite
+*.sqlite3
+*.db
+
+
+# Cache / temporary files
+.cache/
+tmp/
+temp/
