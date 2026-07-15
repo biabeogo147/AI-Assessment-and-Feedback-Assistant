@@ -22,6 +22,7 @@ Giai đoạn này **chưa** đi sâu vào kiến trúc hệ thống, AI agent in
 - Markdown dùng để giải thích, mô tả specification và dẫn đường.
 - Draw.io `.drawio` là source of truth cho diagram.
 - `raw-idea.md` và `raw-idea.png` là input lịch sử, không phải source of truth lâu dài.
+- [`AGENTS.md`](../../AGENTS.md) ở root là tài liệu quy định workflow cộng tác giữa dev và coding agent; `docs/` chỉ giữ tài liệu project/product.
 
 ## Cấu trúc đề xuất
 
