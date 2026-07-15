@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net" agent="Codex">
+  <diagram id="business-workflows" name="Business Workflows">
+    <mxGraphModel dx="1796" dy="874" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="lane-teacher" parent="1" style="swimlane;horizontal=0;startSize=40;html=1;rounded=0;fillColor=#e7f5ff;strokeColor=#1971c2;fontStyle=1;" value="Teacher" vertex="1">
+          <mxGeometry height="820" width="430" x="60" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-system" parent="1" style="swimlane;horizontal=0;startSize=40;html=1;rounded=0;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;" value="System/AI" vertex="1">
+          <mxGeometry height="820" width="500" x="490" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-student" parent="1" style="swimlane;horizontal=0;startSize=40;html=1;rounded=0;fillColor=#ebfbee;strokeColor=#2b8a3e;fontStyle=1;" value="Student" vertex="1">
+          <mxGeometry height="820" width="430" x="990" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t-request" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1971c2;" value="Nhập yêu cầu tạo đề" vertex="1">
+          <mxGeometry height="60" width="250" x="140" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s-draft" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e67700;" value="Sinh đề nháp, đáp án, lời giải và distractor có ý nghĩa" vertex="1">
+          <mxGeometry height="80" width="300" x="600" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="t-review" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1971c2;" value="Review, chỉnh sửa và duyệt đề" vertex="1">
+          <mxGeometry height="70" width="250" x="140" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="s-publish" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e67700;" value="Phát hành assessment" vertex="1">
+          <mxGeometry height="60" width="250" x="625" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="st-submit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2b8a3e;" value="Làm bài, chọn đáp án và giải thích nếu cần" vertex="1">
+          <mxGeometry height="70" width="260" x="1075" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="s-grade" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e67700;" value="Chấm bài, phân tích lỗi, tạo feedback và confidence" vertex="1">
+          <mxGeometry height="80" width="300" x="600" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="s-decision" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#495057;" value="Confidence thấp hoặc bất thường?" vertex="1">
+          <mxGeometry height="110" width="180" x="660" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="t-queue" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c2255c;" value="Xử lý Teacher Review Queue" vertex="1">
+          <mxGeometry height="70" width="250" x="140" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="st-feedback" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2b8a3e;" value="Nhận feedback" vertex="1">
+          <mxGeometry height="60" width="250" x="1080" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="s-practice" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e67700;" value="Tạo câu luyện tập thích ứng theo lỗi sai" vertex="1">
+          <mxGeometry height="70" width="300" x="600" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="st-practice" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2b8a3e;" value="Luyện tập biến thể mới đến khi đạt mastery" vertex="1">
+          <mxGeometry height="70" width="260" x="1075" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="Chú thích&#xa;Mỗi lane thể hiện một vai trò trong workflow nghiệp vụ.&#xa;Mũi tên liền: bước chuyển tiếp trong workflow.&#xa;Mũi tên nét đứt: vòng lặp luyện tập khi Student chưa đạt mastery." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;spacing=10;" vertex="1" parent="1">
+          <mxGeometry height="70" width="940" x="260" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" edge="1" parent="1" source="t-request" style="endArrow=block;html=1;rounded=0;" target="s-draft" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b2" edge="1" parent="1" source="s-draft" style="endArrow=block;html=1;rounded=0;" target="t-review" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b3" edge="1" parent="1" source="t-review" style="endArrow=block;html=1;rounded=0;" target="s-publish" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b4" edge="1" parent="1" source="s-publish" style="endArrow=block;html=1;rounded=0;" target="st-submit" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b5" edge="1" parent="1" source="st-submit" style="endArrow=block;html=1;rounded=0;" target="s-grade" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b6" edge="1" parent="1" source="s-grade" style="endArrow=block;html=1;rounded=0;" target="s-decision" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b7" edge="1" parent="1" source="s-decision" style="endArrow=block;html=1;rounded=0;" target="t-queue" value="Có">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b8" edge="1" parent="1" source="t-queue" style="endArrow=block;html=1;rounded=0;" target="st-feedback" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b9" edge="1" parent="1" source="s-decision" style="endArrow=block;html=1;rounded=0;" target="st-feedback" value="Không">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b10" edge="1" parent="1" source="st-feedback" style="endArrow=block;html=1;rounded=0;" target="s-practice" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b11" edge="1" parent="1" source="s-practice" style="endArrow=block;html=1;rounded=0;" target="st-practice" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b12" edge="1" parent="1" source="st-practice" style="endArrow=block;html=1;rounded=0;dashed=1;" target="s-practice" value="Chưa mastery">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1205" y="820" />
+              <mxPoint x="750" y="820" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
