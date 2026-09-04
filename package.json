@@ -1,0 +1,15 @@
+{
+  "name": "ai-assessment-and-feedback-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workspace root. JavaScript dependencies belong to services/fe, not here.",
+  "scripts": {
+    "fe:dev": "pnpm --filter fe dev",
+    "fe:build": "pnpm --filter fe build",
+    "fe:test": "pnpm --filter fe test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

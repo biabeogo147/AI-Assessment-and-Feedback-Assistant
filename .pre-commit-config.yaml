@@ -1,0 +1,45 @@
+# BE and AGENT share one conda environment, so nothing stops a cross import at
+# runtime. import-linter is the only remaining boundary mechanism, which is why
+# it runs here rather than on demand.
+#
+# Three deliberate choices:
+#
+# 1. `repo: local` with `language: system`. Pulling a hook repo would have
+#    pre-commit build an isolated virtualenv in which be, agent and contracts are
+#    not installed. grimp could then not build the import graph and the hook
+#    would fail on every commit for the wrong reason.
+#
+# 2. Absolute interpreter path. `python` alone resolves through PATH, which
+#    differs between an activated terminal, PyCharm's Git integration and a bare
+#    shell -- on this machine PATH python is a Microsoft Store stub. If the conda
+#    environment moves, change the three entry lines below.
+#
+# 3. Forward slashes. pre-commit splits `entry` with shlex, which treats a
+#    backslash as an escape character and silently collapses a Windows path into
+#    an unusable one.
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: D:/Anaconda/envs/AI-Assessment-and-Feedback-Assistant/python.exe -m ruff format
+        language: system
+        types_or: [python, pyi]
+
+      - id: ruff-check
+        name: ruff check
+        entry: D:/Anaconda/envs/AI-Assessment-and-Feedback-Assistant/python.exe -m ruff check --fix
+        language: system
+        types_or: [python, pyi]
+
+      # Must be the console script. `python -m importlinter.cli` exits 0 without
+      # checking anything, and `python -m importlinter` fails outright -- the
+      # package has no __main__. The first of those is a silent pass, so it would
+      # have disabled the only boundary check in the repository.
+      - id: lint-imports
+        name: service boundary (import-linter)
+        entry: D:/Anaconda/envs/AI-Assessment-and-Feedback-Assistant/Scripts/lint-imports.exe --config pyproject.toml
+        language: system
+        pass_filenames: false
+        always_run: true

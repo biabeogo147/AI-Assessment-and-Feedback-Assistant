@@ -1,0 +1,99 @@
+<mxfile host="app.diagrams.net" agent="Claude">
+  <diagram id="system-architecture" name="System Architecture">
+    <mxGraphModel dx="1409" dy="822" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;align=left;verticalAlign=middle;" value="Kiến trúc giai đoạn đầu Phase 2 — ba service chạy native, Redis chạy trong Docker" vertex="1">
+          <mxGeometry height="30" width="900" x="60" y="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="host-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=10;dashed=1;" value="Máy local — tiến trình native, không container hoá" vertex="1">
+          <mxGeometry height="215" width="1280" x="60" y="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;fontStyle=1;verticalAlign=top;spacingTop=8;" value="fe&#10;&#10;Vite + React, cổng 5173&#10;Không biết AGENT tồn tại" vertex="1">
+          <mxGeometry height="105" width="240" x="110" y="185" as="geometry" />
+        </mxCell>
+
+        <mxCell id="be" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;verticalAlign=top;spacingTop=8;" value="be&#10;&#10;FastAPI, cổng 8000&#10;Giữ mọi quyết định nghiệp vụ" vertex="1">
+          <mxGeometry height="105" width="240" x="480" y="185" as="geometry" />
+        </mxCell>
+
+        <mxCell id="agent" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f0ff;strokeColor=#7048e8;fontStyle=1;verticalAlign=top;spacingTop=8;" value="agent&#10;&#10;arq worker, không có cổng&#10;Chỉ phát bằng chứng" vertex="1">
+          <mxGeometry height="105" width="240" x="1050" y="185" as="geometry" />
+        </mxCell>
+
+        <mxCell id="docker-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#2f9e44;fontStyle=1;verticalAlign=top;spacingTop=10;dashed=1;" value="Docker — chỉ hạ tầng, không bind mount source" vertex="1">
+          <mxGeometry height="150" width="560" x="620" y="400" as="geometry" />
+        </mxCell>
+
+        <mxCell id="redis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=top;spacingTop=8;" value="redis&#10;&#10;Queue và result store của arq" vertex="1">
+          <mxGeometry height="80" width="460" x="670" y="450" as="geometry" />
+        </mxCell>
+
+        <mxCell id="contracts" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f3f5;strokeColor=#495057;fontStyle=1;verticalAlign=top;spacingTop=8;" value="packages/contracts&#10;&#10;Message, enum, hằng số tên task&#10;Chỉ có dữ liệu, không có logic" vertex="1">
+          <mxGeometry height="110" width="340" x="110" y="420" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-fe-be" parent="1" source="fe" target="be" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#1971c2;fontSize=12;" edge="1" value="HTTP /api, qua Vite proxy nên chỉ một origin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-be-redis" parent="1" source="be" target="redis" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#e67700;fontSize=12;startArrow=classic;startFill=1;" edge="1" value="1. enqueue GradingRequested&#10;4. đọc kết quả rồi áp ngưỡng">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-redis-agent" parent="1" source="redis" target="agent" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048e8;fontSize=12;startArrow=classic;startFill=1;" edge="1" value="2. worker nhận job&#10;3. trả GradingCompleted">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-contracts-be" parent="1" source="contracts" target="be" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#495057;endArrow=open;fontSize=11;" edge="1" value="import">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-contracts-agent" parent="1" source="contracts" target="agent" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#495057;endArrow=open;fontSize=11;" edge="1" value="import">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note-decision" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;fontSize=12;" value="Ranh giới quyền quyết định&#10;&#10;AGENT trả về bằng chứng: score, confidence, misconception_code, và hai cờ cho biết đáp án có mâu thuẫn với cách làm hay không và có đủ căn cứ hay không.&#10;&#10;BE, trong be/review_policy.py, mới so ngưỡng và sinh needs_teacher_review cùng review_reason. Nếu để AGENT tự quyết, cổng teacher-in-the-loop sẽ nằm bên trong AI service." vertex="1">
+          <mxGeometry height="150" width="620" x="620" y="590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note-fence" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff5f5;strokeColor=#e03131;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;fontSize=12;" value="Cơ chế giữ ranh giới&#10;&#10;BE và AGENT dùng chung một conda env, nên không có gì chặn import chéo lúc chạy.&#10;&#10;import-linter là cơ chế duy nhất còn lại, chạy tự động qua pre-commit. Cách duy nhất biết nó còn sống là thử phá: thêm import be vào agent, xác nhận check fail, rồi hoàn tác." vertex="1">
+          <mxGeometry height="150" width="440" x="110" y="590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#adb5bd;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=11;fontStyle=1;" value="Chú thích" vertex="1">
+          <mxGeometry height="120" width="330" x="1000" y="770" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-native" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;dashed=1;fontSize=10;" value="native" vertex="1">
+          <mxGeometry height="22" width="60" x="1012" y="796" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-docker" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;dashed=1;fontSize=10;" value="docker" vertex="1">
+          <mxGeometry height="22" width="60" x="1012" y="824" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-shared" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f1f3f5;strokeColor=#495057;fontSize=10;" value="shared" vertex="1">
+          <mxGeometry height="22" width="60" x="1012" y="852" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-native-t" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" value="Tiến trình chạy thẳng trên máy" vertex="1">
+          <mxGeometry height="22" width="240" x="1082" y="796" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-docker-t" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" value="Hạ tầng chạy trong container" vertex="1">
+          <mxGeometry height="22" width="240" x="1082" y="824" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-shared-t" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" value="Package dùng chung, chỉ chứa dữ liệu" vertex="1">
+          <mxGeometry height="22" width="240" x="1082" y="852" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

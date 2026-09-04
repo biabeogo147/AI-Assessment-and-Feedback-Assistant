@@ -1,0 +1,24 @@
+[build-system]
+# setuptools rather than hatchling: hatchling's PEP 660 editable install installs a
+# MetaPathFinder, and grimp (the engine behind import-linter) has a history of
+# failing to enumerate submodules in that case and silently reporting zero
+# violations. With import-linter as the only remaining boundary mechanism, a false
+# pass would be worse than no check at all.
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Distribution name is prefixed while the import package stays `contracts`.
+# A bare `contracts` name would collide with an existing PyPI project, so a
+# service declaring it as a dependency could pull a stranger's package from the
+# index instead of this one.
+name = "aiafa-contracts"
+version = "0.1.0"
+description = "Message contract shared by BE and AGENT. Data only, never logic."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

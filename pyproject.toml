@@ -1,0 +1,52 @@
+# Root configuration for Python tooling only.
+#
+# This file deliberately declares no [project] table: the repository root is not a
+# distributable package. Runtime dependencies belong to each service's own
+# pyproject.toml so that the declared boundary stays accurate even though BE and
+# AGENT currently share a single conda environment.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = [
+    "packages/contracts/src",
+    "services/be/src",
+    "services/agent/src",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+# importlib mode keeps same-named test modules in different services from
+# colliding, which the default prepend mode cannot do without __init__.py files.
+addopts = "-q --import-mode=importlib"
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = [
+    "packages/contracts/tests",
+    "services/be/tests",
+    "services/agent/tests",
+]
+
+# ---------------------------------------------------------------------------
+# Service boundary enforcement.
+#
+# BE and AGENT share one conda environment, so nothing stops a cross import at
+# runtime. These contracts are the only mechanism keeping the boundary alive,
+# which is why they run from a pre-commit hook rather than on demand.
+# ---------------------------------------------------------------------------
+
+[tool.importlinter]
+root_packages = ["be", "agent", "contracts"]
+
+[[tool.importlinter.contracts]]
+name = "BE and AGENT never import each other"
+type = "independence"
+modules = ["be", "agent"]
+
+[[tool.importlinter.contracts]]
+name = "contracts never depends on a service"
+type = "forbidden"
+source_modules = ["contracts"]
+forbidden_modules = ["be", "agent"]

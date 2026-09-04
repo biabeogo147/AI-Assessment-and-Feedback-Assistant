@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
-**pycache**/
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -38,6 +38,16 @@ logs/
 
 # Type checking / linting
 .pytype/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/
+
+# Node / pnpm / Vite
+node_modules/
+.pnpm-store/
+.vite/
+vite.config.ts.timestamp-*
+*.tsbuildinfo
 
 # Jupyter Notebook
 .ipynb_checkpoints/

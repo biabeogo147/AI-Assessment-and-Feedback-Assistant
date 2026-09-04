@@ -42,12 +42,14 @@ docs/
     project-overview.md
     business-workflows.md
     use-case-specification.md
+    architecture.md
 
   diagrams/
     use-case.drawio
     activity-overview.drawio
     business-workflows.drawio
     domain-context.drawio
+    system-architecture.drawio
 ```
 
 ## File Markdown
@@ -59,6 +61,7 @@ docs/
 | `docs/overview/project-overview.md` | Phase 1 | Tóm tắt project ở mức bức tranh toàn cảnh: vấn đề, mục tiêu, actor, phạm vi đầu tiên và những phần chưa làm. |
 | `docs/overview/business-workflows.md` | Phase 1 | Mô tả workflow nghiệp vụ tổng quan từ tạo đề, làm bài, chấm bài, teacher review đến luyện tập thích ứng. |
 | `docs/overview/use-case-specification.md` | Phase 1 | Mô tả Use Case Specification cho các use case chính ở mức nghiệp vụ, chưa đi vào API hay thiết kế hệ thống. |
+| `docs/overview/architecture.md` | Phase 2 | Mô tả kiến trúc kỹ thuật: các service, đường giao tiếp, ranh giới quyền quyết định, cơ chế giữ ranh giới và quy ước đặt tên service mới. |
 
 ## Diagram Draw.io
 
@@ -68,6 +71,7 @@ docs/
 | `docs/diagrams/activity-overview.drawio` | Phase 1 | Thể hiện activity flow end-to-end từ giáo viên tạo đề đến học sinh luyện tập thích ứng. | Bắt buộc |
 | `docs/diagrams/business-workflows.drawio` | Phase 1 | Thể hiện workflow theo swimlane giữa Teacher, Student và System/AI. | Nên có |
 | `docs/diagrams/domain-context.drawio` | Phase 1 | Thể hiện system/domain boundary, hệ thống trung tâm, Teacher, Student và các nhóm tương tác chính. | Nên có |
+| `docs/diagrams/system-architecture.drawio` | Phase 2 | Thể hiện ba service, ranh giới native và Docker, đường đi của job qua queue, và ranh giới quyền quyết định. | Bắt buộc |
 
 ## Vì sao chưa dùng các diagram khác?
 
@@ -110,17 +114,21 @@ Tạo:
 
 ### Phase 2 — Technical Foundation
 
-Chỉ bắt đầu sau khi Phase 1 đủ rõ.
+Đã bắt đầu. Phần đầu tiên là dựng khung monorepo cho ba service FE, BE và AGENT, xem plan `2026-09-05-monorepo-foundation-plan.md`.
 
-Có thể tạo sau:
+Đã tạo:
 
-- Architecture overview.
+- `docs/overview/architecture.md`
+- `docs/diagrams/system-architecture.drawio`
+
+Còn lại, tạo khi có nhu cầu thật chứ không tạo trước:
+
 - Data model hoặc schema.
 - API contract.
 - AI agent workflow chi tiết.
 - Evaluation strategy.
 
-Những file này chưa tạo trong Phase 1 để tránh tài liệu rỗng hoặc quyết định kỹ thuật quá sớm.
+Nguyên tắc giữ nguyên từ Phase 1: không tạo tài liệu rỗng và không chốt quyết định kỹ thuật trước khi có thứ để chốt. Quyết định kỹ thuật được ghi trong mục `## Decision Records` của plan tương ứng, không tách thành thư mục ADR riêng.
 
 ## Quy ước liên kết
 

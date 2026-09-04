@@ -1,0 +1,17 @@
+# Infrastructure only. FE, BE and AGENT run natively on the host.
+#
+# Nothing here bind-mounts the repository, so the NTFS-to-container filesystem
+# translation that would slow down source I/O never comes into play.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: aiafa-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
