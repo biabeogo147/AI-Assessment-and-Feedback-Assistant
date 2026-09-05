@@ -17,6 +17,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `services/fe` | User interface. Talks only to BE |
 | `packages/contracts` | Messages crossing the queue. Data only |
 | `tools/` | Repo-level checks no single service can make about itself |
+| `docs/local-development.md` | Running, demoing and troubleshooting locally |
 | `docs/overview/project-overview.md` | Problem, actors, scope, glossary |
 | `docs/overview/business-workflows.md` | The five business workflows |
 | `docs/overview/use-case-specification.md` | UC-01 to UC-06 |

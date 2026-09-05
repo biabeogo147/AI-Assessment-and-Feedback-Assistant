@@ -44,7 +44,16 @@ $Scripts = Split-Path $Python -Parent | Join-Path -ChildPath 'Scripts'
 function Invoke-Step {
     param([string]$Label, [scriptblock]$Body)
     Write-Host "==> $Label" -ForegroundColor Cyan
-    & $Body
+
+    # Windows PowerShell 5.1 wraps a native command's stderr in an ErrorRecord,
+    # and docker compose, pip and pnpm all write ordinary progress there. Under
+    # ErrorActionPreference = Stop that aborts a step which actually succeeded --
+    # `dev.ps1 infra-up` reported failure while Redis came up healthy. Exit code
+    # is the only reliable verdict for a native command, so judge by that.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Body } finally { $ErrorActionPreference = $previous }
+
     if ($LASTEXITCODE -ne 0) { Write-Error "$Label failed with exit code $LASTEXITCODE" }
 }
 

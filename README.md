@@ -2,35 +2,25 @@
 
 Hệ thống hỗ trợ giáo viên tạo đề, chấm bài, phân tích lỗi sai và tạo vòng luyện tập thích ứng cho học sinh.
 
-Bối cảnh nghiệp vụ: [Project Overview](docs/overview/project-overview.md).
-Kiến trúc kỹ thuật: [Architecture](docs/overview/architecture.md).
-Quy tắc cộng tác cho dev và coding agent: [AGENTS.md](AGENTS.md).
+| Tài liệu | Trả lời câu hỏi |
+| --- | --- |
+| [Local Development](docs/local-development.md) | Chạy, demo và chẩn đoán sự cố trên máy |
+| [Project Overview](docs/overview/project-overview.md) | Project giải quyết vấn đề gì, cho ai |
+| [Architecture](docs/overview/architecture.md) | Hệ thống được chia thế nào và vì sao |
+| [AGENTS.md](AGENTS.md) | Luật khi sửa bất cứ thứ gì trong repo |
 
-## Yêu cầu
+## Chạy nhanh
 
-- conda với một env Python 3.12. Mặc định script trỏ tới `D:\Anaconda\envs\AI-Assessment-and-Feedback-Assistant`; đặt biến `AIAFA_PYTHON` nếu env của bạn nằm chỗ khác.
-- Node 22 và pnpm.
-- Docker Desktop, chỉ dùng để chạy Redis.
-
-## Chạy lần đầu
-
-PowerShell chặn script chưa ký, nên phiên làm việc đầu tiên cần:
+Cần conda với env Python 3.12, Node 22 kèm pnpm, và Docker Desktop để chạy Redis.
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-
-Sau đó:
-
-```powershell
 copy .env.example .env
 .\dev.ps1 install
 .\dev.ps1 infra-up
 ```
 
-## Chạy hệ thống
-
-Ba service chạy native, mỗi cái một terminal:
+Rồi mở ba terminal:
 
 ```powershell
 .\dev.ps1 be       # http://localhost:8000
@@ -40,15 +30,7 @@ Ba service chạy native, mỗi cái một terminal:
 
 Mở `http://localhost:5173` và nộp thử một bài. Để trống phần giải thích để thấy trường hợp cần giáo viên xem lại.
 
-## Kiểm tra
-
-```powershell
-.\dev.ps1 test     # pytest và vitest
-.\dev.ps1 check    # ruff và hàng rào import
-.\dev.ps1 fmt      # format và autofix
-```
-
-`check` là thứ giữ ranh giới giữa BE và AGENT. Vì hai service dùng chung một conda env, không có gì chặn được import chéo lúc chạy — `import-linter` là cơ chế duy nhất, và nó cũng chạy tự động qua pre-commit.
+Nếu có bước nào không chạy như mô tả, [Local Development](docs/local-development.md) có mục chẩn đoán sự cố.
 
 ## Cấu trúc
 
@@ -58,6 +40,7 @@ Mở `http://localhost:5173` và nộp thử một bài. Để trống phần gi
 | `services/agent` | Worker chấm bài, chỉ phát bằng chứng, không quyết định gì |
 | `services/fe` | Vite + React, gọi BE qua proxy `/api` |
 | `packages/contracts` | Message contract dùng chung. Chỉ có dữ liệu, không có logic |
-| `docs/` | Tài liệu nghiệp vụ và kiến trúc |
+| `tools/` | Check ở tầng repo mà không service nào tự kiểm được cho mình |
+| `docs/` | Tài liệu nghiệp vụ, kiến trúc và vận hành |
 
-Quy ước đặt tên khi thêm service mới nằm trong [Architecture](docs/overview/architecture.md).
+Mỗi service có `AGENTS.md` riêng ghi ràng buộc cục bộ của nó.
