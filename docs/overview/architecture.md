@@ -80,6 +80,16 @@ Hai lưu ý khi sửa cấu hình này:
 
 Cách duy nhất biết hàng rào còn sống là thử phá nó: thêm `import be` vào `services/agent/src/agent/worker.py`, chạy `.\dev.ps1 check`, xác nhận nó fail, rồi hoàn tác.
 
+## Vì sao chưa có các diagram khác
+
+Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiến trúc. Ba loại còn lại chưa tạo, mỗi loại có một điều kiện rõ ràng để bắt đầu.
+
+**Sequence Diagram** sẽ cần khi luồng chấm có nhiều hơn một bước bất đồng bộ. Hiện chỉ có đúng một chặng qua queue, và mô tả bằng lời trong mục "Đường giao tiếp" đã đủ. Khi AGENT gọi LLM thật, luồng sẽ có thêm ít nhất một bước chờ và một nhánh lỗi — lúc đó sequence diagram bắt đầu nói được thứ mà lời văn không nói nổi.
+
+**Class Diagram hoặc ERD** sẽ cần khi có Postgres. Hiện chưa có bảng nào, nên vẽ ra chỉ khiến team hiểu nhầm rằng data model đã chốt. `domain-context.drawio` chỉ mô tả boundary và tương tác với Teacher, Student; nó không mô tả object nội bộ hay schema.
+
+**Deployment Diagram** sẽ cần khi ba service được container hoá. Hiện chúng chạy native trên một máy và `system-architecture.drawio` đã thể hiện đủ ranh giới giữa tiến trình native và container hạ tầng.
+
 ## Quy ước đặt tên service mới
 
 | Thứ | Quy tắc | Ví dụ |

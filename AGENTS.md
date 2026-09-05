@@ -2,151 +2,166 @@
 
 ## Purpose
 
-This file is the repository-wide operating contract for human developers and coding agents.
+Repository-wide operating contract. It holds the rules; `README.md` holds how to run the project and
+`docs/overview/architecture.md` holds why the system is shaped this way. Read this before changing
+anything tracked by git. A subdirectory `AGENTS.md` adds to this file and never contradicts it.
 
-It defines how work is planned, documented, implemented, validated, and completed so the repository stays understandable and does not accumulate duplicate documentation or noisy source code.
+## Repository Layout And Ownership
 
-These rules apply to the whole repository unless a more specific `AGENTS.md` exists in a subdirectory.
+Each topic has exactly one owning file. Update the owner instead of adding a parallel document.
+
+| Path | Owns |
+| --- | --- |
+| `services/be` | Business decisions, all databases, the only service the frontend calls |
+| `services/agent` | AI grading. Emits evidence, decides nothing |
+| `services/fe` | User interface. Talks only to BE |
+| `packages/contracts` | Messages crossing the queue. Data only |
+| `tools/` | Repo-level checks no single service can make about itself |
+| `docs/overview/project-overview.md` | Problem, actors, scope, glossary |
+| `docs/overview/business-workflows.md` | The five business workflows |
+| `docs/overview/use-case-specification.md` | UC-01 to UC-06 |
+| `docs/overview/architecture.md` | Services, communication, boundaries, service naming |
+| `docs/diagrams/*.drawio` | Every diagram, as source of truth |
+| `docs/plans/` | Plans and the decision records inside them |
+| `docs/raw-idea/` | Historical input only. Never cite as current truth |
+
+Reserved so nobody invents a second home for them: `docs/overview/grading-design.md` for prompts,
+model choice, the confidence formula and evaluation; `docs/overview/data-model.md` for schema.
+Neither exists yet. Create one when there is real content, never as an empty shell.
+
+## Invariants That Must Not Break
+
+This is an enforcement index, not an explanation. The reasoning lives in `architecture.md`.
+
+| Invariant | Caught by |
+| --- | --- |
+| BE and AGENT never import each other | automatic: `lint-imports`, also a pre-commit hook |
+| `contracts` never imports a service | automatic: `lint-imports` |
+| AGENT emits no routing decision | automatic: `test_agent_emits_no_routing_decision` |
+| Low confidence is flagged for Teacher review | automatic: `test_low_confidence_routes_to_teacher` |
+| A correct answer does not exempt a submission from review | automatic: `test_correct_answer_does_not_exempt_a_submission_from_review` |
+| `ReviewReason` covers all four Workflow 4 conditions | automatic: `test_review_reason_covers_all_four_workflow_4_conditions` |
+| AGENT holds no database credentials | automatic: `tools/check_contract.py` |
+| Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |
+| `contracts` holds no business logic | review: read the diff of `packages/contracts` |
+| FE never applies its own confidence threshold | review: `confidence` may be displayed, never compared |
+| No package named `common`, `utils` or `shared` | review: look at `packages/` |
+| Teacher approves an assessment before release | not yet enforced; needs a test when UC-02 is built |
+| A low-confidence result is not shown to the Student before a Teacher handles it | not yet enforced; needs a test when UC-05 is built |
+| Practice questions keep the same learning objective | not yet enforced; needs a test when UC-06 is built |
+
+Never let the unenforced group grow past three rows. When you implement one of those use cases, the
+plan for it must convert its row to an automatic check.
 
 ## Core Workflow
 
-Before making any repo-tracked change:
+1. Read the request and inspect the relevant files.
+2. Create a plan in `docs/plans/active/` unless the change is exempt.
+3. Implement it, updating the plan as tasks complete.
+4. Run the validation checks that match the change.
+5. Move the plan to `docs/plans/completed/` only after validation passes.
 
-1. Read the user request and inspect the relevant files.
-2. Create an active plan in `docs/plans/active/`.
-3. Implement the plan step by step.
-4. Update the active plan as each meaningful task is completed.
-5. Run the relevant validation checks.
-6. Move the plan to `docs/plans/completed/` only after validation passes.
-
-If the work is interrupted or validation does not pass, leave the plan in `docs/plans/active/` with accurate checkbox status and a short note describing what remains.
+If work is interrupted or validation fails, leave the plan in `active/` with honest checkbox status
+and a note describing what remains.
 
 ## Planning Requirements
 
-Every implementation plan must include:
+**A plan is required** when the change touches any of these: more than one directory under
+`services/` or `packages/`; any field or enum in `packages/contracts`; a new dependency, a new
+`.env.example` variable, or new infrastructure; `AGENTS.md`, `CLAUDE.md`, `dev.ps1`, or the
+`import-linter` and pre-commit configuration; an endpoint or a queue task name; behaviour in
+`be/review_policy.py` or any business threshold. A change that produces a decision record always
+needs a plan.
 
-- Goal.
-- Scope.
-- Files expected to be created or modified.
-- Ordered tasks with checkbox status.
-- Completion criteria.
-- Validation checks.
-- Current status.
+**Exempt**, with a clear commit message instead: typo and wording fixes in docs; ticking plan
+checkboxes; moving a plan to `completed/`; `ruff format` and autofix output; adding tests for
+behaviour that already exists; a bug fix contained in one file that changes no contract or endpoint.
 
-Plans must be created before implementation changes. Reading files, searching the repository, and running non-mutating inspection commands may happen before plan creation when they are needed to understand the task.
+One plan may span several commits. Each commit belonging to a plan carries a trailer
+`Plan: <plan-filename>.md` — the bare filename, not a path, because the plan moves from `active/` to
+`completed/` and a path would rot. This is what makes the rule greppable rather than a promise.
 
-Use `docs/plans/completed/` as the canonical completed-plan folder.
+Name plans `docs/plans/active/YYYY-MM-DD-<english-kebab-slug>-plan.md`. Every plan has `Goal`,
+`Files`, `Ordered Tasks` as checkboxes, `Validation Checks` and `Status`. Add `Scope` and
+`Completion Criteria` when the work is large enough to need them. A minimal plan is five sections and
+about twenty lines; the ceremony scales with the change, the plan file never disappears.
 
-## Decision Records Inside Plans
+### Decision Records
 
-For important design, documentation, code-boundary, testing, or workflow decisions, the plan must record:
-
-- options considered.
-- selected option.
-- reason for selecting it.
-
-Do not write decision records for purely mechanical edits such as fixing a typo, moving a completed plan, or updating a checkbox.
-
-Recommended format:
-
-```markdown
-### Decision: Short Decision Name
-
-options considered:
-
-- Option A: impact or tradeoff.
-- Option B: impact or tradeoff.
-
-selected option: Option A.
-
-reason: Explain why this option fits the repository better than the alternatives.
-```
+Any non-mechanical design, documentation, code-boundary, testing or workflow decision gets a record
+inside the plan under `## Decision Records`, as `### Decision: Name` followed by lowercase
+`options considered:`, `selected option:` and `reason:`. Copy the shape from any plan in
+`docs/plans/completed/`. "The user decided it" is not a reason — that says who chose, not why. Skip
+records for mechanical edits such as a typo, a moved plan, or a ticked checkbox.
 
 ## Documentation Rules
 
-Do not create a new Markdown file when an existing file already owns the same topic or boundary. Search the existing docs first.
+Search before creating: never add a Markdown file when an existing one already owns the topic.
+Changing source code means updating the document that owns the affected topic in the same change set.
+Never create empty files, files containing only headings, or architecture, API, schema and operations
+documents before there is real content for them.
 
-When changing source code, create or update the matching documentation in the same change set. Prefer updating the existing document that owns the topic instead of adding a parallel document.
+`.drawio` files are the source of truth for diagrams; Markdown links to them and explains them, and
+never becomes a second diagram source. Every overview document links the diagrams it discusses, every
+`.drawio` is referenced by at least one Markdown file, and changing a diagram means changing the
+prose that describes it in the same change set.
 
-Use `docs/` for project and product documentation. Use root `AGENTS.md` for repository workflow and collaboration rules.
-
-Draw.io `.drawio` files are the source of truth for diagrams. Markdown files should link to diagrams and explain their meaning; they should not become separate diagram sources.
-
-Do not create empty Markdown files or files that only contain headings.
+Documentation under `docs/` is Vietnamese with English technical and domain terms (`Assessment`,
+`Distractor`, `Confidence`, `Teacher Review Queue`, `Mastery`). `AGENTS.md`, `CLAUDE.md`, `README.md`
+and all source comments are English.
 
 ## Source Code Rules
 
-Keep changes scoped to the requested behavior and the files that own it.
-
-Follow existing project patterns before introducing new abstractions, libraries, folders, or naming conventions.
-
-Do not perform unrelated refactors, formatting churn, or broad cleanup while implementing a focused request.
-
-When adding or changing source code, keep the corresponding docs, diagrams, and tests aligned with the new behavior.
-
-Preserve user or teammate changes already present in the worktree. Do not revert unrelated changes unless explicitly asked.
+Keep changes scoped to the requested behaviour and the files that own it. Follow existing patterns
+before introducing new abstractions, libraries, folders or naming conventions. Do not perform
+unrelated refactors or formatting churn during a focused request, and preserve changes already in the
+worktree. Every service keeps its own `pyproject.toml` declaring its own dependencies even while
+services share an environment; naming rules for a new service live in `architecture.md`.
 
 ## Function Comment Standard
 
-Add a function comment for any new public/exported function, non-trivial function, business-logic function, side-effecting function, async workflow, or complex helper.
-
-Do not add noisy comments for obvious private helpers, simple callbacks, or self-explanatory one-line transformations.
-
-Function comments must cover the relevant parts of this contract:
-
-- Purpose: what the function does and why it exists.
-- Inputs: parameters, expected shape, and important constraints.
-- Outputs: return value, emitted value, or state change.
-- Side effects: file, network, database, UI, process, cache, or external-system changes.
-- Errors: expected failures, thrown exceptions, rejected promises, or recoverable error states.
-
-Use the native comment style of the language being edited, such as Python docstrings, TypeScript or JavaScript JSDoc, or Java/Kotlin documentation comments.
-
-Example:
-
-```python
-def build_feedback_summary(
-    submission_id: str,
-    feedback_items: list["FeedbackItem"],
-) -> str:
-    """
-    Build a normalized feedback summary for a submitted answer.
-
-    Args:
-        submission_id: Identifier of the submission.
-        feedback_items: Scored feedback fragments.
-
-    Returns:
-        A summary string suitable for student-facing feedback.
-
-    Raises:
-        ValueError: If submission_id is empty or feedback_items is missing.
-
-    Side effects:
-        None.
-    """
-    pass
-```
+Add a function comment for any new public, non-trivial, business-logic, side-effecting or async
+function, and for complex helpers; skip it for obvious private helpers and one-line transformations.
+Cover the relevant parts of purpose, inputs and their constraints, outputs, side effects and errors,
+in the language's native style — Python docstrings, JSDoc for TypeScript. `decide_review` in
+`services/be/src/be/review_policy.py` is the reference example.
 
 ## Validation Before Completion
 
-Before claiming work is complete:
+| Change | Run |
+| --- | --- |
+| Any Python file | `.\dev.ps1 test` and `.\dev.ps1 check` |
+| Any frontend file | `.\dev.ps1 test` and `.\dev.ps1 typecheck` |
+| `packages/contracts` | Both of the above; it affects BE and AGENT alike |
+| `import-linter`, pre-commit, or a build backend | The boundary probe below, in addition |
+| A `.drawio` file | Confirm it still parses as XML |
+| A Markdown file | Confirm it is non-empty and its internal links resolve |
 
-- Run the checks that match the change.
-- Verify every changed Markdown file is non-empty.
-- Verify new or changed links point to existing files.
-- Verify diagrams remain parseable when `.drawio` files are changed.
-- Verify required docs were updated when source code changed.
-- Record any check that could not be run and explain why.
+Record any check you could not run, and why. Never claim work is complete on an unrun check.
 
-Only move a plan from `docs/plans/active/` to `docs/plans/completed/` after the completion criteria and validation checks pass.
+**The boundary probe.** Add `import be` to `services/agent/src/agent/worker.py`, run `.\dev.ps1 check`,
+confirm it fails, then revert. Do this whenever the import-linter configuration, the pre-commit hooks
+or a build backend changes. The boundary has two known ways of dying silently: `python -m
+importlinter.cli` exits 0 without checking anything, and a PEP 660 editable install using a
+MetaPathFinder can leave `grimp` reporting zero violations. A check that cannot fail is not a check.
 
-## What Not To Do
+## Amending This Contract
 
-- Do not edit source code without checking whether documentation also needs an update.
-- Do not create duplicate docs for a topic already owned by an existing Markdown file.
-- Do not leave completed plans in `docs/plans/active/`.
-- Do not move incomplete plans to `docs/plans/completed/`.
-- Do not add comments that restate obvious code.
-- Do not introduce broad architecture, API, schema, deployment, or operations docs before the project phase requires them.
-- Do not hide unresolved work; keep the active plan honest.
+Changing this file always needs a plan and a decision record; it is never exempt. Changing a rule
+here means sweeping the four child `AGENTS.md` files and `CLAUDE.md` in the same change set, because
+a contradiction between them is worse than either version alone.
+
+Child files carry constraints only, never current state: "this module is currently a placeholder" is
+false within a week and turns a rules document into a liar. Each line must name a file, symbol or
+constraint existing only in that directory. `tools/check_contract.py` enforces the length caps that
+keep this honest.
+
+## Repo-Specific Traps
+
+- Do not create `docs/adr/`. Technical decisions live in the `## Decision Records` section of a plan.
+- Do not name a package `common`, `utils` or `shared`. A meaningless name absorbs everything.
+- Do not edit plans in `docs/plans/completed/`. They are closed records.
+- Do not invoke `python -m importlinter.cli`. Use the `lint-imports` console script.
+- Do not use backslashes in a pre-commit `entry`; it splits with shlex and eats them.
+- Do not point `REDIS_URL` at `localhost`; it resolves to `::1` first here and the connection hangs.
+- Do not hide unresolved work. Keep the active plan honest.

@@ -27,8 +27,6 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     agent_queue_name: str = "aiafa:grading"
     job_result_ttl_seconds: int = 3600
-    be_host: str = "127.0.0.1"
-    be_port: int = 8000
     review_confidence_threshold: float = 0.7
 
 

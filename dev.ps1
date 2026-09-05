@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'be', 'agent', 'fe', 'test', 'check', 'fmt', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'be', 'agent', 'fe', 'test', 'check', 'typecheck', 'fmt', 'help')]
     [string]$Task = 'help'
 )
 
@@ -86,9 +86,16 @@ switch ($Task) {
         Invoke-Step 'vitest' { pnpm --filter fe test }
     }
 
+    'typecheck' {
+        # tsc is otherwise only reachable through `fe build`, which also bundles.
+        Invoke-Step 'tsc' { pnpm --filter fe exec tsc --noEmit }
+    }
+
     'check' {
         Invoke-Step 'ruff' { & $Python -m ruff check $RepoRoot }
         Invoke-Step 'lint-imports' { & "$Scripts\lint-imports.exe" --config "$RepoRoot\pyproject.toml" }
+        # Repo-level invariants no single service can check about itself.
+        Invoke-Step 'repo contracts' { & $Python "$RepoRoot\tools\check_contract.py" }
     }
 
     'fmt' {
@@ -107,7 +114,8 @@ Usage: .\dev.ps1 <task>
   agent        Run the AGENT worker
   fe           Run the FE dev server on http://localhost:5173
   test         Run pytest and vitest
-  check        Run ruff and the import boundary check
+  typecheck    Run tsc over the frontend without building
+  check        Run ruff, the import boundary check and the repo contract checks
   fmt          Format and autofix
 
 First run in a session may need:
