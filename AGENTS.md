@@ -12,7 +12,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 
 | Path | Owns |
 | --- | --- |
-| `services/be` | Business decisions, all databases, the only service the frontend calls |
+| `services/be` | Enforces business rules at runtime, all databases, the only service FE calls |
 | `services/agent` | AI grading. Emits evidence, decides nothing |
 | `services/fe` | User interface. Talks only to BE |
 | `packages/contracts` | Messages crossing the queue. Data only |
@@ -23,12 +23,12 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `docs/overview/use-case-specification.md` | UC-01 to UC-06 |
 | `docs/overview/architecture.md` | Services, communication, boundaries, service naming |
 | `docs/diagrams/*.drawio` | Every diagram, as source of truth |
-| `docs/plans/` | Plans and the decision records inside them |
+| `docs/decisions/` | Records business rules. They outlive every plan |
+| `docs/plans/` | Plans, their technical decision records, and `backlog.md` for deferred work |
 | `docs/raw-idea/` | Historical input only. Never cite as current truth |
 
-Reserved so nobody invents a second home for them: `docs/overview/grading-design.md` for prompts,
-model choice, the confidence formula and evaluation; `docs/overview/data-model.md` for schema.
-Neither exists yet. Create one when there is real content, never as an empty shell.
+Reserved so nobody invents a second home: `docs/overview/grading-design.md` for prompts, model
+choice, the confidence formula, evaluation; `docs/overview/data-model.md` for schema. Neither exists yet.
 
 ## Invariants That Must Not Break
 
@@ -62,8 +62,7 @@ plan for it must convert its row to an automatic check.
 4. Run the validation checks that match the change.
 5. Move the plan to `docs/plans/completed/` only after validation passes.
 
-If work is interrupted or validation fails, leave the plan in `active/` with honest checkbox status
-and a note describing what remains.
+If interrupted or validation fails, leave the plan in `active/` with honest checkboxes and a note.
 
 ## Planning Requirements
 
@@ -89,11 +88,14 @@ about twenty lines; the ceremony scales with the change, the plan file never dis
 
 ### Decision Records
 
-Any non-mechanical design, documentation, code-boundary, testing or workflow decision gets a record
-inside the plan under `## Decision Records`, as `### Decision: Name` followed by lowercase
-`options considered:`, `selected option:` and `reason:`. Copy the shape from any plan in
-`docs/plans/completed/`. "The user decided it" is not a reason — that says who chose, not why. Skip
-records for mechanical edits such as a typo, a moved plan, or a ticked checkbox.
+Two kinds, two homes. A **technical or process** decision stays in its plan under
+`## Decision Records`, as `### Decision: Name` with lowercase `options considered:`,
+`selected option:` and `reason:`. A **business** decision — how the product behaves, who may do
+what, what cannot be undone — goes to `docs/decisions/adr-NN-topic.md`, because it outlives the
+change that produced it while a plan ends up in `completed/`, which nobody may edit. Follow
+`adr-00-template.md` and fill its last section: a rule with no named place of enforcement is an
+idea, not a decision. "The user decided it" is not a reason — it says who chose, not why. Skip
+records for mechanical edits: a typo, a moved plan, a ticked checkbox.
 
 ## Documentation Rules
 
@@ -159,7 +161,7 @@ keep this honest.
 
 ## Repo-Specific Traps
 
-- Do not create `docs/adr/`. Technical decisions live in the `## Decision Records` section of a plan.
+- Do not create `docs/adr/`; business decisions live in `docs/decisions/`, technical ones in a plan.
 - Do not name a package `common`, `utils` or `shared`. A meaningless name absorbs everything.
 - Do not edit plans in `docs/plans/completed/`. They are closed records.
 - Do not invoke `python -m importlinter.cli`. Use the `lint-imports` console script.

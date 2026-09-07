@@ -2,7 +2,7 @@
 
 ## Mục đích tài liệu
 
-Tài liệu này mô tả các use case nghiệp vụ chính của project **AI Assessment and Feedback Assistant** trong giai đoạn đầu.
+Tài liệu này mô tả các use case nghiệp vụ chính của project **Kriky** trong giai đoạn đầu.
 
 Nội dung tập trung vào actor nghiệp vụ, mục tiêu, điều kiện trước, luồng chính và ngoại lệ. Tài liệu này chưa mô tả API, database schema, service boundary hoặc AI agent internals.
 
@@ -94,7 +94,7 @@ Teacher
 2. Teacher xem đáp án đúng, lời giải và phương án sai.
 3. Teacher chỉnh sửa câu hỏi, đáp án, lời giải hoặc metadata nếu cần.
 4. Teacher duyệt đề.
-5. Hệ thống phát hành đề cho Student.
+5. Teacher phát hành đề cho Student, kèm lớp và ba mốc thời gian. Xem ADR-02.
 
 ### Quan hệ diagram
 
@@ -249,7 +249,7 @@ Student chỉ nhận thêm câu luyện tập khi chưa đạt ngưỡng mastery
 
 ## Nguyên tắc nghiệp vụ chung
 
-- Hệ thống không tự phát hành đề nếu Teacher chưa duyệt.
+- Hệ thống không bao giờ tự phát hành đề. Chỉ Teacher phát hành. Xem ADR-02.
 - Confidence thấp cần Teacher review.
 - Distractor nên có ý nghĩa chẩn đoán lỗi.
 - Bài khó hoặc nhiều bước nên yêu cầu Student giải thích cách làm.

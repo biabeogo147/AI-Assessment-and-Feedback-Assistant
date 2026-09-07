@@ -2,7 +2,7 @@
 
 ## Mục đích tài liệu
 
-Tài liệu này cung cấp bức tranh toàn cảnh về project **AI Assessment and Feedback Assistant** cho cả thành viên tech và non-tech.
+Tài liệu này cung cấp bức tranh toàn cảnh về project **Kriky** cho cả thành viên tech và non-tech.
 
 Nó tập trung vào nghiệp vụ, actor, mục tiêu sản phẩm và phạm vi phát triển đầu tiên. Tài liệu này không mô tả kiến trúc hệ thống, AI agent internals, API hoặc database schema.
 
@@ -33,7 +33,7 @@ Học sinh luyện tập tiếp
 Dừng khi đạt ngưỡng thành thạo
 ```
 
-Trong vòng này, giáo viên vẫn giữ quyền kiểm soát ở các điểm quan trọng như duyệt đề trước khi phát hành và xử lý kết quả chấm có độ tin cậy thấp.
+Trong vòng này, giáo viên giữ quyền kiểm soát ở ba điểm: duyệt đề trước khi phát hành, xử lý kết quả chấm có độ tin cậy thấp, và trả lời khi agent chưa đủ thông tin để làm.
 
 ## Vấn đề cần giải quyết
 
@@ -67,6 +67,7 @@ Teacher có thể:
 - Nhập yêu cầu tạo đề.
 - Xem và chỉnh sửa đề do AI tạo.
 - Duyệt đề trước khi phát hành.
+- Phát hành đề cho một hoặc nhiều lớp. Đây là thẩm quyền riêng của Teacher; hệ thống không làm thay.
 - Xem kết quả làm bài của học sinh.
 - Xử lý bài chấm có confidence thấp.
 - Xác nhận hoặc chỉnh sửa điểm, lỗi sai và nhận xét.
@@ -132,14 +133,25 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 - `Confidence`: mức độ hệ thống tin vào kết quả đánh giá.
 - `Teacher Review Queue`: nơi đưa các kết quả cần giáo viên xem xét.
 - `Mastery`: mức độ thành thạo của học sinh với một mục tiêu học tập hoặc kỹ năng.
+- `Class`: lớp học có sẵn danh sách học sinh. Giáo viên tạo lớp; tài khoản học sinh được sinh
+  hàng loạt từ file CSV danh sách lớp, khoá theo mã học sinh. Phát hành đề phải chọn lớp đã tạo
+  từ trước. Xem ADR-13.
+- `Question Bank`: kho câu hỏi đã dùng qua, một trong hai nguồn câu hỏi của một đề.
+- `Document`: tài liệu PDF của giáo viên, nằm trong kho lưu trữ riêng của từng tài khoản. Nhiều
+  đoạn chat cùng tham chiếu được một tài liệu. Cung cấp kiến thức và giới hạn phạm vi ra đề,
+  không chứa câu hỏi.
+- `Scope`: phạm vi ra đề, tới cấp chương và khoảng trang trong một `Document`.
 
 ## Nguyên tắc teacher-in-the-loop
 
 Teacher-in-the-loop không có nghĩa là giáo viên phải duyệt mọi hành động của AI.
 
-Trong giai đoạn đầu, giáo viên bắt buộc tham gia ở hai điểm:
+Trong giai đoạn đầu, giáo viên bắt buộc tham gia ở ba điểm — hai ở đầu ra, một ở đầu vào:
 
 - Duyệt đề trước khi phát hành cho học sinh.
 - Xử lý kết quả chấm có confidence thấp hoặc có dấu hiệu bất thường.
+- Trả lời khi agent chưa đủ thông tin để làm, thay vì để agent tự đoán.
+
+Chi tiết và ranh giới của từng cổng: [ADR-05](../decisions/adr-05-ba-cong-teacher-in-the-loop.md).
 
 Các bước còn lại có thể được hệ thống hỗ trợ tự động, nhưng vẫn cần minh bạch để giáo viên hiểu lý do hệ thống đưa ra đề xuất.

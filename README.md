@@ -1,4 +1,4 @@
-# AI Assessment and Feedback Assistant
+# Kriky
 
 Hệ thống hỗ trợ giáo viên tạo đề, chấm bài, phân tích lỗi sai và tạo vòng luyện tập thích ứng cho học sinh.
 
@@ -7,6 +7,7 @@ Hệ thống hỗ trợ giáo viên tạo đề, chấm bài, phân tích lỗi 
 | [Local Development](docs/local-development.md) | Chạy, demo và chẩn đoán sự cố trên máy |
 | [Project Overview](docs/overview/project-overview.md) | Project giải quyết vấn đề gì, cho ai |
 | [Architecture](docs/overview/architecture.md) | Hệ thống được chia thế nào và vì sao |
+| [Decisions](docs/decisions/README.md) | Quyết định nghiệp vụ: cái gì không đảo ngược được, ai được làm gì |
 | [AGENTS.md](AGENTS.md) | Luật khi sửa bất cứ thứ gì trong repo |
 
 ## Chạy nhanh
@@ -44,3 +45,10 @@ Nếu có bước nào không chạy như mô tả, [Local Development](docs/loc
 | `docs/` | Tài liệu nghiệp vụ, kiến trúc và vận hành |
 
 Mỗi service có `AGENTS.md` riêng ghi ràng buộc cục bộ của nó.
+
+## Về cái tên
+
+Sản phẩm tên **Kriky**. Nhưng thư mục repo, conda env, container Redis, tên queue và distribution
+name vẫn mang tiền tố cũ `aiafa` / `AI-Assessment-and-Feedback-Assistant`. Đó là **có chủ ý, không
+phải sót**: chúng là định danh máy đang chạy thật, đổi tên là phải cài lại env, dựng lại container và
+đồng bộ lại `.env`. Tên hiển thị đổi được rẻ, định danh máy thì không.

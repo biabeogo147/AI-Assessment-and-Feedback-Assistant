@@ -51,7 +51,7 @@
         <mxCell id="t-review" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1971c2;" value="Review, chỉnh sửa và duyệt đề" vertex="1">
           <mxGeometry height="70" width="250" x="140" y="240" as="geometry" />
         </mxCell>
-        <mxCell id="s-publish" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#e67700;" value="Phát hành assessment" vertex="1">
+        <mxCell id="t-publish" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1971c2;" value="Teacher phát hành assessment" vertex="1">
           <mxGeometry height="60" width="250" x="625" y="250" as="geometry" />
         </mxCell>
         <mxCell id="st-submit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2b8a3e;" value="Làm bài, chọn đáp án và giải thích nếu cần" vertex="1">
@@ -72,10 +72,10 @@
         <mxCell id="b2" edge="1" parent="1" source="s-draft" style="endArrow=block;html=1;rounded=0;" target="t-review" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="b3" edge="1" parent="1" source="t-review" style="endArrow=block;html=1;rounded=0;" target="s-publish" value="">
+        <mxCell id="b3" edge="1" parent="1" source="t-review" style="endArrow=block;html=1;rounded=0;" target="t-publish" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="b4" edge="1" parent="1" source="s-publish" style="endArrow=block;html=1;rounded=0;" target="st-submit" value="">
+        <mxCell id="b4" edge="1" parent="1" source="t-publish" style="endArrow=block;html=1;rounded=0;" target="st-submit" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="b5" edge="1" parent="1" source="st-submit" style="endArrow=block;html=1;rounded=0;" target="s-grade" value="">

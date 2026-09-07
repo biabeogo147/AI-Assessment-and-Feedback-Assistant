@@ -2,7 +2,7 @@
 
 ## Mục đích tài liệu
 
-Tài liệu này mô tả các workflow nghiệp vụ tổng quan của project **AI Assessment and Feedback Assistant**.
+Tài liệu này mô tả các workflow nghiệp vụ tổng quan của project **Kriky**.
 
 Tài liệu dành cho cả product, giáo viên, BA, engineer và QA. Nội dung tập trung vào luồng nghiệp vụ, chưa mô tả kiến trúc triển khai, API hoặc AI agent internals. Trong workflow, `System/AI` là lane xử lý bên trong hệ thống, không phải actor nghiệp vụ trong Use Case Diagram.
 
@@ -54,7 +54,7 @@ Giúp giáo viên tạo được đề kiểm tra phù hợp với mục tiêu h
 5. Teacher xem đề nháp.
 6. Teacher chỉnh sửa thủ công hoặc yêu cầu System/AI tạo lại một phần.
 7. Teacher duyệt đề.
-8. Hệ thống phát hành đề cho Student.
+8. Teacher phát hành đề cho Student, kèm lớp và ba mốc thời gian. Xem ADR-02.
 
 ### Điểm kiểm soát của Teacher
 
