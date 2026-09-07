@@ -61,7 +61,6 @@ export async function submitAnswer(input: SubmissionInput): Promise<string> {
       assessment_id: "asm-demo",
       question_id: "q-1",
       student_id: "stu-demo",
-      assessment_type: "routine",
       selected_option_id: input.selectedOptionId,
       student_explanation: input.explanation.length > 0 ? input.explanation : null,
       learning_objective: "fraction-addition",

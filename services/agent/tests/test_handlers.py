@@ -8,7 +8,7 @@ tested explicitly: AGENT must never emit a routing decision.
 import pytest
 
 from agent.handlers import grade, grade_submission
-from contracts import AssessmentType, GradingRequested
+from contracts import GradingRequested
 
 
 def _request(**overrides) -> GradingRequested:
@@ -17,7 +17,6 @@ def _request(**overrides) -> GradingRequested:
         "assessment_id": "asm-1",
         "question_id": "q-1",
         "student_id": "stu-1",
-        "assessment_type": AssessmentType.ROUTINE,
         "selected_option_id": "opt-a",
         "student_explanation": "Em quy dong mau so roi cong tu so.",
         "learning_objective": "fraction-addition",

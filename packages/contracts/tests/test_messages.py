@@ -8,7 +8,6 @@ import pytest
 from pydantic import ValidationError
 
 from contracts import (
-    AssessmentType,
     GradingCompleted,
     GradingRequested,
     ReviewReason,
@@ -21,7 +20,6 @@ def _requested(**overrides) -> GradingRequested:
         "assessment_id": "asm-1",
         "question_id": "q-1",
         "student_id": "stu-1",
-        "assessment_type": AssessmentType.ROUTINE,
         "selected_option_id": "opt-b",
         "learning_objective": "fraction-addition",
     }

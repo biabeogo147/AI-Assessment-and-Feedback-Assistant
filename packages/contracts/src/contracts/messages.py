@@ -7,8 +7,6 @@ shared behaviour that neither service owns.
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from contracts.enums import AssessmentType
-
 SCHEMA_VERSION = 1
 
 # The arq task name. It lives here so BE can enqueue work by string and never
@@ -35,7 +33,6 @@ class GradingRequested(BaseModel):
     assessment_id: str
     question_id: str
     student_id: str
-    assessment_type: AssessmentType
     selected_option_id: str
     student_explanation: str | None = None
     learning_objective: str

@@ -7,17 +7,6 @@ code and the business documentation stay readable against each other.
 from enum import StrEnum
 
 
-class AssessmentType(StrEnum):
-    """Kind of assessment a submission belongs to.
-
-    business-workflows.md distinguishes routine practice from high-stakes work,
-    because the two justify different amounts of Teacher involvement.
-    """
-
-    ROUTINE = "routine"
-    HIGH_STAKES = "high_stakes"
-
-
 class ReviewReason(StrEnum):
     """Why a graded submission was routed into the Teacher Review Queue.
 

@@ -121,7 +121,7 @@ Chấm bài chạy bất đồng bộ nên có hai bước: nộp rồi hỏi k�
 ```powershell
 curl -X POST http://localhost:8000/api/submissions `
   -H "Content-Type: application/json" `
-  -d '{\"submission_id\":\"sub-1\",\"assessment_id\":\"asm-1\",\"question_id\":\"q-1\",\"student_id\":\"stu-1\",\"assessment_type\":\"routine\",\"selected_option_id\":\"opt-a\",\"student_explanation\":null,\"learning_objective\":\"fraction-addition\"}'
+  -d '{\"submission_id\":\"sub-1\",\"assessment_id\":\"asm-1\",\"question_id\":\"q-1\",\"student_id\":\"stu-1\",\"selected_option_id\":\"opt-a\",\"student_explanation\":null,\"learning_objective\":\"fraction-addition\"}'
 ```
 
 Lệnh trên trả về `job_id`. Dùng nó để hỏi kết quả:
