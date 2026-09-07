@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="domain-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=14;" value="AI Assessment and Feedback Assistant Boundary" vertex="1">
+        <mxCell id="domain-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=14;" value="Kriky Boundary" vertex="1">
           <mxGeometry height="500" width="760" x="310" y="120" as="geometry" />
         </mxCell>
         <mxCell id="system" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;fontSize=16;" value="Hệ thống hỗ trợ đánh giá và phản hồi học tập" vertex="1">
