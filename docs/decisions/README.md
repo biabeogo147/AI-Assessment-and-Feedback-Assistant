@@ -39,9 +39,14 @@ Phần lớn luật ở đây hiện chỉ được thi hành trong **file thi�
 <https://www.figma.com/design/mOe2ZmrqOq1Uix45v6PNGD>
 
 Trang `Screen — Chat` chứa mười một artboard: tám artboard theo luồng chat từ lúc mở tới lúc phát
-hành xong, và ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra). Trang
-`Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp vụ
-được ghi lần đầu**. Khi một ADR trỏ tới một node id, node đó nằm trong file này.
+hành xong, và ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra).
+
+Trang `Screen — Student` chứa bảy artboard của bề mặt học sinh: danh sách bài, làm bài, **hai
+artboard riêng** cho hai hình dạng dữ liệu của màn kết quả, chữa bài, cổng bắt đầu lượt, và làm câu
+biến thể. Tất cả chạy Density mode `Student` và không có rail.
+
+Trang `Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp
+vụ được ghi lần đầu**. Khi một ADR trỏ tới một node id, node đó nằm trong file này.
 
 ## Còn thiếu
 
@@ -50,8 +55,6 @@ hạn giữ kết quả một giờ — nay đã có ADR-07 và ADR-09.
 
 Còn lại, và cố ý chưa viết:
 
-- **Màn hình học sinh** — ba màn (danh sách bài, làm bài, chữa bài). Luật đã có: ADR-14 tới ADR-19 ghi
-  trọn mô hình hai pha. Cái còn thiếu là **thiết kế**, và nó chờ đợt sau.
 - **Bốn luật của mô hình hai pha chưa ai quyết**, và cả bốn đang nằm ở `docs/plans/backlog.md`: câu
   luyện tập có qua cổng duyệt không; `confidence` đo cái gì khi phần chấm đã xác định; mức điểm 0,5
   hiện bằng màu nào (ADR-12 mới khoá hai trạng thái đáp án); và vòng đếm cùng đồng hồ ứng xử ra sao

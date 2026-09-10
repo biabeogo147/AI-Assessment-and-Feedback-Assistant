@@ -286,3 +286,36 @@ câu cũ: trước đây thẻ nói không bao giờ thu hồi được, giờ n
 
 Cái giá của việc sửa: thêm một trục vào một set đã có tám variant. Đó là lý do hoãn, không phải vì nó
 không quan trọng.
+
+## Bề mặt học sinh — đã dựng, chưa chạy
+
+Bảy artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
+Không con số nào trên chúng là dữ liệu thật, và không nên đọc chúng như bằng chứng rằng dữ liệu đã có.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Toàn bộ pha 2 chạy được | **Bị chặn bởi ADR-09** — đã ghi ở mục *Luồng học sinh* |
+| Dữ liệu cho câu *lý do được 0,5* | Không bị chặn. Cần một trường mới trong contract |
+| Màn đăng nhập, và chỗ bắt đổi mật khẩu lần đầu | Không bị chặn. Quyết định phạm vi — lỗ ADR-13 **vẫn nguyên** |
+| Học sinh trên điện thoại | Không bị chặn. Quyết định phạm vi |
+
+Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: bảy màn mới đều mang khối
+danh tính và nút Đăng xuất trên `Student top bar`, nhưng điều đó **không lấp** được lỗ
+[ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md): mật khẩu ban đầu vẫn đi trên giấy in và
+vẫn không có chỗ nào bắt học sinh đổi nó.
+
+### Hai cửa một chiều của học sinh chưa có cổng
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Hộp xác nhận khi **bắt đầu làm bài** | Không bị chặn. Chưa dựng |
+| Hộp xác nhận khi **nộp bài** | Không bị chặn. Chưa dựng |
+
+Học sinh có **ba** cửa một chiều: bắt đầu làm bài (đồng hồ chạy và không ai dừng được), nộp bài
+([ADR-14](../decisions/adr-14-hai-pha-lam-bai.md): nộp kết thúc pha 1), và bắt đầu một lượt chữa. Chỉ
+cửa thứ ba có cổng — `Round gate`, đặt trên artboard 17. Hai cửa kia hiện là nút trơn.
+
+Cửa **nộp bài** đáng có cổng nhất trong hai cái còn lại, vì dải nhảy câu đã đếm sẵn con số mà hộp xác
+nhận cần đọc lại: *"còn 3 câu chưa trả lời"*. Đó là cùng nguyên tắc
+[ADR-02](../decisions/adr-02-phat-hanh-va-cua-so-thu-hoi.md) dùng cho hộp xác nhận phát hành — đọc lại
+giá trị thật thay vì một con số ghi cứng.

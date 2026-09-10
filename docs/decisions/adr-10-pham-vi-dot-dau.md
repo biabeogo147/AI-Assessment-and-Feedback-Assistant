@@ -13,17 +13,17 @@ Không tài liệu nào nói ra ranh giới này, nên người đọc `docs/ove
 
 ## Quyết định
 
-- Đợt đầu **chỉ thiết kế cho giáo viên**. Mọi màn hình học sinh nằm ngoài phạm vi thiết kế. Bề mặt
-  học sinh duy nhất đang tồn tại là màn hình demo `services/fe/src/App.tsx`, cố ý không phải trải
-  nghiệm thật.
+- Đợt đầu **chỉ thiết kế cho giáo viên**. Luật này **hết hiệu lực từ 2026-09-10**: năm artboard học
+  sinh đã được dựng trên trang `Screen — Student`. Màn hình demo `services/fe/src/App.tsx` vẫn cố ý
+  không phải trải nghiệm thật và vẫn đang vi phạm ADR-08 và ADR-09.
 - Sản phẩm là **web dùng trên desktop**. Không thiết kế cho mobile.
 - **Chat là dòng lệnh**, không phải nơi chứa vật thể quan trọng. Vật thể có hệ quả — đề kiểm tra, cài
   đặt phát hành — sống trong **panel bên phải**.
 - **Luật *chat là dòng lệnh* chỉ áp cho bề mặt giáo viên.** Ở pha 2
   ([ADR-14](adr-14-hai-pha-lam-bai.md)), cuộc hội thoại giữa Kriky và học sinh **chính là nội dung
-  học** — nó là thứ có giá trị nhất trên màn hình, không phải một dòng lệnh trôi qua. Bề mặt học sinh
-  chưa được thiết kế, nên ADR này **không** nói trước bố cục của nó; nó chỉ chặn việc thừa kế nhầm
-  một lý lẽ.
+  học** — nó là thứ có giá trị nhất trên màn hình, không phải một dòng lệnh trôi qua. Luật *bố cục*
+  thì vẫn chuyển sang được, và bảy artboard học sinh đã dựng theo nó: vật phải làm nằm ở panel phải,
+  cuộc hội thoại ở cột trái.
 - Nút Phát hành **không bao giờ** xuất hiện trong luồng chat. Luật này thuộc
   [ADR-05](adr-05-ba-cong-teacher-in-the-loop.md); nhắc lại đây vì nó là hệ quả trực tiếp của việc
   chat là dòng lệnh.
@@ -56,8 +56,17 @@ không thu hồi được nằm cạnh những dòng chữ trôi qua.
 
 ## Nơi luật này đang được thi hành
 
-- Figma `mOe2ZmrqOq1Uix45v6PNGD`, trang `Screen — Chat` — mười một artboard, tất cả **1440×900**, tất cả chạy Density mode
-  `Teacher`, và không artboard nào có bề mặt học sinh.
+- Figma `mOe2ZmrqOq1Uix45v6PNGD`, trang `Screen — Chat` — mười một artboard, tất cả **1440×900**, tất
+  cả chạy Density mode `Teacher`, và không artboard nào có bề mặt học sinh. Câu này còn đúng vì bề
+  mặt học sinh nằm ở **trang riêng**.
+- Figma trang `Screen — Student` — **bảy** artboard, tất cả **1440×900**, tất cả chạy Density mode
+  `Student`, và **không artboard nào có rail**. Học sinh chỉ có hai nơi để đi, nên một bộ điều hướng
+  năm điểm đến là bắt em học một thứ để dùng nó hai lần.
+- Luật *chat là dòng lệnh* được kiểm lại từng component trước khi dùng lại, đúng như mục *Quyết định*
+  đòi. Một luật **không** chuyển sang được: mô tả `Thinking` (`83:76`) ghi *cổng duyệt phải mở lại
+  được khối này*, mà học sinh không có cổng duyệt nào. Vì thế cổng *Làm bài mới* dùng component
+  `Round gate` riêng chứ không mượn `Consequence dialog` (`11:41`) — mô tả hộp đó tự khai nó là **một
+  trong hai cổng teacher-in-the-loop**, nên thêm variant học sinh vào nó làm ADR-05 đếm sai ba cổng.
 - Figma `Publish settings` (`67:41`) và `Consequence dialog` (`11:41`) — nút phát hành chỉ tồn tại ở
   hai chỗ này, không ở `Action result card` nào trong luồng chat.
 - `AGENTS.md` bảng Invariants — hai trong ba dòng ở nhóm **chưa enforce** (low-confidence với học sinh,

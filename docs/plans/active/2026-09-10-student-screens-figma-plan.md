@@ -100,25 +100,26 @@ rõ trong mô tả component rằng dữ liệu chưa tồn tại. Im lặng là
 | --- | --- |
 | Trang `Screen — Student` | tạo mới |
 | Tám component mới | tạo trên trang `Components` |
-| `Consequence dialog`, `Empty state`, `Error state`, `Button` | thêm variant giọng học sinh |
-| Bốn artboard `12` … `15` | tạo mới, 1440×900, Density **Student**, không rail |
+| `Round gate` — component **mới** | cổng *Làm bài mới*; không mượn `Consequence dialog` |
+| Năm artboard `12` … `16` | tạo mới, 1440×900, Density **Student**, không rail |
 | `docs/decisions/adr-10` | mở rộng *chỉ giáo viên*; cập nhật *Nơi thi hành* |
 | `docs/decisions/README.md` | mục *Nguồn thiết kế*: số artboard và tên trang |
 | `docs/plans/backlog.md` | xác nhận lỗ đăng nhập còn nguyên; lý do 0,5 chưa có dữ liệu |
 
 ## Ordered Tasks
 
-- [ ] **Kiểm sáu component dùng lại ở Density `Student` trước khi dựng gì.** Đổi mode làm `type/body`
+- [x] **Kiểm sáu component dùng lại ở Density `Student` trước khi dựng gì.** Đổi mode làm `type/body`
       14→16 và `card-padding` 16→24; component nào có chiều cao cố định sẽ tràn chữ.
-- [ ] **Đọc lại mô tả từng component dùng lại và kiểm *luật*, không chỉ kiểm hình học.** ADR-10 đòi
+- [x] **Đọc lại mô tả từng component dùng lại và kiểm *luật*, không chỉ kiểm hình học.** ADR-10 đòi
       *dùng lại hình dạng thì được, dùng lại lý lẽ thì không*.
-- [ ] Chốt khuôn chung cho `Assignment row` và liệt kê tám trạng thái.
-- [ ] Dựng `Student top bar`, `Time status`, `Score mark`, `Report control` — bốn cái mang luật nặng nhất.
-- [ ] **Dựng trọn artboard `13 · Làm bài` đầu tới cuối**, gồm cả chế độ lượt. Đây là màn kiểm chứng.
-- [ ] Dựng bốn component còn lại và ba artboard còn lại.
-- [ ] Thêm variant giọng học sinh cho bốn component của giáo viên.
-- [ ] Sửa ADR-10; cập nhật `README.md` và `backlog.md`.
-- [ ] Chụp cả bốn artboard; xem lại bằng mắt.
+- [x] Chốt khuôn chung cho `Assignment row` và liệt kê tám trạng thái.
+- [x] Dựng `Student top bar`, `Time status`, `Score mark`, `Report control` — bốn cái mang luật nặng nhất.
+- [x] **Dựng trọn artboard `13 · Làm bài` đầu tới cuối**, gồm cả chế độ lượt. Đây là màn kiểm chứng.
+- [x] Dựng bốn component còn lại và ba artboard còn lại.
+- [x] ~~Thêm variant giọng học sinh cho bốn component của giáo viên.~~ **Đổi hướng** — xem
+      Decision Record mới ở dưới. `Consequence dialog` không được mượn; `Round gate` dựng riêng.
+- [x] Sửa ADR-10; cập nhật `README.md` và `backlog.md`.
+- [x] Chụp cả bốn artboard; xem lại bằng mắt.
 - [ ] Gọi 1 subagent review. Sửa theo phát hiện, hoặc phản bác có lý do.
 - [ ] `.\dev.ps1 check`; link Markdown; LF; `AGENTS.md` vẫn 170 dòng.
 
@@ -140,6 +141,25 @@ rõ trong mô tả component rằng dữ liệu chưa tồn tại. Im lặng là
 - `Report control` có mặt ở cả artboard 14 (state *đã hoàn thành*) và artboard 15.
 - Nút *Làm bài mới* có khối đọc lại giá trị thật, và có trạng thái cảnh báo khi lượt dài hơn hạn còn lại.
 - Mọi màu lấy từ biến; không hex thô.
+
+## Kết quả đo
+
+| | |
+| --- | --- |
+| Artboard | **bảy**, tất cả 1440×900, Density `Student` |
+| Khoảng trắng chết | **có thật, và cách đo đầu tiên đã giấu nó** — xem dưới |
+| Rail | không artboard nào có |
+| Cổng `Round gate` | đặt trên artboard 17; component không phải bề mặt |
+| Màu thô | **0** trên cả năm |
+| `confidence` / `misconception` / lý do review | không xuất hiện ở đâu |
+
+Rủi ro Density **không thành sự thật**: đo chín component dùng lại ở mode `Student`, không cái nào
+tràn chữ. Lớn nhất là `Consequence dialog` +44px, `Async waiting` +18px — tất cả đều hug và giãn êm.
+
+**Cách đo *chân nội dung đúng y=900* là sai và tự khen.** Nó đo mép dưới của khung nền, mà khung nền
+là frame FILL cao 843 nên luôn chạm 900 — kể cả với một artboard rỗng hoàn toàn. Đo nội dung thật
+thì màn Làm bài trống 464px và màn Chữa bài trống 449px ở cột chat. Chỗ trống ở màn Chữa bài đã được
+lấp bằng ô nhập và khối tiến độ vòng; chỗ còn lại là thật và chưa xử lý.
 
 ## Decision Records
 
@@ -164,6 +184,32 @@ reason: ba thứ này loại trừ nhau và tranh cùng một khe trên màn hì
 Tách rời thì màn Chữa bài có hai component cùng đòi chỗ, và cảnh báo cắt lượt (thứ ADR-15 bắt buộc phải
 có) không có nhà nên rất dễ bị bỏ quên. Một component ba variant làm việc "chỉ một cái hiện tại một
 thời điểm" thành bất biến của component thay vì kỷ luật của người dựng.
+
+### Decision: Không mượn `Consequence dialog`, dựng `Round gate` riêng
+
+options considered: thêm variant giọng học sinh vào `Consequence dialog` (`11:41`) như plan viết
+ban đầu; dựng một component riêng cho cổng của học sinh.
+
+selected option: component riêng.
+
+reason: [ADR-10](../../decisions/adr-10-pham-vi-dot-dau.md) đòi kiểm **luật** của component dùng
+lại, không chỉ kiểm hình học. Đọc mô tả `Thinking` (`83:76`) thấy một luật không chuyển sang được:
+*cổng duyệt phải mở lại được khối này — giáo viên đang quyết duyệt cần biết câu mới ở đâu ra*. Luật
+đó thuộc cổng teacher-in-the-loop, và ADR-06 gắn với cổng ấy nghĩa vụ trưng dấu vết các bước agent
+— thứ bề mặt học sinh không có gì để trưng. Học sinh bắt đầu một lượt tính giờ không phải cùng loại
+hành động với giáo viên phát hành đề cho cả lớp; mượn hộp của giáo viên là mượn cả nghĩa của nó.
+
+### Decision: Màn Kết quả tách thành hai artboard, không phải hai state của một
+
+options considered: một artboard với hai state; hai artboard riêng.
+
+selected option: hai artboard.
+
+reason: [ADR-14](../../decisions/adr-14-hai-pha-lam-bai.md) chốt *đã nộp* và *đã hoàn thành* không
+thay nhau được, và [ADR-16](../../decisions/adr-16-thang-diem-ba-muc.md) chốt điểm sau khi nộp là
+**sàn** chứ không phải kết quả. Đó là hai hình dạng dữ liệu khác nhau, không phải một hình dạng với
+vài trường rỗng — cùng lập luận ADR-08 dùng cho kết quả low-confidence. Vẽ chung một artboard là mời
+người sau gộp chúng lại bằng một cờ hiển thị.
 
 ### Decision: Artboard học sinh sang trang riêng
 
@@ -192,4 +238,9 @@ chúng như bằng chứng rằng dữ liệu đã có.
 
 ## Status
 
-Chưa bắt đầu. Đang chờ duyệt.
+Đã dựng xong và sửa theo một vòng review: **bảy** artboard, mười component mới, và bản sửa ADR-10.
+
+Review bắt được ba lỗ chức năng mà `Validation Checks` của plan này **không có mục nào canh**: màn
+Chữa bài thiếu ô nhập, `Round gate` không có instance nào, và hạn kết thúc pha 2 không xuất hiện
+trên màn Chữa bài. Cả ba đã sửa, nhưng lỗ nằm ở plan chứ không chỉ ở bản dựng — một cổng đo chỉ
+kiểm được thứ nó biết hỏi.
