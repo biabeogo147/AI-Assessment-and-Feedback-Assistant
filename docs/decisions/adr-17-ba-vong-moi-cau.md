@@ -26,6 +26,9 @@ docstring của nó nói biến thể giữ *cùng mục tiêu học tập*.
   chốt.
 - Hết ba vòng mà vẫn sai thì câu đó **đóng lại ở 0 điểm**, và bài kết thúc bình thường.
 - Điều kiện dừng là **số vòng**, không phải mastery.
+- Biến thể **không phải bản sao của câu gốc**. Nó giữ nguyên **dạng đề và cách làm**, còn dữ kiện, con
+  số và cách hỏi thì trợ lí đổi. Mỗi vòng là một **câu khác**, và học sinh nhìn thấy nó dưới tên
+  *lượt làm lại thứ n*, không phải *câu 4* lần thứ hai.
 
 ## Vì sao
 
@@ -64,12 +67,18 @@ mình còn mấy lần.
 - Biến thể phải giữ **cùng cấu trúc câu gốc**, nên nó cũng cần lời giải và ánh xạ nhiễu tương ứng
   ([ADR-18](adr-18-cau-hoi-phai-kem-loi-giai.md)) — mà không ai duyệt nó
   ([ADR-05](adr-05-ba-cong-teacher-in-the-loop.md)).
+- **Màn kết quả phải in đề của từng lượt, không chỉ đề pha 1.** Vì mỗi lượt là một câu khác, một bảng
+  điểm chỉ hiện câu gốc thì không nói được học sinh đã làm đúng *cái gì* để lên 0,5 — con số trở thành
+  một tuyên bố không kiểm được. Đây là lý do hàng `Mức=0,5` và `Mức=0` mang theo đề của từng lượt.
 
 ## Nơi luật này đang được thi hành
 
-**Chưa ở đâu cả.**
+**Ở Figma, phần nhìn thấy được. Chưa ở đâu khác.**
 
-- **Chưa có ở Figma**: không màn hình nào của pha 2 tồn tại.
+- **Ở Figma**: trang `Screen — Student` có `16 · Chữa bài`, `17 · Bắt đầu lượt chữa` và
+  `18 · Làm câu của lượt làm lại`; component `Round gate` đếm vòng còn lại, và `Result row` in đề của
+  từng lượt kèm kết quả từng lượt. Chữ trên màn dùng *lượt làm lại thứ n*, không dùng *biến thể* —
+  *biến thể* là từ của tài liệu này, không phải từ nói với học sinh.
 - **Ở contract, một nửa đã sẵn nhưng nói sai**: `packages/contracts/src/contracts/messages.py` có
   `learning_objective` và docstring của `GradingRequested` nói biến thể giữ *cùng mục tiêu học tập* —
   luật này chặt hơn thế. Sửa docstring thuộc đợt code, đã ghi nợ.

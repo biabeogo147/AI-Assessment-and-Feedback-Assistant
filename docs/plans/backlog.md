@@ -189,6 +189,10 @@ khi phần chấm đã xác định — rồi mới tới việc pha 1 gửi `No
 trạng thái đáp án: đúng và sai. [ADR-16](../decisions/adr-16-thang-diem-ba-muc.md) thêm trạng thái thứ
 ba — *đã chữa được* — và cố ý **không tự nhận** cách thể hiện nó, vì luật màu thuộc ADR-12.
 
+`Score mark` đã dựng và **đi vòng qua câu hỏi này**: nó phân biệt ba mức bằng hình tròn đầy / nửa /
+rỗng, mức 0,5 dùng `ink/default` chứ không xin một token mới. Cách đó đọc được cả khi bỏ màu, nhưng
+nó **không phải câu trả lời** — nó chỉ làm câu hỏi bớt gấp.
+
 Đây là chỗ dễ làm sai nhất: mức 0,5 trông như một mức trung gian nên rất mời gọi màu hổ phách, mà hổ
 phách nghĩa là **cần người** — một câu đã chữa xong thì không cần ai cả. Khi quyết, phải quyết trong
 ADR-12 chứ không phải trong màn hình đầu tiên bày ba mức.
@@ -289,17 +293,22 @@ không quan trọng.
 
 ## Bề mặt học sinh — đã dựng, chưa chạy
 
-Bảy artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
+Tám artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
 Không con số nào trên chúng là dữ liệu thật, và không nên đọc chúng như bằng chứng rằng dữ liệu đã có.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | Toàn bộ pha 2 chạy được | **Bị chặn bởi ADR-09** — đã ghi ở mục *Luồng học sinh* |
 | Dữ liệu cho câu *lý do được 0,5* | Không bị chặn. Cần một trường mới trong contract |
+| **Đề của từng lượt làm lại**, in trên màn kết quả | Không bị chặn. Cần lưu chính câu đã sinh, không chỉ kết quả đúng/sai |
 | Màn đăng nhập, và chỗ bắt đổi mật khẩu lần đầu | Không bị chặn. Quyết định phạm vi — lỗ ADR-13 **vẫn nguyên** |
 | Học sinh trên điện thoại | Không bị chặn. Quyết định phạm vi |
 
-Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: bảy màn mới đều mang khối
+Câu chữ của từng lượt là món nợ **mới và dễ bị bỏ sót nhất**: `GradingCompleted` hôm nay chỉ mang
+điểm, nên nếu backend sinh câu biến thể rồi vứt đi, màn kết quả sẽ có một khung để in đề mà không có
+đề để in. Câu biến thể phải được **lưu lại cùng lượt**, không phải sinh xong dùng một lần.
+
+Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: tám màn mới đều mang khối
 danh tính và nút Đăng xuất trên `Student top bar`, nhưng điều đó **không lấp** được lỗ
 [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md): mật khẩu ban đầu vẫn đi trên giấy in và
 vẫn không có chỗ nào bắt học sinh đổi nó.

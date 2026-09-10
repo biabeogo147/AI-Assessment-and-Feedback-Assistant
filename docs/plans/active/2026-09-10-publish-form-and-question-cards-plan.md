@@ -154,6 +154,31 @@ cam kết nặng hơn, không đòi thêm bằng chứng gì, là **làm yếu**
 đúng. Dấu kiểm thứ hai thì tạo hai thứ phải nhớ tick. Đúng nhất là thừa nhận: hiện **không có gì** ghi
 nhận giáo viên đã đọc lời giải, và đó là lỗ do chính ADR-18 tạo ra.
 
+### Decision: Lời giải mở trong hộp thoại, không mở bung trong thẻ
+
+options considered: giữ variant `Lời giải=mở` bung ngay trong thẻ; mở một hộp thoại riêng cho lời
+giải của một câu.
+
+selected option: hộp thoại riêng — `Solution dialog` (`309:41`) trên artboard
+`12 · Xem lời giải một câu`. Variant `Lời giải=mở` đã xoá.
+
+reason: một thẻ bung ra cao hơn 300px đẩy chín thẻ còn lại ra khỏi màn, mà duyệt đề là việc **so sánh
+giữa các câu** chứ không phải đọc từng câu một. Hộp thoại giữ nguyên danh sách phía sau, và nó đủ chỗ
+cho nhiều cách giải cùng bảng ánh xạ nhiễu→lỗi mà không phải cắt nội dung để vừa panel 420 rộng.
+
+### Decision: Năm ô phương án, ẩn bớt theo từng câu
+
+options considered: cố định bốn phương án A–D; năm ô trong component và mỗi instance ẩn ô thừa; một
+component riêng cho mỗi số lượng.
+
+selected option: năm ô, ẩn bớt.
+
+reason: số phương án là thuộc tính của **câu hỏi**, không phải của giao diện — có câu ba lựa chọn, có
+câu năm. Không xoá được node con trong instance, nên số ô phải là **trần**, và ẩn là cách duy nhất
+giảm xuống. Artboard 7 cố ý bày một câu ba ô và một câu năm ô cạnh nhau để trần này không lặng lẽ
+biến thành mặc định bốn. Đáp án đúng đánh dấu bằng **một dấu ✓**; chữ *đáp án đúng* đã bỏ vì dấu ✓ đã
+nói đúng điều đó và ngắn hơn một dòng.
+
 ## Rủi ro
 
 **Dựng lại component set làm chết node id đang bị ADR trích.** `67:41` có hai variant và ít nhất một
@@ -169,7 +194,10 @@ hiện — nên cổng đo phải chạy với chuỗi dài nhất, không với
 
 ## Status
 
-Đã dựng xong, review xong, sửa xong. Cổng đo xanh nhưng **vừa khít** — xem mục trần. Còn quét trích dẫn ADR và một vòng review.
+Đã dựng xong, review xong, sửa xong, rồi sửa thêm một vòng theo góp ý: `Source citation` chuyển vào
+hàng `top` cạnh *Câu x*, thẻ bỏ variant mở và cao 209 thay vì 246, câu luật pha 2 đổi *bị cắt* thành
+*bị **DỪNG*** ở cả bốn nơi. Cổng đo lại sau khi sửa: trần **521**, `Publish settings` **483**, holder
+**304** — vẫn xanh và rộng hơn trước.
 
 Ngoài phạm vi đã nêu, một việc được làm thêm và cần biết: `Action result card` variant
 `đã-phát-hành` nhận thêm hành động **Thu hồi**. Lý do là câu chữ vừa sửa nói *thu hồi được tới

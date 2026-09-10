@@ -169,7 +169,7 @@ Student
 
 ### Ngoại lệ
 
-- Hết hạn pha 2 giữa một lượt thì lượt bị cắt và các câu còn dở nhận 0 điểm. Xem [ADR-15](../decisions/adr-15-thoi-gian-pha-hai.md).
+- Hết hạn pha 2 giữa một lượt thì lượt bị **dừng** và các câu còn dở nhận 0 điểm. Xem [ADR-15](../decisions/adr-15-thoi-gian-pha-hai.md).
 - Student không mở pha 2 lần nào thì mọi câu sai nhận 0 điểm — bằng đúng kết quả của việc vào rồi sai cả ba vòng.
 
 ### Quan hệ diagram

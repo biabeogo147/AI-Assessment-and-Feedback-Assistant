@@ -46,6 +46,7 @@ nhìn thấy.
   và thẻ `đã-phát-hành` trong `Action result card`:
   *"Vào tham gia tới hết 18:00 - có thể nộp lúc 18:15, và không dừng người đang làm."*
 - Chuỗi của **pha 2** cũng đã có mặt ở đủ ba nơi và giống hệt nhau từng chữ:
-  *"Chữa bài tới hết 22:00 - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị cắt."* Xem
+  *"Chữa bài tới hết 22:00 - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị **DỪNG**."*
+  Chữ *DỪNG* in đậm ngay trên màn, vì đó là phần duy nhất của câu nói về một thứ học sinh sắp mất. Xem
   [ADR-15](adr-15-thoi-gian-pha-hai.md).
 - **Chưa có ở backend**: không có trường giờ mở hay giờ đóng nào trong `packages/contracts`.

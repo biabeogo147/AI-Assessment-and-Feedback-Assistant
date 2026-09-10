@@ -49,8 +49,9 @@ trước khi sửa một trong hai.
 
 ## Hệ quả
 
-- **Giao diện phải nói trước rằng lượt này có thể bị cắt**, ngay tại nút làm bài mới, kèm số phút còn
-  lại thật. Một học sinh bị cắt giữa chừng mà không được báo trước sẽ tin là hệ thống hỏng.
+- **Giao diện phải nói trước rằng lượt này có thể bị dừng**, ngay tại nút làm bài mới, kèm số phút còn
+  lại thật. Một học sinh bị dừng giữa chừng mà không được báo trước sẽ tin là hệ thống hỏng. Từ dùng
+  với học sinh là **dừng**, và nó được in đậm trong câu luật — *cắt* là từ nội bộ của ADR này.
 - **Giáo viên phải đặt một con số mà họ chưa từng phải nghĩ tới.** Không có kinh nghiệm nào giúp đoán
   mấy phút là đủ cho một câu chữa, và đặt sai thì hoặc lớp không kịp, hoặc bài kiểm tra kéo lê.
 - Vì số phút mỗi câu là **một con số cho cả đề**, một câu dài và một câu ngắn được cấp thời gian như
@@ -65,7 +66,7 @@ trước khi sửa một trong hai.
 - Figma `Publish settings` (`67:41`) — nhóm **PHA 2** với hai trường *PHÚT MỖI CÂU* và
   *HẠN CHỮA XONG*, ở cả hai variant.
 - Figma — chuỗi *"Chữa bài tới hết 22:00 - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị
-  cắt."* xuất hiện **giống hệt nhau ở bốn nơi**: `Publish settings` (`67:41`), `Consequence dialog`
+  **DỪNG**."* xuất hiện **giống hệt nhau ở bốn nơi**: `Publish settings` (`67:41`), `Consequence dialog`
   (`11:41`), `Action result card` variant `đã-phát-hành` (`10:45`), và variant `chưa có lớp`
   (`77:341`) — đúng như [ADR-03](adr-03-ranh-gioi-cua-vao.md) đòi.
 - Figma `Publish settings` (`67:41`) — mô tả component ghi định dạng ngày giờ `HH:MM · DD/MM` là

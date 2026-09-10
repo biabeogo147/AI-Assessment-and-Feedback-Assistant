@@ -22,6 +22,9 @@ không có phần giải thích, nó hạ `confidence` xuống 0,55; và với m
   và lời giải đó phải có **nhiều hơn một cách làm**.
 - Mỗi **phương án nhiễu** phải mang theo **lỗi mà nó đại diện**. Ánh xạ này được soạn cùng câu hỏi,
   không suy ra lúc chấm.
+- **Số phương án không cố định.** Một câu có thể có ba, bốn, năm lựa chọn — bao nhiêu tuỳ câu — nhưng
+  **đúng một** trong số đó là đáp án đúng. Mọi phương án còn lại là nhiễu, nên mọi phương án còn lại
+  đều phải có lỗi gắn kèm.
 - Trợ lí ở pha 2 **đi theo lời giải và ánh xạ đã có**. Nó không tự nghĩ ra cách làm mới và không tự
   đoán lỗi.
 - Lời giải và ánh xạ là **một phần của nội dung đề**, nên chúng bị khoá khi giáo viên duyệt, đúng như
@@ -60,6 +63,9 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
   lộ ra qua chính những em bị dạy lại bằng nó.
 - **Ngân hàng câu hỏi hiện có không đủ tiêu chuẩn.** Mọi câu đã lưu trước luật này đều thiếu lời giải
   và thiếu ánh xạ, nên chưa dùng được ở pha 2.
+- **Chi phí soạn đề đi theo số phương án, không theo số câu.** Vì mỗi nhiễu cần một lỗi, một câu năm
+  lựa chọn tốn gấp rưỡi một câu ba lựa chọn. Ai định nới số phương án để đề khó hơn thì đang nới cả
+  phần việc của người duyệt.
 - **Soạn một câu hỏi đắt hơn nhiều.** Trước đây là đề bài, các phương án và đáp án; nay thêm nhiều
   cách giải và một lỗi cho từng nhiễu. Điều này áp cho cả câu Kriky soạn lẫn câu giáo viên tự viết.
 - Sản phẩm **không còn bề mặt nào để nói tôi chưa chắc lỗi của em là gì**. Nếu sau này chẩn đoán quay
@@ -67,9 +73,13 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
 
 ## Nơi luật này đang được thi hành
 
-- Figma `Question card` (`267:30`) — component set hai variant `Lời giải=thu gọn` / `Lời giải=mở`.
-  Variant mở mang hai cách giải và bảng ánh xạ nhiễu→lỗi. Mười thẻ trên artboard 6 và 7 nay là
-  instance của component này; trước đó là mười frame dựng tay.
+- Figma `Question card` (`267:30`) — một variant `Lời giải=thu gọn`, với khung `options` **năm ô**;
+  mỗi instance ẩn bớt ô thừa, nên artboard 7 có câu ba lựa chọn, câu bốn và câu năm cạnh nhau. Đáp án
+  đúng đánh dấu bằng **một dấu ✓**, không kèm chữ. Mười thẻ trên artboard 6 và 7 là instance của
+  component này; trước đó là mười frame dựng tay.
+- Figma `Solution dialog` (`309:41`) trên artboard `12 · Xem lời giải một câu` — hai cách giải và bảng
+  ánh xạ nhiễu→lỗi nằm trong một hộp thoại, **không mở bung trong thẻ**. Mở bung đẩy chín thẻ còn lại
+  ra khỏi tầm nhìn của người đang duyệt, mà duyệt là việc so sánh giữa các câu.
 - **Chưa có gì ghi nhận giáo viên đã đọc lời giải.** Đây là lỗ do chính ADR này tạo ra; xem
   `docs/plans/backlog.md`.
 - **Chưa có ở contract**: `packages/contracts` có `question_id` nhưng không có **model** câu hỏi, nên

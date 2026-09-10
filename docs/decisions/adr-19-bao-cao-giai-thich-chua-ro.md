@@ -63,9 +63,16 @@ lí.
 
 ## Nơi luật này đang được thi hành
 
-**Chưa ở đâu cả.**
+**Nửa phía học sinh đã có ở Figma. Phía giáo viên chưa.**
 
-- **Chưa có ở Figma**: không màn hình học sinh nào tồn tại, và giáo viên chưa có chỗ nào đọc báo cáo.
+- **Ở Figma**: `Report control` (`281:25`), nhãn *"Báo cáo Trợ lý giải thích khó hiểu"*. Nó **chỉ nằm
+  trong một đoạn chat của một câu cụ thể** — cuối lượt trả lời của Kriky trên artboard `16` và `17` —
+  chứ không nằm ở đầu màn kết quả. Một báo cáo không gắn với đoạn chat nào thì giáo viên nhận được
+  một lời phàn nàn không có ngữ cảnh, tức là không đọc được.
+- **Thời điểm thứ hai vẫn mở**: từ màn kết quả, học sinh vào lại đoạn chat của câu đó bằng
+  *"Mở lại phần chữa câu này ›"* trên hàng điểm, rồi báo cáo ở trong đó. Cửa vào đổi chỗ, quyền báo
+  cáo thì không mất.
+- **Chưa có ở Figma phía giáo viên**: chưa có màn nào để đọc báo cáo; xem `docs/plans/backlog.md`.
 - **Chưa có ở backend**: không endpoint, không model.
 - `docs/diagrams/activity-overview.drawio` đã bỏ nhánh chặn giữa luồng và vẽ kênh này bằng cạnh nét
   đứt xuất phát **sau** node kết thúc, nhãn *không chặn luồng*. `use-case.drawio` có

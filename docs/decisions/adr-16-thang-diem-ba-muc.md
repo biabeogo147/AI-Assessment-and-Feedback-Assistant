@@ -66,10 +66,18 @@ buộc mà không rõ để làm gì.
 
 ## Nơi luật này đang được thi hành
 
-**Chưa ở đâu cả** — trừ một trường tình cờ tương thích.
+**Ở Figma phía học sinh. Chưa ở đâu khác** — trừ một trường tình cờ tương thích.
 
-- **Chưa có ở Figma**: không màn hình học sinh nào tồn tại. Bảng điểm của giáo viên
-  (`11 · Kết quả bài kiểm tra trong lớp`) bày điểm như số đã chốt và chưa có trạng thái *chưa chốt*.
+- **Ở Figma**: `Score mark` (`279:19`) ba variant `1` / `0.5` / `0`, phân biệt bằng hình tròn đầy,
+  nửa, rỗng nên **bỏ màu đi vẫn đọc được**; mức 0,5 không được cấp màu mới
+  ([ADR-12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md)).
+- **Lý do được 0,5 chỉ hiện khi hover**, dựng trên artboard `19 · Kết quả — hover vào điểm 0,5`, chứ
+  không in thành một dòng dưới mỗi câu. In thẳng thì nó lặp ở mọi hàng 0,5 và làm dày bảng điểm mà
+  không thêm thông tin.
+- **Điểm pha 1 là sàn**, nói bằng một câu duy nhất trên artboard `14`:
+  *"Bạn có thể nâng điểm các câu sai bằng cách Làm lại dạng bài sai tới hết 22:00 · 15/9."*
+- **Bảng điểm của giáo viên chưa theo kịp**: `11 · Kết quả bài kiểm tra trong lớp` bày điểm như số đã
+  chốt và chưa có trạng thái *chưa chốt*; xem `docs/plans/backlog.md`.
 - **Ở contract, một nửa may mắn đúng**: `packages/contracts/src/contracts/messages.py` khai `score` là
   `Field(ge=0.0, le=1.0)` nên nhận được 0,5 mà không phải đổi contract. Nhưng không trường nào phân
   biệt 0,5 do chữa được với 0,5 do chấm một nửa.

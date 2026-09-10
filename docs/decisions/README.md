@@ -38,12 +38,14 @@ Phần lớn luật ở đây hiện chỉ được thi hành trong **file thi�
 
 <https://www.figma.com/design/mOe2ZmrqOq1Uix45v6PNGD>
 
-Trang `Screen — Chat` chứa mười một artboard: tám artboard theo luồng chat từ lúc mở tới lúc phát
-hành xong, và ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra).
+Trang `Screen — Chat` chứa mười hai artboard: tám artboard theo luồng chat từ lúc mở tới lúc phát
+hành xong, ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra), và một màn cho
+hộp thoại lời giải của một câu.
 
-Trang `Screen — Student` chứa bảy artboard của bề mặt học sinh: danh sách bài, làm bài, **hai
-artboard riêng** cho hai hình dạng dữ liệu của màn kết quả, chữa bài, cổng bắt đầu lượt, và làm câu
-biến thể. Tất cả chạy Density mode `Student` và không có rail.
+Trang `Screen — Student` chứa tám artboard của bề mặt học sinh: danh sách bài, làm bài, **hai
+artboard riêng** cho hai hình dạng dữ liệu của màn kết quả, chữa bài, cổng bắt đầu lượt, làm câu của
+một lượt làm lại, và trạng thái hover trên điểm 0,5. Tất cả chạy Density mode `Student` và không có
+rail.
 
 Trang `Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp
 vụ được ghi lần đầu**. Khi một ADR trỏ tới một node id, node đó nằm trong file này.
@@ -55,10 +57,11 @@ hạn giữ kết quả một giờ — nay đã có ADR-07 và ADR-09.
 
 Còn lại, và cố ý chưa viết:
 
-- **Bốn luật của mô hình hai pha chưa ai quyết**, và cả bốn đang nằm ở `docs/plans/backlog.md`: câu
-  luyện tập có qua cổng duyệt không; `confidence` đo cái gì khi phần chấm đã xác định; mức điểm 0,5
-  hiện bằng màu nào (ADR-12 mới khoá hai trạng thái đáp án); và vòng đếm cùng đồng hồ ứng xử ra sao
-  khi học sinh mở hai tab.
+- **Ba luật của mô hình hai pha chưa ai quyết**, cả ba nằm ở `docs/plans/backlog.md`: câu luyện tập
+  có qua cổng duyệt không; `confidence` đo cái gì khi phần chấm đã xác định — chẩn đoán có độ tin cậy
+  đã **bỏ khỏi đợt này**, ghi nợ để làm sau; và vòng đếm cùng đồng hồ ứng xử ra sao khi học sinh mở
+  hai tab. Mức điểm 0,5 thì đã hết là câu hỏi: ADR-16 chốt nó **không được cấp màu mới**, phân biệt
+  bằng hình tròn đầy / nửa / rỗng.
 - **Màn hình Bảng theo dõi** — chưa thiết kế, nên chưa có luật nào để ghi.
 - **Luồng nhập CSV danh sách lớp** — chỗ duy nhất mật khẩu ban đầu được phép hiện. ADR-13 đã
   chốt luật, nhưng màn hình chưa dựng.

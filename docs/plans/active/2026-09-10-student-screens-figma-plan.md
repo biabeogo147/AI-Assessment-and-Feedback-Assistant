@@ -87,12 +87,14 @@ trả lời câu ai đọc được cái này*. Sản phẩm chỉ chạy trong 
 bar` mang **họ tên · lớp · mã học sinh · Đăng xuất**, và có mặt trên cả bốn màn. Mục nợ về việc không
 có chỗ bắt đổi mật khẩu phải được xác nhận lại là **vẫn còn nguyên** sau đợt này.
 
-## Lý do được 0,5 — hoãn công khai
+## Lý do được 0,5 — hover, không phải một dòng in sẵn
 
 ADR-16 chốt học sinh nhìn thấy **lý do** một câu được 0,5. `backlog.md` đã ghi lời hứa đó chưa có nguồn
 dữ liệu: `GradingCompleted` nhận được `score = 0.5` nhưng không trường nào mang *vòng thứ mấy* hay *câu
-gốc nào*. Đợt này **dựng chỗ cho nó** trên `Score mark` (một hàng phụ dưới con số) với chữ mẫu, và ghi
-rõ trong mô tả component rằng dữ liệu chưa tồn tại. Im lặng là cách tệ nhất trong ba cách.
+gốc nào*. Đợt này dựng chỗ cho nó, và chỗ đó là **hover trên `Score mark`**, dựng thành artboard riêng
+`19 · Kết quả — hover vào điểm 0,5`. Một dòng in sẵn dưới mỗi câu 0,5 lặp lại cùng một câu chữ ở mọi
+hàng và làm dày bảng điểm mà không thêm thông tin; hover trả câu giải thích về đúng chỗ người ta đang
+hỏi. Mô tả component vẫn ghi rõ dữ liệu chưa tồn tại.
 
 ## Files
 
@@ -220,6 +222,32 @@ selected option: trang mới.
 reason: bốn màn này không có cột chat và không có rail, nên để chung thì tên trang `Screen — Chat`
 thành sai. Tách trang còn giữ cho một câu của ADR-10 kiểm được bằng mắt thay vì bằng trí nhớ.
 
+### Decision: Mỗi lượt làm lại in đề riêng trên màn kết quả
+
+options considered: chỉ liệt kê kết quả từng lượt (*lượt 1 — sai, lượt 2 — đúng*); in cả đề của từng
+lượt dưới mỗi dòng kết quả; không hiện lượt nào cả, chỉ hiện điểm.
+
+selected option: in cả đề của từng lượt.
+
+reason: câu của một lượt làm lại **không phải câu gốc chép lại** — trợ lí giữ dạng đề và cách làm, còn
+dữ kiện thì đổi ([ADR-17](../../decisions/adr-17-ba-vong-moi-cau.md)). Một bảng điểm chỉ in câu pha 1
+để học sinh trước một con số 0,5 mà không cho xem em đã làm đúng *cái gì*. Tệ hơn: nó ngầm nói em được
+0,5 nhờ làm lại **đúng câu cũ**, tức là nhờ nhớ đáp án. Mỗi khối lượt mở đầu bằng một dòng nhắc *mỗi
+lượt là một câu khác — cùng dạng đề, cùng cách làm*, vì đó chính là điều dễ hiểu nhầm nhất ở màn này.
+
+### Decision: `Report control` chỉ sống trong một đoạn chat
+
+options considered: đặt ở đầu màn kết quả như một hành động chung; đặt ở chân khung chat; chỉ đặt
+trong từng lượt trả lời của Kriky.
+
+selected option: chỉ trong từng lượt trả lời, nhãn *"Báo cáo Trợ lý giải thích khó hiểu"*.
+
+reason: báo cáo mà không gắn với đoạn chat nào thì giáo viên nhận được một lời phàn nàn không ngữ
+cảnh — không đọc được, nên cũng không xử lý được. Đặt trong lượt trả lời làm cái được báo cáo trở nên
+xác định: **đoạn giải thích này, của câu này**. Thời điểm thứ hai mà
+[ADR-19](../../decisions/adr-19-bao-cao-giai-thich-chua-ro.md) đòi không mất đi: từ màn kết quả, hàng
+điểm có *"Mở lại phần chữa câu này ›"* dẫn ngược vào đúng đoạn chat đó.
+
 ## Rủi ro
 
 **Density `Student` làm vỡ component dùng lại.** Sáu component sẽ dùng lại đều được dựng và căn ở
@@ -238,7 +266,15 @@ chúng như bằng chứng rằng dữ liệu đã có.
 
 ## Status
 
-Đã dựng xong và sửa theo một vòng review: **bảy** artboard, mười component mới, và bản sửa ADR-10.
+Đã dựng xong và sửa theo một vòng review, rồi sửa thêm một vòng theo góp ý: **tám** artboard, mười
+component mới, và bản sửa ADR-10.
+
+Vòng góp ý đổi: logo Kriky vào `Student top bar`; *Đang làm dở* → *Đang làm*; *Chữa bài* → *Làm lại
+dạng bài sai*; câu ghi chú trên màn kết quả nói **nâng điểm** thay vì *điểm sàn*; lý do 0,5 rời khỏi
+ghi chú, chuyển thành hover (artboard 19); *Câu biến thể 1 / 2* → *Câu 4 — Lượt làm lại thứ 1*;
+*Vòng* → *Lượt làm lại*; `Report control` rời khỏi đầu màn và chân chat, vào trong từng lượt trả lời.
+Và một lỗ do người dùng chỉ ra mà cả plan lẫn review đều không thấy: **đề của từng lượt làm lại không
+hiện ở đâu cả** — nay `Result row` in nó ra.
 
 Review bắt được ba lỗ chức năng mà `Validation Checks` của plan này **không có mục nào canh**: màn
 Chữa bài thiếu ô nhập, `Round gate` không có instance nào, và hạn kết thúc pha 2 không xuất hiện

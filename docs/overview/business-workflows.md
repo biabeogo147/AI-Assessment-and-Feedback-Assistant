@@ -159,7 +159,7 @@ Học sinh sửa được lỗi vừa mắc, và bài kiểm tra chỉ kết th�
 5. Student làm các câu biến thể trong lượt.
 6. Câu nào làm đúng thì câu gốc chốt **0,5 điểm**; câu nào còn sai thì sang vòng tiếp.
 7. Mỗi câu có **tối đa ba vòng**, đếm riêng. Hết ba vòng mà vẫn sai thì câu gốc chốt **0 điểm**.
-8. Bài kết thúc khi mọi câu đã chốt, hoặc khi hết hạn pha 2. Hết hạn giữa một lượt thì lượt bị cắt và các câu còn dở chốt 0 điểm.
+8. Bài kết thúc khi mọi câu đã chốt, hoặc khi hết hạn pha 2. Hết hạn giữa một lượt thì lượt bị **dừng** và các câu còn dở chốt 0 điểm.
 
 ### Điều kiện dừng là số vòng, không phải mastery
 
@@ -182,6 +182,10 @@ có thể hỏng ở bước khác và không chạm tới lỗi vừa mắc.
 Câu biến thể do trợ lí sinh ra khi Student đang làm bài, nên nó **không đi qua cổng duyệt của
 Teacher**. Đây là ngoại lệ đã biết của cổng thứ nhất trong ADR-05; xem `docs/plans/backlog.md`.
 
+Với Student, từ *biến thể* không xuất hiện: mỗi vòng gọi là **lượt làm lại thứ n**. Vì mỗi lượt là một
+câu khác, màn kết quả in **đề của từng lượt** bên dưới câu gốc, kèm kết quả từng lượt. Không in ra thì
+con số 0,5 nói rằng em làm lại đúng, mà không nói đúng cái gì.
+
 ### Báo cáo chỗ giải thích chưa rõ
 
 Student đánh dấu một câu hoặc một đoạn hội thoại là *giải thích chưa rõ*, ở hai thời điểm: ngay trước
@@ -195,7 +199,6 @@ Các điểm sau được ghi nhận nhưng chưa thiết kế chi tiết trong 
 
 - Công thức tính confidence, và `confidence` đo cái gì khi phần chấm đã xác định.
 - Câu biến thể có nên đi qua một cổng duyệt nào không.
-- Mức điểm 0,5 hiện bằng màu nào — ADR-12 mới khoá hai trạng thái đáp án.
 - Rubric chi tiết cho từng môn học hoặc từng loại bài.
 - Cách hệ thống quyết định khi nào giảm độ khó hoặc cung cấp gợi ý.
 
