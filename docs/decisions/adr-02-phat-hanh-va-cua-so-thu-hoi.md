@@ -1,6 +1,6 @@
 # ADR-02 — Chỉ giáo viên phát hành, và phát hành có cửa sổ thu hồi
 
-- **Trạng thái:** đã chốt (phần cửa sổ thu hồi: đã chốt, chưa thi hành)
+- **Trạng thái:** đã mở rộng bởi ADR-15
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -14,8 +14,10 @@ hành động đó bằng màu cam — theo legend là *hành vi hệ thống b�
 ## Quyết định
 
 - **Chỉ giáo viên phát hành.** Hệ thống không bao giờ tự phát hành đề cho học sinh.
-- Phát hành bắt buộc bốn tham số: **lớp** (chỉ chọn được lớp đã tạo trước), **thời gian làm bài**,
-  **giờ mở**, **giờ đóng**. Vì cần bốn thứ, phát hành là một **biểu mẫu**, không phải câu hỏi có/không.
+- Phát hành bắt buộc **sáu** tham số: **lớp** (chỉ chọn được lớp đã tạo trước), **thời gian làm bài**,
+  **giờ mở**, **giờ đóng**, **số phút mỗi câu ở pha 2** và **hạn kết thúc pha 2**. Hai tham số cuối do
+  [ADR-15](adr-15-thoi-gian-pha-hai.md) thêm vào. Vì cần sáu thứ, phát hành là một **biểu mẫu**, không
+  phải câu hỏi có/không.
 - **Thu hồi được cho tới hết giờ mở**, bao gồm cả đúng thời điểm đó. Sau giờ mở — khi học sinh đã có
   thể vào làm — phát hành trở thành không đảo ngược được.
 - Thu hồi đưa đề về **đã duyệt**, không về nháp. Nội dung vẫn khoá; chỉ cài đặt phát hành bị gỡ.
@@ -48,17 +50,28 @@ một con số dựng sẵn.
 - Thất bại một phần cần trạng thái riêng và phải nói rõ lớp nào đã nhận bản ghi phát hành — với những
   lớp đó, thu hồi vẫn được nếu chưa qua giờ mở.
 - Chiều cao khối chọn lớp **phải bị chặn**: chọn chín lớp mà khối phình ra sẽ đẩy danh sách câu hỏi
-  xuống dưới chiều cao một thẻ, tức là làm hỏng chính cổng này.
+  xuống dưới chiều cao một thẻ, tức là làm hỏng chính cổng này. Luật này **khó hơn** kể từ ADR-15:
+  biểu mẫu dài thêm hai trường ngay cả khi chưa chọn lớp nào, nên phần dư để co giãn đã hẹp lại.
 - Mọi diagram vẽ phát hành nằm trong lane hệ thống đều sai và phải chuyển sang lane Teacher.
 
 ## Nơi luật này đang được thi hành
 
-- Figma `mOe2ZmrqOq1Uix45v6PNGD`, `Publish settings` (`67:41`) — bốn trường, variant `chưa có lớp`, và mô tả component ghi
-  luật chặn chiều cao.
-- Figma `Consequence dialog — phát hành đề` (`11:41`) — khối đọc lại bốn giá trị.
+- Figma `mOe2ZmrqOq1Uix45v6PNGD`, `Publish settings` (`67:41`) — **sáu** trường, nhóm theo hai pha,
+  cả hai variant; mô tả component ghi luật chặn chiều cao.
+- Figma `Consequence dialog` (`11:41`) — khối đọc lại **sáu** giá trị.
 - Figma `Action result card` (`10:63`) — variant `đã-phát-hành`, `phát-hành-thất-bại`.
 - Figma artboard `1 · Bắt đầu`: *"Kriky sẽ tạo lớp, soạn đề, thêm câu hỏi — nhưng chỉ bạn mới phát hành
   được đề cho học sinh."*
-- **Cửa sổ thu hồi: chưa thi hành ở đâu**, kể cả trong Figma. Đây là lý do ADR mang trạng thái
-  `đã chốt, chưa thi hành` cho phần đó — phần *chỉ giáo viên phát hành* thì đã thi hành ở bốn chỗ trên.
+- `docs/diagrams/business-workflows.drawio` — `t-publish` nằm trong **lane Teacher**. Điều khoản
+  *mọi diagram vẽ phát hành nằm trong lane hệ thống đều sai* ở mục **Hệ quả** trước đây chưa từng
+  được thi hành: node này vốn nằm giữa lane System/AI, và ba node khác bị gắn `parent` sai lane. Nay
+  mọi node dùng toạ độ tuyệt đối nên vị trí không lệch khỏi lane được nữa.
+- **Cửa sổ thu hồi: mới thi hành một nửa.** Câu *"không sửa và không thu hồi đề được nữa"* — thứ mục
+  *Hệ quả* ở trên tuyên là sai — đã bị thay ở **cả ba** chỗ nó xuất hiện: `Consequence dialog`
+  (`11:41`), `Action result card` variant `đã-phát-hành` (`10:45`), và variant
+  `phát-hành-thất-bại` (`76:23`), nơi nó còn mâu thuẫn thẳng với luật thất bại một phần ở trên.
+  Thẻ `đã-phát-hành` nay có hành động **Thu hồi**.
+- **Nửa chưa thi hành:** nút Thu hồi phải **mất đi khi đã qua giờ mở**, và `Action result card`
+  (`10:63`) không có trục trạng thái *chưa mở* / *đã mở* nên nút luôn hiện. Đừng đọc thẻ đó như bằng
+  chứng rằng thu hồi lúc nào cũng được. Xem `docs/plans/backlog.md`.
 - **Chưa có ở backend** cho toàn bộ ADR này.

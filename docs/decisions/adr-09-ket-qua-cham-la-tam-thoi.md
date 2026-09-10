@@ -33,6 +33,12 @@ người ta tự đoán, và đoán về phía xấu.
   nặng, và nó sẽ phải biến mất khi có cơ sở dữ liệu thật.
 - Giáo viên không thể dựa vào kết quả chấm như một hồ sơ. Mọi tính năng cần lịch sử — thống kê, mastery,
   luyện tập thích ứng, và cả `ReviewReason.ANOMALY` — đều bị chặn bởi cùng một hạn chế này.
+- **Thứ lớn nhất bị chặn là toàn bộ pha 2** ([ADR-14](adr-14-hai-pha-lam-bai.md)). Bộ đếm vòng của
+  từng câu, lịch sử hội thoại giải thích, trạng thái *câu nào còn dở*, và điểm cuối đều là trạng thái
+  có nhớ — trong khi hạn kết thúc pha 2 có thể là cuối ngày
+  ([ADR-15](adr-15-thoi-gian-pha-hai.md)). Học sinh chữa dở rồi quay lại thì hệ thống không còn biết
+  em đã dùng mấy vòng. Đây không phải một tính năng bị chậm; nó là **nửa sau của sản phẩm** không tồn
+  tại được. Sáu ADR từ 14 tới 19 vì thế đều mang trạng thái *chưa thi hành*.
 - Không thể phân biệt "job không tồn tại" với "kết quả đã hết hạn", nên giao diện phải nói cả hai khả
   năng bằng một câu, hoặc nói theo cách đúng trong cả hai trường hợp.
 

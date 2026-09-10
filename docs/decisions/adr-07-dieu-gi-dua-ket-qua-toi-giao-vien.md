@@ -1,6 +1,6 @@
 # ADR-07 — Điều gì đưa một kết quả chấm tới giáo viên
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt (việc gỡ ngưỡng khỏi luồng học sinh: chưa thi hành)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -21,6 +21,14 @@ nhất giải thích nó là một comment trong `.env.example` cùng một tran
   **không** phải thang nghiêm trọng: bốn `ReviewReason` hiển thị cùng trọng lượng — xem
   [ADR-08](adr-08-bon-loai-nghi-ngo.md).
 - Ngưỡng hiện tại là **0.7**.
+- **Tạm không áp cho luồng học sinh của mô hình hai pha.** Pha 1 không thu lời giải thích
+  ([ADR-11](adr-11-bo-assessment-type.md)), nên điều kiện `confidence <= ngưỡng` đúng với **mọi câu
+  của mọi học sinh** và cổng này nuốt trọn cả lớp. Chẩn đoán ở pha 2 vì thế **không đi qua ngưỡng**;
+  xem [ADR-08](adr-08-bon-loai-nghi-ngo.md).
+- **Gỡ mỗi điều kiện ngưỡng là chưa đủ.** Nếu pha 1 gửi chuỗi rỗng thay vì `None` thì điều kiện
+  *không đủ căn cứ* — một điều kiện **độc lập**, không liên quan gì tới ngưỡng — vẫn đẩy cả lớp vào
+  hàng đợi. Luồng học sinh phải gỡ **cả hai**, hoặc phải chốt rằng pha 1 gửi `None`. Đây chính là
+  điều luật *hai điều kiện đầu áp dụng kể cả khi confidence rất cao* ở trên, đọc theo chiều bất lợi.
 - Ngưỡng được áp **lúc đọc kết quả**, không lưu kèm kết quả.
 - **Đáp án sai mà hệ thống tự tin thì không cần giáo viên.** Cổng này dành cho lúc *hệ thống* không
   chắc, không phải lúc *học sinh* sai.
@@ -53,6 +61,8 @@ chính sách thì phải chấm lại toàn bộ.
 - Ngưỡng `0.7` là quyết định nghiệp vụ **còn hiệu lực** sau khi phần chấm placeholder được thay bằng
   lời gọi LLM thật. Năm mốc confidence trong `services/agent/src/agent/handlers.py` thì **không** —
   chúng là dữ liệu giả để demo, không phải luật.
+- Việc tạm gỡ điều kiện ngưỡng khỏi luồng học sinh nghĩa là **con số 0.7 hiện không bảo vệ ai**. Bật
+  lại nó đòi trả lời trước một câu khác: khi phần chấm đã xác định, `confidence` còn đo cái gì.
 
 ## Nơi luật này đang được thi hành
 
@@ -69,3 +79,6 @@ chính sách thì phải chấm lại toàn bộ.
 - `services/be/src/be/review_policy.py:53-71` — không nhánh nào đọc `result.score`. Đó là tất cả những
   gì đang giữ luật *đáp án sai mà tự tin thì không cần giáo viên*; **chưa có test** nào canh chiều này.
 - `docs/local-development.md` — bảng năm trường hợp demo, có dòng đáp án sai mà không cần review.
+- **Việc gỡ khỏi luồng học sinh: chưa thi hành ở đâu cả.** `services/be/src/be/review_policy.py:65`
+  vẫn áp ngưỡng cho **mọi** kết quả, không có nhánh nào biết tới pha nào. Mọi dòng ở trên là nơi luật
+  gốc đang chạy; phần gỡ ra thì chưa có chỗ nào.

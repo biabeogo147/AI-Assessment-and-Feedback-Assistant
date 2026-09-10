@@ -1,6 +1,6 @@
 # ADR-08 — Bốn loại nghi ngờ, và điều học sinh không được thấy
 
-- **Trạng thái:** đã chốt (luật *vắng mặt về cấu trúc*: đã chốt, chưa thi hành)
+- **Trạng thái:** đã mở rộng bởi ADR-18 (luật *vắng mặt về cấu trúc*: chưa thi hành)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -20,6 +20,16 @@ trước khi giáo viên xử lý.
   enum để lúc thi hành không phải đổi contract.
 - Kết quả độ tin cậy thấp phải **vắng mặt về mặt cấu trúc** với học sinh — không có điểm, không có nhận
   xét, không có mã lỗi sai trong dữ liệu gửi xuống, chứ không phải ẩn bằng một cờ hiển thị.
+- **Thu hẹp (2026-09-10): thứ cần giữ lại là *chẩn đoán*, không phải *kết quả*.** Với trắc nghiệm,
+  đáp án đúng chỉ có một, nên đúng/sai là một phép so và không có gì để mà không chắc. Cái thật sự
+  không chắc là *em sai vì cái gì*: cùng một phương án nhiễu có thể do nhiều lỗi khác nhau. Luật vắng
+  mặt vì thế phủ `misconception_code` và `feedback_text`, không phủ việc học sinh biết mình đúng hay
+  sai.
+- **Và ở đợt hai pha, chẩn đoán không còn độ tin cậy nào.**
+  [ADR-18](adr-18-cau-hoi-phai-kem-loi-giai.md) bắt mỗi phương án nhiễu mang sẵn lỗi mà nó đại diện,
+  nên chẩn đoán là **tra cứu** chứ không phải suy đoán. Luồng học sinh vì thế **không có trạng thái
+  chờ giáo viên**. Đây là việc gỡ một luật đang chạy khỏi một luồng, không phải một chú thích: xem
+  `docs/plans/backlog.md` để biết cái gì phải đúng trước khi bật lại.
 - **Hàng đợi rỗng là kết quả tốt**, không được trình bày như lỗi tải dữ liệu.
 
 ## Vì sao
@@ -44,6 +54,10 @@ dạy giáo viên lo lắng nhầm chỗ.
 - Màn hình kết quả của học sinh cần **hai hình dạng dữ liệu khác nhau** cho hai trạng thái, không phải
   một hình dạng với vài trường rỗng. Đắt hơn khi dựng, nhưng là cách duy nhất luật trên không bị phá
   bằng một dòng cấu hình.
+- Sau khi thu hẹp, **sản phẩm không còn chỗ nào nói với học sinh rằng nó chưa chắc**. Đó là cái giá
+  của [ADR-18](adr-18-cau-hoi-phai-kem-loi-giai.md), và ADR đó phải tự tranh luận với nó.
+- Component `Student result — chờ giáo viên` (`6:50`) trong Figma vì thế **sẽ không có instance nào**.
+  Nó ở lại vì luật ở lại; chỉ luồng hiện tại không đi qua nó.
 - Chừng nào chưa lưu lịch sử làm bài, một trong bốn control point của Workflow 4 vẫn nằm chết trong
   enum. Bất kỳ báo cáo nào đếm "đã phủ mấy control point" đều phải trừ nó ra.
 

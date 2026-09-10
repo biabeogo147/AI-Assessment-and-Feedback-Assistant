@@ -19,6 +19,11 @@ Không tài liệu nào nói ra ranh giới này, nên người đọc `docs/ove
 - Sản phẩm là **web dùng trên desktop**. Không thiết kế cho mobile.
 - **Chat là dòng lệnh**, không phải nơi chứa vật thể quan trọng. Vật thể có hệ quả — đề kiểm tra, cài
   đặt phát hành — sống trong **panel bên phải**.
+- **Luật *chat là dòng lệnh* chỉ áp cho bề mặt giáo viên.** Ở pha 2
+  ([ADR-14](adr-14-hai-pha-lam-bai.md)), cuộc hội thoại giữa Kriky và học sinh **chính là nội dung
+  học** — nó là thứ có giá trị nhất trên màn hình, không phải một dòng lệnh trôi qua. Bề mặt học sinh
+  chưa được thiết kế, nên ADR này **không** nói trước bố cục của nó; nó chỉ chặn việc thừa kế nhầm
+  một lý lẽ.
 - Nút Phát hành **không bao giờ** xuất hiện trong luồng chat. Luật này thuộc
   [ADR-05](adr-05-ba-cong-teacher-in-the-loop.md); nhắc lại đây vì nó là hệ quả trực tiếp của việc
   chat là dòng lệnh.
@@ -46,6 +51,8 @@ không thu hồi được nằm cạnh những dòng chữ trôi qua.
   nhỏ mà phải thiết kế lại quan hệ giữa chat và panel.
 - Luật panel nghĩa là mọi hành động có hệ quả mới trong tương lai đều phải tìm chỗ trong panel, kể cả
   khi đặt vào chat thì tiện hơn.
+- Vì cùng một widget mang hai vai trò trái ngược ở hai bề mặt, **mọi component chat dùng lại cho học
+  sinh phải được kiểm lại từng luật một**. Dùng lại hình dạng thì được; dùng lại lý lẽ thì không.
 
 ## Nơi luật này đang được thi hành
 

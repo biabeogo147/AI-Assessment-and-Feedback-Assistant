@@ -9,19 +9,25 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 
 | ADR | Quyết định | Trạng thái |
 | --- | --- | --- |
-| [01](adr-01-vong-doi-de-kiem-tra.md) | Vòng đời đề kiểm tra có bốn trạng thái | đã mở rộng bởi ADR-02 |
-| [02](adr-02-phat-hanh-va-cua-so-thu-hoi.md) | Chỉ giáo viên phát hành; có cửa sổ thu hồi tới giờ mở | đã chốt (cửa sổ thu hồi chưa thi hành) |
-| [03](adr-03-ranh-gioi-cua-vao.md) | Giờ đóng chặn việc vào làm, không chặn việc nộp | đã chốt |
-| [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi | đã chốt |
-| [05](adr-05-ba-cong-teacher-in-the-loop.md) | Ba cổng teacher-in-the-loop | đã chốt |
+| [01](adr-01-vong-doi-de-kiem-tra.md) | Vòng đời đề kiểm tra có bốn trạng thái | đã mở rộng bởi ADR-02, ADR-18 |
+| [02](adr-02-phat-hanh-va-cua-so-thu-hoi.md) | Chỉ giáo viên phát hành; phát hành có sáu tham số | đã mở rộng bởi ADR-15 |
+| [03](adr-03-ranh-gioi-cua-vao.md) | Giờ đóng chặn việc vào làm, không chặn việc nộp | đã chốt (phạm vi: pha 1) |
+| [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi | đã chốt (trừ câu luyện tập) |
+| [05](adr-05-ba-cong-teacher-in-the-loop.md) | Ba cổng teacher-in-the-loop | đã chốt (cổng 1 có ngoại lệ) |
 | [06](adr-06-agent-phat-bang-chung.md) | Agent phát bằng chứng, không quyết định | đã chốt |
-| [07](adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) | Ngưỡng, thứ tự ưu tiên lý do, và phép so bao gồm | đã chốt |
-| [08](adr-08-bon-loai-nghi-ngo.md) | Bốn loại nghi ngờ; kết quả low-confidence vắng mặt với học sinh | đã chốt |
+| [07](adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) | Ngưỡng, thứ tự ưu tiên lý do, và phép so bao gồm | đã chốt (ngưỡng tạm gỡ khỏi luồng học sinh) |
+| [08](adr-08-bon-loai-nghi-ngo.md) | Bốn loại nghi ngờ; thứ vắng mặt với học sinh là *chẩn đoán* | đã mở rộng bởi ADR-18 |
 | [09](adr-09-ket-qua-cham-la-tam-thoi.md) | Kết quả chấm chỉ sống một giờ | đã chốt |
 | [10](adr-10-pham-vi-dot-dau.md) | Chỉ giáo viên, chỉ desktop, chat là dòng lệnh | đã chốt |
 | [11](adr-11-bo-assessment-type.md) | Bỏ `AssessmentType` khỏi contract | đã chốt |
 | [12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md) | Một số màu và hình ảnh mang nghĩa nghiệp vụ cố định | đã chốt |
 | [13](adr-13-lop-va-tai-khoan-hoc-sinh.md) | Giáo viên tạo lớp; tài khoản học sinh sinh từ CSV | đã chốt (mật khẩu một lần: chưa thi hành) |
+| [14](adr-14-hai-pha-lam-bai.md) | Bài kiểm tra có hai pha; nộp bài không phải điểm kết thúc | đã chốt, chưa thi hành |
+| [15](adr-15-thoi-gian-pha-hai.md) | Hai đồng hồ ở pha 2; phần giải thích không tính giờ | đã chốt, chưa thi hành |
+| [16](adr-16-thang-diem-ba-muc.md) | Ba mức điểm; 0,5 nghĩa là hiểu sau khi được dạy | đã chốt, chưa thi hành |
+| [17](adr-17-ba-vong-moi-cau.md) | Ba vòng cho mỗi câu; biến thể sinh từ chính câu đó | đã chốt, chưa thi hành |
+| [18](adr-18-cau-hoi-phai-kem-loi-giai.md) | Câu hỏi phải kèm lời giải nhiều cách và nhiễu gắn lỗi | đã chốt, chưa thi hành |
+| [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt, chưa thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.
@@ -44,8 +50,12 @@ hạn giữ kết quả một giờ — nay đã có ADR-07 và ADR-09.
 
 Còn lại, và cố ý chưa viết:
 
-- **Luồng học sinh** — chấm bài, feedback, mastery, luyện tập thích ứng. Có tài liệu và có code, nhưng
-  chưa có thiết kế; xem ADR-10.
+- **Màn hình học sinh** — ba màn (danh sách bài, làm bài, chữa bài). Luật đã có: ADR-14 tới ADR-19 ghi
+  trọn mô hình hai pha. Cái còn thiếu là **thiết kế**, và nó chờ đợt sau.
+- **Bốn luật của mô hình hai pha chưa ai quyết**, và cả bốn đang nằm ở `docs/plans/backlog.md`: câu
+  luyện tập có qua cổng duyệt không; `confidence` đo cái gì khi phần chấm đã xác định; mức điểm 0,5
+  hiện bằng màu nào (ADR-12 mới khoá hai trạng thái đáp án); và vòng đếm cùng đồng hồ ứng xử ra sao
+  khi học sinh mở hai tab.
 - **Màn hình Bảng theo dõi** — chưa thiết kế, nên chưa có luật nào để ghi.
 - **Luồng nhập CSV danh sách lớp** — chỗ duy nhất mật khẩu ban đầu được phép hiện. ADR-13 đã
   chốt luật, nhưng màn hình chưa dựng.

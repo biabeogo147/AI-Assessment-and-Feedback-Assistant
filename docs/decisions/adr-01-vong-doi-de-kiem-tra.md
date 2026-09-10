@@ -1,6 +1,6 @@
 # ADR-01 — Vòng đời đề kiểm tra có bốn trạng thái
 
-- **Trạng thái:** đã mở rộng bởi ADR-02
+- **Trạng thái:** đã mở rộng bởi ADR-02 và ADR-18
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -23,6 +23,8 @@ trống  ->  có câu hỏi  ->  đã duyệt  ->  đã phát hành
 - Đề **sinh ra trống**. Thêm câu hỏi là một bước riêng, không phải một phần của việc tạo.
 - Ở trạng thái nháp, thêm và sửa câu hỏi được.
 - Duyệt **khoá nội dung**: ở trạng thái đã duyệt, không thêm và không sửa câu hỏi được.
+- Từ [ADR-18](adr-18-cau-hoi-phai-kem-loi-giai.md), *nội dung* gồm cả **lời giải nhiều cách** và
+  **ánh xạ phương án nhiễu sang lỗi**. Duyệt khoá luôn hai thứ đó.
 - Bỏ duyệt đưa đề **về lại nháp**, và được phép chừng nào chưa phát hành.
 - Bỏ duyệt **giữ nguyên** cài đặt phát hành đã nhập.
 
@@ -51,4 +53,6 @@ chiều thì giáo viên gặp hai cổng nặng liên tiếp, và sẽ học c�
 - Figma artboard `6 · Soi từng câu trong panel` (nút "Duyệt đề", "Sửa" hiện) so với
   `7 · Đã duyệt — cài đặt phát hành` ("Sửa" đặt `visible = false` trên cả năm thẻ câu hỏi).
 - Chuỗi trên thẻ `đã-duyệt`: *"10 câu · nội dung đã khoá, muốn sửa thì bỏ duyệt trước"*.
+- Figma `Question card` (`267:30`) — thuộc tính boolean **Sửa được**, tắt trên artboard 7 (đã duyệt)
+  và bật trên artboard 6. Nút Sửa **biến mất** chứ không mờ đi, đúng như mục *Hệ quả* đòi.
 - **Chưa có ở backend**: không model, không endpoint, không test nào biết tới bốn trạng thái này.

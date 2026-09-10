@@ -1,0 +1,80 @@
+# ADR-18 — Mỗi câu hỏi phải kèm lời giải nhiều cách, và mỗi phương án nhiễu gắn một lỗi
+
+- **Trạng thái:** đã chốt (chưa có ở backend)
+- **Ngày:** 2026-09-10
+
+## Bối cảnh
+
+Pha 2 ([ADR-14](adr-14-hai-pha-lam-bai.md)) đòi trợ lí **giải thích lỗi sai** cho học sinh rồi **dạy
+lại**. Muốn làm được việc đó, nó phải biết hai thứ: học sinh sai vì cái gì, và cách làm đúng là gì.
+
+Hôm nay nó không biết cả hai. `business-workflows.md` Workflow 3 bước 4 nói khi không có lời giải
+thích thì hệ thống **dự đoán** lỗi sai dựa trên distractor, lịch sử học tập và ngữ cảnh — mà lịch sử
+học tập thì chưa tồn tại. `services/agent/src/agent/handlers.py` phản ánh đúng tình trạng ấy: khi
+không có phần giải thích, nó hạ `confidence` xuống 0,55; và với mọi đáp án sai, nó sinh
+`misconception_code` suy ra thẳng từ mã phương án đã chọn.
+
+Đoán sai lỗi rồi đi giải thích một lỗi học sinh không mắc thì **tệ hơn im lặng**.
+
+## Quyết định
+
+- Mỗi câu hỏi, ở cả hai nguồn theo [ADR-04](adr-04-hai-nguon-cau-hoi.md), phải mang theo **lời giải**,
+  và lời giải đó phải có **nhiều hơn một cách làm**.
+- Mỗi **phương án nhiễu** phải mang theo **lỗi mà nó đại diện**. Ánh xạ này được soạn cùng câu hỏi,
+  không suy ra lúc chấm.
+- Trợ lí ở pha 2 **đi theo lời giải và ánh xạ đã có**. Nó không tự nghĩ ra cách làm mới và không tự
+  đoán lỗi.
+- Lời giải và ánh xạ là **một phần của nội dung đề**, nên chúng bị khoá khi giáo viên duyệt, đúng như
+  câu hỏi. Xem [ADR-01](adr-01-vong-doi-de-kiem-tra.md).
+
+## Vì sao
+
+Với trắc nghiệm, phần chấm là một phép so và không có gì để mà không chắc. Thứ **thật sự** không chắc
+là chẩn đoán: cùng một phương án nhiễu có thể do ba lỗi khác nhau. Soạn sẵn ánh xạ biến chẩn đoán từ
+**suy đoán** thành **tra cứu** — và làm điều đó ở chỗ đúng, tức là lúc soạn đề, nơi có người biết môn
+học đang ngồi.
+
+Nhiều cách làm, vì một cuộc giải thích chỉ có một cách thì không đi đâu được khi học sinh nói *em vẫn
+chưa hiểu*. Nhiều cách cho hội thoại một chỗ để bước tiếp thay vì lặp lại to hơn. Nó cũng tránh việc
+dạy lại một em bằng đúng con đường em vừa đi hỏng.
+
+**Đây là chỗ luật này va vào nguyên tắc lõi, và phải nói ra.**
+[ADR-06](adr-06-agent-phat-bang-chung.md) viết *cả sản phẩm sống bằng việc thú nhận giới hạn*. Ánh xạ
+soạn sẵn là ánh xạ **một-một**: chọn nhiễu B thì hệ thống tuyên bố lỗi B, với giọng chắc nịch, kể cả
+khi em chọn B vì một lý do khác hẳn. Đổi lại sự chắc chắn ấy, sản phẩm **mất khả năng nói tôi không
+chắc** đúng ở chỗ nó đang nói chuyện với học sinh.
+
+Chấp nhận đánh đổi này vì phương án còn lại tệ hơn theo cách đo được: giữ chẩn đoán bằng suy đoán
+nghĩa là ngưỡng tin cậy hiện tại đẩy **mọi câu của mọi em** vào hàng đợi giáo viên, và pha 2 không
+khởi động cho ai (xem `docs/plans/backlog.md`). Một chẩn đoán do người soạn đề viết ra sai ít hơn một
+chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục *Hệ quả* nói cái giá.
+
+## Hệ quả
+
+- **Cổng duyệt của giáo viên nặng hơn hẳn.** Duyệt một đề nay là duyệt cả lời giải và ánh xạ nhiễu.
+  Và **lời giải khó duyệt hơn câu hỏi**: một câu hỏi sai thì đọc là thấy, một lời giải sai tinh vi thì
+  phải làm thử mới thấy.
+- **Lời giải sai bị khuếch đại.** Một câu hỏi sai làm hỏng một câu; một lời giải sai được **dạy lại**
+  cho mọi em sai câu đó, cùng lúc. Sai sót ở nội dung không còn tỉ lệ với số người gặp nó.
+- **Câu đúng ở pha 1 không bao giờ kiểm được lời giải của nó**, vì nó không vào pha 2. Lời giải sai chỉ
+  lộ ra qua chính những em bị dạy lại bằng nó.
+- **Ngân hàng câu hỏi hiện có không đủ tiêu chuẩn.** Mọi câu đã lưu trước luật này đều thiếu lời giải
+  và thiếu ánh xạ, nên chưa dùng được ở pha 2.
+- **Soạn một câu hỏi đắt hơn nhiều.** Trước đây là đề bài, các phương án và đáp án; nay thêm nhiều
+  cách giải và một lỗi cho từng nhiễu. Điều này áp cho cả câu Kriky soạn lẫn câu giáo viên tự viết.
+- Sản phẩm **không còn bề mặt nào để nói tôi chưa chắc lỗi của em là gì**. Nếu sau này chẩn đoán quay
+  lại có độ tin cậy, bề mặt ấy phải được dựng lại từ đầu.
+
+## Nơi luật này đang được thi hành
+
+- Figma `Question card` (`267:30`) — component set hai variant `Lời giải=thu gọn` / `Lời giải=mở`.
+  Variant mở mang hai cách giải và bảng ánh xạ nhiễu→lỗi. Mười thẻ trên artboard 6 và 7 nay là
+  instance của component này; trước đó là mười frame dựng tay.
+- **Chưa có gì ghi nhận giáo viên đã đọc lời giải.** Đây là lỗ do chính ADR này tạo ra; xem
+  `docs/plans/backlog.md`.
+- **Chưa có ở contract**: `packages/contracts` có `question_id` nhưng không có **model** câu hỏi, nên
+  chưa có chỗ nào để gắn lời giải vào.
+- `docs/overview/business-workflows.md` Workflow 3 đã đổi *dự đoán* thành **tra cứu**, và distractor
+  từ *nên* thành **phải**.
+- **Đang bị vi phạm ở code**: `services/agent/src/agent/handlers.py` vẫn suy `misconception_code` từ
+  mã phương án chứ không tra một ánh xạ đã soạn. Sửa code chưa lên lịch; xem `docs/plans/backlog.md`.

@@ -1,6 +1,6 @@
 # ADR-04 — Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi, không phải nguồn
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt (ngoại lệ về câu luyện tập: chưa thi hành)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -11,6 +11,7 @@ trước khi bị bắt.
 
 ## Quyết định
 
+- **Luật này áp cho câu hỏi trong đề.** Câu luyện tập sinh ra ở pha 2 là ngoại lệ; xem cuối mục này.
 - Câu hỏi chỉ đến từ **hai** nguồn: **ngân hàng câu hỏi**, hoặc **Kriky soạn mới**.
 - **Tài liệu PDF không phải một nguồn.** Nó cung cấp kiến thức và **giới hạn phạm vi** ra đề. Nó không
   chứa câu hỏi.
@@ -19,6 +20,10 @@ trước khi bị bắt.
 - **Tài liệu thuộc về giáo viên**, không thuộc về từng đề. Một cuốn sách dùng cho nhiều đề suốt học kỳ.
 - Ba mức nguồn dùng ba màu đối nhau: ngân hàng **xám trung tính**, đã kiểm **xanh**, chưa kiểm
   **hổ phách**.
+- **Ngoại lệ — câu luyện tập ở pha 2.** Câu biến thể sinh ra theo
+  [ADR-17](adr-17-ba-vong-moi-cau.md) là câu Kriky soạn, tới thẳng tay học sinh, và **không ai đánh
+  dấu đã kiểm cho nó** — nó vĩnh viễn ở trạng thái *chưa kiểm*. Luật hai trạng thái kiểm ở trên vì
+  thế không áp cho nó. Ba đường xử lý đang cân nhắc nằm ở `docs/plans/backlog.md`.
 
 ## Vì sao
 
@@ -35,10 +40,17 @@ xanh như "đã kiểm" thì hai thứ khác hẳn nhau về trách nhiệm lạ
 Tài liệu thuộc về giáo viên vì đó là quyết định **mô hình dữ liệu**: quan hệ là Document ↔ Teacher, chứ
 không phải Document ↔ Assessment. Đề chỉ tham chiếu tới tài liệu.
 
+Câu luyện tập là ngoại lệ vì nó **sinh ra khi học sinh đang ngồi đó**, và không ai chờ được một thao
+tác của giáo viên ở giữa. Đó là lý do cơ học, không phải lý do nguyên tắc — và vì thế nó là một lỗ
+chứ không phải một thiết kế. Ba đường bịt lỗ đang cân nhắc nằm ở `docs/plans/backlog.md`.
+
 ## Hệ quả
 
 - Mỗi câu Kriky soạn cần một thao tác đánh dấu riêng, nên duyệt một đề mười câu có thể tốn mười thao
   tác nữa. Đó là cái giá phải trả để "đã kiểm" có nghĩa.
+- Vì có một loại câu **không bao giờ được kiểm**, nhãn *chưa kiểm* mất đi tính tạm thời của nó. Ở đề
+  thì nó nghĩa là *chờ giáo viên xem*; ở pha 2 thì nó nghĩa là *sẽ không ai xem*. Cùng một chữ, hai
+  nghĩa, và giao diện phải phân biệt được nếu bao giờ bày cả hai.
 - Bong bóng hỏi lại **không được** xếp tài liệu ngang hàng với ngân hàng như một lựa chọn nguồn. Nói
   "Kriky soạn, giới hạn trong sách X", không nói "soạn từ sách X".
 - Thư viện tài liệu sống ở rail trái, không nằm trong panel đề.
@@ -53,4 +65,7 @@ không phải Document ↔ Assessment. Đề chỉ tham chiếu tới tài liệ
 - Figma `Document chip` (`84:25`) — mô tả ghi tài liệu thuộc về giáo viên.
 - Figma `Clarify request` (`64:23`) — ba lựa chọn dựng theo hai nguồn.
 - Figma artboard `2 · Kèm tài liệu, giới hạn phạm vi` — thanh phạm vi *"chương 1, trang 30-62"*.
+- **Ngoại lệ về câu luyện tập: chưa thi hành ở đâu cả.** `Source citation` (`84:35`) có ba variant và
+  không variant nào dành cho một câu **sẽ không bao giờ được kiểm** — nhãn *chưa kiểm* ở đó nghĩa là
+  *đang chờ giáo viên xem*, một nghĩa không đúng cho câu biến thể.
 - **Chưa có ở backend**: không có model Document, Class hay QuestionBank nào.

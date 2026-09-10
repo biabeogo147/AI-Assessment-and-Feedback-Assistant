@@ -1,6 +1,6 @@
 # ADR-11 — Bỏ `AssessmentType` khỏi contract
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt (chỗ thu lời giải thích: chưa thi hành)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -22,6 +22,10 @@ Nhưng nó được cài vào **sai chỗ**.
   không bỏ luật.
 - Khi luật đó cần thi hành, nó sẽ là một thuộc tính của **đề hoặc câu hỏi**, không phải một trường trên
   thông điệp chấm bài.
+- **Cờ *đề này cần giải thích* vẫn là thuộc tính của đề hoặc câu hỏi**, đúng như dòng trên. Cái được
+  chốt thêm ngày 2026-09-10 là **chỗ thu** lời giải thích: **hội thoại ở pha 2**, không phải một ô
+  nhập ở pha 1. Hai chuyện khác nhau — một cái là *ai giữ luật*, cái kia là *hỏi học sinh lúc nào*.
+  Xem [ADR-14](adr-14-hai-pha-lam-bai.md).
 
 ## Vì sao
 
@@ -30,7 +34,13 @@ Một trường mà không ai ghi và không ai đọc **tệ hơn là không c�
 với bài cuối kỳ, và sẽ không hỏi tiếp.
 
 Chỗ đúng của nó là đề, không phải submission. Yêu cầu giải thích được quyết lúc **soạn đề** — cùng lúc
-với việc chọn câu hỏi và độ khó — chứ không phải lúc một bài làm đã nộp đi qua hàng đợi. Đặt nó trên
+với việc chọn câu hỏi và độ khó — chứ không phải lúc một bài làm đã nộp đi qua hàng đợi.
+
+Và chỗ đúng để **thu** lời giải thích là pha 2, vì một ô nhập tuỳ chọn ở pha 1 là cái bẫy: học sinh
+lười gõ bỏ trống thì `has_sufficient_evidence` thành sai, kết quả vào hàng đợi review, và theo
+[ADR-08](adr-08-bon-loai-nghi-ngo.md) em đó **không nhận được gì cả** — bị phạt vì không gõ, và không
+bao giờ biết vì sao. Hỏi sau, đúng câu em sai, không bị đồng hồ ép, cho bằng chứng tốt hơn và không
+đặt bẫy nào. Đặt nó trên
 `GradingRequested` nghĩa là mỗi bài làm phải mang theo một sự thật thuộc về đề, và mỗi client gọi API
 phải nhớ điền đúng.
 
@@ -47,6 +57,11 @@ pydantic mặc định **bỏ qua** trường lạ, nên một client cũ vẫn 
 - Ai muốn thi hành luật giải thích sẽ phải thiết kế trường đó trên đề trước, rồi mới tới bước chấm.
   Nặng hơn hẳn việc điền vào một enum đã có sẵn — và đó là lý do enum có sẵn nhưng bỏ trống lại nguy
   hiểm.
+- Vì pha 1 không thu lời giải thích, `student_explanation` **luôn rỗng** ở đó. Điều đó kéo theo một
+  hệ quả ở chỗ khác hẳn: điều kiện ngưỡng của
+  [ADR-07](adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) đúng với mọi câu của mọi học sinh, nên nó
+  phải được gỡ khỏi luồng học sinh. Một quyết định về **chỗ đặt ô nhập** hoá ra chạm tới **cổng định
+  tuyến**.
 
 ## Nơi luật này đang được thi hành
 
@@ -57,6 +72,8 @@ pydantic mặc định **bỏ qua** trường lạ, nên một client cũ vẫn 
   đã bỏ trường; 20 test pytest xanh sau khi gỡ.
 - `services/fe/src/api.ts` — thân request không còn gửi trường.
 - `docs/local-development.md` — ví dụ `curl` đã bỏ trường.
+- **Chỗ thu lời giải thích: chưa thi hành ở đâu cả.** Không màn hình nào của pha 2 tồn tại, và
+  `GradingRequested` vẫn mang `student_explanation` như thể nó được thu ở lúc nộp.
 - Luật vẫn còn hiệu lực nằm ở `docs/overview/use-case-specification.md:255` và
   `docs/overview/business-workflows.md:76`, `91`; `business-workflows.md:86` là vế bù cho bài thường
   xuyên. Không dòng nào bị đụng tới trong lần gỡ này.
