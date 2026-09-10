@@ -111,3 +111,178 @@ kèm đạo cụ cần **≥64px** để đạo cụ đạt ~16px. Hai hướng,
 1. Giữ ô 40px và dùng crop cận cho cả năm trạng thái; để `Thinking` và `Action result card` nói trạng
    thái bằng chữ. Hợp ADR-10 — chat là dòng lệnh, linh vật không nên nở thành một thành phần của cột.
 2. Giữ tư thế toàn thân nhưng dời sang chỗ có đất: một ô 64px ở đầu panel, hoặc cạnh composer.
+
+## Luồng học sinh — mô hình hai pha
+
+Mô hình hai pha được chốt trong [ADR-14](../decisions/adr-14-hai-pha-lam-bai.md) …
+[ADR-19](../decisions/adr-19-bao-cao-giai-thich-chua-ro.md). Cả sáu mang trạng thái *chưa thi hành*.
+Dưới đây là những gì đã nêu ra và cố ý chưa làm.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Toàn bộ pha 2 | **Bị chặn bởi hạ tầng** — xem dưới |
+| Cổng duyệt cho câu luyện tập | **Chưa quyết định nghiệp vụ** — xem dưới |
+| Bật lại confidence của chẩn đoán | Chưa cần, và bật lại hôm nay sẽ hỏng — xem dưới |
+| Ba dòng invariant trong `AGENTS.md` cần chỉnh lời | Chặn bởi câu hỏi cổng duyệt ở trên |
+| Dữ liệu để giải thích *vì sao 0,5* | Không bị chặn. Cần một trường mới trong contract |
+| Hai tab hoặc tải lại trang giữa pha 2 | Không bị chặn. Chưa quyết vòng đếm và đồng hồ ứng xử ra sao |
+| Màn hình học sinh trên điện thoại | Không bị chặn. Quyết định phạm vi — xem dưới |
+| Bắt đổi mật khẩu ở lần đăng nhập đầu | Không bị chặn. Không có màn hình nào để đặt nó vào |
+| Cách thể hiện mức 0,5 bằng màu | **Chưa quyết định nghiệp vụ.** ADR-12 mới khoá hai trạng thái đáp án |
+| Phát hiện sớm một lời giải sai | **Chưa quyết định nghiệp vụ** — xem dưới |
+| Hai chỗ contract nói không còn đúng | Không bị chặn. Chờ đợt sửa code |
+
+### Vì sao pha 2 chưa dựng được
+
+Mọi thứ ở pha 2 là **trạng thái có nhớ**: đã lặp mấy vòng cho từng câu, hội thoại đã nói gì, dạng nào
+đã đóng, và điểm cuối. [ADR-09](../decisions/adr-09-ket-qua-cham-la-tam-thoi.md) chốt kết quả chấm chỉ
+sống **một giờ** trong Redis, trong khi hạn kết thúc pha 2 có thể là cuối ngày.
+
+Học sinh chữa dở, đi ăn cơm, quay lại — hệ thống không còn biết em đã làm hai vòng hay chưa vòng nào.
+Luật *tối đa ba vòng* không tồn tại được nếu chưa có cơ sở dữ liệu.
+
+Đây cùng nhóm với `ReviewReason.ANOMALY` và thống kê điểm: **cùng bị chặn bởi một thứ**, cùng mở khoá
+khi có cơ sở dữ liệu thật. Khác biệt là ở quy mô — hai mục kia là tính năng phụ, còn đây là **toàn bộ
+nửa sau của sản phẩm**.
+
+### Câu luyện tập chưa qua cổng duyệt nào
+
+Hiện tại trợ lí sinh câu `x'` và nó tới thẳng tay học sinh.
+[ADR-05](../decisions/adr-05-ba-cong-teacher-in-the-loop.md) cổng số một nói *giáo viên duyệt đề trước
+khi phát hành cho học sinh*; câu `x'` là ngoại lệ, và ADR-05 đã ghi ngoại lệ đó.
+
+Cái giá, để lần bàn sau khỏi phải dựng lại lập luận: `x'` **được dùng để dạy lại** và **quyết định câu
+gốc được 0,5 hay 0 điểm**. Nó không phải một gợi ý trôi qua như bong bóng chat. Thêm nữa,
+[ADR-04](../decisions/adr-04-hai-nguon-cau-hoi.md) chốt câu Kriky soạn có hai trạng thái kiểm và giáo
+viên là người chuyển — `x'` thì vĩnh viễn ở trạng thái *chưa kiểm*.
+
+Ba đường đã nêu và chưa chọn:
+
+- `x'` chỉ được lấy từ ngân hàng câu hỏi **đã kiểm**, không sinh mới.
+- Giáo viên duyệt sẵn **bộ câu chữa cho từng lỗi** ngay lúc duyệt đề, rồi hệ thống chỉ chọn trong đó.
+- Giữ nguyên, và chấp nhận rằng cổng số một có một lỗ.
+
+### Vì sao chưa bật lại confidence của chẩn đoán
+
+[ADR-08](../decisions/adr-08-bon-loai-nghi-ngo.md) đã thu hẹp: đúng/sai là phép so xác định, thứ từng
+cần giữ lại là **chẩn đoán**. Đợt này bỏ hẳn confidence của chẩn đoán khỏi luồng học sinh.
+
+Bật lại hôm nay thì hỏng ngay, và hỏng theo **hai** đường chứ không phải một.
+
+`services/agent/src/agent/handlers.py` trả `confidence = 0.55` khi `student_explanation` là `None`;
+ngưỡng là `0.7` và phép so là **bao gồm**
+([ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md)). Pha 1 của mô hình mới không thu
+lời giải thích, nên điều kiện đó đúng với **mọi câu của mọi học sinh** — một lớp 40 em làm bài 10 câu
+sinh ra 400 mục chờ giáo viên, và pha 2 không khởi động cho ai.
+
+Đường thứ hai độc lập với ngưỡng: nếu pha 1 gửi **chuỗi rỗng** thay vì `None`, cùng file trả
+`confidence = 0.30` **và** `has_sufficient_evidence = False`, và `services/be/src/be/review_policy.py`
+đẩy kết quả vào hàng đợi qua `INSUFFICIENT_EVIDENCE` mà không hề so ngưỡng. Gỡ mỗi điều kiện ngưỡng là
+chưa đủ.
+
+Việc cần làm trước khi bật lại không phải chỉnh ngưỡng, mà là **định nghĩa lại confidence đo cái gì**
+khi phần chấm đã xác định — rồi mới tới việc pha 1 gửi `None` hay chuỗi rỗng.
+
+### Mức 0,5 chưa có màu, và ADR-12 chưa nhận
+
+[ADR-12](../decisions/adr-12-mau-va-hinh-anh-ma-hoa-luat.md) khoá `answer/incorrect` vào **hai**
+trạng thái đáp án: đúng và sai. [ADR-16](../decisions/adr-16-thang-diem-ba-muc.md) thêm trạng thái thứ
+ba — *đã chữa được* — và cố ý **không tự nhận** cách thể hiện nó, vì luật màu thuộc ADR-12.
+
+Đây là chỗ dễ làm sai nhất: mức 0,5 trông như một mức trung gian nên rất mời gọi màu hổ phách, mà hổ
+phách nghĩa là **cần người** — một câu đã chữa xong thì không cần ai cả. Khi quyết, phải quyết trong
+ADR-12 chứ không phải trong màn hình đầu tiên bày ba mức.
+
+### Lời giải sai bị khuếch đại, và chưa có cách phát hiện sớm
+
+[ADR-18](../decisions/adr-18-cau-hoi-phai-kem-loi-giai.md) đòi mỗi câu kèm lời giải. Một lời giải sai
+**chỉ lộ ra qua những em làm sai câu đó** — đúng những em sẽ được **dạy lại bằng chính lời giải sai
+đó**, cùng lúc, cả lớp. So với việc feedback sai tới từng em một cách rời rạc, mô hình mới **khuếch
+đại** lỗi này.
+
+Kênh phát hiện duy nhất là [ADR-19](../decisions/adr-19-bao-cao-giai-thich-chua-ro.md), và nó cố ý
+**không chặn ai**. Chấp nhận có chủ đích ở đợt này; khi có hàng đợi review thật thì đây là ứng viên
+đầu tiên được nối vào.
+
+### Chỉ desktop
+
+Không bị chặn bởi gì. Lý do là ràng buộc bố cục, cùng loại với ràng buộc đã sinh ra
+[ADR-10](../decisions/adr-10-pham-vi-dot-dau.md): ở pha 2, học sinh phải đọc **lời giải nhiều cách**
+cạnh **câu hỏi** và cạnh **hội thoại**. Trên điện thoại một trong ba phải biến mất, và mất cái nào
+cũng làm hỏng bước chữa bài.
+
+Hệ quả cần biết: sản phẩm chỉ chạy trong phòng máy, tức là ràng buộc lịch của cả trường chứ không phải
+ràng buộc kỹ thuật.
+
+### Không có màn đăng nhập nên không có chỗ bắt đổi mật khẩu
+
+[ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md) để mật khẩu ban đầu đi trên **giấy in** từ
+tay giáo viên. Ai nhặt được tờ giấy cũng đăng nhập được. Cách chặn thông thường là bắt đổi mật khẩu ở
+lần đăng nhập đầu, nhưng đợt thiết kế học sinh cố ý bỏ qua màn đăng nhập nên không có chỗ đặt nó.
+
+Đây là **lỗ hổng đã biết**, không phải chuyện chưa ai nghĩ tới. Cột *trạng thái tài khoản* trên màn
+`Chi tiết lớp` — phân biệt *chưa đăng nhập lần nào* với *đang hoạt động* — hiện là dấu vết duy nhất
+trong sản phẩm cho thấy lần đăng nhập đầu có ý nghĩa riêng.
+
+### Hai chỗ contract nói không còn đúng
+
+`packages/contracts/src/contracts/messages.py` — docstring của `GradingRequested` nói Adaptive Practice
+cần `learning_objective` để sinh *"a variant of the same objective"*. Theo
+[ADR-17](../decisions/adr-17-ba-vong-moi-cau.md), biến thể nay giữ **cùng câu hỏi**, chặt hơn hẳn cùng
+learning objective.
+
+Cùng file, `GradingCompleted` nhận được `score = 0.5` vì trường đã là `ge=0.0, le=1.0`. Nhưng không
+trường nào mang *vòng thứ mấy*, *câu gốc nào* hay *lỗi nào đã được chữa* — nên lời hứa giao diện của
+[ADR-16](../decisions/adr-16-thang-diem-ba-muc.md) là hiện lý do được 0,5 hiện **chưa có nguồn dữ
+liệu**.
+
+## Diagram
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| `system-architecture.drawio` — legend tràn dưới mép trang | Không bị chặn. Ngoài phạm vi đợt sửa diagram |
+
+Legend của file này đặt ở `y=770` cao `120` trong khi trang cao `850`, nên hai dòng cuối **nằm hoàn
+toàn dưới mép** và mất khi export. Thêm một giao cắt cạnh ở vùng `be`–`redis`–`agent`, và chín node
+lệch lưới 10.
+
+Nội dung thì **không** bị mô hình hai pha làm sai: hình chỉ vẽ `fe`/`be`/`agent`/`redis`/`contracts`,
+không nói gì tới pha, điểm, vòng lặp hay đồng hồ. Nhãn *"đọc kết quả rồi áp ngưỡng"* vẫn đúng, vì
+[ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) ghi rõ việc gỡ ngưỡng khỏi luồng
+học sinh **chưa thi hành ở đâu** — `review_policy.py` vẫn áp cho mọi kết quả.
+
+## Duyệt lời giải
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Ghi nhận giáo viên đã đọc lời giải của từng câu | **Chưa quyết định nghiệp vụ** — xem dưới |
+
+[ADR-18](../decisions/adr-18-cau-hoi-phai-kem-loi-giai.md) bắt mỗi câu hỏi kèm lời giải, và tự cảnh báo
+rằng **lời giải khó duyệt hơn câu hỏi** — một câu hỏi sai thì đọc là thấy, một lời giải sai tinh vi thì
+phải làm thử mới thấy. Nhưng hiện **không có gì** ghi nhận giáo viên đã thật sự đọc nó.
+
+Hai đường đã cân nhắc và loại ở đợt dựng `Question card`:
+
+- **Mở rộng nghĩa nhãn *đã kiểm*** của [ADR-04](../decisions/adr-04-hai-nguon-cau-hoi.md). Loại, vì nó
+  lẫn hai thứ: *khoá khi duyệt* là hệ quả tự động của một thao tác, còn *đã kiểm* là lời giáo viên tự
+  nhận đã đọc từng câu. Cho một cú bấm sẵn có gánh thêm một cam kết nặng hơn, không đòi thêm bằng
+  chứng gì, là **làm yếu** cổng chứ không phải ghi lại điều vốn đúng.
+- **Thêm một dấu kiểm thứ hai** riêng cho lời giải. Loại ở đợt này vì nó tạo hai thứ phải nhớ tick,
+  tức thêm một chỗ để bỏ sót — nhưng đây là đường còn mở khi nào có người quyết.
+
+## Nút Thu hồi chưa biết lúc nào phải biến mất
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Trục trạng thái *chưa mở* / *đã mở* cho `Action result card` | Không bị chặn. Chưa dựng vì nó nhân đôi số variant |
+
+[ADR-02](../decisions/adr-02-phat-hanh-va-cua-so-thu-hoi.md) chốt thu hồi được **cho tới hết giờ mở**,
+và đòi nút Thu hồi **mất đi** khi đã qua mốc đó. Thẻ `đã-phát-hành` (`10:45`) nay có nút, nhưng
+component set `Action result card` (`10:63`) không có trục nào phân biệt hai trạng thái con mà
+[ADR-01](../decisions/adr-01-vong-doi-de-kiem-tra.md) đã nêu — *đã phát hành, chưa mở* và *đã mở*.
+
+Nên hiện nút luôn hiện, tức file đang nói thu hồi lúc nào cũng được. Đó là sai theo chiều ngược với
+câu cũ: trước đây thẻ nói không bao giờ thu hồi được, giờ nó nói luôn luôn.
+
+Cái giá của việc sửa: thêm một trục vào một set đã có tám variant. Đó là lý do hoãn, không phải vì nó
+không quan trọng.
