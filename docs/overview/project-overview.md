@@ -26,14 +26,18 @@ AI đánh giá đáp án và cách tư duy
         ↓
 AI xác định lỗi sai hoặc misconception
         ↓
-AI tạo câu hỏi luyện tập tương tự
+AI giải thích lỗi; học sinh hỏi lại đến khi hiểu
         ↓
-Học sinh luyện tập tiếp
+AI tạo câu biến thể của chính câu sai
         ↓
-Dừng khi đạt ngưỡng thành thạo
+Học sinh làm lại, tối đa ba vòng mỗi câu
+        ↓
+Mỗi câu chốt 1 / 0,5 / 0. Bài kết thúc
 ```
 
 Trong vòng này, giáo viên giữ quyền kiểm soát ở ba điểm: duyệt đề trước khi phát hành, xử lý kết quả chấm có độ tin cậy thấp, và trả lời khi agent chưa đủ thông tin để làm.
+
+Cổng thứ nhất có **một ngoại lệ đã biết**: câu biến thể ở pha 2 do trợ lí sinh ra giữa lúc học sinh đang làm bài, nên không đi qua duyệt. Xem ADR-05 và `docs/plans/backlog.md`.
 
 ## Vấn đề cần giải quyết
 
@@ -43,7 +47,7 @@ Giáo viên thường mất nhiều thời gian để:
 - Tạo phương án sai có ý nghĩa, không chỉ là đáp án nhiễu ngẫu nhiên.
 - Chấm bài và viết nhận xét cho từng học sinh.
 - Xác định học sinh sai vì kiến thức, suy luận, tính toán hay hiểu nhầm khái niệm.
-- Tạo bài luyện tập tiếp theo phù hợp với lỗi sai cụ thể.
+- Tạo câu biến thể của chính câu học sinh làm sai, để kiểm đúng lỗi vừa mắc.
 
 Học sinh thường cần phản hồi nhanh và bài luyện tập đúng với điểm yếu của mình, nhưng giáo viên khó cá nhân hóa sâu cho từng học sinh nếu làm thủ công hoàn toàn.
 
@@ -54,7 +58,7 @@ Hệ thống hướng đến bốn mục tiêu nghiệp vụ chính:
 1. Hỗ trợ giáo viên tạo đề từ yêu cầu hoặc prompt.
 2. Hỗ trợ chấm bài và sinh nhận xét có căn cứ.
 3. Phân tích lỗi sai hoặc misconception của học sinh.
-4. Tạo vòng luyện tập thích ứng để giúp học sinh đạt mastery.
+4. Bắt buộc học sinh chữa lại những câu đã sai, ngay trong cùng bài kiểm tra.
 
 ## Actor nghiệp vụ chính
 
@@ -79,11 +83,10 @@ Student là người nhận đề, làm bài và luyện tập.
 Student có thể:
 
 - Xem bài kiểm tra được giao.
-- Chọn đáp án.
-- Giải thích cách làm khi bài yêu cầu.
-- Nộp bài.
-- Xem kết quả và nhận xét.
-- Làm các câu luyện tập thích ứng.
+- Chọn đáp án và nộp bài (pha 1).
+- Nghe giải thích lỗi và hỏi lại đến khi hiểu (pha 2).
+- Làm câu biến thể của những câu đã sai, tối đa ba vòng mỗi câu (pha 2, bắt buộc).
+- Báo cáo chỗ trợ lí giải thích chưa rõ.
 
 ## Hành vi hệ thống bên trong boundary
 
@@ -91,12 +94,12 @@ Hệ thống hỗ trợ các tác vụ thông minh trong workflow, nhưng không
 
 Hệ thống có thể:
 
-- Sinh đề, đáp án, lời giải và metadata câu hỏi.
-- Đánh giá câu trả lời và phần giải thích của học sinh.
-- Dự đoán lỗi sai dựa trên distractor, lịch sử học tập hoặc lời giải thích.
+- Sinh đề, đáp án, lời giải nhiều cách, và ánh xạ mỗi distractor sang một lỗi.
+- Đánh giá câu trả lời ở pha 1, và lời học sinh nói trong hội thoại pha 2.
+- **Tra** lỗi sai từ distractor đã chọn — mỗi distractor được soạn kèm một lỗi, nên đây là tra cứu chứ không phải suy đoán. Xem ADR-18.
 - Sinh nhận xét.
 - Tính confidence.
-- Đề xuất câu hỏi luyện tập tiếp theo.
+- Sinh câu biến thể của **chính câu học sinh làm sai**, giữ cấu trúc và lỗi cần kiểm. Xem ADR-17.
 
 Hệ thống không tự thay thế vai trò kiểm soát của giáo viên ở các điểm cần review.
 
@@ -104,11 +107,11 @@ Hệ thống không tự thay thế vai trò kiểm soát của giáo viên ở 
 
 Giai đoạn đầu tập trung vào bức tranh nghiệp vụ:
 
-- Teacher tạo, review và phát hành đề.
-- Student làm bài và nộp bài.
-- Hệ thống chấm bài và sinh nhận xét.
+- Teacher tạo, review và phát hành đề. Duyệt bao gồm cả lời giải và ánh xạ nhiễu sang lỗi.
+- Student làm bài và nộp bài. **Nộp bài kết thúc pha 1, không kết thúc bài kiểm tra.**
+- Hệ thống chấm bài và tra lỗi sai từ phương án nhiễu đã chọn.
 - Kết quả confidence thấp đi vào Teacher Review Queue.
-- Hệ thống tạo câu hỏi luyện tập thích ứng dựa trên lỗi sai.
+- Pha 2: hệ thống giải thích lỗi và sinh câu biến thể; học sinh làm lại cho tới khi chốt điểm.
 
 ## Ngoài phạm vi giai đoạn đầu
 
@@ -119,7 +122,7 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 - API contract.
 - Database schema.
 - AI prompt chain, tool calling hoặc model routing.
-- Công thức confidence và mastery chi tiết.
+- Công thức confidence chi tiết, và `confidence` đo cái gì khi phần chấm đã xác định.
 - Deployment, monitoring và runbook.
 
 ## Khái niệm nghiệp vụ chính
@@ -132,7 +135,12 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 - `Misconception`: hiểu nhầm khái niệm hoặc lỗi sai có tính lặp lại.
 - `Confidence`: mức độ hệ thống tin vào kết quả đánh giá.
 - `Teacher Review Queue`: nơi đưa các kết quả cần giáo viên xem xét.
-- `Mastery`: mức độ thành thạo của học sinh với một mục tiêu học tập hoặc kỹ năng.
+- `Mastery`: mức độ thành thạo của học sinh với một mục tiêu học tập hoặc kỹ năng. **Không còn là điều kiện dừng** của vòng chữa bài — điều kiện dừng là số vòng. Xem ADR-17.
+- `Pha 1`: phần làm bài và nộp, có đồng hồ theo giờ mở, giờ đóng và thời gian làm bài.
+- `Pha 2`: phần chữa bài, bắt buộc, có đồng hồ riêng. Bài kiểm tra kết thúc ở cuối pha 2. Xem ADR-14.
+- `Lượt`: một lần học sinh làm cùng lúc mọi câu còn dở ở pha 2. Thời lượng bằng số phút mỗi câu nhân số câu trong lượt. Xem ADR-15.
+- `Câu biến thể`: câu sinh từ **chính câu học sinh làm sai** — giữ cấu trúc và lỗi cần kiểm, chỉ đổi dữ kiện. Xem ADR-17.
+- `Lời giải`: cách làm đi kèm mỗi câu hỏi, bắt buộc có nhiều hơn một cách. Là thứ trợ lí đi theo khi giải thích ở pha 2, và là một phần nội dung bị khoá khi giáo viên duyệt. Xem ADR-18.
 - `Class`: lớp học có sẵn danh sách học sinh. Giáo viên tạo lớp; tài khoản học sinh được sinh
   hàng loạt từ file CSV danh sách lớp, khoá theo mã học sinh. Phát hành đề phải chọn lớp đã tạo
   từ trước. Xem ADR-13.

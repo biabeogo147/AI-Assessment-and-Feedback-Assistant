@@ -16,7 +16,7 @@ Diagram liên quan:
 | Actor | Vai trò |
 | --- | --- |
 | Teacher | Tạo yêu cầu, review đề, phát hành đề, xử lý kết quả chấm cần review. |
-| Student | Làm bài, nộp bài, xem feedback, luyện tập thích ứng. |
+| Student | Làm bài và nộp bài ở pha 1; chữa bài ở pha 2; báo cáo chỗ trợ lí giải thích chưa rõ. |
 
 Hệ thống nằm bên trong system boundary nên không được xem là actor trong Use Case Diagram. Các hành vi như sinh đề, chấm bài, kiểm tra confidence hoặc tạo câu luyện tập được mô tả như use case được `<<include>>` hoặc `<<extend>>` từ mục tiêu của Teacher và Student.
 
@@ -94,7 +94,7 @@ Teacher
 2. Teacher xem đáp án đúng, lời giải và phương án sai.
 3. Teacher chỉnh sửa câu hỏi, đáp án, lời giải hoặc metadata nếu cần.
 4. Teacher duyệt đề.
-5. Teacher phát hành đề cho Student, kèm lớp và ba mốc thời gian. Xem ADR-02.
+5. Teacher phát hành đề cho Student. Phát hành cần sáu tham số: lớp, thời gian làm bài, giờ mở, giờ đóng, số phút mỗi câu ở pha 2 và hạn kết thúc pha 2. Xem ADR-02 và ADR-15.
 
 ### Quan hệ diagram
 
@@ -124,27 +124,29 @@ Student
 1. Student mở bài được giao.
 2. Student đọc câu hỏi.
 3. Student chọn đáp án.
-4. Student nhập giải thích cách làm nếu bài yêu cầu.
-5. Student nộp bài.
-6. Hệ thống ghi nhận bài nộp để chuyển sang đánh giá.
+4. Student nộp bài.
+5. Hệ thống ghi nhận bài nộp, chấm, và tra cứu lỗi sai từ phương án nhiễu đã chọn.
+
+Pha 1 **không** thu lời giải thích bằng ô nhập. Lời giải thích được hỏi ở pha 2, đúng vào câu Student
+làm sai và sau khi đồng hồ pha 1 đã dừng. Xem [ADR-11](../decisions/adr-11-bo-assessment-type.md).
 
 ### Quan hệ diagram
 
-- `Làm bài thường xuyên` generalizes to `Làm và nộp bài`.
-- `Làm bài nhiều bước/cuối kỳ` generalizes to `Làm và nộp bài`.
-- `Yêu cầu giải thích cách làm` `<<extend>>` `Làm và nộp bài` khi bài khó, bài cuối kỳ hoặc câu hỏi nhiều bước.
+- `Làm bài thường xuyên` generalizes to `Làm và nộp bài (pha 1)`.
+- `Làm bài cuối kỳ` generalizes to `Làm và nộp bài (pha 1)`.
 
-Không dùng `<<include>>` từ `Làm và nộp bài` sang `Chấm bài và sinh feedback` vì chấm bài là bước xử lý sau khi có bài nộp, không phải hành vi bắt buộc để Student hoàn thành mục tiêu nộp bài.
+Không dùng `<<include>>` từ `Làm và nộp bài (pha 1)` sang `Chấm bài và tra cứu lỗi sai` vì chấm bài là bước xử lý sau khi có bài nộp, không phải hành vi bắt buộc để Student hoàn thành mục tiêu nộp bài.
 
 ### Kết quả
 
-Bài nộp được ghi nhận và có thể được đánh giá.
+Bài nộp được ghi nhận và được chấm. **Nộp bài không kết thúc bài kiểm tra** — nó kết thúc pha 1. Xem
+[ADR-14](../decisions/adr-14-hai-pha-lam-bai.md) và UC-04.
 
-## UC-04 — Student xem feedback
+## UC-04 — Student chữa bài sau khi nộp (pha 2)
 
 ### Mục tiêu
 
-Student xem kết quả, nhận xét và gợi ý học tập sau khi bài được đánh giá.
+Student sửa được những lỗi vừa mắc, và bài kiểm tra chỉ kết thúc khi việc đó đã diễn ra.
 
 ### Actor chính
 
@@ -152,26 +154,42 @@ Student
 
 ### Điều kiện trước
 
-- Student đã nộp bài.
-- Hệ thống đã tạo kết quả chấm hoặc Teacher đã chốt kết quả cần review.
+- Student đã nộp bài ở pha 1 và hệ thống đã chấm.
+- Chưa quá hạn kết thúc pha 2 do Teacher đặt lúc phát hành.
 
 ### Luồng chính
 
-1. Student mở kết quả bài làm.
-2. Hệ thống hiển thị điểm hoặc trạng thái đánh giá.
-3. Hệ thống hiển thị feedback phù hợp với lỗi sai hoặc cách làm của Student.
-4. Student đọc feedback và biết bước học tiếp theo.
+1. Student mở kết quả và thấy từng câu đúng hay sai.
+2. Với mỗi câu sai, trợ lí giải thích lỗi theo lời giải đã soạn kèm câu hỏi. Student hỏi lại đến khi hiểu. **Phần này không tính giờ.**
+3. Student bấm nút làm bài mới. Đồng hồ của lượt bắt đầu chạy, dài bằng số phút mỗi câu nhân số câu còn dở.
+4. Student làm câu biến thể của từng câu còn dở.
+5. Câu nào làm đúng thì câu gốc chốt 0,5 điểm; câu nào còn sai thì sang vòng tiếp, tối đa ba vòng.
+6. Hết ba vòng mà vẫn sai thì câu đó chốt 0 điểm.
+7. Bài kết thúc khi mọi câu đã chốt, hoặc khi hết hạn pha 2.
+
+### Ngoại lệ
+
+- Hết hạn pha 2 giữa một lượt thì lượt bị cắt và các câu còn dở nhận 0 điểm. Xem [ADR-15](../decisions/adr-15-thoi-gian-pha-hai.md).
+- Student không mở pha 2 lần nào thì mọi câu sai nhận 0 điểm — bằng đúng kết quả của việc vào rồi sai cả ba vòng.
 
 ### Quan hệ diagram
 
-- `Xem feedback` `<<include>>` `Chấm bài và sinh feedback`.
-- `Chấm bài và sinh feedback` `<<include>>` `Kiểm tra confidence`.
+- `Chữa bài sau khi nộp (pha 2)` `<<include>>` `Chấm bài và tra cứu lỗi sai`.
+- `Chữa bài sau khi nộp (pha 2)` `<<include>>` `Làm câu biến thể, tối đa ba vòng`.
+- `Yêu cầu giải thích cách làm` `<<extend>>` `Chữa bài sau khi nộp (pha 2)`.
+- `Báo cáo giải thích chưa rõ` `<<extend>>` `Chữa bài sau khi nộp (pha 2)`.
 
-`Xem feedback` dùng `<<include>>` với `Chấm bài và sinh feedback` vì để Student nhận feedback có căn cứ, hệ thống bắt buộc phải tạo kết quả đánh giá và feedback trước. `Chấm bài và sinh feedback` dùng `<<include>>` với `Kiểm tra confidence` vì mọi kết quả đánh giá đều cần confidence để quyết định có cần Teacher review không.
+Quan hệ với `Làm câu biến thể` là `<<include>>` chứ không phải `<<extend>>` vì pha 2 **bắt buộc**: nó
+không phải một nhánh có thể không xảy ra. Xem [ADR-14](../decisions/adr-14-hai-pha-lam-bai.md).
+
+Màu trên diagram nói **việc đó thuộc về ai**, không nói kiểu quan hệ. `Báo cáo giải thích chưa rõ` là
+mục tiêu của Student nên tô xanh lá, kể cả khi nó nối bằng `<<extend>>`.
 
 ### Kết quả
 
-Student nhận được feedback có căn cứ để tiếp tục học hoặc luyện tập.
+Mỗi câu chốt ở một trong ba mức: 1 khi đúng ngay ở pha 1, 0,5 khi sai rồi chữa được, 0 khi không chữa
+được. Điểm chỉ đi lên, nên điểm ngay sau khi nộp là sàn chứ không phải kết quả. Xem
+[ADR-16](../decisions/adr-16-thang-diem-ba-muc.md).
 
 ## UC-05 — Teacher xử lý bài cần review
 
@@ -204,11 +222,51 @@ Teacher
 
 Kết quả cuối cùng được Teacher xác nhận và có thể hiển thị cho Student.
 
-## UC-06 — Student luyện tập thích ứng
+## UC-06 — Hệ thống tạo câu biến thể
 
 ### Mục tiêu
 
-Student nhận câu hỏi luyện tập phù hợp khi feedback cho thấy Student chưa đạt mastery ở phạm vi đang luyện tập.
+Sinh một câu hỏi kiểm được đúng lỗi Student vừa mắc, trên dữ kiện mới.
+
+### Actor chính
+
+Không có actor trực tiếp. Đây là hành vi hệ thống, được `<<include>>` từ UC-04.
+
+### Điều kiện trước
+
+- Một câu ở pha 1 bị làm sai, và câu đó chưa dùng hết ba vòng.
+
+### Luồng chính
+
+1. Hệ thống lấy câu gốc mà Student làm sai.
+2. Hệ thống sinh **biến thể của chính câu đó**: giữ nguyên cấu trúc và lỗi cần kiểm, thay dữ kiện.
+3. Câu biến thể đi thẳng tới Student.
+4. Kết quả câu biến thể quyết định câu gốc chốt 0,5 hay sang vòng tiếp.
+
+### Quan hệ diagram
+
+- `Chữa bài sau khi nộp (pha 2)` `<<include>>` `Làm câu biến thể, tối đa ba vòng`.
+- `Làm câu biến thể, tối đa ba vòng` `<<include>>` `Tạo câu biến thể của chính câu sai`.
+
+### Ghi chú
+
+Điều kiện dừng là **số vòng**, không phải `Mastery`. Mastery chưa tính được vì hệ thống chưa lưu lịch
+sử làm bài, và một điều kiện dừng không tính được là một vòng lặp không có lối ra. Xem
+[ADR-17](../decisions/adr-17-ba-vong-moi-cau.md).
+
+Câu biến thể **không đi qua cổng duyệt của Teacher**, vì nó sinh ra giữa lúc Student đang làm bài.
+Đây là ngoại lệ đã biết của cổng thứ nhất trong [ADR-05](../decisions/adr-05-ba-cong-teacher-in-the-loop.md);
+xem `docs/plans/backlog.md`.
+
+### Kết quả
+
+Student được kiểm lại đúng lỗi vừa mắc, trên dữ kiện chưa từng thấy.
+
+## UC-07 — Student báo cáo chỗ trợ lí giải thích chưa rõ
+
+### Mục tiêu
+
+Đưa tới Teacher tín hiệu rằng một lời giải hoặc một cách giải thích khó hiểu.
 
 ### Actor chính
 
@@ -216,41 +274,41 @@ Student
 
 ### Điều kiện trước
 
-- Student đã xem feedback.
-- Feedback hoặc kết quả đánh giá cho thấy Student chưa đạt mastery ở phạm vi liên quan.
+- Student đang ở pha 2, hoặc bài của **chính Student đó** đã kết thúc.
 
 ### Luồng chính
 
-1. Student xem feedback sau khi bài được đánh giá.
-2. Hệ thống kiểm tra trạng thái mastery ở phạm vi liên quan.
-3. Nếu Student đã đạt mastery, hệ thống không tạo câu luyện tập mới.
-4. Nếu Student chưa đạt mastery, hệ thống tạo câu hỏi luyện tập tương tự.
-5. Student làm câu hỏi luyện tập mới.
-6. Hệ thống đánh giá câu trả lời và cập nhật lại mastery.
-7. Vòng luyện tập tiếp tục cho đến khi đạt mastery.
+1. Student đánh dấu một câu hoặc một đoạn hội thoại là *giải thích chưa rõ*.
+2. Hệ thống ghi lại kèm câu hỏi và đoạn hội thoại tương ứng.
+3. Teacher xem được các báo cáo.
 
 ### Quan hệ diagram
 
-- `Luyện tập thích ứng` `<<extend>>` `Xem feedback` khi feedback cho thấy Student chưa đạt mastery.
-- `Luyện tập thích ứng` `<<include>>` `Tạo câu luyện tập`.
+- `Báo cáo giải thích chưa rõ` `<<extend>>` `Chữa bài sau khi nộp (pha 2)`.
 
-`Luyện tập thích ứng` là `<<extend>>` của `Xem feedback` vì nó không luôn xảy ra sau feedback. Nếu Student đã đạt mastery, workflow kết thúc. Nếu chưa đạt mastery, hệ thống mở rộng luồng bằng việc tạo practice question. `Tạo câu luyện tập` là `<<include>>` vì adaptive practice không thể bắt đầu nếu hệ thống chưa tạo câu luyện tập.
+Đây **không** phải cổng teacher-in-the-loop thứ tư: nó không chặn Student, không chặn lượt, không chặn
+điểm và không chặn việc bài kết thúc. Cổng theo ADR-05 là chỗ hệ thống dừng lại chờ người; ở đây không
+có gì dừng lại. Xem [ADR-19](../decisions/adr-19-bao-cao-giai-thich-chua-ro.md).
+
+Diagram **không** vẽ association từ Teacher tới use case này. Teacher đọc được báo cáo, nhưng chỗ để
+đọc thì chưa tồn tại — nó không thuộc Teacher Review Queue, vốn dành cho việc có tính chặn.
 
 ### Kết quả
 
-Student chỉ nhận thêm câu luyện tập khi chưa đạt ngưỡng mastery ở phạm vi đã xác định.
+Teacher có căn cứ để sửa lời giải đã lưu, và ngân hàng câu hỏi tốt lên.
 
 ## Ghi chú điều kiện nghiệp vụ
 
 - `Tạo đề nháp` diễn ra trước `Review và phát hành đề`, nhưng đây là thứ tự workflow nên được mô tả trong Activity Diagram và tài liệu workflow, không ghi như một quan hệ riêng trong Use Case Diagram.
-- Student nộp bài là điều kiện để hệ thống chấm và sinh feedback, nhưng không biểu diễn bằng `<<include>>` vì đây là thứ tự workflow.
-- Kết quả confidence thấp hoặc có mâu thuẫn sẽ mở rộng sang use case Teacher xử lý bài cần review.
-- Feedback chỉ mở rộng sang vòng luyện tập thích ứng khi Student chưa đạt mastery.
+- Student nộp bài là điều kiện để hệ thống chấm, nhưng không biểu diễn bằng `<<include>>` vì đây là thứ tự workflow.
+- Kết quả confidence thấp hoặc có mâu thuẫn sẽ mở rộng sang use case Teacher xử lý bài cần review. Với luồng Student của mô hình hai pha, điều kiện ngưỡng hiện **tạm không áp**; xem ADR-07 và ADR-08.
+- `Làm câu biến thể` là `<<include>>` của UC-04 chứ không phải `<<extend>>`, vì pha 2 bắt buộc. Bắt buộc ở đây nghĩa là bắt buộc **thử**, không phải bắt buộc **đạt**.
 
 ## Nguyên tắc nghiệp vụ chung
 
 - Hệ thống không bao giờ tự phát hành đề. Chỉ Teacher phát hành. Xem ADR-02.
-- Confidence thấp cần Teacher review.
-- Distractor nên có ý nghĩa chẩn đoán lỗi.
-- Bài khó hoặc nhiều bước nên yêu cầu Student giải thích cách làm.
-- Adaptive practice không sao chép nguyên văn câu cũ mà tạo biến thể cùng mục tiêu học tập.
+- Confidence thấp cần Teacher review. Xem ADR-07 cho phạm vi hiện tại của luật này.
+- **Mỗi phương án nhiễu phải gắn một lỗi cụ thể**, soạn cùng câu hỏi. Nhờ đó chẩn đoán là tra cứu chứ không phải suy đoán. Xem ADR-18.
+- **Mỗi câu hỏi phải kèm lời giải, và lời giải phải có nhiều hơn một cách làm.** Xem ADR-18.
+- Bài khó hoặc nhiều bước vẫn cần Student giải thích cách làm, nhưng chỗ hỏi là **hội thoại ở pha 2**, không phải ô nhập ở pha 1. Xem ADR-11.
+- Câu biến thể không sao chép nguyên văn câu cũ. Nó giữ **chính câu gốc** — cùng cấu trúc, cùng lỗi cần kiểm — và chỉ đổi dữ kiện. Chặt hơn *cùng mục tiêu học tập*. Xem ADR-17.

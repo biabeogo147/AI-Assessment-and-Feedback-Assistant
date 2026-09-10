@@ -1,35 +1,35 @@
 <mxfile host="app.diagrams.net" agent="Codex">
   <diagram id="domain-context" name="Domain Context">
-    <mxGraphModel dx="1409" dy="822" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" math="0" shadow="0">
+    <mxGraphModel dx="1409" dy="822" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1620" pageHeight="760" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="domain-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=14;" value="Kriky Boundary" vertex="1">
-          <mxGeometry height="500" width="760" x="310" y="120" as="geometry" />
+          <mxGeometry height="340" width="560" x="520" y="180" as="geometry" />
         </mxCell>
         <mxCell id="system" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;fontSize=16;" value="Hệ thống hỗ trợ đánh giá và phản hồi học tập" vertex="1">
-          <mxGeometry height="120" width="360" x="510" y="290" as="geometry" />
+          <mxGeometry height="120" width="400" x="600" y="290" as="geometry" />
         </mxCell>
         <mxCell id="teacher" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Teacher" vertex="1">
-          <mxGeometry height="130" width="80" x="110" y="250" as="geometry" />
+          <mxGeometry height="130" width="80" x="80" y="290" as="geometry" />
         </mxCell>
         <mxCell id="student" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Student" vertex="1">
-          <mxGeometry height="130" width="80" x="1190" y="250" as="geometry" />
+          <mxGeometry height="130" width="80" x="1460" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="teacher-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Tạo yêu cầu, duyệt đề, review kết quả cần kiểm tra" vertex="1">
-          <mxGeometry height="70" width="210" x="280" y="210" as="geometry" />
+        <mxCell id="teacher-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Tạo yêu cầu, duyệt đề và lời giải, phát hành, review kết quả cần kiểm" vertex="1">
+          <mxGeometry height="90" width="280" x="200" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="teacher-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Đề nháp, kết quả cần review, báo cáo tiến độ" vertex="1">
-          <mxGeometry height="70" width="210" x="280" y="430" as="geometry" />
+        <mxCell id="teacher-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Đề nháp, kết quả cần review, báo cáo tiến độ, báo cáo giải thích chưa rõ" vertex="1">
+          <mxGeometry height="90" width="280" x="200" y="410" as="geometry" />
         </mxCell>
-        <mxCell id="student-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm bài, nộp câu trả lời, luyện tập tiếp" vertex="1">
-          <mxGeometry height="70" width="210" x="890" y="210" as="geometry" />
+        <mxCell id="student-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Pha 1: làm bài, nộp. Pha 2 bắt buộc: hỏi lại, làm câu biến thể, báo cáo chỗ chưa rõ" vertex="1">
+          <mxGeometry height="90" width="280" x="1120" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="student-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Bài được giao, feedback, câu luyện tập mới" vertex="1">
-          <mxGeometry height="70" width="210" x="890" y="430" as="geometry" />
+        <mxCell id="student-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Bài được giao, giải thích lỗi, câu biến thể, điểm 1 / 0,5 / 0" vertex="1">
+          <mxGeometry height="90" width="280" x="1120" y="410" as="geometry" />
         </mxCell>
-        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;spacing=10;" value="Chú thích&#xa;Khung lớn: domain/system boundary&#xa;Khối trung tâm: hệ thống đang xây dựng&#xa;Actor ngoài khung: người dùng nghiệp vụ&#xa;Các khối nhỏ: nhóm tương tác chính, không phải object nội bộ" vertex="1">
-          <mxGeometry height="110" width="540" x="420" y="660" as="geometry" />
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;spacing=10;" value="Chú thích&#xa;Khung lớn: domain/system boundary. Khối trung tâm: hệ thống đang xây dựng.&#xa;Actor ngoài khung: người dùng nghiệp vụ.&#xa;Các khối nhỏ: nhóm tương tác chính, không phải object nội bộ.&#xa;Hàng trên là thứ actor đưa vào hệ thống; hàng dưới là thứ hệ thống trả lại." vertex="1">
+          <mxGeometry height="130" width="560" x="520" y="570" as="geometry" />
         </mxCell>
         <mxCell id="e-teacher-in" edge="1" parent="1" source="teacher" style="endArrow=block;html=1;rounded=0;" target="teacher-in" value="">
           <mxGeometry relative="1" as="geometry" />

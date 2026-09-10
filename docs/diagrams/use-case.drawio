@@ -1,95 +1,98 @@
 <mxfile host="app.diagrams.net" agent="Codex">
   <diagram id="use-case" name="Use Case Diagram">
-    <mxGraphModel dx="1597" dy="777" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="1" shadow="0">
+    <mxGraphModel dx="1597" dy="777" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1000" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="system-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=12;" value="Kriky" vertex="1">
-          <mxGeometry height="760" width="980" x="250" y="70" as="geometry" />
+          <mxGeometry height="810" width="1150" x="200" y="60" as="geometry" />
         </mxCell>
         <mxCell id="teacher" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Teacher" vertex="1">
-          <mxGeometry height="120" width="70" x="80" y="210" as="geometry" />
+          <mxGeometry height="120" width="70" x="60" y="320" as="geometry" />
         </mxCell>
         <mxCell id="student" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Student" vertex="1">
-          <mxGeometry height="120" width="70" x="1380" y="430" as="geometry" />
+          <mxGeometry height="120" width="70" x="1390" y="300" as="geometry" />
         </mxCell>
         <mxCell id="uc-create-draft" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Tạo đề nháp" vertex="1">
-          <mxGeometry height="70" width="190" x="327" y="230" as="geometry" />
+          <mxGeometry height="70" width="220" x="250" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="uc-generate-draft" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Sinh nội dung đề" vertex="1">
-          <mxGeometry height="70" width="190" x="557" y="144" as="geometry" />
+        <mxCell id="uc-generate-draft" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Sinh nội dung đề, lời giải và distractor gắn lỗi" vertex="1">
+          <mxGeometry height="70" width="220" x="550" y="100" as="geometry" />
         </mxCell>
         <mxCell id="uc-clarify-request" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff0f6;strokeColor=#c2255c;" value="Hỏi bổ sung yêu cầu" vertex="1">
-          <mxGeometry height="70" width="190" x="613" y="253" as="geometry" />
+          <mxGeometry height="70" width="220" x="550" y="210" as="geometry" />
         </mxCell>
         <mxCell id="uc-review-publish" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="Review và phát hành đề" vertex="1">
-          <mxGeometry height="75" width="220" x="337" y="458" as="geometry" />
+          <mxGeometry height="70" width="220" x="250" y="330" as="geometry" />
         </mxCell>
         <mxCell id="uc-regenerate" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff0f6;strokeColor=#c2255c;" value="Tạo lại nội dung đề" vertex="1">
-          <mxGeometry height="70" width="190" x="652" y="463" as="geometry" />
+          <mxGeometry height="70" width="220" x="550" y="330" as="geometry" />
         </mxCell>
         <mxCell id="uc-review-queue" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff0f6;strokeColor=#c2255c;" value="Xử lý bài làm cần review" vertex="1">
-          <mxGeometry height="75" width="220" x="319" y="609" as="geometry" />
+          <mxGeometry height="70" width="220" x="250" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="uc-submit" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm và nộp bài" vertex="1">
-          <mxGeometry height="70" width="190" x="968" y="320" as="geometry" />
-        </mxCell>
-        <mxCell id="uc-regular" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm bài thường xuyên" vertex="1">
-          <mxGeometry height="70" width="190" x="1026" y="174" as="geometry" />
-        </mxCell>
-        <mxCell id="uc-multistep" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm bài cuối kỳ" vertex="1">
-          <mxGeometry height="70" width="190" x="816" y="169" as="geometry" />
-        </mxCell>
-        <mxCell id="uc-require-explanation" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff0f6;strokeColor=#c2255c;" value="Yêu cầu giải thích cách làm" vertex="1">
-          <mxGeometry height="70" width="210" x="642" y="353" as="geometry" />
-        </mxCell>
-        <mxCell id="uc-grade-feedback" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Chấm bài và sinh feedback" vertex="1">
-          <mxGeometry height="70" width="220" x="652" y="614" as="geometry" />
+        <mxCell id="uc-grade-feedback" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Chấm bài và tra cứu lỗi sai" vertex="1">
+          <mxGeometry height="70" width="220" x="550" y="520" as="geometry" />
         </mxCell>
         <mxCell id="uc-check-confidence" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Kiểm tra confidence" vertex="1">
-          <mxGeometry height="70" width="190" x="396" y="728" as="geometry" />
+          <mxGeometry height="70" width="220" x="550" y="640" as="geometry" />
         </mxCell>
-        <mxCell id="uc-view-feedback" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Xem feedback" vertex="1">
-          <mxGeometry height="70" width="190" x="952" y="509" as="geometry" />
+        <mxCell id="uc-multistep" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm bài cuối kỳ" vertex="1">
+          <mxGeometry height="60" width="200" x="830" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="uc-adaptive-practice" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Luyện tập thích ứng" vertex="1">
-          <mxGeometry height="70" width="190" x="934" y="733" as="geometry" />
+        <mxCell id="uc-regular" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm bài thường xuyên" vertex="1">
+          <mxGeometry height="60" width="200" x="1070" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="uc-generate-practice" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Tạo câu hỏi tương tự" vertex="1">
-          <mxGeometry height="70" width="190" x="650" y="740" as="geometry" />
+        <mxCell id="uc-submit" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm và nộp bài (pha 1)" vertex="1">
+          <mxGeometry height="70" width="220" x="940" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-view-feedback" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Chữa bài sau khi nộp (pha 2)" vertex="1">
+          <mxGeometry height="70" width="220" x="940" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-require-explanation" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff0f6;strokeColor=#c2255c;" value="Yêu cầu giải thích cách làm" vertex="1">
+          <mxGeometry height="70" width="210" x="810" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-report-unclear" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Báo cáo giải thích chưa rõ" vertex="1">
+          <mxGeometry height="70" width="220" x="1110" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-adaptive-practice" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="Làm câu biến thể, tối đa ba vòng" vertex="1">
+          <mxGeometry height="70" width="220" x="940" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-generate-practice" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="Tạo câu biến thể của chính câu sai" vertex="1">
+          <mxGeometry height="70" width="220" x="620" y="760" as="geometry" />
         </mxCell>
         <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9db;strokeColor=#f08c00;align=left;spacing=10;" value="" vertex="1">
-          <mxGeometry height="330" width="320" x="1260" y="70" as="geometry" />
+          <mxGeometry height="450" width="280" x="1500" y="60" as="geometry" />
         </mxCell>
         <mxCell id="legend-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;" value="Chú thích" vertex="1">
-          <mxGeometry height="26" width="270" x="1280" y="88" as="geometry" />
+          <mxGeometry height="26" width="240" x="1520" y="80" as="geometry" />
         </mxCell>
         <mxCell id="legend-teacher-swatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;" value="" vertex="1">
-          <mxGeometry height="18" width="26" x="1282" y="126" as="geometry" />
+          <mxGeometry height="18" width="26" x="1520" y="120" as="geometry" />
         </mxCell>
         <mxCell id="legend-teacher-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="Mục tiêu chính của Teacher" vertex="1">
-          <mxGeometry height="28" width="230" x="1318" y="121" as="geometry" />
+          <mxGeometry height="28" width="220" x="1550" y="120" as="geometry" />
         </mxCell>
         <mxCell id="legend-student-swatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;" value="" vertex="1">
-          <mxGeometry height="18" width="26" x="1282" y="160" as="geometry" />
+          <mxGeometry height="18" width="26" x="1520" y="160" as="geometry" />
         </mxCell>
         <mxCell id="legend-student-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="Mục tiêu chính của Student" vertex="1">
-          <mxGeometry height="28" width="230" x="1318" y="155" as="geometry" />
+          <mxGeometry height="28" width="220" x="1550" y="160" as="geometry" />
         </mxCell>
         <mxCell id="legend-system-swatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;" value="" vertex="1">
-          <mxGeometry height="18" width="26" x="1282" y="194" as="geometry" />
+          <mxGeometry height="18" width="26" x="1520" y="200" as="geometry" />
         </mxCell>
         <mxCell id="legend-system-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="Hành vi hệ thống bắt buộc" vertex="1">
-          <mxGeometry height="28" width="230" x="1318" y="189" as="geometry" />
+          <mxGeometry height="28" width="220" x="1550" y="200" as="geometry" />
         </mxCell>
         <mxCell id="legend-conditional-swatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff0f6;strokeColor=#c2255c;" value="" vertex="1">
-          <mxGeometry height="18" width="26" x="1282" y="228" as="geometry" />
+          <mxGeometry height="18" width="26" x="1520" y="240" as="geometry" />
         </mxCell>
         <mxCell id="legend-conditional-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="Hành vi điều kiện" vertex="1">
-          <mxGeometry height="28" width="230" x="1318" y="223" as="geometry" />
+          <mxGeometry height="28" width="220" x="1550" y="240" as="geometry" />
         </mxCell>
-        <mxCell id="legend-relations" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;spacing=2;" value="Đường liền: association&#xa;&amp;lt;&amp;lt;include&amp;gt;&amp;gt;: bắt buộc&#xa;&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;: có điều kiện&#xa;Tam giác rỗng: generalization" vertex="1">
-          <mxGeometry height="110" width="275" x="1282" y="270" as="geometry" />
+        <mxCell id="legend-relations" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;spacing=2;" value="Khung Kriky: system boundary.&#xa;Đường liền: association&#xa;&amp;lt;&amp;lt;include&amp;gt;&amp;gt;: bắt buộc&#xa;&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;: có điều kiện&#xa;Tam giác rỗng: generalization&#xa;&#xa;Màu nói việc đó thuộc về ai; kiểu quan hệ nói ở mũi tên. Một mục tiêu của Student vẫn xanh lá kể cả khi nó là &amp;lt;&amp;lt;extend&amp;gt;&amp;gt;.&#xa;&#xa;Làm câu biến thể là &amp;lt;&amp;lt;include&amp;gt;&amp;gt; của pha 2, vì pha 2 bắt buộc (ADR-14)." vertex="1">
+          <mxGeometry height="220" width="250" x="1520" y="270" as="geometry" />
         </mxCell>
         <mxCell id="a-teacher-create" edge="1" parent="1" source="teacher" style="endArrow=none;html=1;rounded=0;" target="uc-create-draft" value="">
           <mxGeometry relative="1" as="geometry" />
@@ -106,7 +109,7 @@
         <mxCell id="a-student-feedback" edge="1" parent="1" source="student" style="endArrow=none;html=1;rounded=0;" target="uc-view-feedback" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="a-student-practice" edge="1" parent="1" source="student" style="endArrow=none;html=1;rounded=0;" target="uc-adaptive-practice" value="">
+        <mxCell id="a-student-report" edge="1" parent="1" source="student" style="endArrow=none;html=1;rounded=0;" target="uc-report-unclear" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="i-create-generate" edge="1" parent="1" source="uc-create-draft" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-generate-draft" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;">
@@ -124,9 +127,6 @@
         <mxCell id="g-multistep-submit" edge="1" parent="1" source="uc-multistep" style="endArrow=block;endFill=0;html=1;rounded=0;" target="uc-submit" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-explain-submit" edge="1" parent="1" source="uc-require-explanation" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-submit" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="i-grade-confidence" edge="1" parent="1" source="uc-grade-feedback" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-check-confidence" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -134,10 +134,29 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="i-feedback-grade" edge="1" parent="1" source="uc-view-feedback" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-grade-feedback" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="660" y="415" />
+              <mxPoint x="660" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="i-feedback-practice" edge="1" parent="1" source="uc-view-feedback" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-adaptive-practice" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-practice-feedback" edge="1" parent="1" source="uc-adaptive-practice" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-view-feedback" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-explain-feedback" edge="1" parent="1" source="uc-require-explanation" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-view-feedback" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-report-feedback" edge="1" parent="1" source="uc-report-unclear" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-view-feedback" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1220" y="460" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="i-practice-generate" edge="1" parent="1" source="uc-adaptive-practice" style="endArrow=open;html=1;dashed=1;rounded=0;" target="uc-generate-practice" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;">
           <mxGeometry relative="1" as="geometry" />
