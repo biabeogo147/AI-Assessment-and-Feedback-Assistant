@@ -52,10 +52,12 @@ theo thứ tự luồng nghiệp vụ** và xếp trái sang phải đúng thứ
 | `15` | Kết quả — đã nộp, cần chữa |
 | `16` | Kết quả — hover vào điểm 0 |
 | `17` | Hỏi trợ lý và làm lại dạng bài sai |
-| `18` | Bắt đầu lượt chữa |
-| `19` | Làm câu của lượt làm lại |
-| `20` | Kết quả — đã hoàn thành |
-| `21` | Kết quả — hover vào điểm 0,5 |
+| `18` | Xem lời giải đầy đủ |
+| `19` | Bắt đầu lượt chữa |
+| `20` | Làm câu của lượt làm lại |
+| `21` | Kết quả — đã hoàn thành |
+| `22` | Kết quả — hover vào điểm 0,5 |
+| `23` | Bắt đầu lượt chữa — sắp hết hạn |
 
 ### Tám trạng thái của `Assignment row`
 
@@ -162,7 +164,7 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 - Không màn nào hiện `confidence`, `misconception_code`, hay lý do review (ADR-08).
 - Artboard 14 có **hai state** riêng biệt, không phải một state với trường rỗng.
 - ~~`Report control` có mặt ở cả artboard 14 (state *đã hoàn thành*) và artboard 15.~~ **Đổi sau khi
-  dựng**: nó chỉ nằm trong một lượt trả lời của Kriky, tức artboard `17` và `18`. Xem Decision Record.
+  dựng**: nó chỉ nằm cuối một lượt trả lời của Kriky, tức artboard `19`. Xem Decision Record.
 - Nút *Làm bài mới* có khối đọc lại giá trị thật, và có trạng thái cảnh báo khi lượt dài hơn hạn còn lại.
 - Mọi màu lấy từ biến; không hex thô.
 
@@ -170,10 +172,10 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 
 | | |
 | --- | --- |
-| Artboard | **chín**, tất cả 1440×900, Density `Student` |
+| Artboard | **mười một**, tất cả 1440×900, Density `Student` |
 | Khoảng trắng chết | **có thật, và cách đo đầu tiên đã giấu nó** — xem dưới |
 | Rail | không artboard nào có |
-| Cổng `Round gate` | đặt trên artboard 18; component không phải bề mặt |
+| Cổng `Round gate` | đặt trên artboard 19; component không phải bề mặt |
 | Màu thô | **0** trên cả năm |
 | `confidence` / `misconception` / lý do review | không xuất hiện ở đâu |
 
@@ -305,6 +307,61 @@ nhau (14, 15) trong khi giữa chúng là toàn bộ pha 2; hai màn hover đứ
 là trạng thái của. Tệ hơn: `12 · Danh sách bài của tôi` **trùng số** với `12 · Xem lời giải một câu`
 bên trang `Screen — Chat`. Trang chat giữ 1…12, nên trang học sinh bắt đầu từ 13.
 
+### Decision: Trợ lý nói một câu rồi im, học sinh mở lời trước
+
+options considered: trợ lý giải thích sẵn từng câu sai ngay khi màn mở; trợ lý chỉ chào và nói phạm
+vi, chờ học sinh hỏi.
+
+selected option: chỉ chào, rồi chờ.
+
+reason: giải thích sẵn cả hai câu là **dạy trước khi biết em vướng ở đâu** — đúng cái lỗi
+[ADR-18](../../decisions/adr-18-cau-hoi-phai-kem-loi-giai.md) nói là tệ hơn im lặng, chỉ đổi từ đoán
+lỗi sang đoán nhu cầu. Nó cũng đẩy phần việc đọc lên đầu: hai khối giải thích dài trước khi học sinh
+kịp nghĩ mình muốn hỏi gì. Màn mở ra với đúng một lượt của Kriky; panel bên phải đã nói *sai câu nào*
+và *đáp án đúng là gì*, nên em có đủ thứ để hỏi một câu cụ thể.
+
+Hệ quả kèm theo: `Report control` không có mặt trên màn `17`. Không có câu trả lời nào thì không có
+gì để báo cáo là khó hiểu.
+
+### Decision: Panel chỉ nói *sai gì*, lời giải nằm trong hộp riêng
+
+options considered: in cách giải và tên lỗi ngay trong thẻ ở panel; chỉ in đề, đáp án đã chọn và đáp
+án đúng, còn cách giải mở trong `Solution dialog`.
+
+selected option: hộp riêng, artboard `18 · Xem lời giải đầy đủ`.
+
+reason: panel rộng 372 và phải chứa **mọi** câu sai — hai câu đã ăn hết nửa cột khi in kèm hai cách
+giải, mà một bài mười câu sai năm thì không còn là danh sách nữa. Tên lỗi (*đọc ngược khoảng đồng
+biến*) cũng là chữ của người soạn đề: in thẳng ra là dán nhãn lỗi lên đầu học sinh trước khi trợ lí
+kịp hỏi em nghĩ gì. `Solution dialog` đã có sẵn từ đợt giáo viên và dùng lại được nguyên vẹn — bản
+học sinh chỉ đổi nhãn bảng nhiễu thành *Vì sao các phương án khác sai*.
+
+Panel **có** in đáp án đúng. Học sinh sắp làm một câu khác cùng dạng, nên giấu đáp án của câu cũ
+không bảo vệ điều gì — nó chỉ buộc em hỏi trợ lí một câu mà tài liệu đã trả lời.
+
+### Decision: Cửa trở lại phần chữa là một nút ở đầu màn kết quả
+
+options considered: giữ link *Mở lại phần chữa câu này ›* trên từng hàng điểm; một nút duy nhất ở
+đầu màn.
+
+selected option: một nút — *Xem lại phần chữa các câu sai*.
+
+reason: link trên từng hàng hứa **một đoạn chat cho mỗi câu**, mà trợ lí làm việc trên cả bài. Hứa
+sai còn tệ hơn không hứa gì: em bấm vào hàng câu 6 rồi rơi vào một đoạn chat đang nói về câu 4.
+
+### Decision: *Nộp bài* dùng cả ở pha 1 lẫn ở một lượt làm lại
+
+options considered: nút cuối lượt ghi *Nộp lượt* / *Nộp lượt này*, tách hẳn khỏi nút nộp của pha 1;
+dùng chung chữ *Nộp bài* ở cả hai chỗ.
+
+selected option: dùng chung *Nộp bài* — **người dùng chốt**.
+
+reason: vòng review phản đối, và lý do phản đối đúng:
+[ADR-14](../../decisions/adr-14-hai-pha-lam-bai.md) dành riêng *nộp bài* cho việc **kết thúc pha 1**,
+nên dùng lại chữ đó cho một lượt làm cho hai hành động khác hẳn nhau trông như một. Đổi lại, *lượt*
+là từ của tài liệu này, không phải từ học sinh nghĩ tới khi đang ngồi làm bốn câu trắc nghiệm. Ghi
+lại đây để nếu sau này có ai đo được học sinh nhầm hai nút, thì đã có sẵn cả hai vế của lập luận.
+
 ## Rủi ro
 
 **Density `Student` làm vỡ component dùng lại.** Sáu component sẽ dùng lại đều được dựng và căn ở
@@ -331,6 +388,41 @@ ghi chú, chuyển thành hover (artboard 19); *Câu biến thể 1 / 2* → *C�
 *Vòng* → *Lượt làm lại*; `Report control` rời khỏi đầu màn và chân chat, vào trong từng lượt trả lời.
 Và một lỗ do người dùng chỉ ra mà cả plan lẫn review đều không thấy: **đề của từng lượt làm lại không
 hiện ở đâu cả** — nay `Result row` in nó ra.
+
+Vòng thứ tư dọn phần nghiệp vụ còn lệch: trợ lý chỉ nói câu đầu rồi chờ; panel bỏ tên lỗi và cách
+giải, thêm đáp án đúng, lời giải chuyển vào hộp riêng (artboard `18`); màn `19` nhận đúng panel của
+màn `17`; *Nộp lượt* → *Nộp bài*; link trên từng hàng điểm thay bằng một nút ở đầu màn `21`.
+
+Vòng đó cũng bắt hai lỗi nội dung mà ba vòng trước không ai thấy: câu mẫu số 4 có **hai đáp án đúng**
+— (−∞; −1) và (1; +∞) đều là khoảng đồng biến — nay phương án D đổi thành (−2; 0); và bài kiểm tra
+đếm **10 câu** ở màn làm bài trong khi mọi màn kết quả chỉ có 6, nay thống nhất 6.
+
+Nó cũng sửa một thứ chính vòng ba làm hỏng: cho ô hành động của `Assignment row` co theo nhãn khiến
+ba cột bên phải xê dịch theo từng hàng — bảy hàng thành bảy vị trí cột, và người dùng nhìn ra ngay.
+Nay `action-col` cố định 226 (lấy từ nhãn dài nhất), nút bên trong tự co và dạt phải.
+
+**Vòng review thứ hai (subagent) bắt ba lỗi chặn, cả ba đều ở nửa sau của pha 2, và cả ba đã sửa:**
+
+1. **Màn lượt cho thấy học sinh chọn ĐÚNG, nhưng bảng điểm ghi lượt đó sai.** `y = x³ − 12x` nghịch
+   biến trên `(−2; 2)` — đúng bằng phương án đang được chọn. Nay chọn `C. (0; 4)`, khớp với
+   *lượt 1 — sai* trên màn `21`.
+2. **Hộp `Round gate` trên màn `19` dùng variant *vượt hạn*** (*"còn 6 phút… có thể bị DỪNG"*), trong
+   khi bộ mẫu nói bây giờ là chiều 15/9 và hạn là 22:00. Nếu thật sự còn 6 phút thì hai câu phải chốt
+   0 điểm, mâu thuẫn với hai lượt trọn vẹn ở màn `21`. Màn `19` nay dùng *lọt hạn*; ca cảnh báo tách
+   thành artboard `23` với thời điểm của riêng nó.
+3. **Không màn nào cho học sinh đếm vòng còn lại**, dù ADR-17 nói `Round gate` làm việc đó — và
+   *đếm được* chính là lập luận trung tâm của ADR-17. Nay `Round gate` có hàng *Vòng*, và đầu màn
+   `20` ghi *Lượt làm lại thứ 1 / tối đa 3*.
+
+Bốn phát hiện *nên sửa* cũng đã sửa: biến thể lượt 2 của câu 4 (`y = 2x³ − 6x`) có **đáp án trùng
+câu gốc** nên nhớ máy là qua được — đổi sang `y = x³ − 6x²`; `Report control` thiếu ở lượt trả lời
+**đầu tiên**, đúng lượt dễ khó hiểu nhất; tooltip mức 0 **che dấu điểm của câu 5** nên đọc ra thành
+câu 5 làm sai — nay dạt sang trái dấu điểm đang hover; và ba hàng trên màn `13` mang ngày đã qua
+trong khi trạng thái vẫn *Đang làm* / *Đang chấm*.
+
+Hai phát hiện **không sửa trong vòng này, đã ghi nợ**: không có đường từ danh sách quay lại màn kết
+quả `15`, và màn hỏi trợ lý chưa có hình dạng *đã kết thúc* cho nút *Xem lại phần chữa các câu sai*
+trỏ tới. Cả hai là bề mặt mới, không phải sửa chữ.
 
 Vòng thứ ba: màn hỏi trợ lý bày mọi câu sai kèm cách giải thay vì một câu; trợ lý mở lời bằng câu
 giới thiệu phạm vi cả bài; nút vào pha 2 đổi tên thành *Hỏi trợ lý và làm lại dạng bài sai* ở cả ba

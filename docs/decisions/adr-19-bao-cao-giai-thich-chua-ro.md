@@ -66,12 +66,15 @@ lí.
 **Nửa phía học sinh đã có ở Figma. Phía giáo viên chưa.**
 
 - **Ở Figma**: `Report control` (`281:25`), nhãn *"Báo cáo Trợ lý giải thích khó hiểu"*. Nó **chỉ nằm
-  trong một đoạn chat của một câu cụ thể** — cuối lượt trả lời của Kriky trên artboard `17` và `18` —
-  chứ không nằm ở đầu màn kết quả. Một báo cáo không gắn với đoạn chat nào thì giáo viên nhận được
-  một lời phàn nàn không có ngữ cảnh, tức là không đọc được.
-- **Thời điểm thứ hai vẫn mở**: từ màn kết quả, học sinh vào lại đoạn chat của câu đó bằng
-  *"Mở lại phần chữa câu này ›"* trên hàng điểm, rồi báo cáo ở trong đó. Cửa vào đổi chỗ, quyền báo
-  cáo thì không mất.
+  cuối một lượt trả lời của Kriky** — artboard `19` — chứ không nằm ở đầu màn kết quả. Một báo cáo
+  không gắn với đoạn trả lời nào thì giáo viên nhận được một lời phàn nàn không có ngữ cảnh, tức là
+  không đọc được.
+- **Trợ lí bao quát cả bài, nên cái được báo cáo là một câu trả lời, không phải một câu hỏi.** Màn
+  `17` chỉ có lời mở đầu của Kriky và chưa có gì để báo cáo; nút xuất hiện từ lượt trả lời đầu tiên.
+- **Thời điểm thứ hai vẫn mở**: từ màn kết quả `21`, học sinh quay lại phần chữa bằng **một nút ở đầu
+  màn** — *"Xem lại phần chữa các câu sai"* — rồi báo cáo trong đó. Bản trước đặt một link trên từng
+  hàng điểm; link ấy đã bỏ vì nó hứa một đoạn chat riêng cho mỗi câu, mà trợ lí không làm việc theo
+  câu. Cửa vào đổi chỗ, quyền báo cáo thì không mất.
 - **Chưa có ở Figma phía giáo viên**: chưa có màn nào để đọc báo cáo; xem `docs/plans/backlog.md`.
 - **Chưa có ở backend**: không endpoint, không model.
 - `docs/diagrams/activity-overview.drawio` đã bỏ nhánh chặn giữa luồng và vẽ kênh này bằng cạnh nét

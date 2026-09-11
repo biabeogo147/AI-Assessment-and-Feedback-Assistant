@@ -80,6 +80,13 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
 - Figma `Solution dialog` (`309:41`) trên artboard `12 · Xem lời giải một câu` — hai cách giải và bảng
   ánh xạ nhiễu→lỗi nằm trong một hộp thoại, **không mở bung trong thẻ**. Mở bung đẩy chín thẻ còn lại
   ra khỏi tầm nhìn của người đang duyệt, mà duyệt là việc so sánh giữa các câu.
+- **Học sinh đọc cùng hộp đó**, trên artboard `18 · Xem lời giải đầy đủ`, mở từ từng câu sai ở panel
+  màn `17`. Bản học sinh đổi nhãn bảng nhiễu thành *Vì sao các phương án khác sai* — *mỗi phương án
+  nhiễu gắn một lỗi* là chữ của người soạn đề.
+- **Luật một đáp án đúng vừa bắt được một lỗi trong chính dữ liệu mẫu**: câu mẫu số 4 hỏi hàm đồng
+  biến trên khoảng nào, mà cả `(−∞; −1)` lẫn `(1; +∞)` đều đúng. Phương án D đổi thành `(−2; 0)` —
+  khoảng chứa cả phần tăng lẫn phần giảm. Một bộ phương án có hai đáp án đúng thì ánh xạ nhiễu→lỗi
+  **không viết được**, nên lỗi này lộ ra ở đúng chỗ nó phải lộ.
 - **Chưa có gì ghi nhận giáo viên đã đọc lời giải.** Đây là lỗ do chính ADR này tạo ra; xem
   `docs/plans/backlog.md`.
 - **Chưa có ở contract**: `packages/contracts` có `question_id` nhưng không có **model** câu hỏi, nên

@@ -293,7 +293,7 @@ không quan trọng.
 
 ## Bề mặt học sinh — đã dựng, chưa chạy
 
-Chín artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
+Mười một artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
 Không con số nào trên chúng là dữ liệu thật, và không nên đọc chúng như bằng chứng rằng dữ liệu đã có.
 
 Dải chú thích *DỮ LIỆU MẪU* từng dán trên mặt mỗi artboard **đã bị xoá** — nó lặp nguyên văn tám lần
@@ -312,10 +312,27 @@ Câu chữ của từng lượt là món nợ **mới và dễ bị bỏ sót nh
 điểm, nên nếu backend sinh câu biến thể rồi vứt đi, màn kết quả sẽ có một khung để in đề mà không có
 đề để in. Câu biến thể phải được **lưu lại cùng lượt**, không phải sinh xong dùng một lần.
 
-Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: chín màn mới đều mang khối
+Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: mười một màn mới đều mang khối
 danh tính và nút Đăng xuất trên `Student top bar`, nhưng điều đó **không lấp** được lỗ
 [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md): mật khẩu ban đầu vẫn đi trên giấy in và
 vẫn không có chỗ nào bắt học sinh đổi nó.
+
+### Hai lỗ điều hướng vòng review thứ tư tìm ra
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Từ danh sách (`13`) vào lại màn kết quả (`15`) | Không bị chặn. Chưa có đường |
+| Màn hỏi trợ lý ở hình dạng **đã kết thúc** | Không bị chặn. Chưa dựng |
+
+Hàng bài trên màn `13` chỉ mang **một** hành động, và với bài đang ở pha 2 thì hành động đó là
+*Hỏi trợ lý và làm lại dạng bài sai* — nhảy thẳng sang màn `17`. Nghĩa là **màn `15` không quay lại
+được**: đóng tab xong, học sinh mất luôn chỗ duy nhất nói *điểm bây giờ là sàn, chữa tới 22:00 thì
+nâng được*. Cách rẻ nhất là cho tên bài bấm được, nhưng nó đòi một affordance mà hàng hiện chưa có.
+
+Nút *Xem lại phần chữa các câu sai* trên màn `21` thì mở về màn `17` — mà màn `17` vẫn đang nói
+*còn phải làm lại 2 câu* và vẫn mời *Làm bài mới · 2 câu · 10 phút*. Sau khi bài kết thúc, cả ba câu
+ấy đều sai. Mô tả `Report control` đã đòi đoạn chat **mở lại được sau khi bài kết thúc**; hình dạng
+đó chưa dựng.
 
 ### Hai cửa một chiều của học sinh chưa có cổng
 
@@ -326,9 +343,9 @@ vẫn không có chỗ nào bắt học sinh đổi nó.
 
 Học sinh có **ba** cửa một chiều: bắt đầu làm bài (đồng hồ chạy và không ai dừng được), nộp bài
 ([ADR-14](../decisions/adr-14-hai-pha-lam-bai.md): nộp kết thúc pha 1), và bắt đầu một lượt chữa. Chỉ
-cửa thứ ba có cổng — `Round gate`, đặt trên artboard 18. Hai cửa kia hiện là nút trơn.
+cửa thứ ba có cổng — `Round gate`, đặt trên artboard 19. Hai cửa kia hiện là nút trơn.
 
 Cửa **nộp bài** đáng có cổng nhất trong hai cái còn lại, vì dải nhảy câu đã đếm sẵn con số mà hộp xác
-nhận cần đọc lại: *"còn 3 câu chưa trả lời"*. Đó là cùng nguyên tắc
+nhận cần đọc lại: *"còn 2 câu chưa trả lời"*. Đó là cùng nguyên tắc
 [ADR-02](../decisions/adr-02-phat-hanh-va-cua-so-thu-hoi.md) dùng cho hộp xác nhận phát hành — đọc lại
 giá trị thật thay vì một con số ghi cứng.
