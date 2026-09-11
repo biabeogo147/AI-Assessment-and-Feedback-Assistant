@@ -237,7 +237,8 @@ Vào: `note` (tuỳ chọn). Ra: `report_id`.
 - [x] Cập nhật `architecture.md`, `local-development.md`, `services/fe/AGENTS.md`, và bốn ADR trích
       dẫn màn demo vừa bị thay.
 - [ ] Chuyển hai dòng invariant sang nhóm tự động. **Chưa làm** — chúng thuộc UC-05, vẫn ngoài phạm vi.
-- [ ] **Gọi 1 subagent review** — ba mặt: code và test, tài liệu, và **UI thật trên trình duyệt**.
+- [x] **Gọi 1 subagent review** — UI tôi tự đi bằng mắt (vòng subagent đầu chết vì hết hạn mức);
+      vòng sau review mã nguồn và tài liệu, và bắt được một lỗi **chặn**: xem *Status*.
 - [ ] **Gọi 1 subagent review** — ba mặt, không chỉ code: (a) code và test, (b) tài liệu có còn khớp
       không sau khi code chạy, (c) **UI thật trên trình duyệt**, mở `http://localhost:5173` và đi
       hết luồng chứ không chỉ đọc JSX. Sửa theo phát hiện, hoặc phản bác có lý do.
@@ -364,6 +365,26 @@ Một việc ngoài phạm vi đã làm và cần biết: **BE khởi động đ
 AGENT, và ADR-16 gọi điểm pha 1 là sàn — một cái sàn cần service thứ hai mới đứng được thì không
 phải sàn. Pha 2 trả 503 thay vì làm cả BE chết lúc khởi động.
 
-Còn lại: một vòng subagent review mã nguồn và tài liệu. Ranh giới và interface đã chốt; bốn ngã rẽ đã được người dùng chọn
+**Vòng review bắt một lỗi chặn mà cả 46 test lẫn mắt tôi đều bỏ sót**: mở hai tab thì mở được **hai
+lượt cùng lúc**. Route kiểm *"đã có lượt nào đang mở chưa"* rồi mới ghi — hai request bắn cùng lúc
+thì cả hai đều qua được phép kiểm. Reviewer tái hiện bằng hai `POST /rounds` đồng thời và nhận **hai
+201**.
+
+Đáng chú ý là test cũ (`test_only_one_round_may_be_open`) **xanh** suốt: nó gọi tuần tự, nên không
+bao giờ chạm vào khe hở. Một phép kiểm không bao giờ chạm tới thứ nó canh thì không phải phép kiểm.
+
+Sửa ở tầng database chứ không ở tầng route: partial unique index trên `rounds(attempt_id)` với
+`WHERE submitted_at IS NULL`, và route biến `IntegrityError` thành 409. Kiểm lại trên Postgres thật:
+hai request đồng thời cho ra `[201, 409]`, còn đúng một lượt mở. Hai chỗ nữa đi cùng gốc ấy:
+`start_attempt` nay bắt `IntegrityError` để hai tab bấm *Bắt đầu* không thành 500, và `submit_round`
+bỏ qua câu đã đóng thay vì mở lại nó.
+
+Một chi tiết nhỏ nhưng đúng: các chỗ đọc *"lượt đang mở"* đổi từ `scalar()` sang `one_or_none()`.
+`scalar()` im lặng lấy dòng đầu khi có nhiều dòng — tức là nếu luật này hỏng lần nữa, hệ thống sẽ
+**giấu** thay vì kêu.
+
+Reviewer xác nhận bằng API thật: không luật nào rò ra FE, `confidence`/`misconception_code` không có
+ở luồng học sinh, học sinh khác nhận 404, trần ba vòng đóng đúng lúc, payload gửi AGENT tự chứa, và
+`packages/contracts` không lọt logic nào. Ranh giới và interface đã chốt; bốn ngã rẽ đã được người dùng chọn
 (chấm ở BE, token dev, SSE, thu hẹp ADR-09). Chờ duyệt để bắt đầu task đầu tiên — schema và
 `data-model.md`.

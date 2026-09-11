@@ -24,10 +24,12 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -241,9 +243,25 @@ class RemediationRound(Base):
 
     A round gathers all remaining questions rather than one, because phase 2
     receives an assessment, not a question (ADR-17).
+
+    **At most one round per attempt may be unsubmitted, and the database is
+    what enforces it.** The route checks first, but a check followed by an
+    insert is two statements: two tabs pressing the button together both pass
+    the check and both write. A student would then hold two clocks, which
+    ADR-15 gives no meaning to. The partial unique index below turns that race
+    into an integrity error the route converts to a refusal.
     """
 
     __tablename__ = "rounds"
+    __table_args__ = (
+        Index(
+            "uq_one_open_round_per_attempt",
+            "attempt_id",
+            unique=True,
+            postgresql_where=text("submitted_at IS NULL"),
+            sqlite_where=text("submitted_at IS NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     attempt_id: Mapped[str] = mapped_column(ForeignKey("attempts.id"))

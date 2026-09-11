@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -416,6 +417,32 @@ async def _publication(session: AsyncSession, assessment_id: str) -> Publication
     return found
 
 
+async def _open_round(session: AsyncSession, attempt_id: str) -> RemediationRound | None:
+    """Return the attempt's unsubmitted round, if it has one.
+
+    Uses `scalar_one_or_none` rather than `scalar`: at most one round may be
+    open, a partial unique index enforces it, and if that ever fails this must
+    raise instead of quietly picking a row and hiding the other.
+
+    Args:
+        session: Database session.
+        attempt_id: Which attempt.
+
+    Returns:
+        The open round, or None.
+
+    Raises:
+        MultipleResultsFound: If two rounds are open at once, which means the
+            index is missing from this database.
+    """
+    found = await session.scalars(
+        select(RemediationRound).where(
+            RemediationRound.attempt_id == attempt_id, RemediationRound.submitted_at.is_(None)
+        )
+    )
+    return found.one_or_none()
+
+
 async def _outcomes(session: AsyncSession, attempt_id: str) -> dict[str, QuestionOutcome]:
     """Read the score ledger of one attempt, keyed by question.
 
@@ -649,7 +676,20 @@ async def start_attempt(
             ),
         )
         session.add(attempt)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError:
+            # Two tabs pressed start together. The unique constraint kept the
+            # data right; this turns the collision into the answer the second
+            # tab wanted anyway -- the attempt that already exists.
+            await session.rollback()
+            attempt = await session.scalar(
+                select(Attempt).where(
+                    Attempt.assessment_id == assessment_id, Attempt.student_id == student.id
+                )
+            )
+            if attempt is None:
+                raise
 
     saved = {
         row.question_id: row.option_id
@@ -948,11 +988,7 @@ async def remediation_panel(
     now = _now()
     deadline = _aware(publication.remediation_deadline)
     budget = round_budget_minutes(publication.phase2_minutes_per_question, len(remaining))
-    open_round = await session.scalar(
-        select(RemediationRound).where(
-            RemediationRound.attempt_id == attempt_id, RemediationRound.submitted_at.is_(None)
-        )
-    )
+    open_round = await _open_round(session, attempt_id)
 
     return RemediationOut(
         attempt_id=attempt_id,
@@ -1350,11 +1386,7 @@ async def start_round(
     if now >= deadline:
         raise HTTPException(status_code=409, detail="Đã hết hạn chữa bài")
 
-    if await session.scalar(
-        select(RemediationRound).where(
-            RemediationRound.attempt_id == attempt_id, RemediationRound.submitted_at.is_(None)
-        )
-    ):
+    if await _open_round(session, attempt_id) is not None:
         raise HTTPException(status_code=409, detail="Đang có một lượt chưa nộp")
 
     assessment = await _load_assessment(session, attempt.assessment_id)
@@ -1384,7 +1416,13 @@ async def start_round(
         ends_at=round_ends_at(now, budget, deadline),
     )
     session.add(rnd)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        # The check above passed for both tabs; the index let only one through.
+        # Two clocks for one student is a state ADR-15 gives no meaning to.
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Đang có một lượt chưa nộp") from exc
 
     previous = await session.scalars(
         select(RoundItem)
@@ -1582,6 +1620,10 @@ async def submit_round(
         item.outcome = "đúng" if is_correct else "sai"
 
         outcome = outcomes[item.origin_question_id]
+        if outcome.closed:
+            # Already settled by an earlier round. Re-marking it could reopen a
+            # closed question, and a question closes once.
+            continue
         outcome.rounds_used += 1
         mark, reason, closed = mark_after_round(is_correct, outcome.rounds_used)
         outcome.mark = max(outcome.mark, mark)

@@ -10,6 +10,7 @@ the rules that outlive both the mock and the model: the floor, the ceiling of
 three rounds, who may read what, and what never appears in a student payload.
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -22,7 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import db as db_module
 from be import student_routes
 from be.db import bind_sessions, prepare_schema
-from be.models import Publication, QuestionOutcome
+from be.models import Publication, QuestionOutcome, RemediationRound
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
 from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionCompleted, SolutionMethod
@@ -369,6 +370,46 @@ async def test_no_round_starts_after_the_deadline(client: AsyncClient) -> None:
 
     result = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
     assert result["state"] == "hết-hạn-chữa"
+
+
+@pytest.mark.asyncio
+async def test_two_tabs_cannot_open_two_rounds_at_once(client: AsyncClient) -> None:
+    """The refusal must survive concurrency, not just a tidy sequence of calls.
+
+    A review on 2026-09-11 fired two of these together and got two rounds: the
+    route checked first and wrote second, and both requests passed the check.
+    Sequential tests never touch that gap, which is why this one runs them with
+    `gather`.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    first, second = await asyncio.gather(
+        client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT),
+        client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT),
+    )
+
+    codes = sorted([first.status_code, second.status_code])
+    assert codes == [201, 409], f"expected one round and one refusal, got {codes}"
+
+    # The count is the invariant. Which of the two survived is not: an
+    # in-memory SQLite keeps one connection for every session, so the loser's
+    # rollback can take the winner's uncommitted row with it. That artefact
+    # belongs to the test database, and never happens on Postgres.
+    maker = await _sessionmaker()
+    async with maker() as session:
+        open_rounds = list(
+            await session.scalars(
+                select(RemediationRound).where(
+                    RemediationRound.attempt_id == attempt_id,
+                    RemediationRound.submitted_at.is_(None),
+                )
+            )
+        )
+    assert len(open_rounds) <= 1, "two clocks for one student"
+
+    panel = (await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)).json()
+    assert panel["can_start_round"] is (not open_rounds)
 
 
 @pytest.mark.asyncio
