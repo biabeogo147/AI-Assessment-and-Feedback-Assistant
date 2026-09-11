@@ -71,6 +71,11 @@ dạy giáo viên lo lắng nhầm chỗ.
 - Figma `mOe2ZmrqOq1Uix45v6PNGD` — `Review reason` (`5:53`) bốn variant cùng trọng lượng;
   `Student result — chờ giáo viên` (`6:50`) không có điểm/nhận xét/lỗi sai trong cấu trúc;
   `Empty state` (`6:65`) variant `queue-rong` dùng họ màu settled.
+- Figma trang `Screen — Student` — **mười hai artboard, không màn nào** hiện `confidence`,
+  `misconception_code`, lý do review, hay trạng thái *chờ giáo viên*. Chẩn đoán chỉ xuất hiện dưới
+  dạng lời nói thường trong đoạn chat của pha 2 (*"Đó là khoảng hàm số NGHỊCH biến"*) và dưới dạng
+  một dòng lỗi trong hộp lời giải — không chỗ nào là con số. Đây là luật **vắng mặt**, nên bằng
+  chứng của nó cũng là một phép quét: quét cả trang không ra token nào trong ba token đó.
 - **Chưa có test** nào canh luật vắng mặt về cấu trúc.
 - **Đang bị vi phạm ở code.** `services/be/src/be/routes.py:125-136` trả đúng **một** hình dạng
   `GradedResult`, luôn kèm `score`, `confidence`, `misconception_code` và `feedback_text`, bất kể

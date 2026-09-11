@@ -6,8 +6,12 @@
 
 ## Goal
 
-Bốn màn hình học sinh tồn tại trong Figma, phủ hết UC-03, UC-04, UC-06 và UC-07, và không màn nào phá
-một ADR đang có hiệu lực.
+Bề mặt học sinh tồn tại trong Figma, phủ hết UC-03, UC-04, UC-06 và UC-07, và không màn nào phá một
+ADR đang có hiệu lực.
+
+> **Bốn màn lúc lập plan đã thành mười hai** (`13`…`24`) sau sáu vòng góp ý. Bản đồ số cuối cùng nằm
+> ở cuối mục *Bốn màn*; mục *Status* kể từng vòng đã đổi gì và vì sao. Mọi chỗ trong plan này viết
+> *bốn màn* là chữ của lúc lập plan, giữ nguyên để đọc được lịch sử.
 
 ## Bối cảnh
 

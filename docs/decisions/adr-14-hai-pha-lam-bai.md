@@ -1,6 +1,6 @@
 # ADR-14 — Một bài kiểm tra có hai pha; nộp bài không phải điểm kết thúc
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt (đã có bề mặt ở Figma, chưa có ở backend)
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh
@@ -63,8 +63,9 @@ sinh chọn không chữa vẫn là học sinh đã chọn, không phải học 
 **Ở Figma phía học sinh. Chưa ở đâu khác.**
 
 - **Ở Figma**: trang `Screen — Student` dựng cả hai pha — nộp bài kết thúc pha 1 (`14 · Làm bài`),
-  hai hình dạng của màn kết quả tuỳ pha 2 còn hay hết (`15` và `22`), và năm màn của chính pha 2
-  (`17`, `18`, `19`, `21`, và `24` cho lúc bài đã kết thúc).
+  hai hình dạng của màn kết quả tuỳ pha 2 còn hay hết (`15` và `22`), và sáu màn của chính pha 2:
+  `17` hỏi trợ lý, `18` lời giải đầy đủ, `19` và `20` hai ca của cổng bắt đầu lượt, `21` làm câu của
+  lượt, `24` khi bài đã kết thúc.
 - **Phía giáo viên chưa theo kịp**: artboard `10 · Chi tiết lớp` vẫn đếm **ĐÃ NỘP** như trạng thái
   cuối, và `11 · Kết quả bài kiểm tra trong lớp` bày điểm như đã chốt. Xem `docs/plans/backlog.md`.
 - `docs/overview/business-workflows.md` Workflow 2 và `use-case-specification.md` UC-03/UC-04 đã ghi

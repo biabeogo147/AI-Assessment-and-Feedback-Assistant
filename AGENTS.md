@@ -49,7 +49,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |
 | Teacher approves an assessment before release | not yet enforced; needs a test when UC-02 is built |
 | A low-confidence result is not shown to the Student before a Teacher handles it | not yet enforced; needs a test when UC-05 is built |
-| Practice questions keep the same learning objective | not yet enforced; needs a test when UC-06 is built |
+| A retry question is a variant of the same question, not merely the same objective | not yet enforced; needs a test when UC-06 is built (ADR-17) |
 
 Never let the unenforced group grow past three rows. When you implement one of those use cases, the
 plan for it must convert its row to an automatic check.

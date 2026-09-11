@@ -78,6 +78,11 @@ Figma `mOe2ZmrqOq1Uix45v6PNGD`:
 - Hai dòng lịch sử *"Lớp 11B — nhập danh sách"* và *"Lớp 12B — nhập danh sách"* trên rail.
 - `Publish settings` variant `chưa có lớp` (`77:341`) — *"Nhắn cho trợ lý tạo lớp trước, rồi quay lại
   đây"*: bề mặt chat, một lần nữa.
+- Figma trang `Screen — Student`, `Student top bar` (`281:16`) — **cả mười hai artboard** mang họ
+  tên · lớp · mã học sinh · **Đăng xuất**. Đó là hệ quả trực tiếp của luật này: phòng máy dùng chung
+  thì mỗi màn phải trả lời được câu *ai đang đăng nhập*, và phải thoát được ngay tại chỗ.
+- **Lỗ mật khẩu vẫn nguyên sau khi dựng xong bề mặt học sinh.** Không màn nào trong mười hai màn bắt
+  đổi mật khẩu lần đầu, và không có màn đăng nhập nào. Mười hai màn mới **không** làm lỗ này nhỏ đi.
 - **Link *Đặt lại mật khẩu*** trong `Student row` (`179:8`) — điểm vào của thao tác sinh mật khẩu thứ
   hai. **Bề mặt kết quả của nó chưa được dựng**, nên luật *chỉ hiện một lần* chưa có chỗ nào thi hành.
 

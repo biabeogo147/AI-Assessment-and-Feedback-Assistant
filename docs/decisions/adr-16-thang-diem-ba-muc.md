@@ -1,6 +1,6 @@
 # ADR-16 — Mỗi câu có ba mức điểm, và 0,5 nghĩa là hiểu sau khi được dạy
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt (đã có bề mặt ở Figma, chưa có ở backend)
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh

@@ -275,11 +275,14 @@ Student
 ### Điều kiện trước
 
 - Student đang ở pha 2, hoặc bài của **chính Student đó** đã kết thúc.
+- Trợ lí đã trả lời ít nhất một lần. Trước đó không có gì để báo cáo, nên nút không xuất hiện.
 
 ### Luồng chính
 
-1. Student đánh dấu một câu hoặc một đoạn hội thoại là *giải thích chưa rõ*.
-2. Hệ thống ghi lại kèm câu hỏi và đoạn hội thoại tương ứng.
+1. Student bấm *Báo cáo Trợ lý giải thích khó hiểu* — **một nút ở chân màn hỏi trợ lí**, không phải
+   một nút trên mỗi lượt trả lời.
+2. Hệ thống ghi lại **cả đoạn hội thoại của bài đó** kèm những câu Student làm sai. Đơn vị báo cáo là
+   đoạn chat, vì trợ lí làm việc trên cả bài chứ không theo từng câu.
 3. Teacher xem được các báo cáo.
 
 ### Quan hệ diagram

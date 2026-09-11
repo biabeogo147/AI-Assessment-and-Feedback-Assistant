@@ -56,11 +56,11 @@ không thu hồi được nằm cạnh những dòng chữ trôi qua.
 
 ## Nơi luật này đang được thi hành
 
-- Figma `mOe2ZmrqOq1Uix45v6PNGD`, trang `Screen — Chat` — mười một artboard, tất cả **1440×900**, tất
+- Figma `mOe2ZmrqOq1Uix45v6PNGD`, trang `Screen — Chat` — mười hai artboard, tất cả **1440×900**, tất
   cả chạy Density mode `Teacher`, và không artboard nào có bề mặt học sinh. Câu này còn đúng vì bề
   mặt học sinh nằm ở **trang riêng**.
-- Figma trang `Screen — Student` — **bảy** artboard, tất cả **1440×900**, tất cả chạy Density mode
-  `Student`, và **không artboard nào có rail**. Học sinh chỉ có hai nơi để đi, nên một bộ điều hướng
+- Figma trang `Screen — Student` — **mười hai** artboard (`13`…`24`), tất cả **1440×900**, tất cả chạy
+  Density mode `Student`, và **không artboard nào có rail**. Học sinh chỉ có hai nơi để đi, nên một bộ điều hướng
   năm điểm đến là bắt em học một thứ để dùng nó hai lần.
 - Luật *chat là dòng lệnh* được kiểm lại từng component trước khi dùng lại, đúng như mục *Quyết định*
   đòi. Một luật **không** chuyển sang được: mô tả `Thinking` (`83:76`) ghi *cổng duyệt phải mở lại

@@ -1,6 +1,6 @@
 # ADR-17 — Ba vòng cho mỗi câu, và biến thể sinh ra từ chính câu đó
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt (đã có bề mặt ở Figma, chưa có ở backend)
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh

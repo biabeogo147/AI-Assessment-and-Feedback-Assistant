@@ -64,6 +64,12 @@ Thang tin cậy không màu là hệ quả trực tiếp của ADR-06. Nếu FE 
   ghi chú nói rõ chúng bị loại vì **nội dung**, không phải vì cách vẽ.
 - Figma `Assistant avatar` (`28:6`) — thân linh vật tách khỏi hổ phách. Mức bão hoà cụ thể là cách
   design system tuân thủ; luật chỉ đòi *tách ra*.
+- Figma trang `Screen — Student` — quét mười hai artboard theo **biến ràng buộc**, không bằng mắt:
+  không node nào dùng `state/needs-human`, và không có hex thô. `Score mark` (`279:19`) là ca khó
+  nhất và đi đúng luật: mức 1 dùng `answer/correct`, mức 0 dùng `answer/incorrect`, còn **mức 0,5
+  không xin token mới** mà dùng `ink/default` — ba mức phân biệt bằng tròn đầy / nửa / rỗng nên bỏ
+  màu đi vẫn đọc được. Cảnh báo *lượt có thể bị DỪNG* cũng không dùng hổ phách: một lượt sắp hết giờ
+  không phải việc **cần người**.
 - **Chưa có lint hay test** nào chặn việc dùng sai hai màu này ở code.
 - `services/fe/src/App.tsx:89` dùng đỏ thô `#a11` cho lỗi hệ thống thay vì token. Hợp luật về nghĩa,
   sai về nguồn màu — màn hình demo chưa dùng token nào.

@@ -22,12 +22,12 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [11](adr-11-bo-assessment-type.md) | Bỏ `AssessmentType` khỏi contract | đã chốt |
 | [12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md) | Một số màu và hình ảnh mang nghĩa nghiệp vụ cố định | đã chốt |
 | [13](adr-13-lop-va-tai-khoan-hoc-sinh.md) | Giáo viên tạo lớp; tài khoản học sinh sinh từ CSV | đã chốt (mật khẩu một lần: chưa thi hành) |
-| [14](adr-14-hai-pha-lam-bai.md) | Bài kiểm tra có hai pha; nộp bài không phải điểm kết thúc | đã chốt, chưa thi hành |
-| [15](adr-15-thoi-gian-pha-hai.md) | Hai đồng hồ ở pha 2; phần giải thích không tính giờ | đã chốt, chưa thi hành |
-| [16](adr-16-thang-diem-ba-muc.md) | Ba mức điểm; 0,5 nghĩa là hiểu sau khi được dạy | đã chốt, chưa thi hành |
-| [17](adr-17-ba-vong-moi-cau.md) | Ba vòng cho mỗi câu; biến thể sinh từ chính câu đó | đã chốt, chưa thi hành |
-| [18](adr-18-cau-hoi-phai-kem-loi-giai.md) | Câu hỏi phải kèm lời giải nhiều cách và nhiễu gắn lỗi | đã chốt, chưa thi hành |
-| [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt, chưa thi hành |
+| [14](adr-14-hai-pha-lam-bai.md) | Bài kiểm tra có hai pha; nộp bài không phải điểm kết thúc | đã chốt (Figma xong, backend chưa) |
+| [15](adr-15-thoi-gian-pha-hai.md) | Hai đồng hồ ở pha 2; phần giải thích không tính giờ | đã chốt (Figma xong, backend chưa) |
+| [16](adr-16-thang-diem-ba-muc.md) | Ba mức điểm; 0,5 nghĩa là hiểu sau khi được dạy | đã chốt (Figma xong, backend chưa) |
+| [17](adr-17-ba-vong-moi-cau.md) | Ba vòng cho mỗi câu; biến thể sinh từ chính câu đó | đã chốt (Figma xong, backend chưa) |
+| [18](adr-18-cau-hoi-phai-kem-loi-giai.md) | Câu hỏi phải kèm lời giải nhiều cách và nhiễu gắn lỗi | đã chốt (Figma xong, contract chưa) |
+| [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt (nửa học sinh xong; giáo viên chưa) |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.

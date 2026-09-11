@@ -1,6 +1,6 @@
 # ADR-11 — Bỏ `AssessmentType` khỏi contract
 
-- **Trạng thái:** đã chốt (chỗ thu lời giải thích: chưa thi hành)
+- **Trạng thái:** đã chốt (chỗ thu lời giải thích: đã có bề mặt ở Figma, contract chưa theo)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -72,8 +72,10 @@ pydantic mặc định **bỏ qua** trường lạ, nên một client cũ vẫn 
   đã bỏ trường; 20 test pytest xanh sau khi gỡ.
 - `services/fe/src/api.ts` — thân request không còn gửi trường.
 - `docs/local-development.md` — ví dụ `curl` đã bỏ trường.
-- **Chỗ thu lời giải thích: chưa thi hành ở đâu cả.** Không màn hình nào của pha 2 tồn tại, và
-  `GradingRequested` vẫn mang `student_explanation` như thể nó được thu ở lúc nộp.
+- **Chỗ thu lời giải thích: bề mặt đã có, contract thì chưa theo.** Pha 2 nay có mười hai artboard,
+  và lời giải thích của học sinh **không** được thu lúc nộp: màn `14 · Làm bài` chỉ có các phương án,
+  còn phần nói ra cách nghĩ nằm trong **đoạn chat** của màn `17`. `GradingRequested` thì vẫn mang
+  `student_explanation` như thể nó đi kèm lúc nộp — trường ấy nay mô tả sai chỗ dữ liệu sinh ra.
 - Luật vẫn còn hiệu lực nằm ở `docs/overview/use-case-specification.md:255` và
   `docs/overview/business-workflows.md:76`, `91`; `business-workflows.md:86` là vế bù cho bài thường
   xuyên. Không dòng nào bị đụng tới trong lần gỡ này.

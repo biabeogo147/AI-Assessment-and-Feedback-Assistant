@@ -1,6 +1,6 @@
 # ADR-19 — Học sinh báo cáo chỗ Kriky giải thích chưa rõ, và vì sao đó không phải cổng thứ tư
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt (nửa học sinh đã có ở Figma; phía giáo viên và backend chưa)
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh
