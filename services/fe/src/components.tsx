@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { countdown, type Me } from "./api";
 import { go } from "./App";
@@ -14,13 +14,22 @@ import { go } from "./App";
 export function TopBar({ me }: { me: Me }) {
   return (
     <header className="topbar">
-      <span className="mark" aria-hidden>
-        🐝
-      </span>
-      <span className="brand">Kriky</span>
+      <span className="mark" aria-hidden />
+      <button
+        className="brand"
+        type="button"
+        style={{ background: "none", padding: 0, cursor: "pointer" }}
+        onClick={() => go("/")}
+      >
+        Kriky
+      </button>
       <span className="spacer" />
       <span className="identity">
-        {me.full_name} · Lớp {me.class_name} · {me.student_code}
+        <span className="who">{me.full_name}</span>
+        <span>·</span>
+        <span>Lớp {me.class_name}</span>
+        <span>·</span>
+        <span className="code">{me.student_code}</span>
       </span>
       <button className="btn-signout" type="button">
         Đăng xuất
@@ -38,9 +47,11 @@ export function TopBar({ me }: { me: Me }) {
  *
  * @param mark - 1, 0.5 or 0.
  * @param tip - The hover sentence explaining why. ADR-16 keeps this out of the
- *   page body: printed under every row it would repeat without informing.
+ *   page body: printed under every row it would repeat without informing. It
+ *   is a node rather than a string because the design sets the action inside
+ *   it in SemiBold, the way the banner on the same screen does.
  */
-export function ScoreMark({ mark, tip }: { mark: number; tip?: string }) {
+export function ScoreMark({ mark, tip }: { mark: number; tip?: ReactNode }) {
   const level = mark === 1 ? "full" : mark === 0.5 ? "half" : "zero";
   const text = mark === 0.5 ? "0,5" : String(mark);
   return (
@@ -88,24 +99,12 @@ export function Countdown({ endsAt, onExpire }: { endsAt: string; onExpire?: () 
  */
 export function TimeCard({ endsAt }: { endsAt: string }) {
   return (
-    <div
-      className="card"
-      style={{ padding: "8px 12px", display: "flex", alignItems: "baseline", gap: 8 }}
-    >
+    <div className="time-card">
       <span className="muted" style={{ flex: 1 }}>
         Còn lại
       </span>
       <Countdown endsAt={endsAt} />
     </div>
-  );
-}
-
-/** A link back to the assignment list, for screens a student can leave. */
-export function BackToList() {
-  return (
-    <button className="btn-quiet" type="button" onClick={() => go("/")}>
-      ‹ Bài của tôi
-    </button>
   );
 }
 

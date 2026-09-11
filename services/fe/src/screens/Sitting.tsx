@@ -86,7 +86,7 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
             style={{
               fontSize: "var(--type-display)",
               lineHeight: 1.25,
-              margin: "0 0 24px",
+              margin: "0 0 20px",
               fontWeight: 400,
             }}
           >

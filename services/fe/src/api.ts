@@ -105,17 +105,24 @@ export interface RemediationItem {
   correct: { label: string; text: string };
   rounds_used: number;
   rounds_max: number;
+  /** Where the question ended up; only meaningful once `closed`. */
+  mark: number;
+  closed: boolean;
 }
 
 export interface Remediation {
   attempt_id: string;
+  state: string;
   deadline: string;
   minutes_per_question: number;
   round_budget_minutes: number;
+  /** How many of `items` still need a round. Drives the button's label. */
+  open_count: number;
   can_start_round: boolean;
   warn_cut: boolean;
   open_round_id: string | null;
-  remaining: RemediationItem[];
+  /** Every question wrong at the end of phase 1, closed ones included. */
+  items: RemediationItem[];
 }
 
 export interface Solution {

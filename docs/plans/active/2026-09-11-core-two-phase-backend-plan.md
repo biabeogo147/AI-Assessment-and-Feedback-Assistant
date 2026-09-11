@@ -108,14 +108,20 @@ Ra: `state`, `total_score`, `question_count`, `remediation_deadline`, `items[]`.
 - `items[].rounds[]` mang `index`, `stem`, `outcome` — **đề của từng lượt**, không chỉ kết quả. Mảng
   rỗng khi câu chưa được chữa, nên màn `15` không bày một danh sách trống.
 
-**`GET /api/attempts/{id}/remediation`** — panel màn `17`.
+**`GET /api/attempts/{id}/remediation`** — panel màn `17` và màn `24`.
 
-Ra: `deadline`, `minutes_per_question`, `round_budget_minutes`, `can_start_round`, `warn_cut`,
-`remaining[]`.
+Ra: `state`, `deadline`, `minutes_per_question`, `round_budget_minutes`, `open_count`,
+`can_start_round`, `warn_cut`, `open_round_id`, `items[]`.
 
-- `remaining[]` có `question_id`, `stem`, `chosen{label,text}`, `correct{label,text}`, `rounds_used`,
-  `rounds_max`. Đáp án đúng **được** trả ở đây vì bài đã nộp: học sinh sắp làm một câu khác cùng
-  dạng, giấu đáp án câu cũ không bảo vệ điều gì.
+- `items[]` là **mọi câu sai của bài**, không phải chỉ những câu còn mở: màn `24` đọc lại đúng bảng
+  ấy sau khi bài đã kết thúc. Mỗi phần tử có `question_id`, `order`, `stem`, `chosen{label,text}`,
+  `correct{label,text}`, `rounds_used`, `rounds_max`, `mark`, `closed`. Đáp án đúng **được** trả ở
+  đây vì bài đã nộp: học sinh sắp làm một câu khác cùng dạng, giấu đáp án câu cũ không bảo vệ điều
+  gì.
+- `open_count` đếm những câu `closed = false`. FE không tự đếm: "còn phải làm lại" và số câu in trên
+  nút mở lượt phải là cùng một con số BE đã chốt.
+- `state` cho FE biết khoá thanh chat hay không, và `open_round_id` cho biết có lượt đang mở để màn
+  `21` từ chối một lượt đã đóng.
 - Panel **không** nhận tên lỗi và không nhận cách giải — chúng nằm sau một cú bấm, ở endpoint lời
   giải. Đây là quyết định thiết kế đã chốt ở vòng bốn.
 - `warn_cut` do **BE** tính: `round_budget_minutes` lớn hơn thời gian còn lại tới `deadline`. Nó là

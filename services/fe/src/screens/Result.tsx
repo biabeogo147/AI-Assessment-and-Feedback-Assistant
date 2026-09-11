@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { api, moment, type AttemptResult, type Me } from "../api";
 import { go } from "../App";
-import { BackToList, ErrorStrip, ScoreMark, TopBar } from "../components";
+import { ErrorStrip, ScoreMark, TopBar } from "../components";
 
 /**
  * Why a mark stands where it does, in words, chosen by the client.
@@ -16,12 +16,19 @@ import { BackToList, ErrorStrip, ScoreMark, TopBar } from "../components";
  * @param stillOpen - Whether the remediation deadline is in the future.
  * @returns The hover sentence, or undefined when a mark needs no explanation.
  */
-function markTip(reason: string, stillOpen: boolean): string | undefined {
+function markTip(reason: string, stillOpen: boolean): ReactNode {
   if (reason === "chữa-được") {
     return "Làm đúng câu mới có dạng tương tự câu sai ở bài kiểm tra.";
   }
   if (reason === "chưa-chữa" && stillOpen) {
-    return "Làm sai, có thể nâng điểm bằng cách Hỏi trợ lý và làm lại dạng bài sai.";
+    // The action is set apart here for the same reason it is in the banner:
+    // it names the one thing the student can do about this mark.
+    return (
+      <>
+        Làm sai, có thể nâng điểm bằng cách{" "}
+        <strong style={{ fontWeight: 600 }}>Hỏi trợ lý và làm lại dạng bài sai</strong>.
+      </>
+    );
   }
   if (reason === "hết-vòng") {
     return "Đã dùng hết ba lượt làm lại cho câu này.";
@@ -65,25 +72,26 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
   }
 
   const stillOpen = result.state === "cần-chữa";
-  const openCount = result.items.filter((item) => item.mark < 1 && item.rounds.length === 0).length;
+  // A question is still open while BE says its mark is "chưa-chữa": having
+  // spent a round does not close it, and counting rounds here got the number
+  // wrong the moment a student used one.
+  const openCount = result.items.filter((item) => item.mark_reason === "chưa-chữa").length;
 
   return (
     <>
       <TopBar me={me} />
       <main className="page">
-        <BackToList />
-
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, margin: "8px 0 20px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, marginBottom: 20 }}>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: "var(--type-heading)" }}>{result.title}</h1>
             <div className="muted" style={{ marginTop: 4 }}>
               {stillOpen
                 ? `Đã nộp lúc ${result.submitted_at ? moment(result.submitted_at) : "—"} · còn ${openCount} câu cần chữa`
-                : `Bài đã kết thúc · ${result.total_score} trên ${result.question_count} câu`}
+                : `Bài đã kết thúc · ${result.total_score.toFixed(1).replace(".", ",")} trên ${result.question_count} câu`}
             </div>
           </div>
           <button
-            className="btn-primary"
+            className="btn-cta"
             type="button"
             onClick={() => go(`/attempt/${attemptId}/tutor`)}
           >

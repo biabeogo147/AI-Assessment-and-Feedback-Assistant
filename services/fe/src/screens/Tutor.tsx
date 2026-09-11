@@ -10,7 +10,7 @@ import {
   type Solution,
 } from "../api";
 import { go } from "../App";
-import { BackToList, ErrorStrip, TopBar } from "../components";
+import { ErrorStrip, TopBar } from "../components";
 
 /**
  * Screens 17, 18, 19, 20 and 24 — asking the assistant, and the gate into a round.
@@ -40,7 +40,11 @@ function Turn({ role, text }: { role: string; text: string }) {
   const student = role === "student";
   return (
     <div className="turn">
-      {student ? <span style={{ width: 40, flex: "none" }} /> : <span className="avatar">🐝</span>}
+      {student ? (
+        <span style={{ width: 40, flex: "none" }} />
+      ) : (
+        <img className="avatar" src="/kriky-face.png" alt="" width={40} height={40} />
+      )}
       <div className="said">
         <span className="faint">{student ? "Bạn" : "Kriky"}</span>
         <div className={`bubble ${student ? "student" : ""}`}>{text}</div>
@@ -56,6 +60,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState("");
   const [solution, setSolution] = useState<Solution | null>(null);
+  const [solutionOrder, setSolutionOrder] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -147,14 +152,41 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   }
 
   const locked = history.locked;
+  // Which round the gate is about to open, read off the questions themselves
+  // rather than counted here: the ceiling of three is BE's (ADR-17).
+  const nextRound =
+    1 + Math.max(0, ...panel.items.filter((item) => !item.closed).map((i) => i.rounds_used));
+  // Which question the conversation is on, taken from the last question the
+  // **student** asked. The greeting names every wrong question, so reading any
+  // message would mark one of them as "đang hỏi" before anybody asked.
+  // "câu 5 và câu 6" -- the same phrase in the progress box and in the gate,
+  // because they are naming the same set.
+  const openList = panel.items
+    .filter((item) => !item.closed)
+    .map((item) => `câu ${item.order}`)
+    .join(" và ");
+  // The gate's warning counts in minutes, so it has to name the number the
+  // student can check against the clock rather than say "đã gần".
+  const minutesLeft = Math.max(
+    0,
+    Math.round((new Date(panel.deadline).getTime() - Date.now()) / 60000),
+  );
+  const asking = (() => {
+    for (let index = history.messages.length - 1; index >= 0; index -= 1) {
+      const message = history.messages[index];
+      if (message.role !== "student") continue;
+      const named = /câu\s*(\d+)/i.exec(message.text);
+      if (named) return Number(named[1]);
+    }
+    return null;
+  })();
 
   return (
     <>
       <TopBar me={me} />
       <div className="split">
         <section className="chat">
-          <BackToList />
-          <div className="banner">
+          <div className="banner slim">
             {locked
               ? "Bài đã kết thúc. Em vẫn đọc lại được phần chữa và báo cáo chỗ khó hiểu, nhưng không nhắn thêm được nữa."
               : "Phần này không tính giờ. Hỏi đến khi hiểu rồi hãy bấm làm bài mới."}
@@ -184,16 +216,21 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
                 if (event.key === "Enter") void send();
               }}
             />
-            {locked ? null : (
-              <button className="btn-quiet" type="button" onClick={() => void send()}>
-                Gửi
-              </button>
-            )}
+            <button
+              className="btn-quiet"
+              type="button"
+              disabled={locked || busy}
+              onClick={() => void send()}
+            >
+              Gửi
+            </button>
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            {history.messages.filter((message) => message.role === "assistant").length > 1 ||
+            locked ? (
             <button
-              className="btn-quiet"
+              className="btn-report"
               type="button"
               onClick={() =>
                 api
@@ -204,15 +241,15 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             >
               ⚑ Báo cáo Trợ lý giải thích khó hiểu
             </button>
+            ) : null}
             {locked ? null : (
               <button
-                className="btn-commit"
+                className="btn-cta"
                 type="button"
-                style={{ width: "auto" }}
                 disabled={!panel.can_start_round || busy}
                 onClick={() => setGateOpen(true)}
               >
-                Làm bài mới · {panel.remaining.length} câu · {panel.round_budget_minutes} phút
+                Làm bài mới · {panel.open_count} câu · {panel.round_budget_minutes} phút
               </button>
             )}
           </div>
@@ -221,9 +258,20 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
         <aside className="panel">
           <div className="label-caps">CÁC CÂU EM LÀM SAI</div>
 
-          {panel.remaining.map((item) => (
-            <div key={item.question_id} className="panel-card">
-              <div className="title-14">Câu {item.order}</div>
+          <div className="panel-cards">
+          {panel.items.map((item) => (
+            <div
+              key={item.question_id}
+              className={`panel-card ${asking === item.order ? "asking" : ""}`}
+            >
+              <div className="title-14" style={{ display: "flex", gap: 8 }}>
+                <span>Câu {item.order}</span>
+                {asking === item.order ? (
+                  <span style={{ color: "var(--accent)", fontSize: "var(--type-caption)" }}>
+                    đang hỏi
+                  </span>
+                ) : null}
+              </div>
               <div style={{ fontSize: "var(--type-label)", lineHeight: 1.35 }}>{item.stem}</div>
               {item.chosen ? (
                 <div
@@ -245,7 +293,10 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
                 onClick={() =>
                   api
                     .solution(item.question_id)
-                    .then(setSolution)
+                    .then((loaded) => {
+                      setSolution(loaded);
+                      setSolutionOrder(item.order);
+                    })
                     .catch((cause: Error) => setError(cause.message))
                 }
               >
@@ -254,67 +305,107 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             </div>
           ))}
 
-          {panel.remaining.length === 0 ? (
-            <div className="muted">Không còn câu nào phải làm lại.</div>
+          </div>
+
+          {panel.items.length === 0 ? (
+            <div className="muted">Bài này không có câu nào sai.</div>
           ) : null}
 
-          <div className="panel-card" style={{ padding: "12px 14px" }}>
-            <div className="stat">
-              <span className="key">Còn phải làm lại</span>
-              <span className="value">{panel.remaining.length} câu</span>
-            </div>
-            <div className="stat">
-              <span className="key">Hạn làm lại</span>
-              <span className="value">{moment(panel.deadline)}</span>
-            </div>
+          <div className="panel-card plain" style={{ padding: "12px 14px" }}>
+            {locked ? (
+              <>
+                <div className="stat">
+                  <span className="key">Kết quả</span>
+                  <span className="value">
+                    {panel.items
+                      .map(
+                        (item) =>
+                          `câu ${item.order}: ${item.mark === 0.5 ? "0,5" : item.mark}đ`,
+                      )
+                      .join(" · ")}
+                  </span>
+                </div>
+                <div className="stat">
+                  <span className="key">Đã kết thúc</span>
+                  <span className="value">{moment(panel.deadline)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="stat">
+                  <span className="key">Còn phải làm lại</span>
+                  <span className="value">
+                    {panel.open_count} câu: {openList}
+                  </span>
+                </div>
+                <div className="stat">
+                  <span className="key">Hạn làm lại</span>
+                  <span className="value">tới hết {moment(panel.deadline)}</span>
+                </div>
+              </>
+            )}
           </div>
         </aside>
       </div>
 
       {solution !== null ? (
         <div className="scrim" onClick={() => setSolution(null)}>
-          <div className="dialog" onClick={(event) => event.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "baseline" }}>
-              <h2 style={{ flex: 1, fontSize: "var(--type-heading)", margin: 0 }}>Lời giải</h2>
-              <button className="btn-quiet" type="button" onClick={() => setSolution(null)}>
+          <div className="dialog solution" onClick={(event) => event.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <h2 style={{ flex: 1, fontSize: "var(--type-heading)" }}>
+                Lời giải — Câu {solutionOrder ?? ""}
+              </h2>
+              <button className="btn-quiet muted-link" type="button" onClick={() => setSolution(null)}>
                 Đóng
               </button>
             </div>
-            <p>{solution.stem}</p>
 
-            <div className="panel-card" style={{ gap: 10, marginBottom: 16 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "var(--type-label)",
+                color: "var(--ink-muted)",
+              }}
+            >
+              {solution.stem}
+            </p>
+
+            <div className="panel-card plain" style={{ gap: 14, padding: 16 }}>
               {solution.methods.map((method) => (
                 <div key={method.title}>
-                  <div className="title-14">{method.title}</div>
-                  <div className="muted" style={{ marginTop: 2, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: "var(--type-caption)", fontWeight: 600 }}>
+                    {method.title}
+                  </div>
+                  <div className="muted" style={{ marginTop: 4, lineHeight: 1.25 }}>
                     {method.body}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="faint" style={{ fontWeight: 600, marginBottom: 6 }}>
-              ĐỐI CHIẾU TỪNG PHƯƠNG ÁN
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="label-caps">ĐỐI CHIẾU TỪNG PHƯƠNG ÁN</div>
+              {solution.options.map((option) => (
+                <div key={option.label} style={{ display: "flex", gap: 12, padding: "6px 0" }}>
+                  <span
+                    style={{
+                      width: 120,
+                      flex: "none",
+                      fontWeight: 600,
+                      fontSize: "var(--type-caption)",
+                      color: option.is_correct
+                        ? "var(--answer-correct)"
+                        : "var(--answer-incorrect)",
+                    }}
+                  >
+                    {option.label}. {option.text}
+                  </span>
+                  <span className="muted">
+                    {option.is_correct ? "✓ đúng" : option.error_label}
+                  </span>
+                </div>
+              ))}
             </div>
-            {solution.options.map((option) => (
-              <div key={option.label} style={{ display: "flex", gap: 12, marginBottom: 4 }}>
-                <span
-                  style={{
-                    width: 120,
-                    fontWeight: 600,
-                    fontSize: "var(--type-caption)",
-                    color: option.is_correct
-                      ? "var(--answer-correct)"
-                      : "var(--answer-incorrect)",
-                  }}
-                >
-                  {option.label}. {option.text}
-                </span>
-                <span className="muted">
-                  {option.is_correct ? "✓ đúng" : option.error_label}
-                </span>
-              </div>
-            ))}
           </div>
         </div>
       ) : null}
@@ -323,14 +414,28 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
         <div className="scrim">
           <div className="dialog gate">
             <h2 style={{ fontSize: "var(--type-heading)" }}>Bắt đầu lượt làm lại?</h2>
-            <p className="muted" style={{ margin: "8px 0 16px", lineHeight: 1.4 }}>
+            <p
+              style={{
+                margin: "16px 0",
+                lineHeight: 1.25,
+                color: "var(--ink-muted)",
+              }}
+            >
               Bấm là đồng hồ chạy ngay. Đóng trình duyệt cũng không dừng nó.
             </p>
 
-            <div className="panel-card" style={{ padding: "12px 14px" }}>
+            <div className="panel-card plain" style={{ padding: "12px 14px" }}>
               <div className="stat">
                 <span className="key">Lượt này</span>
-                <span className="value">{panel.remaining.length} câu</span>
+                <span className="value">
+                  {panel.open_count} câu: {openList}
+                </span>
+              </div>
+              <div className="stat">
+                <span className="key">Vòng</span>
+                <span className="value">
+                  vòng {nextRound} — mỗi câu còn {3 - nextRound + 1} vòng
+                </span>
               </div>
               <div className="stat">
                 <span className="key">Thời gian</span>
@@ -340,18 +445,18 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
               </div>
               <div className="stat">
                 <span className="key">Hạn làm lại</span>
-                <span className="value">{moment(panel.deadline)}</span>
+                <span className="value">tới hết {moment(panel.deadline)}</span>
               </div>
             </div>
 
             {panel.warn_cut ? (
-              <div className="banner" style={{ marginTop: 12 }}>
-                Lượt này {panel.round_budget_minutes} phút mà hạn làm lại đã gần, nên có thể bị{" "}
-                <strong>DỪNG</strong> giữa chừng.
+              <div className="warn-strip">
+                Còn {minutesLeft} phút tới hạn làm lại. Lượt này {panel.round_budget_minutes} phút,
+                nên có thể bị <strong>DỪNG</strong> giữa chừng.
               </div>
             ) : null}
 
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 16 }}>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
               <button
                 className="btn-dialog quiet"
                 type="button"

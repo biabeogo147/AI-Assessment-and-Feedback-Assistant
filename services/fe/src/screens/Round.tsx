@@ -95,7 +95,14 @@ export default function Round({
       <TopBar me={me} />
       <main className="page two-column">
         <section>
-          <div className="muted">Làm lại dạng bài sai · {round.items.length} câu</div>
+          <div className="muted">
+            Làm lại dạng bài sai · {round.items.length} câu ·{" "}
+            {Math.max(
+              1,
+              Math.round((new Date(round.ends_at).getTime() - Date.now()) / 60000),
+            )}{" "}
+            phút
+          </div>
           <h1 style={{ fontSize: "var(--type-heading)", margin: "4px 0 20px" }}>
             Câu {item.origin_order} — Lượt làm lại thứ {round.index} / tối đa 3
           </h1>
@@ -103,7 +110,7 @@ export default function Round({
             style={{
               fontSize: "var(--type-display)",
               lineHeight: 1.25,
-              margin: "0 0 24px",
+              margin: "0 0 20px",
               fontWeight: 400,
             }}
           >

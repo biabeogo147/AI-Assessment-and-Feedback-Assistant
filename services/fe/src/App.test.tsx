@@ -115,13 +115,15 @@ describe("the assignment list", () => {
 describe("the tutoring screen", () => {
   const PANEL = {
     attempt_id: "a1",
+    state: "cần-chữa",
     deadline: "2026-09-15T15:00:00+00:00",
     minutes_per_question: 5,
     round_budget_minutes: 10,
+    open_count: 1,
     can_start_round: true,
     warn_cut: false,
     open_round_id: null,
-    remaining: [
+    items: [
       {
         question_id: "q4",
         order: 4,
@@ -130,6 +132,8 @@ describe("the tutoring screen", () => {
         correct: { label: "A", text: "Khoảng (−∞; −1)" },
         rounds_used: 0,
         rounds_max: 3,
+        mark: 0,
+        closed: false,
       },
     ],
   };

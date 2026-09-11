@@ -53,6 +53,7 @@
   --page-pad-x: 40px;
   --page-pad-y: 32px;
   --radius: 8px;
+  --radius-lg: 14px;
   --radius-chip: 4px;
 }
 
@@ -144,10 +145,8 @@ h3 {
   width: 28px;
   height: 28px;
   border-radius: var(--radius);
-  background: var(--accent-surface);
-  display: grid;
-  place-items: center;
-  font-size: 15px;
+  border: 1px solid var(--line);
+  background: var(--surface) url("/kriky-face.png") center / 22px 22px no-repeat;
 }
 
 .topbar .brand {
@@ -159,9 +158,26 @@ h3 {
   flex: 1;
 }
 
+/*
+ * Name, class, code -- three ranks, not one line of grey. The design gives the
+ * name the ink and the weight because it answers "is this my machine?"; the
+ * class is context; the code is a reference number and takes the caption size.
+ */
 .topbar .identity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   font-size: var(--type-label);
   color: var(--ink-muted);
+}
+
+.topbar .identity .who {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.topbar .identity .code {
+  font-size: var(--type-caption);
 }
 
 /* ------------------------------------------------------------- buttons */
@@ -170,7 +186,8 @@ button {
   font: inherit;
   cursor: pointer;
   border-radius: var(--radius);
-  border: 1px solid transparent;
+  border: none;
+  color: var(--ink);
 }
 
 button:disabled {
@@ -179,12 +196,19 @@ button:disabled {
 }
 
 /* Row-level action: 12px label, 35px tall. */
+/*
+ * A row button never wraps. Chrome sets this label a couple of pixels wider
+ * than Figma does, and with the action column sized to the design's 348 that
+ * was enough to break "Hỏi trợ lý và làm lại dạng bài sai" onto a second line
+ * and make the whole row taller than its neighbours.
+ */
 .btn-primary {
   background: var(--accent);
   color: var(--paper);
   font-size: var(--type-caption);
   font-weight: 600;
   padding: 10px 18px;
+  white-space: nowrap;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -194,10 +218,36 @@ button:disabled {
 .btn-secondary {
   background: transparent;
   color: var(--ink);
-  border-color: var(--line-strong);
+  border: 1px solid var(--line-strong);
   font-size: var(--type-caption);
   font-weight: 600;
   padding: 10px 18px;
+  white-space: nowrap;
+}
+
+/* The call to action at the head of a screen: 42px, 14px label. */
+.btn-cta {
+  background: var(--accent);
+  color: var(--paper);
+  font-size: var(--type-label);
+  font-weight: 600;
+  padding: 12px 20px;
+  white-space: nowrap;
+}
+
+.btn-cta:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* The report control is a bordered pill, not a bare link. */
+.btn-report {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  padding: 6px 10px;
 }
 
 /* The one button that ends a phase: taller, and labelled at 14. */
@@ -230,13 +280,13 @@ button:disabled {
 .btn-dialog.quiet {
   background: transparent;
   color: var(--ink);
-  border-color: var(--line-strong);
+  border: 1px solid var(--line-strong);
 }
 
 .btn-signout {
-  background: transparent;
+  background: var(--sunken);
   color: var(--ink);
-  border-color: var(--line-strong);
+  border: none;
   font-size: var(--type-caption);
   font-weight: 600;
   padding: 7px 14px;
@@ -252,6 +302,15 @@ button:disabled {
 }
 
 /* --------------------------------------------------------------- rows */
+
+.time-card {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--sunken);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
 
 .card {
   background: var(--surface);
@@ -271,7 +330,7 @@ button:disabled {
 }
 
 .row + .row {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 /* The four columns of an assignment row, fixed so they line up down the page. */
@@ -281,6 +340,8 @@ button:disabled {
 
 .row .col-dates {
   width: 210px;
+  font-size: var(--type-label);
+  color: var(--ink-muted);
 }
 
 .row .col-status {
@@ -302,9 +363,15 @@ button:disabled {
   gap: 20px;
 }
 
+/*
+ * Each column carries its own font size so its line box is the size of the
+ * text in it. Inheriting the 16px body strut made every result row four
+ * pixels taller than the design's 52.
+ */
 .row.result .col-num {
   width: 70px;
   padding-top: 2px;
+  font-size: var(--type-caption);
 }
 
 .row.result .col-body {
@@ -316,6 +383,7 @@ button:disabled {
   width: 80px;
   display: flex;
   justify-content: flex-end;
+  font-size: var(--type-label);
 }
 
 .title-14 {
@@ -367,10 +435,10 @@ button:disabled {
   width: 36px;
   height: 36px;
   padding: 0;
-  border-radius: var(--radius-chip);
-  font-size: var(--type-caption);
+  border-radius: var(--radius);
+  font-size: var(--type-label);
   font-weight: 600;
-  background: var(--surface);
+  background: var(--sunken);
   color: var(--ink-muted);
   border: 1px solid var(--line);
 }
@@ -405,12 +473,18 @@ button:disabled {
 }
 
 .option + .option {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .option.chosen {
-  border-color: var(--accent);
+  border: 2px solid var(--accent);
   background: var(--accent-surface);
+  /* Keep the 48px height when the border grows by a pixel on each side. */
+  padding: 13px 15px;
+}
+
+.option.chosen .label {
+  color: var(--accent);
 }
 
 .option .radio {
@@ -421,9 +495,13 @@ button:disabled {
   flex: none;
 }
 
+/*
+ * A ring, not a dot: the design draws the chosen radio as a thick accent
+ * annulus whose hole shows the row's own surface through it.
+ */
 .option.chosen .radio {
-  border: none;
-  background: var(--accent);
+  border: 5px solid var(--accent);
+  background: transparent;
 }
 
 .option .label {
@@ -445,7 +523,8 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--type-body);
+  font-size: var(--type-label);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -485,15 +564,14 @@ button:disabled {
   right: calc(100% + 12px);
   top: 50%;
   transform: translateY(-50%);
-  width: 300px;
+  width: 320px;
   background: var(--ink);
-  color: var(--paper);
+  color: var(--surface);
   font-size: var(--type-caption);
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.25;
   padding: 10px 14px;
   border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   display: none;
   z-index: 5;
 }
@@ -508,7 +586,7 @@ button:disabled {
 .scrim {
   position: fixed;
   inset: 0;
-  background: rgb(26 31 43 / 45%);
+  background: rgb(13 15 23 / 45%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -518,8 +596,9 @@ button:disabled {
 
 .dialog {
   background: var(--surface);
-  border-radius: var(--radius);
-  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px;
   width: 680px;
   max-height: 80vh;
   overflow: auto;
@@ -527,6 +606,22 @@ button:disabled {
 
 .dialog.gate {
   width: 460px;
+}
+
+/*
+ * The solution dialog stacks four blocks with one gap between them, and pads
+ * a little wider than the gate does.
+ */
+.dialog.solution {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* "Đóng" is a quiet word, not a link the eye should land on first. */
+.btn-quiet.muted-link {
+  color: var(--ink-muted);
 }
 
 /* ----------------------------------------------------------------- chat */
@@ -566,7 +661,7 @@ button:disabled {
   border-radius: var(--radius);
   padding: 12px 16px;
   font-size: var(--type-body);
-  line-height: 1.4;
+  line-height: 1.25;
 }
 
 .bubble.student {
@@ -592,12 +687,23 @@ button:disabled {
   background: transparent;
 }
 
+.composer .btn-quiet {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+}
+
 .composer input::placeholder {
   color: var(--ink-faint);
+  opacity: 1;
 }
 
 .composer.locked {
   background: var(--sunken);
+}
+
+/* A disabled input takes Chrome's grey, which is neither of our inks. */
+.composer input:disabled {
+  -webkit-text-fill-color: var(--ink-faint);
 }
 
 /* ---------------------------------------------------------------- boxes */
@@ -606,12 +712,46 @@ button:disabled {
   background: var(--sunken);
   border-radius: var(--radius);
   padding: 10px 14px;
-  font-size: var(--type-caption);
+  font-size: var(--type-label);
   color: var(--ink-muted);
+}
+
+.banner strong {
+  font-weight: 600;
+}
+
+/*
+ * The tutoring screen's strip is the shorter one: a caption in a 31px box,
+ * not the 38px note the score sheet carries.
+ */
+.banner.slim {
+  padding: 8px 12px;
+  font-size: var(--type-caption);
+}
+
+/*
+ * The cut-off warning inside the round gate. Bordered rather than coloured:
+ * a round that may be stopped is not a fault and not a call for a human, so
+ * neither amber nor red is available to it (ADR-12).
+ */
+.warn-strip {
+  margin-top: 16px;
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: var(--type-caption);
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.warn-strip strong {
+  font-weight: 600;
 }
 
 .panel-card {
   background: var(--sunken);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px;
   display: flex;
@@ -619,9 +759,21 @@ button:disabled {
   gap: 6px;
 }
 
-.panel-card.active {
+/* The progress box is the one card the design leaves unbordered. */
+.panel-card.plain {
+  border-color: transparent;
+}
+
+/* The question the conversation is currently about. */
+.panel-card.asking {
   background: var(--surface);
-  border: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.panel-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .stat {

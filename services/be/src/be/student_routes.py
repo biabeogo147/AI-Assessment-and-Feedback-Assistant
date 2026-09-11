@@ -47,6 +47,7 @@ from be.models import (
 from be.remediation import round_budget_minutes, round_ends_at, will_be_cut
 from be.scoring import (
     MAX_ROUNDS_PER_QUESTION,
+    MarkReason,
     mark_after_round,
     mark_for_phase_one,
     total,
@@ -187,7 +188,12 @@ class ChosenOut(BaseModel):
 
 
 class RemediationItemOut(BaseModel):
-    """One wrong question as the tutoring panel shows it."""
+    """One question the student got wrong in phase 1, as the panel shows it.
+
+    Closed questions stay in the list. The panel is what a student reads back
+    after the attempt ends -- dropping a question the moment it settles would
+    empty the screen that the result page sends them to.
+    """
 
     question_id: str
     order: int
@@ -196,19 +202,29 @@ class RemediationItemOut(BaseModel):
     correct: ChosenOut
     rounds_used: int
     rounds_max: int
+    mark: float
+    closed: bool
 
 
 class RemediationOut(BaseModel):
-    """Everything the tutoring screen needs besides the conversation."""
+    """Everything the tutoring screen needs besides the conversation.
+
+    `items` holds every question that was wrong at the end of phase 1, closed
+    or not; `open_count` is how many still need a round. The interface needs
+    both: one to draw the list, the other to label the button that opens a
+    round and to count what is left.
+    """
 
     attempt_id: str
+    state: str
     deadline: datetime
     minutes_per_question: int
     round_budget_minutes: int
+    open_count: int
     can_start_round: bool
     warn_cut: bool
     open_round_id: str | None
-    remaining: list[RemediationItemOut]
+    items: list[RemediationItemOut]
 
 
 class SolutionOptionOut(BaseModel):
@@ -966,14 +982,14 @@ async def remediation_panel(
         for row in await session.scalars(select(Answer).where(Answer.attempt_id == attempt_id))
     }
 
-    remaining: list[RemediationItemOut] = []
+    items: list[RemediationItemOut] = []
     for question in assessment.questions:
         outcome = outcomes.get(question.id)
-        if outcome is None or outcome.closed:
+        if outcome is None or outcome.reason == MarkReason.CORRECT_FIRST_TRY:
             continue
         picked = next((o for o in question.options if o.id == chosen.get(question.id)), None)
         correct = next(o for o in question.options if o.is_correct)
-        remaining.append(
+        items.append(
             RemediationItemOut(
                 question_id=question.id,
                 order=question.order_index,
@@ -982,23 +998,28 @@ async def remediation_panel(
                 correct=ChosenOut(label=correct.label, text=correct.text),
                 rounds_used=outcome.rounds_used,
                 rounds_max=MAX_ROUNDS_PER_QUESTION,
+                mark=outcome.mark,
+                closed=outcome.closed,
             )
         )
 
+    open_count = sum(1 for item in items if not item.closed)
     now = _now()
     deadline = _aware(publication.remediation_deadline)
-    budget = round_budget_minutes(publication.phase2_minutes_per_question, len(remaining))
+    budget = round_budget_minutes(publication.phase2_minutes_per_question, open_count)
     open_round = await _open_round(session, attempt_id)
 
     return RemediationOut(
         attempt_id=attempt_id,
+        state=_attempt_state(outcomes, True, deadline, now),
         deadline=deadline,
         minutes_per_question=publication.phase2_minutes_per_question,
         round_budget_minutes=budget,
-        can_start_round=bool(remaining) and now < deadline and open_round is None,
-        warn_cut=bool(remaining) and will_be_cut(now, budget, deadline),
+        open_count=open_count,
+        can_start_round=open_count > 0 and now < deadline and open_round is None,
+        warn_cut=open_count > 0 and will_be_cut(now, budget, deadline),
         open_round_id=open_round.id if open_round else None,
-        remaining=remaining,
+        items=items,
     )
 
 

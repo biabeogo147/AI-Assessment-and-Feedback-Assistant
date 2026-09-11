@@ -316,7 +316,7 @@ async def test_a_retry_that_repeats_the_question_is_refused(
 
     # The refusal must not have spent a round.
     panel = (await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)).json()
-    assert panel["remaining"][0]["rounds_used"] == 0
+    assert panel["items"][0]["rounds_used"] == 0
 
 
 @pytest.mark.asyncio
