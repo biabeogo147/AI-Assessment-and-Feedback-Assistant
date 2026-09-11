@@ -427,7 +427,9 @@ yêu cầu đúng hai thứ đó ngay sau khi đọc báo cáo:
 - `Assignment row` có variant **hai hành động**: *Xem kết quả* (phụ, viền) cạnh *Hỏi trợ lý và làm
   lại dạng bài sai* (chính), để bài đang ở pha 2 vẫn quay lại được bảng điểm ở màn `15`. Cột hành
   động nới 226 → **348 cho mọi hàng**, vì nếu chỉ nới ở một variant thì bốn cột lại lệch đúng như
-  lỗi vòng trước.
+  lỗi vòng trước. 348 = 110 + 12 + 226, một phép cộng phải làm lại mỗi lần đổi nhãn: bản đầu tôi
+  mượn nguyên nút *Để sau* của `Round gate`, nó mang cỡ chữ của hộp thoại (14 thay vì 12) nên rộng
+  123 — tổng 361 vượt cột, và nút phụ tràn ra ngoài đè lên chip trạng thái.
 - Artboard `24 · Hỏi trợ lý — bài đã kết thúc`: lịch sử chat còn nguyên, ô nhập **khoá**, nút
   *Làm bài mới* bỏ đi, nút báo cáo **giữ lại** — đó chính là thời điểm thứ hai mà ADR-19 đòi, nay có
   bề mặt thật thay vì một lời hứa trong mô tả component.
