@@ -17,6 +17,11 @@ src = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares dependencies as argument defaults; that is the framework's
+# only way to express them, so B008 would otherwise fire on every route.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path"]
+
 [tool.pytest.ini_options]
 # importlib mode keeps same-named test modules in different services from
 # colliding, which the default prepend mode cannot do without __init__.py files.

@@ -20,6 +20,17 @@ class Settings(BaseSettings):
             job finishes.
         review_confidence_threshold: Confidence at or below which a graded
             submission is routed to the Teacher Review Queue. Owned by BE.
+        database_url: Async SQLAlchemy URL for the store that holds attempt
+            state. ADR-21 makes that state durable, so this is not optional in
+            any environment where a student can come back tomorrow.
+        dev_identity_header: Name of the header standing in for a login while
+            no sign-in screen exists. Requests name themselves as
+            "student:<code>" or "teacher:<code>".
+        dev_identity_enabled: Whether that header is honoured. False is the
+            safe value; the plan that introduced it requires the real sign-in
+            to flip this off for good.
+        agent_job_timeout_seconds: How long BE waits for an AGENT job before
+            giving up on it.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -28,6 +39,10 @@ class Settings(BaseSettings):
     agent_queue_name: str = "aiafa:grading"
     job_result_ttl_seconds: int = 3600
     review_confidence_threshold: float = 0.7
+    database_url: str = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa"
+    dev_identity_header: str = "X-Actor"
+    dev_identity_enabled: bool = True
+    agent_job_timeout_seconds: int = 30
 
 
 @lru_cache

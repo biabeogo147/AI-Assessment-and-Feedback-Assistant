@@ -15,6 +15,11 @@ này không thêm màn nào; nó trả lời câu hỏi *ai làm gì, và nói c
 học sinh và các bước giáo viên mà luồng đó cần; ba task queue BE→AGENT; kênh SSE cho chat pha 2;
 danh tính tạm bằng token dev; gỡ chấm bài khỏi AGENT.
 
+**Mock, không phải model thật.** Chưa có LLM nào trong đợt này: ba handler của AGENT trả nội dung
+soạn sẵn, tất định, đủ để luồng chạy đầu-cuối và để test lặp lại được. Ranh giới, hợp đồng và hình
+dạng dữ liệu là **thật**; chỉ phần sinh nội dung là giả. Đổi sang model thật sau này không được phép
+đụng tới một endpoint nào.
+
 **Ngoài:** màn đăng nhập thật và chỗ bắt đổi mật khẩu (lỗ ADR-13 **vẫn nguyên** sau đợt này); hàng
 đợi review của giáo viên (UC-05) và số phận cuối cùng của `GradingRequested`/`GradingCompleted`; chỗ
 giáo viên đọc báo cáo *giải thích khó hiểu*; màn `Bảng theo dõi`; prompt và lựa chọn model —
@@ -226,8 +231,15 @@ Vào: `note` (tuỳ chọn). Ra: `report_id`.
 - [ ] Báo cáo *giải thích khó hiểu*: lưu và đọc được.
 - [ ] Kiểm đầu ra agent ở BE; test cho cả ba luật của ADR-18.
 - [ ] Cập nhật `architecture.md`, `backlog.md`, và chuyển hai dòng invariant sang nhóm tự động.
+- [ ] **Gọi 1 subagent review** — ba mặt, không chỉ code: (a) code và test, (b) tài liệu có còn khớp
+      không sau khi code chạy, (c) **UI thật trên trình duyệt**, mở `http://localhost:5173` và đi
+      hết luồng chứ không chỉ đọc JSX. Sửa theo phát hiện, hoặc phản bác có lý do.
 
 ## Validation Checks
+
+Mọi test dưới đây chạy với AGENT mock. Một test **không** được phép phụ thuộc vào câu chữ agent sinh
+ra — nó kiểm hình dạng và luật, vì đó là thứ sống sót khi model thật thay chỗ.
+
 
 - `.\dev.ps1 check` và `.\dev.ps1 test` xanh; boundary probe chạy lại vì contract đổi.
 - Test *AGENT không trả điểm*: đầu ra của cả ba handler mới không có trường điểm nào.

@@ -16,8 +16,14 @@ from arq.connections import RedisSettings
 from arq.worker import func
 
 from agent.config import get_settings
-from agent.handlers import grade_submission
-from contracts import GRADE_SUBMISSION_TASK
+from agent.handlers import draft_assessment, explain, generate_retry_question
+from agent.legacy_grading import grade_submission
+from contracts import (
+    DRAFT_ASSESSMENT_TASK,
+    EXPLAIN_TURN_TASK,
+    GENERATE_RETRY_QUESTION_TASK,
+    GRADE_SUBMISSION_TASK,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -69,7 +75,14 @@ class WorkerSettings:
     BE's enqueue call.
     """
 
-    functions = [func(grade_submission, name=GRADE_SUBMISSION_TASK)]
+    functions = [
+        func(draft_assessment, name=DRAFT_ASSESSMENT_TASK),
+        func(generate_retry_question, name=GENERATE_RETRY_QUESTION_TASK),
+        func(explain, name=EXPLAIN_TURN_TASK),
+        # Legacy, superseded by ADR-20. Registered so an old client does not
+        # hang forever on a task nothing consumes.
+        func(grade_submission, name=GRADE_SUBMISSION_TASK),
+    ]
     queue_name = _settings.agent_queue_name
     redis_settings = _redis_settings()
     keep_result = _settings.job_result_ttl_seconds

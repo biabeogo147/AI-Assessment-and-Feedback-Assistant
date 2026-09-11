@@ -71,11 +71,11 @@ switch ($Task) {
     }
 
     'infra-up' {
-        Invoke-Step 'start redis' { docker compose -f "$RepoRoot\docker-compose.infra.yml" up -d }
+        Invoke-Step 'start redis and postgres' { docker compose -f "$RepoRoot\docker-compose.infra.yml" up -d }
     }
 
     'infra-down' {
-        Invoke-Step 'stop redis' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
+        Invoke-Step 'stop redis and postgres' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
     }
 
     'be' {
@@ -117,8 +117,8 @@ switch ($Task) {
 Usage: .\dev.ps1 <task>
 
   install      Install Python packages editable and frontend dependencies
-  infra-up     Start Redis in Docker
-  infra-down   Stop Redis
+  infra-up     Start Redis and Postgres in Docker
+  infra-down   Stop them
   be           Run the BE API on http://localhost:8000
   agent        Run the AGENT worker
   fe           Run the FE dev server on http://localhost:5173

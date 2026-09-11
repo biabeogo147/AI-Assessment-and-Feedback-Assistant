@@ -1,4 +1,8 @@
-"""Grading handler behaviour.
+"""Legacy grading handler behaviour.
+
+ADR-20 moved multiple-choice grading into BE. These tests stay because the
+invariants they guard -- above all "AGENT emits no routing decision" -- outlive
+the path they run on.
 
 The scoring rules under test are placeholders and will be replaced by a real
 model call. The boundary property they encode is not a placeholder, so it is
@@ -7,7 +11,7 @@ tested explicitly: AGENT must never emit a routing decision.
 
 import pytest
 
-from agent.handlers import grade, grade_submission
+from agent.legacy_grading import grade, grade_submission
 from contracts import GradingRequested
 
 
