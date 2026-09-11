@@ -326,7 +326,7 @@ vẫn không có chỗ nào bắt học sinh đổi nó.
 
 Học sinh có **ba** cửa một chiều: bắt đầu làm bài (đồng hồ chạy và không ai dừng được), nộp bài
 ([ADR-14](../decisions/adr-14-hai-pha-lam-bai.md): nộp kết thúc pha 1), và bắt đầu một lượt chữa. Chỉ
-cửa thứ ba có cổng — `Round gate`, đặt trên artboard 17. Hai cửa kia hiện là nút trơn.
+cửa thứ ba có cổng — `Round gate`, đặt trên artboard 18. Hai cửa kia hiện là nút trơn.
 
 Cửa **nộp bài** đáng có cổng nhất trong hai cái còn lại, vì dải nhảy câu đã đếm sẵn con số mà hộp xác
 nhận cần đọc lại: *"còn 3 câu chưa trả lời"*. Đó là cùng nguyên tắc

@@ -71,14 +71,15 @@ buộc mà không rõ để làm gì.
 - **Ở Figma**: `Score mark` (`279:19`) ba variant `1` / `0.5` / `0`, phân biệt bằng hình tròn đầy,
   nửa, rỗng nên **bỏ màu đi vẫn đọc được**; mức 0,5 không được cấp màu mới
   ([ADR-12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md)).
-- **Lý do chỉ hiện khi hover**, dựng thành hai artboard: `19 · Kết quả — hover vào điểm 0,5` và
-  `20 · Kết quả — hover vào điểm 0`. In thành một dòng dưới mỗi câu thì nó lặp ở mọi hàng và làm dày
+- **Lý do chỉ hiện khi hover**, dựng thành hai artboard: `21 · Kết quả — hover vào điểm 0,5` và
+  `16 · Kết quả — hover vào điểm 0`. In thành một dòng dưới mỗi câu thì nó lặp ở mọi hàng và làm dày
   bảng điểm mà không thêm thông tin.
 - **Hai chuỗi hover, không phải một.** Mức 0,5 nói *đã chữa được*; mức 0 nói *còn chữa được* — và
   chuỗi ấy **chỉ đúng khi pha 2 chưa đóng**. Trên màn *đã hoàn thành*, một số 0 là số đã chốt; chuỗi
   cho ca đó chưa viết, và mô tả `Score mark` ghi rõ là chưa.
-- **Điểm pha 1 là sàn**, nói bằng một câu duy nhất trên artboard `14`:
-  *"Bạn có thể nâng điểm các câu sai bằng cách Làm lại dạng bài sai tới hết 22:00 · 15/9."*
+- **Điểm pha 1 là sàn**, nói bằng một câu duy nhất trên artboard `15`:
+  *"Bạn có thể nâng điểm các câu sai bằng cách **Hỏi trợ lý và làm lại dạng bài sai** tới hết
+  22:00 · 15/9."*
 - **Bảng điểm của giáo viên chưa theo kịp**: `11 · Kết quả bài kiểm tra trong lớp` bày điểm như số đã
   chốt và chưa có trạng thái *chưa chốt*; xem `docs/plans/backlog.md`.
 - **Ở contract, một nửa may mắn đúng**: `packages/contracts/src/contracts/messages.py` khai `score` là

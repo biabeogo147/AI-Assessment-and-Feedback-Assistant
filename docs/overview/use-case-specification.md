@@ -160,7 +160,7 @@ Student
 ### Luồng chính
 
 1. Student mở kết quả và thấy từng câu đúng hay sai.
-2. Với mỗi câu sai, trợ lí giải thích lỗi theo lời giải đã soạn kèm câu hỏi. Student hỏi lại đến khi hiểu. **Phần này không tính giờ.**
+2. Student mở màn hỏi trợ lí. **Mọi câu sai của bài nằm cùng một màn**, mỗi câu kèm đáp án đã chọn, lỗi tương ứng và cách giải; trợ lí giải thích theo lời giải đã soạn kèm câu hỏi và Student hỏi lại câu nào cũng được, đến khi hiểu. **Phần này không tính giờ.**
 3. Student bấm nút làm bài mới. Đồng hồ của lượt bắt đầu chạy, dài bằng số phút mỗi câu nhân số câu còn dở.
 4. Student làm câu biến thể của từng câu còn dở.
 5. Câu nào làm đúng thì câu gốc chốt 0,5 điểm; câu nào còn sai thì sang vòng tiếp, tối đa ba vòng.

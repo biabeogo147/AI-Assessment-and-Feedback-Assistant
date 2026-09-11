@@ -153,7 +153,7 @@ Học sinh sửa được lỗi vừa mắc, và bài kiểm tra chỉ kết th�
 ### Luồng chính
 
 1. Hệ thống liệt kê những câu Student làm sai ở pha 1.
-2. Với mỗi câu sai, hệ thống giải thích lỗi **theo lời giải đã soạn kèm câu hỏi**. Student hỏi lại đến khi hiểu. Phần này **không tính giờ**.
+2. Với mỗi câu sai, hệ thống giải thích lỗi **theo lời giải đã soạn kèm câu hỏi**. Student hỏi lại đến khi hiểu. Phần này **không tính giờ**, và **mọi câu sai của bài nằm cùng một màn** — kèm đáp án em đã chọn, lỗi tương ứng và cách giải — vì đơn vị của pha 2 là một bài, không phải một câu.
 3. Student bấm nút làm bài mới. Đồng hồ của lượt bắt đầu chạy, dài bằng số phút mỗi câu nhân số câu còn dở.
 4. Hệ thống sinh **câu biến thể của chính câu sai**: giữ nguyên cấu trúc và lỗi cần kiểm, chỉ đổi dữ kiện.
 5. Student làm các câu biến thể trong lượt.

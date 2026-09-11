@@ -41,6 +41,22 @@ Artboard 14 mang **hai hình dạng dữ liệu khác nhau**, không phải mộ
 ADR-14 chốt *đã nộp* và *đã hoàn thành* không thay nhau được, và ADR-16 chốt điểm sau khi nộp là **sàn**.
 Dựng thành hai state của cùng artboard, mỗi state một khung riêng.
 
+**Số hiệu trong bảng này là số lúc lập plan.** Sau khi dựng xong, chín artboard được **đánh số lại
+theo thứ tự luồng nghiệp vụ** và xếp trái sang phải đúng thứ tự đó — số cũ của trang này từng đụng
+`12 · Xem lời giải một câu` bên trang `Screen — Chat`. Bản đồ cuối cùng:
+
+| Cuối cùng | Màn |
+| --- | --- |
+| `13` | Danh sách bài của tôi |
+| `14` | Làm bài |
+| `15` | Kết quả — đã nộp, cần chữa |
+| `16` | Kết quả — hover vào điểm 0 |
+| `17` | Hỏi trợ lý và làm lại dạng bài sai |
+| `18` | Bắt đầu lượt chữa |
+| `19` | Làm câu của lượt làm lại |
+| `20` | Kết quả — đã hoàn thành |
+| `21` | Kết quả — hover vào điểm 0,5 |
+
 ### Tám trạng thái của `Assignment row`
 
 `chưa tới giờ mở` · `đang mở, chưa làm` · `đang làm dở` · `đã nộp, đang chấm` · **`đã nộp, cần chữa`** ·
@@ -145,7 +161,8 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 - `Countdown` trong `Time status` **không có** trạng thái đỏ ở bất kỳ mốc nào.
 - Không màn nào hiện `confidence`, `misconception_code`, hay lý do review (ADR-08).
 - Artboard 14 có **hai state** riêng biệt, không phải một state với trường rỗng.
-- `Report control` có mặt ở cả artboard 14 (state *đã hoàn thành*) và artboard 15.
+- ~~`Report control` có mặt ở cả artboard 14 (state *đã hoàn thành*) và artboard 15.~~ **Đổi sau khi
+  dựng**: nó chỉ nằm trong một lượt trả lời của Kriky, tức artboard `17` và `18`. Xem Decision Record.
 - Nút *Làm bài mới* có khối đọc lại giá trị thật, và có trạng thái cảnh báo khi lượt dài hơn hạn còn lại.
 - Mọi màu lấy từ biến; không hex thô.
 
@@ -153,10 +170,10 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 
 | | |
 | --- | --- |
-| Artboard | **bảy**, tất cả 1440×900, Density `Student` |
+| Artboard | **chín**, tất cả 1440×900, Density `Student` |
 | Khoảng trắng chết | **có thật, và cách đo đầu tiên đã giấu nó** — xem dưới |
 | Rail | không artboard nào có |
-| Cổng `Round gate` | đặt trên artboard 17; component không phải bề mặt |
+| Cổng `Round gate` | đặt trên artboard 18; component không phải bề mặt |
 | Màu thô | **0** trên cả năm |
 | `confidence` / `misconception` / lý do review | không xuất hiện ở đâu |
 
@@ -257,6 +274,37 @@ xác định: **đoạn giải thích này, của câu này**. Thời điểm th
 [ADR-19](../../decisions/adr-19-bao-cao-giai-thich-chua-ro.md) đòi không mất đi: từ màn kết quả, hàng
 điểm có *"Mở lại phần chữa câu này ›"* dẫn ngược vào đúng đoạn chat đó.
 
+### Decision: Màn hỏi trợ lý bày **mọi** câu sai, không chỉ câu đang chữa
+
+options considered: panel phải giữ đúng câu đang chữa, mỗi câu một lần vào màn; panel bày danh sách
+mọi câu sai kèm cách giải, chat chung một mạch.
+
+selected option: bày mọi câu sai.
+
+reason: pha 2 nhận về **một bài**, không phải một câu ([ADR-14](../../decisions/adr-14-hai-pha-lam-bai.md)) —
+lượt làm lại cũng gom mọi câu còn dở làm cùng lúc ([ADR-17](../../decisions/adr-17-ba-vong-moi-cau.md)).
+Bắt học sinh vào ra một lần cho mỗi câu là dựng một đơn vị thứ ba mà không luật nào có. Và phần giải
+thích **không tính giờ**, nên không có lý do kỹ thuật nào để nhốt màn hình vào một câu.
+
+Panel in cả **cách giải** của từng câu sai, không chỉ đề và đáp án đã chọn: lời giải đã có sẵn cùng
+câu hỏi ([ADR-18](../../decisions/adr-18-cau-hoi-phai-kem-loi-giai.md)), và giấu nó đi thì học sinh
+phải hỏi trợ lý một câu mà tài liệu đã trả lời rồi. Câu đang hỏi viền accent; các câu còn lại nền
+chìm — một chỗ nhìn, không phải hai chế độ.
+
+Lời đầu tiên của trợ lý là *Mình là trợ lý Kriky, bạn có thể hỏi mình để giải đáp các thắc mắc trong
+bài làm vừa rồi.* Nó nói phạm vi là **cả bài**, ngay trước khi học sinh gõ câu hỏi đầu tiên.
+
+### Decision: Đánh số lại chín artboard theo thứ tự luồng
+
+options considered: giữ số cũ và chỉ xếp lại vị trí; đánh số lại theo đúng thứ tự nghiệp vụ.
+
+selected option: đánh số lại, và xếp trái sang phải đúng thứ tự đó.
+
+reason: số cũ ghi lại **thứ tự tôi dựng**, không phải thứ tự người dùng đi. Hai màn kết quả nằm liền
+nhau (14, 15) trong khi giữa chúng là toàn bộ pha 2; hai màn hover đứng cuối, rời khỏi màn mà chúng
+là trạng thái của. Tệ hơn: `12 · Danh sách bài của tôi` **trùng số** với `12 · Xem lời giải một câu`
+bên trang `Screen — Chat`. Trang chat giữ 1…12, nên trang học sinh bắt đầu từ 13.
+
 ## Rủi ro
 
 **Density `Student` làm vỡ component dùng lại.** Sáu component sẽ dùng lại đều được dựng và căn ở
@@ -283,6 +331,10 @@ ghi chú, chuyển thành hover (artboard 19); *Câu biến thể 1 / 2* → *C�
 *Vòng* → *Lượt làm lại*; `Report control` rời khỏi đầu màn và chân chat, vào trong từng lượt trả lời.
 Và một lỗ do người dùng chỉ ra mà cả plan lẫn review đều không thấy: **đề của từng lượt làm lại không
 hiện ở đâu cả** — nay `Result row` in nó ra.
+
+Vòng thứ ba: màn hỏi trợ lý bày mọi câu sai kèm cách giải thay vì một câu; trợ lý mở lời bằng câu
+giới thiệu phạm vi cả bài; nút vào pha 2 đổi tên thành *Hỏi trợ lý và làm lại dạng bài sai* ở cả ba
+chỗ nó xuất hiện; và chín artboard đánh số lại theo thứ tự luồng.
 
 Vòng thứ hai: khối lượt gọn lại thành bảng một dòng một lượt; *Làm lại dạng bài sai* in đậm ngay
 trong câu ghi chú vì nó là **tên một việc học sinh làm được**, không phải một mệnh đề; mức 0 có hover

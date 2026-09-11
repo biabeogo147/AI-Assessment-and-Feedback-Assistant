@@ -66,7 +66,7 @@ lí.
 **Nửa phía học sinh đã có ở Figma. Phía giáo viên chưa.**
 
 - **Ở Figma**: `Report control` (`281:25`), nhãn *"Báo cáo Trợ lý giải thích khó hiểu"*. Nó **chỉ nằm
-  trong một đoạn chat của một câu cụ thể** — cuối lượt trả lời của Kriky trên artboard `16` và `17` —
+  trong một đoạn chat của một câu cụ thể** — cuối lượt trả lời của Kriky trên artboard `17` và `18` —
   chứ không nằm ở đầu màn kết quả. Một báo cáo không gắn với đoạn chat nào thì giáo viên nhận được
   một lời phàn nàn không có ngữ cảnh, tức là không đọc được.
 - **Thời điểm thứ hai vẫn mở**: từ màn kết quả, học sinh vào lại đoạn chat của câu đó bằng
