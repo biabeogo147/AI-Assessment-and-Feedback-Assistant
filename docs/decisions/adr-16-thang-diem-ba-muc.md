@@ -71,7 +71,7 @@ buộc mà không rõ để làm gì.
 - **Ở Figma**: `Score mark` (`279:19`) ba variant `1` / `0.5` / `0`, phân biệt bằng hình tròn đầy,
   nửa, rỗng nên **bỏ màu đi vẫn đọc được**; mức 0,5 không được cấp màu mới
   ([ADR-12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md)).
-- **Lý do chỉ hiện khi hover**, dựng thành hai artboard: `22 · Kết quả — hover vào điểm 0,5` và
+- **Lý do chỉ hiện khi hover**, dựng thành hai artboard: `23 · Kết quả — hover vào điểm 0,5` và
   `16 · Kết quả — hover vào điểm 0`. In thành một dòng dưới mỗi câu thì nó lặp ở mọi hàng và làm dày
   bảng điểm mà không thêm thông tin.
 - **Hai chuỗi hover, không phải một.** Mức 0,5 nói *đã chữa được*; mức 0 nói *còn chữa được* — và

@@ -76,8 +76,8 @@ mình còn mấy lần.
 **Ở Figma, phần nhìn thấy được. Chưa ở đâu khác.**
 
 - **Ở Figma**: trang `Screen — Student` có `17 · Hỏi trợ lý và làm lại dạng bài sai`,
-  `19 · Bắt đầu lượt chữa` và `20 · Làm câu của lượt làm lại`; `Round gate` có hàng *Vòng —
-  vòng 1, mỗi câu còn 3 vòng*, đầu màn `20` ghi *Lượt làm lại thứ 1 / tối đa 3*, và `Result row` in
+  `19 · Bắt đầu lượt chữa` và `21 · Làm câu của lượt làm lại`; `Round gate` có hàng *Vòng —
+  vòng 1, mỗi câu còn 3 vòng*, đầu màn `21` ghi *Lượt làm lại thứ 1 / tối đa 3*, và `Result row` in
   đề của từng lượt kèm kết quả từng lượt. Chữ trên màn dùng *lượt làm lại thứ n*, không dùng *biến thể* —
   *biến thể* là từ của tài liệu này, không phải từ nói với học sinh.
 - **Ở contract, một nửa đã sẵn nhưng nói sai**: `packages/contracts/src/contracts/messages.py` có

@@ -71,7 +71,7 @@ trước khi sửa một trong hai.
   (`77:341`) — đúng như [ADR-03](adr-03-ranh-gioi-cua-vao.md) đòi.
 - Figma `Publish settings` (`67:41`) — mô tả component ghi định dạng ngày giờ `HH:MM · DD/MM` là
   **ràng buộc**, vì cột pha 1 chỉ rộng 119 và trừ padding còn 94.
-- Figma `23 · Bắt đầu lượt chữa — sắp hết hạn` — `Round gate` variant `vượt hạn`, nói trước rằng lượt
+- Figma `20 · Bắt đầu lượt chữa — sắp hết hạn` — `Round gate` variant `vượt hạn`, nói trước rằng lượt
   10 phút có thể bị **DỪNG** khi chỉ còn 6 phút tới hạn. Nó là **artboard riêng**, không phải trạng
   thái của màn `19`: hai màn ấy là hai thời điểm khác nhau trong ngày, và trộn chúng làm một thì mọi
   mốc giờ của bộ mẫu mâu thuẫn nhau.

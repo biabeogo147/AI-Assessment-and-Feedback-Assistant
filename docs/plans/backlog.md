@@ -293,7 +293,7 @@ không quan trọng.
 
 ## Bề mặt học sinh — đã dựng, chưa chạy
 
-Mười một artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
+Mười hai artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
 Không con số nào trên chúng là dữ liệu thật, và không nên đọc chúng như bằng chứng rằng dữ liệu đã có.
 
 Dải chú thích *DỮ LIỆU MẪU* từng dán trên mặt mỗi artboard **đã bị xoá** — nó lặp nguyên văn tám lần
@@ -312,27 +312,22 @@ Câu chữ của từng lượt là món nợ **mới và dễ bị bỏ sót nh
 điểm, nên nếu backend sinh câu biến thể rồi vứt đi, màn kết quả sẽ có một khung để in đề mà không có
 đề để in. Câu biến thể phải được **lưu lại cùng lượt**, không phải sinh xong dùng một lần.
 
-Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: mười một màn mới đều mang khối
+Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: mười hai màn mới đều mang khối
 danh tính và nút Đăng xuất trên `Student top bar`, nhưng điều đó **không lấp** được lỗ
 [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md): mật khẩu ban đầu vẫn đi trên giấy in và
 vẫn không có chỗ nào bắt học sinh đổi nó.
 
-### Hai lỗ điều hướng vòng review thứ tư tìm ra
+### Hai lỗ điều hướng vòng review thứ tư tìm ra — **đã dựng xong**
 
-| Việc | Cái gì đang chặn |
-| --- | --- |
-| Từ danh sách (`13`) vào lại màn kết quả (`15`) | Không bị chặn. Chưa có đường |
-| Màn hỏi trợ lý ở hình dạng **đã kết thúc** | Không bị chặn. Chưa dựng |
+Ghi lại vì cách sửa ràng buộc những gì làm sau. Hàng bài trên màn `13` từng chỉ mang **một** hành
+động, nên bài đang ở pha 2 nhảy thẳng sang màn `17` và **màn `15` không quay lại được** — đóng tab
+là mất chỗ duy nhất nói *điểm bây giờ là sàn*. Nay `Assignment row` có variant **hai** hành động:
+*Xem kết quả* (phụ, viền) cạnh *Hỏi trợ lý và làm lại dạng bài sai* (chính). Cột hành động nới lên
+348 cho **mọi** hàng, nếu không bốn cột lại lệch.
 
-Hàng bài trên màn `13` chỉ mang **một** hành động, và với bài đang ở pha 2 thì hành động đó là
-*Hỏi trợ lý và làm lại dạng bài sai* — nhảy thẳng sang màn `17`. Nghĩa là **màn `15` không quay lại
-được**: đóng tab xong, học sinh mất luôn chỗ duy nhất nói *điểm bây giờ là sàn, chữa tới 22:00 thì
-nâng được*. Cách rẻ nhất là cho tên bài bấm được, nhưng nó đòi một affordance mà hàng hiện chưa có.
-
-Nút *Xem lại phần chữa các câu sai* trên màn `21` thì mở về màn `17` — mà màn `17` vẫn đang nói
-*còn phải làm lại 2 câu* và vẫn mời *Làm bài mới · 2 câu · 10 phút*. Sau khi bài kết thúc, cả ba câu
-ấy đều sai. Mô tả `Report control` đã đòi đoạn chat **mở lại được sau khi bài kết thúc**; hình dạng
-đó chưa dựng.
+Nút *Xem lại phần chữa các câu sai* trên màn kết quả thì từng mở về màn `17` — màn vẫn nói *còn
+phải làm lại 2 câu* và vẫn mời *Làm bài mới*. Nay nó mở artboard `24`: lịch sử chat còn nguyên, ô
+nhập khoá, nút làm bài mới bỏ đi, nút báo cáo giữ lại.
 
 ### Hai cửa một chiều của học sinh chưa có cổng
 

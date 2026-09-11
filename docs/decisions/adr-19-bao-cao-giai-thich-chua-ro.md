@@ -71,10 +71,12 @@ lí.
   không đọc được.
 - **Trợ lí bao quát cả bài, nên cái được báo cáo là một câu trả lời, không phải một câu hỏi.** Màn
   `17` chỉ có lời mở đầu của Kriky và chưa có gì để báo cáo; nút xuất hiện từ lượt trả lời đầu tiên.
-- **Thời điểm thứ hai vẫn mở**: từ màn kết quả `21`, học sinh quay lại phần chữa bằng **một nút ở đầu
-  màn** — *"Xem lại phần chữa các câu sai"* — rồi báo cáo trong đó. Bản trước đặt một link trên từng
-  hàng điểm; link ấy đã bỏ vì nó hứa một đoạn chat riêng cho mỗi câu, mà trợ lí không làm việc theo
-  câu. Cửa vào đổi chỗ, quyền báo cáo thì không mất.
+- **Thời điểm thứ hai đã có bề mặt riêng**: từ màn kết quả `22`, nút **ở đầu màn**
+  *"Xem lại phần chữa các câu sai"* mở artboard `24` — màn hỏi trợ lý ở hình dạng **bài đã kết
+  thúc**: lịch sử chat còn nguyên, ô nhập bị khoá, nút *Làm bài mới* biến mất, còn nút báo cáo thì
+  **không**. Báo cáo không chặn ai nên nó sống lâu hơn cả bài kiểm tra.
+- Bản trước đặt một link trên từng hàng điểm; link ấy đã bỏ vì nó hứa một đoạn chat riêng cho mỗi
+  câu, mà trợ lí không làm việc theo câu.
 - **Chưa có ở Figma phía giáo viên**: chưa có màn nào để đọc báo cáo; xem `docs/plans/backlog.md`.
 - **Chưa có ở backend**: không endpoint, không model.
 - `docs/diagrams/activity-overview.drawio` đã bỏ nhánh chặn giữa luồng và vẽ kênh này bằng cạnh nét

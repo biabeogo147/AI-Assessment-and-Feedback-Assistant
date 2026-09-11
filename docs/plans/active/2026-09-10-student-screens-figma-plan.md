@@ -54,10 +54,11 @@ theo thứ tự luồng nghiệp vụ** và xếp trái sang phải đúng thứ
 | `17` | Hỏi trợ lý và làm lại dạng bài sai |
 | `18` | Xem lời giải đầy đủ |
 | `19` | Bắt đầu lượt chữa |
-| `20` | Làm câu của lượt làm lại |
-| `21` | Kết quả — đã hoàn thành |
-| `22` | Kết quả — hover vào điểm 0,5 |
-| `23` | Bắt đầu lượt chữa — sắp hết hạn |
+| `20` | Bắt đầu lượt chữa — sắp hết hạn |
+| `21` | Làm câu của lượt làm lại |
+| `22` | Kết quả — đã hoàn thành |
+| `23` | Kết quả — hover vào điểm 0,5 |
+| `24` | Hỏi trợ lý — bài đã kết thúc |
 
 ### Tám trạng thái của `Assignment row`
 
@@ -172,7 +173,7 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 
 | | |
 | --- | --- |
-| Artboard | **mười một**, tất cả 1440×900, Density `Student` |
+| Artboard | **mười hai**, tất cả 1440×900, Density `Student` |
 | Khoảng trắng chết | **có thật, và cách đo đầu tiên đã giấu nó** — xem dưới |
 | Rail | không artboard nào có |
 | Cổng `Round gate` | đặt trên artboard 19; component không phải bề mặt |
@@ -420,9 +421,16 @@ câu gốc** nên nhớ máy là qua được — đổi sang `y = x³ − 6x²`
 câu 5 làm sai — nay dạt sang trái dấu điểm đang hover; và ba hàng trên màn `13` mang ngày đã qua
 trong khi trạng thái vẫn *Đang làm* / *Đang chấm*.
 
-Hai phát hiện **không sửa trong vòng này, đã ghi nợ**: không có đường từ danh sách quay lại màn kết
-quả `15`, và màn hỏi trợ lý chưa có hình dạng *đã kết thúc* cho nút *Xem lại phần chữa các câu sai*
-trỏ tới. Cả hai là bề mặt mới, không phải sửa chữ.
+Hai phát hiện còn lại là **bề mặt mới, không phải sửa chữ**, nên tách sang vòng năm — và người dùng
+yêu cầu đúng hai thứ đó ngay sau khi đọc báo cáo:
+
+- `Assignment row` có variant **hai hành động**: *Xem kết quả* (phụ, viền) cạnh *Hỏi trợ lý và làm
+  lại dạng bài sai* (chính), để bài đang ở pha 2 vẫn quay lại được bảng điểm ở màn `15`. Cột hành
+  động nới 226 → **348 cho mọi hàng**, vì nếu chỉ nới ở một variant thì bốn cột lại lệch đúng như
+  lỗi vòng trước.
+- Artboard `24 · Hỏi trợ lý — bài đã kết thúc`: lịch sử chat còn nguyên, ô nhập **khoá**, nút
+  *Làm bài mới* bỏ đi, nút báo cáo **giữ lại** — đó chính là thời điểm thứ hai mà ADR-19 đòi, nay có
+  bề mặt thật thay vì một lời hứa trong mô tả component.
 
 Vòng thứ ba: màn hỏi trợ lý bày mọi câu sai kèm cách giải thay vì một câu; trợ lý mở lời bằng câu
 giới thiệu phạm vi cả bài; nút vào pha 2 đổi tên thành *Hỏi trợ lý và làm lại dạng bài sai* ở cả ba

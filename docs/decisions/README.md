@@ -42,10 +42,11 @@ Trang `Screen — Chat` chứa mười hai artboard: tám artboard theo luồng 
 hành xong, ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra), và một màn cho
 hộp thoại lời giải của một câu.
 
-Trang `Screen — Student` chứa mười một artboard của bề mặt học sinh, **đánh số 13…23 theo đúng thứ
+Trang `Screen — Student` chứa mười hai artboard của bề mặt học sinh, **đánh số 13…24 theo đúng thứ
 tự luồng nghiệp vụ**: danh sách bài, làm bài, kết quả *đã nộp cần chữa*, hover trên điểm 0, màn hỏi
-trợ lý và làm lại dạng bài sai, hộp lời giải đầy đủ, cổng bắt đầu lượt, làm câu của một lượt, kết quả
-*đã hoàn thành*, hover trên điểm 0,5, và cổng bắt đầu lượt trong ca **sắp hết hạn**. Hai màn kết quả là **hai artboard riêng** cho hai hình dạng
+trợ lý và làm lại dạng bài sai, hộp lời giải đầy đủ, cổng bắt đầu lượt ở hai ca (thường và **sắp hết
+hạn**), làm câu của một lượt, kết quả *đã hoàn thành*, hover trên điểm 0,5, và màn hỏi trợ lý ở hình
+dạng **bài đã kết thúc** — đọc lại được, không nhắn thêm được. Hai màn kết quả là **hai artboard riêng** cho hai hình dạng
 dữ liệu, không phải hai state của một. Tất cả chạy Density mode `Student` và không có rail.
 
 Trang `Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp
