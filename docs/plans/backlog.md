@@ -293,8 +293,12 @@ không quan trọng.
 
 ## Bề mặt học sinh — đã dựng, chưa chạy
 
-Tám artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
+Chín artboard trên trang `Screen — Student` là **thiết kế đi trước backend**, đúng thông lệ của dự án.
 Không con số nào trên chúng là dữ liệu thật, và không nên đọc chúng như bằng chứng rằng dữ liệu đã có.
+
+Dải chú thích *DỮ LIỆU MẪU* từng dán trên mặt mỗi artboard **đã bị xoá** — nó lặp nguyên văn tám lần
+và lọt vào mọi ảnh chụp gửi cho người khác xem. Mục này giờ là **nơi duy nhất** ghi điều đó, cùng với
+mô tả từng component. Ai chụp màn gửi ra ngoài thì phải tự nói kèm.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
@@ -308,7 +312,7 @@ Câu chữ của từng lượt là món nợ **mới và dễ bị bỏ sót nh
 điểm, nên nếu backend sinh câu biến thể rồi vứt đi, màn kết quả sẽ có một khung để in đề mà không có
 đề để in. Câu biến thể phải được **lưu lại cùng lượt**, không phải sinh xong dùng một lần.
 
-Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: tám màn mới đều mang khối
+Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: chín màn mới đều mang khối
 danh tính và nút Đăng xuất trên `Student top bar`, nhưng điều đó **không lấp** được lỗ
 [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md): mật khẩu ban đầu vẫn đi trên giấy in và
 vẫn không có chỗ nào bắt học sinh đổi nó.

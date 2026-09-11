@@ -22,7 +22,7 @@ Không tài liệu nào nói ra ranh giới này, nên người đọc `docs/ove
 - **Luật *chat là dòng lệnh* chỉ áp cho bề mặt giáo viên.** Ở pha 2
   ([ADR-14](adr-14-hai-pha-lam-bai.md)), cuộc hội thoại giữa Kriky và học sinh **chính là nội dung
   học** — nó là thứ có giá trị nhất trên màn hình, không phải một dòng lệnh trôi qua. Luật *bố cục*
-  thì vẫn chuyển sang được, và bảy artboard học sinh đã dựng theo nó: vật phải làm nằm ở panel phải,
+  thì vẫn chuyển sang được, và chín artboard học sinh đã dựng theo nó: vật phải làm nằm ở panel phải,
   cuộc hội thoại ở cột trái.
 - Nút Phát hành **không bao giờ** xuất hiện trong luồng chat. Luật này thuộc
   [ADR-05](adr-05-ba-cong-teacher-in-the-loop.md); nhắc lại đây vì nó là hệ quả trực tiếp của việc

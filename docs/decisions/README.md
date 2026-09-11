@@ -42,10 +42,10 @@ Trang `Screen — Chat` chứa mười hai artboard: tám artboard theo luồng 
 hành xong, ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra), và một màn cho
 hộp thoại lời giải của một câu.
 
-Trang `Screen — Student` chứa tám artboard của bề mặt học sinh: danh sách bài, làm bài, **hai
+Trang `Screen — Student` chứa chín artboard của bề mặt học sinh: danh sách bài, làm bài, **hai
 artboard riêng** cho hai hình dạng dữ liệu của màn kết quả, chữa bài, cổng bắt đầu lượt, làm câu của
-một lượt làm lại, và trạng thái hover trên điểm 0,5. Tất cả chạy Density mode `Student` và không có
-rail.
+một lượt làm lại, và hai trạng thái hover trên điểm 0,5 và điểm 0. Tất cả chạy Density mode `Student`
+và không có rail.
 
 Trang `Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp
 vụ được ghi lần đầu**. Khi một ADR trỏ tới một node id, node đó nằm trong file này.

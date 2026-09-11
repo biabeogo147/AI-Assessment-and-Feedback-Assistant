@@ -60,10 +60,13 @@ sinh chọn không chữa vẫn là học sinh đã chọn, không phải học 
 
 ## Nơi luật này đang được thi hành
 
-**Chưa ở đâu cả.** Không màn hình, không tài liệu, không dòng code nào biết tới pha 2.
+**Ở Figma phía học sinh. Chưa ở đâu khác.**
 
-- **Chưa có ở Figma**: tám artboard chat và ba màn hình vật thể đều dừng ở phía giáo viên; artboard
-  `10 · Chi tiết lớp` vẫn đếm **ĐÃ NỘP** như trạng thái cuối.
+- **Ở Figma**: trang `Screen — Student` dựng cả hai pha — nộp bài kết thúc pha 1 (`13`), hai hình
+  dạng của màn kết quả tuỳ pha 2 còn hay hết (`14` và `15`), và ba màn của chính pha 2 (`16`, `17`,
+  `18`).
+- **Phía giáo viên chưa theo kịp**: artboard `10 · Chi tiết lớp` vẫn đếm **ĐÃ NỘP** như trạng thái
+  cuối, và `11 · Kết quả bài kiểm tra trong lớp` bày điểm như đã chốt. Xem `docs/plans/backlog.md`.
 - `docs/overview/business-workflows.md` Workflow 2 và `use-case-specification.md` UC-03/UC-04 đã ghi
   luật hai pha; `docs/diagrams/activity-overview.drawio` vẽ nó thành hai băng. Đó là **mô tả**, không
   phải thi hành — nhưng nó là chỗ duy nhất luật này hiện tồn tại.

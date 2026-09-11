@@ -89,12 +89,17 @@ có chỗ bắt đổi mật khẩu phải được xác nhận lại là **vẫ
 
 ## Lý do được 0,5 — hover, không phải một dòng in sẵn
 
-ADR-16 chốt học sinh nhìn thấy **lý do** một câu được 0,5. `backlog.md` đã ghi lời hứa đó chưa có nguồn
+ADR-16 chốt học sinh nhìn thấy **lý do** một câu được 0,5 — và cùng lý lẽ ấy áp cho mức 0. `backlog.md` đã ghi lời hứa đó chưa có nguồn
 dữ liệu: `GradingCompleted` nhận được `score = 0.5` nhưng không trường nào mang *vòng thứ mấy* hay *câu
 gốc nào*. Đợt này dựng chỗ cho nó, và chỗ đó là **hover trên `Score mark`**, dựng thành artboard riêng
-`19 · Kết quả — hover vào điểm 0,5`. Một dòng in sẵn dưới mỗi câu 0,5 lặp lại cùng một câu chữ ở mọi
-hàng và làm dày bảng điểm mà không thêm thông tin; hover trả câu giải thích về đúng chỗ người ta đang
-hỏi. Mô tả component vẫn ghi rõ dữ liệu chưa tồn tại.
+`19 · Kết quả — hover vào điểm 0,5`, và mức 0 có bản của nó trên `20 · Kết quả — hover vào điểm 0`.
+Một dòng in sẵn dưới mỗi câu lặp lại cùng một câu chữ ở mọi hàng và làm dày bảng điểm mà không thêm
+thông tin; hover trả câu giải thích về đúng chỗ người ta đang hỏi. Mô tả component vẫn ghi rõ dữ liệu
+chưa tồn tại.
+
+**Hai chuỗi, không phải một.** Mức 0,5 nói *đã chữa được*; mức 0 nói *còn chữa được* — nhưng chỉ khi
+pha 2 chưa đóng. Trên màn *đã hoàn thành*, một số 0 là số đã chốt và hứa nâng điểm ở đó là nói dối.
+Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 
 ## Files
 
@@ -232,8 +237,12 @@ selected option: in cả đề của từng lượt.
 reason: câu của một lượt làm lại **không phải câu gốc chép lại** — trợ lí giữ dạng đề và cách làm, còn
 dữ kiện thì đổi ([ADR-17](../../decisions/adr-17-ba-vong-moi-cau.md)). Một bảng điểm chỉ in câu pha 1
 để học sinh trước một con số 0,5 mà không cho xem em đã làm đúng *cái gì*. Tệ hơn: nó ngầm nói em được
-0,5 nhờ làm lại **đúng câu cũ**, tức là nhờ nhớ đáp án. Mỗi khối lượt mở đầu bằng một dòng nhắc *mỗi
-lượt là một câu khác — cùng dạng đề, cùng cách làm*, vì đó chính là điều dễ hiểu nhầm nhất ở màn này.
+0,5 nhờ làm lại **đúng câu cũ**, tức là nhờ nhớ đáp án.
+
+Khối lượt là **một bảng, mỗi lượt một dòng**: số thứ tự, kết quả, rồi đề. Chữ *Lượt làm lại* chỉ xuất
+hiện **một lần** làm tiêu đề khối — bản dựng đầu lặp nó ở từng dòng kèm đề xuống dòng dưới, và với ba
+lượt thì cùng một cụm từ đọc ba lần trong khi mắt mất cột để bám. Một vạch dọc bên trái buộc khối vào
+câu gốc, rẻ hơn thụt lề trắng và không thêm chữ nào.
 
 ### Decision: `Report control` chỉ sống trong một đoạn chat
 
@@ -266,8 +275,7 @@ chúng như bằng chứng rằng dữ liệu đã có.
 
 ## Status
 
-Đã dựng xong và sửa theo một vòng review, rồi sửa thêm một vòng theo góp ý: **tám** artboard, mười
-component mới, và bản sửa ADR-10.
+Đã dựng xong và sửa theo hai vòng góp ý: **chín** artboard, mười component mới, và bản sửa ADR-10.
 
 Vòng góp ý đổi: logo Kriky vào `Student top bar`; *Đang làm dở* → *Đang làm*; *Chữa bài* → *Làm lại
 dạng bài sai*; câu ghi chú trên màn kết quả nói **nâng điểm** thay vì *điểm sàn*; lý do 0,5 rời khỏi
@@ -275,6 +283,11 @@ ghi chú, chuyển thành hover (artboard 19); *Câu biến thể 1 / 2* → *C�
 *Vòng* → *Lượt làm lại*; `Report control` rời khỏi đầu màn và chân chat, vào trong từng lượt trả lời.
 Và một lỗ do người dùng chỉ ra mà cả plan lẫn review đều không thấy: **đề của từng lượt làm lại không
 hiện ở đâu cả** — nay `Result row` in nó ra.
+
+Vòng thứ hai: khối lượt gọn lại thành bảng một dòng một lượt; *Làm lại dạng bài sai* in đậm ngay
+trong câu ghi chú vì nó là **tên một việc học sinh làm được**, không phải một mệnh đề; mức 0 có hover
+riêng (artboard 20); và **toàn bộ dải chú thích DỮ LIỆU MẪU trên canvas đã xoá** — sự thật *thiết kế
+đi trước backend* sống ở `backlog.md` và trong mô tả component, không cần dán lên mặt từng artboard.
 
 Review bắt được ba lỗ chức năng mà `Validation Checks` của plan này **không có mục nào canh**: màn
 Chữa bài thiếu ô nhập, `Round gate` không có instance nào, và hạn kết thúc pha 2 không xuất hiện
