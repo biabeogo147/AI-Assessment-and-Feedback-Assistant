@@ -222,9 +222,9 @@ Vào: `note` (tuỳ chọn). Ra: `report_id`.
 
 ## Ordered Tasks
 
-- [x] Chốt schema Postgres. **Đổi thứ tự có chủ đích**: schema sống trong `be/models.py` với lý do
-      viết ngay tại chỗ, còn `docs/overview/data-model.md` viết sau khi nó chạy — một tài liệu schema
-      viết trước khi có bảng nào là đúng thứ `AGENTS.md` cấm tạo.
+- [x] Chốt schema Postgres, rồi viết `docs/overview/data-model.md`. **Đổi thứ tự có chủ đích**:
+      schema sống trong `be/models.py` với lý do viết ngay tại chỗ, còn tài liệu viết **sau** khi nó
+      chạy — một tài liệu schema viết trước khi có bảng nào là đúng thứ `AGENTS.md` cấm tạo.
 - [x] Danh tính tạm: `be/identity.py` đọc header `X-Actor`, phân quyền hai vai là thật.
 - [ ] Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*. **Chưa làm** —
       dữ liệu mẫu tạo sẵn một đề đã phát hành, nên luồng học sinh chạy được mà chưa cần bề mặt này.
@@ -339,6 +339,31 @@ lệch còn lại sẽ lộ ra ở đây trước.
 
 ## Status
 
-Chưa bắt đầu. Ranh giới và interface đã chốt; bốn ngã rẽ đã được người dùng chọn
+**Đã dựng xong và chạy thật** trên Redis + Postgres trong Docker, với AGENT mock. Luồng lõi đi hết
+được từ danh sách bài tới điểm chốt ba mức, cả bằng API lẫn bằng tay trên trình duyệt.
+
+Đi bằng mắt trên trình duyệt bắt được **ba lỗi mà 46 test không bắt**, và đó là phần đáng ghi nhất
+của đợt này:
+
+1. Màn làm bài nhận `attempt_id` nhưng gọi endpoint cần `assignment_id` — bấm *Bắt đầu* là rơi thẳng
+   vào lỗi. Sửa bằng `GET /api/attempts/{id}`: POST để **tạo**, GET để **quay lại**, và lẫn hai thứ
+   đó chính là lỗi này.
+2. Trợ lý chào hai lần. Nguyên nhân ở FE, cách sửa ở BE: một lượt trả lời chỉ sinh khi tới lượt trợ
+   lý. Client gọi hai lần thì nhận lại đúng lượt đã lưu.
+3. Trợ lý gọi sai số câu — *"em sai câu 1, câu 2"* trong khi bài sai câu 5 và câu 6 — vì payload
+   không mang số câu. Màn lượt làm lại cũng vậy.
+
+Chạy thật bằng API trước đó bắt thêm một lỗi nữa: câu ngoài bank của mock nhận lại **chính đề pha 1**
+cho lượt làm lại. Sửa ở BE bằng `validate_retry`, vì đó là luật ADR-17 chứ không phải khuyết điểm
+của mock.
+
+**Chưa làm, và cố ý:** bề mặt giáo viên cho vòng đời đề (dữ liệu mẫu tạo sẵn một đề đã phát hành);
+chỗ giáo viên đọc báo cáo; đăng nhập thật; hai dòng invariant thuộc UC-05.
+
+Một việc ngoài phạm vi đã làm và cần biết: **BE khởi động được khi Redis chết**. Pha 1 không đụng
+AGENT, và ADR-16 gọi điểm pha 1 là sàn — một cái sàn cần service thứ hai mới đứng được thì không
+phải sàn. Pha 2 trả 503 thay vì làm cả BE chết lúc khởi động.
+
+Còn lại: một vòng subagent review mã nguồn và tài liệu. Ranh giới và interface đã chốt; bốn ngã rẽ đã được người dùng chọn
 (chấm ở BE, token dev, SSE, thu hẹp ADR-09). Chờ duyệt để bắt đầu task đầu tiên — schema và
 `data-model.md`.

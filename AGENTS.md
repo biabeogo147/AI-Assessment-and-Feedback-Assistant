@@ -22,13 +22,13 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `docs/overview/business-workflows.md` | The five business workflows |
 | `docs/overview/use-case-specification.md` | UC-01 to UC-06 |
 | `docs/overview/architecture.md` | Services, communication, boundaries, service naming |
+| `docs/overview/data-model.md` | The database schema and why it is shaped that way |
 | `docs/diagrams/*.drawio` | Every diagram, as source of truth |
 | `docs/decisions/` | Records business rules. They outlive every plan |
 | `docs/plans/` | Plans, their technical decision records, and `backlog.md` for deferred work |
 | `docs/raw-idea/` | Historical input only. Never cite as current truth |
 
-Reserved so nobody invents a second home: `docs/overview/grading-design.md` for prompts, model
-choice, the confidence formula, evaluation; `docs/overview/data-model.md` for schema. Neither exists yet.
+Reserved: `docs/overview/grading-design.md` for prompts, model choice, evaluation. Not written yet.
 
 ## Invariants That Must Not Break
 
