@@ -97,7 +97,7 @@ export default function Round({
             Làm lại dạng bài sai · {round.items.length} câu
           </div>
           <h1 style={{ fontSize: "var(--type-label)", margin: "2px 0 20px" }}>
-            Câu {item.order} — Lượt làm lại thứ {round.index} / tối đa 3
+            Câu {item.origin_order} — Lượt làm lại thứ {round.index} / tối đa 3
           </h1>
           <h2 style={{ fontSize: "var(--type-heading)", marginTop: 0 }}>{item.stem}</h2>
 
@@ -134,7 +134,7 @@ export default function Round({
                 style={{ width: 34, padding: "4px 0", textAlign: "center" }}
                 onClick={() => setCurrent(index)}
               >
-                {other.order}
+                {other.origin_order}
               </button>
             ))}
           </div>

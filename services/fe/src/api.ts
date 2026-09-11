@@ -141,6 +141,8 @@ export interface ChatHistory {
 export interface RoundItem {
   round_item_id: string;
   origin_question_id: string;
+  /** The number this question carries on the paper, which is what is shown. */
+  origin_order: number;
   order: number;
   stem: string;
   options: Option[];
@@ -209,6 +211,7 @@ export const api = {
   assignments: () => call<Assignment[]>("/me/assignments"),
   startAttempt: (assignmentId: string) =>
     call<Attempt>(`/assignments/${assignmentId}/attempts`, { method: "POST" }),
+  attempt: (attemptId: string) => call<Attempt>(`/attempts/${attemptId}`),
   saveAnswer: (attemptId: string, questionId: string, optionId: string) =>
     call<{ saved_at: string }>(`/attempts/${attemptId}/answers/${questionId}`, {
       method: "PUT",

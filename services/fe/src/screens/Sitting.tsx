@@ -13,13 +13,7 @@ import { Countdown, ErrorStrip, TopBar } from "../components";
  *
  * Submitting ends phase 1, not the attempt (ADR-14).
  */
-export default function Sitting({
-  me,
-  attemptAssignmentId,
-}: {
-  me: Me;
-  attemptAssignmentId: string;
-}) {
+export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }) {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [current, setCurrent] = useState(0);
   const [chosen, setChosen] = useState<Record<string, string>>({});
@@ -28,7 +22,7 @@ export default function Sitting({
 
   useEffect(() => {
     api
-      .startAttempt(attemptAssignmentId)
+      .attempt(attemptId)
       .then((loaded) => {
         setAttempt(loaded);
         const saved: Record<string, string> = {};
@@ -38,7 +32,7 @@ export default function Sitting({
         setChosen(saved);
       })
       .catch((cause: Error) => setError(cause.message));
-  }, [attemptAssignmentId]);
+  }, [attemptId]);
 
   if (error !== null && attempt === null) {
     return (
@@ -120,17 +114,25 @@ export default function Sitting({
             CÒN {unanswered} CÂU CHƯA TRẢ LỜI
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-            {attempt.questions.map((item, index) => (
-              <button
-                key={item.question_id}
-                type="button"
-                className={index === current ? "btn-primary" : "btn-secondary"}
-                style={{ width: 34, padding: "4px 0", textAlign: "center" }}
-                onClick={() => setCurrent(index)}
-              >
-                {item.order}
-              </button>
-            ))}
+            {attempt.questions.map((item, index) => {
+              // Three states, because the banner above counts the unanswered
+              // ones and a strip that cannot show which is a strip that makes
+              // the student open all six to find them.
+              const answered = Boolean(chosen[item.question_id]);
+              const tone =
+                index === current ? "btn-primary" : answered ? "chip-answered" : "btn-secondary";
+              return (
+                <button
+                  key={item.question_id}
+                  type="button"
+                  className={tone}
+                  style={{ width: 34, padding: "4px 0", textAlign: "center" }}
+                  onClick={() => setCurrent(index)}
+                >
+                  {item.order}
+                </button>
+              );
+            })}
           </div>
 
           <button

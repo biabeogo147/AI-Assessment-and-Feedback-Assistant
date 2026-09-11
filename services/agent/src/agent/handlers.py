@@ -448,30 +448,51 @@ def explain_turn(request: ExplainTurnRequested) -> ExplainTurnCompleted:
     Returns:
         One assistant turn. Nothing about scores, rounds or readiness.
     """
+    numbers = _numbers(request)
+
     if not request.student_text.strip():
-        stems = ", ".join(f"câu {i + 1}" for i in range(len(request.questions)))
-        tail = f" Bài này em sai {stems} — hỏi câu nào trước cũng được." if stems else ""
+        named = ", ".join(f"câu {number}" for number in numbers)
+        tail = f" Bài này em sai {named} — hỏi câu nào trước cũng được." if named else ""
         return ExplainTurnCompleted(request_id=request.request_id, text=_OPENING + tail)
 
     target = _question_in_focus(request)
     if target is None:
+        example = numbers[0] if numbers else 1
         text = (
             "Em muốn hỏi về câu nào trong số những câu sai? Nói số câu giúp mình, "
-            "ví dụ 'câu 4 em chưa hiểu vì sao sai'."
+            f"ví dụ 'câu {example} em chưa hiểu vì sao sai'."
         )
         return ExplainTurnCompleted(request_id=request.request_id, text=text)
 
     chosen = request.chosen_labels.get(target.stem)
     error = request.error_labels.get(target.stem)
     method = target.methods[0] if target.methods else None
+    number = numbers[request.questions.index(target)] if numbers else None
 
-    parts = [f"Ở câu này em chọn {chosen}." if chosen else "Ở câu này:"]
+    parts = [f"Câu {number}: em chọn {chosen}." if chosen else f"Câu {number}:"]
     if error:
         parts.append(f"Lỗi thường gặp của lựa chọn đó là {error}.")
     if method is not None:
         parts.append(f"{method.title}: {method.body}")
     parts.append("Em thử lại theo cách đó xem, chỗ nào vướng thì hỏi tiếp nhé.")
     return ExplainTurnCompleted(request_id=request.request_id, text=" ".join(parts))
+
+
+def _numbers(request: ExplainTurnRequested) -> tuple[int, ...]:
+    """Return the paper's number for each wrong question.
+
+    Args:
+        request: The turn being answered.
+
+    Returns:
+        The numbers BE sent, or 1..n when it sent none. Counting from one is a
+        fallback for an old payload, not a default worth relying on: a student
+        told to look at "câu 1" when they got câu 5 wrong goes to the wrong
+        question.
+    """
+    if len(request.question_numbers) == len(request.questions):
+        return request.question_numbers
+    return tuple(range(1, len(request.questions) + 1))
 
 
 def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | None:
@@ -481,26 +502,31 @@ def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | Non
         request: The turn being answered.
 
     Returns:
-        The question whose ordinal the message names, the only wrong question
+        The question whose number the message names, the only wrong question
         when there is one, or None when the message names nothing.
     """
     if len(request.questions) == 1:
         return request.questions[0]
 
-    match = re.search(r"câu\s*(\d+)", request.student_text, re.IGNORECASE)
-    if match is not None:
-        index = int(match.group(1)) - 1
-        if 0 <= index < len(request.questions):
-            return request.questions[index]
+    numbers = _numbers(request)
+
+    def by_number(text: str) -> GeneratedQuestion | None:
+        match = re.search(r"câu\s*(\d+)", text, re.IGNORECASE)
+        if match is None:
+            return None
+        wanted = int(match.group(1))
+        for question, number in zip(request.questions, numbers, strict=False):
+            if number == wanted:
+                return question
+        return None
+
+    named = by_number(request.student_text)
+    if named is not None:
+        return named
 
     for turn in reversed(request.history):
-        if turn.role != "student":
-            continue
-        prior = re.search(r"câu\s*(\d+)", turn.text, re.IGNORECASE)
-        if prior is not None:
-            index = int(prior.group(1)) - 1
-            if 0 <= index < len(request.questions):
-                return request.questions[index]
+        if turn.role == "student" and (prior := by_number(turn.text)) is not None:
+            return prior
     return None
 
 

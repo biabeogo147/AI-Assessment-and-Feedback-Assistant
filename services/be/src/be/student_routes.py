@@ -266,10 +266,17 @@ class ChatPostOut(BaseModel):
 
 
 class RoundItemOut(BaseModel):
-    """One question inside a running round."""
+    """One question inside a running round.
+
+    `origin_order` is the number the question carries on the paper, and it is
+    what the screen shows. Numbering a round 1..n instead would tell a student
+    who got questions 5 and 6 wrong that they are now on "câu 1" -- and the
+    conversation beside it says câu 5.
+    """
 
     round_item_id: str
     origin_question_id: str
+    origin_order: int
     order: int
     stem: str
     options: list[OptionOut]
@@ -405,7 +412,7 @@ async def _publication(session: AsyncSession, assessment_id: str) -> Publication
     """
     found = await session.get(Publication, assessment_id)
     if found is None:
-        raise HTTPException(status_code=404, detail="Assessment is not published")
+        raise HTTPException(status_code=404, detail="Bài này chưa được phát hành")
     return found
 
 
@@ -450,6 +457,42 @@ def _attempt_state(
     if now > deadline:
         return "hết-hạn-chữa"
     return "cần-chữa"
+
+
+def _attempt_payload(attempt: Attempt, assessment: Assessment, saved: dict[str, str]) -> AttemptOut:
+    """Shape one attempt for the sitting screen.
+
+    Shared by starting and resuming so the two cannot drift into showing
+    different things -- and in particular so neither ever grows an
+    `is_correct`.
+
+    Args:
+        attempt: The attempt row.
+        assessment: Its assessment, with questions and options loaded.
+        saved: Chosen option id per question id.
+
+    Returns:
+        The payload, with every option stripped of the answer key.
+    """
+    return AttemptOut(
+        attempt_id=attempt.id,
+        title=assessment.title,
+        started_at=_aware(attempt.started_at),
+        ends_at=_aware(attempt.ends_at),
+        questions=[
+            QuestionOut(
+                question_id=question.id,
+                order=question.order_index,
+                stem=question.stem,
+                options=[
+                    OptionOut(option_id=option.id, label=option.label, text=option.text)
+                    for option in question.options
+                ],
+                chosen_option_id=saved.get(question.id),
+            )
+            for question in assessment.questions
+        ],
+    )
 
 
 @router.get("/me", response_model=MeOut)
@@ -613,25 +656,43 @@ async def start_attempt(
         for row in await session.scalars(select(Answer).where(Answer.attempt_id == attempt.id))
     }
 
-    return AttemptOut(
-        attempt_id=attempt.id,
-        title=assessment.title,
-        started_at=_aware(attempt.started_at),
-        ends_at=_aware(attempt.ends_at),
-        questions=[
-            QuestionOut(
-                question_id=question.id,
-                order=question.order_index,
-                stem=question.stem,
-                options=[
-                    OptionOut(option_id=option.id, label=option.label, text=option.text)
-                    for option in question.options
-                ],
-                chosen_option_id=saved.get(question.id),
-            )
-            for question in assessment.questions
-        ],
-    )
+    return _attempt_payload(attempt, assessment, saved)
+
+
+@router.get("/attempts/{attempt_id}", response_model=AttemptOut)
+async def resume_attempt(
+    attempt_id: str,
+    student: Student = Depends(current_student),
+    session: AsyncSession = Depends(get_session),
+) -> AttemptOut:
+    """Read back an attempt in progress, with the choices already saved.
+
+    Reloading the page must not cost anything. Starting an attempt is a POST
+    because it creates one; coming back to it is this GET, so a refresh cannot
+    be mistaken for a second start.
+
+    Args:
+        attempt_id: Which attempt.
+        student: The caller.
+        session: Database session.
+
+    Returns:
+        The attempt with its questions, options stripped of the answer key.
+
+    Raises:
+        HTTPException: 404 when the attempt is not the caller's; 409 once phase
+            1 has been submitted, because the paper is no longer answerable.
+    """
+    attempt = await _owned_attempt(session, attempt_id, student)
+    if attempt.submitted_at is not None:
+        raise HTTPException(status_code=409, detail="Bài này đã nộp")
+
+    assessment = await _load_assessment(session, attempt.assessment_id)
+    saved = {
+        row.question_id: row.option_id
+        for row in await session.scalars(select(Answer).where(Answer.attempt_id == attempt.id))
+    }
+    return _attempt_payload(attempt, assessment, saved)
 
 
 @router.put("/attempts/{attempt_id}/answers/{question_id}", response_model=SavedOut)
@@ -959,7 +1020,7 @@ async def question_solution(
 
 async def _chat_context(
     session: AsyncSession, attempt: Attempt
-) -> tuple[list[GeneratedQuestion], dict[str, str], dict[str, str]]:
+) -> tuple[list[GeneratedQuestion], list[int], dict[str, str], dict[str, str]]:
     """Build what AGENT needs to talk about this attempt.
 
     The payload is self-contained: AGENT holds no database credentials, so the
@@ -971,8 +1032,10 @@ async def _chat_context(
         attempt: The attempt being discussed.
 
     Returns:
-        The still-open questions, the chosen option label per stem, and the
-        authored error label per stem.
+        The still-open questions, the number each carries on the paper, the
+        chosen option label per stem, and the authored error label per stem.
+        The numbers travel because the assistant says "câu 5" out loud, and it
+        has no other way to know the question is the fifth one.
     """
     assessment = await _load_assessment(session, attempt.assessment_id)
     outcomes = await _outcomes(session, attempt.id)
@@ -982,6 +1045,7 @@ async def _chat_context(
     }
 
     questions: list[GeneratedQuestion] = []
+    numbers: list[int] = []
     chosen_labels: dict[str, str] = {}
     error_labels: dict[str, str] = {}
 
@@ -1005,13 +1069,14 @@ async def _chat_context(
                 learning_objective=question.learning_objective,
             )
         )
+        numbers.append(question.order_index)
         picked = next((o for o in question.options if o.id == chosen.get(question.id)), None)
         if picked is not None:
             chosen_labels[question.stem] = picked.label
             if picked.error_label:
                 error_labels[question.stem] = picked.error_label
 
-    return questions, chosen_labels, error_labels
+    return questions, numbers, chosen_labels, error_labels
 
 
 async def _history(session: AsyncSession, attempt_id: str) -> list[ChatMessage]:
@@ -1137,6 +1202,38 @@ async def post_chat_message(
     )
 
 
+def _sse(text: str, message_id: str) -> AsyncIterator[str]:
+    """Turn one stored turn into a server-sent event stream.
+
+    Args:
+        text: The assistant's words.
+        message_id: The stored message, sent with the closing event so the
+            client can reconcile with the history it reloads.
+
+    Returns:
+        An async iterator yielding one `chunk` event per word, then `done`.
+    """
+
+    async def events() -> AsyncIterator[str]:
+        for word in text.split(" "):
+            yield f"event: chunk\ndata: {word} \n\n"
+        yield f"event: done\ndata: {message_id}\n\n"
+
+    return events()
+
+
+def _replay(message: ChatMessage) -> AsyncIterator[str]:
+    """Stream a turn that already exists instead of asking for a new one.
+
+    Args:
+        message: The assistant turn last stored.
+
+    Returns:
+        The same event stream a fresh turn would produce.
+    """
+    return _sse(message.text, message.id)
+
+
 @router.get("/attempts/{attempt_id}/chat/stream")
 async def stream_reply(
     attempt_id: str,
@@ -1172,13 +1269,21 @@ async def stream_reply(
     if await _is_locked(session, attempt):
         raise HTTPException(status_code=409, detail="Bài đã kết thúc")
 
-    questions, chosen_labels, error_labels = await _chat_context(session, attempt)
     history = await _history(session, attempt_id)
+    # Whose turn it is, decided server side. A client that opens the stream
+    # twice -- a double-rendered effect, an impatient refresh -- would otherwise
+    # store two greetings, and the conversation would read as if the assistant
+    # said hello and then said hello again.
+    if history and history[-1].role != "student":
+        return StreamingResponse(_replay(history[-1]), media_type="text/event-stream")
+
+    questions, numbers, chosen_labels, error_labels = await _chat_context(session, attempt)
     last_student = next((m.text for m in reversed(history) if m.role == "student"), "")
 
     payload = ExplainTurnRequested(
         request_id=attempt_id,
         questions=tuple(questions),
+        question_numbers=tuple(numbers),
         chosen_labels=chosen_labels,
         error_labels=error_labels,
         history=tuple(ChatTurn(role=m.role, text=m.text) for m in history),
@@ -1206,12 +1311,7 @@ async def stream_reply(
     session.add(stored)
     await session.commit()
 
-    async def events() -> AsyncIterator[str]:
-        for word in reply.text.split(" "):
-            yield f"event: chunk\ndata: {word} \n\n"
-        yield f"event: done\ndata: {stored.id}\n\n"
-
-    return StreamingResponse(events(), media_type="text/event-stream")
+    return StreamingResponse(_sse(reply.text, stored.id), media_type="text/event-stream")
 
 
 @router.post("/attempts/{attempt_id}/rounds", response_model=RoundOpenOut, status_code=201)
@@ -1356,6 +1456,7 @@ async def start_round(
             RoundItemOut(
                 round_item_id=item.id,
                 origin_question_id=question.id,
+                origin_order=question.order_index,
                 order=order,
                 stem=generated.stem,
                 options=[

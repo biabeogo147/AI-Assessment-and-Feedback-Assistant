@@ -87,6 +87,13 @@ button:disabled {
   font-weight: 600;
 }
 
+.chip-answered {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: var(--accent-surface);
+  font-weight: 600;
+}
+
 .btn-quiet {
   background: transparent;
   color: var(--accent);

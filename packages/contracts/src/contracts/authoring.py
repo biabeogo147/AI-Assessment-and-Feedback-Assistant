@@ -169,6 +169,10 @@ class ExplainTurnRequested(BaseModel):
         request_id: Correlates the reply.
         questions: Every question the student got wrong, with its solutions.
             The assistant covers the whole assessment, not one question.
+        question_numbers: The number each of those questions carries on the
+            paper, in the same order. Without it the assistant counts from one
+            and calls question 5 "câu 1", which is worse than saying nothing:
+            the student goes looking at the wrong question.
         chosen_labels: Option the student picked, keyed by question stem.
         error_labels: Authored mistake per wrong question, keyed by stem. AGENT
             follows this mapping instead of diagnosing (ADR-18).
@@ -181,6 +185,7 @@ class ExplainTurnRequested(BaseModel):
     schema_version: int = SCHEMA_VERSION
     request_id: str
     questions: tuple[GeneratedQuestion, ...]
+    question_numbers: tuple[int, ...] = ()
     chosen_labels: dict[str, str] = Field(default_factory=dict)
     error_labels: dict[str, str] = Field(default_factory=dict)
     history: tuple[ChatTurn, ...] = ()

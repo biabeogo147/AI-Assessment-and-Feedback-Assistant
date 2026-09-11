@@ -64,7 +64,7 @@ export default function App() {
   }
 
   const attempt = /^\/attempt\/([^/]+)$/.exec(route);
-  if (attempt) return <Sitting me={me} attemptAssignmentId={attempt[1]} />;
+  if (attempt) return <Sitting me={me} attemptId={attempt[1]} />;
 
   const result = /^\/attempt\/([^/]+)\/result$/.exec(route);
   if (result) return <Result me={me} attemptId={result[1]} />;

@@ -372,6 +372,50 @@ async def test_no_round_starts_after_the_deadline(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_the_assistant_does_not_greet_twice(client: AsyncClient) -> None:
+    """Whose turn it is is decided server side, not by how often a client asks."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    first = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+    second = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
+    assert len(history["messages"]) == 1
+
+    # Once the student speaks, it is the assistant's turn again.
+    await client.post(
+        f"/api/attempts/{attempt_id}/chat/messages", json={"text": "câu 5 ạ"}, headers=STUDENT
+    )
+    await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+    after = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
+    assert [m["role"] for m in after["messages"]] == ["assistant", "student", "assistant"]
+
+
+@pytest.mark.asyncio
+async def test_the_assistant_is_told_which_question_numbers_are_wrong(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """The assistant says "câu 5" out loud, so the number has to travel."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    seen: dict = {}
+
+    async def capture(pool, settings, task_name, payload) -> dict:
+        seen.update(payload)
+        return {"schema_version": 1, "request_id": payload["request_id"], "text": "…"}
+
+    monkeypatch.setattr(student_routes, "run_task", capture)
+    await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+
+    # The seed's last two questions are the ones answered wrongly.
+    assert seen["question_numbers"] == [5, 6]
+
+
+@pytest.mark.asyncio
 async def test_chat_history_locks_when_the_attempt_ends(client: AsyncClient) -> None:
     """A finished attempt keeps its conversation readable and refuses new turns."""
     submitted = await _start_and_submit(client, correct_count=6)
