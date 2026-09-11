@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, type Attempt, type Me } from "../api";
 import { go } from "../App";
-import { Countdown, ErrorStrip, TopBar } from "../components";
+import { ErrorStrip, TimeCard, TopBar } from "../components";
 
 /**
  * Screen 14 — sitting the paper, phase 1.
@@ -11,7 +11,9 @@ import { Countdown, ErrorStrip, TopBar } from "../components";
  * correct option even by accident. Choices are saved one at a time rather than
  * gathered until submit: losing the network then costs one click.
  *
- * Submitting ends phase 1, not the attempt (ADR-14).
+ * The question is set at 28px because it is the thing being read; everything
+ * else on the screen is smaller than it. Submitting ends phase 1, not the
+ * attempt (ADR-14).
  */
 export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }) {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
@@ -34,21 +36,14 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
       .catch((cause: Error) => setError(cause.message));
   }, [attemptId]);
 
-  if (error !== null && attempt === null) {
+  if (attempt === null) {
     return (
       <>
         <TopBar me={me} />
         <main className="page">
           <ErrorStrip message={error} />
+          {error === null ? <p className="muted">Đang tải…</p> : null}
         </main>
-      </>
-    );
-  }
-  if (attempt === null) {
-    return (
-      <>
-        <TopBar me={me} />
-        <main className="page">Đang tải…</main>
       </>
     );
   }
@@ -81,13 +76,22 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
   return (
     <>
       <TopBar me={me} />
-      <main className="page" style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 40 }}>
+      <main className="page two-column">
         <section>
           <div className="muted">{attempt.title}</div>
-          <h1 style={{ fontSize: "var(--type-label)", margin: "2px 0 20px" }}>
+          <h1 style={{ fontSize: "var(--type-heading)", margin: "4px 0 20px" }}>
             Câu {question.order} / {attempt.questions.length}
           </h1>
-          <h2 style={{ fontSize: "var(--type-heading)", marginTop: 0 }}>{question.stem}</h2>
+          <p
+            style={{
+              fontSize: "var(--type-display)",
+              lineHeight: 1.25,
+              margin: "0 0 24px",
+              fontWeight: 400,
+            }}
+          >
+            {question.stem}
+          </p>
 
           <ErrorStrip message={error} />
 
@@ -98,50 +102,40 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
               className={`option ${chosen[question.question_id] === option.option_id ? "chosen" : ""}`}
               onClick={() => choose(option.option_id)}
             >
+              <span className="radio" aria-hidden />
               <span className="label">{option.label}</span>
               <span>{option.text}</span>
             </button>
           ))}
         </section>
 
-        <aside>
-          <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-            <div className="muted">Còn lại</div>
-            <Countdown endsAt={attempt.ends_at} />
+        <aside style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <TimeCard endsAt={attempt.ends_at} />
+
+          <div>
+            <div className="label-caps">CÒN {unanswered} CÂU CHƯA TRẢ LỜI</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              {attempt.questions.map((item, index) => {
+                // Three states, because the line above counts the unanswered
+                // ones and a strip that cannot show which is a strip that
+                // makes the student open every question to find them.
+                const answered = Boolean(chosen[item.question_id]);
+                const tone = index === current ? "current" : answered ? "answered" : "";
+                return (
+                  <button
+                    key={item.question_id}
+                    type="button"
+                    className={`nav-chip ${tone}`}
+                    onClick={() => setCurrent(index)}
+                  >
+                    {item.order}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="muted" style={{ marginBottom: 8 }}>
-            CÒN {unanswered} CÂU CHƯA TRẢ LỜI
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-            {attempt.questions.map((item, index) => {
-              // Three states, because the banner above counts the unanswered
-              // ones and a strip that cannot show which is a strip that makes
-              // the student open all six to find them.
-              const answered = Boolean(chosen[item.question_id]);
-              const tone =
-                index === current ? "btn-primary" : answered ? "chip-answered" : "btn-secondary";
-              return (
-                <button
-                  key={item.question_id}
-                  type="button"
-                  className={tone}
-                  style={{ width: 34, padding: "4px 0", textAlign: "center" }}
-                  onClick={() => setCurrent(index)}
-                >
-                  {item.order}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            className="btn-primary"
-            type="button"
-            style={{ width: "100%" }}
-            disabled={busy}
-            onClick={submit}
-          >
+          <button className="btn-commit" type="button" disabled={busy} onClick={submit}>
             Nộp bài
           </button>
         </aside>

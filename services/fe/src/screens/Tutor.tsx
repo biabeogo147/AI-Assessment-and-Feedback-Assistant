@@ -26,6 +26,30 @@ import { BackToList, ErrorStrip, TopBar } from "../components";
  * worked solutions live one click away, in the dialog, so the list stays a
  * list.
  */
+/**
+ * One turn of the conversation.
+ *
+ * The assistant gets the mascot; the student gets an empty column of the same
+ * width, so both speakers' words start at the same place down the page and the
+ * eye can follow one thread instead of two.
+ *
+ * @param role - "student" or "assistant".
+ * @param text - What was said.
+ */
+function Turn({ role, text }: { role: string; text: string }) {
+  const student = role === "student";
+  return (
+    <div className="turn">
+      {student ? <span style={{ width: 40, flex: "none" }} /> : <span className="avatar">🐝</span>}
+      <div className="said">
+        <span className="faint">{student ? "Bạn" : "Kriky"}</span>
+        <div className={`bubble ${student ? "student" : ""}`}>{text}</div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) {
   const [panel, setPanel] = useState<Remediation | null>(null);
   const [history, setHistory] = useState<ChatHistory | null>(null);
@@ -139,20 +163,10 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
           <ErrorStrip message={error} />
 
           {history.messages.map((message) => (
-            <div key={message.message_id}>
-              <div className="faint">{message.role === "student" ? "Bạn" : "Kriky"}</div>
-              <div className={`bubble ${message.role === "student" ? "student" : ""}`}>
-                {message.text}
-              </div>
-            </div>
+            <Turn key={message.message_id} role={message.role} text={message.text} />
           ))}
 
-          {streaming ? (
-            <div>
-              <div className="faint">Kriky</div>
-              <div className="bubble">{streaming}</div>
-            </div>
-          ) : null}
+          {streaming ? <Turn role="assistant" text={streaming} /> : null}
 
           <div style={{ flex: 1 }} />
 
@@ -192,8 +206,9 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             </button>
             {locked ? null : (
               <button
-                className="btn-primary"
+                className="btn-commit"
                 type="button"
+                style={{ width: "auto" }}
                 disabled={!panel.can_start_round || busy}
                 onClick={() => setGateOpen(true)}
               >
@@ -204,18 +219,12 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
         </section>
 
         <aside className="panel">
-          <div className="faint" style={{ fontWeight: 600 }}>
-            CÁC CÂU EM LÀM SAI
-          </div>
+          <div className="label-caps">CÁC CÂU EM LÀM SAI</div>
 
           {panel.remaining.map((item) => (
-            <div
-              key={item.question_id}
-              className="card"
-              style={{ background: "var(--sunken)", padding: 14 }}
-            >
-              <div style={{ fontWeight: 600, fontSize: "var(--type-label)" }}>Câu {item.order}</div>
-              <div style={{ fontSize: "var(--type-label)", margin: "4px 0" }}>{item.stem}</div>
+            <div key={item.question_id} className="panel-card">
+              <div className="title-14">Câu {item.order}</div>
+              <div style={{ fontSize: "var(--type-label)", lineHeight: 1.35 }}>{item.stem}</div>
               {item.chosen ? (
                 <div
                   className="muted"
@@ -232,7 +241,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
               <button
                 className="btn-quiet"
                 type="button"
-                style={{ marginTop: 6 }}
+                style={{ alignSelf: "flex-start" }}
                 onClick={() =>
                   api
                     .solution(item.question_id)
@@ -249,12 +258,14 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             <div className="muted">Không còn câu nào phải làm lại.</div>
           ) : null}
 
-          <div className="card" style={{ background: "var(--sunken)", padding: 14 }}>
-            <div className="muted">
-              Còn phải làm lại: <strong>{panel.remaining.length} câu</strong>
+          <div className="panel-card" style={{ padding: "12px 14px" }}>
+            <div className="stat">
+              <span className="key">Còn phải làm lại</span>
+              <span className="value">{panel.remaining.length} câu</span>
             </div>
-            <div className="muted">
-              Hạn làm lại: <strong>{moment(panel.deadline)}</strong>
+            <div className="stat">
+              <span className="key">Hạn làm lại</span>
+              <span className="value">{moment(panel.deadline)}</span>
             </div>
           </div>
         </aside>
@@ -271,13 +282,13 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             </div>
             <p>{solution.stem}</p>
 
-            <div className="card" style={{ background: "var(--sunken)", marginBottom: 16 }}>
+            <div className="panel-card" style={{ gap: 10, marginBottom: 16 }}>
               {solution.methods.map((method) => (
-                <div key={method.title} style={{ marginBottom: 10 }}>
-                  <div style={{ fontWeight: 600, fontSize: "var(--type-label)" }}>
-                    {method.title}
+                <div key={method.title}>
+                  <div className="title-14">{method.title}</div>
+                  <div className="muted" style={{ marginTop: 2, lineHeight: 1.4 }}>
+                    {method.body}
                   </div>
-                  <div className="muted">{method.body}</div>
                 </div>
               ))}
             </div>
@@ -310,22 +321,26 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
 
       {gateOpen ? (
         <div className="scrim">
-          <div className="dialog" style={{ maxWidth: 460 }}>
-            <h2 style={{ fontSize: "var(--type-heading)", marginTop: 0 }}>Bắt đầu lượt làm lại?</h2>
-            <p className="muted">Bấm là đồng hồ chạy ngay. Đóng trình duyệt cũng không dừng nó.</p>
+          <div className="dialog gate">
+            <h2 style={{ fontSize: "var(--type-heading)" }}>Bắt đầu lượt làm lại?</h2>
+            <p className="muted" style={{ margin: "8px 0 16px", lineHeight: 1.4 }}>
+              Bấm là đồng hồ chạy ngay. Đóng trình duyệt cũng không dừng nó.
+            </p>
 
-            <div className="card" style={{ background: "var(--sunken)", padding: 14 }}>
-              <div className="muted">
-                Lượt này: <strong>{panel.remaining.length} câu</strong>
+            <div className="panel-card" style={{ padding: "12px 14px" }}>
+              <div className="stat">
+                <span className="key">Lượt này</span>
+                <span className="value">{panel.remaining.length} câu</span>
               </div>
-              <div className="muted">
-                Thời gian:{" "}
-                <strong>
+              <div className="stat">
+                <span className="key">Thời gian</span>
+                <span className="value">
                   {panel.minutes_per_question} phút mỗi câu — {panel.round_budget_minutes} phút
-                </strong>
+                </span>
               </div>
-              <div className="muted">
-                Hạn làm lại: <strong>{moment(panel.deadline)}</strong>
+              <div className="stat">
+                <span className="key">Hạn làm lại</span>
+                <span className="value">{moment(panel.deadline)}</span>
               </div>
             </div>
 
@@ -337,11 +352,15 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             ) : null}
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 16 }}>
-              <button className="btn-secondary" type="button" onClick={() => setGateOpen(false)}>
+              <button
+                className="btn-dialog quiet"
+                type="button"
+                onClick={() => setGateOpen(false)}
+              >
                 Để sau
               </button>
               <button
-                className="btn-primary"
+                className="btn-dialog"
                 type="button"
                 disabled={busy}
                 onClick={() => void openRound()}

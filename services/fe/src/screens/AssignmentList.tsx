@@ -8,7 +8,7 @@ import { ErrorStrip, TopBar } from "../components";
  * Vietnamese wording for each status BE can return.
  *
  * BE sends a state, not a sentence: the wording belongs here so it can change
- * without touching an endpoint, and the eight states stay countable.
+ * without touching an endpoint, and the states stay countable.
  */
 const STATUS_LABEL: Record<string, string> = {
   "chưa-tới-giờ-mở": "Chưa tới giờ mở",
@@ -19,6 +19,9 @@ const STATUS_LABEL: Record<string, string> = {
   "hết-hạn-chữa": "Hết hạn làm lại",
   "đã-đóng": "Đã đóng",
 };
+
+/** Which statuses read as live work rather than a settled record. */
+const OPEN_STATES = new Set(["đang-mở", "đang-làm", "cần-chữa"]);
 
 const ACTION_LABEL: Record<string, string> = {
   start: "Bắt đầu",
@@ -33,6 +36,9 @@ const ACTION_LABEL: Record<string, string> = {
  * Every verdict on this screen arrives decided: which chip to show, and which
  * buttons a row offers. Deriving either from the dates would put the clock of
  * whichever machine the student sits at in charge of the rules.
+ *
+ * The four columns are fixed widths, not proportions, because a list is read
+ * down a column and ragged columns make that impossible.
  */
 export default function AssignmentList({ me }: { me: Me }) {
   const [rows, setRows] = useState<Assignment[] | null>(null);
@@ -64,32 +70,34 @@ export default function AssignmentList({ me }: { me: Me }) {
     <>
       <TopBar me={me} />
       <main className="page">
-        <h1 style={{ fontSize: "var(--type-heading)", margin: "0 0 20px" }}>Bài của tôi</h1>
+        <h1 style={{ fontSize: "var(--type-heading)", marginBottom: 20 }}>Bài của tôi</h1>
         <ErrorStrip message={error} />
 
-        {rows === null ? <p>Đang tải…</p> : null}
+        {rows === null ? <p className="muted">Đang tải…</p> : null}
         {rows?.length === 0 ? <p className="muted">Chưa có bài nào được giao.</p> : null}
 
         {rows?.map((row) => (
           <div className="row" key={row.assignment_id}>
-            <div className="grow">
-              <div style={{ fontWeight: 600 }}>{row.title}</div>
-              <div className="muted">
+            <div className="col-name">
+              <div className="title-14">{row.title}</div>
+              <div className="muted" style={{ marginTop: 4 }}>
                 {row.subject} · {row.question_count} câu · làm bài {row.phase1_minutes} phút
               </div>
             </div>
-            <div className="muted" style={{ width: 190 }}>
+            <div className="col-dates muted">
               <div>Vào tới {moment(row.closes_at)}</div>
-              <div>Chữa tới {moment(row.remediation_deadline)}</div>
+              <div style={{ marginTop: 4 }}>Chữa tới {moment(row.remediation_deadline)}</div>
             </div>
-            <div style={{ width: 170, textAlign: "right" }}>
-              <span className={`chip ${row.status === "cần-chữa" ? "open" : ""}`}>
+            <div className="col-status">
+              <span
+                className={`chip ${OPEN_STATES.has(row.status) ? "open" : row.status === "đã-hoàn-thành" ? "settled" : ""}`}
+              >
                 {row.wrong_count
                   ? `Cần làm lại ${row.wrong_count} câu`
                   : (STATUS_LABEL[row.status] ?? row.status)}
               </span>
             </div>
-            <div style={{ width: 348, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <div className="col-action">
               {row.actions.map((action, index) => (
                 <button
                   key={action}
@@ -104,7 +112,9 @@ export default function AssignmentList({ me }: { me: Me }) {
           </div>
         ))}
 
-        <p className="faint">Bài đóng quá 30 ngày không hiện ở đây nữa.</p>
+        <p className="faint" style={{ marginTop: 20 }}>
+          Bài đóng quá 30 ngày không hiện ở đây nữa.
+        </p>
       </main>
     </>
   );

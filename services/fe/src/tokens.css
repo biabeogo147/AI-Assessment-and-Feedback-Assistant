@@ -1,15 +1,23 @@
 /*
- * Design tokens, copied from the Figma collection `Color` and the Student mode
- * of `Density`.
+ * Design tokens and the shared shapes, measured out of the Figma file rather
+ * than approximated.
  *
- * They are copied rather than imported because there is no token pipeline yet.
- * That makes this file the one place drift can happen, so keep the names
- * identical to Figma: a mismatch is then a rename, not a hunt.
+ * Colours come from the collection `Color`; sizes come from `Density` mode
+ * **Student**; every padding, radius and column width below was read off the
+ * artboard it belongs to. They are copied rather than imported because there
+ * is no token pipeline yet, so keep the names identical to Figma: a mismatch
+ * is then a rename, not a hunt.
  *
- * ADR-12 gives three of these colours a fixed meaning. `--answer-incorrect` is
- * a wrong answer, never a system failure. `--state-needs-human` is amber and
- * means a person must act -- a round that is about to run out of time is not
- * that, and must not borrow it.
+ * Two rules the numbers encode, worth saying in words:
+ *
+ * ADR-12 fixes what three colours mean. `--answer-incorrect` is a wrong
+ * answer, never a system failure. `--state-needs-human` is amber and means a
+ * person must act -- a round about to run out of time is not that, and must
+ * not borrow it.
+ *
+ * Every screen is 1440 wide and centred. The design is not fluid, and letting
+ * a 2560px monitor stretch the chat column turns a two-column reading layout
+ * into two distant columns.
  */
 
 :root {
@@ -33,15 +41,19 @@
   --answer-incorrect: #8c3a3a;
   --answer-incorrect-surface: #f7ecec;
 
-  /* Density mode Student: larger body text and roomier cards than Teacher. */
+  /* Density mode Student. */
   --type-display: 28px;
   --type-heading: 20px;
   --type-body: 16px;
   --type-label: 14px;
   --type-caption: 12px;
   --card-padding: 24px;
-  --row-gap: 12px;
+
+  --frame: 1440px;
+  --page-pad-x: 40px;
+  --page-pad-y: 32px;
   --radius: 8px;
+  --radius-chip: 4px;
 }
 
 * {
@@ -54,68 +66,93 @@ body {
   color: var(--ink);
   font-family: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
   font-size: var(--type-body);
-  line-height: 1.45;
+  line-height: 1.25;
+  -webkit-font-smoothing: antialiased;
 }
 
-button {
-  font: inherit;
-  cursor: pointer;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  padding: 9px 18px;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: var(--paper);
+h1,
+h2,
+h3 {
   font-weight: 600;
+  margin: 0;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+/* ---------------------------------------------------------------- frames */
+
+.frame {
+  max-width: var(--frame);
+  margin: 0 auto;
 }
 
-.btn-secondary {
-  background: transparent;
-  color: var(--ink);
-  border-color: var(--line-strong);
-  font-weight: 600;
+.page {
+  max-width: var(--frame);
+  margin: 0 auto;
+  padding: var(--page-pad-y) var(--page-pad-x);
 }
 
-.chip-answered {
-  background: var(--accent-surface);
-  color: var(--accent);
-  border-color: var(--accent-surface);
-  font-weight: 600;
+/*
+ * 1008 + 32 + 320 = 1360, the content width inside a 1440 frame.
+ *
+ * On a window narrower than the design, the **reading column gives** and the
+ * side column keeps its width. The other way round would shrink a fixed strip
+ * of chips and clocks into something unreadable while the prose still fits.
+ */
+.page.two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1008px) 320px;
+  gap: 32px;
 }
 
-.btn-quiet {
-  background: transparent;
-  color: var(--accent);
-  border: none;
-  padding: 0;
-  font-size: var(--type-caption);
-  font-weight: 600;
+/* 1020 + 420 = 1440: the chat screen runs edge to edge, not inside padding. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1020px) 420px;
+  max-width: var(--frame);
+  margin: 0 auto;
+  min-height: calc(100vh - 57px);
 }
+
+.split .chat {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 32px 28px 40px;
+}
+
+.split .panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------- top bar */
 
 .topbar {
   display: flex;
   align-items: center;
   gap: 12px;
   height: 57px;
-  padding: 0 32px;
+  padding: 14px 32px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 
+.topbar .mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  background: var(--accent-surface);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+
 .topbar .brand {
+  font-size: var(--type-body);
   font-weight: 600;
-  font-size: var(--type-heading);
 }
 
 .topbar .spacer {
@@ -127,11 +164,94 @@ button:disabled {
   color: var(--ink-muted);
 }
 
-.page {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 32px 40px;
+/* ------------------------------------------------------------- buttons */
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
 }
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Row-level action: 12px label, 35px tall. */
+.btn-primary {
+  background: var(--accent);
+  color: var(--paper);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  padding: 10px 18px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  padding: 10px 18px;
+}
+
+/* The one button that ends a phase: taller, and labelled at 14. */
+.btn-commit {
+  background: var(--accent);
+  color: var(--paper);
+  font-size: var(--type-label);
+  font-weight: 600;
+  padding: 13px 18px;
+  width: 100%;
+}
+
+.btn-commit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* Dialog actions stand at 40px with a 14px label, like the design's gate. */
+.btn-dialog {
+  background: var(--accent);
+  color: var(--paper);
+  font-size: var(--type-label);
+  font-weight: 600;
+  padding: 11px 18px;
+}
+
+.btn-dialog:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-dialog.quiet {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.btn-signout {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  padding: 7px 14px;
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 0;
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------- rows */
 
 .card {
   background: var(--surface);
@@ -148,12 +268,59 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px 20px;
-  margin-bottom: var(--row-gap);
 }
 
-.row .grow {
+.row + .row {
+  margin-top: 12px;
+}
+
+/* The four columns of an assignment row, fixed so they line up down the page. */
+.row .col-name {
+  width: 540px;
+}
+
+.row .col-dates {
+  width: 210px;
+}
+
+.row .col-status {
+  width: 150px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.row .col-action {
+  width: 348px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* A result row: number, stem, mark. */
+.row.result {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.row.result .col-num {
+  width: 70px;
+  padding-top: 2px;
+}
+
+.row.result .col-body {
   flex: 1;
   min-width: 0;
+}
+
+.row.result .col-mark {
+  width: 80px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.title-14 {
+  font-size: var(--type-label);
+  font-weight: 600;
 }
 
 .muted {
@@ -166,10 +333,18 @@ button:disabled {
   font-size: var(--type-caption);
 }
 
+.label-caps {
+  font-size: var(--type-caption);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------------- chips */
+
 .chip {
   display: inline-block;
-  padding: 4px 10px;
-  border-radius: 999px;
+  padding: 5px 10px;
+  border-radius: var(--radius-chip);
   font-size: var(--type-caption);
   font-weight: 600;
   background: var(--sunken);
@@ -187,18 +362,50 @@ button:disabled {
   color: var(--state-settled);
 }
 
+/* Question navigation: 36px squares, three states. */
+.nav-chip {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-chip);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+}
+
+.nav-chip.answered {
+  background: var(--accent-surface);
+  color: var(--accent);
+  border-color: var(--accent-surface);
+}
+
+.nav-chip.current {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------- options */
+
 .option {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
+  height: 48px;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 12px 16px;
-  margin-bottom: 10px;
+  padding: 14px 16px;
+  font-size: var(--type-body);
   font-weight: 400;
+}
+
+.option + .option {
+  margin-top: 10px;
 }
 
 .option.chosen {
@@ -206,21 +413,39 @@ button:disabled {
   background: var(--accent-surface);
 }
 
-.option .label {
-  color: var(--ink-muted);
-  font-size: var(--type-caption);
-  width: 14px;
+.option .radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  flex: none;
 }
 
+.option.chosen .radio {
+  border: none;
+  background: var(--accent);
+}
+
+.option .label {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  font-weight: 600;
+  width: 12px;
+  flex: none;
+}
+
+/* ---------------------------------------------------------------- mark */
+
 /*
- * The mark is readable with colour removed: filled, half and hollow carry the
- * meaning and the colour only repeats it (ADR-12). Level 0.5 deliberately gets
- * no colour of its own -- ADR-12 has not granted it one.
+ * Readable with the colour removed: filled, half and hollow carry the meaning
+ * and the colour only repeats it (ADR-12). Level 0.5 deliberately gets no
+ * colour of its own -- ADR-12 has not granted it one.
  */
 .mark {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  font-size: var(--type-body);
   font-variant-numeric: tabular-nums;
 }
 
@@ -265,6 +490,7 @@ button:disabled {
   color: var(--paper);
   font-size: var(--type-caption);
   font-weight: 400;
+  line-height: 1.4;
   padding: 10px 14px;
   border-radius: var(--radius);
   box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
@@ -276,6 +502,8 @@ button:disabled {
 .hoverable:focus-within .tip {
   display: block;
 }
+
+/* -------------------------------------------------------------- dialogs */
 
 .scrim {
   position: fixed;
@@ -292,33 +520,44 @@ button:disabled {
   background: var(--surface);
   border-radius: var(--radius);
   padding: 28px;
-  max-width: 680px;
-  width: 100%;
+  width: 680px;
   max-height: 80vh;
   overflow: auto;
 }
 
-.split {
+.dialog.gate {
+  width: 460px;
+}
+
+/* ----------------------------------------------------------------- chat */
+
+/*
+ * A chat turn is an avatar column plus the words. The student's turns keep the
+ * column empty rather than dropping it, so both speakers' text starts on the
+ * same line down the page.
+ */
+.turn {
+  display: flex;
+  gap: 12px;
+}
+
+.turn .avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-surface);
   display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 0;
-  min-height: calc(100vh - 57px);
+  place-items: center;
+  font-size: 20px;
 }
 
-.split .chat {
-  padding: 28px 40px;
+.turn .said {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.split .panel {
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  padding: 28px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  gap: 4px;
 }
 
 .bubble {
@@ -326,6 +565,8 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 12px 16px;
+  font-size: var(--type-body);
+  line-height: 1.4;
 }
 
 .bubble.student {
@@ -336,10 +577,11 @@ button:disabled {
   display: flex;
   gap: 12px;
   align-items: center;
+  height: 48px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 10px 16px;
+  padding: 14px 16px;
 }
 
 .composer input {
@@ -350,23 +592,58 @@ button:disabled {
   background: transparent;
 }
 
-.composer.locked {
-  background: var(--sunken);
+.composer input::placeholder {
   color: var(--ink-faint);
 }
+
+.composer.locked {
+  background: var(--sunken);
+}
+
+/* ---------------------------------------------------------------- boxes */
 
 .banner {
   background: var(--sunken);
   border-radius: var(--radius);
-  padding: 10px 16px;
+  padding: 10px 14px;
   font-size: var(--type-caption);
   color: var(--ink-muted);
+}
+
+.panel-card {
+  background: var(--sunken);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.panel-card.active {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+}
+
+.stat {
+  display: flex;
+  gap: 10px;
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.stat .key {
+  width: 96px;
+}
+
+.stat .value {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .error {
   background: var(--answer-incorrect-surface);
   color: var(--answer-incorrect);
   border-radius: var(--radius);
-  padding: 10px 16px;
-  font-size: var(--type-label);
+  padding: 10px 14px;
+  font-size: var(--type-caption);
 }

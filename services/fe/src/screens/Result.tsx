@@ -58,51 +58,41 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
         <TopBar me={me} />
         <main className="page">
           <ErrorStrip message={error} />
-          {error === null ? "Đang tải…" : null}
+          {error === null ? <p className="muted">Đang tải…</p> : null}
         </main>
       </>
     );
   }
 
   const stillOpen = result.state === "cần-chữa";
+  const openCount = result.items.filter((item) => item.mark < 1 && item.rounds.length === 0).length;
 
   return (
     <>
       <TopBar me={me} />
       <main className="page">
         <BackToList />
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, margin: "8px 0 16px" }}>
-          <div className="grow" style={{ flex: 1 }}>
-            <h1 style={{ fontSize: "var(--type-heading)", margin: 0 }}>{result.title}</h1>
-            <div className="muted">
+
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, margin: "8px 0 20px" }}>
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: "var(--type-heading)" }}>{result.title}</h1>
+            <div className="muted" style={{ marginTop: 4 }}>
               {stillOpen
-                ? `Đã nộp lúc ${result.submitted_at ? moment(result.submitted_at) : "—"} · còn ${
-                    result.items.filter((item) => item.mark < 1 && item.rounds.length === 0).length
-                  } câu cần chữa`
+                ? `Đã nộp lúc ${result.submitted_at ? moment(result.submitted_at) : "—"} · còn ${openCount} câu cần chữa`
                 : `Bài đã kết thúc · ${result.total_score} trên ${result.question_count} câu`}
             </div>
           </div>
-          {stillOpen ? (
-            <button
-              className="btn-primary"
-              type="button"
-              onClick={() => go(`/attempt/${attemptId}/tutor`)}
-            >
-              Hỏi trợ lý và làm lại dạng bài sai
-            </button>
-          ) : (
-            <button
-              className="btn-primary"
-              type="button"
-              onClick={() => go(`/attempt/${attemptId}/tutor`)}
-            >
-              Xem lại phần chữa các câu sai
-            </button>
-          )}
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={() => go(`/attempt/${attemptId}/tutor`)}
+          >
+            {stillOpen ? "Hỏi trợ lý và làm lại dạng bài sai" : "Xem lại phần chữa các câu sai"}
+          </button>
         </div>
 
         {stillOpen ? (
-          <div className="banner" style={{ marginBottom: 16 }}>
+          <div className="banner" style={{ marginBottom: 20 }}>
             Bạn có thể nâng điểm các câu sai bằng cách{" "}
             <strong style={{ color: "var(--ink)" }}>Hỏi trợ lý và làm lại dạng bài sai</strong> tới
             hết {moment(result.remediation_deadline)}.
@@ -112,11 +102,13 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
         <ErrorStrip message={error} />
 
         {result.items.map((item) => (
-          <div className="row" key={item.question_id} style={{ alignItems: "flex-start" }}>
-            <div className="muted" style={{ width: 56, paddingTop: 2 }}>
-              Câu {item.order}
+          <div className="row result" key={item.question_id}>
+            <div className="col-num">
+              <span className="muted" style={{ fontWeight: 600 }}>
+                Câu {item.order}
+              </span>
             </div>
-            <div className="grow">
+            <div className="col-body">
               <div>{item.stem}</div>
               {item.rounds.length > 0 ? (
                 <div
@@ -124,16 +116,16 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
                     marginTop: 8,
                     paddingLeft: 12,
                     borderLeft: "2px solid var(--line)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 5,
                   }}
                 >
                   <div className="faint" style={{ fontWeight: 600 }}>
                     Lượt làm lại
                   </div>
                   {item.rounds.map((round) => (
-                    <div
-                      key={round.index}
-                      style={{ display: "flex", gap: 10, alignItems: "baseline" }}
-                    >
+                    <div key={round.index} style={{ display: "flex", gap: 10 }}>
                       <span className="faint" style={{ width: 10 }}>
                         {round.index}
                       </span>
@@ -158,7 +150,9 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
                 </div>
               ) : null}
             </div>
-            <ScoreMark mark={item.mark} tip={markTip(item.mark_reason, stillOpen)} />
+            <div className="col-mark">
+              <ScoreMark mark={item.mark} tip={markTip(item.mark_reason, stillOpen)} />
+            </div>
           </div>
         ))}
       </main>

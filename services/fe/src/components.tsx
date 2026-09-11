@@ -7,18 +7,22 @@ import { go } from "./App";
  * The identity strip carried by every student screen.
  *
  * ADR-13: the product runs in a shared computer room, so each screen has to
- * answer "who is signed in" and offer a way out on the spot.
+ * answer "who is signed in" and offer a way out on the spot. 57px tall, brand
+ * at 16 semibold, identity at 14 muted — the measurements come from the design
+ * file, not from taste.
  */
 export function TopBar({ me }: { me: Me }) {
   return (
     <header className="topbar">
-      <span aria-hidden>🐝</span>
+      <span className="mark" aria-hidden>
+        🐝
+      </span>
       <span className="brand">Kriky</span>
       <span className="spacer" />
       <span className="identity">
         {me.full_name} · Lớp {me.class_name} · {me.student_code}
       </span>
-      <button className="btn-secondary" type="button">
+      <button className="btn-signout" type="button">
         Đăng xuất
       </button>
     </header>
@@ -53,8 +57,8 @@ export function ScoreMark({ mark, tip }: { mark: number; tip?: string }) {
 /**
  * A countdown towards an instant the server decided.
  *
- * Decoration, not enforcement: reaching zero here changes nothing, and BE
- * refuses a late answer whatever this shows (ADR-15).
+ * Decoration, not enforcement: reaching zero changes nothing, and BE refuses a
+ * late answer whatever this shows (ADR-15).
  *
  * @param endsAt - ISO instant the clock runs to.
  * @param onExpire - Called once when the clock reaches zero.
@@ -74,7 +78,26 @@ export function Countdown({ endsAt, onExpire }: { endsAt: string; onExpire?: () 
     return () => window.clearInterval(timer);
   }, [endsAt, onExpire]);
 
-  return <strong style={{ fontVariantNumeric: "tabular-nums" }}>{countdown(left)}</strong>;
+  return <span style={{ fontVariantNumeric: "tabular-nums" }}>{countdown(left)}</span>;
+}
+
+/**
+ * The timer card on a screen with a clock running.
+ *
+ * @param endsAt - When the clock stops.
+ */
+export function TimeCard({ endsAt }: { endsAt: string }) {
+  return (
+    <div
+      className="card"
+      style={{ padding: "8px 12px", display: "flex", alignItems: "baseline", gap: 8 }}
+    >
+      <span className="muted" style={{ flex: 1 }}>
+        Còn lại
+      </span>
+      <Countdown endsAt={endsAt} />
+    </div>
+  );
 }
 
 /** A link back to the assignment list, for screens a student can leave. */
