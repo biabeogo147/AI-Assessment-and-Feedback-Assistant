@@ -24,7 +24,7 @@ class AgentError(RuntimeError):
 
 
 async def run_task(
-    pool: ArqRedis,
+    pool: ArqRedis | None,
     settings: Settings,
     task_name: str,
     payload: dict,
@@ -36,7 +36,8 @@ async def run_task(
     polling protocol on top of arq's would buy nothing.
 
     Args:
-        pool: Connected arq pool.
+        pool: Connected arq pool, or None when the queue was unreachable at
+            startup. BE stays up without it so phase 1 keeps working.
         settings: Process settings supplying the queue name and timeout.
         task_name: One of the task-name constants in `contracts`.
         payload: The serialised request message.
@@ -51,6 +52,9 @@ async def run_task(
     Side effects:
         Writes a job onto the shared Redis queue.
     """
+    if pool is None:
+        raise AgentError("hàng đợi chưa sẵn sàng")
+
     job = await pool.enqueue_job(task_name, payload, _queue_name=settings.agent_queue_name)
     if job is None:
         raise AgentError(f"arq refused task {task_name}")
@@ -96,3 +100,26 @@ def validate_question(question: GeneratedQuestion) -> None:
 
     if len(question.methods) < 2:
         raise AgentError(f"a question needs more than one worked solution: {question.stem}")
+
+
+def validate_retry(question: GeneratedQuestion, origin_stem: str, spent: list[str]) -> None:
+    """Check that a retry question is a new question, not the old one again.
+
+    ADR-17 is specific about what a retry is for: it tests whether the student
+    fixed the mistake, not whether they remember the answer. A round that hands
+    back the same stem tests memory, which is the failure the whole ceiling of
+    three rounds exists to avoid.
+
+    Args:
+        question: What AGENT produced for this round.
+        origin_stem: The phase 1 question being remediated.
+        spent: Stems already used in earlier rounds of this question.
+
+    Raises:
+        AgentError: If the stem repeats the origin or any earlier round.
+    """
+    normalise = " ".join(question.stem.split())
+    if normalise == " ".join(origin_stem.split()):
+        raise AgentError(f"a retry question repeats the question it replaces: {question.stem}")
+    if normalise in {" ".join(stem.split()) for stem in spent}:
+        raise AgentError(f"a retry question repeats an earlier round: {question.stem}")

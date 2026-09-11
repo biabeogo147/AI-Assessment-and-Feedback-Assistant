@@ -44,9 +44,15 @@ async def create_queue_pool(settings: Settings) -> ArqRedis:
 
     Raises:
         OSError: If Redis is unreachable. Start it with
-            `docker compose -f docker-compose.infra.yml up -d`.
+            `docker compose -f docker-compose.infra.yml up -d`. redis-py raises
+            its own ConnectionError, which is not an OSError; it is translated
+            here so callers can handle "the queue is down" without importing
+            redis, a library BE only has because arq brought it.
     """
-    return await create_pool(redis_settings(settings))
+    try:
+        return await create_pool(redis_settings(settings))
+    except Exception as exc:  # noqa: BLE001 -- narrowed by re-raising as OSError
+        raise OSError(f"Redis unreachable at {settings.redis_url}: {exc}") from exc
 
 
 async def enqueue_grading(

@@ -46,11 +46,20 @@ _RETRY = GeneratedQuestion(
 
 
 async def _fake_run_task(pool, settings, task_name, payload) -> dict:
-    """Stand in for AGENT, returning the shape each task promises."""
+    """Stand in for AGENT, returning the shape each task promises.
+
+    The retry stem carries its round number because BE refuses a retry that
+    repeats the question it replaces or an earlier round (ADR-17). A stub
+    returning one fixed stem would be rejected on round two -- correctly, which
+    is why the stub varies rather than the rule bending.
+    """
     if task_name.endswith("retry_question"):
-        return RetryQuestionCompleted(request_id=payload["request_id"], question=_RETRY).model_dump(
-            mode="json"
+        question = _RETRY.model_copy(
+            update={"stem": f"{_RETRY.stem} — lượt {payload['round_index']}"}
         )
+        return RetryQuestionCompleted(
+            request_id=payload["request_id"], question=question
+        ).model_dump(mode="json")
     return {"schema_version": 1, "request_id": payload["request_id"], "text": "Trả lời mẫu."}
 
 
@@ -277,6 +286,36 @@ async def test_a_mark_never_falls(client: AsyncClient) -> None:
             )
         )
     assert sorted(marks) == [0.5, 0.5, 1.0, 1.0, 1.0, 1.0]
+
+
+@pytest.mark.asyncio
+async def test_a_retry_that_repeats_the_question_is_refused(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """ADR-17: handing back the same stem tests memory, not understanding."""
+    submitted = await _start_and_submit(client, correct_count=5)
+    attempt_id = submitted["attempt_id"]
+
+    result = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    wrong = next(item for item in result["items"] if item["mark"] == 0)
+
+    async def echo_the_origin(pool, settings, task_name, payload) -> dict:
+        if task_name.endswith("retry_question"):
+            question = _RETRY.model_copy(update={"stem": payload["origin"]["stem"]})
+            return RetryQuestionCompleted(
+                request_id=payload["request_id"], question=question
+            ).model_dump(mode="json")
+        return {"schema_version": 1, "request_id": payload["request_id"], "text": ""}
+
+    monkeypatch.setattr(student_routes, "run_task", echo_the_origin)
+
+    refused = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
+    assert refused.status_code == 503
+    assert wrong["stem"][:20] in refused.json()["detail"]
+
+    # The refusal must not have spent a round.
+    panel = (await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)).json()
+    assert panel["remaining"][0]["rounds_used"] == 0
 
 
 @pytest.mark.asyncio

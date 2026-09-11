@@ -10,7 +10,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { countdown, moment } from "./api";
+import AssignmentList from "./screens/AssignmentList";
 import Result from "./screens/Result";
+import Tutor from "./screens/Tutor";
 
 const ME = {
   student_id: "s1",
@@ -80,6 +82,87 @@ describe("the score sheet", () => {
     expect(tip).not.toBeNull();
     // The explanation exists but is hidden until the mark is hovered (ADR-16).
     expect(tip?.parentElement?.className).toContain("hoverable");
+  });
+});
+
+describe("the assignment list", () => {
+  it("renders the buttons BE said the row has, in BE's order", async () => {
+    stubFetch([
+      {
+        assignment_id: "as1",
+        attempt_id: "a1",
+        title: "Kiểm tra 15 phút — Hàm số",
+        subject: "Toán",
+        question_count: 6,
+        phase1_minutes: 15,
+        opens_at: "2026-09-15T11:00:00+00:00",
+        closes_at: "2026-09-15T11:00:00+00:00",
+        remediation_deadline: "2026-09-15T15:00:00+00:00",
+        status: "cần-chữa",
+        wrong_count: 2,
+        actions: ["result", "remediate"],
+      },
+    ]);
+    render(<AssignmentList me={ME} />);
+
+    await waitFor(() => expect(screen.getByText(/Kiểm tra 15 phút/)).toBeTruthy());
+    expect(screen.getByText("Xem kết quả")).toBeTruthy();
+    expect(screen.getByText("Hỏi trợ lý và làm lại dạng bài sai")).toBeTruthy();
+    expect(screen.getByText(/Cần làm lại 2 câu/)).toBeTruthy();
+  });
+});
+
+describe("the tutoring screen", () => {
+  const PANEL = {
+    attempt_id: "a1",
+    deadline: "2026-09-15T15:00:00+00:00",
+    minutes_per_question: 5,
+    round_budget_minutes: 10,
+    can_start_round: true,
+    warn_cut: false,
+    open_round_id: null,
+    remaining: [
+      {
+        question_id: "q4",
+        order: 4,
+        stem: "Cho hàm số y = x³ − 3x.",
+        chosen: { label: "B", text: "Khoảng (−1; 1)" },
+        correct: { label: "A", text: "Khoảng (−∞; −1)" },
+        rounds_used: 0,
+        rounds_max: 3,
+      },
+    ],
+  };
+
+  function stubTwo(history: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const body = String(url).includes("/chat") ? history : PANEL;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
+  }
+
+  it("lists every wrong question with what was picked and what was right", async () => {
+    stubTwo({ attempt_id: "a1", locked: false, messages: [{ message_id: "m", role: "assistant", text: "chào em", created_at: "2026-09-15T11:00:00+00:00" }] });
+    render(<Tutor me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText("CÁC CÂU EM LÀM SAI")).toBeTruthy());
+    expect(screen.getByText(/Em đã chọn B/)).toBeTruthy();
+    expect(screen.getByText(/Đáp án đúng A/)).toBeTruthy();
+    // The mistake's name and the worked solutions stay behind the dialog.
+    expect(screen.queryByText(/đọc ngược/)).toBeNull();
+  });
+
+  it("locks the composer and drops the new-round button once the attempt ends", async () => {
+    stubTwo({ attempt_id: "a1", locked: true, messages: [] });
+    render(<Tutor me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText("CÁC CÂU EM LÀM SAI")).toBeTruthy());
+    expect(screen.queryByText(/Làm bài mới/)).toBeNull();
+    // Reporting outlives the attempt: it blocks nothing (ADR-19).
+    expect(screen.getByText(/Báo cáo Trợ lý giải thích khó hiểu/)).toBeTruthy();
   });
 });
 

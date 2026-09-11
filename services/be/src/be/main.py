@@ -42,11 +42,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if await seed_if_empty(session):
             logger.info("seeded the demo class, roster and published assessment")
 
-    app.state.queue_pool = await create_queue_pool(settings)
+    # A dead queue must not take phase 1 down with it. Sitting a paper,
+    # submitting it and reading the floor score never touch AGENT (ADR-20), and
+    # ADR-16 calls that score a floor -- a floor that needs a second service to
+    # stand up is not one. What does break is everything that needs generated
+    # content, and those routes answer 503 rather than failing at startup.
+    try:
+        app.state.queue_pool = await create_queue_pool(settings)
+    except (OSError, RuntimeError) as exc:
+        app.state.queue_pool = None
+        logger.warning("queue unreachable (%s); phase 2 will answer 503 until it returns", exc)
+
     try:
         yield
     finally:
-        await app.state.queue_pool.aclose()
+        if app.state.queue_pool is not None:
+            await app.state.queue_pool.aclose()
         await engine.dispose()
 
 

@@ -87,7 +87,183 @@ _MIN_METHODS = (
     ("Bất đẳng thức Cô-si", "Với x > 0, áp dụng Cô-si cho hai số dương rồi tìm dấu bằng."),
 )
 
+_DERIVATIVE_METHODS = (
+    ("Công thức luỹ thừa", "(xⁿ)′ = n·xⁿ⁻¹, áp cho từng số hạng rồi cộng lại."),
+    ("Kiểm bằng hệ số góc", "Tính hệ số góc tiếp tuyến tại một điểm rồi đối chiếu."),
+)
+
+_LINEAR_METHODS = (
+    ("Hệ số góc", "Dấu của hệ số góc quyết định chiều biến thiên trên toàn trục số."),
+    ("Đồ thị", "Đường thẳng đi lên hay đi xuống trên cả miền xác định, không đổi chiều."),
+)
+
+_LIMIT_METHODS = (
+    ("Phân tích thành nhân tử", "Tách hiệu hai bình phương rồi rút gọn trước khi thay số."),
+    ("Quy tắc L'Hôpital", "Đạo hàm tử và mẫu rồi thay giá trị vào."),
+)
+
+_ASYMPTOTE_METHODS = (
+    ("Tỉ số hệ số bậc cao nhất", "Bậc tử bằng bậc mẫu thì tiệm cận ngang là tỉ số hai hệ số ấy."),
+    ("Lấy giới hạn", "Cho x → ±∞, chia cả tử và mẫu cho x rồi lấy giới hạn."),
+)
+
+# Every seeded question needs a family here. A question outside the bank falls
+# back to a stand-in, and BE rejects that stand-in for repeating the stem it is
+# supposed to replace (ADR-17) -- which is the right failure, but it means the
+# demo stalls rather than teaching.
 _BANK_SEED: tuple[tuple[str, tuple[GeneratedQuestion, ...]], ...] = (
+    (
+        "Đạo hàm của y = x² + 3x là gì?",
+        (
+            _question(
+                "Đạo hàm của y = x² + 5x là gì?",
+                (
+                    ("2x + 5", True, None),
+                    ("x + 5", False, "quên nhân số mũ khi hạ bậc"),
+                    ("2x", False, "bỏ sót đạo hàm của số hạng bậc nhất"),
+                    ("x² + 5", False, "chỉ đạo hàm một số hạng"),
+                ),
+                _DERIVATIVE_METHODS,
+                "Đạo hàm của đa thức",
+            ),
+            _question(
+                "Đạo hàm của y = 3x² − 4x là gì?",
+                (
+                    ("6x − 4", True, None),
+                    ("3x − 4", False, "quên nhân số mũ khi hạ bậc"),
+                    ("6x", False, "bỏ sót đạo hàm của số hạng bậc nhất"),
+                    ("6x² − 4", False, "không hạ bậc khi lấy đạo hàm"),
+                ),
+                _DERIVATIVE_METHODS,
+                "Đạo hàm của đa thức",
+            ),
+            _question(
+                "Đạo hàm của y = x² − 7x là gì?",
+                (
+                    ("2x − 7", True, None),
+                    ("x − 7", False, "quên nhân số mũ khi hạ bậc"),
+                    ("2x", False, "bỏ sót đạo hàm của số hạng bậc nhất"),
+                    ("2x + 7", False, "sai dấu khi hạ bậc số hạng âm"),
+                ),
+                _DERIVATIVE_METHODS,
+                "Đạo hàm của đa thức",
+            ),
+        ),
+    ),
+    (
+        "Hàm số y = 2x + 1 đồng biến trên khoảng nào?",
+        (
+            _question(
+                "Hàm số y = 5x − 2 đồng biến trên khoảng nào?",
+                (
+                    ("Khoảng (−∞; +∞)", True, None),
+                    ("Khoảng (0; +∞)", False, "tưởng hàm bậc nhất chỉ tăng khi x dương"),
+                    ("Khoảng (−∞; 0)", False, "đọc ngược chiều biến thiên"),
+                    ("Không đồng biến ở đâu", False, "nhầm hệ số góc dương với hàm hằng"),
+                ),
+                _LINEAR_METHODS,
+                "Tính đơn điệu của hàm bậc nhất",
+            ),
+            _question(
+                "Hàm số y = −3x + 4 nghịch biến trên khoảng nào?",
+                (
+                    ("Khoảng (−∞; +∞)", True, None),
+                    ("Khoảng (0; +∞)", False, "tưởng hàm bậc nhất chỉ giảm khi x dương"),
+                    ("Khoảng (−∞; 0)", False, "đọc ngược chiều biến thiên"),
+                    ("Không nghịch biến ở đâu", False, "nhầm hệ số góc âm với hàm hằng"),
+                ),
+                _LINEAR_METHODS,
+                "Tính đơn điệu của hàm bậc nhất",
+            ),
+            _question(
+                "Hàm số y = 0,5x + 7 đồng biến trên khoảng nào?",
+                (
+                    ("Khoảng (−∞; +∞)", True, None),
+                    ("Khoảng (7; +∞)", False, "lấy hệ số tự do làm mốc đổi chiều"),
+                    ("Khoảng (−∞; 0)", False, "đọc ngược chiều biến thiên"),
+                    ("Không đồng biến ở đâu", False, "tưởng hệ số góc dưới 1 thì hàm không tăng"),
+                ),
+                _LINEAR_METHODS,
+                "Tính đơn điệu của hàm bậc nhất",
+            ),
+        ),
+    ),
+    (
+        "Giới hạn của (x² − 1)/(x − 1) khi x → 1 bằng bao nhiêu?",
+        (
+            _question(
+                "Giới hạn của (x² − 4)/(x − 2) khi x → 2 bằng bao nhiêu?",
+                (
+                    ("4", True, None),
+                    ("0", False, "thay thẳng x = 2 vào tử rồi dừng"),
+                    ("2", False, "rút gọn sai khi phân tích hiệu hai bình phương"),
+                    ("Không tồn tại", False, "coi dạng 0/0 là không có giới hạn"),
+                ),
+                _LIMIT_METHODS,
+                "Giới hạn dạng vô định",
+            ),
+            _question(
+                "Giới hạn của (x² − 9)/(x − 3) khi x → 3 bằng bao nhiêu?",
+                (
+                    ("6", True, None),
+                    ("0", False, "thay thẳng x = 3 vào tử rồi dừng"),
+                    ("3", False, "rút gọn sai khi phân tích hiệu hai bình phương"),
+                    ("Không tồn tại", False, "coi dạng 0/0 là không có giới hạn"),
+                ),
+                _LIMIT_METHODS,
+                "Giới hạn dạng vô định",
+            ),
+            _question(
+                "Giới hạn của (x² − 25)/(x − 5) khi x → 5 bằng bao nhiêu?",
+                (
+                    ("10", True, None),
+                    ("0", False, "thay thẳng x = 5 vào tử rồi dừng"),
+                    ("5", False, "rút gọn sai khi phân tích hiệu hai bình phương"),
+                    ("Không tồn tại", False, "coi dạng 0/0 là không có giới hạn"),
+                ),
+                _LIMIT_METHODS,
+                "Giới hạn dạng vô định",
+            ),
+        ),
+    ),
+    (
+        "Đồ thị y = (2x − 1)/(x + 3) có tiệm cận ngang là đường nào?",
+        (
+            _question(
+                "Đồ thị y = (3x + 2)/(x − 1) có tiệm cận ngang là đường nào?",
+                (
+                    ("y = 3", True, None),
+                    ("x = 1", False, "nhầm tiệm cận đứng với tiệm cận ngang"),
+                    ("y = −2", False, "lấy tỉ số hai hằng số thay vì hai hệ số bậc cao nhất"),
+                    ("y = 0", False, "áp quy tắc của trường hợp bậc tử nhỏ hơn bậc mẫu"),
+                ),
+                _ASYMPTOTE_METHODS,
+                "Tiệm cận của hàm phân thức",
+            ),
+            _question(
+                "Đồ thị y = (5x − 4)/(2x + 1) có tiệm cận ngang là đường nào?",
+                (
+                    ("y = 2,5", True, None),
+                    ("x = −0,5", False, "nhầm tiệm cận đứng với tiệm cận ngang"),
+                    ("y = −4", False, "lấy hằng số ở tử làm tiệm cận"),
+                    ("y = 0", False, "áp quy tắc của trường hợp bậc tử nhỏ hơn bậc mẫu"),
+                ),
+                _ASYMPTOTE_METHODS,
+                "Tiệm cận của hàm phân thức",
+            ),
+            _question(
+                "Đồ thị y = (x + 6)/(4x − 3) có tiệm cận ngang là đường nào?",
+                (
+                    ("y = 0,25", True, None),
+                    ("x = 0,75", False, "nhầm tiệm cận đứng với tiệm cận ngang"),
+                    ("y = 6", False, "lấy hằng số ở tử làm tiệm cận"),
+                    ("y = 4", False, "lấy nghịch đảo của tỉ số hai hệ số bậc cao nhất"),
+                ),
+                _ASYMPTOTE_METHODS,
+                "Tiệm cận của hàm phân thức",
+            ),
+        ),
+    ),
     (
         "Cho hàm số y = x³ − 3x. Hàm số đồng biến trên khoảng nào?",
         (

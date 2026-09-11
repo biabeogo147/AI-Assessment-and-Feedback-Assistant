@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from be.agent_gateway import AgentError, run_task, validate_question
+from be.agent_gateway import AgentError, run_task, validate_question, validate_retry
 from be.config import get_settings
 from be.db import get_session
 from be.identity import current_student
@@ -1336,6 +1336,7 @@ async def start_round(
             )
             generated = RetryQuestionCompleted.model_validate(raw).question
             validate_question(generated)
+            validate_retry(generated, question.stem, spent.get(question.id, []))
         except AgentError as exc:
             raise HTTPException(
                 status_code=503, detail=f"Chưa sinh được đề lượt này: {exc}"
