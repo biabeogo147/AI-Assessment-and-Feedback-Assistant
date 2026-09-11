@@ -65,12 +65,15 @@ lí.
 
 **Nửa phía học sinh đã có ở Figma. Phía giáo viên chưa.**
 
-- **Ở Figma**: `Report control` (`281:25`), nhãn *"Báo cáo Trợ lý giải thích khó hiểu"*. Nó **chỉ nằm
-  cuối một lượt trả lời của Kriky** — artboard `19` — chứ không nằm ở đầu màn kết quả. Một báo cáo
-  không gắn với đoạn trả lời nào thì giáo viên nhận được một lời phàn nàn không có ngữ cảnh, tức là
-  không đọc được.
-- **Trợ lí bao quát cả bài, nên cái được báo cáo là một câu trả lời, không phải một câu hỏi.** Màn
-  `17` chỉ có lời mở đầu của Kriky và chưa có gì để báo cáo; nút xuất hiện từ lượt trả lời đầu tiên.
+- **Ở Figma**: `Report control` (`281:25`), nhãn *"Báo cáo Trợ lý giải thích khó hiểu"*. **Một nút mỗi
+  màn, đặt ở chân màn cạnh nút *Làm bài mới*** — artboard `19`, `20` và `24`. Bản trước gắn nó vào
+  từng lượt trả lời của Kriky; một đoạn chat năm lượt khi đó có ba nút giống hệt nhau, và cái lặp ấy
+  đọc ra như lỗi dựng chứ không như một quyền.
+- **Cái được báo cáo là cả đoạn chat của bài này**, không phải một câu trả lời lẻ. Trợ lí bao quát cả
+  bài — mọi câu sai nằm cùng một màn — nên gắn báo cáo vào một lượt là hứa một phạm vi hẹp hơn thực
+  tế. Ngữ cảnh giáo viên cần vẫn còn: đoạn chat đi kèm bài và những câu em đó làm sai.
+- **Màn `17` không có nút này.** Ở đó Kriky mới chỉ chào, chưa giải thích gì; một báo cáo không có
+  nội dung để trỏ tới thì giáo viên đọc được gì.
 - **Thời điểm thứ hai đã có bề mặt riêng**: từ màn kết quả `22`, nút **ở đầu màn**
   *"Xem lại phần chữa các câu sai"* mở artboard `24` — màn hỏi trợ lý ở hình dạng **bài đã kết
   thúc**: lịch sử chat còn nguyên, ô nhập bị khoá, nút *Làm bài mới* biến mất, còn nút báo cáo thì

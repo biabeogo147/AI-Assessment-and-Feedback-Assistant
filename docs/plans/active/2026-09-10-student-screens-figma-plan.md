@@ -165,7 +165,8 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
 - Không màn nào hiện `confidence`, `misconception_code`, hay lý do review (ADR-08).
 - Artboard 14 có **hai state** riêng biệt, không phải một state với trường rỗng.
 - ~~`Report control` có mặt ở cả artboard 14 (state *đã hoàn thành*) và artboard 15.~~ **Đổi sau khi
-  dựng**: nó chỉ nằm cuối một lượt trả lời của Kriky, tức artboard `19`. Xem Decision Record.
+  dựng**: nó là **một nút ở chân màn**, cạnh *Làm bài mới*, trên artboard `19`, `20` và `24`. Xem
+  Decision Record.
 - Nút *Làm bài mới* có khối đọc lại giá trị thật, và có trạng thái cảnh báo khi lượt dài hơn hạn còn lại.
 - Mọi màu lấy từ biến; không hex thô.
 
@@ -264,7 +265,10 @@ hiện **một lần** làm tiêu đề khối — bản dựng đầu lặp nó
 lượt thì cùng một cụm từ đọc ba lần trong khi mắt mất cột để bám. Một vạch dọc bên trái buộc khối vào
 câu gốc, rẻ hơn thụt lề trắng và không thêm chữ nào.
 
-### Decision: `Report control` chỉ sống trong một đoạn chat
+### Decision: `Report control` chỉ sống trong một đoạn chat — **đã thay ở vòng sáu**
+
+> Quyết định này **không còn hiệu lực**. Xem *Một nút báo cáo mỗi màn* ở dưới. Giữ lại vì lý lẽ của
+> nó vẫn đúng ở phần ngữ cảnh, chỉ sai ở chỗ chọn đơn vị gắn nút.
 
 options considered: đặt ở đầu màn kết quả như một hành động chung; đặt ở chân khung chat; chỉ đặt
 trong từng lượt trả lời của Kriky.
@@ -362,6 +366,23 @@ reason: vòng review phản đối, và lý do phản đối đúng:
 nên dùng lại chữ đó cho một lượt làm cho hai hành động khác hẳn nhau trông như một. Đổi lại, *lượt*
 là từ của tài liệu này, không phải từ học sinh nghĩ tới khi đang ngồi làm bốn câu trắc nghiệm. Ghi
 lại đây để nếu sau này có ai đo được học sinh nhầm hai nút, thì đã có sẵn cả hai vế của lập luận.
+
+### Decision: Một nút báo cáo mỗi màn, đặt cạnh nút *Làm bài mới*
+
+options considered: giữ một `Report control` ở cuối mỗi lượt trả lời của Kriky; một nút duy nhất ở
+chân màn, cạnh *Làm bài mới*.
+
+selected option: một nút ở chân màn — **người dùng chốt**, sau khi nhìn artboard `20` và thấy hai nút
+giống hệt nhau trong cùng một đoạn chat.
+
+reason: vòng bốn thêm nút vào lượt trả lời **đầu tiên** cho đúng câu chữ của ADR-19, và thế là một
+đoạn chat hai lượt có hai nút. Càng chat dài càng nhiều nút, tất cả cùng một nhãn — cái lặp đó đọc ra
+như lỗi dựng chứ không như một quyền. Sâu hơn: gắn nút vào một lượt là nói *báo cáo đúng câu trả lời
+này*, trong khi trợ lí đã bao quát **cả bài** từ vòng ba. Đơn vị đúng của một báo cáo bây giờ là
+**đoạn chat của bài này**, và nó chỉ cần một chỗ để bấm.
+
+Màn `17` vẫn **không** có nút: ở đó Kriky mới chỉ chào. Một báo cáo không có nội dung để trỏ tới thì
+giáo viên mở ra chẳng đọc được gì.
 
 ## Rủi ro
 
