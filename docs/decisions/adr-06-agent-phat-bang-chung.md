@@ -60,7 +60,8 @@ cổng là bỏ toàn bộ dấu vết đúng lúc cần nó nhất.
   `needs_teacher_review`.
 - `services/be/src/be/review_policy.py` — `decide_review()`, nơi duy nhất so ngưỡng.
 - `services/be/src/be/routes.py` — ngưỡng áp lúc đọc, không lưu kèm kết quả.
-- `services/fe/src/App.tsx` — chỉ `toFixed(2)`, không so sánh.
+- `services/fe/src/` — bề mặt học sinh **không hiện `confidence` ở đâu cả**, nên không có gì để so.
+  Màn demo từng hiện con số đó đã bị thay bằng luồng thật.
 - `AGENTS.md` bảng Invariants — dòng `AGENT emits no routing decision` (tự động) và dòng
   `FE never applies its own confidence threshold` (kiểm bằng review).
 - Test `test_agent_emits_no_routing_decision`.

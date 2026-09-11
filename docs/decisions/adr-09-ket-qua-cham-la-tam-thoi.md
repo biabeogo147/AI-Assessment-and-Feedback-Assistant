@@ -53,7 +53,9 @@ người ta tự đoán, và đoán về phía xấu.
 - Figma `mOe2ZmrqOq1Uix45v6PNGD` — `Error state` (`6:75`) variant `het-han-404`: *"Kết quả chỉ được giữ trong một giờ."*;
   `Async waiting` (`6:49`) variant `timeout` là trạng thái chờ, không phải lỗi.
 - **Chưa có ở tài liệu nghiệp vụ**: `docs/overview/` không nói kết quả chấm là tạm thời.
-- **Đang bị vi phạm ở code.** `services/fe/src/api.ts:119` ném timeout ra **như một lỗi**
-  (*"Hết thời gian chờ chấm bài…"*), và `services/fe/src/App.tsx:88-92` render nó trong một
-  `role="alert"` màu đỏ — ngược hẳn luật *chờ không phải lỗi*. `api.ts:71` và `api.ts:88`
-  (*"Không gửi được bài: 503"*, *"Không đọc được job: 404"*) không câu nào xác nhận bài làm còn nguyên.
+- **Thu hẹp bởi [ADR-21](adr-21-trang-thai-bai-lam-la-ben.md).** Hạn một giờ nay chỉ còn áp cho kết
+  quả một job của arq; trạng thái bài làm sống trong Postgres. Luật gốc vẫn đúng trong phạm vi mới
+  của nó.
+- **Chỗ vi phạm cũ ở FE đã biến mất cùng màn demo.** `api.ts` không còn poll job chấm bài, vì
+  [ADR-20](adr-20-cham-trac-nghiem-thuoc-be.md) đưa việc chấm vào thẳng request nộp bài — không còn
+  thời gian chờ nào để hiển thị nhầm thành lỗi.

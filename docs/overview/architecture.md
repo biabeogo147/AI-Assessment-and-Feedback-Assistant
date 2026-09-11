@@ -16,7 +16,7 @@ Diagram liên quan:
 | --- | --- | --- |
 | `fe` | Giao diện cho Teacher và Student. Chỉ nói chuyện với BE. | Vite dev server, cổng 5173 |
 | `be` | Business layer, system of record, nơi giữ mọi quyết định nghiệp vụ. | uvicorn, cổng 8000 |
-| `agent` | Chấm bài và phân tích lỗi sai bằng AI. Phát bằng chứng, không quyết định. | arq worker, không có cổng |
+| `agent` | Soạn nội dung bằng AI: đề, câu của lượt làm lại, lượt trả lời trong chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
 
 FE không biết AGENT tồn tại. Mọi thứ FE cần đều đi qua BE.
 
@@ -24,16 +24,32 @@ FE không biết AGENT tồn tại. Mọi thứ FE cần đều đi qua BE.
 
 ```text
 FE  --HTTP /api-->  BE  --queue-->  Redis  --queue-->  AGENT
-                     ▲                                   │
-                     └────────── arq result store ───────┘
+                    │ ▲                                  │
+                    │ └────────── arq result store ──────┘
+                    └── Postgres (trạng thái bài làm)
 ```
 
-Chấm bài chạy bất đồng bộ vì một lần gọi LLM đủ lâu để giữ kết nối HTTP mở là không hợp lý. Vì vậy:
+**Chấm bài không đi qua hàng đợi.** Nó là một phép so giữa phương án đã chọn và đáp án đúng trong
+database của BE, nên nó chạy ngay trong request nộp bài
+([ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md)). Hệ quả nhìn thấy được: giữa màn làm
+bài và màn kết quả không có trạng thái *đang chấm* nào.
 
-1. FE gọi `POST /api/submissions`, BE đẩy job vào Redis và trả về `job_id`.
-2. FE poll `GET /api/jobs/{job_id}` mỗi giây, tối đa 30 giây.
-3. AGENT nhận job, chấm, trả kết quả. arq tự lưu kết quả nên hệ thống không cần job store riêng.
-4. BE đọc kết quả, áp ngưỡng, rồi trả về kèm quyết định review.
+**Hàng đợi dành cho ba việc thật sự cần model**, và cả ba đều bất đồng bộ vì một lần gọi LLM đủ lâu
+để giữ kết nối HTTP mở là không hợp lý:
+
+| Task | Khi nào | BE làm gì với kết quả |
+| --- | --- | --- |
+| `draft_assessment` | giáo viên yêu cầu soạn đề | kiểm theo ADR-18 rồi lưu thành câu hỏi nháp |
+| `generate_retry_question` | học sinh mở một lượt làm lại | kiểm rồi lưu kèm đáp án đúng, để BE tự chấm lượt |
+| `explain_turn` | mỗi lượt trả lời trong chat pha 2 | lưu vào lịch sử **trước** khi phát ra SSE |
+
+BE chờ job xong ngay trong request (`agent_gateway.run_task`) thay vì trả `job_id` cho FE: mọi lời
+gọi ấy đều nằm trong một thao tác người dùng đang nhìn, nên thêm một giao thức poll thứ hai chồng
+lên arq không mua được gì.
+
+**Chat dùng SSE.** `GET /api/attempts/{id}/chat/stream` trả `text/event-stream`, chữ hiện dần. Nó là
+**kênh tăng tốc cảm giác, không phải nguồn sự thật**: lượt trả lời được lưu xong mới phát, nên mất
+kết nối chỉ mất phần hoạt hình. Client đọc lại lịch sử bằng REST sau mỗi lần stream.
 
 FE gọi đường tương đối `/api` và Vite proxy sang BE, nên trình duyệt chỉ làm việc với một origin duy nhất và BE không cần cấu hình CORS.
 
@@ -48,13 +64,30 @@ FE gọi đường tương đối `/api` và Vite proxy sang BE, nên trình duy
 
 Nếu để AGENT tự quyết định, cổng teacher-in-the-loop sẽ nằm bên trong AI service, trái nguyên tắc trong [Project Overview](project-overview.md).
 
+Cùng lằn ranh ấy áp cho nội dung AGENT sinh ra: BE **kiểm lại** mọi câu hỏi trước khi lưu — đúng một
+đáp án đúng, mọi nhiễu gắn một lỗi, ít nhất hai cách giải. Một luật nghiệp vụ chỉ được nhắc trong
+prompt là một luật không được thi hành.
+
 `ReviewReason` có bốn giá trị, khớp bốn điểm kiểm soát trong Workflow 4. Giá trị `ANOMALY` chưa sinh ra được vì cần lịch sử học tập của học sinh; nó có mặt sẵn để lúc thêm không phải đổi contract.
 
 Ngưỡng được áp lúc đọc kết quả chứ không lưu kèm, nên đổi `REVIEW_CONFIDENCE_THRESHOLD` có hiệu lực ngay mà không phải chấm lại.
 
 ## Ranh giới dữ liệu
 
-Giai đoạn này chưa có database. Khi thêm, quy ước là Postgres và MongoDB thuộc về BE. AGENT không nhận credential của bất kỳ database nào, nên một job phải mang theo đủ dữ liệu để chấm — đó là lý do `GradingRequested` chứa cả `learning_objective` và `student_explanation` thay vì chỉ chứa id.
+Postgres thuộc về BE và chỉ BE. Nó giữ lớp, học sinh, đề, lần làm bài, sổ điểm ba mức, bộ đếm vòng,
+từng lượt làm lại kèm đề đã sinh ra, đoạn chat và các báo cáo.
+[ADR-21](../decisions/adr-21-trang-thai-bai-lam-la-ben.md) là lý do nó tồn tại: hạn pha 2 do giáo
+viên đặt, tính bằng giờ hoặc ngày, nên trạng thái bài làm không thể sống trong một chỗ có TTL một
+giờ. `JOB_RESULT_TTL_SECONDS` vẫn còn và vẫn đúng — nó nói về kết quả một job của arq, không nói về
+bài làm của học sinh.
+
+AGENT không nhận credential của bất kỳ database nào, nên **một job phải tự chứa**: `explain_turn`
+mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn, chứ không mang id để tra. `tools/check_contract.py`
+canh điều này bằng cách quét mọi file Python của AGENT tìm dấu vết truy cập database.
+
+Bảng được tạo từ metadata của model lúc khởi động, chưa có công cụ migration. Đó là một món nợ có
+chủ đích: schema hiện có một người dùng và chưa có dữ liệu thật nào. Ngày có dữ liệu thật, đánh đổi
+ấy lật ngược.
 
 ## Shared code
 

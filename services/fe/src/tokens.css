@@ -1,0 +1,365 @@
+/*
+ * Design tokens, copied from the Figma collection `Color` and the Student mode
+ * of `Density`.
+ *
+ * They are copied rather than imported because there is no token pipeline yet.
+ * That makes this file the one place drift can happen, so keep the names
+ * identical to Figma: a mismatch is then a rename, not a hunt.
+ *
+ * ADR-12 gives three of these colours a fixed meaning. `--answer-incorrect` is
+ * a wrong answer, never a system failure. `--state-needs-human` is amber and
+ * means a person must act -- a round that is about to run out of time is not
+ * that, and must not borrow it.
+ */
+
+:root {
+  --paper: #fafaf8;
+  --surface: #ffffff;
+  --sunken: #f2f2ef;
+  --ink: #1a1f2b;
+  --ink-muted: #5b6472;
+  --ink-faint: #6b7280;
+  --line: #e3e5e2;
+  --line-strong: #c9ccc7;
+  --accent: #2e4a7d;
+  --accent-hover: #243a63;
+  --accent-surface: #edf1f7;
+  --state-settled: #4a6357;
+  --state-settled-surface: #edf1ee;
+  --state-needs-human: #8a5a22;
+  --state-needs-human-surface: #f6efe4;
+  --answer-correct: #2f6b45;
+  --answer-correct-surface: #edf1ee;
+  --answer-incorrect: #8c3a3a;
+  --answer-incorrect-surface: #f7ecec;
+
+  /* Density mode Student: larger body text and roomier cards than Teacher. */
+  --type-display: 28px;
+  --type-heading: 20px;
+  --type-body: 16px;
+  --type-label: 14px;
+  --type-caption: 12px;
+  --card-padding: 24px;
+  --row-gap: 12px;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  font-size: var(--type-body);
+  line-height: 1.45;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  padding: 9px 18px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+  font-weight: 600;
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  padding: 0;
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 57px;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar .brand {
+  font-weight: 600;
+  font-size: var(--type-heading);
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.topbar .identity {
+  font-size: var(--type-label);
+  color: var(--ink-muted);
+}
+
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 40px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--card-padding);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: var(--row-gap);
+}
+
+.row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.muted {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+}
+
+.faint {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+}
+
+.chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  background: var(--sunken);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.chip.open {
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+.chip.settled {
+  background: var(--state-settled-surface);
+  color: var(--state-settled);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  font-weight: 400;
+}
+
+.option.chosen {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+}
+
+.option .label {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  width: 14px;
+}
+
+/*
+ * The mark is readable with colour removed: filled, half and hollow carry the
+ * meaning and the colour only repeats it (ADR-12). Level 0.5 deliberately gets
+ * no colour of its own -- ADR-12 has not granted it one.
+ */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mark .glyph {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+}
+
+.mark.full {
+  color: var(--answer-correct);
+}
+
+.mark.full .glyph {
+  background: currentColor;
+}
+
+.mark.half {
+  color: var(--ink);
+}
+
+.mark.half .glyph {
+  background: linear-gradient(to right, currentColor 50%, transparent 50%);
+}
+
+.mark.zero {
+  color: var(--answer-incorrect);
+}
+
+.hoverable {
+  position: relative;
+}
+
+.hoverable .tip {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--type-caption);
+  font-weight: 400;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  display: none;
+  z-index: 5;
+}
+
+.hoverable:hover .tip,
+.hoverable:focus-within .tip {
+  display: block;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(26 31 43 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 10;
+}
+
+.dialog {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 28px;
+  max-width: 680px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 0;
+  min-height: calc(100vh - 57px);
+}
+
+.split .chat {
+  padding: 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.split .panel {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bubble {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.bubble.student {
+  background: var(--sunken);
+}
+
+.composer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+}
+
+.composer input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font: inherit;
+  background: transparent;
+}
+
+.composer.locked {
+  background: var(--sunken);
+  color: var(--ink-faint);
+}
+
+.banner {
+  background: var(--sunken);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+}
+
+.error {
+  background: var(--answer-incorrect-surface);
+  color: var(--answer-incorrect);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: var(--type-label);
+}

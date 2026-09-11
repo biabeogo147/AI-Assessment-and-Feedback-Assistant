@@ -222,15 +222,22 @@ Vào: `note` (tuỳ chọn). Ra: `report_id`.
 
 ## Ordered Tasks
 
-- [ ] Chốt schema Postgres và viết `docs/overview/data-model.md` **trước** khi viết model.
-- [ ] Danh tính tạm: middleware đọc token dev, dựng đủ phân quyền hai vai.
-- [ ] Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*.
-- [ ] Pha 1 đầu-cuối: bắt đầu, lưu từng câu, nộp, chấm, màn kết quả.
-- [ ] Gỡ `grade_submission` khỏi luồng; giữ contract cũ và ghi rõ là legacy.
-- [ ] Pha 2: remediation, chat (job + SSE), lượt, chấm lượt, chốt ba mức điểm.
-- [ ] Báo cáo *giải thích khó hiểu*: lưu và đọc được.
-- [ ] Kiểm đầu ra agent ở BE; test cho cả ba luật của ADR-18.
-- [ ] Cập nhật `architecture.md`, `backlog.md`, và chuyển hai dòng invariant sang nhóm tự động.
+- [x] Chốt schema Postgres. **Đổi thứ tự có chủ đích**: schema sống trong `be/models.py` với lý do
+      viết ngay tại chỗ, còn `docs/overview/data-model.md` viết sau khi nó chạy — một tài liệu schema
+      viết trước khi có bảng nào là đúng thứ `AGENTS.md` cấm tạo.
+- [x] Danh tính tạm: `be/identity.py` đọc header `X-Actor`, phân quyền hai vai là thật.
+- [ ] Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*. **Chưa làm** —
+      dữ liệu mẫu tạo sẵn một đề đã phát hành, nên luồng học sinh chạy được mà chưa cần bề mặt này.
+- [x] Pha 1 đầu-cuối: bắt đầu, lưu từng câu, nộp, chấm, màn kết quả.
+- [x] Gỡ `grade_submission` khỏi luồng; dời sang `agent/legacy_grading.py` và ghi rõ là legacy.
+- [x] Pha 2: remediation, chat (job + SSE), lượt, chấm lượt, chốt ba mức điểm.
+- [x] Báo cáo *giải thích khó hiểu*: lưu được; **chỗ giáo viên đọc thì chưa có** (ngoài phạm vi).
+- [x] Kiểm đầu ra agent ở BE; test cho cả ba luật của ADR-18.
+- [x] Mười hai màn học sinh ở FE, thay cho màn demo cũ.
+- [x] Cập nhật `architecture.md`, `local-development.md`, `services/fe/AGENTS.md`, và bốn ADR trích
+      dẫn màn demo vừa bị thay.
+- [ ] Chuyển hai dòng invariant sang nhóm tự động. **Chưa làm** — chúng thuộc UC-05, vẫn ngoài phạm vi.
+- [ ] **Gọi 1 subagent review** — ba mặt: code và test, tài liệu, và **UI thật trên trình duyệt**.
 - [ ] **Gọi 1 subagent review** — ba mặt, không chỉ code: (a) code và test, (b) tài liệu có còn khớp
       không sau khi code chạy, (c) **UI thật trên trình duyệt**, mở `http://localhost:5173` và đi
       hết luồng chứ không chỉ đọc JSX. Sửa theo phát hiện, hoặc phản bác có lý do.

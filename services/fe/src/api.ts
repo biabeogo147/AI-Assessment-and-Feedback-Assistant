@@ -1,124 +1,297 @@
 /**
  * Client for the BE API.
  *
- * Requests go to relative `/api` paths, which the Vite dev server proxies to BE.
- * Nothing here talks to AGENT: the frontend does not know that service exists.
+ * Requests go to relative `/api` paths, which the Vite dev server proxies to
+ * BE. Nothing here talks to AGENT: the frontend does not know that service
+ * exists.
+ *
+ * These types are a hand-written mirror of BE's response models. TypeScript
+ * cannot detect drift across the wire, so changing one side means changing
+ * both in the same change set.
+ *
+ * Two things this module deliberately does NOT do. It computes no deadline
+ * verdict -- `warn_cut` and `can_start_round` arrive decided, because
+ * comparing instants is ADR-15's rule and it belongs to BE. And it derives no
+ * status from dates, because two machines with different clocks would then
+ * show one assignment in two states.
  */
 
-export type ReviewReason =
-  | "low_confidence"
-  | "answer_explanation_conflict"
-  | "insufficient_evidence"
-  | "anomaly";
-
-export interface GradedResult {
-  submission_id: string;
-  score: number;
-  confidence: number;
-  misconception_code: string | null;
-  feedback_text: string;
-  needs_teacher_review: boolean;
-  review_reason: ReviewReason | null;
+/** Identity for the strip every screen carries (ADR-13). */
+export interface Me {
+  student_id: string;
+  full_name: string;
+  class_name: string;
+  student_code: string;
 }
 
-export interface JobStatusResponse {
-  job_id: string;
+/** One row of the assignment list. `status` and `actions` arrive decided. */
+export interface Assignment {
+  assignment_id: string;
+  attempt_id: string | null;
+  title: string;
+  subject: string;
+  question_count: number;
+  phase1_minutes: number;
+  opens_at: string;
+  closes_at: string;
+  remediation_deadline: string;
   status: string;
-  result: GradedResult | null;
+  wrong_count: number | null;
+  actions: string[];
 }
 
-export interface SubmissionInput {
-  selectedOptionId: string;
-  explanation: string;
+export interface Option {
+  option_id: string;
+  label: string;
+  text: string;
 }
 
-/** Human-readable labels for the four Teacher Review control points. */
-export const REVIEW_REASON_LABELS: Record<ReviewReason, string> = {
-  low_confidence: "Độ tin cậy thấp",
-  answer_explanation_conflict: "Đáp án và cách làm không khớp",
-  insufficient_evidence: "Không đủ căn cứ",
-  anomaly: "Trường hợp bất thường",
+export interface Question {
+  question_id: string;
+  order: number;
+  stem: string;
+  options: Option[];
+  chosen_option_id: string | null;
+}
+
+export interface Attempt {
+  attempt_id: string;
+  title: string;
+  started_at: string;
+  ends_at: string;
+  questions: Question[];
+}
+
+export interface SubmitResult {
+  attempt_id: string;
+  submitted_at: string;
+  phase1_score: number;
+  question_count: number;
+  wrong_question_ids: string[];
+}
+
+/** One remediation round of one question, printed on the score sheet. */
+export interface RoundEntry {
+  index: number;
+  stem: string;
+  outcome: string;
+}
+
+export interface ResultItem {
+  question_id: string;
+  order: number;
+  stem: string;
+  mark: number;
+  mark_reason: string;
+  rounds: RoundEntry[];
+}
+
+export interface AttemptResult {
+  attempt_id: string;
+  title: string;
+  state: string;
+  total_score: number;
+  question_count: number;
+  submitted_at: string | null;
+  remediation_deadline: string;
+  items: ResultItem[];
+}
+
+export interface RemediationItem {
+  question_id: string;
+  order: number;
+  stem: string;
+  chosen: { label: string; text: string } | null;
+  correct: { label: string; text: string };
+  rounds_used: number;
+  rounds_max: number;
+}
+
+export interface Remediation {
+  attempt_id: string;
+  deadline: string;
+  minutes_per_question: number;
+  round_budget_minutes: number;
+  can_start_round: boolean;
+  warn_cut: boolean;
+  open_round_id: string | null;
+  remaining: RemediationItem[];
+}
+
+export interface Solution {
+  question_id: string;
+  stem: string;
+  methods: { title: string; body: string }[];
+  options: { label: string; text: string; is_correct: boolean; error_label: string | null }[];
+}
+
+export interface ChatMessage {
+  message_id: string;
+  role: string;
+  text: string;
+  created_at: string;
+}
+
+export interface ChatHistory {
+  attempt_id: string;
+  locked: boolean;
+  messages: ChatMessage[];
+}
+
+export interface RoundItem {
+  round_item_id: string;
+  origin_question_id: string;
+  order: number;
+  stem: string;
+  options: Option[];
+  chosen_label: string | null;
+}
+
+export interface OpenRound {
+  round_id: string;
+  index: number;
+  ends_at: string;
+  items: RoundItem[];
+}
+
+export interface RoundVerdict {
+  round_id: string;
+  per_question: {
+    question_id: string;
+    outcome: string;
+    new_mark: number;
+    rounds_used: number;
+    rounds_left: number;
+  }[];
+  attempt_state: string;
+}
+
+/**
+ * Stand-in for a sign-in screen, which ADR-10 left out of the first round.
+ *
+ * BE authorises for real on the strength of this value; only the proof of
+ * identity is temporary. It lives in one constant so the day sign-in arrives,
+ * there is exactly one call site to change.
+ */
+export const ACTOR = "student:HS2026-1204";
+
+function headers(): HeadersInit {
+  return { "Content-Type": "application/json", "X-Actor": ACTOR };
+}
+
+/**
+ * Send one request and turn a failure into an error worth showing.
+ *
+ * @param path - Path below `/api`.
+ * @param init - Fetch options; the actor header is added here.
+ * @returns The parsed body.
+ * @throws Error carrying BE's `detail` when the response is not ok, because
+ *   every refusal in this API explains itself in Vietnamese and that sentence
+ *   is more useful to a student than a status code.
+ */
+async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`/api${path}`, { ...init, headers: headers() });
+  if (!response.ok) {
+    let detail = `Lỗi ${response.status}`;
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      /* a non-JSON error body is still an error; keep the status text */
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as T;
+}
+
+export const api = {
+  me: () => call<Me>("/me"),
+  assignments: () => call<Assignment[]>("/me/assignments"),
+  startAttempt: (assignmentId: string) =>
+    call<Attempt>(`/assignments/${assignmentId}/attempts`, { method: "POST" }),
+  saveAnswer: (attemptId: string, questionId: string, optionId: string) =>
+    call<{ saved_at: string }>(`/attempts/${attemptId}/answers/${questionId}`, {
+      method: "PUT",
+      body: JSON.stringify({ option_id: optionId }),
+    }),
+  submit: (attemptId: string) =>
+    call<SubmitResult>(`/attempts/${attemptId}/submit`, { method: "POST" }),
+  result: (attemptId: string) => call<AttemptResult>(`/attempts/${attemptId}/result`),
+  remediation: (attemptId: string) => call<Remediation>(`/attempts/${attemptId}/remediation`),
+  solution: (questionId: string) => call<Solution>(`/questions/${questionId}/solution`),
+  chat: (attemptId: string) => call<ChatHistory>(`/attempts/${attemptId}/chat`),
+  postChat: (attemptId: string, text: string) =>
+    call<{ message_id: string; stream_url: string }>(`/attempts/${attemptId}/chat/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  startRound: (attemptId: string) =>
+    call<OpenRound>(`/attempts/${attemptId}/rounds`, { method: "POST" }),
+  saveRoundAnswer: (roundId: string, itemId: string, label: string) =>
+    call<{ saved_at: string }>(`/rounds/${roundId}/answers/${itemId}`, {
+      method: "PUT",
+      body: JSON.stringify({ label }),
+    }),
+  submitRound: (roundId: string) =>
+    call<RoundVerdict>(`/rounds/${roundId}/submit`, { method: "POST" }),
+  report: (attemptId: string, note: string | null) =>
+    call<{ report_id: string }>(`/attempts/${attemptId}/reports`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
 };
 
-const POLL_INTERVAL_MS = 1000;
-const POLL_TIMEOUT_MS = 30000;
-
 /**
- * Send a submission to BE and get back the id of its grading job.
+ * Read the assistant's next turn as it arrives.
  *
- * @param input - The chosen option and the student's explanation. An empty
- *   explanation is sent as null, because "did not explain" and "explained
- *   nothing" are different cases to the grader.
- * @returns The job id to poll.
- * @throws Error when BE rejects the submission, typically because Redis is down.
+ * Server-sent events are an accelerant for how the answer feels, not a source
+ * of truth: BE stores the turn before the first chunk leaves, so a dropped
+ * connection costs the animation and never the message. Callers reload the
+ * history afterwards rather than trusting what they assembled here.
+ *
+ * @param attemptId - Whose conversation.
+ * @param onChunk - Called with each fragment, in order.
+ * @returns A promise settling when the stream ends.
+ * @throws Error when the stream cannot be opened.
  */
-export async function submitAnswer(input: SubmissionInput): Promise<string> {
-  const response = await fetch("/api/submissions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      submission_id: crypto.randomUUID(),
-      assessment_id: "asm-demo",
-      question_id: "q-1",
-      student_id: "stu-demo",
-      selected_option_id: input.selectedOptionId,
-      student_explanation: input.explanation.length > 0 ? input.explanation : null,
-      learning_objective: "fraction-addition",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Không gửi được bài: ${response.status}`);
+export async function streamReply(
+  attemptId: string,
+  onChunk: (text: string) => void,
+): Promise<void> {
+  const response = await fetch(`/api/attempts/${attemptId}/chat/stream`, { headers: headers() });
+  if (!response.ok || response.body === null) {
+    throw new Error("Trợ lý chưa trả lời được.");
   }
 
-  const body = (await response.json()) as { job_id: string };
-  return body.job_id;
-}
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
 
-/**
- * Read a grading job once.
- *
- * @param jobId - Identifier returned by submitAnswer.
- * @returns The job's current status, plus its result once complete.
- * @throws Error when BE has no record of the job.
- */
-export async function fetchJob(jobId: string): Promise<JobStatusResponse> {
-  const response = await fetch(`/api/jobs/${jobId}`);
-  if (!response.ok) {
-    throw new Error(`Không đọc được job: ${response.status}`);
-  }
-  return (await response.json()) as JobStatusResponse;
-}
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
 
-/**
- * Poll a grading job until it produces a result.
- *
- * Grading runs through a queue, so the result is not available on the response
- * to the submission itself.
- *
- * @param jobId - Identifier returned by submitAnswer.
- * @param sleep - Injectable delay, so tests need not wait in real time.
- * @returns The graded result.
- * @throws Error if the job has not completed within the timeout, which usually
- *   means the AGENT worker is not running.
- */
-export async function waitForResult(
-  jobId: string,
-  sleep: (ms: number) => Promise<void> = defaultSleep,
-): Promise<GradedResult> {
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const job = await fetchJob(jobId);
-    if (job.result !== null) {
-      return job.result;
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    for (const event of events) {
+      const isChunk = event.includes("event: chunk");
+      const line = event.split("\n").find((part) => part.startsWith("data: "));
+      if (isChunk && line) onChunk(line.slice("data: ".length));
     }
-    await sleep(POLL_INTERVAL_MS);
   }
-
-  throw new Error("Hết thời gian chờ chấm bài. Kiểm tra xem AGENT worker có đang chạy không.");
 }
 
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** Format an ISO instant the way every screen shows it: `HH:MM · DD/MM`. */
+export function moment(iso: string): string {
+  const at = new Date(iso);
+  const two = (value: number) => String(value).padStart(2, "0");
+  return `${two(at.getHours())}:${two(at.getMinutes())} · ${two(at.getDate())}/${at.getMonth() + 1}`;
+}
+
+/** Format the seconds left as `MM:SS`, clamped at zero. */
+export function countdown(msLeft: number): string {
+  const seconds = Math.max(0, Math.floor(msLeft / 1000));
+  const two = (value: number) => String(value).padStart(2, "0");
+  return `${two(Math.floor(seconds / 60))}:${two(seconds % 60)}`;
 }

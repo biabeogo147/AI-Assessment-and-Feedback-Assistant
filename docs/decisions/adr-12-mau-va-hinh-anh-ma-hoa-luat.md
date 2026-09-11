@@ -71,5 +71,7 @@ Thang tin cậy không màu là hệ quả trực tiếp của ADR-06. Nếu FE 
   màu đi vẫn đọc được. Cảnh báo *lượt có thể bị DỪNG* cũng không dùng hổ phách: một lượt sắp hết giờ
   không phải việc **cần người**.
 - **Chưa có lint hay test** nào chặn việc dùng sai hai màu này ở code.
-- `services/fe/src/App.tsx:89` dùng đỏ thô `#a11` cho lỗi hệ thống thay vì token. Hợp luật về nghĩa,
-  sai về nguồn màu — màn hình demo chưa dùng token nào.
+- `services/fe/src/tokens.css` — toàn bộ bảng màu chép từ collection `Color`, giữ nguyên tên biến để
+  lệch là một lần đổi tên chứ không phải một cuộc truy tìm. Không còn hex thô nào ở FE; `#a11` của
+  màn demo cũ đã đi cùng màn đó. Mức 0,5 dùng `--ink` và phân biệt bằng hình tròn đầy / nửa / rỗng,
+  nên bỏ màu đi vẫn đọc được.

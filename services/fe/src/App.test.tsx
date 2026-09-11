@@ -1,111 +1,95 @@
 /**
- * FE behaviour around the grading round trip.
+ * Frontend behaviour that a rule depends on.
  *
- * `fetch` is stubbed so these tests describe how the UI reacts to BE's
- * responses, without needing BE, Redis or AGENT to be running.
+ * These tests do not check that a screen looks right; they check the three
+ * places where the interface could take a decision away from BE. Everything
+ * else about the screens is verified by looking at them.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import App from "./App";
-import { REVIEW_REASON_LABELS, waitForResult } from "./api";
+import { countdown, moment } from "./api";
+import Result from "./screens/Result";
 
-function stubFetch(result: unknown) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
-    if (url.includes("/api/submissions")) {
-      return new Response(JSON.stringify({ job_id: "job-1", submission_id: "sub-1" }), {
-        status: 202,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    return new Response(JSON.stringify({ job_id: "job-1", status: "complete", result }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+const ME = {
+  student_id: "s1",
+  full_name: "Nguyễn Minh Anh",
+  class_name: "12A",
+  student_code: "HS2026-1204",
+};
+
+function resultPayload(state: string, markReason: string) {
+  return {
+    attempt_id: "a1",
+    title: "Kiểm tra 15 phút — Hàm số",
+    state,
+    total_score: 4.5,
+    question_count: 6,
+    submitted_at: "2026-09-15T07:12:00+00:00",
+    remediation_deadline: "2026-09-15T15:00:00+00:00",
+    items: [
+      {
+        question_id: "q4",
+        order: 4,
+        stem: "Cho hàm số y = x³ − 3x.",
+        mark: 0,
+        mark_reason: markReason,
+        rounds: [],
+      },
+    ],
+  };
+}
+
+function stubFetch(payload: unknown) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify(payload), { status: 200 })),
+  );
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.restoreAllMocks();
 });
 
-describe("review reason labels", () => {
-  it("covers every reason BE can return", () => {
-    expect(Object.keys(REVIEW_REASON_LABELS).sort()).toEqual([
-      "anomaly",
-      "answer_explanation_conflict",
-      "insufficient_evidence",
-      "low_confidence",
-    ]);
+describe("the score sheet", () => {
+  it("offers to raise a zero only while phase 2 is open", async () => {
+    stubFetch(resultPayload("cần-chữa", "chưa-chữa"));
+    render(<Result me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    // Twice on purpose: the banner names the action, the mark's hover explains
+    // the zero. Both disappear together when phase 2 closes.
+    expect(screen.getAllByText(/có thể nâng điểm/).length).toBe(2);
+  });
+
+  it("promises nothing about a zero once the deadline has passed", async () => {
+    stubFetch(resultPayload("hết-hạn-chữa", "chưa-chữa"));
+    render(<Result me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    expect(screen.queryAllByText(/có thể nâng điểm/).length).toBe(0);
+  });
+
+  it("shows no score reason in the page body, only on hover", async () => {
+    stubFetch(resultPayload("cần-chữa", "chữa-được"));
+    const { container } = render(<Result me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    const tip = container.querySelector(".tip");
+    expect(tip).not.toBeNull();
+    // The explanation exists but is hidden until the mark is hovered (ADR-16).
+    expect(tip?.parentElement?.className).toContain("hoverable");
   });
 });
 
-describe("waitForResult", () => {
-  it("keeps polling until a result appears", async () => {
-    let calls = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        calls += 1;
-        const body =
-          calls < 3
-            ? { job_id: "job-1", status: "in_progress", result: null }
-            : { job_id: "job-1", status: "complete", result: { submission_id: "sub-1" } };
-        return new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }),
-    );
-
-    const result = await waitForResult("job-1", async () => {});
-    expect(result.submission_id).toBe("sub-1");
-    expect(calls).toBe(3);
-  });
-});
-
-describe("App", () => {
-  it("shows the review banner with its reason when BE flags a submission", async () => {
-    stubFetch({
-      submission_id: "sub-1",
-      score: 0,
-      confidence: 0.55,
-      misconception_code: null,
-      feedback_text: "Chua co phan giai thich.",
-      needs_teacher_review: true,
-      review_reason: "low_confidence",
-    });
-
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /nộp bài/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/cần giáo viên xem lại/i)).toBeDefined();
-    });
-    expect(screen.getByText(/độ tin cậy thấp/i)).toBeDefined();
+describe("formatting", () => {
+  it("writes an instant the way every screen writes it", () => {
+    expect(moment("2026-09-15T22:00:00")).toBe("22:00 · 15/9");
   });
 
-  it("stays quiet when no review is needed", async () => {
-    stubFetch({
-      submission_id: "sub-1",
-      score: 1,
-      confidence: 0.92,
-      misconception_code: null,
-      feedback_text: "Dap an dung.",
-      needs_teacher_review: false,
-      review_reason: null,
-    });
-
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /nộp bài/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/không cần giáo viên xem lại/i)).toBeDefined();
-    });
+  it("clamps a finished countdown at zero rather than going negative", () => {
+    expect(countdown(-5000)).toBe("00:00");
+    expect(countdown(65000)).toBe("01:05");
   });
 });

@@ -79,6 +79,7 @@ dạy giáo viên lo lắng nhầm chỗ.
 - **Chưa có test** nào canh luật vắng mặt về cấu trúc.
 - **Đang bị vi phạm ở code.** `services/be/src/be/routes.py:125-136` trả đúng **một** hình dạng
   `GradedResult`, luôn kèm `score`, `confidence`, `misconception_code` và `feedback_text`, bất kể
-  `needs_teacher_review`. `services/fe/src/App.tsx:94-113` — màn hình nộp bài thử — hiện Điểm, Độ tin
-  cậy và Nhận xét trước, rồi mới hiện băng *"Cần giáo viên xem lại"*. Đó là màn hình demo, không phải
-  trải nghiệm học sinh thật, nhưng nó là nợ phải trả trước khi dựng màn hình học sinh.
+  `needs_teacher_review`. **Phía FE thì hết vi phạm**: màn demo từng hiện Điểm, Độ tin cậy và Nhận
+  xét đã bị thay bằng luồng học sinh thật, và `services/be/tests/test_core_flow.py` có test quét mọi
+  response của học sinh để chắc ba trường ấy không lọt ra. Đường `/api/submissions` vẫn trả hình
+  dạng cũ, nhưng không màn hình nào gọi nó nữa.

@@ -54,7 +54,8 @@ Nếu lệnh này lỗi thì mọi bước phía sau đều sẽ hỏng, đừng
 
 ## Chạy hệ thống
 
-Redis lên trước, vì cả BE lẫn AGENT đều chết lúc khởi động nếu không kết nối được:
+Redis và Postgres lên trước. BE và AGENT đều chết lúc khởi động nếu không kết nối được Redis; BE
+cũng chết nếu không có Postgres, vì trạng thái bài làm sống ở đó (ADR-21):
 
 ```powershell
 .\dev.ps1 infra-up
@@ -76,6 +77,7 @@ Rồi mở ba terminal, mỗi terminal một service:
 | 5173 | FE, Vite dev server |
 | 8000 | BE, FastAPI |
 | 6379 | Redis, trong Docker |
+| 5432 | Postgres, trong Docker |
 
 ## Xác minh từng thành phần
 
@@ -90,7 +92,7 @@ curl -o NUL -w "%{http_code}" http://localhost:5173/   # 200
 Với AGENT, không có endpoint nào để gọi, nên bằng chứng nó sống là dòng log lúc khởi động:
 
 ```text
-Starting worker for 1 functions: grade_submission
+Starting worker for 4 functions: draft_assessment, generate_retry_question, explain_turn, grade_submission
 AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0
 ```
 
@@ -98,59 +100,58 @@ Dòng thứ hai in ra tên queue có chủ đích. Nếu BE và AGENT đọc hai
 
 ## Demo
 
-Mở `http://localhost:5173`. Câu hỏi mẫu là `1/2 + 1/3`, đáp án đúng là phương án A.
+Mở `http://localhost:5173`. Lần chạy đầu, BE tự tạo dữ liệu mẫu đúng bằng câu chuyện trong file
+thiết kế: lớp 12A, học sinh **Nguyễn Minh Anh** (`HS2026-1204`), và bài **Kiểm tra 15 phút — Hàm số**
+sáu câu, đã phát hành.
 
-Phần chấm hiện tại là **placeholder có chủ đích**, chưa gọi LLM. Nó được viết sao cho mỗi nhánh Teacher Review đều tái hiện được bằng một thao tác cụ thể. Năm trường hợp dưới đây là kết quả thật:
+Chưa có màn đăng nhập (ADR-10), nên FE tự xưng danh bằng header `X-Actor: student:HS2026-1204`. Đổi
+mã trong `ACTOR` của `services/fe/src/api.ts` để vào vai học sinh khác — phân quyền là thật, chỉ cách
+chứng minh danh tính là tạm.
 
-| Bạn làm gì | score | confidence | Cần review | Lý do |
-| --- | --- | --- | --- | --- |
-| Chọn A, viết giải thích đầy đủ | 1.0 | 0.92 | không | |
-| Chọn A, **để trống** giải thích | 1.0 | 0.55 | có | `low_confidence` |
-| Chọn A, giải thích dưới 15 ký tự | 1.0 | 0.60 | có | `answer_explanation_conflict` |
-| Chọn A, giải thích chỉ gồm dấu cách | 1.0 | 0.30 | có | `insufficient_evidence` |
-| Chọn C, viết giải thích đầy đủ | 0.0 | 0.88 | không | kèm `misconception_code` |
+Đi hết luồng lõi:
 
-Giá trị thứ tư của `ReviewReason` là `anomaly`, hiện **chưa sinh ra được** vì nó cần lịch sử làm bài của học sinh, mà hệ thống chưa lưu gì. Nó nằm sẵn trong enum để lúc thêm không phải đổi contract.
+1. **Bài của tôi** — hàng đầu là bài đã phát hành, nút *Bắt đầu*.
+2. **Làm bài** — chọn phương án, đồng hồ chạy, *Nộp bài*. Chấm xong ngay: không có màn chờ chấm, vì
+   BE chấm bằng một phép so ([ADR-20](decisions/adr-20-cham-trac-nghiem-thuoc-be.md)).
+3. **Kết quả** — điểm pha 1 là **sàn**. Hover vào dấu điểm để đọc lý do; câu 0 điểm nói *có thể nâng
+   điểm*, câu 0,5 nói *đã làm đúng câu mới cùng dạng*.
+4. **Hỏi trợ lý** — panel phải liệt kê mọi câu sai kèm đáp án đúng; *Xem lời giải đầy đủ* mở hộp
+   thoại. Trợ lý chào một câu rồi chờ; gõ *"câu 4 em chưa hiểu"* để nó giải thích theo lỗi đã soạn
+   sẵn. Chữ hiện dần qua SSE.
+5. **Làm bài mới** — hộp cổng đọc lại số câu, số phút và hạn, rồi mở một lượt. Làm đúng thì câu gốc
+   lên 0,5; sai ba lượt thì chốt 0.
 
-Chú ý dòng cuối bảng: đáp án sai nhưng **không** cần giáo viên review. Đó không phải lỗi — hệ thống tự tin rằng học sinh sai, và điều cần giáo viên là khi hệ thống *không chắc*, chứ không phải khi học sinh sai.
+Muốn thấy ca *sắp hết hạn* — cảnh báo lượt có thể bị **DỪNG** — thì sửa `remediation_deadline` của
+hàng trong bảng `publications` về gần hiện tại rồi tải lại màn hỏi trợ lý.
+
+**AGENT là mock.** Nó không gọi model nào: ba handler trả nội dung soạn sẵn, tất định. Cái chạy thật
+là ranh giới, hợp đồng và luật chấm điểm.
 
 ### Gọi thẳng API, không qua giao diện
 
-Chấm bài chạy bất đồng bộ nên có hai bước: nộp rồi hỏi kết quả.
+```powershell
+$h = @{ "X-Actor" = "student:HS2026-1204"; "Content-Type" = "application/json" }
+Invoke-RestMethod http://localhost:8000/api/me/assignments -Headers $h
+```
+
+Nộp bài rồi đọc bảng điểm:
 
 ```powershell
-curl -X POST http://localhost:8000/api/submissions `
-  -H "Content-Type: application/json" `
-  -d '{\"submission_id\":\"sub-1\",\"assessment_id\":\"asm-1\",\"question_id\":\"q-1\",\"student_id\":\"stu-1\",\"selected_option_id\":\"opt-a\",\"student_explanation\":null,\"learning_objective\":\"fraction-addition\"}'
+$a = Invoke-RestMethod -Method Post "http://localhost:8000/api/assignments/<assignment_id>/attempts" -Headers $h
+Invoke-RestMethod -Method Post "http://localhost:8000/api/attempts/$($a.attempt_id)/submit" -Headers $h
+Invoke-RestMethod "http://localhost:8000/api/attempts/$($a.attempt_id)/result" -Headers $h
 ```
 
-Lệnh trên trả về `job_id`. Dùng nó để hỏi kết quả:
+Một điều đáng để ý ở mọi response phía học sinh: **không có** `confidence`, `misconception_code` hay
+lý do review ([ADR-08](decisions/adr-08-bon-loai-nghi-ngo.md)), và **không có** `is_correct` trước
+khi bài được nộp.
 
-```powershell
-curl http://localhost:8000/api/jobs/<job_id>
-```
+Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) vẫn còn cho tới khi hàng đợi
+review của giáo viên được thiết kế. Nó **không** nằm trong luồng lõi nữa; đừng đọc nó như cách hệ
+thống chấm bài.
 
-Khi chưa xong, `result` là `null` và `status` là `queued` hoặc `in_progress`. Khi xong:
-
-```json
-{
-  "job_id": "...",
-  "status": "complete",
-  "result": {
-    "submission_id": "sub-1",
-    "score": 1.0,
-    "confidence": 0.55,
-    "misconception_code": null,
-    "feedback_text": "Chua co phan giai thich nen he thong chi danh gia duoc dap an.",
-    "needs_teacher_review": true,
-    "review_reason": "low_confidence"
-  }
-}
-```
-
-`needs_teacher_review` và `review_reason` **không** do AGENT sinh ra. AGENT chỉ báo `score`, `confidence` và `misconception_code`; BE mới so ngưỡng `REVIEW_CONFIDENCE_THRESHOLD` rồi quyết định. Đổi ngưỡng trong `.env` và khởi động lại BE là kết quả cũ đổi theo ngay, vì ngưỡng được áp lúc đọc chứ không lưu kèm.
-
-OpenAPI đầy đủ có sẵn tại `http://localhost:8000/docs`, sinh tự động, không có bản viết tay nào cần đồng bộ.
+OpenAPI đầy đủ có sẵn tại `http://localhost:8000/docs`, sinh tự động, không có bản viết tay nào cần
+đồng bộ.
 
 ## Dừng hệ thống
 
