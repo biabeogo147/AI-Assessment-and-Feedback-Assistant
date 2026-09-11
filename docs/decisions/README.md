@@ -28,6 +28,8 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [17](adr-17-ba-vong-moi-cau.md) | Ba vòng cho mỗi câu; biến thể sinh từ chính câu đó | đã chốt (Figma xong, backend chưa) |
 | [18](adr-18-cau-hoi-phai-kem-loi-giai.md) | Câu hỏi phải kèm lời giải nhiều cách và nhiễu gắn lỗi | đã chốt (Figma xong, contract chưa) |
 | [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt (nửa học sinh xong; giáo viên chưa) |
+| [20](adr-20-cham-trac-nghiem-thuoc-be.md) | Chấm trắc nghiệm là việc của BE, không của AGENT | đã chốt, chưa thi hành |
+| [21](adr-21-trang-thai-bai-lam-la-ben.md) | Trạng thái bài làm là bền; hạn một giờ chỉ áp cho job | đã chốt, chưa thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.
@@ -64,6 +66,9 @@ Còn lại, và cố ý chưa viết:
   đã **bỏ khỏi đợt này**, ghi nợ để làm sau; và vòng đếm cùng đồng hồ ứng xử ra sao khi học sinh mở
   hai tab. Mức điểm 0,5 thì đã hết là câu hỏi: ADR-16 chốt nó **không được cấp màu mới**, phân biệt
   bằng hình tròn đầy / nửa / rỗng.
+- **Hạn lưu trữ dài hạn của bài làm** — ADR-21 chốt trạng thái bài làm là bền, nhưng *bền tới bao
+  giờ* thì chưa ai quyết. Một học kỳ, một năm, hay tới khi giáo viên xoá lớp: ba câu trả lời khác
+  nhau kéo theo ba nghĩa vụ pháp lý khác nhau về dữ liệu của trẻ em.
 - **Màn hình Bảng theo dõi** — chưa thiết kế, nên chưa có luật nào để ghi.
 - **Luồng nhập CSV danh sách lớp** — chỗ duy nhất mật khẩu ban đầu được phép hiện. ADR-13 đã
   chốt luật, nhưng màn hình chưa dựng.
