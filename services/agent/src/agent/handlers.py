@@ -589,16 +589,26 @@ async def explain(ctx: dict, payload: dict) -> dict:
 
     channel = request.stream_channel
     redis = ctx.get("redis")
+    said: list[str] = []
 
     async def publish(piece: str) -> None:
+        said.append(piece)
         await redis.publish(channel, piece)
 
     try:
         text = await speak(request, publish if channel and redis is not None else None)
     except Exception:
-        # A model that fails mid-sentence must not cost the student their turn.
-        # The prepared answer is worse; it is also an answer.
-        logger.exception("model failed on the tutoring turn; falling back to prepared content")
+        logger.exception("model failed on the tutoring turn")
+        if said:
+            # Those words are already on the student's screen. Substituting the
+            # prepared answer now would store a different reply from the one
+            # they watched appear, and they would find it on the next reload
+            # with no explanation. A truncated answer that matches what they
+            # read is the honest one; asking again is one click.
+            return ExplainTurnCompleted(
+                request_id=request.request_id, text="".join(said)
+            ).model_dump(mode="json")
+        # Nothing reached anybody, so there is nothing to contradict.
         return explain_turn(request).model_dump(mode="json")
 
     return ExplainTurnCompleted(request_id=request.request_id, text=text).model_dump(mode="json")

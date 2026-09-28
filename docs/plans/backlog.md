@@ -380,3 +380,21 @@ món nợ đã biết giá.
 
 Chọn cái nào là một quyết định **nghiệp vụ**, nên khi chọn phải viết thành ADR chứ không nhét vào
 plan.
+
+### Không ai chặn Markdown và LaTeX, chỉ có prompt xin
+
+Ghi từ pha 2 của [plan 2026-09-29](active/2026-09-29-agent-real-model-plan.md). Prompt của trợ lý
+cấm LaTeX và Markdown, nhưng **không dòng code nào kiểm**. `Turn` trong
+`services/fe/src/screens/Tutor.tsx` in thẳng `text` vào JSX — không parser, không
+`dangerouslySetInnerHTML` — nên model lỡ trả `**in đậm**` hay `\(x²\)` là học sinh đọc nguyên ký tự.
+
+Cả hai đã thật sự xảy ra trong hai lần gọi model đầu tiên, nên đây không phải nỗi lo lý thuyết. Sau
+mỗi lần sửa prompt thì tắt, nhưng một luật chỉ sống trong prompt là một luật không có nơi thi hành.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Chặn hoặc biến đổi Markdown/LaTeX trước khi lưu | Không bị chặn. Chưa quyết định *chặn* hay *dựng hình* |
+
+Hai đường, và chúng dẫn đi rất khác nhau: **lọc** ở AGENT trước khi trả (rẻ, nhưng dấu `*` còn là
+phép nhân, nên lọc ngây thơ sẽ ăn cả toán), hoặc **dựng hình** ở FE (đắt hơn, nhưng lúc đó công
+thức hiện ra đẹp và ta thôi phải xin model đừng viết đẹp).

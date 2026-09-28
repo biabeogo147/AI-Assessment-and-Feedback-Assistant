@@ -9,6 +9,7 @@ correct answers, so this is not a theoretical failure mode.
 """
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 
 from arq.connections import ArqRedis
@@ -16,6 +17,8 @@ from arq.jobs import Job, JobStatus
 
 from be.config import Settings
 from contracts import GeneratedQuestion
+
+logger = logging.getLogger(__name__)
 
 _POLL_SECONDS = 0.2
 
@@ -116,18 +119,26 @@ async def stream_task(
         raise AgentError("hàng đợi chưa sẵn sàng")
 
     pubsub = pool.pubsub()
-    await pubsub.subscribe(channel)
     try:
+        # Inside the try, so a subscribe that fails half-way still reaches the
+        # cleanup below instead of leaking a connection out of the pool.
+        await pubsub.subscribe(channel)
+
         job = await pool.enqueue_job(task_name, payload, _queue_name=settings.agent_queue_name)
         if job is None:
             raise AgentError(f"arq refused task {task_name}")
 
+        # Refreshed on every piece, so this is a silence timer and not a
+        # length limit. A model writing a long answer is working; a model that
+        # has said nothing for the whole window is not. Cutting off an answer
+        # mid-flow because it was going well for too long would be absurd.
         deadline = asyncio.get_running_loop().time() + settings.agent_job_timeout_seconds
         while asyncio.get_running_loop().time() < deadline:
             message = await pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=_LISTEN_SECONDS
             )
             if message is not None and message.get("type") == "message":
+                deadline = asyncio.get_running_loop().time() + settings.agent_job_timeout_seconds
                 yield "chunk", _text(message["data"])
                 continue
 
@@ -158,8 +169,17 @@ async def stream_task(
         # Runs on a client disconnect too: the browser going away cancels this
         # generator, and an unclosed subscription would hold a connection from
         # the pool for the life of the process.
-        await pubsub.unsubscribe(channel)
-        await pubsub.aclose()
+        #
+        # Swallowed, because a failure while tidying up would otherwise
+        # *replace* whatever went wrong first. The caller handles AgentError
+        # and nothing else, so a ConnectionError raised here would escape a
+        # generator that has already sent its status line -- the client gets a
+        # broken stream and no reason for it.
+        try:
+            await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
+        except Exception:  # noqa: BLE001 -- cleanup must not outrank the real error
+            logger.warning("could not close the stream channel %s", channel, exc_info=True)
 
 
 def _text(data: object) -> str:
