@@ -247,10 +247,12 @@ async def collect_result(
 ) -> tuple[str, object]:
     """Look in on a job started earlier.
 
-    Three endings, not two. A job result lives in Redis for
-    `JOB_RESULT_TTL_SECONDS`; a phase 2 deadline can be days away. A student
-    who closes the tab and comes back tomorrow finds the answer gone -- and a
-    caller that only knows "done" and "not yet" would wait for it forever.
+    Four endings, and telling the last two apart is the point. A job result
+    lives in Redis for `JOB_RESULT_TTL_SECONDS`; a phase 2 deadline can be days
+    away, so "the answer aged out" is ordinary and the right response is to ask
+    again. A job that *ran and failed* is a different thing: asking again gets
+    the same failure, and a caller that cannot tell the two apart re-queues a
+    broken job every time the student opens a screen, forever, quietly.
 
     Args:
         pool: Connected arq pool, or None when the queue was unreachable.
@@ -258,9 +260,9 @@ async def collect_result(
         job_id: What `enqueue_task` returned.
 
     Returns:
-        `("ready", result)`, `("pending", None)`, or `("expired", None)` when
-        the job is gone from Redis entirely -- aged out, or failed and swept
-        away. The caller asks again; there is nothing left to wait for.
+        `("ready", result)` with the reply; `("pending", None)` while it runs;
+        `("gone", None)` when Redis no longer has it, which is worth asking
+        again; `("failed", None)` when it ran and raised, which is not.
     """
     if pool is None:
         return "pending", None
@@ -268,13 +270,15 @@ async def collect_result(
     job = Job(job_id, redis=pool, _queue_name=settings.agent_queue_name)
     status = await job.status()
     if status is JobStatus.not_found:
-        return "expired", None
+        return "gone", None
     if status is not JobStatus.complete:
         return "pending", None
 
     info = await job.result_info()
-    if info is None or not info.success:
-        return "expired", None
+    if info is None:
+        return "gone", None
+    if not info.success:
+        return "failed", None
     return "ready", info.result
 
 

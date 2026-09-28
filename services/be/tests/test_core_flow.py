@@ -673,7 +673,7 @@ async def test_a_head_start_that_aged_out_is_started_again(
     first_round = len(queue.jobs)
 
     async def gone(pool, settings, job_id) -> tuple[str, object]:
-        return "expired", None
+        return "gone", None
 
     monkeypatch.setattr(student_routes, "collect_result", gone)
 
@@ -699,3 +699,95 @@ async def test_a_dead_queue_does_not_stop_a_student_handing_in(
     assert submitted["phase1_score"] == 4.0
     opened = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
     assert opened.status_code == 201, "the on-the-spot path should still work"
+
+
+@pytest.mark.asyncio
+async def test_a_question_written_ahead_is_checked_like_any_other(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Writing ahead must not become a way around ADR-18.
+
+    The rules were enforced inside `ask_for_retry_question`, which only the
+    write-on-the-spot path goes through. From this phase on, writing ahead is
+    the normal path -- so a question with two correct answers would reach the
+    student, and BE grades a round by exactly that flag.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    queue = client._transport.app.state.queue_pool
+
+    two_right = _RETRY.model_copy(
+        update={
+            "stem": "Đề hỏng: hai đáp án đúng",
+            "options": tuple(
+                option.model_copy(update={"is_correct": True}) for option in _RETRY.options[:2]
+            )
+            + _RETRY.options[2:],
+        }
+    )
+
+    async def finished(pool, settings, job_id) -> tuple[str, object]:
+        payload = queue.payload_for(job_id)
+        return "ready", RetryQuestionCompleted(
+            request_id=payload["request_id"], question=two_right
+        ).model_dump(mode="json")
+
+    monkeypatch.setattr(student_routes, "collect_result", finished)
+    await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
+
+    opened = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
+
+    assert opened.status_code == 201
+    stems = [item["stem"] for item in opened.json()["items"]]
+    assert two_right.stem not in stems, "a malformed question reached the student"
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_written_ahead_while_a_round_is_open(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """The round screen asks this endpoint on mount, and that must cost nothing.
+
+    `rounds_used` does not move until a round is submitted, so during one the
+    next index still reads as the current round's -- which already has its
+    questions. Every job queued here would be answered, stored, never used,
+    and orphaned the moment the round is handed in.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    queue = client._transport.app.state.queue_pool
+
+    await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
+    during = len(queue.jobs)
+
+    # What Round.tsx does when it mounts, and again on every refresh.
+    await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
+    await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
+
+    assert len(queue.jobs) == during, "opening the round screen queued work nobody can use"
+
+
+@pytest.mark.asyncio
+async def test_a_job_that_failed_is_not_asked_again_forever(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """A job that ran and raised will raise the same way next time.
+
+    Deleting its row would re-queue it on every screen the student opens, for
+    as long as the bug lasts, silently. "Aged out" and "failed" are different
+    endings and only the first is worth repeating.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    queue = client._transport.app.state.queue_pool
+    after_submit = len(queue.jobs)
+
+    async def broke(pool, settings, job_id) -> tuple[str, object]:
+        return "failed", None
+
+    monkeypatch.setattr(student_routes, "collect_result", broke)
+
+    for _ in range(3):
+        await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
+
+    assert len(queue.jobs) == after_submit, "a broken job was re-queued on every visit"

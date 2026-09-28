@@ -310,10 +310,14 @@ class PregeneratedItem(Base):
     `tools/check_contract.py` keeps it that way, so BE reads the finished job
     off the queue and stores it here itself.
 
-    `status` moves `pending -> ready`, or `pending -> expired` when the job's
-    result aged out of Redis before anyone collected it -- which is a real
-    ending, not a corner case: results live an hour and a phase 2 deadline can
-    be days away. An expired row is re-asked rather than mourned.
+    `status` moves `pending -> ready`, or `pending -> failed` when the job ran
+    and raised. A job whose result simply aged out of Redis -- which is
+    ordinary, since results live an hour and a phase 2 deadline can be days
+    away -- has its row **deleted** instead, so the one rule "a question with
+    no row for the round it needs gets one queued" covers both never-started
+    and started-but-lost. `failed` is kept precisely so it is *not* re-queued:
+    the same job would fail the same way, every time the student opens a
+    screen.
 
     The unique index is not decoration. Two tabs on the tutoring screen both
     poll, both find the same finished job, and both insert; checking first and

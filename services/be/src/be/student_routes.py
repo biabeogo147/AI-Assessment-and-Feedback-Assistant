@@ -34,6 +34,8 @@ from be.agent_gateway import (
     collect_result,
     enqueue_task,
     stream_task,
+    validate_question,
+    validate_retry,
 )
 from be.config import get_settings
 from be.db import get_session
@@ -1034,18 +1036,29 @@ async def remediation_panel(
     now = _now()
     deadline = _aware(publication.remediation_deadline)
 
+    budget = round_budget_minutes(publication.phase2_minutes_per_question, open_count)
+    open_round = await _open_round(session, attempt_id)
+
     # This screen is where the student spends the wait, so this is where the
     # finished work gets collected. BE has no background worker; a result
     # nobody picks up is a result that expires.
     pool = request.app.state.queue_pool
     await _harvest(session, pool, attempt_id)
+
+    # Nothing is written ahead while a round is open, and that guard is the
+    # whole reason `open_round` is read before this block rather than after.
+    # `rounds_used` does not move until the round is submitted, so during one
+    # the next index still reads as the *current* round's -- and the round
+    # already has its questions. Every job queued here would be answered,
+    # stored, never used, and orphaned the moment the round is handed in. The
+    # round screen asks this endpoint on mount, so that is once per round, per
+    # open question, for nothing.
     still_open = [
         question
         for question in assessment.questions
         if (outcome := outcomes.get(question.id)) is not None and not outcome.closed
     ]
-    if still_open and now < deadline:
-        spent = await _spent_stems(session, attempt_id)
+    if still_open and open_round is None and now < deadline:
         await _write_ahead(
             session,
             pool,
@@ -1053,11 +1066,8 @@ async def remediation_panel(
             still_open,
             chosen,
             round_index=max(outcomes[q.id].rounds_used for q in still_open) + 1,
-            spent=spent,
+            spent=await _spent_stems(session, attempt_id),
         )
-
-    budget = round_budget_minutes(publication.phase2_minutes_per_question, open_count)
-    open_round = await _open_round(session, attempt_id)
 
     return RemediationOut(
         attempt_id=attempt_id,
@@ -1433,10 +1443,21 @@ async def _harvest(session: AsyncSession, pool: object, attempt_id: str) -> None
     days away, so "the answer is gone" is an ordinary ending and not a corner
     case.
 
-    An expired row is **deleted** rather than flagged, which leaves exactly one
+    A lost row is **deleted** rather than flagged, which leaves exactly one
     rule for the writer below: a question with no row for the round it needs
     gets one queued. Never started and started-but-lost then take the same
-    path, and there is no third state to reason about.
+    path, and there is no third state to reason about. A job that *ran and
+    failed* is kept and marked, because asking again would get the same
+    failure -- and a row that keeps being deleted is a job that keeps being
+    re-queued, every time the student opens a screen, for as long as the bug
+    lasts.
+
+    **Everything is checked here, on the way in.** ADR-18 and ADR-17 were
+    enforced in `ask_for_retry_question`, which only the write-on-the-spot path
+    goes through -- so writing ahead would have quietly become a way around
+    them, and from this phase on it is the *normal* path, not the fallback. A
+    question that fails is dropped, which puts it back in the queue by the same
+    single rule as a lost one.
 
     Args:
         session: Database session. Committed by this function.
@@ -1444,7 +1465,7 @@ async def _harvest(session: AsyncSession, pool: object, attempt_id: str) -> None
         attempt_id: Whose attempt.
 
     Side effects:
-        Fills in or deletes rows.
+        Fills in, marks or deletes rows.
     """
     settings = get_settings()
     waiting = list(
@@ -1455,23 +1476,51 @@ async def _harvest(session: AsyncSession, pool: object, attempt_id: str) -> None
             )
         )
     )
+    if not waiting:
+        return
+
+    spent = await _spent_stems(session, attempt_id)
+    origins = {
+        question.id: question.stem
+        for question in await session.scalars(
+            select(Question).where(Question.id.in_({row.origin_question_id for row in waiting}))
+        )
+    }
 
     changed = False
     for row in waiting:
         state, raw = await collect_result(pool, settings, row.job_id)
         if state == "pending":
             continue
+        changed = True
 
-        if state == "ready":
-            question = RetryQuestionCompleted.model_validate(raw).question
-            row.stem = question.stem
-            row.options = [option.model_dump() for option in question.options]
-            row.methods = [method.model_dump() for method in question.methods]
-            row.status = "ready"
-        else:
+        if state == "failed":
+            logger.warning("pregenerated job %s failed inside AGENT", row.job_id)
+            row.status = "failed"
+            continue
+
+        if state == "gone":
             logger.info("pregenerated job %s aged out; asking again", row.job_id)
             await session.delete(row)
-        changed = True
+            continue
+
+        question = RetryQuestionCompleted.model_validate(raw).question
+        try:
+            validate_question(question)
+            validate_retry(
+                question,
+                origins.get(row.origin_question_id, ""),
+                spent.get(row.origin_question_id, []),
+            )
+        except AgentError as exc:
+            logger.warning("pregenerated question rejected: %s", exc)
+            await session.delete(row)
+            continue
+
+        row.stem = question.stem
+        row.options = [option.model_dump() for option in question.options]
+        row.methods = [method.model_dump() for method in question.methods]
+        row.status = "ready"
 
     if changed:
         await session.commit()
