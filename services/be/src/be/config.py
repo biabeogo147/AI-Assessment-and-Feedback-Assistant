@@ -31,6 +31,11 @@ class Settings(BaseSettings):
             to flip this off for good.
         agent_job_timeout_seconds: How long BE waits for an AGENT job before
             giving up on it.
+        stream_first_chunk_timeout_seconds: How long the chat stream waits for
+            the assistant's first piece of text before giving up on streaming
+            and replaying the finished answer instead. Only the *first* piece
+            is on this clock: once text has gone out, replaying would show the
+            student the same half-sentence twice.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -43,6 +48,7 @@ class Settings(BaseSettings):
     dev_identity_header: str = "X-Actor"
     dev_identity_enabled: bool = True
     agent_job_timeout_seconds: int = 30
+    stream_first_chunk_timeout_seconds: float = 8.0
 
 
 @lru_cache

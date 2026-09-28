@@ -11,6 +11,11 @@ dependencies = [
     "aiafa-contracts",
     "arq>=0.26",
     "pydantic-settings>=2.3",
+    # The provider packages are pulled in by extras rather than named directly:
+    # agent/llm.py builds a model from a provider string, and naming the classes
+    # here would be the second place that has to change to add a provider.
+    "langchain[openai,google-genai]>=1.0",
+    "langgraph>=1.0",
 ]
 
 [project.optional-dependencies]

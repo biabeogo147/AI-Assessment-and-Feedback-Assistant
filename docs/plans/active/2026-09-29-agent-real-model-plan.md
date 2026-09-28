@@ -138,18 +138,19 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
 
 - [ ] Plan này, kèm kịch bản manual test bên dưới
 
-### Pha 1 — adapter, chưa đổi hành vi
+### Pha 1 — adapter, chưa đổi hành vi ✅
 
-- [ ] Thêm dependency vào `services/agent/pyproject.toml`, cài, kiểm không vỡ import-linter
-- [ ] `agent/config.py`: `llm_enabled`, `llm_provider`, `llm_model`, `openai_api_key`,
+- [x] Thêm dependency vào `services/agent/pyproject.toml`, cài, kiểm không vỡ import-linter
+- [x] `agent/config.py`: `llm_enabled`, `llm_provider`, `llm_model`, `openai_api_key`,
       `google_api_key`, `llm_fallback_provider`, `llm_fallback_model`, `llm_timeout_seconds`
-- [ ] `be/config.py`: `stream_first_chunk_timeout_seconds` — ngưỡng chờ mẩu chữ đầu trước khi
+- [x] `be/config.py`: `stream_first_chunk_timeout_seconds` — ngưỡng chờ mẩu chữ đầu trước khi
       thoái về `_sse()`. Mọi ngưỡng khác trong repo đều có tên trong `.env.example`; cái này cũng vậy
-- [ ] `.env.example` thêm **tên** biến; `.env` nhận khoá thật
-- [ ] `agent/llm.py`: `get_chat_model()` + `with_fallbacks` khi có khoá Gemini
-- [ ] `conftest.py` thay `get_chat_model` bằng model giả — test không được chạm mạng
-- [ ] Liệt kê model bằng `GET /v1/models` (**miễn phí**), chọn id, ghi vào `.env`
-- [ ] **Một** lần gọi model thật để xác nhận đường dây
+- [x] `.env.example` thêm **tên** biến; `.env` nhận khoá thật
+- [x] `agent/llm.py`: `chat_models()` + `with_fallback(shape)` — **shape trước, fallback sau**, vì
+      `RunnableWithFallbacks` không có `with_structured_output`
+- [x] `conftest.py` thay `get_chat_model` bằng model giả — test không được chạm mạng
+- [x] Liệt kê model bằng `GET /v1/models` (**miễn phí**), chọn id, ghi vào `.env`
+- [x] **Một** lần gọi model thật để xác nhận đường dây
 
 ### Pha 2 — trợ lý thật, streaming thật
 
@@ -164,6 +165,9 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
 ### Pha 3 — sinh đề thật
 
 - [ ] `agent/graphs/authoring.py`: generate → validate shape → retry (≤2) → lưới `_VARIANT_BANK`
+- [ ] Prompt **cấm LaTeX**, bắt dùng Unicode toán như đề seed (`y = x³ − 3x`). Lần gọi thật ở pha 1
+      trả về `\(f(x)=2x^4-3x^3+5x-1\)` — màn hình in chữ thuần nên cái đó hiện ra nguyên dấu gạch
+      chéo. Không đọc code nào thấy được điều này; phải chạy mới biết
 - [ ] `handlers.generate_retry_question` và `handlers.draft_assessment` gọi graph
 - [ ] BE gọi lại task khi `validate_question`/`validate_retry` đỏ, tối đa 2 lần, **nhét đề vừa bị
       từ chối vào `previous_stems`** để lần thử sau có hướng
@@ -269,4 +273,7 @@ sinh quay lại muộn thì đằng nào cũng đi qua màn trợ lý trước k
 
 ## Status
 
-Pha 0 đang làm.
+Pha 0 xong (review đã chạy, sáu phát hiện đã sửa). Pha 1 xong, chờ review.
+
+Model đang dùng: `gpt-5.6-luna` — rẻ nhất trong danh sách text mà khoá này với tới
+($0.20 / $1.20 mỗi triệu token). Nâng lên `gpt-5.6-terra` hay `gpt-5.6-sol` là đổi một biến.
