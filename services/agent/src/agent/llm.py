@@ -12,12 +12,16 @@ Two things in here are easy to get wrong and expensive to debug:
 into a `Settings` object instead, which never reaches `os.environ`. Leave the
 key out of the call and the model authenticates as nobody.
 
-**Fallbacks wrap last.** `Runnable.with_fallbacks` returns a
-`RunnableWithFallbacks`, and that class has no `with_structured_output` --
-it is a chat model's method, not a runnable's. So the transform is applied to
-each model first and the fallback chain is built around the results. Build it
-the other way round and structured output disappears the moment a second
-provider is configured.
+**The shape is applied per model, on purpose.** `with_fallbacks` returns a
+`RunnableWithFallbacks`, whose class carries no `with_structured_output`.
+Calling it anyway does work -- `RunnableWithFallbacks.__getattr__` reads the
+method's return annotation, sees a `Runnable`, and rebuilds the chain through
+it -- but that path is reflection over type hints, and it fails badly when an
+annotation does not resolve in its own module: the error surfaces as
+`NameError: name 'Runnable' is not defined` raised from inside `typing`, which
+names neither the method nor the model. So `with_fallback` shapes each model
+itself and assembles the chain from the results. Same outcome when the magic
+works, a readable failure when it does not.
 """
 
 from collections.abc import Callable

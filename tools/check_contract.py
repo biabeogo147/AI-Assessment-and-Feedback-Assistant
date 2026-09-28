@@ -17,13 +17,18 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# 171: one line above the 170 below, bought on 2026-09-29 by a new cross-service
+# invariant -- the model-call ceiling must sit inside BE's patience for a job --
+# which earned a row in the Invariants table. The rule for raising this has been
+# followed: a decision record in the plan says what the line was spent on.
+#
 # 170 was set after writing the contract, not before. The first guess was 140,
 # but every section that survived trimming is a rule, and the two longest are the
 # ownership and invariant tables -- the densest content in the file. Cutting real
 # rules to satisfy an invented number is the wrong trade. The cap exists to stop
 # drift from here, so raise it only alongside a decision record explaining what
 # new rule justified the growth.
-AGENTS_MD_MAX_LINES = 170
+AGENTS_MD_MAX_LINES = 171
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -105,6 +110,36 @@ def check_agent_holds_no_database_credentials() -> str | None:
     return None
 
 
+def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
+    """A model call must time out before the job BE is waiting on does.
+
+    Neither service can check this alone: the ceiling on one model call lives
+    in AGENT's settings and the patience for a job lives in BE's, and neither
+    imports the other. Get the order wrong and a slow model produces the worst
+    shape of failure -- BE gives up and answers 503 while the worker is still
+    working, so the student sees an error for an answer that then arrives and
+    is thrown away.
+
+    Returns:
+        None when the model ceiling is the smaller of the two, otherwise a
+        failure message naming both numbers.
+    """
+    from agent.config import Settings as AgentSettings
+    from be.config import Settings as BeSettings
+
+    model_ceiling = AgentSettings().llm_timeout_seconds
+    job_patience = BeSettings().agent_job_timeout_seconds
+
+    if model_ceiling >= job_patience:
+        return _fail(
+            "timeout-order",
+            f"LLM_TIMEOUT_SECONDS={model_ceiling} is not under "
+            f"AGENT_JOB_TIMEOUT_SECONDS={job_patience}; a slow model would look "
+            "like a dead one to BE while the worker is still busy",
+        )
+    return None
+
+
 def check_contract_files_stay_short() -> str | None:
     """Length caps are the only workable proxy for "do not restate the root".
 
@@ -159,6 +194,7 @@ def check_named_dev_tasks_exist() -> str | None:
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
+    check_model_call_fits_inside_the_job_waiting_for_it,
     check_contract_files_stay_short,
     check_named_dev_tasks_exist,
 )

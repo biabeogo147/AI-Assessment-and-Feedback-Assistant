@@ -44,6 +44,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | `ReviewReason` covers all four Workflow 4 conditions | automatic: `test_review_reason_covers_all_four_workflow_4_conditions` |
 | AGENT holds no database credentials | automatic: `tools/check_contract.py` |
 | Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |
+| A model call times out before the job waiting on it does | automatic: `tools/check_contract.py` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
 | FE never applies its own confidence threshold | review: `confidence` may be displayed, never compared |
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |

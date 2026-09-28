@@ -28,12 +28,22 @@ lượt làm lại **trước** thay vì lúc học sinh bấm; ba tầng hứng
 
 ### Mối nối duy nhất biết tới provider
 
-`services/agent/src/agent/llm.py` — một hàm `get_chat_model()`. Không handler nào import SDK của
-provider, nên đổi OpenAI sang Gemini hay DeepSeek là đổi hai biến môi trường.
+`services/agent/src/agent/llm.py` — hai hàm: `chat_models()` trả mọi model đã cấu hình, cái được
+thử trước đứng đầu; `with_fallback(shape)` áp một phép biến đổi lên **từng** model rồi mới xâu
+chuỗi chúng lại. Không handler nào import SDK của provider, nên đổi OpenAI sang Gemini hay DeepSeek
+là đổi hai biến môi trường.
 
 `init_chat_model` đọc `OPENAI_API_KEY` từ `os.environ`, nhưng ta nạp `.env` bằng pydantic-settings
 vào một object `Settings` chứ không vào `os.environ`. Nên **phải truyền `api_key=` tường minh** —
 đây là chỗ không tự chạy, và là lỗi sẽ mất một buổi để tìm nếu quên.
+
+Vì sao `with_fallback` nhận một hàm thay vì trả thẳng model: `with_fallbacks` trả
+`RunnableWithFallbacks`, lớp ấy không mang `with_structured_output`. Gọi vẫn được — `__getattr__`
+của nó đọc annotation trả về của method, thấy `Runnable` thì dựng lại cả chuỗi qua đó — nhưng đó là
+phản chiếu type hint, và nó gãy xấu khi một annotation không giải được trong module của chính nó:
+lỗi hiện ra là `NameError: name 'Runnable' is not defined` ném từ trong `typing`, không nêu tên
+method lẫn model. Áp phép biến đổi lên từng model là cùng kết quả khi phép màu chạy, và một lỗi
+đọc được khi nó không chạy.
 
 ### Hai hình dạng gọi model
 
@@ -255,6 +265,21 @@ reason: (a) vẫn để học sinh chờ, chỉ chờ ít hơn, và cái trần 
 bắt em đi qua phần hỏi trợ lý trước khi mở lượt. Đường sinh tại chỗ vẫn giữ làm lưới, nên (b)
 không xoá (a) mà bọc lên trên nó.
 
+### Decision: trần AGENTS.md 170 → 171
+
+options considered: (a) để quan hệ timeout là lời khuyên trong comment như cũ; (b) thêm kiểm tra tự
+động và cắt một dòng khác của `AGENTS.md` cho đủ trần; (c) thêm kiểm tra và nâng trần một dòng.
+
+selected option: (c).
+
+reason: (a) là đúng thứ `AGENTS.md` gọi là *ý tưởng chứ không phải quyết định* — một luật không có
+nơi thi hành. Quan hệ này lại không service nào tự kiểm được: trần một lời gọi model nằm ở settings
+của AGENT, còn độ kiên nhẫn với một job nằm ở settings của BE, và hai bên không import nhau —
+`tools/check_contract.py` tồn tại đúng cho loại kiểm tra ấy. (b) là cắt một luật thật để thoả một
+con số, chính điều comment cạnh `AGENTS_MD_MAX_LINES` cảnh báo. (c) dùng cửa thoát mà chính comment
+ấy mở sẵn: nâng trần thì phải kèm một decision record nói dòng ấy mua được gì. Nó mua một hàng bất
+biến có nơi thi hành tự động.
+
 ### Decision: kết quả job hết hạn thì bắn lại, không nâng TTL
 
 options considered: (a) nâng `JOB_RESULT_TTL_SECONDS` lên bằng hạn pha 2; (b) BE chạy một tiến
@@ -273,7 +298,10 @@ sinh quay lại muộn thì đằng nào cũng đi qua màn trợ lý trước k
 
 ## Status
 
-Pha 0 xong (review đã chạy, sáu phát hiện đã sửa). Pha 1 xong, chờ review.
+Pha 0 xong (review đã chạy, sáu phát hiện đã sửa). Pha 1 xong, review đã chạy: không lỗi runtime,
+ba việc đã sửa — tên hàm trong mục Kiến trúc cho khớp code, test riêng cho `llm.py`, và quan hệ
+timeout chuyển từ lời khuyên thành kiểm tra tự động. Trong lúc viết test thì phát hiện lý do tôi
+nêu cho `with_fallback` là **sai**, đã kiểm chứng bằng code và viết lại bằng lý do đúng.
 
 Model đang dùng: `gpt-5.6-luna` — rẻ nhất trong danh sách text mà khoá này với tới
 ($0.20 / $1.20 mỗi triệu token). Nâng lên `gpt-5.6-terra` hay `gpt-5.6-sol` là đổi một biến.
