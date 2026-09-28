@@ -21,6 +21,7 @@ import logging
 import re
 
 from agent import llm
+from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_question
 from agent.graphs.explain import speak
 from contracts import (
     DraftAssessmentCompleted,
@@ -545,11 +546,44 @@ async def draft_assessment(ctx: dict, payload: dict) -> dict:
     Side effects:
         None beyond logging. AGENT writes to no store of its own.
     """
-    return draft_questions(DraftAssessmentRequested.model_validate(payload)).model_dump(mode="json")
+    request = DraftAssessmentRequested.model_validate(payload)
+    if not llm.enabled():
+        return draft_questions(request).model_dump(mode="json")
+
+    # One call per question rather than one call for the set: each question
+    # gets its own shape check and its own retries, so a single bad one does
+    # not cost the whole draft. Nothing waits on this -- a teacher drafting is
+    # not a student watching a clock.
+    written: list[GeneratedQuestion] = []
+    banned: set[str] = set()
+    for index in range(request.question_count):
+        brief = draft_brief(request, index + 1)
+        try:
+            question = await write_question(brief, frozenset(banned))
+        except Exception:
+            logger.exception("model could not write question %d of the draft", index + 1)
+            continue
+        banned.add(normalise(question.stem))
+        written.append(question)
+
+    if not written:
+        logger.warning("no question survived; drafting from prepared content instead")
+        return draft_questions(request).model_dump(mode="json")
+
+    return DraftAssessmentCompleted(
+        request_id=request.request_id, questions=tuple(written)
+    ).model_dump(mode="json")
 
 
 async def generate_retry_question(ctx: dict, payload: dict) -> dict:
     """arq entry point for one remediation round's question.
+
+    Falls back to the prepared bank when the model cannot produce a question
+    that holds its shape. That fallback is what makes the loop terminate: a
+    hand-written variant satisfies ADR-18 by construction, so BE has something
+    to accept however badly the model behaves. The student is opening a round
+    either way, and a round that opens on a prepared question is better than a
+    round that refuses to open.
 
     Args:
         ctx: arq job context. Unused.
@@ -559,9 +593,22 @@ async def generate_retry_question(ctx: dict, payload: dict) -> dict:
         A serialised RetryQuestionCompleted.
 
     Side effects:
-        None beyond logging.
+        None beyond logging. AGENT writes to no store of its own.
     """
-    return retry_question(RetryQuestionRequested.model_validate(payload)).model_dump(mode="json")
+    request = RetryQuestionRequested.model_validate(payload)
+    if not llm.enabled():
+        return retry_question(request).model_dump(mode="json")
+
+    banned = frozenset(normalise(stem) for stem in (*request.previous_stems, request.origin.stem))
+    try:
+        question = await write_question(retry_brief(request), banned)
+    except Exception:
+        logger.exception("model could not write round %d; using the bank", request.round_index)
+        return retry_question(request).model_dump(mode="json")
+
+    return RetryQuestionCompleted(request_id=request.request_id, question=question).model_dump(
+        mode="json"
+    )
 
 
 async def explain(ctx: dict, payload: dict) -> dict:

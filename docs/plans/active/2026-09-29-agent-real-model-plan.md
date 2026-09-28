@@ -172,16 +172,16 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
 - [x] Kiểm pub/sub bằng script publish tay — **không cần model**
 - [x] Gọi model thật xác nhận chữ hiện dần
 
-### Pha 3 — sinh đề thật
+### Pha 3 — sinh đề thật ✅
 
-- [ ] `agent/graphs/authoring.py`: generate → validate shape → retry (≤2) → lưới `_VARIANT_BANK`
-- [ ] Prompt **cấm LaTeX và cấm Markdown**, bắt dùng Unicode toán như đề seed (`y = x³ − 3x`). Lần gọi thật ở pha 1
+- [x] `agent/graphs/authoring.py`: generate → validate shape → retry (≤2) → lưới `_VARIANT_BANK`
+- [x] Prompt **cấm LaTeX và cấm Markdown**, bắt dùng Unicode toán như đề seed (`y = x³ − 3x`). Lần gọi thật ở pha 1
       trả về `\(f(x)=2x^4-3x^3+5x-1\)` — màn hình in chữ thuần nên cái đó hiện ra nguyên dấu gạch
       chéo. Không đọc code nào thấy được điều này; phải chạy mới biết
-- [ ] `handlers.generate_retry_question` và `handlers.draft_assessment` gọi graph
-- [ ] BE gọi lại task khi `validate_question`/`validate_retry` đỏ, tối đa 2 lần, **nhét đề vừa bị
+- [x] `handlers.generate_retry_question` và `handlers.draft_assessment` gọi graph
+- [x] BE gọi lại task khi `validate_question`/`validate_retry` đỏ, tối đa 2 lần, **nhét đề vừa bị
       từ chối vào `previous_stems`** để lần thử sau có hướng
-- [ ] Gọi model thật xác nhận đề sinh ra qua được ADR-18
+- [x] Gọi model thật xác nhận đề sinh ra qua được ADR-18
 
 ### Pha 4 — sinh trước
 
@@ -312,7 +312,12 @@ một câu trong tài liệu.
 
 ## Status
 
-Pha 2 xong, chờ review: trợ lý trả lời bằng model thật và chữ chảy ra thật — mẩu đầu sau ~2–3 giây,
+Pha 3 xong, chờ review. Hai đề sinh ra bằng model thật đều đúng dạng, khác số, **toán đúng**, và
+qua sạch ADR-18: 4 phương án, đúng một đáp án đúng, ba nhiễu đều mang nhãn lỗi có nghĩa sư phạm
+("quên nhân đôi khi áp dụng AM-GM"), hai cách giải. Nhưng mở lượt mất **18,1 giây** — đúng con số
+pha 4 sinh ra để xoá.
+
+Pha 2 xong, review đã chạy, ba lỗi đã sửa: trợ lý trả lời bằng model thật và chữ chảy ra thật — mẩu đầu sau ~2–3 giây,
 126 mẩu cho một câu trả lời, nói đúng câu 5, dùng đúng nhãn lỗi đã soạn, viết Unicode không LaTeX.
 Ống dẫn pub/sub được chứng minh riêng bằng Redis thật và worker arq thật, không tốn một lượt model.
 

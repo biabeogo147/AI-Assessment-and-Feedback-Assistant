@@ -20,8 +20,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from be import agent_gateway, student_routes
 from be import db as db_module
-from be import student_routes
 from be.db import bind_sessions, prepare_schema
 from be.models import Publication, QuestionOutcome, RemediationRound
 from be.seed import seed_if_empty
@@ -85,7 +85,10 @@ async def client(monkeypatch) -> AsyncClient:
     async with maker() as session:
         await seed_if_empty(session)
 
-    monkeypatch.setattr(student_routes, "run_task", _fake_run_task)
+    # Patched inside the gateway rather than at the route, so `start_round`
+    # still runs the real ask-and-recheck loop: the ADR-18 and ADR-17 checks
+    # and the re-ask on rejection stay under test instead of being stubbed out.
+    monkeypatch.setattr(agent_gateway, "run_task", _fake_run_task)
     monkeypatch.setattr(student_routes, "stream_task", _fake_stream_task)
 
     app = FastAPI()
@@ -319,7 +322,7 @@ async def test_a_retry_that_repeats_the_question_is_refused(
             ).model_dump(mode="json")
         return {"schema_version": 1, "request_id": payload["request_id"], "text": ""}
 
-    monkeypatch.setattr(student_routes, "run_task", echo_the_origin)
+    monkeypatch.setattr(agent_gateway, "run_task", echo_the_origin)
 
     refused = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
     assert refused.status_code == 503

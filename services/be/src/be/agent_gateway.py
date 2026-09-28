@@ -16,7 +16,12 @@ from arq.connections import ArqRedis
 from arq.jobs import Job, JobStatus
 
 from be.config import Settings
-from contracts import GeneratedQuestion
+from contracts import (
+    GENERATE_RETRY_QUESTION_TASK,
+    GeneratedQuestion,
+    RetryQuestionCompleted,
+    RetryQuestionRequested,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +198,74 @@ def _text(data: object) -> str:
         The piece as text.
     """
     return data.decode() if isinstance(data, bytes) else str(data)
+
+
+# How many times BE re-asks after rejecting a question. Two, because the point
+# is to survive a model that misread the brief, not to argue with one that
+# cannot do the task -- and a student is waiting on every attempt.
+_RETRY_ASKS = 2
+
+
+async def ask_for_retry_question(
+    pool: ArqRedis | None,
+    settings: Settings,
+    ask: RetryQuestionRequested,
+    origin_stem: str,
+    spent: list[str],
+) -> GeneratedQuestion:
+    """Get one round's question, re-asking when what comes back breaks a rule.
+
+    The re-ask carries the rejected stem in `previous_stems`. Sending the same
+    payload again would leave a different answer to chance; naming what was
+    wrong with the last one is the difference between a retry and a re-roll.
+
+    ADR-18 and ADR-17 are checked here and not inside AGENT, because a
+    generator that accepted its own work would be marking its own homework.
+    AGENT does check its own shape before answering -- that saves a round trip,
+    and this is still the check that counts.
+
+    Args:
+        pool: Connected arq pool, or None when the queue was unreachable.
+        settings: Process settings.
+        ask: The request, which this function copies and amends between tries.
+        origin_stem: The phase 1 question being remediated.
+        spent: Stems already used in earlier rounds of this question.
+
+    Returns:
+        A question that satisfies both rules.
+
+    Raises:
+        AgentError: If every attempt broke a rule, or the queue failed.
+
+    Side effects:
+        Writes up to three jobs onto the queue.
+    """
+    rejected: list[str] = []
+    last: AgentError | None = None
+
+    for attempt in range(1 + _RETRY_ASKS):
+        payload = ask.model_copy(
+            update={"previous_stems": (*ask.previous_stems, *rejected)}
+        ).model_dump(mode="json")
+
+        raw = await run_task(pool, settings, GENERATE_RETRY_QUESTION_TASK, payload)
+        question = RetryQuestionCompleted.model_validate(raw).question
+
+        try:
+            validate_question(question)
+            validate_retry(question, origin_stem, [*spent, *rejected])
+        except AgentError as exc:
+            logger.warning("rejected round question on attempt %d: %s", attempt + 1, exc)
+            last = exc
+            rejected.append(question.stem)
+            continue
+
+        return question
+
+    # The last complaint travels with the refusal. Without it the 503 says only
+    # that three tries failed, which tells whoever reads the log nothing about
+    # which rule was broken -- and the rule is the whole reason we refused.
+    raise AgentError(f"{1 + _RETRY_ASKS} lần thử đều không đạt — {last}")
 
 
 def validate_question(question: GeneratedQuestion) -> None:

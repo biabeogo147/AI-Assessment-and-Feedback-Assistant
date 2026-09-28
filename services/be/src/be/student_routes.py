@@ -29,10 +29,8 @@ from sqlalchemy.orm import selectinload
 
 from be.agent_gateway import (
     AgentError,
-    run_task,
+    ask_for_retry_question,
     stream_task,
-    validate_question,
-    validate_retry,
 )
 from be.config import get_settings
 from be.db import get_session
@@ -61,13 +59,11 @@ from be.scoring import (
 )
 from contracts import (
     EXPLAIN_TURN_TASK,
-    GENERATE_RETRY_QUESTION_TASK,
     ChatTurn,
     ExplainTurnCompleted,
     ExplainTurnRequested,
     GeneratedOption,
     GeneratedQuestion,
-    RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
 )
@@ -1556,15 +1552,13 @@ async def start_round(
             previous_stems=tuple(spent.get(question.id, ())),
         )
         try:
-            raw = await run_task(
+            generated = await ask_for_retry_question(
                 request.app.state.queue_pool,
                 get_settings(),
-                GENERATE_RETRY_QUESTION_TASK,
-                ask.model_dump(mode="json"),
+                ask,
+                question.stem,
+                spent.get(question.id, []),
             )
-            generated = RetryQuestionCompleted.model_validate(raw).question
-            validate_question(generated)
-            validate_retry(generated, question.stem, spent.get(question.id, []))
         except AgentError as exc:
             raise HTTPException(
                 status_code=503, detail=f"Chưa sinh được đề lượt này: {exc}"

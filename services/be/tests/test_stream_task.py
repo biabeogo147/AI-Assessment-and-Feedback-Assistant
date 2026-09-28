@@ -186,3 +186,104 @@ async def test_silence_ends_the_stream_but_a_long_answer_does_not(
     ]
 
     assert seen == pieces, "a steady stream must not be cut off by the total elapsed time"
+
+
+class Rejecting:
+    """Counts asks and hands back what it was scripted to, for the retry loop."""
+
+    def __init__(self, questions: list[dict]) -> None:
+        self.questions = questions
+        self.seen_previous: list[list[str]] = []
+
+    async def __call__(self, pool, settings, task_name, payload) -> dict:
+        self.seen_previous.append(list(payload["previous_stems"]))
+        return {
+            "schema_version": 1,
+            "request_id": payload["request_id"],
+            "question": self.questions.pop(0),
+        }
+
+
+def _question(stem: str, correct: int = 1, methods: int = 2) -> dict:
+    """Build a serialised question, optionally breaking one ADR-18 rule."""
+    options = [
+        {"label": "A", "text": "một", "is_correct": correct >= 1, "error_label": None},
+        {
+            "label": "B",
+            "text": "hai",
+            "is_correct": correct >= 2,
+            "error_label": None if correct >= 2 else "nhầm dấu",
+        },
+    ]
+    return {
+        "stem": stem,
+        "options": options,
+        "methods": [{"title": f"Cách {i}", "body": "..."} for i in range(1, methods + 1)],
+        "learning_objective": "mục tiêu",
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_round_question_is_re_asked_with_it_named(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BE tells AGENT which stem it just refused.
+
+    Re-sending the identical payload would leave the second answer to chance.
+    The rejected stem goes into `previous_stems`, which is the field that
+    already meant "do not write this one".
+    """
+    from be import agent_gateway
+    from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionRequested, SolutionMethod
+
+    origin = GeneratedQuestion(
+        stem="đề gốc",
+        options=(
+            GeneratedOption(label="A", text="một", is_correct=True),
+            GeneratedOption(label="B", text="hai", error_label="nhầm dấu"),
+        ),
+        methods=(
+            SolutionMethod(title="Cách 1", body="..."),
+            SolutionMethod(title="Cách 2", body="..."),
+        ),
+        learning_objective="mục tiêu",
+    )
+    # First answer has two correct options; second is fine.
+    agent = Rejecting([_question("đề hỏng", correct=2), _question("đề mới")])
+    monkeypatch.setattr(agent_gateway, "run_task", agent)
+
+    ask = RetryQuestionRequested(
+        request_id="r1", origin=origin, wrong_option_label="B", round_index=1
+    )
+    question = await agent_gateway.ask_for_retry_question(object(), SETTINGS, ask, "đề gốc", [])
+
+    assert question.stem == "đề mới"
+    assert agent.seen_previous[0] == []
+    assert agent.seen_previous[1] == ["đề hỏng"], "the second ask must name what was refused"
+
+
+@pytest.mark.asyncio
+async def test_the_refusal_says_which_rule_was_broken(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 503 that says only "three tries failed" tells the reader nothing."""
+    from be import agent_gateway
+    from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionRequested, SolutionMethod
+
+    origin = GeneratedQuestion(
+        stem="đề gốc",
+        options=(
+            GeneratedOption(label="A", text="một", is_correct=True),
+            GeneratedOption(label="B", text="hai", error_label="nhầm dấu"),
+        ),
+        methods=(
+            SolutionMethod(title="Cách 1", body="..."),
+            SolutionMethod(title="Cách 2", body="..."),
+        ),
+        learning_objective="mục tiêu",
+    )
+    monkeypatch.setattr(agent_gateway, "run_task", Rejecting([_question("x", methods=1)] * 3))
+
+    ask = RetryQuestionRequested(
+        request_id="r1", origin=origin, wrong_option_label="B", round_index=1
+    )
+    with pytest.raises(AgentError, match="worked solution"):
+        await agent_gateway.ask_for_retry_question(object(), SETTINGS, ask, "đề gốc", [])
