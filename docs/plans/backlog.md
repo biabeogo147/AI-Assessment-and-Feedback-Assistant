@@ -344,3 +344,39 @@ Cửa **nộp bài** đáng có cổng nhất trong hai cái còn lại, vì d�
 nhận cần đọc lại: *"còn 2 câu chưa trả lời"*. Đó là cùng nguyên tắc
 [ADR-02](../decisions/adr-02-phat-hanh-va-cua-so-thu-hoi.md) dùng cho hộp xác nhận phát hành — đọc lại
 giá trị thật thay vì một con số ghi cứng.
+
+## Model thật — hai lỗ hổng mở cùng lúc với nó
+
+Ghi từ [plan 2026-09-29](active/2026-09-29-agent-real-model-plan.md), đợt đưa AGENT lên model thật.
+Cả hai là **quyết định có chủ đích**, không phải sót.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Kiểm toán học của đề model sinh ra | Không bị chặn. Cố ý chưa làm để baseline chạy được trước |
+| Bộ đo (eval) chất lượng sinh đề và giải thích | Không bị chặn. Chưa cần khi chưa biết model làm được tới đâu |
+
+### Vì sao lỗ thứ nhất nghiêm trọng hơn nó trông
+
+`validate_question` (`be/agent_gateway.py`) chỉ kiểm **cấu trúc** mà
+[ADR-18](../decisions/adr-18-cau-hoi-phai-kem-loi-giai.md) đòi: đúng một phương án mang cờ
+`is_correct`, nhiễu nào cũng có nhãn lỗi, ít nhất hai cách giải. Không dòng nào kiểm rằng phương án
+mang cờ ấy **thật sự là đáp án đúng**.
+
+Ngân hàng viết tay thì luôn đúng vì người soạn ra nó. Model thì không. Và BE chấm lượt làm lại bằng
+cách so lựa chọn của học sinh với chính cờ `is_correct` đó — nên một đáp án gắn sai cờ nghĩa là
+**học sinh làm đúng bị chấm sai**, rồi mất một trong ba vòng của
+[ADR-17](../decisions/adr-17-ba-vong-moi-cau.md) vì lỗi không phải của em.
+
+Đây là lý do nó nằm ở đây chứ không nằm trong `decisions/`: nó chưa phải một luật đã chốt, nó là một
+món nợ đã biết giá.
+
+### Ba đường đã nghĩ tới, chưa chọn
+
+- **Model tự giải lại** câu nó vừa ra, lệch thì bỏ và sinh lại. Rẻ nhất, nhưng cùng một model kiểm
+  chính nó thì cùng một chỗ mù.
+- **Model thứ hai giải độc lập**, chỉ nhận đề chứ không nhận đáp án. Đắt gấp đôi, bắt được nhiều hơn.
+- **Giáo viên duyệt** trước khi đề tới tay học sinh. Bắt được hết, nhưng đổi mô hình nghiệp vụ: pha 2
+  đang là tự động và tức thì.
+
+Chọn cái nào là một quyết định **nghiệp vụ**, nên khi chọn phải viết thành ADR chứ không nhét vào
+plan.
