@@ -38,12 +38,14 @@ class Settings(BaseSettings):
             safe value; the plan that introduced it requires the real sign-in
             to flip this off for good.
         agent_job_timeout_seconds: How long BE waits for an AGENT job before
-            giving up on it.
-        stream_first_chunk_timeout_seconds: How long the chat stream waits for
-            the assistant's first piece of text before giving up on streaming
-            and replaying the finished answer instead. Only the *first* piece
-            is on this clock: once text has gone out, replaying would show the
-            student the same half-sentence twice.
+            giving up on it. Must cover a whole job, including every attempt a
+            retry loop inside AGENT makes -- `tools/check_contract.py` enforces
+            that, because neither service can see both numbers.
+        stream_silence_timeout_seconds: How long the chat stream tolerates
+            hearing nothing before it gives up. Separate from the job timeout
+            because a tutoring turn is one model call while writing a round's
+            question is up to `llm_max_attempts` of them, and a student
+            watching a chat should not wait out the longer budget.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -55,8 +57,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa"
     dev_identity_header: str = "X-Actor"
     dev_identity_enabled: bool = True
-    agent_job_timeout_seconds: int = 30
-    stream_first_chunk_timeout_seconds: float = 8.0
+    agent_job_timeout_seconds: int = 70
+    stream_silence_timeout_seconds: float = 25.0
 
 
 @lru_cache

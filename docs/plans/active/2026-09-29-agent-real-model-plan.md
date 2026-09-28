@@ -117,6 +117,11 @@ cùng thu hoạch thì cả hai cùng thấy Redis có kết quả, cả hai cù
 | 2 | BE | phạm ADR-18 / ADR-17 | luật là của BE → gọi lại task, tối đa 2 lần, **kèm đề vừa bị từ chối** |
 | 3 | — | hết đường | 503, và **lượt không bị tiêu** vì `RemediationRound` mới `flush()` chứ chưa commit |
 
+Con số tệ nhất, viết ra vì nó dễ quên: AGENT thử tối đa `LLM_MAX_ATTEMPTS` lần trong một job, BE
+xin tối đa `1 + _RETRY_ASKS` job, nên **một câu tốn nhiều nhất 3 × 3 = 9 lượt gọi model**, và một
+lượt mở lại N câu sai chạy tuần tự là 9N. Không ai nên thấy con số ấy, nhưng ngân sách phải sống
+sót qua cái ngày model nhất định không chịu nghe.
+
 Ngân hàng viết tay luôn qua được ADR-18, nên vòng lặp chắc chắn dừng.
 
 Ở tầng 2, lần gọi lại phải **mang theo đề vừa bị từ chối** trong `previous_stems`. Gửi lại y nguyên

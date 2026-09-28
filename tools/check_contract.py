@@ -111,29 +111,36 @@ def check_agent_holds_no_database_credentials() -> str | None:
 
 
 def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
-    """A model call must time out before the job BE is waiting on does.
+    """A whole AGENT job must time out before the job BE is waiting on does.
 
-    Neither service can check this alone: the ceiling on one model call lives
-    in AGENT's settings and the patience for a job lives in BE's, and neither
-    imports the other. Get the order wrong and a slow model produces the worst
-    shape of failure -- BE gives up and answers 503 while the worker is still
-    working, so the student sees an error for an answer that then arrives and
-    is thrown away.
+    Neither service can check this alone: the ceiling on one model call and the
+    number of attempts a job may make live in AGENT's settings, the patience
+    for a job lives in BE's, and neither imports the other. Get the order wrong
+    and a slow model produces the worst shape of failure -- BE gives up and
+    answers 503 while the worker is still working, so the student sees an error
+    for an answer that then arrives and is thrown away.
+
+    The attempt count is the half that is easy to forget. This check compared a
+    *single* call against BE's patience until the authoring loop appeared, and
+    was quietly wrong for as long as that loop existed: one job had become
+    three calls and nothing said so.
 
     Returns:
-        None when the model ceiling is the smaller of the two, otherwise a
-        failure message naming both numbers.
+        None when the worst-case job fits inside BE's patience, otherwise a
+        failure message naming every number involved.
     """
     from agent.config import Settings as AgentSettings
     from be.config import Settings as BeSettings
 
-    model_ceiling = AgentSettings().llm_timeout_seconds
+    agent = AgentSettings()
+    worst_case = agent.llm_timeout_seconds * agent.llm_max_attempts
     job_patience = BeSettings().agent_job_timeout_seconds
 
-    if model_ceiling >= job_patience:
+    if worst_case >= job_patience:
         return _fail(
             "timeout-order",
-            f"LLM_TIMEOUT_SECONDS={model_ceiling} is not under "
+            f"a job may take LLM_TIMEOUT_SECONDS={agent.llm_timeout_seconds} x "
+            f"LLM_MAX_ATTEMPTS={agent.llm_max_attempts} = {worst_case}s, which is not under "
             f"AGENT_JOB_TIMEOUT_SECONDS={job_patience}; a slow model would look "
             "like a dead one to BE while the worker is still busy",
         )

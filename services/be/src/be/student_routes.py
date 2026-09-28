@@ -1396,7 +1396,12 @@ async def stream_reply(
         reply: ExplainTurnCompleted | None = None
         try:
             async for kind, value in stream_task(
-                pool, settings, EXPLAIN_TURN_TASK, payload.model_dump(mode="json"), channel
+                pool,
+                settings,
+                EXPLAIN_TURN_TASK,
+                payload.model_dump(mode="json"),
+                channel,
+                settings.stream_silence_timeout_seconds,
             ):
                 if kind == "chunk":
                     spoke = True

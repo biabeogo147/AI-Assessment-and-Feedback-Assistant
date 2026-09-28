@@ -36,9 +36,12 @@ class Settings(BaseSettings):
             fallback chain has nowhere to fall, which is allowed.
         llm_fallback_provider: Provider tried when the first one raises.
         llm_fallback_model: Model id at the fallback provider.
-        llm_timeout_seconds: Ceiling on one model call. Shorter than BE's job
-            timeout, so a slow model shows up as a failed job rather than as a
-            request BE gave up on while the worker was still busy.
+        llm_timeout_seconds: Ceiling on one model call.
+        llm_max_attempts: How many times one job may ask the model before
+            giving up. It lives here rather than beside the loop it governs
+            because BE's patience for a job has to cover all of them, and
+            `tools/check_contract.py` can only check that if it can read the
+            number.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -54,7 +57,8 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     llm_fallback_provider: str = ""
     llm_fallback_model: str = ""
-    llm_timeout_seconds: int = 25
+    llm_timeout_seconds: int = 20
+    llm_max_attempts: int = 3
 
 
 @lru_cache

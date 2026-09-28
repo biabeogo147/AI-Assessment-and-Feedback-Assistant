@@ -93,6 +93,7 @@ async def stream_task(
     task_name: str,
     payload: dict,
     channel: str,
+    silence_seconds: float | None = None,
 ) -> AsyncIterator[tuple[str, object]]:
     """Enqueue one AGENT task and yield its output as it is written.
 
@@ -108,6 +109,10 @@ async def stream_task(
         task_name: One of the task-name constants in `contracts`.
         payload: The serialised request message.
         channel: Where the worker was told to publish pieces.
+        silence_seconds: How long to tolerate hearing nothing before giving up.
+            Defaults to the job timeout. A caller whose job is one model call
+            passes something shorter, so its reader is not made to wait out a
+            budget sized for a job that retries.
 
     Yields:
         `("chunk", text)` for each piece as it arrives, then exactly one
@@ -137,13 +142,14 @@ async def stream_task(
         # length limit. A model writing a long answer is working; a model that
         # has said nothing for the whole window is not. Cutting off an answer
         # mid-flow because it was going well for too long would be absurd.
-        deadline = asyncio.get_running_loop().time() + settings.agent_job_timeout_seconds
+        patience = silence_seconds or settings.agent_job_timeout_seconds
+        deadline = asyncio.get_running_loop().time() + patience
         while asyncio.get_running_loop().time() < deadline:
             message = await pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=_LISTEN_SECONDS
             )
             if message is not None and message.get("type") == "message":
-                deadline = asyncio.get_running_loop().time() + settings.agent_job_timeout_seconds
+                deadline = asyncio.get_running_loop().time() + patience
                 yield "chunk", _text(message["data"])
                 continue
 
@@ -167,9 +173,7 @@ async def stream_task(
             yield "result", info.result
             return
 
-        raise AgentError(
-            f"task {task_name} did not finish in {settings.agent_job_timeout_seconds}s"
-        )
+        raise AgentError(f"task {task_name} said nothing for {patience}s")
     finally:
         # Runs on a client disconnect too: the browser going away cancels this
         # generator, and an unclosed subscription would hold a connection from
@@ -203,6 +207,12 @@ def _text(data: object) -> str:
 # How many times BE re-asks after rejecting a question. Two, because the point
 # is to survive a model that misread the brief, not to argue with one that
 # cannot do the task -- and a student is waiting on every attempt.
+#
+# The number worth knowing is the product. AGENT retries inside a job up to
+# LLM_MAX_ATTEMPTS times, and BE asks for up to 1 + _RETRY_ASKS jobs, so one
+# question costs at most 3 x 3 = 9 model calls; a round reopening N wrong
+# questions runs those sequentially, so 9N. Nobody should ever see that, but it
+# is what the budget has to survive on the day a model will not comply.
 _RETRY_ASKS = 2
 
 
@@ -253,7 +263,12 @@ async def ask_for_retry_question(
 
         try:
             validate_question(question)
-            validate_retry(question, origin_stem, [*spent, *rejected])
+            # `rejected` deliberately stays out of this. Those stems were
+            # refused for their shape and no student ever saw them, so a model
+            # that fixes the shape and keeps the wording has written a perfectly
+            # good question. Treating its own discarded draft as "already used"
+            # would refuse the correction we asked for.
+            validate_retry(question, origin_stem, spent)
         except AgentError as exc:
             logger.warning("rejected round question on attempt %d: %s", attempt + 1, exc)
             last = exc

@@ -348,18 +348,6 @@ _BANK_SEED: tuple[tuple[str, tuple[GeneratedQuestion, ...]], ...] = (
 _VARIANT_BANK.update(_BANK_SEED)
 
 
-def _normalise(stem: str) -> str:
-    """Collapse whitespace so a stem matches the bank despite formatting.
-
-    Args:
-        stem: Raw question text.
-
-    Returns:
-        The stem with runs of whitespace reduced to single spaces.
-    """
-    return re.sub(r"\s+", " ", stem).strip()
-
-
 def draft_questions(request: DraftAssessmentRequested) -> DraftAssessmentCompleted:
     """Draft the questions of one assessment.
 
@@ -413,11 +401,11 @@ def retry_question(request: RetryQuestionRequested) -> RetryQuestionCompleted:
         whether the student may have another round -- that ceiling is BE's
         (ADR-17).
     """
-    used = {_normalise(stem) for stem in request.previous_stems}
-    used.add(_normalise(request.origin.stem))
+    used = {normalise(stem) for stem in request.previous_stems}
+    used.add(normalise(request.origin.stem))
 
-    for candidate in _VARIANT_BANK.get(_normalise(request.origin.stem), ()):
-        if _normalise(candidate.stem) not in used:
+    for candidate in _VARIANT_BANK.get(normalise(request.origin.stem), ()):
+        if normalise(candidate.stem) not in used:
             logger.info("retry round=%d from bank for %s", request.round_index, request.request_id)
             return RetryQuestionCompleted(request_id=request.request_id, question=candidate)
 

@@ -64,7 +64,7 @@ async def _fake_run_task(pool, settings, task_name, payload) -> dict:
     return {"schema_version": 1, "request_id": payload["request_id"], "text": "Trả lời mẫu."}
 
 
-async def _fake_stream_task(pool, settings, task_name, payload, channel):
+async def _fake_stream_task(pool, settings, task_name, payload, channel, silence=None):
     """Stand in for AGENT on the streaming path, publishing nothing.
 
     A worker that does not stream -- prepared content, or a provider without
@@ -459,7 +459,7 @@ async def test_the_assistant_is_told_which_question_numbers_are_wrong(
 
     seen: dict = {}
 
-    async def capture(pool, settings, task_name, payload, channel):
+    async def capture(pool, settings, task_name, payload, channel, silence=None):
         seen.update(payload)
         yield "result", {"schema_version": 1, "request_id": payload["request_id"], "text": "…"}
 
@@ -511,7 +511,7 @@ async def test_the_answer_reaches_the_student_as_it_is_written(
     must find the same sentence they watched appear.
     """
 
-    async def streaming(pool, settings, task_name, payload, channel):
+    async def streaming(pool, settings, task_name, payload, channel, silence=None):
         for piece in ("Câu 5 ", "em chọn B,\n", "mà B là khoảng nghịch biến."):
             yield "chunk", piece
         yield (
@@ -553,7 +553,7 @@ async def test_a_model_failure_arrives_in_the_stream_not_as_a_status_code(
     request generate a fresh answer rather than replay a broken one.
     """
 
-    async def failing(pool, settings, task_name, payload, channel):
+    async def failing(pool, settings, task_name, payload, channel, silence=None):
         yield "chunk", "Câu 5 "
         raise student_routes.AgentError("model chết giữa chừng")
 

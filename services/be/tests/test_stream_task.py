@@ -287,3 +287,88 @@ async def test_the_refusal_says_which_rule_was_broken(monkeypatch: pytest.Monkey
     )
     with pytest.raises(AgentError, match="worked solution"):
         await agent_gateway.ask_for_retry_question(object(), SETTINGS, ask, "đề gốc", [])
+
+
+@pytest.mark.asyncio
+async def test_a_fixed_draft_that_keeps_its_wording_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused draft is not a question the student has seen.
+
+    So when the model's minimal fix is to unmark the second correct option and
+    keep the wording, that is a good question and must be taken. Treating the
+    model's own discarded draft as "already used" would refuse the very
+    correction we asked for, and burn a try doing it.
+    """
+    from be import agent_gateway
+    from contracts import (
+        GeneratedOption,
+        GeneratedQuestion,
+        RetryQuestionRequested,
+        SolutionMethod,
+    )
+
+    origin = GeneratedQuestion(
+        stem="đề gốc",
+        options=(
+            GeneratedOption(label="A", text="một", is_correct=True),
+            GeneratedOption(label="B", text="hai", error_label="nhầm dấu"),
+        ),
+        methods=(
+            SolutionMethod(title="Cách 1", body="..."),
+            SolutionMethod(title="Cách 2", body="..."),
+        ),
+        learning_objective="mục tiêu",
+    )
+    # Same stem twice: first with two correct options, then fixed.
+    agent = Rejecting([_question("đề mới", correct=2), _question("đề mới")])
+    monkeypatch.setattr(agent_gateway, "run_task", agent)
+
+    ask = RetryQuestionRequested(
+        request_id="r1", origin=origin, wrong_option_label="B", round_index=1
+    )
+    question = await agent_gateway.ask_for_retry_question(object(), SETTINGS, ask, "đề gốc", [])
+
+    assert question.stem == "đề mới"
+
+
+@pytest.mark.asyncio
+async def test_a_dead_queue_is_not_reported_as_three_bad_questions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A queue failure and a non-compliant model are different complaints.
+
+    Folding the first into the second would send whoever reads the log looking
+    at prompts when the problem is Redis.
+    """
+    from be import agent_gateway
+    from contracts import (
+        GeneratedOption,
+        GeneratedQuestion,
+        RetryQuestionRequested,
+        SolutionMethod,
+    )
+
+    origin = GeneratedQuestion(
+        stem="đề gốc",
+        options=(
+            GeneratedOption(label="A", text="một", is_correct=True),
+            GeneratedOption(label="B", text="hai", error_label="nhầm dấu"),
+        ),
+        methods=(
+            SolutionMethod(title="Cách 1", body="..."),
+            SolutionMethod(title="Cách 2", body="..."),
+        ),
+        learning_objective="mục tiêu",
+    )
+
+    async def queue_is_down(pool, settings, task_name, payload) -> dict:
+        raise AgentError("hàng đợi chưa sẵn sàng")
+
+    monkeypatch.setattr(agent_gateway, "run_task", queue_is_down)
+
+    ask = RetryQuestionRequested(
+        request_id="r1", origin=origin, wrong_option_label="B", round_index=1
+    )
+    with pytest.raises(AgentError, match="hàng đợi"):
+        await agent_gateway.ask_for_retry_question(object(), SETTINGS, ask, "đề gốc", [])

@@ -25,14 +25,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from agent import llm
+from agent.config import get_settings
 from contracts import DraftAssessmentRequested, GeneratedQuestion, RetryQuestionRequested
 
 logger = logging.getLogger(__name__)
 
-# Two tries after the first. A third has never turned a model that misread the
-# shape twice into one that reads it correctly, and every attempt is a student
-# waiting.
-_MAX_ATTEMPTS = 3
 
 _SYSTEM = """Bạn soạn câu hỏi trắc nghiệm cho học sinh trung học Việt Nam.
 
@@ -71,6 +68,11 @@ class WriteState(TypedDict):
 
 def normalise(stem: str) -> str:
     """Collapse whitespace so two stems compare by their words.
+
+    The one implementation: `handlers` imports this rather than keeping its
+    own. Two functions that must agree, in two files, is a disagreement with a
+    date on it -- and here the two would disagree about whether a question
+    repeats one the student has already seen.
 
     Args:
         stem: A question stem.
@@ -164,7 +166,7 @@ def _again(state: WriteState) -> str:
     """
     if not state["complaints"]:
         return END
-    if state["attempts"] >= _MAX_ATTEMPTS:
+    if state["attempts"] >= get_settings().llm_max_attempts:
         logger.warning("gave up after %d attempts: %s", state["attempts"], state["complaints"])
         return END
     return "write"
