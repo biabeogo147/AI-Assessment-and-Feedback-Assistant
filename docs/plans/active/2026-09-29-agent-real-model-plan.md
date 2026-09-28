@@ -188,16 +188,16 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
       từ chối vào `previous_stems`** để lần thử sau có hướng
 - [x] Gọi model thật xác nhận đề sinh ra qua được ADR-18
 
-### Pha 4 — sinh trước
+### Pha 4 — sinh trước ✅
 
-- [ ] `models.py`: bảng `pregenerated_items` + `UNIQUE(attempt_id, origin_question_id, round_index)`
-- [ ] `agent_gateway.py`: `enqueue_task()`, `collect_result()`
-- [ ] `submit_attempt` nhận `Request`, bắn job sau commit
-- [ ] `_harvest_pregenerated()` gọi từ `remediation_panel` và `start_round`, ba ngã
+- [x] `models.py`: bảng `pregenerated_items` + `UNIQUE(attempt_id, origin_question_id, round_index)`
+- [x] `agent_gateway.py`: `enqueue_task()`, `collect_result()`
+- [x] `submit_attempt` nhận `Request`, bắn job sau commit
+- [x] `_harvest_pregenerated()` gọi từ `remediation_panel` và `start_round`, ba ngã
       **xong / chưa xong / kết quả đã hết hạn → bắn lại**, bắt `IntegrityError` khi hai tab cùng ghi
-- [ ] `start_round` ưu tiên hàng `ready`, thiếu thì sinh tại chỗ
-- [ ] `submit_round` bắn job vòng kế cho câu còn mở
-- [ ] Chạy một lượt đầy đủ, kiểm bằng SQL rằng hàng chuyển `pending → ready` trong lúc chat
+- [x] `start_round` ưu tiên hàng `ready`, thiếu thì sinh tại chỗ
+- [x] `submit_round` bắn job vòng kế cho câu còn mở
+- [x] Chạy một lượt đầy đủ, kiểm bằng SQL rằng hàng chuyển `pending → ready` trong lúc chat
 
 ### Pha 5 — manual test
 
@@ -317,7 +317,15 @@ một câu trong tài liệu.
 
 ## Status
 
-Pha 3 xong, chờ review. Hai đề sinh ra bằng model thật đều đúng dạng, khác số, **toán đúng**, và
+Pha 4 xong, chờ review. **18,1 giây → 0,02 giây.** Nộp bài không chờ gì (0,02s), hai hàng
+`pending` hiện ngay, chín thành `ready` trong 12 giây — đúng quãng học sinh đọc màn trợ lý — và lúc
+bấm "Làm bài mới" thì đề đã nằm sẵn. Hàng dùng xong bị xoá, bảng về 0.
+
+Đề sinh ra vẫn đúng: tiệm cận ngang của (5x − 7)/(2x + 1) là y = 5/2, và nhiễu B là x = −1/2, tức
+đúng cái lỗi học sinh mắc ở câu gốc — nên lượt này thật sự kiểm được em đã sửa chưa.
+
+Pha 3 xong, review đã chạy, ba lỗi đã sửa (kiểm tra timeout liên service đã sai từ lúc pha 3 ra
+đời; một biến cấu hình không ai đọc; đề bị từ chối bị lẫn vào danh sách đề học sinh đã thấy). Hai đề sinh ra bằng model thật đều đúng dạng, khác số, **toán đúng**, và
 qua sạch ADR-18: 4 phương án, đúng một đáp án đúng, ba nhiễu đều mang nhãn lỗi có nghĩa sư phạm
 ("quên nhân đôi khi áp dụng AM-GM"), hai cách giải. Nhưng mở lượt mất **18,1 giây** — đúng con số
 pha 4 sinh ra để xoá.

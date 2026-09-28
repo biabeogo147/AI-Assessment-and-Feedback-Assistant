@@ -296,6 +296,54 @@ class RoundItem(Base):
     round: Mapped[RemediationRound] = relationship(back_populates="items")
 
 
+class PregeneratedItem(Base):
+    """A round's question, written before the student asks for it.
+
+    Writing a question takes a model the better part of twenty seconds, and
+    doing it when the student presses the button means the student watches a
+    blank screen for as long as it takes. But ADR-14 sends them through the
+    tutoring screen first, and that is minutes of reading and asking. So the
+    work is started the moment phase 1 is submitted and collected later: the
+    wait is spent on something the student chose to do.
+
+    **AGENT does not write this table.** It holds no database credentials and
+    `tools/check_contract.py` keeps it that way, so BE reads the finished job
+    off the queue and stores it here itself.
+
+    `status` moves `pending -> ready`, or `pending -> expired` when the job's
+    result aged out of Redis before anyone collected it -- which is a real
+    ending, not a corner case: results live an hour and a phase 2 deadline can
+    be days away. An expired row is re-asked rather than mourned.
+
+    The unique index is not decoration. Two tabs on the tutoring screen both
+    poll, both find the same finished job, and both insert; checking first and
+    writing second is two statements with a gap in the middle. The same lesson
+    as `uq_one_open_round_per_attempt` above, learned the same way.
+    """
+
+    __tablename__ = "pregenerated_items"
+    __table_args__ = (
+        Index(
+            "uq_one_pregenerated_per_round",
+            "attempt_id",
+            "origin_question_id",
+            "round_index",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    attempt_id: Mapped[str] = mapped_column(ForeignKey("attempts.id"))
+    origin_question_id: Mapped[str] = mapped_column(ForeignKey("questions.id"))
+    round_index: Mapped[int] = mapped_column(Integer)
+    job_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(8), default="pending")
+    stem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    options: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    methods: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class ChatMessage(Base):
     """One turn of the phase 2 conversation, stored before it is streamed.
 

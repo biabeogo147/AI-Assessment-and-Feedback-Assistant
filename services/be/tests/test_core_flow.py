@@ -12,6 +12,7 @@ three rounds, who may read what, and what never appears in a student payload.
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
@@ -74,6 +75,33 @@ async def _fake_stream_task(pool, settings, task_name, payload, channel, silence
     yield "result", await _fake_run_task(pool, settings, task_name, payload)
 
 
+async def _nothing_finished_yet(pool, settings, job_id) -> tuple[str, object]:
+    """Default reading of a queued job: still running."""
+    return "pending", None
+
+
+class FakeQueue:
+    """A queue that accepts jobs and remembers them.
+
+    `object()` used to stand in here, which meant `enqueue_task` raised,
+    swallowed it, and pre-generation quietly did nothing -- the suite passed
+    because the system correctly fell back to writing questions on the spot.
+    Green for the wrong reason is worse than red.
+    """
+
+    def __init__(self) -> None:
+        self.jobs: list[tuple[str, str, dict]] = []
+
+    async def enqueue_job(self, name: str, payload: dict, _queue_name: str):
+        job_id = f"job-{len(self.jobs)}"
+        self.jobs.append((job_id, name, payload))
+        return SimpleNamespace(job_id=job_id)
+
+    def payload_for(self, job_id: str) -> dict:
+        """The payload a job was queued with."""
+        return next(payload for queued, _, payload in self.jobs if queued == job_id)
+
+
 @pytest_asyncio.fixture
 async def client(monkeypatch) -> AsyncClient:
     """Build an app on a fresh in-memory database with AGENT stubbed."""
@@ -90,10 +118,13 @@ async def client(monkeypatch) -> AsyncClient:
     # and the re-ask on rejection stay under test instead of being stubbed out.
     monkeypatch.setattr(agent_gateway, "run_task", _fake_run_task)
     monkeypatch.setattr(student_routes, "stream_task", _fake_stream_task)
+    # Nothing is collected unless a test says a job finished. The three-way
+    # reading of a job's state is the gateway's business and is tested there.
+    monkeypatch.setattr(student_routes, "collect_result", _nothing_finished_yet)
 
     app = FastAPI()
     app.include_router(student_router)
-    app.state.queue_pool = object()
+    app.state.queue_pool = FakeQueue()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
         yield http
@@ -568,3 +599,103 @@ async def test_a_model_failure_arrives_in_the_stream_not_as_a_status_code(
     assert "event: error" in response.text
     history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
     assert history["messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_submitting_starts_writing_the_next_round(client: AsyncClient) -> None:
+    """The head start begins the moment the paper is handed in.
+
+    Not when the student presses "Làm bài mới" -- by then they are watching a
+    blank screen for as long as a model takes.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+
+    queue = client._transport.app.state.queue_pool
+    asked = [payload for _, name, payload in queue.jobs if name.endswith("retry_question")]
+
+    assert len(asked) == len(submitted["wrong_question_ids"]) == 2
+    assert {payload["round_index"] for payload in asked} == {1}
+    # AGENT is told what the student picked, or the retry cannot aim at the
+    # mistake it is supposed to test (ADR-17).
+    assert all(payload["wrong_option_label"] for payload in asked)
+
+
+@pytest.mark.asyncio
+async def test_a_question_written_ahead_opens_the_round_without_asking_again(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """The whole point: pressing the button costs no model call.
+
+    `run_task` is replaced by something that fails the test if it runs, so a
+    regression that quietly reverts to writing on the spot cannot pass.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    queue = client._transport.app.state.queue_pool
+
+    ready = _RETRY.model_copy(update={"stem": "Đề đã soạn sẵn từ lúc nộp bài"})
+
+    async def finished(pool, settings, job_id) -> tuple[str, object]:
+        payload = queue.payload_for(job_id)
+        return "ready", RetryQuestionCompleted(
+            request_id=payload["request_id"], question=ready
+        ).model_dump(mode="json")
+
+    monkeypatch.setattr(student_routes, "collect_result", finished)
+
+    # Visiting the tutoring screen is what collects the finished work.
+    await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
+
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("the round was opened by asking the model again")
+
+    monkeypatch.setattr(agent_gateway, "run_task", must_not_run)
+
+    opened = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
+
+    assert opened.status_code == 201
+    assert [item["stem"] for item in opened.json()["items"]] == [ready.stem, ready.stem]
+
+
+@pytest.mark.asyncio
+async def test_a_head_start_that_aged_out_is_started_again(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Job results live an hour; a phase 2 deadline can be days away.
+
+    A student who closes the tab and comes back tomorrow finds the answer gone.
+    The row must not sit on `pending` forever waiting for something that no
+    longer exists -- it is dropped, and the next visit queues a replacement.
+    """
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    queue = client._transport.app.state.queue_pool
+    first_round = len(queue.jobs)
+
+    async def gone(pool, settings, job_id) -> tuple[str, object]:
+        return "expired", None
+
+    monkeypatch.setattr(student_routes, "collect_result", gone)
+
+    await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
+
+    assert len(queue.jobs) > first_round, "the lost head start was never restarted"
+
+
+@pytest.mark.asyncio
+async def test_a_dead_queue_does_not_stop_a_student_handing_in(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Pre-generation is an optimisation. Submitting a paper is not.
+
+    So a queue that is down costs the head start and nothing else, and the
+    round still opens the old way.
+    """
+    monkeypatch.setattr(client._transport.app.state, "queue_pool", None)
+
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    assert submitted["phase1_score"] == 4.0
+    opened = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
+    assert opened.status_code == 201, "the on-the-spot path should still work"

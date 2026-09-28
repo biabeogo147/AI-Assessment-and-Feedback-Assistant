@@ -15,6 +15,7 @@ Every deadline is decided here. The countdown on screen is decoration; the
 server clock is what refuses a late answer and what stops a round (ADR-15).
 """
 
+import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -30,6 +31,8 @@ from sqlalchemy.orm import selectinload
 from be.agent_gateway import (
     AgentError,
     ask_for_retry_question,
+    collect_result,
+    enqueue_task,
     stream_task,
 )
 from be.config import get_settings
@@ -41,6 +44,7 @@ from be.models import (
     Assessment,
     Attempt,
     ChatMessage,
+    PregeneratedItem,
     Publication,
     Question,
     QuestionOutcome,
@@ -59,14 +63,18 @@ from be.scoring import (
 )
 from contracts import (
     EXPLAIN_TURN_TASK,
+    GENERATE_RETRY_QUESTION_TASK,
     ChatTurn,
     ExplainTurnCompleted,
     ExplainTurnRequested,
     GeneratedOption,
     GeneratedQuestion,
+    RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["student"])
 
@@ -814,6 +822,7 @@ async def save_answer(
 @router.post("/attempts/{attempt_id}/submit", response_model=SubmitOut)
 async def submit_attempt(
     attempt_id: str,
+    request: Request,
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> SubmitOut:
@@ -869,6 +878,20 @@ async def submit_attempt(
 
     attempt.submitted_at = now
     await session.commit()
+
+    # The head start. Writing a round's question takes a model the better part
+    # of twenty seconds, and ADR-14 sends the student to the tutoring screen
+    # before they can open a round -- minutes of reading and asking. Starting
+    # now means the wait is spent on something they chose to do. Nothing here
+    # is awaited for its answer, and nothing here can fail the submission.
+    await _write_ahead(
+        session,
+        request.app.state.queue_pool,
+        attempt_id,
+        [question for question in assessment.questions if question.id in set(wrong)],
+        chosen,
+        round_index=1,
+    )
 
     return SubmitOut(
         attempt_id=attempt_id,
@@ -953,6 +976,7 @@ async def attempt_result(
 @router.get("/attempts/{attempt_id}/remediation", response_model=RemediationOut)
 async def remediation_panel(
     attempt_id: str,
+    request: Request,
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> RemediationOut:
@@ -1009,6 +1033,29 @@ async def remediation_panel(
     open_count = sum(1 for item in items if not item.closed)
     now = _now()
     deadline = _aware(publication.remediation_deadline)
+
+    # This screen is where the student spends the wait, so this is where the
+    # finished work gets collected. BE has no background worker; a result
+    # nobody picks up is a result that expires.
+    pool = request.app.state.queue_pool
+    await _harvest(session, pool, attempt_id)
+    still_open = [
+        question
+        for question in assessment.questions
+        if (outcome := outcomes.get(question.id)) is not None and not outcome.closed
+    ]
+    if still_open and now < deadline:
+        spent = await _spent_stems(session, attempt_id)
+        await _write_ahead(
+            session,
+            pool,
+            attempt_id,
+            still_open,
+            chosen,
+            round_index=max(outcomes[q.id].rounds_used for q in still_open) + 1,
+            spent=spent,
+        )
+
     budget = round_budget_minutes(publication.phase2_minutes_per_question, open_count)
     open_round = await _open_round(session, attempt_id)
 
@@ -1260,6 +1307,247 @@ async def post_chat_message(
         message_id=message_id,
         stream_url=f"/api/attempts/{attempt_id}/chat/stream",
     )
+
+
+def _retry_ask(
+    attempt_id: str,
+    question: Question,
+    picked_option_id: str | None,
+    round_index: int,
+    previous_stems: tuple[str, ...],
+) -> RetryQuestionRequested:
+    """Build the ask for one question's next round.
+
+    One place, because the ask is now made from two: ahead of time when the
+    paper is submitted, and on the spot when a pre-generated one is missing.
+    Two copies would drift, and the thing they would drift about is what AGENT
+    is told about the student's mistake.
+
+    Args:
+        attempt_id: Whose attempt.
+        question: The phase 1 question being remediated, with options loaded.
+        picked_option_id: What the student chose, or None if nothing.
+        round_index: Which round this will be, counting from 1.
+        previous_stems: Stems already used for this question.
+
+    Returns:
+        The request, ready to serialise.
+    """
+    picked = next((o for o in question.options if o.id == picked_option_id), None)
+    origin = GeneratedQuestion(
+        stem=question.stem,
+        options=tuple(
+            GeneratedOption(
+                label=o.label, text=o.text, is_correct=o.is_correct, error_label=o.error_label
+            )
+            for o in question.options
+        ),
+        methods=tuple(SolutionMethod(title=m.title, body=m.body) for m in question.methods),
+        learning_objective=question.learning_objective,
+    )
+    return RetryQuestionRequested(
+        request_id=f"{attempt_id}:{question.id}:{round_index}",
+        origin=origin,
+        wrong_option_label=picked.label if picked else "",
+        error_label=picked.error_label if picked else None,
+        round_index=round_index,
+        previous_stems=previous_stems,
+    )
+
+
+async def _round_item(
+    session: AsyncSession,
+    rnd: RemediationRound,
+    question: Question,
+    order: int,
+    generated: GeneratedQuestion,
+) -> RoundItemOut:
+    """Store one question of a round and describe it for the client.
+
+    Shared by both ways a question can arrive -- written ahead of time or
+    written on the spot -- because what gets stored must not depend on when it
+    was written. The correct option is kept server side, which is what lets BE
+    grade the round without asking AGENT anything (ADR-20).
+
+    Args:
+        session: Database session. Flushed, not committed.
+        rnd: The round being opened.
+        question: The phase 1 question being remediated.
+        order: Position within this round, from 1.
+        generated: The question to pose.
+
+    Returns:
+        The client's view of it, with the answer key removed.
+    """
+    item = RoundItem(
+        round_id=rnd.id,
+        origin_question_id=question.id,
+        order_index=order,
+        stem=generated.stem,
+        options=[option.model_dump() for option in generated.options],
+        methods=[method.model_dump() for method in generated.methods],
+    )
+    session.add(item)
+    await session.flush()
+    return RoundItemOut(
+        round_item_id=item.id,
+        origin_question_id=question.id,
+        origin_order=question.order_index,
+        order=order,
+        stem=generated.stem,
+        options=[
+            OptionOut(option_id=option.label, label=option.label, text=option.text)
+            for option in generated.options
+        ],
+        chosen_label=None,
+    )
+
+
+async def _spent_stems(session: AsyncSession, attempt_id: str) -> dict[str, list[str]]:
+    """Read back which stems this attempt has already used, per question.
+
+    Args:
+        session: Database session.
+        attempt_id: Whose attempt.
+
+    Returns:
+        question_id -> the stems already posed for it.
+    """
+    rows = await session.scalars(
+        select(RoundItem)
+        .join(RemediationRound, RoundItem.round_id == RemediationRound.id)
+        .where(RemediationRound.attempt_id == attempt_id)
+    )
+    spent: dict[str, list[str]] = {}
+    for row in rows:
+        spent.setdefault(row.origin_question_id, []).append(row.stem)
+    return spent
+
+
+async def _harvest(session: AsyncSession, pool: object, attempt_id: str) -> None:
+    """Move finished jobs into the table, and forget the ones that aged out.
+
+    Called from the screens a student passes through while the work runs,
+    because BE has no background worker and a result nobody collects is a
+    result that expires. Job results live an hour; a phase 2 deadline can be
+    days away, so "the answer is gone" is an ordinary ending and not a corner
+    case.
+
+    An expired row is **deleted** rather than flagged, which leaves exactly one
+    rule for the writer below: a question with no row for the round it needs
+    gets one queued. Never started and started-but-lost then take the same
+    path, and there is no third state to reason about.
+
+    Args:
+        session: Database session. Committed by this function.
+        pool: The arq pool, or None.
+        attempt_id: Whose attempt.
+
+    Side effects:
+        Fills in or deletes rows.
+    """
+    settings = get_settings()
+    waiting = list(
+        await session.scalars(
+            select(PregeneratedItem).where(
+                PregeneratedItem.attempt_id == attempt_id,
+                PregeneratedItem.status == "pending",
+            )
+        )
+    )
+
+    changed = False
+    for row in waiting:
+        state, raw = await collect_result(pool, settings, row.job_id)
+        if state == "pending":
+            continue
+
+        if state == "ready":
+            question = RetryQuestionCompleted.model_validate(raw).question
+            row.stem = question.stem
+            row.options = [option.model_dump() for option in question.options]
+            row.methods = [method.model_dump() for method in question.methods]
+            row.status = "ready"
+        else:
+            logger.info("pregenerated job %s aged out; asking again", row.job_id)
+            await session.delete(row)
+        changed = True
+
+    if changed:
+        await session.commit()
+
+
+async def _write_ahead(
+    session: AsyncSession,
+    pool: object,
+    attempt_id: str,
+    questions: list[Question],
+    chosen: dict[str, str],
+    round_index: int,
+    spent: dict[str, list[str]] | None = None,
+) -> None:
+    """Queue next round's questions for every open question that lacks one.
+
+    Nothing waits on this. A queue that is down costs the head start and
+    nothing else: `start_round` still writes a question on the spot when there
+    is no pre-generated one, exactly as it did before any of this existed.
+
+    Args:
+        session: Database session. Committed by this function.
+        pool: The arq pool, or None.
+        attempt_id: Whose attempt.
+        questions: The questions still open.
+        chosen: question_id -> option_id, what the student picked in phase 1.
+        round_index: Which round is being written.
+        spent: Stems already used per question, when there are any.
+
+    Side effects:
+        Queues one job per question that needs one, and inserts a `pending`
+        row for each.
+    """
+    settings = get_settings()
+    already = set(
+        await session.scalars(
+            select(PregeneratedItem.origin_question_id).where(
+                PregeneratedItem.attempt_id == attempt_id,
+                PregeneratedItem.round_index == round_index,
+            )
+        )
+    )
+
+    for question in questions:
+        if question.id in already:
+            continue
+
+        ask = _retry_ask(
+            attempt_id,
+            question,
+            chosen.get(question.id),
+            round_index,
+            tuple((spent or {}).get(question.id, ())),
+        )
+        job_id = await enqueue_task(
+            pool, settings, GENERATE_RETRY_QUESTION_TASK, ask.model_dump(mode="json")
+        )
+        if job_id is None:
+            continue
+
+        session.add(
+            PregeneratedItem(
+                attempt_id=attempt_id,
+                origin_question_id=question.id,
+                round_index=round_index,
+                job_id=job_id,
+                status="pending",
+                created_at=_now(),
+            )
+        )
+        try:
+            await session.commit()
+        except IntegrityError:
+            # Two tabs polled at the same instant and both got past the check
+            # above. The other row is as good as this one.
+            await session.rollback()
 
 
 def _event(name: str, text: str) -> str:
@@ -1515,50 +1803,52 @@ async def start_round(
         await session.rollback()
         raise HTTPException(status_code=409, detail="Đang có một lượt chưa nộp") from exc
 
-    previous = await session.scalars(
-        select(RoundItem)
-        .join(RemediationRound, RoundItem.round_id == RemediationRound.id)
-        .where(RemediationRound.attempt_id == attempt_id)
-    )
-    spent: dict[str, list[str]] = {}
-    for item in previous:
-        spent.setdefault(item.origin_question_id, []).append(item.stem)
+    spent = await _spent_stems(session, attempt_id)
+    chosen = {
+        row.question_id: row.option_id
+        for row in await session.scalars(select(Answer).where(Answer.attempt_id == attempt_id))
+    }
+
+    # Anything the head start finished is sitting in the table by now; this
+    # call catches whatever landed in the last moments before the button.
+    pool = request.app.state.queue_pool
+    await _harvest(session, pool, attempt_id)
+    ready = {
+        row.origin_question_id: row
+        for row in await session.scalars(
+            select(PregeneratedItem).where(
+                PregeneratedItem.attempt_id == attempt_id,
+                PregeneratedItem.status == "ready",
+            )
+        )
+    }
 
     items: list[RoundItemOut] = []
     for order, question in enumerate(open_questions, start=1):
-        picked_label = None
-        answer = await session.scalar(
-            select(Answer).where(Answer.attempt_id == attempt_id, Answer.question_id == question.id)
-        )
-        if answer is not None:
-            picked = next((o for o in question.options if o.id == answer.option_id), None)
-            picked_label = picked.label if picked else None
+        waiting = ready.get(question.id)
+        if waiting is not None and waiting.round_index == outcomes[question.id].rounds_used + 1:
+            generated = GeneratedQuestion(
+                stem=waiting.stem,
+                options=tuple(GeneratedOption(**option) for option in waiting.options),
+                methods=tuple(SolutionMethod(**method) for method in waiting.methods),
+                learning_objective=question.learning_objective,
+            )
+            await session.delete(waiting)
+            items.append(await _round_item(session, rnd, question, order, generated))
+            continue
 
-        origin = GeneratedQuestion(
-            stem=question.stem,
-            options=tuple(
-                GeneratedOption(
-                    label=o.label, text=o.text, is_correct=o.is_correct, error_label=o.error_label
-                )
-                for o in question.options
-            ),
-            methods=tuple(SolutionMethod(title=m.title, body=m.body) for m in question.methods),
-            learning_objective=question.learning_objective,
-        )
-        error_label = next(
-            (o.error_label for o in question.options if o.label == picked_label), None
-        )
-        ask = RetryQuestionRequested(
-            request_id=f"{attempt_id}:{question.id}:{index}",
-            origin=origin,
-            wrong_option_label=picked_label or "",
-            error_label=error_label,
-            round_index=outcomes[question.id].rounds_used + 1,
-            previous_stems=tuple(spent.get(question.id, ())),
+        # Nothing was written ahead, or it was written for a different round.
+        # The old path, unchanged: ask now and make the student wait.
+        ask = _retry_ask(
+            attempt_id,
+            question,
+            chosen.get(question.id),
+            outcomes[question.id].rounds_used + 1,
+            tuple(spent.get(question.id, ())),
         )
         try:
             generated = await ask_for_retry_question(
-                request.app.state.queue_pool,
+                pool,
                 get_settings(),
                 ask,
                 question.stem,
@@ -1672,6 +1962,7 @@ async def save_round_answer(
 @router.post("/rounds/{round_id}/submit", response_model=RoundResultOut)
 async def submit_round(
     round_id: str,
+    request: Request,
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> RoundResultOut:
@@ -1733,6 +2024,30 @@ async def submit_round(
     await session.commit()
 
     publication = await _publication(session, attempt.assessment_id)
+
+    # The same head start, for the round after this one. A student who got it
+    # wrong is about to go back to the tutoring screen, which is once again
+    # where the waiting happens.
+    still_open = [
+        question
+        for question in (await _load_assessment(session, attempt.assessment_id)).questions
+        if (outcome := outcomes.get(question.id)) is not None and not outcome.closed
+    ]
+    if still_open and now < _aware(publication.remediation_deadline):
+        chosen = {
+            row.question_id: row.option_id
+            for row in await session.scalars(select(Answer).where(Answer.attempt_id == attempt.id))
+        }
+        await _write_ahead(
+            session,
+            request.app.state.queue_pool,
+            attempt.id,
+            still_open,
+            chosen,
+            round_index=max(outcomes[q.id].rounds_used for q in still_open) + 1,
+            spent=await _spent_stems(session, attempt.id),
+        )
+
     return RoundResultOut(
         round_id=round_id,
         per_question=results,

@@ -204,6 +204,80 @@ def _text(data: object) -> str:
     return data.decode() if isinstance(data, bytes) else str(data)
 
 
+async def enqueue_task(
+    pool: ArqRedis | None,
+    settings: Settings,
+    task_name: str,
+    payload: dict,
+) -> str | None:
+    """Hand AGENT a job and walk away.
+
+    The opposite of `run_task`: nobody is waiting on the answer, so nothing
+    here blocks and nothing here fails loudly. A queue that is down must not
+    stop a student submitting their paper -- the work this starts is an
+    optimisation, and the path without it still works.
+
+    Args:
+        pool: Connected arq pool, or None when the queue was unreachable.
+        settings: Process settings supplying the queue name.
+        task_name: One of the task-name constants in `contracts`.
+        payload: The serialised request message.
+
+    Returns:
+        The job id to collect the result by later, or None when the job could
+        not be queued at all.
+
+    Side effects:
+        Writes a job onto the shared Redis queue.
+    """
+    if pool is None:
+        return None
+    try:
+        job = await pool.enqueue_job(task_name, payload, _queue_name=settings.agent_queue_name)
+    except Exception:  # noqa: BLE001 -- nothing is waiting; a failure here is a missed head start
+        logger.warning("could not queue %s ahead of time", task_name, exc_info=True)
+        return None
+    return job.job_id if job is not None else None
+
+
+async def collect_result(
+    pool: ArqRedis | None,
+    settings: Settings,
+    job_id: str,
+) -> tuple[str, object]:
+    """Look in on a job started earlier.
+
+    Three endings, not two. A job result lives in Redis for
+    `JOB_RESULT_TTL_SECONDS`; a phase 2 deadline can be days away. A student
+    who closes the tab and comes back tomorrow finds the answer gone -- and a
+    caller that only knows "done" and "not yet" would wait for it forever.
+
+    Args:
+        pool: Connected arq pool, or None when the queue was unreachable.
+        settings: Process settings supplying the queue name.
+        job_id: What `enqueue_task` returned.
+
+    Returns:
+        `("ready", result)`, `("pending", None)`, or `("expired", None)` when
+        the job is gone from Redis entirely -- aged out, or failed and swept
+        away. The caller asks again; there is nothing left to wait for.
+    """
+    if pool is None:
+        return "pending", None
+
+    job = Job(job_id, redis=pool, _queue_name=settings.agent_queue_name)
+    status = await job.status()
+    if status is JobStatus.not_found:
+        return "expired", None
+    if status is not JobStatus.complete:
+        return "pending", None
+
+    info = await job.result_info()
+    if info is None or not info.success:
+        return "expired", None
+    return "ready", info.result
+
+
 # How many times BE re-asks after rejecting a question. Two, because the point
 # is to survive a model that misread the brief, not to argue with one that
 # cannot do the task -- and a student is waiting on every attempt.
