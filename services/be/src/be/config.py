@@ -5,8 +5,16 @@ to hardcode a host, port, queue name or threshold.
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Anchored to the repository root rather than left relative to the working
+# directory. Relative, it silently resolves to nothing when a process starts
+# from its own service folder -- and a missing .env is not an error, it is a
+# full set of defaults. The symptom is the worst kind: a key that is not there,
+# a switch that stays off, and no message anywhere saying so.
+_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 
 
 class Settings(BaseSettings):
@@ -38,7 +46,7 @@ class Settings(BaseSettings):
             student the same half-sentence twice.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
     redis_url: str = "redis://127.0.0.1:6379/0"
     agent_queue_name: str = "aiafa:grading"

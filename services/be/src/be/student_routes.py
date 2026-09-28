@@ -17,6 +17,7 @@ server clock is what refuses a late answer and what stops a round (ADR-15).
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -26,7 +27,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from be.agent_gateway import AgentError, run_task, validate_question, validate_retry
+from be.agent_gateway import (
+    AgentError,
+    run_task,
+    stream_task,
+    validate_question,
+    validate_retry,
+)
 from be.config import get_settings
 from be.db import get_session
 from be.identity import current_student
@@ -1259,8 +1266,31 @@ async def post_chat_message(
     )
 
 
+def _event(name: str, text: str) -> str:
+    """Write one server-sent event.
+
+    A `data:` line cannot contain a newline, and a model writing prose produces
+    plenty of them. The wire format for that is not ours to invent: SSE says
+    repeat the field, and the reader joins the lines back with newlines between
+    them.
+
+    Args:
+        name: Event name -- `chunk`, `done` or `error`.
+        text: Payload, newlines and all.
+
+    Returns:
+        One complete event, terminated by a blank line.
+    """
+    body = "\n".join(f"data: {line}" for line in text.split("\n"))
+    return f"event: {name}\n{body}\n\n"
+
+
 def _sse(text: str, message_id: str) -> AsyncIterator[str]:
-    """Turn one stored turn into a server-sent event stream.
+    """Turn one whole turn into a server-sent event stream.
+
+    Used when the answer arrived in one piece: a replayed turn, or a model that
+    did not stream. The words are doled out here so both paths look the same to
+    a reader.
 
     Args:
         text: The assistant's words.
@@ -1273,8 +1303,8 @@ def _sse(text: str, message_id: str) -> AsyncIterator[str]:
 
     async def events() -> AsyncIterator[str]:
         for word in text.split(" "):
-            yield f"event: chunk\ndata: {word} \n\n"
-        yield f"event: done\ndata: {message_id}\n\n"
+            yield _event("chunk", word + " ")
+        yield _event("done", message_id)
 
     return events()
 
@@ -1337,6 +1367,15 @@ async def stream_reply(
     questions, numbers, chosen_labels, error_labels = await _chat_context(session, attempt)
     last_student = next((m.text for m in reversed(history) if m.role == "student"), "")
 
+    pool = request.app.state.queue_pool
+    if pool is None:
+        # The one failure knowable before the stream opens, so it still gets a
+        # status code rather than an event nobody styled.
+        raise HTTPException(
+            status_code=503, detail="Trợ lý chưa trả lời được: hàng đợi chưa sẵn sàng"
+        )
+
+    channel = f"aiafa:stream:{uuid4().hex}"
     payload = ExplainTurnRequested(
         request_id=attempt_id,
         questions=tuple(questions),
@@ -1345,30 +1384,60 @@ async def stream_reply(
         error_labels=error_labels,
         history=tuple(ChatTurn(role=m.role, text=m.text) for m in history),
         student_text=last_student if history and history[-1].role == "student" else "",
+        stream_channel=channel,
     )
+    settings = get_settings()
 
-    try:
-        raw = await run_task(
-            request.app.state.queue_pool,
-            get_settings(),
-            EXPLAIN_TURN_TASK,
-            payload.model_dump(mode="json"),
+    async def events() -> AsyncIterator[str]:
+        """Forward the answer as it is written, then store it.
+
+        Storing happens when the reply is complete, which is after the last
+        piece has gone out. A student who closes the tab mid-answer therefore
+        costs one model call and gets a fresh turn next time -- the turn is
+        never half-saved, and never saved twice.
+        """
+        spoke = False
+        reply: ExplainTurnCompleted | None = None
+        try:
+            async for kind, value in stream_task(
+                pool, settings, EXPLAIN_TURN_TASK, payload.model_dump(mode="json"), channel
+            ):
+                if kind == "chunk":
+                    spoke = True
+                    yield _event("chunk", str(value))
+                else:
+                    reply = ExplainTurnCompleted.model_validate(value)
+        except AgentError as exc:
+            # Too late for a 503: the response started the moment this
+            # generator did. The client is told in the stream instead.
+            yield _event("error", f"Trợ lý chưa trả lời được: {exc}")
+            return
+
+        if reply is None:
+            yield _event("error", "Trợ lý chưa trả lời được")
+            return
+
+        stored = ChatMessage(
+            attempt_id=attempt_id,
+            sequence=len(history) + 1,
+            role="assistant",
+            text=reply.text,
+            created_at=_now(),
         )
-    except AgentError as exc:
-        raise HTTPException(status_code=503, detail=f"Trợ lý chưa trả lời được: {exc}") from exc
+        session.add(stored)
+        await session.commit()
 
-    reply = ExplainTurnCompleted.model_validate(raw)
-    stored = ChatMessage(
-        attempt_id=attempt_id,
-        sequence=len(history) + 1,
-        role="assistant",
-        text=reply.text,
-        created_at=_now(),
-    )
-    session.add(stored)
-    await session.commit()
+        if not spoke:
+            # Nothing was published -- prepared content, or a provider that
+            # does not stream. Say the whole thing now. Doing this after any
+            # piece had already gone out would show the same words twice.
+            async for event in _sse(reply.text, stored.id):
+                yield event
+            return
 
-    return StreamingResponse(_sse(reply.text, stored.id), media_type="text/event-stream")
+        yield _event("done", stored.id)
+
+    return StreamingResponse(events(), media_type="text/event-stream")
 
 
 @router.post("/attempts/{attempt_id}/rounds", response_model=RoundOpenOut, status_code=201)

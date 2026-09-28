@@ -285,9 +285,20 @@ export async function streamReply(
     const events = buffer.split("\n\n");
     buffer = events.pop() ?? "";
     for (const event of events) {
-      const isChunk = event.includes("event: chunk");
-      const line = event.split("\n").find((part) => part.startsWith("data: "));
-      if (isChunk && line) onChunk(line.slice("data: ".length));
+      const lines = event.split("\n");
+      const name = lines.find((part) => part.startsWith("event: "))?.slice("event: ".length);
+      // Every `data:` line, joined with newlines -- that is what the format
+      // says a repeated field means. Reading only the first one silently
+      // truncated any answer that contained a line break.
+      const data = lines
+        .filter((part) => part.startsWith("data: "))
+        .map((part) => part.slice("data: ".length))
+        .join("\n");
+
+      if (name === "chunk") onChunk(data);
+      // The stream starts before BE knows whether the model will answer, so a
+      // failure arrives here rather than as a status code.
+      if (name === "error") throw new Error(data || "Trợ lý chưa trả lời được.");
     }
   }
 }

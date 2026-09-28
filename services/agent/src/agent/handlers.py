@@ -20,6 +20,8 @@ than guarding any sentence produced below:
 import logging
 import re
 
+from agent import llm
+from agent.graphs.explain import speak
 from contracts import (
     DraftAssessmentCompleted,
     DraftAssessmentRequested,
@@ -565,14 +567,38 @@ async def generate_retry_question(ctx: dict, payload: dict) -> dict:
 async def explain(ctx: dict, payload: dict) -> dict:
     """arq entry point for one assistant turn.
 
+    Publishes the answer piece by piece while the model writes it, so the
+    student watches words appear instead of a pause. The pieces are a courtesy:
+    the returned text is the whole answer and is what gets stored, so a student
+    who reloads loses the animation and nothing else.
+
     Args:
-        ctx: arq job context. Unused.
+        ctx: arq job context. `ctx["redis"]` is the connection the pieces go
+            out on; nothing else here is used.
         payload: A serialised ExplainTurnRequested.
 
     Returns:
         A serialised ExplainTurnCompleted.
 
     Side effects:
-        None beyond logging.
+        Publishes to the Redis channel the request names, when it names one.
     """
-    return explain_turn(ExplainTurnRequested.model_validate(payload)).model_dump(mode="json")
+    request = ExplainTurnRequested.model_validate(payload)
+    if not llm.enabled():
+        return explain_turn(request).model_dump(mode="json")
+
+    channel = request.stream_channel
+    redis = ctx.get("redis")
+
+    async def publish(piece: str) -> None:
+        await redis.publish(channel, piece)
+
+    try:
+        text = await speak(request, publish if channel and redis is not None else None)
+    except Exception:
+        # A model that fails mid-sentence must not cost the student their turn.
+        # The prepared answer is worse; it is also an answer.
+        logger.exception("model failed on the tutoring turn; falling back to prepared content")
+        return explain_turn(request).model_dump(mode="json")
+
+    return ExplainTurnCompleted(request_id=request.request_id, text=text).model_dump(mode="json")

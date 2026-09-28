@@ -162,20 +162,20 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
 - [x] Liệt kê model bằng `GET /v1/models` (**miễn phí**), chọn id, ghi vào `.env`
 - [x] **Một** lần gọi model thật để xác nhận đường dây
 
-### Pha 2 — trợ lý thật, streaming thật
+### Pha 2 — trợ lý thật, streaming thật ✅
 
-- [ ] `agent/graphs/explain.py`, publish từng mẩu vào `aiafa:stream:{stream_id}`
-- [ ] `handlers.explain` gọi graph khi `llm_enabled`
-- [ ] `stream_reply`: **subscribe trước, enqueue sau**; thoái về `_sse()` **chỉ khi chưa mẩu nào ra**
-- [ ] Đóng subscription khi trình duyệt ngắt giữa chừng — `finally` quanh vòng đọc kênh
-- [ ] `services/fe/src/api.ts`: nối mọi dòng `data:` của một event bằng `\n`
-- [ ] Kiểm pub/sub bằng script publish tay — **không cần model**
-- [ ] Gọi model thật xác nhận chữ hiện dần
+- [x] `agent/graphs/explain.py`, publish từng mẩu vào `aiafa:stream:{stream_id}`
+- [x] `handlers.explain` gọi graph khi `llm_enabled`
+- [x] `stream_reply`: **subscribe trước, enqueue sau**; thoái về `_sse()` **chỉ khi chưa mẩu nào ra**
+- [x] Đóng subscription khi trình duyệt ngắt giữa chừng — `finally` quanh vòng đọc kênh
+- [x] `services/fe/src/api.ts`: nối mọi dòng `data:` của một event bằng `\n`
+- [x] Kiểm pub/sub bằng script publish tay — **không cần model**
+- [x] Gọi model thật xác nhận chữ hiện dần
 
 ### Pha 3 — sinh đề thật
 
 - [ ] `agent/graphs/authoring.py`: generate → validate shape → retry (≤2) → lưới `_VARIANT_BANK`
-- [ ] Prompt **cấm LaTeX**, bắt dùng Unicode toán như đề seed (`y = x³ − 3x`). Lần gọi thật ở pha 1
+- [ ] Prompt **cấm LaTeX và cấm Markdown**, bắt dùng Unicode toán như đề seed (`y = x³ − 3x`). Lần gọi thật ở pha 1
       trả về `\(f(x)=2x^4-3x^3+5x-1\)` — màn hình in chữ thuần nên cái đó hiện ra nguyên dấu gạch
       chéo. Không đọc code nào thấy được điều này; phải chạy mới biết
 - [ ] `handlers.generate_retry_question` và `handlers.draft_assessment` gọi graph
@@ -296,7 +296,25 @@ sinh quay lại muộn thì đằng nào cũng đi qua màn trợ lý trước k
 /remediation` ấy vừa phát hiện kết quả đã bay vừa bắn lại job. Cửa sổ sinh trước được dựng lại
 đúng lúc nó lại cần thiết.
 
+### Decision: `.env` neo vào gốc repo, không theo thư mục làm việc
+
+options considered: (a) để `env_file=".env"` tương đối như pydantic-settings mặc định, và ghi vào
+tài liệu rằng phải chạy từ gốc; (b) neo đường dẫn vào gốc repo tính từ `__file__`.
+
+selected option: (b).
+
+reason: (a) hỏng không một tiếng động. Một `.env` không tìm thấy **không phải lỗi** — nó là một bộ
+mặc định đầy đủ, nên worker khởi động bình thường, `LLM_ENABLED` ở false, khoá rỗng, và triệu chứng
+duy nhất là model lặng lẽ không chạy trong khi mọi thứ trông như đang chạy. Tôi đã tự dính đúng bẫy
+ấy ở lần xác nhận đầu của pha 2: chạy worker từ `services/agent`, thấy 36 mẩu trong 0,24 giây và
+suýt tin đó là streaming thật. Một cấu hình mà đặt sai chỗ thì im lặng không đáng được bảo vệ bằng
+một câu trong tài liệu.
+
 ## Status
+
+Pha 2 xong, chờ review: trợ lý trả lời bằng model thật và chữ chảy ra thật — mẩu đầu sau ~2–3 giây,
+126 mẩu cho một câu trả lời, nói đúng câu 5, dùng đúng nhãn lỗi đã soạn, viết Unicode không LaTeX.
+Ống dẫn pub/sub được chứng minh riêng bằng Redis thật và worker arq thật, không tốn một lượt model.
 
 Pha 0 xong (review đã chạy, sáu phát hiện đã sửa). Pha 1 xong, review đã chạy: không lỗi runtime,
 ba việc đã sửa — tên hàm trong mục Kiến trúc cho khớp code, test riêng cho `llm.py`, và quan hệ

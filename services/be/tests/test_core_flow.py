@@ -64,6 +64,16 @@ async def _fake_run_task(pool, settings, task_name, payload) -> dict:
     return {"schema_version": 1, "request_id": payload["request_id"], "text": "Trả lời mẫu."}
 
 
+async def _fake_stream_task(pool, settings, task_name, payload, channel):
+    """Stand in for AGENT on the streaming path, publishing nothing.
+
+    A worker that does not stream -- prepared content, or a provider without
+    token streaming -- is a supported case, not a degraded one, so this is the
+    stub the rest of the suite runs against. The live path has its own test.
+    """
+    yield "result", await _fake_run_task(pool, settings, task_name, payload)
+
+
 @pytest_asyncio.fixture
 async def client(monkeypatch) -> AsyncClient:
     """Build an app on a fresh in-memory database with AGENT stubbed."""
@@ -76,6 +86,7 @@ async def client(monkeypatch) -> AsyncClient:
         await seed_if_empty(session)
 
     monkeypatch.setattr(student_routes, "run_task", _fake_run_task)
+    monkeypatch.setattr(student_routes, "stream_task", _fake_stream_task)
 
     app = FastAPI()
     app.include_router(student_router)
@@ -445,11 +456,11 @@ async def test_the_assistant_is_told_which_question_numbers_are_wrong(
 
     seen: dict = {}
 
-    async def capture(pool, settings, task_name, payload) -> dict:
+    async def capture(pool, settings, task_name, payload, channel):
         seen.update(payload)
-        return {"schema_version": 1, "request_id": payload["request_id"], "text": "…"}
+        yield "result", {"schema_version": 1, "request_id": payload["request_id"], "text": "…"}
 
-    monkeypatch.setattr(student_routes, "run_task", capture)
+    monkeypatch.setattr(student_routes, "stream_task", capture)
     await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
 
     # The seed's last two questions are the ones answered wrongly.
@@ -484,3 +495,73 @@ async def test_a_report_needs_no_message_and_blocks_nothing(client: AsyncClient)
 
     panel = await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
     assert panel.json()["can_start_round"] is True
+
+
+@pytest.mark.asyncio
+async def test_the_answer_reaches_the_student_as_it_is_written(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Pieces published by AGENT are forwarded, and the whole is still stored.
+
+    The two halves matter together. Forwarding alone would be an animation over
+    nothing; storing alone is what the system had before. A reader who reloads
+    must find the same sentence they watched appear.
+    """
+
+    async def streaming(pool, settings, task_name, payload, channel):
+        for piece in ("Câu 5 ", "em chọn B,\n", "mà B là khoảng nghịch biến."):
+            yield "chunk", piece
+        yield (
+            "result",
+            {
+                "schema_version": 1,
+                "request_id": payload["request_id"],
+                "text": "Câu 5 em chọn B,\nmà B là khoảng nghịch biến.",
+            },
+        )
+
+    monkeypatch.setattr(student_routes, "stream_task", streaming)
+
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    response = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+    assert response.status_code == 200
+
+    body = response.text
+    assert body.count("event: chunk") == 3, "one event per published piece, no re-splitting"
+    # The piece with a line break in it is written as two `data:` lines, which
+    # is what the format says. One line would have truncated the sentence.
+    assert "data: em chọn B,\ndata: \n" in body
+    assert body.count("event: done") == 1
+
+    history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
+    assert history["messages"][-1]["text"] == "Câu 5 em chọn B,\nmà B là khoảng nghịch biến."
+
+
+@pytest.mark.asyncio
+async def test_a_model_failure_arrives_in_the_stream_not_as_a_status_code(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Once the stream is open the status line is already sent.
+
+    So a failure has to be told in-band. The turn must not be stored: the
+    student's own message is still the last word, which is what makes the next
+    request generate a fresh answer rather than replay a broken one.
+    """
+
+    async def failing(pool, settings, task_name, payload, channel):
+        yield "chunk", "Câu 5 "
+        raise student_routes.AgentError("model chết giữa chừng")
+
+    monkeypatch.setattr(student_routes, "stream_task", failing)
+
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    response = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+
+    assert response.status_code == 200
+    assert "event: error" in response.text
+    history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
+    assert history["messages"] == []

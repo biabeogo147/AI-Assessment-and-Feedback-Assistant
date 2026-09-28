@@ -178,6 +178,11 @@ class ExplainTurnRequested(BaseModel):
             follows this mapping instead of diagnosing (ADR-18).
         history: Conversation so far, oldest first.
         student_text: The message being answered. Empty for the opening turn.
+        stream_channel: Where to publish the answer as it is written, so the
+            student sees words rather than a pause. Empty means nobody is
+            listening and the reply arrives only at the end. It is a channel
+            name and not an id because the naming belongs to whoever is
+            listening; AGENT publishes where it is told.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -190,6 +195,7 @@ class ExplainTurnRequested(BaseModel):
     error_labels: dict[str, str] = Field(default_factory=dict)
     history: tuple[ChatTurn, ...] = ()
     student_text: str = ""
+    stream_channel: str = ""
 
 
 class ExplainTurnCompleted(BaseModel):
