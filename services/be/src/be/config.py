@@ -46,6 +46,15 @@ class Settings(BaseSettings):
             because a tutoring turn is one model call while writing a round's
             question is up to `llm_max_attempts` of them, and a student
             watching a chat should not wait out the longer budget.
+        max_tool_steps: How many times one turn of the teacher's chat may ask
+            AGENT what to do next. This is the ceiling on a loop whose length
+            the model chooses, so it is the only thing between a confused model
+            and an unbounded bill.
+        turn_budget_seconds: How long one turn may spend in total. Needed
+            because `max_tool_steps` is not a promise about waiting: eight
+            steps at the job timeout is over nine minutes, and a proxy or a
+            browser would drop the connection long before that while BE logged
+            a success. This is the bound the teacher feels.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -59,6 +68,8 @@ class Settings(BaseSettings):
     dev_identity_enabled: bool = True
     agent_job_timeout_seconds: int = 70
     stream_silence_timeout_seconds: float = 25.0
+    max_tool_steps: int = 8
+    turn_budget_seconds: float = 90.0
 
 
 @lru_cache

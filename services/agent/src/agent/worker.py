@@ -16,13 +16,14 @@ from arq.connections import RedisSettings
 from arq.worker import func
 
 from agent.config import get_settings
-from agent.handlers import draft_assessment, explain, generate_retry_question
+from agent.handlers import draft_assessment, explain, generate_retry_question, propose_next_step
 from agent.legacy_grading import grade_submission
 from contracts import (
     DRAFT_ASSESSMENT_TASK,
     EXPLAIN_TURN_TASK,
     GENERATE_RETRY_QUESTION_TASK,
     GRADE_SUBMISSION_TASK,
+    PROPOSE_NEXT_STEP_TASK,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -79,6 +80,11 @@ class WorkerSettings:
         func(draft_assessment, name=DRAFT_ASSESSMENT_TASK),
         func(generate_retry_question, name=GENERATE_RETRY_QUESTION_TASK),
         func(explain, name=EXPLAIN_TURN_TASK),
+        # One turn of thinking for the teacher's chat. Unlike the three above
+        # it finishes no job of its own: BE calls it once per step of a loop it
+        # owns, so one job here is one model call and the timeout invariant
+        # stays true of this path.
+        func(propose_next_step, name=PROPOSE_NEXT_STEP_TASK),
         # Legacy, superseded by ADR-20. Registered so an old client does not
         # hang forever on a task nothing consumes.
         func(grade_submission, name=GRADE_SUBMISSION_TASK),

@@ -23,6 +23,7 @@ import re
 from agent import llm
 from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_question
 from agent.graphs.explain import speak
+from agent.graphs.propose import propose
 from contracts import (
     DraftAssessmentCompleted,
     DraftAssessmentRequested,
@@ -30,6 +31,8 @@ from contracts import (
     ExplainTurnRequested,
     GeneratedOption,
     GeneratedQuestion,
+    NextStepCompleted,
+    NextStepRequested,
     RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
@@ -519,6 +522,94 @@ def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | Non
         if turn.role == "student" and (prior := by_number(turn.text)) is not None:
             return prior
     return None
+
+
+# A class name as a teacher writes it: grade, a letter, sometimes a stream
+# number. Enough to recognise "12A1" or "lớp 11B" in a sentence, and nothing
+# more -- the mock is not a parser, it is a way to drive the loop for free.
+_CLASS_NAME = re.compile(r"\b(\d{1,2}\s?[A-Za-z]\d?)\b")
+
+_NO_CLASS_NAMED = (
+    "Bạn muốn xem lớp nào? Nói tên lớp giúp mình, ví dụ 'lớp 12A1 làm bài hôm qua thế nào'."
+)
+
+_NOTHING_TO_USE = "Lượt này mình chưa tra được dữ liệu nào. Bạn thử hỏi lại sau một chút nhé."
+
+
+def next_step(request: NextStepRequested) -> NextStepCompleted:
+    """Propose the next step of a teacher's turn without calling a model.
+
+    Mock, and shaped to exercise the loop rather than to look busy: it asks for
+    a tool while it has no data, and answers once a result is in the history.
+    Those two together are what makes the loop terminate, so they are the part
+    worth having for free.
+
+    Args:
+        request: The conversation so far and the tools this teacher may use.
+
+    Returns:
+        One proposal. Never a tool outside the catalog BE sent, because a
+        proposal BE must refuse would exercise the error path and teach
+        nothing about the normal one.
+    """
+    harvested = next(
+        (turn for turn in reversed(request.history) if turn.kind == "tool_result"), None
+    )
+    if harvested is not None:
+        body = ", ".join(f"{key}: {value}" for key, value in sorted(harvested.tool_result.items()))
+        return NextStepCompleted(
+            request_id=request.request_id,
+            kind="say",
+            text=f"Mình tra được: {body}.",
+        )
+
+    asked = next((turn.text for turn in reversed(request.history) if turn.kind == "teacher"), "")
+    named = _CLASS_NAME.search(asked)
+    usable = {tool.name for tool in request.catalog}
+
+    if named is not None and "find_class" in usable:
+        return NextStepCompleted(
+            request_id=request.request_id,
+            kind="call_tool",
+            tool_name="find_class",
+            tool_args={"name": named.group(1).replace(" ", "")},
+        )
+
+    if not usable:
+        return NextStepCompleted(request_id=request.request_id, kind="say", text=_NOTHING_TO_USE)
+
+    return NextStepCompleted(
+        request_id=request.request_id, kind="ask_clarify", text=_NO_CLASS_NAMED
+    )
+
+
+async def propose_next_step(ctx: dict, payload: dict) -> dict:
+    """arq entry point for one turn of thinking in the teacher's chat.
+
+    Args:
+        ctx: arq job context. Unused.
+        payload: A serialised NextStepRequested.
+
+    Returns:
+        A serialised NextStepCompleted. Always a proposal: this handler runs no
+        tool and writes to no store, because AGENT holds no database
+        credentials and because authorisation belongs where the session is.
+
+    Side effects:
+        None beyond logging.
+    """
+    request = NextStepRequested.model_validate(payload)
+    if not llm.enabled():
+        return next_step(request).model_dump(mode="json")
+
+    try:
+        return (await propose(request)).model_dump(mode="json")
+    except Exception:
+        # The prepared proposal is safe to substitute here in a way it is not
+        # on the tutoring path: nothing has reached the teacher yet, because a
+        # proposal is not shown to anybody until BE has acted on it.
+        logger.exception("model could not propose a next step for %s", request.request_id)
+        return next_step(request).model_dump(mode="json")
 
 
 async def draft_assessment(ctx: dict, payload: dict) -> dict:

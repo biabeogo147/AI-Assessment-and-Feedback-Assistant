@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -177,6 +177,26 @@ async def test_a_state_outside_the_lifecycle_cannot_be_stored(session) -> None:
 
     with pytest.raises(StatementError):
         await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_the_stored_string_is_the_one_the_documents_name(session) -> None:
+    """The column holds `published`, not `PUBLISHED`.
+
+    SQLAlchemy stores a Python enum by member **name** unless told otherwise,
+    so this drifted from the documented vocabulary without anything failing:
+    `data-model.md` and ADR-01 both name the lower-case values, and rows
+    written before the enum existed held `published` too. A stored value
+    nobody wrote down is a value the next person has to reverse-engineer from
+    a psql session.
+    """
+    stored = await session.scalar(
+        select(Assessment.state).where(Assessment.state == AssessmentState.PUBLISHED)
+    )
+    assert stored is AssessmentState.PUBLISHED
+
+    raw = await session.execute(text("SELECT state FROM assessments LIMIT 1"))
+    assert raw.scalar_one() == "published"
 
 
 @pytest.mark.asyncio

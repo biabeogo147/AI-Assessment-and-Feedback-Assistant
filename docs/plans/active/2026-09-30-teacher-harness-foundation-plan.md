@@ -26,7 +26,7 @@ kiểm chứng lại bằng file:
 
 ## Scope
 
-**Trong scope:** schema, máy trạng thái, vòng lặp tool ở BE, task AGENT thứ tư, giải nghĩa thực thể,
+**Trong scope:** schema, máy trạng thái, vòng lặp tool ở BE, task AGENT mới (thứ năm trong worker), giải nghĩa thực thể,
 bảng hội thoại giáo viên. Hai tool chỉ-đọc để chứng minh vòng lặp chạy.
 
 **Ngoài scope, có chủ đích:**
@@ -66,7 +66,7 @@ bằng `gpt-4o-mini`.
 | `packages/contracts/src/contracts/teacher_chat.py` | **mới** — `PROPOSE_NEXT_STEP_TASK` và các kiểu |
 | `services/agent/src/agent/graphs/propose.py` | **mới** — một lượt suy nghĩ |
 | `services/agent/src/agent/handlers.py` | handler `propose_next_step` + mock |
-| `services/agent/src/agent/worker.py` | đăng ký task thứ tư |
+| `services/agent/src/agent/worker.py` | đăng ký task thứ năm |
 | `services/agent/tests/conftest.py` | fake trả JSON theo schema |
 | `.env.example` | `MAX_TOOL_STEPS` |
 | `AGENTS.md` | dòng invariant "Teacher approves an assessment before release" → check tự động |
@@ -96,40 +96,45 @@ phát hiện → **dừng cho bạn review** → mới sang việc sau.
 - [x] Cập nhật mục "Nơi luật này đang được thi hành" của ADR-01 và ADR-13 — cả hai đang ghi
       "Chưa có ở backend", và câu đó sắp thành sai
 - [x] `data-model.md`
-- [ ] **Hoãn sang Việc 2** — xoá và seed lại DB dev. `prepare_schema` chỉ `create_all`, và docstring
-      của nó nói thẳng là nó "never rescues a column that changed shape", nên DB dev hiện **không
-      tương thích** schema mới (`teacher_id` NOT NULL, `state` thành Enum). Việc 1 không cần tới nó:
-      test chạy trên SQLite in-memory. Hoãn vì xoá lúc này là phá dữ liệu phiên thử 4 tiếng ngay
-      trước lúc review, mà cái giá đó chưa cần trả cho tới khi có gì để `curl`
+- [x] **Làm ở Việc 2, và làm khác kế hoạch: không xoá gì cả.** `prepare_schema` chỉ `create_all` nên
+      DB dev cũ không tương thích schema mới. Kế hoạch ghi "xoá và seed lại", nhưng
+      `DROP SCHEMA public CASCADE` là xoá sạch một database có dữ liệu thật và **đã bị chặn** — chặn
+      đúng. Đường an toàn hơn và đáng ra tôi nên chọn ngay từ đầu: tạo database **mới**
+      `aiafa_teacher` rồi trỏ `DATABASE_URL` vào đó. Database `aiafa` cũ còn nguyên, và quyết định
+      chuyển hay bỏ nó là của bạn
 
 ### Việc 2 — Vòng lặp tool ở BE
 
-- [ ] `contracts/teacher_chat.py`: `PROPOSE_NEXT_STEP_TASK`, `ToolSpec`, `TurnRecord`,
+- [x] `contracts/teacher_chat.py`: `PROPOSE_NEXT_STEP_TASK`, `ToolSpec`, `TurnRecord`,
       `NextStepRequested`, `NextStepCompleted` với `kind: say | call_tool | ask_clarify`
-- [ ] **Kiểm giả thuyết trước khi xây lên nó**: một test rẻ chứng minh `with_structured_output` +
-      `GenericFakeChatModel` trả được `NextStepCompleted`. Nếu không được thì mới cần fake mới
-- [ ] `graphs/propose.py` + handler `propose_next_step` + mock khi `llm.enabled()` là false
-- [ ] `worker.py`: đăng ký task thứ tư
-- [ ] `teacher_tools.py`: danh mục dựng **theo từng request** từ quyền của giáo viên; `execute()`
+- [x] **Kiểm giả thuyết trước khi xây lên nó — kết quả: KHÔNG được.** Probe cho thấy `with_structured_output` +
+      `GenericFakeChatModel` ném `NotImplementedError`, nên đường đó không có. Đã viết fake riêng
+      theo khuôn `Scripted` của `test_authoring_graph.py`
+- [x] `graphs/propose.py` + handler `propose_next_step` + mock khi `llm.enabled()` là false
+- [x] `worker.py`: đăng ký task thứ năm (`draft`, `retry`, `explain`, `grade_submission` legacy, rồi `propose`)
+- [x] `teacher_tools.py`: danh mục dựng **theo từng request** từ quyền của giáo viên; `execute()`
       **kiểm lại** quyền sở hữu. Hai tầng, vì tầng thứ nhất do model đọc và model đọc sai được
-- [ ] Hai tool chỉ-đọc: `find_class`, `class_assessment_summary`. Trả **tóm tắt đã gộp ở BE**, không
+- [x] Hai tool chỉ-đọc: `find_class`, `class_assessment_summary`. Trả **tóm tắt đã gộp ở BE**, không
       trả hàng — "lớp 11B hôm qua thế nào" là 40 học sinh × 10 câu
-- [ ] `teacher_chat.py`: vòng lặp `for _ in range(max_tool_steps)`, nhánh `else` nói thật với giáo
+- [x] `teacher_chat.py`: vòng lặp `for _ in range(max_tool_steps)`, nhánh `else` nói thật với giáo
       viên khi chạm trần thay vì im lặng
-- [ ] **Từ review Việc 1**: test rằng **đường HTTP** phát hành từ chối đề chưa duyệt. Hôm nay
+- [ ] **Từ review Việc 1 — CHƯA LÀM, và tick sai ở lần đầu.** Tôi tick cả khối Việc 2 bằng một phép
+      thay thế hàng loạt, nên hai ô việc *tương lai* cũng bị tick theo. Không có endpoint phát hành
+      nào trong repo, nên không thể có test cho nó. Test rằng **đường HTTP** phát hành từ chối đề
+      chưa duyệt. Hôm nay
       `test_teacher_approves_an_assessment_before_release` khoá hàm `advance()` mà chưa caller nào
       gọi, nên dòng invariant trong `AGENTS.md` đúng về chữ và mỏng về tinh thần cho tới khi có test
       này. Không gì buộc một tool đi qua `advance()`; một phép gán `state = PUBLISHED` viết rời vẫn
       qua mặt được
-- [ ] **Từ review Việc 1**: bất biến giữa `state` và số câu hỏi. `advance(..., APPROVED)` hiện không
+- [ ] **Từ review Việc 1 — CHƯA LÀM**, cùng lý do tick sai như ô trên. Bất biến giữa `state` và số câu hỏi. `advance(..., APPROVED)` hiện không
       đếm `assessment.questions`, nên một đề `has_questions` với **0 câu** duyệt và phát hành trôi
       chảy. Chưa sửa ở Việc 1 vì đọc `.questions` trong ngữ cảnh async sẽ lazy-load và nổ
       `MissingGreenlet`; chỗ đúng để kiểm là endpoint duyệt, nơi đã có sẵn session để đếm
-- [ ] `config.py` + `.env.example`: `MAX_TOOL_STEPS`. Mọi biến trong `.env.example` phải được một
+- [x] `config.py` + `.env.example`: `MAX_TOOL_STEPS`. Mọi biến trong `.env.example` phải được một
       `Settings` đọc, nếu không `dev.ps1 check` đỏ
-- [ ] Test: chạm trần thì dừng; vòng lặp thực thi được tool đọc; `execute()` từ chối tool của lớp
+- [x] Test: chạm trần thì dừng; vòng lặp thực thi được tool đọc; `execute()` từ chối tool của lớp
       người khác kể cả khi model xin; đường mock chạy không cần model
-- [ ] `backlog.md`: check timeout nói dối, kèm số cụ thể và vì sao chưa sửa
+- [x] `backlog.md`: check timeout nói dối, kèm số cụ thể và vì sao chưa sửa
 
 ### Việc 3 — Giải nghĩa thực thể
 
@@ -198,13 +203,24 @@ options considered:
   / hỏi lại.
 - **B. Tool-calling nguyên bản của provider** — hành vi tốt hơn, nhưng phụ thuộc provider.
 
-selected option: A, và kiểm bằng một test rẻ trước khi xây phần còn lại lên nó.
+selected option: A. Giữ nguyên sau khi đo, nhưng **lý do ban đầu của tôi sai**.
 
-reason: `conftest.py` đã cắm `GenericFakeChatModel` autouse cho cả suite, và `authoring.py` đã dùng
-structured output — nên A mở rộng hạt giống test sẵn có gần như miễn phí, chỉ cần xếp sẵn vài chuỗi
-JSON. B đòi một fake mới biết phát tool call. Quan trọng hơn: cả mục tiêu adapter lẫn dây fallback
-Gemini đều nói nên tránh chỗ phụ thuộc provider. Chưa chạy thử nên **đây là giả thuyết**, và task đầu
-của Việc 2 là kiểm nó, không phải tin nó.
+reason: A thắng vì `authoring.py` đã dùng structured output nên đây là pattern sẵn có, và vì cả mục
+tiêu adapter lẫn dây fallback Gemini đều nói nên tránh chỗ phụ thuộc provider. B đòi một fake mới
+biết phát tool call.
+
+**Chỗ tôi đoán sai, đã đo:** tôi viết rằng A "mở rộng hạt giống test sẵn có gần như miễn phí, chỉ cần
+xếp sẵn vài chuỗi JSON" vào `GenericFakeChatModel` của `conftest.py`. Chạy thử thì
+`GenericFakeChatModel.with_structured_output` ném `NotImplementedError: with_structured_output is not
+implemented for this model`. Không có đường nào nạp JSON vào nó.
+
+Đường đúng đã có sẵn trong repo và tôi không nhìn ra khi viết plan: `test_authoring_graph.py` tự viết
+một fake `Scripted` có `with_structured_output` trả `RunnableLambda`. Test của graph mới dùng đúng
+khuôn đó.
+
+Hệ quả phụ, tốt hơn tôi tưởng: fake autouse trong `conftest.py` **không** che được đường structured
+output — nên một test lỡ chạm đường model thật sẽ nổ `NotImplementedError` to và rõ, thay vì im lặng
+gọi provider. Lưới ấy chặt hơn tôi nghĩ, chỉ là chặt theo cách khác.
 
 ### Decision: Bảng mới cho hội thoại giáo viên, và trace ở luôn trong đó
 
@@ -240,12 +256,15 @@ phép đo chứ không phải một cảm giác.
 
 ## Validation Checks
 
-- [x] `.\dev.ps1 test` — sau Việc 1: 96 pytest và 11 vitest xanh (trước Việc 1 là 85 pytest)
+- [x] `.\dev.ps1 test` — sau Việc 2: 111 pytest và 11 vitest xanh (85 trước Việc 1, 96 sau Việc 1)
 - [x] `.\dev.ps1 check` — 5 check tầng repo, trong đó `agent-no-db` và `env-example`. Chạy lại ở mỗi việc
 - [ ] `.\dev.ps1 typecheck` — chỉ nếu có file frontend bị chạm (dự kiến: không)
-- [ ] `packages/contracts` bị đổi ⇒ chạy **cả hai** theo bảng Validation của `AGENTS.md`
-- [ ] Vòng lặp chạy đầu-cuối bằng mock: `curl` một câu vào endpoint chat giáo viên, đọc `TeacherTurn`
-      bằng SQL, thấy đủ chuỗi `teacher → tool_call → tool_result → assistant`
+- [x] `packages/contracts` bị đổi ⇒ đã chạy **cả hai** theo bảng Validation của `AGENTS.md`
+- [x] Vòng lặp chạy đầu-cuối bằng mock qua **queue thật và Postgres thật**, không phải stub:
+      `teacher → tool_call → tool_result → assistant`, hai lượt hỏi AGENT, một tool chạy. Bốn nhánh
+      kiểm trực tiếp: không nêu tên lớp → `ask_clarify`; lớp không tồn tại → đúng câu not-found của
+      ADR-22; `teacher:GV-999` → 401; học sinh gọi route giáo viên → 403. (Đọc `TeacherTurn` bằng
+      SQL là việc của Việc 4 — bảng chưa tồn tại)
 - [ ] Một lượt trên model thật (`gpt-4o-mini`) ở cuối mỗi việc, để xác nhận việc đó đã thông
 - [ ] **Luật Figma không áp lần này** — plan không chạm màn hình nào. Ghi ra để sự im lặng không bị
       đọc thành bỏ sót
@@ -262,24 +281,66 @@ Không có màn hình nào. Đó là việc của đợt sau.
 
 ## Status
 
-**Việc 1 xong**, đã qua một vòng subagent review và sửa hết phát hiện. Đang chờ bạn review trước khi
-sang Việc 2.
+**Việc 1 và Việc 2 xong.** Việc 1 đã commit (`9a37864`) sau khi bạn duyệt. Việc 2 đang chờ review.
 
-Review Việc 1 bắt được ba thứ đáng ghi lại, vì cả ba đều là lỗi *tôi tin là mình đã làm đúng*:
+Việc 2 có hai thứ chỉ lộ ra khi **chạy thật**, không test nào bắt được:
 
-- `Enum(native_enum=False)` **không** sinh check constraint — `create_constraint` và
-  `validate_strings` đều mặc định `False` từ SQLAlchemy 1.4. Docstring và hai trang tài liệu đã
-  quảng cáo một hàng rào không tồn tại, và chế độ hỏng còn tệ hơn không có hàng rào: ghi im lặng,
-  `LookupError` nổ ở lần đọc sau, trong một route không liên quan. Đã bật cả hai cờ và có test.
-- `test_a_published_assessment_has_no_way_back` khẳng định **mọi** cạnh ra khỏi `published` là bất
-  hợp pháp, kể cả `→ approved`. Nhưng ADR-02 chốt *"Thu hồi đưa đề về đã duyệt"*, nên test đang
-  khoá cứng một cạnh đã được quyết. Đã thu hẹp vòng lặp về đúng thứ ADR-01 cấm.
-- Test sở hữu cũ tạo một giáo viên **không có hàng nào** rồi assert query rỗng — nó xanh kể cả khi
-  `teacher_id` gán bừa hoặc `WHERE` lọc nhầm cột. Đã viết lại cho người lạ có lớp và đề riêng, assert
-  cả hai chiều.
+- `Enum(AssessmentState)` lưu theo **tên** member, nên Postgres giữ `PUBLISHED` trong khi ADR-01 và
+  `data-model.md` đều công bố `published` — và các hàng ghi trước khi có enum cũng là `published`.
+  Nhìn thấy bằng một câu `psql` sau khi seed, không phải bằng test. Đã thêm `values_callable` và
+  thêm một test đọc chuỗi thô, để nó không lệch âm thầm lần nữa.
+- Check constraint thì có thật sau bản sửa của Việc 1 — `psql` in ra đúng `CHECK (state = ANY ...)`.
+  Phần khẳng định đó nay đúng.
 
-Và một chỗ tôi xử lý sai thủ tục: khi `AGENTS.md` chạm cap 171 dòng, tôi bỏ dòng invariant vừa thêm.
-Comment ngay trên hằng số đó viết *"Cutting real rules to satisfy an invented number is the wrong
-trade"* và mô tả đúng cách làm — nâng cap kèm decision record. Tôi đã làm đúng cái nó cấm. Đường ra
-đã chọn: đặt luật vào `services/be/AGENTS.md` (16/25 dòng, còn chỗ), đúng nơi một ràng buộc của BE
-thuộc về, nên không cần tiêu một dòng của file gốc.
+Bài học lặp lại lần thứ hai trong plan này: **hai lần tôi tin một thư viện làm điều nó không làm**,
+và cả hai lần chỉ lộ ra khi có người hoặc có máy thật kiểm lại. Không lần nào test của tôi bắt được,
+vì tôi viết test theo đúng điều tôi tin.
+
+### Review Việc 2 bắt gì
+
+Bốn thứ nặng, đã sửa hết:
+
+- **Session giữ connection suốt cả lượt.** Pool rộng 15 (mặc định 5+10, `db.py` không truyền tham
+  số), mà một lượt có thể chờ 8 × 70 giây. Mười lăm giáo viên chat cùng lúc là **mọi** request khác
+  của tiến trình phải xếp hàng, kể cả cái học sinh poll mỗi giây. Sửa: `rollback()` sau mỗi tool.
+  Và bản sửa ấy lộ ra một bug thứ hai của chính nó — `rollback()` làm expire hàng `teacher`, nên lượt
+  sau đọc `teacher.full_name` là IO lười ở chỗ không được phép (`MissingGreenlet`, nổ xa nguyên
+  nhân). Sửa bằng value object `Asking`: vòng lặp làm việc với một **danh tính**, không với một hàng ORM.
+- **Không có trần thời gian cho một lượt.** `MAX_TOOL_STEPS` không phải lời hứa về thời gian chờ:
+  8 × 70s là hơn chín phút, và proxy hay browser sẽ cắt trước trong khi BE ghi log thành công. Thêm
+  `TURN_BUDGET_SECONDS=90`.
+- **`average_mark` là con số sai theo cách nguy hiểm nhất.** Mark là 0/0,5/1 **mỗi câu** (ADR-16),
+  nên tổng chia số attempt là điểm trên thang *bằng số câu* — mà mẫu số không được trả về. Đề 5 câu,
+  lớp làm đúng 68% → "điểm trung bình 3,4", và mọi giáo viên Việt Nam đọc là 3,4/10. Đây là thông
+  tin sai đưa tới người có thẩm quyền quyết định. Sửa: trả kèm `average_out_of` và
+  `average_percent`, lọc attempt chưa nộp, và description của tool bắt model phải nói kèm thang.
+- **Chỉ `UnknownTool` được bắt**, trong khi docstring của chính endpoint hứa mọi lỗi tool đều thành
+  dữ liệu model đọc được. Lỗi DB hay lệch version contract → 500 không có chữ tiếng Việt nào.
+
+Và ba chỗ trung thực tài liệu, đáng ghi vì chúng là lỗi của **tôi**, không của code:
+
+- **Hai ô `[x]` cho việc không tồn tại.** Tôi tick cả khối Việc 2 bằng một phép thay thế hàng loạt,
+  nên hai ô việc *tương lai* bị tick theo — trong đó có ô "test đường HTTP phát hành", mà repo không
+  có endpoint phát hành nào. `AGENTS.md` cấm đúng điều này: "Do not hide unresolved work".
+- **`main.py` bị ghi lại toàn bộ thành CRLF**, biến một thay đổi 2 dòng thành diff 142 dòng và xoá
+  sạch `git blame`. Đã `git checkout` rồi apply lại đúng hai dòng.
+- **Docstring `teacher_tools.py` nói "hai tầng" và chỉ vào tầng không làm gì.** `catalog_for` trả
+  cùng một list cho mọi giáo viên, nên phép kiểm catalog trong `execute` hiện **không thể sai**.
+  Tầng thật là `asking.teacher_id` trong từng tool. Ai tin dòng cũ sẽ viết tool mới không lọc
+  `teacher_id`, tin rằng `execute` đã chặn.
+
+Cộng hai test xanh vì lý do yếu: trần vòng lặp assert `<= 8` (xanh cả khi vòng chạy 1 bước) và
+so hai hằng số not-found với nhau. Cả hai đã chặt lại. Và 4 test handler **không** patch
+`llm.enabled` — trên máy này `.env` có `LLM_ENABLED=true`, nên chúng đi vào đường model thật rồi xanh
+nhờ nhánh `except`. Không tốn tiền, vì fake autouse ném `NotImplementedError` trước khi tới provider
+— nhưng xanh vì đường hồi phục, không vì đường đang test. Đã chốt bằng fixture.
+
+### Còn nợ, khai rõ
+
+- `ask_clarify` **chưa trả lời được**: endpoint nhận một câu và không lưu gì, nên câu trả lời của
+  giáo viên tới mà không có ngữ cảnh câu hỏi. Cổng đầu vào của ADR-05 đã dựng, nửa sau chưa có. Việc 4.
+- `choices` bị **bỏ** thay vì kiểm: ADR-05 đòi lựa chọn đến từ dữ liệu BE, mà chưa có gì đối chiếu
+  được. Bỏ đi thì giáo viên không thấy tên lớp model bịa; nhưng phần *chữ* vẫn có thể nhắc tới chúng.
+  Hết hẳn khi `resolve_class` dựng lựa chọn từ hàng nó tìm được (Việc 3).
+- `Student.class_id` là lớp **hiện tại**, nên học sinh chuyển lớp mang theo attempt cũ sang lớp mới.
+  Lỗi có từ trước, nhưng tool tóm tắt là caller đầu tiên chịu ảnh hưởng.

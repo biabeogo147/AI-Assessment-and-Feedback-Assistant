@@ -13,6 +13,7 @@ from be.queue import create_queue_pool
 from be.routes import router
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
+from be.teacher_chat import router as teacher_router
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +69,4 @@ app = FastAPI(
 )
 app.include_router(router)
 app.include_router(student_router)
+app.include_router(teacher_router)

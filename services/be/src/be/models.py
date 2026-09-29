@@ -138,13 +138,20 @@ class Assessment(Base):
     title: Mapped[str] = mapped_column(String(160))
     subject: Mapped[str] = mapped_column(String(64))
     grade: Mapped[str] = mapped_column(String(16))
-    # Both flags are off by default in SQLAlchemy, and the defaults are the
-    # worst of the three options: an unknown string is written without
-    # complaint and then raises `LookupError` on the next read of the table,
-    # in whatever route happens to touch it next. `validate_strings` moves the
-    # error to the write that caused it; `create_constraint` puts the same rule
-    # in the schema, so a state outside ADR-01 cannot arrive through psql
-    # either.
+    # Three arguments that are not defaults, each for its own reason.
+    #
+    # `create_constraint` and `validate_strings` are both off by default, and
+    # those defaults are the worst of the three options: an unknown string is
+    # written without complaint and then raises `LookupError` on the next read
+    # of the table, in whatever route happens to touch it next. `validate_
+    # strings` moves the error to the write that caused it; `create_constraint`
+    # puts the same rule in the schema, so a state outside ADR-01 cannot arrive
+    # through psql either.
+    #
+    # `values_callable` stores the member *values*. Without it SQLAlchemy
+    # stores member **names**, so the column would hold "PUBLISHED" while
+    # ADR-01 and `data-model.md` both name "published" -- and while rows
+    # written before this enum existed held "published" as well.
     state: Mapped[AssessmentState] = mapped_column(
         Enum(
             AssessmentState,
@@ -153,6 +160,7 @@ class Assessment(Base):
             name="assessment_state",
             create_constraint=True,
             validate_strings=True,
+            values_callable=lambda enum: [member.value for member in enum],
         ),
         default=AssessmentState.EMPTY,
     )

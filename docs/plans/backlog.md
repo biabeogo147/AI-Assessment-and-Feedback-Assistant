@@ -425,3 +425,37 @@ nhầm học sinh thật.
 **Bài học đáng giữ hơn cả bản sửa:** một `useEffect` phụ thuộc vào state mà chính nó làm thay đổi là
 một vòng lặp đang chờ một lần thất bại để bắt đầu. Nó chạy êm suốt quá trình phát triển vì đường đi
 thành công luôn làm điều kiện dừng thành đúng. Chỉ đường đi **hỏng** mới lộ ra nó.
+
+## Check `timeout-order` đang nói dối về `draft_assessment`
+
+Ghi ngày 2026-09-30, phát hiện khi dựng vòng lặp tool cho platform giáo viên. Đây là **lỗi chưa
+sửa**, và lý do chưa sửa là lý do thật chứ không phải hết thời gian.
+
+`tools/check_contract.py::check_model_call_fits_inside_the_job_waiting_for_it` so
+`LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` = 20 × 3 = 60 với `AGENT_JOB_TIMEOUT_SECONDS` = 70, rồi
+báo xanh. Nhưng `draft_assessment` gọi model **một lần cho mỗi câu**, và mỗi câu lại có vòng
+write→check→write riêng — tức `question_count × llm_max_attempts` lần gọi. `question_count` nhận tới
+50 (`packages/contracts/src/contracts/authoring.py:97`), nên trường hợp xấu nhất là 50 × 3 × 20s =
+**3000s** so với 70s.
+
+Cay đắng hơn: docstring của chính check đó kể rằng nó từng sai đúng kiểu này một lần rồi — *"This
+check compared a single call against BE's patience until the authoring loop appeared, and was
+quietly wrong for as long as that loop existed"*. Nó lại sai, theo cùng một cách, với đúng cái
+handler gọi model nhiều nhất.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Cho check nhân thêm `question_count` | **Bị chặn bởi một câu hỏi thiết kế** — xem dưới |
+
+Sửa cho đúng là một dòng, và dòng đó làm check **đỏ** ngay. Đường ra không phải nâng
+`AGENT_JOB_TIMEOUT_SECONDS` lên 3000 giây — một job treo 50 phút thì BE không còn phân biệt được
+worker chậm với worker chết, mà đó chính là thứ check này được viết ra để bảo vệ. Ba đường đi thật:
+chia bản nháp thành nhiều job, mỗi job vài câu; cho `draft_assessment` một hạn riêng thay vì dùng
+chung hạn của mọi task; hoặc hạ trần `question_count`. Cả ba đều là quyết định về hình dạng của việc
+soạn đề, không phải về con số.
+
+Chưa bị cắn vì **chưa caller nào gọi `draft_assessment`** — nó là code chết cho tới khi platform
+giáo viên dùng tới. Khi dùng tới thì phải quyết trước, chứ không phải sửa số cho check xanh lại.
+
+**Bài học:** một check tính trường hợp xấu nhất phải được đọc lại mỗi lần có thêm một vòng lặp mới,
+vì nó nhân các con số mà nó **biết**, và không có gì cảnh báo khi xuất hiện một con số nó không biết.
