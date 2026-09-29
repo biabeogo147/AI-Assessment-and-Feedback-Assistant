@@ -65,6 +65,20 @@ async def _fake_run_task(pool, settings, task_name, payload) -> dict:
     return {"schema_version": 1, "request_id": payload["request_id"], "text": "Trả lời mẫu."}
 
 
+async def _ask_something(client: AsyncClient, attempt_id: str) -> None:
+    """Get past the opening turn so the next stream is a real model turn.
+
+    The greeting is written by BE and never reaches AGENT, so a test that wants
+    to watch a model answer has to ask it something first.
+    """
+    await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+    await client.post(
+        f"/api/attempts/{attempt_id}/chat/messages",
+        json={"text": "câu 5 mình chưa hiểu vì sao sai"},
+        headers=STUDENT,
+    )
+
+
 async def _fake_stream_task(pool, settings, task_name, payload, channel, silence=None):
     """Stand in for AGENT on the streaming path, publishing nothing.
 
@@ -495,6 +509,7 @@ async def test_the_assistant_is_told_which_question_numbers_are_wrong(
         yield "result", {"schema_version": 1, "request_id": payload["request_id"], "text": "…"}
 
     monkeypatch.setattr(student_routes, "stream_task", capture)
+    await _ask_something(client, attempt_id)
     await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
 
     # The seed's last two questions are the ones answered wrongly.
@@ -558,6 +573,7 @@ async def test_the_answer_reaches_the_student_as_it_is_written(
 
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
+    await _ask_something(client, attempt_id)
 
     response = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
     assert response.status_code == 200
@@ -588,17 +604,20 @@ async def test_a_model_failure_arrives_in_the_stream_not_as_a_status_code(
         yield "chunk", "Câu 5 "
         raise student_routes.AgentError("model chết giữa chừng")
 
-    monkeypatch.setattr(student_routes, "stream_task", failing)
-
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
+    await _ask_something(client, attempt_id)
+    monkeypatch.setattr(student_routes, "stream_task", failing)
 
     response = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
 
     assert response.status_code == 200
     assert "event: error" in response.text
     history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
-    assert history["messages"] == []
+    # The greeting and the question stand; no broken answer was stored after
+    # them, so the student's message is still the last word and the next
+    # request generates a fresh turn.
+    assert [m["role"] for m in history["messages"]] == ["assistant", "student"]
 
 
 @pytest.mark.asyncio
@@ -791,3 +810,35 @@ async def test_a_job_that_failed_is_not_asked_again_forever(
         await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
 
     assert len(queue.jobs) == after_submit, "a broken job was re-queued on every visit"
+
+
+@pytest.mark.asyncio
+async def test_the_greeting_costs_nothing(client: AsyncClient, monkeypatch) -> None:
+    """The opening turn never reaches AGENT.
+
+    It used to: a job, a wait, a stream, to produce a sentence that barely
+    varies. One wasted model call on every paper handed in. Nothing about that
+    saving is visible on screen, so a tidy-up could put it back without anybody
+    noticing -- which is what this test is for.
+    """
+
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("the greeting asked the model")
+        yield  # pragma: no cover -- keeps this an async generator
+
+    monkeypatch.setattr(student_routes, "stream_task", must_not_run)
+
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+
+    response = await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
+    assert response.status_code == 200
+
+    history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
+    greeting = history["messages"][0]["text"]
+
+    assert greeting.startswith("Mình là trợ lý Kriky")
+    # It names what is on offer, so the student knows what to ask about before
+    # they have read the panel.
+    assert "câu 5 và câu 6" in greeting
+    assert "bạn" in greeting and " em " not in greeting

@@ -194,13 +194,14 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
 
           <ErrorStrip message={error} />
 
-          {history.messages.map((message) => (
-            <Turn key={message.message_id} role={message.role} text={message.text} />
-          ))}
+          {/* The conversation is the only part of this column that scrolls. */}
+          <div className="thread">
+            {history.messages.map((message) => (
+              <Turn key={message.message_id} role={message.role} text={message.text} />
+            ))}
 
-          {streaming ? <Turn role="assistant" text={streaming} /> : null}
-
-          <div style={{ flex: 1 }} />
+            {streaming ? <Turn role="assistant" text={streaming} /> : null}
+          </div>
 
           <div className={`composer ${locked ? "locked" : ""}`}>
             <input
@@ -209,7 +210,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
               placeholder={
                 locked
                   ? "Bài đã kết thúc — không nhắn thêm được."
-                  : "Hỏi Kriky về bất kỳ câu nào em làm sai…"
+                  : "Hỏi Kriky về bất kỳ câu nào bạn làm sai…"
               }
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {

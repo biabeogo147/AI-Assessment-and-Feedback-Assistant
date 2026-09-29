@@ -1599,6 +1599,39 @@ async def _write_ahead(
             await session.rollback()
 
 
+# The assistant's first words. Fixed on purpose: this used to go through the
+# model like any other turn -- a job, a wait, a stream -- to produce a sentence
+# that barely varies. One wasted model call on every paper handed in. The only
+# part that differs between two students is which questions they got wrong, and
+# that is string formatting, not a thing to ask a model for.
+_GREETING = (
+    "Mình là trợ lý Kriky, bạn có thể hỏi mình để giải đáp các thắc mắc trong bài làm vừa rồi."
+)
+
+
+def _greeting(numbers: tuple[int, ...] | list[int]) -> str:
+    """Write the opening turn.
+
+    Args:
+        numbers: The paper's number for each question the student got wrong,
+            in order.
+
+    Returns:
+        The greeting, naming those questions so the student knows what is on
+        offer before they ask.
+    """
+    if not numbers:
+        return _GREETING
+
+    named = " và ".join(f"câu {number}" for number in numbers)
+    return (
+        f"{_GREETING} Bài này bạn sai {named} — cả hai đang ở bảng bên phải, "
+        "hỏi câu nào trước cũng được."
+        if len(numbers) > 1
+        else f"{_GREETING} Bài này bạn sai {named} — nó đang ở bảng bên phải."
+    )
+
+
 def _event(name: str, text: str) -> str:
     """Write one server-sent event.
 
@@ -1699,6 +1732,21 @@ async def stream_reply(
 
     questions, numbers, chosen_labels, error_labels = await _chat_context(session, attempt)
     last_student = next((m.text for m in reversed(history) if m.role == "student"), "")
+
+    if not history:
+        # The opening turn never reaches AGENT. See `_greeting`: it is a fixed
+        # sentence plus a list of numbers, and paying a model to write it once
+        # per paper bought nothing.
+        opening = ChatMessage(
+            attempt_id=attempt_id,
+            sequence=1,
+            role="assistant",
+            text=_greeting(numbers),
+            created_at=_now(),
+        )
+        session.add(opening)
+        await session.commit()
+        return StreamingResponse(_sse(opening.text, opening.id), media_type="text/event-stream")
 
     pool = request.app.state.queue_pool
     if pool is None:

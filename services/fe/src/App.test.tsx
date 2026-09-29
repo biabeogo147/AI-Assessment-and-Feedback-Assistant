@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { countdown, moment } from "./api";
 import AssignmentList from "./screens/AssignmentList";
 import Result from "./screens/Result";
+import Sitting from "./screens/Sitting";
 import Tutor from "./screens/Tutor";
 
 const ME = {
@@ -178,5 +179,112 @@ describe("formatting", () => {
   it("clamps a finished countdown at zero rather than going negative", () => {
     expect(countdown(-5000)).toBe("00:00");
     expect(countdown(65000)).toBe("01:05");
+  });
+});
+
+describe("the one-way doors", () => {
+  const ATTEMPT = {
+    attempt_id: "a1",
+    title: "Kiểm tra 15 phút — Hàm số",
+    started_at: "2026-09-15T07:00:00+00:00",
+    ends_at: "2026-09-15T07:15:00+00:00",
+    questions: [
+      {
+        question_id: "q1",
+        order: 1,
+        stem: "Đạo hàm của y = x² + 3x là gì?",
+        options: [
+          { option_id: "o1", label: "A", text: "2x + 3" },
+          { option_id: "o2", label: "B", text: "x + 3" },
+        ],
+        chosen_option_id: null,
+      },
+      {
+        question_id: "q2",
+        order: 2,
+        stem: "Hàm số y = 2x + 1 đồng biến trên khoảng nào?",
+        options: [
+          { option_id: "o3", label: "A", text: "(−∞; +∞)" },
+          { option_id: "o4", label: "B", text: "(0; +∞)" },
+        ],
+        chosen_option_id: null,
+      },
+    ],
+  };
+
+  it("asks before ending phase 1, and reads back the count it shows", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(`${init?.method ?? "GET"} ${url}`);
+        return new Response(JSON.stringify(ATTEMPT), { status: 200 });
+      }),
+    );
+    render(<Sitting me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText(/Câu 1 \/ 2/)).toBeTruthy());
+    screen.getByRole("button", { name: "Nộp bài" }).click();
+
+    // Submitting ends phase 1 and cannot be undone (ADR-14), so the button
+    // opens a gate rather than the door itself.
+    await waitFor(() => expect(screen.getByText("Nộp bài?")).toBeTruthy());
+    expect(calls.some((call) => call.startsWith("POST"))).toBe(false);
+    // The number comes from the same place the navigation strip gets it, not
+    // from a sentence somebody typed.
+    expect(screen.getAllByText(/2 câu/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("what scrolls", () => {
+  const PANEL = {
+    attempt_id: "a1",
+    state: "cần-chữa",
+    deadline: "2026-09-15T15:00:00+00:00",
+    minutes_per_question: 5,
+    round_budget_minutes: 10,
+    open_count: 1,
+    can_start_round: true,
+    warn_cut: false,
+    open_round_id: null,
+    items: [
+      {
+        question_id: "q4",
+        order: 4,
+        stem: "Cho hàm số y = x³ − 3x.",
+        chosen: { label: "B", text: "Khoảng (−1; 1)" },
+        correct: { label: "A", text: "Khoảng (−∞; −1)" },
+        rounds_used: 0,
+        rounds_max: 3,
+        mark: 0,
+        closed: false,
+      },
+    ],
+  };
+
+  it("keeps the composer out of the scrolling region", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        new Response(
+          JSON.stringify(
+            String(url).includes("/chat")
+              ? { attempt_id: "a1", locked: true, messages: [] }
+              : PANEL,
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+    const { container } = render(<Tutor me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText("CÁC CÂU EM LÀM SAI")).toBeTruthy());
+
+    const thread = container.querySelector(".thread");
+    expect(thread).not.toBeNull();
+    // The composer is a place to act. An action that scrolls away with the
+    // conversation is one the student has to go looking for.
+    expect(thread?.querySelector(".composer")).toBeNull();
+    expect(container.querySelector(".composer")).not.toBeNull();
   });
 });

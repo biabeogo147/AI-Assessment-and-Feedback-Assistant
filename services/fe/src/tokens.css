@@ -105,12 +105,20 @@ h3 {
 }
 
 /* 1020 + 420 = 1440: the chat screen runs edge to edge, not inside padding. */
+/*
+ * Exactly one screen tall, and it does not scroll. Two regions inside it do,
+ * separately: the conversation and the list of wrong questions. Letting the
+ * page scroll instead meant that reading the last card pushed the chat off
+ * the top -- one long column of unrelated things, where moving through either
+ * one moved the other.
+ */
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1020px) 420px;
   max-width: var(--frame);
   margin: 0 auto;
-  min-height: calc(100vh - 57px);
+  height: calc(100vh - 57px);
+  overflow: hidden;
 }
 
 .split .chat {
@@ -118,6 +126,9 @@ h3 {
   flex-direction: column;
   gap: 16px;
   padding: 28px 32px 28px 40px;
+  /* Without this a flex child refuses to shrink below its content, and the
+     scrolling region inside would grow the column instead of scrolling. */
+  min-height: 0;
 }
 
 .split .panel {
@@ -127,11 +138,35 @@ h3 {
   padding: 28px 24px;
   background: var(--surface);
   border-left: 1px solid var(--line);
+  min-height: 0;
+}
+
+/*
+ * The conversation scrolls; the composer and the report control do not. They
+ * are places to act, not text to read, and an action that scrolls away is an
+ * action the student has to go looking for.
+ */
+.thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* ------------------------------------------------------------- top bar */
 
+/*
+ * Stays put through every scroll, including the whole-page scroll on the list
+ * and score screens. It carries who is signed in and the way out, and in a
+ * shared computer room (ADR-13) both of those have to be reachable without
+ * hunting for them.
+ */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -770,7 +805,15 @@ button:disabled {
   border-color: var(--accent);
 }
 
+/*
+ * The cards scroll; the heading above them and the progress box below do not.
+ * The progress box is the summary -- "còn phải làm lại 2 câu", the deadline --
+ * and a summary that scrolls out of sight has stopped summarising.
+ */
 .panel-cards {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;

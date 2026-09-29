@@ -21,6 +21,7 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     api
@@ -135,11 +136,68 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
             </div>
           </div>
 
-          <button className="btn-commit" type="button" disabled={busy} onClick={submit}>
+          <button
+            className="btn-commit"
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+          >
             Nộp bài
           </button>
         </aside>
       </main>
+
+      {confirming ? (
+        <div className="scrim">
+          <div className="dialog gate">
+            <h2 style={{ fontSize: "var(--type-heading)" }}>Nộp bài?</h2>
+            <p style={{ margin: "16px 0", lineHeight: 1.25, color: "var(--ink-muted)" }}>
+              Nộp là kết thúc phần làm bài. Bạn không sửa được câu nào nữa.
+            </p>
+
+            <div className="panel-card plain" style={{ padding: "12px 14px" }}>
+              <div className="stat">
+                <span className="key">Đã trả lời</span>
+                <span className="value">
+                  {attempt.questions.length - unanswered} trên {attempt.questions.length} câu
+                </span>
+              </div>
+              {/* Read back, not written down: the same count the navigation
+                  strip shows. A confirmation that states a number the screen
+                  does not is a confirmation nobody can check. */}
+              <div className="stat">
+                <span className="key">Chưa trả lời</span>
+                <span className="value">
+                  {unanswered === 0 ? "không còn câu nào" : `${unanswered} câu`}
+                </span>
+              </div>
+              <div className="stat">
+                <span className="key">Sau khi nộp</span>
+                <span className="value">điểm này là điểm sàn, còn nâng được</span>
+              </div>
+            </div>
+
+            {unanswered > 0 ? (
+              <div className="warn-strip">
+                Còn <strong>{unanswered} câu</strong> chưa trả lời. Câu bỏ trống tính là sai.
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                className="btn-dialog quiet"
+                type="button"
+                onClick={() => setConfirming(false)}
+              >
+                Quay lại làm tiếp
+              </button>
+              <button className="btn-dialog" type="button" disabled={busy} onClick={submit}>
+                Nộp bài
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

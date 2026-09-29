@@ -443,15 +443,15 @@ def explain_turn(request: ExplainTurnRequested) -> ExplainTurnCompleted:
 
     if not request.student_text.strip():
         named = ", ".join(f"câu {number}" for number in numbers)
-        tail = f" Bài này em sai {named} — hỏi câu nào trước cũng được." if named else ""
+        tail = f" Bài này bạn sai {named} — hỏi câu nào trước cũng được." if named else ""
         return ExplainTurnCompleted(request_id=request.request_id, text=_OPENING + tail)
 
     target = _question_in_focus(request)
     if target is None:
         example = numbers[0] if numbers else 1
         text = (
-            "Em muốn hỏi về câu nào trong số những câu sai? Nói số câu giúp mình, "
-            f"ví dụ 'câu {example} em chưa hiểu vì sao sai'."
+            "Bạn muốn hỏi về câu nào trong số những câu sai? Nói số câu giúp mình, "
+            f"ví dụ 'câu {example} mình chưa hiểu vì sao sai'."
         )
         return ExplainTurnCompleted(request_id=request.request_id, text=text)
 
