@@ -71,6 +71,9 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
     } catch (cause) {
       setError((cause as Error).message);
       setBusy(false);
+      // The error strip lives behind this dialog, so leaving it open would
+      // hide the only explanation of why nothing happened.
+      setConfirming(false);
     }
   }
 

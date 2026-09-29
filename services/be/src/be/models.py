@@ -357,6 +357,12 @@ class ChatMessage(Base):
     """
 
     __tablename__ = "chat_messages"
+    # One turn per position. Two requests can reach the opening turn holding
+    # the same empty history -- React's StrictMode opens the stream twice by
+    # design -- and a check followed by an insert is two statements with a gap
+    # in the middle. Without this the student is greeted twice, by two rows
+    # that both claim to be the first.
+    __table_args__ = (UniqueConstraint("attempt_id", "sequence"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     attempt_id: Mapped[str] = mapped_column(ForeignKey("attempts.id"))

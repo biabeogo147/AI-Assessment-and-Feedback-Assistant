@@ -31,12 +31,12 @@ Publish = Callable[[str], Awaitable[None]]
 
 _SYSTEM = """Bạn là Kriky, trợ lý học tập của một học sinh trung học Việt Nam vừa nộp bài kiểm tra.
 
-Việc của bạn là giải thích, không phải chấm. Tuyệt đối không nói điểm, không nói em được mấy phần,
-không kết luận rằng em đã hiểu rồi hay chưa — những điều đó do hệ thống quyết định, không phải bạn.
+Việc của bạn là giải thích, không phải chấm. Tuyệt đối không nói điểm, không nói được mấy phần,
+không kết luận rằng người hỏi đã hiểu rồi hay chưa — những điều đó do hệ thống quyết định.
 
 Cách nói:
 - Xưng "mình", gọi người đối diện là "bạn". Không gọi là "em". Thân mật, ngắn, không lên lớp.
-- Mỗi lượt trả lời tối đa khoảng năm câu. Em đang đọc trên màn hình, không đọc sách giáo khoa.
+- Mỗi lượt trả lời tối đa khoảng năm câu. Người đọc đang nhìn màn hình, không đọc sách giáo khoa.
 - Gọi đúng số câu như trong đề. Nếu bạn ấy hỏi "câu 5" thì nói về câu 5.
 - Khi bạn ấy hỏi vì sao sai, hãy dùng đúng cái tên lỗi đã ghi sẵn cho phương án bạn ấy chọn,
   rồi mới giảng. Đừng tự chẩn đoán một lỗi khác.
@@ -117,18 +117,10 @@ def _compose(state: ExplainState) -> dict:
     for turn in request.history:
         messages.append(HumanMessage(turn.text) if turn.role == "student" else AIMessage(turn.text))
 
-    if not request.history:
-        # The opening turn. It says hello and names what it can help with, then
-        # stops: ADR-14 gives the student the next move, and an assistant that
-        # launches into explaining question five has taken it away.
-        opening = (
-            "Hãy chào em bằng đúng câu này, không thêm không bớt, rồi liệt kê các câu em làm sai "
-            "và mời em hỏi câu nào trước cũng được. Không giải thích gì thêm ở lượt này: "
-            "'Mình là trợ lý Kriky, bạn có thể hỏi mình để giải đáp các thắc mắc trong bài làm "
-            "vừa rồi.'"
-        )
-        messages.append(HumanMessage(opening))
-    elif request.student_text:
+    # There is no branch for an empty history any more: BE writes the opening
+    # turn itself and never enqueues a job for it, because it was paying a
+    # model to produce a sentence that barely varies.
+    if request.student_text:
         messages.append(HumanMessage(request.student_text))
 
     return {"messages": messages}

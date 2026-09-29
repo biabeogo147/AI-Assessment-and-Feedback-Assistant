@@ -842,3 +842,50 @@ async def test_the_greeting_costs_nothing(client: AsyncClient, monkeypatch) -> N
     # they have read the panel.
     assert "câu 5 và câu 6" in greeting
     assert "bạn" in greeting and " em " not in greeting
+
+
+@pytest.mark.parametrize(
+    ("numbers", "must_say", "must_not_say"),
+    [
+        ([3], "sai câu 3 — nó đang", "cả hai"),
+        ([3, 5], "câu 3 và câu 5 — cả hai đang", "tất cả"),
+        ([3, 5, 7], "câu 3, câu 5 và câu 7 — tất cả đang", "cả hai"),
+    ],
+)
+def test_the_greeting_counts_correctly(
+    numbers: list[int], must_say: str, must_not_say: str
+) -> None:
+    """Three wrong questions is not "cả hai", and not "và" between every pair.
+
+    The sample data has exactly two, which is how a sentence that only works
+    for two gets written and then never questioned.
+    """
+    said = student_routes._greeting(numbers)
+
+    assert must_say in said
+    assert must_not_say not in said
+
+
+def test_one_turn_per_position_is_the_database_s_job() -> None:
+    """Two opening streams must not become two greetings.
+
+    React's StrictMode opens the stream twice on purpose, and both requests
+    read the same empty history -- so the guard that asks "whose turn is it"
+    cannot help: it needs a history to read. Only a unique index can decide,
+    and `stream_reply` turns the loser's IntegrityError into a replay.
+
+    The race itself is not testable here: this suite runs on an in-memory
+    SQLite that serves every session from one connection, so the loser's
+    rollback takes the winner's row with it. What is testable is the thing that
+    makes the protection possible, and that is what a later tidy-up would
+    delete without noticing.
+    """
+    from be.models import ChatMessage
+
+    unique = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in ChatMessage.__table__.constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    }
+
+    assert ("attempt_id", "sequence") in unique

@@ -460,12 +460,12 @@ def explain_turn(request: ExplainTurnRequested) -> ExplainTurnCompleted:
     method = target.methods[0] if target.methods else None
     number = numbers[request.questions.index(target)] if numbers else None
 
-    parts = [f"Câu {number}: em chọn {chosen}." if chosen else f"Câu {number}:"]
+    parts = [f"Câu {number}: bạn chọn {chosen}." if chosen else f"Câu {number}:"]
     if error:
         parts.append(f"Lỗi thường gặp của lựa chọn đó là {error}.")
     if method is not None:
         parts.append(f"{method.title}: {method.body}")
-    parts.append("Em thử lại theo cách đó xem, chỗ nào vướng thì hỏi tiếp nhé.")
+    parts.append("Bạn thử lại theo cách đó xem, chỗ nào vướng thì hỏi tiếp nhé.")
     return ExplainTurnCompleted(request_id=request.request_id, text=" ".join(parts))
 
 

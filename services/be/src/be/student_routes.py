@@ -1623,12 +1623,18 @@ def _greeting(numbers: tuple[int, ...] | list[int]) -> str:
     if not numbers:
         return _GREETING
 
-    named = " và ".join(f"câu {number}" for number in numbers)
+    said = [f"câu {number}" for number in numbers]
+    if len(said) == 1:
+        return f"{_GREETING} Bài này bạn sai {said[0]} — nó đang ở bảng bên phải."
+
+    # "câu 3, câu 5 và câu 7" -- the comma list Vietnamese actually uses, not
+    # "và" between every pair. And "cả hai" is only true when there are two,
+    # which is what the sample data has and therefore the easy thing to assume.
+    named = f"{', '.join(said[:-1])} và {said[-1]}"
+    how_many = "cả hai" if len(said) == 2 else "tất cả"
     return (
-        f"{_GREETING} Bài này bạn sai {named} — cả hai đang ở bảng bên phải, "
+        f"{_GREETING} Bài này bạn sai {named} — {how_many} đang ở bảng bên phải, "
         "hỏi câu nào trước cũng được."
-        if len(numbers) > 1
-        else f"{_GREETING} Bài này bạn sai {named} — nó đang ở bảng bên phải."
     )
 
 
@@ -1744,8 +1750,23 @@ async def stream_reply(
             text=_greeting(numbers),
             created_at=_now(),
         )
+        #
+        # The guard above cannot help here: it needs a history to read, and
+        # both racing requests see an empty one. React's StrictMode opens this
+        # stream twice on purpose, so this is the ordinary case rather than the
+        # unlucky one. The unique index decides, and the loser replays.
         session.add(opening)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            existing = await _history(session, attempt_id)
+            if existing:
+                return StreamingResponse(_replay(existing[0]), media_type="text/event-stream")
+            # Lost the race and cannot read the winner's row from this session.
+            # Harmless: the greeting is the same sentence either way, so the
+            # student reads what was stored without a second row being written.
+            return StreamingResponse(_sse(opening.text, "opening"), media_type="text/event-stream")
         return StreamingResponse(_sse(opening.text, opening.id), media_type="text/event-stream")
 
     pool = request.app.state.queue_pool
