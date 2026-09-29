@@ -339,5 +339,10 @@ ba việc đã sửa — tên hàm trong mục Kiến trúc cho khớp code, tes
 timeout chuyển từ lời khuyên thành kiểm tra tự động. Trong lúc viết test thì phát hiện lý do tôi
 nêu cho `with_fallback` là **sai**, đã kiểm chứng bằng code và viết lại bằng lý do đúng.
 
-Model đang dùng: `gpt-5.6-luna` — rẻ nhất trong danh sách text mà khoá này với tới
-($0.20 / $1.20 mỗi triệu token). Nâng lên `gpt-5.6-terra` hay `gpt-5.6-sol` là đổi một biến.
+Model cho **manual test trên trình duyệt**: `gpt-4o-mini`, chốt ngày 2026-09-29. Dùng model khác
+cho việc ấy phải hỏi trước. Lý do là ngân sách: khoá là khoá lab có hạn mức, và một lượt chạy trọn
+kịch bản mười một bước tốn chừng 10–14 lượt gọi — thứ tốn model nhiều nhất trong cả dự án. Một model
+rẻ và cố định khiến demo lặp lại được mà không phải canh ví.
+
+Đây là luật cho **lần chạy thử**, không phải lựa chọn model cho sản phẩm; đừng lặng lẽ mang nó vào
+mặc định hay vào `.env.example`.
