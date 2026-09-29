@@ -398,3 +398,30 @@ mỗi lần sửa prompt thì tắt, nhưng một luật chỉ sống trong prom
 Hai đường, và chúng dẫn đi rất khác nhau: **lọc** ở AGENT trước khi trả (rẻ, nhưng dấu `*` còn là
 phép nhân, nên lọc ngây thơ sẽ ăn cả toán), hoặc **dựng hình** ở FE (đắt hơn, nhưng lúc đó công
 thức hiện ra đẹp và ta thôi phải xin model đừng viết đẹp).
+
+## Một effect tự nuôi mình, và 69 GB
+
+Ghi ngày 2026-09-29, sau khi máy hết RAM sau bốn tiếng chạy app. Đây là **lỗi đã sửa**, ghi lại vì
+hình dạng của nó sẽ quay lại.
+
+Windows nêu đích danh: `node.exe` chiếm **74.688.204.800 byte** — tức Vite dev server, gần 70 GB.
+BE, AGENT và Docker cộng lại chưa tới một phần ba mươi chỗ đó.
+
+Nguyên nhân không nằm ở Vite. Trong `Tutor.tsx`, effect xin lượt mở đầu **đọc** `history` và cũng
+**thay** `history` (qua `pull()` → `reload()`). Khi một lượt không sinh ra được — BE trả 409 lúc pha
+1 chưa nộp — lịch sử quay lại vẫn rỗng, effect chạy lại ngay. Đo được **~1.500 request mỗi giây**;
+bốn tiếng là chừng 22 triệu request đi qua proxy của dev server.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Tầng phòng thủ thứ hai cho vòng lặp client | Không bị chặn. Chưa quyết định đặt ở đâu |
+
+Bản sửa là một cái chốt: xin nhiều nhất một lần cho mỗi bài làm. Nó đúng và đủ cho nguyên nhân gốc,
+nhưng nó nằm ở **client** — mà client là thứ ta ít kiểm soát nhất. Một tầng thứ hai ở BE (chặn tần
+suất, hoặc trả 429 khi cùng một bài mở stream quá dày) sẽ biến "một effect viết sai" từ tai nạn cấp
+máy tính thành một dòng log. Chưa làm vì chưa quyết định ngưỡng, và vì một ngưỡng đặt sai sẽ cắt
+nhầm học sinh thật.
+
+**Bài học đáng giữ hơn cả bản sửa:** một `useEffect` phụ thuộc vào state mà chính nó làm thay đổi là
+một vòng lặp đang chờ một lần thất bại để bắt đầu. Nó chạy êm suốt quá trình phát triển vì đường đi
+thành công luôn làm điều kiện dừng thành đúng. Chỉ đường đi **hỏng** mới lộ ra nó.

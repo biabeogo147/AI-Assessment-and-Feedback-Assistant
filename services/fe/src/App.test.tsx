@@ -288,3 +288,63 @@ describe("what scrolls", () => {
     expect(container.querySelector(".composer")).not.toBeNull();
   });
 });
+
+describe("asking for the opening turn", () => {
+  const PANEL = {
+    attempt_id: "a1",
+    state: "cần-chữa",
+    deadline: "2026-09-15T15:00:00+00:00",
+    minutes_per_question: 5,
+    round_budget_minutes: 10,
+    open_count: 1,
+    can_start_round: true,
+    warn_cut: false,
+    open_round_id: null,
+    items: [
+      {
+        question_id: "q4",
+        order: 4,
+        stem: "Cho hàm số y = x³ − 3x.",
+        chosen: { label: "B", text: "Khoảng (−1; 1)" },
+        correct: { label: "A", text: "Khoảng (−∞; −1)" },
+        rounds_used: 0,
+        rounds_max: 3,
+        mark: 0,
+        closed: false,
+      },
+    ],
+  };
+
+  it("asks once, not forever, when the turn cannot be produced", async () => {
+    // A tab left on this screen while the attempt is not submitted -- BE answers
+    // 409 and the history stays empty. The effect that asks for the opening turn
+    // depends on that history and also causes it to be replaced, so without a
+    // latch it re-fires as fast as the network allows: measured at ~1,500
+    // requests a second, which grew one Vite dev server to 69 GB over an
+    // afternoon and took the machine's memory with it.
+    let streams = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const path = String(url);
+        if (path.includes("/chat/stream")) {
+          streams += 1;
+          return new Response("Phần chữa mở sau khi nộp bài", { status: 409 });
+        }
+        if (path.includes("/chat")) {
+          return new Response(
+            JSON.stringify({ attempt_id: "a1", locked: false, messages: [] }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify(PANEL), { status: 200 });
+      }),
+    );
+
+    render(<Tutor me={ME} attemptId="a1" />);
+    await waitFor(() => expect(screen.getByText("CÁC CÂU EM LÀM SAI")).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(streams).toBeLessThanOrEqual(1);
+  });
+});

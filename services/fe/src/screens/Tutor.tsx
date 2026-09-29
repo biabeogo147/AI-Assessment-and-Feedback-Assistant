@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   api,
@@ -106,11 +106,21 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   }, [attemptId, reload]);
 
   // The assistant speaks first and then waits: one greeting, no lecture.
+  //
+  // Asked at most once per attempt, and the latch is not a nicety. This effect
+  // reads `history` and `pull` replaces it, so when a turn cannot be produced
+  // -- BE answers 409 while phase 1 is unsubmitted, say -- the history comes
+  // back empty and the effect fires again immediately. Measured at roughly
+  // 1,500 requests a second: an afternoon of that grew one Vite dev server to
+  // 69 GB and took the machine's memory with it.
+  const askedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (history !== null && history.messages.length === 0 && !history.locked && !busy) {
-      void pull();
-    }
-  }, [history, pull, busy]);
+    if (history === null || history.locked || busy) return;
+    if (history.messages.length > 0) return;
+    if (askedFor.current === attemptId) return;
+    askedFor.current = attemptId;
+    void pull();
+  }, [attemptId, history, pull, busy]);
 
   async function send() {
     const text = draft.trim();
