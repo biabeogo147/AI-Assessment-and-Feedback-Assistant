@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.models import (
     AnswerOption,
     Assessment,
+    AssessmentState,
     Method,
     Publication,
     Question,
@@ -146,18 +147,26 @@ async def seed_if_empty(session: AsyncSession) -> bool:
     now = datetime.now(UTC)
 
     teacher = Teacher(full_name="Cô Phạm Thu Lan", teacher_code="GV-001")
-    school_class = SchoolClass(name="12A")
-    session.add_all([teacher, school_class])
+    session.add(teacher)
+    # Flushed before the class so the class has an owner to point at. Order
+    # matters here in a way it did not before: `teacher_id` is not nullable,
+    # because a class without an owner is a class no teacher can be stopped
+    # from reading (ADR-13).
+    await session.flush()
+
+    school_class = SchoolClass(teacher_id=teacher.id, name="12A")
+    session.add(school_class)
     await session.flush()
 
     for full_name, code in _STUDENTS:
         session.add(Student(class_id=school_class.id, full_name=full_name, student_code=code))
 
     assessment = Assessment(
+        teacher_id=teacher.id,
         title="Kiểm tra 15 phút — Hàm số",
         subject="Toán",
         grade="12",
-        state="published",
+        state=AssessmentState.PUBLISHED,
         created_at=now,
     )
     session.add(assessment)

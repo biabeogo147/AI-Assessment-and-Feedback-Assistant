@@ -55,4 +55,16 @@ chiều thì giáo viên gặp hai cổng nặng liên tiếp, và sẽ học c�
 - Chuỗi trên thẻ `đã-duyệt`: *"10 câu · nội dung đã khoá, muốn sửa thì bỏ duyệt trước"*.
 - Figma `Question card` (`267:30`) — thuộc tính boolean **Sửa được**, tắt trên artboard 7 (đã duyệt)
   và bật trên artboard 6. Nút Sửa **biến mất** chứ không mờ đi, đúng như mục *Hệ quả* đòi.
-- **Chưa có ở backend**: không model, không endpoint, không test nào biết tới bốn trạng thái này.
+- `services/be/src/be/models.py` — `AssessmentState` mang đúng bốn giá trị, và cột `Assessment.state`
+  là một `Enum` có check constraint, nên một trạng thái ngoài ADR này không vào được bảng kể cả qua
+  đường bỏ qua `advance`.
+- `services/be/src/be/assessment_state.py` — `_ALLOWED` là bốn trạng thái ấy cùng các cạnh giữa
+  chúng, viết thành dữ liệu. `advance()` là **cửa duy nhất** đổi trạng thái; `assert_editable()` thi
+  hành luật *duyệt khoá nội dung*.
+- `services/be/tests/test_assessment_lifecycle.py` — tám test, mỗi luật của ADR này một test. Trong
+  đó `test_teacher_approves_an_assessment_before_release` là test mà bảng Invariants của `AGENTS.md`
+  trỏ tới, `test_unapproving_reopens_the_content` giữ tính đảo ngược, và
+  `test_a_published_assessment_has_no_way_back` giữ việc không có đường ra khỏi `đã phát hành`.
+- **Chưa có ở backend:** chưa có endpoint nào gọi `advance()` — cửa đã dựng, chưa ai đi qua. Bốn
+  trạng thái hiện được thi hành ở tầng dữ liệu và tầng luật, không ở tầng HTTP. Và **chưa có cạnh từ
+  `có câu hỏi` về `trống`**: nó chỉ cần khi có đường xoá câu hỏi, mà đường đó chưa dựng.

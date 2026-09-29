@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     Index,
@@ -47,14 +49,45 @@ class Base(DeclarativeBase):
     """Declarative base for every table BE owns."""
 
 
+class AssessmentState(StrEnum):
+    """The four states of ADR-01, in the order an assessment passes them.
+
+    The vocabulary lives here because it is part of the schema; the edges
+    between these states live in `be/assessment_state.py`, which is the only
+    module allowed to move an assessment from one to another.
+
+    `PUBLISHED` keeps the spelling the seed already wrote, so rows created
+    before this enum existed read back unchanged.
+
+    ADR-02 splits the last state into two sub-states -- published-but-not-open
+    and open -- because withdrawal is only allowed in the first. That split is
+    derived from `Publication.opens_at` rather than stored as a fifth member:
+    one fact in two places is two facts that disagree by next week.
+    """
+
+    EMPTY = "empty"
+    HAS_QUESTIONS = "has_questions"
+    APPROVED = "approved"
+    PUBLISHED = "published"
+
+
 class SchoolClass(Base):
-    """A class a teacher created, holding the students of one roster."""
+    """A class a teacher created, holding the students of one roster.
+
+    `name` is deliberately **not** unique. Two teachers may both have a "12A",
+    and one teacher may reuse a name across years. The consequence is that a
+    name is not an identifier: resolving what a teacher typed into one of these
+    rows can come back with more than one answer, and the caller has to ask
+    rather than take the first (ADR-05's input gate).
+    """
 
     __tablename__ = "classes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    teacher_id: Mapped[str] = mapped_column(ForeignKey("teachers.id"))
     name: Mapped[str] = mapped_column(String(64))
 
+    teacher: Mapped[Teacher] = relationship(back_populates="classes")
     students: Mapped[list[Student]] = relationship(back_populates="school_class")
 
 
@@ -80,24 +113,52 @@ class Teacher(Base):
     full_name: Mapped[str] = mapped_column(String(128))
     teacher_code: Mapped[str] = mapped_column(String(32), unique=True)
 
+    classes: Mapped[list[SchoolClass]] = relationship(back_populates="teacher")
+    assessments: Mapped[list[Assessment]] = relationship(back_populates="teacher")
+
 
 class Assessment(Base):
     """An assessment through its lifecycle.
 
-    `state` is the ADR-01 lifecycle: draft, approved, published. Approval locks
-    the content, which is why questions carry no edit timestamp -- the lock is a
-    state on this row, not a per-question flag.
+    `state` is the ADR-01 lifecycle and has **four** values, not three: an
+    assessment with no questions yet is its own state, because that state is
+    what blocks publishing. Approval locks the content, which is why questions
+    carry no edit timestamp -- the lock is a state on this row, not a
+    per-question flag.
+
+    `teacher_id` is the author. ADR-13 says a class belongs to a teacher and
+    the same follows for what a teacher writes; until this column existed the
+    rule had nowhere to live, so no query could apply it.
     """
 
     __tablename__ = "assessments"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    teacher_id: Mapped[str] = mapped_column(ForeignKey("teachers.id"))
     title: Mapped[str] = mapped_column(String(160))
     subject: Mapped[str] = mapped_column(String(64))
     grade: Mapped[str] = mapped_column(String(16))
-    state: Mapped[str] = mapped_column(String(16), default="draft")
+    # Both flags are off by default in SQLAlchemy, and the defaults are the
+    # worst of the three options: an unknown string is written without
+    # complaint and then raises `LookupError` on the next read of the table,
+    # in whatever route happens to touch it next. `validate_strings` moves the
+    # error to the write that caused it; `create_constraint` puts the same rule
+    # in the schema, so a state outside ADR-01 cannot arrive through psql
+    # either.
+    state: Mapped[AssessmentState] = mapped_column(
+        Enum(
+            AssessmentState,
+            native_enum=False,
+            length=16,
+            name="assessment_state",
+            create_constraint=True,
+            validate_strings=True,
+        ),
+        default=AssessmentState.EMPTY,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
+    teacher: Mapped[Teacher] = relationship(back_populates="assessments")
     questions: Mapped[list[Question]] = relationship(
         back_populates="assessment", order_by="Question.order_index"
     )

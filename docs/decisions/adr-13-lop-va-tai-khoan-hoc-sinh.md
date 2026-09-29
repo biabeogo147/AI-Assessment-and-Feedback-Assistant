@@ -88,8 +88,16 @@ Figma `mOe2ZmrqOq1Uix45v6PNGD`:
 
 `docs/overview/project-overview.md` — mục glossary `Class`.
 
-**Chưa có ở backend.** Không có model lớp, học sinh, tài khoản hay phiên đăng nhập nào trong code; toàn
-bộ luật này hiện chỉ sống trong file thiết kế.
+**Ở backend.** `services/be/src/be/models.py` có `SchoolClass`, `Student` và `Teacher`. Luật *lớp thuộc
+về giáo viên* được thi hành bằng `SchoolClass.teacher_id`, một khoá ngoại không nullable, cộng
+`seed_if_empty` gán lớp cho `GV-001` và
+`services/be/tests/test_assessment_lifecycle.py::test_every_class_and_assessment_has_an_owner`.
+Xem [ADR-22](adr-22-de-co-tac-gia.md), nơi luật ấy được phát biểu đầy đủ cùng câu hỏi *trả lời thế nào
+khi lớp thuộc người khác*.
+
+**Vẫn chưa có ở backend:** tài khoản và phiên đăng nhập. `services/be/src/be/identity.py` nhận danh
+tính qua header `X-Actor` và chỉ chạy khi `dev_identity_enabled` bật — phần phân quyền là thật, phần
+chứng minh danh tính thì chưa.
 
 `packages/contracts/src/contracts/messages.py` đã có `student_id: str`, và `services/fe/src/api.ts` gán
 cứng `"stu-demo"`. Khi dựng thật, `student_id` **là** mã học sinh nói ở trên, không phải một định danh

@@ -24,7 +24,7 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
-| `classes` | một lớp giáo viên tạo | [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md): lớp thuộc giáo viên, không thuộc nhà trường |
+| `classes` | một lớp giáo viên tạo, `teacher_id`, tên | [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md) và [ADR-22](../decisions/adr-22-de-co-tac-gia.md): lớp thuộc giáo viên, không thuộc nhà trường. **`name` không unique** — tên lớp không phải định danh |
 | `students` | họ tên, mã học sinh, thuộc lớp nào | `student_code` là khoá con người dùng; **không có cột mật khẩu** |
 | `teachers` | họ tên, mã giáo viên | |
 
@@ -35,7 +35,7 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
-| `assessments` | tiêu đề, môn, khối, `state` | `state` là vòng đời ADR-01: `draft` → `approved` → `published` |
+| `assessments` | `teacher_id`, tiêu đề, môn, khối, `state` | `state` là vòng đời ADR-01 với **bốn** giá trị: `empty` → `has_questions` → `approved` → `published`. `teacher_id` là tác giả (ADR-22) |
 | `questions` | đề bài, thứ tự, mục tiêu học tập | `order_index` là số câu học sinh nhìn thấy |
 | `options` | nhãn, nội dung, `is_correct`, `error_label` | `error_label` là ánh xạ nhiễu→lỗi của ADR-18, `null` ở đúng một dòng mỗi câu |
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |
@@ -43,6 +43,14 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 
 Khoá nội dung khi duyệt là một `state` trên `assessments`, không phải một cờ trên từng câu — vì nó là
 một thao tác trên cả đề.
+
+Cột `state` là một `Enum` có check constraint, không phải chuỗi tự do, và cạnh giữa các trạng thái nằm
+trong `services/be/src/be/assessment_state.py`. `advance()` ở đó là **cửa duy nhất** đổi trạng thái:
+một lần chuyển viết rời ở chỗ khác là một cạnh thứ năm không ai tìm được, và thứ mất trước tiên sẽ là
+cổng duyệt, vì phát hành thẳng từ bản nháp chỉ cách một phép gán.
+
+Trạng thái `empty` tồn tại vì nó là thứ **chặn phát hành** một đề chưa có câu nào — ADR-01 dành cho nó
+một luật riêng, nên nó là một trạng thái chứ không phải một câu truy vấn đếm.
 
 ### Nhóm 3 — bài làm và điểm
 
