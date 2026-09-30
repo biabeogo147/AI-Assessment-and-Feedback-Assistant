@@ -18,8 +18,8 @@ import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from agent import llm
-from agent.graphs.propose import propose
-from contracts import NextStepCompleted, NextStepRequested, ToolSpec, TurnRecord
+from agent.graphs.propose import _Argument, _Proposal, propose
+from contracts import NextStepRequested, ToolSpec, TurnRecord
 
 _CATALOG = (
     ToolSpec(
@@ -43,26 +43,30 @@ class Scripted:
     `with_structured_output` and so cannot stand in for a structured call.
     """
 
-    def __init__(self, answers: list[NextStepCompleted]) -> None:
+    def __init__(self, answers: list[_Proposal]) -> None:
         self.answers = answers
         self.prompts: list[str] = []
 
     def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
         """Return a runnable handing back the next queued proposal."""
 
-        def answer(messages: object) -> NextStepCompleted:
+        def answer(messages: object) -> _Proposal:
             self.prompts.append("\n".join(message.text for message in messages))
             return self.answers.pop(0)
 
         return RunnableLambda(answer)
 
 
-def _said(text: str) -> NextStepCompleted:
-    return NextStepCompleted(request_id="r1", kind="say", text=text)
+def _said(text: str) -> _Proposal:
+    return _Proposal(kind="say", text=text)
 
 
-def _wants(tool: str, **args: object) -> NextStepCompleted:
-    return NextStepCompleted(request_id="r1", kind="call_tool", tool_name=tool, tool_args=args)
+def _wants(tool: str, **args: str) -> _Proposal:
+    return _Proposal(
+        kind="call_tool",
+        tool_name=tool,
+        tool_args=tuple(_Argument(name=key, value=value) for key, value in args.items()),
+    )
 
 
 @pytest.fixture
@@ -155,11 +159,11 @@ async def test_the_request_id_comes_back_on_the_proposal(
 ) -> None:
     """BE correlates the answer with the question it asked.
 
-    The model does not know the id and must not be trusted with it: a proposal
-    carrying whatever id the model echoed would be attributed to another
-    turn's job.
+    The model cannot get this wrong any more, because it is not asked: the
+    schema it answers has no `request_id` at all. That is stronger than
+    overwriting whatever it invented, which is what this used to do.
     """
-    model = Scripted([NextStepCompleted(request_id="model-made-this-up", kind="say", text="ừ")])
+    model = Scripted([_said("ừ")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_asked("chào"))
@@ -177,7 +181,7 @@ class WithUsage:
     this plan have been wrong three times when nothing measured them.
     """
 
-    def __init__(self, step: NextStepCompleted, total_tokens: int | None) -> None:
+    def __init__(self, step: _Proposal, total_tokens: int | None) -> None:
         self.step = step
         self.total_tokens = total_tokens
 
@@ -196,13 +200,10 @@ async def test_the_token_count_comes_from_the_provider(
 ) -> None:
     """What the call cost is read off the response, not off the proposal.
 
-    The model fills the schema, so a field it can write is a field it will
-    write -- and a token count it invented would be worse than none, because
-    it would look like a measurement.
+    The model is not asked for this either -- a token count it invented would
+    be worse than none, because it would look like a measurement.
     """
-    model = WithUsage(
-        NextStepCompleted(request_id="x", kind="say", text="ừ", model_tokens=999_999), 1234
-    )
+    model = WithUsage(_said("ừ"), 1234)
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_asked("chào"))
@@ -219,10 +220,52 @@ async def test_a_provider_that_reports_no_usage_costs_zero_not_a_crash(
     Gemini is the configured fallback and does not always report usage. A
     missing count must not take the answer down with it.
     """
-    model = WithUsage(NextStepCompleted(request_id="x", kind="say", text="ừ"), None)
+    model = WithUsage(_said("ừ"), None)
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_asked("chào"))
 
     assert step.kind == "say"
     assert step.model_tokens == 0
+
+
+def test_the_schema_the_model_sees_is_one_openai_accepts() -> None:
+    """Strict structured output refuses free-form objects.
+
+    This is the bug the mock could never show. `NextStepCompleted.tool_args`
+    is a `dict[str, object]`, which becomes an open-ended JSON object, and
+    OpenAI answers every such request with
+
+        400 Invalid schema for response_format: In context=('properties',
+        'tool_args'), 'additionalProperties' is required to be supplied and to
+        be false.
+
+    So every real call failed and fell back to the prepared proposal. The
+    durations looked real, the answer read plausibly, and nothing surfaced.
+    Found by calling the model once.
+
+    The check is mechanical: every object in the schema must close itself, and
+    the model must not be asked for anything it cannot know.
+    """
+    schema = _Proposal.model_json_schema()
+
+    def closed(node: object) -> list[str]:
+        open_objects = []
+        if isinstance(node, dict):
+            if node.get("type") == "object" and node.get("additionalProperties") is not False:
+                open_objects.append(str(node.get("title") or node.get("properties")))
+            for value in node.values():
+                open_objects += closed(value)
+        elif isinstance(node, list):
+            for value in node:
+                open_objects += closed(value)
+        return open_objects
+
+    assert closed(schema) == []
+
+    # Neither of these is answerable by a model: BE mints the id, and the
+    # provider reports the cost after the fact. A field in the schema is a
+    # question put to the model.
+    asked_for = set(schema["properties"])
+    assert "request_id" not in asked_for
+    assert "model_tokens" not in asked_for

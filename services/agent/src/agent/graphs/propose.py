@@ -19,10 +19,11 @@ mean more than one thing, which is ADR-05's input gate.
 
 import json
 import logging
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
+from pydantic import BaseModel, ConfigDict
 
 from agent import llm
 from contracts import NextStepCompleted, NextStepRequested, ToolSpec, TurnRecord
@@ -65,6 +66,72 @@ Cách viết:
 - Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi giáo viên là "bạn".
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
 - Toán viết bằng ký hiệu Unicode: y = x³ − 3x, (−∞; −1), ≥, →. Không LaTeX."""
+
+
+class _Argument(BaseModel):
+    """One tool argument, as a name and a value.
+
+    A pair rather than a mapping, because a mapping with arbitrary keys is an
+    open-ended JSON object and strict structured output refuses those. Values
+    are strings: every argument the tools take today is one, and a typed union
+    here would be a schema branch the model has to choose between for no
+    benefit.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    value: str
+
+
+class _Proposal(BaseModel):
+    """What the model is asked for -- and nothing else.
+
+    Deliberately not `NextStepCompleted`. That type is the contract between
+    the services and carries two fields no model can answer: `request_id`,
+    which BE mints, and `model_tokens`, which the provider reports afterwards.
+    Handing the whole contract to `with_structured_output` put both of them in
+    front of the model as questions, and made `tool_args` -- a
+    `dict[str, object]` -- into an open object that OpenAI rejects outright:
+
+        400 Invalid schema for response_format: In context=('properties',
+        'tool_args'), 'additionalProperties' is required to be supplied and to
+        be false.
+
+    Every real call therefore failed and fell back to prepared content, with
+    real-looking latencies and a plausible answer to hide it. This schema is
+    the fix and the lesson: a field in the schema is a question put to the
+    model, so ask only what it can answer, and close every object.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["say", "call_tool", "ask_clarify"]
+    text: str = ""
+    tool_name: str = ""
+    tool_args: tuple[_Argument, ...] = ()
+
+    def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
+        """Turn the model's answer into the message BE reads.
+
+        Args:
+            request_id: What BE asked under.
+            model_tokens: What the provider reported.
+
+        Returns:
+            The proposal, with the two fields the model was never asked for.
+            `choices` stays empty: BE writes the options for a clarifying
+            question from the rows it read (ADR-23), so asking the model for
+            them would be asking for something that gets thrown away.
+        """
+        return NextStepCompleted(
+            request_id=request_id,
+            kind=self.kind,
+            text=self.text,
+            tool_name=self.tool_name,
+            tool_args={argument.name: argument.value for argument in self.tool_args},
+            model_tokens=model_tokens,
+        )
 
 
 class ProposeState(TypedDict):
@@ -191,9 +258,7 @@ async def _choose(state: ProposeState) -> dict:
         The `step` slice of the state, with `model_tokens` filled from the
         provider rather than from the model.
     """
-    model = llm.with_fallback(
-        lambda chat: chat.with_structured_output(NextStepCompleted, include_raw=True)
-    )
+    model = llm.with_fallback(lambda chat: chat.with_structured_output(_Proposal, include_raw=True))
     answered = await model.ainvoke(state["messages"])
 
     # A provider that cannot do `include_raw` -- or a fake that ignores it --
@@ -210,12 +275,14 @@ async def _choose(state: ProposeState) -> dict:
             raise ValueError(
                 f"model did not produce a usable proposal: {answered.get('parsing_error')}"
             )
-        step: NextStepCompleted = parsed
+        proposal: _Proposal = parsed
         spent = _spent(answered.get("raw"))
     else:
-        step, spent = answered, 0
+        proposal, spent = answered, 0
 
-    return {"step": step.model_copy(update={"model_tokens": spent})}
+    # `request_id` is filled in by `propose`, which is the only place that
+    # knows it. Zero here would be a lie if it stayed, so it does not.
+    return {"step": proposal.completed(request_id="", model_tokens=spent)}
 
 
 def _build() -> object:

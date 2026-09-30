@@ -319,7 +319,8 @@ phép đo chứ không phải một cảm giác.
       kiểm trực tiếp: không nêu tên lớp → `ask_clarify`; lớp không tồn tại → đúng câu not-found của
       ADR-22; `teacher:GV-999` → 401; học sinh gọi route giáo viên → 403. (Đọc `TeacherTurn` bằng
       SQL là việc của Việc 4 — bảng chưa tồn tại)
-- [ ] Một lượt trên model thật (`gpt-4o-mini`) ở cuối mỗi việc, để xác nhận việc đó đã thông
+- [x] Model thật (`gpt-4o-mini`): ba lượt ở cuối, sau khi cả bốn việc chạy sạch bằng mock. Xem mục
+      Status — lượt đầu tiên bắt một lỗi chí tử mà không mock nào lộ ra được
 - [ ] **Luật Figma không áp lần này** — plan không chạm màn hình nào. Ghi ra để sự im lặng không bị
       đọc thành bỏ sót
 - [ ] Mỗi commit mang trailer `Plan: 2026-09-30-teacher-harness-foundation-plan.md`
@@ -409,3 +410,45 @@ Nên ca đua thật **vẫn chưa được chứng minh** ở đây, và nói kh
 hai lần vào cùng một vị trí, tất định, đi đúng nhánh hồi phục ấy. Và chính nó phát hiện một lỗ nữa
 trong nhánh của tôi: người thắng mới `flush()` chứ chưa `commit()`, nên người thua đọc lại không thấy
 gì rồi ném tiếp — nhánh hồi phục tồn tại mà không bao giờ chạy được.
+
+## Lượt gọi model thật, và hai lỗi chỉ nó lộ ra được
+
+Cả bốn việc chạy sạch bằng mock trước khi tốn một đồng nào. Rồi ba lượt trên `gpt-4o-mini`.
+
+**Lượt đầu tiên: mọi lời gọi model thật đều 400, và rơi về mock trong im lặng.**
+
+```
+400 Invalid schema for response_format 'NextStepCompleted':
+In context=('properties', 'tool_args'),
+'additionalProperties' is required to be supplied and to be false.
+```
+
+Structured output chế độ strict của OpenAI **không nhận object tự do**, mà `tool_args: dict[str,
+object]` sinh ra đúng thứ đó. Nghĩa là platform giáo viên **không thể dùng model thật** — và không
+gì nổi lên mặt: độ trễ 3,5 giây trông như thật, câu trả lời đọc hợp lý, `model_tokens` bằng 0 là
+thứ duy nhất tố giác. Không mock nào lộ ra được lỗi này, vì mock không nói chuyện với provider.
+
+Sửa đúng bằng món nợ tôi vừa ghi vào `backlog.md` một commit trước đó — nay bị bắt buộc: cho model
+một schema **hẹp** (`_Proposal`) chỉ gồm những gì nó quyết được, với `tool_args` là danh sách cặp
+tên-giá-trị thay vì một map tự do, và mọi object đều `extra="forbid"`. AGENT dựng
+`NextStepCompleted` từ đó. Hai field model không thể biết — `request_id` và `model_tokens` — nay nó
+**không thể khai**, mạnh hơn việc bị ghi đè.
+
+Test hồi quy là một phép kiểm máy móc trên chính JSON schema: mọi object phải tự đóng, và không
+được hỏi model thứ nó không trả lời được.
+
+**Lượt thứ hai: model bịa bốn lớp không tồn tại.** `class_assessment_summary` trả
+`{"found": false, "reason": ...}` **không kèm danh sách nào**, và gpt-4o-mini lấp chỗ trống bằng
+"12A1, 12A2, 12B1, 12B2" — bốn lớp không có trong DB, nói với giáo viên kèm thẩm quyền của hệ thống.
+
+ADR-23 đã có nguyên tắc cho chuyện này ở `find_class`: lời từ chối chở danh sách thật. Tôi không áp
+nó cho tool thứ hai. Nay áp, và nó đóng luôn một lỗ khác mà cùng lượt ấy phơi ra: không tool nào
+cấp `assessment_id`, nên model buộc phải đoán một cái.
+
+**Lượt thứ ba: không còn bịa.** Model gọi `find_class`, gọi `class_assessment_summary` với
+`assessment_id` rỗng đúng như description dạy, nhận đúng danh sách đề — rồi trả lời "mình không tìm
+thấy" thay vì gọi lại với id vừa được trao. Đó là chất lượng model, không phải harness; ghi vào
+`backlog.md`.
+
+Đo được của một lượt: **3 lần gọi model, 4.697 token, 6,5 giây**. Nối tool đúng thứ tự mà không ai
+dạy thứ tự — chỉ có description nói `find_class` phải gọi trước.

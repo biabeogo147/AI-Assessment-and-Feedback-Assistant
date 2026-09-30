@@ -142,6 +142,35 @@ async def _find_class(session: AsyncSession, asking: Asking, args: dict) -> dict
     }
 
 
+async def _assessments_of(session: AsyncSession, asking: Asking, class_id: str) -> list[dict]:
+    """List the assessments this teacher published to one class.
+
+    Args:
+        session: Database session.
+        asking: Whose assessments. Both the class and the assessment are
+            filtered by this, so a class id belonging to someone else lists
+            nothing rather than listing their papers.
+        class_id: Which class.
+
+    Returns:
+        Title and id for each, newest first. Empty when the class is not this
+        teacher's, which is the same answer as a class with no assessments --
+        ADR-22 keeps those two indistinguishable.
+    """
+    listed = await session.execute(
+        select(Assessment.id, Assessment.title)
+        .join(Publication, Publication.assessment_id == Assessment.id)
+        .join(SchoolClass, SchoolClass.id == Publication.class_id)
+        .where(
+            Publication.class_id == class_id,
+            SchoolClass.teacher_id == asking.teacher_id,
+            Assessment.teacher_id == asking.teacher_id,
+        )
+        .order_by(Assessment.created_at.desc())
+    )
+    return [{"assessment_id": found, "title": title} for found, title in listed.all()]
+
+
 async def _class_assessment_summary(session: AsyncSession, asking: Asking, args: dict) -> dict:
     """Summarise how one class did on one assessment.
 
@@ -179,7 +208,18 @@ async def _class_assessment_summary(session: AsyncSession, asking: Asking, args:
         )
     )
     if owns_class is None or assessment is None:
-        return {"found": False, "reason": "không tìm thấy lớp hoặc đề trong danh sách của bạn"}
+        # The refusal carries what does exist, the way `find_class` does
+        # (ADR-23). An empty refusal is an invitation to invent, and that is
+        # not a worry -- it was measured on the first real-model run, where
+        # gpt-4o-mini answered a bare not-found by naming four classes that do
+        # not exist. It also closes the gap the same run exposed: nothing in
+        # the catalog told the model which assessment to ask about, so it had
+        # to guess an id.
+        return {
+            "found": False,
+            "reason": "không tìm thấy lớp hoặc đề trong danh sách của bạn",
+            "assessments_in_this_class": await _assessments_of(session, asking, class_id),
+        }
 
     publication = await session.scalar(
         select(Publication).where(
@@ -295,8 +335,11 @@ _TOOLS: tuple[Tool, ...] = (
             description=(
                 "Tóm tắt kết quả một bài kiểm tra trong một lớp: bao nhiêu em đã nộp, tổng điểm "
                 "trung bình trên thang bằng số câu, và còn bao nhiêu câu chưa chữa xong. Cần "
-                "class_id và assessment_id. Khi nói lại con số, PHẢI nói kèm thang — "
-                "average_total_marks là điểm trên average_out_of câu, KHÔNG phải trên thang 10."
+                "class_id và assessment_id. Chưa biết assessment_id thì cứ gọi với class_id và một "
+                "assessment_id rỗng: kết quả sẽ trả về assessments_in_this_class để bạn chọn đúng "
+                "đề rồi gọi lại. TUYỆT ĐỐI không tự đoán assessment_id. Khi nói lại con số, PHẢI "
+                "nói kèm thang — average_total_marks là điểm trên average_out_of câu, KHÔNG phải "
+                "trên thang 10."
             ),
             arguments={
                 "class_id": "id lớp, lấy từ find_class",

@@ -323,3 +323,37 @@ async def test_a_missing_name_says_so_instead_of_searching_for_none(stack) -> No
 
     assert result["found"] is False
     assert result["reason"] == "chưa có tên lớp nào trong câu hỏi"
+
+
+@pytest.mark.asyncio
+async def test_a_summary_refusal_names_the_assessments_that_do_exist(stack) -> None:
+    """An empty refusal is an invitation to invent.
+
+    Measured on the first real-model run: `class_assessment_summary` answered
+    `{"found": false, "reason": "không tìm thấy..."}` with no list, and
+    gpt-4o-mini filled the vacuum with "12A1, 12A2, 12B1, 12B2" -- four
+    classes that do not exist, stated to a teacher with the system's
+    authority behind them.
+
+    ADR-23 already had the answer for `find_class`: a refusal carries the rows
+    that do exist. This applies it to the other tool, which also closes the
+    gap the same run exposed -- nothing in the catalog told the model which
+    assessment to ask about, so it had to guess an id.
+    """
+    async with stack() as session:
+        asking = await _mine(session)
+        found = await resolve_class(session, asking, "12A")
+        assert isinstance(found, Resolved)
+
+        answer = await execute(
+            session,
+            asking,
+            "class_assessment_summary",
+            {"class_id": found.class_id, "assessment_id": "không-phải-id-thật"},
+        )
+
+    assert answer["found"] is False
+    # The real thing, so the next question can name it instead of inventing one.
+    titles = [entry["title"] for entry in answer["assessments_in_this_class"]]
+    assert titles == ["Kiểm tra 15 phút — Hàm số"]
+    assert all(entry["assessment_id"] for entry in answer["assessments_in_this_class"])
