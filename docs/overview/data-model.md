@@ -39,7 +39,7 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 | `questions` | đề bài, thứ tự, mục tiêu học tập | `order_index` là số câu học sinh nhìn thấy |
 | `options` | nhãn, nội dung, `is_correct`, `error_label` | `error_label` là ánh xạ nhiễu→lỗi của ADR-18, `null` ở đúng một dòng mỗi câu |
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |
-| `publications` | sáu tham số phát hành | **một dòng mỗi đề**: hai bộ hạn cùng sống cho một đề là trạng thái không giải thích được cho học sinh |
+| `publications` | sáu tham số phát hành | **một dòng mỗi (đề, lớp)** — khoá chính kép. Mỗi lớp một đồng hồ riêng: 12A học sáng thì mở sáng, 12B học chiều thì mở chiều |
 
 Khoá nội dung khi duyệt là một `state` trên `assessments`, không phải một cờ trên từng câu — vì nó là
 một thao tác trên cả đề.
@@ -56,7 +56,7 @@ một luật riêng, nên nó là một trạng thái chứ không phải một 
 
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
-| `attempts` | một học sinh làm một đề, `started_at`, `ends_at`, `submitted_at` | `submitted_at` kết thúc **pha 1**, không kết thúc bài (ADR-14) |
+| `attempts` | một học sinh làm một đề, `class_id`, `started_at`, `ends_at`, `submitted_at` | `submitted_at` kết thúc **pha 1**, không kết thúc bài (ADR-14). `class_id` ghi lớp **lúc bắt đầu**, nên chuyển lớp không đổi hạn của bài đã làm |
 | `answers` | lựa chọn của pha 1 | ghi mỗi lần bấm, không gom tới lúc nộp: mất mạng thì mất một cú bấm |
 | `question_outcomes` | **sổ điểm**: `mark`, `reason`, `rounds_used`, `closed` | `mark` chỉ đi lên (ADR-16); `rounds_used` là bộ đếm ADR-17 chặn ở ba |
 

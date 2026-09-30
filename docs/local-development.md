@@ -194,4 +194,21 @@ Cách duy nhất biết hàng rào còn sống là thử phá: thêm `import be`
 
 **PyCharm gạch đỏ `import pydantic_settings` hoặc `import contracts`.** IDE chưa trỏ đúng interpreter. Chọn `python.exe` trong conda env của project. Code vẫn chạy và test vẫn pass; đây thuần tuý là cấu hình IDE.
 
+**BE báo `UndefinedColumn`, hoặc insert phát hành thứ hai báo `duplicate key`.** Schema trong
+Postgres cũ hơn code. `prepare_schema` chỉ gọi `create_all`, và docstring của nó nói thẳng là nó
+**không** cứu được một bảng đã đổi hình dạng — nó tạo bảng còn thiếu, không sửa bảng đã có. Hai lần
+đổi gần đây rơi vào đúng ca đó: `attempts` có thêm `class_id`, và `publications` đổi sang khoá chính
+kép `(assessment_id, class_id)`.
+
+Repo không có alembic, nên cách chữa là dựng lại database:
+
+```powershell
+docker compose -f docker-compose.infra.yml down -v   # -v xoá cả volume, tức xoá dữ liệu
+.\dev.ps1 infra-up
+```
+
+BE tạo lại bảng và seed lại dữ liệu mẫu ở lần khởi động sau. Mất dữ liệu dev là có chủ ý ở đây; nếu
+một ngày dữ liệu dev đáng giữ thì lúc đó mới cần alembic, và đó là một quyết định có ADR chứ không
+phải một lần chữa cháy.
+
 **Port đã bị chiếm.** Kiểm bằng `Get-NetTCPConnection -LocalPort 8000 -State Listen`. Thường là một tiến trình `uvicorn` cũ chưa tắt hẳn từ phiên trước.

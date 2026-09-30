@@ -531,3 +531,24 @@ Việc thứ hai là hai dòng *"A low-confidence result is not shown to the Stu
 handles it"* và *"A retry question is a variant of the same question"* trong bảng Invariants của
 `AGENTS.md`. Cả hai thuộc UC-05, chưa có thiết kế, nên vẫn ở nhóm chưa-enforce — đúng chỗ, và nhóm
 đó hiện còn hai dòng, dưới trần ba.
+
+## Trộn đề: bộ câu hỏi lớn, mỗi học sinh một lát
+
+Ghi ngày 2026-09-30, khi `publications` thành một hàng mỗi (đề, lớp).
+
+Phát hành lệch giờ là chuyện bình thường của một trường: 12A học sáng thì mở sáng, 12B học chiều thì
+mở chiều. Nhưng nó mở ra một khoảng thời gian mà lớp trước đã làm và lớp sau chưa, nên **nếu hai lớp
+làm đúng cùng một mười câu** thì lệch giờ là một lỗ.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Bộ đề lớn hơn bài kiểm tra: 50 câu trong bộ, mỗi học sinh lấy 10 câu | Không bị chặn. Chưa cần ở đợt đường ghi đầu tiên |
+
+Đường đi đã rõ: một đề giữ **bộ câu hỏi**, và mỗi `Attempt` giữ lát của riêng nó — cùng hình dạng với
+`round_items` của pha 2, vốn đã lưu câu của một lượt riêng cho một bài làm. Cái phải quyết là ai chọn
+lát: chọn lúc bắt đầu làm bài (đơn giản, nhưng hai học sinh cùng lớp có đề khác nhau nên không so
+điểm trực tiếp được), hay chọn một lát mỗi lớp (so được trong lớp, không so được giữa lớp).
+
+**Chừng nào chưa có nó**, lệch giờ là tiện lợi về lịch, **không** phải bảo đảm về bí mật đề — và
+docstring của `Publication` nói đúng câu đó để không ai đọc việc phát hành lệch giờ thành một tính
+năng chống lộ đề.

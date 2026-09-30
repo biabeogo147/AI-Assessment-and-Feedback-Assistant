@@ -56,6 +56,19 @@ một con số dựng sẵn.
 
 ## Nơi luật này đang được thi hành
 
+- `services/be/src/be/models.py` — `Publication` có khoá chính **kép** `(assessment_id, class_id)`,
+  nên một đề phát hành được cho nhiều lớp với sáu tham số riêng mỗi lớp. Đây là thứ làm cho điều khoản
+  *phát hành có thể thất bại một phần* ở mục **Quyết định** trở nên **biểu diễn được**: trước đó model
+  chỉ giữ nổi một bộ hạn cho một đề, nên "một lớp nhận được, lớp khác không" không có chỗ để tồn tại.
+- `services/be/src/be/models.py` — `Attempt.class_id` ghi lớp lúc bắt đầu làm bài, vì "hạn của đề
+  này" nay là một câu hỏi có nhiều câu trả lời và bài làm phải nói nó theo bộ nào.
+- `services/be/tests/test_multi_class_publication.py` — năm test: một đề giữ hai bộ hạn; mỗi lớp đọc
+  đồng hồ của mình và nhận `status` khác nhau ở cùng một thời điểm; bài làm nhớ lớp đã bắt đầu;
+  chuyển lớp **không** khoá học sinh khỏi bài đang làm (ADR-03: *đã vào rồi thì không bị dừng giữa
+  chừng*); và hạn pha 2 đi theo bài làm chứ không theo lớp hiện tại của học sinh — revert đúng một
+  call site làm hạn ấy nhảy mười hai tiếng, nên test này có răng chứ không chỉ có tên.
+- **Chưa thi hành:** không có endpoint phát hành nào, nên luật *chỉ giáo viên phát hành* vẫn chỉ sống
+  trong thiết kế. Sáu tham số hiện chỉ do `seed.py` và test điền.
 - Figma `mOe2ZmrqOq1Uix45v6PNGD`, `Publish settings` (`67:41`) — **sáu** trường, nhóm theo hai pha,
   cả hai variant; mô tả component ghi luật chặn chiều cao.
 - Figma `Consequence dialog` (`11:41`) — khối đọc lại **sáu** giá trị.
@@ -74,4 +87,6 @@ một con số dựng sẵn.
 - **Nửa chưa thi hành:** nút Thu hồi phải **mất đi khi đã qua giờ mở**, và `Action result card`
   (`10:63`) không có trục trạng thái *chưa mở* / *đã mở* nên nút luôn hiện. Đừng đọc thẻ đó như bằng
   chứng rằng thu hồi lúc nào cũng được. Xem `docs/plans/backlog.md`.
-- **Chưa có ở backend** cho toàn bộ ADR này.
+- **Chưa có ở backend:** không endpoint nào phát hành hay thu hồi, nên luật *chỉ giáo viên phát
+  hành* và cửa sổ thu hồi vẫn chỉ sống trong thiết kế. Sáu tham số hiện chỉ do `seed.py` và test
+  điền. Phần **đã** có ở backend là hình dạng dữ liệu, ở bốn gạch đầu dòng trên.

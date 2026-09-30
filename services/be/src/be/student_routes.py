@@ -426,21 +426,27 @@ async def _owned_attempt(session: AsyncSession, attempt_id: str, student: Studen
     return found
 
 
-async def _publication(session: AsyncSession, assessment_id: str) -> Publication:
-    """Load the release terms of an assessment.
+async def _publication(session: AsyncSession, assessment_id: str, class_id: str) -> Publication:
+    """Load the release terms that govern one class's run at an assessment.
+
+    Both halves of the key are needed now. An assessment is published per
+    class, each with its own clock -- 12A in the morning, 12B after lunch --
+    so "the terms of this assessment" is not a question with one answer.
 
     Args:
         session: Database session.
         assessment_id: Which assessment.
+        class_id: Which class's terms. For an attempt, this is the class the
+            attempt was started in, not the student's class today.
 
     Returns:
-        Its publication row.
+        The publication row for that pair.
 
     Raises:
-        HTTPException: 404 when the assessment was never published, which for a
-            student is indistinguishable from not existing.
+        HTTPException: 404 when the assessment was never published to that
+            class, which for a student is indistinguishable from not existing.
     """
-    found = await session.get(Publication, assessment_id)
+    found = await session.get(Publication, (assessment_id, class_id))
     if found is None:
         raise HTTPException(status_code=404, detail="Bài này chưa được phát hành")
     return found
@@ -677,15 +683,13 @@ async def start_attempt(
     Side effects:
         Creates an attempt row on first call.
     """
-    publication = await _publication(session, assessment_id)
-    assessment = await _load_assessment(session, assessment_id)
-    now = _now()
-
-    if now < _aware(publication.opens_at):
-        raise HTTPException(status_code=409, detail="Chưa tới giờ mở")
-    if now > _aware(publication.closes_at):
-        raise HTTPException(status_code=409, detail="Đã quá hạn vào làm bài")
-
+    # The attempt first, because it decides which terms apply. Looking the
+    # publication up before it -- with today's class -- meant the entry gate
+    # was re-applied to a paper already in progress: a student who moved from
+    # the morning class to the afternoon one was told "chưa tới giờ mở" about
+    # their own half-finished work, or "chưa được phát hành" when the new class
+    # had no publication at all. ADR-03 forbids exactly that from the other
+    # side: "Học sinh đã vào rồi thì không bị dừng giữa chừng."
     attempt = await session.scalar(
         select(Attempt).where(
             Attempt.assessment_id == assessment_id, Attempt.student_id == student.id
@@ -694,10 +698,22 @@ async def start_attempt(
     if attempt is not None and attempt.submitted_at is not None:
         raise HTTPException(status_code=409, detail="Bài này đã nộp")
 
+    governing_class = attempt.class_id if attempt is not None else student.class_id
+    publication = await _publication(session, assessment_id, governing_class)
+    assessment = await _load_assessment(session, assessment_id)
+    now = _now()
+
     if attempt is None:
+        # The gate guards entering, and only entering.
+        if now < _aware(publication.opens_at):
+            raise HTTPException(status_code=409, detail="Chưa tới giờ mở")
+        if now > _aware(publication.closes_at):
+            raise HTTPException(status_code=409, detail="Đã quá hạn vào làm bài")
+
         attempt = Attempt(
             assessment_id=assessment_id,
             student_id=student.id,
+            class_id=student.class_id,
             started_at=now,
             ends_at=min(
                 now + timedelta(minutes=publication.phase1_minutes),
@@ -932,7 +948,7 @@ async def attempt_result(
         raise HTTPException(status_code=409, detail="Bài chưa nộp")
 
     assessment = await _load_assessment(session, attempt.assessment_id)
-    publication = await _publication(session, attempt.assessment_id)
+    publication = await _publication(session, attempt.assessment_id, attempt.class_id)
     outcomes = await _outcomes(session, attempt_id)
 
     rounds = await session.scalars(
@@ -1004,7 +1020,7 @@ async def remediation_panel(
         raise HTTPException(status_code=409, detail="Bài chưa nộp")
 
     assessment = await _load_assessment(session, attempt.assessment_id)
-    publication = await _publication(session, attempt.assessment_id)
+    publication = await _publication(session, attempt.assessment_id, attempt.class_id)
     outcomes = await _outcomes(session, attempt_id)
     chosen = {
         row.question_id: row.option_id
@@ -1226,7 +1242,7 @@ async def _is_locked(session: AsyncSession, attempt: Attempt) -> bool:
         A locked conversation is still readable -- that is the whole point of
         the finished form of the tutoring screen.
     """
-    publication = await _publication(session, attempt.assessment_id)
+    publication = await _publication(session, attempt.assessment_id, attempt.class_id)
     outcomes = await _outcomes(session, attempt.id)
     state = _attempt_state(
         outcomes, attempt.submitted_at is not None, _aware(publication.remediation_deadline), _now()
@@ -1877,7 +1893,7 @@ async def start_round(
     if attempt.submitted_at is None:
         raise HTTPException(status_code=409, detail="Bài chưa nộp")
 
-    publication = await _publication(session, attempt.assessment_id)
+    publication = await _publication(session, attempt.assessment_id, attempt.class_id)
     deadline = _aware(publication.remediation_deadline)
     now = _now()
     if now >= deadline:
@@ -2141,7 +2157,7 @@ async def submit_round(
     rnd.submitted_at = now
     await session.commit()
 
-    publication = await _publication(session, attempt.assessment_id)
+    publication = await _publication(session, attempt.assessment_id, attempt.class_id)
 
     # The same head start, for the round after this one. A student who got it
     # wrong is about to go back to the tutoring screen, which is once again

@@ -170,8 +170,14 @@ class Assessment(Base):
     questions: Mapped[list[Question]] = relationship(
         back_populates="assessment", order_by="Question.order_index"
     )
-    publication: Mapped[Publication | None] = relationship(
-        back_populates="assessment", uselist=False
+    # A list, because an assessment is published per class. It was
+    # `uselist=False` while a publication was one row per assessment, and
+    # leaving it that way would have been a trap rather than a leftover:
+    # SQLAlchemy answers a one-to-one that finds several rows with a warning
+    # and *one arbitrary row*, so a later caller checking a withdrawal
+    # deadline would read whichever class it happened to get.
+    publications: Mapped[list[Publication]] = relationship(
+        back_populates="assessment", order_by="Publication.opens_at"
     )
 
 
@@ -230,17 +236,30 @@ class Method(Base):
 
 
 class Publication(Base):
-    """The six parameters a teacher sets when releasing an assessment.
+    """The six parameters a teacher sets when releasing an assessment to a class.
 
-    One row per assessment: re-publishing replaces the terms rather than adding
-    a second set, because two live sets of deadlines for one assessment is a
-    state nobody could explain to a student.
+    One row per **(assessment, class)**. The first version of this table keyed
+    on the assessment alone, with a docstring explaining that two live sets of
+    deadlines for one assessment was a state nobody could explain to a student.
+    That reasoning conflated one assessment with one class, and it was wrong in
+    a way that mattered: 12A has the lesson in the morning and needs to open in
+    the morning, 12B has it after lunch. Two sets of terms explain themselves
+    perfectly, because a student only ever sees their own.
+
+    Re-publishing to the *same* class still replaces that class's terms rather
+    than adding a second set -- the original rule, applied at the level it was
+    actually about.
+
+    What makes the staggered opening safe from one class telling another is a
+    separate feature: a paper draws each student's questions from a larger bank
+    (`docs/plans/backlog.md`). Until that exists, staggering is a scheduling
+    convenience and not a secrecy guarantee.
     """
 
     __tablename__ = "publications"
 
     assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"), primary_key=True)
-    class_id: Mapped[str] = mapped_column(ForeignKey("classes.id"))
+    class_id: Mapped[str] = mapped_column(ForeignKey("classes.id"), primary_key=True)
     opens_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     closes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     phase1_minutes: Mapped[int] = mapped_column(Integer)
@@ -249,7 +268,7 @@ class Publication(Base):
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     recalled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    assessment: Mapped[Assessment] = relationship(back_populates="publication")
+    assessment: Mapped[Assessment] = relationship(back_populates="publications")
 
 
 class Attempt(Base):
@@ -265,6 +284,11 @@ class Attempt(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"))
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"))
+    # The class this attempt was started in, captured once. An assessment now
+    # has one set of terms per class, so the attempt has to say which set
+    # governs it -- and reading it off the student instead would mean a
+    # transfer silently replaces the deadlines of work already done.
+    class_id: Mapped[str] = mapped_column(ForeignKey("classes.id"))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
