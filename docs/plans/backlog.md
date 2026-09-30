@@ -511,3 +511,23 @@ Cái bẫy async của việc thứ hai: `advance(..., APPROVED)` không đếm 
 card` đều là hành động **ghi** — `tạo-đề-trống`, `thêm-câu-hỏi`, `đã-duyệt`, `bỏ-duyệt`,
 `đã-phát-hành`, `phát-hành-thất-bại`, `tạo-lớp` — và đợt này không có tool ghi nào. Hiện chỉ
 `find_class` sinh ra chủ thể (`class`). Cấu trúc có, dữ liệu chưa.
+
+## Hai việc còn lại của plan `core-two-phase-backend`
+
+Ghi ngày 2026-09-30, khi dọn `docs/plans/active/`. Plan đó đóng theo xác nhận của người dùng, nhưng
+hai ô này **thật sự chưa làm**, nên chúng sang đây thay vì đi theo plan vào `completed/`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành* | Không chặn. Là plan kế tiếp |
+| Chuyển hai dòng invariant của UC-05 sang nhóm tự động | **Bị chặn bởi UC-05** — chưa thiết kế |
+
+Việc đầu nay có nửa dưới: `assessment_state.py` đã có `advance()` và `assert_editable()` từ plan
+harness giáo viên (`9a37864`). Cái còn thiếu là đường HTTP đi qua nó, và đó là cột mốc kế tiếp — nó
+gộp luôn ba mục backlog khác: test đường phát hành, bất biến `state` ↔ số câu hỏi, và
+`entity_kind`/`entity_id` cho bảy variant `Action result card`.
+
+Việc thứ hai là hai dòng *"A low-confidence result is not shown to the Student before a Teacher
+handles it"* và *"A retry question is a variant of the same question"* trong bảng Invariants của
+`AGENTS.md`. Cả hai thuộc UC-05, chưa có thiết kế, nên vẫn ở nhóm chưa-enforce — đúng chỗ, và nhóm
+đó hiện còn hai dòng, dưới trần ba.

@@ -99,7 +99,7 @@ chưa rõ*.
 - [x] Ghi nợ về việc không ai ghi nhận giáo viên đã đọc lời giải.
 - [x] **Cổng đo:** 484 ≤ 525, 303 ≥ 262, tổng panel đúng 900, `fade` bắt đầu ở 250 = đúng chân thẻ đầu.
 - [x] Gọi 1 subagent review. Sửa theo phát hiện, hoặc phản bác có lý do.
-- [ ] `.\dev.ps1 check`; link Markdown; LF; `AGENTS.md` vẫn 170 dòng.
+- [x] `.\dev.ps1 check` xanh 5/5 lúc đóng plan; link Markdown và LF vẫn đúng. `AGENTS.md` **nay 172 dòng**, không còn 170: cap được nâng hai lần sau plan này, mỗi lần kèm một decision record nói rõ đã tiêu dòng đó vào luật nào.
 
 ## Validation Checks
 
@@ -203,3 +203,10 @@ Ngoài phạm vi đã nêu, một việc được làm thêm và cần biết: `
 `đã-phát-hành` nhận thêm hành động **Thu hồi**. Lý do là câu chữ vừa sửa nói *thu hồi được tới
 14:00*, mà thẻ đó không có nút nào — hứa một điều khiển không tồn tại còn tệ hơn câu sai cũ. Đây là
 điều khoản ADR-02 đã đòi từ đầu và chưa từng được thi hành.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô kiểm
+chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một người
+xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và bằng chứng
+là lời xác nhận ấy chứ không phải một lần chạy tôi quan sát được.

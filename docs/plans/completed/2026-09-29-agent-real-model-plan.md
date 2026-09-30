@@ -151,7 +151,7 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
 
 ### Pha 0 — kịch bản
 
-- [ ] Plan này, kèm kịch bản manual test bên dưới
+- [x] Plan này, kèm kịch bản manual test bên dưới
 
 ### Pha 1 — adapter, chưa đổi hành vi ✅
 
@@ -201,8 +201,8 @@ Không màn hình nào đổi → không có việc Figma trong đợt này.
 
 ### Pha 5 — manual test
 
-- [ ] Chạy kịch bản bên dưới trên trình duyệt, cửa sổ hiện ra để người dùng tự bấm
-- [ ] Ghi lại: thời gian từ bấm "Làm bài mới" tới lúc thấy đề, và đề có hợp lý không
+- [x] Chạy kịch bản bên dưới trên trình duyệt, cửa sổ hiện ra để người dùng tự bấm
+- [x] Ghi lại: thời gian từ bấm "Làm bài mới" tới lúc thấy đề, và đề có hợp lý không
 
 **Sau mỗi pha: `dev.ps1 check` + pytest + vitest xanh → gọi 1 subagent review → sửa hết phát hiện →
 mới được sang pha kế.**
@@ -346,3 +346,10 @@ rẻ và cố định khiến demo lặp lại được mà không phải canh v
 
 Đây là luật cho **lần chạy thử**, không phải lựa chọn model cho sản phẩm; đừng lặng lẽ mang nó vào
 mặc định hay vào `.env.example`.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô kiểm
+chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một người
+xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và bằng chứng
+là lời xác nhận ấy chứ không phải một lần chạy tôi quan sát được.

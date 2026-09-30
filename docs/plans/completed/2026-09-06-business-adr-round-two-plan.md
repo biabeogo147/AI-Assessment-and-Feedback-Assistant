@@ -142,3 +142,10 @@ Xong. Vòng review chỉ ra ba lỗi nghiêm trọng, tất cả đã sửa:
 Ngoài ra: `adr-12` đổi tên thành `adr-12-mau-va-hinh-anh-ma-hoa-luat.md` (tên cũ hứa "tông giọng" mà
 nội dung không có), gỡ ba con số pixel khỏi ADR-10, thêm liên kết chéo ADR-07 ↔ ADR-08, và sửa một
 comment sai trong `.env.example` trỏ tới file test không tồn tại.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô
+kiểm chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một
+người xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và
+bằng chứng là lời xác nhận chứ không phải một lần chạy tôi quan sát được.

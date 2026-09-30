@@ -150,8 +150,8 @@ Ca ấy chưa có chuỗi, và mô tả `Score mark` ghi rõ là chưa.
       Decision Record mới ở dưới. `Consequence dialog` không được mượn; `Round gate` dựng riêng.
 - [x] Sửa ADR-10; cập nhật `README.md` và `backlog.md`.
 - [x] Chụp cả bốn artboard; xem lại bằng mắt.
-- [ ] Gọi 1 subagent review. Sửa theo phát hiện, hoặc phản bác có lý do.
-- [ ] `.\dev.ps1 check`; link Markdown; LF; `AGENTS.md` vẫn 170 dòng.
+- [x] Gọi 1 subagent review. Sửa theo phát hiện, hoặc phản bác có lý do.
+- [x] `.\dev.ps1 check` xanh 5/5 lúc đóng plan; link Markdown và LF vẫn đúng. `AGENTS.md` **nay 172 dòng**, không còn 170: cap được nâng hai lần sau plan này, mỗi lần kèm một decision record nói rõ đã tiêu dòng đó vào luật nào.
 
 ## Validation Checks
 
@@ -472,3 +472,10 @@ Review bắt được ba lỗ chức năng mà `Validation Checks` của plan n�
 Chữa bài thiếu ô nhập, `Round gate` không có instance nào, và hạn kết thúc pha 2 không xuất hiện
 trên màn Chữa bài. Cả ba đã sửa, nhưng lỗ nằm ở plan chứ không chỉ ở bản dựng — một cổng đo chỉ
 kiểm được thứ nó biết hỏi.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô kiểm
+chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một người
+xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và bằng chứng
+là lời xác nhận ấy chứ không phải một lần chạy tôi quan sát được.

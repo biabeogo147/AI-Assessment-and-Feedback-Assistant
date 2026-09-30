@@ -69,8 +69,8 @@ Prompt đổi xưng hô: trợ lý xưng **"mình"**, gọi người đối di�
 - [x] Hộp xác nhận nộp bài, đọc lại số câu chưa trả lời
 - [x] Figma: artboard hộp nộp bài, và lời chào mới trên `17`, `24`
 - [x] `dev.ps1 check` + pytest + vitest + tsc
-- [ ] Gọi 1 subagent review
-- [ ] Manual test trên trình duyệt theo kịch bản 11 bước
+- [x] Gọi 1 subagent review
+- [x] Manual test trên trình duyệt theo kịch bản 11 bước
 
 ## Validation Checks
 
@@ -101,3 +101,10 @@ tĩnh thì không vẽ được hành vi cuộn. Luật header dính vào đúng
 ## Status
 
 Xong phần code và Figma, chờ review rồi manual test.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô kiểm
+chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một người
+xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và bằng chứng
+là lời xác nhận ấy chứ không phải một lần chạy tôi quan sát được.

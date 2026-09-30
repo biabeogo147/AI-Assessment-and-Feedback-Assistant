@@ -155,3 +155,10 @@ không. Sửa bây giờ là viết một lời sẽ phải sửa lại.
 
 Đã xong. `docs/overview/` và `docs/diagrams/` được đưa về khớp ở đợt kế tiếp:
 `2026-09-10-two-phase-diagrams-plan.md`.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô kiểm
+chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một người
+xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và bằng chứng
+là lời xác nhận ấy chứ không phải một lần chạy tôi quan sát được.

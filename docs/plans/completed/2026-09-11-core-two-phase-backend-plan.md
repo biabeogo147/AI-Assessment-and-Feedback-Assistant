@@ -232,7 +232,7 @@ Vào: `note` (tuỳ chọn). Ra: `report_id`.
       schema sống trong `be/models.py` với lý do viết ngay tại chỗ, còn tài liệu viết **sau** khi nó
       chạy — một tài liệu schema viết trước khi có bảng nào là đúng thứ `AGENTS.md` cấm tạo.
 - [x] Danh tính tạm: `be/identity.py` đọc header `X-Actor`, phân quyền hai vai là thật.
-- [ ] Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*. **Chưa làm** —
+- [→] **Chuyển sang `backlog.md`** — là cột mốc kế tiếp. Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*. **Chưa làm** —
       dữ liệu mẫu tạo sẵn một đề đã phát hành, nên luồng học sinh chạy được mà chưa cần bề mặt này.
 - [x] Pha 1 đầu-cuối: bắt đầu, lưu từng câu, nộp, chấm, màn kết quả.
 - [x] Gỡ `grade_submission` khỏi luồng; dời sang `agent/legacy_grading.py` và ghi rõ là legacy.
@@ -242,10 +242,10 @@ Vào: `note` (tuỳ chọn). Ra: `report_id`.
 - [x] Mười hai màn học sinh ở FE, thay cho màn demo cũ.
 - [x] Cập nhật `architecture.md`, `local-development.md`, `services/fe/AGENTS.md`, và bốn ADR trích
       dẫn màn demo vừa bị thay.
-- [ ] Chuyển hai dòng invariant sang nhóm tự động. **Chưa làm** — chúng thuộc UC-05, vẫn ngoài phạm vi.
+- [→] **Chuyển sang `backlog.md`**, bị chặn bởi UC-05. Chuyển hai dòng invariant sang nhóm tự động. **Chưa làm** — chúng thuộc UC-05, vẫn ngoài phạm vi.
 - [x] **Gọi 1 subagent review** — UI tôi tự đi bằng mắt (vòng subagent đầu chết vì hết hạn mức);
       vòng sau review mã nguồn và tài liệu, và bắt được một lỗi **chặn**: xem *Status*.
-- [ ] **Gọi 1 subagent review** — ba mặt, không chỉ code: (a) code và test, (b) tài liệu có còn khớp
+- [x] **Gọi 1 subagent review** — ba mặt, không chỉ code: (a) code và test, (b) tài liệu có còn khớp
       không sau khi code chạy, (c) **UI thật trên trình duyệt**, mở `http://localhost:5173` và đi
       hết luồng chứ không chỉ đọc JSX. Sửa theo phát hiện, hoặc phản bác có lý do.
 
@@ -394,3 +394,10 @@ Reviewer xác nhận bằng API thật: không luật nào rò ra FE, `confidenc
 `packages/contracts` không lọt logic nào. Ranh giới và interface đã chốt; bốn ngã rẽ đã được người dùng chọn
 (chấm ở BE, token dev, SSE, thu hẹp ADR-09). Chờ duyệt để bắt đầu task đầu tiên — schema và
 `data-model.md`.
+
+---
+
+**Đóng ngày 2026-09-30** khi dọn `docs/plans/active/`. Người dùng xác nhận đã hoàn thành. Các ô kiểm
+chứng máy móc được chạy lại tại thời điểm đóng: `.\dev.ps1 check` xanh 5/5. Những ô cần một người
+xác nhận — vòng subagent review, manual test trên trình duyệt — tick theo xác nhận đó, và bằng chứng
+là lời xác nhận ấy chứ không phải một lần chạy tôi quan sát được.
