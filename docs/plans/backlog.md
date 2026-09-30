@@ -482,3 +482,32 @@ thường.
 Chưa làm vì ưu tiên đã chốt từ đầu là **chạy được trước, chấp nhận output tệ** — và luồng thì đã
 chạy: ba lượt gọi model, nối tool đúng thứ tự, token và độ trễ có thật.
 
+
+## Ba việc plan harness giáo viên cố ý để lại
+
+Ghi ngày 2026-09-30, khi đóng `2026-09-30-teacher-harness-foundation-plan.md`. Chuyển sang đây vì
+plan trong `completed/` là hồ sơ đóng: một ô `[ ]` nằm lại trong đó là một việc không ai sửa được và
+không ai tìm thấy.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Test rằng **đường HTTP** phát hành từ chối đề chưa duyệt | **Bị chặn**: chưa có endpoint phát hành |
+| Bất biến giữa `Assessment.state` và số câu hỏi | Cùng vật chặn, cộng một cái bẫy async |
+| `entity_kind`/`entity_id` đủ cho bảy variant `Action result card` | **Bị chặn**: chưa có tool ghi nào |
+
+**Vì sao hai việc đầu bị chặn bởi cùng một thứ.** `advance()` trong `assessment_state.py` là cửa duy
+nhất đổi trạng thái đề, và **chưa caller nào gọi nó** — cửa đã dựng, chưa ai đi qua. Dòng invariant
+*"Teacher approves an assessment before release"* trong `AGENTS.md` vì thế đúng về chữ và mỏng về
+tinh thần: hôm nay không đường HTTP nào phát hành được đề chưa duyệt, vì không đường HTTP nào phát
+hành cả. Khi có endpoint, không gì buộc nó đi qua `advance()`; một phép gán `state = PUBLISHED` viết
+rời vẫn qua mặt được, nên test ở tầng HTTP là thứ phải có cùng lúc với endpoint.
+
+Cái bẫy async của việc thứ hai: `advance(..., APPROVED)` không đếm `assessment.questions`, nên một
+đề `has_questions` với **0 câu** duyệt và phát hành trôi chảy. Không sửa trong `advance()` được, vì
+đọc `.questions` ở đó sẽ lazy-load và nổ `MissingGreenlet`. Chỗ đúng để đếm là endpoint duyệt, nơi
+đã có sẵn session.
+
+**Việc thứ ba.** Hai cột tồn tại và có đường ra API qua `Turn`, nhưng bảy variant của `Action result
+card` đều là hành động **ghi** — `tạo-đề-trống`, `thêm-câu-hỏi`, `đã-duyệt`, `bỏ-duyệt`,
+`đã-phát-hành`, `phát-hành-thất-bại`, `tạo-lớp` — và đợt này không có tool ghi nào. Hiện chỉ
+`find_class` sinh ra chủ thể (`class`). Cấu trúc có, dữ liệu chưa.

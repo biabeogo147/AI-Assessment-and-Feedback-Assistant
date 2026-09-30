@@ -118,7 +118,7 @@ phát hiện → **dừng cho bạn review** → mới sang việc sau.
       trả hàng — "lớp 11B hôm qua thế nào" là 40 học sinh × 10 câu
 - [x] `teacher_chat.py`: vòng lặp `for _ in range(max_tool_steps)`, nhánh `else` nói thật với giáo
       viên khi chạm trần thay vì im lặng
-- [ ] **Từ review Việc 1 — CHƯA LÀM, và tick sai ở lần đầu.** Tôi tick cả khối Việc 2 bằng một phép
+- [→] **Chuyển sang `backlog.md`.** Tick sai ở lần đầu: tôi tick cả khối Việc 2 bằng một phép
       thay thế hàng loạt, nên hai ô việc *tương lai* cũng bị tick theo. Không có endpoint phát hành
       nào trong repo, nên không thể có test cho nó. Test rằng **đường HTTP** phát hành từ chối đề
       chưa duyệt. Hôm nay
@@ -126,7 +126,7 @@ phát hiện → **dừng cho bạn review** → mới sang việc sau.
       gọi, nên dòng invariant trong `AGENTS.md` đúng về chữ và mỏng về tinh thần cho tới khi có test
       này. Không gì buộc một tool đi qua `advance()`; một phép gán `state = PUBLISHED` viết rời vẫn
       qua mặt được
-- [ ] **Từ review Việc 1 — CHƯA LÀM**, cùng lý do tick sai như ô trên. Bất biến giữa `state` và số câu hỏi. `advance(..., APPROVED)` hiện không
+- [→] **Chuyển sang `backlog.md`**, cùng lý do tick sai như ô trên. Bất biến giữa `state` và số câu hỏi. `advance(..., APPROVED)` hiện không
       đếm `assessment.questions`, nên một đề `has_questions` với **0 câu** duyệt và phát hành trôi
       chảy. Chưa sửa ở Việc 1 vì đọc `.questions` trong ngữ cảnh async sẽ lazy-load và nổ
       `MissingGreenlet`; chỗ đúng để kiểm là endpoint duyệt, nơi đã có sẵn session để đếm
@@ -158,7 +158,7 @@ phát hiện → **dừng cho bạn review** → mới sang việc sau.
       lưu là `assistant`, vì nó *là* một lượt trợ lý nói; cái phân biệt nó nằm ở `Answered.kind` của
       lượt đó, không phải ở hàng), `text`, `tool_name`, `tool_args`, `tool_result`, `entity_kind`,
       `entity_id`, `model_tokens`, `duration_ms`
-- [ ] **Cấu trúc có, dữ liệu chưa.** `entity_kind`/`entity_id` tồn tại và có đường ra API qua `Turn`,
+- [→] **Chuyển sang `backlog.md`. Cấu trúc có, dữ liệu chưa.** `entity_kind`/`entity_id` tồn tại và có đường ra API qua `Turn`,
       nhưng hiện chỉ một tool sinh ra subject (`find_class` → `class`). Bảy variant `Action result
       card` mà ô này từng tuyên bố — `tạo-đề-trống`, `thêm-câu-hỏi`, `đã-duyệt`, `bỏ-duyệt`,
       `đã-phát-hành`, `phát-hành-thất-bại`, `tạo-lớp` — đều là **hành động ghi**, mà Scope của plan
@@ -312,7 +312,7 @@ phép đo chứ không phải một cảm giác.
 
 - [x] `.\dev.ps1 test` — sau Việc 4: 138 pytest và 11 vitest xanh (85 → 96 → 111 → 129 → 138)
 - [x] `.\dev.ps1 check` — 5 check tầng repo, trong đó `agent-no-db` và `env-example`. Chạy lại ở mỗi việc
-- [ ] `.\dev.ps1 typecheck` — chỉ nếu có file frontend bị chạm (dự kiến: không)
+- [x] `.\dev.ps1 typecheck` — **không cần chạy**: không file frontend nào bị chạm
 - [x] `packages/contracts` bị đổi ⇒ đã chạy **cả hai** theo bảng Validation của `AGENTS.md`
 - [x] Vòng lặp chạy đầu-cuối bằng mock qua **queue thật và Postgres thật**, không phải stub:
       `teacher → tool_call → tool_result → assistant`, hai lượt hỏi AGENT, một tool chạy. Bốn nhánh
@@ -321,9 +321,9 @@ phép đo chứ không phải một cảm giác.
       SQL là việc của Việc 4 — bảng chưa tồn tại)
 - [x] Model thật (`gpt-4o-mini`): ba lượt ở cuối, sau khi cả bốn việc chạy sạch bằng mock. Xem mục
       Status — lượt đầu tiên bắt một lỗi chí tử mà không mock nào lộ ra được
-- [ ] **Luật Figma không áp lần này** — plan không chạm màn hình nào. Ghi ra để sự im lặng không bị
+- [x] **Luật Figma không áp lần này** — plan không chạm màn hình nào. Ghi ra để sự im lặng không bị
       đọc thành bỏ sót
-- [ ] Mỗi commit mang trailer `Plan: 2026-09-30-teacher-harness-foundation-plan.md`
+- [x] Mỗi commit mang trailer `Plan: ...` — kiểm cả 5 commit, đủ cả 5
 
 ## Completion Criteria
 
@@ -335,6 +335,11 @@ DB. Đề đã duyệt thì không sửa được, và có test chứng minh.
 Không có màn hình nào. Đó là việc của đợt sau.
 
 ## Status
+
+**XONG.** Năm commit, mỗi cái mang trailer của plan này: `9a37864`, `beca4c3`, `34873b1`, `7ebe9ab`,
+`05cbd8b`. Ba ô `[→]` là việc cố ý để lại, đã chuyển sang `docs/plans/backlog.md` kèm lý do bị chặn —
+để một ô chưa làm nằm lại trong `completed/` là để một việc không ai sửa được và không ai tìm thấy.
+
 
 **Cả bốn việc xong.** Việc 1 `9a37864`, Việc 2 `beca4c3`, Việc 3 `34873b1`. Việc 4 đang chờ review.
 
