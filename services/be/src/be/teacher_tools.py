@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from be.identity import Asking
 from be.models import (
     Assessment,
     Attempt,
@@ -45,53 +46,11 @@ from be.models import (
     QuestionOutcome,
     SchoolClass,
     Student,
-    Teacher,
 )
+from be.resolve import Ambiguous, Candidate, NotFound, Resolved, resolve_class
 from contracts import ToolSpec
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class Asking:
-    """Who a tool is running for, as values rather than as a row.
-
-    Deliberately not the `Teacher` row. The loop rolls its session back
-    between steps to release the pooled connection, and a rollback expires
-    every ORM object attached to that session -- so reading `teacher.id` on
-    the next step would be database IO from a place SQLAlchemy's async bridge
-    cannot reach. The symptom is `MissingGreenlet`, raised far from its cause.
-
-    Values also make the rule harder to lose: a tool is handed an identity it
-    cannot avoid having, and cannot quietly widen its scope by forgetting to
-    read one.
-
-    Attributes:
-        teacher_id: Owner every query filters on (ADR-22).
-        teacher_code: What the logs name, so a refusal can be traced without
-            joining anything.
-        full_name: How the assistant addresses the person.
-    """
-
-    teacher_id: str
-    teacher_code: str
-    full_name: str
-
-    @classmethod
-    def of(cls, teacher: Teacher) -> "Asking":
-        """Read a teacher row into an identity that outlives the session.
-
-        Args:
-            teacher: The row, freshly loaded.
-
-        Returns:
-            The three values the tools and the loop need.
-        """
-        return cls(
-            teacher_id=teacher.id,
-            teacher_code=teacher.teacher_code,
-            full_name=teacher.full_name,
-        )
 
 
 class UnknownTool(Exception):
@@ -104,10 +63,24 @@ class UnknownTool(Exception):
     """
 
 
-# Said the same way for a class that is not there and for a class that belongs
-# to someone else. ADR-22: two different answers would let anyone map the
-# school's classes by watching which sentence comes back.
-_NO_SUCH_CLASS = {"found": False, "reason": "không có lớp nào tên đó trong danh sách của bạn"}
+def _shown(candidate: Candidate) -> dict:
+    """Render one candidate class for the model to read.
+
+    Roster size travels with the name because a question offering "12A" and
+    "12A" is a question a teacher cannot answer. It is the smallest fact that
+    distinguishes two sections of one name.
+
+    Args:
+        candidate: A class this teacher owns.
+
+    Returns:
+        Its id, name and roster size.
+    """
+    return {
+        "class_id": candidate.class_id,
+        "name": candidate.name,
+        "student_count": candidate.student_count,
+    }
 
 
 async def _find_class(session: AsyncSession, asking: Asking, args: dict) -> dict:
@@ -119,33 +92,53 @@ async def _find_class(session: AsyncSession, asking: Asking, args: dict) -> dict
         args: `name`, as the teacher wrote it.
 
     Returns:
-        The class with its id and roster size, or the same not-found answer
-        that a class belonging to another teacher produces.
+        One of four shapes: the class; `ambiguous` with the candidates it
+        could be; not-found with the classes this teacher does have; or, when
+        no name was given at all, a refusal that says so. Never a guess
+        between candidates -- that refusal is ADR-23, and the loop turns it
+        into a question.
     """
-    wanted = str(args.get("name", "")).strip()
-    if not wanted:
-        return _NO_SUCH_CLASS
+    # `or ""` rather than a default, because the model can send `null` and
+    # `str(None)` is "none" -- a string that gets searched for, matches any
+    # class whose name contains it, and otherwise produces "no class of yours
+    # by that name". That is the wrong sentence for a question that named no
+    # class, and the wrong answer for one that did.
+    typed = str(args.get("name") or "")
+    answer = await resolve_class(session, asking, typed)
 
-    query = select(SchoolClass).where(
-        SchoolClass.teacher_id == asking.teacher_id,
-        func.lower(SchoolClass.name) == wanted.lower(),
-    )
-    found = (await session.scalars(query)).all()
-    if len(found) != 1:
-        # Zero is not found. More than one is also not an answer, and guessing
-        # between them is what ADR-23 exists to stop -- the branch that asks
-        # the teacher which one arrives with `resolve_class`.
-        return _NO_SUCH_CLASS
+    if not typed.strip():
+        listed = answer.available if isinstance(answer, NotFound) else ()
+        return {
+            "found": False,
+            "ambiguous": False,
+            "reason": "chưa có tên lớp nào trong câu hỏi",
+            "your_classes": [_shown(candidate) for candidate in listed],
+            "more": answer.more if isinstance(answer, NotFound) else 0,
+        }
 
-    school_class = found[0]
-    roster = await session.scalar(
-        select(func.count()).select_from(Student).where(Student.class_id == school_class.id)
-    )
+    if isinstance(answer, Resolved):
+        return {
+            "found": True,
+            "class_id": answer.class_id,
+            "name": answer.name,
+            "student_count": answer.student_count,
+        }
+
+    if isinstance(answer, Ambiguous):
+        return {
+            "found": False,
+            "ambiguous": True,
+            "reason": "tên đó khớp nhiều lớp, cần hỏi lại giáo viên chọn lớp nào",
+            "candidates": [_shown(candidate) for candidate in answer.candidates],
+            "more": answer.more,
+        }
+
     return {
-        "found": True,
-        "class_id": school_class.id,
-        "name": school_class.name,
-        "student_count": roster or 0,
+        "found": False,
+        "ambiguous": False,
+        "reason": "không có lớp nào tên đó trong danh sách của bạn",
+        "your_classes": [_shown(candidate) for candidate in answer.available],
+        "more": answer.more,
     }
 
 

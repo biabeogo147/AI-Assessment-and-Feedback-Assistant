@@ -525,9 +525,16 @@ def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | Non
 
 
 # A class name as a teacher writes it: grade, a letter, sometimes a stream
-# number. Enough to recognise "12A1" or "lớp 11B" in a sentence, and nothing
-# more -- the mock is not a parser, it is a way to drive the loop for free.
-_CLASS_NAME = re.compile(r"\b(\d{1,2}\s?[A-Za-z]\d?)\b")
+# number. Enough to recognise "12A1", "lớp 11B" and "lớp12A" in a sentence, and
+# nothing more -- the mock is not a parser, it is a way to drive the loop for
+# free.
+#
+# No word boundary in front, because "lớp12A" would fail it while BE resolves
+# that spelling perfectly well, and the two halves disagreeing makes a demo
+# look like a resolution bug that is not there. A lookbehind for a digit takes
+# its place, so a year like 2026 cannot be read as a class; the trailing
+# boundary is what keeps "15 phút" and "2 câu" out.
+_CLASS_NAME = re.compile(r"(?<!\d)(\d{1,2}\s?[A-Za-z]\d?)\b")
 
 _NO_CLASS_NAMED = (
     "Bạn muốn xem lớp nào? Nói tên lớp giúp mình, ví dụ 'lớp 12A1 làm bài hôm qua thế nào'."
@@ -555,6 +562,23 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
     harvested = next(
         (turn for turn in reversed(request.history) if turn.kind == "tool_result"), None
     )
+
+    if harvested is not None and harvested.tool_result.get("ambiguous"):
+        # ADR-23: nobody picks between candidates, and that includes the mock.
+        # This is the path a demo takes, so a mock that quietly chose one would
+        # be showing the exact behaviour the design forbids.
+        #
+        # No `choices` here either. BE renders the options from the rows it
+        # read, and a mock that also wrote them would be inventing a second
+        # source for the one thing ADR-23 says has exactly one.
+        cut = harvested.tool_result.get("more") or 0
+        tail = f" Danh sách còn {cut} lớp nữa chưa hiện." if cut else ""
+        return NextStepCompleted(
+            request_id=request.request_id,
+            kind="ask_clarify",
+            text=f"Bạn có nhiều lớp khớp tên đó. Bạn muốn xem lớp nào?{tail}",
+        )
+
     if harvested is not None:
         body = ", ".join(f"{key}: {value}" for key, value in sorted(harvested.tool_result.items()))
         return NextStepCompleted(

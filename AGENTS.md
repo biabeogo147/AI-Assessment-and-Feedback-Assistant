@@ -46,6 +46,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |
 | A whole AGENT job times out before the job waiting on it does | automatic: `tools/check_contract.py` |
 | Teacher approves an assessment before release | automatic: `test_teacher_approves_an_assessment_before_release` |
+| The options in a clarifying question are written by BE from rows it read | automatic: `test_the_options_are_written_by_be_not_by_the_model` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
 | FE never applies its own confidence threshold | review: `confidence` may be displayed, never compared |
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |

@@ -138,15 +138,15 @@ phát hiện → **dừng cho bạn review** → mới sang việc sau.
 
 ### Việc 3 — Giải nghĩa thực thể
 
-- [ ] `adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md`: không đoán; lựa chọn đến **từ DB**, không do model
+- [x] `adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md`: không đoán; lựa chọn đến **từ DB**, không do model
       bịa. Ghi rõ rằng phần *cấm đánh dấu nên chọn* của ADR-05 áp ở đây, còn phần *mỗi lựa chọn tự nêu
       cái giá* thì không — luật đó viết cho quyết định sư phạm, còn phân định tên lớp không có giá nào
       để nêu
-- [ ] `resolve.py`: `resolve_class()` → `Resolved | Ambiguous | NotFound`, tìm **chỉ trong lớp của
+- [x] `resolve.py`: `resolve_class()` → `Resolved | Ambiguous | NotFound`, tìm **chỉ trong lớp của
       giáo viên đó**, chuẩn hoá hoa/thường và khoảng trắng
-- [ ] Nối vào executor: `Ambiguous`/`NotFound` về vòng lặp như **kết quả tool có cấu trúc** mang ứng
+- [x] Nối vào executor: `Ambiguous`/`NotFound` về vòng lặp như **kết quả tool có cấu trúc** mang ứng
       viên thật, không phải exception
-- [ ] Test: khớp đúng; hai lớp cùng tên → `Ambiguous` đủ hai ứng viên; không có → `NotFound` kèm danh
+- [x] Test: khớp đúng; hai lớp cùng tên → `Ambiguous` đủ hai ứng viên; không có → `NotFound` kèm danh
       sách lớp của giáo viên; lớp của giáo viên khác → **cùng đáp án với không tồn tại**
 
 ### Việc 4 — Bảng hội thoại giáo viên
@@ -239,6 +239,48 @@ C là làm hai lần một việc: nếu hàng đã chở args, kết quả, th�
 báo "nó làm sai", còn chuỗi mười bước dẫn tới đó thì không ai thấy. ADR-01 còn đòi thẳng: *"Bỏ duyệt
 phải để lại bằng chứng trong luồng chat như mọi thao tác khác"* — bảng này **là** cái bằng chứng đó.
 
+### Decision: Lựa chọn của câu hỏi hỏi lại do BE dựng, không lọc chữ của model
+
+options considered:
+
+- **A. BE dựng lựa chọn** từ `candidates` của kết quả tool; `choices` model trả về bị **bỏ qua**.
+- **B. Lọc `choices` của model**, giữ lại cái nào đối chiếu được với hàng BE đã đọc.
+- **C. Tin model**, chỉ nhắc trong prompt.
+
+selected option: A. Ban đầu tôi làm B.
+
+reason: B **rò cả hai chiều**, và đo được chứ không phải đoán. Với lớp thật duy nhất là `12A`:
+`12A-1`, `12A.1`, `12A_1`, `12A, 11C` và `12A (45 học sinh)` đều **lọt**, trong khi `12A 3 học sinh`,
+`12A ban D` và `11C hoặc 12A` bị **bỏ oan**. Ca tệ nhất là `12A-1`: một tên lớp Việt Nam hoàn toàn
+hợp lý, lệch tên thật đúng một dấu gạch — tức là cái tên giáo viên sẽ không bao giờ đặt câu hỏi.
+Và sĩ số thì **không** đi qua phép lọc nào cả, nên `12A (45 học sinh)` qua được trong khi lớp thật
+có 3 em, làm hỏng chính thứ ADR-23 dựa vào để phân biệt hai lớp cùng tên.
+
+Chiều bỏ oan cũng nguy hiểm theo cách riêng: format duy nhất chắc chắn qua được phép lọc lại đúng là
+format mock sinh ra, nên bản demo sẽ xanh trong khi model thật rơi vào nhánh `choices` rỗng — một
+câu hỏi không có lựa chọn nào, và chỉ một dòng log nói vì sao.
+
+A làm cả lớp lỗi ấy biến mất cùng lúc, vì **không còn chữ tự do nào để kiểm**: model viết câu hỏi,
+BE viết các đáp án. Nó cũng làm `more` thành thứ có người đọc — `Answered.more_choices` — thay vì
+một field khai rồi không dùng.
+
+### Decision: Nâng cap `AGENTS.md` lên 172 dòng
+
+options considered:
+
+- **A. Nâng 171 → 172** kèm decision record, cho một hàng invariant mới.
+- **B. Không thêm hàng**, để luật sống trong ADR-23 và `services/be/AGENTS.md`.
+
+selected option: A.
+
+reason: comment trên `AGENTS_MD_MAX_LINES` mô tả đúng thủ tục — *"raise it only alongside a decision
+record explaining what new rule justified the growth"* — và luật này đạt tiêu chuẩn đó: nó là loại
+luật một thay đổi sau sẽ **vô tình dựng lại**, vì bản làm đầu tiên của chính tôi đã đi vào đúng cái
+bẫy (lọc chữ model viết) và rò hai chiều. Bảng Invariants tồn tại cho đúng loại luật ấy.
+
+Ghi thêm cho thật: ở Việc 1 tôi gặp cùng tình huống và làm **ngược** — bỏ hàng invariant vừa thêm để
+giữ con số, đúng cái mà comment ấy gọi là "the wrong trade". Lần này làm theo thủ tục.
+
 ### Decision: Trần vòng lặp là một số nguyên, không dựng accounting token
 
 options considered:
@@ -256,7 +298,7 @@ phép đo chứ không phải một cảm giác.
 
 ## Validation Checks
 
-- [x] `.\dev.ps1 test` — sau Việc 2: 111 pytest và 11 vitest xanh (85 trước Việc 1, 96 sau Việc 1)
+- [x] `.\dev.ps1 test` — sau Việc 3: 129 pytest và 11 vitest xanh (85 → 96 → 111 → 129)
 - [x] `.\dev.ps1 check` — 5 check tầng repo, trong đó `agent-no-db` và `env-example`. Chạy lại ở mỗi việc
 - [ ] `.\dev.ps1 typecheck` — chỉ nếu có file frontend bị chạm (dự kiến: không)
 - [x] `packages/contracts` bị đổi ⇒ đã chạy **cả hai** theo bảng Validation của `AGENTS.md`
@@ -281,7 +323,55 @@ Không có màn hình nào. Đó là việc của đợt sau.
 
 ## Status
 
-**Việc 1 và Việc 2 xong.** Việc 1 đã commit (`9a37864`) sau khi bạn duyệt. Việc 2 đang chờ review.
+**Việc 1, 2 và 3 xong.** Việc 1 commit `9a37864`, Việc 2 commit `beca4c3`. Việc 3 đang chờ review.
+
+### Việc 3 — giải nghĩa thực thể
+
+`resolve_class` trả ba kết quả và **không có nhánh nào chọn một trong nhiều**. Kiểm trên hệ thật với
+hai lớp cùng tên 12A (sĩ số 3 và 2): agent hỏi lại kèm `['12A (2 học sinh)', '12A (3 học sinh)']`,
+không đoán. Và lớp **có thật** của giáo viên khác trả lời **giống hệt từng byte** với lớp không tồn
+tại — ADR-22 nay được kiểm trực tiếp, không chỉ bằng test.
+
+**Review Việc 3 bắt một lỗ thật, và nó là đúng ca mà ADR-23 tự nhận đã bịt.** Phép lọc `choices` của
+tôi rò **cả hai chiều**, đo được bằng cách chạy chính hàm đó:
+
+| model trả | kết quả |
+| --- | --- |
+| `12A1` | bỏ — ca tôi đã bịt |
+| `12A-1`, `12A.1`, `12A_1` | **lọt** |
+| `12A, 11C` | **lọt**, và `11C` hiện ra trước mặt giáo viên |
+| `12A (45 học sinh)` | **lọt**, dù lớp thật có 3 em |
+| `12A 3 học sinh` | **bỏ oan** |
+| `11C hoặc 12A` | **bỏ oan** |
+
+`12A-1` là tên lớp Việt Nam hoàn toàn hợp lý, lệch tên thật đúng một dấu gạch — tức cái tên giáo
+viên sẽ không bao giờ đặt câu hỏi. Và **sĩ số không đi qua phép lọc nào cả**, nên nó phá đúng thứ
+ADR-23 dựa vào để phân biệt hai lớp cùng tên.
+
+Chiều bỏ oan nguy hiểm theo cách riêng: format duy nhất chắc chắn lọt qua lại đúng là format mock
+sinh ra, nên bản demo sẽ xanh trong khi model thật rơi vào nhánh `choices` rỗng.
+
+Sửa **gốc** chứ không vá thêm điều kiện: **BE tự dựng lựa chọn** từ `candidates`, `choices` model trả
+về bị bỏ qua. Không còn chữ tự do nào để kiểm thì cả lớp lỗi ấy biến mất cùng lúc. Kèm đó `more`
+thành thứ có người đọc (`Answered.more_choices`) thay vì một field khai rồi không dùng.
+
+Bốn thứ nhỏ hơn cũng từ review, đã sửa: `str(None)` biến `{"name": null}` thành lớp tên `"none"`;
+`normalise` chưa chuẩn hoá NFC nên "lớp" gõ trên macOS không khớp; `Lớp: 12A` và `lớp12A` bị trả
+không-tìm-thấy; và hai lớp chỉ khác nhau khoảng trắng (`12A` vs `12 A`) mơ hồ **vĩnh viễn** — sửa
+bằng cách thử đúng chính tả đã lưu trước khi chuẩn hoá.
+
+Hai thứ lộ ra khi làm:
+
+- **`ơ` (U+01A1) không phải `ớ` (U+1EDB).** Regex bóc chữ "lớp" của tôi viết `[oơ]`, trông như phủ
+  được từ đó và lặng lẽ không phủ — "lớp 12A" rơi vào nhánh không tìm thấy. Test bắt được vì tôi
+  viết đúng cả bốn cách giáo viên gõ.
+- **Phép lọc `choices` đầu tiên của tôi quá lỏng theo chiều ngược.** Nó kiểm tên thật có nằm trong
+  lựa chọn hay không, nên `"12A1"` lọt qua nhờ có `"12A"` thật. Đó là ca tệ nhất: một cái tên lệch
+  đúng một ký tự là cái tên giáo viên sẽ không bao giờ đặt câu hỏi. Sửa thành khớp ở **ranh giới**.
+
+Và một chỗ phải sửa ở mock: nó thấy có `tool_result` là đọc nguyên dict ra, kể cả khi kết quả là
+`ambiguous`. Mock là đường một bản demo đi, nên nó mà chọn hộ thì bản demo đang trình diễn đúng thứ
+ADR-23 cấm.
 
 Việc 2 có hai thứ chỉ lộ ra khi **chạy thật**, không test nào bắt được:
 

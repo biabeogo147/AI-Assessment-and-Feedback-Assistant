@@ -17,6 +17,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# 172: one line above the 171 below, bought on 2026-09-30 by the rule that the
+# options in a clarifying question are written by BE from rows it read, never by
+# the model (ADR-23). It earned a row because it is the kind of rule a later
+# change reintroduces by accident -- the first implementation filtered what the
+# model wrote, and that leaked in both directions. The decision record is in
+# 2026-09-30-teacher-harness-foundation-plan.md.
+#
 # 171: one line above the 170 below, bought on 2026-09-29 by a new cross-service
 # invariant -- the model-call ceiling must sit inside BE's patience for a job --
 # which earned a row in the Invariants table. The rule for raising this has been
@@ -28,7 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # rules to satisfy an invented number is the wrong trade. The cap exists to stop
 # drift from here, so raise it only alongside a decision record explaining what
 # new rule justified the growth.
-AGENTS_MD_MAX_LINES = 171
+AGENTS_MD_MAX_LINES = 172
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (

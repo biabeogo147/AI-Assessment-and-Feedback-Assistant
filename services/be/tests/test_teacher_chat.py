@@ -28,10 +28,11 @@ from be import db as db_module
 from be import teacher_chat
 from be.config import get_settings
 from be.db import bind_sessions, prepare_schema
-from be.models import Assessment, AssessmentState, SchoolClass, Teacher
+from be.identity import Asking
+from be.models import Assessment, AssessmentState, SchoolClass, Student, Teacher
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
-from be.teacher_tools import Asking, UnknownTool, catalog_for, execute
+from be.teacher_tools import UnknownTool, catalog_for, execute
 from contracts import NextStepCompleted
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
@@ -174,6 +175,65 @@ async def test_the_loop_stops_at_its_ceiling_and_says_so(stack) -> None:
     # loop that ran once, and a hard 8 would go quietly green for anyone who
     # lowered the setting.
     assert len(forever.asked) == get_settings().max_tool_steps
+
+
+@pytest.mark.asyncio
+async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
+    """BE renders the options from the rows it read; the model's are ignored.
+
+    ADR-05 requires the options in a clarifying question to come from data the
+    system supplied, and this is the only way to get that property rather than
+    approximate it. Filtering what the model wrote was the first attempt, and
+    it leaked in both directions: "12A-1" passed on the strength of a real
+    "12A", while a legitimate "12A 3 học sinh" was thrown away. Both were
+    measured, not imagined.
+
+    So the model writes the question and BE writes the answers. There is no
+    text to filter, and an invented class name has no path to the screen.
+    """
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert mine is not None
+        second = SchoolClass(teacher_id=mine.id, name="12B")
+        session.add(second)
+        await session.flush()
+        session.add(
+            Student(class_id=second.id, full_name="Ngô Thị Hai", student_code="HS2026-7001")
+        )
+        await session.commit()
+
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
+        ),
+        NextStepCompleted(
+            request_id="x",
+            kind="ask_clarify",
+            text="Bạn muốn xem lớp nào?",
+            # Every one of these is wrong in a different way: a real name with
+            # a wrong roster, a name one character off a real one, and a class
+            # that never existed. None of them reaches the teacher, because
+            # none of them is consulted.
+            choices=("12A (45 học sinh)", "12A-1", "11C"),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+
+    assert reply.status_code == 200
+    body = reply.json()
+    assert body["kind"] == "ask_clarify"
+    # Both rows that matched "12", with the roster sizes BE counted -- not the
+    # 45 the model claimed, and without the two classes it invented.
+    assert body["choices"] == ["12A (3 học sinh)", "12B (1 học sinh)"]
+    assert body["more_choices"] == 0
+    # The question is still the model's words. It writes the sentence; BE
+    # writes the answers.
+    assert body["text"] == "Bạn muốn xem lớp nào?"
 
 
 @pytest.mark.asyncio

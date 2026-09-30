@@ -8,6 +8,8 @@ of identity is a header that only works while `dev_identity_enabled` is on.
 The header reads `X-Actor: student:HS2026-1204` or `X-Actor: teacher:GV-001`.
 """
 
+from dataclasses import dataclass
+
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +17,48 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.config import get_settings
 from be.db import get_session
 from be.models import Student, Teacher
+
+
+@dataclass(frozen=True)
+class Asking:
+    """Who a tool is running for, as values rather than as a row.
+
+    Deliberately not the `Teacher` row. The loop rolls its session back
+    between steps to release the pooled connection, and a rollback expires
+    every ORM object attached to that session -- so reading `teacher.id` on
+    the next step would be database IO from a place SQLAlchemy's async bridge
+    cannot reach. The symptom is `MissingGreenlet`, raised far from its cause.
+
+    Values also make the rule harder to lose: a tool is handed an identity it
+    cannot avoid having, and cannot quietly widen its scope by forgetting to
+    read one.
+
+    Attributes:
+        teacher_id: Owner every query filters on (ADR-22).
+        teacher_code: What the logs name, so a refusal can be traced without
+            joining anything.
+        full_name: How the assistant addresses the person.
+    """
+
+    teacher_id: str
+    teacher_code: str
+    full_name: str
+
+    @classmethod
+    def of(cls, teacher: Teacher) -> "Asking":
+        """Read a teacher row into an identity that outlives the session.
+
+        Args:
+            teacher: The row, freshly loaded.
+
+        Returns:
+            The three values the tools and the loop need.
+        """
+        return cls(
+            teacher_id=teacher.id,
+            teacher_code=teacher.teacher_code,
+            full_name=teacher.full_name,
+        )
 
 
 def _parse(raw: str | None) -> tuple[str, str]:

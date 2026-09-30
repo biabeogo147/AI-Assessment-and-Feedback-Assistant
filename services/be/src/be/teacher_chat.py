@@ -40,9 +40,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
 from be.db import get_session
-from be.identity import current_teacher
+from be.identity import Asking, current_teacher
 from be.models import Teacher
-from be.teacher_tools import Asking, UnknownTool, catalog_for, execute
+from be.teacher_tools import UnknownTool, catalog_for, execute
 from contracts import (
     PROPOSE_NEXT_STEP_TASK,
     NextStepCompleted,
@@ -91,14 +91,17 @@ class Answered(BaseModel):
 
     Attributes:
         kind: How the turn ended: `say` or `ask_clarify`.
-        text: The words to show.
-        choices: Options for `ask_clarify`. **Always empty in this version.**
-            ADR-05 requires the options in a clarifying question to come from
-            data BE supplied, and nothing here can corroborate that yet -- so
-            a list the model wrote is dropped rather than shown. Passing it
-            through would put invented class names in front of a teacher with
-            the system's authority behind them. Real choices arrive with
-            `resolve_class`, which builds them from the rows it found.
+        text: The words to show. Written by the model.
+        choices: Options for `ask_clarify`, written by **BE** from the rows a
+            tool returned (ADR-23). Whatever the model put in its own
+            `choices` is ignored: BE holds the rows, so a list the model wrote
+            is at best a copy of them and at worst an invented class name
+            arriving in front of a teacher with the system's authority behind
+            it. Empty when no tool produced candidates this turn, which makes
+            the question an open one rather than a broken list.
+        more_choices: How many further candidates were cut from `choices`, so
+            the interface can say the list is partial. A teacher with thirty
+            classes shown six of them and told nothing reads it as lost data.
         turns: Every step, in order, so the interface can show what was done
             and not only what was said.
     """
@@ -106,6 +109,7 @@ class Answered(BaseModel):
     kind: str
     text: str
     choices: list[str] = Field(default_factory=list)
+    more_choices: int = 0
     turns: list[Turn] = Field(default_factory=list)
 
 
@@ -151,6 +155,42 @@ async def _ask_agent(
         asked.model_dump(mode="json"),
     )
     return NextStepCompleted.model_validate(answer)
+
+
+def _offered(result: dict) -> tuple[list[str], int]:
+    """Render the options for a clarifying question from a tool's own result.
+
+    BE writes these, not the model. Filtering what a model wrote was the first
+    attempt and it leaked both ways, measured rather than guessed: "12A-1"
+    passed on the strength of a real "12A", "12A (45 học sinh)" passed with a
+    roster nobody counted, and a perfectly good "12A 3 học sinh" was thrown
+    away. Every one of those holes closes at once when there is no free text
+    to inspect -- the model writes the question, BE writes the answers.
+
+    Args:
+        result: One tool's return value. Only `candidates` is read: a
+            not-found list is context for the assistant to mention, not a set
+            of options to click.
+
+    Returns:
+        The options, and how many further candidates were cut. The count
+        travels so the question can admit the list is partial -- a teacher
+        with thirty classes shown six of them, told nothing, reads it as lost
+        data.
+    """
+    listed = result.get("candidates")
+    if not isinstance(listed, list):
+        return [], 0
+
+    options = [
+        f"{entry['name']} ({entry['student_count']} học sinh)"
+        for entry in listed
+        if isinstance(entry, dict)
+        and isinstance(entry.get("name"), str)
+        and isinstance(entry.get("student_count"), int)
+    ]
+    more = result.get("more")
+    return options, more if isinstance(more, int) and more > 0 else 0
 
 
 def _visible(record: TurnRecord) -> Turn:
@@ -202,6 +242,11 @@ async def say_something(
     catalog = catalog_for(asking)
 
     history: list[TurnRecord] = [TurnRecord(kind="teacher", text=said.text)]
+    # Options for a clarifying question, rendered by BE from the last tool
+    # result that produced candidates. A question may offer these and nothing
+    # else (ADR-05, ADR-23).
+    offered: list[str] = []
+    offered_more = 0
     deadline = asyncio.get_running_loop().time() + settings.turn_budget_seconds
 
     for _ in range(settings.max_tool_steps):
@@ -222,18 +267,18 @@ async def say_something(
         if step.kind in {"say", "ask_clarify"}:
             history.append(TurnRecord(kind="assistant", text=step.text))
             if step.choices:
-                # Dropped, not forwarded. See `Answered.choices`: an option
-                # BE cannot trace back to a row it read is an option the model
-                # made up, and it would appear to the teacher as something the
-                # system knows about.
+                # Ignored, not filtered. BE has the rows; whatever the model
+                # wrote here is at best a copy and at worst an invention.
                 logger.info(
-                    "dropped %d uncorroborated choice(s) for %s",
+                    "ignored %d model-written choice(s) for %s",
                     len(step.choices),
                     asking.teacher_code,
                 )
             return Answered(
                 kind=step.kind,
                 text=step.text,
+                choices=offered,
+                more_choices=offered_more,
                 turns=[_visible(record) for record in history],
             )
 
@@ -266,6 +311,9 @@ async def say_something(
             # the process, including the ones students poll on.
             await session.rollback()
 
+        candidates, cut = _offered(result)
+        if candidates:
+            offered, offered_more = candidates, cut
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
 
     # The ceiling. Reached, not crashed into: the teacher gets a sentence that

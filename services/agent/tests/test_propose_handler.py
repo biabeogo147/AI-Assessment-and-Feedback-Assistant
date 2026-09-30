@@ -79,6 +79,43 @@ async def test_the_mock_stops_asking_once_the_result_is_in() -> None:
 
 
 @pytest.mark.asyncio
+async def test_the_mock_asks_which_class_when_the_name_matched_several() -> None:
+    """An ambiguous result becomes a question, not a recital of the result.
+
+    ADR-23's whole point is that nobody picks between candidates. The mock has
+    to honour that too, or the free way of driving the loop would demonstrate
+    the one behaviour the design forbids -- and it is the demo people see.
+
+    It writes no options of its own: BE renders those from the rows it read,
+    and a mock that also wrote them would be a second source for the one thing
+    ADR-23 says has exactly one.
+    """
+    answer = await propose_next_step(
+        {},
+        _payload(
+            TurnRecord(kind="teacher", text="lớp 12A thế nào"),
+            TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A"}),
+            TurnRecord(
+                kind="tool_result",
+                tool_name="find_class",
+                tool_result={
+                    "found": False,
+                    "ambiguous": True,
+                    "candidates": [
+                        {"class_id": "c-1", "name": "12A", "student_count": 3},
+                        {"class_id": "c-2", "name": "12A", "student_count": 2},
+                    ],
+                },
+            ),
+        ),
+    )
+
+    assert answer["kind"] == "ask_clarify"
+    assert answer["text"]
+    assert answer["choices"] == []
+
+
+@pytest.mark.asyncio
 async def test_the_mock_never_proposes_a_tool_it_was_not_given() -> None:
     """An empty catalog means words only.
 
@@ -92,6 +129,34 @@ async def test_the_mock_never_proposes_a_tool_it_was_not_given() -> None:
 
     assert answer["kind"] in {"say", "ask_clarify"}
     assert not answer["tool_name"]
+
+
+@pytest.mark.asyncio
+async def test_the_mock_finds_a_name_written_against_the_word_lop() -> None:
+    """ "lớp12A" names a class, and BE can resolve it.
+
+    The mock's extractor needed a word boundary before the digits, so it saw
+    nothing here and asked which class -- while BE, given the chance, resolves
+    that spelling fine. The two halves disagreeing makes a demo look like a
+    resolution bug that is not there.
+    """
+    asked = _payload(TurnRecord(kind="teacher", text="lớp12A thế nào"))
+    answer = await propose_next_step({}, asked)
+
+    assert answer["kind"] == "call_tool"
+    assert answer["tool_args"] == {"name": "12A"}
+
+
+@pytest.mark.asyncio
+async def test_the_mock_still_ignores_numbers_that_are_not_class_names() -> None:
+    """Loosening the boundary must not turn durations and years into classes.
+
+    "15 phút" and "2026" sit in the same sentences as class names, and a mock
+    that looked one up would send the loop after a class nobody mentioned.
+    """
+    for text in ("bài 15 phút hôm qua thế nào", "năm 2026 có mấy bài", "còn 2 câu chưa chữa"):
+        answer = await propose_next_step({}, _payload(TurnRecord(kind="teacher", text=text)))
+        assert answer["kind"] == "ask_clarify", text
 
 
 @pytest.mark.asyncio
