@@ -12,6 +12,8 @@ cannot know that: the teacher's identity and the database are on BE's side of
 the wall. Those tests live with the executor.
 """
 
+from types import SimpleNamespace
+
 import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -163,3 +165,64 @@ async def test_the_request_id_comes_back_on_the_proposal(
     step = await propose(_asked("chào"))
 
     assert step.request_id == "r1"
+
+
+class WithUsage:
+    """A chat model answering in the `include_raw` shape, with a usage report.
+
+    `Scripted` above ignores `include_raw` and hands the parsed object back
+    directly, which is a shape real providers also produce when they cannot
+    report usage. This one is the other shape, and it exists because the
+    token count is a claim about a library -- and claims about libraries in
+    this plan have been wrong three times when nothing measured them.
+    """
+
+    def __init__(self, step: NextStepCompleted, total_tokens: int | None) -> None:
+        self.step = step
+        self.total_tokens = total_tokens
+
+    def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
+        assert kwargs.get("include_raw") is True
+
+        usage = None if self.total_tokens is None else {"total_tokens": self.total_tokens}
+        raw = SimpleNamespace(usage_metadata=usage)
+
+        return RunnableLambda(lambda messages: {"parsed": self.step, "raw": raw})
+
+
+@pytest.mark.asyncio
+async def test_the_token_count_comes_from_the_provider(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """What the call cost is read off the response, not off the proposal.
+
+    The model fills the schema, so a field it can write is a field it will
+    write -- and a token count it invented would be worse than none, because
+    it would look like a measurement.
+    """
+    model = WithUsage(
+        NextStepCompleted(request_id="x", kind="say", text="ừ", model_tokens=999_999), 1234
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("chào"))
+
+    assert step.model_tokens == 1234
+
+
+@pytest.mark.asyncio
+async def test_a_provider_that_reports_no_usage_costs_zero_not_a_crash(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Zero means "not told", and the turn still happens.
+
+    Gemini is the configured fallback and does not always report usage. A
+    missing count must not take the answer down with it.
+    """
+    model = WithUsage(NextStepCompleted(request_id="x", kind="say", text="ừ"), None)
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("chào"))
+
+    assert step.kind == "say"
+    assert step.model_tokens == 0

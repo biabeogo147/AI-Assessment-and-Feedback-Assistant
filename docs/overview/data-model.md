@@ -72,6 +72,29 @@ một câu có một câu trả lời ở pha 1 và nhiều lượt ở pha 2, n
 | `chat_messages` | từng lượt hội thoại, `sequence` | lưu **trước** khi phát ra SSE |
 | `reports` | báo cáo *giải thích khó hiểu*, gắn với `attempt` | không gắn với một tin nhắn: đơn vị là cả đoạn chat (ADR-19) |
 
+### Nhóm 5 — hội thoại của giáo viên
+
+| Bảng | Giữ gì | Ghi chú |
+| --- | --- | --- |
+| `teacher_conversations` | một mạch hội thoại của một giáo viên | một bảng riêng chứ không phải một id trần, để sau này mở mạch mới mà lượt cũ không đi theo |
+| `teacher_turns` | từng **bước** một lượt: lời nói, hoặc tool đã chạy | `UniqueConstraint(conversation_id, sequence)`; commit theo từng bước |
+
+Hai bảng này **không** dùng lại `chat_messages`, và lý do là cơ học chứ không phải khẩu vị:
+`chat_messages.attempt_id` là khoá ngoại tới `attempts`, mà hội thoại của giáo viên không có bài làm
+nào.
+
+Bảng `teacher_turns` giữ nhiều hơn chữ, vì một lượt của giáo viên có thể là *"đã tạo đề nháp 10 câu
+cho 12A1"* — và thứ đáng lưu là **đề nào**, không phải câu thông báo. `entity_kind` + `entity_id`
+chở chủ thể ấy, và là thứ sẽ cho giao diện chọn đúng variant `Action result card`.
+
+**Hiện chỉ một tool sinh ra chủ thể**: `find_class` trả `class_id`. Bảy variant của `Action result
+card` đều là hành động **ghi**, mà đợt này không có tool ghi nào — nên hai cột ấy là cấu trúc đã
+dựng, chưa phải dữ liệu đã có.
+
+`model_tokens` và `duration_ms` làm bảng này thành **trace** cùng lúc với transcript. Một hệ trace
+riêng sẽ là cùng những dòng ấy ghi hai lần, và với một agent tự chọn bước thì câu *"nó đã làm gì"*
+không trả lời được chỉ bằng lời nói. Đọc trace là một câu `SELECT`.
+
 ## Ba quyết định về hình dạng, và lý do
 
 **Câu của một lượt nằm trong JSON, không nằm trong `questions`.** Nó thuộc về đúng một lượt và không

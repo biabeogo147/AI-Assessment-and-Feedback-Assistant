@@ -134,6 +134,11 @@ class NextStepCompleted(BaseModel):
     tool_name: str = ""
     tool_args: dict[str, object] = Field(default_factory=dict)
     choices: tuple[str, ...] = ()
+    # What the call cost, filled in by AGENT from the provider's own usage
+    # report **after** the model has answered. The model cannot know this, so
+    # whatever it writes here is overwritten -- the same treatment
+    # `request_id` gets, and for the same reason.
+    model_tokens: int = 0
 
     @model_validator(mode="after")
     def _a_tool_call_names_a_tool(self) -> "NextStepCompleted":

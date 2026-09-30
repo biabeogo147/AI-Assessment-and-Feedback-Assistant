@@ -156,18 +156,66 @@ def _compose(state: ProposeState) -> dict:
     return {"messages": messages}
 
 
+def _spent(raw: object) -> int:
+    """Read the provider's token count off a raw response.
+
+    Args:
+        raw: Whatever the provider returned alongside the parsed object.
+
+    Returns:
+        Total tokens, or 0 when the provider reported none. Zero means "not
+        told", not "free": a fake model in a test reports nothing, and so do
+        some providers.
+    """
+    usage = getattr(raw, "usage_metadata", None)
+    if isinstance(usage, dict):
+        total = usage.get("total_tokens")
+        if isinstance(total, int):
+            return total
+    return 0
+
+
 async def _choose(state: ProposeState) -> dict:
-    """Ask the model for one proposal.
+    """Ask the model for one proposal, and note what it cost.
+
+    `include_raw` is what makes the cost knowable. Structured output alone
+    hands back the parsed object and drops the response it came in, and the
+    usage report lives on that response -- so the plan's claim that recording
+    tokens was "nearly free" was wrong: it needs this argument and a contract
+    field.
 
     Args:
         state: Carries the composed messages.
 
     Returns:
-        The `step` slice of the state.
+        The `step` slice of the state, with `model_tokens` filled from the
+        provider rather than from the model.
     """
-    model = llm.with_fallback(lambda chat: chat.with_structured_output(NextStepCompleted))
-    step: NextStepCompleted = await model.ainvoke(state["messages"])
-    return {"step": step}
+    model = llm.with_fallback(
+        lambda chat: chat.with_structured_output(NextStepCompleted, include_raw=True)
+    )
+    answered = await model.ainvoke(state["messages"])
+
+    # A provider that cannot do `include_raw` -- or a fake that ignores it --
+    # hands back the parsed object directly. Both shapes are supported because
+    # the token count is a nicety and the proposal is not.
+    if isinstance(answered, dict):
+        parsed = answered["parsed"]
+        if parsed is None:
+            # `include_raw` turns a parse failure into `parsed=None` plus the
+            # exception under `parsing_error`, where `include_raw=False` would
+            # have raised it with the offending output attached. Letting it
+            # through would trade a message naming the bad output for an
+            # `AttributeError` on None, which names nothing.
+            raise ValueError(
+                f"model did not produce a usable proposal: {answered.get('parsing_error')}"
+            )
+        step: NextStepCompleted = parsed
+        spent = _spent(answered.get("raw"))
+    else:
+        step, spent = answered, 0
+
+    return {"step": step.model_copy(update={"model_tokens": spent})}
 
 
 def _build() -> object:

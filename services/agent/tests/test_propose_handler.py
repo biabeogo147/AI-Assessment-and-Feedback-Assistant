@@ -170,3 +170,30 @@ async def test_the_mock_asks_back_when_no_class_was_named() -> None:
 
     assert answer["kind"] == "ask_clarify"
     assert answer["text"]
+
+
+@pytest.mark.asyncio
+async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> None:
+    """A result from an earlier turn is not an answer to the current question.
+
+    Persisting the conversation changed this without changing a line of the
+    mock: it used to see one turn at a time, and now it sees all of them. Its
+    "do I already have data?" check then found a result from a previous turn
+    and stopped calling tools altogether -- so the assistant repeated its last
+    sentence forever. Found by reading a `teacher_turns` table after two
+    messages, not by any test.
+    """
+    answer = await propose_next_step(
+        {},
+        _payload(
+            TurnRecord(kind="teacher", text="lớp 12A thế nào"),
+            TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A"}),
+            TurnRecord(kind="tool_result", tool_name="find_class", tool_result={"name": "12A"}),
+            TurnRecord(kind="assistant", text="Lớp 12A có 3 học sinh."),
+            # A new question. The result above belongs to the old one.
+            TurnRecord(kind="teacher", text="còn lớp 12B thì sao"),
+        ),
+    )
+
+    assert answer["kind"] == "call_tool"
+    assert answer["tool_args"] == {"name": "12B"}

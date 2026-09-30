@@ -151,20 +151,32 @@ phát hiện → **dừng cho bạn review** → mới sang việc sau.
 
 ### Việc 4 — Bảng hội thoại giáo viên
 
-- [ ] `models.py`: `TeacherTurn` với `UniqueConstraint(conversation_id, sequence)` — sao chép có ý
+- [x] `models.py`: `TeacherTurn` với `UniqueConstraint(conversation_id, sequence)` — sao chép có ý
       thức từ `ChatMessage`, vì StrictMode mở stream hai lần *theo thiết kế* và một lần kiểm rồi chèn
       là hai câu lệnh có khe ở giữa
-- [ ] Trường: `kind` (`teacher|assistant|tool_call|tool_result|clarify`), `text`, `tool_name`,
-      `tool_args`, `tool_result`, `entity_kind`, `entity_id`, `model_tokens`, `duration_ms`
-- [ ] `entity_kind`/`entity_id` phải đủ để render đúng variant `Action result card` của Figma
-      (`tạo-đề-trống`, `thêm-câu-hỏi`, `đã-duyệt`, `bỏ-duyệt`, `đã-phát-hành`, `phát-hành-thất-bại`,
-      `tạo-lớp`) sau khi tải lại trang
-- [ ] Vòng lặp ghi hàng **trước** khi phát streaming — streaming là chất xúc tác cho cảm giác, không
-      phải nguồn sự thật
-- [ ] `model_tokens` mỗi lượt: transcript gửi lại mỗi vòng làm token phình theo bình phương số vòng,
-      nên "có tốn nhiều không" phải là một phép đo
-- [ ] Test: lượt sống qua reload; ghi trùng `sequence` bị chặn; trace đọc được bằng một `SELECT`
-- [ ] `data-model.md`
+- [x] Trường: `kind` (`teacher|assistant|tool_call|tool_result` — **bốn**, không năm: `ask_clarify`
+      lưu là `assistant`, vì nó *là* một lượt trợ lý nói; cái phân biệt nó nằm ở `Answered.kind` của
+      lượt đó, không phải ở hàng), `text`, `tool_name`, `tool_args`, `tool_result`, `entity_kind`,
+      `entity_id`, `model_tokens`, `duration_ms`
+- [ ] **Cấu trúc có, dữ liệu chưa.** `entity_kind`/`entity_id` tồn tại và có đường ra API qua `Turn`,
+      nhưng hiện chỉ một tool sinh ra subject (`find_class` → `class`). Bảy variant `Action result
+      card` mà ô này từng tuyên bố — `tạo-đề-trống`, `thêm-câu-hỏi`, `đã-duyệt`, `bỏ-duyệt`,
+      `đã-phát-hành`, `phát-hành-thất-bại`, `tạo-lớp` — đều là **hành động ghi**, mà Scope của plan
+      nói rõ đợt này không có tool ghi nào. Ô này tick được khi có tool ghi đầu tiên. Nhánh
+      `assessment_id` từng nằm trong `_ENTITY_KEYS` đã bị bỏ: không tool nào trả về nó, nên đó là một
+      nhánh không input nào chạm tới
+- [x] Vòng lặp ghi hàng **trước** khi trả lời, và commit theo **từng bước** — worker chết giữa lượt
+      thì mất bước đang làm, không mất cả hội thoại. Việc ghi-trước-khi-stream thì **chưa áp được**:
+      đường giáo viên chưa có streaming nào, vì `stream_channel` đã bị bỏ khỏi `NextStepRequested` ở
+      Việc 2 (một lượt là nhiều lần gọi model, chỉ lần cuối sinh chữ). Luật vẫn đúng, chỉ chưa có
+      chỗ để thi hành
+- [x] `model_tokens` mỗi lượt — và **không "gần như miễn phí"** như decision record của tôi viết.
+      `with_structured_output` trả về object đã parse và bỏ mất response chở báo cáo usage, nên phải
+      thêm `include_raw=True` cùng một field trong contract. Chỗ đọc là `_spent()` trong `propose.py`,
+      và nó có test cho **cả hai** hình dạng response, vì đây đúng là loại khẳng định về thư viện mà
+      tôi đã sai ba lần trong plan này
+- [x] Test: lượt sống qua reload; ghi trùng `sequence` bị chặn; trace đọc được bằng một `SELECT`
+- [x] `data-model.md`
 
 ## Decision Records
 
@@ -298,7 +310,7 @@ phép đo chứ không phải một cảm giác.
 
 ## Validation Checks
 
-- [x] `.\dev.ps1 test` — sau Việc 3: 129 pytest và 11 vitest xanh (85 → 96 → 111 → 129)
+- [x] `.\dev.ps1 test` — sau Việc 4: 138 pytest và 11 vitest xanh (85 → 96 → 111 → 129 → 138)
 - [x] `.\dev.ps1 check` — 5 check tầng repo, trong đó `agent-no-db` và `env-example`. Chạy lại ở mỗi việc
 - [ ] `.\dev.ps1 typecheck` — chỉ nếu có file frontend bị chạm (dự kiến: không)
 - [x] `packages/contracts` bị đổi ⇒ đã chạy **cả hai** theo bảng Validation của `AGENTS.md`
@@ -323,114 +335,77 @@ Không có màn hình nào. Đó là việc của đợt sau.
 
 ## Status
 
-**Việc 1, 2 và 3 xong.** Việc 1 commit `9a37864`, Việc 2 commit `beca4c3`. Việc 3 đang chờ review.
+**Cả bốn việc xong.** Việc 1 `9a37864`, Việc 2 `beca4c3`, Việc 3 `34873b1`. Việc 4 đang chờ review.
 
-### Việc 3 — giải nghĩa thực thể
+### Việc 4 — bảng hội thoại giáo viên
 
-`resolve_class` trả ba kết quả và **không có nhánh nào chọn một trong nhiều**. Kiểm trên hệ thật với
-hai lớp cùng tên 12A (sĩ số 3 và 2): agent hỏi lại kèm `['12A (2 học sinh)', '12A (3 học sinh)']`,
-không đoán. Và lớp **có thật** của giáo viên khác trả lời **giống hệt từng byte** với lớp không tồn
-tại — ADR-22 nay được kiểm trực tiếp, không chỉ bằng test.
+Hai bảng mới, và thứ chúng mở ra quan trọng hơn việc lưu: **`ask_clarify` nay trả lời được.** Trước
+đó endpoint nhận một câu và quên nó, nên giáo viên trả lời câu hỏi của chính trợ lý mà câu trả lời
+tới không mang theo câu hỏi — cổng đầu vào của ADR-05 tồn tại mà không có nửa sau.
 
-**Review Việc 3 bắt một lỗ thật, và nó là đúng ca mà ADR-23 tự nhận đã bịt.** Phép lọc `choices` của
-tôi rò **cả hai chiều**, đo được bằng cách chạy chính hàm đó:
+Trace là một câu `SELECT`, đọc thật trên Postgres:
 
-| model trả | kết quả |
-| --- | --- |
-| `12A1` | bỏ — ca tôi đã bịt |
-| `12A-1`, `12A.1`, `12A_1` | **lọt** |
-| `12A, 11C` | **lọt**, và `11C` hiện ra trước mặt giáo viên |
-| `12A (45 học sinh)` | **lọt**, dù lớp thật có 3 em |
-| `12A 3 học sinh` | **bỏ oan** |
-| `11C hoặc 12A` | **bỏ oan** |
+```
+sequence | kind        | tool_name  | duration_ms
+       0 | teacher     |            |           0
+       1 | tool_call   | find_class |         422
+       2 | tool_result | find_class |           0
+       3 | assistant   |            |         625
+       4 | teacher     |            |           0
+       5 | tool_call   | find_class |         437
+```
 
-`12A-1` là tên lớp Việt Nam hoàn toàn hợp lý, lệch tên thật đúng một dấu gạch — tức cái tên giáo
-viên sẽ không bao giờ đặt câu hỏi. Và **sĩ số không đi qua phép lọc nào cả**, nên nó phá đúng thứ
-ADR-23 dựa vào để phân biệt hai lớp cùng tên.
+Hai thứ chỉ lộ ra khi chạy thật:
 
-Chiều bỏ oan nguy hiểm theo cách riêng: format duy nhất chắc chắn lọt qua lại đúng là format mock
-sinh ra, nên bản demo sẽ xanh trong khi model thật rơi vào nhánh `choices` rỗng.
+- **Lượt 2 không gọi tool nào cả.** Mock tìm "có `tool_result` nào chưa?" trên *toàn bộ* lịch sử —
+  vốn vô hại khi lịch sử chỉ có một lượt, nhưng nay lịch sử là bền, nên nó thấy kết quả của lượt
+  trước và không bao giờ tra lại nữa: trợ lý lặp lại câu cuối mãi mãi. Việc 4 đổi hành vi của mock
+  mà không sửa một dòng nào của nó. Phát hiện bằng cách **đọc bảng** sau hai tin nhắn, không test
+  nào bắt. Sửa: chỉ xét từ tin nhắn cuối của giáo viên trở đi.
+- **Một hàng ORM bị expire giữa các bước**, nên lượt sau đọc `conversation.id` là IO lười ở chỗ
+  không được phép. Luật rút ra vẫn đúng và đã ghi vào docstring: vòng lặp làm việc với **giá trị**,
+  không với hàng ORM. Nhưng **lý do tôi ghi lần đầu thì sai** — tôi viết là `commit()` gây expire,
+  trong khi `bind_sessions` dựng session với `expire_on_commit=False`. Thứ thật sự expire là
+  `rollback()` giữa các bước tool, vốn bỏ qua cờ đó. Review bắt chỗ này, và nó đáng sửa vì một bài
+  học ghi sai nguyên nhân sẽ được áp sai chỗ lần sau.
 
-Sửa **gốc** chứ không vá thêm điều kiện: **BE tự dựng lựa chọn** từ `candidates`, `choices` model trả
-về bị bỏ qua. Không còn chữ tự do nào để kiểm thì cả lớp lỗi ấy biến mất cùng lúc. Kèm đó `more`
-thành thứ có người đọc (`Answered.more_choices`) thay vì một field khai rồi không dùng.
+Và một chỗ decision record của tôi nói sai: ghi `model_tokens` **không** "gần như miễn phí".
+`with_structured_output` bỏ mất response chở báo cáo usage, nên cần `include_raw=True` cộng một field
+trong contract — và cần một test cho cả hai hình dạng response, vì đây đúng là loại khẳng định về thư
+viện mà tôi đã sai ba lần trong plan này.
 
-Bốn thứ nhỏ hơn cũng từ review, đã sửa: `str(None)` biến `{"name": null}` thành lớp tên `"none"`;
-`normalise` chưa chuẩn hoá NFC nên "lớp" gõ trên macOS không khớp; `Lớp: 12A` và `lớp12A` bị trả
-không-tìm-thấy; và hai lớp chỉ khác nhau khoảng trắng (`12A` vs `12 A`) mơ hồ **vĩnh viễn** — sửa
-bằng cách thử đúng chính tả đã lưu trước khi chuẩn hoá.
+### Review Việc 4 bắt gì
 
-Hai thứ lộ ra khi làm:
+Bốn thứ nghiêm trọng, và chủ đề chung là **tôi sao chép nửa bài học**:
 
-- **`ơ` (U+01A1) không phải `ớ` (U+1EDB).** Regex bóc chữ "lớp" của tôi viết `[oơ]`, trông như phủ
-  được từ đó và lặng lẽ không phủ — "lớp 12A" rơi vào nhánh không tìm thấy. Test bắt được vì tôi
-  viết đúng cả bốn cách giáo viên gõ.
-- **Phép lọc `choices` đầu tiên của tôi quá lỏng theo chiều ngược.** Nó kiểm tên thật có nằm trong
-  lựa chọn hay không, nên `"12A1"` lọt qua nhờ có `"12A"` thật. Đó là ca tệ nhất: một cái tên lệch
-  đúng một ký tự là cái tên giáo viên sẽ không bao giờ đặt câu hỏi. Sửa thành khớp ở **ranh giới**.
+- **Không ai bắt `IntegrityError`.** Comment của tôi trên `UniqueConstraint` viết là "sao chép có ý
+  thức từ `ChatMessage`", nhưng bài học ở đó gồm **cả** constraint lẫn cách xử lý:
+  `student_routes.py:1759` bắt lỗi, rollback, đọc lại hàng của kẻ thắng và phát lại. Tôi sao chép
+  nửa đầu, nên một cú double-click thành 500 không có tiếng Việt nào — đúng cái docstring của endpoint
+  tuyên bố không xảy ra. Và docstring `_record` gọi một traceback là "loudly", tức mô tả một bug như
+  thể một tính năng.
+- **Không gì ngăn hai `TeacherConversation`,** và `order_by(started_at.desc())` không có khoá phụ nên
+  hai hàng cùng tick sẽ trả về bất định — lịch sử nhảy qua lại giữa hai mạch, loại bug không bao giờ
+  reproduce được. Sửa: `UniqueConstraint("teacher_id")` nói ra luật một-mạch-mỗi-giáo-viên, cộng khoá
+  phụ `id` cho thứ tự tất định.
+- **Test token không thể đỏ.** Nó assert `model_tokens >= 0` trên một fake không bao giờ set giá trị,
+  và cột thì default 0 — xoá cả field trong contract đi test vẫn xanh. Nó mua cảm giác an toàn mà
+  không bán lại gì.
+- **Test phân quyền test mã không tồn tại.** `GV-404` bị `current_teacher` chặn 401 **trước khi**
+  endpoint chạy, nên xoá hết mệnh đề lọc theo chủ đi test vẫn xanh.
 
-Và một chỗ phải sửa ở mock: nó thấy có `tool_result` là đọc nguyên dict ra, kể cả khi kết quả là
-`ambiguous`. Mock là đường một bản demo đi, nên nó mà chọn hộ thì bản demo đang trình diễn đúng thứ
-ADR-23 cấm.
+Cộng `parsed` có thể là `None` khi parse lỗi — `include_raw` biến một `OutputParserException` có kèm
+output xấu thành `AttributeError` trên None, tức đổi một thông báo có thông tin lấy một thông báo
+không có gì.
 
-Việc 2 có hai thứ chỉ lộ ra khi **chạy thật**, không test nào bắt được:
+### Một chỗ tôi phải bỏ, vì nó đo bàn thử chứ không đo code
 
-- `Enum(AssessmentState)` lưu theo **tên** member, nên Postgres giữ `PUBLISHED` trong khi ADR-01 và
-  `data-model.md` đều công bố `published` — và các hàng ghi trước khi có enum cũng là `published`.
-  Nhìn thấy bằng một câu `psql` sau khi seed, không phải bằng test. Đã thêm `values_callable` và
-  thêm một test đọc chuỗi thô, để nó không lệch âm thầm lần nữa.
-- Check constraint thì có thật sau bản sửa của Việc 1 — `psql` in ra đúng `CHECK (state = ANY ...)`.
-  Phần khẳng định đó nay đúng.
+Tôi viết một test bắn hai request đồng thời. Nó đỏ, và lý do hoá ra không nằm ở code: SQLite
+in-memory chạy trên `StaticPool` — **một connection dùng chung cho mọi session** — nên hai request
+đồng thời không có cô lập transaction. Kết quả đo được: chỉ 3 trong 4 hàng tồn tại, và hai
+conversation cùng sống dù `UNIQUE (teacher_id)` có trong DDL.
 
-Bài học lặp lại lần thứ hai trong plan này: **hai lần tôi tin một thư viện làm điều nó không làm**,
-và cả hai lần chỉ lộ ra khi có người hoặc có máy thật kiểm lại. Không lần nào test của tôi bắt được,
-vì tôi viết test theo đúng điều tôi tin.
-
-### Review Việc 2 bắt gì
-
-Bốn thứ nặng, đã sửa hết:
-
-- **Session giữ connection suốt cả lượt.** Pool rộng 15 (mặc định 5+10, `db.py` không truyền tham
-  số), mà một lượt có thể chờ 8 × 70 giây. Mười lăm giáo viên chat cùng lúc là **mọi** request khác
-  của tiến trình phải xếp hàng, kể cả cái học sinh poll mỗi giây. Sửa: `rollback()` sau mỗi tool.
-  Và bản sửa ấy lộ ra một bug thứ hai của chính nó — `rollback()` làm expire hàng `teacher`, nên lượt
-  sau đọc `teacher.full_name` là IO lười ở chỗ không được phép (`MissingGreenlet`, nổ xa nguyên
-  nhân). Sửa bằng value object `Asking`: vòng lặp làm việc với một **danh tính**, không với một hàng ORM.
-- **Không có trần thời gian cho một lượt.** `MAX_TOOL_STEPS` không phải lời hứa về thời gian chờ:
-  8 × 70s là hơn chín phút, và proxy hay browser sẽ cắt trước trong khi BE ghi log thành công. Thêm
-  `TURN_BUDGET_SECONDS=90`.
-- **`average_mark` là con số sai theo cách nguy hiểm nhất.** Mark là 0/0,5/1 **mỗi câu** (ADR-16),
-  nên tổng chia số attempt là điểm trên thang *bằng số câu* — mà mẫu số không được trả về. Đề 5 câu,
-  lớp làm đúng 68% → "điểm trung bình 3,4", và mọi giáo viên Việt Nam đọc là 3,4/10. Đây là thông
-  tin sai đưa tới người có thẩm quyền quyết định. Sửa: trả kèm `average_out_of` và
-  `average_percent`, lọc attempt chưa nộp, và description của tool bắt model phải nói kèm thang.
-- **Chỉ `UnknownTool` được bắt**, trong khi docstring của chính endpoint hứa mọi lỗi tool đều thành
-  dữ liệu model đọc được. Lỗi DB hay lệch version contract → 500 không có chữ tiếng Việt nào.
-
-Và ba chỗ trung thực tài liệu, đáng ghi vì chúng là lỗi của **tôi**, không của code:
-
-- **Hai ô `[x]` cho việc không tồn tại.** Tôi tick cả khối Việc 2 bằng một phép thay thế hàng loạt,
-  nên hai ô việc *tương lai* bị tick theo — trong đó có ô "test đường HTTP phát hành", mà repo không
-  có endpoint phát hành nào. `AGENTS.md` cấm đúng điều này: "Do not hide unresolved work".
-- **`main.py` bị ghi lại toàn bộ thành CRLF**, biến một thay đổi 2 dòng thành diff 142 dòng và xoá
-  sạch `git blame`. Đã `git checkout` rồi apply lại đúng hai dòng.
-- **Docstring `teacher_tools.py` nói "hai tầng" và chỉ vào tầng không làm gì.** `catalog_for` trả
-  cùng một list cho mọi giáo viên, nên phép kiểm catalog trong `execute` hiện **không thể sai**.
-  Tầng thật là `asking.teacher_id` trong từng tool. Ai tin dòng cũ sẽ viết tool mới không lọc
-  `teacher_id`, tin rằng `execute` đã chặn.
-
-Cộng hai test xanh vì lý do yếu: trần vòng lặp assert `<= 8` (xanh cả khi vòng chạy 1 bước) và
-so hai hằng số not-found với nhau. Cả hai đã chặt lại. Và 4 test handler **không** patch
-`llm.enabled` — trên máy này `.env` có `LLM_ENABLED=true`, nên chúng đi vào đường model thật rồi xanh
-nhờ nhánh `except`. Không tốn tiền, vì fake autouse ném `NotImplementedError` trước khi tới provider
-— nhưng xanh vì đường hồi phục, không vì đường đang test. Đã chốt bằng fixture.
-
-### Còn nợ, khai rõ
-
-- `ask_clarify` **chưa trả lời được**: endpoint nhận một câu và không lưu gì, nên câu trả lời của
-  giáo viên tới mà không có ngữ cảnh câu hỏi. Cổng đầu vào của ADR-05 đã dựng, nửa sau chưa có. Việc 4.
-- `choices` bị **bỏ** thay vì kiểm: ADR-05 đòi lựa chọn đến từ dữ liệu BE, mà chưa có gì đối chiếu
-  được. Bỏ đi thì giáo viên không thấy tên lớp model bịa; nhưng phần *chữ* vẫn có thể nhắc tới chúng.
-  Hết hẳn khi `resolve_class` dựng lựa chọn từ hàng nó tìm được (Việc 3).
-- `Student.class_id` là lớp **hiện tại**, nên học sinh chuyển lớp mang theo attempt cũ sang lớp mới.
-  Lỗi có từ trước, nhưng tool tóm tắt là caller đầu tiên chịu ảnh hưởng.
+Nên ca đua thật **vẫn chưa được chứng minh** ở đây, và nói khác đi là nói quá. Thay bằng test nhắm
+hai lần vào cùng một vị trí, tất định, đi đúng nhánh hồi phục ấy. Và chính nó phát hiện một lỗ nữa
+trong nhánh của tôi: người thắng mới `flush()` chứ chưa `commit()`, nên người thua đọc lại không thấy
+gì rồi ném tiếp — nhánh hồi phục tồn tại mà không bao giờ chạy được.

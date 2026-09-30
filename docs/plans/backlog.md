@@ -459,3 +459,28 @@ giáo viên dùng tới. Khi dùng tới thì phải quyết trước, chứ kh�
 
 **Bài học:** một check tính trường hợp xấu nhất phải được đọc lại mỗi lần có thêm một vòng lặp mới,
 vì nó nhân các con số mà nó **biết**, và không có gì cảnh báo khi xuất hiện một con số nó không biết.
+
+## Model đang phải điền hai field nó không quyết được
+
+Ghi ngày 2026-09-30, từ review Việc 4 của plan harness giáo viên.
+
+`propose_next_step` dùng `with_structured_output(NextStepCompleted)`, nên **model nhìn thấy toàn bộ
+schema** — kể cả hai field nó không có cách nào biết: `request_id` (BE cấp) và `model_tokens` (chỉ
+provider biết, sau khi đã trả lời). Cả hai đều bị ghi đè ở `graphs/propose.py`, và có test chứng
+minh việc ghi đè xảy ra.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Cho model một schema hẹp, rồi AGENT dựng `NextStepCompleted` từ đó | Không bị chặn. Chưa làm vì chi phí hiện còn nhỏ |
+
+Cái giá hôm nay nhỏ nhưng thật: mỗi lượt gọi, model phải sinh thêm token cho hai field vô nghĩa và
+phải ra hai quyết định không có căn cứ. Cái giá lớn dần theo mỗi field kiểu này được thêm vào —
+`request_id` là vết thứ nhất, `model_tokens` là vết thứ hai.
+
+Đường ra không cần logic nào trong `packages/contracts`: cho `with_structured_output` một model hẹp
+chỉ gồm những gì model quyết được (`kind`, `text`, `tool_name`, `tool_args`, `choices`), rồi AGENT
+dựng `NextStepCompleted` đầy đủ từ nó cộng `request_id` và `model_tokens`. `contracts` vẫn là data
+only, và schema model đọc đúng bằng thứ model chịu trách nhiệm.
+
+**Bài học chung:** một field trong schema structured output là một câu hỏi đặt ra cho model. Field
+nào nó không trả lời được thì đừng hỏi.

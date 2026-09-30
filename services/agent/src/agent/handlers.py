@@ -36,6 +36,7 @@ from contracts import (
     RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
+    TurnRecord,
 )
 
 logger = logging.getLogger(__name__)
@@ -543,6 +544,25 @@ _NO_CLASS_NAMED = (
 _NOTHING_TO_USE = "Lượt này mình chưa tra được dữ liệu nào. Bạn thử hỏi lại sau một chút nhé."
 
 
+def _current_turn(history: tuple[TurnRecord, ...]) -> tuple[TurnRecord, ...]:
+    """Everything since the teacher's last message.
+
+    A turn is one question and the work done for it. What came before is
+    context for a model that reads it, not evidence that the current question
+    has been answered.
+
+    Args:
+        history: The whole conversation, oldest first.
+
+    Returns:
+        The steps of the current turn, including the teacher's message itself.
+    """
+    for index in range(len(history) - 1, -1, -1):
+        if history[index].kind == "teacher":
+            return history[index:]
+    return history
+
+
 def next_step(request: NextStepRequested) -> NextStepCompleted:
     """Propose the next step of a teacher's turn without calling a model.
 
@@ -550,6 +570,12 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
     a tool while it has no data, and answers once a result is in the history.
     Those two together are what makes the loop terminate, so they are the part
     worth having for free.
+
+    Only the current turn is considered -- everything after the teacher's last
+    message. The history used to arrive one turn at a time and now arrives
+    whole, and that alone broke this: the "do I already have data?" check
+    found a result from a previous turn and stopped calling tools, so the
+    assistant repeated its last sentence forever.
 
     Args:
         request: The conversation so far and the tools this teacher may use.
@@ -559,9 +585,8 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         proposal BE must refuse would exercise the error path and teach
         nothing about the normal one.
     """
-    harvested = next(
-        (turn for turn in reversed(request.history) if turn.kind == "tool_result"), None
-    )
+    turn = _current_turn(request.history)
+    harvested = next((step for step in reversed(turn) if step.kind == "tool_result"), None)
 
     if harvested is not None and harvested.tool_result.get("ambiguous"):
         # ADR-23: nobody picks between candidates, and that includes the mock.
@@ -587,7 +612,7 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
             text=f"Mình tra được: {body}.",
         )
 
-    asked = next((turn.text for turn in reversed(request.history) if turn.kind == "teacher"), "")
+    asked = next((step.text for step in reversed(turn) if step.kind == "teacher"), "")
     named = _CLASS_NAME.search(asked)
     usable = {tool.name for tool in request.catalog}
 

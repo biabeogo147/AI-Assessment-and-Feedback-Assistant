@@ -17,31 +17,42 @@ Three properties come out of that arrangement rather than out of a prompt:
 - **Each step is one model call**, so the invariant that an AGENT job times out
   before BE stops waiting is true of this path.
 
-This version answers in the response and stores nothing, and the consequence is
-larger than losing a turn on reload: **every message starts from an empty
-history.** The endpoint takes one sentence and nothing else, so a teacher
-answering the assistant's own clarifying question sends that answer with no
-trace of what was asked. `ask_clarify` therefore exists here without a way to
-be answered -- the gate is built and its second half is not.
+The conversation is durable, and that is what makes `ask_clarify` answerable.
+A message carries the whole thread with it, so when the assistant asks "which
+class?" and the teacher answers "12A", the model sees its own question. While
+nothing was stored, that answer arrived with no trace of what had been asked
+and the input gate of ADR-05 existed with no second half.
 
-That is why there is no screen yet. The durable conversation is the next piece
-of work, and it is what makes the input gate of ADR-05 usable rather than
-merely present.
+Every step is committed on its own. A worker dying mid-turn therefore costs
+the step it was on rather than the conversation, and the pooled connection is
+released before each wait on AGENT. The cost is that half a turn is a state
+the table can hold: a failed turn leaves the teacher's message stored with no
+answer under it, and a retry stores the message again.
+
+One rule the whole file obeys, learned three times over: **work with values,
+never with rows.** `rollback` expires every ORM object in the session, and
+this loop rolls back between tool steps, so an attribute read on a row loaded
+earlier is database IO from a place SQLAlchemy's async bridge cannot reach --
+`MissingGreenlet`, raised far from its cause.
 """
 
 import asyncio
 import logging
+import time
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
 from be.db import get_session
 from be.identity import Asking, current_teacher
-from be.models import Teacher
+from be.models import Teacher, TeacherConversation, TeacherTurn
 from be.teacher_tools import UnknownTool, catalog_for, execute
 from contracts import (
     PROPOSE_NEXT_STEP_TASK,
@@ -73,17 +84,27 @@ class Said(BaseModel):
 
 
 class Turn(BaseModel):
-    """One step of this turn, as the client should render it.
+    """One step of a turn, as the client should render it.
 
     Mirrors `TurnRecord` rather than reusing it: that type crosses the queue to
     AGENT, and adding a field here for the interface's sake would put it into
-    a payload AGENT has no use for.
+    a payload AGENT has no use for. The last four fields are exactly that
+    case -- the subject of the step and what it cost are for the screen and
+    for whoever debugs it, and mean nothing to the model.
+
+    `tool_args` is deliberately absent. The arguments are stored, because a
+    trace without them cannot answer what was asked; they are not sent,
+    because nothing on a screen is built from them.
     """
 
     kind: str
     text: str = ""
     tool_name: str = ""
     tool_result: dict = Field(default_factory=dict)
+    entity_kind: str = ""
+    entity_id: str = ""
+    model_tokens: int = 0
+    duration_ms: int = 0
 
 
 class Answered(BaseModel):
@@ -193,14 +214,270 @@ def _offered(result: dict) -> tuple[list[str], int]:
     return options, more if isinstance(more, int) and more > 0 else 0
 
 
-def _visible(record: TurnRecord) -> Turn:
-    """Project one internal record onto what the client is shown."""
-    return Turn(
-        kind=record.kind,
-        text=record.text,
-        tool_name=record.tool_name,
-        tool_result=record.tool_result,
+# How many past steps travel to the model. The transcript is resent on every
+# step of every turn, so an unbounded history makes a long-running
+# conversation quadratically expensive -- and the oldest turns are the least
+# likely to matter. A constant rather than a setting: nothing an operator
+# would tune yet, and a setting nobody reads is a promise the config does not
+# keep.
+_HISTORY_STEPS = 40
+
+# Which entity a tool result is about, for the row that records the step. The
+# subject is what the interface draws and what a later question links to; the
+# sentence announcing it is not.
+#
+# One entry, not a table of them. `assessment_id` was in here until a review
+# pointed out that no tool returns it -- `class_assessment_summary` answers
+# with `assessment_title` and counts, never an id -- so the second entry was a
+# branch no input could reach. It goes back the day a tool returns one.
+_ENTITY_KEYS = (("class_id", "class"),)
+
+
+def _subject(result: dict) -> tuple[str, str]:
+    """Name the entity a tool result is about, when it is about one.
+
+    Today that is only a resolved class, from `find_class`. The columns exist
+    for more than that -- a draft assessment is the obvious next one -- but
+    they are filled by whatever tools actually return, and this version has
+    no tool that writes anything.
+
+    Args:
+        result: One tool's return value.
+
+    Returns:
+        The kind and the id, or two empty strings. Only a successful lookup
+        has a subject: a refusal is about nothing, and recording its arguments
+        as an entity would create links to rows that were never found.
+    """
+    if not result.get("found"):
+        return "", ""
+    for key, kind in _ENTITY_KEYS:
+        value = result.get(key)
+        if isinstance(value, str) and value:
+            return kind, value
+    return "", ""
+
+
+async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | None:
+    """Find the id of this teacher's running conversation, if they have one.
+
+    Ordered by `started_at` **and then by id**. Without the second key, two
+    conversations created inside the same clock tick tie, and the row this
+    returns is then whichever the database felt like -- so a teacher would
+    watch their history flip between two threads on consecutive messages, a
+    bug that never reproduces.
+
+    Args:
+        session: Database session.
+        asking: Whose conversation.
+
+    Returns:
+        The id, or None when the teacher has never spoken.
+    """
+    return await session.scalar(
+        select(TeacherConversation.id)
+        .where(TeacherConversation.teacher_id == asking.teacher_id)
+        .order_by(TeacherConversation.started_at.desc(), TeacherConversation.id.desc())
+        .limit(1)
     )
+
+
+async def _conversation(session: AsyncSession, asking: Asking) -> str:
+    """Find this teacher's running conversation, or start one.
+
+    The most recent one, because starting a fresh thread is not a thing a
+    teacher can ask for yet. When it becomes one, this is the only function
+    that changes.
+
+    Args:
+        session: Database session.
+        asking: Whose conversation.
+
+    Returns:
+        Its id, as a string. Not the row: callers commit between steps and
+        `rollback` expires ORM objects, so a row handed out here would raise
+        `MissingGreenlet` on its next attribute read.
+
+    Side effects:
+        Inserts a row when the teacher has never spoken before.
+    """
+    for attempt in range(2):
+        found = await _latest_conversation(session, asking)
+        if found is not None:
+            return found
+
+        started = TeacherConversation(teacher_id=asking.teacher_id, started_at=datetime.now(UTC))
+        session.add(started)
+        try:
+            # Committed, not flushed. Two of this teacher's requests arrive
+            # together routinely -- a screen loading while they type -- and the
+            # loser recovers by reading the winner's row. A flush leaves that
+            # row invisible outside its own transaction, so the loser would
+            # find nothing and give up: the recovery path would exist and never
+            # work. Found by a test that fired two requests at once, not by
+            # reading this function.
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            if attempt:
+                raise
+            continue
+        return started.id
+
+    raise AssertionError("unreachable: the loop returns or raises")
+
+
+async def _stored_turns(session: AsyncSession, conversation_id: str) -> list[TeacherTurn]:
+    """Read a conversation back, oldest first."""
+    rows = await session.scalars(
+        select(TeacherTurn)
+        .where(TeacherTurn.conversation_id == conversation_id)
+        .order_by(TeacherTurn.sequence)
+    )
+    return list(rows)
+
+
+def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
+    """Turn stored steps into the history AGENT reads.
+
+    Only the tail travels. See `_HISTORY_STEPS` for why, and note the cut is
+    from the front: the model needs the question it just asked far more than
+    it needs last week's.
+
+    Args:
+        turns: Stored steps, oldest first.
+
+    Returns:
+        The last `_HISTORY_STEPS` of them as contract records.
+    """
+    return [
+        TurnRecord(
+            kind=turn.kind,
+            text=turn.text,
+            tool_name=turn.tool_name,
+            tool_args=turn.tool_args or {},
+            tool_result=turn.tool_result or {},
+        )
+        for turn in turns[-_HISTORY_STEPS:]
+    ]
+
+
+async def _record(
+    session: AsyncSession,
+    conversation_id: str,
+    sequence: int,
+    record: TurnRecord,
+    *,
+    duration_ms: int = 0,
+    model_tokens: int = 0,
+) -> int:
+    """Append one step to the conversation and commit it.
+
+    Committed per step rather than per turn, so a worker dying mid-loop costs
+    the step it was on and not the conversation. It is also what releases the
+    pooled connection before the next wait on AGENT.
+
+    Reading the position and inserting at it are two statements with a gap in
+    between, so two of a teacher's requests can both aim at the same one. The
+    unique index decides, and the loser takes the next free position rather
+    than failing: `chat_messages` sets the precedent for the constraint, and
+    `student_routes` sets it for the recovery -- copying only the first half
+    would turn an ordinary double-click into a 500 with no Vietnamese in it.
+
+    Args:
+        session: Database session.
+        conversation_id: Which conversation.
+        sequence: Position to aim for. Advisory: the returned value is where
+            the step actually landed.
+        record: The step.
+        duration_ms: How long the model call that produced it took.
+        model_tokens: What that call spent.
+
+    Returns:
+        The position after this step, which the caller uses for the next one.
+
+    Raises:
+        IntegrityError: If the position is still taken after re-reading, which
+            would mean something other than a race.
+
+    Side effects:
+        Inserts and commits. Rolls back once on a collision.
+    """
+    kind, entity_id = _subject(record.tool_result)
+
+    for attempt in range(2):
+        session.add(
+            TeacherTurn(
+                conversation_id=conversation_id,
+                sequence=sequence,
+                kind=record.kind,
+                text=record.text,
+                tool_name=record.tool_name,
+                tool_args=dict(record.tool_args),
+                tool_result=dict(record.tool_result),
+                entity_kind=kind,
+                entity_id=entity_id,
+                duration_ms=duration_ms,
+                model_tokens=model_tokens,
+                created_at=datetime.now(UTC),
+            )
+        )
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            if attempt:
+                raise
+            taken = await session.scalar(
+                select(func.max(TeacherTurn.sequence)).where(
+                    TeacherTurn.conversation_id == conversation_id
+                )
+            )
+            sequence = (taken or 0) + 1
+            continue
+        return sequence + 1
+
+    raise AssertionError("unreachable: the loop returns or raises")
+
+
+def _visible(turn: TeacherTurn) -> Turn:
+    """Project one stored step onto what the client is shown."""
+    return Turn(
+        kind=turn.kind,
+        text=turn.text,
+        tool_name=turn.tool_name,
+        tool_result=turn.tool_result or {},
+        entity_kind=turn.entity_kind,
+        entity_id=turn.entity_id,
+        model_tokens=turn.model_tokens,
+        duration_ms=turn.duration_ms,
+    )
+
+
+async def _rendered(session: AsyncSession, conversation_id: str, since: int) -> list[Turn]:
+    """Read back the steps of one turn, for the reply that reports it.
+
+    Read from the table rather than rendered from the in-memory history, for
+    two reasons. The history holds the whole conversation -- the model needs
+    that context -- so building the reply from it returned every earlier step
+    as though it had just happened, and a client appending them would redraw
+    the conversation on top of itself. And the stored row is the only place
+    the subject and the cost live.
+
+    Args:
+        session: Database session.
+        conversation_id: Which conversation.
+        since: First position belonging to this turn.
+
+    Returns:
+        This turn's steps, in order.
+    """
+    rows = await session.scalars(
+        select(TeacherTurn)
+        .where(TeacherTurn.conversation_id == conversation_id, TeacherTurn.sequence >= since)
+        .order_by(TeacherTurn.sequence)
+    )
+    return [_visible(turn) for turn in rows]
 
 
 @router.post("/teacher/chat/messages", response_model=Answered)
@@ -221,7 +498,9 @@ async def say_something(
         settings: Supplies `max_tool_steps`.
 
     Returns:
-        How the turn ended, plus every step it took.
+        How the turn ended, plus the steps of **this turn** read back from the
+        table. Not the whole conversation: a client appending these to what it
+        already shows would otherwise redraw the thread on top of itself.
 
     Raises:
         HTTPException: 503 when AGENT cannot be reached at all. No tool failure
@@ -231,8 +510,9 @@ async def say_something(
             assistant being told no.
 
     Side effects:
-        Enqueues one AGENT job per step. Runs read-only tools against the
-        database. Stores nothing yet.
+        Appends every step of the turn to the teacher's conversation and
+        commits each one. Enqueues one AGENT job per step, and runs read-only
+        tools against the database.
     """
     # Identity and catalog read once, as values. Each tool step rolls the
     # session back to release its connection, and that expires every ORM
@@ -241,7 +521,28 @@ async def say_something(
     asking = Asking.of(teacher)
     catalog = catalog_for(asking)
 
-    history: list[TurnRecord] = [TurnRecord(kind="teacher", text=said.text)]
+    # The id as a plain string, read once -- see the module docstring for the
+    # rule. Worth naming the mechanism precisely, because the first version of
+    # this comment blamed `commit` and that is wrong: `bind_sessions` builds
+    # sessions with `expire_on_commit=False`, so commits here leave objects
+    # usable. What expires them is the `rollback` between tool steps, which
+    # ignores that setting. Same defence, different cause -- and a lesson
+    # recorded with the wrong cause gets applied in the wrong place next time.
+    thread = await _conversation(session, asking)
+    stored = await _stored_turns(session, thread)
+    position = len(stored)
+    # Where this turn starts, so the reply can report its own steps and not
+    # the whole conversation.
+    began = position
+
+    # The whole conversation, not just this message. Before it was stored, a
+    # teacher answering the assistant's own clarifying question sent that
+    # answer with no trace of what had been asked -- so the input gate of
+    # ADR-05 existed with no way to be answered.
+    history = _as_records(stored)
+    history.append(TurnRecord(kind="teacher", text=said.text))
+    position = await _record(session, thread, position, history[-1])
+
     # Options for a clarifying question, rendered by BE from the last tool
     # result that produced candidates. A question may offer these and nothing
     # else (ADR-05, ADR-23).
@@ -258,14 +559,25 @@ async def say_something(
             logger.warning("turn budget spent for %s", asking.teacher_code)
             break
 
+        started = time.monotonic()
         try:
             step = await _ask_agent(request, settings, asking.full_name, catalog, history)
         except AgentError as unreachable:
             logger.warning("agent unreachable for %s: %s", asking.teacher_code, unreachable)
             raise HTTPException(status_code=503, detail=_AGENT_UNAVAILABLE) from unreachable
 
+        spent_ms = int((time.monotonic() - started) * 1000)
+
         if step.kind in {"say", "ask_clarify"}:
             history.append(TurnRecord(kind="assistant", text=step.text))
+            position = await _record(
+                session,
+                thread,
+                position,
+                history[-1],
+                duration_ms=spent_ms,
+                model_tokens=step.model_tokens,
+            )
             if step.choices:
                 # Ignored, not filtered. BE has the rows; whatever the model
                 # wrote here is at best a copy and at worst an invention.
@@ -279,12 +591,21 @@ async def say_something(
                 text=step.text,
                 choices=offered,
                 more_choices=offered_more,
-                turns=[_visible(record) for record in history],
+                turns=await _rendered(session, thread, began),
             )
 
         history.append(
             TurnRecord(kind="tool_call", tool_name=step.tool_name, tool_args=step.tool_args)
         )
+        position = await _record(
+            session,
+            thread,
+            position,
+            history[-1],
+            duration_ms=spent_ms,
+            model_tokens=step.model_tokens,
+        )
+
         try:
             result = await execute(session, asking, step.tool_name, step.tool_args)
         except UnknownTool:
@@ -315,13 +636,47 @@ async def say_something(
         if candidates:
             offered, offered_more = candidates, cut
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
+        position = await _record(session, thread, position, history[-1])
 
     # The ceiling. Reached, not crashed into: the teacher gets a sentence that
     # names the cause and suggests the one thing that helps.
     logger.warning("tool loop hit %d steps for %s", settings.max_tool_steps, asking.teacher_code)
     history.append(TurnRecord(kind="assistant", text=_CEILING_REACHED))
+    await _record(session, thread, position, history[-1])
     return Answered(
         kind="say",
         text=_CEILING_REACHED,
-        turns=[_visible(record) for record in history],
+        turns=await _rendered(session, thread, began),
     )
+
+
+@router.get("/teacher/chat", response_model=Answered)
+async def read_conversation(
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> Answered:
+    """Read this teacher's conversation back.
+
+    Scoped by owner like everything else (ADR-22): the conversation is found
+    through `teacher_id`, so there is no id a caller could pass to reach
+    someone else's.
+
+    Args:
+        teacher: Resolved from the actor header.
+        session: Database session.
+
+    Returns:
+        Every step so far. `kind` is "say" and `text` is empty, because
+        reading is not a turn -- nothing was said by answering this.
+    """
+    asking = Asking.of(teacher)
+    # Deliberately not `_conversation`: that one starts a thread when there is
+    # none, and a GET that writes is a GET that a browser prefetch, a HEAD
+    # probe or a retry can multiply. A teacher who has never spoken has an
+    # empty conversation, which is exactly what an empty list says.
+    thread = await _latest_conversation(session, asking)
+    if thread is None:
+        return Answered(kind="say", text="", turns=[])
+
+    stored = await _stored_turns(session, thread)
+    return Answered(kind="say", text="", turns=[_visible(turn) for turn in stored])

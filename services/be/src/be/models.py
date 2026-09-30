@@ -455,3 +455,77 @@ class Report(Base):
     attempt_id: Mapped[str] = mapped_column(ForeignKey("attempts.id"))
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class TeacherConversation(Base):
+    """One running conversation between a teacher and the assistant.
+
+    A table rather than a bare id on each turn, so a teacher can later start a
+    fresh thread without the old turns following them into it. Until that is
+    built, BE reuses the most recent one.
+    """
+
+    __tablename__ = "teacher_conversations"
+    # One per teacher, for now. The rule is real -- BE reuses the running
+    # conversation and offers no way to start another -- so it belongs in the
+    # schema rather than in the hope that two requests never arrive together.
+    # Two of a teacher's requests do arrive together routinely: a screen
+    # loading while they type.
+    #
+    # The day a teacher can open a second thread, this constraint comes off
+    # deliberately, and `_latest_conversation` already orders by a second key
+    # so the choice between threads stays deterministic.
+    __table_args__ = (UniqueConstraint("teacher_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    teacher_id: Mapped[str] = mapped_column(ForeignKey("teachers.id"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    turns: Mapped[list[TeacherTurn]] = relationship(
+        back_populates="conversation", order_by="TeacherTurn.sequence"
+    )
+
+
+class TeacherTurn(Base):
+    """One step of a teacher's turn: what was said, or what was run.
+
+    Not a row of `chat_messages`, and the reason is mechanical rather than a
+    matter of taste: that table's `attempt_id` is a foreign key to `attempts`,
+    and a teacher's conversation has no attempt.
+
+    What it holds beyond the words is the point. A teacher's turn can be "đã
+    tạo đề nháp 10 câu cho 12A1", and the thing worth storing is *which
+    draft*, not the sentence announcing it -- so `entity_kind` and `entity_id`
+    carry the subject, which is also what lets the interface pick the right
+    `Action result card` variant after a reload.
+
+    `model_tokens` and `duration_ms` make this the trace as well as the
+    transcript. A separate tracing system would be the same rows written
+    twice, and with an agent that chooses its own steps, "what did it do" is
+    not answerable without them.
+    """
+
+    __tablename__ = "teacher_turns"
+    # One step per position, copied deliberately from `chat_messages`. The
+    # lesson there still holds: React's StrictMode fires a request twice by
+    # design, and a check followed by an insert is two statements with a gap in
+    # between.
+    __table_args__ = (UniqueConstraint("conversation_id", "sequence"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("teacher_conversations.id"))
+    sequence: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text, default="")
+    tool_name: Mapped[str] = mapped_column(String(64), default="")
+    tool_args: Mapped[dict] = mapped_column(JSON, default=dict)
+    tool_result: Mapped[dict] = mapped_column(JSON, default=dict)
+    # What this step was about, when it was about something. A draft, a class,
+    # an assessment -- enough to link to it and to choose how the step is drawn.
+    entity_kind: Mapped[str] = mapped_column(String(32), default="")
+    entity_id: Mapped[str] = mapped_column(String(36), default="")
+    model_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    conversation: Mapped[TeacherConversation] = relationship(back_populates="turns")
