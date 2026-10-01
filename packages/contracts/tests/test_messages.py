@@ -1,7 +1,7 @@
-"""Schema guarantees the two services rely on.
+"""Những bảo đảm về schema mà hai service dựa vào.
 
-These tests exist to catch a contract change that would silently break the other
-side of the queue, not to test pydantic itself.
+Mấy test này tồn tại để bắt một thay đổi hợp đồng có thể âm thầm làm hỏng phía bên
+kia của queue, không phải để kiểm tra chính pydantic.
 """
 
 import pytest
@@ -38,7 +38,7 @@ def test_explanation_is_optional_because_not_every_question_asks_for_one() -> No
 
 
 def test_completed_carries_no_routing_decision() -> None:
-    """AGENT reports evidence; the review decision belongs to BE."""
+    """AGENT báo bằng chứng; quyết định xem lại thuộc về BE."""
     fields = set(GradingCompleted.model_fields)
     assert "needs_teacher_review" not in fields
     assert "review_reason" not in fields

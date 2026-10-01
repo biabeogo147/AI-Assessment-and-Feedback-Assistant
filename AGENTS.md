@@ -112,9 +112,9 @@ never becomes a second diagram source. Every overview document links the diagram
 `.drawio` is referenced by at least one Markdown file, and changing a diagram means changing the
 prose that describes it in the same change set.
 
-Documentation under `docs/` is Vietnamese with English technical and domain terms (`Assessment`,
-`Distractor`, `Confidence`, `Teacher Review Queue`, `Mastery`). `AGENTS.md`, `CLAUDE.md`, `README.md`
-and all source comments are English.
+Documentation under `docs/`, plus every comment and docstring, is Vietnamese with English technical
+and domain terms (`Assessment`, `Distractor`, `Confidence`, `Teacher Review Queue`). Identifiers,
+logs and check-matched strings stay English, as does every `AGENTS.md`, `CLAUDE.md` and `README.md`.
 
 ## Source Code Rules
 
@@ -168,6 +168,7 @@ keep this honest.
 - Do not name a package `common`, `utils` or `shared`. A meaningless name absorbs everything.
 - Do not edit plans in `docs/plans/completed/`. They are closed records.
 - Do not invoke `python -m importlinter.cli`. Use the `lint-imports` console script.
+- A `.ps1` needs a UTF-8 BOM; without one PowerShell 5.1 reads cp1252 and `Get-Help` garbles.
 - Do not use backslashes in a pre-commit `entry`; it splits with shlex and eats them.
 - Do not point `REDIS_URL` at `localhost`; it resolves to `::1` first here and the connection hangs.
 - Do not hide unresolved work. Keep the active plan honest.

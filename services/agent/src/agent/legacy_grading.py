@@ -1,13 +1,13 @@
-"""The pre-ADR-20 grading path, kept alive and kept apart.
+"""Đường chấm bài từ trước ADR-20, được giữ sống và giữ riêng.
 
-ADR-20 moved multiple-choice grading into BE, where the answer key lives and
-where a comparison does not need a queue round trip. Nothing in the core flow
-calls this module. It survives for one reason: the Teacher Review Queue (UC-05)
-is still undesigned, and three invariants in `AGENTS.md` are guarded by tests
-that exercise this code. Deleting it would quietly retire those guards.
+ADR-20 chuyển việc chấm trắc nghiệm vào BE, nơi đáp án được lưu và nơi một phép so
+sánh không cần một vòng đi về qua queue. Không có gì trong luồng chính gọi module
+này. Nó còn sống vì một lý do: Teacher Review Queue (UC-05) vẫn chưa được thiết kế,
+và ba invariant trong `AGENTS.md` đang được canh bởi những test chạy qua đoạn code
+này. Xoá nó là âm thầm cho mấy cái canh đó về hưu.
 
-It lives in its own module so nobody reads `handlers.py` and concludes that
-AGENT still grades.
+Nó nằm trong module riêng để không ai đọc `handlers.py` rồi kết luận rằng AGENT vẫn
+còn chấm bài.
 """
 
 import logging
@@ -16,25 +16,25 @@ from contracts import GradingCompleted, GradingRequested
 
 logger = logging.getLogger(__name__)
 
-# Placeholder answer key from before BE held one.
+# Đáp án tạm, có từ thời BE chưa giữ đáp án nào.
 _CORRECT_OPTION_SUFFIX = "a"
 
-# Below this length an explanation is treated as too thin to judge reasoning by.
+# Ngắn hơn độ dài này thì phần giải thích bị coi là quá mỏng để xét cách lập luận.
 _MIN_EXPLANATION_CHARS = 15
 
 
 def grade(request: GradingRequested) -> GradingCompleted:
-    """Grade one submission and report what was observed.
+    """Chấm một bài nộp và báo lại những gì quan sát được.
 
     Args:
-        request: The submission to grade.
+        request: Bài nộp cần chấm.
 
     Returns:
-        Evidence for this submission. Never a routing decision -- that property
-        is the reason this function is still under test.
+        Bằng chứng cho bài nộp này. Không bao giờ là một quyết định định tuyến --
+        chính tính chất đó là lý do hàm này vẫn còn nằm dưới test.
 
     Side effects:
-        Logs one line per graded submission.
+        Log một dòng cho mỗi bài nộp đã chấm.
     """
     is_correct = request.selected_option_id.endswith(_CORRECT_OPTION_SUFFIX)
     explanation = (request.student_explanation or "").strip()
@@ -80,17 +80,17 @@ def grade(request: GradingRequested) -> GradingCompleted:
 
 
 async def grade_submission(ctx: dict, payload: dict) -> dict:
-    """arq entry point for the legacy grading task.
+    """Điểm vào arq cho task chấm bài cũ.
 
     Args:
-        ctx: arq job context. Unused; arq passes it positionally.
-        payload: A serialised GradingRequested.
+        ctx: Context job của arq. Không dùng; arq truyền nó theo vị trí.
+        payload: Một GradingRequested đã serialise.
 
     Returns:
-        A serialised GradingCompleted.
+        Một GradingCompleted đã serialise.
 
     Side effects:
-        Logs that a superseded path ran.
+        Log lại rằng một đường đã bị thay thế vừa chạy.
     """
     request = GradingRequested.model_validate(payload)
     logger.warning("legacy grading used for %s; ADR-20 moved grading to BE", request.submission_id)

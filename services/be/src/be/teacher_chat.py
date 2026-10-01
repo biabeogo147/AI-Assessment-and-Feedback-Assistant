@@ -1,40 +1,41 @@
-"""The teacher's chat, where BE runs the loop and AGENT only advises.
+"""Chat của giáo viên, nơi BE chạy vòng lặp và AGENT chỉ tư vấn.
 
-One turn is several model calls. BE asks AGENT what to do next, does it or
-refuses it, and asks again with the result attached, until AGENT answers in
-words or the ceiling stops it. AGENT never runs anything: it holds no database
-credentials, and authorisation belongs in the process that has the session and
-knows who is calling.
+Một lượt là nhiều lượt gọi model. BE hỏi AGENT bước tiếp theo nên làm gì, làm nó hoặc
+từ chối nó, rồi hỏi lại kèm kết quả, cho đến khi AGENT trả lời bằng lời hoặc mức trần
+chặn lại. AGENT không bao giờ tự chạy gì: nó không giữ credential nào của database, và
+việc phân quyền thuộc về process đang giữ session và biết ai đang gọi.
 
-Three properties come out of that arrangement rather than out of a prompt:
+Ba tính chất sinh ra từ cách bố trí đó, chứ không phải từ một prompt:
 
-- **A proposal is not an action.** ADR-05 keeps irreversible work out of the
-  chat flow. Here that is structural: BE decides which proposals run, and the
-  tools it offers can only do reversible things. Approving and publishing have
-  no tool at all, and `tools/check_contract.py` keeps it that way.
-- **The loop ends.** `max_tool_steps` bounds it, and hitting the bound is said
-  out loud. A request that never comes back is the worse failure -- nothing in
-  the logs names a cause for it.
-- **Each step is one model call**, so the invariant that an AGENT job times out
-  before BE stops waiting is true of this path.
+- **Một đề xuất không phải một hành động.** ADR-05 giữ những việc không đảo lại được ở
+  ngoài luồng chat. Ở đây chuyện đó nằm trong cấu trúc: BE quyết định đề xuất nào được
+  chạy, và những tool nó đưa ra chỉ làm được những việc đảo lại được. Duyệt và phát hành
+  thì không có tool nào cả, và `tools/check_contract.py` giữ nguyên tình trạng ấy.
+- **Vòng lặp có điểm dừng.** Hai mức chặn, không phải một: `max_tool_steps` đếm số bước, và
+  `turn_budget_seconds` đếm thời gian -- mức chặn thứ hai mới là mức giáo viên thực sự cảm thấy,
+  vì tám bước nhanh thì không ai sốt ruột còn ba bước chậm thì có. Chạm phải mức nào cũng được
+  nói ra thành lời. Một request không bao giờ về mới là sự cố tệ hơn -- không có gì
+  trong log gọi tên được nguyên nhân của nó.
+- **Mỗi bước là một lượt gọi model**, nên cái invariant rằng một job của AGENT timeout
+  trước khi BE thôi đợi là đúng trên đường này.
 
-The conversation is durable, and that is what makes `ask_clarify` answerable.
-A message carries the whole thread with it, so when the assistant asks "which
-class?" and the teacher answers "12A", the model sees its own question. While
-nothing was stored, that answer arrived with no trace of what had been asked
-and the input gate of ADR-05 existed with no second half.
+Hội thoại được lưu bền, và chính điều đó làm cho `ask_clarify` trả lời được. Một tin
+nhắn mang theo cả luồng hội thoại, nên khi trợ lý hỏi "lớp nào?" và giáo viên đáp "12A",
+model thấy lại được câu hỏi của chính nó. Trong khoảng thời gian chưa có gì được lưu,
+câu trả lời đó đến mà không còn dấu vết nào của câu đã hỏi, và cái cổng đầu vào của
+ADR-05 tồn tại mà thiếu hẳn nửa sau.
 
-Every step is committed on its own. A worker dying mid-turn therefore costs
-the step it was on rather than the conversation, and the pooled connection is
-released before each wait on AGENT. The cost is that half a turn is a state
-the table can hold: a failed turn leaves the teacher's message stored with no
-answer under it, and a retry stores the message again.
+Mỗi bước được commit riêng. Một worker chết giữa lượt vì thế chỉ mất đúng bước nó đang
+làm chứ không mất cả hội thoại, và connection lấy từ pool được thả ra trước mỗi lần đợi
+AGENT. Cái giá phải trả là nửa lượt cũng là một trạng thái mà bảng chứa được: một lượt
+lỗi để lại tin nhắn của giáo viên đã lưu mà không có câu trả lời nào bên dưới, và một
+lần thử lại thì lưu tin nhắn đó thêm một lần nữa.
 
-One rule the whole file obeys, learned three times over: **work with values,
-never with rows.** `rollback` expires every ORM object in the session, and
-this loop rolls back between tool steps, so an attribute read on a row loaded
-earlier is database IO from a place SQLAlchemy's async bridge cannot reach --
-`MissingGreenlet`, raised far from its cause.
+Một luật mà cả file tuân theo, học được qua ba lần: **làm việc với giá trị, không bao
+giờ với row.** `rollback` làm hết hạn mọi object ORM trong session, và vòng lặp này
+rollback giữa các bước gọi tool, nên đọc một attribute của một row nạp từ trước là làm
+IO database từ một chỗ mà cầu nối async của SQLAlchemy không với tới được --
+`MissingGreenlet`, nổ ở rất xa nguyên nhân của nó.
 """
 
 import asyncio
@@ -67,9 +68,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["teacher-chat"])
 
-# Said when the loop runs out of steps. It names the cause, because a teacher
-# who is told only "something went wrong" will ask the same question again and
-# spend the same budget reaching the same ceiling.
+# Câu nói ra khi vòng lặp hết số bước. Nó gọi tên nguyên nhân, vì một giáo viên chỉ được
+# nghe "có gì đó sai rồi" thì sẽ hỏi lại đúng câu đó và tiêu đúng lượng ngân sách đó để
+# đụng đúng cái mức trần đó.
 _CEILING_REACHED = (
     "Mình tra mãi mà chưa ra câu trả lời gọn cho câu này. Bạn thử hỏi cụ thể hơn giúp mình nhé, "
     "ví dụ nói rõ tên lớp và tên bài kiểm tra."
@@ -79,23 +80,23 @@ _AGENT_UNAVAILABLE = "Trợ lý chưa trả lời được. Bạn thử lại sa
 
 
 class Said(BaseModel):
-    """What the teacher typed."""
+    """Thứ giáo viên vừa gõ."""
 
     text: str = Field(min_length=1, max_length=2000)
 
 
 class Turn(BaseModel):
-    """One step of a turn, as the client should render it.
+    """Một bước của một lượt, theo đúng cách client nên vẽ nó ra.
 
-    Mirrors `TurnRecord` rather than reusing it: that type crosses the queue to
-    AGENT, and adding a field here for the interface's sake would put it into
-    a payload AGENT has no use for. The last four fields are exactly that
-    case -- the subject of the step and what it cost are for the screen and
-    for whoever debugs it, and mean nothing to the model.
+    Soi lại `TurnRecord` chứ không dùng lại chính nó: type đó đi qua queue sang AGENT, và
+    thêm một field ở đây vì nhu cầu của giao diện là nhét field đó vào một payload mà
+    AGENT không dùng được. Bốn field cuối chính là trường hợp đó -- chủ thể của bước và
+    cái giá nó tốn là để cho màn hình và cho người đi debug, và chẳng có nghĩa gì với
+    model.
 
-    `tool_args` is deliberately absent. The arguments are stored, because a
-    trace without them cannot answer what was asked; they are not sent,
-    because nothing on a screen is built from them.
+    `tool_args` vắng mặt có chủ đích. Các tham số vẫn được lưu, vì một vết truy ngược
+    không có chúng thì không trả lời được câu hỏi đã hỏi cái gì; chúng không được gửi
+    đi, vì không có gì trên màn hình được dựng từ chúng.
     """
 
     kind: str
@@ -109,23 +110,23 @@ class Turn(BaseModel):
 
 
 class Answered(BaseModel):
-    """The result of one turn.
+    """Kết quả của một lượt.
 
     Attributes:
-        kind: How the turn ended: `say` or `ask_clarify`.
-        text: The words to show. Written by the model.
-        choices: Options for `ask_clarify`, written by **BE** from the rows a
-            tool returned (ADR-23). Whatever the model put in its own
-            `choices` is ignored: BE holds the rows, so a list the model wrote
-            is at best a copy of them and at worst an invented class name
-            arriving in front of a teacher with the system's authority behind
-            it. Empty when no tool produced candidates this turn, which makes
-            the question an open one rather than a broken list.
-        more_choices: How many further candidates were cut from `choices`, so
-            the interface can say the list is partial. A teacher with thirty
-            classes shown six of them and told nothing reads it as lost data.
-        turns: Every step, in order, so the interface can show what was done
-            and not only what was said.
+        kind: Lượt đó kết thúc kiểu gì: `say` hay `ask_clarify`.
+        text: Phần chữ để hiện ra. Do model viết.
+        choices: Các phương án cho `ask_clarify`, do **BE** viết từ chính các row mà một
+            tool trả về (ADR-23). Thứ model tự điền vào `choices` của nó thì bị bỏ qua:
+            BE là bên giữ các row, nên một danh sách do model viết thì tốt nhất cũng chỉ
+            là một bản sao của chúng, còn tệ nhất là một tên lớp bịa ra đến trước mặt
+            giáo viên với cả uy tín của hệ thống đứng sau. Rỗng khi trong lượt này không
+            tool nào cho ra candidate, và điều đó làm câu hỏi thành một câu hỏi mở chứ
+            không phải một danh sách hỏng.
+        more_choices: Có bao nhiêu candidate nữa đã bị cắt khỏi `choices`, để giao diện
+            nói được rằng danh sách này chưa đủ. Một giáo viên có ba mươi lớp mà chỉ được
+            cho xem sáu lớp và không được nói gì thêm thì đọc ra là dữ liệu đã mất.
+        turns: Mọi bước, theo thứ tự, để giao diện hiện được những gì đã làm chứ không
+            chỉ những gì đã nói.
     """
 
     kind: str
@@ -142,27 +143,26 @@ async def _ask_agent(
     catalog: tuple[ToolSpec, ...],
     history: list[TurnRecord],
 ) -> NextStepCompleted:
-    """Ask AGENT for one proposal.
+    """Hỏi AGENT một đề xuất.
 
     Args:
-        request: Carries the queue pool on `app.state`.
-        settings: Process settings.
-        teacher_name: How the assistant should address the person. A plain
-            string, not the row: this is called between tool steps, and each
-            step rolls the session back to release its connection, which
-            expires every ORM object attached to it. Reading an attribute off
-            an expired row here would be database IO from a place SQLAlchemy's
-            async bridge cannot reach -- `MissingGreenlet`, far from its cause.
-            No id travels either way, because AGENT resolves nothing.
-        catalog: The tools this teacher may use, resolved once before the loop.
-        history: Everything so far, oldest first.
+        request: Mang theo pool của queue trên `app.state`.
+        settings: Settings của process.
+        teacher_name: Trợ lý nên gọi người này thế nào. Một string trần, không phải cái
+            row: hàm này được gọi giữa các bước gọi tool, và mỗi bước rollback session để
+            thả connection của nó ra, việc đó làm hết hạn mọi object ORM đang gắn vào
+            session. Đọc một attribute của một row đã hết hạn ở đây là làm IO database từ
+            một chỗ mà cầu nối async của SQLAlchemy không với tới được --
+            `MissingGreenlet`, ở rất xa nguyên nhân của nó. Không có id nào đi theo chiều
+            nào cả, vì AGENT không resolve thứ gì.
+        catalog: Những tool giáo viên này được dùng, lấy một lần trước vòng lặp.
+        history: Mọi thứ đã có tới lúc này, cũ nhất trước.
 
     Returns:
-        The proposal.
+        Đề xuất đó.
 
     Raises:
-        AgentError: When the queue refuses the job or the worker does not
-            finish in time.
+        AgentError: Khi queue từ chối job hoặc worker không xong kịp giờ.
     """
     asked = NextStepRequested(
         request_id=str(uuid.uuid4()),
@@ -180,25 +180,24 @@ async def _ask_agent(
 
 
 def _offered(result: dict) -> tuple[list[str], int]:
-    """Render the options for a clarifying question from a tool's own result.
+    """Dựng các phương án cho một câu hỏi lại, từ chính kết quả của một tool.
 
-    BE writes these, not the model. Filtering what a model wrote was the first
-    attempt and it leaked both ways, measured rather than guessed: "12A-1"
-    passed on the strength of a real "12A", "12A (45 học sinh)" passed with a
-    roster nobody counted, and a perfectly good "12A 3 học sinh" was thrown
-    away. Every one of those holes closes at once when there is no free text
-    to inspect -- the model writes the question, BE writes the answers.
+    BE viết chúng, không phải model. Lọc lại thứ model viết là cách làm đầu tiên và nó rò
+    cả hai chiều, đo được chứ không phải đoán: "12A-1" lọt qua nhờ dựa vào một "12A"
+    thật, "12A (45 học sinh)" lọt qua với một con số học sinh không ai đếm, còn một
+    "12A 3 học sinh" hoàn toàn tử tế thì bị ném đi. Mọi lỗ đó bịt lại cùng một lúc khi
+    không còn văn bản tự do nào để đi soi -- model viết câu hỏi, BE viết các câu trả lời.
 
     Args:
-        result: One tool's return value. Only `candidates` is read: a
-            not-found list is context for the assistant to mention, not a set
-            of options to click.
+        result: Giá trị trả về của một tool. Chỉ `candidates` sinh ra phương án --
+            một danh sách không-tìm-thấy là context để trợ lý nhắc tới, không phải một
+            bộ phương án để bấm vào. `more` cũng được đọc, nhưng chỉ để đếm phần bị
+            cắt, nên nó không thêm được một phương án nào.
 
     Returns:
-        The options, and how many further candidates were cut. The count
-        travels so the question can admit the list is partial -- a teacher
-        with thirty classes shown six of them, told nothing, reads it as lost
-        data.
+        Các phương án, và có bao nhiêu candidate nữa đã bị cắt. Con số đó đi kèm để câu
+        hỏi thừa nhận được rằng danh sách chưa đủ -- một giáo viên có ba mươi lớp mà chỉ
+        được cho xem sáu lớp, không được nói gì thêm, thì đọc ra là dữ liệu đã mất.
     """
     listed = result.get("candidates")
     if not isinstance(listed, list):
@@ -215,45 +214,42 @@ def _offered(result: dict) -> tuple[list[str], int]:
     return options, more if isinstance(more, int) and more > 0 else 0
 
 
-# How many past steps travel to the model. The transcript is resent on every
-# step of every turn, so an unbounded history makes a long-running
-# conversation quadratically expensive -- and the oldest turns are the least
-# likely to matter. A constant rather than a setting: nothing an operator
-# would tune yet, and a setting nobody reads is a promise the config does not
-# keep.
+# Bao nhiêu bước trong quá khứ được gửi sang model. Toàn bộ bản ghi hội thoại được gửi
+# lại ở mỗi bước của mỗi lượt, nên một history không chặn sẽ làm một hội thoại kéo dài
+# trở nên đắt theo bình phương -- và những lượt cũ nhất là những lượt ít khả năng còn
+# quan trọng nhất. Là một hằng số chứ không phải một setting: chưa có gì để một người vận
+# hành tinh chỉnh, và một setting không ai đọc là một lời hứa mà config không giữ.
 _HISTORY_STEPS = 40
 
-# Which entity a tool result is about, for the row that records the step. The
-# subject is what the interface draws and what a later question links to; the
-# sentence announcing it is not.
+# Một kết quả tool nói về entity nào, dùng cho cái row ghi lại bước đó. Chủ thể là thứ
+# giao diện vẽ ra và là thứ một câu hỏi sau này liên kết tới; câu nói công bố nó thì
+# không.
 #
-# `assessment_id` was taken out of here once, when a review pointed out that
-# no tool returned one and the branch was unreachable. `create_draft` returns
-# one now, so it is back -- and this is the first turn whose subject is a paper
-# rather than a class, which is what an `Action result card` needs to draw
-# anything about drafting.
+# `assessment_id` từng bị lấy ra khỏi đây một lần, khi một lượt review chỉ ra rằng không
+# tool nào trả về nó và nhánh đó không với tới được. Giờ `create_draft` trả về nó, nên nó
+# quay lại -- và đây là lượt đầu tiên mà chủ thể là một đề chứ không phải một lớp, thứ mà
+# `Action result card` cần để vẽ được bất cứ gì về việc soạn đề.
 _ENTITY_KEYS = (("class_id", "class"), ("assessment_id", "assessment"))
 
 
 def _subject(result: dict) -> tuple[str, str]:
-    """Name the entity a tool result is about, when it is about one.
+    """Gọi tên entity mà một kết quả tool nói về, khi nó có nói về một entity.
 
-    A class from `find_class`, or a draft from `create_draft` and
-    `start_drafting`. The columns hold whatever the tools actually return, so
-    they grow as the tools do.
+    Một lớp từ `find_class`, hoặc một đề nháp từ `create_draft` và `start_drafting`. Các
+    cột chứa đúng những gì các tool thực sự trả về, nên chúng lớn dần theo các tool.
 
-    A result is about something when it says it succeeded, and the tools say
-    that three ways: `found` for a lookup, `created` for a new draft,
-    `started` for a round of generation. Listing the three beats inspecting
-    the tool name, because the name is not what carries the id.
+    Một kết quả có nói về thứ gì đó khi nó nói là nó thành công, và các tool nói điều đó
+    bằng ba cách: `found` cho một lần tra cứu, `created` cho một đề nháp mới, `started`
+    cho một vòng sinh câu hỏi. Liệt kê cả ba thì hơn là đi soi tên tool, vì cái tên không
+    phải thứ mang theo id.
 
     Args:
-        result: One tool's return value.
+        result: Giá trị trả về của một tool.
 
     Returns:
-        The kind and the id, or two empty strings. Only a success has a
-        subject: a refusal is about nothing, and recording its arguments as an
-        entity would create links to rows that were never found.
+        Loại và id, hoặc hai string rỗng. Chỉ một kết quả thành công mới có chủ thể: một
+        lời từ chối thì không nói về gì cả, và ghi lại các tham số của nó như một entity
+        là tạo ra những liên kết trỏ tới những row chưa bao giờ được tìm thấy.
     """
     if not any(result.get(flag) for flag in ("found", "created", "started")):
         return "", ""
@@ -265,20 +261,19 @@ def _subject(result: dict) -> tuple[str, str]:
 
 
 async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | None:
-    """Find the id of this teacher's running conversation, if they have one.
+    """Tìm id của hội thoại đang chạy của giáo viên này, nếu họ có một hội thoại.
 
-    Ordered by `started_at` **and then by id**. Without the second key, two
-    conversations created inside the same clock tick tie, and the row this
-    returns is then whichever the database felt like -- so a teacher would
-    watch their history flip between two threads on consecutive messages, a
-    bug that never reproduces.
+    Sắp theo `started_at` **rồi mới theo id**. Không có khoá thứ hai thì hai hội thoại
+    tạo ra trong cùng một nhịp đồng hồ sẽ bằng điểm, và row hàm này trả về khi đó là row
+    nào tuỳ database thích -- nên một giáo viên sẽ thấy history của mình nhảy qua nhảy lại
+    giữa hai luồng ở hai tin nhắn liên tiếp, một bug không bao giờ tái hiện lại được.
 
     Args:
-        session: Database session.
-        asking: Whose conversation.
+        session: Session của database.
+        asking: Hội thoại của ai.
 
     Returns:
-        The id, or None when the teacher has never spoken.
+        id đó, hoặc None khi giáo viên chưa nói gì bao giờ.
     """
     return await session.scalar(
         select(TeacherConversation.id)
@@ -289,23 +284,22 @@ async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | N
 
 
 async def _conversation(session: AsyncSession, asking: Asking) -> str:
-    """Find this teacher's running conversation, or start one.
+    """Tìm hội thoại đang chạy của giáo viên này, hoặc mở một hội thoại mới.
 
-    The most recent one, because starting a fresh thread is not a thing a
-    teacher can ask for yet. When it becomes one, this is the only function
-    that changes.
+    Lấy cái mới nhất, vì mở một luồng mới chưa phải là thứ giáo viên xin được. Khi nó trở
+    thành một thứ xin được thì đây là hàm duy nhất phải đổi.
 
     Args:
-        session: Database session.
-        asking: Whose conversation.
+        session: Session của database.
+        asking: Hội thoại của ai.
 
     Returns:
-        Its id, as a string. Not the row: callers commit between steps and
-        `rollback` expires ORM objects, so a row handed out here would raise
-        `MissingGreenlet` on its next attribute read.
+        id của nó, dưới dạng string. Không phải cái row: các caller commit giữa các bước
+        và `rollback` làm hết hạn các object ORM, nên một row đưa ra từ đây sẽ nổ
+        `MissingGreenlet` ở lần đọc attribute tiếp theo.
 
     Side effects:
-        Inserts a row when the teacher has never spoken before.
+        Chèn một row khi giáo viên chưa từng nói gì trước đó.
     """
     for attempt in range(2):
         found = await _latest_conversation(session, asking)
@@ -315,13 +309,12 @@ async def _conversation(session: AsyncSession, asking: Asking) -> str:
         started = TeacherConversation(teacher_id=asking.teacher_id, started_at=datetime.now(UTC))
         session.add(started)
         try:
-            # Committed, not flushed. Two of this teacher's requests arrive
-            # together routinely -- a screen loading while they type -- and the
-            # loser recovers by reading the winner's row. A flush leaves that
-            # row invisible outside its own transaction, so the loser would
-            # find nothing and give up: the recovery path would exist and never
-            # work. Found by a test that fired two requests at once, not by
-            # reading this function.
+            # Commit, không phải flush. Hai request của cùng giáo viên này đến cùng lúc
+            # là chuyện thường ngày -- một màn hình đang tải trong lúc họ gõ -- và bên
+            # thua hồi lại bằng cách đọc row của bên thắng. Một lần flush để row đó vô
+            # hình ở ngoài transaction của chính nó, nên bên thua sẽ không tìm thấy gì và
+            # bỏ cuộc: đường hồi phục tồn tại mà không bao giờ chạy. Tìm ra bằng một test
+            # bắn hai request một lúc, không phải bằng cách đọc hàm này.
             await session.commit()
         except IntegrityError:
             await session.rollback()
@@ -334,7 +327,7 @@ async def _conversation(session: AsyncSession, asking: Asking) -> str:
 
 
 async def _stored_turns(session: AsyncSession, conversation_id: str) -> list[TeacherTurn]:
-    """Read a conversation back, oldest first."""
+    """Đọc lại một hội thoại, cũ nhất trước."""
     rows = await session.scalars(
         select(TeacherTurn)
         .where(TeacherTurn.conversation_id == conversation_id)
@@ -344,17 +337,16 @@ async def _stored_turns(session: AsyncSession, conversation_id: str) -> list[Tea
 
 
 def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
-    """Turn stored steps into the history AGENT reads.
+    """Biến các bước đã lưu thành phần history mà AGENT đọc.
 
-    Only the tail travels. See `_HISTORY_STEPS` for why, and note the cut is
-    from the front: the model needs the question it just asked far more than
-    it needs last week's.
+    Chỉ phần đuôi được gửi đi. Lý do xem ở `_HISTORY_STEPS`, và lưu ý là chỗ bị cắt là
+    phần đầu: model cần câu hỏi nó vừa hỏi hơn nhiều so với câu nó hỏi tuần trước.
 
     Args:
-        turns: Stored steps, oldest first.
+        turns: Các bước đã lưu, cũ nhất trước.
 
     Returns:
-        The last `_HISTORY_STEPS` of them as contract records.
+        `_HISTORY_STEPS` bước cuối trong số đó, dưới dạng record của contract.
     """
     return [
         TurnRecord(
@@ -377,37 +369,37 @@ async def _record(
     duration_ms: int = 0,
     model_tokens: int = 0,
 ) -> int:
-    """Append one step to the conversation and commit it.
+    """Ghi thêm một bước vào hội thoại rồi commit nó.
 
-    Committed per step rather than per turn, so a worker dying mid-loop costs
-    the step it was on and not the conversation. It is also what releases the
-    pooled connection before the next wait on AGENT.
+    Commit theo từng bước chứ không theo từng lượt, nên một worker chết giữa vòng lặp chỉ
+    mất đúng bước nó đang làm chứ không mất cả hội thoại. Đó cũng là thứ thả connection
+    lấy từ pool ra trước lần đợi AGENT tiếp theo.
 
-    Reading the position and inserting at it are two statements with a gap in
-    between, so two of a teacher's requests can both aim at the same one. The
-    unique index decides, and the loser takes the next free position rather
-    than failing: `chat_messages` sets the precedent for the constraint, and
-    `student_routes` sets it for the recovery -- copying only the first half
-    would turn an ordinary double-click into a 500 with no Vietnamese in it.
+    Đọc vị trí và chèn vào vị trí đó là hai câu lệnh có một khe ở giữa, nên hai request
+    của cùng một giáo viên có thể cùng nhắm vào một vị trí. Unique index là bên phân xử,
+    và bên thua lấy vị trí trống tiếp theo chứ không nổ: `chat_messages` đặt tiền lệ cho
+    cái constraint, còn `student_routes` đặt tiền lệ cho đường hồi phục -- bắt chước đúng
+    nửa đầu thì biến một cú double-click bình thường thành một lỗi 500 không có chữ tiếng
+    Việt nào trong đó.
 
     Args:
-        session: Database session.
-        conversation_id: Which conversation.
-        sequence: Position to aim for. Advisory: the returned value is where
-            the step actually landed.
-        record: The step.
-        duration_ms: How long the model call that produced it took.
-        model_tokens: What that call spent.
+        session: Session của database.
+        conversation_id: Hội thoại nào.
+        sequence: Vị trí cần nhắm tới. Chỉ là gợi ý: giá trị trả về mới là chỗ bước đó
+            thực sự rơi vào.
+        record: Bước đó.
+        duration_ms: Lượt gọi model sinh ra nó mất bao lâu.
+        model_tokens: Lượt gọi đó tiêu bao nhiêu.
 
     Returns:
-        The position after this step, which the caller uses for the next one.
+        Vị trí sau bước này, thứ caller dùng cho bước tiếp theo.
 
     Raises:
-        IntegrityError: If the position is still taken after re-reading, which
-            would mean something other than a race.
+        IntegrityError: Nếu vị trí đó vẫn bị chiếm sau khi đã đọc lại, và điều đó sẽ có
+            nghĩa là một chuyện khác chứ không phải một cuộc đua.
 
     Side effects:
-        Inserts and commits. Rolls back once on a collision.
+        Chèn và commit. Rollback một lần khi có đụng độ.
     """
     kind, entity_id = _subject(record.tool_result)
 
@@ -447,7 +439,7 @@ async def _record(
 
 
 def _visible(turn: TeacherTurn) -> Turn:
-    """Project one stored step onto what the client is shown."""
+    """Chiếu một bước đã lưu sang đúng thứ client được xem."""
     return Turn(
         kind=turn.kind,
         text=turn.text,
@@ -461,22 +453,21 @@ def _visible(turn: TeacherTurn) -> Turn:
 
 
 async def _rendered(session: AsyncSession, conversation_id: str, since: int) -> list[Turn]:
-    """Read back the steps of one turn, for the reply that reports it.
+    """Đọc lại các bước của một lượt, cho câu trả lời báo cáo về lượt đó.
 
-    Read from the table rather than rendered from the in-memory history, for
-    two reasons. The history holds the whole conversation -- the model needs
-    that context -- so building the reply from it returned every earlier step
-    as though it had just happened, and a client appending them would redraw
-    the conversation on top of itself. And the stored row is the only place
-    the subject and the cost live.
+    Đọc từ bảng chứ không dựng ra từ history trong bộ nhớ, vì hai lý do. History giữ cả
+    hội thoại -- model cần cái context đó -- nên dựng câu trả lời từ nó thì trả về mọi
+    bước cũ như thể chúng vừa mới xảy ra, và một client đem chúng ghép thêm vào sẽ vẽ lại
+    cả hội thoại lên trên chính nó. Và cái row đã lưu là chỗ duy nhất chủ thể và cái giá
+    của bước đó sống.
 
     Args:
-        session: Database session.
-        conversation_id: Which conversation.
-        since: First position belonging to this turn.
+        session: Session của database.
+        conversation_id: Hội thoại nào.
+        since: Vị trí đầu tiên thuộc về lượt này.
 
     Returns:
-        This turn's steps, in order.
+        Các bước của lượt này, theo thứ tự.
     """
     rows = await session.scalars(
         select(TeacherTurn)
@@ -494,74 +485,72 @@ async def say_something(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> Answered:
-    """Take one turn of the teacher's conversation.
+    """Đi một lượt trong hội thoại của giáo viên.
 
     Args:
-        said: What the teacher typed.
-        request: Carries the queue pool.
-        teacher: Resolved from the actor header (ADR-13).
-        session: Database session every tool runs on.
-        settings: Supplies `max_tool_steps`.
+        said: Thứ giáo viên vừa gõ.
+        request: Mang theo pool của queue.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database mà mọi tool chạy trên đó.
+        settings: Cung cấp `max_tool_steps`.
 
     Returns:
-        How the turn ended, plus the steps of **this turn** read back from the
-        table. Not the whole conversation: a client appending these to what it
-        already shows would otherwise redraw the thread on top of itself.
+        Lượt đó kết thúc kiểu gì, kèm các bước của **chính lượt này** đọc lại từ bảng.
+        Không phải cả hội thoại: một client đem chúng ghép thêm vào thứ nó đang hiện sẽ vẽ
+        lại cả luồng lên trên chính nó.
 
     Raises:
-        HTTPException: 503 when AGENT cannot be reached at all. No tool failure
-            reaches here: every one of them, unknown name or broken query
-            alike, becomes a result the model reads and recovers from. That is
-            the difference between the assistant being broken and the
-            assistant being told no.
+        HTTPException: 503 khi không với tới được AGENT chút nào. Không sự cố tool nào tới
+            được đây: mọi sự cố, dù là tên tool không có hay một query hỏng, đều thành một
+            kết quả mà model đọc được và hồi lại được. Đó chính là chỗ khác nhau giữa việc
+            trợ lý bị hỏng và việc trợ lý bị nói không.
 
     Side effects:
-        Appends every step of the turn to the teacher's conversation and
-        commits each one. Enqueues one AGENT job per step, and runs read-only
-        tools against the database.
+        Ghi thêm mọi bước của lượt vào hội thoại của giáo viên và commit từng bước một.
+        Đẩy một job của AGENT vào queue cho mỗi bước, và chạy các tool chỉ đọc lên
+        database.
     """
-    # Identity and catalog read once, as values. Each tool step rolls the
-    # session back to release its connection, and that expires every ORM
-    # object attached to it -- so nothing below may touch the `teacher` row
-    # again.
+    # Identity và catalog đọc một lần, dưới dạng giá trị. Mỗi bước gọi tool rollback
+    # session để thả connection của nó ra, và việc đó làm hết hạn mọi object ORM đang gắn
+    # vào session -- nên không dòng nào bên dưới được chạm lại vào row `teacher`.
     asking = Asking.of(teacher)
     catalog = catalog_for(asking)
 
-    # The id as a plain string, read once -- see the module docstring for the
-    # rule. Worth naming the mechanism precisely, because the first version of
-    # this comment blamed `commit` and that is wrong: `bind_sessions` builds
-    # sessions with `expire_on_commit=False`, so commits here leave objects
-    # usable. What expires them is the `rollback` between tool steps, which
-    # ignores that setting. Same defence, different cause -- and a lesson
-    # recorded with the wrong cause gets applied in the wrong place next time.
+    # id dưới dạng một string trần, đọc một lần -- luật này xem ở docstring của module.
+    # Đáng gọi tên cơ chế cho thật chính xác, vì bản đầu tiên của comment này quy tội cho
+    # `commit` và như thế là sai: `bind_sessions` dựng các session với
+    # `expire_on_commit=False`, nên các lần commit ở đây để các object vẫn dùng được. Thứ
+    # làm chúng hết hạn là `rollback` giữa các bước gọi tool, và nó bỏ qua setting đó.
+    # Cùng một cách phòng, khác nguyên nhân -- và một bài học ghi lại sai nguyên nhân thì
+    # lần sau sẽ được đem áp vào sai chỗ.
     thread = await _conversation(session, asking)
     stored = await _stored_turns(session, thread)
     position = len(stored)
-    # Where this turn starts, so the reply can report its own steps and not
-    # the whole conversation.
+    # Chỗ lượt này bắt đầu, để câu trả lời báo cáo được các bước của chính nó chứ không
+    # phải cả hội thoại.
     began = position
 
-    # The whole conversation, not just this message. Before it was stored, a
-    # teacher answering the assistant's own clarifying question sent that
-    # answer with no trace of what had been asked -- so the input gate of
-    # ADR-05 existed with no way to be answered.
+    # Cả hội thoại, không chỉ tin nhắn này. Trước khi nó được lưu, một giáo viên trả lời
+    # chính câu hỏi lại của trợ lý thì gửi câu trả lời đó đi mà không còn dấu vết nào của
+    # câu đã hỏi -- nên cái cổng đầu vào của ADR-05 tồn tại mà không có cách nào để trả
+    # lời.
     history = _as_records(stored)
     history.append(TurnRecord(kind="teacher", text=said.text))
     position = await _record(session, thread, position, history[-1])
 
-    # Options for a clarifying question, rendered by BE from the last tool
-    # result that produced candidates. A question may offer these and nothing
-    # else (ADR-05, ADR-23).
+    # Các phương án cho một câu hỏi lại, do BE dựng ra từ kết quả tool gần nhất có cho ra
+    # candidate. Một câu hỏi được phép đưa ra những phương án này và không gì khác
+    # (ADR-05, ADR-23).
     offered: list[str] = []
     offered_more = 0
     deadline = asyncio.get_running_loop().time() + settings.turn_budget_seconds
 
     for _ in range(settings.max_tool_steps):
         if asyncio.get_running_loop().time() >= deadline:
-            # The step ceiling alone is not a promise about waiting: eight
-            # steps times the job timeout is over nine minutes, and a browser
-            # or a proxy would cut the connection long before that while BE
-            # logged a success. This is the bound the teacher actually feels.
+            # Mức trần số bước, một mình nó, không phải một lời hứa về thời gian đợi: tám
+            # bước nhân với timeout của một job là hơn chín phút, và một browser hay một
+            # proxy sẽ cắt connection từ rất lâu trước đó trong khi BE vẫn ghi log là
+            # thành công. Đây mới là mức chặn mà giáo viên thực sự cảm thấy.
             logger.warning("turn budget spent for %s", asking.teacher_code)
             break
 
@@ -585,8 +574,8 @@ async def say_something(
                 model_tokens=step.model_tokens,
             )
             if step.choices:
-                # Ignored, not filtered. BE has the rows; whatever the model
-                # wrote here is at best a copy and at worst an invention.
+                # Bỏ qua, không phải lọc lại. BE là bên giữ các row; thứ model viết ra ở
+                # đây tốt nhất cũng chỉ là một bản sao, còn tệ nhất là một thứ bịa ra.
                 logger.info(
                     "ignored %d model-written choice(s) for %s",
                     len(step.choices),
@@ -618,45 +607,44 @@ async def say_something(
                 asking,
                 step.tool_name,
                 step.tool_args,
-                # The writing tools queue work; the reading ones never touch
-                # this. A dead queue therefore costs drafting and nothing else.
+                # Các tool ghi thì đẩy việc vào queue; các tool đọc thì không bao giờ
+                # chạm vào cái này. Một queue chết vì thế chỉ làm mất việc soạn đề và
+                # không gì khác.
                 pool=getattr(request.app.state, "queue_pool", None),
                 settings=settings,
             )
         except UnknownTool:
-            # Back to the model as data, not as an exception. It proposed
-            # something that does not exist -- often a tool it half-remembers
-            # from another context -- and the recovery is for it to read the
-            # refusal and choose from the catalog it was actually given.
+            # Trả về cho model dưới dạng dữ liệu, không phải dưới dạng một exception. Nó
+            # đã đề xuất một thứ không tồn tại -- thường là một tool nó nhớ lờ mờ từ một
+            # bối cảnh khác -- và cách hồi lại là để nó đọc lời từ chối rồi chọn trong
+            # đúng cái catalog nó đã được đưa.
             logger.info("refused tool %r for %s", step.tool_name, asking.teacher_code)
             result = {"error": f"không có tool nào tên {step.tool_name}"}
         except Exception:
-            # Every other failure too, and for the same reason. A tool that
-            # breaks is not the assistant breaking: the model can say "mình
-            # chưa tra được" and the teacher can ask something else, which is
-            # a better turn than a 500 with no Vietnamese in it. The cause
-            # goes to the log, not to the prompt -- a stack trace in the
-            # history is text the model would try to act on.
+            # Mọi sự cố khác cũng vậy, và cũng vì đúng lý do đó. Một tool hỏng không phải
+            # là trợ lý hỏng: model có thể nói "mình chưa tra được" và giáo viên có thể
+            # hỏi chuyện khác, và đó là một lượt tốt hơn một lỗi 500 không có chữ tiếng
+            # Việt nào trong đó. Nguyên nhân đi vào log, không đi vào prompt -- một stack
+            # trace nằm trong history là văn bản mà model sẽ thử hành động theo.
             logger.exception("tool %r failed for %s", step.tool_name, asking.teacher_code)
             result = {"error": f"tool {step.tool_name} chạy không xong"}
         finally:
-            # Release the connection between steps. Without this, one session
-            # holds a pooled connection -- and an idle Postgres transaction --
-            # across every `run_task` wait in the turn. The pool is 15 wide, so
-            # a handful of teachers chatting would stall every other request in
-            # the process, including the ones students poll on.
+            # Thả connection ra giữa các bước. Không có dòng này thì một session giữ một
+            # connection lấy từ pool -- và một transaction Postgres nằm không -- xuyên qua
+            # mọi lần đợi `run_task` trong cả lượt. Pool rộng 15, nên vài giáo viên đang
+            # chat là đủ làm nghẽn mọi request khác trong process, kể cả những request mà
+            # học sinh đang poll.
             await session.rollback()
 
-        # Replaced, not merged. Keeping the previous tool's candidates meant a
-        # question about something else arrived with them still attached: ask
-        # about a class, then ask how many questions, and the second question
-        # came back offering two class names as its answers.
+        # Thay hẳn, không gộp vào. Giữ lại candidate của tool trước nghĩa là một câu hỏi
+        # về chuyện khác đến nơi mà vẫn còn dính chúng: hỏi về một lớp, rồi hỏi bao nhiêu
+        # câu, thì câu hỏi thứ hai về tới với hai tên lớp làm phương án trả lời.
         offered, offered_more = _offered(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
         position = await _record(session, thread, position, history[-1])
 
-    # The ceiling. Reached, not crashed into: the teacher gets a sentence that
-    # names the cause and suggests the one thing that helps.
+    # Mức trần. Chạm tới, không phải đâm vào: giáo viên nhận được một câu gọi tên nguyên
+    # nhân và gợi ý đúng một việc có ích.
     logger.warning("tool loop hit %d steps for %s", settings.max_tool_steps, asking.teacher_code)
     history.append(TurnRecord(kind="assistant", text=_CEILING_REACHED))
     await _record(session, thread, position, history[-1])
@@ -672,25 +660,25 @@ async def read_conversation(
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
 ) -> Answered:
-    """Read this teacher's conversation back.
+    """Đọc lại hội thoại của giáo viên này.
 
-    Scoped by owner like everything else (ADR-22): the conversation is found
-    through `teacher_id`, so there is no id a caller could pass to reach
-    someone else's.
+    Giới hạn theo chủ sở hữu như mọi thứ khác (ADR-22): hội thoại được tìm qua
+    `teacher_id`, nên không có id nào mà một caller truyền vào để với tới hội thoại của
+    người khác.
 
     Args:
-        teacher: Resolved from the actor header.
-        session: Database session.
+        teacher: Được resolve từ header actor.
+        session: Session của database.
 
     Returns:
-        Every step so far. `kind` is "say" and `text` is empty, because
-        reading is not a turn -- nothing was said by answering this.
+        Mọi bước đã có tới lúc này. `kind` là "say" và `text` rỗng, vì đọc không phải một
+        lượt -- việc trả lời request này không nói ra điều gì cả.
     """
     asking = Asking.of(teacher)
-    # Deliberately not `_conversation`: that one starts a thread when there is
-    # none, and a GET that writes is a GET that a browser prefetch, a HEAD
-    # probe or a retry can multiply. A teacher who has never spoken has an
-    # empty conversation, which is exactly what an empty list says.
+    # Có chủ đích không dùng `_conversation`: hàm đó mở một luồng mới khi chưa có luồng
+    # nào, và một GET mà ghi dữ liệu là một GET mà một lần prefetch của browser, một cú dò
+    # HEAD hay một lần retry có thể nhân lên. Một giáo viên chưa nói gì bao giờ thì có một
+    # hội thoại rỗng, và đó đúng là điều mà một danh sách rỗng nói ra.
     thread = await _latest_conversation(session, asking)
     if thread is None:
         return Answered(kind="say", text="", turns=[])

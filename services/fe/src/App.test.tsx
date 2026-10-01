@@ -1,9 +1,9 @@
 /**
- * Frontend behaviour that a rule depends on.
+ * Những hành vi của frontend mà một luật phụ thuộc vào.
  *
- * These tests do not check that a screen looks right; they check the three
- * places where the interface could take a decision away from BE. Everything
- * else about the screens is verified by looking at them.
+ * Mấy test này không kiểm tra xem một màn hình trông có đúng không; chúng kiểm
+ * tra ba chỗ mà giao diện có thể giành một quyết định khỏi tay BE. Mọi thứ còn
+ * lại của các màn hình thì được kiểm bằng cách nhìn vào chúng.
  */
 
 import { render, screen, waitFor } from "@testing-library/react";
@@ -61,8 +61,8 @@ describe("the score sheet", () => {
     render(<Result me={ME} attemptId="a1" />);
 
     await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
-    // Twice on purpose: the banner names the action, the mark's hover explains
-    // the zero. Both disappear together when phase 2 closes.
+    // Hai lần là cố ý: banner gọi tên hành động, còn phần hover của điểm thì
+    // giải thích con số 0. Cả hai mất đi cùng lúc khi pha 2 đóng.
     expect(screen.getAllByText(/có thể nâng điểm/).length).toBe(2);
   });
 
@@ -81,7 +81,7 @@ describe("the score sheet", () => {
     await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
     const tip = container.querySelector(".tip");
     expect(tip).not.toBeNull();
-    // The explanation exists but is hidden until the mark is hovered (ADR-16).
+    // Lời giải thích vẫn tồn tại nhưng bị ẩn cho tới khi hover vào điểm (ADR-16).
     expect(tip?.parentElement?.className).toContain("hoverable");
   });
 });
@@ -156,7 +156,7 @@ describe("the tutoring screen", () => {
     await waitFor(() => expect(screen.getByText("CÁC CÂU EM LÀM SAI")).toBeTruthy());
     expect(screen.getByText(/Em đã chọn B/)).toBeTruthy();
     expect(screen.getByText(/Đáp án đúng A/)).toBeTruthy();
-    // The mistake's name and the worked solutions stay behind the dialog.
+    // Tên của cái sai và các lời giải chi tiết nằm sau dialog.
     expect(screen.queryByText(/đọc ngược/)).toBeNull();
   });
 
@@ -166,7 +166,7 @@ describe("the tutoring screen", () => {
 
     await waitFor(() => expect(screen.getByText("CÁC CÂU EM LÀM SAI")).toBeTruthy());
     expect(screen.queryByText(/Làm bài mới/)).toBeNull();
-    // Reporting outlives the attempt: it blocks nothing (ADR-19).
+    // Việc báo cáo sống lâu hơn `Attempt`: nó không chặn gì cả (ADR-19).
     expect(screen.getByText(/Báo cáo Trợ lý giải thích khó hiểu/)).toBeTruthy();
   });
 });
@@ -226,12 +226,12 @@ describe("the one-way doors", () => {
     await waitFor(() => expect(screen.getByText(/Câu 1 \/ 2/)).toBeTruthy());
     screen.getByRole("button", { name: "Nộp bài" }).click();
 
-    // Submitting ends phase 1 and cannot be undone (ADR-14), so the button
-    // opens a gate rather than the door itself.
+    // Nộp bài là kết thúc pha 1 và không thể hoàn lại (ADR-14), nên cái nút mở
+    // ra một cửa chắn chứ không phải chính cánh cửa.
     await waitFor(() => expect(screen.getByText("Nộp bài?")).toBeTruthy());
     expect(calls.some((call) => call.startsWith("POST"))).toBe(false);
-    // The number comes from the same place the navigation strip gets it, not
-    // from a sentence somebody typed.
+    // Con số lấy từ đúng cái chỗ mà dải điều hướng lấy, không phải từ một câu
+    // ai đó gõ tay vào.
     expect(screen.getAllByText(/2 câu/).length).toBeGreaterThan(0);
   });
 });
@@ -282,8 +282,8 @@ describe("what scrolls", () => {
 
     const thread = container.querySelector(".thread");
     expect(thread).not.toBeNull();
-    // The composer is a place to act. An action that scrolls away with the
-    // conversation is one the student has to go looking for.
+    // Khung soạn tin là một chỗ để hành động. Một hành động cuộn đi mất cùng
+    // cuộc trò chuyện là một hành động học sinh phải đi tìm mới thấy.
     expect(thread?.querySelector(".composer")).toBeNull();
     expect(container.querySelector(".composer")).not.toBeNull();
   });
@@ -316,12 +316,12 @@ describe("asking for the opening turn", () => {
   };
 
   it("asks once, not forever, when the turn cannot be produced", async () => {
-    // A tab left on this screen while the attempt is not submitted -- BE answers
-    // 409 and the history stays empty. The effect that asks for the opening turn
-    // depends on that history and also causes it to be replaced, so without a
-    // latch it re-fires as fast as the network allows: measured at ~1,500
-    // requests a second, which grew one Vite dev server to 69 GB over an
-    // afternoon and took the machine's memory with it.
+    // Một tab bị bỏ ở màn này trong lúc `Attempt` chưa nộp — BE trả 409 và lịch
+    // sử vẫn rỗng. Effect đi xin lượt nói mở đầu phụ thuộc vào lịch sử đó, mà nó
+    // cũng làm cho lịch sử đó bị thay, nên không có chốt thì nó bắn lại nhanh
+    // bằng mức mạng cho phép: đo được khoảng 1.500 request một giây, làm một Vite
+    // dev server phình lên 69 GB qua một buổi chiều và lôi luôn bộ nhớ của máy đi
+    // theo.
     let streams = 0;
     vi.stubGlobal(
       "fetch",

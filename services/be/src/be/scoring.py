@@ -1,13 +1,14 @@
-"""Marking rules. BE owns them; AGENT never sees them.
+"""Luật tính điểm. BE sở hữu chúng; AGENT không bao giờ thấy chúng.
 
-Grading a multiple-choice answer is a comparison, so it lives here rather than
-behind a queue (ADR-20). The three-level mark and the floor rule are ADR-16:
-phase 1 sets the lowest a question can end at, and remediation may only lift it.
+Chấm một câu trắc nghiệm chỉ là một phép so sánh, nên nó nằm ở đây chứ không nằm
+sau một queue (ADR-20). Thang điểm ba mức và luật sàn là ADR-16: phase 1 đặt ra
+mức thấp nhất mà một câu hỏi có thể kết thúc ở đó, và remediation chỉ được phép
+kéo lên.
 """
 
 from enum import StrEnum
 
-# ADR-17 caps remediation at three rounds per question.
+# ADR-17 chặn remediation ở ba vòng mỗi câu hỏi.
 MAX_ROUNDS_PER_QUESTION = 3
 
 MARK_CORRECT = 1.0
@@ -16,11 +17,11 @@ MARK_WRONG = 0.0
 
 
 class MarkReason(StrEnum):
-    """Why a question sits at the mark it does.
+    """Vì sao một câu hỏi đứng ở mức điểm nó đang đứng.
 
-    An enum rather than a sentence: the wording shown on hover differs between
-    the "still open" and "already closed" states of phase 2, and ADR-16 keeps
-    that wording in the interface. Sending prose from here would freeze it.
+    Là một enum chứ không phải một câu văn: chữ hiện ra khi hover khác nhau giữa
+    trạng thái "còn đang mở" và "đã đóng" của phase 2, và ADR-16 giữ phần chữ đó
+    ở phía giao diện. Gửi văn xuôi từ đây ra là đóng băng nó lại.
     """
 
     CORRECT_FIRST_TRY = "đúng-ngay"
@@ -30,15 +31,14 @@ class MarkReason(StrEnum):
 
 
 def mark_for_phase_one(is_correct: bool) -> tuple[float, MarkReason, bool]:
-    """Mark one question at the end of phase 1.
+    """Tính điểm một câu hỏi ở cuối phase 1.
 
     Args:
-        is_correct: Whether the chosen option was the correct one.
+        is_correct: Phương án được chọn có phải phương án đúng không.
 
     Returns:
-        The mark, why it stands, and whether the question is closed. A correct
-        answer closes immediately; a wrong one stays open because phase 2 can
-        still lift it.
+        Điểm, lý do điểm đó đứng vững, và câu hỏi đã đóng hay chưa. Trả lời đúng
+        thì đóng ngay; trả lời sai thì vẫn mở, vì phase 2 còn có thể kéo điểm lên.
     """
     if is_correct:
         return MARK_CORRECT, MarkReason.CORRECT_FIRST_TRY, True
@@ -46,17 +46,16 @@ def mark_for_phase_one(is_correct: bool) -> tuple[float, MarkReason, bool]:
 
 
 def mark_after_round(is_correct: bool, rounds_used: int) -> tuple[float, MarkReason, bool]:
-    """Mark one question after a remediation round was submitted.
+    """Tính điểm một câu hỏi sau khi một vòng remediation đã được nộp.
 
     Args:
-        is_correct: Whether this round's answer was correct.
-        rounds_used: Rounds spent on this question including the one just
-            submitted.
+        is_correct: Câu trả lời của vòng này có đúng không.
+        rounds_used: Số vòng đã dùng cho câu hỏi này, tính cả vòng vừa nộp.
 
     Returns:
-        The mark, why it stands, and whether the question is closed. Getting it
-        right closes the question at half credit; running out of rounds closes
-        it at zero; anything else leaves it open for another round.
+        Điểm, lý do điểm đó đứng vững, và câu hỏi đã đóng hay chưa. Chữa được thì
+        đóng câu hỏi ở nửa điểm; hết vòng thì đóng ở không điểm; còn lại thì để
+        mở cho một vòng nữa.
     """
     if is_correct:
         return MARK_REMEDIATED, MarkReason.REMEDIATED, True
@@ -66,13 +65,13 @@ def mark_after_round(is_correct: bool, rounds_used: int) -> tuple[float, MarkRea
 
 
 def total(marks: list[float]) -> float:
-    """Sum a list of per-question marks.
+    """Cộng một danh sách điểm từng câu.
 
     Args:
-        marks: One mark per question of the assessment.
+        marks: Mỗi câu hỏi của đề một điểm.
 
     Returns:
-        The total, rounded to one decimal so 0.5 + 0.5 does not surface as
-        0.9999999999999999 on a score sheet.
+        Tổng điểm, làm tròn một chữ số thập phân để 0.5 + 0.5 không hiện ra thành
+        0.9999999999999999 trên bảng điểm.
     """
     return round(sum(marks), 1)

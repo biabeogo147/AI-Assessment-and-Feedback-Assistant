@@ -4,12 +4,12 @@ import { countdown, type Me } from "./api";
 import { go } from "./App";
 
 /**
- * The identity strip carried by every student screen.
+ * Dải danh tính mà mọi màn hình của học sinh đều mang.
  *
- * ADR-13: the product runs in a shared computer room, so each screen has to
- * answer "who is signed in" and offer a way out on the spot. 57px tall, brand
- * at 16 semibold, identity at 14 muted — the measurements come from the design
- * file, not from taste.
+ * ADR-13: sản phẩm chạy trong phòng máy dùng chung, nên mỗi màn hình phải trả
+ * lời được "ai đang đăng nhập" và cho một đường ra ngay tại đó. Cao 57px, brand
+ * cỡ 16 semibold, danh tính cỡ 14 muted — số đo lấy từ file design, không phải
+ * từ cảm nhận.
  */
 export function TopBar({ me }: { me: Me }) {
   return (
@@ -39,17 +39,17 @@ export function TopBar({ me }: { me: Me }) {
 }
 
 /**
- * One question's mark, at one of the three levels of ADR-16.
+ * Điểm của một câu hỏi, ở một trong ba mức của ADR-16.
  *
- * Shape carries the meaning -- filled, half, hollow -- so the mark survives
- * being printed in black and white. Level 0.5 uses ink rather than a colour of
- * its own, because ADR-12 has not granted it one.
+ * Hình dạng mang nghĩa — đầy, nửa, rỗng — nên điểm vẫn đọc được khi in đen
+ * trắng. Mức 0,5 dùng màu mực chứ không có màu riêng, vì ADR-12 chưa cấp cho nó
+ * một màu nào.
  *
- * @param mark - 1, 0.5 or 0.
- * @param tip - The hover sentence explaining why. ADR-16 keeps this out of the
- *   page body: printed under every row it would repeat without informing. It
- *   is a node rather than a string because the design sets the action inside
- *   it in SemiBold, the way the banner on the same screen does.
+ * @param mark - 1, 0.5 hoặc 0.
+ * @param tip - Câu giải thích lý do, hiện khi hover. ADR-16 giữ nó ngoài phần
+ *   thân trang: in dưới mỗi dòng thì nó lặp lại mà không cho thêm thông tin gì.
+ *   Nó là một node chứ không phải string, vì design đặt phần hành động bên trong
+ *   ở SemiBold, giống như banner trên cùng màn hình đó.
  */
 export function ScoreMark({ mark, tip }: { mark: number; tip?: ReactNode }) {
   const level = mark === 1 ? "full" : mark === 0.5 ? "half" : "zero";
@@ -66,13 +66,13 @@ export function ScoreMark({ mark, tip }: { mark: number; tip?: ReactNode }) {
 }
 
 /**
- * A countdown towards an instant the server decided.
+ * Một đồng hồ đếm ngược tới mốc thời gian do server quyết định.
  *
- * Decoration, not enforcement: reaching zero changes nothing, and BE refuses a
- * late answer whatever this shows (ADR-15).
+ * Nó là trang trí, không phải thứ cưỡng chế: về không thì không thay đổi gì, và
+ * BE từ chối một câu trả lời muộn bất kể đồng hồ này đang hiện gì (ADR-15).
  *
- * @param endsAt - ISO instant the clock runs to.
- * @param onExpire - Called once when the clock reaches zero.
+ * @param endsAt - Mốc thời gian ISO mà đồng hồ chạy tới.
+ * @param onExpire - Được gọi đúng một lần khi đồng hồ về không.
  */
 export function Countdown({ endsAt, onExpire }: { endsAt: string; onExpire?: () => void }) {
   const [left, setLeft] = useState(() => new Date(endsAt).getTime() - Date.now());
@@ -93,9 +93,9 @@ export function Countdown({ endsAt, onExpire }: { endsAt: string; onExpire?: () 
 }
 
 /**
- * The timer card on a screen with a clock running.
+ * Thẻ đồng hồ trên một màn hình đang có đồng hồ chạy.
  *
- * @param endsAt - When the clock stops.
+ * @param endsAt - Lúc đồng hồ dừng.
  */
 export function TimeCard({ endsAt }: { endsAt: string }) {
   return (
@@ -108,7 +108,7 @@ export function TimeCard({ endsAt }: { endsAt: string }) {
   );
 }
 
-/** An error strip. Wrong answers are not errors, so this is for failures only. */
+/** Dải báo lỗi. Trả lời sai không phải là lỗi, nên chỗ này chỉ dành cho thất bại thật. */
 export function ErrorStrip({ message }: { message: string | null }) {
   if (message === null) return null;
   return (

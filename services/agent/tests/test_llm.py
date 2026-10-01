@@ -1,10 +1,10 @@
-"""The adapter's own behaviour, including the mistake it exists to prevent.
+"""Hành vi của chính cái adapter, kể cả sai lầm mà nó tồn tại để ngăn.
 
-`agent/llm.py` is the seam every handler will lean on from the next phase
-onward, and two of its decisions are invisible at the call site: that a single
-configured model is handed back unwrapped, and that the fallback chain is built
-from already-shaped runnables. Both are the kind of thing a later tidy-up
-"simplifies" away. These tests make that expensive.
+`agent/llm.py` là chỗ nối mọi handler sẽ tựa vào từ pha sau trở đi, và hai quyết định của
+nó không nhìn thấy được từ chỗ gọi: rằng một model duy nhất đã cấu hình được trả lại mà
+không bọc gì, và rằng chuỗi fallback được dựng từ những runnable đã shape xong. Cả hai đều
+thuộc loại thứ mà một lần dọn dẹp về sau "làm cho gọn" là mất. Các test này làm cho việc đó
+đắt.
 """
 
 import pytest
@@ -15,40 +15,39 @@ from pydantic import BaseModel
 from agent import llm
 from agent.config import Settings
 
-# Captured before the autouse fixture in conftest.py replaces it, so these
-# tests can exercise the real builder instead of the stand-in.
+# Bắt lấy trước khi fixture autouse trong conftest.py thay nó, để các test này chạy được
+# qua builder thật thay vì qua bản đóng thế.
 REAL_CHAT_MODELS = llm.chat_models
 
 
 class Shape(BaseModel):
-    """Stand-in for a structured-output schema."""
+    """Đóng thế cho một schema của structured output."""
 
     value: int
 
 
 class StructuredFake(GenericFakeChatModel):
-    """A fake that answers `with_structured_output`, which the stock one does not.
+    """Một fake có trả lời `with_structured_output`, điều bản có sẵn không làm.
 
-    `GenericFakeChatModel.with_structured_output` raises NotImplementedError, so
-    the stock fake cannot exercise the ordering rule this module turns on.
+    `GenericFakeChatModel.with_structured_output` raise NotImplementedError, nên bản fake có
+    sẵn không chạy qua được cái luật thứ tự mà module này dựa vào.
     """
 
     def with_structured_output(self, schema, **kwargs) -> Runnable:  # noqa: ANN001, ARG002
-        """Return a runnable standing in for a schema-constrained model."""
+        """Trả về một runnable đóng thế cho một model bị ràng buộc bởi schema."""
         return RunnableLambda(lambda _: Shape(value=1))
 
 
 def _fake() -> StructuredFake:
-    """One fake chat model with an endless supply of answers."""
+    """Một chat model giả với nguồn câu trả lời vô tận."""
     return StructuredFake(messages=iter(["xin chào"] * 100))
 
 
 def test_a_single_model_is_handed_back_unwrapped(monkeypatch: pytest.MonkeyPatch) -> None:
-    """One provider means no fallback wrapper at all.
+    """Một provider nghĩa là không có lớp bọc fallback nào cả.
 
-    Wrapping a lone model would buy nothing and would put
-    `RunnableWithFallbacks` between the handler and the provider's own
-    streaming behaviour.
+    Bọc một model đơn độc chẳng được gì và sẽ đặt `RunnableWithFallbacks` vào giữa handler và
+    hành vi stream của chính provider.
     """
     only = _fake()
     monkeypatch.setattr(llm, "chat_models", lambda: (only,))
@@ -57,10 +56,10 @@ def test_a_single_model_is_handed_back_unwrapped(monkeypatch: pytest.MonkeyPatch
 
 
 def test_structured_output_survives_a_second_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Shaping happens per model, so a fallback chain keeps structured output.
+    """Việc shape diễn ra trên từng model, nên một chuỗi fallback vẫn giữ structured output.
 
-    This is the whole reason `with_fallback` takes a callable instead of
-    returning a model: see the module docstring in `agent/llm.py`.
+    Đây là toàn bộ lý do `with_fallback` nhận một callable thay vì trả về một model: xem
+    docstring của module trong `agent/llm.py`.
     """
     monkeypatch.setattr(llm, "chat_models", lambda: (_fake(), _fake()))
 
@@ -70,13 +69,13 @@ def test_structured_output_survives_a_second_provider(monkeypatch: pytest.Monkey
 
 
 def test_the_shape_reaches_every_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Each configured model is shaped itself, not just the first one.
+    """Mỗi model đã cấu hình đều tự được shape, không chỉ model đầu tiên.
 
-    This is the contract that keeps the result independent of
-    `RunnableWithFallbacks.__getattr__`'s type-hint reflection. Shaping the
-    chain instead of its members happens to work today, but it works by
-    introspection that fails unreadably when an annotation does not resolve --
-    see the module docstring in `agent/llm.py`.
+    Đây là hợp đồng giữ cho kết quả độc lập với phần reflection trên type hint của
+    `RunnableWithFallbacks.__getattr__`. Shape cả chuỗi thay vì shape từng thành viên của nó
+    thì hôm nay tình cờ vẫn chạy, nhưng nó chạy nhờ introspection, và introspection đó thất
+    bại một cách không đọc hiểu được khi một annotation không resolve -- xem docstring của
+    module trong `agent/llm.py`.
     """
     shaped: list[object] = []
     monkeypatch.setattr(llm, "chat_models", lambda: (_fake(), _fake()))
@@ -91,7 +90,7 @@ def test_the_shape_reaches_every_model(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_no_model_id_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An empty `LLM_MODEL` fails where the reason is still readable."""
+    """Một `LLM_MODEL` rỗng thì thất bại ở chỗ lý do còn đọc được."""
     monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
     monkeypatch.setattr(llm, "get_settings", lambda: Settings(llm_model=""))
     REAL_CHAT_MODELS.cache_clear()
@@ -103,10 +102,10 @@ def test_no_model_id_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_a_provider_without_its_credential_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Missing key fails at build time, not inside a queued job.
+    """Thiếu key thì thất bại lúc dựng, không phải bên trong một job đã vào queue.
 
-    Inside a job the reason arrives wrapped in a queue error, one service away
-    from the person who can fix it.
+    Bên trong một job thì lý do tới kèm trong một lỗi queue, cách người sửa được nó một
+    service.
     """
     monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
     monkeypatch.setattr(
@@ -133,13 +132,13 @@ def test_a_provider_without_its_credential_is_refused(monkeypatch: pytest.Monkey
 def test_enabled_needs_both_a_switch_and_a_model(
     monkeypatch: pytest.MonkeyPatch, enabled: bool, model: str, expected: bool
 ) -> None:
-    """A half-filled `.env` demos with prepared content instead of failing.
+    """Một `.env` điền nửa vời thì demo bằng nội dung dọn trước thay vì thất bại.
 
     Args:
-        monkeypatch: pytest's patcher.
-        enabled: What `LLM_ENABLED` says.
-        model: What `LLM_MODEL` says.
-        expected: Whether handlers should call a real model.
+        monkeypatch: Bộ patch của pytest.
+        enabled: `LLM_ENABLED` nói gì.
+        model: `LLM_MODEL` nói gì.
+        expected: Handler có nên gọi một model thật hay không.
     """
     monkeypatch.setattr(llm, "get_settings", lambda: Settings(llm_enabled=enabled, llm_model=model))
 

@@ -1,20 +1,19 @@
-"""Drafting a set of questions: one job per question, one brief for all of them.
+"""Soạn nháp một bộ câu hỏi: mỗi câu một job, cả bộ chung một brief.
 
-Two constraints shape this, and they pull in opposite directions.
+Hai ràng buộc định hình chuyện này, và chúng kéo về hai hướng trái nhau.
 
-A whole draft cannot be one job. `llm_timeout_seconds × llm_max_attempts` is
-what `tools/check_contract.py` compares against BE's patience for a job, and
-that arithmetic only holds for **one** model call's worth of retries. Ten
-questions in one job is ten times that, fifty questions is fifty -- so the
-shape that satisfies the invariant is one question per job, fired and collected
-later.
+Cả một đề nháp không thể là một job. `llm_timeout_seconds × llm_max_attempts`
+là thứ `tools/check_contract.py` đem so với mức kiên nhẫn của BE cho một job, và
+phép tính đó chỉ đúng với số lần `retry` của **một** lượt gọi model. Mười câu hỏi
+trong một job là gấp mười, năm mươi câu là gấp năm mươi — nên hình dạng thoả được
+invariant là mỗi câu một job, bắn đi rồi thu kết quả về sau.
 
-But ten jobs running independently is exactly how a set of questions loses its
-coherence: if the brief could change while they run, questions 1-4 come from
-one understanding of the topic and 5-10 from another, and nobody reading the
-questions one at a time would see it. So the brief is written down once,
-before anything is fired, and every job reads that same row. Coherence is
-guaranteed by structure rather than by timing.
+Nhưng mười job chạy độc lập lại đúng là cách một bộ câu hỏi mất tính nhất quán:
+nếu brief có thể đổi trong lúc chúng chạy thì câu 1-4 ra từ một cách hiểu về chủ
+đề và câu 5-10 từ một cách hiểu khác, mà người đọc từng câu một thì không nhìn ra.
+Vì vậy brief được ghi xuống một lần, trước khi bắn bất cứ thứ gì, và mọi job đều
+đọc đúng dòng đó. Tính nhất quán được bảo đảm bằng cấu trúc, không phải bằng thời
+điểm.
 """
 
 from datetime import UTC, datetime
@@ -34,7 +33,7 @@ from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion
 
 
 class FakeQueue:
-    """Records what was queued and hands back results on demand."""
+    """Ghi lại những gì đã vào queue và trả kết quả ra khi được hỏi."""
 
     def __init__(self) -> None:
         self.jobs: list[tuple[str, str, dict]] = []
@@ -49,23 +48,23 @@ class FakeQueue:
         return [payload for _, _, payload in self.jobs]
 
     def finish(self, job_id: str, question: GeneratedQuestion) -> None:
-        """Say a job completed with this question."""
+        """Khai báo rằng một job đã xong với câu hỏi này."""
         self.results[job_id] = (
             "ready",
             DraftQuestionCompleted(request_id="r", question=question).model_dump(mode="json"),
         )
 
     def lose(self, job_id: str) -> None:
-        """Say the job's result aged out of Redis."""
+        """Khai báo rằng kết quả của job đã hết hạn và rơi khỏi Redis."""
         self.results[job_id] = ("gone", None)
 
     def break_(self, job_id: str) -> None:
-        """Say the job ran and raised."""
+        """Khai báo rằng job đã chạy và ném exception."""
         self.results[job_id] = ("failed", None)
 
 
 def _good(stem: str) -> GeneratedQuestion:
-    """A question that satisfies ADR-18: one right answer, labelled distractors, two methods."""
+    """Một câu hỏi thoả ADR-18: một đáp án đúng, các `Distractor` có nhãn, hai `Method`."""
     return GeneratedQuestion(
         stem=stem,
         options=(
@@ -82,7 +81,7 @@ def _good(stem: str) -> GeneratedQuestion:
 
 
 def _two_right() -> GeneratedQuestion:
-    """Breaks ADR-18 the way a real model does: two options marked correct."""
+    """Phá ADR-18 theo đúng cách một model thật vẫn phá: hai phương án đều đánh dấu đúng."""
     return _good("Câu hỏng").model_copy(
         update={
             "options": (
@@ -95,7 +94,7 @@ def _two_right() -> GeneratedQuestion:
 
 @pytest_asyncio.fixture
 async def stack(monkeypatch):
-    """A seeded database plus an empty draft belonging to the seeded teacher."""
+    """Một database đã seed, cộng một đề nháp rỗng thuộc giáo viên đã seed."""
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -144,13 +143,12 @@ async def stack(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_every_job_carries_the_same_brief(stack) -> None:
-    """The brief is read once and copied into each job.
+    """Brief được đọc một lần rồi sao vào từng job.
 
-    This is the whole reason the brief is a stored row. Ten jobs that each
-    re-derived their own instructions -- from a conversation that is still
-    going -- would produce a set whose first half and second half answer
-    different questions, and reading the questions one at a time would not
-    show it.
+    Đây là toàn bộ lý do brief tồn tại dưới dạng một dòng được lưu. Mười job mà
+    mỗi job tự suy ra chỉ dẫn riêng của mình — từ một cuộc hội thoại vẫn đang
+    tiếp diễn — sẽ cho ra một bộ mà nửa đầu và nửa sau trả lời hai câu hỏi khác
+    nhau, và đọc từng câu một thì không thấy ra điều đó.
     """
     maker, draft_id, queue = stack
 
@@ -167,11 +165,11 @@ async def test_every_job_carries_the_same_brief(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_each_job_knows_which_question_of_the_set_it_is(stack) -> None:
-    """Ordinals are distinct and cover the set.
+    """Các ordinal đôi một khác nhau và phủ hết cả bộ.
 
-    The jobs run independently, so nothing coordinates them. Telling each one
-    its position is the cheapest nudge towards variety, and it is what lets
-    the harvest write them back in the order the teacher asked for.
+    Các job chạy độc lập, nên không có gì điều phối chúng. Nói cho mỗi job biết
+    vị trí của nó là cú đẩy rẻ nhất về phía sự đa dạng, và đó cũng là thứ cho
+    `harvest` ghi chúng trở lại theo đúng thứ tự giáo viên đã yêu cầu.
     """
     maker, draft_id, queue = stack
 
@@ -183,11 +181,11 @@ async def test_each_job_knows_which_question_of_the_set_it_is(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_harvest_writes_a_finished_question_in_full(stack) -> None:
-    """A question arrives as a question, with its options and its solutions.
+    """Một câu hỏi về tới nơi dưới dạng một câu hỏi, kèm phương án và lời giải.
 
-    ADR-18 says a question carries its answer key and its worked methods, so a
-    harvest that wrote only the stem would produce a paper the tutoring phase
-    cannot teach from.
+    ADR-18 nói một `Question` mang theo đáp án và các `Method` đã giải sẵn, nên
+    một lượt `harvest` chỉ ghi `stem` sẽ cho ra một đề mà pha phụ đạo không dạy
+    được từ đó.
     """
     maker, draft_id, queue = stack
 
@@ -222,10 +220,10 @@ async def test_harvest_writes_a_finished_question_in_full(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_the_first_question_moves_the_draft_out_of_empty(stack) -> None:
-    """`EMPTY → HAS_QUESTIONS` happens through `advance`, not by assignment.
+    """`EMPTY → HAS_QUESTIONS` xảy ra qua `advance`, không phải bằng phép gán.
 
-    ADR-01's empty state is what blocks publishing, so the moment it stops
-    being true has to go through the one door that knows the lifecycle.
+    State rỗng của ADR-01 chính là thứ chặn việc phát hành, nên cái khoảnh khắc nó
+    thôi còn đúng phải đi qua đúng một cửa — cửa biết lifecycle.
     """
     maker, draft_id, queue = stack
 
@@ -246,11 +244,11 @@ async def test_the_first_question_moves_the_draft_out_of_empty(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_question_that_breaks_adr_18_never_reaches_the_draft(stack) -> None:
-    """Checked on the way in, and ours is not trusted for being ours.
+    """Kiểm ở cửa vào, và hàng của chính ta cũng không được tin chỉ vì nó là của ta.
 
-    AGENT self-checks and falls back to prepared content, but the check that
-    counts is this one: the draft is what a teacher will approve and a student
-    will sit, so a malformed question has to be refused here or not at all.
+    AGENT tự kiểm và `fallback` sang nội dung soạn trước, nhưng lượt kiểm có giá
+    trị là lượt này: đề nháp là thứ một giáo viên sẽ duyệt và một học sinh sẽ
+    làm, nên một câu hỏi sai cấu trúc phải bị từ chối ở đây, hoặc không bao giờ.
     """
     maker, draft_id, queue = stack
 
@@ -270,20 +268,20 @@ async def test_a_question_that_breaks_adr_18_never_reaches_the_draft(stack) -> N
 
     assert landed == 0
     assert questions == []
-    # `retry`, not `failed`: two options marked correct is chance rather than
-    # a fixed fault, so the position is worth one more job. What stops it
-    # looping is the attempt counter, not this status.
+    # `retry`, không phải `failed`: hai phương án cùng đánh dấu đúng là chuyện may
+    # rủi chứ không phải một lỗi cố định, nên vị trí đó đáng thêm một job nữa. Thứ
+    # ngăn nó lặp vô hạn là bộ đếm attempts, không phải status này.
     assert item is not None and item.status == "retry"
     assert item.attempts == 1
 
 
 @pytest.mark.asyncio
 async def test_two_jobs_returning_the_same_stem_yield_one_question(stack) -> None:
-    """Independent jobs can collide, and the draft must not show it twice.
+    """Các job độc lập có thể trùng nhau, và đề nháp không được hiện câu đó hai lần.
 
-    Nothing coordinates the jobs, so two of them writing the same question is
-    an ordinary outcome rather than a bug -- and a paper with the same question
-    twice is worse than a paper with one question fewer.
+    Không có gì điều phối các job, nên hai job viết ra cùng một câu hỏi là kết
+    cục bình thường chứ không phải bug — và một đề có cùng một câu hai lần thì tệ
+    hơn một đề thiếu đi một câu.
     """
     maker, draft_id, queue = stack
 
@@ -306,16 +304,16 @@ async def test_two_jobs_returning_the_same_stem_yield_one_question(stack) -> Non
 
 @pytest.mark.asyncio
 async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
-    """A lost answer is retryable; a job that raised is not.
+    """Một câu trả lời bị mất thì `retry` được; một job đã ném exception thì không.
 
-    Job results live an hour, so a teacher who starts a draft and comes back
-    tomorrow finds them gone -- ordinary, and worth one more job. A job that
-    ran and *raised* is different: asking again gets the same failure, so it
-    does not pass through the attempt counter at all.
+    Kết quả job sống được một giờ, nên một giáo viên bắt đầu soạn nháp rồi mai
+    quay lại sẽ thấy chúng không còn — chuyện thường, và đáng thêm một job nữa.
+    Một job đã chạy rồi *ném exception* thì khác: hỏi lại cũng nhận đúng cái hỏng
+    đó, nên nó không đi qua bộ đếm attempts chút nào.
 
-    And the assertion that matters is the second `fire`: a status nobody acts
-    on would prove nothing, so this checks the position actually gets a new
-    job while the failed one does not.
+    Và khẳng định đáng giá nằm ở lượt `fire` thứ hai: một status mà không ai hành
+    động theo thì chẳng chứng minh được gì, nên chỗ này kiểm rằng vị trí đó thật
+    sự nhận một job mới, còn vị trí `failed` thì không.
     """
     maker, draft_id, queue = stack
     settings = get_settings()
@@ -355,20 +353,20 @@ async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_question_keeps_the_position_it_was_asked_for(stack) -> None:
-    """`order_index` comes from the position, not from arrival order.
+    """`order_index` lấy từ vị trí đã đặt hàng, không lấy từ thứ tự về đích.
 
-    The jobs run in parallel and finish in whatever order the model answers,
-    which the first real run showed plainly: three jobs, three different
-    completion times. Numbering questions by a running count therefore put
-    them on the paper in arrival order -- a teacher who asked for 1, 2, 3 got
-    2, 3, 1, silently, with no constraint to trip.
+    Các job chạy song song và xong theo đúng thứ tự model trả lời, điều mà lần
+    chạy thật đầu tiên phơi ra rõ mồn một: ba job, ba thời điểm hoàn tất khác
+    nhau. Vậy nên đánh số câu hỏi bằng một bộ đếm tăng dần đã xếp chúng lên đề
+    theo thứ tự về đích — giáo viên đặt 1, 2, 3 thì nhận được 2, 3, 1, âm thầm,
+    không có ràng buộc nào để mà vướng.
     """
     maker, draft_id, queue = stack
 
     async with maker() as session:
         await drafting.fire(session, queue, get_settings(), draft_id)
 
-    # The middle and last jobs answer first; the first one is still running.
+    # Job giữa và job cuối trả lời trước; job đầu vẫn đang chạy.
     queue.finish("job-1", _good("Câu hai"))
     queue.finish("job-2", _good("Câu ba"))
 
@@ -391,14 +389,14 @@ async def test_a_question_keeps_the_position_it_was_asked_for(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_refused_question_is_asked_again_but_not_forever(stack) -> None:
-    """A malformed answer costs a retry, not the position.
+    """Một câu trả lời sai cấu trúc tốn một lần `retry`, không tốn cả vị trí.
 
-    Two of the three refusals are chance rather than a fixed fault: a model
-    marking two options correct, and two parallel jobs writing the same stem.
-    Marking those `failed` for good left the draft permanently short, and
-    nothing -- not even firing again -- could fill the gap. But deleting the
-    row unconditionally is the other failure: a question the model cannot get
-    right would be re-queued on every read, spending the budget forever.
+    Hai trong ba lý do từ chối là chuyện may rủi chứ không phải lỗi cố định: model
+    đánh dấu hai phương án đều đúng, và hai job song song viết ra cùng một `stem`.
+    Đóng dấu `failed` vĩnh viễn cho những ca đó đã làm đề nháp thiếu câu mãi mãi,
+    và không gì — kể cả bắn lại — lấp được chỗ trống. Nhưng xoá dòng đó vô điều
+    kiện lại là cái hỏng còn lại: một câu hỏi model không bao giờ làm đúng sẽ được
+    đẩy lại vào queue ở mỗi lượt đọc, tiêu ngân sách đến vô tận.
     """
     maker, draft_id, queue = stack
     settings = get_settings()
@@ -410,12 +408,12 @@ async def test_a_refused_question_is_asked_again_but_not_forever(stack) -> None:
 
     async with maker() as session:
         await drafting.harvest(session, queue, settings, draft_id)
-        # Firing again picks the position back up, because it is retryable.
+        # Bắn lại sẽ nhặt vị trí đó lên, vì nó còn `retry` được.
         requeued = await drafting.fire(session, queue, settings, draft_id)
 
     assert requeued == 1
 
-    # Same answer twice more, and the position gives up rather than looping.
+    # Vẫn câu trả lời đó hai lần nữa, và vị trí ấy bỏ cuộc thay vì lặp vô hạn.
     for job in ("job-3", "job-4"):
         queue.finish(job, _two_right())
         async with maker() as session:
@@ -434,12 +432,12 @@ async def test_a_refused_question_is_asked_again_but_not_forever(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_firing_twice_does_not_queue_the_same_position_twice(stack) -> None:
-    """Two tool calls arriving together cost one set of jobs, not two.
+    """Hai lượt gọi tool tới cùng lúc tốn một bộ job, không phải hai.
 
-    Reading the taken positions and inserting rows are two statements with a
-    gap. The unique index decides, and the loser must not take its own three
-    jobs down with it -- they are already on the queue and already spending
-    model calls.
+    Đọc các vị trí đã bị chiếm và chèn dòng mới là hai câu lệnh, giữa chúng có một
+    khoảng hở. Unique index là thứ phân định, và bên thua không được kéo theo ba
+    job của chính nó xuống cùng — chúng đã ở trên queue và đã đang tiêu lượt gọi
+    model.
     """
     maker, draft_id, queue = stack
     settings = get_settings()
@@ -460,12 +458,12 @@ async def test_firing_twice_does_not_queue_the_same_position_twice(stack) -> Non
 
 @pytest.mark.asyncio
 async def test_a_brief_asking_for_more_than_the_contract_allows_fires_nothing(stack) -> None:
-    """The cap is checked before the first job, not discovered at the 51st.
+    """Mức trần được kiểm trước job đầu tiên, không phải phát hiện ở job thứ 51.
 
-    `of_total` is bounded at 50 in the contract. Firing job by job meant a
-    brief asking for 60 queued fifty jobs and then raised, leaving fifty model
-    calls running, no rows to collect them by, and the same thing happening on
-    every retry.
+    `of_total` bị chặn ở 50 trong contract. Bắn từng job một có nghĩa là một brief
+    đặt 60 câu sẽ đẩy năm mươi job vào queue rồi mới ném exception, để lại năm
+    mươi lượt gọi model đang chạy, không có dòng nào để thu chúng về, và đúng
+    chuyện đó lặp lại ở mỗi lần `retry`.
     """
     maker, draft_id, queue = stack
 
@@ -484,13 +482,12 @@ async def test_a_brief_asking_for_more_than_the_contract_allows_fires_nothing(st
 
 @pytest.mark.asyncio
 async def test_a_new_brief_discards_questions_written_for_the_old_one(stack) -> None:
-    """Re-briefing starts a round; it does not edit work in flight.
+    """Viết lại brief là mở một vòng mới; nó không sửa việc đang bay giữa đường.
 
-    This is the claim the whole design rests on -- that a set of questions is
-    written against one understanding of the topic. Without it, "make them
-    harder" would let jobs fired under the old scope land in the same draft as
-    jobs fired under the new one, and the paper would be half one thing and
-    half another with nothing on any single question looking wrong.
+    Đây là tuyên bố mà cả thiết kế đặt lên — rằng một bộ câu hỏi được viết dựa trên
+    một cách hiểu duy nhất về chủ đề. Không có nó, câu "làm khó hơn đi" sẽ để những
+    job bắn theo scope cũ rơi vào cùng đề nháp với những job bắn theo scope mới, và
+    đề sẽ nửa này nửa kia mà xét riêng từng câu thì chẳng câu nào trông sai.
     """
     maker, draft_id, queue = stack
     settings = get_settings()
@@ -501,7 +498,7 @@ async def test_a_new_brief_discards_questions_written_for_the_old_one(stack) -> 
     async with maker() as session:
         await drafting.rebrief(session, draft_id, topic_scope="tích phân", question_count=2)
 
-    # The job fired under the old brief answers after the new brief is written.
+    # Job bắn theo brief cũ trả lời sau khi brief mới đã được ghi.
     queue.finish("job-0", _good("Câu của brief cũ"))
 
     async with maker() as session:

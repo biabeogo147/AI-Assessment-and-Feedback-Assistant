@@ -1,1 +1,1 @@
-"""Business layer and the only service the frontend talks to."""
+"""Tầng nghiệp vụ, và là service duy nhất mà frontend nói chuyện với."""

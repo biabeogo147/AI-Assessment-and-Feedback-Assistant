@@ -1,13 +1,13 @@
-"""arq worker process for AGENT.
+"""Process worker arq của AGENT.
 
-Run with:  arq agent.worker.WorkerSettings
+Chạy bằng:  arq agent.worker.WorkerSettings
 
-Known Windows limitation: arq registers signal handlers through
-``loop.add_signal_handler``, which raises NotImplementedError on the Windows
-ProactorEventLoop. arq swallows that and logs it at debug level, so the worker
-runs but does not shut down gracefully -- Ctrl+C cuts an in-flight job rather
-than letting it finish. Accepted for local MVP work; revisit when the service is
-containerised on Linux.
+Một hạn chế đã biết trên Windows: arq đăng ký signal handler qua
+``loop.add_signal_handler``, và hàm đó raise NotImplementedError trên
+ProactorEventLoop của Windows. arq nuốt lỗi ấy và chỉ log ở mức debug, nên worker
+vẫn chạy nhưng không tắt một cách êm đẹp -- Ctrl+C cắt ngang job đang chạy thay vì
+để nó làm xong. Tạm chấp nhận cho giai đoạn MVP ở máy local; xem lại khi service
+được đóng container trên Linux.
 """
 
 import logging
@@ -36,18 +36,17 @@ logger = logging.getLogger(__name__)
 
 _settings = get_settings()
 
-# arq defaults to a one second connect timeout, which is too tight for Docker
-# Desktop on Windows: its port proxy needs a few seconds after the container
-# reports healthy before it accepts connections, and the worker exits at startup
-# rather than waiting.
+# arq mặc định timeout kết nối một giây, chặt quá so với Docker Desktop trên
+# Windows: port proxy của nó cần vài giây sau khi container báo healthy mới chịu
+# nhận connection, và worker thì thoát ngay lúc khởi động thay vì chờ.
 _CONNECT_TIMEOUT_SECONDS = 5
 
 
 def _redis_settings() -> RedisSettings:
-    """Build arq Redis settings with a connect timeout suited to this environment.
+    """Dựng RedisSettings cho arq với timeout kết nối phù hợp môi trường này.
 
     Returns:
-        RedisSettings ready for the worker to use.
+        RedisSettings worker dùng được ngay.
     """
     parsed = RedisSettings.from_dsn(_settings.redis_url)
     parsed.conn_timeout = _CONNECT_TIMEOUT_SECONDS
@@ -55,16 +54,16 @@ def _redis_settings() -> RedisSettings:
 
 
 async def startup(ctx: dict) -> None:
-    """Announce which queue the worker is consuming.
+    """Nói ra worker đang tiêu thụ queue nào.
 
-    Without this line a queue-name mismatch between BE and AGENT looks identical
-    to an idle system: jobs are enqueued, nothing errors, and nothing runs.
+    Không có dòng này thì việc tên queue của BE và AGENT lệch nhau trông y hệt một
+    hệ thống đang rảnh: job được đẩy vào, không có lỗi nào, và không có gì chạy.
 
     Args:
-        ctx: arq worker context. Unused.
+        ctx: Context worker của arq. Không dùng.
 
     Side effects:
-        Writes one log line.
+        Ghi một dòng log.
     """
     logger.info(
         "AGENT worker ready: queue=%s redis=%s",
@@ -74,24 +73,24 @@ async def startup(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    """arq worker configuration.
+    """Cấu hình worker của arq.
 
-    The task is registered under the constant from `contracts` rather than under
-    the Python function name, so renaming the function cannot silently break
-    BE's enqueue call.
+    Mỗi task được đăng ký dưới hằng số lấy từ `contracts` chứ không dưới tên hàm
+    Python, nhờ vậy việc đổi tên hàm không thể âm thầm làm hỏng lời gọi enqueue của
+    BE.
     """
 
     functions = [
         func(write_draft_question, name=WRITE_DRAFT_QUESTION_TASK),
         func(generate_retry_question, name=GENERATE_RETRY_QUESTION_TASK),
         func(explain, name=EXPLAIN_TURN_TASK),
-        # One turn of thinking for the teacher's chat. Unlike the three above
-        # it finishes no job of its own: BE calls it once per step of a loop it
-        # owns, so one job here is one model call and the timeout invariant
-        # stays true of this path.
+        # Một lượt suy nghĩ cho khung chat của giáo viên. Khác ba task trên, nó
+        # không hoàn thành việc nào của riêng mình: BE gọi nó một lần cho mỗi bước
+        # của một loop mà BE sở hữu, nên một job ở đây là một lần gọi model và
+        # invariant về timeout vẫn đúng trên đường này.
         func(propose_next_step, name=PROPOSE_NEXT_STEP_TASK),
-        # Legacy, superseded by ADR-20. Registered so an old client does not
-        # hang forever on a task nothing consumes.
+        # Đường cũ, đã bị ADR-20 thay thế. Vẫn đăng ký để một client cũ không treo
+        # mãi trên một task không ai tiêu thụ.
         func(grade_submission, name=GRADE_SUBMISSION_TASK),
     ]
     queue_name = _settings.agent_queue_name

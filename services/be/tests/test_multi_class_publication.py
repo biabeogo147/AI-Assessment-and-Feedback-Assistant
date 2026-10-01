@@ -1,18 +1,17 @@
-"""One assessment, several classes, several clocks.
+"""Một đề, nhiều lớp, nhiều cái đồng hồ.
 
-Publishing used to be one row per assessment, and the model said so on
-purpose: two live sets of deadlines for one assessment was called a state
-nobody could explain to a student. That reasoning was wrong in a specific
-way -- it conflated *one assessment* with *one class*. Two sets of deadlines
-for two different classes explain themselves perfectly, because a student only
-ever sees their own: 12A has the lesson in the morning and opens in the
-morning, 12B has it after lunch and opens after lunch.
+Trước đây việc phát hành là mỗi đề một dòng, và model dữ liệu được viết như thế một cách có
+chủ ý: hai bộ hạn chót cùng sống cho một đề từng bị gọi là một state không ai giải
+thích nổi cho học sinh. Lập luận đó sai theo một cách rất cụ thể — nó trộn *một đề*
+với *một lớp*. Hai bộ hạn chót cho hai lớp khác nhau thì tự giải thích được hoàn
+hảo, bởi một học sinh bao giờ cũng chỉ thấy bộ của chính mình: 12A học tiết sáng thì mở
+buổi sáng, 12B học sau trưa thì mở sau trưa.
 
-So a publication is now one row per (assessment, class), and the tests here
-pin the two things that follow. Each class reads its own terms. And an attempt
-records the class it was started in, because otherwise a student who changes
-class would have the deadlines of work they already did silently replaced by
-another class's.
+Vậy nên một `Publication` giờ là mỗi (assessment, class) một dòng, và các test ở đây
+pin lại hai điều đi theo đó. Mỗi lớp đọc đúng các điều khoản của mình. Và một
+`Attempt` ghi lại lớp mà nó được bắt đầu trong đó, vì nếu không, một học sinh chuyển
+lớp sẽ bị thay âm thầm các hạn chót của phần việc em đã làm bằng hạn chót của một
+lớp khác.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -41,7 +40,7 @@ async def _fake_run_task(pool, settings, task_name, payload) -> dict:
 
 @pytest_asyncio.fixture
 async def stack(monkeypatch):
-    """A seeded database, plus a second class holding the same assessment later."""
+    """Một database đã seed, cộng một lớp thứ hai nhận cùng đề đó nhưng muộn hơn."""
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -54,7 +53,7 @@ async def stack(monkeypatch):
         first = await session.scalar(select(Publication))
         assert assessment is not None and first is not None
 
-        # The afternoon class: same paper, same teacher, a clock of its own.
+        # Lớp buổi chiều: cùng đề, cùng giáo viên, một cái đồng hồ riêng.
         afternoon = SchoolClass(teacher_id=assessment.teacher_id, name="12B")
         session.add(afternoon)
         await session.flush()
@@ -91,7 +90,7 @@ async def stack(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_one_assessment_can_hold_two_sets_of_terms(stack) -> None:
-    """Two rows, one paper. The old primary key made this impossible."""
+    """Hai dòng, một đề. Primary key cũ làm chuyện này thành bất khả."""
     _, maker = stack
 
     async with maker() as session:
@@ -100,16 +99,16 @@ async def test_one_assessment_can_hold_two_sets_of_terms(stack) -> None:
     assert len(published) == 2
     assert len({row.assessment_id for row in published}) == 1
     assert len({row.class_id for row in published}) == 2
-    # Different clocks is the whole point; identical ones would prove nothing.
+    # Hai cái đồng hồ khác nhau mới là trọng tâm; giống nhau thì chẳng chứng minh gì.
     assert len({row.opens_at for row in published}) == 2
 
 
 @pytest.mark.asyncio
 async def test_each_class_reads_its_own_clock(stack) -> None:
-    """The morning class may start; the afternoon class may not yet.
+    """Lớp buổi sáng được vào; lớp buổi chiều thì chưa.
 
-    Same assessment, same moment, two answers -- which is exactly what a
-    single row per assessment could not express.
+    Cùng một đề, cùng một khoảnh khắc, hai câu trả lời — đúng cái điều mà một dòng
+    duy nhất cho mỗi đề không diễn đạt được.
     """
     client, _ = stack
 
@@ -125,7 +124,7 @@ async def test_each_class_reads_its_own_clock(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_an_attempt_remembers_the_class_it_started_in(stack) -> None:
-    """The row records which set of terms governs it."""
+    """Dòng dữ liệu ghi lại bộ điều khoản nào đang chi phối nó."""
     client, maker = stack
 
     assignments = (await client.get("/api/me/assignments", headers=MORNING)).json()
@@ -144,17 +143,15 @@ async def test_an_attempt_remembers_the_class_it_started_in(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_changing_class_does_not_lock_a_student_out_of_work_in_progress(stack) -> None:
-    """Resuming reads the attempt's class, not the student's class today.
+    """Vào lại thì đọc lớp của `Attempt`, không đọc lớp hôm nay của học sinh.
 
-    `start_attempt` looked the publication up before it looked the attempt up,
-    so the entry gate was applied with today's class every time. A student who
-    moved from the morning class to the afternoon one was then told "chưa tới
-    giờ mở" about a paper they were halfway through -- and if the new class had
-    no publication at all, "bài này chưa được phát hành".
+    `start_attempt` tra `Publication` trước khi tra `Attempt`, nên cửa vào lúc nào
+    cũng được áp theo lớp của ngày hôm nay. Một học sinh chuyển từ lớp sáng sang lớp
+    chiều liền bị bảo "chưa tới giờ mở" về một bài em đang làm giữa chừng — và nếu lớp
+    mới chẳng có `Publication` nào, thì là "bài này chưa được phát hành".
 
-    ADR-03 already forbids this from the other direction: *"Học sinh đã vào
-    rồi thì không bị dừng giữa chừng."* The entry gate guards entering, not
-    continuing.
+    ADR-03 vốn đã cấm chuyện này từ phía ngược lại: *"Học sinh đã vào rồi thì không bị
+    dừng giữa chừng."* Cửa vào canh việc vào, không canh việc tiếp tục.
     """
     client, maker = stack
 
@@ -172,27 +169,26 @@ async def test_changing_class_does_not_lock_a_student_out_of_work_in_progress(st
 
     again = await client.post(f"/api/assignments/{assessment_id}/attempts", headers=MORNING)
 
-    # 201 for a request that created nothing is a small untruth this route
-    # told before this change and still tells: the status code is fixed on the
-    # decorator while the handler has two outcomes. Asserted as it is rather
-    # than as it should be, so this test stays about the class change.
+    # Trả 201 cho một request không tạo ra gì là một lời nói dối nhỏ mà route này đã
+    # nói từ trước thay đổi lần này và vẫn còn nói: status code bị gắn cứng trên
+    # decorator trong khi handler có hai kết cục. Được khẳng định theo đúng thực tế
+    # chứ không theo điều đáng ra phải thế, để test này vẫn nói về chuyện chuyển lớp.
     assert again.status_code == 201
     assert again.json()["attempt_id"] == started.json()["attempt_id"]
 
 
 @pytest.mark.asyncio
 async def test_the_phase_two_deadline_follows_the_attempt_not_the_student(stack) -> None:
-    """The deadline is re-read on every request, so this one can actually fail.
+    """Hạn chót được đọc lại ở mọi request, nên test này thật sự có thể đỏ.
 
-    The first version of this test compared `ends_at` across a class change --
-    but `ends_at` is a column written once at start, and the route that serves
-    it never loads a publication at all. It would have stayed green with every
-    call site reverted to the student's current class.
+    Bản đầu tiên của test này so `ends_at` qua một lần chuyển lớp — nhưng `ends_at` là
+    một cột ghi đúng một lần lúc bắt đầu, và route phục vụ nó thì chẳng bao giờ nạp một
+    `Publication` nào. Nó sẽ vẫn xanh dù mọi chỗ gọi đều bị trả về dùng lớp hiện tại
+    của học sinh.
 
-    `remediation_deadline` is different: `/result` reads it from the
-    publication each time. The morning class has it at +8h and the afternoon
-    class at +20h, so reading the wrong class's terms moves it by twelve
-    hours.
+    `remediation_deadline` thì khác: `/result` đọc nó từ `Publication` mỗi lần. Lớp
+    sáng có nó ở +8h còn lớp chiều ở +20h, nên đọc điều khoản của lớp sai sẽ xê dịch nó
+    đi mười hai tiếng.
     """
     client, maker = stack
 

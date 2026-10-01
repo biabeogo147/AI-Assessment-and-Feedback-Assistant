@@ -5,10 +5,10 @@ import { go } from "../App";
 import { ErrorStrip, TopBar } from "../components";
 
 /**
- * Vietnamese wording for each status BE can return.
+ * Cách diễn đạt bằng tiếng Việt cho từng status BE có thể trả về.
  *
- * BE sends a state, not a sentence: the wording belongs here so it can change
- * without touching an endpoint, and the states stay countable.
+ * BE gửi một state, không phải một câu: phần chữ nghĩa thuộc về đây, để nó đổi
+ * được mà không phải chạm vào endpoint nào, và để các state vẫn đếm được.
  */
 const STATUS_LABEL: Record<string, string> = {
   "chưa-tới-giờ-mở": "Chưa tới giờ mở",
@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
   "đã-đóng": "Đã đóng",
 };
 
-/** Which statuses read as live work rather than a settled record. */
+/** Những status nào đọc ra là việc đang chạy, chứ không phải một bản ghi đã chốt. */
 const OPEN_STATES = new Set(["đang-mở", "đang-làm", "cần-chữa"]);
 
 const ACTION_LABEL: Record<string, string> = {
@@ -31,14 +31,14 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 /**
- * Screen 13 — the student's own assignments.
+ * Màn 13 — những bài được giao cho chính học sinh này.
  *
- * Every verdict on this screen arrives decided: which chip to show, and which
- * buttons a row offers. Deriving either from the dates would put the clock of
- * whichever machine the student sits at in charge of the rules.
+ * Mọi kết luận trên màn này về tới đây là đã quyết rồi: hiện chip nào, và một
+ * dòng cho những nút nào. Tự suy ra một trong hai từ ngày tháng là trao luật cho
+ * cái đồng hồ của bất kỳ máy nào học sinh đang ngồi.
  *
- * The four columns are fixed widths, not proportions, because a list is read
- * down a column and ragged columns make that impossible.
+ * Bốn cột là độ rộng cố định, không phải tỷ lệ, vì một danh sách được đọc dọc
+ * theo cột, mà cột so le thì không đọc dọc được.
  */
 export default function AssignmentList({ me }: { me: Me }) {
   const [rows, setRows] = useState<Assignment[] | null>(null);

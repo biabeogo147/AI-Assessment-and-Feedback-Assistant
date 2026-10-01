@@ -1,14 +1,13 @@
-"""The streaming gateway itself, which every other test replaces with a stub.
+"""Chính cái gateway `stream`, thứ mà mọi test khác đều thay bằng một bản stub.
 
-`stream_task` carries three rules that are invisible at its call site and
-expensive to rediscover: subscribe before enqueue, drain before closing, and
-never let tidying up outrank the error that caused it. The rest of the suite
-patches this function out, so without these tests those rules run only when a
-person remembers to look.
+`stream_task` mang theo ba luật vô hình ở nơi gọi nó và đắt đỏ để tìm lại: subscribe
+trước khi enqueue, vét sạch trước khi đóng, và không bao giờ để việc dọn dẹp lấn
+quyền cái lỗi đã gây ra nó. Phần còn lại của bộ test đều patch hàm này ra ngoài, nên
+không có mấy test ở đây thì ba luật đó chỉ chạy khi có người nhớ mà ngó tới.
 
-A hand-built fake pool rather than a real Redis, because the rules under test
-are about ordering and error handling, not about Redis. The real thing is
-exercised by running the system.
+Dùng một fake pool tự dựng thay vì một Redis thật, vì các luật đang được kiểm nói về
+thứ tự và cách xử lý lỗi, không nói về Redis. Hàng thật được thao luyện bằng cách
+chạy cả hệ thống.
 """
 
 import asyncio
@@ -23,7 +22,7 @@ SETTINGS = Settings(agent_queue_name="q", agent_job_timeout_seconds=5)
 
 
 class FakePubSub:
-    """Stands in for a redis pub/sub connection, recording what it was told."""
+    """Đứng thay cho một kết nối pub/sub của redis, và ghi lại những gì nó được bảo."""
 
     def __init__(self, log: list[str], pieces: list[str], fail_on_close: bool = False) -> None:
         self.log = log
@@ -48,7 +47,7 @@ class FakePubSub:
 
 
 class FakeJob:
-    """A job that reports complete after `after` status checks."""
+    """Một job báo là đã xong sau `after` lượt kiểm status."""
 
     def __init__(self, after: int, success: bool = True) -> None:
         self.job_id = "j1"
@@ -62,7 +61,7 @@ class FakeJob:
 
 
 class FakePool:
-    """Enough of an arq pool for the gateway to run against."""
+    """Vừa đủ phần của một arq pool để gateway có cái mà chạy lên."""
 
     def __init__(self, pubsub: FakePubSub, log: list[str], job: FakeJob | None) -> None:
         self._pubsub = pubsub
@@ -78,7 +77,7 @@ class FakePool:
 
 
 def _patch_result(monkeypatch: pytest.MonkeyPatch, result: object, success: bool = True) -> None:
-    """Make the gateway's result read return `result` without touching Redis."""
+    """Làm cho lượt đọc kết quả của gateway trả về `result` mà không chạm tới Redis."""
 
     class Info:
         def __init__(self) -> None:
@@ -99,10 +98,10 @@ def _patch_result(monkeypatch: pytest.MonkeyPatch, result: object, success: bool
 async def test_the_channel_is_open_before_the_job_is_handed_over(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Subscribe first. Redis pub/sub keeps no history.
+    """Subscribe trước đã. Pub/sub của Redis không giữ lịch sử.
 
-    Enqueue first and arq may hand the job to a worker before anyone is
-    listening, which loses the opening words with nothing to show it happened.
+    Enqueue trước thì arq có thể giao job cho một worker trước khi có ai đang nghe, và
+    thế là mất những chữ mở đầu mà chẳng còn gì cho thấy chuyện đó đã xảy ra.
     """
     log: list[str] = []
     pool = FakePool(FakePubSub(log, []), log, FakeJob(after=0))
@@ -118,9 +117,9 @@ async def test_the_channel_is_open_before_the_job_is_handed_over(
 async def test_pieces_published_at_the_last_instant_are_not_dropped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The drain loop exists for the piece that lands as the job finishes."""
+    """Vòng vét sạch tồn tại là vì cái mẩu rơi xuống đúng lúc job kết thúc."""
     log: list[str] = []
-    # The job reports complete immediately, while pieces are still queued.
+    # Job báo xong ngay lập tức, trong khi các mẩu vẫn còn đang nằm chờ.
     pool = FakePool(FakePubSub(log, ["một ", "hai ", "ba"]), log, FakeJob(after=0))
     _patch_result(monkeypatch, {"text": "một hai ba"})
 
@@ -137,15 +136,15 @@ async def test_pieces_published_at_the_last_instant_are_not_dropped(
 async def test_a_failure_while_tidying_up_does_not_replace_the_real_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The caller handles AgentError and nothing else.
+    """Bên gọi chỉ xử lý AgentError, không xử lý gì khác.
 
-    A ConnectionError raised while closing the channel would escape a generator
-    whose status line has already gone out, so the client sees a broken stream
-    and no reason for it. The original complaint has to survive.
+    Một ConnectionError ném ra trong lúc đóng channel sẽ thoát khỏi một generator mà
+    dòng status của nó đã bay đi rồi, nên client thấy một `stream` đứt mà không có lý do
+    nào. Lời phàn nàn gốc phải sống sót.
     """
     log: list[str] = []
     pubsub = FakePubSub(log, [], fail_on_close=True)
-    pool = FakePool(pubsub, log, None)  # arq refuses the job
+    pool = FakePool(pubsub, log, None)  # arq từ chối nhận job
 
     with pytest.raises(AgentError, match="refused"):
         async for _ in stream_task(pool, SETTINGS, "explain", {}, "ch"):
@@ -156,15 +155,15 @@ async def test_a_failure_while_tidying_up_does_not_replace_the_real_error(
 async def test_silence_ends_the_stream_but_a_long_answer_does_not(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The timeout is a silence timer, not a length limit.
+    """`timeout` là đồng hồ đếm sự im lặng, không phải mức giới hạn độ dài.
 
-    A model still writing after the window is working, not dead. Cutting it off
-    would throw away an answer that was arriving correctly.
+    Một model vẫn còn viết sau khi hết cửa sổ thời gian là đang làm việc, không phải đã
+    chết. Cắt ngang nó sẽ ném đi một câu trả lời đang về đúng cách.
     """
     log: list[str] = []
     settings = Settings(agent_queue_name="q", agent_job_timeout_seconds=1)
-    # More pieces than the window would allow if the clock never reset, each
-    # one arriving after a pause that on its own stays inside the window.
+    # Nhiều mẩu hơn số mà cửa sổ thời gian cho phép nếu cái đồng hồ không bao giờ được
+    # reset, mỗi mẩu tới sau một quãng nghỉ mà tự nó vẫn nằm trong cửa sổ đó.
     pieces = [f"mẩu {index} " for index in range(12)]
 
     class Slow(FakePubSub):
@@ -174,8 +173,8 @@ async def test_silence_ends_the_stream_but_a_long_answer_does_not(
                 ignore_subscribe_messages=ignore_subscribe_messages, timeout=timeout
             )
 
-    # `after` counts status checks, and none happen while pieces keep arriving:
-    # the job is done the first time the channel goes quiet.
+    # `after` đếm các lượt kiểm status, và không lượt nào xảy ra khi các mẩu còn về đều:
+    # job coi như xong ngay lần đầu channel im tiếng.
     pool = FakePool(Slow(log, list(pieces)), log, FakeJob(after=0))
     _patch_result(monkeypatch, {"text": "".join(pieces)})
 
@@ -189,7 +188,7 @@ async def test_silence_ends_the_stream_but_a_long_answer_does_not(
 
 
 class Rejecting:
-    """Counts asks and hands back what it was scripted to, for the retry loop."""
+    """Đếm số lượt bị hỏi và trả về đúng thứ đã viết sẵn trong kịch bản, cho vòng `retry`."""
 
     def __init__(self, questions: list[dict]) -> None:
         self.questions = questions
@@ -205,7 +204,7 @@ class Rejecting:
 
 
 def _question(stem: str, correct: int = 1, methods: int = 2) -> dict:
-    """Build a serialised question, optionally breaking one ADR-18 rule."""
+    """Dựng một câu hỏi đã serialise, và nếu muốn thì phá đúng một luật của ADR-18."""
     options = [
         {"label": "A", "text": "một", "is_correct": correct >= 1, "error_label": None},
         {
@@ -227,11 +226,10 @@ def _question(stem: str, correct: int = 1, methods: int = 2) -> dict:
 async def test_a_rejected_round_question_is_re_asked_with_it_named(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """BE tells AGENT which stem it just refused.
+    """BE nói cho AGENT biết nó vừa từ chối `stem` nào.
 
-    Re-sending the identical payload would leave the second answer to chance.
-    The rejected stem goes into `previous_stems`, which is the field that
-    already meant "do not write this one".
+    Gửi lại đúng y `payload` cũ sẽ phó câu trả lời thứ hai cho may rủi. `stem` bị từ chối
+    đi vào `previous_stems`, vốn là field đã mang nghĩa "đừng viết câu này".
     """
     from be import agent_gateway
     from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionRequested, SolutionMethod
@@ -248,7 +246,7 @@ async def test_a_rejected_round_question_is_re_asked_with_it_named(
         ),
         learning_objective="mục tiêu",
     )
-    # First answer has two correct options; second is fine.
+    # Câu trả lời đầu có hai phương án đúng; câu thứ hai thì ổn.
     agent = Rejecting([_question("đề hỏng", correct=2), _question("đề mới")])
     monkeypatch.setattr(agent_gateway, "run_task", agent)
 
@@ -264,7 +262,7 @@ async def test_a_rejected_round_question_is_re_asked_with_it_named(
 
 @pytest.mark.asyncio
 async def test_the_refusal_says_which_rule_was_broken(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A 503 that says only "three tries failed" tells the reader nothing."""
+    """Một cái 503 chỉ nói "thử ba lần đều hỏng" thì chẳng nói gì cho người đọc."""
     from be import agent_gateway
     from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionRequested, SolutionMethod
 
@@ -293,12 +291,12 @@ async def test_the_refusal_says_which_rule_was_broken(monkeypatch: pytest.Monkey
 async def test_a_fixed_draft_that_keeps_its_wording_is_accepted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A refused draft is not a question the student has seen.
+    """Một bản nháp bị từ chối không phải một câu hỏi học sinh đã thấy.
 
-    So when the model's minimal fix is to unmark the second correct option and
-    keep the wording, that is a good question and must be taken. Treating the
-    model's own discarded draft as "already used" would refuse the very
-    correction we asked for, and burn a try doing it.
+    Vậy nên khi cách sửa tối thiểu của model là bỏ dấu đúng ở phương án thứ hai và giữ
+    nguyên câu chữ, thì đó là một câu hỏi tốt và phải nhận. Coi chính bản nháp đã bị
+    model loại là "đã dùng rồi" sẽ từ chối đúng cái sửa mà ta vừa yêu cầu, và đốt một
+    lượt thử để làm việc đó.
     """
     from be import agent_gateway
     from contracts import (
@@ -320,7 +318,7 @@ async def test_a_fixed_draft_that_keeps_its_wording_is_accepted(
         ),
         learning_objective="mục tiêu",
     )
-    # Same stem twice: first with two correct options, then fixed.
+    # Cùng một `stem` hai lần: lần đầu có hai phương án đúng, rồi được sửa lại.
     agent = Rejecting([_question("đề mới", correct=2), _question("đề mới")])
     monkeypatch.setattr(agent_gateway, "run_task", agent)
 
@@ -336,10 +334,10 @@ async def test_a_fixed_draft_that_keeps_its_wording_is_accepted(
 async def test_a_dead_queue_is_not_reported_as_three_bad_questions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A queue failure and a non-compliant model are different complaints.
+    """Một queue chết và một model không tuân luật là hai lời phàn nàn khác nhau.
 
-    Folding the first into the second would send whoever reads the log looking
-    at prompts when the problem is Redis.
+    Gộp cái đầu vào cái sau sẽ đẩy người đọc log đi ngó mấy cái prompt trong khi vấn đề
+    nằm ở Redis.
     """
     from be import agent_gateway
     from contracts import (

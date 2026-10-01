@@ -1,27 +1,26 @@
-"""The one module in AGENT that knows whose model is answering.
+"""Module duy nhất trong AGENT biết model của ai đang trả lời.
 
-Every handler asks for a runnable and writes prompts against it. None of them
-names OpenAI, Gemini or anyone else, so swapping provider is two lines in `.env`
-rather than a change spread across three handlers. That is also what makes the
-test suite free: a test replaces the builder here and nothing touches a network.
+Mọi handler đều xin một runnable rồi viết prompt cho nó. Không handler nào gọi tên
+OpenAI, Gemini hay bất kỳ ai, nên đổi provider là sửa hai dòng trong `.env` thay vì
+một thay đổi rải ra ba handler. Đó cũng là thứ làm cho bộ test miễn phí: một test
+thay cái builder ở đây và không có gì chạm tới network.
 
-Two things in here are easy to get wrong and expensive to debug:
+Hai điều trong đây dễ làm sai và tốn công debug:
 
-**The credential is passed, not inherited.** `init_chat_model` reads
-`OPENAI_API_KEY` from the process environment, but this project loads `.env`
-into a `Settings` object instead, which never reaches `os.environ`. Leave the
-key out of the call and the model authenticates as nobody.
+**Credential được truyền vào, không phải thừa hưởng.** `init_chat_model` đọc
+`OPENAI_API_KEY` từ environment của process, nhưng dự án này nạp `.env` vào một đối
+tượng `Settings`, và đối tượng đó không bao giờ tới `os.environ`. Bỏ key ra khỏi
+lời gọi thì model xác thực với danh nghĩa không ai cả.
 
-**The shape is applied per model, on purpose.** `with_fallbacks` returns a
-`RunnableWithFallbacks`, whose class carries no `with_structured_output`.
-Calling it anyway does work -- `RunnableWithFallbacks.__getattr__` reads the
-method's return annotation, sees a `Runnable`, and rebuilds the chain through
-it -- but that path is reflection over type hints, and it fails badly when an
-annotation does not resolve in its own module: the error surfaces as
-`NameError: name 'Runnable' is not defined` raised from inside `typing`, which
-names neither the method nor the model. So `with_fallback` shapes each model
-itself and assembles the chain from the results. Same outcome when the magic
-works, a readable failure when it does not.
+**Shape được áp cho từng model, một cách có chủ ý.** `with_fallbacks` trả về một
+`RunnableWithFallbacks`, mà class đó không mang `with_structured_output`. Cứ gọi thì
+vẫn chạy -- `RunnableWithFallbacks.__getattr__` đọc annotation trả về của method,
+thấy một `Runnable`, rồi dựng lại chuỗi qua nó -- nhưng đường đó là reflection trên
+type hint, và nó sụp rất tệ khi một annotation không resolve được trong module của
+chính nó: lỗi hiện ra thành `NameError: name 'Runnable' is not defined` raise từ
+trong `typing`, chẳng gọi tên method cũng chẳng gọi tên model. Vì thế
+`with_fallback` tự shape từng model rồi lắp chuỗi từ các kết quả. Cùng một kết quả
+khi phép thuật kia chạy được, và một lần thất bại đọc hiểu được khi nó không chạy.
 """
 
 from collections.abc import Callable
@@ -33,9 +32,8 @@ from langchain_core.runnables import Runnable
 
 from agent.config import Settings, get_settings
 
-# Which setting holds the credential for which provider. A provider missing
-# from here can still be configured; it just has to find its credential the way
-# its own SDK does.
+# Setting nào giữ credential cho provider nào. Một provider không có mặt ở đây vẫn
+# cấu hình được; nó chỉ phải tự tìm credential theo cách SDK của nó làm.
 _CREDENTIAL = {
     "openai": "openai_api_key",
     "google_genai": "google_api_key",
@@ -43,36 +41,37 @@ _CREDENTIAL = {
 
 
 class ModelNotConfigured(RuntimeError):
-    """Calling a model was asked for, and nothing says which one."""
+    """Có người yêu cầu gọi model, mà không có gì nói là model nào."""
 
 
 def enabled() -> bool:
-    """Whether handlers should call a real model at all.
+    """Handler có nên gọi model thật hay không.
 
     Returns:
-        True when `LLM_ENABLED` is on and a model id is set. A missing id
-        counts as off rather than as an error, so a half-filled `.env` demos
-        with prepared content instead of failing every job.
+        True khi `LLM_ENABLED` đang bật và có đặt id model. Thiếu id được tính là
+        tắt chứ không phải lỗi, nhờ vậy một `.env` điền nửa vời vẫn demo được bằng
+        nội dung dọn trước thay vì làm mọi job thất bại.
     """
     settings = get_settings()
     return settings.llm_enabled and bool(settings.llm_model)
 
 
 def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
-    """Construct one chat model.
+    """Dựng một chat model.
 
     Args:
-        settings: Process settings holding credentials and the call timeout.
-        provider: Provider name LangChain understands, e.g. "openai".
-        model: Model id at that provider.
+        settings: Settings của process, nơi giữ credential và timeout cho một lần
+            gọi.
+        provider: Tên provider mà LangChain hiểu, ví dụ "openai".
+        model: Id model tại provider đó.
 
     Returns:
-        A chat model ready to call.
+        Một chat model gọi được ngay.
 
     Raises:
-        ModelNotConfigured: If the provider needs a credential this process
-            does not have. Failing here beats failing inside a job, where the
-            reason arrives wrapped in a queue error.
+        ModelNotConfigured: Nếu provider cần một credential mà process này không
+            có. Thất bại ở đây tốt hơn thất bại bên trong một job, nơi lý do tới
+            kèm trong một lỗi queue.
     """
     extra: dict[str, object] = {"timeout": settings.llm_timeout_seconds}
 
@@ -88,15 +87,16 @@ def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
 
 @lru_cache(maxsize=1)
 def chat_models() -> tuple[BaseChatModel, ...]:
-    """Every configured model, the one to try first at the front.
+    """Mọi model đã cấu hình, cái cần thử trước nằm ở đầu.
 
     Returns:
-        One model, or two when a fallback provider is configured. Cached for
-        the life of the worker: building a client per job would open a
-        connection pool per job.
+        Một model, hoặc hai khi có cấu hình provider fallback. Được cache suốt đời
+        worker: dựng một client cho mỗi job sẽ là mở một connection pool cho mỗi
+        job.
 
     Raises:
-        ModelNotConfigured: If no model id is set, or a credential is missing.
+        ModelNotConfigured: Nếu không có id model nào được đặt, hoặc thiếu một
+            credential.
     """
     settings = get_settings()
     if not settings.llm_model:
@@ -109,21 +109,20 @@ def chat_models() -> tuple[BaseChatModel, ...]:
 
 
 def with_fallback(shape: Callable[[BaseChatModel], Runnable]) -> Runnable:
-    """Apply one transform to every configured model and chain them.
+    """Áp một phép biến đổi lên mọi model đã cấu hình rồi xâu chúng lại.
 
-    `shape` is where `with_structured_output` goes. It runs against each model
-    separately so the fallback chain is built from already-shaped runnables --
-    see the module docstring for why the other order silently loses structured
-    output.
+    `shape` là chỗ `with_structured_output` được đặt vào. Nó chạy riêng trên từng
+    model để chuỗi fallback được dựng từ những runnable đã shape xong -- xem docstring
+    của module để biết vì sao thứ tự còn lại âm thầm làm mất structured output.
 
     Args:
-        shape: Turns a chat model into the runnable a handler wants. Identity
-            is a fine answer when the handler just wants text.
+        shape: Biến một chat model thành runnable mà handler muốn. Hàm đồng nhất là
+            một câu trả lời hoàn toàn ổn khi handler chỉ cần chữ.
 
     Returns:
-        The first model's runnable, with the rest behind it as fallbacks. With
-        one model configured, the runnable itself -- no wrapper, so streaming
-        keeps whatever the provider gives it.
+        Runnable của model đầu tiên, với những model còn lại đứng sau làm fallback.
+        Khi chỉ cấu hình một model thì trả về chính runnable đó -- không bọc gì, nhờ
+        vậy stream giữ nguyên thứ provider đưa cho nó.
     """
     shaped = [shape(model) for model in chat_models()]
     if len(shaped) == 1:

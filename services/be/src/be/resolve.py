@@ -1,33 +1,34 @@
-"""From what a teacher typed to a row, or to a question.
+"""Từ thứ giáo viên gõ ra, đến một row, hoặc đến một câu hỏi.
 
-`classes.name` carries no unique constraint, so a class name is not an
-identifier: one teacher may run two sections called 12A across years, and two
-teachers may each have one. Every tool that works on a class needs a
-`class_id`, which makes this translation step the place where the whole
-teacher-facing surface either asks or guesses.
+`classes.name` không có unique constraint, nên tên lớp không phải một
+identifier: một giáo viên có thể dạy hai lớp cùng tên 12A ở hai năm khác nhau, và
+hai giáo viên mỗi người cũng có thể có một lớp như thế. Mọi tool làm việc với một
+lớp đều cần `class_id`, nên bước dịch này chính là chỗ mà toàn bộ bề mặt hướng về
+giáo viên hoặc là hỏi lại, hoặc là đoán.
 
-It asks. Three answers and no fourth:
+Nó hỏi lại. Ba câu trả lời và không có câu thứ tư:
 
-- `Resolved` -- exactly one of this teacher's classes matches.
-- `Ambiguous` -- several could be meant, and they come back as candidates for
-  the assistant to ask about. ADR-05 forbids marking one of them as the one to
-  pick; this module returns them in a stable order and says nothing about
-  which is likelier.
-- `NotFound` -- none of this teacher's classes match, and the answer carries
-  the list of classes that do, because "không có lớp nào tên đó" alone leaves
-  a teacher unable to tell a typo from lost data.
+- `Resolved` -- đúng một lớp của giáo viên này khớp.
+- `Ambiguous` -- có nhiều lớp có thể là lớp được nói tới, và chúng được trả về
+  dưới dạng candidate để trợ lý hỏi lại. ADR-05 cấm đánh dấu một trong số chúng
+  là lớp nên chọn; module này trả chúng về theo một thứ tự ổn định và không nói
+  gì về việc lớp nào khả năng cao hơn.
+- `NotFound` -- không lớp nào của giáo viên này khớp, và câu trả lời mang theo
+  danh sách những lớp thực sự có, vì chỉ nói "không có lớp nào tên đó" thì giáo
+  viên không phân biệt được một lỗi gõ sai với chuyện dữ liệu đã mất.
 
-Two rules the answers obey:
+Hai luật mà các câu trả lời đều tuân theo:
 
-**A class of another teacher's is answered exactly as one that does not
-exist** (ADR-22). Not a different message, not a different type -- the same
-`NotFound` carrying the same list. Two distinguishable refusals would be a
-probe: type names until the wording changes and the school is mapped.
+**Một lớp của giáo viên khác được trả lời đúng y như một lớp không tồn tại**
+(ADR-22). Không phải một message khác, không phải một type khác -- cùng một
+`NotFound` mang theo cùng một danh sách. Hai lời từ chối phân biệt được với nhau
+sẽ là một cái dò: gõ thử các tên cho đến khi câu chữ đổi, thế là vẽ xong bản đồ
+cả trường.
 
-**Everything returned is a value, not a row.** The loop that calls this rolls
-its session back between steps, which expires ORM objects; a `SchoolClass`
-handed upward would raise `MissingGreenlet` on its next attribute read, far
-from here.
+**Mọi thứ trả về là giá trị, không phải row.** Cái vòng lặp gọi hàm này
+rollback session của nó giữa các bước, và việc đó làm các object ORM hết hạn; một
+`SchoolClass` đưa lên trên sẽ nổ `MissingGreenlet` ở lần đọc attribute tiếp theo,
+ở một chỗ rất xa đây.
 """
 
 import re
@@ -40,38 +41,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.identity import Asking
 from be.models import SchoolClass, Student
 
-# How many classes a refusal or a question will name. A teacher with thirty
-# classes gets a question they can answer, not a list they have to read: the
-# assistant asks them to be more specific instead.
+# Một lời từ chối hay một câu hỏi lại sẽ nêu tên bao nhiêu lớp. Giáo viên có ba
+# mươi lớp thì nhận được một câu hỏi họ trả lời được, không phải một danh sách họ
+# phải đọc: trợ lý sẽ đề nghị họ nói cụ thể hơn.
 _MOST_CANDIDATES = 6
 
-# "lớp 12A", "Lop 12a", "12 A" all mean the same class. Stripped rather than
-# matched loosely, because loose matching is what turns an exact name into an
-# ambiguous one.
+# "lớp 12A", "Lop 12a", "12 A" đều chỉ cùng một lớp. Cắt bỏ tiền tố chứ không
+# khớp lỏng, vì khớp lỏng chính là thứ biến một cái tên khớp chính xác thành một
+# cái tên nhập nhằng.
 #
-# The vowel is spelled out because "ơ" (U+01A1) and "ớ" (U+1EDB) are different
-# characters, and "lớp" uses the second one. A class of `[oơ]` looks like it
-# covers the word and silently does not -- which is exactly how this was
-# written the first time.
+# Nguyên âm được liệt kê ra hết vì "ơ" (U+01A1) và "ớ" (U+1EDB) là hai ký tự khác
+# nhau, và "lớp" dùng ký tự thứ hai. Một character class `[oơ]` trông như đã phủ
+# hết cái từ đó nhưng lặng lẽ không phủ -- và đó đúng là cách nó được viết ở lần
+# đầu tiên.
 #
-# The tail is optional and allows punctuation, because teachers write "Lớp:
-# 12A" and "lớp12A" as readily as "lớp 12A". Requiring a space made all three
-# of those a not-found answer, which reads as the system having lost a class
-# the teacher is standing in front of.
+# Phần đuôi là tuỳ chọn và cho phép dấu câu, vì giáo viên viết "Lớp: 12A" và
+# "lớp12A" dễ dàng như viết "lớp 12A". Bắt buộc phải có dấu cách thì cả ba cách
+# viết đó đều thành câu trả lời không-tìm-thấy, đọc lên như thể hệ thống đã làm
+# mất một lớp mà giáo viên đang đứng trước mặt.
 _PREFIX = re.compile(r"^\s*l[oơớờởỡợôốồổỗộóòỏõọ]p\s*[:.\-–—]?\s*", re.IGNORECASE)
 _SPACES = re.compile(r"\s+")
 
 
 @dataclass(frozen=True)
 class Candidate:
-    """One class a name could mean, as values.
+    """Một lớp mà cái tên có thể đang nói tới, dưới dạng giá trị.
 
     Attributes:
-        class_id: What every other tool needs.
-        name: As stored, not as normalised -- this is shown to a teacher.
-        student_count: Roster size, which is how a teacher tells two sections
-            of the same name apart. It travels because without it a question
-            offering "12A" and "12A" is unanswerable.
+        class_id: Thứ mọi tool khác cần.
+        name: Theo đúng cách đã lưu, không phải sau khi normalise -- đây là thứ
+            được hiện ra cho giáo viên.
+        student_count: Số học sinh trong lớp, và đó là cách giáo viên phân biệt
+            hai lớp cùng tên. Nó đi kèm vì không có nó thì một câu hỏi lại đưa ra
+            "12A" và "12A" là một câu không thể trả lời.
     """
 
     class_id: str
@@ -81,12 +83,12 @@ class Candidate:
 
 @dataclass(frozen=True)
 class Resolved:
-    """Exactly one class matched.
+    """Đúng một lớp khớp.
 
     Attributes:
-        class_id: The id tools take.
-        name: As stored.
-        student_count: Roster size.
+        class_id: Cái id mà các tool nhận.
+        name: Theo đúng cách đã lưu.
+        student_count: Số học sinh trong lớp.
     """
 
     class_id: str
@@ -96,13 +98,13 @@ class Resolved:
 
 @dataclass(frozen=True)
 class Ambiguous:
-    """Several classes could be meant.
+    """Có nhiều lớp có thể là lớp được nói tới.
 
     Attributes:
-        candidates: Each one that matched, in a stable order. No field says
-            which to prefer, because ADR-05 leaves that choice to the teacher.
-        more: How many matches were left out of `candidates`, so the assistant
-            can say the list is partial rather than implying it is complete.
+        candidates: Từng lớp đã khớp, theo một thứ tự ổn định. Không field nào
+            nói nên ưu tiên lớp nào, vì ADR-05 để lựa chọn đó cho giáo viên.
+        more: Có bao nhiêu lớp khớp đã bị để ngoài `candidates`, để trợ lý nói
+            được rằng danh sách này chưa đủ thay vì ngụ ý nó là đủ.
     """
 
     candidates: tuple[Candidate, ...]
@@ -111,12 +113,12 @@ class Ambiguous:
 
 @dataclass(frozen=True)
 class NotFound:
-    """No class of this teacher's matched.
+    """Không lớp nào của giáo viên này khớp.
 
     Attributes:
-        available: This teacher's classes, so the refusal answers the obvious
-            next question. Capped, with `more` counting the rest.
-        more: How many were left out.
+        available: Các lớp của giáo viên này, để lời từ chối trả lời luôn câu hỏi
+            hiển nhiên tiếp theo. Có giới hạn số lượng, và `more` đếm phần còn lại.
+        more: Có bao nhiêu lớp đã bị để ngoài.
     """
 
     available: tuple[Candidate, ...]
@@ -124,37 +126,38 @@ class NotFound:
 
 
 def normalise(name: str) -> str:
-    """Reduce a typed class name to what it means.
+    """Rút một tên lớp được gõ vào về đúng cái nó có nghĩa.
 
-    Unicode form first. "lớp" typed on a Mac arrives decomposed -- "l", "o",
-    U+031B, "p" -- and compares unequal to the composed spelling stored in the
-    database, so without this a teacher on macOS gets not-found for every
-    class they name.
+    Chuẩn hoá dạng Unicode trước. "lớp" gõ trên máy Mac đến đây ở dạng tách rời --
+    "l", "o", U+031B, "p" -- và so sánh ra khác với dạng ghép đang lưu trong
+    database, nên không có bước này thì một giáo viên dùng macOS nhận
+    không-tìm-thấy với mọi lớp họ gọi tên.
 
     Args:
-        name: As the teacher wrote it, possibly with "lớp" in front and
-            possibly with punctuation after it.
+        name: Theo đúng cách giáo viên viết, có thể có "lớp" ở trước và có thể có
+            dấu câu ở sau chữ đó.
 
     Returns:
-        Composed, lower-cased, with the word "lớp" and all whitespace removed.
-        Empty when the input carried no name, which callers must treat as
-        "nothing named" and never as "matches everything".
+        Dạng ghép, chữ thường, đã bỏ từ "lớp" và bỏ hết khoảng trắng. Rỗng khi đầu
+        vào không mang theo tên nào, và caller phải coi đó là "không gọi tên gì
+        cả", không bao giờ được coi là "khớp với tất cả".
     """
     composed = unicodedata.normalize("NFC", name)
     return _SPACES.sub("", _PREFIX.sub("", composed)).casefold()
 
 
 async def _candidates(session: AsyncSession, asking: Asking) -> list[Candidate]:
-    """Every class this teacher owns, with roster sizes, in one query.
+    """Mọi lớp giáo viên này sở hữu, kèm số học sinh, trong một query.
 
     Args:
-        session: Database session.
-        asking: Whose classes. This filter is the whole of ADR-22 here.
+        session: Session của database.
+        asking: Lớp của ai. Cái filter này chính là toàn bộ ADR-22 ở đây.
 
     Returns:
-        Candidates ordered by name then id, so two sections of one name come
-        back in the same order every time -- a question whose options move
-        between askings is a question a teacher cannot answer twice.
+        Các candidate sắp theo name rồi đến id, để hai lớp cùng một tên lần nào
+        cũng trở về theo cùng một thứ tự -- một câu hỏi lại mà các phương án tự
+        đổi chỗ giữa hai lần hỏi là câu hỏi mà giáo viên không trả lời được đến
+        lần thứ hai.
     """
     counted = (
         select(SchoolClass.id, SchoolClass.name, func.count(Student.id))
@@ -171,7 +174,7 @@ async def _candidates(session: AsyncSession, asking: Asking) -> list[Candidate]:
 
 
 def _capped(matches: list[Candidate]) -> tuple[tuple[Candidate, ...], int]:
-    """Trim a list of candidates and report how many were dropped."""
+    """Cắt ngắn một danh sách candidate và báo lại đã bỏ ra bao nhiêu."""
     kept = tuple(matches[:_MOST_CANDIDATES])
     return kept, max(0, len(matches) - len(kept))
 
@@ -179,38 +182,40 @@ def _capped(matches: list[Candidate]) -> tuple[tuple[Candidate, ...], int]:
 async def resolve_class(
     session: AsyncSession, asking: Asking, typed: str
 ) -> Resolved | Ambiguous | NotFound:
-    """Work out which of this teacher's classes a name means.
+    """Tìm ra một cái tên đang nói tới lớp nào trong các lớp của giáo viên này.
 
-    Exact match first, then substring. That order is what makes both halves
-    safe: substring matching is what lets "12" mean "one of 12A and 12B", and
-    it is also what would make "12A" ambiguous the moment a 12A1 exists.
+    Khớp chính xác trước, rồi mới khớp chuỗi con. Đúng thứ tự đó là thứ làm cả hai
+    nửa đều an toàn: khớp chuỗi con là thứ cho "12" nghĩa là "một trong 12A và
+    12B", và cũng chính nó là thứ sẽ làm "12A" thành nhập nhằng ngay khi có một
+    lớp 12A1.
 
     Args:
-        session: Database session.
-        asking: Who is asking. Only their classes are ever considered, and a
-            class of someone else's is indistinguishable from one that is not
-            there (ADR-22).
-        typed: The name as the teacher wrote it.
+        session: Session của database.
+        asking: Ai đang hỏi. Chỉ các lớp của người đó được xét tới, và một lớp của
+            người khác thì không phân biệt được với một lớp không có ở đó
+            (ADR-22).
+        typed: Cái tên theo đúng cách giáo viên viết.
 
     Returns:
-        `Resolved` for one match, `Ambiguous` for several, `NotFound` for
-        none. Never a guess: there is no code path that picks one of several.
+        `Resolved` khi khớp một lớp, `Ambiguous` khi khớp nhiều lớp, `NotFound`
+        khi không khớp lớp nào. Không bao giờ là một phỏng đoán: không có nhánh
+        code nào chọn một lớp trong nhiều lớp.
     """
     owned = await _candidates(session, asking)
     wanted = normalise(typed)
     if not wanted:
-        # An argument the model left out arrives as "". Matching that by
-        # substring would match every class, and the assistant would resolve
-        # to whichever came first.
+        # Một tham số model bỏ trống thì đến đây dưới dạng "". Đem nó đi khớp
+        # chuỗi con thì sẽ khớp mọi lớp, và trợ lý sẽ resolve ra lớp nào đứng
+        # trước thì lấy lớp đó.
         available, more = _capped(owned)
         return NotFound(available=available, more=more)
 
-    # The stored spelling first, before anything is normalised away. "12A" and
-    # "12 A" are two different rows that normalise to one string, so on the
-    # normalised comparison alone they would be ambiguous forever and no string
-    # a teacher could type would ever pick one. This gives each of them a way
-    # in without weakening the refusal to guess: it only ever matches when the
-    # teacher wrote the name exactly as it is stored.
+    # Cách viết đang lưu trước đã, trước khi có gì bị normalise mất đi. "12A" và
+    # "12 A" là hai row khác nhau nhưng normalise về cùng một string, nên nếu chỉ
+    # có phép so sánh trên bản normalise thì chúng nhập nhằng mãi mãi và không
+    # string nào giáo viên gõ được sẽ chọn ra nổi một trong hai. Bước này cho mỗi
+    # lớp một đường vào mà không làm yếu đi lời từ chối đoán: nó chỉ khớp khi giáo
+    # viên viết cái tên đúng y như nó đang được lưu.
     literal = unicodedata.normalize("NFC", typed).strip()
     verbatim = [
         candidate for candidate in owned if unicodedata.normalize("NFC", candidate.name) == literal

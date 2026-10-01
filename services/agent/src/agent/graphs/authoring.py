@@ -1,21 +1,19 @@
-"""Writing a question, and refusing to hand over one that is malformed.
+"""Viết một câu hỏi, và từ chối giao ra một câu sai hình dạng.
 
-A loop, because this is the task that can fail its own check: the model is
-asked for a question shaped a particular way and sometimes writes one that is
-not. The graph tries again with the complaint attached, which is a different
-thing from trying again and hoping.
+Một loop, vì đây là việc có thể không qua được check của chính nó: model được yêu
+cầu một câu hỏi có hình dạng nhất định và đôi khi viết ra một câu không như vậy.
+Graph thử lại kèm theo lời phàn nàn, và đó là một việc khác với thử lại rồi hy vọng.
 
-**This is not where ADR-18 is enforced.** BE re-checks everything that arrives,
-and `packages/contracts` says why: a generator that judged its own output would
-be marking its own homework. The check here is self-QC -- it saves a round trip
-and a wasted queue job, and if it ever disagreed with BE's, BE's is the one that
-counts.
+**Đây không phải nơi ADR-18 được thi hành.** BE check lại mọi thứ tới tay nó, và
+`packages/contracts` nói rõ vì sao: một bộ sinh tự phán xét đầu ra của mình là tự
+chấm bài của mình. Check ở đây là tự QC -- nó tiết kiệm một vòng đi về và một job
+queue bỏ đi, và nếu nó có bao giờ không đồng ý với check của BE thì check của BE mới
+là cái được tính.
 
-What the model is told about shape comes from the decision records, not from
-taste: exactly one correct option, every distractor carrying the name of the
-mistake it stands for, and more than one worked solution (ADR-18); and for a
-remediation round, a question that tests the same thing without being the same
-question (ADR-17).
+Những gì model được dặn về hình dạng đến từ các decision record, không đến từ sở
+thích: đúng một phương án đúng, mỗi distractor mang tên của lỗi mà nó đại diện, và
+nhiều hơn một cách giải (ADR-18); còn với một lượt chữa lỗi thì là một câu hỏi kiểm
+tra cùng một thứ mà không phải cùng một câu (ADR-17).
 """
 
 import logging
@@ -48,15 +46,15 @@ Cách viết:
 
 
 class WriteState(TypedDict):
-    """What flows through the loop.
+    """Những gì chảy qua loop.
 
     Attributes:
-        brief: What to write, in words the model reads.
-        banned: Stems this question must not repeat, normalised.
-        question: The latest attempt, or None before the first.
-        complaints: Why the previous attempt was rejected. Fed back to the
-            model, which is the difference between retrying and re-rolling.
-        attempts: How many times the model has been asked.
+        brief: Phải viết gì, bằng những lời model đọc được.
+        banned: Các stem câu này không được lặp lại, đã normalise.
+        question: Lần thử gần nhất, hoặc None khi chưa thử lần nào.
+        complaints: Vì sao lần thử trước bị loại. Được đưa trở lại cho model, và đó
+            là chỗ khác nhau giữa retry và gieo lại xúc xắc.
+        attempts: Model đã được hỏi bao nhiêu lần.
     """
 
     brief: str
@@ -67,31 +65,31 @@ class WriteState(TypedDict):
 
 
 def normalise(stem: str) -> str:
-    """Collapse whitespace so two stems compare by their words.
+    """Gộp khoảng trắng lại để hai stem được so sánh theo từ ngữ của chúng.
 
-    The one implementation: `handlers` imports this rather than keeping its
-    own. Two functions that must agree, in two files, is a disagreement with a
-    date on it -- and here the two would disagree about whether a question
-    repeats one the student has already seen.
+    Chỉ một bản cài đặt: `handlers` import hàm này chứ không giữ bản riêng. Hai hàm
+    buộc phải khớp nhau, nằm trong hai file, là một lần lệch nhau đã hẹn trước ngày
+    -- và ở đây hai bên sẽ lệch nhau về chuyện một câu hỏi có lặp lại câu học sinh
+    đã gặp hay không.
 
     Args:
-        stem: A question stem.
+        stem: Một stem câu hỏi.
 
     Returns:
-        The stem with runs of whitespace reduced to single spaces.
+        Stem đó với mọi chuỗi khoảng trắng liền nhau rút về một dấu cách.
     """
     return " ".join(stem.split())
 
 
 def _faults(question: GeneratedQuestion, banned: frozenset[str]) -> list[str]:
-    """List everything wrong with one attempt, in words the model can act on.
+    """Liệt kê mọi thứ sai trong một lần thử, bằng lời model làm được gì với nó.
 
     Args:
-        question: What the model wrote.
-        banned: Stems it must not have repeated.
+        question: Thứ model đã viết.
+        banned: Các stem nó không được lặp lại.
 
     Returns:
-        One complaint per fault, empty when there is nothing to complain about.
+        Một lời phàn nàn cho mỗi lỗi, rỗng khi không có gì để phàn nàn.
     """
     faults = []
 
@@ -117,13 +115,13 @@ def _faults(question: GeneratedQuestion, banned: frozenset[str]) -> list[str]:
 
 
 async def _write(state: WriteState) -> dict:
-    """Ask the model for a question, telling it what went wrong last time.
+    """Hỏi model một câu hỏi, kèm theo chuyện lần trước đã sai ở đâu.
 
     Args:
-        state: Carries the brief and any complaints about the last attempt.
+        state: Mang theo brief và mọi lời phàn nàn về lần thử trước.
 
     Returns:
-        The `question` and `attempts` slices of the state.
+        Hai mảnh `question` và `attempts` của state.
     """
     messages = [SystemMessage(_SYSTEM), HumanMessage(state["brief"])]
     if state["complaints"]:
@@ -141,13 +139,13 @@ async def _write(state: WriteState) -> dict:
 
 
 def _check(state: WriteState) -> dict:
-    """Judge the latest attempt.
+    """Phán xét lần thử gần nhất.
 
     Args:
-        state: Carries the attempt and the banned stems.
+        state: Mang theo lần thử và các stem bị cấm.
 
     Returns:
-        The `complaints` slice of the state.
+        Mảnh `complaints` của state.
     """
     question = state["question"]
     if question is None:
@@ -156,13 +154,13 @@ def _check(state: WriteState) -> dict:
 
 
 def _again(state: WriteState) -> str:
-    """Decide whether to ask once more.
+    """Quyết định có hỏi thêm một lần nữa hay không.
 
     Args:
-        state: Carries the complaints and the attempt count.
+        state: Mang theo các lời phàn nàn và số lần đã thử.
 
     Returns:
-        "write" to try again, END to stop either way.
+        "write" để thử lại, END để dừng trong cả hai trường hợp còn lại.
     """
     if not state["complaints"]:
         return END
@@ -173,10 +171,10 @@ def _again(state: WriteState) -> str:
 
 
 def _build() -> object:
-    """Assemble the write-check-retry loop.
+    """Lắp loop write-check-retry.
 
     Returns:
-        A compiled graph.
+        Một graph đã compile.
     """
     graph = StateGraph(WriteState)
     graph.add_node("write", _write)
@@ -191,19 +189,19 @@ _GRAPH = _build()
 
 
 async def write_question(brief: str, banned: frozenset[str] = frozenset()) -> GeneratedQuestion:
-    """Write one question that satisfies ADR-18.
+    """Viết một câu hỏi thoả ADR-18.
 
     Args:
-        brief: What the question should be about, in words for the model.
-        banned: Stems it must not repeat.
+        brief: Câu hỏi nên nói về cái gì, bằng lời dành cho model.
+        banned: Các stem nó không được lặp lại.
 
     Returns:
-        The question.
+        Câu hỏi.
 
     Raises:
-        ValueError: If every attempt came back malformed. The caller falls back
-            to prepared content; raising rather than returning something broken
-            keeps that decision at the caller, where the alternatives are.
+        ValueError: Nếu mọi lần thử đều trả về một câu sai hình dạng. Bên gọi sẽ
+            lùi về nội dung dọn trước; raise thay vì trả về một thứ hỏng giữ quyết
+            định đó ở bên gọi, nơi có sẵn các lựa chọn thay thế.
     """
     final = await _GRAPH.ainvoke(
         {"brief": brief, "banned": banned, "question": None, "complaints": [], "attempts": 0}
@@ -214,21 +212,20 @@ async def write_question(brief: str, banned: frozenset[str] = frozenset()) -> Ge
 
 
 def draft_brief(request: DraftQuestionRequested) -> str:
-    """Describe the one question this job writes.
+    """Mô tả đúng một câu hỏi mà job này viết.
 
-    Everything here came from a brief BE stored before any job was queued, so
-    every question of the set is written against the same instructions. The
-    position is included because the jobs run independently and cannot see
-    each other: telling a job it is the third of ten is the only coordination
-    available, and it is a nudge rather than a guarantee -- BE checks for
-    duplicates when it harvests.
+    Mọi thứ ở đây đến từ một brief BE đã lưu trước khi có job nào được đẩy vào
+    queue, nên mọi câu trong bộ đề đều được viết theo cùng một bộ chỉ dẫn. Vị trí
+    câu được đưa vào vì các job chạy độc lập và không thấy nhau: nói với một job
+    rằng nó là câu thứ ba trong mười câu là sự phối hợp duy nhất có thể, và đó là
+    một lời nhắc chứ không phải một bảo đảm -- BE kiểm tra trùng lặp lúc harvest.
 
     Args:
-        request: Subject, grade, the scope the teacher limited it to, how hard
-            they asked for, and which question of the set this is.
+        request: Môn, lớp, phạm vi giáo viên giới hạn lại, mức độ khó họ yêu cầu, và
+            đây là câu thứ mấy trong bộ đề.
 
     Returns:
-        The brief.
+        Brief.
     """
     lines = [
         f"Viết câu hỏi số {request.ordinal} trong bộ {request.of_total} câu.",
@@ -245,18 +242,18 @@ def draft_brief(request: DraftQuestionRequested) -> str:
 
 
 def retry_brief(request: RetryQuestionRequested) -> str:
-    """Describe the question one remediation round needs.
+    """Mô tả câu hỏi mà một lượt chữa lỗi cần.
 
-    ADR-17 is specific about what a retry is for: it asks whether the student
-    fixed the mistake, not whether they remember the answer. So the brief
-    insists on the same shape with different content, and names the mistake the
-    new question has to give the student another chance to make.
+    ADR-17 nói rất cụ thể về chuyện một lượt làm lại dùng để làm gì: nó hỏi xem học
+    sinh đã sửa được lỗi chưa, không hỏi xem em có nhớ đáp án hay không. Vì thế brief
+    đòi cùng một hình dạng với nội dung khác, và gọi tên cái lỗi mà câu hỏi mới phải
+    cho học sinh một cơ hội nữa để mắc lại.
 
     Args:
-        request: The origin question, what was picked, which round this is.
+        request: Câu gốc, phương án đã chọn, đây là lượt thứ mấy.
 
     Returns:
-        The brief.
+        Brief.
     """
     origin = request.origin
     lines = [

@@ -1,18 +1,16 @@
-"""Shared message contract between BE and AGENT.
+"""Hợp đồng message dùng chung giữa BE và AGENT.
 
-Three families live here. The authoring messages carry the core two-phase flow:
-BE asks AGENT to write questions, to write the question of a remediation round,
-and to take one turn in the tutoring conversation.
+Ba họ message sống ở đây. Nhóm authoring chở luồng hai pha cốt lõi: BE nhờ AGENT soạn câu hỏi, soạn
+câu hỏi của một vòng củng cố, và đi một lượt trong cuộc hội thoại gia sư.
 
-`teacher_chat` carries one turn of thinking for the teacher's chat, where the
-work is not decided in advance. Its reply is a *proposal* -- BE owns the loop
-and performs every step -- which is what keeps authorisation and ADR-05's
-publish gate on the side of the wall that has the database and the identity.
+`teacher_chat` chở một lượt suy nghĩ cho khung chat của giáo viên, nơi công việc không được định
+trước. Câu trả lời của nó là một *proposal* -- BE sở hữu vòng lặp và thực hiện từng bước -- và đó là
+thứ giữ quyền hạn cùng cổng phát hành của ADR-05 ở đúng phía tường có database và có danh tính.
 
-`GradingRequested` and `GradingCompleted` are the older grading pair. They are
-**legacy**: ADR-20 moved multiple-choice grading into BE, so nothing in the core
-flow enqueues them. They stay until the Teacher Review Queue (UC-05) is designed
-and can say what it actually needs. Do not add fields to them.
+`GradingRequested` và `GradingCompleted` là cặp chấm điểm cũ. Chúng là **legacy**: ADR-20 chuyển
+việc chấm trắc nghiệm vào BE, nên không gì trong luồng cốt lõi enqueue chúng nữa. Chúng ở lại tới
+khi Teacher Review Queue (UC-05) được thiết kế và nói được nó thật sự cần gì. Đừng thêm field vào
+chúng.
 """
 
 from contracts.authoring import (

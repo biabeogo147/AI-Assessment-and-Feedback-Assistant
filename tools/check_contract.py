@@ -1,49 +1,58 @@
-"""Repo-level checks that no single service can make about itself.
+"""Những phép kiểm ở tầm repo mà không service nào tự kiểm được về chính mình.
 
-Run by `.\\dev.ps1 check`. Each check here enforces one row of the Invariants
-table in AGENTS.md that would otherwise depend on somebody remembering.
+Chạy bởi `.\\dev.ps1 check`. Mỗi check ở đây thi hành một dòng trong bảng Invariants của AGENTS.md
+-- dòng mà nếu không có nó thì sẽ phụ thuộc vào việc có ai còn nhớ hay không.
 
-This script imports both services' settings, which service code is forbidden to
-do. That is deliberate and safe: `tools/` sits outside `services/` and outside
-`import-linter`'s root_packages, and auditing both sides is the whole job. No
-code that ships is allowed to do the same.
+Script này import settings của **cả hai** service, điều mà code của service bị cấm làm. Đó là có chủ
+ý và an toàn: `tools/` nằm ngoài `services/` và ngoài root_packages của `import-linter`, mà soi cả
+hai phía chính là toàn bộ công việc của nó. Không đoạn code nào được ship phép làm như vậy.
 """
 
 from __future__ import annotations
 
+import io
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# 173: one line above the 172 below, bought on 2026-10-01 by the rule that no
-# agent tool changes an assessment's state. It earned a row because it is the
-# load-bearing half of ADR-05's first gate: the assistant may write content, and
-# a teacher decides whether that content reaches students. The check behind it
-# is a grep, which is blunt on purpose -- the failure worth preventing is
-# somebody reaching for the convenient import while adding a tool. The decision
-# record is in 2026-09-30-teacher-write-path-plan.md.
+# 173: hơn con số 172 bên dưới một dòng, mua ngày 2026-10-01 bằng luật rằng
+# không tool nào của agent được đổi state của một đề. Nó xứng một dòng vì nó là
+# nửa chịu lực của cổng thứ nhất trong ADR-05: trợ lý được viết nội dung, còn
+# giáo viên quyết nội dung đó có đến tay học sinh hay không. Check đứng sau nó
+# là một phép grep, thô có chủ ý -- thất bại đáng ngăn là việc có người với tay
+# lấy cái import cho tiện trong lúc thêm một tool. Decision record nằm ở
+# 2026-09-30-teacher-write-path-plan.md.
 #
-# 172: one line above the 171 below, bought on 2026-09-30 by the rule that the
-# options in a clarifying question are written by BE from rows it read, never by
-# the model (ADR-23). It earned a row because it is the kind of rule a later
-# change reintroduces by accident -- the first implementation filtered what the
-# model wrote, and that leaked in both directions. The decision record is in
+# 172: hơn con số 171 bên dưới một dòng, mua ngày 2026-09-30 bằng luật rằng
+# các lựa chọn trong một câu hỏi làm rõ do BE viết ra từ những hàng nó đã đọc,
+# không bao giờ do model viết (ADR-23). Nó xứng một dòng vì đây là loại luật mà
+# một thay đổi sau này vô tình tái lập -- bản cài đặt đầu tiên đi lọc thứ model
+# viết, và phép lọc đó rò cả hai chiều. Decision record nằm ở
 # 2026-09-30-teacher-harness-foundation-plan.md.
 #
-# 171: one line above the 170 below, bought on 2026-09-29 by a new cross-service
-# invariant -- the model-call ceiling must sit inside BE's patience for a job --
-# which earned a row in the Invariants table. The rule for raising this has been
-# followed: a decision record in the plan says what the line was spent on.
+# 171: hơn con số 170 bên dưới một dòng, mua ngày 2026-09-29 bằng một invariant
+# mới cắt qua hai service -- trần của một lời gọi model phải nằm gọn trong độ
+# kiên nhẫn của BE cho một job -- và nó xứng một dòng trong bảng Invariants. Luật
+# nâng cap đã được tuân thủ: một decision record trong plan nói dòng đó mua gì.
 #
-# 170 was set after writing the contract, not before. The first guess was 140,
-# but every section that survived trimming is a rule, and the two longest are the
-# ownership and invariant tables -- the densest content in the file. Cutting real
-# rules to satisfy an invented number is the wrong trade. The cap exists to stop
-# drift from here, so raise it only alongside a decision record explaining what
-# new rule justified the growth.
-AGENTS_MD_MAX_LINES = 173
+# 170 được chốt **sau** khi viết xong hợp đồng, không phải trước. Con số đoán
+# đầu tiên là 140, nhưng mọi mục sống qua được đợt cắt gọt đều là một luật, và
+# hai mục dài nhất là bảng ownership và bảng invariant -- phần đặc nhất của file.
+# Cắt luật thật để vừa một con số bịa ra là một đánh đổi sai. Cap tồn tại để
+# chặn drift kể từ đây, nên chỉ nâng nó kèm một decision record nói rõ luật mới
+# nào biện minh cho phần dài thêm.
+# 174: hơn con số 173 bên dưới một dòng, mua ngày 2026-10-01 bằng một Repo-Specific
+# Trap mới: một file `.ps1` không có BOM thì PowerShell 5.1 đọc nó theo cp1252. Nó xứng
+# một dòng vì nó là **hệ quả trực tiếp** của luật ngôn ngữ vừa đổi -- comment tiếng Việt
+# trong `dev.ps1` làm `Get-Help` in ra mojibake, tức khối `.SYNOPSIS` tồn tại để đọc qua
+# `Get-Help` thôi đọc được, trong khi mọi task vẫn chạy đúng. Một lỗi chỉ hiện ở đường
+# đọc chính thức và im lặng ở mọi check là đúng loại thứ cần một dòng viết ra. Decision
+# record nằm ở 2026-09-30-teacher-write-path-plan.md.
+#
+AGENTS_MD_MAX_LINES = 174
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -53,8 +62,9 @@ CHILD_AGENTS_FILES = (
     "packages/contracts/AGENTS.md",
 )
 
-# Anything that would let AGENT reach a database directly. Redis is not on this
-# list: AGENT needs the queue, and REDIS_URL is a DSN but not a database one.
+# Bất cứ thứ gì cho AGENT chạm trực tiếp tới một database. Redis không nằm trong
+# danh sách này: AGENT cần queue, và REDIS_URL là một DSN nhưng không phải DSN
+# của database.
 DB_CREDENTIAL_PATTERN = re.compile(
     r"POSTGRES|MONGO|DATABASE_URL|\bDSN\b|PASSWORD|psycopg|sqlalchemy|motor|pymongo",
     re.IGNORECASE,
@@ -62,13 +72,21 @@ DB_CREDENTIAL_PATTERN = re.compile(
 
 ENV_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=")
 
-# The two functions that move an assessment through ADR-01's lifecycle, plus
-# the way around them. A teacher tool naming either function is reaching past
-# the gate it is meant to stay behind -- and `assessment.state = ...` is that
-# same reach with the gate skipped entirely, which is the version a well-meaning
-# patch is far likelier to write. `==` is left alone: reading the state is how a
-# tool decides to refuse.
+# Hai hàm đưa một đề đi qua vòng đời của ADR-01, cộng với đường đi vòng qua
+# chúng. Một tool của giáo viên mà nhắc tên một trong hai hàm đó là đang với tay
+# qua đúng cái cổng nó phải đứng sau -- còn `assessment.state = ...` là cùng cái
+# với tay ấy nhưng bỏ hẳn cổng, và đó mới là phiên bản mà một bản sửa có ý tốt dễ
+# viết hơn nhiều. `==` thì tha: đọc state chính là cách một tool quyết định từ
+# chối.
 LIFECYCLE_VERBS = re.compile(r"\b(advance|withdraw)\s*\(|\.state\s*=[^=]")
+
+
+# Những token KHÔNG phải code: chúng được xoá trắng trước khi mọi phép grep ở dưới
+# chạy. `FSTRING_MIDDLE` chỉ tồn tại từ Python 3.12 nên nó được tra mềm.
+_PROSE_TOKENS = frozenset(
+    {tokenize.COMMENT, tokenize.STRING}
+    | {code for name in ("FSTRING_MIDDLE",) if (code := getattr(tokenize, name, None)) is not None}
+)
 
 
 def _fail(check: str, detail: str) -> str:
@@ -76,13 +94,13 @@ def _fail(check: str, detail: str) -> str:
 
 
 def check_env_example_has_no_orphans() -> str | None:
-    """Every variable in .env.example must be read by a service's Settings.
+    """Mọi biến trong .env.example phải được Settings của một service đọc tới.
 
     Returns:
-        None when the check passes, otherwise a failure message.
+        None khi check đạt, ngược lại là một thông báo thất bại.
 
     Raises:
-        ImportError: If the services are not installed. Run `.\\dev.ps1 install`.
+        ImportError: Khi các service chưa được cài. Chạy `.\\dev.ps1 install`.
     """
     from agent.config import Settings as AgentSettings
     from be.config import Settings as BeSettings
@@ -109,10 +127,10 @@ def check_env_example_has_no_orphans() -> str | None:
 
 
 def check_agent_holds_no_database_credentials() -> str | None:
-    """AGENT must stay free of database access so a job carries what it needs.
+    """AGENT phải không có đường tới database, để một job tự chở theo thứ nó cần.
 
     Returns:
-        None when the check passes, otherwise a failure message naming the files.
+        None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
     """
     offenders = []
     for path in (REPO_ROOT / "services" / "agent").rglob("*.py"):
@@ -134,35 +152,31 @@ def check_agent_holds_no_database_credentials() -> str | None:
 
 
 def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
-    """A whole AGENT job must time out before the job BE is waiting on does.
+    """Cả một job của AGENT phải hết giờ **trước** cái job mà BE đang chờ.
 
-    Neither service can check this alone: the ceiling on one model call and the
-    number of attempts a job may make live in AGENT's settings, the patience
-    for a job lives in BE's, and neither imports the other. Get the order wrong
-    and a slow model produces the worst shape of failure -- BE gives up and
-    answers 503 while the worker is still working, so the student sees an error
-    for an answer that then arrives and is thrown away.
+    Không service nào tự kiểm được điều này: trần của một lời gọi model và số lần thử một job được
+    phép làm nằm trong settings của AGENT, độ kiên nhẫn cho một job nằm trong settings của BE, và
+    không bên nào import bên nào. Đặt sai thứ tự thì một model chậm sinh ra hình dạng thất bại tệ
+    nhất -- BE bỏ cuộc và trả 503 trong khi worker vẫn đang làm, nên học sinh thấy một lỗi cho một
+    câu trả lời rồi sẽ về và bị ném đi.
 
-    The attempt count is the half that is easy to forget. This check compared a
-    *single* call against BE's patience until the authoring loop appeared, and
-    was quietly wrong for as long as that loop existed: one job had become
-    three calls and nothing said so.
+    Số lần thử là nửa dễ quên. Check này so **một** lời gọi với độ kiên nhẫn của BE cho tới khi vòng
+    lặp authoring xuất hiện, và nó âm thầm sai suốt thời gian vòng lặp đó tồn tại: một job đã thành
+    ba lời gọi mà không gì nói ra.
 
-    It then went wrong the same way a second time, and worse: `draft_assessment`
-    took up to fifty questions in one job at one model call each, so the true
-    worst case was 50 x LLM_MAX_ATTEMPTS calls while this function compared
-    one. That task was retired rather than the number raised -- a job allowed
-    fifty minutes is a job BE can no longer tell apart from a dead worker --
-    and every task now fits inside one question's worth of retries.
+    Rồi nó sai y như vậy lần thứ hai, và tệ hơn: `draft_assessment` nhận tới năm mươi câu trong một
+    job, mỗi câu một lời gọi model, nên trường hợp xấu nhất thật sự là 50 x LLM_MAX_ATTEMPTS lời gọi
+    trong khi hàm này so với một. Task đó bị khai tử chứ không phải con số được nâng lên -- một job
+    được cho năm mươi phút là một job BE thôi phân biệt được với một worker đã chết -- và nay mọi
+    task đều nằm gọn trong số lần thử của đúng một câu.
 
-    What this function cannot see is a **new** loop. Twice now the lie came
-    from a handler multiplying model calls by something this arithmetic does
-    not know about, so a handler that loops over a count is a review finding,
-    not a check failure.
+    Thứ hàm này **không** thấy được là một vòng lặp **mới**. Hai lần rồi, lời nói dối đều đến từ một
+    handler nhân số lời gọi model lên bằng một thứ mà phép tính ở đây không biết, nên một handler
+    lặp theo một con số là một phát hiện của review, không phải một check đỏ.
 
     Returns:
-        None when the worst-case job fits inside BE's patience, otherwise a
-        failure message naming every number involved.
+        None khi job ở trường hợp xấu nhất vẫn nằm gọn trong độ kiên nhẫn của BE, ngược lại là một
+        thông báo thất bại kèm mọi con số liên quan.
     """
     from agent.config import Settings as AgentSettings
     from be.config import Settings as BeSettings
@@ -183,12 +197,12 @@ def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
 
 
 def check_contract_files_stay_short() -> str | None:
-    """Length caps are the only workable proxy for "do not restate the root".
+    """Cap số dòng là phép đo gián tiếp duy nhất dùng được cho luật "đừng kể lại file gốc".
 
-    A file already at its cap has no room to copy a rule from AGENTS.md.
+    Một file đã sát cap thì không còn chỗ để chép một luật từ AGENTS.md sang.
 
     Returns:
-        None when every file is within its cap, otherwise a failure message.
+        None khi mọi file đều trong cap của nó, ngược lại là một thông báo thất bại.
     """
     problems = []
 
@@ -212,12 +226,12 @@ def check_contract_files_stay_short() -> str | None:
 
 
 def check_named_dev_tasks_exist() -> str | None:
-    """Every dev.ps1 task named in AGENTS.md must actually be runnable.
+    """Mọi task của dev.ps1 được AGENTS.md nêu tên phải thật sự chạy được.
 
-    Guards the Validation table against drifting away from the script it names.
+    Canh cho bảng Validation không trôi xa khỏi chính script mà nó nêu tên.
 
     Returns:
-        None when every named task exists, otherwise a failure message.
+        None khi mọi task được nêu tên đều tồn tại, ngược lại là một thông báo thất bại.
     """
     script = (REPO_ROOT / "dev.ps1").read_text(encoding="utf-8")
     match = re.search(r"\[ValidateSet\(([^)]*)\)\]", script)
@@ -233,45 +247,81 @@ def check_named_dev_tasks_exist() -> str | None:
     return None
 
 
-def check_no_tool_changes_an_assessment_state() -> str | None:
-    """The assistant writes content; a teacher decides whether it is released.
+def _code_only(source: str) -> list[str]:
+    """Trả lại từng dòng của một file Python với comment và string bị xoá trắng.
 
-    ADR-05 puts three gates around the agent, and the first is that a teacher
-    approves an assessment before it reaches students. ADR-02 adds that
-    publishing takes six parameters through a form and a confirmation dialog,
-    never the chat flow. Both of those are promises about what the assistant
-    *cannot* do, and a promise like that is worth exactly as much as the thing
-    enforcing it.
+    Giữ nguyên số dòng và số cột -- mỗi ký tự bị bỏ thay bằng một dấu cách -- để cái
+    regex chạy sau đó còn báo đúng số dòng cho người đọc.
 
-    So the agent's tools may write content -- creating a draft and filling it
-    are reversible while the paper is unapproved -- but they may not touch the
-    lifecycle. `advance` and `withdraw` in `be/assessment_state.py` are the only
-    ways an assessment changes state, and this check refuses a tool file that so
-    much as names them. It also refuses `.state =`, because a gate nobody has to
-    walk through is not a gate: assigning the column directly reaches ADR-01's
-    forbidden outcome while skipping the edge table as well.
+    Tồn tại vì luật trước đó bỏ qua những dòng **bắt đầu** bằng `#` hay một dấu nháy,
+    và một dòng ở giữa docstring thì không bắt đầu bằng cái nào cả. Comment của chính
+    luật đó lại hứa rằng comment và docstring được miễn, nên luật và lời hứa của nó
+    lệch nhau ở đúng chỗ đau nhất: một người sửa comment viết `advance(` trong một
+    docstring cho tự nhiên, rồi thấy một đợt sửa chữ làm đỏ một invariant. Lọc bằng
+    tokenize thì không còn khoảng cách đó -- và một tên hàm nằm trong string literal
+    cũng thôi bị tính.
 
-    Blunter than reading the call graph, and deliberately so: the failure mode
-    worth preventing is somebody reaching for the convenient import while
-    adding a tool, and a grep catches that on the commit rather than in review.
+    Args:
+        source: Nội dung một file Python đọc được.
 
     Returns:
-        None when the tool file is clean, otherwise a failure message naming
-        every offending line.
+        Các dòng, chỉ còn phần code.
+
+    Raises:
+        tokenize.TokenError: Nếu file không tokenize được, tức nó đã hỏng từ trước.
+    """
+    lines = source.splitlines()
+    blanked = [list(line) for line in lines]
+
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type not in _PROSE_TOKENS:
+            continue
+        (start_row, start_col), (end_row, end_col) = token.start, token.end
+        for row in range(start_row, end_row + 1):
+            chars = blanked[row - 1]
+            first = start_col if row == start_row else 0
+            last = end_col if row == end_row else len(chars)
+            for column in range(first, min(last, len(chars))):
+                chars[column] = " "
+
+    return ["".join(chars) for chars in blanked]
+
+
+def check_no_tool_changes_an_assessment_state() -> str | None:
+    """Trợ lý viết nội dung; giáo viên quyết nội dung đó có được phát hành hay không.
+
+    ADR-05 đặt ba cổng quanh agent, và cổng thứ nhất là giáo viên duyệt một đề trước khi nó tới tay
+    học sinh. ADR-02 thêm rằng phát hành cần sáu tham số đi qua một biểu mẫu và một hộp xác nhận,
+    không bao giờ qua khung chat. Cả hai đều là lời hứa về những việc trợ lý **không thể** làm, và
+    một lời hứa như thế đáng giá đúng bằng thứ đang thi hành nó.
+
+    Vậy nên tool của agent được viết nội dung -- tạo một đề nháp và lấp câu vào đó đều đảo ngược
+    được khi đề chưa duyệt -- nhưng không được chạm vào vòng đời. `advance` và `withdraw` trong
+    `be/assessment_state.py` là hai đường duy nhất một đề đổi state, và check này từ chối một file
+    tool chỉ cần **nhắc tên** chúng. Nó cũng từ chối `.state =`, vì một cổng không ai buộc phải đi
+    qua thì không phải cổng: gán thẳng vào cột là đạt đúng kết quả ADR-01 cấm, mà còn bỏ qua luôn cả
+    bảng cạnh.
+
+    Thô hơn việc đọc call graph, và thô có chủ ý: thất bại đáng ngăn là việc có người với tay lấy
+    cái import cho tiện trong lúc thêm một tool, mà một phép grep bắt được đúng lúc commit chứ không
+    phải lúc review.
+
+    Phép grep chỉ chạy trên **phần code**: `_code_only` xoá trắng mọi comment và mọi string trước.
+    Nghĩa là một docstring được phép gọi tên luật mà nó đang giải thích, kể cả có dấu ngoặc đơn, và
+    một tên hàm nằm trong string literal thì không bị tính.
+
+    Returns:
+        None khi file tool sạch, ngược lại là một thông báo thất bại kèm mọi dòng vi phạm.
     """
     tools = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_tools.py"
     if not tools.exists():
         return _fail("tools-decide-nothing", f"{tools} is missing; the check cannot run")
 
-    offenders = []
-    for number, line in enumerate(tools.read_text(encoding="utf-8").splitlines(), 1):
-        stripped = line.lstrip()
-        if stripped.startswith("#") or stripped.startswith('"'):
-            # Comments and docstrings explain the rule, so they are allowed to
-            # name it. Only code is being checked.
-            continue
-        if LIFECYCLE_VERBS.search(line):
-            offenders.append(f"{tools.name}:{number}")
+    offenders = [
+        f"{tools.name}:{number}"
+        for number, line in enumerate(_code_only(tools.read_text(encoding="utf-8")), 1)
+        if LIFECYCLE_VERBS.search(line)
+    ]
 
     if offenders:
         return _fail(
@@ -295,13 +345,13 @@ CHECKS = (
 
 
 def main() -> int:
-    """Run every repo-level check and report all failures, not just the first.
+    """Chạy mọi check tầm repo và báo **tất cả** thất bại, không chỉ cái đầu tiên.
 
     Returns:
-        0 when everything passes, 1 otherwise.
+        0 khi mọi thứ đạt, ngược lại 1.
 
     Side effects:
-        Writes results to stdout.
+        Ghi kết quả ra stdout.
     """
     failures = [message for check in CHECKS if (message := check()) is not None]
 

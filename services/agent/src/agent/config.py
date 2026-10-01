@@ -1,7 +1,7 @@
-"""AGENT configuration, read from the environment.
+"""Cấu hình của AGENT, đọc từ environment.
 
-Note what is absent: no database URL. AGENT holds no persistence credentials,
-so a submission must arrive carrying everything needed to grade it.
+Để ý thứ không có mặt: không có database URL. AGENT không giữ credential của tầng
+lưu trữ nào, nên một bài nộp phải tới kèm theo mọi thứ cần để chấm nó.
 """
 
 from functools import lru_cache
@@ -9,39 +9,38 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Anchored to the repository root rather than left relative to the working
-# directory. Relative, it silently resolves to nothing when a process starts
-# from its own service folder -- and a missing .env is not an error, it is a
-# full set of defaults. The symptom is the worst kind: a key that is not there,
-# a switch that stays off, and no message anywhere saying so.
+# Neo vào gốc repo thay vì để tương đối theo thư mục làm việc. Nếu để tương đối,
+# nó âm thầm trỏ vào hư không khi một process khởi động từ thư mục service của
+# chính nó -- mà một file .env thiếu không phải lỗi, nó là một bộ default đầy đủ.
+# Triệu chứng thuộc loại tệ nhất: một key không có ở đó, một công tắc vẫn tắt, và
+# không một dòng thông báo nào nói ra điều đó.
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 
 
 class Settings(BaseSettings):
-    """Runtime settings for the AGENT worker.
+    """Các setting runtime của worker AGENT.
 
     Attributes:
-        redis_url: Connection string for the Redis instance shared with BE.
-        agent_queue_name: Queue to consume from. Must match BE's value or the
-            worker idles while jobs pile up somewhere else.
-        job_result_ttl_seconds: How long a finished result stays readable by BE.
-        llm_enabled: Whether handlers call a real model. False keeps the
-            prepared content, which is what every test runs against and what a
-            demo falls back to when no key is configured.
-        llm_provider: Provider name LangChain understands, e.g. "openai".
-        llm_model: Model id at that provider. No default worth having: a wrong
-            id is a failed call, so this must be set deliberately.
-        openai_api_key: Credential for the OpenAI provider.
-        google_api_key: Credential for the Gemini provider. Empty means the
-            fallback chain has nowhere to fall, which is allowed.
-        llm_fallback_provider: Provider tried when the first one raises.
-        llm_fallback_model: Model id at the fallback provider.
-        llm_timeout_seconds: Ceiling on one model call.
-        llm_max_attempts: How many times one job may ask the model before
-            giving up. It lives here rather than beside the loop it governs
-            because BE's patience for a job has to cover all of them, and
-            `tools/check_contract.py` can only check that if it can read the
-            number.
+        redis_url: Chuỗi kết nối tới Redis dùng chung với BE.
+        agent_queue_name: Queue cần tiêu thụ. Phải trùng giá trị của BE, không thì
+            worker ngồi không trong khi job dồn lại ở một chỗ khác.
+        job_result_ttl_seconds: Kết quả đã xong còn đọc được bởi BE trong bao lâu.
+        llm_enabled: Handler có gọi model thật hay không. False thì giữ nội dung
+            dọn trước, đó là thứ mọi test chạy trên, và là thứ một buổi demo lùi về
+            khi không có key nào được cấu hình.
+        llm_provider: Tên provider mà LangChain hiểu, ví dụ "openai".
+        llm_model: Id model tại provider đó. Không có default nào đáng có: một id
+            sai là một lần gọi thất bại, nên phải đặt nó một cách có chủ ý.
+        openai_api_key: Credential cho provider OpenAI.
+        google_api_key: Credential cho provider Gemini. Rỗng nghĩa là chuỗi
+            fallback không có chỗ nào để lùi về, và điều đó được phép.
+        llm_fallback_provider: Provider được thử khi provider đầu raise.
+        llm_fallback_model: Id model tại provider fallback.
+        llm_timeout_seconds: Trần thời gian cho một lần gọi model.
+        llm_max_attempts: Một job được hỏi model bao nhiêu lần trước khi bỏ. Nó
+            nằm ở đây chứ không nằm cạnh cái loop nó điều khiển, vì mức kiên nhẫn
+            của BE với một job phải phủ hết số lần đó, và `tools/check_contract.py`
+            chỉ check được điều ấy nếu nó đọc được con số.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -63,9 +62,10 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return the process-wide settings instance.
+    """Trả về instance settings dùng chung cho cả process.
 
     Returns:
-        A cached Settings object, so the .env file is read once per process.
+        Một đối tượng Settings đã cache, nhờ vậy file .env chỉ được đọc một lần
+        mỗi process.
     """
     return Settings()

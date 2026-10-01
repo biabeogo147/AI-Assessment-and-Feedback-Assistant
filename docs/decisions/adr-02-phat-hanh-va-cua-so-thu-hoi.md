@@ -57,7 +57,9 @@ một con số dựng sẵn.
 ## Nơi luật này đang được thi hành
 
 - `services/be/src/be/models.py` — `Publication` có khoá chính **kép** `(assessment_id, class_id)`,
-  nên một đề phát hành được cho nhiều lớp với sáu tham số riêng mỗi lớp. Đây là thứ làm cho điều khoản
+  nên một đề phát hành được cho nhiều lớp, mỗi lớp một bộ năm cài đặt riêng — tham số **thứ nhất**
+  trong sáu tham số ở mục trên là **lớp**, và ở bảng này nó là nửa còn lại của khoá chứ không phải một
+  cột cài đặt. Đây là thứ làm cho điều khoản
   *phát hành có thể thất bại một phần* ở mục **Quyết định** trở nên **biểu diễn được**: trước đó model
   chỉ giữ nổi một bộ hạn cho một đề, nên "một lớp nhận được, lớp khác không" không có chỗ để tồn tại.
 - `services/be/src/be/models.py` — `Attempt.class_id` ghi lớp lúc bắt đầu làm bài, vì "hạn của đề

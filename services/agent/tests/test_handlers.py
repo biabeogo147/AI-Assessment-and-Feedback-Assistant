@@ -1,12 +1,12 @@
-"""Legacy grading handler behaviour.
+"""Hành vi của handler chấm bài cũ.
 
-ADR-20 moved multiple-choice grading into BE. These tests stay because the
-invariants they guard -- above all "AGENT emits no routing decision" -- outlive
-the path they run on.
+ADR-20 đã chuyển việc chấm trắc nghiệm vào BE. Các test này còn ở đây vì những invariant
+chúng canh -- trên hết là "AGENT không phát ra quyết định định tuyến nào" -- sống lâu hơn
+cái đường mà chúng chạy trên.
 
-The scoring rules under test are placeholders and will be replaced by a real
-model call. The boundary property they encode is not a placeholder, so it is
-tested explicitly: AGENT must never emit a routing decision.
+Các luật tính điểm đang được test chỉ là tạm và sẽ được thay bằng một lần gọi model thật.
+Tính chất về ranh giới mà chúng mã hoá thì không phải thứ tạm, nên nó được test một cách
+tường minh: AGENT không bao giờ được phát ra một quyết định định tuyến.
 """
 
 import pytest
@@ -30,7 +30,7 @@ def _request(**overrides) -> GradingRequested:
 
 
 def test_agent_emits_no_routing_decision() -> None:
-    """The teacher-in-the-loop gate must stay outside the AI service."""
+    """Cổng teacher-in-the-loop phải nằm ngoài service AI."""
     result = grade(_request()).model_dump()
     assert "needs_teacher_review" not in result
     assert "review_reason" not in result
@@ -50,7 +50,7 @@ def test_wrong_answer_reports_a_misconception_code() -> None:
 
 
 def test_missing_explanation_lowers_confidence() -> None:
-    """Without reasoning the multiple-choice answer alone is weak evidence."""
+    """Không có lập luận thì một đáp án trắc nghiệm đứng một mình là bằng chứng yếu."""
     result = grade(_request(student_explanation=None))
     assert result.confidence < 0.7
     assert result.has_sufficient_evidence is True

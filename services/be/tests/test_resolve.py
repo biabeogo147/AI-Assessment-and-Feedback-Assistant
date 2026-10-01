@@ -1,16 +1,15 @@
-"""Turning what a teacher typed into a row, or refusing to guess.
+"""Biến thứ giáo viên gõ vào thành một dòng dữ liệu, hoặc từ chối đoán.
 
-`classes.name` is not unique, so a name is not an identifier. Every tool that
-takes a class has to get one from somewhere, and the only honest answers are
-"this one", "one of these -- which?" and "none of yours". Picking the first row
-would be the fourth answer, the wrong one, and the one nobody would notice:
-the assistant would read another class's marks and say so confidently.
+`classes.name` không unique, nên một cái tên không phải một identifier. Mọi tool
+nhận vào một lớp đều phải lấy nó từ đâu đó, và chỉ có ba câu trả lời trung thực:
+"lớp này đây", "một trong mấy lớp này — lớp nào?" và "không lớp nào của bạn". Chọn
+lấy dòng đầu tiên sẽ là câu trả lời thứ tư, câu sai, và là câu không ai nhận ra:
+trợ lý sẽ đọc điểm của một lớp khác rồi nói ra một cách đầy tự tin.
 
-That refusal to guess is ADR-05's input gate, and ADR-23 is where it is
-written down. What these tests pin is the part a prompt cannot hold: the
-candidates offered in a clarifying question come from rows BE read, and a
-class belonging to another teacher is answered exactly like a class that does
-not exist (ADR-22).
+Việc từ chối đoán đó là cổng đầu vào của ADR-05, và ADR-23 là nơi nó được ghi xuống.
+Điều các test này pin lại là phần mà một prompt không giữ nổi: các candidate đưa ra
+trong một câu hỏi làm rõ đều tới từ những dòng BE đã đọc, và một lớp thuộc về giáo
+viên khác được trả lời giống y một lớp không tồn tại (ADR-22).
 """
 
 import unicodedata
@@ -31,7 +30,7 @@ from be.teacher_tools import execute
 
 @pytest_asyncio.fixture
 async def stack():
-    """A seeded database plus a second teacher who owns a class of their own."""
+    """Một database đã seed, cộng một giáo viên thứ hai có lớp riêng của mình."""
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -58,7 +57,7 @@ async def _mine(session) -> Asking:
 
 
 async def _add_class(session, asking: Asking, name: str, students: int = 0) -> SchoolClass:
-    """Give the asking teacher one more class, with a roster of its own."""
+    """Cho giáo viên đang hỏi thêm một lớp nữa, kèm danh sách học sinh riêng."""
     school_class = SchoolClass(teacher_id=asking.teacher_id, name=name)
     session.add(school_class)
     await session.flush()
@@ -76,7 +75,7 @@ async def _add_class(session, asking: Asking, name: str, students: int = 0) -> S
 
 @pytest.mark.asyncio
 async def test_a_name_that_matches_one_class_resolves(stack) -> None:
-    """The ordinary case, and the one every other answer is measured against."""
+    """Ca bình thường, và cũng là ca mà mọi câu trả lời khác đem ra đo với nó."""
     async with stack() as session:
         asking = await _mine(session)
 
@@ -89,11 +88,10 @@ async def test_a_name_that_matches_one_class_resolves(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_case_and_the_word_lop_do_not_matter(stack) -> None:
-    """Teachers type "lớp 12a", not a normalised identifier.
+    """Giáo viên gõ "lớp 12a", không gõ một identifier đã chuẩn hoá.
 
-    Refusing that would push the assistant into asking a question whose answer
-    it already has, which teaches teachers to distrust the clarifying question
-    when it matters.
+    Từ chối cách gõ đó sẽ đẩy trợ lý vào chỗ hỏi một câu mà nó đã có sẵn câu trả lời,
+    và điều đó dạy giáo viên thôi tin vào câu hỏi làm rõ ngay lúc nó thật sự cần.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -105,12 +103,12 @@ async def test_case_and_the_word_lop_do_not_matter(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_two_classes_of_the_same_name_ask_rather_than_pick(stack) -> None:
-    """Both rows come back as candidates, and neither is chosen.
+    """Cả hai dòng trở về dưới dạng candidate, và không dòng nào được chọn.
 
-    `classes.name` has no unique constraint precisely because this happens --
-    a teacher may run two sections called 12A across years. The candidates
-    carry their roster sizes so the question can distinguish them by something
-    a teacher recognises; ADR-05 forbids marking either as the one to pick.
+    `classes.name` không có unique constraint chính vì chuyện này xảy ra — một giáo
+    viên có thể dạy hai lớp cùng gọi là 12A ở hai năm khác nhau. Các candidate mang
+    theo số học sinh để câu hỏi phân biệt được chúng bằng thứ giáo viên nhận ra;
+    ADR-05 cấm đánh dấu bất cứ candidate nào là cái nên chọn.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -126,11 +124,11 @@ async def test_two_classes_of_the_same_name_ask_rather_than_pick(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_partial_name_offers_the_classes_it_could_mean(stack) -> None:
-    """ "12" with a 12A and a 12B is a question, not a failure.
+    """ "12" khi có cả 12A và 12B là một câu hỏi, không phải một thất bại.
 
-    Without this the assistant would answer "no such class" to a teacher who
-    named a real one imprecisely, which reads as the system having lost their
-    data.
+    Không có điều này, trợ lý sẽ đáp "không có lớp nào như vậy" với một giáo viên gọi
+    tên một lớp thật nhưng gọi chưa chính xác, và câu đó đọc ra như hệ thống đã làm mất
+    dữ liệu của họ.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -144,11 +142,11 @@ async def test_a_partial_name_offers_the_classes_it_could_mean(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_an_exact_name_wins_over_a_longer_one_containing_it(stack) -> None:
-    """ "12A" resolves when both 12A and 12A1 exist.
+    """ "12A" vẫn phân giải được khi tồn tại cả 12A và 12A1.
 
-    Substring matching is what makes a partial name useful, and it is also
-    what would make an exact name ambiguous. The exact match is tried first,
-    so naming a class precisely always works.
+    So khớp theo chuỗi con là thứ làm một cái tên chưa đủ trở nên hữu dụng, và cũng là
+    thứ sẽ làm một cái tên chính xác thành nhập nhằng. Lượt khớp chính xác được thử
+    trước, nên gọi tên một lớp cho đúng thì luôn có tác dụng.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -162,11 +160,10 @@ async def test_an_exact_name_wins_over_a_longer_one_containing_it(stack) -> None
 
 @pytest.mark.asyncio
 async def test_nothing_of_this_teachers_matches_and_the_list_says_what_does(stack) -> None:
-    """A refusal that names the teacher's own classes.
+    """Một lời từ chối có kèm tên các lớp của chính giáo viên đó.
 
-    "Không có lớp nào tên đó" on its own leaves a teacher guessing whether
-    they mistyped or whether the class is gone. The list turns the refusal
-    into the answer to the next question.
+    "Không có lớp nào tên đó" đứng một mình để giáo viên tự đoán xem họ gõ sai hay lớp
+    đã mất. Danh sách kèm theo biến lời từ chối thành câu trả lời cho câu hỏi tiếp theo.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -179,11 +176,11 @@ async def test_nothing_of_this_teachers_matches_and_the_list_says_what_does(stac
 
 @pytest.mark.asyncio
 async def test_another_teachers_class_is_answered_as_if_it_did_not_exist(stack) -> None:
-    """ADR-22, enforced here rather than promised.
+    """ADR-22, ở đây được thi hành chứ không chỉ được hứa.
 
-    Two different refusals would be a probe: type names until the wording
-    changes and you have mapped the school. The list of the asking teacher's
-    own classes is the same in both answers, so there is nothing to compare.
+    Hai lời từ chối khác nhau sẽ thành một cái máy dò: gõ hết các tên cho tới khi câu
+    chữ đổi là bạn đã vẽ xong bản đồ cả trường. Danh sách lớp của chính giáo viên đang
+    hỏi giống nhau trong cả hai câu trả lời, nên không còn gì để mà so.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -198,11 +195,10 @@ async def test_another_teachers_class_is_answered_as_if_it_did_not_exist(stack) 
 
 @pytest.mark.asyncio
 async def test_an_empty_name_is_not_found_rather_than_everything(stack) -> None:
-    """A blank argument must not match every class by substring.
+    """Một tham số trắng không được phép khớp mọi lớp theo chuỗi con.
 
-    The model fills these arguments, and an omitted one arrives as "". Without
-    this the assistant would silently resolve to whichever class happened to
-    be first.
+    Model là bên điền các tham số này, và một tham số bị bỏ qua sẽ tới nơi dưới dạng "".
+    Không có điều này, trợ lý sẽ âm thầm phân giải về đúng cái lớp tình cờ đứng đầu.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -214,11 +210,11 @@ async def test_an_empty_name_is_not_found_rather_than_everything(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_find_class_hands_the_ambiguity_to_the_loop(stack) -> None:
-    """The tool reports candidates instead of raising or guessing.
+    """Tool báo ra các candidate thay vì ném exception hay đoán.
 
-    The loop feeds this back to the model as data, so the clarifying question
-    is phrased by the assistant from rows BE read. That is the half of ADR-05
-    that cannot live in a prompt.
+    Vòng lặp đưa cái đó về cho model dưới dạng dữ liệu, nên câu hỏi làm rõ do trợ lý
+    diễn đạt nhưng dựa trên những dòng BE đã đọc. Đó là nửa của ADR-05 không thể sống
+    trong một prompt.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -234,11 +230,11 @@ async def test_find_class_hands_the_ambiguity_to_the_loop(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_class_with_no_students_still_resolves(stack) -> None:
-    """A roster size of zero is a number, not a missing class.
+    """Số học sinh bằng không là một con số, không phải một lớp bị thiếu.
 
-    `outerjoin` plus `count` is what makes this work, and it is the kind of
-    query that silently returns nothing when written with an inner join -- so
-    a brand-new class would vanish from every answer.
+    `outerjoin` cộng `count` là thứ làm chuyện này chạy được, và nó thuộc loại query âm
+    thầm trả về rỗng khi viết bằng inner join — khi đó một lớp vừa mới lập sẽ biến mất
+    khỏi mọi câu trả lời.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -252,12 +248,12 @@ async def test_a_class_with_no_students_still_resolves(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_name_written_exactly_as_stored_wins_over_normalising(stack) -> None:
-    """Two classes differing only in spacing stay reachable.
+    """Hai lớp chỉ khác nhau ở khoảng trắng thì vẫn gọi tới được.
 
-    "12A" and "12 A" normalise to the same string, so on the normalised
-    comparison alone they are ambiguous forever -- and no string a teacher
-    could type would ever pick one. Trying the stored spelling first gives
-    both of them a way in, without weakening the refusal to guess.
+    "12A" và "12 A" chuẩn hoá về cùng một chuỗi, nên nếu chỉ dựa vào phép so sau chuẩn
+    hoá thì chúng nhập nhằng mãi mãi — và không chuỗi nào giáo viên gõ được sẽ chọn ra
+    một trong hai. Thử đúng cách viết đã lưu trước tiên cho cả hai một đường vào, mà
+    không làm yếu đi nguyên tắc từ chối đoán.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -274,10 +270,10 @@ async def test_a_name_written_exactly_as_stored_wins_over_normalising(stack) -> 
 
 @pytest.mark.asyncio
 async def test_the_word_lop_may_carry_punctuation_or_no_space(stack) -> None:
-    """Teachers type "Lớp: 12A" and "lớp12A" too.
+    """Giáo viên cũng gõ cả "Lớp: 12A" và "lớp12A".
 
-    Every one of these was a not-found answer before, which reads to a teacher
-    as the system having lost a class they are standing in front of.
+    Trước đây mọi cách gõ này đều nhận về câu không-tìm-thấy, và với giáo viên thì câu
+    đó đọc ra như hệ thống đã làm mất cái lớp họ đang đứng trước mặt.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -289,11 +285,11 @@ async def test_the_word_lop_may_carry_punctuation_or_no_space(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_decomposed_name_matches_a_composed_one(stack) -> None:
-    """The same Vietnamese word in two Unicode spellings is one word.
+    """Cùng một từ tiếng Việt viết theo hai cách Unicode vẫn là một từ.
 
-    macOS and iOS send decomposed text, so "lớp" can arrive as "l" + "o" +
-    U+031B + "p". Without normalising the form, a teacher on a Mac gets
-    not-found for every class they name.
+    macOS và iOS gửi văn bản ở dạng phân rã, nên "lớp" có thể tới nơi dưới dạng "l" +
+    "o" + U+031B + "p". Không chuẩn hoá dạng đó thì một giáo viên dùng Mac sẽ nhận
+    không-tìm-thấy cho mọi lớp họ gọi tên.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -309,12 +305,11 @@ async def test_a_decomposed_name_matches_a_composed_one(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_missing_name_says_so_instead_of_searching_for_none(stack) -> None:
-    """`{"name": null}` is an omitted argument, not a class called "none".
+    """`{"name": null}` là một tham số bị bỏ qua, không phải một lớp tên là "none".
 
-    `str(None)` is "none", which would be searched for, matched against any
-    class whose name contained it, and otherwise reported as "no class of
-    yours by that name" -- the wrong sentence for a question that never named
-    a class.
+    `str(None)` ra "none", và chuỗi đó sẽ được đem đi tìm, khớp với bất cứ lớp nào có tên
+    chứa nó, còn không thì bị báo là "không có lớp nào của bạn tên vậy" — câu sai cho một
+    câu hỏi chưa từng gọi tên một lớp nào.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -327,18 +322,17 @@ async def test_a_missing_name_says_so_instead_of_searching_for_none(stack) -> No
 
 @pytest.mark.asyncio
 async def test_a_summary_refusal_names_the_assessments_that_do_exist(stack) -> None:
-    """An empty refusal is an invitation to invent.
+    """Một lời từ chối trống rỗng là một lời mời bịa ra.
 
-    Measured on the first real-model run: `class_assessment_summary` answered
-    `{"found": false, "reason": "không tìm thấy..."}` with no list, and
-    gpt-4o-mini filled the vacuum with "12A1, 12A2, 12B1, 12B2" -- four
-    classes that do not exist, stated to a teacher with the system's
-    authority behind them.
+    Đo được ở lần chạy với model thật đầu tiên: `class_assessment_summary` trả về
+    `{"found": false, "reason": "không tìm thấy..."}` mà không kèm danh sách, và
+    gpt-4o-mini lấp khoảng trống đó bằng "12A1, 12A2, 12B1, 12B2" — bốn lớp không tồn
+    tại, nói ra với giáo viên kèm theo cả uy tín của hệ thống đứng sau.
 
-    ADR-23 already had the answer for `find_class`: a refusal carries the rows
-    that do exist. This applies it to the other tool, which also closes the
-    gap the same run exposed -- nothing in the catalog told the model which
-    assessment to ask about, so it had to guess an id.
+    ADR-23 vốn đã có câu trả lời cho `find_class`: một lời từ chối mang theo những dòng
+    thật sự tồn tại. Chỗ này áp dụng điều đó cho tool còn lại, và cũng lấp luôn khoảng
+    hở mà chính lần chạy ấy phơi ra — chẳng có gì trong catalog nói cho model biết nên
+    hỏi về đề nào, nên nó phải đoán một id.
     """
     async with stack() as session:
         asking = await _mine(session)
@@ -353,7 +347,7 @@ async def test_a_summary_refusal_names_the_assessments_that_do_exist(stack) -> N
         )
 
     assert answer["found"] is False
-    # The real thing, so the next question can name it instead of inventing one.
+    # Đề thật, để câu hỏi tiếp theo gọi tên nó được thay vì bịa ra một cái.
     titles = [entry["title"] for entry in answer["assessments_in_this_class"]]
     assert titles == ["Kiểm tra 15 phút — Hàm số"]
     assert all(entry["assessment_id"] for entry in answer["assessments_in_this_class"])

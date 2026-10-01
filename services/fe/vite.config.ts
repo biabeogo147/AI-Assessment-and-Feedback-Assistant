@@ -3,11 +3,11 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 /**
- * Vite configuration for the FE dev server.
+ * Cấu hình Vite cho dev server của FE.
  *
- * The `/api` proxy is what keeps the browser on a single origin: without it the
- * app would call BE cross-origin and need CORS on the server. Proxying is the
- * cheaper of the two and keeps BE free of frontend-specific configuration.
+ * Proxy `/api` là thứ giữ browser ở đúng một origin: không có nó thì app sẽ gọi
+ * BE cross-origin và server phải bật CORS. Proxy là phương án rẻ hơn trong hai
+ * cách, và giữ cho BE không phải chứa cấu hình riêng của frontend.
  */
 export default defineConfig({
   plugins: [react()],

@@ -1,8 +1,8 @@
-"""What the authoring handlers must keep true when a real model replaces them.
+"""Những gì các handler soạn nội dung phải giữ đúng khi một model thật thay chúng.
 
-Not one assertion here reads a sentence the mock writes. Every one checks a
-property the swap must preserve: the shape ADR-18 requires, the difference
-ADR-17 requires between rounds, and the absence of any verdict.
+Không một assertion nào ở đây đọc một câu chữ mock viết ra. Mỗi assertion đều check một
+tính chất mà việc thay thế phải bảo toàn: hình dạng ADR-18 đòi, sự khác biệt giữa các
+lượt mà ADR-17 đòi, và sự vắng mặt của mọi phán xét.
 """
 
 import pytest
@@ -35,7 +35,7 @@ _ORIGIN = GeneratedQuestion(
 
 
 def _assert_adr_18(question: GeneratedQuestion) -> None:
-    """Assert the three rules ADR-18 puts on any generated question."""
+    """Khẳng định ba luật ADR-18 đặt lên mọi câu hỏi được sinh ra."""
     correct = [option for option in question.options if option.is_correct]
     assert len(correct) == 1, "exactly one option may be correct"
     assert all(option.error_label for option in question.options if not option.is_correct), (
@@ -45,7 +45,7 @@ def _assert_adr_18(question: GeneratedQuestion) -> None:
 
 
 def test_every_question_of_a_draft_satisfies_the_authoring_rules() -> None:
-    """One job writes one question now, so the set is checked one at a time."""
+    """Giờ một job viết một câu, nên cả bộ được check từng câu một."""
     for ordinal in range(1, 5):
         result = draft_question(
             DraftQuestionRequested(
@@ -61,7 +61,7 @@ def test_every_question_of_a_draft_satisfies_the_authoring_rules() -> None:
 
 
 def test_a_draft_reports_no_verdict() -> None:
-    """AGENT writes questions; whether they may be published is not its call."""
+    """AGENT viết câu hỏi; chuyện chúng có được phát hành hay không không phải việc của nó."""
     payload = draft_question(
         DraftQuestionRequested(
             request_id="r1",
@@ -77,7 +77,7 @@ def test_a_draft_reports_no_verdict() -> None:
 
 
 def test_a_retry_question_differs_from_the_question_it_replaces() -> None:
-    """ADR-17: a retry keeps the shape, not the content -- otherwise recall passes."""
+    """ADR-17: một lượt làm lại giữ hình dạng, không giữ nội dung -- không thì học thuộc là qua."""
     result = retry_question(
         RetryQuestionRequested(
             request_id="r1", origin=_ORIGIN, wrong_option_label="B", round_index=1
@@ -88,7 +88,7 @@ def test_a_retry_question_differs_from_the_question_it_replaces() -> None:
 
 
 def test_later_rounds_do_not_repeat_an_earlier_stem() -> None:
-    """Round two must not be round one again, or memory beats understanding."""
+    """Lượt hai không được là lượt một lần nữa, không thì trí nhớ thắng sự hiểu."""
     first = retry_question(
         RetryQuestionRequested(
             request_id="r1", origin=_ORIGIN, wrong_option_label="B", round_index=1
@@ -111,7 +111,7 @@ def test_later_rounds_do_not_repeat_an_earlier_stem() -> None:
 
 
 def test_the_opening_turn_names_the_whole_paper() -> None:
-    """The assistant covers the assessment, so its first words say so."""
+    """Trợ lý bao cả bộ đề, nên những lời đầu tiên của nó nói ra điều đó."""
     reply = explain_turn(
         ExplainTurnRequested(request_id="r1", questions=(_ORIGIN,), student_text="")
     )
@@ -119,7 +119,7 @@ def test_the_opening_turn_names_the_whole_paper() -> None:
 
 
 def test_an_answer_follows_the_authored_mistake_instead_of_guessing() -> None:
-    """ADR-18 turned diagnosis into a lookup; the handler must read, not infer."""
+    """ADR-18 biến việc chẩn đoán thành việc tra cứu; handler phải đọc, không được suy."""
     reply = explain_turn(
         ExplainTurnRequested(
             request_id="r1",
@@ -134,7 +134,7 @@ def test_an_answer_follows_the_authored_mistake_instead_of_guessing() -> None:
 
 
 def test_an_assistant_turn_carries_only_words() -> None:
-    """No score, no round count, no "ready to move on" -- those belong to BE."""
+    """Không điểm, không số lượt, không "đã sẵn sàng đi tiếp" -- những thứ đó thuộc về BE."""
     payload = explain_turn(
         ExplainTurnRequested(request_id="r1", questions=(_ORIGIN,), student_text="")
     ).model_dump()
@@ -151,7 +151,7 @@ def test_an_assistant_turn_carries_only_words() -> None:
     ],
 )
 def test_a_job_carries_its_own_content(payload) -> None:
-    """AGENT holds no database credentials, so nothing may arrive as a bare id."""
+    """AGENT không giữ credential database nào, nên không gì được tới dưới dạng một id trơ."""
     body = payload.model_dump()
     questions = [body["origin"]] if "origin" in body else body["questions"]
     for question in questions:

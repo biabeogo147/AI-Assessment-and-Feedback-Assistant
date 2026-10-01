@@ -1,18 +1,18 @@
-"""Shared vocabulary for the BE/AGENT contract.
+"""Từ vựng dùng chung cho hợp đồng giữa BE và AGENT.
 
-Naming follows the Phase 1 glossary in docs/overview/project-overview.md so the
-code and the business documentation stay readable against each other.
+Cách đặt tên theo bảng thuật ngữ Phase 1 trong docs/overview/project-overview.md, để code và tài
+liệu nghiệp vụ đọc đối chiếu được với nhau.
 """
 
 from enum import StrEnum
 
 
 class ReviewReason(StrEnum):
-    """Why a graded submission was routed into the Teacher Review Queue.
+    """Vì sao một bài đã chấm bị đưa vào Teacher Review Queue.
 
-    The four members mirror the four control points listed in
-    business-workflows.md Workflow 4. Confidence is only one of them, so a
-    boolean flag alone would lose information the Teacher needs.
+    Bốn thành viên ứng với bốn chốt kiểm soát mà business-workflows.md Workflow 4 liệt kê.
+    Confidence chỉ là một trong bốn, nên riêng một cờ boolean sẽ làm mất chính thông tin mà giáo
+    viên cần.
     """
 
     LOW_CONFIDENCE = "low_confidence"

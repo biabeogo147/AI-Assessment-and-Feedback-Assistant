@@ -5,17 +5,17 @@ import { go } from "../App";
 import { ErrorStrip, TimeCard, TopBar } from "../components";
 
 /**
- * Screen 21 — answering the questions of one remediation round.
+ * Màn 21 — trả lời các câu hỏi của một lượt làm lại.
  *
- * Same shape as the phase 1 screen on purpose: a student who just sat the
- * paper should not have to learn a second way of answering a question. What
- * differs is the heading, which names the original question and which round
- * this is, and the ceiling that comes with it (ADR-17).
+ * Cùng hình dạng với màn pha 1, và đó là cố ý: một học sinh vừa làm đề xong
+ * không phải học thêm cách thứ hai để trả lời một câu hỏi. Khác nhau ở phần tiêu
+ * đề, chỗ gọi tên câu gốc và cho biết đây là lượt thứ mấy, cùng cái mức trần đi
+ * kèm theo đó (ADR-17).
  *
- * The round is read back from where it was created rather than re-requested,
- * because opening a round is what spends one: a reload must not cost the
- * student one of their three. The clock is the server's, and when it reaches
- * zero the round is stopped, not extended (ADR-15).
+ * Lượt này được đọc lại từ nơi nó đã được tạo ra chứ không request lại, vì mở một
+ * lượt chính là tiêu một lượt: reload không được phép làm học sinh mất một trong
+ * ba lượt của mình. Đồng hồ là đồng hồ của server, và khi nó về không thì lượt bị
+ * dừng, không phải được gia hạn (ADR-15).
  */
 export default function Round({
   me,

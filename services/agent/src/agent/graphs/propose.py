@@ -1,20 +1,20 @@
-"""One turn of thinking for the teacher's chat: compose, then choose.
+"""Một lượt suy nghĩ cho khung chat của giáo viên: dựng prompt, rồi chọn.
 
-Two nodes, and the second one is a single structured call. That is smaller than
-the authoring graph on purpose -- there is no self-check loop here, because the
-thing being produced is not content anyone can validate. A proposal is either
-executed by BE or refused by BE, and BE is the only side that can tell which.
+Hai node, và node thứ hai là một lần gọi structured duy nhất. Nó nhỏ hơn graph soạn
+đề một cách có chủ ý -- ở đây không có loop tự check, vì thứ được sinh ra không phải
+nội dung ai cũng xác thực được. Một đề nghị thì hoặc được BE thực thi hoặc bị BE từ
+chối, và BE là phía duy nhất biết được là cái nào.
 
-What this module is careful about is the prompt. The model is choosing from a
-list of tools it has never seen before and reading data it did not fetch, so
-both have to arrive in a form it can act on: tool names spelled exactly as BE
-dispatches on them, and tool results as data rather than as prose about data.
+Thứ module này cẩn thận với là prompt. Model đang chọn từ một danh sách tool nó chưa
+từng thấy và đọc dữ liệu nó không tự lấy, nên cả hai phải tới dưới dạng nó làm việc
+được: tên tool viết đúng chính xác như cách BE dispatch, và kết quả tool ở dạng dữ
+liệu chứ không phải văn xuôi kể về dữ liệu.
 
-The system prompt carries three rules that are not style. AGENT may not claim
-to have done anything -- it proposes, BE acts (ADR-05). It may not tell the
-teacher which option to pick when the choice is pedagogical, because the
-teacher holds that authority. And it asks rather than guesses when a name could
-mean more than one thing, which is ADR-05's input gate.
+System prompt mang ba luật không phải chuyện văn phong. AGENT không được nhận là mình
+đã làm gì -- nó đề nghị, BE hành động (ADR-05). Nó không được nói với giáo viên nên
+chọn phương án nào khi lựa chọn đó là một quyết định sư phạm, vì giáo viên giữ thẩm
+quyền ấy. Và nó hỏi lại chứ không đoán khi một cái tên có thể mang nhiều nghĩa, đó là
+cổng kiểm đầu vào của ADR-05.
 """
 
 import json
@@ -82,13 +82,12 @@ Cách viết:
 
 
 class _Argument(BaseModel):
-    """One tool argument, as a name and a value.
+    """Một argument của tool, dưới dạng một tên và một giá trị.
 
-    A pair rather than a mapping, because a mapping with arbitrary keys is an
-    open-ended JSON object and strict structured output refuses those. Values
-    are strings: every argument the tools take today is one, and a typed union
-    here would be a schema branch the model has to choose between for no
-    benefit.
+    Một cặp chứ không phải một mapping, vì mapping với key tuỳ ý là một JSON object
+    mở và structured output ở chế độ strict từ chối những thứ đó. Giá trị là string:
+    mọi argument các tool nhận hôm nay đều là string, và một union có kiểu ở đây sẽ
+    là một nhánh schema mà model phải chọn giữa, chẳng được lợi gì.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -98,23 +97,23 @@ class _Argument(BaseModel):
 
 
 class _Proposal(BaseModel):
-    """What the model is asked for -- and nothing else.
+    """Đúng những gì model được hỏi -- và không gì khác.
 
-    Deliberately not `NextStepCompleted`. That type is the contract between
-    the services and carries two fields no model can answer: `request_id`,
-    which BE mints, and `model_tokens`, which the provider reports afterwards.
-    Handing the whole contract to `with_structured_output` put both of them in
-    front of the model as questions, and made `tool_args` -- a
-    `dict[str, object]` -- into an open object that OpenAI rejects outright:
+    Cố ý không phải `NextStepCompleted`. Type đó là hợp đồng giữa các service và mang
+    hai field không model nào trả lời được: `request_id`, do BE phát ra, và
+    `model_tokens`, do provider báo lại sau đó. Đưa cả hợp đồng cho
+    `with_structured_output` đặt cả hai field ấy trước mặt model như hai câu hỏi, và
+    biến `tool_args` -- một `dict[str, object]` -- thành một object mở mà OpenAI từ
+    chối thẳng:
 
         400 Invalid schema for response_format: In context=('properties',
         'tool_args'), 'additionalProperties' is required to be supplied and to
         be false.
 
-    Every real call therefore failed and fell back to prepared content, with
-    real-looking latencies and a plausible answer to hide it. This schema is
-    the fix and the lesson: a field in the schema is a question put to the
-    model, so ask only what it can answer, and close every object.
+    Thế là mọi lần gọi thật đều thất bại rồi lùi về nội dung dọn trước, với độ trễ
+    trông như thật và một câu trả lời nghe hợp lý che đi chuyện đó. Schema này là bản
+    sửa và cũng là bài học: một field trong schema là một câu hỏi đặt ra cho model,
+    nên chỉ hỏi những gì nó trả lời được, và đóng kín mọi object.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -125,17 +124,16 @@ class _Proposal(BaseModel):
     tool_args: tuple[_Argument, ...] = ()
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
-        """Turn the model's answer into the message BE reads.
+        """Biến câu trả lời của model thành message BE đọc.
 
         Args:
-            request_id: What BE asked under.
-            model_tokens: What the provider reported.
+            request_id: Id BE đã hỏi dưới.
+            model_tokens: Con số provider báo lại.
 
         Returns:
-            The proposal, with the two fields the model was never asked for.
-            `choices` stays empty: BE writes the options for a clarifying
-            question from the rows it read (ADR-23), so asking the model for
-            them would be asking for something that gets thrown away.
+            Đề nghị, kèm hai field model không bao giờ được hỏi. `choices` để rỗng:
+            BE tự viết các lựa chọn cho một câu hỏi lại từ những dòng nó đã đọc
+            (ADR-23), nên hỏi model lấy chúng là hỏi một thứ rồi bị ném đi.
         """
         return NextStepCompleted(
             request_id=request_id,
@@ -148,12 +146,12 @@ class _Proposal(BaseModel):
 
 
 class ProposeState(TypedDict):
-    """What flows through the two nodes.
+    """Những gì chảy qua hai node.
 
     Attributes:
-        request: The conversation and the catalog.
-        messages: What the model sees, filled by `compose`.
-        step: The proposal, filled by `choose`.
+        request: Cuộc hội thoại và danh mục tool.
+        messages: Những gì model thấy, do `compose` điền.
+        step: Đề nghị, do `choose` điền.
     """
 
     request: NextStepRequested
@@ -162,14 +160,14 @@ class ProposeState(TypedDict):
 
 
 def _describe_tool(tool: ToolSpec) -> str:
-    """Write one tool out for the model to choose from.
+    """Viết một tool ra để model chọn.
 
     Args:
-        tool: The tool as BE described it.
+        tool: Tool đúng như BE mô tả nó.
 
     Returns:
-        A block naming the tool exactly as BE dispatches on it, then what it
-        does, then its arguments.
+        Một khối gọi tên tool chính xác như cách BE dispatch, rồi tới việc nó làm,
+        rồi tới các argument của nó.
     """
     lines = [f"- {tool.name}: {tool.description}"]
     for argument, meaning in tool.arguments.items():
@@ -178,35 +176,35 @@ def _describe_tool(tool: ToolSpec) -> str:
 
 
 def _describe_result(turn: TurnRecord) -> str:
-    """Write a tool result out as data, not as a sentence about data.
+    """Viết kết quả tool ra dưới dạng dữ liệu, không phải một câu kể về dữ liệu.
 
-    JSON rather than prose because the model has to read values out of it --
-    an id it will pass to the next tool, a number it will quote to the teacher.
-    Prose invites rounding and invites invention.
+    JSON chứ không phải văn xuôi, vì model phải đọc các giá trị ra từ đó -- một id nó
+    sẽ truyền cho tool tiếp theo, một con số nó sẽ dẫn lại cho giáo viên. Văn xuôi mời
+    gọi việc làm tròn và mời gọi việc bịa.
 
     Args:
-        turn: A `tool_result` turn.
+        turn: Một lượt `tool_result`.
 
     Returns:
-        One line naming the tool, then its result as JSON.
+        Một dòng gọi tên tool, rồi kết quả của nó dưới dạng JSON.
     """
     body = json.dumps(turn.tool_result, ensure_ascii=False, sort_keys=True)
     return f"Kết quả của {turn.tool_name}:\n{body}"
 
 
 def _compose(state: ProposeState) -> dict:
-    """Turn the request into the messages the model sees.
+    """Biến request thành những message model thấy.
 
-    The history becomes messages in order. A tool call and its result are the
-    assistant's own move and what came back from it, so they are rendered as an
-    assistant turn and a human turn -- which is the shape a chat model expects
-    and the reason the model does not propose the same tool twice.
+    Lịch sử hội thoại trở thành các message theo đúng thứ tự. Một lần gọi tool và kết
+    quả của nó là nước đi của chính trợ lý và thứ nhận lại được từ nước đi đó, nên
+    chúng được render thành một lượt assistant và một lượt human -- đó là hình dạng
+    một chat model mong đợi, và là lý do model không đề nghị cùng một tool hai lần.
 
     Args:
-        state: Carries the request.
+        state: Mang theo request.
 
     Returns:
-        The `messages` slice of the state.
+        Mảnh `messages` của state.
     """
     request = state["request"]
 
@@ -217,8 +215,8 @@ def _compose(state: ProposeState) -> dict:
         catalog = "\n".join(_describe_tool(tool) for tool in request.catalog)
         opening.append(f"Các tool bạn được dùng lượt này:\n{catalog}")
     else:
-        # Saying so beats leaving the section out: a model given no list at all
-        # tends to assume the omission is an oversight and names a tool anyway.
+        # Nói ra điều đó tốt hơn bỏ hẳn phần này: một model không được cấp danh
+        # sách nào thường cho rằng việc thiếu đó là sơ suất và vẫn gọi tên một tool.
         opening.append("Lượt này bạn không có tool nào. Chỉ say hoặc ask_clarify.")
 
     messages: list[BaseMessage] = [SystemMessage("\n\n".join(opening))]
@@ -237,15 +235,15 @@ def _compose(state: ProposeState) -> dict:
 
 
 def _spent(raw: object) -> int:
-    """Read the provider's token count off a raw response.
+    """Đọc số token mà provider báo, lấy từ một response thô.
 
     Args:
-        raw: Whatever the provider returned alongside the parsed object.
+        raw: Bất cứ thứ gì provider trả về kèm theo đối tượng đã parse.
 
     Returns:
-        Total tokens, or 0 when the provider reported none. Zero means "not
-        told", not "free": a fake model in a test reports nothing, and so do
-        some providers.
+        Tổng số token, hoặc 0 khi provider không báo gì. Số 0 nghĩa là "không được
+        cho biết", không phải "miễn phí": một model giả trong test không báo gì, và
+        một số provider cũng vậy.
     """
     usage = getattr(raw, "usage_metadata", None)
     if isinstance(usage, dict):
@@ -256,35 +254,35 @@ def _spent(raw: object) -> int:
 
 
 async def _choose(state: ProposeState) -> dict:
-    """Ask the model for one proposal, and note what it cost.
+    """Hỏi model một đề nghị, và ghi lại nó tốn bao nhiêu.
 
-    `include_raw` is what makes the cost knowable. Structured output alone
-    hands back the parsed object and drops the response it came in, and the
-    usage report lives on that response -- so the plan's claim that recording
-    tokens was "nearly free" was wrong: it needs this argument and a contract
-    field.
+    `include_raw` là thứ làm cho chi phí biết được. Structured output một mình chỉ
+    trả lại đối tượng đã parse rồi bỏ đi cái response nó đi trong, mà báo cáo usage
+    thì nằm trên chính response đó -- nên lời khẳng định trong plan rằng ghi lại số
+    token là "gần như miễn phí" đã sai: nó cần argument này và một field trong hợp
+    đồng.
 
     Args:
-        state: Carries the composed messages.
+        state: Mang theo các message đã dựng.
 
     Returns:
-        The `step` slice of the state, with `model_tokens` filled from the
-        provider rather than from the model.
+        Mảnh `step` của state, với `model_tokens` điền từ provider chứ không điền từ
+        model.
     """
     model = llm.with_fallback(lambda chat: chat.with_structured_output(_Proposal, include_raw=True))
     answered = await model.ainvoke(state["messages"])
 
-    # A provider that cannot do `include_raw` -- or a fake that ignores it --
-    # hands back the parsed object directly. Both shapes are supported because
-    # the token count is a nicety and the proposal is not.
+    # Một provider không làm được `include_raw` -- hoặc một fake bỏ qua nó -- trả
+    # thẳng lại đối tượng đã parse. Cả hai hình dạng đều được hỗ trợ, vì số token chỉ là
+    # thứ có thì tốt còn đề nghị thì không.
     if isinstance(answered, dict):
         parsed = answered["parsed"]
         if parsed is None:
-            # `include_raw` turns a parse failure into `parsed=None` plus the
-            # exception under `parsing_error`, where `include_raw=False` would
-            # have raised it with the offending output attached. Letting it
-            # through would trade a message naming the bad output for an
-            # `AttributeError` on None, which names nothing.
+            # `include_raw` biến một lần parse thất bại thành `parsed=None` cộng với
+            # exception nằm dưới `parsing_error`, trong khi `include_raw=False` thì
+            # đã raise nó kèm luôn đầu ra có vấn đề. Để nó đi qua là đổi một thông
+            # báo gọi tên đầu ra xấu lấy một `AttributeError` trên None, mà cái đó
+            # chẳng gọi tên gì cả.
             raise ValueError(
                 f"model did not produce a usable proposal: {answered.get('parsing_error')}"
             )
@@ -293,16 +291,16 @@ async def _choose(state: ProposeState) -> dict:
     else:
         proposal, spent = answered, 0
 
-    # `request_id` is filled in by `propose`, which is the only place that
-    # knows it. Zero here would be a lie if it stayed, so it does not.
+    # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
+    # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
     return {"step": proposal.completed(request_id="", model_tokens=spent)}
 
 
 def _build() -> object:
-    """Assemble the graph.
+    """Lắp graph.
 
     Returns:
-        A compiled graph taking `ProposeState` and filling in `step`.
+        Một graph đã compile, nhận `ProposeState` và điền vào `step`.
     """
     graph = StateGraph(ProposeState)
     graph.add_node("compose", _compose)
@@ -317,20 +315,19 @@ _GRAPH = _build()
 
 
 async def propose(request: NextStepRequested) -> NextStepCompleted:
-    """Decide what should happen next in this conversation.
+    """Quyết định việc gì nên xảy ra tiếp theo trong cuộc hội thoại này.
 
     Args:
-        request: The history so far and the tools this teacher may use.
+        request: Lịch sử tới lúc này và các tool giáo viên này được dùng.
 
     Returns:
-        One proposal. `request_id` is overwritten with the one BE asked under:
-        the model does not know it, and a proposal carrying an echoed or
-        invented id would be attributed to a different turn's job.
+        Một đề nghị. `request_id` bị ghi đè bằng id BE đã hỏi dưới: model không biết
+        id đó, và một đề nghị mang theo một id nhắc lại hoặc bịa ra sẽ bị quy về job
+        của một lượt khác.
 
     Raises:
-        Exception: Whatever the provider raises. The handler above decides what
-            to fall back to, because only it knows whether anything has already
-            reached the teacher.
+        Exception: Bất cứ thứ gì provider raise. Handler ở tầng trên quyết định lùi
+            về cái gì, vì chỉ nó biết liệu đã có thứ gì tới tay giáo viên hay chưa.
     """
     final = await _GRAPH.ainvoke({"request": request, "messages": [], "step": None})
     step: NextStepCompleted = final["step"]

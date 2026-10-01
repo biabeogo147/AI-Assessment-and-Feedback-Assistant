@@ -1,9 +1,9 @@
-"""What the tutoring handler does while the model writes, and when it stops.
+"""Handler kèm học sinh làm gì trong lúc model viết, và khi nào nó dừng.
 
-The interesting behaviour is all in the failure: a model that dies halfway has
-already put words on a student's screen, and what gets stored has to be those
-words. Storing something else means the student reloads and finds a different
-answer from the one they just read, with nothing to explain the swap.
+Hành vi đáng chú ý nằm cả ở phần thất bại: một model chết giữa đường thì đã đặt chữ lên màn
+hình của học sinh rồi, và thứ được lưu buộc phải là đúng những chữ đó. Lưu một thứ khác
+nghĩa là học sinh tải lại trang và gặp một câu trả lời khác câu em vừa đọc, mà không có gì
+giải thích cho việc đổi chỗ ấy.
 """
 
 import pytest
@@ -41,7 +41,7 @@ REQUEST = ExplainTurnRequested(
 
 
 class Recorder:
-    """Stands in for the Redis connection arq hands the handler."""
+    """Đóng thế cho connection Redis mà arq đưa cho handler."""
 
     def __init__(self) -> None:
         self.published: list[str] = []
@@ -52,7 +52,7 @@ class Recorder:
 
 @pytest.fixture
 def on(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Turn the model path on without needing a key or a `.env`."""
+    """Bật đường gọi model lên mà không cần một key hay một file `.env`."""
     monkeypatch.setattr(llm, "enabled", lambda: True)
 
 
@@ -60,7 +60,7 @@ def on(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_the_answer_goes_out_piece_by_piece(
     on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Pieces are published as they are produced, not posted at the end."""
+    """Các mẩu được publish ngay khi được sinh ra, không gửi dồn một lần ở cuối."""
     monkeypatch.setattr(
         llm, "chat_models", lambda: (GenericFakeChatModel(messages=iter(["một hai ba"])),)
     )
@@ -76,11 +76,11 @@ async def test_the_answer_goes_out_piece_by_piece(
 async def test_a_model_that_dies_midway_keeps_the_words_already_read(
     on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """What was stored must be what was shown.
+    """Thứ được lưu phải là thứ đã được cho xem.
 
-    The prepared answer is the right fallback only while nobody has read
-    anything yet. Once words are on the screen it becomes the wrong one: the
-    history would disagree with the conversation the student remembers.
+    Câu trả lời dọn trước chỉ là fallback đúng khi chưa ai đọc gì cả. Một khi chữ đã nằm trên
+    màn hình thì nó thành fallback sai: lịch sử hội thoại sẽ lệch với cuộc hội thoại mà học
+    sinh còn nhớ.
     """
 
     async def dies(request, publish):
@@ -101,10 +101,10 @@ async def test_a_model_that_dies_midway_keeps_the_words_already_read(
 async def test_a_model_that_dies_before_saying_anything_falls_back(
     on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With nothing read yet there is nothing to contradict.
+    """Chưa có gì được đọc thì không có gì để nó mâu thuẫn.
 
-    So the prepared answer is served, and the student gets a turn instead of an
-    error.
+    Nên câu trả lời dọn trước được đưa ra, và học sinh nhận được một lượt nói thay vì một
+    lỗi.
     """
 
     async def dies(request, publish):
@@ -123,7 +123,7 @@ async def test_a_model_that_dies_before_saying_anything_falls_back(
 async def test_nobody_listening_means_nothing_is_published(
     on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A job whose client has gone away still answers; it just answers quietly."""
+    """Một job mà client đã bỏ đi thì vẫn trả lời; nó chỉ trả lời trong im lặng."""
     monkeypatch.setattr(
         llm, "chat_models", lambda: (GenericFakeChatModel(messages=iter(["xong"])),)
     )

@@ -1,36 +1,34 @@
-"""Messages for the three authoring tasks BE hands to AGENT.
+"""Message cho ba task authoring mà BE giao cho AGENT.
 
-Data only, like every module here. In particular the rules ADR-18 places on a
-generated question -- exactly one correct option, an error label on every
-distractor, at least two solution methods -- are **not** validated here. They
-are business rules, and BE owns them: a check living in this module would be a
-rule neither service owns, and AGENT importing it would let the generator grade
-its own homework.
+Chỉ dữ liệu, như mọi module ở đây. Cụ thể là những luật ADR-18 đặt lên một câu hỏi được sinh ra --
+đúng một phương án đúng, mọi distractor đều có nhãn lỗi, ít nhất hai cách giải -- **không** được
+validate ở đây. Chúng là luật nghiệp vụ, và BE sở hữu chúng: một phép kiểm sống trong module này sẽ
+là một luật không service nào sở hữu, còn AGENT mà import nó thì thành ra người sinh đề tự chấm bài
+của mình.
 
-Every payload is self-contained. No field here is an identifier AGENT would have
-to resolve against a database, because AGENT holds no database credentials.
+Mọi payload đều tự chứa. Không field nào ở đây là một identifier mà AGENT sẽ phải tra lại database,
+bởi AGENT không giữ credential database.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
 
-# arq task names. BE enqueues by string and never imports the AGENT package.
+# Tên task của arq. BE enqueue bằng chuỗi và không bao giờ import package AGENT.
 WRITE_DRAFT_QUESTION_TASK = "write_draft_question"
 GENERATE_RETRY_QUESTION_TASK = "generate_retry_question"
 EXPLAIN_TURN_TASK = "explain_turn"
 
 
 class GeneratedOption(BaseModel):
-    """One answer option as AGENT wrote it.
+    """Một phương án trả lời, đúng như AGENT đã viết ra.
 
     Attributes:
-        label: The letter shown to the student, "A" upward.
-        text: The option itself.
-        is_correct: True for the single correct option. AGENT asserts this;
-            BE verifies exactly one option per question carries it.
-        error_label: The mistake this distractor stands for, per ADR-18. None on
-            the correct option.
+        label: Chữ cái hiện cho học sinh, từ "A" trở lên.
+        text: Chính nội dung phương án.
+        is_correct: True cho đúng một phương án đúng. AGENT khẳng định điều này; BE kiểm lại rằng
+            mỗi câu hỏi có đúng một phương án mang nó.
+        error_label: Lỗi mà distractor này đại diện, theo ADR-18. None trên phương án đúng.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -42,11 +40,11 @@ class GeneratedOption(BaseModel):
 
 
 class SolutionMethod(BaseModel):
-    """One way of solving a question.
+    """Một cách giải một câu hỏi.
 
     Attributes:
-        title: Short name of the approach, e.g. "xét dấu đạo hàm".
-        body: The worked steps.
+        title: Tên ngắn của cách làm, ví dụ "xét dấu đạo hàm".
+        body: Các bước giải.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -56,16 +54,15 @@ class SolutionMethod(BaseModel):
 
 
 class GeneratedQuestion(BaseModel):
-    """A question with everything ADR-18 requires attached to it.
+    """Một câu hỏi, kèm đủ mọi thứ ADR-18 đòi.
 
     Attributes:
-        stem: The question text.
-        options: Answer options; exactly one is correct and the rest carry an
-            error label. Length is not fixed -- three, four and five all occur.
-        methods: Worked solutions. More than one, so a re-explanation has
-            somewhere to go.
-        learning_objective: What the question tests. Carried for reporting; it
-            is not what makes a retry question a retry question (ADR-17).
+        stem: Phần đề của câu hỏi.
+        options: Các phương án; đúng một phương án đúng và phần còn lại đều mang nhãn lỗi. Số lượng
+            không cố định -- ba, bốn và năm đều có.
+        methods: Các lời giải chi tiết. Nhiều hơn một, để một lượt giảng lại có chỗ mà đi.
+        learning_objective: Câu hỏi kiểm cái gì. Chở theo để báo cáo; nó **không** phải là thứ làm
+            cho một câu hỏi thử lại thành câu hỏi thử lại (ADR-17).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -77,37 +74,32 @@ class GeneratedQuestion(BaseModel):
 
 
 class DraftQuestionRequested(BaseModel):
-    """Ask AGENT to write **one** question of a draft.
+    """Nhờ AGENT soạn **một** câu của một đề nháp.
 
-    One question per job, not a whole set, and the reason is arithmetic rather
-    than taste: `tools/check_contract.py` compares `LLM_TIMEOUT_SECONDS x
-    LLM_MAX_ATTEMPTS` against BE's patience for a single job, and that holds
-    only for one question's worth of retries. The task this replaced took up
-    to fifty questions in one job -- fifty times the budget the check was
-    verifying -- so the check was quietly wrong about the handler that spent
-    the most.
+    Một câu một job, không phải cả bộ, và lý do là phép tính chứ không phải sở thích:
+    `tools/check_contract.py` so `LLM_TIMEOUT_SECONDS x LLM_MAX_ATTEMPTS` với độ kiên nhẫn của BE
+    cho **một** job, và phép so đó chỉ đúng cho số lần thử của một câu. Task bị thay thế nhận tới
+    năm mươi câu trong một job -- năm mươi lần cái ngân sách mà check đang kiểm -- nên check đã âm
+    thầm nói sai về đúng handler tốn nhiều nhất.
 
-    Every field here is copied from a brief BE stored **before** any job was
-    queued. That is what keeps a set of questions coherent: the jobs run
-    independently and cannot see each other, so if the instructions could
-    still change, the first half and the second half of a paper would answer
-    different questions and nobody reading them one at a time would notice.
+    Mọi field ở đây được chép từ một brief mà BE lưu **trước khi** có job nào được queue. Đó là thứ
+    giữ cho một bộ đề mạch lạc: các job chạy độc lập và không thấy nhau, nên nếu chỉ thị còn đổi
+    được thì nửa đầu và nửa sau của một đề sẽ trả lời hai câu hỏi khác nhau, mà ai đọc từng câu một
+    cũng không nhận ra.
 
     Attributes:
-        request_id: Correlates the reply. BE's own identifier, opaque to AGENT.
-        subject: School subject, e.g. "Toán".
-        grade: Class level, e.g. "12".
-        topic_scope: What the teacher limited the draft to, in their words.
-        difficulty: How hard, in the teacher's words. Empty when unsaid.
-        ordinal: Which question of the set this is, counting from one.
-        of_total: How many the set has. Travels with `ordinal` so the prompt
-            can say "question 3 of 10" -- the cheapest nudge towards variety
-            between jobs that have no way to coordinate.
-        banned_stems: Stems already in the draft, **as stored** -- AGENT
-            normalises them with its own rule on arrival, so the two services
-            never have to keep two normalisers in step. Best-effort either
-            way: jobs fired together cannot know each other's output, so BE
-            checks again for duplicates when it harvests.
+        request_id: Để đối chiếu câu trả lời. Identifier của chính BE, với AGENT thì nó vô nghĩa.
+        subject: Môn học, ví dụ "Toán".
+        grade: Khối lớp, ví dụ "12".
+        topic_scope: Phạm vi giáo viên giới hạn đề nháp này vào, bằng lời của họ.
+        difficulty: Mức độ khó, bằng lời của giáo viên. Rỗng khi họ không nói.
+        ordinal: Đây là câu thứ mấy của bộ, đếm từ một.
+        of_total: Bộ có bao nhiêu câu. Đi cùng `ordinal` để prompt nói được "câu 3 trong 10" -- cú
+            đẩy rẻ nhất hướng tới sự đa dạng giữa những job không có cách nào phối hợp với nhau.
+        banned_stems: Những stem đã có trong đề nháp, **đúng như đang lưu** -- AGENT chuẩn hoá chúng
+            bằng luật của chính nó lúc nhận, nên hai service không bao giờ phải giữ hai bộ chuẩn hoá
+            đồng bộ với nhau. Dù sao cũng chỉ là cố gắng hết sức: các job bắn cùng lúc không thể
+            biết đầu ra của nhau, nên BE kiểm trùng lại lúc harvest.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -124,10 +116,10 @@ class DraftQuestionRequested(BaseModel):
 
 
 class DraftQuestionCompleted(BaseModel):
-    """The one question that job wrote.
+    """Đúng một câu hỏi mà job đó đã viết.
 
-    Carries no decision: whether the draft is good enough to publish is the
-    teacher's call, and whether the question satisfies ADR-18 is BE's check.
+    Không chở quyết định nào: đề nháp có đủ tốt để phát hành hay không là việc của giáo viên, còn
+    câu hỏi có thoả ADR-18 hay không là phép kiểm của BE.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -138,19 +130,19 @@ class DraftQuestionCompleted(BaseModel):
 
 
 class RetryQuestionRequested(BaseModel):
-    """Ask AGENT for the question of one remediation round.
+    """Nhờ AGENT soạn câu hỏi cho một vòng củng cố.
 
     Attributes:
-        request_id: Correlates the reply.
-        origin: The question the student got wrong, whole, because the retry
-            must keep its shape rather than merely its objective (ADR-17).
-        wrong_option_label: What the student picked.
-        error_label: The mistake that option stands for, looked up from the
-            authored mapping. AGENT does not infer it.
-        round_index: 1, 2 or 3. AGENT writes a question; it does not decide
-            whether a fourth round may happen.
-        previous_stems: Stems already used in earlier rounds of this question,
-            so round two is not round one with different wording.
+        request_id: Để đối chiếu câu trả lời.
+        origin: Câu hỏi học sinh làm sai, nguyên cả câu, vì câu thử lại phải giữ được **hình dạng**
+            của nó chứ không chỉ giữ mục tiêu (ADR-17).
+        wrong_option_label: Học sinh đã chọn phương án nào.
+        error_label: Lỗi mà phương án đó đại diện, tra từ bảng ánh xạ đã soạn sẵn. AGENT không tự
+            suy ra.
+        round_index: 1, 2 hay 3. AGENT soạn một câu hỏi; nó không quyết định có được phép có vòng
+            thứ tư hay không.
+        previous_stems: Những stem đã dùng ở các vòng trước của chính câu này, để vòng hai không
+            phải là vòng một viết lại bằng từ khác.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -165,7 +157,7 @@ class RetryQuestionRequested(BaseModel):
 
 
 class RetryQuestionCompleted(BaseModel):
-    """The question for this round, in the same shape as any other question."""
+    """Câu hỏi cho vòng này, cùng hình dạng với mọi câu hỏi khác."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -175,11 +167,11 @@ class RetryQuestionCompleted(BaseModel):
 
 
 class ChatTurn(BaseModel):
-    """One turn of the phase 2 conversation.
+    """Một lượt của cuộc hội thoại pha 2.
 
     Attributes:
-        role: "student" or "assistant".
-        text: What was said.
+        role: "student" hoặc "assistant".
+        text: Nội dung đã nói.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -189,26 +181,24 @@ class ChatTurn(BaseModel):
 
 
 class ExplainTurnRequested(BaseModel):
-    """Ask AGENT for the assistant's next turn in the phase 2 conversation.
+    """Nhờ AGENT soạn lượt tiếp theo của trợ lý trong cuộc hội thoại pha 2.
 
     Attributes:
-        request_id: Correlates the reply.
-        questions: Every question the student got wrong, with its solutions.
-            The assistant covers the whole assessment, not one question.
-        question_numbers: The number each of those questions carries on the
-            paper, in the same order. Without it the assistant counts from one
-            and calls question 5 "câu 1", which is worse than saying nothing:
-            the student goes looking at the wrong question.
-        chosen_labels: Option the student picked, keyed by question stem.
-        error_labels: Authored mistake per wrong question, keyed by stem. AGENT
-            follows this mapping instead of diagnosing (ADR-18).
-        history: Conversation so far, oldest first.
-        student_text: The message being answered. Empty for the opening turn.
-        stream_channel: Where to publish the answer as it is written, so the
-            student sees words rather than a pause. Empty means nobody is
-            listening and the reply arrives only at the end. It is a channel
-            name and not an id because the naming belongs to whoever is
-            listening; AGENT publishes where it is told.
+        request_id: Để đối chiếu câu trả lời.
+        questions: Mọi câu học sinh làm sai, kèm lời giải. Trợ lý phụ trách cả bài, không
+            phải một câu.
+        question_numbers: Số thứ tự của từng câu đó **trên đề**, cùng thứ tự. Không có nó
+            thì trợ lý đếm từ một và gọi câu 5 là "câu 1", tệ hơn cả việc không nói gì:
+            học sinh sẽ đi tìm sai câu.
+        chosen_labels: Phương án học sinh đã chọn, khoá theo stem của câu hỏi.
+        error_labels: Lỗi đã soạn sẵn cho từng câu sai, khoá theo stem. AGENT đi theo bảng ánh xạ
+            này thay vì tự chẩn đoán (ADR-18).
+        history: Hội thoại đến giờ, cũ nhất trước.
+        student_text: Tin nhắn đang được trả lời. Rỗng ở lượt mở đầu.
+        stream_channel: Nơi phát câu trả lời ra trong lúc nó đang được viết, để học sinh thấy chữ
+            thay vì thấy một khoảng lặng. Rỗng nghĩa là không ai đang nghe và câu trả lời chỉ về lúc
+            cuối. Nó là tên một channel chứ không phải một id, vì việc đặt tên thuộc về người đang
+            nghe; AGENT phát vào chỗ nó được bảo.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -225,11 +215,10 @@ class ExplainTurnRequested(BaseModel):
 
 
 class ExplainTurnCompleted(BaseModel):
-    """What the assistant says next.
+    """Thứ trợ lý nói tiếp.
 
-    One field, deliberately. An assistant turn that also returned "the student
-    now understands" would be deciding when remediation ends, which is a score
-    question and belongs to BE (ADR-16, ADR-17).
+    Một field, có chủ ý. Một lượt trả lời mà kèm luôn "giờ thì học sinh đã hiểu" là đang quyết định
+    khi nào việc củng cố kết thúc, mà đó là một câu hỏi về điểm và nó thuộc về BE (ADR-16, ADR-17).
     """
 
     model_config = ConfigDict(frozen=True)

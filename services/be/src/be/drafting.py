@@ -1,25 +1,25 @@
-"""Writing a set of questions: fire the jobs, collect them later.
+"""Soạn một bộ câu hỏi: bắn các job đi, thu kết quả về sau.
 
-Two rules pull against each other here, and the shape of this module is what
-satisfies both.
+Hai luật kéo ngược nhau ở đây, và hình dạng của module này chính là thứ thoả mãn
+được cả hai.
 
-**One job per question.** `tools/check_contract.py` compares
-`LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` against BE's patience for a single
-job. That arithmetic holds for one question's worth of retries and no more, so
-a task that wrote a whole set in one job -- which is what this replaced -- made
-the check quietly wrong about the handler that spent the most model calls.
+**Một job một câu hỏi.** `tools/check_contract.py` so
+`LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` với mức kiên nhẫn của BE dành cho một
+job. Phép tính đó đúng cho số lần retry của đúng một câu hỏi và không hơn, nên một
+task soạn cả bộ đề trong một job -- thứ mà cái này thay thế -- làm cái check kia
+lặng lẽ sai về đúng cái handler tiêu nhiều lượt gọi model nhất.
 
-**One brief for every job.** The jobs run independently and cannot see each
-other, so if the instructions could still change while they run, questions
-1-4 would come from one understanding of the topic and 5-10 from another. That
-is a defect nobody finds by reading the questions one at a time. The brief is
-therefore a stored row with a version, every job records the version it was
-fired under, and a question written for an older brief is **discarded** rather
-than merged. Re-briefing starts a round; it does not edit work in flight.
+**Một brief cho mọi job.** Các job chạy độc lập và không thấy được nhau, nên nếu
+phần hướng dẫn vẫn còn đổi được trong lúc chúng chạy thì câu 1-4 sẽ đến từ một cách
+hiểu về chủ đề và câu 5-10 từ một cách hiểu khác. Đó là loại lỗi mà không ai tìm ra
+bằng cách đọc từng câu hỏi một. Vậy nên brief là một row được lưu lại kèm một
+version, mỗi job ghi lại version nó được bắn đi dưới đó, và một câu hỏi soạn cho
+một brief cũ hơn thì bị **bỏ** chứ không được gộp vào. Đổi brief là mở một vòng
+mới; nó không sửa phần việc đang bay.
 
-Nothing here waits. A teacher who asks for ten questions gets an answer at
-once and the questions appear as they land -- the same trade the student side
-makes when it writes a remediation question ahead of time.
+Không có gì ở đây đứng đợi. Một giáo viên hỏi mười câu thì nhận câu trả lời ngay
+và các câu hỏi hiện ra dần khi chúng về -- đúng cái đánh đổi mà phía học sinh chọn
+khi nó soạn trước một câu hỏi remediation.
 """
 
 import logging
@@ -42,48 +42,49 @@ from contracts import (
 
 logger = logging.getLogger(__name__)
 
-# The contract bounds `of_total` at fifty, and that bound has to be checked
-# before the first job rather than discovered at the fifty-first: firing job by
-# job meant a brief asking for sixty queued fifty jobs and then raised, leaving
-# fifty model calls running with no rows to collect them by.
+# Contract chặn `of_total` ở năm mươi, và cái ngưỡng đó phải được kiểm tra trước
+# job đầu tiên chứ không phải phát hiện ra ở job thứ năm mươi mốt: bắn từng job một
+# nghĩa là một brief hỏi sáu mươi câu sẽ đẩy năm mươi job vào queue rồi mới nổ, để
+# lại năm mươi lượt gọi model đang chạy mà không có row nào để thu chúng về.
 _MOST_QUESTIONS = 50
 
-# How many jobs one position may cost. Three, because two of the three ways a
-# question is refused are chance -- a duplicate stem from parallel jobs, a
-# model marking two options correct -- and the third try is where chance stops
-# being the explanation.
+# Một vị trí được phép tốn bao nhiêu job. Ba, vì hai trong ba cách một câu hỏi bị
+# từ chối là do hên xui -- stem trùng nhau do các job chạy song song, model đánh dấu
+# hai phương án cùng đúng -- và lần thử thứ ba là chỗ hên xui thôi không còn là cách
+# giải thích được nữa.
 _MOST_ATTEMPTS = 3
 
-# Statuses `fire` will pick back up. A position that is `pending` has a job
-# running, `ready` is done, and `failed` has given up.
+# Những status mà `fire` sẽ nhặt lại. Một vị trí đang `pending` thì đang có job
+# chạy, `ready` là đã xong, và `failed` là đã bỏ.
 _RETRYABLE = frozenset({"retry"})
 
 
 def _comparable(stem: str) -> str:
-    """Reduce a stem to what makes two questions the same question.
+    """Rút một stem về đúng phần làm hai câu hỏi thành cùng một câu hỏi.
 
-    Whitespace and case only. Deliberately **not** `be.resolve.normalise`,
-    which was written for class names: it strips a leading "lớp" and removes
-    every space, so "Lớp 12A có 30 học sinh..." and "12A có 30 học sinh..."
-    would compare equal -- two different questions called one.
+    Chỉ khoảng trắng và chữ hoa chữ thường. Có chủ đích **không** dùng
+    `be.resolve.normalise`, vì hàm đó viết cho tên lớp: nó cắt chữ "lớp" ở đầu và
+    bỏ mọi dấu cách, nên "Lớp 12A có 30 học sinh..." và "12A có 30 học sinh..." sẽ
+    so ra bằng nhau -- hai câu hỏi khác nhau bị gọi thành một.
 
-    This does not need to match AGENT's own rule, because the stems BE sends
-    in `banned_stems` travel **raw** and AGENT normalises them with its own
-    function on arrival. Two normalisers that had to agree across a service
-    boundary would be, in the words of AGENT's own docstring, a disagreement
-    with a date on it.
+    Hàm này không cần khớp với luật riêng của AGENT, vì các stem mà BE gửi trong
+    `banned_stems` đi ở dạng **thô** và AGENT tự normalise chúng bằng hàm của nó khi
+    nhận được. Hai hàm normalise mà buộc phải đồng ý với nhau qua một đường biên
+    service thì, theo đúng lời docstring của chính AGENT, là một mối bất đồng đã có
+    sẵn ngày hẹn.
 
     Args:
-        stem: A question stem as stored.
+        stem: Một stem câu hỏi theo đúng cách đã lưu.
 
     Returns:
-        The stem with runs of whitespace collapsed, case-folded.
+        Stem đó với các chuỗi khoảng trắng gộp lại làm một, và đã hạ hết về chữ
+        thường.
     """
     return " ".join(stem.split()).casefold()
 
 
 async def _stems(session: AsyncSession, assessment_id: str) -> list[str]:
-    """Every stem already in the draft, as stored."""
+    """Mọi stem đã có trong đề nháp, theo đúng cách đã lưu."""
     written = await session.scalars(
         select(Question.stem).where(Question.assessment_id == assessment_id)
     )
@@ -91,32 +92,33 @@ async def _stems(session: AsyncSession, assessment_id: str) -> list[str]:
 
 
 async def fire(session: AsyncSession, pool: object, settings: Settings, assessment_id: str) -> int:
-    """Queue one job per question the brief still needs.
+    """Đẩy vào queue một job cho mỗi câu hỏi mà brief còn thiếu.
 
-    A position is queued when it has no row or its row is `retry`. `pending`,
-    `ready` and `failed` are all left alone, so calling this twice does not
-    double-queue and a position that gave up stays given up.
+    Một vị trí được đẩy vào queue khi nó chưa có row hoặc row của nó đang là
+    `retry`. `pending`, `ready` và `failed` đều được để yên, nên gọi hàm này hai lần
+    không làm job vào queue hai lượt, và một vị trí đã bỏ thì vẫn ở trạng thái đã
+    bỏ.
 
     Args:
-        session: Database session. Committed per row.
-        pool: The arq pool, or None when the queue was unreachable.
-        settings: Process settings supplying the queue name.
-        assessment_id: Which draft.
+        session: Session của database. Commit theo từng row.
+        pool: Pool của arq, hoặc None khi không với tới được queue.
+        settings: Settings của process, cung cấp tên queue.
+        assessment_id: Bản nháp nào.
 
     Returns:
-        How many jobs were queued.
+        Đã đẩy bao nhiêu job vào queue.
 
     Raises:
-        HTTPException: 409 when the assessment's content is locked (ADR-01).
+        HTTPException: 409 khi nội dung của đề đã bị khoá (ADR-01).
 
     Side effects:
-        Writes jobs onto the queue and a `DraftItem` row for each, committing
-        after each one.
+        Ghi các job lên queue và một row `DraftItem` cho mỗi job, commit sau từng
+        cái một.
     """
     brief = await session.get(DraftBrief, assessment_id)
     if brief is None:
-        # No brief means nothing was agreed yet, and a half-specified set
-        # should not be written at all.
+        # Không có brief nghĩa là chưa thống nhất được gì, và một bộ đề mới nêu
+        # được nửa yêu cầu thì tốt nhất là đừng soạn.
         logger.warning("nothing queued for %s: no brief", assessment_id)
         return 0
 
@@ -125,8 +127,8 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
         logger.warning("nothing queued for %s: no such assessment", assessment_id)
         return 0
 
-    # ADR-01: approval locks content, and writing questions into an approved
-    # paper is exactly what the lock is for.
+    # ADR-01: duyệt thì khoá nội dung, và ghi thêm câu hỏi vào một đề đã duyệt
+    # chính là thứ mà cái khoá đó sinh ra để chặn.
     assert_editable(assessment)
 
     if not 1 <= brief.question_count <= _MOST_QUESTIONS:
@@ -167,7 +169,7 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
             pool, settings, WRITE_DRAFT_QUESTION_TASK, asked.model_dump(mode="json")
         )
         if job_id is None:
-            # The queue is down. No row written, so the next call tries again.
+            # Queue đang chết. Không ghi row nào, nên lần gọi sau sẽ thử lại.
             continue
 
         if row is None:
@@ -189,10 +191,9 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
             row.brief_version = brief.version
 
         try:
-            # Committed per row, following `_write_ahead` on the student side:
-            # two callers can both get past the check above, and the loser of
-            # the unique index must not take the jobs that are already running
-            # down with it.
+            # Commit theo từng row, theo đúng `_write_ahead` ở phía học sinh: hai
+            # caller đều có thể lọt qua cái check phía trên, và bên thua ở unique
+            # index không được phép kéo theo những job đã đang chạy chết cùng.
             await session.commit()
         except IntegrityError:
             await session.rollback()
@@ -212,25 +213,24 @@ async def rebrief(
     question_count: int,
     difficulty: str = "",
 ) -> int:
-    """Replace the brief, starting a new round of generation.
+    """Thay brief, mở một vòng sinh câu hỏi mới.
 
-    Bumping the version is what discards work in flight: a job fired under the
-    old brief still finishes and still returns a question, and `harvest` drops
-    it rather than letting it share a paper with questions written to
-    different instructions.
+    Tăng version lên chính là thứ bỏ đi phần việc đang bay: một job đã bắn đi dưới
+    brief cũ vẫn chạy xong và vẫn trả về một câu hỏi, và `harvest` bỏ nó đi chứ
+    không để nó nằm chung một đề với những câu hỏi soạn theo hướng dẫn khác.
 
     Args:
-        session: Database session. Committed by this function.
-        assessment_id: Which draft.
-        topic_scope: The new scope, in the teacher's words.
-        question_count: How many questions the set should have now.
-        difficulty: How hard, in the teacher's words.
+        session: Session của database. Hàm này tự commit.
+        assessment_id: Bản nháp nào.
+        topic_scope: Phạm vi mới, theo lời giáo viên.
+        question_count: Giờ bộ đề nên có bao nhiêu câu hỏi.
+        difficulty: Khó đến đâu, theo lời giáo viên.
 
     Returns:
-        The new version number.
+        Số version mới.
 
     Side effects:
-        Writes or replaces the brief row and commits.
+        Ghi mới hoặc ghi đè row brief rồi commit.
     """
     brief = await session.get(DraftBrief, assessment_id)
     now = datetime.now(UTC)
@@ -260,17 +260,17 @@ async def rebrief(
 async def _write(
     session: AsyncSession, assessment_id: str, order_index: int, question: GeneratedQuestion
 ) -> None:
-    """Store one question with its options and its worked solutions.
+    """Lưu một câu hỏi cùng các phương án và các lời giải của nó.
 
     Args:
-        session: Database session. Not committed here.
-        assessment_id: Which draft.
-        order_index: The number the question carries on the paper, which is the
-            position the teacher asked for rather than the order it arrived in.
-        question: The validated question.
+        session: Session của database. Không commit ở đây.
+        assessment_id: Bản nháp nào.
+        order_index: Số thứ tự câu hỏi mang trên đề, tức là vị trí giáo viên đã
+            yêu cầu, chứ không phải thứ tự nó về tới.
+        question: Câu hỏi đã qua validate.
 
     Side effects:
-        Adds a `Question` and its `AnswerOption` and `Method` rows.
+        Thêm một `Question` cùng các row `AnswerOption` và `Method` của nó.
     """
     stored = Question(
         assessment_id=assessment_id,
@@ -303,14 +303,14 @@ async def _write(
 
 
 def _give_up_or_retry(row: DraftItem, why: str) -> None:
-    """Mark a position for another try, or stop spending on it.
+    """Đánh dấu một vị trí để thử lại, hoặc thôi không tiêu thêm vào nó nữa.
 
     Args:
-        row: The item whose job produced nothing usable.
-        why: What went wrong, for the log.
+        row: Item mà job của nó không cho ra thứ gì dùng được.
+        why: Chuyện gì đã sai, để ghi log.
 
     Side effects:
-        Sets `row.status`.
+        Ghi `row.status`.
     """
     if row.attempts >= _MOST_ATTEMPTS:
         row.status = "failed"
@@ -329,35 +329,35 @@ def _give_up_or_retry(row: DraftItem, why: str) -> None:
 async def harvest(
     session: AsyncSession, pool: object, settings: Settings, assessment_id: str
 ) -> int:
-    """Move finished jobs into the draft, and decide what to do with the rest.
+    """Đưa các job đã xong vào đề nháp, và quyết định làm gì với phần còn lại.
 
-    Called from wherever the draft is read, because BE has no background
-    worker and a result nobody collects is a result that expires.
+    Được gọi từ mọi chỗ đọc đề nháp, vì BE không có worker chạy nền và một kết quả
+    không ai đi thu thì là một kết quả sẽ hết hạn.
 
-    **Everything is checked here, on the way in.** AGENT checks its own output
-    and falls back to prepared content, but this is the check that counts: the
-    draft is what a teacher approves and a student sits, so a question that
-    breaks ADR-18 has to be refused at this door or not at all. Two jobs
-    returning the same stem is an ordinary outcome rather than a bug -- nothing
-    coordinates them -- and a paper with one question twice is worse than a
-    paper with one question fewer.
+    **Mọi thứ đều được kiểm ở đây, ngay trên đường vào.** AGENT có kiểm output của
+    chính nó và có fallback sang nội dung soạn trước, nhưng đây mới là cái check có
+    giá trị: đề nháp là thứ giáo viên duyệt và học sinh làm, nên một câu hỏi phá
+    ADR-18 thì phải bị chặn ở cửa này, hoặc không bị chặn ở đâu cả. Hai job trả về
+    cùng một stem là chuyện thường tình chứ không phải một bug -- không có gì điều
+    phối chúng -- và một đề có một câu hỏi hai lần thì tệ hơn một đề thiếu đi một
+    câu.
 
-    A question written for an older brief is dropped here too. That is the
-    mechanism behind "re-briefing starts a round": the old job still finishes,
-    and its answer still arrives, and it still does not enter this paper.
+    Một câu hỏi soạn cho một brief cũ hơn cũng bị bỏ ở đây. Đó là cơ chế đứng sau
+    câu "đổi brief là mở một vòng mới": job cũ vẫn chạy xong, câu trả lời của nó vẫn
+    về tới, và nó vẫn không vào được đề này.
 
     Args:
-        session: Database session. Committed by this function.
-        pool: The arq pool, or None.
-        settings: Process settings.
-        assessment_id: Which draft.
+        session: Session của database. Hàm này tự commit.
+        pool: Pool của arq, hoặc None.
+        settings: Settings của process.
+        assessment_id: Bản nháp nào.
 
     Returns:
-        How many questions entered the draft on this call.
+        Lần gọi này có bao nhiêu câu hỏi đã vào được đề nháp.
 
     Side effects:
-        Writes questions, marks or deletes rows, and moves the assessment out
-        of `EMPTY` on the first question to land.
+        Ghi các câu hỏi, đánh dấu hoặc xoá các row, và đưa đề ra khỏi `EMPTY` ngay
+        khi câu hỏi đầu tiên về tới.
     """
     brief = await session.get(DraftBrief, assessment_id)
     waiting = list(
@@ -380,9 +380,9 @@ async def harvest(
 
     for row in sorted(waiting, key=lambda item: item.ordinal):
         if row.brief_version != brief.version or row.ordinal > brief.question_count:
-            # Written for instructions that no longer apply, or for a position
-            # a shorter brief no longer has. Deleted rather than marked, so the
-            # bookkeeping of the old round does not follow the new one.
+            # Soạn theo hướng dẫn giờ không còn áp dụng nữa, hoặc soạn cho một vị
+            # trí mà một brief ngắn hơn giờ không còn. Xoá đi chứ không đánh dấu,
+            # để phần sổ sách của vòng cũ không đi theo vòng mới.
             logger.info("dropping stale position %d of %s", row.ordinal, assessment_id)
             await session.delete(row)
             continue
@@ -391,13 +391,14 @@ async def harvest(
         if state == "pending":
             continue
         if state == "gone":
-            # Ordinary, not exceptional: results live an hour and a teacher may
-            # come back tomorrow. Retryable, and bounded like the rest.
+            # Chuyện thường, không phải ngoại lệ: kết quả sống một tiếng và giáo
+            # viên có thể mai mới quay lại. Thử lại được, và có chặn như mọi thứ
+            # khác.
             _give_up_or_retry(row, "kết quả đã hết hạn trong Redis")
             continue
         if state == "failed":
-            # The job itself raised. Asking again gets the same failure, so
-            # this one does not go through the attempt counter.
+            # Chính cái job đã nổ. Hỏi lại thì vẫn nhận đúng cái lỗi đó, nên lần
+            # này không đi qua bộ đếm số lần thử.
             row.status = "failed"
             logger.warning("job for position %d of %s raised", row.ordinal, assessment_id)
             continue
@@ -414,16 +415,16 @@ async def harvest(
             continue
 
         if row.ordinal in taken:
-            # The position already holds a question, which means a duplicate
-            # job for one ordinal got through. Keep the first and stop.
+            # Vị trí này đã có một câu hỏi, nghĩa là có một job trùng cho cùng một
+            # ordinal đã lọt qua. Giữ cái đầu tiên và dừng.
             _give_up_or_retry(row, "vị trí này đã có câu")
             continue
 
-        # The position the teacher asked for, not the order it arrived in. The
-        # jobs finish in whatever order the model answers, so numbering by a
-        # running count put questions on the paper in arrival order -- a
-        # teacher who asked for 1, 2, 3 got 2, 3, 1, with no constraint to
-        # trip on the way.
+        # Vị trí giáo viên đã yêu cầu, không phải thứ tự nó về tới. Các job xong
+        # theo đúng thứ tự model trả lời, nên đánh số bằng một biến đếm chạy dần
+        # sẽ xếp các câu hỏi lên đề theo thứ tự về tới -- một giáo viên yêu cầu 1,
+        # 2, 3 thì nhận 2, 3, 1, và không có constraint nào trên đường để nó vướng
+        # vào.
         await _write(session, assessment_id, row.ordinal, question)
         seen.add(_comparable(question.stem))
         taken.add(row.ordinal)
@@ -433,9 +434,9 @@ async def harvest(
     if landed:
         assessment = await session.get(Assessment, assessment_id)
         if assessment is not None and AssessmentState(assessment.state) is AssessmentState.EMPTY:
-            # Through the one door, because ADR-01's empty state is what blocks
-            # publishing and the moment it stops being true is a lifecycle
-            # event rather than an assignment.
+            # Đi qua cái cửa duy nhất, vì state empty của ADR-01 chính là thứ chặn
+            # việc phát hành, và cái lúc nó thôi đúng là một sự kiện trong vòng đời
+            # chứ không phải một phép gán.
             advance(assessment, AssessmentState.HAS_QUESTIONS)
 
     await session.commit()
@@ -443,17 +444,17 @@ async def harvest(
 
 
 async def pending_count(session: AsyncSession, assessment_id: str) -> int:
-    """How many positions still have a job running.
+    """Còn bao nhiêu vị trí đang có job chạy.
 
-    Approving a draft while questions are still being written would approve a
-    paper the teacher has not seen, so the approval endpoint asks this first.
+    Duyệt một đề nháp khi các câu hỏi còn đang được soạn là duyệt một đề mà giáo
+    viên chưa xem, nên endpoint duyệt hỏi câu này trước.
 
     Args:
-        session: Database session.
-        assessment_id: Which draft.
+        session: Session của database.
+        assessment_id: Bản nháp nào.
 
     Returns:
-        The number of `pending` positions.
+        Số vị trí đang ở `pending`.
     """
     return (
         await session.scalar(

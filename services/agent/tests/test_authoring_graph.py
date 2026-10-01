@@ -1,9 +1,9 @@
-"""The write-check-retry loop, and what it does when the model will not comply.
+"""Loop write-check-retry, và nó làm gì khi model không chịu tuân thủ.
 
-The loop is the reason this task is a graph rather than a function call, and
-the behaviour worth pinning is the feedback: a re-ask that carries the
-complaint is a correction, one that repeats the same request is a re-roll with
-better odds. Only the first is worth the student's wait.
+Cái loop là lý do việc này là một graph thay vì một lần gọi hàm, và hành vi đáng ghim
+lại là phần phản hồi: một lần hỏi lại có mang theo lời phàn nàn là một lần sửa lỗi, còn
+một lần hỏi lại lặp đúng yêu cầu cũ là gieo lại xúc xắc với tỉ lệ khá hơn. Chỉ cái đầu
+tiên xứng với thời gian chờ của học sinh.
 """
 
 import pytest
@@ -39,7 +39,7 @@ _FRESH = "Cho hàm số y = x³ − 12x. Hàm số nghịch biến trên khoản
 
 
 def _good(stem: str = _FRESH) -> GeneratedQuestion:
-    """A question that breaks no rule."""
+    """Một câu hỏi không phạm luật nào."""
     return GeneratedQuestion(
         stem=stem,
         options=(
@@ -52,7 +52,7 @@ def _good(stem: str = _FRESH) -> GeneratedQuestion:
 
 
 def _two_right() -> GeneratedQuestion:
-    """A question with two correct options, which ADR-18 forbids."""
+    """Một câu hỏi có hai phương án đúng, điều ADR-18 cấm."""
     return GeneratedQuestion(
         stem="Câu hỏng: hai đáp án đúng",
         options=(
@@ -65,14 +65,14 @@ def _two_right() -> GeneratedQuestion:
 
 
 class Scripted:
-    """A chat model that answers with queued questions, recording the prompts."""
+    """Một chat model trả lời bằng các câu hỏi xếp sẵn, có ghi lại các prompt."""
 
     def __init__(self, answers: list[GeneratedQuestion]) -> None:
         self.answers = answers
         self.prompts: list[str] = []
 
     def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
-        """Return a runnable handing back the next queued question."""
+        """Trả về một runnable đưa lại câu hỏi xếp sẵn tiếp theo."""
 
         def answer(messages: object) -> GeneratedQuestion:
             self.prompts.append("\n".join(message.text() for message in messages))
@@ -83,7 +83,7 @@ class Scripted:
 
 @pytest.fixture
 def on(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Turn the model path on without a key."""
+    """Bật đường gọi model lên mà không cần key."""
     monkeypatch.setattr(llm, "enabled", lambda: True)
 
 
@@ -91,10 +91,10 @@ def on(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_a_rejected_question_is_re_asked_with_the_reason(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The complaint travels back to the model.
+    """Lời phàn nàn đi ngược về tới model.
 
-    Without it the second attempt is the first attempt again with different
-    dice. With it, the model is being corrected.
+    Không có nó thì lần thử thứ hai chính là lần thử thứ nhất với con xúc xắc khác. Có
+    nó, model mới đang được sửa.
     """
     model = Scripted([_two_right(), _good()])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -110,7 +110,7 @@ async def test_a_rejected_question_is_re_asked_with_the_reason(
 async def test_a_model_that_never_complies_is_given_up_on(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Three tries, then the caller decides -- it has alternatives, this does not."""
+    """Ba lần thử, rồi bên gọi quyết định -- nó có các lựa chọn khác, chỗ này thì không."""
     model = Scripted([_two_right(), _two_right(), _two_right()])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
@@ -122,7 +122,7 @@ async def test_a_model_that_never_complies_is_given_up_on(
 
 @pytest.mark.asyncio
 async def test_a_repeated_stem_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    """ADR-17: a round that re-asks the old question tests memory, not learning."""
+    """ADR-17: một lượt hỏi lại câu cũ là kiểm tra trí nhớ, không phải kiểm tra sự học."""
     repeat = _good(stem=ORIGIN.stem)
     model = Scripted([repeat, _good()])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -139,11 +139,11 @@ async def test_a_repeated_stem_is_rejected(monkeypatch: pytest.MonkeyPatch) -> N
 async def test_the_bank_catches_a_model_that_cannot_write_the_round(
     on: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A round that will not open is worse than one that opens on prepared content.
+    """Một lượt không chịu mở ra còn tệ hơn một lượt mở ra trên nội dung dọn trước.
 
-    The student is spending a round either way, and the hand-written bank
-    satisfies ADR-18 by construction -- which is what makes the whole retry
-    ladder terminate.
+    Học sinh thì đang tiêu một lượt trong cả hai trường hợp, và cái bank viết tay thoả
+    ADR-18 ngay từ cách nó được dựng -- đó chính là thứ làm cả cái thang làm lại kết
+    thúc được.
     """
     monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([_two_right()] * 3),))
 
@@ -162,18 +162,17 @@ async def test_the_bank_catches_a_model_that_cannot_write_the_round(
 async def test_a_banned_stem_is_recognised_however_be_stored_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The stems BE sends arrive raw and are normalised here.
+    """Các stem BE gửi tới ở dạng thô và được normalise ở đây.
 
-    The first version of this path had BE normalise them with its own
-    function -- one written for class names, which strips a leading "lớp" and
-    removes every space. AGENT compared those against its own rule, which only
-    collapses whitespace, so `"Đạo hàm của y = x² là gì?"` was sent as
-    `"đạohàmcủay=x²làgì?"` and matched nothing. The check existed and never
-    fired once.
+    Bản đầu tiên của đường này để BE tự normalise chúng bằng hàm của chính nó -- một hàm
+    viết cho tên lớp, nó cắt chữ "lớp" ở đầu và xoá mọi dấu cách. AGENT đem những stem
+    đó so với luật của chính mình, luật chỉ gộp khoảng trắng, nên
+    `"Đạo hàm của y = x² là gì?"` được gửi đi dưới dạng `"đạohàmcủay=x²làgì?"` và không
+    khớp với gì cả. Check thì có đó mà chưa nổ lần nào.
 
-    Normalising on arrival is what the remediation path already did. This
-    makes the drafting path do the same, and the assertion is that a stem sent
-    with untidy spacing and different case is still recognised as banned.
+    Normalise ngay lúc nhận là việc đường chữa lỗi vốn đã làm. Test này làm cho đường
+    soạn nháp làm điều tương tự, và điều được khẳng định là: một stem gửi tới với khoảng
+    trắng không gọn và chữ hoa chữ thường khác đi vẫn được nhận ra là bị cấm.
     """
     repeated = "Đạo hàm của y = x² là gì?"
     model = Scripted([_good().model_copy(update={"stem": repeated}), _good()])
@@ -189,13 +188,13 @@ async def test_a_banned_stem_is_recognised_however_be_stored_it(
             topic_scope="đạo hàm",
             ordinal=2,
             of_total=3,
-            # As stored, with the spacing a model actually produces.
+            # Đúng như đã lưu, với cách để khoảng trắng mà một model thật sinh ra.
             banned_stems=("Đạo hàm  của y = x²   là gì?",),
         ).model_dump(mode="json"),
     )
 
-    # The first attempt repeated a banned stem, so the graph complained and
-    # asked again -- which is the only way the second queued answer is used.
+    # Lần thử đầu lặp lại một stem bị cấm, nên graph phàn nàn rồi hỏi lại -- đó là cách
+    # duy nhất để câu trả lời xếp sẵn thứ hai được dùng tới.
     assert len(model.prompts) == 2
     assert "trùng" in model.prompts[1]
     assert answer["question"]["stem"] != repeated

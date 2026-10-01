@@ -1,13 +1,13 @@
-"""The two-phase flow, end to end, against an in-memory database.
+"""Luồng hai pha, từ đầu tới cuối, chạy trên một database in-memory.
 
-AGENT is stubbed at the gateway rather than imported: BE and AGENT may not
-depend on each other, and a test that reached into the worker to get a question
-back would be the first crack in that wall. The stub returns the same shape the
-real task does, built from `contracts`, which both services share.
+AGENT được stub ở tầng gateway thay vì được import: BE và AGENT không được phụ thuộc
+vào nhau, và một test thò tay vào worker để lấy một câu hỏi về sẽ là vết nứt đầu tiên
+trên bức tường đó. Bản stub trả về đúng hình dạng mà task thật trả về, dựng từ
+`contracts` — thứ cả hai service dùng chung.
 
-What these tests assert is deliberately not the wording of anything. They check
-the rules that outlive both the mock and the model: the floor, the ceiling of
-three rounds, who may read what, and what never appears in a student payload.
+Điều các test này khẳng định cố ý không phải câu chữ của bất cứ thứ gì. Chúng kiểm
+những luật sống lâu hơn cả bản `mock` lẫn model: cái sàn điểm, mức trần ba vòng, ai
+được đọc cái gì, và cái gì không bao giờ xuất hiện trong `payload` của học sinh.
 """
 
 import asyncio
@@ -48,12 +48,12 @@ _RETRY = GeneratedQuestion(
 
 
 async def _fake_run_task(pool, settings, task_name, payload) -> dict:
-    """Stand in for AGENT, returning the shape each task promises.
+    """Đứng thay AGENT, trả về đúng hình dạng mà mỗi task hứa.
 
-    The retry stem carries its round number because BE refuses a retry that
-    repeats the question it replaces or an earlier round (ADR-17). A stub
-    returning one fixed stem would be rejected on round two -- correctly, which
-    is why the stub varies rather than the rule bending.
+    `stem` của lượt làm lại mang theo số vòng, vì BE từ chối một lượt làm lại nhắc lại
+    câu nó đang thay thế hoặc một vòng trước đó (ADR-17). Một bản stub trả về đúng một
+    `stem` cố định sẽ bị loại ở vòng hai — loại đúng, nên thứ phải thay đổi là bản stub,
+    không phải cái luật.
     """
     if task_name.endswith("retry_question"):
         question = _RETRY.model_copy(
@@ -66,10 +66,10 @@ async def _fake_run_task(pool, settings, task_name, payload) -> dict:
 
 
 async def _ask_something(client: AsyncClient, attempt_id: str) -> None:
-    """Get past the opening turn so the next stream is a real model turn.
+    """Đi qua lượt mở đầu để lượt `stream` kế tiếp là một lượt model thật.
 
-    The greeting is written by BE and never reaches AGENT, so a test that wants
-    to watch a model answer has to ask it something first.
+    Lời chào do BE viết và không bao giờ tới AGENT, nên một test muốn xem model trả lời
+    thì phải hỏi nó một câu gì trước đã.
     """
     await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
     await client.post(
@@ -80,27 +80,28 @@ async def _ask_something(client: AsyncClient, attempt_id: str) -> None:
 
 
 async def _fake_stream_task(pool, settings, task_name, payload, channel, silence=None):
-    """Stand in for AGENT on the streaming path, publishing nothing.
+    """Đứng thay AGENT trên đường `stream`, và không publish gì cả.
 
-    A worker that does not stream -- prepared content, or a provider without
-    token streaming -- is a supported case, not a degraded one, so this is the
-    stub the rest of the suite runs against. The live path has its own test.
+    Một worker không `stream` — nội dung soạn trước, hoặc một nhà cung cấp không có
+    `stream` theo `token` — là một ca được hỗ trợ, không phải một ca suy giảm, nên đây
+    là bản stub mà phần còn lại của bộ test chạy lên. Đường chạy thật có test riêng của
+    nó.
     """
     yield "result", await _fake_run_task(pool, settings, task_name, payload)
 
 
 async def _nothing_finished_yet(pool, settings, job_id) -> tuple[str, object]:
-    """Default reading of a queued job: still running."""
+    """Cách đọc mặc định cho một job đã vào queue: vẫn đang chạy."""
     return "pending", None
 
 
 class FakeQueue:
-    """A queue that accepts jobs and remembers them.
+    """Một queue nhận job và nhớ chúng lại.
 
-    `object()` used to stand in here, which meant `enqueue_task` raised,
-    swallowed it, and pre-generation quietly did nothing -- the suite passed
-    because the system correctly fell back to writing questions on the spot.
-    Green for the wrong reason is worse than red.
+    Trước đây chỗ này là một `object()`, nghĩa là `enqueue_task` ném exception, bị nuốt
+    đi, và phần sinh câu hỏi trước âm thầm không làm gì — bộ test vẫn xanh vì hệ thống
+    đã `fallback` đúng cách sang viết câu hỏi ngay tại chỗ. Xanh vì lý do sai thì tệ hơn
+    là đỏ.
     """
 
     def __init__(self) -> None:
@@ -112,13 +113,13 @@ class FakeQueue:
         return SimpleNamespace(job_id=job_id)
 
     def payload_for(self, job_id: str) -> dict:
-        """The payload a job was queued with."""
+        """`payload` mà một job được đưa vào queue cùng với nó."""
         return next(payload for queued, _, payload in self.jobs if queued == job_id)
 
 
 @pytest_asyncio.fixture
 async def client(monkeypatch) -> AsyncClient:
-    """Build an app on a fresh in-memory database with AGENT stubbed."""
+    """Dựng một app trên database in-memory mới, với AGENT đã được stub."""
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -127,13 +128,13 @@ async def client(monkeypatch) -> AsyncClient:
     async with maker() as session:
         await seed_if_empty(session)
 
-    # Patched inside the gateway rather than at the route, so `start_round`
-    # still runs the real ask-and-recheck loop: the ADR-18 and ADR-17 checks
-    # and the re-ask on rejection stay under test instead of being stubbed out.
+    # Patch vào bên trong gateway chứ không ở tầng route, để `start_round` vẫn chạy đúng
+    # vòng hỏi-rồi-kiểm-lại thật: các lượt kiểm theo ADR-18 và ADR-17, cùng việc hỏi lại
+    # khi bị từ chối, vẫn nằm trong vùng được test thay vì bị stub mất.
     monkeypatch.setattr(agent_gateway, "run_task", _fake_run_task)
     monkeypatch.setattr(student_routes, "stream_task", _fake_stream_task)
-    # Nothing is collected unless a test says a job finished. The three-way
-    # reading of a job's state is the gateway's business and is tested there.
+    # Không thu kết quả nào trừ khi có test nói rằng một job đã xong. Cách đọc ba đường
+    # cho state của một job là việc của gateway và được test ở đó.
     monkeypatch.setattr(student_routes, "collect_result", _nothing_finished_yet)
 
     app = FastAPI()
@@ -148,13 +149,13 @@ async def client(monkeypatch) -> AsyncClient:
 
 
 async def _sessionmaker():
-    """Reach the same session factory the app uses, for arranging state."""
+    """Lấy đúng session factory mà app đang dùng, để dàn dựng state."""
     assert db_module._SESSION_MAKER is not None
     return db_module._SESSION_MAKER
 
 
 async def _start_and_submit(client: AsyncClient, correct_count: int) -> dict:
-    """Run phase 1, answering the first `correct_count` questions correctly."""
+    """Chạy pha 1, trả lời đúng `correct_count` câu đầu tiên."""
     assignments = (await client.get("/api/me/assignments", headers=STUDENT)).json()
     assessment_id = assignments[0]["assignment_id"]
     attempt = (
@@ -162,8 +163,8 @@ async def _start_and_submit(client: AsyncClient, correct_count: int) -> dict:
     ).json()
 
     for index, question in enumerate(attempt["questions"]):
-        # The payload hides which option is right, so pick by position: the
-        # seed puts the correct option first on every question.
+        # `payload` che đi phương án nào đúng, nên chọn theo vị trí: bản seed đặt phương
+        # án đúng ở đầu trong mọi câu hỏi.
         option = question["options"][0 if index < correct_count else 1]
         response = await client.put(
             f"/api/attempts/{attempt['attempt_id']}/answers/{question['question_id']}",
@@ -179,7 +180,7 @@ async def _start_and_submit(client: AsyncClient, correct_count: int) -> dict:
 
 @pytest.mark.asyncio
 async def test_phase_one_payload_hides_the_answer_key(client: AsyncClient) -> None:
-    """A running attempt must not tell the student which option is correct."""
+    """Một `Attempt` đang chạy không được nói cho học sinh biết phương án nào đúng."""
     assignments = (await client.get("/api/me/assignments", headers=STUDENT)).json()
     attempt = (
         await client.post(
@@ -194,7 +195,7 @@ async def test_phase_one_payload_hides_the_answer_key(client: AsyncClient) -> No
 
 @pytest.mark.asyncio
 async def test_student_payloads_carry_no_diagnosis_numbers(client: AsyncClient) -> None:
-    """ADR-08: confidence, misconception and review reason never reach a student."""
+    """ADR-08: `Confidence`, misconception và lý do đưa đi xem lại không bao giờ tới học sinh."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -211,7 +212,7 @@ async def test_student_payloads_carry_no_diagnosis_numbers(client: AsyncClient) 
 
 @pytest.mark.asyncio
 async def test_phase_one_score_is_the_floor(client: AsyncClient) -> None:
-    """Four right out of six scores 4.0, and the two wrong ones stay open."""
+    """Đúng bốn trên sáu thì được 4.0, và hai câu sai vẫn còn để mở."""
     submitted = await _start_and_submit(client, correct_count=4)
     assert submitted["phase1_score"] == 4.0
     assert len(submitted["wrong_question_ids"]) == 2
@@ -224,7 +225,7 @@ async def test_phase_one_score_is_the_floor(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_submitting_twice_is_refused(client: AsyncClient) -> None:
-    """Submitting ends phase 1; a one-way door pressed twice is not idempotent."""
+    """Nộp bài là kết thúc pha 1; một cánh cửa một chiều bấm hai lần thì không `idempotent`."""
     submitted = await _start_and_submit(client, correct_count=6)
     again = await client.post(f"/api/attempts/{submitted['attempt_id']}/submit", headers=STUDENT)
     assert again.status_code == 409
@@ -232,7 +233,7 @@ async def test_submitting_twice_is_refused(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_another_student_cannot_read_this_attempt(client: AsyncClient) -> None:
-    """Ownership is enforced, and a stranger is told 404 rather than 403."""
+    """Quyền sở hữu được thi hành, và người lạ nhận 404 chứ không nhận 403."""
     submitted = await _start_and_submit(client, correct_count=6)
     response = await client.get(
         f"/api/attempts/{submitted['attempt_id']}/result", headers=OTHER_STUDENT
@@ -242,7 +243,7 @@ async def test_another_student_cannot_read_this_attempt(client: AsyncClient) -> 
 
 @pytest.mark.asyncio
 async def test_solution_is_closed_until_the_paper_is_submitted(client: AsyncClient) -> None:
-    """The dialog carries the correct option, so it waits for submission."""
+    """Hộp thoại mang theo phương án đúng, nên nó đợi tới khi bài được nộp."""
     assignments = (await client.get("/api/me/assignments", headers=STUDENT)).json()
     attempt = (
         await client.post(
@@ -261,14 +262,14 @@ async def test_solution_is_closed_until_the_paper_is_submitted(client: AsyncClie
 
 
 async def _finish_phase_one(client: AsyncClient, attempt: dict) -> None:
-    """Submit an attempt without answering anything."""
+    """Nộp một `Attempt` mà không trả lời câu nào."""
     response = await client.post(f"/api/attempts/{attempt['attempt_id']}/submit", headers=STUDENT)
     assert response.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_a_round_lifts_a_wrong_question_to_half_credit(client: AsyncClient) -> None:
-    """Getting the retry right closes the question at 0.5, never at 1.0."""
+    """Làm đúng lượt làm lại thì chốt câu đó ở 0.5, không bao giờ ở 1.0."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -297,7 +298,7 @@ async def test_a_round_lifts_a_wrong_question_to_half_credit(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_three_wrong_rounds_close_the_question_at_zero(client: AsyncClient) -> None:
-    """ADR-17 caps remediation at three rounds, and a fourth is refused."""
+    """ADR-17 chặn việc chữa bài ở ba vòng, và vòng thứ tư bị từ chối."""
     submitted = await _start_and_submit(client, correct_count=5)
     attempt_id = submitted["attempt_id"]
 
@@ -325,7 +326,7 @@ async def test_three_wrong_rounds_close_the_question_at_zero(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_a_mark_never_falls(client: AsyncClient) -> None:
-    """Phase 1 sets a floor: no path in phase 2 may lower a mark."""
+    """Pha 1 đặt ra một cái sàn: không đường nào trong pha 2 được phép hạ điểm xuống."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -352,7 +353,7 @@ async def test_a_mark_never_falls(client: AsyncClient) -> None:
 async def test_a_retry_that_repeats_the_question_is_refused(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """ADR-17: handing back the same stem tests memory, not understanding."""
+    """ADR-17: trả lại đúng `stem` cũ là kiểm tra trí nhớ, không phải kiểm tra sự hiểu."""
     submitted = await _start_and_submit(client, correct_count=5)
     attempt_id = submitted["attempt_id"]
 
@@ -373,14 +374,14 @@ async def test_a_retry_that_repeats_the_question_is_refused(
     assert refused.status_code == 503
     assert wrong["stem"][:20] in refused.json()["detail"]
 
-    # The refusal must not have spent a round.
+    # Lời từ chối không được tiêu mất một vòng nào.
     panel = (await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)).json()
     assert panel["items"][0]["rounds_used"] == 0
 
 
 @pytest.mark.asyncio
 async def test_only_one_round_may_be_open(client: AsyncClient) -> None:
-    """Two tabs must not buy two clocks."""
+    """Hai tab không được mua về hai cái đồng hồ."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -392,7 +393,7 @@ async def test_only_one_round_may_be_open(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_the_panel_warns_when_a_round_would_be_cut(client: AsyncClient) -> None:
-    """ADR-15: BE compares the budget with the time left, not the client."""
+    """ADR-15: BE so ngân sách thời gian với thời gian còn lại, không phải client làm việc đó."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -414,7 +415,7 @@ async def test_the_panel_warns_when_a_round_would_be_cut(client: AsyncClient) ->
 
 @pytest.mark.asyncio
 async def test_no_round_starts_after_the_deadline(client: AsyncClient) -> None:
-    """Past the deadline phase 2 is over, whatever the screen still shows."""
+    """Qua hạn chót là pha 2 đã hết, bất kể màn hình vẫn còn hiển thị gì."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -433,12 +434,11 @@ async def test_no_round_starts_after_the_deadline(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_two_tabs_cannot_open_two_rounds_at_once(client: AsyncClient) -> None:
-    """The refusal must survive concurrency, not just a tidy sequence of calls.
+    """Lời từ chối phải sống sót qua tình huống song song, không chỉ qua một chuỗi gọi ngăn nắp.
 
-    A review on 2026-09-11 fired two of these together and got two rounds: the
-    route checked first and wrote second, and both requests passed the check.
-    Sequential tests never touch that gap, which is why this one runs them with
-    `gather`.
+    Một lượt review ngày 2026-09-11 bắn hai request này cùng lúc và nhận về hai vòng:
+    route kiểm trước rồi ghi sau, và cả hai request đều qua được lượt kiểm. Test tuần tự
+    không bao giờ chạm tới khoảng hở đó, nên test này chạy chúng bằng `gather`.
     """
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
@@ -451,10 +451,10 @@ async def test_two_tabs_cannot_open_two_rounds_at_once(client: AsyncClient) -> N
     codes = sorted([first.status_code, second.status_code])
     assert codes == [201, 409], f"expected one round and one refusal, got {codes}"
 
-    # The count is the invariant. Which of the two survived is not: an
-    # in-memory SQLite keeps one connection for every session, so the loser's
-    # rollback can take the winner's uncommitted row with it. That artefact
-    # belongs to the test database, and never happens on Postgres.
+    # Con số đếm mới là invariant. Bên nào trong hai bên sống sót thì không: SQLite
+    # in-memory giữ đúng một connection cho mọi session, nên lượt `rollback` của bên thua
+    # có thể kéo theo cả dòng chưa `commit` của bên thắng. Hiện tượng đó thuộc về database
+    # dùng để test, và không bao giờ xảy ra trên Postgres.
     maker = await _sessionmaker()
     async with maker() as session:
         open_rounds = list(
@@ -473,7 +473,7 @@ async def test_two_tabs_cannot_open_two_rounds_at_once(client: AsyncClient) -> N
 
 @pytest.mark.asyncio
 async def test_the_assistant_does_not_greet_twice(client: AsyncClient) -> None:
-    """Whose turn it is is decided server side, not by how often a client asks."""
+    """Đến lượt ai là chuyện phía server quyết, không phải chuyện client hỏi bao nhiêu lần."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -485,7 +485,7 @@ async def test_the_assistant_does_not_greet_twice(client: AsyncClient) -> None:
     history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
     assert len(history["messages"]) == 1
 
-    # Once the student speaks, it is the assistant's turn again.
+    # Khi học sinh đã nói, lại tới lượt trợ lý.
     await client.post(
         f"/api/attempts/{attempt_id}/chat/messages", json={"text": "câu 5 ạ"}, headers=STUDENT
     )
@@ -498,7 +498,7 @@ async def test_the_assistant_does_not_greet_twice(client: AsyncClient) -> None:
 async def test_the_assistant_is_told_which_question_numbers_are_wrong(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """The assistant says "câu 5" out loud, so the number has to travel."""
+    """Trợ lý nói thành tiếng "câu 5", nên con số đó phải đi được tới nơi."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -512,13 +512,13 @@ async def test_the_assistant_is_told_which_question_numbers_are_wrong(
     await _ask_something(client, attempt_id)
     await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
 
-    # The seed's last two questions are the ones answered wrongly.
+    # Hai câu cuối trong bản seed chính là hai câu bị làm sai.
     assert seen["question_numbers"] == [5, 6]
 
 
 @pytest.mark.asyncio
 async def test_chat_history_locks_when_the_attempt_ends(client: AsyncClient) -> None:
-    """A finished attempt keeps its conversation readable and refuses new turns."""
+    """Một `Attempt` đã xong thì giữ cuộc hội thoại ở dạng đọc được và từ chối lượt mới."""
     submitted = await _start_and_submit(client, correct_count=6)
     attempt_id = submitted["attempt_id"]
 
@@ -533,7 +533,7 @@ async def test_chat_history_locks_when_the_attempt_ends(client: AsyncClient) -> 
 
 @pytest.mark.asyncio
 async def test_a_report_needs_no_message_and_blocks_nothing(client: AsyncClient) -> None:
-    """ADR-19: the unit of a report is the attempt's conversation, not one turn."""
+    """ADR-19: đơn vị của một báo cáo là cả cuộc hội thoại của `Attempt`, không phải một lượt."""
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
 
@@ -550,11 +550,11 @@ async def test_a_report_needs_no_message_and_blocks_nothing(client: AsyncClient)
 async def test_the_answer_reaches_the_student_as_it_is_written(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """Pieces published by AGENT are forwarded, and the whole is still stored.
+    """Các mẩu do AGENT publish đều được chuyển tiếp, và trọn câu vẫn được lưu lại.
 
-    The two halves matter together. Forwarding alone would be an animation over
-    nothing; storing alone is what the system had before. A reader who reloads
-    must find the same sentence they watched appear.
+    Hai nửa đó chỉ có nghĩa khi đi cùng nhau. Chỉ chuyển tiếp thôi thì là một hiệu ứng
+    động trên hư không; chỉ lưu thôi là đúng thứ hệ thống đã có từ trước. Một người đọc
+    reload lại phải tìm thấy đúng câu họ vừa xem hiện ra.
     """
 
     async def streaming(pool, settings, task_name, payload, channel, silence=None):
@@ -580,8 +580,8 @@ async def test_the_answer_reaches_the_student_as_it_is_written(
 
     body = response.text
     assert body.count("event: chunk") == 3, "one event per published piece, no re-splitting"
-    # The piece with a line break in it is written as two `data:` lines, which
-    # is what the format says. One line would have truncated the sentence.
+    # Cái mẩu có ký tự xuống dòng bên trong được viết thành hai dòng `data:`, đúng như
+    # định dạng quy định. Gói vào một dòng sẽ cắt cụt câu đó.
     assert "data: em chọn B,\ndata: \n" in body
     assert body.count("event: done") == 1
 
@@ -593,11 +593,11 @@ async def test_the_answer_reaches_the_student_as_it_is_written(
 async def test_a_model_failure_arrives_in_the_stream_not_as_a_status_code(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """Once the stream is open the status line is already sent.
+    """`stream` đã mở thì dòng status đã bay đi rồi.
 
-    So a failure has to be told in-band. The turn must not be stored: the
-    student's own message is still the last word, which is what makes the next
-    request generate a fresh answer rather than replay a broken one.
+    Nên một lỗi phải được báo ngay trong chính dòng dữ liệu đó. Lượt ấy không được lưu:
+    tin nhắn của chính học sinh vẫn là lời cuối, và chính điều đó làm request kế tiếp sinh
+    ra một câu trả lời mới chứ không phát lại một câu trả lời hỏng.
     """
 
     async def failing(pool, settings, task_name, payload, channel, silence=None):
@@ -614,18 +614,17 @@ async def test_a_model_failure_arrives_in_the_stream_not_as_a_status_code(
     assert response.status_code == 200
     assert "event: error" in response.text
     history = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
-    # The greeting and the question stand; no broken answer was stored after
-    # them, so the student's message is still the last word and the next
-    # request generates a fresh turn.
+    # Lời chào và câu hỏi vẫn còn đó; không có câu trả lời hỏng nào được lưu sau chúng,
+    # nên tin nhắn của học sinh vẫn là lời cuối và request kế tiếp sẽ sinh ra một lượt mới.
     assert [m["role"] for m in history["messages"]] == ["assistant", "student"]
 
 
 @pytest.mark.asyncio
 async def test_submitting_starts_writing_the_next_round(client: AsyncClient) -> None:
-    """The head start begins the moment the paper is handed in.
+    """Cú chạy trước bắt đầu ngay khoảnh khắc bài được nộp.
 
-    Not when the student presses "Làm bài mới" -- by then they are watching a
-    blank screen for as long as a model takes.
+    Không phải lúc học sinh bấm "Làm bài mới" — tới lúc đó thì các em sẽ ngồi nhìn một
+    màn hình trắng đúng bằng khoảng thời gian một model cần.
     """
     submitted = await _start_and_submit(client, correct_count=4)
 
@@ -634,8 +633,8 @@ async def test_submitting_starts_writing_the_next_round(client: AsyncClient) -> 
 
     assert len(asked) == len(submitted["wrong_question_ids"]) == 2
     assert {payload["round_index"] for payload in asked} == {1}
-    # AGENT is told what the student picked, or the retry cannot aim at the
-    # mistake it is supposed to test (ADR-17).
+    # AGENT được cho biết học sinh đã chọn gì, nếu không thì lượt làm lại chẳng nhắm được
+    # vào đúng cái lỗi mà nó phải kiểm (ADR-17).
     assert all(payload["wrong_option_label"] for payload in asked)
 
 
@@ -643,10 +642,10 @@ async def test_submitting_starts_writing_the_next_round(client: AsyncClient) -> 
 async def test_a_question_written_ahead_opens_the_round_without_asking_again(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """The whole point: pressing the button costs no model call.
+    """Đúng trọng tâm: bấm cái nút không tốn một lượt gọi model nào.
 
-    `run_task` is replaced by something that fails the test if it runs, so a
-    regression that quietly reverts to writing on the spot cannot pass.
+    `run_task` bị thay bằng một thứ làm test đỏ nếu nó chạy, nên một regression âm thầm
+    quay về lối viết ngay tại chỗ thì không thể qua được.
     """
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
@@ -662,7 +661,7 @@ async def test_a_question_written_ahead_opens_the_round_without_asking_again(
 
     monkeypatch.setattr(student_routes, "collect_result", finished)
 
-    # Visiting the tutoring screen is what collects the finished work.
+    # Ghé vào màn hình phụ đạo chính là thứ đi thu phần việc đã xong về.
     await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
 
     async def must_not_run(*args, **kwargs):
@@ -680,11 +679,11 @@ async def test_a_question_written_ahead_opens_the_round_without_asking_again(
 async def test_a_head_start_that_aged_out_is_started_again(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """Job results live an hour; a phase 2 deadline can be days away.
+    """Kết quả job sống một giờ; hạn chót của pha 2 có thể cách đó nhiều ngày.
 
-    A student who closes the tab and comes back tomorrow finds the answer gone.
-    The row must not sit on `pending` forever waiting for something that no
-    longer exists -- it is dropped, and the next visit queues a replacement.
+    Một học sinh đóng tab rồi mai quay lại sẽ thấy câu trả lời không còn. Dòng dữ liệu
+    không được nằm mãi ở `pending` mà chờ một thứ đã không còn tồn tại — nó bị bỏ đi, và
+    lượt ghé sau sẽ đưa một job thay thế vào queue.
     """
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
@@ -705,10 +704,10 @@ async def test_a_head_start_that_aged_out_is_started_again(
 async def test_a_dead_queue_does_not_stop_a_student_handing_in(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """Pre-generation is an optimisation. Submitting a paper is not.
+    """Sinh trước là một phép tối ưu. Nộp bài thì không.
 
-    So a queue that is down costs the head start and nothing else, and the
-    round still opens the old way.
+    Nên một queue đang chết chỉ làm mất cú chạy trước, không mất gì khác, và vòng chữa bài
+    vẫn mở ra theo lối cũ.
     """
     monkeypatch.setattr(client._transport.app.state, "queue_pool", None)
 
@@ -724,12 +723,12 @@ async def test_a_dead_queue_does_not_stop_a_student_handing_in(
 async def test_a_question_written_ahead_is_checked_like_any_other(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """Writing ahead must not become a way around ADR-18.
+    """Viết trước không được phép thành đường đi vòng qua ADR-18.
 
-    The rules were enforced inside `ask_for_retry_question`, which only the
-    write-on-the-spot path goes through. From this phase on, writing ahead is
-    the normal path -- so a question with two correct answers would reach the
-    student, and BE grades a round by exactly that flag.
+    Các luật đó được thi hành bên trong `ask_for_retry_question`, nơi mà chỉ đường viết
+    ngay tại chỗ đi qua. Từ pha này trở đi, viết trước mới là đường bình thường — nên một
+    câu hỏi có hai đáp án đúng sẽ tới được học sinh, mà BE thì chấm một vòng dựa vào đúng
+    cái cờ đó.
     """
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
@@ -765,12 +764,12 @@ async def test_a_question_written_ahead_is_checked_like_any_other(
 async def test_nothing_is_written_ahead_while_a_round_is_open(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """The round screen asks this endpoint on mount, and that must cost nothing.
+    """Màn hình vòng chữa gọi endpoint này lúc mount, và việc đó phải không tốn gì.
 
-    `rounds_used` does not move until a round is submitted, so during one the
-    next index still reads as the current round's -- which already has its
-    questions. Every job queued here would be answered, stored, never used,
-    and orphaned the moment the round is handed in.
+    `rounds_used` chưa nhích lên cho tới khi một vòng được nộp, nên trong lúc một vòng đang
+    mở thì chỉ số kế tiếp vẫn đọc ra là của vòng hiện tại — vòng vốn đã có câu hỏi rồi. Mọi
+    job đẩy vào queue ở đây sẽ được trả lời, được lưu, không bao giờ được dùng, và thành
+    mồ côi ngay khoảnh khắc vòng đó được nộp.
     """
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
@@ -779,7 +778,7 @@ async def test_nothing_is_written_ahead_while_a_round_is_open(
     await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
     during = len(queue.jobs)
 
-    # What Round.tsx does when it mounts, and again on every refresh.
+    # Đúng việc Round.tsx làm khi mount, và làm lại ở mọi lượt refresh.
     await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
     await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)
 
@@ -790,11 +789,11 @@ async def test_nothing_is_written_ahead_while_a_round_is_open(
 async def test_a_job_that_failed_is_not_asked_again_forever(
     client: AsyncClient, monkeypatch
 ) -> None:
-    """A job that ran and raised will raise the same way next time.
+    """Một job đã chạy và ném exception thì lần sau cũng ném đúng như thế.
 
-    Deleting its row would re-queue it on every screen the student opens, for
-    as long as the bug lasts, silently. "Aged out" and "failed" are different
-    endings and only the first is worth repeating.
+    Xoá dòng của nó đi sẽ khiến nó được đẩy lại vào queue ở mọi màn hình học sinh mở, suốt
+    chừng nào con bug còn đó, và hoàn toàn âm thầm. "Hết hạn" và "hỏng" là hai cái kết khác
+    nhau, và chỉ cái đầu mới đáng làm lại.
     """
     submitted = await _start_and_submit(client, correct_count=4)
     attempt_id = submitted["attempt_id"]
@@ -814,17 +813,17 @@ async def test_a_job_that_failed_is_not_asked_again_forever(
 
 @pytest.mark.asyncio
 async def test_the_greeting_costs_nothing(client: AsyncClient, monkeypatch) -> None:
-    """The opening turn never reaches AGENT.
+    """Lượt mở đầu không bao giờ tới AGENT.
 
-    It used to: a job, a wait, a stream, to produce a sentence that barely
-    varies. One wasted model call on every paper handed in. Nothing about that
-    saving is visible on screen, so a tidy-up could put it back without anybody
-    noticing -- which is what this test is for.
+    Trước thì có: một job, một lượt chờ, một `stream`, để sinh ra một câu gần như không
+    thay đổi. Một lượt gọi model bị vứt đi ở mỗi bài được nộp. Chẳng có gì về khoản tiết
+    kiệm đó hiện lên màn hình, nên một lượt dọn dẹp có thể đặt nó lại mà không ai nhận ra —
+    và test này tồn tại vì thế.
     """
 
     async def must_not_run(*args, **kwargs):
         raise AssertionError("the greeting asked the model")
-        yield  # pragma: no cover -- keeps this an async generator
+        yield  # pragma: no cover -- giữ cho đây vẫn là một async generator
 
     monkeypatch.setattr(student_routes, "stream_task", must_not_run)
 
@@ -838,8 +837,8 @@ async def test_the_greeting_costs_nothing(client: AsyncClient, monkeypatch) -> N
     greeting = history["messages"][0]["text"]
 
     assert greeting.startswith("Mình là trợ lý Kriky")
-    # It names what is on offer, so the student knows what to ask about before
-    # they have read the panel.
+    # Nó gọi tên những thứ đang có, để học sinh biết nên hỏi về cái gì trước khi kịp đọc
+    # cái bảng.
     assert "câu 5 và câu 6" in greeting
     assert "bạn" in greeting and " em " not in greeting
 
@@ -855,10 +854,10 @@ async def test_the_greeting_costs_nothing(client: AsyncClient, monkeypatch) -> N
 def test_the_greeting_counts_correctly(
     numbers: list[int], must_say: str, must_not_say: str
 ) -> None:
-    """Three wrong questions is not "cả hai", and not "và" between every pair.
+    """Ba câu sai thì không phải "cả hai", và cũng không phải "và" giữa từng cặp một.
 
-    The sample data has exactly two, which is how a sentence that only works
-    for two gets written and then never questioned.
+    Dữ liệu mẫu có đúng hai câu, và đó chính là cách một câu văn chỉ đúng với hai được viết
+    ra rồi không bao giờ bị đem ra hỏi lại.
     """
     said = student_routes._greeting(numbers)
 
@@ -867,18 +866,17 @@ def test_the_greeting_counts_correctly(
 
 
 def test_one_turn_per_position_is_the_database_s_job() -> None:
-    """Two opening streams must not become two greetings.
+    """Hai lượt mở `stream` không được biến thành hai lời chào.
 
-    React's StrictMode opens the stream twice on purpose, and both requests
-    read the same empty history -- so the guard that asks "whose turn is it"
-    cannot help: it needs a history to read. Only a unique index can decide,
-    and `stream_reply` turns the loser's IntegrityError into a replay.
+    StrictMode của React cố ý mở `stream` hai lần, và cả hai request đều đọc được cùng một
+    history rỗng — nên cái chốt hỏi "đang tới lượt ai" không giúp được gì: nó cần một
+    history để mà đọc. Chỉ một unique index mới phân định được, và `stream_reply` biến
+    IntegrityError của bên thua thành một lượt phát lại.
 
-    The race itself is not testable here: this suite runs on an in-memory
-    SQLite that serves every session from one connection, so the loser's
-    rollback takes the winner's row with it. What is testable is the thing that
-    makes the protection possible, and that is what a later tidy-up would
-    delete without noticing.
+    Bản thân cuộc đua thì không test được ở đây: bộ test này chạy trên một SQLite in-memory
+    phục vụ mọi session từ cùng một connection, nên lượt `rollback` của bên thua kéo theo
+    cả dòng của bên thắng. Thứ test được là thứ làm cho sự bảo vệ đó khả thi, và đó đúng là
+    thứ một lượt dọn dẹp về sau sẽ xoá đi mà không nhận ra.
     """
     from be.models import ChatMessage
 

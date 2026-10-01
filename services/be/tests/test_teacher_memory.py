@@ -1,15 +1,15 @@
-"""The conversation that survives the request, and what that buys.
+"""Cuộc hội thoại sống sót qua request, và nó mua được những gì.
 
-Until this table existed the endpoint took one sentence and forgot it. The
-obvious cost was a reload losing the turn. The real cost was larger: a teacher
-answering the assistant's own clarifying question sent that answer with no
-trace of what had been asked, so the input gate of ADR-05 existed without a
-way to be answered.
+Trước khi có bảng này, endpoint nhận một câu rồi quên luôn. Cái giá dễ thấy là
+reload một cái là mất lượt. Cái giá thật thì lớn hơn: một giáo viên trả lời đúng
+câu hỏi làm rõ của trợ lý đã gửi câu trả lời đó đi mà không mang theo dấu vết nào
+của điều vừa được hỏi, nên cổng đầu vào của ADR-05 tồn tại mà không có cách nào để
+trả lời.
 
-So the tests here are not really about storage. They are about a conversation
-being one thing across several requests, and about the row being complete
-enough afterwards to answer "what did it actually do" -- which, with an agent
-that picks its own steps, is not answerable from the words alone.
+Vậy nên các test ở đây không thật sự nói về chuyện lưu trữ. Chúng nói về việc một
+cuộc hội thoại là *một* thứ xuyên nhiều request, và về việc dòng dữ liệu sau đó đủ
+đầy để trả lời "nó đã thật sự làm gì" — câu hỏi mà với một agent tự chọn bước đi
+của mình thì không thể trả lời chỉ bằng mấy lời thoại.
 """
 
 import asyncio
@@ -36,12 +36,12 @@ TEACHER = {"X-Actor": "teacher:GV-001"}
 
 
 class ScriptedAgent:
-    """Answer each step with a queued proposal, recording what it was asked.
+    """Trả lời từng bước bằng một đề xuất xếp sẵn, và ghi lại những gì nó được hỏi.
 
-    `takes` is how long each answer pretends to need. A fake that answers
-    instantly makes `duration_ms` round to zero, which is indistinguishable
-    from a duration nobody measured -- so a test about the measurement has to
-    give it something to measure.
+    `takes` là khoảng thời gian mỗi câu trả lời giả vờ cần tới. Một bản `mock` trả
+    lời tức thì làm `duration_ms` làm tròn về không, mà con số đó không phân biệt
+    được với một khoảng thời gian không ai đo — nên một test nói về phép đo thì phải
+    cho nó thứ gì đó để mà đo.
     """
 
     def __init__(self, *steps: NextStepCompleted, takes: float = 0.0) -> None:
@@ -63,7 +63,7 @@ class ScriptedAgent:
 
 @pytest_asyncio.fixture
 async def stack(monkeypatch):
-    """An app on a seeded in-memory database, with a second class to be vague about."""
+    """Một app trên database in-memory đã seed, kèm một lớp thứ hai để còn có chỗ nói mơ hồ."""
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -92,12 +92,11 @@ async def stack(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_second_message_carries_the_first_one_with_it(stack) -> None:
-    """The clarifying question becomes answerable.
+    """Câu hỏi làm rõ trở thành thứ có thể trả lời được.
 
-    This is the whole point of the table. The assistant asks "which class?",
-    the teacher answers "12A", and the model has to see its own question to
-    make sense of that word. Before the conversation was stored, the second
-    request arrived holding only "12A".
+    Đây là toàn bộ lý do bảng này tồn tại. Trợ lý hỏi "lớp nào?", giáo viên đáp
+    "12A", và model phải thấy được câu hỏi của chính nó mới hiểu nổi hai chữ đó.
+    Trước khi cuộc hội thoại được lưu, request thứ hai tới nơi chỉ mang theo "12A".
     """
     client, _, monkeypatch = stack
     agent = ScriptedAgent(
@@ -118,7 +117,7 @@ async def test_a_second_message_carries_the_first_one_with_it(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_the_conversation_reads_back_after_the_request_is_gone(stack) -> None:
-    """A reload shows the same conversation, in the same order."""
+    """Reload một cái vẫn thấy đúng cuộc hội thoại đó, đúng thứ tự đó."""
     client, _, monkeypatch = stack
     monkeypatch.setattr(
         teacher_chat,
@@ -139,11 +138,10 @@ async def test_the_conversation_reads_back_after_the_request_is_gone(stack) -> N
 
 @pytest.mark.asyncio
 async def test_a_tool_step_stores_what_it_ran_and_what_came_back(stack) -> None:
-    """The trace is the transcript, so one SELECT answers "what did it do".
+    """Vết chạy chính là biên bản, nên một câu SELECT trả lời được "nó đã làm gì".
 
-    Storing only the words would leave the middle of every turn invisible: a
-    teacher reports "nó trả lời sai" and the tool call that produced the
-    answer would be nowhere.
+    Chỉ lưu lời thoại sẽ để phần giữa của mọi lượt thành vô hình: giáo viên báo "nó
+    trả lời sai" mà lượt gọi tool sinh ra câu trả lời đó thì chẳng nằm ở đâu cả.
     """
     client, maker, monkeypatch = stack
     monkeypatch.setattr(
@@ -174,21 +172,21 @@ async def test_a_tool_step_stores_what_it_ran_and_what_came_back(stack) -> None:
     came_back = stored[2]
     assert came_back.tool_result["found"] is True
     assert came_back.tool_result["name"] == "12B"
-    # The subject of the step, which is what the interface draws and what a
-    # later question links to -- not the sentence announcing it.
+    # Đối tượng của bước đó — thứ mà giao diện vẽ ra và thứ một câu hỏi sau này trỏ
+    # tới — chứ không phải câu văn thông báo về nó.
     assert came_back.entity_kind == "class"
     assert came_back.entity_id == came_back.tool_result["class_id"]
 
 
 @pytest.mark.asyncio
 async def test_what_a_call_cost_travels_from_agent_into_the_row(stack) -> None:
-    """The token count AGENT reported is the one stored.
+    """Số `token` mà AGENT báo về đúng là số được lưu.
 
-    The first version of this test asserted `model_tokens >= 0` on a fake that
-    never set it -- a column defaulting to 0 compared against 0, which stayed
-    green with the whole field deleted. It bought a feeling of safety and sold
-    nothing back. This one names a number and follows it through AGENT, the
-    contract, BE and the table.
+    Bản đầu tiên của test này khẳng định `model_tokens >= 0` trên một bản `mock`
+    chẳng bao giờ gán giá trị đó — một cột mặc định 0 đem so với 0, và nó vẫn xanh
+    ngay cả khi xoá sạch cả field. Nó bán cho ta cảm giác an toàn mà không trả lại
+    gì. Bản này nêu đúng một con số và theo nó đi qua AGENT, qua contract, qua BE,
+    tới cái bảng.
     """
     client, maker, monkeypatch = stack
     monkeypatch.setattr(
@@ -207,22 +205,21 @@ async def test_what_a_call_cost_travels_from_agent_into_the_row(stack) -> None:
 
     assert spoken is not None
     assert spoken.model_tokens == 1234
-    # The fake took 50ms and the assertion allows 30, because `int()` on the
-    # elapsed milliseconds truncates and a loaded machine rounds the sleep
-    # down. The claim being made is "this was measured", not "this was exactly
-    # 50" -- a flat zero is what a step recorded outside the timed region
-    # would give. Asserting the sleep exactly is how this test failed once
-    # before being loosened.
+    # Bản `mock` ngốn 50ms còn khẳng định chỉ đòi 30, vì `int()` trên số millisecond
+    # đã trôi qua thì cắt phần thập phân, và một máy đang tải nặng còn làm tròn giấc
+    # ngủ xuống. Điều được khẳng định là "cái này đã được đo", không phải "cái này
+    # đúng 50" — một số 0 trơ ra mới là thứ một bước ghi ở ngoài vùng bấm giờ sẽ cho.
+    # Khẳng định đúng y con số sleep chính là cách test này từng đỏ, trước khi được
+    # nới ra.
     assert spoken.duration_ms >= 30
 
 
 @pytest.mark.asyncio
 async def test_two_steps_cannot_claim_the_same_position(stack) -> None:
-    """The uniqueness that stopped the student being greeted twice.
+    """Ràng buộc tính duy nhất đã chặn chuyện học sinh bị chào hai lần.
 
-    Two requests can reach the same position holding the same count, because
-    reading the count and inserting the row are two statements with a gap in
-    between.
+    Hai request có thể tới cùng một vị trí với cùng một con đếm trong tay, vì đọc con
+    đếm và chèn dòng mới là hai câu lệnh, giữa chúng có một khoảng hở.
     """
     _, maker, _ = stack
 
@@ -248,13 +245,13 @@ async def test_two_steps_cannot_claim_the_same_position(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_one_teacher_never_sees_another_conversation(stack) -> None:
-    """Reading back is scoped by owner like everything else (ADR-22).
+    """Việc đọc lại cũng bị giới hạn theo chủ sở hữu như mọi thứ khác (ADR-22).
 
-    The first version of this test asked as `GV-404`, a code belonging to
-    nobody, and asserted 401 -- which `current_teacher` returns before this
-    endpoint runs at all. It would have stayed green with the owner filter
-    deleted. So the second teacher here exists, and what is asserted is that
-    a real teacher sees an empty conversation rather than someone else's.
+    Bản đầu tiên của test này hỏi dưới danh nghĩa `GV-404`, một mã không thuộc về ai,
+    và khẳng định 401 — thứ mà `current_teacher` trả về trước khi endpoint này kịp
+    chạy. Nó sẽ vẫn xanh dù có xoá bỏ bộ lọc theo chủ sở hữu. Nên giáo viên thứ hai ở
+    đây là người có thật, và điều được khẳng định là một giáo viên thật thấy một cuộc
+    hội thoại rỗng chứ không thấy hội thoại của người khác.
     """
     client, maker, monkeypatch = stack
     async with maker() as session:
@@ -277,19 +274,18 @@ async def test_one_teacher_never_sees_another_conversation(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_step_aimed_at_a_taken_position_moves_to_the_next_free_one(stack) -> None:
-    """The recovery half of the lesson `chat_messages` taught.
+    """Nửa còn lại — phần hồi phục — của bài học mà `chat_messages` đã dạy.
 
-    Reading the position and inserting at it are two statements with a gap
-    between them, so two of a teacher's requests can both aim at the same
-    one -- React's StrictMode fires twice by design, and so does an impatient
-    teacher. The unique index decides; the loser takes the next free position
-    instead of failing.
+    Đọc vị trí và chèn vào vị trí đó là hai câu lệnh có khoảng hở ở giữa, nên hai
+    request của một giáo viên có thể cùng nhắm vào một vị trí — StrictMode của React
+    bắn hai lần theo đúng thiết kế, và một giáo viên mất kiên nhẫn cũng vậy. Unique
+    index là thứ phân định; bên thua nhận vị trí trống tiếp theo thay vì hỏng.
 
-    Tested by aiming twice on purpose rather than by racing. A race is not
-    observable here: in-memory SQLite runs on a `StaticPool`, one connection
-    shared by every session, so two concurrent requests have no transaction
-    isolation between them and the result says more about the pool than about
-    this code. Aiming twice exercises the same branch and says something true.
+    Được test bằng cách cố ý nhắm hai lần, không phải bằng cách cho đua. Ở đây một
+    cuộc đua là thứ không quan sát được: SQLite in-memory chạy trên `StaticPool`, một
+    connection dùng chung cho mọi session, nên hai request song song không có isolation
+    nào giữa chúng và kết quả nói về cái pool nhiều hơn là về đoạn code này. Nhắm hai
+    lần chạy đúng nhánh đó và nói ra một điều đúng.
     """
     _, maker, _ = stack
 
@@ -303,7 +299,7 @@ async def test_a_step_aimed_at_a_taken_position_moves_to_the_next_free_one(stack
         first = await teacher_chat._record(
             session, thread, 0, TurnRecord(kind="teacher", text="một")
         )
-        # Same position again, as a second request holding a stale count would.
+        # Lại đúng vị trí đó, như một request thứ hai đang nắm một con đếm đã cũ.
         second = await teacher_chat._record(
             session, thread, 0, TurnRecord(kind="teacher", text="hai")
         )
@@ -318,11 +314,11 @@ async def test_a_step_aimed_at_a_taken_position_moves_to_the_next_free_one(stack
 
 @pytest.mark.asyncio
 async def test_a_teacher_keeps_one_conversation_across_messages(stack) -> None:
-    """Asking again returns the running thread, not a new one.
+    """Hỏi lần nữa thì nhận lại đúng luồng đang chạy, không phải một luồng mới.
 
-    The schema says one per teacher, so a second insert is refused rather
-    than tolerated -- and this is the path that must never be the thing that
-    refuses a message.
+    `schema` nói mỗi giáo viên một luồng, nên một lần chèn thứ hai bị từ chối chứ
+    không được bỏ qua — và đây chính là con đường không bao giờ được phép là thứ từ
+    chối một tin nhắn.
     """
     _, maker, _ = stack
 
@@ -342,12 +338,12 @@ async def test_a_teacher_keeps_one_conversation_across_messages(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_teacher_who_only_reads_starts_no_conversation(stack) -> None:
-    """A GET does not write.
+    """Một lượt GET thì không ghi.
 
-    `_conversation` creates a thread when there is none, which is right for a
-    message and wrong for a read: a browser prefetch, a HEAD probe or a retry
-    would each leave a row, and two of them racing a POST is the easiest way
-    to end up with two threads for one teacher.
+    `_conversation` tạo một luồng khi chưa có luồng nào, điều đó đúng với một tin nhắn
+    và sai với một lượt đọc: một lượt prefetch của trình duyệt, một cú HEAD dò đường
+    hay một lần `retry` đều để lại một dòng, và hai trong số đó đua với một POST là
+    cách dễ nhất để một giáo viên có hai luồng.
     """
     client, maker, _ = stack
 

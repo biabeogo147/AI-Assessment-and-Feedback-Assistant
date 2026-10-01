@@ -1,11 +1,11 @@
-"""Who is calling, and what that lets them touch.
+"""Ai đang gọi, và điều đó cho họ chạm vào những gì.
 
-ADR-10 left the sign-in screen out of the first round, but "a student sees only
-their own work" is a rule and not a convenience. So the two halves are split:
-authorisation below is the real thing and will not be rewritten, while the proof
-of identity is a header that only works while `dev_identity_enabled` is on.
+ADR-10 để màn hình sign-in ra ngoài vòng đầu, nhưng "một học sinh chỉ thấy phần
+việc của chính mình" là một luật, không phải một tiện lợi. Nên hai nửa được tách
+ra: phần phân quyền bên dưới là thứ thật và sẽ không bị viết lại, còn phần chứng
+minh danh tính chỉ là một header và chỉ hoạt động khi `dev_identity_enabled` bật.
 
-The header reads `X-Actor: student:HS2026-1204` or `X-Actor: teacher:GV-001`.
+Header đọc là `X-Actor: student:HS2026-1204` hoặc `X-Actor: teacher:GV-001`.
 """
 
 from dataclasses import dataclass
@@ -21,23 +21,23 @@ from be.models import Student, Teacher
 
 @dataclass(frozen=True)
 class Asking:
-    """Who a tool is running for, as values rather than as a row.
+    """Một tool đang chạy cho ai, dưới dạng các giá trị chứ không phải một dòng.
 
-    Deliberately not the `Teacher` row. The loop rolls its session back
-    between steps to release the pooled connection, and a rollback expires
-    every ORM object attached to that session -- so reading `teacher.id` on
-    the next step would be database IO from a place SQLAlchemy's async bridge
-    cannot reach. The symptom is `MissingGreenlet`, raised far from its cause.
+    Cố ý không phải dòng `Teacher`. Vòng lặp rollback session của nó giữa các step
+    để nhả connection về pool, và một lần rollback làm hết hạn mọi object ORM đang
+    gắn với session đó -- nên việc đọc `teacher.id` ở step sau sẽ là một lần IO
+    xuống database từ một nơi mà cầu async của SQLAlchemy không chạm tới được. Triệu
+    chứng là `MissingGreenlet`, ném ra ở rất xa nguyên nhân của nó.
 
-    Values also make the rule harder to lose: a tool is handed an identity it
-    cannot avoid having, and cannot quietly widen its scope by forgetting to
-    read one.
+    Dùng giá trị cũng làm luật khó bị mất hơn: một tool được giao sẵn một danh tính
+    mà nó không thể không có, và không thể âm thầm mở rộng phạm vi của mình bằng cách
+    quên đọc danh tính đó.
 
     Attributes:
-        teacher_id: Owner every query filters on (ADR-22).
-        teacher_code: What the logs name, so a refusal can be traced without
-            joining anything.
-        full_name: How the assistant addresses the person.
+        teacher_id: Chủ sở hữu mà mọi query đều lọc theo (ADR-22).
+        teacher_code: Thứ mà log gọi tên, nhờ vậy một lần từ chối truy được dấu mà
+            không cần join gì cả.
+        full_name: Cách trợ lý gọi người đó.
     """
 
     teacher_id: str
@@ -46,13 +46,13 @@ class Asking:
 
     @classmethod
     def of(cls, teacher: Teacher) -> "Asking":
-        """Read a teacher row into an identity that outlives the session.
+        """Đọc một dòng teacher thành một danh tính sống lâu hơn session.
 
         Args:
-            teacher: The row, freshly loaded.
+            teacher: Dòng đó, vừa được load.
 
         Returns:
-            The three values the tools and the loop need.
+            Ba giá trị mà các tool và vòng lặp cần.
         """
         return cls(
             teacher_id=teacher.id,
@@ -62,16 +62,16 @@ class Asking:
 
 
 def _parse(raw: str | None) -> tuple[str, str]:
-    """Split an actor header into a role and a code.
+    """Tách header actor thành một role và một mã.
 
     Args:
-        raw: Header value, or None when the header is absent.
+        raw: Giá trị header, hoặc None khi header không có.
 
     Returns:
-        The role and the code.
+        role và mã.
 
     Raises:
-        HTTPException: 401 when the header is missing or malformed.
+        HTTPException: 401 khi header thiếu hoặc sai dạng.
     """
     if not raw or ":" not in raw:
         raise HTTPException(status_code=401, detail="Missing actor. Send 'role:code'.")
@@ -88,18 +88,18 @@ async def current_student(
     session: AsyncSession = Depends(get_session),
     x_actor: str | None = Header(default=None, alias="X-Actor"),
 ) -> Student:
-    """Resolve the student making this request.
+    """Phân giải học sinh đang tạo ra request này.
 
     Args:
-        session: Database session.
-        x_actor: The stand-in identity header.
+        session: Session của database.
+        x_actor: Header danh tính đứng thay.
 
     Returns:
-        The Student row.
+        Dòng Student.
 
     Raises:
-        HTTPException: 401 when identity is absent, malformed, disabled, or the
-            code belongs to nobody; 403 when a teacher calls a student route.
+        HTTPException: 401 khi danh tính không có, sai dạng, bị tắt, hoặc mã không
+            thuộc về ai; 403 khi một giáo viên gọi một route của học sinh.
     """
     if not get_settings().dev_identity_enabled:
         raise HTTPException(status_code=401, detail="Sign-in is not available yet.")
@@ -118,18 +118,18 @@ async def current_teacher(
     session: AsyncSession = Depends(get_session),
     x_actor: str | None = Header(default=None, alias="X-Actor"),
 ) -> Teacher:
-    """Resolve the teacher making this request.
+    """Phân giải giáo viên đang tạo ra request này.
 
     Args:
-        session: Database session.
-        x_actor: The stand-in identity header.
+        session: Session của database.
+        x_actor: Header danh tính đứng thay.
 
     Returns:
-        The Teacher row.
+        Dòng Teacher.
 
     Raises:
-        HTTPException: 401 when identity is absent, malformed, disabled, or
-            unknown; 403 when a student calls a teacher route.
+        HTTPException: 401 khi danh tính không có, sai dạng, bị tắt, hoặc không biết
+            là ai; 403 khi một học sinh gọi một route của giáo viên.
     """
     if not get_settings().dev_identity_enabled:
         raise HTTPException(status_code=401, detail="Sign-in is not available yet.")

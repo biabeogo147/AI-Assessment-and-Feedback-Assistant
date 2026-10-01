@@ -1,29 +1,28 @@
-"""Messages exchanged between BE and AGENT.
+"""Những message đi qua lại giữa BE và AGENT.
 
-This module is data only. It holds no scoring rule, no threshold and no routing
-decision, because both services import it and anything placed here would become
-shared behaviour that neither service owns.
+Module này chỉ là dữ liệu. Nó không giữ luật tính điểm, không giữ ngưỡng, không giữ quyết định định
+tuyến nào, vì cả hai service đều import nó và bất cứ thứ gì đặt ở đây sẽ thành hành vi dùng chung mà
+không service nào sở hữu.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
 
-# The arq task name. It lives here so BE can enqueue work by string and never
-# needs to import the AGENT package -- the boundary holds at design time, not
-# only at lint time.
+# Tên task của arq. Nó ở đây để BE enqueue việc bằng chuỗi và không bao giờ
+# cần import package AGENT -- ranh giới đứng được ngay lúc thiết kế, không chỉ
+# lúc chạy lint.
 GRADE_SUBMISSION_TASK = "grade_submission"
 
 
 class GradingRequested(BaseModel):
-    """Work item BE sends to AGENT for one submitted answer.
+    """Việc BE gửi cho AGENT, ứng với một câu trả lời đã nộp.
 
-    Carries everything AGENT needs to grade without reading any database, which
-    is what lets AGENT stay free of database credentials.
+    Chở đủ mọi thứ AGENT cần để chấm mà không phải đọc database nào, và đó chính là thứ cho phép
+    AGENT không giữ credential database.
 
-    `learning_objective` is present before anything consumes it: Adaptive
-    Practice (Workflow 5) will need it to generate a variant of the same
-    objective, and adding it later would mean versioning the contract.
+    `learning_objective` có mặt trước khi có ai dùng tới nó: Adaptive Practice (Workflow 5) sẽ cần
+    nó để sinh một biến thể của cùng mục tiêu, và thêm sau thì phải version hoá hợp đồng.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -39,16 +38,15 @@ class GradingRequested(BaseModel):
 
 
 class GradingCompleted(BaseModel):
-    """Evidence AGENT produces for one graded submission.
+    """Bằng chứng AGENT sinh ra cho một bài đã chấm.
 
-    Deliberately contains no `needs_teacher_review` field. AGENT reports what it
-    observed; BE applies the threshold and decides routing. Putting the decision
-    here would move the teacher-in-the-loop gate inside the AI service, which
-    project-overview.md rules out.
+    Có chủ ý **không** chứa field `needs_teacher_review`. AGENT báo lại thứ nó quan sát được; BE áp
+    ngưỡng và quyết định định tuyến. Đặt quyết định đó ở đây là chuyển cổng teacher-in-the-loop vào
+    bên trong service AI, đúng điều project-overview.md loại bỏ.
 
-    The two boolean flags map onto Workflow 4 review conditions that confidence
-    alone cannot express: an answer that is correct while the reasoning is not,
-    and a case where AGENT had too little to go on.
+    Hai cờ boolean ứng với những điều kiện review của Workflow 4 mà riêng confidence không diễn đạt
+    được: một câu trả lời đúng trong khi lập luận thì không, và một trường hợp AGENT có quá ít căn
+    cứ để dựa vào.
     """
 
     model_config = ConfigDict(frozen=True)

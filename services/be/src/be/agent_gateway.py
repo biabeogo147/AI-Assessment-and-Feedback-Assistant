@@ -1,11 +1,11 @@
-"""Calling AGENT, and checking what comes back.
+"""Gọi AGENT, và kiểm thứ nhận về.
 
-Two responsibilities, and the second is the important one. Enqueueing is
-plumbing. Validating is a business rule: ADR-18 says a question carries exactly
-one correct option, an error label on every distractor, and more than one
-worked solution -- and a rule enforced only by a prompt is not enforced. A
-review of hand-written sample data on 2026-09-11 found a question with two
-correct answers, so this is not a theoretical failure mode.
+Hai trách nhiệm, và cái thứ hai mới là cái quan trọng. Đẩy job vào queue là việc
+đường ống. Kiểm tính hợp lệ là một luật nghiệp vụ: ADR-18 nói một câu hỏi chở đúng
+một phương án đúng, một error label trên mọi Distractor, và nhiều hơn một lời giải
+chi tiết -- còn một luật chỉ được một prompt ép thì không phải đang được ép. Một lần
+review dữ liệu mẫu viết tay vào 2026-09-11 tìm ra một câu hỏi có hai đáp án đúng, nên
+đây không phải một kiểu lỗi trên lý thuyết.
 """
 
 import asyncio
@@ -27,14 +27,14 @@ logger = logging.getLogger(__name__)
 
 _POLL_SECONDS = 0.2
 
-# How long one read of the stream channel waits before the loop looks at the
-# job again. Small enough that finishing is noticed promptly, large enough that
-# an idle stream is not a busy loop.
+# Một lần đọc channel stream chờ bao lâu trước khi vòng lặp quay lại nhìn job. Nhỏ đủ
+# để việc job xong được nhận ra ngay, lớn đủ để một stream đang rỗi không thành một
+# vòng lặp quay nóng.
 _LISTEN_SECONDS = 0.2
 
 
 class AgentError(RuntimeError):
-    """AGENT could not be reached, timed out, or returned unusable content."""
+    """Không tới được AGENT, bị timeout, hoặc nó trả về nội dung không dùng được."""
 
 
 async def run_task(
@@ -43,28 +43,28 @@ async def run_task(
     task_name: str,
     payload: dict,
 ) -> dict:
-    """Enqueue one AGENT task and wait for its result.
+    """Đẩy một task của AGENT vào queue rồi chờ kết quả của nó.
 
-    BE waits rather than handing the client a job id, because every caller of
-    this function is already inside a request the user is watching, and a second
-    polling protocol on top of arq's would buy nothing.
+    BE chờ chứ không đưa cho client một job id, vì mọi người gọi hàm này đều đang ở
+    bên trong một request mà người dùng đang ngồi xem, và dựng thêm một giao thức poll
+    thứ hai lên trên giao thức của arq sẽ không mua được gì.
 
     Args:
-        pool: Connected arq pool, or None when the queue was unreachable at
-            startup. BE stays up without it so phase 1 keeps working.
-        settings: Process settings supplying the queue name and timeout.
-        task_name: One of the task-name constants in `contracts`.
-        payload: The serialised request message.
+        pool: Pool arq đã kết nối, hoặc None khi lúc startup không tới được queue. BE
+            vẫn đứng được mà không có nó, để pha 1 tiếp tục chạy.
+        settings: Settings của process, nơi cung cấp tên queue và timeout.
+        task_name: Một trong các hằng tên task trong `contracts`.
+        payload: Message yêu cầu đã serialise.
 
     Returns:
-        The serialised reply message.
+        Message trả lời đã serialise.
 
     Raises:
-        AgentError: If the queue refuses the job, the worker never finishes
-            within the timeout, or the job fails.
+        AgentError: Nếu queue từ chối job, worker không bao giờ xong trong thời hạn
+            timeout, hoặc job thất bại.
 
     Side effects:
-        Writes a job onto the shared Redis queue.
+        Ghi một job lên queue Redis dùng chung.
     """
     if pool is None:
         raise AgentError("hàng đợi chưa sẵn sàng")
@@ -95,53 +95,53 @@ async def stream_task(
     channel: str,
     silence_seconds: float | None = None,
 ) -> AsyncIterator[tuple[str, object]]:
-    """Enqueue one AGENT task and yield its output as it is written.
+    """Đẩy một task của AGENT vào queue rồi yield output của nó ngay khi nó được viết.
 
-    The subscribe happens **before** the enqueue, and that order is the reason
-    this function exists rather than three statements at the call site. Redis
-    pub/sub keeps no history: publish to a channel nobody is listening on and
-    the words are gone. arq hands a job to a worker almost immediately, so
-    enqueueing first is handing the worker a chance to speak into an empty room.
+    Việc subscribe xảy ra **trước** khi đẩy job, và chính thứ tự đó là lý do hàm này
+    tồn tại thay vì chỉ là ba câu lệnh ở chỗ gọi. Pub/sub của Redis không giữ lịch sử:
+    publish vào một channel không ai đang nghe thì lời nói mất luôn. arq giao job cho
+    worker gần như ngay lập tức, nên đẩy job trước là trao cho worker cơ hội nói vào
+    một căn phòng trống.
 
     Args:
-        pool: Connected arq pool, or None when the queue was unreachable.
-        settings: Process settings supplying queue name and timeout.
-        task_name: One of the task-name constants in `contracts`.
-        payload: The serialised request message.
-        channel: Where the worker was told to publish pieces.
-        silence_seconds: How long to tolerate hearing nothing before giving up.
-            Defaults to the job timeout. A caller whose job is one model call
-            passes something shorter, so its reader is not made to wait out a
-            budget sized for a job that retries.
+        pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
+        settings: Settings của process, nơi cung cấp tên queue và timeout.
+        task_name: Một trong các hằng tên task trong `contracts`.
+        payload: Message yêu cầu đã serialise.
+        channel: Nơi worker được bảo là hãy publish từng mảnh vào.
+        silence_seconds: Chịu được bao lâu không nghe thấy gì trước khi bỏ cuộc. Mặc
+            định là job timeout. Người gọi mà job chỉ là một lần gọi model thì truyền
+            vào một con số ngắn hơn, nhờ vậy phía đọc của nó không bị bắt chờ hết một
+            budget đo theo một job có retry.
 
     Yields:
-        `("chunk", text)` for each piece as it arrives, then exactly one
-        `("result", reply)` carrying the serialised reply.
+        `("chunk", text)` cho mỗi mảnh ngay khi nó tới, rồi đúng một
+        `("result", reply)` chở message trả lời đã serialise.
 
     Raises:
-        AgentError: If the queue refuses the job, the job fails, or nothing
-            finishes within the timeout.
+        AgentError: Nếu queue từ chối job, job thất bại, hoặc không có gì xong trong
+            thời hạn timeout.
 
     Side effects:
-        Subscribes to a Redis channel and writes a job onto the queue.
+        Subscribe vào một channel Redis và ghi một job lên queue.
     """
     if pool is None:
         raise AgentError("hàng đợi chưa sẵn sàng")
 
     pubsub = pool.pubsub()
     try:
-        # Inside the try, so a subscribe that fails half-way still reaches the
-        # cleanup below instead of leaking a connection out of the pool.
+        # Nằm trong try, nhờ vậy một lần subscribe gãy giữa đường vẫn tới được phần dọn
+        # dẹp bên dưới thay vì làm rò một connection ra khỏi pool.
         await pubsub.subscribe(channel)
 
         job = await pool.enqueue_job(task_name, payload, _queue_name=settings.agent_queue_name)
         if job is None:
             raise AgentError(f"arq refused task {task_name}")
 
-        # Refreshed on every piece, so this is a silence timer and not a
-        # length limit. A model writing a long answer is working; a model that
-        # has said nothing for the whole window is not. Cutting off an answer
-        # mid-flow because it was going well for too long would be absurd.
+        # Được làm mới ở mỗi mảnh, nên đây là một đồng hồ đếm sự im lặng, không phải một
+        # giới hạn độ dài. Một model đang viết câu trả lời dài là một model đang làm
+        # việc; một model không nói gì suốt cả cửa sổ thời gian thì không. Cắt một câu
+        # trả lời đang chảy giữa dòng chỉ vì nó chảy tốt quá lâu thì thật vô lý.
         patience = silence_seconds or settings.agent_job_timeout_seconds
         deadline = asyncio.get_running_loop().time() + patience
         while asyncio.get_running_loop().time() < deadline:
@@ -156,9 +156,9 @@ async def stream_task(
             if await job.status() is not JobStatus.complete:
                 continue
 
-            # The job is done, but pieces published in the last instant may
-            # still be queued on this connection. Drain them before closing, or
-            # the student loses the end of the sentence they were reading.
+            # Job đã xong, nhưng những mảnh được publish ở khoảnh khắc cuối có thể vẫn
+            # còn đang xếp hàng trên connection này. Vét sạch chúng trước khi đóng, nếu
+            # không học sinh mất phần cuối của câu mà em đang đọc.
             while True:
                 trailing = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.0)
                 if trailing is None or trailing.get("type") != "message":
@@ -175,31 +175,28 @@ async def stream_task(
 
         raise AgentError(f"task {task_name} said nothing for {patience}s")
     finally:
-        # Runs on a client disconnect too: the browser going away cancels this
-        # generator, and an unclosed subscription would hold a connection from
-        # the pool for the life of the process.
+        # Cũng chạy khi client ngắt kết nối: browser đi mất thì generator này bị cancel,
+        # và một subscription chưa đóng sẽ giữ một connection của pool suốt đời process.
         #
-        # Swallowed, because a failure while tidying up would otherwise
-        # *replace* whatever went wrong first. The caller handles AgentError
-        # and nothing else, so a ConnectionError raised here would escape a
-        # generator that has already sent its status line -- the client gets a
-        # broken stream and no reason for it.
+        # Lỗi bị nuốt, vì nếu không, một lần gãy trong lúc dọn dẹp sẽ *thay thế* đúng cái
+        # thứ đã sai trước đó. Người gọi chỉ xử lý AgentError và không xử lý gì khác, nên
+        # một ConnectionError ném ra ở đây sẽ thoát ra từ một generator đã gửi dòng status
+        # của nó đi rồi -- client nhận một stream vỡ và không có lý do nào cho chuyện đó.
         try:
             await pubsub.unsubscribe(channel)
             await pubsub.aclose()
-        except Exception:  # noqa: BLE001 -- cleanup must not outrank the real error
+        except Exception:  # noqa: BLE001 -- dọn dẹp không được đứng trên lỗi thật
             logger.warning("could not close the stream channel %s", channel, exc_info=True)
 
 
 def _text(data: object) -> str:
-    """Decode one published piece.
+    """Giải mã một mảnh đã được publish.
 
     Args:
-        data: What redis handed back, bytes or str depending on how the pool
-            was configured.
+        data: Thứ redis trả về, bytes hoặc str tuỳ theo pool được cấu hình thế nào.
 
     Returns:
-        The piece as text.
+        Mảnh đó dưới dạng text.
     """
     return data.decode() if isinstance(data, bytes) else str(data)
 
@@ -210,31 +207,30 @@ async def enqueue_task(
     task_name: str,
     payload: dict,
 ) -> str | None:
-    """Hand AGENT a job and walk away.
+    """Giao cho AGENT một job rồi bỏ đi.
 
-    The opposite of `run_task`: nobody is waiting on the answer, so nothing
-    here blocks and nothing here fails loudly. A queue that is down must not
-    stop a student submitting their paper -- the work this starts is an
-    optimisation, and the path without it still works.
+    Ngược với `run_task`: không ai đang chờ câu trả lời, nên ở đây không có gì block và
+    không có gì gãy ầm ĩ. Một queue đang chết không được phép chặn một học sinh nộp bài
+    của em -- phần việc mà hàm này khởi động là một tối ưu, và con đường không có nó vẫn
+    chạy được.
 
     Args:
-        pool: Connected arq pool, or None when the queue was unreachable.
-        settings: Process settings supplying the queue name.
-        task_name: One of the task-name constants in `contracts`.
-        payload: The serialised request message.
+        pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
+        settings: Settings của process, nơi cung cấp tên queue.
+        task_name: Một trong các hằng tên task trong `contracts`.
+        payload: Message yêu cầu đã serialise.
 
     Returns:
-        The job id to collect the result by later, or None when the job could
-        not be queued at all.
+        job id để sau này lấy kết quả theo, hoặc None khi job không đẩy được vào queue.
 
     Side effects:
-        Writes a job onto the shared Redis queue.
+        Ghi một job lên queue Redis dùng chung.
     """
     if pool is None:
         return None
     try:
         job = await pool.enqueue_job(task_name, payload, _queue_name=settings.agent_queue_name)
-    except Exception:  # noqa: BLE001 -- nothing is waiting; a failure here is a missed head start
+    except Exception:  # noqa: BLE001 -- không ai chờ; gãy ở đây chỉ là mất một bước chạy trước
         logger.warning("could not queue %s ahead of time", task_name, exc_info=True)
         return None
     return job.job_id if job is not None else None
@@ -245,24 +241,24 @@ async def collect_result(
     settings: Settings,
     job_id: str,
 ) -> tuple[str, object]:
-    """Look in on a job started earlier.
+    """Ngó vào một job đã khởi động từ trước.
 
-    Four endings, and telling the last two apart is the point. A job result
-    lives in Redis for `JOB_RESULT_TTL_SECONDS`; a phase 2 deadline can be days
-    away, so "the answer aged out" is ordinary and the right response is to ask
-    again. A job that *ran and failed* is a different thing: asking again gets
-    the same failure, and a caller that cannot tell the two apart re-queues a
-    broken job every time the student opens a screen, forever, quietly.
+    Bốn cái kết, và trọng tâm là phân biệt được hai cái cuối. Kết quả của một job sống
+    trong Redis `JOB_RESULT_TTL_SECONDS`; hạn của pha 2 có thể cách đó nhiều ngày, nên
+    "câu trả lời đã hết hạn" là chuyện bình thường và phản ứng đúng là hỏi lại. Còn một
+    job *đã chạy và thất bại* là một chuyện khác: hỏi lại thì vẫn nhận đúng cái thất bại
+    đó, và một người gọi không phân biệt được hai thứ này sẽ đẩy lại một job hỏng vào
+    queue mỗi lần học sinh mở một màn hình, mãi mãi, và im lặng.
 
     Args:
-        pool: Connected arq pool, or None when the queue was unreachable.
-        settings: Process settings supplying the queue name.
-        job_id: What `enqueue_task` returned.
+        pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
+        settings: Settings của process, nơi cung cấp tên queue.
+        job_id: Thứ `enqueue_task` đã trả về.
 
     Returns:
-        `("ready", result)` with the reply; `("pending", None)` while it runs;
-        `("gone", None)` when Redis no longer has it, which is worth asking
-        again; `("failed", None)` when it ran and raised, which is not.
+        `("ready", result)` kèm message trả lời; `("pending", None)` trong lúc nó chạy;
+        `("gone", None)` khi Redis không còn giữ nó nữa, trường hợp đáng hỏi lại;
+        `("failed", None)` khi nó đã chạy và ném lỗi, trường hợp không đáng hỏi lại.
     """
     if pool is None:
         return "pending", None
@@ -282,15 +278,15 @@ async def collect_result(
     return "ready", info.result
 
 
-# How many times BE re-asks after rejecting a question. Two, because the point
-# is to survive a model that misread the brief, not to argue with one that
-# cannot do the task -- and a student is waiting on every attempt.
+# BE hỏi lại bao nhiêu lần sau khi từ chối một câu hỏi. Hai, vì mục đích là sống qua
+# một model đọc sai brief, không phải tranh luận với một model không làm nổi việc đó --
+# và có một học sinh đang chờ ở mỗi lần thử.
 #
-# The number worth knowing is the product. AGENT retries inside a job up to
-# LLM_MAX_ATTEMPTS times, and BE asks for up to 1 + _RETRY_ASKS jobs, so one
-# question costs at most 3 x 3 = 9 model calls; a round reopening N wrong
-# questions runs those sequentially, so 9N. Nobody should ever see that, but it
-# is what the budget has to survive on the day a model will not comply.
+# Con số đáng biết là cái tích. AGENT retry bên trong một job tối đa LLM_MAX_ATTEMPTS
+# lần, còn BE hỏi tối đa 1 + _RETRY_ASKS job, nên một câu hỏi tốn nhiều nhất 3 x 3 = 9
+# lần gọi model; một round mở lại N câu sai thì chạy những lần đó tuần tự, nên là 9N.
+# Không ai nên phải thấy con số đó, nhưng đó là thứ mà budget phải sống qua được vào
+# ngày một model không chịu hợp tác.
 _RETRY_ASKS = 2
 
 
@@ -301,32 +297,32 @@ async def ask_for_retry_question(
     origin_stem: str,
     spent: list[str],
 ) -> GeneratedQuestion:
-    """Get one round's question, re-asking when what comes back breaks a rule.
+    """Lấy câu hỏi của một round, và hỏi lại khi thứ nhận về phạm một luật.
 
-    The re-ask carries the rejected stem in `previous_stems`. Sending the same
-    payload again would leave a different answer to chance; naming what was
-    wrong with the last one is the difference between a retry and a re-roll.
+    Lần hỏi lại chở theo stem đã bị từ chối trong `previous_stems`. Gửi lại đúng payload
+    cũ là để một câu trả lời khác cho sự may rủi; nói rõ cái gì sai ở lần trước mới là
+    khác biệt giữa một lần retry và một lần đổ lại xúc xắc.
 
-    ADR-18 and ADR-17 are checked here and not inside AGENT, because a
-    generator that accepted its own work would be marking its own homework.
-    AGENT does check its own shape before answering -- that saves a round trip,
-    and this is still the check that counts.
+    ADR-18 và ADR-17 được kiểm ở đây chứ không kiểm bên trong AGENT, vì một bộ sinh tự
+    chấp nhận việc của chính nó là tự chấm bài của mình. AGENT vẫn tự kiểm hình dạng của
+    nó trước khi trả lời -- việc đó tiết kiệm một lượt đi về, và đây vẫn là lần kiểm có
+    giá trị.
 
     Args:
-        pool: Connected arq pool, or None when the queue was unreachable.
-        settings: Process settings.
-        ask: The request, which this function copies and amends between tries.
-        origin_stem: The phase 1 question being remediated.
-        spent: Stems already used in earlier rounds of this question.
+        pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
+        settings: Settings của process.
+        ask: Yêu cầu, mà hàm này sao lại và sửa thêm giữa các lần thử.
+        origin_stem: Câu hỏi pha 1 đang được remediation.
+        spent: Những stem đã dùng ở các round trước của câu hỏi này.
 
     Returns:
-        A question that satisfies both rules.
+        Một câu hỏi thoả cả hai luật.
 
     Raises:
-        AgentError: If every attempt broke a rule, or the queue failed.
+        AgentError: Nếu mọi lần thử đều phạm một luật, hoặc queue thất bại.
 
     Side effects:
-        Writes up to three jobs onto the queue.
+        Ghi tối đa ba job lên queue.
     """
     rejected: list[str] = []
     last: AgentError | None = None
@@ -341,11 +337,11 @@ async def ask_for_retry_question(
 
         try:
             validate_question(question)
-            # `rejected` deliberately stays out of this. Those stems were
-            # refused for their shape and no student ever saw them, so a model
-            # that fixes the shape and keeps the wording has written a perfectly
-            # good question. Treating its own discarded draft as "already used"
-            # would refuse the correction we asked for.
+            # `rejected` cố ý nằm ngoài chuyện này. Những stem đó bị từ chối vì hình
+            # dạng của chúng và chưa học sinh nào từng thấy chúng, nên một model sửa
+            # đúng hình dạng mà giữ nguyên câu chữ thì đã viết ra một câu hỏi hoàn toàn
+            # tốt. Coi bản nháp bị loại của chính nó là "đã dùng rồi" sẽ là từ chối
+            # đúng cái sửa mà ta vừa yêu cầu.
             validate_retry(question, origin_stem, spent)
         except AgentError as exc:
             logger.warning("rejected round question on attempt %d: %s", attempt + 1, exc)
@@ -355,22 +351,21 @@ async def ask_for_retry_question(
 
         return question
 
-    # The last complaint travels with the refusal. Without it the 503 says only
-    # that three tries failed, which tells whoever reads the log nothing about
-    # which rule was broken -- and the rule is the whole reason we refused.
+    # Lời phàn nàn cuối cùng đi kèm theo lời từ chối. Không có nó, 503 chỉ nói rằng ba
+    # lần thử đều thất bại, và điều đó chẳng cho người đọc log biết gì về luật nào đã bị
+    # phạm -- mà cái luật mới là toàn bộ lý do ta từ chối.
     raise AgentError(f"{1 + _RETRY_ASKS} lần thử đều không đạt — {last}")
 
 
 def validate_question(question: GeneratedQuestion) -> None:
-    """Check one generated question against ADR-18 before it is stored.
+    """Kiểm một câu hỏi được sinh ra theo ADR-18 trước khi nó được lưu.
 
     Args:
-        question: What AGENT produced.
+        question: Thứ AGENT đã tạo ra.
 
     Raises:
-        AgentError: If the question has anything other than exactly one correct
-            option, a distractor with no error label, or fewer than two worked
-            solutions.
+        AgentError: Nếu câu hỏi có số phương án đúng khác đúng một, có một Distractor
+            không có error label, hoặc có ít hơn hai lời giải chi tiết.
     """
     correct = [option for option in question.options if option.is_correct]
     if len(correct) != 1:
@@ -391,20 +386,19 @@ def validate_question(question: GeneratedQuestion) -> None:
 
 
 def validate_retry(question: GeneratedQuestion, origin_stem: str, spent: list[str]) -> None:
-    """Check that a retry question is a new question, not the old one again.
+    """Kiểm rằng câu hỏi retry là một câu hỏi mới, không phải câu cũ lặp lại.
 
-    ADR-17 is specific about what a retry is for: it tests whether the student
-    fixed the mistake, not whether they remember the answer. A round that hands
-    back the same stem tests memory, which is the failure the whole ceiling of
-    three rounds exists to avoid.
+    ADR-17 nói rõ một lần retry để làm gì: nó kiểm xem học sinh đã sửa được lỗi chưa,
+    không kiểm xem em có nhớ đáp án hay không. Một round đưa lại đúng stem cũ là đang
+    kiểm trí nhớ, và đó chính là cái sai mà cả cái trần ba round tồn tại để tránh.
 
     Args:
-        question: What AGENT produced for this round.
-        origin_stem: The phase 1 question being remediated.
-        spent: Stems already used in earlier rounds of this question.
+        question: Thứ AGENT đã tạo ra cho round này.
+        origin_stem: Câu hỏi pha 1 đang được remediation.
+        spent: Những stem đã dùng ở các round trước của câu hỏi này.
 
     Raises:
-        AgentError: If the stem repeats the origin or any earlier round.
+        AgentError: Nếu stem lặp lại câu gốc hoặc lặp lại bất kỳ round trước đó.
     """
     normalise = " ".join(question.stem.split())
     if normalise == " ".join(origin_stem.split()):

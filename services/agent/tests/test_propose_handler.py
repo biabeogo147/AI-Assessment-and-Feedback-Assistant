@@ -1,13 +1,13 @@
-"""The prepared proposals AGENT makes when no model is configured.
+"""Những đề nghị dọn trước mà AGENT đưa ra khi không có model nào được cấu hình.
 
-The mock exists so the loop can be driven end to end for free. That matters
-more here than for the other tasks: a tool loop has a shape -- ask, run, ask
-again, answer -- and a mock that only ever said one sentence would leave that
-shape untested until the first paid run.
+Mock tồn tại để cái loop chạy được từ đầu tới cuối mà không mất tiền. Ở đây điều đó quan
+trọng hơn so với các việc khác: một loop gọi tool có một hình dạng -- hỏi, chạy, hỏi lại,
+trả lời -- và một mock chỉ biết nói một câu duy nhất sẽ để cái hình dạng đó không được
+test cho tới lần chạy có trả tiền đầu tiên.
 
-So these tests assert the shape, not the wording. What must hold is that the
-mock asks for a tool when it has no data and stops asking once the data has
-arrived, because those two together are what makes the loop terminate.
+Vậy nên các test này khẳng định hình dạng, không khẳng định câu chữ. Thứ phải đúng là mock
+xin một tool khi nó chưa có dữ liệu và thôi xin ngay khi dữ liệu đã tới, vì hai điều đó
+cùng nhau là thứ làm cái loop kết thúc.
 """
 
 import pytest
@@ -19,14 +19,14 @@ from contracts import NextStepRequested, ToolSpec, TurnRecord
 
 @pytest.fixture(autouse=True)
 def off(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Take the mock path on purpose, not by accident.
+    """Đi vào đường mock một cách có chủ ý, không phải do tình cờ.
 
-    Without this these tests depended on the machine's `.env`. On a machine
-    with `LLM_ENABLED=true` and a model id -- which is every machine that has
-    run the thing for real -- `propose_next_step` took the model path, failed,
-    and returned the mock from its exception handler. Still green, but green
-    through the recovery path instead of the one under test, and one bad
-    argument away from spending money to assert a prepared sentence.
+    Không có fixture này thì các test này phụ thuộc vào `.env` của máy. Trên một máy có
+    `LLM_ENABLED=true` và một id model -- tức là mọi máy từng chạy thật thứ này --
+    `propose_next_step` đi vào đường gọi model, thất bại, rồi trả về mock từ exception
+    handler của nó. Vẫn xanh, nhưng xanh qua đường hồi phục thay vì qua đường đang được
+    test, và chỉ cách một argument sai là tới chỗ tiêu tiền để khẳng định một câu dọn
+    trước.
     """
     monkeypatch.setattr(llm, "enabled", lambda: False)
 
@@ -44,11 +44,11 @@ def _payload(*history: TurnRecord, catalog: tuple[ToolSpec, ...] = _CATALOG) -> 
 
 @pytest.mark.asyncio
 async def test_the_mock_asks_for_a_class_it_was_told_about() -> None:
-    """A class name in the question becomes a tool call with that name.
+    """Một tên lớp trong câu hỏi trở thành một lời gọi tool với đúng tên đó.
 
-    Passing the name through matters: a mock that called `find_class` with a
-    hard-coded argument would make the loop look right while proving nothing
-    about whether arguments survive the round trip.
+    Việc truyền cái tên đi qua là quan trọng: một mock gọi `find_class` với một argument
+    viết cứng sẽ làm cái loop trông đúng mà chẳng chứng minh được gì về chuyện các argument
+    có sống sót qua một vòng đi về hay không.
     """
     asked = _payload(TurnRecord(kind="teacher", text="lớp 12A1 thế nào"))
     answer = await propose_next_step({}, asked)
@@ -60,10 +60,10 @@ async def test_the_mock_asks_for_a_class_it_was_told_about() -> None:
 
 @pytest.mark.asyncio
 async def test_the_mock_stops_asking_once_the_result_is_in() -> None:
-    """With a tool result in the history, the mock answers instead of asking.
+    """Khi trong lịch sử đã có một kết quả tool, mock trả lời thay vì hỏi tiếp.
 
-    This is the terminating condition. Without it the loop would run to its
-    ceiling on every turn, and the ceiling would look like the normal case.
+    Đây là điều kiện kết thúc. Không có nó thì cái loop sẽ chạy tới trần ở mỗi lượt, và
+    cái trần sẽ trông như trường hợp bình thường.
     """
     answer = await propose_next_step(
         {},
@@ -80,15 +80,15 @@ async def test_the_mock_stops_asking_once_the_result_is_in() -> None:
 
 @pytest.mark.asyncio
 async def test_the_mock_asks_which_class_when_the_name_matched_several() -> None:
-    """An ambiguous result becomes a question, not a recital of the result.
+    """Một kết quả nhập nhằng trở thành một câu hỏi, không phải một bài đọc lại kết quả.
 
-    ADR-23's whole point is that nobody picks between candidates. The mock has
-    to honour that too, or the free way of driving the loop would demonstrate
-    the one behaviour the design forbids -- and it is the demo people see.
+    Toàn bộ ý của ADR-23 là không ai chọn giữa các candidates. Mock cũng phải tôn trọng
+    điều đó, không thì cách chạy cái loop miễn phí sẽ trình diễn đúng cái hành vi mà thiết
+    kế cấm -- và đó lại chính là bản demo người ta xem.
 
-    It writes no options of its own: BE renders those from the rows it read,
-    and a mock that also wrote them would be a second source for the one thing
-    ADR-23 says has exactly one.
+    Nó không tự viết lựa chọn nào: BE render chúng từ những dòng nó đã đọc, và một mock
+    cũng viết chúng ra sẽ là một nguồn thứ hai cho đúng cái thứ mà ADR-23 nói là chỉ có một
+    nguồn.
     """
     answer = await propose_next_step(
         {},
@@ -117,11 +117,11 @@ async def test_the_mock_asks_which_class_when_the_name_matched_several() -> None
 
 @pytest.mark.asyncio
 async def test_the_mock_never_proposes_a_tool_it_was_not_given() -> None:
-    """An empty catalog means words only.
+    """Một danh mục rỗng nghĩa là chỉ có lời nói.
 
-    BE builds the catalog from what this teacher may do, so a proposal naming
-    a tool outside it is a proposal BE must refuse -- and a mock that produced
-    one would be training the loop's error path instead of its happy path.
+    BE dựng danh mục từ những gì giáo viên này được làm, nên một đề nghị gọi tên một tool
+    ngoài danh mục đó là một đề nghị BE buộc phải từ chối -- và một mock sinh ra một đề nghị
+    như vậy sẽ đang luyện đường lỗi của cái loop thay vì đường suôn sẻ của nó.
     """
     answer = await propose_next_step(
         {}, _payload(TurnRecord(kind="teacher", text="lớp 12A1 thế nào"), catalog=())
@@ -133,12 +133,12 @@ async def test_the_mock_never_proposes_a_tool_it_was_not_given() -> None:
 
 @pytest.mark.asyncio
 async def test_the_mock_finds_a_name_written_against_the_word_lop() -> None:
-    """ "lớp12A" names a class, and BE can resolve it.
+    """ "lớp12A" là một cái tên lớp, và BE phân giải được nó.
 
-    The mock's extractor needed a word boundary before the digits, so it saw
-    nothing here and asked which class -- while BE, given the chance, resolves
-    that spelling fine. The two halves disagreeing makes a demo look like a
-    resolution bug that is not there.
+    Bộ trích xuất của mock cần một word boundary trước các chữ số, nên ở đây nó không thấy
+    gì và đi hỏi là lớp nào -- trong khi BE, nếu được cho cơ hội, phân giải cách viết đó rất
+    ổn. Việc hai nửa lệch nhau làm buổi demo trông như có một bug phân giải vốn không tồn
+    tại.
     """
     asked = _payload(TurnRecord(kind="teacher", text="lớp12A thế nào"))
     answer = await propose_next_step({}, asked)
@@ -149,10 +149,10 @@ async def test_the_mock_finds_a_name_written_against_the_word_lop() -> None:
 
 @pytest.mark.asyncio
 async def test_the_mock_still_ignores_numbers_that_are_not_class_names() -> None:
-    """Loosening the boundary must not turn durations and years into classes.
+    """Nới cái boundary ra không được biến thời lượng và năm thành tên lớp.
 
-    "15 phút" and "2026" sit in the same sentences as class names, and a mock
-    that looked one up would send the loop after a class nobody mentioned.
+    "15 phút" và "2026" nằm trong cùng những câu có tên lớp, và một mock đi tra một trong số
+    đó sẽ đẩy cái loop đi tìm một lớp không ai nhắc tới.
     """
     for text in ("bài 15 phút hôm qua thế nào", "năm 2026 có mấy bài", "còn 2 câu chưa chữa"):
         answer = await propose_next_step({}, _payload(TurnRecord(kind="teacher", text=text)))
@@ -161,10 +161,10 @@ async def test_the_mock_still_ignores_numbers_that_are_not_class_names() -> None
 
 @pytest.mark.asyncio
 async def test_the_mock_asks_back_when_no_class_was_named() -> None:
-    """Nothing to look up and nothing to answer means asking.
+    """Không có gì để tra và không có gì để trả lời thì phải hỏi lại.
 
-    ADR-05's input gate in its cheapest form: the mock has no way to guess
-    which class is meant, so it does not.
+    Cổng kiểm đầu vào của ADR-05 ở dạng rẻ nhất: mock không có cách nào đoán được lớp nào
+    đang được nói tới, nên nó không đoán.
     """
     answer = await propose_next_step({}, _payload(TurnRecord(kind="teacher", text="tình hình sao")))
 
@@ -174,14 +174,13 @@ async def test_the_mock_asks_back_when_no_class_was_named() -> None:
 
 @pytest.mark.asyncio
 async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> None:
-    """A result from an earlier turn is not an answer to the current question.
+    """Một kết quả từ lượt trước không phải là câu trả lời cho câu hỏi hiện tại.
 
-    Persisting the conversation changed this without changing a line of the
-    mock: it used to see one turn at a time, and now it sees all of them. Its
-    "do I already have data?" check then found a result from a previous turn
-    and stopped calling tools altogether -- so the assistant repeated its last
-    sentence forever. Found by reading a `teacher_turns` table after two
-    messages, not by any test.
+    Việc lưu lại cuộc hội thoại đã làm thay đổi chỗ này mà không sửa một dòng nào của mock:
+    nó từng thấy từng lượt một, và giờ nó thấy tất cả. Thế là check "mình đã có dữ liệu
+    chưa?" của nó tìm thấy một kết quả từ một lượt trước rồi thôi gọi tool hẳn -- khiến trợ
+    lý lặp lại câu cuối của mình mãi mãi. Tìm ra bằng cách đọc bảng `teacher_turns` sau hai
+    tin nhắn, không phải bằng test nào.
     """
     answer = await propose_next_step(
         {},
@@ -190,7 +189,7 @@ async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> 
             TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A"}),
             TurnRecord(kind="tool_result", tool_name="find_class", tool_result={"name": "12A"}),
             TurnRecord(kind="assistant", text="Lớp 12A có 3 học sinh."),
-            # A new question. The result above belongs to the old one.
+            # Một câu hỏi mới. Kết quả ở trên thuộc về câu hỏi cũ.
             TurnRecord(kind="teacher", text="còn lớp 12B thì sao"),
         ),
     )

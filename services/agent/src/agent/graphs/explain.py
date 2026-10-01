@@ -1,20 +1,20 @@
-"""The tutoring turn: what the assistant says next, written as it is read.
+"""Lượt kèm học sinh: trợ lý nói gì tiếp theo, viết ra ngay lúc được đọc.
 
-Two rules from the decision records shape the prompt more than any wording
-choice does:
+Hai luật từ các decision record định hình prompt này nhiều hơn bất kỳ lựa chọn câu
+chữ nào:
 
-- **The assistant explains, it never concludes.** No score, no "em đã hiểu
-  rồi", no verdict on whether remediation should end. Those are marks, and
-  marks belong to BE (ADR-16, ADR-20). A turn that graded would put the same
-  decision in two places.
-- **The mistake already has a name.** Every distractor carries an authored
-  error label (ADR-18). The assistant uses that label rather than diagnosing
-  from scratch, so the student hears the same explanation the teacher wrote
-  and two students who made the same mistake hear the same thing.
+- **Trợ lý giải thích, nó không bao giờ kết luận.** Không điểm, không "em đã hiểu
+  rồi", không phán xét xem việc chữa lỗi có nên dừng. Những thứ đó là điểm, và điểm
+  thuộc về BE (ADR-16, ADR-20). Một lượt mà đi chấm sẽ đặt cùng một quyết định ở hai
+  chỗ.
+- **Cái lỗi đã có tên sẵn.** Mỗi distractor mang một error label do người soạn viết
+  (ADR-18). Trợ lý dùng đúng cái label ấy chứ không tự chẩn đoán lại từ đầu, nhờ vậy
+  học sinh nghe đúng lời giải thích giáo viên đã viết, và hai học sinh mắc cùng một
+  lỗi thì nghe cùng một điều.
 
-The graph is two nodes because the composing is worth reading on its own: what
-the assistant is told about the student is the part a person will want to
-change, and it should not be buried inside the call that streams.
+Graph có hai node vì phần dựng prompt đáng được đọc riêng: những gì trợ lý được cho
+biết về học sinh chính là phần một con người sẽ muốn sửa, và nó không nên bị chôn bên
+trong lời gọi lo việc stream.
 """
 
 from collections.abc import Awaitable, Callable
@@ -49,12 +49,12 @@ Cách nói:
 
 
 class ExplainState(TypedDict):
-    """What flows through the graph.
+    """Những gì chảy qua graph.
 
     Attributes:
-        request: The whole ask, carried so the composing node has everything.
-        messages: What the model is given, once composed.
-        text: The answer, accumulated as it streams.
+        request: Toàn bộ yêu cầu, mang theo để node dựng prompt có đủ mọi thứ.
+        messages: Những gì model được đưa, sau khi đã dựng xong.
+        text: Câu trả lời, dồn lại dần theo dòng stream.
     """
 
     request: ExplainTurnRequested
@@ -63,17 +63,17 @@ class ExplainState(TypedDict):
 
 
 def _describe(question: GeneratedQuestion, number: int, chosen: str, mistake: str) -> str:
-    """Write one wrong question out for the assistant to read.
+    """Viết một câu làm sai ra để trợ lý đọc.
 
     Args:
-        question: The question, with its options and worked solutions.
-        number: What the paper calls it, so the assistant says "câu 5" and not
-            "câu 1" (the wrong questions are rarely numbered from one).
-        chosen: Label the student picked, empty when they answered nothing.
-        mistake: The authored name of that mistake, empty when unknown.
+        question: Câu hỏi, kèm các phương án và các cách giải.
+        number: Số câu mà đề gọi nó, để trợ lý nói "câu 5" chứ không nói "câu 1" (các
+            câu làm sai hiếm khi được đánh số từ một).
+        chosen: Nhãn phương án học sinh đã chọn, rỗng khi em không chọn gì.
+        mistake: Tên của lỗi đó do người soạn viết, rỗng khi không rõ.
 
     Returns:
-        A block of plain text.
+        Một khối chữ thuần.
     """
     correct = next((option for option in question.options if option.is_correct), None)
     lines = [f"Câu {number}: {question.stem}"]
@@ -91,13 +91,13 @@ def _describe(question: GeneratedQuestion, number: int, chosen: str, mistake: st
 
 
 def _compose(state: ExplainState) -> dict:
-    """Turn the request into the messages the model sees.
+    """Biến request thành những message model thấy.
 
     Args:
-        state: Carries the request.
+        state: Mang theo request.
 
     Returns:
-        The `messages` slice of the state.
+        Mảnh `messages` của state.
     """
     request = state["request"]
     numbers = request.question_numbers or tuple(range(1, len(request.questions) + 1))
@@ -117,9 +117,9 @@ def _compose(state: ExplainState) -> dict:
     for turn in request.history:
         messages.append(HumanMessage(turn.text) if turn.role == "student" else AIMessage(turn.text))
 
-    # There is no branch for an empty history any more: BE writes the opening
-    # turn itself and never enqueues a job for it, because it was paying a
-    # model to produce a sentence that barely varies.
+    # Không còn nhánh nào cho lịch sử rỗng nữa: BE tự viết lượt mở đầu và không bao
+    # giờ đẩy một job cho nó, vì làm vậy là trả tiền cho một model để sinh ra một câu
+    # gần như không thay đổi.
     if request.student_text:
         messages.append(HumanMessage(request.student_text))
 
@@ -127,16 +127,16 @@ def _compose(state: ExplainState) -> dict:
 
 
 async def _speak(state: ExplainState, config: RunnableConfig) -> dict:
-    """Call the model and publish the answer piece by piece.
+    """Gọi model và publish câu trả lời từng mẩu một.
 
     Args:
-        state: Carries the composed messages.
-        config: `configurable.publish` is an awaitable taking one piece of
-            text. It travels here rather than in the state because it is a live
-            connection, and state is meant to be data.
+        state: Mang theo các message đã dựng.
+        config: `configurable.publish` là một awaitable nhận một mẩu chữ. Nó đi theo
+            đường này chứ không đi trong state, vì nó là một connection đang sống, còn
+            state thì vốn để chứa dữ liệu.
 
     Returns:
-        The `text` slice of the state: the whole answer, joined.
+        Mảnh `text` của state: cả câu trả lời, đã nối lại.
     """
     publish: Publish | None = (config.get("configurable") or {}).get("publish")
     model = llm.with_fallback(lambda chat: chat)
@@ -154,10 +154,10 @@ async def _speak(state: ExplainState, config: RunnableConfig) -> dict:
 
 
 def _build() -> object:
-    """Assemble the graph.
+    """Lắp graph.
 
     Returns:
-        A compiled graph taking `ExplainState` and filling in `text`.
+        Một graph đã compile, nhận `ExplainState` và điền vào `text`.
     """
     graph = StateGraph(ExplainState)
     graph.add_node("compose", _compose)
@@ -172,17 +172,16 @@ _GRAPH = _build()
 
 
 async def speak(request: ExplainTurnRequested, publish: Publish | None = None) -> str:
-    """Write the assistant's next turn.
+    """Viết lượt nói tiếp theo của trợ lý.
 
     Args:
-        request: Everything the assistant is allowed to know.
-        publish: Called with each piece of text as it arrives. None when
-            nobody is watching, which is the normal case for a job whose
-            client has gone away.
+        request: Mọi thứ trợ lý được phép biết.
+        publish: Được gọi với từng mẩu chữ ngay khi mẩu đó tới. None khi không ai
+            đang xem, và đó là trường hợp bình thường của một job mà client đã bỏ đi.
 
     Returns:
-        The whole answer. The caller stores this; the pieces were only for the
-        student's eyes while waiting.
+        Cả câu trả lời. Bên gọi lưu thứ này; các mẩu chỉ dành cho mắt học sinh trong
+        lúc chờ.
     """
     final = await _GRAPH.ainvoke(
         {"request": request, "messages": [], "text": ""},

@@ -133,35 +133,55 @@ Chen vào giữa Pha 3 và Pha 4 vì nó là một đợt **sửa chữ, không 
 pha chứ không nằm trong một pha nào: trộn nó vào Pha 4 thì diff của Pha 4 sẽ toàn comment và không ai
 review nổi phần logic.
 
-- [ ] `AGENTS.md § Documentation Rules`: sửa câu *"`AGENTS.md`, `CLAUDE.md`, `README.md` and all source
-      comments are English"*. Đây là việc **đầu tiên**, không phải cuối: hôm nay luật của repo nói
-      ngược lại điều ta sắp làm, nên đổi code trước khi đổi luật là tự tạo ra một file nói dối. Kèm
-      decision record — sửa `AGENTS.md` không bao giờ được miễn.
-- [ ] Chốt phạm vi *"comment"*: comment dòng, docstring, và chuỗi docstring của module. **Không** đổi:
-      tên biến/hàm/class, thông báo log, chuỗi exception, và mọi chuỗi mà một check hay một test so
-      khớp (`tools/check_contract.py` đọc comment để bỏ qua dòng — xem ô cuối).
-- [ ] `services/be/src/be` — tầng đông comment nhất và cũng là tầng chở luật nghiệp vụ, nên đi trước:
-      `assessment_state.py`, `drafting.py`, `teacher_tools.py`, `teacher_chat.py`, `resolve.py`,
-      `review_policy.py`, `models.py`, `student_routes.py`, `agent_gateway.py`, phần còn lại.
-- [ ] `services/agent/src/agent` — `graphs/*.py`, `handlers.py`, `worker.py`, `config.py`.
-- [ ] `packages/contracts/src/contracts` — ở đây giữ **tên trường** tuyệt đối nguyên vẹn; chỉ phần
-      giải thích đổi sang tiếng Việt.
-- [ ] `services/fe/src` — JSDoc và comment TSX.
-- [ ] `tools/` và `services/*/tests` — test docstring là nơi lý do được ghi dày nhất, nên là nơi việc
-      dịch đáng giá nhất và cũng dễ làm hỏng nhất.
-- [ ] Giữ nguyên thuật ngữ tiếng Anh như `docs/` vẫn làm: `Assessment`, `Distractor`, `Confidence`,
-      `harvest`, `brief`, `Teacher Review Queue`. Dịch thuật ngữ mới là cách chắc chắn nhất để một
-      comment thôi khớp với code nó mô tả.
-- [ ] Cẩn thận hai chỗ comment **là dữ liệu**, không phải lời giải thích: `check_no_tool_changes_an_assessment_state`
-      bỏ qua dòng bắt đầu bằng `#` hay `"`, và `check_env_example_has_no_orphans` đọc `.env.example`
-      theo dòng. Đổi chữ trong hai vùng đó phải chạy lại check ngay.
-- [ ] Mỗi file đổi xong chạy `.\dev.ps1 check` và `.\dev.ps1 test`. Một đợt sửa chữ **không được**
-      làm đỏ một dòng nào; nếu đỏ thì tôi đã sửa nhiều hơn chữ.
-- [ ] Gọi một subagent review phần vừa dịch, trước khi sang Pha 4.
+- [x] `AGENTS.md § Documentation Rules` sửa **trước** khi chạm một dòng code nào, vì hôm trước luật của
+      repo nói ngược lại điều ta sắp làm, và đổi code trước là tự tay tạo ra một file nói dối. Câu mới
+      vừa đúng **ba dòng** nên cap 173 không bị chạm — không phải may: bản viết đầu dài bốn dòng và
+      `check_contract.py` đỏ ngay, nên tôi viết lại cho vừa thay vì nâng cap. Decision record kèm theo.
+- [x] Sweep bốn `AGENTS.md` con và `CLAUDE.md` theo `## Amending This Contract`: grep `English` /
+      `Vietnamese` / `tiếng Anh` / `tiếng Việt` cho thấy **không file nào khác** nhắc tới ngôn ngữ của
+      comment, nên không có mâu thuẫn phải dọn.
+- [x] Phạm vi chốt: comment dòng, docstring, JSDoc. **Không** đổi identifier, thông báo log, message
+      của exception, chuỗi hiển thị, tên section (`Args:`/`Returns:`/`Raises:`/`Side effects:`), tên
+      tham số trong `Args:`, và mọi chuỗi mà một check hay test so khớp.
+- [x] Đo trước khi làm: 54 file Python (4508 dòng docstring + 626 dòng comment) cộng 10 file FE.
+- [x] `services/be/src/be` — 19 file, ~286 khối, chia hai nhóm: tầng nghiệp vụ
+      (`assessment_state`, `drafting`, `teacher_tools`, `teacher_chat`, `resolve`, `review_policy`,
+      `scoring`, `remediation`) và tầng hạ tầng + HTTP (`models`, `student_routes`, `routes`,
+      `agent_gateway`, `db`, `config`, `queue`, `identity`, `seed`, `main`, `__init__`).
+- [x] `services/agent` — 18 file, ~118 khối. Ba hằng số prompt `_SYSTEM` giữ nguyên **từng byte**, đo
+      bằng sha256 trước/sau chứ không bằng mắt.
+- [x] `packages/contracts` — 5 file. Tên field tuyệt đối nguyên vẹn; chỉ phần giải thích đổi.
+- [x] `services/fe/src` — 9 file, 53 khối. `main.tsx` không có comment nào nên không sửa.
+- [x] `services/be/tests` (11 file, 183 khối), `services/agent/tests` (8 file) và
+      `tools/check_contract.py`. Docstring test là nơi lý do được ghi dày nhất trong cả repo.
+- [x] Thuật ngữ tiếng Anh giữ nguyên như `docs/` vẫn làm. Dịch một thuật ngữ mà code vẫn gọi nó bằng
+      tên cũ là cách chắc chắn nhất để một comment thôi khớp với thứ nó mô tả.
+- [x] Hai chỗ comment **là dữ liệu** đều đã kiểm: `check_no_tool_changes_an_assessment_state` chỉ bỏ
+      qua dòng bắt đầu bằng `#` hay `"`, nên một dòng **giữa** docstring viết `advance(` sẽ làm nó đỏ —
+      mọi comment trong `services/be/src/be/*.py` vì thế viết `advance` và `withdraw` **không dấu
+      ngoặc**, và grep chính regex của check lên các file đó không khớp dòng nào.
+      `check_env_example_has_no_orphans` không bị ảnh hưởng vì `.env.example` không bị chạm.
+- [x] `.\dev.ps1 check` xanh (ruff, 2 import contract, 6 repo check), `.\dev.ps1 test` xanh
+      (172 pytest, 11 vitest), `.\dev.ps1 typecheck` xanh. Không một dòng đỏ, đúng như một đợt sửa
+      chữ phải thế.
+- [x] Gọi subagent review phần vừa dịch trước khi sang Pha 4.
 
-Đo xong mới biết việc to cỡ nào, nên ô đầu tiên của lượt thực hiện là **đếm**: bao nhiêu file, bao
-nhiêu dòng comment. Nếu quá lớn cho một commit, chia theo service — mỗi service một commit, vì ranh
-giới service là ranh giới duy nhất ở đây mà một người review có thể giữ trong đầu.
+**Bằng chứng mạnh hơn mọi phép đếm, và là thứ đáng giữ lại cho lần sau:** một script so **AST** giữa
+`HEAD` và bản làm việc của cả 54 file Python — parse cả hai, bỏ docstring, so `ast.dump`. Comment thì
+không bao giờ đi vào cây, nên hai cây giống nhau nghĩa là **chỉ có văn xuôi đổi**. Cả 54 file đều
+giống. Đọc diff bằng mắt không cho được bảo đảm đó: một biến bị đổi tên hay một string literal bị sửa
+một ký tự trông y như một dòng comment trong một diff dài 1600 dòng.
+
+Và một audit ngược: tìm những dòng prose **còn** tiếng Anh. Còn 8 dòng, cả 8 đều đúng là nên giữ —
+thông báo lỗi 400 của OpenAI trích nguyên văn (hai chỗ), một comment chỉ gồm tên field, hai tên file
+plan, một dòng tiếp của câu Việt mà từ nào cũng là identifier. Nghĩa là không khối nào bị bỏ sót.
+
+Tám chỗ **comment gốc vốn đã nói sai so với code** do năm agent báo lại; sáu chỗ sửa luôn ở đợt này,
+vì một comment sai mà được dịch thì còn vô ích hơn lúc chưa dịch — nó vẫn sai, và nay sai bằng hai thứ
+tiếng. Đáng kể nhất: docstring package của AGENT vẫn nói nó **chấm bài**, đúng cái niềm tin mà
+`legacy_grading.py` tồn tại để dập (ADR-20 chuyển việc chấm sang BE); và `Publication` đếm "sáu tham
+số" trong khi tham số thứ nhất của ADR-02 **là lớp**, tức một hàng chở lớp cộng năm cài đặt — cùng lỗi
+đếm ấy nằm luôn trong mục thi hành của ADR-02, một dòng tôi tự viết ở Pha 1.
 
 ### Pha 4 — Duyệt, bỏ duyệt, và bất biến `state` ↔ số câu hỏi
 
@@ -278,6 +298,94 @@ Về cap: `AGENTS_MD_MAX_LINES` lên 173 cho **một** dòng — dòng Invariant
 số đó nói cap tồn tại để chặn drift, và chỉ được nâng kèm một decision record nói rõ luật mới nào
 biện minh cho nó. Luật mới ở đây là *"No agent tool changes an assessment's state"*, và nó có nơi thi
 hành bằng máy, nên nó là một dòng Invariants đúng nghĩa chứ không phải một câu nhắc.
+
+### Decision: Comment và docstring viết bằng tiếng Việt; identifier và chuỗi-máy-đọc giữ tiếng Anh
+
+options considered:
+
+- **A. Comment dòng và docstring sang tiếng Việt, giữ nguyên thuật ngữ tiếng Anh như `docs/` vẫn làm.
+  Tên biến/hàm/class, thông báo log, chuỗi exception và mọi chuỗi mà một check hay test so khớp vẫn
+  tiếng Anh. `AGENTS.md`, `CLAUDE.md`, `README.md` vẫn tiếng Anh.**
+- **B. Mọi thứ sang tiếng Việt, kể cả tên hàm và thông báo log.**
+- **C. Giữ nguyên tiếng Anh; comment là cho máy đọc code, không phải cho người đọc sản phẩm.**
+
+selected option: A.
+
+reason: C là trạng thái cũ, và nó dựa trên một giả định sai về người đọc. Người đọc code này và người
+đọc đề nó sinh ra là **cùng một người**: Kriky hướng tới người dùng Việt, mọi đề làm ra bằng tiếng
+Việt, và phần đáng giá nhất trong các comment ở repo này là *lý do* — nó giải thích nghiệp vụ dạy học
+chứ không giải thích cú pháp. Một codebase bàn về phân phối câu hỏi cho lớp 12A bằng tiếng Anh buộc
+người đọc dịch hai lượt, và lượt dịch ấy chính là chỗ lý do bị mất.
+
+B thì phá thứ khác. Tên hàm và thông báo log là **giao diện máy đọc**: `tools/check_contract.py` so
+`\b(advance|withdraw)\s*\(` theo tên hàm, `lint-imports` so theo tên module, `check_env_example_has_no_orphans`
+so tên biến môi trường với `model_fields`. Dịch chúng là đổi hợp đồng chứ không đổi lời giải thích.
+Thông báo log còn bị grep bởi con người lúc sự cố, và `docs/local-development.md` dạy người ta đối
+chiếu đúng mấy dòng đó.
+
+A cũng không phải luật mới mà là **mở rộng luật đã có**: `docs/` từ đầu đã là "tiếng Việt, thuật ngữ
+tiếng Anh giữ nguyên". Nay comment theo cùng quy ước đó, nên không có quy ước thứ hai để lệch nhau.
+Giữ nguyên thuật ngữ là phần quan trọng nhất của A: dịch `Distractor` thành "phương án gây nhiễu"
+trong comment mà code vẫn gọi nó `Distractor` là cách chắc chắn nhất để một comment thôi khớp với thứ
+nó mô tả.
+
+Phạm vi sửa `AGENTS.md`: một đoạn trong `## Documentation Rules`, không đổi số dòng nên cap 173 không
+bị chạm. Sweep bốn `AGENTS.md` con và `CLAUDE.md` theo đúng `## Amending This Contract` — grep cho
+thấy **không file nào khác** nhắc tới ngôn ngữ của comment, nên không có mâu thuẫn nào phải dọn. Câu
+mới nói *"every `AGENTS.md`"* chứ không nói *"this file"*: repo có **năm** file tên đó, và một câu chỉ
+miễn trừ file gốc sẽ để bốn hợp đồng con lơ lửng giữa đúng và vi phạm.
+
+phạm vi trong code: **mọi** file có comment, không chỉ code Python. Review bắt đúng chỗ tôi định dừng
+sớm — `.env.example` chở đúng lập luận `LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` mà
+`check_contract.py` nay đã kể bằng tiếng Việt, nên bỏ nó lại là tạo ra **một sự thật sống hai thứ
+tiếng ở hai file**, đúng bề mặt drift mà bảng Invariants tồn tại để chặn. Nên không có ngoại lệ nào
+được viết vào `AGENTS.md`: `.env.example`, `dev.ps1`, `pyproject.toml`, `.pre-commit-config.yaml`,
+`docker-compose.infra.yml`, `tokens.css`, `vite.config.ts` và `packages/contracts/tests` đều đi theo.
+Một luật có ngoại lệ không ghi ở đâu là một luật người sau sẽ đoán.
+
+hệ quả, và đây là phần tôi thiếu ở bản đầu: record này dùng cái bẫy regex của
+`check_no_tool_changes_an_assessment_state` làm **bằng chứng** cho lựa chọn A, mà không ghi rằng A
+**làm cái bẫy đó dễ nổ hơn**. Trước đợt này `teacher_tools.py` có **0** dòng văn xuôi nhắc
+`advance`/`withdraw`; nay có 2, và cả file đã được viết lại. Mọi đợt sửa comment sau này đều đi qua bề
+mặt đó. Nên đợt này sửa luôn cái gốc thay vì ghi thêm một lời nhắc: check nay lọc bằng `tokenize` —
+xoá trắng mọi token `COMMENT` và `STRING` rồi mới grep phần còn lại — nên luật **khớp với lời hứa mà
+comment của chính nó đã nói suốt từ đầu** (*"comment và docstring được phép nhắc tên luật"*), điều mà
+cách lọc theo tiền tố dòng chưa bao giờ làm được: một dòng ở **giữa** docstring không bắt đầu bằng dấu
+nháy nào. Kiểm lại cả hai chiều: vẫn đỏ với `advance(` và với `.state =` trong code, và thôi đỏ với
+`advance()` viết trong một docstring. Một đợt sửa chữ đáng lẽ không được làm đỏ một invariant, và nay
+nó không thể.
+
+### Decision: `dev.ps1` nhận BOM, và cái bẫy `.ps1` thành một dòng trong `AGENTS.md` (cap 174)
+
+options considered:
+
+- **A. Thêm BOM UTF-8 vào `dev.ps1`, và ghi cái bẫy thành một dòng `## Repo-Specific Traps`. Cap
+  173 → 174.**
+- **B. Trả comment của `dev.ps1` về tiếng Anh, vì đó là file duy nhất bị.**
+- **C. Thêm BOM, không ghi gì: sửa rồi là xong.**
+
+selected option: A.
+
+reason: lỗi này là **hệ quả trực tiếp** của luật ngôn ngữ vừa chốt, và nó thuộc loại tệ nhất — im
+lặng ở mọi phép kiểm. `.\dev.ps1 check`, `typecheck`, `help` đều chạy đúng; `check_named_dev_tasks_exist`
+xanh vì nó đọc file bằng `encoding="utf-8"` trong Python. Chỉ `Get-Help .\dev.ps1` — đúng cái đường
+chính thức để đọc khối `.SYNOPSIS`/`.DESCRIPTION` mà file ấy có — in ra `Má»™t cá»­a duy nháº¥t…`,
+vì Windows PowerShell 5.1 đọc một `.ps1` không BOM theo cp1252 chứ không theo UTF-8.
+
+B sai chiều: nó chữa triệu chứng bằng cách lùi luật, và lùi ở đúng file mà một người mới đọc đầu tiên
+để biết chạy dự án thế nào.
+
+C là chỗ tôi định dừng, và nó sai vì cái bẫy **không** chỉ thuộc về `dev.ps1`. Nó thuộc về mọi `.ps1`
+viết sau này, và nó không có phép kiểm nào canh: không gì trong repo đỏ lên khi một file `.ps1` mất
+BOM. `## Repo-Specific Traps` đã chứa đúng một dòng cùng họ — `REDIS_URL` trỏ `localhost` thì resolve
+ra `::1` ở máy này — và lý do hai dòng đó cùng tồn tại là như nhau: một hành vi riêng của nền tảng
+này, không suy ra được, và không có check nào bắt.
+
+Cap lên 174 cho đúng **một** dòng. Comment của chính hằng số cap đòi một decision record nói rõ luật
+mới nào biện minh cho phần dài thêm; luật mới ở đây là *"một `.ps1` cần BOM UTF-8"*, và nơi thi hành
+của nó là con mắt người đọc — nên nó là một `Trap` chứ không phải một dòng `Invariant`. Đó cũng là
+điểm khác biệt đáng giữ giữa hai bảng: bảng Invariants đòi một nơi thi hành bằng máy, bảng Traps thu
+những thứ **không** có.
 
 ### Decision: Agent không điền hộ biểu mẫu phát hành
 

@@ -9,12 +9,12 @@ import Sitting from "./screens/Sitting";
 import Tutor from "./screens/Tutor";
 
 /**
- * Read the current route out of the location hash.
+ * Đọc route hiện tại từ hash của location.
  *
- * A hash router rather than a routing library: five screens with no nested
- * layouts do not pay for a dependency, and the back button still works.
+ * Dùng hash router thay vì một thư viện routing: năm màn hình, không có layout
+ * lồng nhau, thì không đáng thêm một dependency — mà nút back vẫn chạy.
  *
- * @returns The hash without its leading `#`, defaulting to `/`.
+ * @returns Phần hash sau khi bỏ dấu `#` ở đầu, mặc định là `/`.
  */
 function useRoute(): string {
   const [route, setRoute] = useState(() => window.location.hash.slice(1) || "/");
@@ -26,17 +26,17 @@ function useRoute(): string {
   return route;
 }
 
-/** Send the browser to a route without a full reload. */
+/** Đưa trình duyệt sang một route mà không reload lại cả trang. */
 export function go(route: string): void {
   window.location.hash = route;
 }
 
 /**
- * The student surface.
+ * Phần giao diện dành cho học sinh.
  *
- * Identity is fetched once and passed down, because every screen carries the
- * name, class and student code strip that ADR-13 requires on a machine several
- * students share.
+ * Danh tính được lấy một lần rồi truyền xuống, vì mọi màn hình đều mang dải tên,
+ * lớp và mã học sinh mà ADR-13 đòi phải có trên một máy nhiều học sinh dùng
+ * chung.
  */
 export default function App() {
   const route = useRoute();

@@ -1,22 +1,22 @@
 /**
- * Client for the BE API.
+ * Client cho API của BE.
  *
- * Requests go to relative `/api` paths, which the Vite dev server proxies to
- * BE. Nothing here talks to AGENT: the frontend does not know that service
- * exists.
+ * Request đi tới các path `/api` tương đối, và Vite dev server proxy chúng sang
+ * BE. Không có gì ở đây nói chuyện với AGENT: frontend không biết là có service
+ * đó.
  *
- * These types are a hand-written mirror of BE's response models. TypeScript
- * cannot detect drift across the wire, so changing one side means changing
- * both in the same change set.
+ * Các type ở đây là bản chép tay của response model bên BE. TypeScript không
+ * phát hiện được chênh lệch qua đường truyền, nên sửa một bên là phải sửa cả
+ * hai bên trong cùng một đợt thay đổi.
  *
- * Two things this module deliberately does NOT do. It computes no deadline
- * verdict -- `warn_cut` and `can_start_round` arrive decided, because
- * comparing instants is ADR-15's rule and it belongs to BE. And it derives no
- * status from dates, because two machines with different clocks would then
- * show one assignment in two states.
+ * Hai việc module này cố ý KHÔNG làm. Nó không tự kết luận gì về hạn:
+ * `warn_cut` và `can_start_round` về tới đây là đã có kết luận rồi, vì so sánh
+ * hai mốc thời gian là luật của ADR-15 và việc đó thuộc BE. Và nó không suy ra
+ * status từ ngày tháng, vì hai máy lệch đồng hồ sẽ hiện cùng một đề ở hai state
+ * khác nhau.
  */
 
-/** Identity for the strip every screen carries (ADR-13). */
+/** Danh tính cho dải thông tin mà mọi màn hình đều mang (ADR-13). */
 export interface Me {
   student_id: string;
   full_name: string;
@@ -24,7 +24,7 @@ export interface Me {
   student_code: string;
 }
 
-/** One row of the assignment list. `status` and `actions` arrive decided. */
+/** Một dòng của danh sách bài được giao. `status` và `actions` về tới đây là đã có kết luận. */
 export interface Assignment {
   assignment_id: string;
   attempt_id: string | null;
@@ -70,7 +70,7 @@ export interface SubmitResult {
   wrong_question_ids: string[];
 }
 
-/** One remediation round of one question, printed on the score sheet. */
+/** Một lượt làm lại của một câu hỏi, in trên bảng điểm. */
 export interface RoundEntry {
   index: number;
   stem: string;
@@ -105,7 +105,7 @@ export interface RemediationItem {
   correct: { label: string; text: string };
   rounds_used: number;
   rounds_max: number;
-  /** Where the question ended up; only meaningful once `closed`. */
+  /** Câu hỏi này kết lại ở đâu; chỉ có nghĩa khi đã `closed`. */
   mark: number;
   closed: boolean;
 }
@@ -116,12 +116,12 @@ export interface Remediation {
   deadline: string;
   minutes_per_question: number;
   round_budget_minutes: number;
-  /** How many of `items` still need a round. Drives the button's label. */
+  /** Bao nhiêu câu trong `items` còn cần một lượt nữa. Quyết định chữ trên nút. */
   open_count: number;
   can_start_round: boolean;
   warn_cut: boolean;
   open_round_id: string | null;
-  /** Every question wrong at the end of phase 1, closed ones included. */
+  /** Mọi câu làm sai ở cuối pha 1, kể cả những câu đã `closed`. */
   items: RemediationItem[];
 }
 
@@ -148,7 +148,7 @@ export interface ChatHistory {
 export interface RoundItem {
   round_item_id: string;
   origin_question_id: string;
-  /** The number this question carries on the paper, which is what is shown. */
+  /** Số thứ tự câu này mang trên đề, và đó là số được hiện ra. */
   origin_order: number;
   order: number;
   stem: string;
@@ -176,11 +176,11 @@ export interface RoundVerdict {
 }
 
 /**
- * Stand-in for a sign-in screen, which ADR-10 left out of the first round.
+ * Đứng thay cho màn hình đăng nhập, thứ mà ADR-10 để ra ngoài vòng đầu.
  *
- * BE authorises for real on the strength of this value; only the proof of
- * identity is temporary. It lives in one constant so the day sign-in arrives,
- * there is exactly one call site to change.
+ * BE phân quyền thật dựa trên giá trị này; chỉ phần chứng minh danh tính là tạm.
+ * Nó nằm trong đúng một constant, để ngày đăng nhập thật xuất hiện thì chỉ có
+ * đúng một chỗ phải sửa.
  */
 export const ACTOR = "student:HS2026-1204";
 
@@ -189,14 +189,14 @@ function headers(): HeadersInit {
 }
 
 /**
- * Send one request and turn a failure into an error worth showing.
+ * Gửi một request và biến thất bại thành một lỗi đáng hiện ra.
  *
- * @param path - Path below `/api`.
- * @param init - Fetch options; the actor header is added here.
- * @returns The parsed body.
- * @throws Error carrying BE's `detail` when the response is not ok, because
- *   every refusal in this API explains itself in Vietnamese and that sentence
- *   is more useful to a student than a status code.
+ * @param path - Path nằm dưới `/api`.
+ * @param init - Tuỳ chọn cho fetch; header actor được thêm ở đây.
+ * @returns Body đã parse.
+ * @throws Error mang `detail` của BE khi response không ok, vì mọi lời từ chối
+ *   trong API này đều tự giải thích bằng tiếng Việt, và câu đó có ích cho học
+ *   sinh hơn một status code.
  */
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, { ...init, headers: headers() });
@@ -206,7 +206,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       const body = (await response.json()) as { detail?: string };
       if (body.detail) detail = body.detail;
     } catch {
-      /* a non-JSON error body is still an error; keep the status text */
+      /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
     }
     throw new Error(detail);
   }
@@ -252,17 +252,17 @@ export const api = {
 };
 
 /**
- * Read the assistant's next turn as it arrives.
+ * Đọc lượt nói tiếp theo của trợ lý ngay khi nó về tới.
  *
- * Server-sent events are an accelerant for how the answer feels, not a source
- * of truth: BE stores the turn before the first chunk leaves, so a dropped
- * connection costs the animation and never the message. Callers reload the
- * history afterwards rather than trusting what they assembled here.
+ * Server-sent events chỉ làm câu trả lời *cảm giác* nhanh hơn, không phải nguồn
+ * sự thật: BE lưu lượt nói trước khi chunk đầu tiên rời đi, nên mất kết nối thì
+ * mất phần chạy chữ, không bao giờ mất tin nhắn. Nơi gọi sẽ tải lại lịch sử sau
+ * đó chứ không tin vào thứ nó tự ghép ở đây.
  *
- * @param attemptId - Whose conversation.
- * @param onChunk - Called with each fragment, in order.
- * @returns A promise settling when the stream ends.
- * @throws Error when the stream cannot be opened.
+ * @param attemptId - Cuộc trò chuyện của ai.
+ * @param onChunk - Được gọi với từng mảnh, theo đúng thứ tự.
+ * @returns Một promise kết thúc khi stream hết.
+ * @throws Error khi không mở được stream.
  */
 export async function streamReply(
   attemptId: string,
@@ -287,30 +287,30 @@ export async function streamReply(
     for (const event of events) {
       const lines = event.split("\n");
       const name = lines.find((part) => part.startsWith("event: "))?.slice("event: ".length);
-      // Every `data:` line, joined with newlines -- that is what the format
-      // says a repeated field means. Reading only the first one silently
-      // truncated any answer that contained a line break.
+      // Mọi dòng `data:`, nối lại bằng ký tự xuống dòng — đúng như định dạng
+      // quy định cho một field lặp lại. Chỉ đọc dòng đầu tiên thì mọi câu trả
+      // lời có dấu xuống dòng đều bị cắt ngắn mà không báo gì.
       const data = lines
         .filter((part) => part.startsWith("data: "))
         .map((part) => part.slice("data: ".length))
         .join("\n");
 
       if (name === "chunk") onChunk(data);
-      // The stream starts before BE knows whether the model will answer, so a
-      // failure arrives here rather than as a status code.
+      // Stream bắt đầu trước khi BE biết model có trả lời được hay không, nên
+      // thất bại về tới đây chứ không về dưới dạng một status code.
       if (name === "error") throw new Error(data || "Trợ lý chưa trả lời được.");
     }
   }
 }
 
-/** Format an ISO instant the way every screen shows it: `HH:MM · DD/MM`. */
+/** Định dạng một mốc thời gian ISO theo đúng cách mọi màn hình hiện nó: `HH:MM · DD/MM`. */
 export function moment(iso: string): string {
   const at = new Date(iso);
   const two = (value: number) => String(value).padStart(2, "0");
   return `${two(at.getHours())}:${two(at.getMinutes())} · ${two(at.getDate())}/${at.getMonth() + 1}`;
 }
 
-/** Format the seconds left as `MM:SS`, clamped at zero. */
+/** Định dạng số giây còn lại thành `MM:SS`, chặn ở mức không. */
 export function countdown(msLeft: number): string {
   const seconds = Math.max(0, Math.floor(msLeft / 1000));
   const two = (value: number) => String(value).padStart(2, "0");

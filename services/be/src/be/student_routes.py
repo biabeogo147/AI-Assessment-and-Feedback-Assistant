@@ -1,18 +1,17 @@
-"""Every HTTP surface a student touches.
+"""Mọi bề mặt HTTP mà một học sinh chạm vào.
 
-Three rules shape this module and are worth stating once rather than at each
-route.
+Ba luật định hình module này, và nói một lần ở đây đáng hơn nhắc lại ở từng route.
 
-The correct option never leaves BE while a student could still act on it. It
-appears after submission, where ADR-16 makes the phase 1 score a floor and the
-retry question is a different question anyway.
+Phương án đúng không bao giờ rời khỏi BE trong lúc học sinh còn có thể hành động dựa
+trên nó. Nó chỉ xuất hiện sau khi nộp, lúc mà ADR-16 đã biến điểm pha 1 thành một mức
+sàn, và dù sao câu hỏi retry cũng là một câu hỏi khác.
 
-No response carries `confidence`, `misconception_code` or a review reason
-(ADR-08). The authored error label does appear, but only inside the solution
-dialog and the tutoring context -- as teaching material, never as a number.
+Không response nào chở `confidence`, `misconception_code` hay một lý do duyệt (ADR-08).
+Error label do giáo viên soạn thì có xuất hiện, nhưng chỉ bên trong hộp thoại lời giải
+và trong ngữ cảnh kèm học -- như tài liệu dạy học, không bao giờ như một con số.
 
-Every deadline is decided here. The countdown on screen is decoration; the
-server clock is what refuses a late answer and what stops a round (ADR-15).
+Mọi mốc hạn đều được quyết ở đây. Đồng hồ đếm ngược trên màn hình là đồ trang trí; đồng
+hồ của server mới là thứ từ chối một câu trả lời muộn và là thứ dừng một round (ADR-15).
 """
 
 import logging
@@ -82,32 +81,32 @@ router = APIRouter(prefix="/api", tags=["student"])
 
 
 def _now() -> datetime:
-    """Return the server clock, timezone aware.
+    """Trả về đồng hồ của server, có kèm timezone.
 
     Returns:
-        The current UTC time. Every deadline comparison in this module goes
-        through here so a test can reason about one source of time.
+        Thời điểm UTC hiện tại. Mọi phép so sánh mốc hạn trong module này đều đi qua đây,
+        để một test chỉ phải lập luận trên một nguồn thời gian duy nhất.
     """
     return datetime.now(UTC)
 
 
 def _aware(value: datetime) -> datetime:
-    """Attach UTC to a timestamp that lost its offset in storage.
+    """Gắn UTC vào một timestamp đã mất offset của nó khi được lưu.
 
-    SQLite drops timezone information, so a value read back is naive while the
-    same value on Postgres is not. Comparing the two shapes raises.
+    SQLite bỏ mất thông tin timezone, nên một giá trị đọc về là naive trong khi cùng giá
+    trị đó trên Postgres thì không. So sánh hai hình dạng này với nhau sẽ ném lỗi.
 
     Args:
-        value: Timestamp from the database.
+        value: Timestamp lấy từ database.
 
     Returns:
-        The same instant, guaranteed timezone aware.
+        Đúng khoảnh khắc đó, và được bảo đảm là có timezone.
     """
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class OptionOut(BaseModel):
-    """One option as a student may see it before submitting."""
+    """Một phương án như học sinh được phép thấy trước khi nộp."""
 
     option_id: str
     label: str
@@ -115,7 +114,7 @@ class OptionOut(BaseModel):
 
 
 class QuestionOut(BaseModel):
-    """One question of the running attempt."""
+    """Một câu hỏi của Attempt đang chạy."""
 
     question_id: str
     order: int
@@ -125,7 +124,7 @@ class QuestionOut(BaseModel):
 
 
 class AssignmentOut(BaseModel):
-    """One row of the student's assignment list."""
+    """Một dòng trong danh sách bài được giao của học sinh."""
 
     assignment_id: str
     attempt_id: str | None
@@ -142,7 +141,7 @@ class AssignmentOut(BaseModel):
 
 
 class AttemptOut(BaseModel):
-    """A freshly started or resumed phase 1 attempt."""
+    """Một Attempt pha 1 vừa được bắt đầu hoặc vừa được làm tiếp."""
 
     attempt_id: str
     title: str
@@ -152,7 +151,7 @@ class AttemptOut(BaseModel):
 
 
 class SubmitOut(BaseModel):
-    """What ending phase 1 produced."""
+    """Thứ mà việc kết thúc pha 1 tạo ra."""
 
     attempt_id: str
     submitted_at: datetime
@@ -162,7 +161,7 @@ class SubmitOut(BaseModel):
 
 
 class RoundOut(BaseModel):
-    """One entry in a question's remediation history."""
+    """Một mục trong lịch sử remediation của một câu hỏi."""
 
     index: int
     stem: str
@@ -170,7 +169,7 @@ class RoundOut(BaseModel):
 
 
 class ResultItemOut(BaseModel):
-    """One question on the score sheet."""
+    """Một câu hỏi trên bảng điểm."""
 
     question_id: str
     order: int
@@ -181,7 +180,7 @@ class ResultItemOut(BaseModel):
 
 
 class ResultOut(BaseModel):
-    """The score sheet, in the shape both result screens read."""
+    """Bảng điểm, theo hình dạng mà cả hai màn hình kết quả đều đọc."""
 
     attempt_id: str
     title: str
@@ -194,18 +193,18 @@ class ResultOut(BaseModel):
 
 
 class ChosenOut(BaseModel):
-    """An option named by label and text, for the remediation panel."""
+    """Một phương án được gọi tên bằng label và text, dùng cho panel remediation."""
 
     label: str
     text: str
 
 
 class RemediationItemOut(BaseModel):
-    """One question the student got wrong in phase 1, as the panel shows it.
+    """Một câu hỏi học sinh làm sai ở pha 1, theo cách panel trình bày nó.
 
-    Closed questions stay in the list. The panel is what a student reads back
-    after the attempt ends -- dropping a question the moment it settles would
-    empty the screen that the result page sends them to.
+    Những câu đã đóng vẫn nằm trong danh sách. Panel chính là thứ học sinh đọc lại sau
+    khi Attempt kết thúc -- bỏ một câu hỏi ra ngay khoảnh khắc nó an bài sẽ làm trống
+    đúng cái màn hình mà trang kết quả gửi em tới.
     """
 
     question_id: str
@@ -220,12 +219,11 @@ class RemediationItemOut(BaseModel):
 
 
 class RemediationOut(BaseModel):
-    """Everything the tutoring screen needs besides the conversation.
+    """Mọi thứ màn hình kèm học cần, ngoài cuộc hội thoại.
 
-    `items` holds every question that was wrong at the end of phase 1, closed
-    or not; `open_count` is how many still need a round. The interface needs
-    both: one to draw the list, the other to label the button that opens a
-    round and to count what is left.
+    `items` giữ mọi câu hỏi đã sai ở cuối pha 1, đóng hay chưa; còn `open_count` là số
+    câu vẫn còn cần một round. Giao diện cần cả hai: một cái để vẽ danh sách, cái kia để
+    đặt chữ cho cái nút mở một round và để đếm phần còn lại.
     """
 
     attempt_id: str
@@ -241,7 +239,7 @@ class RemediationOut(BaseModel):
 
 
 class SolutionOptionOut(BaseModel):
-    """One option inside the solution dialog, with its authored mistake."""
+    """Một phương án bên trong hộp thoại lời giải, kèm lỗi sai do giáo viên soạn."""
 
     label: str
     text: str
@@ -250,14 +248,14 @@ class SolutionOptionOut(BaseModel):
 
 
 class SolutionMethodOut(BaseModel):
-    """One worked solution."""
+    """Một lời giải chi tiết."""
 
     title: str
     body: str
 
 
 class SolutionOut(BaseModel):
-    """The solution dialog for one question."""
+    """Hộp thoại lời giải cho một câu hỏi."""
 
     question_id: str
     stem: str
@@ -266,7 +264,7 @@ class SolutionOut(BaseModel):
 
 
 class ChatMessageOut(BaseModel):
-    """One stored turn of the conversation."""
+    """Một lượt của cuộc hội thoại đã được lưu."""
 
     message_id: str
     role: str
@@ -275,7 +273,7 @@ class ChatMessageOut(BaseModel):
 
 
 class ChatHistoryOut(BaseModel):
-    """The conversation, plus whether it still accepts input."""
+    """Cuộc hội thoại, kèm việc nó còn nhận input hay không."""
 
     attempt_id: str
     locked: bool
@@ -283,25 +281,25 @@ class ChatHistoryOut(BaseModel):
 
 
 class ChatPostIn(BaseModel):
-    """A student's message."""
+    """Một message của học sinh."""
 
     text: str
 
 
 class ChatPostOut(BaseModel):
-    """Where to read the reply from."""
+    """Đọc câu trả lời ở đâu."""
 
     message_id: str
     stream_url: str
 
 
 class RoundItemOut(BaseModel):
-    """One question inside a running round.
+    """Một câu hỏi bên trong một round đang chạy.
 
-    `origin_order` is the number the question carries on the paper, and it is
-    what the screen shows. Numbering a round 1..n instead would tell a student
-    who got questions 5 and 6 wrong that they are now on "câu 1" -- and the
-    conversation beside it says câu 5.
+    `origin_order` là số thứ tự mà câu hỏi mang trên đề, và đó là thứ màn hình hiển thị.
+    Nếu thay vào đó đánh số round theo 1..n thì một học sinh làm sai câu 5 và câu 6 sẽ
+    được bảo rằng em đang ở "câu 1" -- trong khi cuộc hội thoại ngay bên cạnh nói là
+    câu 5.
     """
 
     round_item_id: str
@@ -314,7 +312,7 @@ class RoundItemOut(BaseModel):
 
 
 class RoundOpenOut(BaseModel):
-    """A round the student may now answer."""
+    """Một round mà học sinh giờ được phép trả lời."""
 
     round_id: str
     index: int
@@ -323,7 +321,7 @@ class RoundOpenOut(BaseModel):
 
 
 class RoundResultItemOut(BaseModel):
-    """What one question ended at after this round."""
+    """Một câu hỏi dừng lại ở đâu sau round này."""
 
     question_id: str
     outcome: str
@@ -333,7 +331,7 @@ class RoundResultItemOut(BaseModel):
 
 
 class RoundResultOut(BaseModel):
-    """The verdict on a submitted round."""
+    """Phán quyết cho một round đã nộp."""
 
     round_id: str
     per_question: list[RoundResultItemOut]
@@ -341,37 +339,37 @@ class RoundResultOut(BaseModel):
 
 
 class AnswerIn(BaseModel):
-    """One saved choice."""
+    """Một lựa chọn đã được lưu."""
 
     option_id: str
 
 
 class RoundAnswerIn(BaseModel):
-    """One saved choice inside a round, addressed by label."""
+    """Một lựa chọn đã lưu bên trong một round, được gọi tới bằng label."""
 
     label: str
 
 
 class SavedOut(BaseModel):
-    """Acknowledgement that a choice was stored."""
+    """Xác nhận rằng một lựa chọn đã được lưu."""
 
     saved_at: datetime
 
 
 class ReportIn(BaseModel):
-    """An optional note attached to a report."""
+    """Một ghi chú tuỳ chọn gắn kèm một báo cáo."""
 
     note: str | None = None
 
 
 class ReportOut(BaseModel):
-    """Acknowledgement that a report was filed."""
+    """Xác nhận rằng một báo cáo đã được ghi nhận."""
 
     report_id: str
 
 
 class MeOut(BaseModel):
-    """Identity for the top bar."""
+    """Danh tính để hiển thị trên thanh trên cùng."""
 
     student_id: str
     full_name: str
@@ -380,17 +378,17 @@ class MeOut(BaseModel):
 
 
 async def _load_assessment(session: AsyncSession, assessment_id: str) -> Assessment:
-    """Load an assessment with its questions, options and methods.
+    """Load một đề cùng với câu hỏi, phương án và lời giải của nó.
 
     Args:
-        session: Database session.
-        assessment_id: Which assessment.
+        session: Session của database.
+        assessment_id: Đề nào.
 
     Returns:
-        The assessment.
+        Đề đó.
 
     Raises:
-        HTTPException: 404 when it does not exist.
+        HTTPException: 404 khi nó không tồn tại.
     """
     found = await session.scalar(
         select(Assessment)
@@ -406,19 +404,19 @@ async def _load_assessment(session: AsyncSession, assessment_id: str) -> Assessm
 
 
 async def _owned_attempt(session: AsyncSession, attempt_id: str, student: Student) -> Attempt:
-    """Load an attempt and refuse it to anybody else's owner.
+    """Load một Attempt và từ chối nó với bất kỳ ai không phải chủ của nó.
 
     Args:
-        session: Database session.
-        attempt_id: Which attempt.
-        student: The caller.
+        session: Session của database.
+        attempt_id: Attempt nào.
+        student: Người gọi.
 
     Returns:
-        The attempt.
+        Attempt đó.
 
     Raises:
-        HTTPException: 404 when it does not exist or belongs to someone else.
-            Not 403: telling a stranger that an id is real is already a leak.
+        HTTPException: 404 khi nó không tồn tại hoặc thuộc về người khác. Không phải
+            403: nói cho một người lạ biết rằng một id là thật thì đã là một lần rò rỉ.
     """
     found = await session.get(Attempt, attempt_id)
     if found is None or found.student_id != student.id:
@@ -427,24 +425,24 @@ async def _owned_attempt(session: AsyncSession, attempt_id: str, student: Studen
 
 
 async def _publication(session: AsyncSession, assessment_id: str, class_id: str) -> Publication:
-    """Load the release terms that govern one class's run at an assessment.
+    """Load các điều kiện phát hành chi phối lượt làm một đề của một lớp.
 
-    Both halves of the key are needed now. An assessment is published per
-    class, each with its own clock -- 12A in the morning, 12B after lunch --
-    so "the terms of this assessment" is not a question with one answer.
+    Giờ cần cả hai nửa của khoá. Một đề được phát hành theo từng lớp, mỗi lớp một cái
+    đồng hồ riêng -- 12A buổi sáng, 12B sau giờ trưa -- nên "điều kiện của đề này" không
+    phải một câu hỏi có một đáp án.
 
     Args:
-        session: Database session.
-        assessment_id: Which assessment.
-        class_id: Which class's terms. For an attempt, this is the class the
-            attempt was started in, not the student's class today.
+        session: Session của database.
+        assessment_id: Đề nào.
+        class_id: Điều kiện của lớp nào. Với một Attempt, đây là lớp mà Attempt được bắt
+            đầu trong đó, không phải lớp của học sinh ngày hôm nay.
 
     Returns:
-        The publication row for that pair.
+        Dòng Publication của cặp đó.
 
     Raises:
-        HTTPException: 404 when the assessment was never published to that
-            class, which for a student is indistinguishable from not existing.
+        HTTPException: 404 khi đề chưa bao giờ được phát hành cho lớp đó, mà với một học
+            sinh thì chuyện đó không phân biệt được với việc đề không tồn tại.
     """
     found = await session.get(Publication, (assessment_id, class_id))
     if found is None:
@@ -453,22 +451,22 @@ async def _publication(session: AsyncSession, assessment_id: str, class_id: str)
 
 
 async def _open_round(session: AsyncSession, attempt_id: str) -> RemediationRound | None:
-    """Return the attempt's unsubmitted round, if it has one.
+    """Trả về round chưa nộp của một Attempt, nếu nó có.
 
-    Uses `scalar_one_or_none` rather than `scalar`: at most one round may be
-    open, a partial unique index enforces it, and if that ever fails this must
-    raise instead of quietly picking a row and hiding the other.
+    Dùng `.one_or_none()` chứ không dùng `.first()`: nhiều nhất một round được mở, một
+    partial unique index ép điều đó, và nếu chuyện đó có lúc nào gãy thì hàm này phải ném
+    lỗi chứ không được âm thầm chọn một dòng rồi che dòng kia đi.
 
     Args:
-        session: Database session.
-        attempt_id: Which attempt.
+        session: Session của database.
+        attempt_id: Attempt nào.
 
     Returns:
-        The open round, or None.
+        Round đang mở, hoặc None.
 
     Raises:
-        MultipleResultsFound: If two rounds are open at once, which means the
-            index is missing from this database.
+        MultipleResultsFound: Nếu hai round cùng mở một lúc, nghĩa là database này đang
+            thiếu cái index đó.
     """
     found = await session.scalars(
         select(RemediationRound).where(
@@ -479,14 +477,14 @@ async def _open_round(session: AsyncSession, attempt_id: str) -> RemediationRoun
 
 
 async def _outcomes(session: AsyncSession, attempt_id: str) -> dict[str, QuestionOutcome]:
-    """Read the score ledger of one attempt, keyed by question.
+    """Đọc sổ điểm của một Attempt, khoá theo câu hỏi.
 
     Args:
-        session: Database session.
-        attempt_id: Which attempt.
+        session: Session của database.
+        attempt_id: Attempt nào.
 
     Returns:
-        Outcome rows by question id.
+        Các dòng outcome, theo question id.
     """
     rows = await session.scalars(
         select(QuestionOutcome).where(QuestionOutcome.attempt_id == attempt_id)
@@ -500,17 +498,17 @@ def _attempt_state(
     deadline: datetime,
     now: datetime,
 ) -> str:
-    """Decide which shape of the result screen applies.
+    """Quyết định hình dạng nào của màn hình kết quả được áp dụng.
 
     Args:
-        outcomes: The score ledger.
-        submitted: Whether phase 1 has ended.
-        deadline: The phase 2 deadline.
-        now: Server time.
+        outcomes: Sổ điểm.
+        submitted: Pha 1 đã kết thúc hay chưa.
+        deadline: Hạn của pha 2.
+        now: Thời gian của server.
 
     Returns:
-        "đang-làm", "cần-chữa", "đã-hoàn-thành" or "hết-hạn-chữa". ADR-14 makes
-        these different shapes rather than one shape with empty fields.
+        "đang-làm", "cần-chữa", "đã-hoàn-thành" hoặc "hết-hạn-chữa". ADR-14 làm cho đây
+        là những hình dạng khác nhau, chứ không phải một hình dạng với các field rỗng.
     """
     if not submitted:
         return "đang-làm"
@@ -522,19 +520,19 @@ def _attempt_state(
 
 
 def _attempt_payload(attempt: Attempt, assessment: Assessment, saved: dict[str, str]) -> AttemptOut:
-    """Shape one attempt for the sitting screen.
+    """Tạo hình dạng của một Attempt cho màn hình làm bài.
 
-    Shared by starting and resuming so the two cannot drift into showing
-    different things -- and in particular so neither ever grows an
+    Dùng chung cho cả việc bắt đầu và việc làm tiếp, nhờ vậy hai đường đó không thể trôi
+    dạt thành hiển thị hai thứ khác nhau -- và đặc biệt là không đường nào mọc thêm một
     `is_correct`.
 
     Args:
-        attempt: The attempt row.
-        assessment: Its assessment, with questions and options loaded.
-        saved: Chosen option id per question id.
+        attempt: Dòng Attempt.
+        assessment: Đề của nó, đã load câu hỏi và phương án.
+        saved: Id phương án đã chọn, theo từng question id.
 
     Returns:
-        The payload, with every option stripped of the answer key.
+        Payload, với mọi phương án đã được bóc bỏ đáp án.
     """
     return AttemptOut(
         attempt_id=attempt.id,
@@ -562,15 +560,15 @@ async def me(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> MeOut:
-    """Report who the caller is, for the identity strip every screen carries.
+    """Báo người gọi là ai, cho dải danh tính mà mọi màn hình đều chở theo.
 
     Args:
-        student: The caller.
-        session: Database session.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        Name, class and student code -- the three things ADR-13 requires on a
-        shared classroom machine.
+        Tên, lớp và mã học sinh -- ba thứ mà ADR-13 đòi phải có trên một máy dùng chung
+        trong lớp học.
     """
     loaded = await session.scalar(
         select(Student).where(Student.id == student.id).options(selectinload(Student.school_class))
@@ -589,18 +587,18 @@ async def my_assignments(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> list[AssignmentOut]:
-    """List the assignments of the caller's class.
+    """Liệt kê những bài được giao của lớp mà người gọi đang học.
 
-    Status is computed here from the server clock rather than sent as raw dates
-    for the client to interpret: two machines with different clocks would
-    otherwise show two different states for one assignment.
+    Status được tính ở đây từ đồng hồ của server, chứ không gửi ra dưới dạng ngày thô để
+    client tự diễn giải: nếu không, hai máy có đồng hồ lệch nhau sẽ hiển thị hai state
+    khác nhau cho cùng một bài được giao.
 
     Args:
-        student: The caller.
-        session: Database session.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        One row per published assessment for this class, newest first.
+        Một dòng cho mỗi đề đã phát hành cho lớp này, mới nhất lên trước.
     """
     now = _now()
     publications = await session.scalars(
@@ -666,30 +664,29 @@ async def start_attempt(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> AttemptOut:
-    """Start phase 1, or hand back the attempt already in progress.
+    """Bắt đầu pha 1, hoặc trả lại chính Attempt đang làm giữa dở.
 
     Args:
-        assessment_id: Which assessment.
-        student: The caller.
-        session: Database session.
+        assessment_id: Đề nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The attempt with its questions, options stripped of the answer key.
+        Attempt cùng các câu hỏi của nó, phương án đã bóc bỏ đáp án.
 
     Raises:
-        HTTPException: 409 before the opening time, after the closing time, or
-            once phase 1 has been submitted.
+        HTTPException: 409 khi chưa tới giờ mở, khi đã qua giờ đóng, hoặc khi pha 1 đã
+            được nộp.
 
     Side effects:
-        Creates an attempt row on first call.
+        Tạo một dòng Attempt ở lần gọi đầu tiên.
     """
-    # The attempt first, because it decides which terms apply. Looking the
-    # publication up before it -- with today's class -- meant the entry gate
-    # was re-applied to a paper already in progress: a student who moved from
-    # the morning class to the afternoon one was told "chưa tới giờ mở" about
-    # their own half-finished work, or "chưa được phát hành" when the new class
-    # had no publication at all. ADR-03 forbids exactly that from the other
-    # side: "Học sinh đã vào rồi thì không bị dừng giữa chừng."
+    # Attempt trước, vì nó mới là thứ quyết định điều kiện nào được áp. Tra Publication
+    # trước nó -- với lớp của ngày hôm nay -- có nghĩa là cửa vào bị áp lại lên một bài
+    # đang làm giữa dở: một học sinh chuyển từ lớp buổi sáng sang lớp buổi chiều bị bảo
+    # "chưa tới giờ mở" về chính phần việc nửa vời của em, hoặc "chưa được phát hành" khi
+    # lớp mới chẳng có Publication nào. ADR-03 cấm đúng chuyện đó, nhìn từ phía bên kia:
+    # "Học sinh đã vào rồi thì không bị dừng giữa chừng."
     attempt = await session.scalar(
         select(Attempt).where(
             Attempt.assessment_id == assessment_id, Attempt.student_id == student.id
@@ -704,7 +701,7 @@ async def start_attempt(
     now = _now()
 
     if attempt is None:
-        # The gate guards entering, and only entering.
+        # Cửa này canh việc vào, và chỉ canh việc vào.
         if now < _aware(publication.opens_at):
             raise HTTPException(status_code=409, detail="Chưa tới giờ mở")
         if now > _aware(publication.closes_at):
@@ -724,9 +721,9 @@ async def start_attempt(
         try:
             await session.commit()
         except IntegrityError:
-            # Two tabs pressed start together. The unique constraint kept the
-            # data right; this turns the collision into the answer the second
-            # tab wanted anyway -- the attempt that already exists.
+            # Hai tab cùng bấm bắt đầu một lúc. Unique constraint đã giữ cho dữ liệu
+            # đúng; chỗ này biến cú va chạm đó thành đúng câu trả lời mà tab thứ hai dù
+            # sao cũng muốn -- chính cái Attempt đã tồn tại.
             await session.rollback()
             attempt = await session.scalar(
                 select(Attempt).where(
@@ -750,23 +747,23 @@ async def resume_attempt(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> AttemptOut:
-    """Read back an attempt in progress, with the choices already saved.
+    """Đọc lại một Attempt đang làm giữa dở, kèm những lựa chọn đã lưu.
 
-    Reloading the page must not cost anything. Starting an attempt is a POST
-    because it creates one; coming back to it is this GET, so a refresh cannot
-    be mistaken for a second start.
+    Tải lại trang không được tốn gì cả. Bắt đầu một Attempt là một POST vì nó tạo ra một
+    cái; còn quay lại với nó là cái GET này, nhờ vậy một lần refresh không thể bị nhầm
+    thành một lần bắt đầu thứ hai.
 
     Args:
-        attempt_id: Which attempt.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The attempt with its questions, options stripped of the answer key.
+        Attempt cùng các câu hỏi của nó, phương án đã bóc bỏ đáp án.
 
     Raises:
-        HTTPException: 404 when the attempt is not the caller's; 409 once phase
-            1 has been submitted, because the paper is no longer answerable.
+        HTTPException: 404 khi Attempt không phải của người gọi; 409 khi pha 1 đã được
+            nộp, vì bài đó không còn trả lời được nữa.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is not None:
@@ -788,24 +785,24 @@ async def save_answer(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> SavedOut:
-    """Store one phase 1 choice.
+    """Lưu một lựa chọn của pha 1.
 
     Args:
-        attempt_id: Which attempt.
-        question_id: Which question.
-        body: The chosen option.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        question_id: Câu hỏi nào.
+        body: Phương án đã chọn.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        When the choice was stored.
+        Lựa chọn đã được lưu vào lúc nào.
 
     Raises:
-        HTTPException: 409 after the attempt's own deadline or once submitted;
-            400 when the option belongs to another question.
+        HTTPException: 409 sau mốc hạn của chính Attempt đó hoặc khi nó đã nộp; 400 khi
+            phương án thuộc về một câu hỏi khác.
 
     Side effects:
-        Inserts or updates one answer row.
+        Insert hoặc update một dòng answer.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is not None:
@@ -844,24 +841,24 @@ async def submit_attempt(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> SubmitOut:
-    """End phase 1 and mark every question.
+    """Kết thúc pha 1 và chấm mọi câu hỏi.
 
-    Marking is a comparison and runs inline (ADR-20), so there is no "being
-    graded" state between this call and the score sheet.
+    Việc chấm chỉ là một phép so sánh và chạy ngay trong dòng (ADR-20), nên không có state
+    "đang được chấm" nào nằm giữa lần gọi này và bảng điểm.
 
     Args:
-        attempt_id: Which attempt.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The floor score and which questions are still open.
+        Điểm sàn và những câu hỏi còn đang mở.
 
     Raises:
-        HTTPException: 409 when phase 1 was already submitted.
+        HTTPException: 409 khi pha 1 đã được nộp rồi.
 
     Side effects:
-        Writes the score ledger and stamps the attempt as submitted.
+        Ghi sổ điểm và đóng mốc thời gian nộp lên Attempt.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is not None:
@@ -897,11 +894,11 @@ async def submit_attempt(
     attempt.submitted_at = now
     await session.commit()
 
-    # The head start. Writing a round's question takes a model the better part
-    # of twenty seconds, and ADR-14 sends the student to the tutoring screen
-    # before they can open a round -- minutes of reading and asking. Starting
-    # now means the wait is spent on something they chose to do. Nothing here
-    # is awaited for its answer, and nothing here can fail the submission.
+    # Bước chạy trước. Viết câu hỏi của một round tốn của model gần hai mươi giây, và
+    # ADR-14 đưa học sinh tới màn hình kèm học trước khi em mở được một round -- vài phút
+    # đọc và hỏi. Khởi động ngay lúc này có nghĩa là thời gian chờ được tiêu vào một việc
+    # em tự chọn làm. Không có gì ở đây được await để lấy câu trả lời, và không có gì ở
+    # đây có thể làm cho lần nộp bài thất bại.
     await _write_ahead(
         session,
         request.app.state.queue_pool,
@@ -926,22 +923,22 @@ async def attempt_result(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> ResultOut:
-    """Return the score sheet, including the question of every retry round.
+    """Trả về bảng điểm, kèm cả câu hỏi của từng round retry.
 
-    A round's own question is printed because it is a different question from
-    the original (ADR-17); a sheet showing only the phase 1 stem would credit a
-    student 0.5 without saying what they got right.
+    Câu hỏi của chính một round được in ra vì nó là một câu hỏi khác với câu gốc (ADR-17);
+    một bảng điểm chỉ hiện stem của pha 1 sẽ cho học sinh 0.5 mà không nói em đã làm đúng
+    cái gì.
 
     Args:
-        attempt_id: Which attempt.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        One row per question, each with its rounds.
+        Một dòng cho mỗi câu hỏi, mỗi dòng kèm các round của nó.
 
     Raises:
-        HTTPException: 409 while phase 1 is still running.
+        HTTPException: 409 trong lúc pha 1 vẫn còn đang chạy.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is None:
@@ -998,22 +995,21 @@ async def remediation_panel(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> RemediationOut:
-    """Return every still-open question, with what was picked and what was right.
+    """Trả về mọi câu hỏi còn mở, kèm thứ đã chọn và thứ đáng ra là đúng.
 
-    `warn_cut` is computed here rather than by the client: comparing the round
-    budget against the remaining time is the rule of ADR-15, and it selects
-    which form of the round gate appears.
+    `warn_cut` được tính ở đây chứ không để client tính: so budget của round với thời gian
+    còn lại là luật của ADR-15, và nó chọn ra hình dạng nào của cửa vào round sẽ xuất hiện.
 
     Args:
-        attempt_id: Which attempt.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The panel payload for the tutoring screen.
+        Payload của panel cho màn hình kèm học.
 
     Raises:
-        HTTPException: 409 while phase 1 is still running.
+        HTTPException: 409 trong lúc pha 1 vẫn còn đang chạy.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is None:
@@ -1055,20 +1051,19 @@ async def remediation_panel(
     budget = round_budget_minutes(publication.phase2_minutes_per_question, open_count)
     open_round = await _open_round(session, attempt_id)
 
-    # This screen is where the student spends the wait, so this is where the
-    # finished work gets collected. BE has no background worker; a result
-    # nobody picks up is a result that expires.
+    # Màn hình này là nơi học sinh tiêu thời gian chờ, nên đây cũng là nơi phần việc đã
+    # xong được harvest. BE không có background worker nào; một kết quả không ai nhặt lên
+    # là một kết quả sẽ hết hạn.
     pool = request.app.state.queue_pool
     await _harvest(session, pool, attempt_id)
 
-    # Nothing is written ahead while a round is open, and that guard is the
-    # whole reason `open_round` is read before this block rather than after.
-    # `rounds_used` does not move until the round is submitted, so during one
-    # the next index still reads as the *current* round's -- and the round
-    # already has its questions. Every job queued here would be answered,
-    # stored, never used, and orphaned the moment the round is handed in. The
-    # round screen asks this endpoint on mount, so that is once per round, per
-    # open question, for nothing.
+    # Không có gì được viết trước trong lúc một round đang mở, và chính cái chốt đó là
+    # toàn bộ lý do `open_round` được đọc trước khối này chứ không phải sau. `rounds_used`
+    # không nhích cho tới khi round được nộp, nên trong lúc một round đang chạy thì index
+    # tiếp theo vẫn đọc ra là index của round *hiện tại* -- mà round đó đã có câu hỏi của
+    # nó rồi. Mọi job đẩy vào queue ở đây sẽ được trả lời, được lưu, không bao giờ được
+    # dùng, và thành mồ côi ngay khoảnh khắc round được nộp. Màn hình round gọi endpoint
+    # này lúc mount, nên đó là một lần cho mỗi round, cho mỗi câu còn mở, để chẳng được gì.
     still_open = [
         question
         for question in assessment.questions
@@ -1105,20 +1100,19 @@ async def question_solution(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> SolutionOut:
-    """Return the worked solutions and the authored distractor mapping.
+    """Trả về các lời giải chi tiết và phần mapping Distractor do giáo viên soạn.
 
     Args:
-        question_id: Which question.
-        student: The caller.
-        session: Database session.
+        question_id: Câu hỏi nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The solution dialog payload.
+        Payload của hộp thoại lời giải.
 
     Raises:
-        HTTPException: 404 when the question is not in an assessment this
-            student has an attempt on; 409 while that attempt is unsubmitted,
-            because the correct answer is in this payload.
+        HTTPException: 404 khi câu hỏi không nằm trong một đề mà học sinh này có Attempt;
+            409 trong lúc Attempt đó còn chưa nộp, vì đáp án đúng nằm trong payload này.
     """
     question = await session.scalar(
         select(Question)
@@ -1154,21 +1148,20 @@ async def question_solution(
 async def _chat_context(
     session: AsyncSession, attempt: Attempt
 ) -> tuple[list[GeneratedQuestion], list[int], dict[str, str], dict[str, str]]:
-    """Build what AGENT needs to talk about this attempt.
+    """Dựng những gì AGENT cần để nói về Attempt này.
 
-    The payload is self-contained: AGENT holds no database credentials, so the
-    questions, the authored error labels and the student's picks all travel
-    with the job.
+    Payload này tự chứa đủ: AGENT không giữ credential nào của database, nên các câu hỏi,
+    các error label do giáo viên soạn và những lựa chọn của học sinh đều đi theo job.
 
     Args:
-        session: Database session.
-        attempt: The attempt being discussed.
+        session: Session của database.
+        attempt: Attempt đang được bàn tới.
 
     Returns:
-        The still-open questions, the number each carries on the paper, the
-        chosen option label per stem, and the authored error label per stem.
-        The numbers travel because the assistant says "câu 5" out loud, and it
-        has no other way to know the question is the fifth one.
+        Những câu hỏi còn mở, số thứ tự mà từng câu mang trên đề, label phương án đã chọn
+        theo từng stem, và error label do giáo viên soạn theo từng stem. Những số thứ tự
+        đi theo vì trợ lý nói "câu 5" ra miệng, và nó không có cách nào khác để biết câu
+        hỏi đó là câu thứ năm.
     """
     assessment = await _load_assessment(session, attempt.assessment_id)
     outcomes = await _outcomes(session, attempt.id)
@@ -1213,14 +1206,14 @@ async def _chat_context(
 
 
 async def _history(session: AsyncSession, attempt_id: str) -> list[ChatMessage]:
-    """Read the stored conversation in order.
+    """Đọc cuộc hội thoại đã lưu theo đúng thứ tự.
 
     Args:
-        session: Database session.
-        attempt_id: Which attempt.
+        session: Session của database.
+        attempt_id: Attempt nào.
 
     Returns:
-        Messages oldest first.
+        Các message, cũ nhất lên trước.
     """
     rows = await session.scalars(
         select(ChatMessage)
@@ -1231,16 +1224,16 @@ async def _history(session: AsyncSession, attempt_id: str) -> list[ChatMessage]:
 
 
 async def _is_locked(session: AsyncSession, attempt: Attempt) -> bool:
-    """Tell whether the conversation still accepts input.
+    """Cho biết cuộc hội thoại có còn nhận input hay không.
 
     Args:
-        session: Database session.
-        attempt: The attempt.
+        session: Session của database.
+        attempt: Attempt đó.
 
     Returns:
-        True once every question is closed or the phase 2 deadline has passed.
-        A locked conversation is still readable -- that is the whole point of
-        the finished form of the tutoring screen.
+        True khi mọi câu hỏi đã đóng, hoặc khi hạn của pha 2 đã đi qua. Một cuộc hội thoại
+        đã khoá thì vẫn đọc được -- đó chính là toàn bộ ý nghĩa của hình dạng "đã xong" của
+        màn hình kèm học.
     """
     publication = await _publication(session, attempt.assessment_id, attempt.class_id)
     outcomes = await _outcomes(session, attempt.id)
@@ -1256,16 +1249,15 @@ async def chat_history(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> ChatHistoryOut:
-    """Return the conversation and whether it is still open.
+    """Trả về cuộc hội thoại, và việc nó còn mở hay không.
 
     Args:
-        attempt_id: Which attempt.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        Stored messages, oldest first, plus the lock flag the finished screen
-        reads.
+        Các message đã lưu, cũ nhất lên trước, kèm cờ khoá mà màn hình "đã xong" đọc.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     messages = await _history(session, attempt_id)
@@ -1288,24 +1280,23 @@ async def post_chat_message(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> ChatPostOut:
-    """Store the student's turn and say where the reply will arrive.
+    """Lưu lượt của học sinh và nói câu trả lời sẽ tới ở đâu.
 
     Args:
-        attempt_id: Which attempt.
-        body: The message text. Empty is allowed exactly once, to pull the
-            assistant's opening turn.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        body: Nội dung message. Rỗng được cho phép đúng một lần, để kéo lượt mở đầu của
+            trợ lý về.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The stored message id and the stream to read the reply from.
+        Id message đã lưu và stream để đọc câu trả lời.
 
     Raises:
-        HTTPException: 409 while phase 1 is unsubmitted or once the attempt is
-            finished.
+        HTTPException: 409 trong lúc pha 1 chưa nộp, hoặc khi Attempt đã kết thúc.
 
     Side effects:
-        Inserts one chat row.
+        Insert một dòng chat.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is None:
@@ -1342,22 +1333,21 @@ def _retry_ask(
     round_index: int,
     previous_stems: tuple[str, ...],
 ) -> RetryQuestionRequested:
-    """Build the ask for one question's next round.
+    """Dựng lời yêu cầu cho round tiếp theo của một câu hỏi.
 
-    One place, because the ask is now made from two: ahead of time when the
-    paper is submitted, and on the spot when a pre-generated one is missing.
-    Two copies would drift, and the thing they would drift about is what AGENT
-    is told about the student's mistake.
+    Một chỗ duy nhất, vì giờ lời yêu cầu đó được tạo từ hai nơi: viết trước lúc bài được
+    nộp, và viết ngay tại chỗ khi không có câu đã sinh trước. Hai bản sao sẽ trôi dạt khỏi
+    nhau, và thứ chúng trôi dạt về chính là điều AGENT được kể về lỗi sai của học sinh.
 
     Args:
-        attempt_id: Whose attempt.
-        question: The phase 1 question being remediated, with options loaded.
-        picked_option_id: What the student chose, or None if nothing.
-        round_index: Which round this will be, counting from 1.
-        previous_stems: Stems already used for this question.
+        attempt_id: Attempt của ai.
+        question: Câu hỏi pha 1 đang được remediation, đã load phương án.
+        picked_option_id: Thứ học sinh đã chọn, hoặc None nếu không chọn gì.
+        round_index: Đây sẽ là round thứ mấy, đếm từ 1.
+        previous_stems: Những stem đã dùng cho câu hỏi này.
 
     Returns:
-        The request, ready to serialise.
+        Lời yêu cầu, sẵn sàng để serialise.
     """
     picked = next((o for o in question.options if o.id == picked_option_id), None)
     origin = GeneratedQuestion(
@@ -1388,22 +1378,22 @@ async def _round_item(
     order: int,
     generated: GeneratedQuestion,
 ) -> RoundItemOut:
-    """Store one question of a round and describe it for the client.
+    """Lưu một câu hỏi của một round và mô tả nó cho client.
 
-    Shared by both ways a question can arrive -- written ahead of time or
-    written on the spot -- because what gets stored must not depend on when it
-    was written. The correct option is kept server side, which is what lets BE
-    grade the round without asking AGENT anything (ADR-20).
+    Dùng chung cho cả hai đường mà một câu hỏi có thể tới -- viết trước, hay viết ngay tại
+    chỗ -- vì thứ được lưu xuống không được phép phụ thuộc vào việc nó được viết lúc nào.
+    Phương án đúng được giữ ở phía server, và đó là thứ cho phép BE chấm round mà không
+    phải hỏi AGENT bất cứ điều gì (ADR-20).
 
     Args:
-        session: Database session. Flushed, not committed.
-        rnd: The round being opened.
-        question: The phase 1 question being remediated.
-        order: Position within this round, from 1.
-        generated: The question to pose.
+        session: Session của database. Được flush, không commit.
+        rnd: Round đang được mở.
+        question: Câu hỏi pha 1 đang được remediation.
+        order: Vị trí trong round này, tính từ 1.
+        generated: Câu hỏi sẽ được đặt ra.
 
     Returns:
-        The client's view of it, with the answer key removed.
+        Góc nhìn của client về nó, đã bỏ phần đáp án.
     """
     item = RoundItem(
         round_id=rnd.id,
@@ -1430,14 +1420,14 @@ async def _round_item(
 
 
 async def _spent_stems(session: AsyncSession, attempt_id: str) -> dict[str, list[str]]:
-    """Read back which stems this attempt has already used, per question.
+    """Đọc lại xem Attempt này đã dùng những stem nào, theo từng câu hỏi.
 
     Args:
-        session: Database session.
-        attempt_id: Whose attempt.
+        session: Session của database.
+        attempt_id: Attempt của ai.
 
     Returns:
-        question_id -> the stems already posed for it.
+        question_id -> những stem đã được đặt ra cho nó.
     """
     rows = await session.scalars(
         select(RoundItem)
@@ -1451,37 +1441,34 @@ async def _spent_stems(session: AsyncSession, attempt_id: str) -> dict[str, list
 
 
 async def _harvest(session: AsyncSession, pool: object, attempt_id: str) -> None:
-    """Move finished jobs into the table, and forget the ones that aged out.
+    """Chuyển những job đã xong vào bảng, và quên đi những job đã hết hạn.
 
-    Called from the screens a student passes through while the work runs,
-    because BE has no background worker and a result nobody collects is a
-    result that expires. Job results live an hour; a phase 2 deadline can be
-    days away, so "the answer is gone" is an ordinary ending and not a corner
-    case.
+    Được gọi từ chính những màn hình học sinh đi qua trong lúc phần việc đang chạy, vì BE
+    không có background worker nào và một kết quả không ai harvest là một kết quả sẽ hết
+    hạn. Kết quả của job sống một giờ; hạn của pha 2 có thể cách đó nhiều ngày, nên "câu
+    trả lời đã mất" là một cái kết bình thường, không phải một trường hợp góc.
 
-    A lost row is **deleted** rather than flagged, which leaves exactly one
-    rule for the writer below: a question with no row for the round it needs
-    gets one queued. Never started and started-but-lost then take the same
-    path, and there is no third state to reason about. A job that *ran and
-    failed* is kept and marked, because asking again would get the same
-    failure -- and a row that keeps being deleted is a job that keeps being
-    re-queued, every time the student opens a screen, for as long as the bug
-    lasts.
+    Một dòng đã mất thì bị **xoá** chứ không bị đánh cờ, và điều đó để lại đúng một luật
+    cho phần ghi ở dưới: một câu hỏi không có dòng cho round nó cần thì được đẩy một job
+    vào queue. Khi đó "chưa bao giờ bắt đầu" và "đã bắt đầu nhưng mất" đi cùng một đường,
+    và không có state thứ ba nào phải lập luận về. Còn một job *đã chạy và thất bại* thì
+    được giữ lại và được đánh dấu, vì hỏi lại sẽ nhận đúng cái thất bại đó -- và một dòng
+    cứ bị xoá là một job cứ bị đẩy lại vào queue, mỗi lần học sinh mở một màn hình, suốt
+    chừng nào cái bug còn đó.
 
-    **Everything is checked here, on the way in.** ADR-18 and ADR-17 were
-    enforced in `ask_for_retry_question`, which only the write-on-the-spot path
-    goes through -- so writing ahead would have quietly become a way around
-    them, and from this phase on it is the *normal* path, not the fallback. A
-    question that fails is dropped, which puts it back in the queue by the same
-    single rule as a lost one.
+    **Mọi thứ được kiểm ở đây, trên đường vào.** ADR-18 và ADR-17 từng được ép trong
+    `ask_for_retry_question`, mà chỉ đường viết-ngay-tại-chỗ đi qua đó -- nên việc viết
+    trước sẽ âm thầm trở thành một lối đi vòng qua chúng, và từ pha này trở đi, viết trước
+    mới là đường *bình thường*, không phải fallback. Một câu hỏi không đạt thì bị bỏ, và
+    việc đó đưa nó về lại queue theo đúng cái luật duy nhất đã dùng cho một câu bị mất.
 
     Args:
-        session: Database session. Committed by this function.
-        pool: The arq pool, or None.
-        attempt_id: Whose attempt.
+        session: Session của database. Được hàm này commit.
+        pool: Pool arq, hoặc None.
+        attempt_id: Attempt của ai.
 
     Side effects:
-        Fills in, marks or deletes rows.
+        Điền vào, đánh dấu, hoặc xoá các dòng.
     """
     settings = get_settings()
     waiting = list(
@@ -1551,24 +1538,24 @@ async def _write_ahead(
     round_index: int,
     spent: dict[str, list[str]] | None = None,
 ) -> None:
-    """Queue next round's questions for every open question that lacks one.
+    """Đẩy vào queue câu hỏi của round tiếp theo cho mọi câu còn mở mà chưa có.
 
-    Nothing waits on this. A queue that is down costs the head start and
-    nothing else: `start_round` still writes a question on the spot when there
-    is no pre-generated one, exactly as it did before any of this existed.
+    Không ai chờ việc này. Một queue đang chết chỉ làm mất bước chạy trước và không mất gì
+    khác: `start_round` vẫn viết một câu hỏi ngay tại chỗ khi không có câu nào được sinh
+    trước, đúng như nó đã làm trước khi mọi thứ này tồn tại.
 
     Args:
-        session: Database session. Committed by this function.
-        pool: The arq pool, or None.
-        attempt_id: Whose attempt.
-        questions: The questions still open.
-        chosen: question_id -> option_id, what the student picked in phase 1.
-        round_index: Which round is being written.
-        spent: Stems already used per question, when there are any.
+        session: Session của database. Được hàm này commit.
+        pool: Pool arq, hoặc None.
+        attempt_id: Attempt của ai.
+        questions: Những câu hỏi còn mở.
+        chosen: question_id -> option_id, thứ học sinh đã chọn ở pha 1.
+        round_index: Round nào đang được viết.
+        spent: Những stem đã dùng theo từng câu hỏi, khi có.
 
     Side effects:
-        Queues one job per question that needs one, and inserts a `pending`
-        row for each.
+        Đẩy một job vào queue cho mỗi câu hỏi cần, và insert một dòng `pending` cho mỗi
+        câu đó.
     """
     settings = get_settings()
     already = set(
@@ -1610,31 +1597,30 @@ async def _write_ahead(
         try:
             await session.commit()
         except IntegrityError:
-            # Two tabs polled at the same instant and both got past the check
-            # above. The other row is as good as this one.
+            # Hai tab poll ở đúng cùng một khoảnh khắc và cả hai đều lọt qua lần kiểm ở
+            # trên. Dòng kia tốt y như dòng này.
             await session.rollback()
 
 
-# The assistant's first words. Fixed on purpose: this used to go through the
-# model like any other turn -- a job, a wait, a stream -- to produce a sentence
-# that barely varies. One wasted model call on every paper handed in. The only
-# part that differs between two students is which questions they got wrong, and
-# that is string formatting, not a thing to ask a model for.
+# Những lời đầu tiên của trợ lý. Cố định một cách có chủ ý: chỗ này từng đi qua model như
+# mọi lượt khác -- một job, một lần chờ, một stream -- để tạo ra một câu gần như không
+# thay đổi. Một lần gọi model bỏ đi trên mỗi bài được nộp. Phần duy nhất khác nhau giữa
+# hai học sinh là các em sai những câu nào, và đó là việc format string, không phải thứ
+# đáng đi hỏi một model.
 _GREETING = (
     "Mình là trợ lý Kriky, bạn có thể hỏi mình để giải đáp các thắc mắc trong bài làm vừa rồi."
 )
 
 
 def _greeting(numbers: tuple[int, ...] | list[int]) -> str:
-    """Write the opening turn.
+    """Viết lượt mở đầu.
 
     Args:
-        numbers: The paper's number for each question the student got wrong,
-            in order.
+        numbers: Số thứ tự trên đề của từng câu học sinh làm sai, theo thứ tự.
 
     Returns:
-        The greeting, naming those questions so the student knows what is on
-        offer before they ask.
+        Lời chào, có gọi tên những câu đó để học sinh biết mình được mời cái gì trước khi
+        em hỏi.
     """
     if not numbers:
         return _GREETING
@@ -1643,9 +1629,9 @@ def _greeting(numbers: tuple[int, ...] | list[int]) -> str:
     if len(said) == 1:
         return f"{_GREETING} Bài này bạn sai {said[0]} — nó đang ở bảng bên phải."
 
-    # "câu 3, câu 5 và câu 7" -- the comma list Vietnamese actually uses, not
-    # "và" between every pair. And "cả hai" is only true when there are two,
-    # which is what the sample data has and therefore the easy thing to assume.
+    # "câu 3, câu 5 và câu 7" -- kiểu liệt kê bằng dấu phẩy mà tiếng Việt thật sự dùng,
+    # không phải "và" giữa từng cặp. Và "cả hai" chỉ đúng khi có đúng hai câu, mà đó là
+    # thứ dữ liệu mẫu đang có, nên cũng là thứ dễ mặc định sai theo.
     named = f"{', '.join(said[:-1])} và {said[-1]}"
     how_many = "cả hai" if len(said) == 2 else "tất cả"
     return (
@@ -1655,38 +1641,37 @@ def _greeting(numbers: tuple[int, ...] | list[int]) -> str:
 
 
 def _event(name: str, text: str) -> str:
-    """Write one server-sent event.
+    """Viết một server-sent event.
 
-    A `data:` line cannot contain a newline, and a model writing prose produces
-    plenty of them. The wire format for that is not ours to invent: SSE says
-    repeat the field, and the reader joins the lines back with newlines between
-    them.
+    Một dòng `data:` không được chứa newline, mà một model đang viết văn xuôi thì sinh ra
+    rất nhiều newline. Định dạng trên đường truyền cho chuyện đó không phải thứ ta được
+    tự phát minh: SSE nói hãy lặp lại field đó, và phía đọc nối các dòng lại với newline
+    ở giữa.
 
     Args:
-        name: Event name -- `chunk`, `done` or `error`.
-        text: Payload, newlines and all.
+        name: Tên event -- `chunk`, `done` hoặc `error`.
+        text: Payload, kể cả các newline trong đó.
 
     Returns:
-        One complete event, terminated by a blank line.
+        Một event hoàn chỉnh, kết thúc bằng một dòng trống.
     """
     body = "\n".join(f"data: {line}" for line in text.split("\n"))
     return f"event: {name}\n{body}\n\n"
 
 
 def _sse(text: str, message_id: str) -> AsyncIterator[str]:
-    """Turn one whole turn into a server-sent event stream.
+    """Biến một lượt trọn vẹn thành một stream server-sent event.
 
-    Used when the answer arrived in one piece: a replayed turn, or a model that
-    did not stream. The words are doled out here so both paths look the same to
-    a reader.
+    Dùng khi câu trả lời tới nguyên một cục: một lượt được phát lại, hoặc một model không
+    stream. Từng chữ được rót ra ở đây, nhờ vậy cả hai đường trông giống nhau với phía đọc.
 
     Args:
-        text: The assistant's words.
-        message_id: The stored message, sent with the closing event so the
-            client can reconcile with the history it reloads.
+        text: Lời của trợ lý.
+        message_id: Message đã lưu, được gửi kèm event đóng để client đối chiếu được với
+            lịch sử mà nó tải lại.
 
     Returns:
-        An async iterator yielding one `chunk` event per word, then `done`.
+        Một async iterator yield một event `chunk` cho mỗi từ, rồi `done`.
     """
 
     async def events() -> AsyncIterator[str]:
@@ -1698,13 +1683,13 @@ def _sse(text: str, message_id: str) -> AsyncIterator[str]:
 
 
 def _replay(message: ChatMessage) -> AsyncIterator[str]:
-    """Stream a turn that already exists instead of asking for a new one.
+    """Stream lại một lượt đã có sẵn, thay vì đi xin một lượt mới.
 
     Args:
-        message: The assistant turn last stored.
+        message: Lượt của trợ lý được lưu gần nhất.
 
     Returns:
-        The same event stream a fresh turn would produce.
+        Đúng cái stream event mà một lượt mới cũng sẽ tạo ra.
     """
     return _sse(message.text, message.id)
 
@@ -1716,27 +1701,27 @@ async def stream_reply(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
-    """Stream the assistant's next turn word by word.
+    """Stream lượt tiếp theo của trợ lý, từng chữ một.
 
-    The turn is asked for, **stored**, and only then streamed. Server-sent
-    events are an accelerant for how the answer feels, not a second source of
-    truth: a dropped connection costs the animation, never the message.
+    Lượt đó được đi xin, được **lưu**, rồi mới được stream. Server-sent event là chất xúc
+    tác cho cảm giác về câu trả lời, không phải một nguồn sự thật thứ hai: một lần mất kết
+    nối làm mất phần hoạt ảnh, không bao giờ làm mất message.
 
     Args:
-        attempt_id: Which attempt.
-        request: Used to reach the shared arq pool.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        request: Dùng để với tới pool arq dùng chung.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        A text/event-stream of `chunk` events followed by `done`.
+        Một text/event-stream gồm các event `chunk` rồi tới `done`.
 
     Raises:
-        HTTPException: 409 while phase 1 is unsubmitted or once the attempt is
-            finished; 503 when AGENT cannot be reached.
+        HTTPException: 409 trong lúc pha 1 chưa nộp hoặc khi Attempt đã kết thúc; 503 khi
+            không tới được AGENT.
 
     Side effects:
-        Enqueues one AGENT job and inserts one chat row.
+        Đẩy một job của AGENT vào queue và insert một dòng chat.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is None:
@@ -1745,10 +1730,9 @@ async def stream_reply(
         raise HTTPException(status_code=409, detail="Bài đã kết thúc")
 
     history = await _history(session, attempt_id)
-    # Whose turn it is, decided server side. A client that opens the stream
-    # twice -- a double-rendered effect, an impatient refresh -- would otherwise
-    # store two greetings, and the conversation would read as if the assistant
-    # said hello and then said hello again.
+    # Đang là lượt của ai, do phía server quyết. Nếu không, một client mở stream hai lần
+    # -- một effect bị render đôi, một lần refresh vì mất kiên nhẫn -- sẽ lưu hai lời
+    # chào, và cuộc hội thoại đọc ra như thể trợ lý chào xong rồi chào lại lần nữa.
     if history and history[-1].role != "student":
         return StreamingResponse(_replay(history[-1]), media_type="text/event-stream")
 
@@ -1756,9 +1740,9 @@ async def stream_reply(
     last_student = next((m.text for m in reversed(history) if m.role == "student"), "")
 
     if not history:
-        # The opening turn never reaches AGENT. See `_greeting`: it is a fixed
-        # sentence plus a list of numbers, and paying a model to write it once
-        # per paper bought nothing.
+        # Lượt mở đầu không bao giờ tới AGENT. Xem `_greeting`: nó là một câu cố định cộng
+        # với một danh sách số, và trả tiền cho một model để viết nó một lần trên mỗi bài
+        # thì chẳng mua được gì.
         opening = ChatMessage(
             attempt_id=attempt_id,
             sequence=1,
@@ -1767,10 +1751,10 @@ async def stream_reply(
             created_at=_now(),
         )
         #
-        # The guard above cannot help here: it needs a history to read, and
-        # both racing requests see an empty one. React's StrictMode opens this
-        # stream twice on purpose, so this is the ordinary case rather than the
-        # unlucky one. The unique index decides, and the loser replays.
+        # Cái chốt ở trên không giúp được gì ở đây: nó cần một lịch sử để đọc, mà cả hai
+        # request đang đua đều thấy một lịch sử rỗng. StrictMode của React mở stream này
+        # hai lần một cách có chủ ý, nên đây là trường hợp bình thường chứ không phải
+        # trường hợp xui. Unique index là thứ quyết định, và bên thua thì phát lại.
         session.add(opening)
         try:
             await session.commit()
@@ -1779,16 +1763,16 @@ async def stream_reply(
             existing = await _history(session, attempt_id)
             if existing:
                 return StreamingResponse(_replay(existing[0]), media_type="text/event-stream")
-            # Lost the race and cannot read the winner's row from this session.
-            # Harmless: the greeting is the same sentence either way, so the
-            # student reads what was stored without a second row being written.
+            # Thua cuộc đua và không đọc được dòng của bên thắng từ session này. Vô hại:
+            # lời chào là cùng một câu dù theo đường nào, nên học sinh vẫn đọc đúng thứ đã
+            # được lưu mà không có dòng thứ hai nào bị ghi.
             return StreamingResponse(_sse(opening.text, "opening"), media_type="text/event-stream")
         return StreamingResponse(_sse(opening.text, opening.id), media_type="text/event-stream")
 
     pool = request.app.state.queue_pool
     if pool is None:
-        # The one failure knowable before the stream opens, so it still gets a
-        # status code rather than an event nobody styled.
+        # Cái lỗi duy nhất biết được trước khi stream mở ra, nên nó vẫn được một status
+        # code chứ không phải một event mà chẳng ai tạo kiểu hiển thị cho.
         raise HTTPException(
             status_code=503, detail="Trợ lý chưa trả lời được: hàng đợi chưa sẵn sàng"
         )
@@ -1807,12 +1791,12 @@ async def stream_reply(
     settings = get_settings()
 
     async def events() -> AsyncIterator[str]:
-        """Forward the answer as it is written, then store it.
+        """Chuyển tiếp câu trả lời ngay khi nó được viết, rồi lưu nó lại.
 
-        Storing happens when the reply is complete, which is after the last
-        piece has gone out. A student who closes the tab mid-answer therefore
-        costs one model call and gets a fresh turn next time -- the turn is
-        never half-saved, and never saved twice.
+        Việc lưu xảy ra khi câu trả lời đã trọn vẹn, tức là sau khi mảnh cuối cùng đã đi
+        ra. Vì vậy một học sinh đóng tab giữa lúc đang trả lời chỉ làm tốn một lần gọi
+        model và lần sau nhận một lượt mới -- lượt đó không bao giờ bị lưu nửa vời, và
+        cũng không bao giờ bị lưu hai lần.
         """
         spoke = False
         reply: ExplainTurnCompleted | None = None
@@ -1831,8 +1815,8 @@ async def stream_reply(
                 else:
                     reply = ExplainTurnCompleted.model_validate(value)
         except AgentError as exc:
-            # Too late for a 503: the response started the moment this
-            # generator did. The client is told in the stream instead.
+            # Quá muộn cho một 503: response đã bắt đầu ngay khoảnh khắc generator này bắt
+            # đầu. Thay vào đó, client được nói cho biết ngay trong stream.
             yield _event("error", f"Trợ lý chưa trả lời được: {exc}")
             return
 
@@ -1851,9 +1835,9 @@ async def stream_reply(
         await session.commit()
 
         if not spoke:
-            # Nothing was published -- prepared content, or a provider that
-            # does not stream. Say the whole thing now. Doing this after any
-            # piece had already gone out would show the same words twice.
+            # Không có gì được publish -- nội dung đã soạn sẵn, hoặc một provider không
+            # stream. Nói cả cục ra ngay bây giờ. Làm việc này sau khi đã có mảnh nào đi
+            # ra rồi sẽ hiển thị cùng những chữ đó hai lần.
             async for event in _sse(reply.text, stored.id):
                 yield event
             return
@@ -1870,24 +1854,24 @@ async def start_round(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> RoundOpenOut:
-    """Open one remediation round covering every still-open question.
+    """Mở một round remediation phủ mọi câu hỏi còn mở.
 
     Args:
-        attempt_id: Which attempt.
-        request: Used to reach the shared arq pool.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        request: Dùng để với tới pool arq dùng chung.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The round with one generated question per open question.
+        Round đó, với một câu hỏi được sinh ra cho mỗi câu còn mở.
 
     Raises:
-        HTTPException: 409 past the phase 2 deadline, with nothing left to fix,
-            or while another round is open; 503 when AGENT cannot be reached or
-            returns a question that breaks ADR-18.
+        HTTPException: 409 khi đã qua hạn pha 2, khi không còn gì phải chữa, hoặc khi đang
+            có một round khác mở; 503 khi không tới được AGENT hoặc khi AGENT trả về một
+            câu hỏi phạm ADR-18.
 
     Side effects:
-        Enqueues one AGENT job per open question and writes the round.
+        Đẩy một job của AGENT vào queue cho mỗi câu còn mở, và ghi round xuống.
     """
     attempt = await _owned_attempt(session, attempt_id, student)
     if attempt.submitted_at is None:
@@ -1932,8 +1916,8 @@ async def start_round(
     try:
         await session.flush()
     except IntegrityError as exc:
-        # The check above passed for both tabs; the index let only one through.
-        # Two clocks for one student is a state ADR-15 gives no meaning to.
+        # Lần kiểm ở trên cho cả hai tab đi qua; chỉ có index là thứ chỉ cho một tab lọt.
+        # Hai cái đồng hồ cho một học sinh là một state mà ADR-15 không gán cho ý nghĩa nào.
         await session.rollback()
         raise HTTPException(status_code=409, detail="Đang có một lượt chưa nộp") from exc
 
@@ -1943,8 +1927,8 @@ async def start_round(
         for row in await session.scalars(select(Answer).where(Answer.attempt_id == attempt_id))
     }
 
-    # Anything the head start finished is sitting in the table by now; this
-    # call catches whatever landed in the last moments before the button.
+    # Mọi thứ mà bước chạy trước đã làm xong thì lúc này đã nằm trong bảng; lần gọi này
+    # bắt lấy những gì vừa đáp xuống trong những khoảnh khắc cuối trước khi nút được bấm.
     pool = request.app.state.queue_pool
     await _harvest(session, pool, attempt_id)
     ready = {
@@ -1971,8 +1955,8 @@ async def start_round(
             items.append(await _round_item(session, rnd, question, order, generated))
             continue
 
-        # Nothing was written ahead, or it was written for a different round.
-        # The old path, unchanged: ask now and make the student wait.
+        # Không có gì được viết trước, hoặc thứ viết trước lại thuộc về một round khác.
+        # Con đường cũ, không đổi: hỏi ngay bây giờ và để học sinh ngồi chờ.
         ask = _retry_ask(
             attempt_id,
             question,
@@ -2025,19 +2009,18 @@ async def start_round(
 async def _owned_round(
     session: AsyncSession, round_id: str, student: Student
 ) -> tuple[RemediationRound, Attempt]:
-    """Load a round and the attempt it belongs to, refusing other students'.
+    """Load một round và Attempt mà nó thuộc về, từ chối round của học sinh khác.
 
     Args:
-        session: Database session.
-        round_id: Which round.
-        student: The caller.
+        session: Session của database.
+        round_id: Round nào.
+        student: Người gọi.
 
     Returns:
-        The round and its attempt.
+        Round đó và Attempt của nó.
 
     Raises:
-        HTTPException: 404 when the round does not exist or is not the
-            caller's.
+        HTTPException: 404 khi round không tồn tại hoặc không phải của người gọi.
     """
     rnd = await session.scalar(
         select(RemediationRound)
@@ -2058,24 +2041,24 @@ async def save_round_answer(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> SavedOut:
-    """Store one choice inside a running round.
+    """Lưu một lựa chọn bên trong một round đang chạy.
 
     Args:
-        round_id: Which round.
-        item_id: Which question of that round.
-        body: The chosen label.
-        student: The caller.
-        session: Database session.
+        round_id: Round nào.
+        item_id: Câu hỏi nào của round đó.
+        body: Label đã chọn.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        When the choice was stored.
+        Lựa chọn đã được lưu vào lúc nào.
 
     Raises:
-        HTTPException: 409 once the round is submitted or its clock has run
-            out; 404 when the item is not part of this round.
+        HTTPException: 409 khi round đã nộp hoặc đồng hồ của nó đã chạy hết; 404 khi item
+            không thuộc round này.
 
     Side effects:
-        Updates one round item.
+        Update một round item.
     """
     rnd, _ = await _owned_round(session, round_id, student)
     if rnd.submitted_at is not None:
@@ -2100,25 +2083,25 @@ async def submit_round(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> RoundResultOut:
-    """Mark a round and move each question's ledger entry.
+    """Chấm một round và dịch chuyển mục sổ điểm của từng câu hỏi.
 
-    A question answered correctly closes at half credit; one that runs out of
-    rounds closes at zero; anything else stays open for another round. A mark
-    never falls, because phase 1 set the floor (ADR-16).
+    Một câu trả lời đúng thì đóng ở nửa điểm; một câu đã hết round thì đóng ở không; mọi
+    trường hợp khác vẫn mở để còn một round nữa. Điểm không bao giờ tụt, vì pha 1 đã đặt
+    mức sàn (ADR-16).
 
     Args:
-        round_id: Which round.
-        student: The caller.
-        session: Database session.
+        round_id: Round nào.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        What each question ended at, and the state of the attempt.
+        Từng câu hỏi dừng lại ở đâu, và state của Attempt.
 
     Raises:
-        HTTPException: 409 when the round was already submitted.
+        HTTPException: 409 khi round đã được nộp rồi.
 
     Side effects:
-        Stamps the round, writes outcomes on its items, updates the ledger.
+        Đóng mốc thời gian lên round, ghi outcome lên các item của nó, cập nhật sổ điểm.
     """
     rnd, attempt = await _owned_round(session, round_id, student)
     if rnd.submitted_at is not None:
@@ -2135,8 +2118,8 @@ async def submit_round(
 
         outcome = outcomes[item.origin_question_id]
         if outcome.closed:
-            # Already settled by an earlier round. Re-marking it could reopen a
-            # closed question, and a question closes once.
+            # Đã an bài từ một round trước. Chấm lại nó có thể mở lại một câu đã đóng, mà
+            # một câu hỏi chỉ đóng một lần.
             continue
         outcome.rounds_used += 1
         mark, reason, closed = mark_after_round(is_correct, outcome.rounds_used)
@@ -2159,9 +2142,8 @@ async def submit_round(
 
     publication = await _publication(session, attempt.assessment_id, attempt.class_id)
 
-    # The same head start, for the round after this one. A student who got it
-    # wrong is about to go back to the tutoring screen, which is once again
-    # where the waiting happens.
+    # Vẫn bước chạy trước đó, nhưng cho round sau round này. Một học sinh làm sai sắp quay
+    # lại màn hình kèm học, và đó một lần nữa là nơi việc chờ diễn ra.
     still_open = [
         question
         for question in (await _load_assessment(session, attempt.assessment_id)).questions
@@ -2196,23 +2178,23 @@ async def file_report(
     student: Student = Depends(current_student),
     session: AsyncSession = Depends(get_session),
 ) -> ReportOut:
-    """File one "the assistant was hard to follow" report.
+    """Ghi nhận một báo cáo kiểu "trợ lý giải thích khó theo".
 
-    The report is scoped to the attempt, not to a message: the assistant works
-    across the whole assessment, so pointing at one turn would promise the
-    teacher something narrower than what happened (ADR-19). It blocks nothing.
+    Báo cáo có phạm vi là Attempt, không phải một message: trợ lý làm việc trên cả đề, nên
+    chỉ vào một lượt duy nhất sẽ hứa với giáo viên một thứ hẹp hơn điều đã xảy ra (ADR-19).
+    Nó không chặn gì cả.
 
     Args:
-        attempt_id: Which attempt.
-        body: An optional note.
-        student: The caller.
-        session: Database session.
+        attempt_id: Attempt nào.
+        body: Một ghi chú tuỳ chọn.
+        student: Người gọi.
+        session: Session của database.
 
     Returns:
-        The stored report id.
+        Id của báo cáo đã lưu.
 
     Side effects:
-        Inserts one report row.
+        Insert một dòng report.
     """
     await _owned_attempt(session, attempt_id, student)
     report = Report(attempt_id=attempt_id, note=body.note, created_at=_now())

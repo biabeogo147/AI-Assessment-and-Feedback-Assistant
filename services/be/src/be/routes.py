@@ -1,8 +1,8 @@
-"""HTTP surface of BE.
+"""Bề mặt HTTP của BE.
 
-Grading is asynchronous because an LLM call is slow enough that holding a
-request open for it would time out. The client therefore posts a submission,
-receives a job id, and polls for the result.
+Việc chấm là bất đồng bộ vì một lần gọi LLM chậm tới mức giữ một request mở để chờ
+nó sẽ bị timeout. Vì vậy client post một bài nộp lên, nhận một job id, rồi poll để
+lấy kết quả.
 """
 
 from arq.jobs import JobStatus
@@ -18,22 +18,23 @@ router = APIRouter()
 
 
 class HealthResponse(BaseModel):
-    """Liveness payload."""
+    """Payload báo còn sống."""
 
     status: str
 
 
 class SubmissionAccepted(BaseModel):
-    """Acknowledgement that a submission was queued for grading."""
+    """Xác nhận rằng một bài nộp đã được đưa vào queue để chấm."""
 
     job_id: str
     submission_id: str
 
 
 class GradedResult(BaseModel):
-    """AGENT's evidence combined with BE's routing decision.
+    """Bằng chứng của AGENT ghép với quyết định định tuyến của BE.
 
-    The review fields are absent from what AGENT returns; they are added here.
+    Những field về việc xem lại không có trong thứ AGENT trả về; chúng được thêm vào ở
+    đây.
     """
 
     submission_id: str
@@ -46,7 +47,7 @@ class GradedResult(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    """Current state of a grading job, with the result once it exists."""
+    """State hiện tại của một job chấm, kèm kết quả khi kết quả đã có."""
 
     job_id: str
     status: str
@@ -55,32 +56,32 @@ class JobStatusResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse, tags=["ops"])
 async def health() -> HealthResponse:
-    """Report that the BE process is up.
+    """Báo rằng process BE đang chạy.
 
     Returns:
-        A payload with status "ok". Deliberately does not probe Redis, so this
-        endpoint stays usable for telling a dead process from a dead dependency.
+        Một payload có status "ok". Cố ý không thăm dò Redis, nhờ vậy endpoint này vẫn
+        dùng được để phân biệt một process chết với một dependency chết.
     """
     return HealthResponse(status="ok")
 
 
 @router.post("/api/submissions", response_model=SubmissionAccepted, status_code=202)
 async def submit(request: Request, submission: GradingRequested) -> SubmissionAccepted:
-    """Accept a student submission and queue it for grading.
+    """Nhận một bài nộp của học sinh và đưa nó vào queue để chấm.
 
     Args:
-        request: Incoming request, used to reach the shared arq pool.
-        submission: The answer to grade.
+        request: Request đang vào, dùng để với tới pool arq dùng chung.
+        submission: Câu trả lời cần chấm.
 
     Returns:
-        The job id the client polls, alongside the submission id it belongs to.
+        job id mà client sẽ poll, cùng với id bài nộp mà nó thuộc về.
 
     Raises:
-        HTTPException: 503 when the queue refuses the job, which in practice
-            means Redis is unreachable.
+        HTTPException: 503 khi queue từ chối job, mà trên thực tế nghĩa là không tới
+            được Redis.
 
     Side effects:
-        Writes a job onto the shared Redis queue.
+        Ghi một job lên queue Redis dùng chung.
     """
     settings = get_settings()
     try:
@@ -93,22 +94,21 @@ async def submit(request: Request, submission: GradingRequested) -> SubmissionAc
 
 @router.get("/api/jobs/{job_id}", response_model=JobStatusResponse)
 async def job_status(request: Request, job_id: str) -> JobStatusResponse:
-    """Report the state of a grading job and its result once finished.
+    """Báo state của một job chấm, và kết quả của nó khi đã xong.
 
-    Applies the Teacher Review policy at read time rather than storing the
-    decision, so changing the threshold takes effect without regrading anything.
+    Áp chính sách Teacher Review vào lúc đọc chứ không lưu lại quyết định, nhờ vậy đổi
+    ngưỡng là có hiệu lực ngay mà không phải chấm lại thứ gì.
 
     Args:
-        request: Incoming request, used to reach the shared arq pool.
-        job_id: Identifier returned by the submission endpoint.
+        request: Request đang vào, dùng để với tới pool arq dùng chung.
+        job_id: Identifier do endpoint nộp bài trả về.
 
     Returns:
-        The job status, plus the graded result and review decision when the job
-        has completed.
+        status của job, kèm kết quả đã chấm và quyết định về việc xem lại khi job đã xong.
 
     Raises:
-        HTTPException: 404 when arq has no record of the job, which also happens
-            once a completed result has passed its retention window.
+        HTTPException: 404 khi arq không có bản ghi nào về job, chuyện cũng xảy ra khi
+            một kết quả đã xong đi qua khỏi cửa sổ lưu giữ của nó.
     """
     settings = get_settings()
     status, raw_result = await read_job(request.app.state.queue_pool, settings, job_id)

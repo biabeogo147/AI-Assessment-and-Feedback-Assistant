@@ -13,28 +13,28 @@ import { go } from "../App";
 import { ErrorStrip, TopBar } from "../components";
 
 /**
- * Screens 17, 18, 19, 20 and 24 — asking the assistant, and the gate into a round.
+ * Màn 17, 18, 19, 20 và 24 — hỏi trợ lý, và cửa vào một lượt làm lại.
  *
- * One component, because they are one screen in five states: fresh, with a
- * solution open, with the round gate open in its two forms, and read-only
- * after the attempt has ended. Splitting them would duplicate the panel four
- * times and let the four copies drift.
+ * Một component, vì chúng là một màn hình ở năm trạng thái: mới vào, đang mở lời
+ * giải, đang mở cửa vào lượt ở hai dạng của nó, và chỉ-đọc sau khi `Attempt` đã
+ * kết thúc. Tách ra là nhân bản cái panel thành bốn bản và để bốn bản đó trôi
+ * khỏi nhau.
  *
- * The panel lists **every** wrong question, not the one being discussed: phase
- * 2 receives an assessment, not a question (ADR-14, ADR-17). It shows what was
- * picked and what was right, and nothing else -- the mistake's name and the
- * worked solutions live one click away, in the dialog, so the list stays a
- * list.
+ * Panel liệt kê **mọi** câu làm sai, không phải riêng câu đang được bàn: pha 2
+ * nhận một `Assessment`, không phải một `Question` (ADR-14, ADR-17). Nó hiện
+ * phương án đã chọn và phương án đúng, không gì khác — tên của cái sai và các
+ * lời giải chi tiết nằm cách một lần bấm, trong dialog, để danh sách vẫn là một
+ * danh sách.
  */
 /**
- * One turn of the conversation.
+ * Một lượt nói trong cuộc trò chuyện.
  *
- * The assistant gets the mascot; the student gets an empty column of the same
- * width, so both speakers' words start at the same place down the page and the
- * eye can follow one thread instead of two.
+ * Trợ lý có mascot; học sinh có một cột trống rộng y như vậy, nên lời của cả hai
+ * bên đều bắt đầu ở cùng một chỗ theo chiều dọc trang, và mắt theo được một mạch
+ * thay vì hai.
  *
- * @param role - "student" or "assistant".
- * @param text - What was said.
+ * @param role - "student" hoặc "assistant".
+ * @param text - Nội dung đã nói.
  */
 function Turn({ role, text }: { role: string; text: string }) {
   const student = role === "student";
@@ -85,11 +85,11 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   }, [reload]);
 
   /**
-   * Ask for the next assistant turn and let it type itself out.
+   * Xin lượt nói tiếp theo của trợ lý và để nó tự chạy chữ ra.
    *
-   * The reply is already stored server side before the first chunk arrives, so
-   * the reload at the end is what the screen trusts; the streamed text is only
-   * what it showed while waiting.
+   * Câu trả lời đã được lưu ở phía server trước khi chunk đầu tiên về tới, nên
+   * thứ màn hình tin là lần tải lại ở cuối; phần chữ chạy theo stream chỉ là thứ
+   * nó hiện ra trong lúc chờ.
    */
   const pull = useCallback(async () => {
     setStreaming("");
@@ -105,14 +105,14 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
     }
   }, [attemptId, reload]);
 
-  // The assistant speaks first and then waits: one greeting, no lecture.
+  // Trợ lý nói trước rồi chờ: một lời chào, không phải một bài giảng.
   //
-  // Asked at most once per attempt, and the latch is not a nicety. This effect
-  // reads `history` and `pull` replaces it, so when a turn cannot be produced
-  // -- BE answers 409 while phase 1 is unsubmitted, say -- the history comes
-  // back empty and the effect fires again immediately. Measured at roughly
-  // 1,500 requests a second: an afternoon of that grew one Vite dev server to
-  // 69 GB and took the machine's memory with it.
+  // Chỉ xin nhiều nhất một lần cho mỗi `Attempt`, và cái chốt này không phải thứ
+  // làm cho đẹp. Effect này đọc `history`, mà `pull` thì thay `history`, nên khi
+  // không tạo ra được một lượt nói — chẳng hạn BE trả 409 lúc pha 1 chưa nộp —
+  // lịch sử về rỗng và effect lại chạy ngay lập tức. Đo được khoảng 1.500 request
+  // một giây: một buổi chiều như vậy làm một Vite dev server phình lên 69 GB và
+  // lôi luôn bộ nhớ của máy đi theo.
   const askedFor = useRef<string | null>(null);
   useEffect(() => {
     if (history === null || history.locked || busy) return;
@@ -139,8 +139,8 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
     setBusy(true);
     try {
       const round = await api.startRound(attemptId);
-      // The round's questions exist only in this response: asking again would
-      // open a second round and spend another of the three (ADR-17).
+      // Các câu hỏi của lượt này chỉ tồn tại trong response này: xin lại một lần
+      // nữa là mở thêm một lượt thứ hai và tiêu thêm một trong ba lượt (ADR-17).
       window.sessionStorage.setItem(`round:${round.round_id}`, JSON.stringify(round));
       go(`/round/${attemptId}/${round.round_id}`);
     } catch (cause) {
@@ -162,21 +162,21 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   }
 
   const locked = history.locked;
-  // Which round the gate is about to open, read off the questions themselves
-  // rather than counted here: the ceiling of three is BE's (ADR-17).
+  // Cửa này sắp mở vòng thứ mấy, đọc ra từ chính các câu hỏi chứ không tự đếm ở
+  // đây: mức trần ba vòng là của BE (ADR-17).
   const nextRound =
     1 + Math.max(0, ...panel.items.filter((item) => !item.closed).map((i) => i.rounds_used));
-  // Which question the conversation is on, taken from the last question the
-  // **student** asked. The greeting names every wrong question, so reading any
-  // message would mark one of them as "đang hỏi" before anybody asked.
-  // "câu 5 và câu 6" -- the same phrase in the progress box and in the gate,
-  // because they are naming the same set.
+  // Cuộc trò chuyện đang ở câu nào, lấy từ câu cuối cùng mà **học sinh** hỏi.
+  // Lời chào gọi tên mọi câu làm sai, nên nếu đọc bất kỳ tin nhắn nào thì một
+  // trong số đó sẽ bị đánh dấu "đang hỏi" trước khi có ai hỏi gì.
+  // "câu 5 và câu 6" — cùng một cách nói ở hộp tiến độ và ở cửa vào lượt, vì
+  // chúng đang gọi tên cùng một tập.
   const openList = panel.items
     .filter((item) => !item.closed)
     .map((item) => `câu ${item.order}`)
     .join(" và ");
-  // The gate's warning counts in minutes, so it has to name the number the
-  // student can check against the clock rather than say "đã gần".
+  // Lời cảnh báo ở cửa đếm bằng phút, nên nó phải nêu đúng con số mà học sinh
+  // đối chiếu được với đồng hồ, chứ không nói chung chung là "đã gần".
   const minutesLeft = Math.max(
     0,
     Math.round((new Date(panel.deadline).getTime() - Date.now()) / 60000),
@@ -204,7 +204,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
 
           <ErrorStrip message={error} />
 
-          {/* The conversation is the only part of this column that scrolls. */}
+          {/* Cuộc trò chuyện là phần duy nhất của cột này có cuộn. */}
           <div className="thread">
             {history.messages.map((message) => (
               <Turn key={message.message_id} role={message.role} text={message.text} />

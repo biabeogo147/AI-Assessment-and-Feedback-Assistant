@@ -5,24 +5,25 @@ import { go } from "../App";
 import { ErrorStrip, ScoreMark, TopBar } from "../components";
 
 /**
- * Why a mark stands where it does, in words, chosen by the client.
+ * Vì sao một điểm đứng ở chỗ nó đang đứng, bằng lời, do client chọn.
  *
- * BE sends an enum. The two sentences for a zero differ by whether phase 2 is
- * still open, and promising "you can still raise this" after the deadline
- * would be a lie -- so the choice is made here, where the deadline is already
- * on screen (ADR-16).
+ * BE gửi một giá trị enum. Hai câu dành cho điểm 0 khác nhau ở chỗ pha 2 còn mở
+ * hay không, và hứa "em vẫn nâng được điểm này" sau khi đã hết hạn là nói sai —
+ * nên việc chọn câu nào làm ở đây, nơi mà cái hạn đã có sẵn trên màn hình
+ * (ADR-16).
  *
- * @param reason - The enum BE returned.
- * @param stillOpen - Whether the remediation deadline is in the future.
- * @returns The hover sentence, or undefined when a mark needs no explanation.
+ * @param reason - Giá trị enum BE trả về.
+ * @param stillOpen - Hạn làm lại có còn ở phía trước hay không.
+ * @returns Câu hiện khi hover, hoặc undefined khi một điểm không cần giải thích.
  */
 function markTip(reason: string, stillOpen: boolean): ReactNode {
   if (reason === "chữa-được") {
     return "Làm đúng câu mới có dạng tương tự câu sai ở bài kiểm tra.";
   }
   if (reason === "chưa-chữa" && stillOpen) {
-    // The action is set apart here for the same reason it is in the banner:
-    // it names the one thing the student can do about this mark.
+    // Phần hành động được tách riêng ở đây vì đúng cái lý do nó được tách
+    // riêng trong banner: nó gọi tên đúng một việc học sinh làm được với điểm
+    // này.
     return (
       <>
         Làm sai, có thể nâng điểm bằng cách{" "}
@@ -37,16 +38,15 @@ function markTip(reason: string, stillOpen: boolean): ReactNode {
 }
 
 /**
- * Screens 15 and 22 — the score sheet, in its two shapes.
+ * Màn 15 và 22 — bảng điểm, ở hai dạng của nó.
  *
- * One component, two shapes, chosen by the state BE returns rather than by
- * counting rows here. While phase 2 is open the sheet says the score is a
- * floor and offers the way in; once it is closed it offers a way to read the
- * conversation back instead.
+ * Một component, hai dạng, chọn theo state BE trả về chứ không theo việc đếm
+ * dòng ở đây. Khi pha 2 còn mở, bảng nói rằng điểm này là điểm sàn và mở đường
+ * vào; khi pha 2 đã đóng, nó mở đường đọc lại cuộc trò chuyện.
  *
- * Each fixed question prints the question of every round it took, because a
- * retry is a different question (ADR-17) and 0.5 with no visible reason is a
- * claim a student cannot check.
+ * Mỗi câu đã chữa xong đều in ra đề của từng lượt nó đã đi qua, vì một lượt làm
+ * lại là một câu hỏi khác (ADR-17), và 0,5 mà không thấy lý do là một lời khẳng
+ * định học sinh không kiểm được.
  */
 export default function Result({ me, attemptId }: { me: Me; attemptId: string }) {
   const [result, setResult] = useState<AttemptResult | null>(null);
@@ -72,9 +72,9 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
   }
 
   const stillOpen = result.state === "cần-chữa";
-  // A question is still open while BE says its mark is "chưa-chữa": having
-  // spent a round does not close it, and counting rounds here got the number
-  // wrong the moment a student used one.
+  // Một câu còn mở chừng nào BE còn nói điểm của nó là "chưa-chữa": đã dùng một
+  // lượt không có nghĩa là câu đó đóng, và việc tự đếm lượt ở đây làm sai con số
+  // ngay từ lúc một học sinh dùng hết một lượt.
   const openCount = result.items.filter((item) => item.mark_reason === "chưa-chữa").length;
 
   return (

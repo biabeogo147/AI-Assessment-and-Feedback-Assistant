@@ -1,17 +1,17 @@
-<#
+﻿<#
 .SYNOPSIS
-  Single entry point for local development tasks.
+  Một cửa duy nhất cho mọi task phát triển ở máy local.
 
 .DESCRIPTION
-  Replaces a Makefile, because `make` is not installed and the services run
-  natively rather than inside a container that could provide it.
+  Thay cho một Makefile, vì `make` không được cài và các service chạy native chứ
+  không phải trong một container có thể cung cấp nó.
 
-  Calls the conda environment's interpreter by absolute path instead of running
-  `conda activate`. That command needs conda-hook.ps1 to be sourced first, which
-  is not guaranteed in a child PowerShell session or in PyCharm's terminal.
+  Gọi interpreter của conda environment bằng đường dẫn tuyệt đối thay vì chạy
+  `conda activate`. Lệnh đó cần conda-hook.ps1 được source trước, mà điều đó
+  không chắc chắn trong một phiên PowerShell con hay trong terminal của PyCharm.
 
-  Override the interpreter with the AIAFA_PYTHON environment variable if your
-  conda environment lives somewhere else.
+  Ghi đè interpreter bằng biến môi trường AIAFA_PYTHON nếu conda environment của
+  bạn nằm ở chỗ khác.
 
 .EXAMPLE
   .\dev.ps1 install
@@ -45,11 +45,12 @@ function Invoke-Step {
     param([string]$Label, [scriptblock]$Body)
     Write-Host "==> $Label" -ForegroundColor Cyan
 
-    # Windows PowerShell 5.1 wraps a native command's stderr in an ErrorRecord,
-    # and docker compose, pip and pnpm all write ordinary progress there. Under
-    # ErrorActionPreference = Stop that aborts a step which actually succeeded --
-    # `dev.ps1 infra-up` reported failure while Redis came up healthy. Exit code
-    # is the only reliable verdict for a native command, so judge by that.
+    # Windows PowerShell 5.1 bọc stderr của một lệnh native vào một ErrorRecord,
+    # mà docker compose, pip và pnpm đều ghi tiến độ bình thường ra đó. Dưới
+    # ErrorActionPreference = Stop thì điều đó bỏ dở một bước đã thật sự thành
+    # công -- `dev.ps1 infra-up` báo thất bại trong khi Redis lên healthy. Exit
+    # code là phán quyết đáng tin duy nhất cho một lệnh native, nên hãy xử theo
+    # nó.
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try { & $Body } finally { $ErrorActionPreference = $previous }
@@ -59,9 +60,9 @@ function Invoke-Step {
 
 switch ($Task) {
     'install' {
-        # contracts goes first and on its own: BE and AGENT declare aiafa-contracts
-        # as a dependency, and installing it beforehand keeps pip from reaching
-        # for an index that has no such project.
+        # contracts đi trước và đi một mình: BE và AGENT khai aiafa-contracts như
+        # một dependency, và cài nó trước giữ cho pip khỏi với tay sang một index
+        # không có project nào như vậy.
         Invoke-Step 'install contracts' { & $Python -m pip install -e "$RepoRoot\packages\contracts" }
         Invoke-Step 'install be' { & $Python -m pip install -e "$RepoRoot\services\be[test]" }
         Invoke-Step 'install agent' { & $Python -m pip install -e "$RepoRoot\services\agent[test]" }
@@ -96,14 +97,15 @@ switch ($Task) {
     }
 
     'typecheck' {
-        # tsc is otherwise only reachable through `fe build`, which also bundles.
+        # Nếu không có đây thì tsc chỉ với tới được qua `fe build`, mà lệnh đó
+        # bundle luôn.
         Invoke-Step 'tsc' { pnpm --filter fe exec tsc --noEmit }
     }
 
     'check' {
         Invoke-Step 'ruff' { & $Python -m ruff check $RepoRoot }
         Invoke-Step 'lint-imports' { & "$Scripts\lint-imports.exe" --config "$RepoRoot\pyproject.toml" }
-        # Repo-level invariants no single service can check about itself.
+        # Những invariant ở tầm repo mà không service nào tự kiểm được về chính nó.
         Invoke-Step 'repo contracts' { & $Python "$RepoRoot\tools\check_contract.py" }
     }
 

@@ -1,9 +1,9 @@
-# Root configuration for Python tooling only.
+# Cấu hình ở gốc repo, chỉ dành cho tooling của Python.
 #
-# This file deliberately declares no [project] table: the repository root is not a
-# distributable package. Runtime dependencies belong to each service's own
-# pyproject.toml so that the declared boundary stays accurate even though BE and
-# AGENT currently share a single conda environment.
+# File này cố ý không khai bảng [project]: gốc repo không phải một package phát
+# hành được. Dependency lúc chạy thuộc về pyproject.toml của từng service, để cái
+# ranh giới đã khai còn đúng ngay cả khi BE và AGENT hiện đang dùng chung một
+# conda environment.
 
 [tool.ruff]
 line-length = 100
@@ -18,13 +18,15 @@ src = [
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.flake8-bugbear]
-# FastAPI declares dependencies as argument defaults; that is the framework's
-# only way to express them, so B008 would otherwise fire on every route.
+# FastAPI khai dependency bằng giá trị mặc định của tham số; đó là cách duy nhất
+# framework này diễn đạt chúng, nên nếu không có dòng dưới thì B008 sẽ nổ ở mọi
+# route.
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path"]
 
 [tool.pytest.ini_options]
-# importlib mode keeps same-named test modules in different services from
-# colliding, which the default prepend mode cannot do without __init__.py files.
+# Mode importlib giữ cho các test module trùng tên ở những service khác nhau khỏi
+# đụng nhau, việc mà mode prepend mặc định không làm được nếu không có file
+# __init__.py.
 addopts = "-q --import-mode=importlib"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
@@ -35,11 +37,11 @@ testpaths = [
 ]
 
 # ---------------------------------------------------------------------------
-# Service boundary enforcement.
+# Thi hành ranh giới giữa các service.
 #
-# BE and AGENT share one conda environment, so nothing stops a cross import at
-# runtime. These contracts are the only mechanism keeping the boundary alive,
-# which is why they run from a pre-commit hook rather than on demand.
+# BE và AGENT dùng chung một conda environment, nên không gì chặn một lần import
+# chéo lúc chạy. Mấy contract này là cơ chế duy nhất giữ cho ranh giới còn sống,
+# nên chúng chạy từ một hook của pre-commit thay vì chạy khi nhớ ra.
 # ---------------------------------------------------------------------------
 
 [tool.importlinter]

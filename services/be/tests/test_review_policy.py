@@ -1,8 +1,8 @@
-"""Teacher Review routing rules.
+"""Luật định tuyến của Teacher Review.
 
-These are the tests that matter most in this service: the review policy is the
-teacher-in-the-loop gate, and a regression here silently stops sending work to
-Teachers rather than failing loudly.
+Đây là nhóm test quan trọng nhất trong service này: review policy chính là cổng
+teacher-in-the-loop, và một regression ở đây sẽ âm thầm ngừng đẩy việc cho giáo
+viên chứ không hỏng ra tiếng.
 """
 
 from be.review_policy import decide_review
@@ -35,7 +35,7 @@ def test_low_confidence_routes_to_teacher() -> None:
 
 
 def test_threshold_comparison_is_inclusive() -> None:
-    """A confidence sitting exactly on the threshold still needs review."""
+    """Một confidence nằm đúng ngay tại threshold thì vẫn phải đưa cho Teacher xem lại."""
     decision = decide_review(_evidence(confidence=THRESHOLD), THRESHOLD)
     assert decision.needs_teacher_review is True
 
@@ -46,7 +46,7 @@ def test_missing_evidence_routes_to_teacher_even_when_confident() -> None:
 
 
 def test_answer_explanation_conflict_wins_over_low_confidence() -> None:
-    """A right answer with wrong reasoning is the more informative signal."""
+    """Đáp án đúng nhưng lập luận sai là tín hiệu nói lên nhiều hơn."""
     decision = decide_review(
         _evidence(confidence=0.1, answer_explanation_conflict=True),
         THRESHOLD,
@@ -55,6 +55,6 @@ def test_answer_explanation_conflict_wins_over_low_confidence() -> None:
 
 
 def test_correct_answer_does_not_exempt_a_submission_from_review() -> None:
-    """Scoring full marks must not bypass the gate on its own."""
+    """Được điểm tối đa, chỉ riêng điều đó, không được phép đi tắt qua cổng xem lại."""
     decision = decide_review(_evidence(score=1.0, confidence=0.2), THRESHOLD)
     assert decision.needs_teacher_review is True

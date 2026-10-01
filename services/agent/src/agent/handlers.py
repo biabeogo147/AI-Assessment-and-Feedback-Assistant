@@ -1,20 +1,20 @@
-"""Authoring handlers.
+"""Các handler soạn nội dung.
 
-Every handler here is a **mock**. There is no model call: each one returns
-prepared, deterministic content so the two-phase flow runs end to end and so a
-test can assert the same thing twice. What is real is the shape of the output
-and the discipline about what is absent from it.
+Mọi handler ở đây đều là **mock**. Không có lời gọi model nào: mỗi handler trả về nội
+dung dọn trước, tất định, để luồng hai pha chạy được từ đầu tới cuối và để một test
+khẳng định được cùng một điều hai lần. Thứ có thật là hình dạng của đầu ra, và sự kỷ
+luật về những gì vắng mặt trong đó.
 
-Three rules survive the swap to a real model, and the tests guard them rather
-than guarding any sentence produced below:
+Ba luật sống sót qua việc đổi sang model thật, và các test canh chúng chứ không canh
+bất kỳ câu chữ nào được sinh ra bên dưới:
 
-  - No handler returns a score, a mark, a deadline, or "the student now
-    understands". AGENT writes content; BE concludes (ADR-06, ADR-20).
-  - A generated question carries exactly one correct option, an error label on
-    every distractor, and at least two solution methods (ADR-18). BE re-checks
-    this; the mock is not trusted just because it is ours.
-  - A retry question keeps the shape of the question the student got wrong and
-    differs from the rounds before it (ADR-17).
+  - Không handler nào trả về điểm, một dấu chấm điểm, một hạn vào, hay "học sinh giờ
+    đã hiểu". AGENT viết nội dung; BE kết luận (ADR-06, ADR-20).
+  - Một câu hỏi được sinh ra mang đúng một phương án đúng, một error label trên mọi
+    distractor, và ít nhất hai cách giải (ADR-18). BE check lại điều này; mock không
+    được tin chỉ vì nó là của ta.
+  - Một câu làm lại giữ hình dạng của câu học sinh làm sai và khác với các lượt trước
+    nó (ADR-17).
 """
 
 import logging
@@ -43,9 +43,9 @@ logger = logging.getLogger(__name__)
 
 _LABELS = ("A", "B", "C", "D", "E")
 
-# Stems the mock knows by heart, so a demo tells one coherent story instead of
-# showing placeholder text. Anything outside this bank falls back to the generic
-# shape below, which is honest about being a stand-in.
+# Những stem mà mock thuộc lòng, để một buổi demo kể một câu chuyện liền mạch thay vì
+# hiện ra chữ giữ chỗ. Bất cứ thứ gì nằm ngoài bank này sẽ lùi về hình dạng chung bên
+# dưới, và hình dạng đó thẳng thắn về việc mình chỉ là người đóng thế.
 _VARIANT_BANK: dict[str, tuple[GeneratedQuestion, ...]] = {}
 
 
@@ -55,16 +55,16 @@ def _question(
     methods: tuple[tuple[str, str], ...],
     objective: str,
 ) -> GeneratedQuestion:
-    """Assemble a question from tuples, labelling options A upward.
+    """Lắp một câu hỏi từ các tuple, gán nhãn phương án từ A trở lên.
 
     Args:
-        stem: The question text.
-        options: (text, is_correct, error_label) in display order.
-        methods: (title, body) pairs, at least two.
-        objective: Learning objective string.
+        stem: Phần đề của câu hỏi.
+        options: (text, is_correct, error_label) theo thứ tự hiển thị.
+        methods: Các cặp (title, body), ít nhất hai cặp.
+        objective: Chuỗi mục tiêu học tập.
 
     Returns:
-        A GeneratedQuestion with labels applied.
+        Một GeneratedQuestion đã gán nhãn.
     """
     return GeneratedQuestion(
         stem=stem,
@@ -114,10 +114,10 @@ _ASYMPTOTE_METHODS = (
     ("Lấy giới hạn", "Cho x → ±∞, chia cả tử và mẫu cho x rồi lấy giới hạn."),
 )
 
-# Every seeded question needs a family here. A question outside the bank falls
-# back to a stand-in, and BE rejects that stand-in for repeating the stem it is
-# supposed to replace (ADR-17) -- which is the right failure, but it means the
-# demo stalls rather than teaching.
+# Mỗi câu hỏi được gieo sẵn cần một họ ở đây. Một câu hỏi ngoài bank sẽ lùi về một
+# câu đóng thế, và BE từ chối câu đóng thế đó vì nó lặp lại đúng cái stem nó đáng ra
+# phải thay (ADR-17) -- đó là lần thất bại đúng đắn, nhưng nó có nghĩa là buổi demo
+# đứng lại thay vì dạy được gì.
 _BANK_SEED: tuple[tuple[str, tuple[GeneratedQuestion, ...]], ...] = (
     (
         "Đạo hàm của y = x² + 3x là gì?",
@@ -353,23 +353,24 @@ _VARIANT_BANK.update(_BANK_SEED)
 
 
 def draft_question(request: DraftQuestionRequested) -> DraftQuestionCompleted:
-    """Write one question of a draft without calling a model.
+    """Viết một câu của đề nháp mà không gọi model.
 
-    Mock: takes the bank entry at this question's position, so a draft always
-    satisfies ADR-18 and always looks like the subject asked for.
+    Mock: lấy entry trong bank ở đúng vị trí của câu này, nên một đề nháp luôn thoả
+    ADR-18 và luôn trông giống môn đã được yêu cầu.
 
-    **The bank holds six questions.** A brief asking for more than six wraps
-    around, BE refuses the repeats, and the draft comes back short -- six
-    questions and four positions that gave up. That is worth saying plainly
-    rather than calling it a rehearsal of the duplicate path: two real jobs
-    colliding is chance, while this is certain, and a demo run without an API
-    key will always look like drafting is broken above six.
+    **Bank giữ sáu câu.** Một brief hỏi hơn sáu câu sẽ quay vòng lại, BE từ chối các
+    câu lặp, và đề nháp trả về thiếu -- đúng sáu câu, còn mọi vị trí sau vị trí thứ sáu
+    đều bỏ cuộc (xin 10 câu thì bốn vị trí, xin 50 thì bốn mươi bốn). Chuyện
+    đó đáng được nói thẳng ra thay vì gọi nó là một buổi tổng duyệt cho đường xử lý
+    trùng lặp: hai job thật đụng nhau là chuyện may rủi, còn cái này là chắc chắn, và
+    một lần chạy demo không có API key sẽ luôn trông như việc soạn nháp bị hỏng khi
+    vượt quá sáu câu.
 
     Args:
-        request: The brief, and which question of the set this is.
+        request: Brief, và đây là câu thứ mấy trong bộ đề.
 
     Returns:
-        One question. No approval state, no difficulty verdict.
+        Một câu hỏi. Không có state duyệt, không có phán xét về độ khó.
     """
     origins = [_origin_question(stem, variants) for stem, variants in _BANK_SEED]
     question = origins[(request.ordinal - 1) % len(origins)]
@@ -378,14 +379,14 @@ def draft_question(request: DraftQuestionRequested) -> DraftQuestionCompleted:
 
 
 def _origin_question(stem: str, variants: tuple[GeneratedQuestion, ...]) -> GeneratedQuestion:
-    """Build the phase 1 question that a bank entry is keyed by.
+    """Dựng câu hỏi pha 1 mà một entry trong bank được khoá theo.
 
     Args:
-        stem: The origin stem.
-        variants: Its retry variants, reused for shape.
+        stem: Stem của câu gốc.
+        variants: Các biến thể làm lại của nó, dùng lại để lấy hình dạng.
 
     Returns:
-        A question with the origin stem and the first variant's option shape.
+        Một câu hỏi với stem của câu gốc và hình dạng phương án của biến thể đầu tiên.
     """
     first = variants[0]
     return GeneratedQuestion(
@@ -397,19 +398,19 @@ def _origin_question(stem: str, variants: tuple[GeneratedQuestion, ...]) -> Gene
 
 
 def retry_question(request: RetryQuestionRequested) -> RetryQuestionCompleted:
-    """Write the question for one remediation round.
+    """Viết câu hỏi cho một lượt chữa lỗi.
 
-    Mock: prefers a prepared variant of the same question family, skipping any
-    stem already used in an earlier round. Falls back to a clearly-labelled
-    stand-in when the origin is outside the bank.
+    Mock: ưu tiên một biến thể dọn trước trong cùng họ câu hỏi, bỏ qua mọi stem đã
+    dùng ở một lượt trước. Lùi về một câu đóng thế có nhãn rõ ràng khi câu gốc nằm
+    ngoài bank.
 
     Args:
-        request: The origin question, what the student picked, which round this
-            is, and the stems already spent.
+        request: Câu gốc, phương án học sinh đã chọn, đây là lượt thứ mấy, và các stem
+            đã tiêu.
 
     Returns:
-        One question, in the same shape as any other. Never a verdict about
-        whether the student may have another round -- that ceiling is BE's
+        Một câu hỏi, cùng hình dạng với mọi câu khác. Không bao giờ là một phán xét về
+        chuyện học sinh có được thêm một lượt nữa hay không -- cái trần đó là của BE
         (ADR-17).
     """
     used = {normalise(stem) for stem in request.previous_stems}
@@ -436,19 +437,19 @@ _OPENING = (
 
 
 def explain_turn(request: ExplainTurnRequested) -> ExplainTurnCompleted:
-    """Take the assistant's next turn in the phase 2 conversation.
+    """Nói lượt tiếp theo của trợ lý trong cuộc hội thoại pha 2.
 
-    Mock: the opening turn greets and names the wrong questions; later turns
-    answer about whichever wrong question the student's message points at,
-    reading the authored error label and the first solution method rather than
-    diagnosing anything (ADR-18).
+    Mock: lượt mở đầu chào và gọi tên các câu làm sai; các lượt sau trả lời về đúng câu
+    sai mà tin nhắn của học sinh trỏ tới, đọc error label do người soạn viết và cách
+    giải đầu tiên chứ không tự chẩn đoán gì (ADR-18).
 
     Args:
-        request: Wrong questions with their solutions, the authored error per
-            question, the history, and the student's message.
+        request: Các câu làm sai kèm lời giải của chúng, lỗi do người soạn viết cho
+            từng câu, lịch sử hội thoại, và tin nhắn của học sinh.
 
     Returns:
-        One assistant turn. Nothing about scores, rounds or readiness.
+        Một lượt nói của trợ lý. Không có gì về điểm, về số lượt, hay về chuyện đã sẵn
+        sàng hay chưa.
     """
     numbers = _numbers(request)
 
@@ -481,16 +482,15 @@ def explain_turn(request: ExplainTurnRequested) -> ExplainTurnCompleted:
 
 
 def _numbers(request: ExplainTurnRequested) -> tuple[int, ...]:
-    """Return the paper's number for each wrong question.
+    """Trả về số câu theo đề cho từng câu làm sai.
 
     Args:
-        request: The turn being answered.
+        request: Lượt đang được trả lời.
 
     Returns:
-        The numbers BE sent, or 1..n when it sent none. Counting from one is a
-        fallback for an old payload, not a default worth relying on: a student
-        told to look at "câu 1" when they got câu 5 wrong goes to the wrong
-        question.
+        Các số BE gửi tới, hoặc 1..n khi nó không gửi số nào. Đếm từ một là một
+        fallback cho payload cũ, không phải một default đáng dựa vào: một học sinh được
+        bảo nhìn vào "câu 1" trong khi em sai câu 5 sẽ mở sai câu.
     """
     if len(request.question_numbers) == len(request.questions):
         return request.question_numbers
@@ -498,14 +498,14 @@ def _numbers(request: ExplainTurnRequested) -> tuple[int, ...]:
 
 
 def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | None:
-    """Pick which wrong question the student's message is about.
+    """Chọn xem tin nhắn của học sinh đang nói về câu sai nào.
 
     Args:
-        request: The turn being answered.
+        request: Lượt đang được trả lời.
 
     Returns:
-        The question whose number the message names, the only wrong question
-        when there is one, or None when the message names nothing.
+        Câu hỏi có số mà tin nhắn gọi tên, hoặc câu sai duy nhất khi chỉ có một câu,
+        hoặc None khi tin nhắn không gọi tên gì.
     """
     if len(request.questions) == 1:
         return request.questions[0]
@@ -532,16 +532,15 @@ def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | Non
     return None
 
 
-# A class name as a teacher writes it: grade, a letter, sometimes a stream
-# number. Enough to recognise "12A1", "lớp 11B" and "lớp12A" in a sentence, and
-# nothing more -- the mock is not a parser, it is a way to drive the loop for
-# free.
+# Một tên lớp như giáo viên viết: khối, một chữ cái, đôi khi một số thứ tự. Đủ để nhận
+# ra "12A1", "lớp 11B" và "lớp12A" trong một câu, và không hơn -- mock không phải một
+# parser, nó là một cách chạy cái loop mà không mất tiền.
 #
-# No word boundary in front, because "lớp12A" would fail it while BE resolves
-# that spelling perfectly well, and the two halves disagreeing makes a demo
-# look like a resolution bug that is not there. A lookbehind for a digit takes
-# its place, so a year like 2026 cannot be read as a class; the trailing
-# boundary is what keeps "15 phút" and "2 câu" out.
+# Không có word boundary ở phía trước, vì "lớp12A" sẽ không qua được nó trong khi BE
+# phân giải cách viết đó rất ổn, và việc hai nửa lệch nhau làm buổi demo trông như có
+# một bug phân giải vốn không tồn tại. Một lookbehind cho chữ số thay chỗ nó, nhờ vậy
+# một năm như 2026 không thể bị đọc thành một lớp; còn boundary ở cuối là thứ giữ cho
+# "15 phút" và "2 câu" nằm ngoài.
 _CLASS_NAME = re.compile(r"(?<!\d)(\d{1,2}\s?[A-Za-z]\d?)\b")
 
 _NO_CLASS_NAMED = (
@@ -552,17 +551,17 @@ _NOTHING_TO_USE = "Lượt này mình chưa tra được dữ liệu nào. Bạn
 
 
 def _current_turn(history: tuple[TurnRecord, ...]) -> tuple[TurnRecord, ...]:
-    """Everything since the teacher's last message.
+    """Mọi thứ kể từ tin nhắn gần nhất của giáo viên.
 
-    A turn is one question and the work done for it. What came before is
-    context for a model that reads it, not evidence that the current question
-    has been answered.
+    Một lượt là một câu hỏi và phần việc đã làm cho nó. Những gì tới trước đó là ngữ
+    cảnh cho một model đọc nó, không phải bằng chứng rằng câu hỏi hiện tại đã được trả
+    lời.
 
     Args:
-        history: The whole conversation, oldest first.
+        history: Toàn bộ cuộc hội thoại, cũ nhất trước.
 
     Returns:
-        The steps of the current turn, including the teacher's message itself.
+        Các bước của lượt hiện tại, gồm cả chính tin nhắn của giáo viên.
     """
     for index in range(len(history) - 1, -1, -1):
         if history[index].kind == "teacher":
@@ -571,38 +570,37 @@ def _current_turn(history: tuple[TurnRecord, ...]) -> tuple[TurnRecord, ...]:
 
 
 def next_step(request: NextStepRequested) -> NextStepCompleted:
-    """Propose the next step of a teacher's turn without calling a model.
+    """Đề nghị bước tiếp theo trong một lượt của giáo viên mà không gọi model.
 
-    Mock, and shaped to exercise the loop rather than to look busy: it asks for
-    a tool while it has no data, and answers once a result is in the history.
-    Those two together are what makes the loop terminate, so they are the part
-    worth having for free.
+    Mock, và được dựng để chạy qua cái loop chứ không phải để trông có vẻ đang làm
+    việc: nó xin một tool khi chưa có dữ liệu, và trả lời ngay khi có một kết quả nằm
+    trong lịch sử. Hai điều đó cùng nhau là thứ làm cái loop kết thúc, nên chúng là
+    phần đáng có mà không mất tiền.
 
-    Only the current turn is considered -- everything after the teacher's last
-    message. The history used to arrive one turn at a time and now arrives
-    whole, and that alone broke this: the "do I already have data?" check
-    found a result from a previous turn and stopped calling tools, so the
-    assistant repeated its last sentence forever.
+    Chỉ lượt hiện tại được xét -- mọi thứ sau tin nhắn gần nhất của giáo viên. Lịch sử
+    hội thoại trước đây tới từng lượt một và nay tới cả cục, và chỉ điều đó thôi đã làm
+    hỏng chỗ này: check "mình đã có dữ liệu chưa?" tìm thấy một kết quả từ một lượt
+    trước rồi thôi gọi tool, thế là trợ lý lặp lại câu cuối của mình mãi mãi.
 
     Args:
-        request: The conversation so far and the tools this teacher may use.
+        request: Cuộc hội thoại tới lúc này và các tool giáo viên này được dùng.
 
     Returns:
-        One proposal. Never a tool outside the catalog BE sent, because a
-        proposal BE must refuse would exercise the error path and teach
-        nothing about the normal one.
+        Một đề nghị. Không bao giờ là một tool ngoài danh mục BE gửi tới, vì một đề
+        nghị mà BE buộc phải từ chối sẽ chạy qua đường lỗi và không dạy gì về đường
+        bình thường.
     """
     turn = _current_turn(request.history)
     harvested = next((step for step in reversed(turn) if step.kind == "tool_result"), None)
 
     if harvested is not None and harvested.tool_result.get("ambiguous"):
-        # ADR-23: nobody picks between candidates, and that includes the mock.
-        # This is the path a demo takes, so a mock that quietly chose one would
-        # be showing the exact behaviour the design forbids.
+        # ADR-23: không ai chọn giữa các candidates, và điều đó gồm cả mock. Đây là
+        # đường một buổi demo đi qua, nên một mock âm thầm chọn một cái sẽ đang trình
+        # diễn đúng cái hành vi mà thiết kế cấm.
         #
-        # No `choices` here either. BE renders the options from the rows it
-        # read, and a mock that also wrote them would be inventing a second
-        # source for the one thing ADR-23 says has exactly one.
+        # Ở đây cũng không có `choices`. BE render các lựa chọn từ những dòng nó đã
+        # đọc, và một mock cũng viết chúng ra sẽ là bịa thêm một nguồn thứ hai cho đúng
+        # cái thứ mà ADR-23 nói là chỉ có một nguồn.
         cut = harvested.tool_result.get("more") or 0
         tail = f" Danh sách còn {cut} lớp nữa chưa hiện." if cut else ""
         return NextStepCompleted(
@@ -640,19 +638,19 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
 
 
 async def propose_next_step(ctx: dict, payload: dict) -> dict:
-    """arq entry point for one turn of thinking in the teacher's chat.
+    """Điểm vào arq cho một lượt suy nghĩ trong khung chat của giáo viên.
 
     Args:
-        ctx: arq job context. Unused.
-        payload: A serialised NextStepRequested.
+        ctx: Context job của arq. Không dùng.
+        payload: Một NextStepRequested đã serialise.
 
     Returns:
-        A serialised NextStepCompleted. Always a proposal: this handler runs no
-        tool and writes to no store, because AGENT holds no database
-        credentials and because authorisation belongs where the session is.
+        Một NextStepCompleted đã serialise. Luôn luôn là một đề nghị: handler này không
+        chạy tool nào và không ghi vào store nào, vì AGENT không giữ credential database
+        nào và vì việc phân quyền thuộc về nơi có session.
 
     Side effects:
-        None beyond logging.
+        Không có gì ngoài việc log.
     """
     request = NextStepRequested.model_validate(payload)
     if not llm.enabled():
@@ -661,49 +659,48 @@ async def propose_next_step(ctx: dict, payload: dict) -> dict:
     try:
         return (await propose(request)).model_dump(mode="json")
     except Exception:
-        # The prepared proposal is safe to substitute here in a way it is not
-        # on the tutoring path: nothing has reached the teacher yet, because a
-        # proposal is not shown to anybody until BE has acted on it.
+        # Đề nghị dọn trước ở đây thay thế vào được một cách an toàn, khác với trên
+        # đường kèm học sinh: chưa có gì tới tay giáo viên, vì một đề nghị không được
+        # cho ai xem cho tới khi BE đã hành động trên nó.
         logger.exception("model could not propose a next step for %s", request.request_id)
         return next_step(request).model_dump(mode="json")
 
 
 async def write_draft_question(ctx: dict, payload: dict) -> dict:
-    """arq entry point for one question of a teacher's draft.
+    """Điểm vào arq cho một câu của đề nháp của giáo viên.
 
-    One question per job, which is what makes the timeout invariant true of
-    this path: `tools/check_contract.py` compares one question's worth of
-    retries against BE's patience for a job, and the task this replaced took
-    up to fifty questions in one.
+    Một câu một job, và đó là thứ làm invariant về timeout đúng trên đường này:
+    `tools/check_contract.py` so số lần retry đáng cho một câu với mức kiên nhẫn của BE
+    với một job, còn task mà nó thay thế thì nhận tới năm mươi câu trong một job.
 
     Args:
-        ctx: arq job context. Unused; arq passes it positionally.
-        payload: A serialised DraftQuestionRequested.
+        ctx: Context job của arq. Không dùng; arq truyền nó theo vị trí.
+        payload: Một DraftQuestionRequested đã serialise.
 
     Returns:
-        A serialised DraftQuestionCompleted.
+        Một DraftQuestionCompleted đã serialise.
 
     Side effects:
-        None beyond logging. AGENT writes to no store of its own; BE harvests
-        the result and decides whether it may enter the draft.
+        Không có gì ngoài việc log. AGENT không ghi vào store nào của riêng nó; BE
+        harvest kết quả và quyết định nó có được vào đề nháp hay không.
     """
     request = DraftQuestionRequested.model_validate(payload)
     if not llm.enabled():
         return draft_question(request).model_dump(mode="json")
 
     try:
-        # Normalised here, with AGENT's own rule, because that is the rule
-        # `_faults` compares against. BE sends the stems exactly as it stored
-        # them: two normalisers that had to agree across a service boundary
-        # would be a disagreement with a date on it -- and the first version of
-        # this line proved it, comparing BE's class-name normaliser against
-        # AGENT's whitespace one, so no banned stem ever matched.
+        # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `_faults` so
+        # sánh theo. BE gửi các stem đúng như nó đã lưu: hai bộ normalise buộc phải
+        # khớp nhau qua một ranh giới service là một lần lệch nhau đã hẹn trước ngày --
+        # và bản đầu tiên của dòng này đã chứng minh điều đó, đem bộ normalise tên lớp
+        # của BE so với bộ normalise khoảng trắng của AGENT, nên không stem bị cấm nào
+        # khớp được lần nào.
         banned = frozenset(normalise(stem) for stem in request.banned_stems)
         question = await write_question(draft_brief(request), banned)
     except Exception:
-        # Prepared content rather than nothing. A draft missing one question
-        # is a teacher asking again; a draft that refuses to start is a
-        # feature that does not work.
+        # Nội dung dọn trước, chứ không phải không có gì. Một đề nháp thiếu một câu là
+        # chuyện giáo viên hỏi lại một lần; một đề nháp từ chối bắt đầu là một tính năng
+        # không hoạt động.
         logger.exception("model could not write question %d of the draft", request.ordinal)
         return draft_question(request).model_dump(mode="json")
 
@@ -713,24 +710,23 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
 
 
 async def generate_retry_question(ctx: dict, payload: dict) -> dict:
-    """arq entry point for one remediation round's question.
+    """Điểm vào arq cho câu hỏi của một lượt chữa lỗi.
 
-    Falls back to the prepared bank when the model cannot produce a question
-    that holds its shape. That fallback is what makes the loop terminate: a
-    hand-written variant satisfies ADR-18 by construction, so BE has something
-    to accept however badly the model behaves. The student is opening a round
-    either way, and a round that opens on a prepared question is better than a
-    round that refuses to open.
+    Lùi về bank dọn trước khi model không sinh được một câu giữ đúng hình dạng. Chính
+    cái fallback đó là thứ làm cái loop kết thúc: một biến thể viết tay thoả ADR-18 ngay
+    từ cách nó được dựng, nên BE luôn có thứ để nhận dù model có cư xử tệ đến đâu. Học
+    sinh thì đang mở một lượt trong cả hai trường hợp, và một lượt mở ra trên một câu
+    dọn trước vẫn tốt hơn một lượt từ chối mở.
 
     Args:
-        ctx: arq job context. Unused.
-        payload: A serialised RetryQuestionRequested.
+        ctx: Context job của arq. Không dùng.
+        payload: Một RetryQuestionRequested đã serialise.
 
     Returns:
-        A serialised RetryQuestionCompleted.
+        Một RetryQuestionCompleted đã serialise.
 
     Side effects:
-        None beyond logging. AGENT writes to no store of its own.
+        Không có gì ngoài việc log. AGENT không ghi vào store nào của riêng nó.
     """
     request = RetryQuestionRequested.model_validate(payload)
     if not llm.enabled():
@@ -749,23 +745,23 @@ async def generate_retry_question(ctx: dict, payload: dict) -> dict:
 
 
 async def explain(ctx: dict, payload: dict) -> dict:
-    """arq entry point for one assistant turn.
+    """Điểm vào arq cho một lượt nói của trợ lý.
 
-    Publishes the answer piece by piece while the model writes it, so the
-    student watches words appear instead of a pause. The pieces are a courtesy:
-    the returned text is the whole answer and is what gets stored, so a student
-    who reloads loses the animation and nothing else.
+    Publish câu trả lời từng mẩu một trong lúc model viết nó, để học sinh nhìn chữ hiện
+    ra thay vì nhìn một khoảng lặng. Các mẩu chỉ là một phép lịch sự: chữ được trả về là
+    cả câu trả lời và là thứ được lưu, nên một học sinh tải lại trang chỉ mất phần hoạt
+    hình và không mất gì khác.
 
     Args:
-        ctx: arq job context. `ctx["redis"]` is the connection the pieces go
-            out on; nothing else here is used.
-        payload: A serialised ExplainTurnRequested.
+        ctx: Context job của arq. `ctx["redis"]` là connection các mẩu đi ra trên; không
+            thứ gì khác trong đó được dùng.
+        payload: Một ExplainTurnRequested đã serialise.
 
     Returns:
-        A serialised ExplainTurnCompleted.
+        Một ExplainTurnCompleted đã serialise.
 
     Side effects:
-        Publishes to the Redis channel the request names, when it names one.
+        Publish vào channel Redis mà request gọi tên, khi nó có gọi tên một channel.
     """
     request = ExplainTurnRequested.model_validate(payload)
     if not llm.enabled():
@@ -784,15 +780,15 @@ async def explain(ctx: dict, payload: dict) -> dict:
     except Exception:
         logger.exception("model failed on the tutoring turn")
         if said:
-            # Those words are already on the student's screen. Substituting the
-            # prepared answer now would store a different reply from the one
-            # they watched appear, and they would find it on the next reload
-            # with no explanation. A truncated answer that matches what they
-            # read is the honest one; asking again is one click.
+            # Những chữ đó đã nằm trên màn hình của học sinh rồi. Thay vào bằng câu trả
+            # lời dọn trước lúc này sẽ lưu một câu khác với câu các em đã nhìn hiện ra,
+            # và các em sẽ gặp nó ở lần tải lại sau mà không có lời giải thích nào. Một
+            # câu trả lời bị cắt ngang nhưng khớp với thứ các em đã đọc mới là câu trung
+            # thực; hỏi lại thì chỉ một cú bấm.
             return ExplainTurnCompleted(
                 request_id=request.request_id, text="".join(said)
             ).model_dump(mode="json")
-        # Nothing reached anybody, so there is nothing to contradict.
+        # Chưa có gì tới tay ai, nên không có gì để mâu thuẫn với.
         return explain_turn(request).model_dump(mode="json")
 
     return ExplainTurnCompleted(request_id=request.request_id, text=text).model_dump(mode="json")

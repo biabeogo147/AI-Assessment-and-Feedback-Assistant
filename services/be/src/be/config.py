@@ -1,7 +1,7 @@
-"""BE configuration, read from the environment.
+"""Cấu hình của BE, đọc từ environment.
 
-Every value here has a matching entry in .env.example. Nothing in BE is allowed
-to hardcode a host, port, queue name or threshold.
+Mỗi giá trị ở đây có một dòng tương ứng trong .env.example. Không chỗ nào trong
+BE được phép hardcode một host, port, tên queue hay ngưỡng.
 """
 
 from functools import lru_cache
@@ -9,52 +9,52 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Anchored to the repository root rather than left relative to the working
-# directory. Relative, it silently resolves to nothing when a process starts
-# from its own service folder -- and a missing .env is not an error, it is a
-# full set of defaults. The symptom is the worst kind: a key that is not there,
-# a switch that stays off, and no message anywhere saying so.
+# Neo vào gốc repository, chứ không để tương đối theo thư mục làm việc. Nếu để
+# tương đối, nó âm thầm trỏ vào hư không khi một process khởi động từ thư mục
+# service của chính nó -- và một .env không tìm thấy không phải là lỗi, nó là
+# một bộ default đầy đủ. Triệu chứng thuộc loại tệ nhất: một key không có ở đó,
+# một công tắc cứ nằm ở off, và không có thông báo nào ở đâu nói ra điều đó.
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 
 
 class Settings(BaseSettings):
-    """Runtime settings for the BE process.
+    """Settings lúc chạy của process BE.
 
     Attributes:
-        redis_url: Connection string for the Redis instance arq shares with AGENT.
-        agent_queue_name: Queue both sides agree on. Must match AGENT's value or
-            jobs are enqueued where nothing is listening.
-        job_result_ttl_seconds: How long arq keeps a result readable after the
-            job finishes.
-        review_confidence_threshold: Confidence at or below which a graded
-            submission is routed to the Teacher Review Queue. Owned by BE.
-        database_url: Async SQLAlchemy URL for the store that holds attempt
-            state. ADR-21 makes that state durable, so this is not optional in
-            any environment where a student can come back tomorrow.
-        dev_identity_header: Name of the header standing in for a login while
-            no sign-in screen exists. Requests name themselves as
-            "student:<code>" or "teacher:<code>".
-        dev_identity_enabled: Whether that header is honoured. False is the
-            safe value; the plan that introduced it requires the real sign-in
-            to flip this off for good.
-        agent_job_timeout_seconds: How long BE waits for an AGENT job before
-            giving up on it. Must cover a whole job, including every attempt a
-            retry loop inside AGENT makes -- `tools/check_contract.py` enforces
-            that, because neither service can see both numbers.
-        stream_silence_timeout_seconds: How long the chat stream tolerates
-            hearing nothing before it gives up. Separate from the job timeout
-            because a tutoring turn is one model call while writing a round's
-            question is up to `llm_max_attempts` of them, and a student
-            watching a chat should not wait out the longer budget.
-        max_tool_steps: How many times one turn of the teacher's chat may ask
-            AGENT what to do next. This is the ceiling on a loop whose length
-            the model chooses, so it is the only thing between a confused model
-            and an unbounded bill.
-        turn_budget_seconds: How long one turn may spend in total. Needed
-            because `max_tool_steps` is not a promise about waiting: eight
-            steps at the job timeout is over nine minutes, and a proxy or a
-            browser would drop the connection long before that while BE logged
-            a success. This is the bound the teacher feels.
+        redis_url: Connection string tới Redis instance mà arq dùng chung với AGENT.
+        agent_queue_name: Queue mà cả hai bên thống nhất. Phải khớp với giá trị
+            của AGENT, nếu không job bị đẩy vào nơi không ai nghe.
+        job_result_ttl_seconds: arq giữ kết quả còn đọc được bao lâu sau khi job
+            xong.
+        review_confidence_threshold: Mức Confidence mà ở đó hoặc dưới đó, một bài
+            đã chấm bị đưa vào Teacher Review Queue. BE sở hữu ngưỡng này.
+        database_url: URL SQLAlchemy async của kho giữ state của Attempt. ADR-21
+            làm state đó bền, nên đây không phải tuỳ chọn trong bất kỳ môi trường
+            nào mà học sinh có thể quay lại ngày mai.
+        dev_identity_header: Tên của header đứng thay cho việc đăng nhập trong
+            lúc chưa có màn hình sign-in. Request tự khai mình là
+            "student:<code>" hoặc "teacher:<code>".
+        dev_identity_enabled: Header đó có được tôn trọng hay không. False là giá
+            trị an toàn; plan đã đưa nó vào yêu cầu rằng sign-in thật phải tắt
+            cái này vĩnh viễn.
+        agent_job_timeout_seconds: BE chờ một job của AGENT bao lâu trước khi bỏ
+            cuộc. Phải trùm hết một job trọn vẹn, kể cả mọi lần thử mà vòng retry
+            bên trong AGENT làm -- `tools/check_contract.py` ép điều đó, vì không
+            service nào thấy được cả hai con số.
+        stream_silence_timeout_seconds: Chat stream chịu được bao lâu không nghe
+            thấy gì trước khi bỏ cuộc. Tách khỏi job timeout vì một lượt kèm học
+            là một lần gọi model, còn viết câu hỏi của một round thì tới
+            `llm_max_attempts` lần, và một học sinh đang ngồi xem chat không nên
+            phải chờ hết cái budget dài hơn kia.
+        max_tool_steps: Một lượt chat của giáo viên được hỏi AGENT "làm gì tiếp"
+            bao nhiêu lần. Đây là trần của một vòng lặp mà độ dài do model chọn,
+            nên nó là thứ duy nhất đứng giữa một model đang lú và một hoá đơn
+            không có giới hạn.
+        turn_budget_seconds: Một lượt được tiêu tổng cộng bao lâu. Cần có vì
+            `max_tool_steps` không phải một lời hứa về thời gian chờ: tám step ở
+            mức job timeout là hơn chín phút, và một proxy hay một browser sẽ ngắt
+            kết nối từ lâu trước đó trong khi BE vẫn log thành công. Đây là giới
+            hạn mà giáo viên thật sự cảm thấy.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -74,9 +74,10 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return the process-wide settings instance.
+    """Trả về instance settings dùng chung cho cả process.
 
     Returns:
-        A cached Settings object, so the .env file is read once per process.
+        Một object Settings đã cache, nên file .env chỉ được đọc một lần mỗi
+        process.
     """
     return Settings()

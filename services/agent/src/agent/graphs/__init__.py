@@ -1,11 +1,11 @@
-"""LangGraph graphs, one per authoring task.
+"""Các graph LangGraph, mỗi việc soạn nội dung một graph.
 
-A graph rather than a function call because two of these tasks have a shape a
-straight line cannot hold: writing a question can fail its own check and need
-another go. Keeping the third one -- the tutoring turn -- in the same form
-costs a few lines and means a reader learns one pattern, not two.
+Dùng graph thay vì một lần gọi hàm vì hai trong số các việc này có hình dạng mà
+một đường thẳng không chứa nổi: viết một câu hỏi có thể không qua được check của
+chính nó và cần làm lại. Giữ việc thứ ba -- lượt kèm học sinh -- cùng một dạng
+chỉ tốn vài dòng, và đổi lại người đọc chỉ phải học một pattern thay vì hai.
 
-Nothing in here knows about Redis, arq or the queue. A graph composes a prompt,
-calls a model, and hands back what came out; publishing it is the handler's
-job, because the handler is the part that was given a connection.
+Không có gì trong đây biết tới Redis, arq hay queue. Một graph dựng prompt, gọi
+model, rồi trả lại thứ nhận được; việc publish là của handler, vì handler mới là
+phần được cấp một connection.
 """

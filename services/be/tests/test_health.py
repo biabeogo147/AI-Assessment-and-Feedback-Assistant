@@ -1,8 +1,8 @@
-"""Health endpoint check.
+"""Kiểm tra health endpoint.
 
-Mounts the router on a bare app rather than importing `be.main`, because the
-real application opens a Redis pool during startup and this test must pass
-without any infrastructure running.
+Gắn router vào một app trống thay vì import `be.main`, vì ứng dụng thật mở một
+Redis pool khi startup, còn test này phải chạy được khi không có hạ tầng nào
+đang bật.
 """
 
 from fastapi import FastAPI

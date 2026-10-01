@@ -1,18 +1,18 @@
-"""The tool loop, and the two things that must never depend on the model.
+"""Vòng lặp tool, và hai thứ không bao giờ được phụ thuộc vào model.
 
-BE owns this loop. AGENT is asked what to do next, once per step, and BE
-decides whether to do it. That arrangement exists so two properties hold no
-matter how the model behaves:
+BE sở hữu vòng lặp này. AGENT được hỏi bước tiếp theo là gì, mỗi bước một lần, và
+BE quyết định có làm hay không. Cách bố trí đó tồn tại để hai tính chất luôn đúng
+bất kể model xử sự thế nào:
 
-- **Authorisation runs where the session is.** A proposal naming another
-  teacher's class is refused by the executor, not by the prompt.
-- **The loop stops.** A model that keeps asking for tools is cut off by a
-  ceiling, and the teacher is told, rather than being left with a request that
-  never returns.
+- **Việc phân quyền chạy ở nơi có session.** Một đề xuất nêu tên lớp của giáo viên
+  khác bị executor từ chối, không phải bị prompt từ chối.
+- **Vòng lặp có điểm dừng.** Một model cứ xin tool mãi sẽ bị một mức trần cắt
+  ngang, và giáo viên được nói cho biết, chứ không bị bỏ lại với một request không
+  bao giờ trở về.
 
-Every test here scripts AGENT rather than calling it, the same way
-`test_core_flow.py` does: the boundary is the gateway, and a test that reached
-into the worker would be the first crack in the wall between the services.
+Mọi test ở đây đều viết kịch bản cho AGENT thay vì gọi nó thật, đúng như
+`test_core_flow.py` làm: ranh giới chính là gateway, và một test thò tay vào
+worker sẽ là vết nứt đầu tiên trên bức tường giữa các service.
 """
 
 from datetime import UTC, datetime
@@ -40,11 +40,11 @@ STRANGER = {"X-Actor": "teacher:GV-002"}
 
 
 class ScriptedAgent:
-    """Answer each step of the loop with a queued proposal.
+    """Trả lời từng bước của vòng lặp bằng một đề xuất đã xếp hàng sẵn.
 
-    Records what it was asked, because the history BE sends is the only way
-    the model learns what a tool returned -- and a loop that forgot to send it
-    would spin to the ceiling on every turn while looking correct from outside.
+    Ghi lại những gì nó được hỏi, vì history mà BE gửi đi là cách duy nhất để
+    model biết một tool đã trả về gì — và một vòng lặp quên gửi nó sẽ quay tới sát
+    mức trần ở mọi lượt mà nhìn từ bên ngoài vẫn thấy đúng.
     """
 
     def __init__(self, *steps: NextStepCompleted) -> None:
@@ -65,7 +65,7 @@ class ScriptedAgent:
 
 @pytest_asyncio.fixture
 async def stack(monkeypatch):
-    """An app with a second teacher, so "not mine" is a case that exists."""
+    """Một app có giáo viên thứ hai, để "không phải của tôi" là một ca thật sự tồn tại."""
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -109,11 +109,11 @@ async def _teacher(maker, code: str) -> Teacher:
 
 @pytest.mark.asyncio
 async def test_a_turn_runs_a_tool_and_then_answers(stack) -> None:
-    """The ordinary path: ask, run, ask again, answer.
+    """Đường đi bình thường: hỏi, chạy, hỏi lại, trả lời.
 
-    The assertion that matters is the second one -- the tool's result reaching
-    the second question. That is what stops the model repeating itself, and it
-    is invisible from the reply.
+    Khẳng định đáng giá là cái thứ hai — kết quả của tool có tới được câu hỏi thứ
+    hai hay không. Đó là thứ ngăn model lặp lại chính nó, và nó không nhìn thấy
+    được từ câu trả lời cuối.
     """
     client, _, monkeypatch = stack
     agent = ScriptedAgent(
@@ -143,10 +143,10 @@ async def test_a_turn_runs_a_tool_and_then_answers(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_the_loop_stops_at_its_ceiling_and_says_so(stack) -> None:
-    """A model that only ever asks for tools is cut off, out loud.
+    """Một model chỉ biết xin tool sẽ bị cắt ngang, và cắt ra tiếng.
 
-    Silence would be the worse failure: the teacher would be left with a
-    request that never came back, and nothing in the logs would name a cause.
+    Im lặng mới là cái hỏng tệ hơn: giáo viên sẽ bị bỏ lại với một request không
+    bao giờ trở về, và không dòng log nào nêu ra nguyên nhân.
     """
     client, _, monkeypatch = stack
     forever = ScriptedAgent(
@@ -166,30 +166,29 @@ async def test_the_loop_stops_at_its_ceiling_and_says_so(stack) -> None:
     assert reply.status_code == 200
     body = reply.json()
     assert body["kind"] == "say"
-    # The ceiling's own sentence, not merely some sentence. `ScriptedAgent`
-    # falls back to saying "hết kịch bản" when its script runs out, so a test
-    # that only checked for non-empty text would report "the ceiling works"
-    # after a run where the ceiling was never reached.
+    # Đúng câu của mức trần, không phải một câu nào cũng được. `ScriptedAgent`
+    # `fallback` sang nói "hết kịch bản" khi hết kịch bản, nên một test chỉ kiểm
+    # rằng text không rỗng sẽ báo "mức trần hoạt động tốt" sau một lượt chạy mà
+    # mức trần chưa hề bị chạm tới.
     assert body["text"] == teacher_chat._CEILING_REACHED
-    # Exactly the configured number, read from the config. `<= 8` would pass a
-    # loop that ran once, and a hard 8 would go quietly green for anyone who
-    # lowered the setting.
+    # Đúng con số đã cấu hình, và đọc ra từ config. `<= 8` sẽ cho qua một vòng lặp
+    # chỉ chạy một lần, còn viết cứng số 8 sẽ âm thầm xanh với bất cứ ai hạ giá trị
+    # cấu hình đó xuống.
     assert len(forever.asked) == get_settings().max_tool_steps
 
 
 @pytest.mark.asyncio
 async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
-    """BE renders the options from the rows it read; the model's are ignored.
+    """BE dựng các phương án từ những dòng chính nó đã đọc; phương án của model bị bỏ.
 
-    ADR-05 requires the options in a clarifying question to come from data the
-    system supplied, and this is the only way to get that property rather than
-    approximate it. Filtering what the model wrote was the first attempt, and
-    it leaked in both directions: "12A-1" passed on the strength of a real
-    "12A", while a legitimate "12A 3 học sinh" was thrown away. Both were
-    measured, not imagined.
+    ADR-05 đòi các phương án trong một câu hỏi làm rõ phải tới từ dữ liệu do hệ
+    thống cung cấp, và đây là cách duy nhất để *có* tính chất đó thay vì chỉ xấp xỉ
+    nó. Lọc lại những gì model viết là cách thử đầu tiên, và nó rò theo cả hai
+    hướng: "12A-1" được cho qua nhờ có một "12A" thật, trong khi một "12A 3 học
+    sinh" hợp lệ thì bị ném đi. Cả hai đều được đo thật, không phải tưởng tượng ra.
 
-    So the model writes the question and BE writes the answers. There is no
-    text to filter, and an invented class name has no path to the screen.
+    Vậy nên model viết câu hỏi và BE viết các câu trả lời. Không có đoạn văn nào để
+    lọc, và một tên lớp bịa ra không còn đường nào lên tới màn hình.
     """
     client, maker, monkeypatch = stack
     async with maker() as session:
@@ -211,10 +210,10 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
             request_id="x",
             kind="ask_clarify",
             text="Bạn muốn xem lớp nào?",
-            # Every one of these is wrong in a different way: a real name with
-            # a wrong roster, a name one character off a real one, and a class
-            # that never existed. None of them reaches the teacher, because
-            # none of them is consulted.
+            # Mỗi cái trong số này sai một kiểu khác nhau: một tên thật kèm số học
+            # sinh sai, một tên lệch một ký tự so với tên thật, và một lớp chưa bao
+            # giờ tồn tại. Không cái nào tới được giáo viên, vì không cái nào được
+            # hỏi đến.
             choices=("12A (45 học sinh)", "12A-1", "11C"),
         ),
     )
@@ -227,22 +226,20 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
     assert reply.status_code == 200
     body = reply.json()
     assert body["kind"] == "ask_clarify"
-    # Both rows that matched "12", with the roster sizes BE counted -- not the
-    # 45 the model claimed, and without the two classes it invented.
+    # Đúng hai dòng khớp với "12", kèm số học sinh do BE đếm — không phải con số 45
+    # model khai, và không có hai lớp nó bịa ra.
     assert body["choices"] == ["12A (3 học sinh)", "12B (1 học sinh)"]
     assert body["more_choices"] == 0
-    # The question is still the model's words. It writes the sentence; BE
-    # writes the answers.
+    # Câu hỏi thì vẫn là lời của model. Nó viết câu hỏi; BE viết các câu trả lời.
     assert body["text"] == "Bạn muốn xem lớp nào?"
 
 
 @pytest.mark.asyncio
 async def test_a_tool_outside_the_catalog_is_refused(stack) -> None:
-    """The catalog is a convenience; the executor is the gate.
+    """Catalog chỉ là thứ cho tiện; executor mới là cái cổng.
 
-    The model reads the catalog, and a model reads things wrongly. A proposal
-    naming a tool that was never offered must not run just because it arrived
-    in the right shape.
+    Model đọc catalog, và model thì đọc sai. Một đề xuất nêu tên một tool chưa bao
+    giờ được chào mời không được phép chạy chỉ vì nó tới với hình dạng đúng.
     """
     client, _, monkeypatch = stack
     agent = ScriptedAgent(
@@ -264,11 +261,11 @@ async def test_a_tool_outside_the_catalog_is_refused(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_tool_cannot_reach_another_teachers_class(stack) -> None:
-    """Scoping happens at execution, with the row in hand.
+    """Việc giới hạn phạm vi xảy ra lúc thực thi, khi đã có dòng dữ liệu trong tay.
 
-    ADR-22: the answer for a class that belongs to someone else is the same as
-    for a class that does not exist. Two different answers would let anyone
-    map the school's classes by watching which sentence comes back.
+    ADR-22: câu trả lời cho một lớp thuộc về người khác giống y câu trả lời cho một
+    lớp không tồn tại. Hai câu trả lời khác nhau sẽ cho bất cứ ai vẽ được bản đồ
+    các lớp của trường chỉ bằng cách xem câu nào quay về.
     """
     _, maker, _ = stack
     mine = await _teacher(maker, "GV-001")
@@ -282,10 +279,9 @@ async def test_a_tool_cannot_reach_another_teachers_class(stack) -> None:
         by_name = await execute(session, me, "find_class", {"name": "11B"})
         missing = await execute(session, me, "find_class", {"name": "lớp nào tên này"})
 
-    # Without this first assertion the test would pass against a `find_class`
-    # that found nothing ever: the two refusals below are the same constant,
-    # so comparing them to each other proves only that a constant equals
-    # itself.
+    # Không có khẳng định đầu tiên này, test vẫn xanh với một `find_class` chẳng bao
+    # giờ tìm thấy gì: hai lời từ chối bên dưới là cùng một hằng số, nên đem chúng so
+    # với nhau chỉ chứng minh được rằng một hằng số bằng chính nó.
     assert my_own["found"] is True
     assert my_own["name"] == "12A"
 
@@ -294,10 +290,10 @@ async def test_a_tool_cannot_reach_another_teachers_class(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_an_unknown_tool_raises_rather_than_returning_nothing(stack) -> None:
-    """`execute` distinguishes "no such tool" from "nothing found".
+    """`execute` phân biệt "không có tool nào như thế" với "không tìm thấy gì".
 
-    The loop turns the first into a result the model can read and recover
-    from. Conflating them would let a typo look like an empty class.
+    Vòng lặp biến cái thứ nhất thành một kết quả mà model đọc được và hồi lại được.
+    Gộp chúng lại sẽ làm một lỗi đánh máy trông như một lớp rỗng.
     """
     _, maker, _ = stack
     mine = await _teacher(maker, "GV-001")

@@ -1,12 +1,12 @@
-"""Demo data, deliberately the same story the design file tells.
+"""Dữ liệu demo, cố ý kể đúng câu chuyện mà file design kể.
 
-The twelve student artboards all show one assessment -- "Kiểm tra 15 phút —
-Hàm số", six questions, class 12A, student Nguyễn Minh Anh. Seeding anything
-else would mean the running system and the design disagree at a glance, and a
-reviewer would have to hold two sample sets in their head to tell a bug from a
-difference.
+Mười hai artboard phía học sinh đều cho thấy một đề duy nhất -- "Kiểm tra 15 phút —
+Hàm số", sáu câu hỏi, lớp 12A, học sinh Nguyễn Minh Anh. Seed bất cứ thứ gì khác sẽ
+có nghĩa là hệ thống đang chạy và bản design lệch nhau ngay từ cái nhìn đầu tiên, và
+người review sẽ phải giữ hai bộ dữ liệu mẫu trong đầu mới phân biệt được một bug với
+một chỗ khác biệt.
 
-Runs once: if a class already exists, this does nothing.
+Chạy một lần: nếu đã có một lớp tồn tại thì hàm này không làm gì.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -128,17 +128,17 @@ _STUDENTS = (
 
 
 async def seed_if_empty(session: AsyncSession) -> bool:
-    """Create the demo class, roster and published assessment once.
+    """Tạo một lần lớp demo, danh sách lớp và đề đã phát hành.
 
     Args:
-        session: Database session to write through.
+        session: Session của database để ghi qua.
 
     Returns:
-        True when data was created, False when the database already had a
-        class and nothing was touched.
+        True khi dữ liệu đã được tạo, False khi database đã có một lớp sẵn và không có
+        gì bị chạm tới.
 
     Side effects:
-        Inserts rows and commits.
+        Insert các dòng rồi commit.
     """
     existing = await session.scalar(select(func.count()).select_from(SchoolClass))
     if existing:
@@ -148,10 +148,10 @@ async def seed_if_empty(session: AsyncSession) -> bool:
 
     teacher = Teacher(full_name="Cô Phạm Thu Lan", teacher_code="GV-001")
     session.add(teacher)
-    # Flushed before the class so the class has an owner to point at. Order
-    # matters here in a way it did not before: `teacher_id` is not nullable,
-    # because a class without an owner is a class no teacher can be stopped
-    # from reading (ADR-13).
+    # Flush trước khi tạo lớp, để lớp có một chủ sở hữu mà trỏ tới. Thứ tự ở đây quan
+    # trọng theo cách mà trước đây nó không quan trọng: `teacher_id` không nullable, vì
+    # một lớp không có chủ là một lớp mà không giáo viên nào bị chặn khỏi việc đọc
+    # (ADR-13).
     await session.flush()
 
     school_class = SchoolClass(teacher_id=teacher.id, name="12A")

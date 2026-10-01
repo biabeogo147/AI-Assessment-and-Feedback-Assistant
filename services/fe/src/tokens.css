@@ -1,23 +1,23 @@
 /*
- * Design tokens and the shared shapes, measured out of the Figma file rather
- * than approximated.
+ * Design token và những hình khối dùng chung, đo ra từ file Figma chứ không
+ * phải ước lượng.
  *
- * Colours come from the collection `Color`; sizes come from `Density` mode
- * **Student**; every padding, radius and column width below was read off the
- * artboard it belongs to. They are copied rather than imported because there
- * is no token pipeline yet, so keep the names identical to Figma: a mismatch
- * is then a rename, not a hunt.
+ * Màu lấy từ collection `Color`; kích cỡ lấy từ `Density` mode **Student**; mọi
+ * padding, radius và bề rộng cột dưới đây đều được đọc ra từ chính artboard mà
+ * nó thuộc về. Chúng được chép tay chứ không import, vì chưa có token pipeline
+ * nào, nên hãy giữ tên y hệt Figma: lúc đó một chỗ lệch là một lần đổi tên, chứ
+ * không phải một cuộc đi tìm.
  *
- * Two rules the numbers encode, worth saying in words:
+ * Hai luật mà mấy con số này mã hoá, đáng nói hẳn ra bằng lời:
  *
- * ADR-12 fixes what three colours mean. `--answer-incorrect` is a wrong
- * answer, never a system failure. `--state-needs-human` is amber and means a
- * person must act -- a round about to run out of time is not that, and must
- * not borrow it.
+ * ADR-12 chốt ba màu có nghĩa gì. `--answer-incorrect` là một câu trả lời sai,
+ * không bao giờ là một lỗi hệ thống. `--state-needs-human` màu hổ phách và có
+ * nghĩa là một con người phải ra tay -- một vòng sắp hết giờ thì không phải
+ * chuyện đó, và không được mượn màu ấy.
  *
- * Every screen is 1440 wide and centred. The design is not fluid, and letting
- * a 2560px monitor stretch the chat column turns a two-column reading layout
- * into two distant columns.
+ * Mọi màn hình rộng 1440 và căn giữa. Thiết kế này không fluid, và để một màn
+ * 2560px kéo giãn cột chat ra sẽ biến một layout đọc hai cột thành hai cột ở xa
+ * nhau.
  */
 
 :root {
@@ -78,7 +78,7 @@ h3 {
   margin: 0;
 }
 
-/* ---------------------------------------------------------------- frames */
+/* ------------------------------------------------------------------ khung */
 
 .frame {
   max-width: var(--frame);
@@ -92,11 +92,11 @@ h3 {
 }
 
 /*
- * 1008 + 32 + 320 = 1360, the content width inside a 1440 frame.
+ * 1008 + 32 + 320 = 1360, bề rộng nội dung bên trong một khung 1440.
  *
- * On a window narrower than the design, the **reading column gives** and the
- * side column keeps its width. The other way round would shrink a fixed strip
- * of chips and clocks into something unreadable while the prose still fits.
+ * Trên một cửa sổ hẹp hơn thiết kế, **cột đọc là cột nhường** và cột bên giữ
+ * nguyên bề rộng. Làm ngược lại thì một dải chip và đồng hồ có kích cỡ cố định
+ * bị co lại thành thứ không đọc nổi, trong khi phần văn xuôi thì vẫn vừa.
  */
 .page.two-column {
   display: grid;
@@ -104,13 +104,12 @@ h3 {
   gap: 32px;
 }
 
-/* 1020 + 420 = 1440: the chat screen runs edge to edge, not inside padding. */
+/* 1020 + 420 = 1440: màn hình chat chạy sát hai mép, không nằm trong padding. */
 /*
- * Exactly one screen tall, and it does not scroll. Two regions inside it do,
- * separately: the conversation and the list of wrong questions. Letting the
- * page scroll instead meant that reading the last card pushed the chat off
- * the top -- one long column of unrelated things, where moving through either
- * one moved the other.
+ * Cao đúng một màn hình, và nó không scroll. Hai vùng bên trong nó thì có, một
+ * cách riêng rẽ: cuộc trò chuyện và danh sách câu làm sai. Cho cả trang scroll
+ * thì đọc tới card cuối cùng sẽ đẩy khung chat lên khỏi mép trên -- một cột dài
+ * gồm những thứ không liên quan, nơi đi qua cái này làm dịch cái kia.
  */
 .split {
   display: grid;
@@ -126,8 +125,8 @@ h3 {
   flex-direction: column;
   gap: 16px;
   padding: 28px 32px 28px 40px;
-  /* Without this a flex child refuses to shrink below its content, and the
-     scrolling region inside would grow the column instead of scrolling. */
+  /* Không có dòng này thì một flex child từ chối co nhỏ hơn nội dung của nó, và
+     vùng scroll bên trong sẽ làm cột dài ra thay vì scroll. */
   min-height: 0;
 }
 
@@ -142,9 +141,9 @@ h3 {
 }
 
 /*
- * The conversation scrolls; the composer and the report control do not. They
- * are places to act, not text to read, and an action that scrolls away is an
- * action the student has to go looking for.
+ * Cuộc trò chuyện thì scroll; khung soạn tin và nút báo lỗi thì không. Chúng là
+ * chỗ để hành động, không phải chữ để đọc, và một hành động bị scroll mất là một
+ * hành động học sinh phải đi tìm.
  */
 .thread {
   flex: 1;
@@ -155,13 +154,13 @@ h3 {
   gap: 16px;
 }
 
-/* ------------------------------------------------------------- top bar */
+/* --------------------------------------------------------------- thanh trên */
 
 /*
- * Stays put through every scroll, including the whole-page scroll on the list
- * and score screens. It carries who is signed in and the way out, and in a
- * shared computer room (ADR-13) both of those have to be reachable without
- * hunting for them.
+ * Đứng yên qua mọi lần scroll, kể cả lần scroll cả trang ở màn hình danh sách và
+ * màn hình điểm. Nó chở thông tin ai đang đăng nhập và đường đi ra, mà trong một
+ * phòng máy dùng chung (ADR-13) thì cả hai thứ đó phải với tới được mà không
+ * phải đi tìm.
  */
 .topbar {
   position: sticky;
@@ -194,9 +193,9 @@ h3 {
 }
 
 /*
- * Name, class, code -- three ranks, not one line of grey. The design gives the
- * name the ink and the weight because it answers "is this my machine?"; the
- * class is context; the code is a reference number and takes the caption size.
+ * Tên, lớp, mã -- ba thứ bậc, không phải một dòng xám. Thiết kế cho cái tên màu
+ * mực đậm và nét dày vì nó trả lời câu "đây có phải máy của mình không?"; lớp là
+ * ngữ cảnh; mã là một số tham chiếu và lấy cỡ chữ caption.
  */
 .topbar .identity {
   display: flex;
@@ -215,7 +214,7 @@ h3 {
   font-size: var(--type-caption);
 }
 
-/* ------------------------------------------------------------- buttons */
+/* --------------------------------------------------------------------- nút */
 
 button {
   font: inherit;
@@ -230,12 +229,12 @@ button:disabled {
   opacity: 0.5;
 }
 
-/* Row-level action: 12px label, 35px tall. */
+/* Hành động ở tầm một hàng: label 12px, cao 35px. */
 /*
- * A row button never wraps. Chrome sets this label a couple of pixels wider
- * than Figma does, and with the action column sized to the design's 348 that
- * was enough to break "Hỏi trợ lý và làm lại dạng bài sai" onto a second line
- * and make the whole row taller than its neighbours.
+ * Nút trong một hàng không bao giờ được xuống dòng. Chrome dàn label này rộng
+ * hơn Figma vài pixel, và với cột hành động đúng bằng 348 của thiết kế thì chừng
+ * đó đã đủ để "Hỏi trợ lý và làm lại dạng bài sai" tụt xuống dòng thứ hai và làm
+ * cả hàng cao hơn mấy hàng bên cạnh.
  */
 .btn-primary {
   background: var(--accent);
@@ -260,7 +259,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* The call to action at the head of a screen: 42px, 14px label. */
+/* Nút hành động chính ở đầu một màn hình: 42px, label 14px. */
 .btn-cta {
   background: var(--accent);
   color: var(--paper);
@@ -274,7 +273,7 @@ button:disabled {
   background: var(--accent-hover);
 }
 
-/* The report control is a bordered pill, not a bare link. */
+/* Nút báo lỗi là một viên thuốc có viền, không phải một cái link trơ. */
 .btn-report {
   background: transparent;
   color: var(--accent);
@@ -285,7 +284,7 @@ button:disabled {
   padding: 6px 10px;
 }
 
-/* The one button that ends a phase: taller, and labelled at 14. */
+/* Cái nút duy nhất kết thúc một pha: cao hơn, và label cỡ 14. */
 .btn-commit {
   background: var(--accent);
   color: var(--paper);
@@ -299,7 +298,7 @@ button:disabled {
   background: var(--accent-hover);
 }
 
-/* Dialog actions stand at 40px with a 14px label, like the design's gate. */
+/* Nút trong dialog cao 40px với label 14px, đúng như cái cổng trong thiết kế. */
 .btn-dialog {
   background: var(--accent);
   color: var(--paper);
@@ -336,7 +335,7 @@ button:disabled {
   font-weight: 600;
 }
 
-/* --------------------------------------------------------------- rows */
+/* -------------------------------------------------------------------- hàng */
 
 .time-card {
   display: flex;
@@ -368,7 +367,7 @@ button:disabled {
   margin-top: 10px;
 }
 
-/* The four columns of an assignment row, fixed so they line up down the page. */
+/* Bốn cột của một hàng bài tập, cố định để chúng thẳng hàng xuống hết trang. */
 .row .col-name {
   width: 540px;
 }
@@ -392,16 +391,16 @@ button:disabled {
   gap: 12px;
 }
 
-/* A result row: number, stem, mark. */
+/* Một hàng kết quả: số thứ tự, stem, điểm. */
 .row.result {
   align-items: flex-start;
   gap: 20px;
 }
 
 /*
- * Each column carries its own font size so its line box is the size of the
- * text in it. Inheriting the 16px body strut made every result row four
- * pixels taller than the design's 52.
+ * Mỗi cột tự mang cỡ chữ của nó, để line box đúng bằng cỡ của phần chữ trong đó.
+ * Thừa hưởng cái strut 16px của body làm mọi hàng kết quả cao hơn con số 52 của
+ * thiết kế bốn pixel.
  */
 .row.result .col-num {
   width: 70px;
@@ -442,7 +441,7 @@ button:disabled {
   color: var(--ink-muted);
 }
 
-/* --------------------------------------------------------------- chips */
+/* -------------------------------------------------------------------- chip */
 
 .chip {
   display: inline-block;
@@ -465,7 +464,7 @@ button:disabled {
   color: var(--state-settled);
 }
 
-/* Question navigation: 36px squares, three states. */
+/* Điều hướng giữa các câu hỏi: ô vuông 36px, ba state. */
 .nav-chip {
   width: 36px;
   height: 36px;
@@ -490,7 +489,7 @@ button:disabled {
   border-color: var(--accent);
 }
 
-/* ------------------------------------------------------------- options */
+/* ---------------------------------------------------------------- phương án */
 
 .option {
   display: flex;
@@ -514,7 +513,7 @@ button:disabled {
 .option.chosen {
   border: 2px solid var(--accent);
   background: var(--accent-surface);
-  /* Keep the 48px height when the border grows by a pixel on each side. */
+  /* Giữ chiều cao 48px khi viền dày thêm một pixel mỗi bên. */
   padding: 13px 15px;
 }
 
@@ -531,8 +530,8 @@ button:disabled {
 }
 
 /*
- * A ring, not a dot: the design draws the chosen radio as a thick accent
- * annulus whose hole shows the row's own surface through it.
+ * Một cái vòng, không phải một cái chấm: thiết kế vẽ radio đã chọn thành một
+ * vành accent dày, mà qua cái lỗ của nó thấy được chính surface của hàng đó.
  */
 .option.chosen .radio {
   border: 5px solid var(--accent);
@@ -547,12 +546,12 @@ button:disabled {
   flex: none;
 }
 
-/* ---------------------------------------------------------------- mark */
+/* -------------------------------------------------------------------- điểm */
 
 /*
- * Readable with the colour removed: filled, half and hollow carry the meaning
- * and the colour only repeats it (ADR-12). Level 0.5 deliberately gets no
- * colour of its own -- ADR-12 has not granted it one.
+ * Đọc được cả khi bỏ màu đi: đặc, nửa và rỗng là thứ chở nghĩa, màu chỉ nhắc lại
+ * nghĩa đó (ADR-12). Mức 0.5 cố ý không có màu riêng -- ADR-12 chưa cấp cho nó
+ * một màu nào.
  */
 .mark {
   display: inline-flex;
@@ -616,7 +615,7 @@ button:disabled {
   display: block;
 }
 
-/* -------------------------------------------------------------- dialogs */
+/* ------------------------------------------------------------------ dialog */
 
 .scrim {
   position: fixed;
@@ -644,8 +643,8 @@ button:disabled {
 }
 
 /*
- * The solution dialog stacks four blocks with one gap between them, and pads
- * a little wider than the gate does.
+ * Dialog lời giải xếp bốn khối với đúng một khoảng cách giữa chúng, và pad rộng
+ * hơn cái cổng một chút.
  */
 .dialog.solution {
   padding: 28px;
@@ -654,17 +653,17 @@ button:disabled {
   gap: 16px;
 }
 
-/* "Đóng" is a quiet word, not a link the eye should land on first. */
+/* "Đóng" là một chữ lặng, không phải cái link mắt nên đáp xuống đầu tiên. */
 .btn-quiet.muted-link {
   color: var(--ink-muted);
 }
 
-/* ----------------------------------------------------------------- chat */
+/* -------------------------------------------------------------------- chat */
 
 /*
- * A chat turn is an avatar column plus the words. The student's turns keep the
- * column empty rather than dropping it, so both speakers' text starts on the
- * same line down the page.
+ * Một lượt chat là một cột avatar cộng với phần chữ. Lượt của học sinh để trống
+ * cột đó chứ không bỏ hẳn nó đi, để chữ của cả hai người nói đều bắt đầu ở cùng
+ * một đường dọc trang.
  */
 .turn {
   display: flex;
@@ -736,12 +735,12 @@ button:disabled {
   background: var(--sunken);
 }
 
-/* A disabled input takes Chrome's grey, which is neither of our inks. */
+/* Một input bị disable lấy màu xám của Chrome, không phải màu mực nào của ta. */
 .composer input:disabled {
   -webkit-text-fill-color: var(--ink-faint);
 }
 
-/* ---------------------------------------------------------------- boxes */
+/* --------------------------------------------------------------------- hộp */
 
 .banner {
   background: var(--sunken);
@@ -756,8 +755,8 @@ button:disabled {
 }
 
 /*
- * The tutoring screen's strip is the shorter one: a caption in a 31px box,
- * not the 38px note the score sheet carries.
+ * Dải trên màn hình kèm học là dải thấp hơn: một caption trong một hộp 31px,
+ * không phải cái ghi chú 38px mà bảng điểm chở.
  */
 .banner.slim {
   padding: 8px 12px;
@@ -765,9 +764,10 @@ button:disabled {
 }
 
 /*
- * The cut-off warning inside the round gate. Bordered rather than coloured:
- * a round that may be stopped is not a fault and not a call for a human, so
- * neither amber nor red is available to it (ADR-12).
+ * Lời cảnh báo bị cắt giữa vòng, nằm trong cổng vào một vòng. Dùng viền chứ
+ * không dùng màu: một vòng có thể bị dừng thì không phải một lỗi và cũng không
+ * phải một tiếng gọi con người, nên nó không được dùng cả màu hổ phách lẫn màu
+ * đỏ (ADR-12).
  */
 .warn-strip {
   margin-top: 16px;
@@ -794,21 +794,21 @@ button:disabled {
   gap: 6px;
 }
 
-/* The progress box is the one card the design leaves unbordered. */
+/* Hộp tiến độ là card duy nhất mà thiết kế để không viền. */
 .panel-card.plain {
   border-color: transparent;
 }
 
-/* The question the conversation is currently about. */
+/* Câu hỏi mà cuộc trò chuyện đang nói về. */
 .panel-card.asking {
   background: var(--surface);
   border-color: var(--accent);
 }
 
 /*
- * The cards scroll; the heading above them and the progress box below do not.
- * The progress box is the summary -- "còn phải làm lại 2 câu", the deadline --
- * and a summary that scrolls out of sight has stopped summarising.
+ * Mấy card thì scroll; cái tiêu đề phía trên và hộp tiến độ phía dưới thì không.
+ * Hộp tiến độ là phần tóm lại -- "còn phải làm lại 2 câu", cùng cái hạn -- và
+ * một phần tóm lại bị scroll ra khỏi mắt là đã thôi tóm lại.
  */
 .panel-cards {
   flex: 1;

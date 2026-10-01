@@ -1,22 +1,22 @@
-# BE and AGENT share one conda environment, so nothing stops a cross import at
-# runtime. import-linter is the only remaining boundary mechanism, which is why
-# it runs here rather than on demand.
+# BE và AGENT dùng chung một conda environment, nên không gì chặn một lần import
+# chéo lúc chạy. import-linter là cơ chế ranh giới duy nhất còn lại, nên nó chạy ở
+# đây thay vì chạy khi nhớ ra.
 #
-# Three deliberate choices:
+# Ba lựa chọn có chủ ý:
 #
-# 1. `repo: local` with `language: system`. Pulling a hook repo would have
-#    pre-commit build an isolated virtualenv in which be, agent and contracts are
-#    not installed. grimp could then not build the import graph and the hook
-#    would fail on every commit for the wrong reason.
+# 1. `repo: local` cùng với `language: system`. Kéo về một repo hook thì pre-commit
+#    sẽ dựng một virtualenv tách biệt, nơi be, agent và contracts đều chưa được
+#    cài. Lúc đó grimp không dựng nổi import graph và hook sẽ đỏ ở mọi lần commit
+#    vì một lý do không đúng.
 #
-# 2. Absolute interpreter path. `python` alone resolves through PATH, which
-#    differs between an activated terminal, PyCharm's Git integration and a bare
-#    shell -- on this machine PATH python is a Microsoft Store stub. If the conda
-#    environment moves, change the three entry lines below.
+# 2. Đường dẫn interpreter tuyệt đối. `python` trơ thì phân giải qua PATH, mà PATH
+#    khác nhau giữa một terminal đã activate, phần tích hợp Git của PyCharm và một
+#    shell trơ -- trên máy này python trong PATH là một stub của Microsoft Store.
+#    Nếu conda environment dời chỗ, hãy sửa ba dòng entry bên dưới.
 #
-# 3. Forward slashes. pre-commit splits `entry` with shlex, which treats a
-#    backslash as an escape character and silently collapses a Windows path into
-#    an unusable one.
+# 3. Dấu gạch chéo xuôi. pre-commit tách `entry` bằng shlex, mà shlex coi dấu gạch
+#    chéo ngược là ký tự escape rồi âm thầm làm một đường dẫn Windows xẹp xuống
+#    thành một đường dẫn không dùng được.
 
 repos:
   - repo: local
@@ -33,10 +33,10 @@ repos:
         language: system
         types_or: [python, pyi]
 
-      # Must be the console script. `python -m importlinter.cli` exits 0 without
-      # checking anything, and `python -m importlinter` fails outright -- the
-      # package has no __main__. The first of those is a silent pass, so it would
-      # have disabled the only boundary check in the repository.
+      # Phải là console script. `python -m importlinter.cli` thoát ra 0 mà không
+      # kiểm gì cả, còn `python -m importlinter` thì chết thẳng -- package không có
+      # __main__. Cái thứ nhất là một lần xanh âm thầm, nên nó sẽ vô hiệu hoá đúng
+      # cái check ranh giới duy nhất của repo.
       - id: lint-imports
         name: service boundary (import-linter)
         entry: D:/Anaconda/envs/AI-Assessment-and-Feedback-Assistant/Scripts/lint-imports.exe --config pyproject.toml

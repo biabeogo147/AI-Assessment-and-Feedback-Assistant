@@ -1,20 +1,20 @@
-"""The first tools that write, and the gate in front of them.
+"""Những tool đầu tiên có quyền ghi, và cái cổng đứng trước chúng.
 
-Two rules decide everything here.
+Hai luật quyết định mọi thứ ở đây.
 
-**Agent writes content; teacher decides status.** Creating a draft and filling
-it with questions are reversible while the paper is unapproved, so the
-assistant may do them. Approving and publishing are where a teacher takes
-responsibility -- ADR-01 for the first, ADR-02 for the second -- so no tool
-reaches them, and `tools/check_contract.py` now refuses a `teacher_tools.py`
-that mentions `advance` or `withdraw` at all.
+**Agent ghi nội dung; giáo viên quyết định trạng thái.** Tạo nháp và điền câu
+hỏi vào nó đều đảo lại được khi đề chưa được duyệt, nên trợ lý được phép làm.
+Duyệt và phát hành là chỗ giáo viên nhận trách nhiệm — ADR-01 cho việc đầu,
+ADR-02 cho việc sau — nên không tool nào chạm tới, và `tools/check_contract.py`
+giờ từ chối một `teacher_tools.py` nhắc tới `advance` hay `withdraw` dù chỉ một
+lần.
 
-**Enough context before anything is written.** The teacher's rule, and it is
-about coherence rather than tidiness: the questions are written by independent
-jobs, so a brief that is still being assembled produces a set whose halves
-answer different questions. `create_draft` therefore refuses an incomplete
-brief and says which fields are missing, which is what turns "ask first" from
-a line in a prompt into something the model cannot skip.
+**Đủ ngữ cảnh trước khi ghi bất cứ thứ gì.** Đây là luật của giáo viên, và nó
+nói về tính nhất quán chứ không phải sự ngăn nắp: các câu hỏi được viết bởi
+những job độc lập, nên một brief còn đang gom dở sẽ cho ra một bộ mà hai nửa
+của nó trả lời hai câu hỏi khác nhau. Vì vậy `create_draft` từ chối một brief
+chưa đủ và nói rõ thiếu field nào — chính điều đó biến "hỏi trước đã" từ một
+dòng trong prompt thành thứ model không thể bỏ qua.
 """
 
 from datetime import UTC, datetime
@@ -36,7 +36,7 @@ from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion
 
 
 class FakeQueue:
-    """Records what was queued, and answers for the jobs a test finishes."""
+    """Ghi lại những gì đã được đưa vào queue, và trả lời cho các job mà test cho hoàn tất."""
 
     def __init__(self) -> None:
         self.jobs: list[tuple[str, dict]] = []
@@ -47,7 +47,7 @@ class FakeQueue:
         return type("Queued", (), {"job_id": f"job-{len(self.jobs)}"})()
 
     def finish(self, job_id: str, question: GeneratedQuestion) -> None:
-        """Say a job completed with this question."""
+        """Khai báo rằng một job đã xong với câu hỏi này."""
         self.results[job_id] = (
             "ready",
             DraftQuestionCompleted(request_id="r", question=question).model_dump(mode="json"),
@@ -56,12 +56,12 @@ class FakeQueue:
 
 @pytest_asyncio.fixture
 async def stack(monkeypatch):
-    """A seeded database, the asking teacher, and a queue that records.
+    """Một database đã seed, giáo viên đang hỏi, và một queue biết ghi lại.
 
-    Result collection is stubbed because the write tools now harvest before
-    they decide anything, and arq's `Job` wants a real Redis to ask. A job no
-    test has finished reads as still running, which is what a freshly queued
-    round actually is.
+    Việc thu kết quả được stub lại vì các tool ghi giờ `harvest` trước khi quyết
+    định bất cứ điều gì, mà `Job` của arq thì cần một Redis thật để hỏi. Một job
+    chưa test nào cho hoàn tất sẽ đọc ra là vẫn đang chạy — và đó đúng là trạng
+    thái của một vòng vừa được đẩy vào queue.
     """
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
@@ -101,10 +101,10 @@ _FULL = {
 
 @pytest.mark.asyncio
 async def test_a_complete_brief_creates_an_empty_draft(stack) -> None:
-    """The draft exists, belongs to the asking teacher, and holds no questions yet.
+    """Bản nháp tồn tại, thuộc về giáo viên đang hỏi, và chưa chứa câu hỏi nào.
 
-    `EMPTY` rather than `HAS_QUESTIONS`, because ADR-01 gives the empty state
-    its own rule: it is what blocks publishing a paper with nothing on it.
+    Là `EMPTY` chứ không phải `HAS_QUESTIONS`, vì ADR-01 cho state rỗng một luật
+    riêng: nó chính là thứ chặn việc phát hành một đề không có gì trên đó.
     """
     maker, queue = stack
 
@@ -127,13 +127,13 @@ async def test_a_complete_brief_creates_an_empty_draft(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_an_incomplete_brief_names_what_is_missing_and_writes_nothing(stack) -> None:
-    """The refusal is the mechanism, not a courtesy.
+    """Lời từ chối chính là cơ chế, không phải một phép lịch sự.
 
-    A model told in a prompt to gather context first can forget; a tool that
-    will not run without the fields cannot be forgotten. And naming the
-    missing fields is what lets the assistant ask a useful question instead of
-    guessing -- ADR-05's input gate, in the shape ADR-23 already uses for an
-    ambiguous class name.
+    Một model được prompt dặn đi gom ngữ cảnh trước thì có thể quên; một tool
+    không chịu chạy khi thiếu field thì không thể bị quên. Và việc nói rõ thiếu
+    field nào là thứ cho phép trợ lý hỏi một câu có ích thay vì đoán — đúng cái
+    cổng đầu vào của ADR-05, theo hình dạng mà ADR-23 đã dùng cho một tên lớp
+    nhập nhằng.
     """
     maker, queue = stack
 
@@ -150,16 +150,16 @@ async def test_an_incomplete_brief_names_what_is_missing_and_writes_nothing(stac
 
     assert answer["created"] is False
     assert set(answer["missing"]) == {"grade", "question_count"}
-    # Only the seeded assessment; nothing was written.
+    # Chỉ còn đúng Assessment đã seed; không có gì được ghi.
     assert len(drafts) == 1
 
 
 @pytest.mark.asyncio
 async def test_a_brief_asking_for_too_many_questions_is_refused_at_the_door(stack) -> None:
-    """The cap is part of the brief being valid, not a surprise later.
+    """Mức trần thuộc về việc brief có hợp lệ hay không, không phải bất ngờ về sau.
 
-    Discovering it while firing jobs meant fifty model calls had already been
-    spent before anything complained.
+    Phát hiện ra nó trong lúc đang bắn job có nghĩa là năm mươi lượt gọi model đã
+    bị tiêu trước khi có thứ gì lên tiếng.
     """
     maker, queue = stack
 
@@ -170,16 +170,16 @@ async def test_a_brief_asking_for_too_many_questions_is_refused_at_the_door(stac
         )
 
     assert answer["created"] is False
-    # Not `missing`: the field was filled, it was filled with a number out of
-    # range. Answering "chưa đủ thông tin" for a field the model already filled
-    # sends it round to supply the same value again.
+    # Không phải `missing`: field đã được điền, chỉ là điền một con số ngoài
+    # khoảng cho phép. Trả lời "chưa đủ thông tin" cho một field model đã điền
+    # rồi sẽ đẩy nó quay lại cung cấp đúng giá trị đó lần nữa.
     assert answer["missing"] == []
     assert answer["unreadable"] == ["question_count"]
 
 
 @pytest.mark.asyncio
 async def test_drafting_starts_one_job_per_question(stack) -> None:
-    """The jobs go out and nothing waits for them."""
+    """Các job được bắn đi và không ai đứng chờ chúng."""
     maker, queue = stack
 
     async with maker() as session:
@@ -200,11 +200,10 @@ async def test_drafting_starts_one_job_per_question(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_drafting_twice_does_not_start_a_second_round(stack) -> None:
-    """One round at a time, so two sets of instructions never share a paper.
+    """Mỗi lần một vòng, để hai bộ chỉ dẫn không bao giờ dùng chung một đề.
 
-    Overlapping rounds is the failure the frozen brief exists to prevent, and
-    the cheapest way to prevent it is to refuse while anything is still
-    running.
+    Hai vòng chồng lên nhau chính là hỏng hóc mà brief đóng băng được đặt ra để
+    ngăn, và cách ngăn rẻ nhất là từ chối trong khi còn thứ gì đang chạy.
     """
     maker, queue = stack
 
@@ -226,11 +225,11 @@ async def test_drafting_twice_does_not_start_a_second_round(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_no_tool_writes_into_an_approved_paper(stack) -> None:
-    """ADR-01: approval locks the content.
+    """ADR-01: duyệt là khoá nội dung lại.
 
-    This is the first caller of `assert_editable`, and the lock is the whole
-    reason approving means anything -- if questions could still change
-    afterwards, the teacher approved something else.
+    Đây là nơi đầu tiên gọi `assert_editable`, và cái khoá đó là toàn bộ lý do
+    việc duyệt có nghĩa gì — nếu câu hỏi vẫn đổi được sau đó, thì giáo viên đã
+    duyệt một thứ khác.
     """
     maker, queue = stack
 
@@ -239,10 +238,10 @@ async def test_no_tool_writes_into_an_approved_paper(stack) -> None:
         made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
         draft = await session.get(Assessment, made["assessment_id"])
         assert draft is not None
-        # Set by hand only because nothing else can yet: the approve endpoint
-        # arrives in phase 4, and this line becomes a call to it then. Allowed
-        # here and nowhere in `teacher_tools.py`, where `tools-decide-nothing`
-        # refuses exactly this assignment.
+        # Gán tay chỉ vì chưa có gì khác làm được: endpoint duyệt tới ở pha 4, và
+        # lúc đó dòng này sẽ thành một lượt gọi tới nó. Được phép ở đây và không
+        # chỗ nào trong `teacher_tools.py`, nơi `tools-decide-nothing` từ chối
+        # đúng phép gán này.
         draft.state = AssessmentState.APPROVED
         await session.commit()
 
@@ -256,11 +255,10 @@ async def test_no_tool_writes_into_an_approved_paper(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_tool_cannot_draft_into_another_teachers_paper(stack) -> None:
-    """ADR-22, on the write side.
+    """ADR-22, ở phía ghi.
 
-    The refusal reads the same as for a paper that does not exist, because two
-    distinguishable answers would let anyone probe for what other teachers
-    have.
+    Lời từ chối đọc ra giống y như với một đề không tồn tại, vì hai câu trả lời
+    phân biệt được sẽ cho bất cứ ai dò xem giáo viên khác đang có những gì.
     """
     maker, queue = stack
 
@@ -305,14 +303,14 @@ async def test_a_tool_cannot_draft_into_another_teachers_paper(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
-    """A tool described to the model is a tool it will try, so the list is the contract.
+    """Một tool đã mô tả cho model là một tool nó sẽ thử, nên danh sách này là hợp đồng.
 
-    Nothing here approves or publishes. That is not an omission: ADR-05 keeps
-    those behind a form and a confirmation, and the cheapest way to honour it is
-    for the chat flow to have no such verb at all. ADR-05's line is about
-    actions that **cannot be taken back**, not about writing -- which is why
-    three writing tools sit here without crossing it: every one of them is
-    reversible while the paper is unapproved.
+    Ở đây không có gì duyệt hay phát hành. Đó không phải sự bỏ sót: ADR-05 giữ
+    hai việc ấy sau một form và một lần xác nhận, và cách tôn trọng nó rẻ nhất là
+    luồng chat không có động từ nào như thế. Ranh giới của ADR-05 nói về những
+    hành động **không lấy lại được**, không phải về việc ghi — nên ba tool ghi
+    nằm đây mà không vượt ranh: mọi tool trong đó đều đảo lại được khi đề chưa
+    được duyệt.
     """
     maker, _ = stack
 
@@ -320,14 +318,14 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
         asking = await _asking(session)
         offered = {tool.name for tool in catalog_for(asking)}
 
-    # The durable half: no name here releases work to students, however many
-    # tools get added later.
+    # Nửa bền vững: không tên nào ở đây đẩy việc tới học sinh, dù sau này có thêm
+    # bao nhiêu tool nữa.
     assert not any(
         word in name
         for name in offered
         for word in ("approve", "publish", "release", "withdraw", "duyet", "phat_hanh")
     )
-    # And the tripwire: a sixth tool makes this red and has to argue for itself.
+    # Và dây bẫy: một tool thứ sáu sẽ làm dòng này đỏ và phải tự biện hộ cho mình.
     assert offered == {
         "find_class",
         "class_assessment_summary",
@@ -339,11 +337,10 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_started_round_is_visible_as_pending_work(stack) -> None:
-    """Approval needs to know whether questions are still being written.
+    """Việc duyệt cần biết có câu hỏi nào còn đang được viết hay không.
 
-    Approving a half-written paper would approve questions the teacher has
-    never seen, so the count has to be readable before the approval endpoint
-    exists to use it.
+    Duyệt một đề viết dở là duyệt những câu hỏi giáo viên chưa từng thấy, nên con
+    số đó phải đọc được từ trước khi có endpoint duyệt để dùng nó.
     """
     maker, queue = stack
 
@@ -367,7 +364,7 @@ async def test_a_started_round_is_visible_as_pending_work(stack) -> None:
 
 
 def _good(stem: str) -> GeneratedQuestion:
-    """A question satisfying ADR-18: one right answer, labelled distractors, two methods."""
+    """Một câu hỏi thoả ADR-18: một đáp án đúng, các `Distractor` có nhãn, hai `Method`."""
     return GeneratedQuestion(
         stem=stem,
         options=(
@@ -385,11 +382,11 @@ def _good(stem: str) -> GeneratedQuestion:
 
 @pytest.mark.asyncio
 async def test_no_job_is_fired_for_a_draft_without_a_brief(stack) -> None:
-    """The gate is about jobs, not about rows.
+    """Cửa này nói về job, không nói về số dòng trong bảng.
 
-    The refusal test above proves no draft is created from an incomplete brief.
-    This one proves the part that costs money: a paper with no brief at all
-    spends nothing, because the brief is what every job is written from.
+    Test từ chối ở trên chứng minh không có đề nháp nào được tạo từ một brief
+    chưa đủ. Test này chứng minh phần tốn tiền: một đề hoàn toàn không có brief
+    thì không tiêu gì cả, vì brief là thứ mọi job được viết ra từ đó.
     """
     maker, queue = stack
 
@@ -416,13 +413,13 @@ async def test_no_job_is_fired_for_a_draft_without_a_brief(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_asking_twice_opens_two_drafts_rather_than_reusing_one(stack) -> None:
-    """Two requests are two papers.
+    """Hai yêu cầu là hai đề.
 
-    Pinned because both alternatives are worse: reusing the first draft would
-    quietly merge two briefs into one paper, and refusing the second would stop
-    a teacher preparing two papers in one sitting. The cost is that a turn
-    failing after this point leaves an empty draft behind, which `backlog.md`
-    records, because clearing one needs a delete path that does not exist yet.
+    Được pin lại vì cả hai lựa chọn còn lại đều tệ hơn: tái dùng đề nháp đầu sẽ
+    âm thầm trộn hai brief vào một đề, còn từ chối yêu cầu thứ hai sẽ chặn một
+    giáo viên soạn hai đề trong cùng một lần ngồi. Giá phải trả là một lượt hỏng
+    sau điểm này sẽ để lại một đề nháp rỗng — `backlog.md` có ghi việc đó, vì
+    muốn dọn nó thì cần một đường xoá mà hiện chưa tồn tại.
     """
     maker, queue = stack
 
@@ -438,12 +435,12 @@ async def test_asking_twice_opens_two_drafts_rather_than_reusing_one(stack) -> N
 
 @pytest.mark.asyncio
 async def test_progress_collects_a_finished_question_into_the_draft(stack) -> None:
-    """The only path by which a question written by a job reaches the paper.
+    """Con đường duy nhất để một câu hỏi do job viết ra tới được đề.
 
-    BE runs no background worker, so a finished job sits in Redis until
-    something asks for it. Nothing did until this tool existed: the answers aged
-    out after an hour, the draft stayed empty, and no new round could start
-    because the old one was pending forever.
+    BE không chạy background worker nào, nên một job đã xong cứ nằm trong Redis
+    cho tới khi có ai hỏi tới. Trước khi có tool này thì không ai hỏi: các câu trả
+    lời hết hạn sau một giờ, đề nháp vẫn rỗng, và không vòng mới nào khởi động
+    được vì vòng cũ pending mãi mãi.
     """
     maker, queue = stack
 
@@ -467,6 +464,6 @@ async def test_progress_collects_a_finished_question_into_the_draft(stack) -> No
     assert progress["written"] == ["Đạo hàm của y = x² là gì?"]
     assert progress["asked_for"] == 3
     assert progress["still_drafting"] == 2
-    # The first harvested question is what moves the paper off `EMPTY`, and
-    # `advance()` is the only door it can go through.
+    # Câu hỏi đầu tiên được `harvest` chính là thứ đưa đề ra khỏi `EMPTY`, và
+    # `advance` là cửa duy nhất nó đi qua được.
     assert progress["state"] == AssessmentState.HAS_QUESTIONS

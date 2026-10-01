@@ -1,17 +1,17 @@
 [build-system]
-# setuptools rather than hatchling: hatchling's PEP 660 editable install installs a
-# MetaPathFinder, and grimp (the engine behind import-linter) has a history of
-# failing to enumerate submodules in that case and silently reporting zero
-# violations. With import-linter as the only remaining boundary mechanism, a false
-# pass would be worse than no check at all.
+# setuptools chứ không phải hatchling: bản cài editable theo PEP 660 của hatchling
+# đặt vào một MetaPathFinder, và grimp (engine đứng sau import-linter) từng nhiều
+# lần không liệt kê nổi submodule trong trường hợp đó rồi âm thầm báo không có vi
+# phạm nào. Với import-linter là cơ chế ranh giới duy nhất còn lại, một lần xanh
+# giả còn tệ hơn không có check nào.
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-# Distribution name is prefixed while the import package stays `contracts`.
-# A bare `contracts` name would collide with an existing PyPI project, so a
-# service declaring it as a dependency could pull a stranger's package from the
-# index instead of this one.
+# Tên distribution có tiền tố, còn package để import thì vẫn là `contracts`. Một
+# cái tên `contracts` trơ sẽ đụng với một project đã có trên PyPI, nên một service
+# khai nó như dependency có thể kéo package của người lạ từ index về thay vì
+# package này.
 name = "aiafa-contracts"
 version = "0.1.0"
 description = "Message contract shared by BE and AGENT. Data only, never logic."

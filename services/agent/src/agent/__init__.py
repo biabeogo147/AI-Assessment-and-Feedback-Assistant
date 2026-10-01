@@ -1,1 +1,1 @@
-"""Worker that grades submissions and reports evidence."""
+"""Worker soạn câu hỏi và giảng lại cho học sinh. Việc chấm thuộc về BE (ADR-20)."""

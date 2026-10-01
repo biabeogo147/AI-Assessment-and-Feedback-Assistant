@@ -1,4 +1,4 @@
-"""BE application entry point."""
+"""Điểm vào của ứng dụng BE."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -20,17 +20,17 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Hold one database engine and one Redis pool open for the process.
+    """Giữ mở một database engine và một Redis pool cho cả process.
 
-    Opening either per request would exhaust connections: every student polls,
-    and every screen reads.
+    Mở bất kỳ cái nào trong hai theo từng request sẽ làm cạn connection: học sinh
+    nào cũng poll, và màn hình nào cũng đọc.
 
     Args:
-        app: The application whose state carries both pools.
+        app: Ứng dụng mà state của nó chở cả hai pool.
 
     Side effects:
-        Opens a database engine and a Redis pool, creates missing tables, and
-        seeds demo data into an empty database. Closes both on shutdown.
+        Mở một database engine và một Redis pool, tạo những bảng còn thiếu, và
+        seed dữ liệu demo vào một database rỗng. Đóng cả hai khi shutdown.
     """
     settings = get_settings()
 
@@ -43,11 +43,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if await seed_if_empty(session):
             logger.info("seeded the demo class, roster and published assessment")
 
-    # A dead queue must not take phase 1 down with it. Sitting a paper,
-    # submitting it and reading the floor score never touch AGENT (ADR-20), and
-    # ADR-16 calls that score a floor -- a floor that needs a second service to
-    # stand up is not one. What does break is everything that needs generated
-    # content, and those routes answer 503 rather than failing at startup.
+    # Một queue chết không được phép kéo pha 1 chết theo. Làm một đề, nộp nó và
+    # đọc điểm sàn không hề chạm tới AGENT (ADR-20), còn ADR-16 gọi điểm đó là
+    # một cái sàn -- một cái sàn mà phải cần tới service thứ hai mới đứng được
+    # thì không phải sàn. Thứ thật sự hỏng là mọi thứ cần nội dung do model sinh
+    # ra, và những route đó trả 503 chứ không làm startup gãy.
     try:
         app.state.queue_pool = await create_queue_pool(settings)
     except (OSError, RuntimeError) as exc:

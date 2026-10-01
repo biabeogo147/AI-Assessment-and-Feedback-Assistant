@@ -1,15 +1,15 @@
-"""What AGENT proposes for one turn of the teacher's chat.
+"""AGENT đề nghị gì cho một lượt trong khung chat của giáo viên.
 
-These tests assert two kinds of thing and nothing else. First, that a proposal
-travels back unchanged: the tool name and its arguments are what BE dispatches
-on, so a graph that reshaped them would send the teacher's request somewhere
-else. Second, that the model is actually told what it needs -- the tools it may
-use and what earlier tools returned -- because a model asked to choose from a
-catalog it cannot see will invent one.
+Các test này khẳng định hai loại điều và không gì khác. Thứ nhất, rằng một đề nghị đi
+ngược về mà không bị sửa: tên tool và các argument của nó là thứ BE dispatch theo, nên
+một graph nắn lại chúng sẽ gửi yêu cầu của giáo viên đi một nơi khác. Thứ hai, rằng model
+thật sự được cho biết những gì nó cần -- các tool nó được dùng và các tool trước đã trả
+về gì -- vì một model bị bảo chọn từ một danh mục nó không thấy được thì sẽ bịa ra một
+danh mục.
 
-What is deliberately not tested here is whether a proposal is *allowed*. AGENT
-cannot know that: the teacher's identity and the database are on BE's side of
-the wall. Those tests live with the executor.
+Thứ cố ý không được test ở đây là một đề nghị có *được phép* hay không. AGENT không thể
+biết điều đó: danh tính giáo viên và database nằm ở phía bên kia bức tường, phía BE. Những
+test ấy nằm cùng với bên thực thi.
 """
 
 from types import SimpleNamespace
@@ -36,11 +36,11 @@ _CATALOG = (
 
 
 class Scripted:
-    """A chat model answering with queued proposals, recording its prompts.
+    """Một chat model trả lời bằng các đề nghị xếp sẵn, có ghi lại các prompt của nó.
 
-    Modelled on the fake in `test_authoring_graph.py` rather than on
-    `GenericFakeChatModel`, which raises `NotImplementedError` from
-    `with_structured_output` and so cannot stand in for a structured call.
+    Dựng theo cái fake trong `test_authoring_graph.py` chứ không theo
+    `GenericFakeChatModel`, vì model đó raise `NotImplementedError` từ
+    `with_structured_output` nên không thể đóng thế cho một lần gọi structured.
     """
 
     def __init__(self, answers: list[_Proposal]) -> None:
@@ -48,7 +48,7 @@ class Scripted:
         self.prompts: list[str] = []
 
     def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
-        """Return a runnable handing back the next queued proposal."""
+        """Trả về một runnable đưa lại đề nghị xếp sẵn tiếp theo."""
 
         def answer(messages: object) -> _Proposal:
             self.prompts.append("\n".join(message.text for message in messages))
@@ -71,7 +71,7 @@ def _wants(tool: str, **args: str) -> _Proposal:
 
 @pytest.fixture
 def on(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Turn the model path on without needing a credential."""
+    """Bật đường gọi model lên mà không cần tới một credential."""
     monkeypatch.setattr(llm, "enabled", lambda: True)
 
 
@@ -88,7 +88,7 @@ def _asked(text: str) -> NextStepRequested:
 async def test_a_tool_proposal_keeps_its_name_and_arguments(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """BE dispatches on these two fields, so nothing may rewrite them."""
+    """BE dispatch theo hai field này, nên không gì được viết lại chúng."""
     model = Scripted([_wants("find_class", name="12A1")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
@@ -103,10 +103,10 @@ async def test_a_tool_proposal_keeps_its_name_and_arguments(
 async def test_the_model_is_told_which_tools_it_may_use(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """A catalog the model cannot see is a catalog it will invent.
+    """Một danh mục model không thấy được là một danh mục nó sẽ bịa ra.
 
-    The names travel because BE dispatches on them; the descriptions travel
-    because choosing between two tools is the decision being asked for.
+    Các tên tool đi theo vì BE dispatch theo chúng; các mô tả đi theo vì chọn giữa hai
+    tool chính là quyết định đang được hỏi.
     """
     model = Scripted([_said("vâng")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -123,11 +123,11 @@ async def test_the_model_is_told_which_tools_it_may_use(
 async def test_a_tool_result_reaches_the_model_as_data(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """What a tool returned is part of what the model knows.
+    """Thứ một tool trả về là một phần những gì model biết.
 
-    This is the whole reason the loop sends the history back every round. If
-    the result did not arrive, the model would propose the same tool again and
-    the turn would spin until the ceiling stopped it.
+    Đây là toàn bộ lý do cái loop gửi lại lịch sử hội thoại mỗi vòng. Nếu kết quả không
+    tới, model sẽ đề nghị lại đúng tool đó và lượt này sẽ xoay cho tới khi cái trần chặn
+    nó lại.
     """
     model = Scripted([_said("Lớp 12A1 trung bình 6,5.")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -157,11 +157,11 @@ async def test_a_tool_result_reaches_the_model_as_data(
 async def test_the_request_id_comes_back_on_the_proposal(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """BE correlates the answer with the question it asked.
+    """BE khớp câu trả lời với câu hỏi nó đã đặt.
 
-    The model cannot get this wrong any more, because it is not asked: the
-    schema it answers has no `request_id` at all. That is stronger than
-    overwriting whatever it invented, which is what this used to do.
+    Model không thể làm sai chỗ này được nữa, vì nó không được hỏi: schema nó trả lời
+    không có `request_id` nào cả. Điều đó mạnh hơn việc ghi đè lên bất cứ thứ gì nó bịa
+    ra, mà đó là việc chỗ này từng làm.
     """
     model = Scripted([_said("ừ")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -172,13 +172,13 @@ async def test_the_request_id_comes_back_on_the_proposal(
 
 
 class WithUsage:
-    """A chat model answering in the `include_raw` shape, with a usage report.
+    """Một chat model trả lời theo hình dạng `include_raw`, kèm một báo cáo usage.
 
-    `Scripted` above ignores `include_raw` and hands the parsed object back
-    directly, which is a shape real providers also produce when they cannot
-    report usage. This one is the other shape, and it exists because the
-    token count is a claim about a library -- and claims about libraries in
-    this plan have been wrong three times when nothing measured them.
+    `Scripted` ở trên bỏ qua `include_raw` và trả thẳng lại đối tượng đã parse, đó cũng
+    là một hình dạng các provider thật sinh ra khi chúng không báo được usage. Cái này là
+    hình dạng còn lại, và nó tồn tại vì số token là một lời khẳng định về một library --
+    mà những lời khẳng định về library trong plan này đã sai ba lần ở những chỗ không có
+    gì đo chúng.
     """
 
     def __init__(self, step: _Proposal, total_tokens: int | None) -> None:
@@ -198,10 +198,10 @@ class WithUsage:
 async def test_the_token_count_comes_from_the_provider(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """What the call cost is read off the response, not off the proposal.
+    """Chi phí của lần gọi được đọc từ response, không đọc từ đề nghị.
 
-    The model is not asked for this either -- a token count it invented would
-    be worse than none, because it would look like a measurement.
+    Model cũng không được hỏi điều này -- một số token nó bịa ra còn tệ hơn không có số
+    nào, vì nó sẽ trông như một phép đo.
     """
     model = WithUsage(_said("ừ"), 1234)
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -215,10 +215,10 @@ async def test_the_token_count_comes_from_the_provider(
 async def test_a_provider_that_reports_no_usage_costs_zero_not_a_crash(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """Zero means "not told", and the turn still happens.
+    """Số 0 nghĩa là "không được cho biết", và lượt nói vẫn diễn ra.
 
-    Gemini is the configured fallback and does not always report usage. A
-    missing count must not take the answer down with it.
+    Gemini là fallback đang được cấu hình và nó không luôn báo usage. Một con số thiếu
+    không được phép kéo cả câu trả lời sụp theo.
     """
     model = WithUsage(_said("ừ"), None)
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
@@ -230,22 +230,22 @@ async def test_a_provider_that_reports_no_usage_costs_zero_not_a_crash(
 
 
 def test_the_schema_the_model_sees_is_one_openai_accepts() -> None:
-    """Strict structured output refuses free-form objects.
+    """Structured output ở chế độ strict từ chối các object tự do.
 
-    This is the bug the mock could never show. `NextStepCompleted.tool_args`
-    is a `dict[str, object]`, which becomes an open-ended JSON object, and
-    OpenAI answers every such request with
+    Đây là cái bug mà mock không bao giờ cho thấy được. `NextStepCompleted.tool_args` là
+    một `dict[str, object]`, nó trở thành một JSON object mở, và OpenAI trả lời mọi request
+    như vậy bằng
 
         400 Invalid schema for response_format: In context=('properties',
         'tool_args'), 'additionalProperties' is required to be supplied and to
         be false.
 
-    So every real call failed and fell back to the prepared proposal. The
-    durations looked real, the answer read plausibly, and nothing surfaced.
-    Found by calling the model once.
+    Thế là mọi lần gọi thật đều thất bại rồi lùi về đề nghị dọn trước. Thời lượng trông
+    như thật, câu trả lời đọc thấy hợp lý, và không có gì nổi lên. Tìm ra bằng cách gọi
+    model một lần.
 
-    The check is mechanical: every object in the schema must close itself, and
-    the model must not be asked for anything it cannot know.
+    Check này thuần cơ học: mọi object trong schema phải tự đóng kín, và model không được
+    bị hỏi bất cứ thứ gì nó không thể biết.
     """
     schema = _Proposal.model_json_schema()
 
@@ -263,9 +263,9 @@ def test_the_schema_the_model_sees_is_one_openai_accepts() -> None:
 
     assert closed(schema) == []
 
-    # Neither of these is answerable by a model: BE mints the id, and the
-    # provider reports the cost after the fact. A field in the schema is a
-    # question put to the model.
+    # Không field nào trong hai field này là thứ một model trả lời được: BE phát ra id,
+    # còn provider báo chi phí sau khi việc đã xong. Một field trong schema là một câu hỏi
+    # đặt ra cho model.
     asked_for = set(schema["properties"])
     assert "request_id" not in asked_for
     assert "model_tokens" not in asked_for

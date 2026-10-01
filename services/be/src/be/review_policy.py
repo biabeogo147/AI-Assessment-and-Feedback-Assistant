@@ -1,11 +1,11 @@
-"""Teacher Review Queue routing.
+"""Định tuyến vào Teacher Review Queue.
 
-This module is the teacher-in-the-loop gate. It lives in BE on purpose:
-business-workflows.md separates the step where the system produces a result from
-the step where the system decides that a Teacher must look at it, and
-project-overview.md requires that the second step stay outside the AI service.
+Module này là cổng teacher-in-the-loop. Nó nằm ở BE có chủ đích:
+business-workflows.md tách bước hệ thống tạo ra kết quả khỏi bước hệ thống quyết
+định rằng một Teacher phải xem kết quả đó, và project-overview.md yêu cầu bước
+thứ hai phải nằm ngoài service AI.
 
-AGENT reports evidence. Nothing here runs inside AGENT.
+AGENT báo cáo bằng chứng. Không có gì ở đây chạy bên trong AGENT.
 """
 
 from pydantic import BaseModel
@@ -14,11 +14,11 @@ from contracts import GradingCompleted, ReviewReason
 
 
 class ReviewDecision(BaseModel):
-    """Outcome of applying the review policy to one graded submission.
+    """Kết quả của việc áp review policy lên một bài làm đã chấm.
 
     Attributes:
-        needs_teacher_review: Whether the submission enters the Teacher Review Queue.
-        reason: Which control point triggered it, or None when no review is needed.
+        needs_teacher_review: Bài làm có vào Teacher Review Queue hay không.
+        reason: Control point nào đã kích hoạt, hoặc None khi không cần ai xem lại.
     """
 
     needs_teacher_review: bool
@@ -26,29 +26,30 @@ class ReviewDecision(BaseModel):
 
 
 def decide_review(result: GradingCompleted, confidence_threshold: float) -> ReviewDecision:
-    """Decide whether a graded submission needs a Teacher to look at it.
+    """Quyết định một bài làm đã chấm có cần một Teacher xem lại hay không.
 
-    Implements three of the four control points in business-workflows.md
-    Workflow 4. The fourth, ReviewReason.ANOMALY, needs a student's history to
-    detect and is therefore not reachable until submissions are persisted; it
-    stays in the enum so adding it later does not change the contract.
+    Hiện thực ba trong bốn control point của business-workflows.md Workflow 4.
+    Cái thứ tư, ReviewReason.ANOMALY, muốn phát hiện thì phải có lịch sử của học
+    sinh, nên chưa với tới được cho đến khi bài làm được lưu xuống; nó vẫn ở
+    trong enum để sau này thêm vào không phải đổi contract.
 
-    Conditions are checked most specific first: a correct answer backed by wrong
-    reasoning is more informative to a Teacher than a merely low confidence
-    score, so it wins when both apply.
+    Các điều kiện được xét từ cụ thể nhất trở xuống: một câu trả lời đúng nhưng
+    đi kèm lập luận sai thì nói cho Teacher nhiều hơn là một điểm confidence chỉ
+    đơn thuần thấp, nên nó thắng khi cả hai cùng đúng.
 
     Args:
-        result: Evidence produced by AGENT for one submission.
-        confidence_threshold: Confidence at or below which review is required.
-            Comparison is inclusive so that a threshold of 0.0 still reviews a
-            result the model had no confidence in at all.
+        result: Bằng chứng AGENT sinh ra cho một bài làm.
+        confidence_threshold: Mức confidence mà từ đó trở xuống là phải có Teacher
+            xem lại. Phép so sánh lấy cả dấu bằng, để một threshold bằng 0.0 vẫn
+            đưa đi xem lại một kết quả mà model không hề tự tin chút nào.
 
     Returns:
-        A ReviewDecision naming the triggering condition, or one with
-        needs_teacher_review set to False when none applies.
+        Một ReviewDecision nêu tên điều kiện đã kích hoạt, hoặc một
+        ReviewDecision với needs_teacher_review bằng False khi không điều kiện
+        nào đúng.
 
     Side effects:
-        None. The caller is responsible for acting on the decision.
+        Không có. Hành động theo quyết định này là việc của caller.
     """
     if result.answer_explanation_conflict:
         return ReviewDecision(

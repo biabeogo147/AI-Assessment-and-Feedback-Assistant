@@ -5,15 +5,14 @@ import { go } from "../App";
 import { ErrorStrip, TimeCard, TopBar } from "../components";
 
 /**
- * Screen 14 — sitting the paper, phase 1.
+ * Màn 14 — ngồi làm đề, pha 1.
  *
- * The payload carries no answer key, so nothing on this screen could reveal a
- * correct option even by accident. Choices are saved one at a time rather than
- * gathered until submit: losing the network then costs one click.
+ * Payload không mang theo đáp án, nên không có gì trên màn này có thể để lộ
+ * phương án đúng, kể cả do vô tình. Lựa chọn được lưu từng cái một chứ không gom
+ * lại tới lúc nộp: mất mạng thì chỉ mất một lần bấm.
  *
- * The question is set at 28px because it is the thing being read; everything
- * else on the screen is smaller than it. Submitting ends phase 1, not the
- * attempt (ADR-14).
+ * Câu hỏi đặt ở 28px vì nó là thứ đang được đọc; mọi thứ khác trên màn đều nhỏ
+ * hơn nó. Nộp bài là kết thúc pha 1, không phải kết thúc `Attempt` (ADR-14).
  */
 export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }) {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
@@ -71,8 +70,8 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
     } catch (cause) {
       setError((cause as Error).message);
       setBusy(false);
-      // The error strip lives behind this dialog, so leaving it open would
-      // hide the only explanation of why nothing happened.
+      // Dải báo lỗi nằm sau dialog này, nên để dialog mở là che mất lời giải
+      // thích duy nhất cho việc vì sao chẳng có gì xảy ra.
       setConfirming(false);
     }
   }
@@ -120,9 +119,9 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
             <div className="label-caps">CÒN {unanswered} CÂU CHƯA TRẢ LỜI</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
               {attempt.questions.map((item, index) => {
-                // Three states, because the line above counts the unanswered
-                // ones and a strip that cannot show which is a strip that
-                // makes the student open every question to find them.
+                // Ba trạng thái, vì dòng phía trên đếm số câu chưa trả lời, mà
+                // một dải không chỉ ra được *câu nào* là một dải buộc học sinh
+                // phải mở từng câu để tìm cho ra.
                 const answered = Boolean(chosen[item.question_id]);
                 const tone = index === current ? "current" : answered ? "answered" : "";
                 return (
@@ -165,9 +164,9 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
                   {attempt.questions.length - unanswered} trên {attempt.questions.length} câu
                 </span>
               </div>
-              {/* Read back, not written down: the same count the navigation
-                  strip shows. A confirmation that states a number the screen
-                  does not is a confirmation nobody can check. */}
+              {/* Đọc lại, không phải ghi tay: đúng con số mà dải điều hướng
+                  đang hiện. Một hộp xác nhận nêu ra con số mà màn hình không
+                  hiện là một hộp xác nhận không ai kiểm được. */}
               <div className="stat">
                 <span className="key">Chưa trả lời</span>
                 <span className="value">

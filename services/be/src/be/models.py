@@ -1,16 +1,17 @@
-"""Relational shape of everything BE remembers.
+"""Hình dạng quan hệ của mọi thứ BE ghi nhớ.
 
-ADR-21 made attempt state durable: a phase 2 deadline is hours or days away, so
-nothing in this file may live in a cache with a one hour lifetime. AGENT holds
-no credentials for this database and never will -- a job carries what it needs.
+ADR-21 làm state của Attempt trở nên bền: hạn của pha 2 còn cách hàng giờ hoặc
+hàng ngày nữa, nên không gì trong file này được phép sống trong một cache có tuổi
+thọ một giờ. AGENT không giữ credential nào của database này và sẽ không bao giờ
+giữ -- một job chở theo đúng những gì nó cần.
 
-Two shortcuts are deliberate and marked. Identifiers are string UUIDs rather
-than a native type, so the same models run on Postgres in development and on
-SQLite in tests without a dialect branch. A round's generated question is stored
-as JSON on the round item rather than in the question tables, because it belongs
-to exactly one round and is never compared across rows -- promoting it would
-mean carrying a second class of question through every query that reads the
-authored ones.
+Có hai lối tắt cố ý và được ghi rõ. Identifier là string UUID chứ không phải một
+kiểu native, nhờ vậy cùng một bộ model chạy được trên Postgres khi phát triển và
+trên SQLite khi test, không cần nhánh riêng theo dialect. Câu hỏi mà một round
+sinh ra được lưu dạng JSON trên round item chứ không nằm trong các bảng question,
+vì nó thuộc về đúng một round và không bao giờ bị so sánh giữa các dòng -- nâng
+nó lên thành bảng riêng sẽ có nghĩa là phải chở một loại question thứ hai đi qua
+mọi query đang đọc những câu do giáo viên soạn.
 """
 
 from __future__ import annotations
@@ -37,32 +38,32 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def new_id() -> str:
-    """Mint an identifier.
+    """Đúc một identifier.
 
     Returns:
-        A UUID4 in its hyphenated string form.
+        Một UUID4 ở dạng string có dấu gạch nối.
     """
     return str(uuid.uuid4())
 
 
 class Base(DeclarativeBase):
-    """Declarative base for every table BE owns."""
+    """Base khai báo cho mọi bảng mà BE sở hữu."""
 
 
 class AssessmentState(StrEnum):
-    """The four states of ADR-01, in the order an assessment passes them.
+    """Bốn state của ADR-01, theo thứ tự một đề đi qua chúng.
 
-    The vocabulary lives here because it is part of the schema; the edges
-    between these states live in `be/assessment_state.py`, which is the only
-    module allowed to move an assessment from one to another.
+    Bộ từ vựng nằm ở đây vì nó là một phần của schema; còn các cạnh nối giữa
+    những state này nằm trong `be/assessment_state.py`, module duy nhất được phép
+    đưa một đề từ state này sang state khác.
 
-    `PUBLISHED` keeps the spelling the seed already wrote, so rows created
-    before this enum existed read back unchanged.
+    `PUBLISHED` giữ đúng cách viết mà seed đã ghi từ trước, nên những dòng tạo ra
+    trước khi enum này tồn tại vẫn đọc lại y nguyên.
 
-    ADR-02 splits the last state into two sub-states -- published-but-not-open
-    and open -- because withdrawal is only allowed in the first. That split is
-    derived from `Publication.opens_at` rather than stored as a fifth member:
-    one fact in two places is two facts that disagree by next week.
+    ADR-02 chia state cuối thành hai sub-state -- đã phát hành nhưng chưa mở, và
+    đã mở -- vì chỉ ở state đầu mới được phép withdraw. Phép chia đó được suy ra
+    từ `Publication.opens_at` chứ không lưu thành thành viên thứ năm: một sự thật
+    nằm ở hai nơi là hai sự thật, và tuần sau chúng sẽ lệch nhau.
     """
 
     EMPTY = "empty"
@@ -72,13 +73,13 @@ class AssessmentState(StrEnum):
 
 
 class SchoolClass(Base):
-    """A class a teacher created, holding the students of one roster.
+    """Một lớp do giáo viên tạo, chứa học sinh của một danh sách lớp.
 
-    `name` is deliberately **not** unique. Two teachers may both have a "12A",
-    and one teacher may reuse a name across years. The consequence is that a
-    name is not an identifier: resolving what a teacher typed into one of these
-    rows can come back with more than one answer, and the caller has to ask
-    rather than take the first (ADR-05's input gate).
+    `name` cố ý **không** unique. Hai giáo viên đều có thể có một lớp "12A", và
+    một giáo viên có thể dùng lại một cái tên qua nhiều năm. Hệ quả là tên không
+    phải identifier: việc phân giải thứ giáo viên gõ ra thành một trong những dòng
+    này có thể trả về nhiều hơn một đáp án, và người gọi phải hỏi lại chứ không
+    được lấy cái đầu tiên (cổng kiểm input của ADR-05).
     """
 
     __tablename__ = "classes"
@@ -92,7 +93,7 @@ class SchoolClass(Base):
 
 
 class Student(Base):
-    """One student account, keyed for humans by their student code."""
+    """Một tài khoản học sinh, mà người thật tra theo mã học sinh của em."""
 
     __tablename__ = "students"
 
@@ -105,7 +106,7 @@ class Student(Base):
 
 
 class Teacher(Base):
-    """One teacher account."""
+    """Một tài khoản giáo viên."""
 
     __tablename__ = "teachers"
 
@@ -118,17 +119,17 @@ class Teacher(Base):
 
 
 class Assessment(Base):
-    """An assessment through its lifecycle.
+    """Một đề đi qua vòng đời của nó.
 
-    `state` is the ADR-01 lifecycle and has **four** values, not three: an
-    assessment with no questions yet is its own state, because that state is
-    what blocks publishing. Approval locks the content, which is why questions
-    carry no edit timestamp -- the lock is a state on this row, not a
-    per-question flag.
+    `state` là vòng đời của ADR-01 và có **bốn** giá trị, không phải ba: một đề
+    còn chưa có câu hỏi nào là một state riêng, vì chính state đó là thứ chặn việc
+    phát hành. Duyệt khoá nội dung lại, và đó là lý do question không mang mốc
+    thời gian sửa -- cái khoá là một state nằm trên dòng này, không phải một cờ
+    riêng cho từng câu hỏi.
 
-    `teacher_id` is the author. ADR-13 says a class belongs to a teacher and
-    the same follows for what a teacher writes; until this column existed the
-    rule had nowhere to live, so no query could apply it.
+    `teacher_id` là người soạn. ADR-13 nói một lớp thuộc về một giáo viên, và điều
+    tương tự cũng đúng với những gì giáo viên viết ra; trước khi có cột này, luật
+    đó không có chỗ nào để sống, nên không query nào áp dụng được nó.
     """
 
     __tablename__ = "assessments"
@@ -138,20 +139,19 @@ class Assessment(Base):
     title: Mapped[str] = mapped_column(String(160))
     subject: Mapped[str] = mapped_column(String(64))
     grade: Mapped[str] = mapped_column(String(16))
-    # Three arguments that are not defaults, each for its own reason.
+    # Ba tham số không để mặc định, mỗi cái vì một lý do riêng.
     #
-    # `create_constraint` and `validate_strings` are both off by default, and
-    # those defaults are the worst of the three options: an unknown string is
-    # written without complaint and then raises `LookupError` on the next read
-    # of the table, in whatever route happens to touch it next. `validate_
-    # strings` moves the error to the write that caused it; `create_constraint`
-    # puts the same rule in the schema, so a state outside ADR-01 cannot arrive
-    # through psql either.
+    # `create_constraint` và `validate_strings` đều mặc định tắt, và những mặc
+    # định đó là phương án tệ nhất trong ba: một string lạ được ghi xuống mà không
+    # ai phàn nàn, rồi nó ném `LookupError` ở lần đọc bảng kế tiếp, trong bất kỳ
+    # route nào tình cờ chạm vào nó sau đó. `validate_strings` đẩy lỗi về đúng
+    # lần ghi đã gây ra nó; `create_constraint` đặt cùng luật đó vào schema, nên
+    # một state ngoài ADR-01 cũng không lọt vào được qua psql.
     #
-    # `values_callable` stores the member *values*. Without it SQLAlchemy
-    # stores member **names**, so the column would hold "PUBLISHED" while
-    # ADR-01 and `data-model.md` both name "published" -- and while rows
-    # written before this enum existed held "published" as well.
+    # `values_callable` lưu *value* của thành viên enum. Không có nó, SQLAlchemy
+    # lưu **tên** thành viên, nên cột sẽ chứa "PUBLISHED" trong khi ADR-01 và
+    # `data-model.md` đều gọi là "published" -- và trong khi những dòng ghi trước
+    # khi enum này tồn tại cũng đang chứa "published".
     state: Mapped[AssessmentState] = mapped_column(
         Enum(
             AssessmentState,
@@ -170,19 +170,19 @@ class Assessment(Base):
     questions: Mapped[list[Question]] = relationship(
         back_populates="assessment", order_by="Question.order_index"
     )
-    # A list, because an assessment is published per class. It was
-    # `uselist=False` while a publication was one row per assessment, and
-    # leaving it that way would have been a trap rather than a leftover:
-    # SQLAlchemy answers a one-to-one that finds several rows with a warning
-    # and *one arbitrary row*, so a later caller checking a withdrawal
-    # deadline would read whichever class it happened to get.
+    # Một list, vì một đề được phát hành theo từng lớp. Chỗ này từng là
+    # `uselist=False` khi một Publication là một dòng cho mỗi đề, và để nguyên như
+    # vậy sẽ là một cái bẫy chứ không phải một thứ sót lại: với quan hệ một-một mà
+    # tìm ra nhiều dòng, SQLAlchemy trả lời bằng một warning và *một dòng tuỳ ý*,
+    # nên một người gọi sau này khi đi kiểm hạn thu hồi sẽ đọc được đúng cái lớp
+    # mà nó tình cờ nhận.
     publications: Mapped[list[Publication]] = relationship(
         back_populates="assessment", order_by="Publication.opens_at"
     )
 
 
 class Question(Base):
-    """One authored question of an assessment."""
+    """Một câu hỏi do giáo viên soạn, thuộc một đề."""
 
     __tablename__ = "questions"
 
@@ -202,10 +202,10 @@ class Question(Base):
 
 
 class AnswerOption(Base):
-    """One option of a question, with the mistake it stands for.
+    """Một phương án của một câu hỏi, kèm lỗi sai mà nó đại diện.
 
-    `error_label` is the authored distractor mapping of ADR-18, and it is null
-    on exactly one row per question: the correct one.
+    `error_label` là phần mapping Distractor do giáo viên soạn theo ADR-18, và nó
+    null ở đúng một dòng trên mỗi câu hỏi: dòng của phương án đúng.
     """
 
     __tablename__ = "options"
@@ -222,7 +222,7 @@ class AnswerOption(Base):
 
 
 class Method(Base):
-    """One worked solution of a question. ADR-18 requires more than one."""
+    """Một lời giải chi tiết của một câu hỏi. ADR-18 đòi phải có hơn một."""
 
     __tablename__ = "methods"
 
@@ -236,24 +236,28 @@ class Method(Base):
 
 
 class Publication(Base):
-    """The six parameters a teacher sets when releasing an assessment to a class.
+    """Điều kiện phát hành một đề cho một lớp.
 
-    One row per **(assessment, class)**. The first version of this table keyed
-    on the assessment alone, with a docstring explaining that two live sets of
-    deadlines for one assessment was a state nobody could explain to a student.
-    That reasoning conflated one assessment with one class, and it was wrong in
-    a way that mattered: 12A has the lesson in the morning and needs to open in
-    the morning, 12B has it after lunch. Two sets of terms explain themselves
-    perfectly, because a student only ever sees their own.
+    Năm cột, không phải sáu: ADR-02 đòi **sáu** tham số lúc phát hành, nhưng tham số
+    thứ nhất của nó là **lớp**, và ở đây lớp là nửa còn lại của khoá chính chứ không
+    phải một cột cài đặt. Một hàng là một lớp đã chọn, cộng năm thứ giáo viên đặt cho
+    lớp đó. `published_at` và `recalled_at` là sổ sách, không phải tham số.
 
-    Re-publishing to the *same* class still replaces that class's terms rather
-    than adding a second set -- the original rule, applied at the level it was
-    actually about.
+    Một dòng cho mỗi **(đề, lớp)**. Phiên bản đầu của bảng này khoá theo đề mà
+    thôi, kèm một docstring giải thích rằng hai bộ hạn cùng sống cho một đề là một
+    trạng thái không ai giải thích nổi cho học sinh. Lập luận đó đã trộn lẫn một đề
+    với một lớp, và nó sai theo một cách có hậu quả thật: 12A học bài đó vào buổi
+    sáng nên cần mở vào buổi sáng, 12B học sau giờ trưa. Hai bộ điều kiện tự giải
+    thích được hoàn hảo, vì một học sinh bao giờ cũng chỉ thấy bộ của chính mình.
 
-    What makes the staggered opening safe from one class telling another is a
-    separate feature: a paper draws each student's questions from a larger bank
-    (`docs/plans/backlog.md`). Until that exists, staggering is a scheduling
-    convenience and not a secrecy guarantee.
+    Phát hành lại cho *cùng* một lớp thì vẫn thay thế điều kiện của lớp đó chứ
+    không thêm một bộ thứ hai -- vẫn là luật ban đầu, chỉ áp ở đúng cấp mà nó thực
+    sự nói về.
+
+    Thứ làm cho việc mở lệch giờ an toàn trước chuyện lớp này kể cho lớp kia lại là
+    một tính năng khác: một đề rút câu hỏi của từng học sinh từ một bank lớn hơn
+    (`docs/plans/backlog.md`). Chừng nào chưa có nó, mở lệch giờ chỉ là tiện lợi về
+    xếp lịch, không phải một bảo đảm về bí mật.
     """
 
     __tablename__ = "publications"
@@ -272,10 +276,10 @@ class Publication(Base):
 
 
 class Attempt(Base):
-    """One student's run at one assessment, across both phases.
+    """Một lượt làm của một học sinh trên một đề, trải qua cả hai pha.
 
-    `submitted_at` ends phase 1, not the attempt (ADR-14). The attempt finishes
-    when every wrong question is closed or the remediation deadline passes.
+    `submitted_at` kết thúc pha 1, không kết thúc Attempt (ADR-14). Attempt xong
+    khi mọi câu sai đã đóng, hoặc khi hạn remediation đi qua.
     """
 
     __tablename__ = "attempts"
@@ -284,10 +288,10 @@ class Attempt(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"))
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"))
-    # The class this attempt was started in, captured once. An assessment now
-    # has one set of terms per class, so the attempt has to say which set
-    # governs it -- and reading it off the student instead would mean a
-    # transfer silently replaces the deadlines of work already done.
+    # Lớp mà Attempt này được bắt đầu trong đó, chụp lại một lần. Giờ một đề có một
+    # bộ điều kiện cho mỗi lớp, nên Attempt phải nói rõ bộ nào chi phối nó -- còn
+    # nếu đọc lớp từ học sinh thay vì từ đây thì một lần chuyển lớp sẽ âm thầm thay
+    # luôn các mốc hạn của phần việc đã làm xong.
     class_id: Mapped[str] = mapped_column(ForeignKey("classes.id"))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -295,10 +299,10 @@ class Attempt(Base):
 
 
 class Answer(Base):
-    """What a student picked for one phase 1 question.
+    """Thứ một học sinh đã chọn cho một câu hỏi của pha 1.
 
-    Saved on every click rather than at submit, so losing the network loses one
-    click instead of a paper.
+    Được lưu ở mỗi lần click chứ không phải lúc nộp, nên mất mạng là mất một lần
+    click, không phải mất cả bài.
     """
 
     __tablename__ = "answers"
@@ -312,11 +316,11 @@ class Answer(Base):
 
 
 class QuestionOutcome(Base):
-    """The running verdict on one question of one attempt.
+    """Phán quyết hiện hành trên một câu hỏi của một Attempt.
 
-    This is the score ledger. `mark` only ever rises: phase 1 sets the floor and
-    remediation can lift a 0 to a 0.5, never the other way round (ADR-16).
-    `rounds_used` is the per-question counter ADR-17 caps at three.
+    Đây là sổ điểm. `mark` chỉ có thể tăng: pha 1 đặt mức sàn, còn remediation có
+    thể nâng một 0 lên 0.5, chứ không bao giờ theo chiều ngược lại (ADR-16).
+    `rounds_used` là bộ đếm theo từng câu hỏi mà ADR-17 chặn trần ở ba.
     """
 
     __tablename__ = "question_outcomes"
@@ -332,17 +336,17 @@ class QuestionOutcome(Base):
 
 
 class RemediationRound(Base):
-    """One timed round covering every question still open.
+    """Một round có đồng hồ, phủ mọi câu hỏi còn đang mở.
 
-    A round gathers all remaining questions rather than one, because phase 2
-    receives an assessment, not a question (ADR-17).
+    Một round gom tất cả câu còn lại chứ không chỉ một câu, vì pha 2 nhận một đề,
+    không nhận một câu hỏi (ADR-17).
 
-    **At most one round per attempt may be unsubmitted, and the database is
-    what enforces it.** The route checks first, but a check followed by an
-    insert is two statements: two tabs pressing the button together both pass
-    the check and both write. A student would then hold two clocks, which
-    ADR-15 gives no meaning to. The partial unique index below turns that race
-    into an integrity error the route converts to a refusal.
+    **Mỗi Attempt có nhiều nhất một round chưa nộp, và chính database là thứ ép
+    điều đó.** Route có kiểm trước, nhưng một lần kiểm rồi một lần insert là hai
+    câu lệnh: hai tab cùng bấm nút một lúc thì cả hai đều qua được lần kiểm và cả
+    hai đều ghi. Khi đó học sinh giữ hai cái đồng hồ, điều mà ADR-15 không gán cho
+    một ý nghĩa nào. Partial unique index bên dưới biến cuộc đua đó thành một lỗi
+    toàn vẹn, rồi route chuyển nó thành một lời từ chối.
     """
 
     __tablename__ = "rounds"
@@ -367,11 +371,11 @@ class RemediationRound(Base):
 
 
 class RoundItem(Base):
-    """The generated question one round poses for one original question.
+    """Câu hỏi được sinh ra mà một round đặt ra cho một câu hỏi gốc.
 
-    `options` and `methods` are JSON because this question belongs to this round
-    and nothing else. Keeping the correct option here, server side, is what lets
-    BE grade the round without asking AGENT anything (ADR-20).
+    `options` và `methods` là JSON vì câu hỏi này thuộc về round này và không thuộc
+    về gì khác. Việc giữ phương án đúng ngay ở đây, phía server, chính là thứ cho
+    phép BE chấm round mà không phải hỏi AGENT bất cứ điều gì (ADR-20).
     """
 
     __tablename__ = "round_items"
@@ -390,32 +394,31 @@ class RoundItem(Base):
 
 
 class PregeneratedItem(Base):
-    """A round's question, written before the student asks for it.
+    """Câu hỏi của một round, được viết trước khi học sinh yêu cầu nó.
 
-    Writing a question takes a model the better part of twenty seconds, and
-    doing it when the student presses the button means the student watches a
-    blank screen for as long as it takes. But ADR-14 sends them through the
-    tutoring screen first, and that is minutes of reading and asking. So the
-    work is started the moment phase 1 is submitted and collected later: the
-    wait is spent on something the student chose to do.
+    Viết một câu hỏi tốn của model gần hai mươi giây, và làm việc đó vào lúc học
+    sinh bấm nút có nghĩa là học sinh ngồi nhìn một màn hình trắng đúng bằng khoảng
+    thời gian ấy. Nhưng ADR-14 đưa em qua màn hình kèm học trước, và đó là vài phút
+    đọc và hỏi. Vậy nên việc được khởi động ngay khi pha 1 được nộp rồi mới thu lại
+    sau: thời gian chờ được tiêu vào một việc mà học sinh tự chọn làm.
 
-    **AGENT does not write this table.** It holds no database credentials and
-    `tools/check_contract.py` keeps it that way, so BE reads the finished job
-    off the queue and stores it here itself.
+    **AGENT không ghi bảng này.** Nó không giữ credential nào của database và
+    `tools/check_contract.py` giữ cho chuyện đó đúng như vậy, nên BE tự đọc job đã
+    xong từ queue rồi tự lưu vào đây.
 
-    `status` moves `pending -> ready`, or `pending -> failed` when the job ran
-    and raised. A job whose result simply aged out of Redis -- which is
-    ordinary, since results live an hour and a phase 2 deadline can be days
-    away -- has its row **deleted** instead, so the one rule "a question with
-    no row for the round it needs gets one queued" covers both never-started
-    and started-but-lost. `failed` is kept precisely so it is *not* re-queued:
-    the same job would fail the same way, every time the student opens a
-    screen.
+    `status` chạy `pending -> ready`, hoặc `pending -> failed` khi job đã chạy và
+    ném lỗi. Còn một job mà kết quả chỉ đơn giản là hết hạn trong Redis -- chuyện
+    bình thường, vì kết quả sống một giờ còn hạn pha 2 có thể cách đó nhiều ngày --
+    thì dòng của nó bị **xoá** thay vì đánh dấu, nhờ vậy một luật duy nhất "một câu
+    hỏi không có dòng cho round nó cần thì được đẩy một job vào queue" phủ được cả
+    trường hợp chưa bao giờ bắt đầu và trường hợp đã bắt đầu nhưng mất kết quả.
+    `failed` được giữ lại chính là để nó *không* bị đẩy lại vào queue: cùng một job
+    sẽ gãy theo cùng một cách, mỗi lần học sinh mở một màn hình.
 
-    The unique index is not decoration. Two tabs on the tutoring screen both
-    poll, both find the same finished job, and both insert; checking first and
-    writing second is two statements with a gap in the middle. The same lesson
-    as `uq_one_open_round_per_attempt` above, learned the same way.
+    Unique index ở đây không phải đồ trang trí. Hai tab trên màn hình kèm học cùng
+    poll, cùng tìm thấy một job đã xong, và cùng insert; kiểm trước rồi ghi sau là
+    hai câu lệnh với một khoảng trống ở giữa. Vẫn là bài học của
+    `uq_one_open_round_per_attempt` ở trên, và học được theo cùng một cách.
     """
 
     __tablename__ = "pregenerated_items"
@@ -442,19 +445,19 @@ class PregeneratedItem(Base):
 
 
 class ChatMessage(Base):
-    """One turn of the phase 2 conversation, stored before it is streamed.
+    """Một lượt của cuộc hội thoại pha 2, được lưu trước khi stream ra.
 
-    Order is by `created_at` plus `sequence`, because two turns can land inside
-    the same clock tick and a conversation that reorders itself on reload is a
-    different conversation.
+    Thứ tự là theo `created_at` cộng với `sequence`, vì hai lượt có thể rơi vào cùng
+    một nhịp đồng hồ, và một cuộc hội thoại tự sắp xếp lại thứ tự khi tải lại là một
+    cuộc hội thoại khác.
     """
 
     __tablename__ = "chat_messages"
-    # One turn per position. Two requests can reach the opening turn holding
-    # the same empty history -- React's StrictMode opens the stream twice by
-    # design -- and a check followed by an insert is two statements with a gap
-    # in the middle. Without this the student is greeted twice, by two rows
-    # that both claim to be the first.
+    # Một lượt cho mỗi vị trí. Hai request có thể cùng tới lượt mở đầu trong khi
+    # cầm cùng một lịch sử rỗng -- StrictMode của React mở stream hai lần theo đúng
+    # thiết kế -- và một lần kiểm rồi một lần insert là hai câu lệnh với một khoảng
+    # trống ở giữa. Không có cái này thì học sinh được chào hai lần, bởi hai dòng mà
+    # cả hai đều tự nhận là dòng đầu tiên.
     __table_args__ = (UniqueConstraint("attempt_id", "sequence"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -466,11 +469,11 @@ class ChatMessage(Base):
 
 
 class Report(Base):
-    """A student saying the assistant's explanation was hard to follow.
+    """Một học sinh nói rằng lời giải thích của trợ lý khó theo.
 
-    Scoped to the attempt, not to one message: the assistant works across the
-    whole assessment, so a report pointing at a single turn would promise the
-    teacher a narrower thing than exists (ADR-19).
+    Phạm vi là Attempt, không phải một message: trợ lý làm việc trên cả đề, nên một
+    báo cáo chỉ vào đúng một lượt sẽ hứa với giáo viên một thứ hẹp hơn thực tế
+    (ADR-19).
     """
 
     __tablename__ = "reports"
@@ -482,23 +485,23 @@ class Report(Base):
 
 
 class TeacherConversation(Base):
-    """One running conversation between a teacher and the assistant.
+    """Một cuộc hội thoại đang chạy giữa một giáo viên và trợ lý.
 
-    A table rather than a bare id on each turn, so a teacher can later start a
-    fresh thread without the old turns following them into it. Until that is
-    built, BE reuses the most recent one.
+    Là một bảng chứ không phải một id trơ trên từng lượt, để sau này giáo viên có
+    thể mở một luồng mới mà những lượt cũ không đi theo vào đó. Chừng nào thứ đó
+    chưa được làm, BE dùng lại cuộc hội thoại gần nhất.
     """
 
     __tablename__ = "teacher_conversations"
-    # One per teacher, for now. The rule is real -- BE reuses the running
-    # conversation and offers no way to start another -- so it belongs in the
-    # schema rather than in the hope that two requests never arrive together.
-    # Two of a teacher's requests do arrive together routinely: a screen
-    # loading while they type.
+    # Một cái cho mỗi giáo viên, ở thời điểm này. Luật đó là thật -- BE dùng lại
+    # cuộc hội thoại đang chạy và không cho cách nào mở cái khác -- nên nó thuộc về
+    # schema, chứ không thuộc về niềm hy vọng rằng hai request không bao giờ tới
+    # cùng lúc. Hai request của một giáo viên vẫn tới cùng lúc như thường: một màn
+    # hình đang tải trong khi họ đang gõ.
     #
-    # The day a teacher can open a second thread, this constraint comes off
-    # deliberately, and `_latest_conversation` already orders by a second key
-    # so the choice between threads stays deterministic.
+    # Ngày mà giáo viên mở được luồng thứ hai, constraint này được bỏ đi một cách có
+    # chủ ý, và `_latest_conversation` vốn đã sắp theo một khoá thứ hai nên việc chọn
+    # giữa các luồng vẫn xác định.
     __table_args__ = (UniqueConstraint("teacher_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -511,29 +514,28 @@ class TeacherConversation(Base):
 
 
 class TeacherTurn(Base):
-    """One step of a teacher's turn: what was said, or what was run.
+    """Một step trong lượt của giáo viên: điều gì đã được nói, hoặc điều gì đã chạy.
 
-    Not a row of `chat_messages`, and the reason is mechanical rather than a
-    matter of taste: that table's `attempt_id` is a foreign key to `attempts`,
-    and a teacher's conversation has no attempt.
+    Không phải một dòng của `chat_messages`, và lý do là cơ học chứ không phải chuyện
+    khẩu vị: `attempt_id` của bảng đó là foreign key trỏ tới `attempts`, còn cuộc hội
+    thoại của giáo viên thì không có Attempt nào.
 
-    What it holds beyond the words is the point. A teacher's turn can be "đã
-    tạo đề nháp 10 câu cho 12A1", and the thing worth storing is *which
-    draft*, not the sentence announcing it -- so `entity_kind` and `entity_id`
-    carry the subject, which is also what lets the interface pick the right
-    `Action result card` variant after a reload.
+    Điều nó giữ ngoài phần lời mới là trọng tâm. Một lượt của giáo viên có thể là "đã
+    tạo đề nháp 10 câu cho 12A1", và thứ đáng lưu là *đề nháp nào*, không phải câu
+    văn thông báo về nó -- nên `entity_kind` và `entity_id` chở theo cái chủ thể đó,
+    và đó cũng là thứ cho phép giao diện chọn đúng biến thể `Action result card` sau
+    một lần tải lại.
 
-    `model_tokens` and `duration_ms` make this the trace as well as the
-    transcript. A separate tracing system would be the same rows written
-    twice, and with an agent that chooses its own steps, "what did it do" is
-    not answerable without them.
+    `model_tokens` và `duration_ms` làm cho bảng này vừa là transcript vừa là trace.
+    Một hệ thống tracing riêng sẽ là cùng những dòng đó được ghi hai lần, và với một
+    agent tự chọn step của mình, "nó đã làm gì" là câu hỏi không trả lời được nếu
+    thiếu hai cột này.
     """
 
     __tablename__ = "teacher_turns"
-    # One step per position, copied deliberately from `chat_messages`. The
-    # lesson there still holds: React's StrictMode fires a request twice by
-    # design, and a check followed by an insert is two statements with a gap in
-    # between.
+    # Một step cho mỗi vị trí, cố ý sao lại từ `chat_messages`. Bài học ở đó vẫn
+    # đúng: StrictMode của React bắn một request hai lần theo đúng thiết kế, và một
+    # lần kiểm rồi một lần insert là hai câu lệnh với một khoảng trống ở giữa.
     __table_args__ = (UniqueConstraint("conversation_id", "sequence"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -544,8 +546,8 @@ class TeacherTurn(Base):
     tool_name: Mapped[str] = mapped_column(String(64), default="")
     tool_args: Mapped[dict] = mapped_column(JSON, default=dict)
     tool_result: Mapped[dict] = mapped_column(JSON, default=dict)
-    # What this step was about, when it was about something. A draft, a class,
-    # an assessment -- enough to link to it and to choose how the step is drawn.
+    # Step này nói về cái gì, trong trường hợp nó có nói về một cái gì. Một đề nháp,
+    # một lớp, một đề -- đủ để liên kết tới nó và để chọn cách vẽ step ra.
     entity_kind: Mapped[str] = mapped_column(String(32), default="")
     entity_id: Mapped[str] = mapped_column(String(36), default="")
     model_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -556,20 +558,19 @@ class TeacherTurn(Base):
 
 
 class DraftBrief(Base):
-    """What a teacher asked for, written down once before any question is written.
+    """Thứ giáo viên đã yêu cầu, ghi xuống một lần trước khi câu hỏi nào được viết.
 
-    One row per assessment, and it exists so a set of questions can be
-    coherent. The questions are written by independent jobs that cannot see
-    each other, so if the instructions could still change while they run, the
-    first half and the second half of a paper would answer different
-    questions -- and nobody reading the questions one at a time would notice.
+    Một dòng cho mỗi đề, và nó tồn tại để một bộ câu hỏi có thể nhất quán. Các câu
+    hỏi được viết bởi những job độc lập không thấy được nhau, nên nếu phần chỉ dẫn
+    vẫn có thể đổi trong lúc chúng đang chạy thì nửa đầu và nửa sau của một đề sẽ trả
+    lời hai câu hỏi khác nhau -- và không ai đọc từng câu một sẽ nhận ra điều đó.
 
-    Re-briefing replaces this row, which starts a **new** round of generation.
-    "Make them harder" is therefore a new brief rather than a change applied
-    to work already in flight.
+    Ra brief lại thì thay thế dòng này, và việc đó khởi động một vòng sinh câu **mới**.
+    Vì thế "làm khó hơn đi" là một brief mới, không phải một thay đổi áp lên phần việc
+    đang bay giữa đường.
 
-    Subject and grade live on `Assessment` and are not copied here: one fact
-    in two places is two facts that disagree by next week.
+    Môn và khối nằm trên `Assessment` và không được sao lại vào đây: một sự thật nằm ở
+    hai nơi là hai sự thật, và tuần sau chúng sẽ lệch nhau.
     """
 
     __tablename__ = "draft_briefs"
@@ -578,38 +579,37 @@ class DraftBrief(Base):
     topic_scope: Mapped[str] = mapped_column(Text)
     difficulty: Mapped[str] = mapped_column(String(64), default="")
     question_count: Mapped[int] = mapped_column(Integer)
-    # Counts up on every re-brief. A question written for an earlier version
-    # is discarded rather than merged, which is what makes "make them harder"
-    # a new round instead of an edit applied to work already in flight -- and
-    # without it the claim that a set is written against one understanding of
-    # the topic is a hope rather than a mechanism.
+    # Tăng lên ở mỗi lần ra brief lại. Một câu hỏi viết cho một version trước đó bị
+    # loại bỏ chứ không trộn vào, và chính điều đó làm cho "làm khó hơn đi" là một
+    # vòng mới chứ không phải một lần sửa áp lên phần việc đang bay giữa đường -- còn
+    # nếu không có nó, lời khẳng định rằng một bộ đề được viết dựa trên một cách hiểu
+    # duy nhất về chủ đề chỉ là một niềm hy vọng, không phải một cơ chế.
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class DraftItem(Base):
-    """One question of a draft, while it is still being written.
+    """Một câu hỏi của một đề nháp, trong lúc nó còn đang được viết.
 
-    The same shape as `PregeneratedItem` on the student side, for the same
-    reason: the model is slow and nobody should wait on it. One row per
-    position, one job per row.
+    Cùng hình dạng với `PregeneratedItem` ở phía học sinh, và vì cùng một lý do: model
+    chậm và không ai nên phải ngồi chờ nó. Một dòng cho mỗi vị trí, một job cho mỗi
+    dòng.
 
-    `status` is one of four:
+    `status` là một trong bốn giá trị:
 
-    - `pending` -- a job is running.
-    - `ready` -- the question is in the draft.
-    - `retry` -- the answer was unusable in a way that is chance rather than a
-      fixed fault: a result that aged out of Redis, two parallel jobs writing
-      the same stem, a model marking two options correct. The next `fire`
-      picks the position back up.
-    - `failed` -- give up on this position. Either the job itself raised, or
-      `attempts` ran out.
+    - `pending` -- một job đang chạy.
+    - `ready` -- câu hỏi đã nằm trong đề nháp.
+    - `retry` -- câu trả lời không dùng được theo kiểu do may rủi chứ không phải một
+      lỗi cố định: một kết quả hết hạn trong Redis, hai job song song viết ra cùng một
+      stem, một model đánh dấu hai phương án là đúng. Lần `fire` tiếp theo nhặt vị trí
+      đó lên lại.
+    - `failed` -- bỏ cuộc ở vị trí này. Hoặc chính job đã ném lỗi, hoặc `attempts` đã
+      cạn.
 
-    The `retry`/`failed` split is the part worth keeping. Marking every
-    refusal `failed` left a draft permanently short with no way to fill the
-    gap; deleting every refused row re-queued a question the model cannot get
-    right on every read, forever. `attempts` is what makes the middle ground
-    possible.
+    Chỗ tách `retry` khỏi `failed` là phần đáng giữ. Đánh mọi lần từ chối thành `failed`
+    để lại một đề nháp thiếu câu mãi mãi mà không có cách nào bù vào; còn xoá mọi dòng
+    bị từ chối thì lại đẩy vào queue, ở mọi lần đọc và mãi mãi, một câu hỏi mà model
+    không thể viết đúng. `attempts` là thứ làm cho khoảng giữa trở nên khả thi.
     """
 
     __tablename__ = "draft_items"
@@ -620,10 +620,10 @@ class DraftItem(Base):
     ordinal: Mapped[int] = mapped_column(Integer)
     job_id: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), default="pending")
-    # How many jobs this position has cost, so a model that cannot write the
-    # question stops being asked.
+    # Vị trí này đã tốn bao nhiêu job, để một model không viết nổi câu hỏi thì thôi
+    # không bị hỏi nữa.
     attempts: Mapped[int] = mapped_column(Integer, default=1)
-    # Which brief this job was fired under. A row from an older one is
-    # discarded on harvest.
+    # Job này được bắn dưới brief nào. Một dòng thuộc brief cũ hơn sẽ bị loại bỏ lúc
+    # harvest.
     brief_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
