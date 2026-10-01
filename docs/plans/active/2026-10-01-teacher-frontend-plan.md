@@ -46,17 +46,17 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
 
 ## Ordered Tasks
 
-- [ ] **Bước 0 — di chuyển, không thêm gì.** Năm màn học sinh vào `screens/student/`, sửa import ở
+- [x] **Bước 0 — di chuyển, không thêm gì.** Năm màn học sinh vào `screens/student/`, sửa import ở
       `App.tsx` và `App.test.tsx`. Cổng: `tsc --noEmit` xanh và **11/11 test không sửa một dòng nào**.
-- [ ] **Bước 1 — ba endpoint đọc ở BE.** `GET /api/teacher/me`;
+- [x] **Bước 1 — ba endpoint đọc ở BE.** `GET /api/teacher/me`;
       `GET /api/teacher/assessments/{id}` (title, subject, grade, state, question_count,
       still_drafting, topic_scope từ `DraftBrief`, questions kèm options và methods);
       `GET /api/teacher/assessments/{id}/publications` (năm tham số mỗi lớp + hai câu note).
       Dùng lại `_owned(..., lock=False)` cho ADR-22. **Không** thêm khoá vào `publish-form` — test đã
       pin đúng 8 khoá, và test đó đang canh luật *"biểu mẫu không gợi sẵn giờ nào"*.
-- [ ] **Bước 1b** — endpoint thứ ba gọi **đúng** hai hàm trong `publication_wording`, và thêm một
+- [x] **Bước 1b** — endpoint thứ ba gọi **đúng** hai hàm trong `publication_wording`, và thêm một
       assert vào `test_the_timing_rules_read_identically_in_all_three_payloads`: ba nơi thành bốn.
-- [ ] **Bước 2 — `api.ts` hai vai.** `ACTOR` thành một record hai khoá, `call(role, path, init)`, vai
+- [x] **Bước 2 — `api.ts` hai vai.** `ACTOR` thành một record hai khoá, `call(role, path, init)`, vai
       chọn **tại chỗ gọi tên endpoint**. Cổng: 11/11 test vẫn xanh, không sửa test nào.
 - [ ] **Bước 3 — khung giáo viên + artboard 1.** `App.tsx` thành dispatcher; `TeacherBar`;
       `teacher.css` với `[data-surface="teacher"]`. Cổng đo artboard 1.
@@ -187,5 +187,14 @@ FE hiện **giả vờ** thi hành nó.
 
 ## Status
 
-Chưa bắt đầu. Bước 0 và bước 2 là hai commit **không thêm tính năng nào**, có chủ đích: nếu `ACTOR`
-đổi hình dạng mà 11 test đỏ, tôi muốn biết điều đó khi diff chỉ có `api.ts`.
+Xong bước 0, 1, 1b, 2. Bước 0 và bước 2 là hai commit **không thêm tính năng nào**, có chủ đích: nếu
+`ACTOR` đổi hình dạng mà 11 test đỏ, tôi muốn biết điều đó khi diff chỉ có `api.ts`. Cả hai cổng đã
+qua đúng như thế: 11/11 xanh mà `git diff` của `App.test.tsx` rỗng.
+
+Bước 2 mang thêm `isoWithOffset` và **năm test cho riêng nó** — sớm hơn bước 7, nơi nó được dùng. Lý
+do là nó đứng một mình được: một hàm thuần không cần màn hình nào để kiểm, và đột biến dấu offset làm
+đúng năm test đó đỏ. Đó là test FE thứ nhất trong bốn test mà mục *Validation Checks* đòi.
+
+Tiếp theo là bước 3, và nó **đang chờ người dùng cấp link Figma có `node-id`** cho artboard 1, 2, 3,
+6 — xem mục dưới. Không có id thì cổng "đo khớp" không thi hành được, và dựng theo mắt rồi đo sau là
+đúng thứ luật trong `services/fe/AGENTS.md` cấm.

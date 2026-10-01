@@ -175,22 +175,212 @@ export interface RoundVerdict {
   attempt_state: string;
 }
 
+/* --- Bề mặt giáo viên -----------------------------------------------------
+ *
+ * Chép tay từ `teacher_routes.py` và `teacher_chat.py`, cùng một luật như phần
+ * học sinh ở trên: sửa một bên là sửa cả hai bên trong cùng một đợt.
+ *
+ * Mốc thời gian là `string` chứ không phải `Date`, giống hệt phần học sinh. BE
+ * trả ISO 8601 có offset, và `new Date()` ngay tại biên sẽ làm mất chính cái
+ * offset đó — thứ mà mọi câu luật của ADR-03 đọc ra để in giờ.
+ */
+
+/** Giáo viên đang đăng nhập, cho dải trên cùng. */
+export interface TeacherMe {
+  teacher_id: string;
+  full_name: string;
+  teacher_code: string;
+}
+
+/** Một phương án, bản của giáo viên: có cả đáp án và nhãn lỗi. */
+export interface TeacherOption {
+  label: string;
+  text: string;
+  is_correct: boolean;
+  error_label: string | null;
+}
+
+export interface Method {
+  title: string;
+  body: string;
+}
+
+export interface TeacherQuestion {
+  question_id: string;
+  order: number;
+  stem: string;
+  learning_objective: string;
+  options: TeacherOption[];
+  methods: Method[];
+}
+
+/** Một đề, đủ để vẽ cả panel bên phải. `state` là nguồn duy nhất cho *sửa được hay không*. */
+export interface AssessmentDetail {
+  assessment_id: string;
+  title: string;
+  subject: string;
+  grade: string;
+  state: string;
+  question_count: number;
+  still_drafting: number;
+  topic_scope: string;
+  difficulty: string;
+  questions: TeacherQuestion[];
+}
+
+/** Ba câu luật, cùng string mà biểu mẫu, biên bản và trang phát hành trả về (ADR-03). */
+export interface TimingRules {
+  phase_one: string;
+  phase_two: string;
+  recall: string;
+}
+
+export interface ClassOption {
+  class_id: string;
+  name: string;
+  student_count: number;
+  published: boolean;
+}
+
+/** Biểu mẫu phát hành. Cố ý **không** gợi giờ nào: sáu tham số đều do giáo viên gõ. */
+export interface PublishForm {
+  assessment_id: string;
+  title: string;
+  state: string;
+  question_count: number;
+  can_publish: boolean;
+  reason: string;
+  classes: ClassOption[];
+  rules: TimingRules;
+}
+
+/** Sáu tham số cho **một** lớp. Mọi mốc phải mang offset — xem `isoWithOffset`. */
+export interface ClassSchedule {
+  class_id: string;
+  opens_at: string;
+  closes_at: string;
+  phase1_minutes: number;
+  phase2_minutes_per_question: number;
+  remediation_deadline: string;
+}
+
+/**
+ * Một lớp trong kết quả phát hành.
+ *
+ * `published: false` kèm `reason` là một **hàng**, không phải một ngoại lệ: ADR-02 cho phép
+ * một lớp nhận được trong khi lớp khác không. Nên màn hình in `reason` nguyên văn, và lớp
+ * trượt giữ nguyên tick để sửa giờ gửi lại.
+ */
+export interface ClassResult {
+  class_id: string;
+  class_name: string;
+  published: boolean;
+  reason: string;
+  opens_at: string | null;
+  closes_at: string | null;
+  remediation_deadline: string | null;
+  withdrawable_until: string | null;
+  phase_one_note: string;
+  phase_two_note: string;
+}
+
+export interface PublishResult {
+  assessment_id: string;
+  state: string;
+  preview: boolean;
+  classes: ClassResult[];
+  rules: TimingRules;
+}
+
+/** Một lớp **đang** giữ đề, với giờ đã đặt. Đọc lại được sau F5. */
+export interface PublishedTo {
+  class_id: string;
+  class_name: string;
+  student_count: number;
+  opens_at: string;
+  closes_at: string;
+  phase1_minutes: number;
+  phase2_minutes_per_question: number;
+  remediation_deadline: string;
+  withdrawable_until: string;
+  phase_one_note: string;
+  phase_two_note: string;
+}
+
+export interface Publications {
+  assessment_id: string;
+  classes: PublishedTo[];
+  rules: TimingRules;
+}
+
+export interface Approval {
+  assessment_id: string;
+  state: string;
+  question_count: number;
+  still_drafting: number;
+}
+
+/**
+ * Một dòng trong hội thoại của giáo viên.
+ *
+ * `kind` là `"teacher"`, `"assistant"`, `"tool_call"` hay `"tool_result"`. Luật render nằm ở
+ * màn hình, không ở đây: `tool_call` không hiện gì (nó không mang kết quả), `tool_result` ra
+ * một thẻ chọn theo `tool_name`.
+ */
+export interface Turn {
+  kind: string;
+  text: string;
+  tool_name: string;
+  tool_result: Record<string, unknown>;
+  entity_kind: string;
+  entity_id: string;
+  model_tokens: number;
+  duration_ms: number;
+}
+
+/**
+ * Một lượt trả lời đã xong.
+ *
+ * `choices` là các câu **đã format sẵn**, và bấm một nút nghĩa là gửi lại đúng chuỗi đó. Nên
+ * khi F5 làm mất `choices` thì gõ tay vẫn trả lời được: không ai bị kẹt.
+ */
+export interface Answered {
+  kind: string;
+  text: string;
+  choices: string[];
+  more_choices: number;
+  turns: Turn[];
+}
+
 /**
  * Đứng thay cho màn hình đăng nhập, thứ mà ADR-10 để ra ngoài vòng đầu.
  *
  * BE phân quyền thật dựa trên giá trị này; chỉ phần chứng minh danh tính là tạm.
  * Nó nằm trong đúng một constant, để ngày đăng nhập thật xuất hiện thì chỉ có
  * đúng một chỗ phải sửa.
+ *
+ * Hai khoá vì một app phục vụ hai bề mặt. Vai được chọn **tại chỗ khai tên
+ * endpoint** ở dưới, không suy từ route đang mở: một request bay ra giữa lúc
+ * chuyển route sẽ mang sai vai, và triệu chứng là một 403 ở rất xa nguyên nhân.
+ * Chọn tại chỗ khai thì một dòng gắn sai vai là một dòng không chạy được ngay
+ * lần đầu — `/api/teacher/*` vốn trả 403 với actor học sinh.
  */
-export const ACTOR = "student:HS2026-1204";
+export const ACTOR = {
+  student: "student:HS2026-1204",
+  teacher: "teacher:GV-001",
+} as const;
 
-function headers(): HeadersInit {
-  return { "Content-Type": "application/json", "X-Actor": ACTOR };
+type Role = keyof typeof ACTOR;
+
+function headers(role: Role): HeadersInit {
+  return { "Content-Type": "application/json", "X-Actor": ACTOR[role] };
 }
 
 /**
  * Gửi một request và biến thất bại thành một lỗi đáng hiện ra.
  *
+ * @param role - Bề mặt nào đang gọi. Nó quyết định header actor, và nó được
+ *   khai ngay cạnh tên endpoint để không thể gắn nhầm trong im lặng.
  * @param path - Path nằm dưới `/api`.
  * @param init - Tuỳ chọn cho fetch; header actor được thêm ở đây.
  * @returns Body đã parse.
@@ -198,8 +388,8 @@ function headers(): HeadersInit {
  *   trong API này đều tự giải thích bằng tiếng Việt, và câu đó có ích cho học
  *   sinh hơn một status code.
  */
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, { ...init, headers: headers() });
+async function call<T>(role: Role, path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`/api${path}`, { ...init, headers: headers(role) });
   if (!response.ok) {
     let detail = `Lỗi ${response.status}`;
     try {
@@ -214,41 +404,83 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  me: () => call<Me>("/me"),
-  assignments: () => call<Assignment[]>("/me/assignments"),
+  me: () => call<Me>("student", "/me"),
+  assignments: () => call<Assignment[]>("student", "/me/assignments"),
   startAttempt: (assignmentId: string) =>
-    call<Attempt>(`/assignments/${assignmentId}/attempts`, { method: "POST" }),
-  attempt: (attemptId: string) => call<Attempt>(`/attempts/${attemptId}`),
+    call<Attempt>("student", `/assignments/${assignmentId}/attempts`, { method: "POST" }),
+  attempt: (attemptId: string) => call<Attempt>("student", `/attempts/${attemptId}`),
   saveAnswer: (attemptId: string, questionId: string, optionId: string) =>
-    call<{ saved_at: string }>(`/attempts/${attemptId}/answers/${questionId}`, {
+    call<{ saved_at: string }>("student", `/attempts/${attemptId}/answers/${questionId}`, {
       method: "PUT",
       body: JSON.stringify({ option_id: optionId }),
     }),
   submit: (attemptId: string) =>
-    call<SubmitResult>(`/attempts/${attemptId}/submit`, { method: "POST" }),
-  result: (attemptId: string) => call<AttemptResult>(`/attempts/${attemptId}/result`),
-  remediation: (attemptId: string) => call<Remediation>(`/attempts/${attemptId}/remediation`),
-  solution: (questionId: string) => call<Solution>(`/questions/${questionId}/solution`),
-  chat: (attemptId: string) => call<ChatHistory>(`/attempts/${attemptId}/chat`),
+    call<SubmitResult>("student", `/attempts/${attemptId}/submit`, { method: "POST" }),
+  result: (attemptId: string) => call<AttemptResult>("student", `/attempts/${attemptId}/result`),
+  remediation: (attemptId: string) => call<Remediation>("student", `/attempts/${attemptId}/remediation`),
+  solution: (questionId: string) => call<Solution>("student", `/questions/${questionId}/solution`),
+  chat: (attemptId: string) => call<ChatHistory>("student", `/attempts/${attemptId}/chat`),
   postChat: (attemptId: string, text: string) =>
-    call<{ message_id: string; stream_url: string }>(`/attempts/${attemptId}/chat/messages`, {
+    call<{ message_id: string; stream_url: string }>("student", `/attempts/${attemptId}/chat/messages`, {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
   startRound: (attemptId: string) =>
-    call<OpenRound>(`/attempts/${attemptId}/rounds`, { method: "POST" }),
+    call<OpenRound>("student", `/attempts/${attemptId}/rounds`, { method: "POST" }),
   saveRoundAnswer: (roundId: string, itemId: string, label: string) =>
-    call<{ saved_at: string }>(`/rounds/${roundId}/answers/${itemId}`, {
+    call<{ saved_at: string }>("student", `/rounds/${roundId}/answers/${itemId}`, {
       method: "PUT",
       body: JSON.stringify({ label }),
     }),
   submitRound: (roundId: string) =>
-    call<RoundVerdict>(`/rounds/${roundId}/submit`, { method: "POST" }),
+    call<RoundVerdict>("student", `/rounds/${roundId}/submit`, { method: "POST" }),
   report: (attemptId: string, note: string | null) =>
-    call<{ report_id: string }>(`/attempts/${attemptId}/reports`, {
+    call<{ report_id: string }>("student", `/attempts/${attemptId}/reports`, {
       method: "POST",
       body: JSON.stringify({ note }),
     }),
+};
+
+
+/**
+ * Các đường của bề mặt giáo viên.
+ *
+ * Tách khỏi `api` thành một object riêng chứ không trộn vào cùng một chỗ: hai bề mặt gửi hai
+ * actor khác nhau, và một tên gọi nằm sai object là thứ `tsc` không bắt được. Đứng riêng thì
+ * `teacher.` ở đầu mỗi lời gọi tự nói nó mang vai nào.
+ */
+export const teacher = {
+  me: () => call<TeacherMe>("teacher", "/teacher/me"),
+  assessment: (assessmentId: string) =>
+    call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
+  publications: (assessmentId: string) =>
+    call<Publications>("teacher", `/teacher/assessments/${assessmentId}/publications`),
+  conversation: () => call<Answered>("teacher", "/teacher/chat"),
+  say: (text: string) =>
+    call<Answered>("teacher", "/teacher/chat/messages", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  approve: (assessmentId: string) =>
+    call<Approval>("teacher", `/teacher/assessments/${assessmentId}/approve`, { method: "POST" }),
+  unapprove: (assessmentId: string) =>
+    call<Approval>("teacher", `/teacher/assessments/${assessmentId}/unapprove`, { method: "POST" }),
+  publishForm: (assessmentId: string) =>
+    call<PublishForm>("teacher", `/teacher/assessments/${assessmentId}/publish-form`),
+  // `preview` là một cờ trên CHÍNH endpoint phát hành, không phải một endpoint khác. Hộp xác
+  // nhận gửi object này với cờ bật, nút trong hộp gửi lại CÙNG object với cờ tắt — nên "hộp
+  // xác nhận đọc lại đúng cái sắp xảy ra" là một tính chất của code, không phải một lời hứa.
+  publish: (assessmentId: string, schedules: ClassSchedule[], preview: boolean) =>
+    call<PublishResult>("teacher", `/teacher/assessments/${assessmentId}/publications`, {
+      method: "POST",
+      body: JSON.stringify({ schedules, preview }),
+    }),
+  withdraw: (assessmentId: string, classId: string) =>
+    call<PublishResult>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/publications/${classId}/withdraw`,
+      { method: "POST" },
+    ),
 };
 
 /**
@@ -268,7 +500,7 @@ export async function streamReply(
   attemptId: string,
   onChunk: (text: string) => void,
 ): Promise<void> {
-  const response = await fetch(`/api/attempts/${attemptId}/chat/stream`, { headers: headers() });
+  const response = await fetch(`/api/attempts/${attemptId}/chat/stream`, { headers: headers("student") });
   if (!response.ok || response.body === null) {
     throw new Error("Trợ lý chưa trả lời được.");
   }
@@ -315,4 +547,30 @@ export function countdown(msLeft: number): string {
   const seconds = Math.max(0, Math.floor(msLeft / 1000));
   const two = (value: number) => String(value).padStart(2, "0");
   return `${two(Math.floor(seconds / 60))}:${two(seconds % 60)}`;
+}
+
+
+/**
+ * Biến giá trị của một ô `datetime-local` thành chuỗi ISO **mang offset địa phương**.
+ *
+ * Tồn tại vì `toISOString()` sai ở đây, và sai trong im lặng. Nó trả hậu tố `Z`, còn
+ * `publication_wording._clock` bên BE in `%H:%M` theo đúng tzinfo nó nhận được — nên gửi `Z`
+ * thì giáo viên gõ 14:00 và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi nào, và
+ * con số sai nằm trên đúng câu mà ADR-03 dành cả tài liệu để chống hiểu nhầm.
+ *
+ * Offset lấy từ `getTimezoneOffset()`, thứ trả về số phút **cần cộng** để ra UTC — nên dấu
+ * ngược với dấu người ta viết: Việt Nam là `-420` và phải in ra `+07:00`.
+ *
+ * @param local - Giá trị thô của ô nhập, dạng `YYYY-MM-DDTHH:MM`.
+ * @returns Cùng mốc đó kèm offset, ví dụ `2026-10-02T08:45:00+07:00`.
+ */
+export function isoWithOffset(local: string): string {
+  const minutes = new Date(local).getTimezoneOffset();
+  const sign = minutes <= 0 ? "+" : "-";
+  const away = Math.abs(minutes);
+  const two = (value: number) => String(value).padStart(2, "0");
+  // Giây là bắt buộc: Pydantic nhận được cả hai, nhưng một chuỗi không có giây đọc lên
+  // như một mốc thiếu phần, và đây là giá trị đi vào sổ sách phát hành.
+  const seconds = local.length === 16 ? ":00" : "";
+  return `${local}${seconds}${sign}${two(Math.floor(away / 60))}:${two(away % 60)}`;
 }
