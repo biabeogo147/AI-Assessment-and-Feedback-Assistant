@@ -322,10 +322,12 @@ async def test_a_preview_computes_everything_and_writes_nothing(stack) -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_timing_rules_read_identically_in_all_three_payloads(stack) -> None:
+async def test_the_timing_rules_read_identically_in_every_payload(stack) -> None:
     """ADR-03 đòi ba nơi giống hệt nhau **từng chữ**.
 
-    Ba nơi là: lúc mở biểu mẫu, lúc xác nhận, và biên bản sau khi phát hành. Chúng cùng đọc
+    Bốn nơi, không ba: lúc mở biểu mẫu, lúc xác nhận, biên bản sau khi phát hành, và — từ khi có
+    giao diện — lúc **đọc lại** lịch phát hành của một đề. Nơi thứ tư thêm vào cùng đợt dựng FE, vì
+    panel phải vẽ lại được câu luật sau một lần tải lại trang. Chúng cùng đọc
     một hằng số trong `publication_wording`, nên "giống hệt nhau" là một tính chất của code
     chứ không phải một việc ai đó phải nhớ — và `assert` dưới đây so với chính hằng số đó,
     không so ba response với nhau: ba bản sao của cùng một lỗi vẫn bằng nhau.
@@ -374,6 +376,14 @@ async def test_the_timing_rules_read_identically_in_all_three_payloads(stack) ->
     assert record.json()["classes"][0]["phase_two_note"] == filled["phase_two_note"]
     for answer in (form, confirm, record):
         assert answer.json()["rules"]["recall"] == RECALL_RULE
+
+    # Nơi thứ tư: đường đọc. Nó phải in **cùng** câu mà biên bản vừa in, không phải một câu
+    # tương đương — nếu ai in lại bằng chữ khác ở đó thì dòng này đỏ.
+    reread = await client.get(f"/api/teacher/assessments/{paper}/publications", headers=TEACHER)
+    assert reread.status_code == 200
+    assert reread.json()["rules"] == form.json()["rules"]
+    assert reread.json()["classes"][0]["phase_one_note"] == filled["phase_one_note"]
+    assert reread.json()["classes"][0]["phase_two_note"] == filled["phase_two_note"]
 
 
 @pytest.mark.asyncio

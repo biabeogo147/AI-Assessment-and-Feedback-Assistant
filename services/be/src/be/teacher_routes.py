@@ -25,6 +25,11 @@ trưa thì mở sau trưa. ADR-02 cũng cho phép **thất bại một phần**,
 mới biểu diễn được: trước khi `Publication` có khoá kép, "một lớp nhận được, lớp khác không"
 không có chỗ để tồn tại.
 
+**Ba endpoint đọc ở cuối file tồn tại vì giao diện cần, không vì đường ghi cần.** Cho tới
+khi có màn hình, giáo viên "xem" một đề bằng cách đọc lại câu trả lời của chat; mà một bảng
+10 câu hỏi thì không phải thứ nhét vào một câu trả lời được. Chúng chỉ đọc, không đổi gì, và
+chúng đi qua đúng `_owned` mà phần ghi dùng -- nên ADR-22 được canh ở một chỗ cho cả hai.
+
 **Agent không điền hộ biểu mẫu này.** Một model điền sáu mốc thời gian từ chữ "chiều mai" sẽ
 tái tạo chính xác hiểu nhầm mà ADR-03 dành cả một tài liệu để ngăn, và giáo viên sẽ bấm xác
 nhận vì mấy con số trông hợp lý. Nên BE trả về **lời văn của luật** cùng với biểu mẫu, và trả
@@ -38,6 +43,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from be.assessment_state import (
     AssessmentState,
@@ -52,7 +58,15 @@ from be.config import Settings, get_settings
 from be.db import get_session
 from be.drafting import harvest, pending_count
 from be.identity import Asking, current_teacher
-from be.models import Assessment, Attempt, Publication, Question, Teacher, aware
+from be.models import (
+    Assessment,
+    Attempt,
+    DraftBrief,
+    Publication,
+    Question,
+    Teacher,
+    aware,
+)
 from be.publication_wording import RECALL_RULE, phase_one_note, phase_two_note
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import note_action
@@ -1093,3 +1107,294 @@ async def withdraw_from_class(
             ),
         ),
     )
+
+
+class TeacherMe(BaseModel):
+    """Giáo viên đang đăng nhập, cho dải trên cùng.
+
+    Phía học sinh có `GET /api/me` từ lâu; phía giáo viên thì không, nên tên người dùng chỉ
+    đi **vào** prompt của AGENT mà không bao giờ đi ra. Một dải trên cùng không có tên là một
+    dải không trả lời được câu hỏi *"máy này đang là ai"* -- mà ADR-13 nói phòng máy là dùng
+    chung.
+
+    Không có `class_count`: dải trên không vẽ con số đó, và một field không ai vẽ là một field
+    sẽ lệch trong im lặng.
+
+    Attributes:
+        teacher_id: Id, cho mọi thứ khác cần.
+        full_name: Cách gọi người đó.
+        teacher_code: Mã, thứ dải trên hiện cạnh tên.
+    """
+
+    teacher_id: str
+    full_name: str
+    teacher_code: str
+
+
+class OptionRead(BaseModel):
+    """Một phương án, đọc cho giáo viên.
+
+    Khác bản của học sinh ở đúng hai field, và hai field đó là lý do endpoint này không dùng
+    lại được route của học sinh: `is_correct` và `error_label` là thứ **chỉ giáo viên** được
+    thấy trước khi nộp bài.
+
+    Attributes:
+        label: Chữ cái.
+        text: Nội dung phương án.
+        is_correct: Phương án đúng, thứ thẻ câu hỏi đánh dấu.
+        error_label: Lỗi mà distractor này đại diện (ADR-18). None trên phương án đúng.
+    """
+
+    label: str
+    text: str
+    is_correct: bool
+    error_label: str | None = None
+
+
+class MethodRead(BaseModel):
+    """Một cách giải.
+
+    Attributes:
+        title: Tên ngắn của cách làm.
+        body: Các bước.
+    """
+
+    title: str
+    body: str
+
+
+class QuestionRead(BaseModel):
+    """Một câu hỏi, đủ để vẽ một thẻ.
+
+    `methods` đi kèm chứ không nằm sau một lần gọi nữa, vì thẻ in *"Lời giải · 2 cách"* ngay
+    khi còn thu gọn -- con số đó là `len(methods)`. Tách ra thì một panel mười thẻ phải gọi
+    mười request chỉ để đếm.
+
+    Attributes:
+        question_id: Id của câu.
+        order: Số câu học sinh nhìn thấy.
+        stem: Đề bài.
+        learning_objective: Câu hỏi kiểm cái gì.
+        options: Các phương án, đã sắp theo nhãn.
+        methods: Các lời giải, đã sắp theo thứ tự.
+    """
+
+    question_id: str
+    order: int
+    stem: str
+    learning_objective: str
+    options: tuple[OptionRead, ...] = ()
+    methods: tuple[MethodRead, ...] = ()
+
+
+class AssessmentDetail(BaseModel):
+    """Một đề, đủ để vẽ cả panel bên phải.
+
+    `topic_scope` tới từ `DraftBrief` chứ không từ `Assessment`, và đó là chỗ duy nhất có nó --
+    nó là phần *"Chương Hàm số"* trên dòng meta của thiết kế. Rỗng khi đề không sinh từ một
+    brief, vì không phải đề nào cũng do chat soạn ra.
+
+    Attributes:
+        assessment_id: Đề nào.
+        title: Tên đề.
+        subject: Môn.
+        grade: Khối.
+        state: Vòng đời ADR-01. Giao diện suy *sửa được hay không* từ đây, không tự quyết.
+        question_count: Số câu, đếm từ hàng chứ không khai sẵn.
+        still_drafting: Còn bao nhiêu vị trí đang có job chạy.
+        topic_scope: Phạm vi giáo viên đã giới hạn, bằng lời của họ.
+        difficulty: Mức độ, bằng lời của họ. Rỗng khi không nói.
+        questions: Các câu, đã sắp theo thứ tự.
+    """
+
+    assessment_id: str
+    title: str
+    subject: str
+    grade: str
+    state: AssessmentState
+    question_count: int
+    still_drafting: int
+    topic_scope: str = ""
+    difficulty: str = ""
+    questions: tuple[QuestionRead, ...] = ()
+
+
+class PublishedTo(BaseModel):
+    """Sáu tham số **đã đặt** cho một lớp, đọc lại được.
+
+    Tồn tại vì không có nó thì một lần tải lại trang là mất hết: `publish-form` chỉ nói lớp nào
+    *đang giữ* đề, không nói giữ với giờ nào. Giáo viên muốn biết "12A mở lúc mấy giờ" sẽ chỉ
+    còn cách đi hỏi học sinh.
+
+    Hai câu note gọi **đúng** hai hàm trong `publication_wording`, không in lại bằng chữ khác --
+    nên luật *"ba nơi giống hệt nhau từng chữ"* của ADR-03 nay là bốn nơi mà vẫn một nguồn.
+
+    Attributes:
+        class_id: Lớp nào.
+        class_name: Tên lớp.
+        student_count: Bao nhiêu học sinh.
+        opens_at: Giờ mở, UTC.
+        closes_at: Hạn **vào**, UTC.
+        phase1_minutes: Thời gian làm bài.
+        phase2_minutes_per_question: Một tỉ lệ, không phải một khoảng (ADR-15).
+        remediation_deadline: Mốc tuyệt đối kết thúc pha 2, UTC.
+        withdrawable_until: Thu hồi được tới lúc nào. Bằng `opens_at`, nêu riêng vì đó là con số
+            giáo viên cần biết chứ không phải suy ra.
+        phase_one_note: Câu luật pha 1, đã điền số.
+        phase_two_note: Câu luật pha 2, đã điền số, và nó ngược lại câu trên.
+    """
+
+    class_id: str
+    class_name: str
+    student_count: int
+    opens_at: datetime
+    closes_at: datetime
+    phase1_minutes: int
+    phase2_minutes_per_question: int
+    remediation_deadline: datetime
+    withdrawable_until: datetime
+    phase_one_note: str
+    phase_two_note: str
+
+
+class Publications(BaseModel):
+    """Đề này đang phát hành cho những lớp nào, với giờ nào.
+
+    Attributes:
+        assessment_id: Đề nào.
+        classes: Các lớp **chưa** thu hồi. Một lần thu hồi đọc lên y như chưa bao giờ phát hành.
+        rules: Ba câu luật, cùng string mà biểu mẫu và biên bản trả về.
+    """
+
+    assessment_id: str
+    classes: tuple[PublishedTo, ...] = ()
+    rules: TimingRules = TimingRules()
+
+
+@router.get("/teacher/me", response_model=TeacherMe)
+async def who_am_i(teacher: Teacher = Depends(current_teacher)) -> TeacherMe:
+    """Giáo viên đang gọi là ai.
+
+    Args:
+        teacher: Được resolve từ header actor (ADR-13).
+
+    Returns:
+        Ba giá trị mà dải trên cùng cần.
+    """
+    return TeacherMe(
+        teacher_id=teacher.id, full_name=teacher.full_name, teacher_code=teacher.teacher_code
+    )
+
+
+@router.get("/teacher/assessments/{assessment_id}", response_model=AssessmentDetail)
+async def assessment_detail(
+    assessment_id: str,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> AssessmentDetail:
+    """Nội dung một đề: câu hỏi, phương án, lời giải.
+
+    Nạp bằng `selectinload` chứ không để quan hệ tự lazy-load: cả file này làm việc với giá trị
+    vì một lần lazy-load trong ngữ cảnh async là `MissingGreenlet`, nổ ở rất xa nguyên nhân.
+
+    Args:
+        assessment_id: Đề nào.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Đề, kèm mọi câu hỏi đã sắp thứ tự.
+
+    Raises:
+        HTTPException: 404 khi đề không tồn tại **hoặc** thuộc về người khác (ADR-22).
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id, lock=False)
+
+    rows = await session.scalars(
+        select(Question)
+        .where(Question.assessment_id == assessment_id)
+        .order_by(Question.order_index)
+        .options(selectinload(Question.options), selectinload(Question.methods))
+    )
+    questions = tuple(
+        QuestionRead(
+            question_id=row.id,
+            order=row.order_index,
+            stem=row.stem,
+            learning_objective=row.learning_objective,
+            options=tuple(
+                OptionRead(
+                    label=one.label,
+                    text=one.text,
+                    is_correct=one.is_correct,
+                    error_label=one.error_label,
+                )
+                for one in row.options
+            ),
+            methods=tuple(MethodRead(title=one.title, body=one.body) for one in row.methods),
+        )
+        for row in rows
+    )
+
+    brief = await session.get(DraftBrief, assessment_id)
+    return AssessmentDetail(
+        assessment_id=assessment_id,
+        title=assessment.title,
+        subject=assessment.subject,
+        grade=assessment.grade,
+        state=state_of(assessment),
+        question_count=len(questions),
+        still_drafting=await pending_count(session, assessment_id),
+        topic_scope=brief.topic_scope if brief is not None else "",
+        difficulty=brief.difficulty if brief is not None else "",
+        questions=questions,
+    )
+
+
+@router.get("/teacher/assessments/{assessment_id}/publications", response_model=Publications)
+async def publications_of(
+    assessment_id: str,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> Publications:
+    """Đề này đang phát hành cho lớp nào, với giờ nào.
+
+    Args:
+        assessment_id: Đề nào.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Một dòng cho mỗi lớp **chưa** thu hồi, sắp theo tên lớp.
+
+    Raises:
+        HTTPException: 404 khi đề không tồn tại hoặc thuộc về người khác (ADR-22).
+    """
+    asking = Asking.of(teacher)
+    await _owned(session, asking, assessment_id, lock=False)
+
+    named = await _classes_of(session, asking)
+    live = await _live_publications(session, assessment_id)
+    rows = []
+    for row in sorted(
+        live, key=lambda one: named[one.class_id].name if one.class_id in named else ""
+    ):
+        at = named.get(row.class_id)
+        closes_at, deadline = aware(row.closes_at), aware(row.remediation_deadline)
+        rows.append(
+            PublishedTo(
+                class_id=row.class_id,
+                class_name=at.name if at else "",
+                student_count=at.student_count if at else 0,
+                opens_at=aware(row.opens_at),
+                closes_at=closes_at,
+                phase1_minutes=row.phase1_minutes,
+                phase2_minutes_per_question=row.phase2_minutes_per_question,
+                remediation_deadline=deadline,
+                withdrawable_until=aware(row.opens_at),
+                phase_one_note=phase_one_note(closes_at, row.phase1_minutes),
+                phase_two_note=phase_two_note(deadline, row.phase2_minutes_per_question),
+            )
+        )
+    return Publications(assessment_id=assessment_id, classes=tuple(rows))
