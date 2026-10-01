@@ -25,8 +25,8 @@ from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_qu
 from agent.graphs.explain import speak
 from agent.graphs.propose import propose
 from contracts import (
-    DraftAssessmentCompleted,
-    DraftAssessmentRequested,
+    DraftQuestionCompleted,
+    DraftQuestionRequested,
     ExplainTurnCompleted,
     ExplainTurnRequested,
     GeneratedOption,
@@ -352,22 +352,29 @@ _BANK_SEED: tuple[tuple[str, tuple[GeneratedQuestion, ...]], ...] = (
 _VARIANT_BANK.update(_BANK_SEED)
 
 
-def draft_questions(request: DraftAssessmentRequested) -> DraftAssessmentCompleted:
-    """Draft the questions of one assessment.
+def draft_question(request: DraftQuestionRequested) -> DraftQuestionCompleted:
+    """Write one question of a draft without calling a model.
 
-    Mock: cycles through the bank's origin questions so a draft always satisfies
-    ADR-18 and always looks like the subject asked for.
+    Mock: takes the bank entry at this question's position, so a draft always
+    satisfies ADR-18 and always looks like the subject asked for.
+
+    **The bank holds six questions.** A brief asking for more than six wraps
+    around, BE refuses the repeats, and the draft comes back short -- six
+    questions and four positions that gave up. That is worth saying plainly
+    rather than calling it a rehearsal of the duplicate path: two real jobs
+    colliding is chance, while this is certain, and a demo run without an API
+    key will always look like drafting is broken above six.
 
     Args:
-        request: What to write and how much of it.
+        request: The brief, and which question of the set this is.
 
     Returns:
-        The drafted questions. No approval state, no difficulty verdict.
+        One question. No approval state, no difficulty verdict.
     """
     origins = [_origin_question(stem, variants) for stem, variants in _BANK_SEED]
-    questions = tuple(origins[i % len(origins)] for i in range(request.question_count))
-    logger.info("drafted %d question(s) for %s", len(questions), request.request_id)
-    return DraftAssessmentCompleted(request_id=request.request_id, questions=questions)
+    question = origins[(request.ordinal - 1) % len(origins)]
+    logger.info("drafted question %d for %s", request.ordinal, request.request_id)
+    return DraftQuestionCompleted(request_id=request.request_id, question=question)
 
 
 def _origin_question(stem: str, variants: tuple[GeneratedQuestion, ...]) -> GeneratedQuestion:
@@ -661,46 +668,48 @@ async def propose_next_step(ctx: dict, payload: dict) -> dict:
         return next_step(request).model_dump(mode="json")
 
 
-async def draft_assessment(ctx: dict, payload: dict) -> dict:
-    """arq entry point for drafting an assessment.
+async def write_draft_question(ctx: dict, payload: dict) -> dict:
+    """arq entry point for one question of a teacher's draft.
+
+    One question per job, which is what makes the timeout invariant true of
+    this path: `tools/check_contract.py` compares one question's worth of
+    retries against BE's patience for a job, and the task this replaced took
+    up to fifty questions in one.
 
     Args:
         ctx: arq job context. Unused; arq passes it positionally.
-        payload: A serialised DraftAssessmentRequested.
+        payload: A serialised DraftQuestionRequested.
 
     Returns:
-        A serialised DraftAssessmentCompleted.
+        A serialised DraftQuestionCompleted.
 
     Side effects:
-        None beyond logging. AGENT writes to no store of its own.
+        None beyond logging. AGENT writes to no store of its own; BE harvests
+        the result and decides whether it may enter the draft.
     """
-    request = DraftAssessmentRequested.model_validate(payload)
+    request = DraftQuestionRequested.model_validate(payload)
     if not llm.enabled():
-        return draft_questions(request).model_dump(mode="json")
+        return draft_question(request).model_dump(mode="json")
 
-    # One call per question rather than one call for the set: each question
-    # gets its own shape check and its own retries, so a single bad one does
-    # not cost the whole draft. Nothing waits on this -- a teacher drafting is
-    # not a student watching a clock.
-    written: list[GeneratedQuestion] = []
-    banned: set[str] = set()
-    for index in range(request.question_count):
-        brief = draft_brief(request, index + 1)
-        try:
-            question = await write_question(brief, frozenset(banned))
-        except Exception:
-            logger.exception("model could not write question %d of the draft", index + 1)
-            continue
-        banned.add(normalise(question.stem))
-        written.append(question)
+    try:
+        # Normalised here, with AGENT's own rule, because that is the rule
+        # `_faults` compares against. BE sends the stems exactly as it stored
+        # them: two normalisers that had to agree across a service boundary
+        # would be a disagreement with a date on it -- and the first version of
+        # this line proved it, comparing BE's class-name normaliser against
+        # AGENT's whitespace one, so no banned stem ever matched.
+        banned = frozenset(normalise(stem) for stem in request.banned_stems)
+        question = await write_question(draft_brief(request), banned)
+    except Exception:
+        # Prepared content rather than nothing. A draft missing one question
+        # is a teacher asking again; a draft that refuses to start is a
+        # feature that does not work.
+        logger.exception("model could not write question %d of the draft", request.ordinal)
+        return draft_question(request).model_dump(mode="json")
 
-    if not written:
-        logger.warning("no question survived; drafting from prepared content instead")
-        return draft_questions(request).model_dump(mode="json")
-
-    return DraftAssessmentCompleted(
-        request_id=request.request_id, questions=tuple(written)
-    ).model_dump(mode="json")
+    return DraftQuestionCompleted(request_id=request.request_id, question=question).model_dump(
+        mode="json"
+    )
 
 
 async def generate_retry_question(ctx: dict, payload: dict) -> dict:

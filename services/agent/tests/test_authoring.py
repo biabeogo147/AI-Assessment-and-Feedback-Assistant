@@ -7,10 +7,10 @@ ADR-17 requires between rounds, and the absence of any verdict.
 
 import pytest
 
-from agent.handlers import draft_questions, explain_turn, retry_question
+from agent.handlers import draft_question, explain_turn, retry_question
 from contracts import (
     ChatTurn,
-    DraftAssessmentRequested,
+    DraftQuestionRequested,
     ExplainTurnRequested,
     GeneratedOption,
     GeneratedQuestion,
@@ -44,22 +44,32 @@ def _assert_adr_18(question: GeneratedQuestion) -> None:
     assert len(question.methods) >= 2, "a question needs more than one worked solution"
 
 
-def test_a_draft_satisfies_the_authoring_rules() -> None:
-    result = draft_questions(
-        DraftAssessmentRequested(
-            request_id="r1", subject="Toán", grade="12", topic_scope="chương 1", question_count=4
+def test_every_question_of_a_draft_satisfies_the_authoring_rules() -> None:
+    """One job writes one question now, so the set is checked one at a time."""
+    for ordinal in range(1, 5):
+        result = draft_question(
+            DraftQuestionRequested(
+                request_id="r1",
+                subject="Toán",
+                grade="12",
+                topic_scope="chương 1",
+                ordinal=ordinal,
+                of_total=4,
+            )
         )
-    )
-    assert len(result.questions) == 4
-    for question in result.questions:
-        _assert_adr_18(question)
+        _assert_adr_18(result.question)
 
 
 def test_a_draft_reports_no_verdict() -> None:
     """AGENT writes questions; whether they may be published is not its call."""
-    payload = draft_questions(
-        DraftAssessmentRequested(
-            request_id="r1", subject="Toán", grade="12", topic_scope="chương 1", question_count=1
+    payload = draft_question(
+        DraftQuestionRequested(
+            request_id="r1",
+            subject="Toán",
+            grade="12",
+            topic_scope="chương 1",
+            ordinal=1,
+            of_total=1,
         )
     ).model_dump()
     for forbidden in ("score", "confidence", "needs_teacher_review", "approved", "difficulty"):

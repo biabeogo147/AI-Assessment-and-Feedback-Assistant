@@ -16,12 +16,12 @@ and can say what it actually needs. Do not add fields to them.
 """
 
 from contracts.authoring import (
-    DRAFT_ASSESSMENT_TASK,
     EXPLAIN_TURN_TASK,
     GENERATE_RETRY_QUESTION_TASK,
+    WRITE_DRAFT_QUESTION_TASK,
     ChatTurn,
-    DraftAssessmentCompleted,
-    DraftAssessmentRequested,
+    DraftQuestionCompleted,
+    DraftQuestionRequested,
     ExplainTurnCompleted,
     ExplainTurnRequested,
     GeneratedOption,
@@ -46,15 +46,15 @@ from contracts.teacher_chat import (
 )
 
 __all__ = [
-    "DRAFT_ASSESSMENT_TASK",
     "EXPLAIN_TURN_TASK",
     "GENERATE_RETRY_QUESTION_TASK",
     "GRADE_SUBMISSION_TASK",
     "PROPOSE_NEXT_STEP_TASK",
     "SCHEMA_VERSION",
+    "WRITE_DRAFT_QUESTION_TASK",
     "ChatTurn",
-    "DraftAssessmentCompleted",
-    "DraftAssessmentRequested",
+    "DraftQuestionCompleted",
+    "DraftQuestionRequested",
     "ExplainTurnCompleted",
     "ExplainTurnRequested",
     "GeneratedOption",

@@ -85,26 +85,26 @@ bằng `gpt-4o-mini`. Pha 1, 4, 5 không cần model.
 
 ### Pha 2 — Soạn nháp: một job một câu, và brief bị khoá
 
-- [ ] **Khai tử `draft_assessment`.** Task đó nhận `question_count` tới 50 và gọi model một lần mỗi
+- [x] **Khai tử `draft_assessment`.** Task đó nhận `question_count` tới 50 và gọi model một lần mỗi
       câu, nên một job là tới 3000s so với 70s kiên nhẫn của BE. Invariant timeout đang nói dối đúng
       về nó. Nó là code chết từ ngày được viết nên không phải migrate gì.
-- [ ] `contracts`: task mới **một câu một job** — `WRITE_DRAFT_QUESTION_TASK`, nhận một `DraftBrief`
+- [x] `contracts`: task mới **một câu một job** — `WRITE_DRAFT_QUESTION_TASK`, nhận một `DraftBrief`
       và số thứ tự câu, trả một `GeneratedQuestion`. `llm_timeout × llm_max_attempts` = 60 < 70, nên
       đây là hình dạng **duy nhất** thoả check hiện có.
-- [ ] `models.py`: `DraftBrief` lưu **trên đề** (môn, khối, phạm vi, số câu, mức độ). Đây là chỗ thi
+- [x] `models.py`: `DraftBrief` lưu **trên đề** (môn, khối, phạm vi, số câu, mức độ). Đây là chỗ thi
       hành luật của bạn: cả N job mang **cùng một brief**, nên tính đồng nhất ngữ cảnh được bảo đảm
       *bằng cấu trúc*, không bằng thời điểm.
-- [ ] `models.py`: bảng `DraftItem` (`assessment_id`, `ordinal`, `job_id`, `status`) — cùng hình dạng
+- [x] `models.py`: bảng `DraftItem` (`assessment_id`, `ordinal`, `job_id`, `status`) — cùng hình dạng
       `PregeneratedItem` của phía học sinh, sinh ra vì đúng lý do đó: model chậm và con người không
       nên chờ.
-- [ ] `be/drafting.py` **mới**: bắn N job, và `harvest()` đọc kết quả job đã xong rồi ghi `Question`
+- [x] `be/drafting.py` **mới**: bắn N job, và `harvest()` đọc kết quả job đã xong rồi ghi `Question`
       + `AnswerOption` + `Method`. AGENT **không** ghi DB; BE thu hoạch. Validate ADR-18 tại lúc thu
       hoạch, không tin nội dung chỉ vì nó là của mình.
-- [ ] Đề đi từ `EMPTY` sang `HAS_QUESTIONS` ở câu đầu tiên thu hoạch được — qua `advance()`, tức
+- [x] Đề đi từ `EMPTY` sang `HAS_QUESTIONS` ở câu đầu tiên thu hoạch được — qua `advance()`, tức
       caller đầu tiên của nó.
-- [ ] Test: N job mang brief giống hệt nhau; thu hoạch ghi đúng thứ tự `ordinal`; câu sai shape
+- [x] Test: N job mang brief giống hệt nhau; thu hoạch ghi đúng thứ tự `ordinal`; câu sai shape
       ADR-18 bị từ chối và `DraftItem` ghi `failed` thay vì ghi câu hỏng vào đề.
-- [ ] Một lượt model thật.
+- [x] Một lượt model thật.
 
 ### Pha 3 — Hai tool ghi, và cổng "đủ ngữ cảnh mới được sinh"
 
@@ -330,5 +330,74 @@ thu hồi xoá hàng, nhánh đó thành code chết và tool trả *"đề này
 
 Kèm một lỗi có sẵn cần sửa cùng lúc: `_publication` ở `student_routes` **không kiểm `recalled_at`**,
 nên một publication đã thu hồi vẫn phục vụ học sinh.
+
+### Pha 2 — xong, chờ review
+
+155 pytest, 11 vitest, 5 repo check xanh. Và chạy thật trên `gpt-4o-mini` qua worker thật + Postgres
+thật: ba job bắn song song, **cả ba đáp trong 12 giây**, `state` lên `has_questions`, ba câu khác
+nhau trên cùng một phạm vi.
+
+**Điều đáng nhất của pha này: invariant `timeout-order` thôi nói dối.** Nó so
+`LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` = 60 với 70 và báo xanh, trong khi `draft_assessment` gọi
+model một lần **mỗi câu** với tới 50 câu một job — trường hợp xấu nhất 3000s. Tôi **không** sửa bằng
+cách nhân thêm `question_count` vào phép so: làm thế thì check đỏ, và đường ra là nâng hạn job lên 50
+phút, tức BE thôi phân biệt được worker chậm với worker chết. Sửa bằng cách đổi **hình dạng công
+việc**. Nay mọi task đều nằm trong đúng một câu hỏi đáng giá số lần thử.
+
+Còn một chỗ chưa bảo vệ được bằng máy: không gì ngăn ai thêm một vòng lặp theo số lượng vào một
+handler và làm check nói dối **lần thứ ba** — nó đã sai đúng cách đó hai lần. Docstring của check nay
+nói ra điều đó.
+
+**Và lượt chạy thật lộ ra một thứ không test nào bắt:** ba câu cùng một brief viết số mũ ba kiểu —
+`x³` ở câu 1, `x^3` ở câu 2 và 3. Prompt đòi Unicode và cấm LaTeX; `x^3` không phải LaTeX nên nó lọt.
+Đây là **cùng loại lỗi** mà brief-bị-khoá dựng lên để ngăn, chỉ ở tầng hình thức: đọc từng câu không
+thấy gì sai, đọc cả bộ mới thấy nó không phải một bộ. Ghi vào `backlog.md` kèm hai đường ra, chưa
+chọn vì thêm một luật về *hình thức chữ* vào `validate_question` là một quyết định về phạm vi ADR-18.
+
+**Chưa có caller nào** cho `fire()` và `harvest()` — tool bắn ở Pha 3, endpoint thu hoạch ở Pha 4. Nói
+ra để không ai đọc pha này như một tính năng đã dùng được.
+
+### Review Pha 2 bắt gì
+
+Bốn thứ nghiêm trọng. Ba trong số đó là chỗ tôi **sao chép một pattern mà không sao chép hết lý do
+của nó**, và cái thứ tư là một hàm tôi tưởng đang chạy.
+
+- **`order_index` lấy từ biến đếm, không lấy từ `ordinal`.** Job chạy song song và đáp theo thứ tự
+  model trả lời — đúng điều lượt chạy thật vừa chứng minh. Nên: `harvest` lần 1 thấy job 2 và 3 xong
+  thì cho chúng vị trí 1 và 2; lần 2 job 1 xong thì nhận vị trí 3. Giáo viên yêu cầu 1, 2, 3 và nhận
+  **2, 3, 1** — âm thầm, không constraint nào chạm. Nay `order_index = row.ordinal`, đúng với mọi thứ
+  tự đáp.
+- **`banned_stems` vô hiệu 100%,** đo được: BE gửi stem qua `resolve.normalise` (viết cho **tên
+  lớp** — bóc chữ "lớp", xoá hết khoảng trắng, casefold) còn AGENT so bằng `authoring.normalise`
+  (chỉ gộp khoảng trắng). `"Đạo hàm của y = x² là gì?"` thành `"đạohàmcủay=x²làgì?"` và không khớp
+  gì. Docstring của `authoring.normalise` tự cảnh báo đúng chuyện này: *"Two functions that must
+  agree, in two files, is a disagreement with a date on it"* — và tôi tạo ra nó. Sửa: BE gửi stem
+  **thô**, AGENT chuẩn hoá bằng hàm của chính nó, đúng như đường retry **vốn đã làm**. Tôi chỉ không
+  đi theo pattern có sẵn.
+- **Không có đường thử lại một vị trí bị từ chối.** `harvest` đánh `failed` cho cả ba loại thất bại,
+  và `fire` bỏ qua mọi vị trí đã có hàng — nên hai loại **ngẫu nhiên** (trùng stem, sai shape) làm
+  đề thiếu câu **vĩnh viễn**. Gốc `_harvest` thì **xoá** hàng khi validate lỗi, đúng bằng lý do
+  docstring của nó nói. Nhưng xoá vô điều kiện lại là lỗi ngược: một câu model không viết nổi sẽ bị
+  bắn lại mỗi lần đọc, mãi mãi. Nay có bốn status và một bộ đếm `attempts`: ba lần thử rồi bỏ.
+- **`fire` commit một lần ở cuối** trong khi gốc commit **từng hàng** và bắt `IntegrityError`. Hai
+  tool call đồng thời: cả hai bắn 3 job, commit thứ hai đụng unique và rollback **cả ba hàng** —
+  6 job đang chạy, 3 trong số đó không ai thu, tiền model đốt sạch, và exception thoát ra caller.
+
+Cộng hai chỗ nữa: `question_count` không có trần trong khi `of_total` có (trần 50) — brief 60 câu sẽ
+bắn 50 job **rồi** raise, tức 50 lượt model không ai thu; nay trần kiểm **trước** job đầu tiên. Và
+brief "đóng băng" chỉ là một câu trong docstring — không gì thi hành: `DraftItem` không mang version
+brief, nên đổi `topic_scope` rồi bắn lại sẽ cho một bộ đề **nửa ngữ cảnh này nửa ngữ cảnh kia**, đúng
+cái defect cả thiết kế dựng lên để ngăn. Nay brief có `version`, `DraftItem` ghi version nó được bắn
+dưới, và `harvest` **bỏ** câu của brief cũ.
+
+Và một docstring nói quá: mock lấy `origins[(ordinal-1) % len(origins)]`, tôi viết rằng nó "diễn tập
+đường chống trùng". Bank có **sáu** câu, nên brief 10 câu bằng mock **chắc chắn** cho 6 câu và 4 vị
+trí bỏ — tất yếu, không phải ngẫu nhiên, và một bản demo không có API key sẽ luôn trông như soạn đề
+hỏng trên mức sáu. Docstring nay nói thẳng con số.
+
+Hai chỗ tài liệu lệch code: `architecture.md` còn bảng task ghi `draft_assessment` và câu "ba việc
+thật sự cần model" (worker có 5 function); `local-development.md` còn dòng log mẫu
+*"Starting worker for 4 functions: draft_assessment, ..."* — mà đó là **bằng chứng AGENT sống** mà
+tài liệu dạy người ta đối chiếu, nên ai làm theo nó sẽ kết luận worker sai.
 
 Năm pha, dừng sau mỗi pha để bạn review; commit pha trước chỉ khi bắt đầu pha sau.

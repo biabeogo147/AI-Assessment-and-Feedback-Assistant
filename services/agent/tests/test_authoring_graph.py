@@ -12,6 +12,7 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from agent import handlers, llm
 from agent.graphs import authoring
 from contracts import (
+    DraftQuestionRequested,
     GeneratedOption,
     GeneratedQuestion,
     RetryQuestionRequested,
@@ -155,3 +156,46 @@ async def test_the_bank_catches_a_model_that_cannot_write_the_round(
     assert question["stem"] != ORIGIN.stem
     assert sum(1 for option in question["options"] if option["is_correct"]) == 1
     assert len(question["methods"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_a_banned_stem_is_recognised_however_be_stored_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stems BE sends arrive raw and are normalised here.
+
+    The first version of this path had BE normalise them with its own
+    function -- one written for class names, which strips a leading "lớp" and
+    removes every space. AGENT compared those against its own rule, which only
+    collapses whitespace, so `"Đạo hàm của y = x² là gì?"` was sent as
+    `"đạohàmcủay=x²làgì?"` and matched nothing. The check existed and never
+    fired once.
+
+    Normalising on arrival is what the remediation path already did. This
+    makes the drafting path do the same, and the assertion is that a stem sent
+    with untidy spacing and different case is still recognised as banned.
+    """
+    repeated = "Đạo hàm của y = x² là gì?"
+    model = Scripted([_good().model_copy(update={"stem": repeated}), _good()])
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    answer = await handlers.write_draft_question(
+        {},
+        DraftQuestionRequested(
+            request_id="r1",
+            subject="Toán",
+            grade="12",
+            topic_scope="đạo hàm",
+            ordinal=2,
+            of_total=3,
+            # As stored, with the spacing a model actually produces.
+            banned_stems=("Đạo hàm  của y = x²   là gì?",),
+        ).model_dump(mode="json"),
+    )
+
+    # The first attempt repeated a banned stem, so the graph complained and
+    # asked again -- which is the only way the second queued answer is used.
+    assert len(model.prompts) == 2
+    assert "trùng" in model.prompts[1]
+    assert answer["question"]["stem"] != repeated

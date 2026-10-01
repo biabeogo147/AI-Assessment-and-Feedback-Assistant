@@ -132,6 +132,18 @@ def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
     was quietly wrong for as long as that loop existed: one job had become
     three calls and nothing said so.
 
+    It then went wrong the same way a second time, and worse: `draft_assessment`
+    took up to fifty questions in one job at one model call each, so the true
+    worst case was 50 x LLM_MAX_ATTEMPTS calls while this function compared
+    one. That task was retired rather than the number raised -- a job allowed
+    fifty minutes is a job BE can no longer tell apart from a dead worker --
+    and every task now fits inside one question's worth of retries.
+
+    What this function cannot see is a **new** loop. Twice now the lie came
+    from a handler multiplying model calls by something this arithmetic does
+    not know about, so a handler that loops over a count is a review finding,
+    not a check failure.
+
     Returns:
         None when the worst-case job fits inside BE's patience, otherwise a
         failure message naming every number involved.

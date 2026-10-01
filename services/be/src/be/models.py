@@ -553,3 +553,77 @@ class TeacherTurn(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     conversation: Mapped[TeacherConversation] = relationship(back_populates="turns")
+
+
+class DraftBrief(Base):
+    """What a teacher asked for, written down once before any question is written.
+
+    One row per assessment, and it exists so a set of questions can be
+    coherent. The questions are written by independent jobs that cannot see
+    each other, so if the instructions could still change while they run, the
+    first half and the second half of a paper would answer different
+    questions -- and nobody reading the questions one at a time would notice.
+
+    Re-briefing replaces this row, which starts a **new** round of generation.
+    "Make them harder" is therefore a new brief rather than a change applied
+    to work already in flight.
+
+    Subject and grade live on `Assessment` and are not copied here: one fact
+    in two places is two facts that disagree by next week.
+    """
+
+    __tablename__ = "draft_briefs"
+
+    assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"), primary_key=True)
+    topic_scope: Mapped[str] = mapped_column(Text)
+    difficulty: Mapped[str] = mapped_column(String(64), default="")
+    question_count: Mapped[int] = mapped_column(Integer)
+    # Counts up on every re-brief. A question written for an earlier version
+    # is discarded rather than merged, which is what makes "make them harder"
+    # a new round instead of an edit applied to work already in flight -- and
+    # without it the claim that a set is written against one understanding of
+    # the topic is a hope rather than a mechanism.
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DraftItem(Base):
+    """One question of a draft, while it is still being written.
+
+    The same shape as `PregeneratedItem` on the student side, for the same
+    reason: the model is slow and nobody should wait on it. One row per
+    position, one job per row.
+
+    `status` is one of four:
+
+    - `pending` -- a job is running.
+    - `ready` -- the question is in the draft.
+    - `retry` -- the answer was unusable in a way that is chance rather than a
+      fixed fault: a result that aged out of Redis, two parallel jobs writing
+      the same stem, a model marking two options correct. The next `fire`
+      picks the position back up.
+    - `failed` -- give up on this position. Either the job itself raised, or
+      `attempts` ran out.
+
+    The `retry`/`failed` split is the part worth keeping. Marking every
+    refusal `failed` left a draft permanently short with no way to fill the
+    gap; deleting every refused row re-queued a question the model cannot get
+    right on every read, forever. `attempts` is what makes the middle ground
+    possible.
+    """
+
+    __tablename__ = "draft_items"
+    __table_args__ = (UniqueConstraint("assessment_id", "ordinal"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    job_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    # How many jobs this position has cost, so a model that cannot write the
+    # question stops being asked.
+    attempts: Mapped[int] = mapped_column(Integer, default=1)
+    # Which brief this job was fired under. A row from an older one is
+    # discarded on harvest.
+    brief_version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

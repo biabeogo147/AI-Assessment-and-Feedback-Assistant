@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 SCHEMA_VERSION = 1
 
 # arq task names. BE enqueues by string and never imports the AGENT package.
-DRAFT_ASSESSMENT_TASK = "draft_assessment"
+WRITE_DRAFT_QUESTION_TASK = "write_draft_question"
 GENERATE_RETRY_QUESTION_TASK = "generate_retry_question"
 EXPLAIN_TURN_TASK = "explain_turn"
 
@@ -76,15 +76,38 @@ class GeneratedQuestion(BaseModel):
     learning_objective: str
 
 
-class DraftAssessmentRequested(BaseModel):
-    """Ask AGENT to draft a set of questions for one assessment.
+class DraftQuestionRequested(BaseModel):
+    """Ask AGENT to write **one** question of a draft.
+
+    One question per job, not a whole set, and the reason is arithmetic rather
+    than taste: `tools/check_contract.py` compares `LLM_TIMEOUT_SECONDS x
+    LLM_MAX_ATTEMPTS` against BE's patience for a single job, and that holds
+    only for one question's worth of retries. The task this replaced took up
+    to fifty questions in one job -- fifty times the budget the check was
+    verifying -- so the check was quietly wrong about the handler that spent
+    the most.
+
+    Every field here is copied from a brief BE stored **before** any job was
+    queued. That is what keeps a set of questions coherent: the jobs run
+    independently and cannot see each other, so if the instructions could
+    still change, the first half and the second half of a paper would answer
+    different questions and nobody reading them one at a time would notice.
 
     Attributes:
         request_id: Correlates the reply. BE's own identifier, opaque to AGENT.
         subject: School subject, e.g. "Toán".
         grade: Class level, e.g. "12".
         topic_scope: What the teacher limited the draft to, in their words.
-        question_count: How many questions to write.
+        difficulty: How hard, in the teacher's words. Empty when unsaid.
+        ordinal: Which question of the set this is, counting from one.
+        of_total: How many the set has. Travels with `ordinal` so the prompt
+            can say "question 3 of 10" -- the cheapest nudge towards variety
+            between jobs that have no way to coordinate.
+        banned_stems: Stems already in the draft, **as stored** -- AGENT
+            normalises them with its own rule on arrival, so the two services
+            never have to keep two normalisers in step. Best-effort either
+            way: jobs fired together cannot know each other's output, so BE
+            checks again for duplicates when it harvests.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -94,21 +117,24 @@ class DraftAssessmentRequested(BaseModel):
     subject: str
     grade: str
     topic_scope: str
-    question_count: int = Field(ge=1, le=50)
+    difficulty: str = ""
+    ordinal: int = Field(ge=1)
+    of_total: int = Field(ge=1, le=50)
+    banned_stems: tuple[str, ...] = ()
 
 
-class DraftAssessmentCompleted(BaseModel):
-    """The drafted questions.
+class DraftQuestionCompleted(BaseModel):
+    """The one question that job wrote.
 
     Carries no decision: whether the draft is good enough to publish is the
-    teacher's call, and whether it satisfies ADR-18 is BE's check.
+    teacher's call, and whether the question satisfies ADR-18 is BE's check.
     """
 
     model_config = ConfigDict(frozen=True)
 
     schema_version: int = SCHEMA_VERSION
     request_id: str
-    questions: tuple[GeneratedQuestion, ...]
+    question: GeneratedQuestion
 
 
 class RetryQuestionRequested(BaseModel):

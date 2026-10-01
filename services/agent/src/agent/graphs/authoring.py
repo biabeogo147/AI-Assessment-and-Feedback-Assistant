@@ -26,7 +26,7 @@ from langgraph.graph import END, StateGraph
 
 from agent import llm
 from agent.config import get_settings
-from contracts import DraftAssessmentRequested, GeneratedQuestion, RetryQuestionRequested
+from contracts import DraftQuestionRequested, GeneratedQuestion, RetryQuestionRequested
 
 logger = logging.getLogger(__name__)
 
@@ -213,26 +213,35 @@ async def write_question(brief: str, banned: frozenset[str] = frozenset()) -> Ge
     return final["question"]
 
 
-def draft_brief(request: DraftAssessmentRequested, index: int) -> str:
-    """Describe one question of a teacher's draft.
+def draft_brief(request: DraftQuestionRequested) -> str:
+    """Describe the one question this job writes.
+
+    Everything here came from a brief BE stored before any job was queued, so
+    every question of the set is written against the same instructions. The
+    position is included because the jobs run independently and cannot see
+    each other: telling a job it is the third of ten is the only coordination
+    available, and it is a nudge rather than a guarantee -- BE checks for
+    duplicates when it harvests.
 
     Args:
-        request: Subject, grade and the scope the teacher limited it to.
-        index: Which question of the set this is, so the model varies rather
-            than writing the same question `question_count` times.
+        request: Subject, grade, the scope the teacher limited it to, how hard
+            they asked for, and which question of the set this is.
 
     Returns:
         The brief.
     """
-    return "\n".join(
-        [
-            f"Viết câu hỏi số {index} trong bộ {request.question_count} câu.",
-            f"Môn: {request.subject}. Lớp: {request.grade}.",
-            f"Phạm vi giáo viên giới hạn: {request.topic_scope}",
-            "",
-            "Mỗi câu trong bộ phải hỏi một khía cạnh khác nhau của phạm vi trên.",
-        ]
-    )
+    lines = [
+        f"Viết câu hỏi số {request.ordinal} trong bộ {request.of_total} câu.",
+        f"Môn: {request.subject}. Lớp: {request.grade}.",
+        f"Phạm vi giáo viên giới hạn: {request.topic_scope}",
+    ]
+    if request.difficulty:
+        lines.append(f"Mức độ giáo viên yêu cầu: {request.difficulty}")
+    lines += [
+        "",
+        "Mỗi câu trong bộ phải hỏi một khía cạnh khác nhau của phạm vi trên.",
+    ]
+    return "\n".join(lines)
 
 
 def retry_brief(request: RetryQuestionRequested) -> str:

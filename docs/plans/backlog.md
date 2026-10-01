@@ -426,39 +426,26 @@ nhầm học sinh thật.
 một vòng lặp đang chờ một lần thất bại để bắt đầu. Nó chạy êm suốt quá trình phát triển vì đường đi
 thành công luôn làm điều kiện dừng thành đúng. Chỉ đường đi **hỏng** mới lộ ra nó.
 
-## Check `timeout-order` đang nói dối về `draft_assessment`
+## Check `timeout-order` đã thôi nói dối (đóng 2026-09-30)
 
-Ghi ngày 2026-09-30, phát hiện khi dựng vòng lặp tool cho platform giáo viên. Đây là **lỗi chưa
-sửa**, và lý do chưa sửa là lý do thật chứ không phải hết thời gian.
+Ghi ngày 2026-09-29 khi phát hiện, **đóng** ngày 2026-09-30 ở Pha 2 của plan đường ghi.
 
-`tools/check_contract.py::check_model_call_fits_inside_the_job_waiting_for_it` so
-`LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` = 20 × 3 = 60 với `AGENT_JOB_TIMEOUT_SECONDS` = 70, rồi
-báo xanh. Nhưng `draft_assessment` gọi model **một lần cho mỗi câu**, và mỗi câu lại có vòng
-write→check→write riêng — tức `question_count × llm_max_attempts` lần gọi. `question_count` nhận tới
-50 (`packages/contracts/src/contracts/authoring.py:97`), nên trường hợp xấu nhất là 50 × 3 × 20s =
-**3000s** so với 70s.
+`check_model_call_fits_inside_the_job_waiting_for_it` so `LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS`
+= 60 với `AGENT_JOB_TIMEOUT_SECONDS` = 70 rồi báo xanh. Nhưng `draft_assessment` gọi model **một lần
+mỗi câu** và nhận tới 50 câu một job, nên trường hợp xấu nhất là 50 × 3 × 20s = **3000s**. Check
+đang nói dối đúng về handler gọi model nhiều nhất — lần thứ hai, và docstring của chính nó kể rằng
+nó từng sai y như vậy một lần rồi.
 
-Cay đắng hơn: docstring của chính check đó kể rằng nó từng sai đúng kiểu này một lần rồi — *"This
-check compared a single call against BE's patience until the authoring loop appeared, and was
-quietly wrong for as long as that loop existed"*. Nó lại sai, theo cùng một cách, với đúng cái
-handler gọi model nhiều nhất.
+Không sửa bằng cách nhân thêm `question_count` vào phép so — làm thế thì check đỏ và đường ra là
+nâng hạn job lên 50 phút, tức BE thôi phân biệt được worker chậm với worker chết. Sửa bằng cách đổi
+**hình dạng công việc**: `draft_assessment` bị khai tử, thay bằng `write_draft_question` — một câu
+một job. Nay mọi task đều nằm trong đúng một câu hỏi đáng giá số lần thử, nên phép so 60 < 70 là
+thật với **tất cả** chúng, lần đầu tiên.
 
-| Việc | Cái gì đang chặn |
-| --- | --- |
-| Cho check nhân thêm `question_count` | **Bị chặn bởi một câu hỏi thiết kế** — xem dưới |
-
-Sửa cho đúng là một dòng, và dòng đó làm check **đỏ** ngay. Đường ra không phải nâng
-`AGENT_JOB_TIMEOUT_SECONDS` lên 3000 giây — một job treo 50 phút thì BE không còn phân biệt được
-worker chậm với worker chết, mà đó chính là thứ check này được viết ra để bảo vệ. Ba đường đi thật:
-chia bản nháp thành nhiều job, mỗi job vài câu; cho `draft_assessment` một hạn riêng thay vì dùng
-chung hạn của mọi task; hoặc hạ trần `question_count`. Cả ba đều là quyết định về hình dạng của việc
-soạn đề, không phải về con số.
-
-Chưa bị cắn vì **chưa caller nào gọi `draft_assessment`** — nó là code chết cho tới khi platform
-giáo viên dùng tới. Khi dùng tới thì phải quyết trước, chứ không phải sửa số cho check xanh lại.
-
-**Bài học:** một check tính trường hợp xấu nhất phải được đọc lại mỗi lần có thêm một vòng lặp mới,
-vì nó nhân các con số mà nó **biết**, và không có gì cảnh báo khi xuất hiện một con số nó không biết.
+**Còn lại một chỗ chưa được bảo vệ bằng máy:** không gì ngăn ai đó thêm một vòng lặp theo số lượng
+vào một handler và làm check nói dối lần thứ ba. Nó đã sai hai lần theo đúng cách đó. Một check tĩnh
+cho "handler không gọi model quá `llm_max_attempts` lần" thì tôi chưa thấy cách viết cho đáng tin,
+nên hiện luật này do review giữ, và docstring của check nói ra điều đó.
 
 ## Model chưa gọi lại tool khi đã được trao đúng id
 
@@ -552,3 +539,32 @@ lát: chọn lúc bắt đầu làm bài (đơn giản, nhưng hai học sinh c�
 **Chừng nào chưa có nó**, lệch giờ là tiện lợi về lịch, **không** phải bảo đảm về bí mật đề — và
 docstring của `Publication` nói đúng câu đó để không ai đọc việc phát hành lệch giờ thành một tính
 năng chống lộ đề.
+
+## Ký hiệu toán không đồng nhất trong một bộ đề
+
+Ghi ngày 2026-09-30, từ lượt gọi model thật đầu tiên của đường soạn đề.
+
+Ba câu sinh ra cùng một brief, và chúng viết số mũ **ba kiểu khác nhau**:
+
+```
+1. ... y = 2x³ - 6x² + 4 ...        <- đúng, Unicode
+2. ... P(x) = 2x^3 - 6x^2 + 4x - 8  <- dấu mũ ASCII
+3. ... P(x) = x^4 - 4x^3 + ...      <- dấu mũ ASCII
+```
+
+`_SYSTEM` của `graphs/authoring.py` viết *"Toán viết bằng ký hiệu Unicode: y = x³ − 3x... Tuyệt đối
+KHÔNG dùng LaTeX"*. `x^3` **không phải** LaTeX, nên nó không vi phạm câu cấm — nó chỉ không làm theo
+câu yêu cầu, và không gì kiểm.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Chuẩn hoá ký hiệu toán lúc thu hoạch, hoặc từ chối câu dùng `^` | Không bị chặn. Chưa quyết chuẩn hoá hay từ chối |
+
+Đây là **cùng loại lỗi** với thứ brief-bị-khoá dựng lên để ngăn, chỉ ở tầng hình thức thay vì nội
+dung: đọc từng câu thì không thấy gì sai, đọc cả bộ mới thấy nó không phải một bộ. Và nó là lỗi học
+sinh sẽ nhìn thấy trực tiếp.
+
+Hai đường: chuẩn hoá ở `harvest` (`x^3` → `x³`, một bảng tra nhỏ, nhưng `x^10` thì không có ký tự
+Unicode tương ứng), hoặc từ chối như một lỗi shape ADR-18 và để BE hỏi lại — đắt hơn nhưng đặt luật
+ở đúng chỗ đã có cơ chế hỏi lại. Chưa làm vì `validate_question` hiện chỉ kiểm cấu trúc, và thêm một
+luật về *hình thức chữ* vào đó là một quyết định về phạm vi của ADR-18.

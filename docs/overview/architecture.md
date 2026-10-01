@@ -34,14 +34,23 @@ database của BE, nên nó chạy ngay trong request nộp bài
 ([ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md)). Hệ quả nhìn thấy được: giữa màn làm
 bài và màn kết quả không có trạng thái *đang chấm* nào.
 
-**Hàng đợi dành cho ba việc thật sự cần model**, và cả ba đều bất đồng bộ vì một lần gọi LLM đủ lâu
-để giữ kết nối HTTP mở là không hợp lý:
+**Hàng đợi dành cho bốn việc thật sự cần model**, và cả bốn đều bất đồng bộ vì một lần gọi LLM đủ
+lâu để giữ kết nối HTTP mở là không hợp lý:
 
 | Task | Khi nào | BE làm gì với kết quả |
 | --- | --- | --- |
-| `draft_assessment` | giáo viên yêu cầu soạn đề | kiểm theo ADR-18 rồi lưu thành câu hỏi nháp |
+| `write_draft_question` | **một câu** của bộ đề giáo viên yêu cầu | kiểm theo ADR-18 rồi lưu vào đúng vị trí đã yêu cầu |
 | `generate_retry_question` | học sinh mở một lượt làm lại | kiểm rồi lưu kèm đáp án đúng, để BE tự chấm lượt |
 | `explain_turn` | mỗi lượt trả lời trong chat pha 2 | lưu vào lịch sử **trước** khi phát ra SSE |
+| `propose_next_step` | mỗi bước của một lượt chat giáo viên | chạy tool đã đề xuất, hoặc từ chối nó |
+
+`write_draft_question` viết **một** câu một job, không phải cả bộ. Đó không phải khẩu vị mà là số
+học: `tools/check_contract.py` so `LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` với độ kiên nhẫn của BE
+cho **một** job, nên một job soạn 50 câu là 50 lần ngân sách mà check đang kiểm. Task cũ
+`draft_assessment` làm đúng thế, và check nói dối về nó suốt thời gian nó tồn tại.
+
+Ngoài bốn task trên, worker còn đăng ký `grade_submission` — legacy của ADR-20, giữ để client cũ
+không treo, và không gọi model.
 
 BE chờ job xong ngay trong request (`agent_gateway.run_task`) thay vì trả `job_id` cho FE: mọi lời
 gọi ấy đều nằm trong một thao tác người dùng đang nhìn, nên thêm một giao thức poll thứ hai chồng

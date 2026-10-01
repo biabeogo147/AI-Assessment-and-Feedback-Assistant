@@ -92,7 +92,7 @@ curl -o NUL -w "%{http_code}" http://localhost:5173/   # 200
 Với AGENT, không có endpoint nào để gọi, nên bằng chứng nó sống là dòng log lúc khởi động:
 
 ```text
-Starting worker for 4 functions: draft_assessment, generate_retry_question, explain_turn, grade_submission
+Starting worker for 5 functions: write_draft_question, generate_retry_question, explain_turn, propose_next_step, grade_submission
 AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0
 ```
 

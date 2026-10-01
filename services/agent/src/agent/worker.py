@@ -16,14 +16,19 @@ from arq.connections import RedisSettings
 from arq.worker import func
 
 from agent.config import get_settings
-from agent.handlers import draft_assessment, explain, generate_retry_question, propose_next_step
+from agent.handlers import (
+    explain,
+    generate_retry_question,
+    propose_next_step,
+    write_draft_question,
+)
 from agent.legacy_grading import grade_submission
 from contracts import (
-    DRAFT_ASSESSMENT_TASK,
     EXPLAIN_TURN_TASK,
     GENERATE_RETRY_QUESTION_TASK,
     GRADE_SUBMISSION_TASK,
     PROPOSE_NEXT_STEP_TASK,
+    WRITE_DRAFT_QUESTION_TASK,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -77,7 +82,7 @@ class WorkerSettings:
     """
 
     functions = [
-        func(draft_assessment, name=DRAFT_ASSESSMENT_TASK),
+        func(write_draft_question, name=WRITE_DRAFT_QUESTION_TASK),
         func(generate_retry_question, name=GENERATE_RETRY_QUESTION_TASK),
         func(explain, name=EXPLAIN_TURN_TASK),
         # One turn of thinking for the teacher's chat. Unlike the three above
