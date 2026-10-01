@@ -108,23 +108,60 @@ bằng `gpt-4o-mini`. Pha 1, 4, 5 không cần model.
 
 ### Pha 3 — Hai tool ghi, và cổng "đủ ngữ cảnh mới được sinh"
 
-- [ ] `teacher_tools.py`: `create_draft(subject, grade, topic_scope, question_count)`. **Thiếu trường
+- [x] `teacher_tools.py`: `create_draft(subject, grade, topic_scope, question_count)`. **Thiếu trường
       nào thì từ chối** kèm tên trường còn thiếu — đúng khuôn lời-từ-chối-có-ích của ADR-23. Nghĩa là
       model *không thể* bắt đầu soạn khi chưa đủ ngữ cảnh, và lời từ chối dạy nó phải hỏi gì. Luật
       của bạn thành **cấu trúc**, không phải một câu trong prompt.
-- [ ] `teacher_tools.py`: `draft_questions(assessment_id)` — bắn N job. Từ chối nếu brief chưa đủ,
+- [x] `teacher_tools.py`: `start_drafting(assessment_id)` — bắn N job. Từ chối nếu brief chưa đủ,
       nếu đề đã duyệt, hoặc nếu **còn `DraftItem` đang pending**: không bao giờ có hai đợt sinh chồng
       nhau cho một đề.
-- [ ] Một khi đã bắn, brief **đóng băng**. Giáo viên nói "cho khó hơn" là một brief **mới**, tức một
+- [x] Một khi đã bắn, brief **đóng băng**. Giáo viên nói "cho khó hơn" là một brief **mới**, tức một
       đợt sinh mới — không phải một thay đổi giữa dòng. Ghi rõ trong docstring vì đây là chỗ dễ bị
       "sửa cho tiện" nhất.
-- [ ] `tools/check_contract.py`: check mới — `advance(` và `withdraw(` không được xuất hiện trong
-      `teacher_tools.py`. Cộng một dòng trong bảng Invariants của `AGENTS.md`.
-- [ ] `graphs/propose.py`: prompt biết ba hình dạng từ chối mới, và biết rằng nó **không** được tự
+- [x] `tools/check_contract.py`: check mới — `advance(`, `withdraw(` **và phép gán `.state =`**
+      không được xuất hiện trong `teacher_tools.py`. Cộng một dòng trong bảng Invariants của
+      `AGENTS.md`, và cap lên 173. Phép gán do review bắt: cửa chỉ có nghĩa khi không ai trèo tường.
+- [x] `graphs/propose.py`: prompt biết ba hình dạng từ chối mới, và biết rằng nó **không** được tự
       quyết duyệt hay phát hành.
-- [ ] Test: brief thiếu → từ chối kèm tên trường; bắn hai lần không nhân đôi job; tool không có đường
-      nào chạm `advance`.
-- [ ] Một lượt model thật.
+- [x] Test: brief thiếu → từ chối kèm tên trường; bắn hai lần không nhân đôi job; tool không có đường
+      nào chạm `advance`; và — do review bắt — một câu job sinh ra **vào được** đề qua `draft_progress`.
+- [ ] Một lượt model thật — **chưa chạy**, Docker Desktop tắt giữa pha. Xem Status.
+
+### Pha 3.5 — Comment trong code viết bằng tiếng Việt
+
+Chen vào giữa Pha 3 và Pha 4 vì nó là một đợt **sửa chữ, không sửa hành vi**, nên nó phải nằm giữa hai
+pha chứ không nằm trong một pha nào: trộn nó vào Pha 4 thì diff của Pha 4 sẽ toàn comment và không ai
+review nổi phần logic.
+
+- [ ] `AGENTS.md § Documentation Rules`: sửa câu *"`AGENTS.md`, `CLAUDE.md`, `README.md` and all source
+      comments are English"*. Đây là việc **đầu tiên**, không phải cuối: hôm nay luật của repo nói
+      ngược lại điều ta sắp làm, nên đổi code trước khi đổi luật là tự tạo ra một file nói dối. Kèm
+      decision record — sửa `AGENTS.md` không bao giờ được miễn.
+- [ ] Chốt phạm vi *"comment"*: comment dòng, docstring, và chuỗi docstring của module. **Không** đổi:
+      tên biến/hàm/class, thông báo log, chuỗi exception, và mọi chuỗi mà một check hay một test so
+      khớp (`tools/check_contract.py` đọc comment để bỏ qua dòng — xem ô cuối).
+- [ ] `services/be/src/be` — tầng đông comment nhất và cũng là tầng chở luật nghiệp vụ, nên đi trước:
+      `assessment_state.py`, `drafting.py`, `teacher_tools.py`, `teacher_chat.py`, `resolve.py`,
+      `review_policy.py`, `models.py`, `student_routes.py`, `agent_gateway.py`, phần còn lại.
+- [ ] `services/agent/src/agent` — `graphs/*.py`, `handlers.py`, `worker.py`, `config.py`.
+- [ ] `packages/contracts/src/contracts` — ở đây giữ **tên trường** tuyệt đối nguyên vẹn; chỉ phần
+      giải thích đổi sang tiếng Việt.
+- [ ] `services/fe/src` — JSDoc và comment TSX.
+- [ ] `tools/` và `services/*/tests` — test docstring là nơi lý do được ghi dày nhất, nên là nơi việc
+      dịch đáng giá nhất và cũng dễ làm hỏng nhất.
+- [ ] Giữ nguyên thuật ngữ tiếng Anh như `docs/` vẫn làm: `Assessment`, `Distractor`, `Confidence`,
+      `harvest`, `brief`, `Teacher Review Queue`. Dịch thuật ngữ mới là cách chắc chắn nhất để một
+      comment thôi khớp với code nó mô tả.
+- [ ] Cẩn thận hai chỗ comment **là dữ liệu**, không phải lời giải thích: `check_no_tool_changes_an_assessment_state`
+      bỏ qua dòng bắt đầu bằng `#` hay `"`, và `check_env_example_has_no_orphans` đọc `.env.example`
+      theo dòng. Đổi chữ trong hai vùng đó phải chạy lại check ngay.
+- [ ] Mỗi file đổi xong chạy `.\dev.ps1 check` và `.\dev.ps1 test`. Một đợt sửa chữ **không được**
+      làm đỏ một dòng nào; nếu đỏ thì tôi đã sửa nhiều hơn chữ.
+- [ ] Gọi một subagent review phần vừa dịch, trước khi sang Pha 4.
+
+Đo xong mới biết việc to cỡ nào, nên ô đầu tiên của lượt thực hiện là **đếm**: bao nhiêu file, bao
+nhiêu dòng comment. Nếu quá lớn cho một commit, chia theo service — mỗi service một commit, vì ranh
+giới service là ranh giới duy nhất ở đây mà một người review có thể giữ trong đầu.
 
 ### Pha 4 — Duyệt, bỏ duyệt, và bất biến `state` ↔ số câu hỏi
 
@@ -214,6 +251,33 @@ A làm điều đó thành bất khả: một brief thiếu trường thì khôn
 đúng trường nào thiếu nên model biết phải hỏi gì. Cả N job đọc **cùng một hàng brief**, nên tính đồng
 nhất không phụ thuộc vào việc model có đổi ý giữa đường hay không. Và "cho khó hơn" thành một brief
 mới — một đợt sinh mới — chứ không phải một sửa đổi giữa dòng.
+
+### Decision: Cổng thứ nhất của ADR-05 là một check của repo, và `AGENTS.md` được nâng cap lên 173
+
+options considered:
+
+- **A. Một check mới trong `tools/check_contract.py`: `teacher_tools.py` không được chứa `advance(`,
+  `withdraw(`, hay `.state =`. Thêm một dòng vào bảng Invariants, tức `AGENTS.md` dài thêm một dòng
+  và cap đi từ 172 lên 173.**
+- **B. Giữ luật trong prompt của `propose.py` và trong docstring của catalog.**
+- **C. Chỉ cấm hai tên hàm, không cấm phép gán `.state =`.**
+
+selected option: A.
+
+reason: luật *"agent viết nội dung, giáo viên quyết trạng thái"* phải đúng với **mọi tool tương lai**,
+không chỉ với năm tool hôm nay — nên nó không thể sống trong một prompt (B): prompt là lời nhắc cho
+model, còn người thêm tool thứ sáu là tôi hoặc bạn, và không ai đọc prompt trước khi viết một hàm.
+
+C là phiên bản tôi viết trước, và nó hở đúng ở chỗ nguy hiểm nhất. `advance()` là cửa, nhưng cửa chỉ
+có nghĩa khi không ai trèo tường: `assessment.state = AssessmentState.APPROVED` trong một tool đạt
+đúng kết quả mà ADR-01 cấm, **và né được cả bảng `_ALLOWED`**. Đó lại là dòng mà một bản sửa "cho
+nhanh" dễ viết hơn hẳn so với việc đi tìm `advance`. Nên pattern bắt cả phép gán, và tha `==` vì đọc
+trạng thái chính là cách một tool quyết định từ chối.
+
+Về cap: `AGENTS_MD_MAX_LINES` lên 173 cho **một** dòng — dòng Invariants mới. Comment của chính hằng
+số đó nói cap tồn tại để chặn drift, và chỉ được nâng kèm một decision record nói rõ luật mới nào
+biện minh cho nó. Luật mới ở đây là *"No agent tool changes an assessment's state"*, và nó có nơi thi
+hành bằng máy, nên nó là một dòng Invariants đúng nghĩa chứ không phải một câu nhắc.
 
 ### Decision: Agent không điền hộ biểu mẫu phát hành
 
@@ -400,4 +464,52 @@ thật sự cần model" (worker có 5 function); `local-development.md` còn d�
 *"Starting worker for 4 functions: draft_assessment, ..."* — mà đó là **bằng chứng AGENT sống** mà
 tài liệu dạy người ta đối chiếu, nên ai làm theo nó sẽ kết luận worker sai.
 
-Năm pha, dừng sau mỗi pha để bạn review; commit pha trước chỉ khi bắt đầu pha sau.
+### Pha 3 — xong phần code, chờ review
+
+170 pytest, 11 vitest, **6** repo check xanh.
+
+Hai tool ghi đầu tiên, và cổng của bạn thành cấu trúc: `create_draft` **từ chối** một brief thiếu
+trường và nói ra tên những trường còn thiếu. Một model được nhắc trong prompt rằng phải hỏi trước thì
+quên được; một tool không chạy nổi khi thiếu trường thì không. Và việc nêu tên trường là thứ cho trợ
+lý hỏi **một** câu có ích thay vì vài câu mơ hồ — đúng khuôn ADR-23 đã dùng cho tên lớp mơ hồ.
+
+`start_drafting` từ chối khi đề **đang soạn dở**: hai đợt sinh chồng nhau là đúng thất bại mà brief
+lưu sẵn dựng lên để ngăn, và từ chối rẻ hơn hoà giải.
+
+**Check thứ sáu của repo, và nó bắt được thật.** Luật *"agent viết nội dung, giáo viên quyết trạng
+thái"* nay là `tools-decide-nothing`: `teacher_tools.py` mà **nhắc tên** `advance` hay `withdraw` là
+build đỏ. Tôi kiểm nó theo đúng kỷ luật `AGENTS.md` đòi — thêm một hàm gọi `advance` vào file đó, chạy
+check, thấy nó đỏ đúng dòng, rồi phục hồi. Một check không thể đỏ thì không phải check.
+
+Và **dây bẫy tôi dựng ở plan trước đã nổ** đúng như thiết kế: `test_the_catalog_only_offers_read_tools`
+chuyển đỏ khi tôi thêm tool. Nay tôi là người phải giải thích, và lời giải thích đứng được — ADR-05
+nói về việc **không thu hồi được**, không phải về mọi việc ghi, và cả hai tool mới đều đảo ngược được
+khi đề chưa duyệt. Test viết lại thành luật còn đúng mãi: **không tool nào duyệt hay phát hành được.**
+
+`_ENTITY_KEYS` nhận lại `assessment_id`. Review Việc 4 của plan trước bắt tôi bỏ nó ra vì không tool
+nào trả về nó — nhánh không input nào chạm tới. `create_draft` trả về nó rồi, nên đây là lượt đầu tiên
+có **chủ thể là một đề** chứ không phải một lớp, tức dữ liệu đầu tiên cho bảy variant
+`Action result card`.
+
+**Chưa gọi model thật.** Docker Desktop tắt giữa pha (máy sang ngày mới), nên Postgres và Redis không
+có. Ô đó để trống chứ không tick — và tôi cũng ghi lại một lỗi thao tác của mình: tôi dìm lỗi `psql`
+vào `/dev/null` nên việc tạo database thất bại **im lặng**, và triệu chứng hiện ra ở chỗ khác
+(`ConnectionRefusedError` của BE). Không dìm output của bước dựng môi trường.
+
+**Review Pha 3 đã chạy, và nó bắt một thứ nghiêm trọng hơn cả bốn thứ còn lại cộng lại:** check
+`tools-decide-nothing` của tôi chỉ cấm **tên hàm**, nên `assessment.state = AssessmentState.APPROVED`
+trong một tool vẫn qua được — đạt đúng kết quả ADR-01 cấm, và né luôn bảng `_ALLOWED`. Đó lại là dòng
+mà một bản sửa "cho nhanh" dễ viết hơn hẳn so với việc đi tìm `advance`. Pattern nay bắt cả phép gán,
+tha `==` (đọc trạng thái là cách một tool quyết định từ chối), và tôi kiểm nó đỏ được bằng một hàm
+`_sneaky` gán `.state` rồi phục hồi.
+
+Review cũng bắt rằng `FakeQueue` của `test_write_tools.py` không có `results`, nên **không test nào
+trong file đó chạy nổi `harvest`** — và đúng là có một lỗ hổng cần nó: không test nào ở mức tool chứng
+minh một câu job sinh ra **vào được** đề. Nay có, và tôi kiểm nó đỏ được bằng cách thay lời gọi
+`harvest` thành `landed = 0`. Cộng một decision record còn thiếu cho lần nâng cap 172 → 173, và một
+mục backlog cho đề nháp trống bị bỏ lại.
+
+Pha 3.5 chen vào trước Pha 4: một đợt **sửa chữ, không sửa hành vi** — comment trong code chuyển sang
+tiếng Việt, vì người đọc code này và người đọc đề nó sinh ra là cùng một người.
+
+Năm pha rưỡi, dừng sau mỗi pha để bạn review; commit pha trước chỉ khi bắt đầu pha sau.

@@ -14,10 +14,13 @@ The layer that does the work is inside each tool: every query filters on
 and a tool that skips it is not protected by anything above -- which is why
 tools are handed an `Asking` rather than reaching for identity themselves.
 
-Every tool here only reads, which is how this version satisfies ADR-05 without
-building a confirmation gate: there is no irreversible action to guard. When a
-writing tool arrives it does not belong in this list -- it belongs behind the
-publish form, which ADR-05 says the chat flow may never stand in for.
+Some tools here write. That is not a loosening of ADR-05: its boundary is
+about actions that **cannot be taken back**, and creating a draft or filling it
+with questions is reversible while the paper is unapproved. What no tool does
+is release work to students -- approving (ADR-01) and publishing (ADR-02) are
+the teacher's, through the panel and the publish form, and
+`tools/check_contract.py` refuses this file if it reaches for the lifecycle at
+all.
 
 Two rules every tool obeys:
 
@@ -33,14 +36,20 @@ Two rules every tool obeys:
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from be.assessment_state import AssessmentState
+from be.config import Settings, get_settings
+from be.drafting import _MOST_QUESTIONS, fire, harvest, pending_count, rebrief
 from be.identity import Asking
 from be.models import (
     Assessment,
     Attempt,
+    DraftBrief,
     Publication,
     Question,
     QuestionOutcome,
@@ -83,12 +92,56 @@ def _shown(candidate: Candidate) -> dict:
     }
 
 
-async def _find_class(session: AsyncSession, asking: Asking, args: dict) -> dict:
+@dataclass(frozen=True)
+class Running:
+    """What one tool call has to work with.
+
+    A small object rather than a longer parameter list, because the writing
+    tools need the queue and the reading ones must not touch it -- and a
+    reading tool that was handed a pool would be one refactor away from
+    queueing something.
+
+    Attributes:
+        session: Database session.
+        asking: Who is asking. Every query filters on `asking.teacher_id`.
+        pool: The arq pool, or None when the queue was unreachable. Only the
+            writing tools read it.
+        settings: Process settings supplying the queue name.
+    """
+
+    session: AsyncSession
+    asking: Asking
+    pool: object
+    settings: Settings
+
+
+@dataclass(frozen=True)
+class Tool:
+    """One tool: how it is described to the model, and what it runs.
+
+    Attributes:
+        spec: What the model reads. `spec.name` is what the loop dispatches on.
+        run: Takes the running context and the arguments. The identity lives
+            in that context rather than being read inside, so there is no path
+            where a tool runs without knowing whose data it may touch.
+        writes: True when the tool changes something. Not used to decide
+            anything yet -- every write here is reversible while the paper is
+            unapproved -- but it is what a confirmation gate would read, and
+            recording it per tool is cheaper than deducing it later from a
+            name.
+    """
+
+    spec: ToolSpec
+    run: Callable[[Running, dict], Awaitable[dict]]
+    writes: bool = False
+
+
+async def _find_class(running: Running, args: dict) -> dict:
     """Look up one of this teacher's classes by the name they typed.
 
     Args:
-        session: Database session.
-        asking: Who is asking. Every candidate is filtered by this.
+        running: Session and the asking teacher. Every candidate is filtered
+            by `running.asking`.
         args: `name`, as the teacher wrote it.
 
     Returns:
@@ -103,6 +156,7 @@ async def _find_class(session: AsyncSession, asking: Asking, args: dict) -> dict
     # class whose name contains it, and otherwise produces "no class of yours
     # by that name". That is the wrong sentence for a question that named no
     # class, and the wrong answer for one that did.
+    session, asking = running.session, running.asking
     typed = str(args.get("name") or "")
     answer = await resolve_class(session, asking, typed)
 
@@ -171,7 +225,7 @@ async def _assessments_of(session: AsyncSession, asking: Asking, class_id: str) 
     return [{"assessment_id": found, "title": title} for found, title in listed.all()]
 
 
-async def _class_assessment_summary(session: AsyncSession, asking: Asking, args: dict) -> dict:
+async def _class_assessment_summary(running: Running, args: dict) -> dict:
     """Summarise how one class did on one assessment.
 
     Counts, not rows: how many submitted, the average of their totals **with
@@ -185,15 +239,15 @@ async def _class_assessment_summary(session: AsyncSession, asking: Asking, args:
     3,4 out of 10 to every teacher in the country.
 
     Args:
-        session: Database session.
-        asking: Who is asking. Both the class and the assessment must be
-            theirs.
+        running: Session and the asking teacher. Both the class and the
+            assessment must be theirs.
         args: `class_id` and `assessment_id`.
 
     Returns:
         The summary, or a not-found answer when either id is not this
         teacher's.
     """
+    session, asking = running.session, running.asking
     class_id = str(args.get("class_id", ""))
     assessment_id = str(args.get("assessment_id", ""))
 
@@ -302,19 +356,255 @@ async def _class_assessment_summary(session: AsyncSession, asking: Asking, args:
     }
 
 
-@dataclass(frozen=True)
-class Tool:
-    """One tool: how it is described to the model, and what it runs.
+# What a draft cannot be started without. Not a preference -- the questions
+# are written by independent jobs, so a brief still being assembled produces a
+# set whose halves answer different questions, and that is a defect nobody
+# finds by reading the questions one at a time.
+_BRIEF_FIELDS = ("subject", "grade", "topic_scope", "question_count")
 
-    Attributes:
-        spec: What the model reads. `spec.name` is what the loop dispatches on.
-        run: Takes the session, the asking teacher and the arguments. It is
-            handed the teacher rather than reading one, so there is no path
-            where a tool runs without knowing whose data it may touch.
+# How long each free-text field may be, taken from the columns that store it:
+# `Assessment.subject` and `DraftBrief.difficulty` are String(64) and
+# `Assessment.grade` is String(16). The model writes these, so they arrive as
+# whatever a teacher said -- and `String(n)` is unenforced on SQLite, so a test
+# suite cannot discover this for us.
+_FIELD_CAPS = {"subject": 64, "grade": 16, "difficulty": 64}
+
+# Said the same way for a draft that is not there and one that belongs to
+# someone else (ADR-22).
+_NO_SUCH_DRAFT = {
+    "started": False,
+    "reason": "không có đề nháp nào như vậy trong danh sách của bạn",
+}
+
+
+async def _create_draft(running: Running, args: dict) -> dict:
+    """Start an empty draft, once the brief is complete.
+
+    Refuses an incomplete brief and names the fields that are missing. That
+    refusal is the mechanism behind "gather the context first": a model told
+    to ask before writing can forget, and a tool that will not run without the
+    fields cannot be forgotten. Naming them is what lets the assistant ask one
+    useful question instead of several vague ones.
+
+    Nothing is queued here. Creating the draft and filling it are separate
+    steps, so the brief is readable -- by the teacher, in the panel -- before
+    any model call is spent on it.
+
+    Args:
+        running: Session and the asking teacher, who becomes the author.
+        args: `subject`, `grade`, `topic_scope`, `question_count`, and
+            optionally `difficulty` and `title`.
+
+    Returns:
+        The new draft's id, or a refusal naming what the brief still needs.
+
+    Side effects:
+        Writes an `Assessment` in the empty state and its `DraftBrief`.
     """
+    session, asking = running.session, running.asking
 
-    spec: ToolSpec
-    run: Callable[[AsyncSession, Asking, dict], Awaitable[dict]]
+    missing = [field for field in _BRIEF_FIELDS if not str(args.get(field) or "").strip()]
+    if missing:
+        return {
+            "created": False,
+            "missing": missing,
+            "reason": "chưa đủ thông tin để soạn đề; hãy hỏi giáo viên những mục còn thiếu",
+        }
+
+    try:
+        count = int(str(args["question_count"]).strip())
+    except (TypeError, ValueError):
+        # Not the same as missing. Reporting "chưa đủ thông tin" for a field
+        # the model already filled sends it round to fill the same value again,
+        # and the turn spends its whole ceiling discovering that "ba" is not a
+        # number.
+        return {
+            "created": False,
+            "missing": [],
+            "unreadable": ["question_count"],
+            "reason": "question_count phải là một con số, ví dụ 10",
+        }
+
+    if not 1 <= count <= _MOST_QUESTIONS:
+        return {
+            "created": False,
+            "missing": [],
+            "unreadable": ["question_count"],
+            "reason": f"số câu phải từ 1 đến {_MOST_QUESTIONS}",
+        }
+
+    # Lengths come from the columns, and the answer is a refusal rather than a
+    # silent trim: a truncated `grade` is wrong data that looks like data. The
+    # test suite runs on SQLite, where `String(n)` has no effect, so nothing
+    # below this line would have failed until a teacher hit Postgres -- which
+    # is exactly what "lớp 12 ban khoa học tự nhiên" does to a 16-character
+    # column.
+    too_long = [
+        field for field, cap in _FIELD_CAPS.items() if len(str(args.get(field) or "")) > cap
+    ]
+    if too_long:
+        return {
+            "created": False,
+            "missing": [],
+            "too_long": too_long,
+            "reason": (
+                "mấy mục này dài quá mức lưu được: "
+                + ", ".join(f"{field} tối đa {_FIELD_CAPS[field]} ký tự" for field in too_long)
+            ),
+        }
+
+    scope = str(args["topic_scope"]).strip()
+    draft = Assessment(
+        teacher_id=asking.teacher_id,
+        # A title the teacher can rename later, so deriving one costs nothing
+        # and saves a round of questions about something cosmetic. Trimmed
+        # rather than refused for the same reason.
+        title=str(args.get("title") or f"Đề {scope}").strip()[:160],
+        subject=str(args["subject"]).strip(),
+        grade=str(args["grade"]).strip(),
+        state=AssessmentState.EMPTY,
+        created_at=datetime.now(UTC),
+    )
+    session.add(draft)
+    await session.flush()
+
+    await rebrief(
+        session,
+        draft.id,
+        topic_scope=scope,
+        question_count=count,
+        difficulty=str(args.get("difficulty") or "").strip(),
+    )
+
+    logger.info("teacher %s opened draft %s", asking.teacher_code, draft.id)
+    return {
+        "created": True,
+        "assessment_id": draft.id,
+        "title": draft.title,
+        "question_count": count,
+    }
+
+
+async def _draft_progress(running: Running, args: dict) -> dict:
+    """Collect whatever is finished, and say how far the draft has got.
+
+    The collecting is the point. BE has no background worker, so a question
+    only enters a draft when something asks for it -- and before this tool
+    existed, nothing did: `start_drafting` queued jobs whose answers expired in
+    Redis an hour later, leaving the draft empty and permanently "đang soạn
+    dở".
+
+    Args:
+        running: Session, the asking teacher, and the queue.
+        args: `assessment_id`.
+
+    Returns:
+        Counts and the question stems so far, or the same not-found answer a
+        draft belonging to someone else produces (ADR-22).
+
+    Side effects:
+        Writes any finished questions into the draft.
+    """
+    session, asking = running.session, running.asking
+    assessment_id = str(args.get("assessment_id") or "")
+
+    owned = await session.scalar(
+        select(Assessment).where(
+            Assessment.id == assessment_id, Assessment.teacher_id == asking.teacher_id
+        )
+    )
+    if owned is None:
+        return {"found": False, "reason": _NO_SUCH_DRAFT["reason"]}
+
+    landed = await harvest(session, running.pool, running.settings, assessment_id)
+    brief = await session.get(DraftBrief, assessment_id)
+    stems = await session.scalars(
+        select(Question.stem)
+        .where(Question.assessment_id == assessment_id)
+        .order_by(Question.order_index)
+    )
+    still_running = await pending_count(session, assessment_id)
+
+    return {
+        "found": True,
+        "assessment_id": assessment_id,
+        "title": owned.title,
+        "state": str(owned.state),
+        "asked_for": brief.question_count if brief is not None else 0,
+        "written": list(stems),
+        "just_landed": landed,
+        "still_drafting": still_running,
+    }
+
+
+async def _start_drafting(running: Running, args: dict) -> dict:
+    """Queue one job per question of a draft's brief.
+
+    Refuses while anything is still running. Two overlapping rounds is exactly
+    the failure the stored brief exists to prevent -- questions written to two
+    sets of instructions sharing one paper -- and refusing is cheaper than
+    reconciling.
+
+    Args:
+        running: Session, the asking teacher, and the queue.
+        args: `assessment_id`.
+
+    Returns:
+        How many jobs were queued, or a refusal. The refusal for another
+        teacher's draft reads exactly like the one for a draft that does not
+        exist (ADR-22).
+
+    Side effects:
+        Writes jobs onto the queue and a `DraftItem` row for each.
+    """
+    session, asking = running.session, running.asking
+    assessment_id = str(args.get("assessment_id") or "")
+
+    owned = await session.scalar(
+        select(Assessment).where(
+            Assessment.id == assessment_id, Assessment.teacher_id == asking.teacher_id
+        )
+    )
+    if owned is None:
+        return dict(_NO_SUCH_DRAFT)
+
+    # Collected first. Nothing else in BE collects these jobs, so a round that
+    # finished while nobody was looking would still read as running -- and the
+    # refusal below would then be permanent: the draft could never be worked on
+    # again.
+    await harvest(session, running.pool, running.settings, assessment_id)
+
+    if await pending_count(session, assessment_id):
+        return {
+            "started": False,
+            "reason": "đề này đang soạn dở; chờ xong rồi hãy soạn thêm",
+        }
+
+    try:
+        queued = await fire(session, running.pool, running.settings, assessment_id)
+    except HTTPException:
+        # `fire` calls `assert_editable`, so an approved paper lands here.
+        # ADR-01 locks content at approval, and that lock is the reason
+        # approving means anything.
+        #
+        # Deliberately not `refused.detail`. That sentence ends "muốn sửa thì
+        # bỏ duyệt trước", which is written for a teacher reading a screen --
+        # and the prompt tells the model to relay a reason, so the assistant
+        # would offer to unapprove. It has no tool for that, and the check in
+        # `tools/check_contract.py` is there to keep it that way, so relaying
+        # the sentence would turn a correct refusal into a promise nobody can
+        # keep.
+        return {
+            "started": False,
+            "reason": "đề này đã duyệt nên nội dung đã khoá; việc bỏ duyệt làm ở panel bên phải",
+        }
+
+    if not queued:
+        return {
+            "started": False,
+            "reason": "chưa soạn được câu nào; có thể đề chưa có brief, hoặc hàng đợi đang hỏng",
+        }
+    return {"started": True, "queued": queued, "assessment_id": assessment_id}
 
 
 _TOOLS: tuple[Tool, ...] = (
@@ -348,6 +638,53 @@ _TOOLS: tuple[Tool, ...] = (
         ),
         run=_class_assessment_summary,
     ),
+    Tool(
+        spec=ToolSpec(
+            name="create_draft",
+            description=(
+                "Mo mot de nhap trong. BAT BUOC co du: subject (mon), grade (khoi), topic_scope "
+                "(pham vi kien thuc, theo loi giao vien) va question_count (so cau). Thieu muc nao "
+                "thi tool tra ve danh sach missing -- hay HOI giao vien nhung muc do roi goi lai, "
+                "dung tu doan. difficulty va title la tuy chon. Tool nay KHONG sinh cau hoi; goi "
+                "start_drafting sau."
+            ),
+            arguments={
+                "subject": "mon hoc, vi du Toan",
+                "grade": "khoi, vi du 12",
+                "topic_scope": "pham vi kien thuc theo loi giao vien",
+                "question_count": "so cau, 1 den 50",
+                "difficulty": "muc do theo loi giao vien (tuy chon)",
+                "title": "ten de (tuy chon, he thong tu dat neu bo trong)",
+            },
+        ),
+        run=_create_draft,
+        writes=True,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="start_drafting",
+            description=(
+                "Bat dau sinh cau hoi cho mot de nhap da co brief. Moi cau mot job chay nen, nen "
+                "tool tra ve ngay va cau hoi hien dan -- dung cho, hay noi voi giao vien la dang "
+                "soan. Tu choi neu de dang soan do hoac da duyet."
+            ),
+            arguments={"assessment_id": "id de nhap, lay tu create_draft"},
+        ),
+        run=_start_drafting,
+        writes=True,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="draft_progress",
+            description=(
+                "Xem một đề nháp đã soạn được bao nhiêu câu, và đọc các câu đã có. Gọi tool này "
+                "sau start_drafting để biết đã xong chưa — câu hỏi chỉ vào đề khi có ai hỏi tới, "
+                "nên không gọi thì đề vẫn trống. still_drafting > 0 nghĩa là còn đang soạn."
+            ),
+            arguments={"assessment_id": "id đề nháp"},
+        ),
+        run=_draft_progress,
+    ),
 )
 
 _BY_NAME = {tool.spec.name: tool for tool in _TOOLS}
@@ -356,11 +693,10 @@ _BY_NAME = {tool.spec.name: tool for tool in _TOOLS}
 def catalog_for(asking: Asking) -> tuple[ToolSpec, ...]:
     """Describe the tools this teacher may use on this turn.
 
-    Every tool in this version is read-only and scoped by owner, so the whole
-    list is offered to every teacher. The signature still takes the teacher,
-    because the first tool that is not available to everyone must narrow this
-    list rather than be stopped later -- a tool described to a model is a tool
-    the model will try.
+    Every tool is scoped by owner, so the whole list is offered to every
+    teacher. The signature still takes the teacher, because the first tool that
+    is not available to everyone must narrow this list rather than be stopped
+    later -- a tool described to a model is a tool the model will try.
 
     Args:
         asking: Who is asking.
@@ -371,18 +707,33 @@ def catalog_for(asking: Asking) -> tuple[ToolSpec, ...]:
     return tuple(tool.spec for tool in _TOOLS)
 
 
-async def execute(session: AsyncSession, asking: Asking, name: str, args: dict) -> dict:
+async def execute(
+    session: AsyncSession,
+    asking: Asking,
+    name: str,
+    args: dict,
+    *,
+    pool: object = None,
+    settings: Settings | None = None,
+) -> dict:
     """Run one tool on this teacher's behalf.
 
     This is the gate. The catalog said what the model could ask for; this
     decides what happens, and it re-checks ownership inside every tool rather
     than trusting that the catalog was read correctly.
 
+    What this function will never do is change an assessment's state.
+    `tools/check_contract.py` refuses this file if it so much as mentions
+    `advance` or `withdraw`: the assistant writes content, and a teacher
+    decides whether that content may be released (ADR-01, ADR-02, ADR-05).
+
     Args:
         session: Database session.
         asking: Who is asking.
         name: The tool named in the proposal.
         args: The arguments named in the proposal, unvalidated.
+        pool: The arq pool, for the tools that queue work.
+        settings: Process settings. Read from the process when not given.
 
     Returns:
         The tool's result, already summarised.
@@ -395,4 +746,12 @@ async def execute(session: AsyncSession, asking: Asking, name: str, args: dict) 
         raise UnknownTool(name)
 
     logger.info("teacher %s runs %s", asking.teacher_code, name)
-    return await tool.run(session, asking, args)
+    return await tool.run(
+        Running(
+            session=session,
+            asking=asking,
+            pool=pool,
+            settings=settings or get_settings(),
+        ),
+        args,
+    )

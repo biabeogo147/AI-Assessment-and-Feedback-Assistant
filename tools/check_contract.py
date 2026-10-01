@@ -17,6 +17,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# 173: one line above the 172 below, bought on 2026-10-01 by the rule that no
+# agent tool changes an assessment's state. It earned a row because it is the
+# load-bearing half of ADR-05's first gate: the assistant may write content, and
+# a teacher decides whether that content reaches students. The check behind it
+# is a grep, which is blunt on purpose -- the failure worth preventing is
+# somebody reaching for the convenient import while adding a tool. The decision
+# record is in 2026-09-30-teacher-write-path-plan.md.
+#
 # 172: one line above the 171 below, bought on 2026-09-30 by the rule that the
 # options in a clarifying question are written by BE from rows it read, never by
 # the model (ADR-23). It earned a row because it is the kind of rule a later
@@ -35,7 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # rules to satisfy an invented number is the wrong trade. The cap exists to stop
 # drift from here, so raise it only alongside a decision record explaining what
 # new rule justified the growth.
-AGENTS_MD_MAX_LINES = 172
+AGENTS_MD_MAX_LINES = 173
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -53,6 +61,14 @@ DB_CREDENTIAL_PATTERN = re.compile(
 )
 
 ENV_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=")
+
+# The two functions that move an assessment through ADR-01's lifecycle, plus
+# the way around them. A teacher tool naming either function is reaching past
+# the gate it is meant to stay behind -- and `assessment.state = ...` is that
+# same reach with the gate skipped entirely, which is the version a well-meaning
+# patch is far likelier to write. `==` is left alone: reading the state is how a
+# tool decides to refuse.
+LIFECYCLE_VERBS = re.compile(r"\b(advance|withdraw)\s*\(|\.state\s*=[^=]")
 
 
 def _fail(check: str, detail: str) -> str:
@@ -217,12 +233,64 @@ def check_named_dev_tasks_exist() -> str | None:
     return None
 
 
+def check_no_tool_changes_an_assessment_state() -> str | None:
+    """The assistant writes content; a teacher decides whether it is released.
+
+    ADR-05 puts three gates around the agent, and the first is that a teacher
+    approves an assessment before it reaches students. ADR-02 adds that
+    publishing takes six parameters through a form and a confirmation dialog,
+    never the chat flow. Both of those are promises about what the assistant
+    *cannot* do, and a promise like that is worth exactly as much as the thing
+    enforcing it.
+
+    So the agent's tools may write content -- creating a draft and filling it
+    are reversible while the paper is unapproved -- but they may not touch the
+    lifecycle. `advance` and `withdraw` in `be/assessment_state.py` are the only
+    ways an assessment changes state, and this check refuses a tool file that so
+    much as names them. It also refuses `.state =`, because a gate nobody has to
+    walk through is not a gate: assigning the column directly reaches ADR-01's
+    forbidden outcome while skipping the edge table as well.
+
+    Blunter than reading the call graph, and deliberately so: the failure mode
+    worth preventing is somebody reaching for the convenient import while
+    adding a tool, and a grep catches that on the commit rather than in review.
+
+    Returns:
+        None when the tool file is clean, otherwise a failure message naming
+        every offending line.
+    """
+    tools = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_tools.py"
+    if not tools.exists():
+        return _fail("tools-decide-nothing", f"{tools} is missing; the check cannot run")
+
+    offenders = []
+    for number, line in enumerate(tools.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = line.lstrip()
+        if stripped.startswith("#") or stripped.startswith('"'):
+            # Comments and docstrings explain the rule, so they are allowed to
+            # name it. Only code is being checked.
+            continue
+        if LIFECYCLE_VERBS.search(line):
+            offenders.append(f"{tools.name}:{number}")
+
+    if offenders:
+        return _fail(
+            "tools-decide-nothing",
+            f"a teacher tool reaches for the assessment lifecycle at {offenders}. "
+            "AGENT proposes and writes content; approving and publishing belong to "
+            "the teacher endpoints (ADR-01, ADR-02, ADR-05). A state a tool needs "
+            "to change is a state the teacher should be changing.",
+        )
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
     check_model_call_fits_inside_the_job_waiting_for_it,
     check_contract_files_stay_short,
     check_named_dev_tasks_exist,
+    check_no_tool_changes_an_assessment_state,
 )
 
 

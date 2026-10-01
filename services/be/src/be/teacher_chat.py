@@ -9,8 +9,9 @@ knows who is calling.
 Three properties come out of that arrangement rather than out of a prompt:
 
 - **A proposal is not an action.** ADR-05 keeps irreversible work out of the
-  chat flow. Here that is structural: the only writing path is the one BE
-  builds, and this version builds none.
+  chat flow. Here that is structural: BE decides which proposals run, and the
+  tools it offers can only do reversible things. Approving and publishing have
+  no tool at all, and `tools/check_contract.py` keeps it that way.
 - **The loop ends.** `max_tool_steps` bounds it, and hitting the bound is said
   out loud. A request that never comes back is the worse failure -- nothing in
   the logs names a cause for it.
@@ -226,30 +227,35 @@ _HISTORY_STEPS = 40
 # subject is what the interface draws and what a later question links to; the
 # sentence announcing it is not.
 #
-# One entry, not a table of them. `assessment_id` was in here until a review
-# pointed out that no tool returns it -- `class_assessment_summary` answers
-# with `assessment_title` and counts, never an id -- so the second entry was a
-# branch no input could reach. It goes back the day a tool returns one.
-_ENTITY_KEYS = (("class_id", "class"),)
+# `assessment_id` was taken out of here once, when a review pointed out that
+# no tool returned one and the branch was unreachable. `create_draft` returns
+# one now, so it is back -- and this is the first turn whose subject is a paper
+# rather than a class, which is what an `Action result card` needs to draw
+# anything about drafting.
+_ENTITY_KEYS = (("class_id", "class"), ("assessment_id", "assessment"))
 
 
 def _subject(result: dict) -> tuple[str, str]:
     """Name the entity a tool result is about, when it is about one.
 
-    Today that is only a resolved class, from `find_class`. The columns exist
-    for more than that -- a draft assessment is the obvious next one -- but
-    they are filled by whatever tools actually return, and this version has
-    no tool that writes anything.
+    A class from `find_class`, or a draft from `create_draft` and
+    `start_drafting`. The columns hold whatever the tools actually return, so
+    they grow as the tools do.
+
+    A result is about something when it says it succeeded, and the tools say
+    that three ways: `found` for a lookup, `created` for a new draft,
+    `started` for a round of generation. Listing the three beats inspecting
+    the tool name, because the name is not what carries the id.
 
     Args:
         result: One tool's return value.
 
     Returns:
-        The kind and the id, or two empty strings. Only a successful lookup
-        has a subject: a refusal is about nothing, and recording its arguments
-        as an entity would create links to rows that were never found.
+        The kind and the id, or two empty strings. Only a success has a
+        subject: a refusal is about nothing, and recording its arguments as an
+        entity would create links to rows that were never found.
     """
-    if not result.get("found"):
+    if not any(result.get(flag) for flag in ("found", "created", "started")):
         return "", ""
     for key, kind in _ENTITY_KEYS:
         value = result.get(key)
@@ -607,7 +613,16 @@ async def say_something(
         )
 
         try:
-            result = await execute(session, asking, step.tool_name, step.tool_args)
+            result = await execute(
+                session,
+                asking,
+                step.tool_name,
+                step.tool_args,
+                # The writing tools queue work; the reading ones never touch
+                # this. A dead queue therefore costs drafting and nothing else.
+                pool=getattr(request.app.state, "queue_pool", None),
+                settings=settings,
+            )
         except UnknownTool:
             # Back to the model as data, not as an exception. It proposed
             # something that does not exist -- often a tool it half-remembers
@@ -632,9 +647,11 @@ async def say_something(
             # the process, including the ones students poll on.
             await session.rollback()
 
-        candidates, cut = _offered(result)
-        if candidates:
-            offered, offered_more = candidates, cut
+        # Replaced, not merged. Keeping the previous tool's candidates meant a
+        # question about something else arrived with them still attached: ask
+        # about a class, then ask how many questions, and the second question
+        # came back offering two class names as its answers.
+        offered, offered_more = _offered(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
         position = await _record(session, thread, position, history[-1])
 

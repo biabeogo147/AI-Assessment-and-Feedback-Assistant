@@ -32,7 +32,7 @@ from be.identity import Asking
 from be.models import Assessment, AssessmentState, SchoolClass, Student, Teacher
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
-from be.teacher_tools import UnknownTool, catalog_for, execute
+from be.teacher_tools import UnknownTool, execute
 from contracts import NextStepCompleted
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
@@ -290,22 +290,6 @@ async def test_a_tool_cannot_reach_another_teachers_class(stack) -> None:
     assert my_own["name"] == "12A"
 
     assert by_name == missing
-
-
-@pytest.mark.asyncio
-async def test_the_catalog_only_offers_read_tools(stack) -> None:
-    """Nothing in this version can change anything.
-
-    ADR-05 puts publishing behind a gate that is not the chat flow. The
-    cheapest way to honour that in a first version is to ship no tool that
-    writes, so there is no irreversible action for a gate to guard.
-    """
-    _, maker, _ = stack
-    mine = await _teacher(maker, "GV-001")
-
-    offered = {tool.name for tool in catalog_for(Asking.of(mine))}
-
-    assert offered == {"find_class", "class_assessment_summary"}
 
 
 @pytest.mark.asyncio

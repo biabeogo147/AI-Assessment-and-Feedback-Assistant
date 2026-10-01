@@ -568,3 +568,24 @@ Hai đường: chuẩn hoá ở `harvest` (`x^3` → `x³`, một bảng tra nh�
 Unicode tương ứng), hoặc từ chối như một lỗi shape ADR-18 và để BE hỏi lại — đắt hơn nhưng đặt luật
 ở đúng chỗ đã có cơ chế hỏi lại. Chưa làm vì `validate_question` hiện chỉ kiểm cấu trúc, và thêm một
 luật về *hình thức chữ* vào đó là một quyết định về phạm vi của ADR-18.
+
+
+## Đề nháp trống bị bỏ lại, và không có đường xoá
+
+Ghi ngày 2026-10-01, từ review Pha 3 của đường ghi.
+
+`create_draft` ghi một `Assessment` + một `DraftBrief` rồi trả về ngay. Nó **không** idempotent, và
+đó là có chủ ý: hai lần hỏi là hai đề, vì dùng lại đề đầu sẽ âm thầm trộn hai brief vào một bộ, còn
+từ chối lần thứ hai thì cấm giáo viên soạn hai đề trong một buổi. Cái giá là mỗi lượt chat chết sau
+`create_draft` nhưng trước `start_drafting` để lại một đề `EMPTY` không ai gọi tên nữa — và hôm nay
+**không có đường nào xoá nó**.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Một đường xoá đề nháp (tool, hay endpoint của giáo viên) | Chưa quyết ai được xoá và xoá tới đâu |
+| Tool đọc liệt kê đề nháp của giáo viên, để thấy mà dọn | Chờ đường xoá: liệt kê rác mà không dọn được thì tệ hơn |
+
+Chưa làm vì xoá là thao tác **không đảo ngược được**, nên theo ADR-05 nó thuộc phía giáo viên, không
+phải một tool — và nó cần ít nhất một hộp xác nhận. Nó cũng cần biết một đề `EMPTY` khác gì một đề
+giáo viên đang cố ý soạn dở: `created_at` cũ bao lâu thì được coi là rác là một quyết định về sản
+phẩm, không phải về code. Tác hại hiện tại chỉ là rác trong bảng, không ai thấy, nên nó chờ được.
