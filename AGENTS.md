@@ -48,6 +48,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | Teacher approves an assessment before release | automatic: `test_an_unapproved_assessment_cannot_be_published_over_http` |
 | The options in a clarifying question are written by BE from rows it read | automatic: `test_the_options_are_written_by_be_not_by_the_model` |
 | No agent tool changes an assessment's state | automatic: `tools/check_contract.py` |
+| Invented screen data stays in its one self-accusing module | automatic: `tools/check_contract.py` |
 | An empty assessment is never approved | automatic: `test_an_empty_assessment_cannot_be_approved` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
 | FE never applies its own confidence threshold | review: `confidence` may be displayed, never compared |

@@ -51,9 +51,16 @@ export default function App() {
   return <Student />;
 }
 
-/** Bề mặt giáo viên. Mới có bề mặt chat; route có panel đề là bước sau của plan. */
+/**
+ * Bề mặt giáo viên.
+ *
+ * Panel là một **route**, không phải một state cục bộ: `#/teacher/de/{id}` mở nó, nút back
+ * đóng nó, và một lần F5 dựng lại đúng màn hình đang mở. Một state cục bộ thì mất cả ba.
+ */
 function Teacher() {
-  return <Chat />;
+  const route = useRoute();
+  const paper = /^\/teacher\/de\/([^/]+)/.exec(route);
+  return <Chat openPaper={paper ? paper[1] : null} />;
 }
 
 /**

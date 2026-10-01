@@ -32,6 +32,11 @@
   --accent: #2e4a7d;
   --accent-hover: #243a63;
   --accent-surface: #edf1f7;
+  /* Hai màu này nằm trong collection `Color` từ đầu nhưng chưa màn hình học sinh
+   * nào dùng tới: `state/processing` là "máy đã làm xong một việc", và việc do
+   * máy làm thì chỉ bề mặt giáo viên mới thấy. */
+  --state-processing: #2f6f73;
+  --state-processing-surface: #e8f1f1;
   --state-settled: #4a6357;
   --state-settled-surface: #edf1ee;
   --state-needs-human: #8a5a22;

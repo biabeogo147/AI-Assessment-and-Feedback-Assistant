@@ -818,3 +818,348 @@
   font-size: var(--type-caption);
   line-height: 1.5;
 }
+
+/* ------------------------------------------------------- thẻ kết quả hành động */
+
+/*
+ * Một bước `tool_result` đã xảy ra, kể lại bằng một thẻ.
+ *
+ * Mỗi thẻ mang **một câu an toàn** — *"Chưa duyệt · chưa phát hành"*, *"Đề trống, chưa
+ * phát hành được"* — và đó không phải trang trí: ADR-05 đặt ba cổng mà con người phải
+ * bước qua, và một màn hình kể rằng máy vừa làm xong một việc mà không nói việc đó
+ * **chưa** tới tay học sinh là một màn hình mời người ta tưởng là xong.
+ */
+.teacher .action-card {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--state-processing-surface);
+}
+
+.teacher .action-card.settled {
+  background: var(--state-settled-surface);
+}
+
+.teacher .action-card.refused {
+  background: var(--answer-incorrect-surface);
+}
+
+.teacher .action-card .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--state-processing);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .action-card.settled .head {
+  color: var(--state-settled);
+}
+
+.teacher .action-card.refused .head {
+  color: var(--answer-incorrect);
+}
+
+.teacher .action-card .head .dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--state-settled);
+}
+
+.teacher .action-card.refused .head .dot {
+  background: var(--answer-incorrect);
+}
+
+.teacher .action-card .detail {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .action-card .safety {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: var(--radius-chip);
+  background: var(--state-needs-human-surface);
+  color: var(--state-needs-human);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .action-card .actions {
+  display: flex;
+  gap: 8px;
+}
+
+.teacher .action-card .btn {
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Hành động chính: nền accent, chữ trắng, không viền — một nút trên một thẻ. */
+.teacher .action-card .btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--surface);
+}
+
+/* ------------------------------------------------------------------ panel đề */
+
+/*
+ * Panel bên phải: artboard 6 và 7 là **cùng một panel** ở hai trạng thái, không phải
+ * hai màn hình. Thuộc tính `Sửa được` của thiết kế tắt khi đề đã duyệt, và state là
+ * thứ quyết định điều đó — giao diện không tự kết luận (ADR-01).
+ */
+.teacher .panel {
+  flex: 0 0 420px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  /*
+   * Vạch ngăn vẽ bằng `box-shadow` chứ không bằng `border`, và ba chỗ trong panel
+   * đều thế. Figma vẽ stroke kiểu `INSIDE`: vạch nằm **trên** mép, không đẩy nội
+   * dung đi đâu cả. Một `border` thì ăn mất một pixel bề rộng, nên panel 420 chỉ
+   * còn 419 cho ruột, và mọi thứ bên trong lệch sang phải một pixel.
+   */
+  box-shadow: inset 1px 0 0 var(--line);
+}
+
+.teacher .panel-head {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 6px;
+  padding: 20px 20px 16px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.teacher .panel-head .title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.teacher .panel-head h2 {
+  flex: 1;
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .panel-head .close {
+  padding: 5px 0 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .panel-head .meta {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .panel-head .provenance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .panel-head .provenance .lead {
+  color: var(--ink-muted);
+}
+
+/*
+ * Chip nguồn. Bo tròn hẳn (999) để nó không bị đọc nhầm thành một nút.
+ */
+.teacher .source-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.teacher .source-chip.checked {
+  background: var(--state-settled-surface);
+  color: var(--state-settled);
+}
+
+.teacher .source-chip.unchecked {
+  background: var(--state-needs-human-surface);
+  color: var(--state-needs-human);
+}
+
+/* Vùng cuộn duy nhất của panel; đầu và chân panel đứng yên. */
+.teacher .panel-questions {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 20px 20px;
+  background: var(--paper);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.teacher .panel-questions::-webkit-scrollbar {
+  display: none;
+}
+
+.teacher .qcard {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 8px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher .qcard .top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 23px;
+}
+
+.teacher .qcard .num {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .qcard .top .source-chip {
+  padding: 3px 8px;
+}
+
+.teacher .qcard .spacer {
+  flex: 1;
+}
+
+.teacher .qcard .edit {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .qcard .stem {
+  color: var(--ink);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .qcard .options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.teacher .qcard .opt {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/* Đáp án đúng: ADR-12 cho nó màu riêng, và màu đó KHÔNG phải màu trạng thái. */
+.teacher .qcard .opt.correct {
+  color: var(--answer-correct);
+  font-weight: 600;
+}
+
+.teacher .qcard .solution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.27;
+}
+
+.teacher .qcard .solution .spacer {
+  flex: 1;
+}
+
+.teacher .panel-foot {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 10px;
+  padding: 16px 20px 20px;
+  box-shadow: inset 0 1px 0 var(--line);
+  background: var(--surface);
+}
+
+.teacher .panel-foot .note {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .panel-foot .cta {
+  height: 42px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .panel-foot .cta:disabled {
+  background: var(--line-strong);
+}
+
+/* Cột giữa hẹp lại khi panel mở — đúng 760, và dòng lượt nói còn 660. */
+.teacher .center.with-panel {
+  padding-left: 50px;
+  padding-right: 50px;
+}
+
+.teacher .center.with-panel .stream,
+.teacher .center.with-panel .composer-bar,
+.teacher .center.with-panel .scope-strip,
+.teacher .center.with-panel .trouble {
+  width: 660px;
+}

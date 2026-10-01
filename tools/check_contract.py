@@ -60,7 +60,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # đã trả tiền cho chính nó. Decision record nằm ở
 # 2026-09-30-teacher-write-path-plan.md.
 #
-AGENTS_MD_MAX_LINES = 175
+AGENTS_MD_MAX_LINES = 176
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -348,6 +348,51 @@ def check_no_tool_changes_an_assessment_state() -> str | None:
     return None
 
 
+def check_invented_data_lives_in_one_file() -> str | None:
+    """Thứ màn hình nói mà backend không biết là đúng thì chỉ được sống ở một chỗ.
+
+    Panel của giáo viên in một chip nguồn cho mỗi câu hỏi -- *"Lấy từ ngân hàng câu hỏi"*,
+    *"Thêm mới · chưa kiểm"*. `Question` có năm cột và không cột nào nói nguồn hay trạng thái kiểm,
+    nên mấy cái chip ấy không suy ra được từ bất cứ dữ liệu nào: chúng là chữ **bịa**, nhận vào có
+    chủ ý để dựng được màn hình, và ghi nợ trong `docs/plans/backlog.md`.
+
+    Một món nợ như vậy trả được chừng nào nó còn nằm một chỗ. Sao chép chuỗi ấy sang một component
+    thứ hai là lúc nó thôi là món nợ và thành một **luật của sản phẩm**: ngày BE biết nguồn thật,
+    người sửa sẽ sửa một chỗ rồi tin rằng xong, trong khi chỗ thứ hai vẫn nói chữ cũ.
+
+    `AGENTS.md` cấm một màn hình *suy ra* một luật từ dữ liệu; chỗ này nặng hơn một bậc và vì thế
+    cần một hàng rào cứng chứ không chỉ một dòng tài liệu.
+
+    Returns:
+        None khi mọi chuỗi bịa chỉ xuất hiện trong module tự tố cáo, ngược lại là thông báo thất
+        bại kèm tên file vi phạm.
+    """
+    home = REPO_ROOT / "services" / "fe" / "src" / "screens" / "teacher" / "invented-not-from-be.ts"
+    if not home.exists():
+        return _fail("invented-data-stays-put", f"{home} is missing; the check cannot run")
+
+    marks = ("Lấy từ ngân hàng câu hỏi", "Thêm mới · chưa kiểm", "Thêm mới · đã kiểm")
+    offenders = []
+    for path in sorted((REPO_ROOT / "services" / "fe" / "src").rglob("*.ts*")):
+        if path == home:
+            continue
+        body = path.read_text(encoding="utf-8")
+        # Chỉ báo tên file, không in lại chính chuỗi đó. Console của Windows đọc cp1252
+        # và một thông báo thất bại mang dấu tiếng Việt sẽ **nổ** thay vì in ra -- lúc đó
+        # người ta thấy một traceback encoding chứ không thấy luật nào vừa bị vi phạm.
+        if any(mark in body for mark in marks):
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    if offenders:
+        return _fail(
+            "invented-data-stays-put",
+            f"invented screen data was copied out of its one module: {offenders}. "
+            "Import it from invented-not-from-be.ts instead. The filename is the warning, "
+            "and a second copy is how a debt quietly becomes a product rule.",
+        )
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
@@ -355,6 +400,7 @@ CHECKS = (
     check_contract_files_stay_short,
     check_named_dev_tasks_exist,
     check_no_tool_changes_an_assessment_state,
+    check_invented_data_lives_in_one_file,
 )
 
 

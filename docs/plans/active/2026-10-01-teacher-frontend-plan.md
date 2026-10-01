@@ -63,7 +63,7 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
 - [x] **Bước 4 — vòng lặp lượt + artboard 2.** `pending` → `turns`, `Thinking` hai variant,
       `ActionResultCard`. Thêm `Document` + tải lên + liệt kê trước khi dựng rail. Cổng đo artboard 2.
 - [x] **Bước 5 — artboard 3.** `ask_clarify`, `choices`, rehydrate sau F5.
-- [ ] **Bước 6 — artboard 6.** `Panel`, `QuestionCard`, `SourceChip`, `provenance.ts`.
+- [x] **Bước 6 — artboard 6.** `Panel`, `QuestionCard`, `SourceChip`, `provenance.ts`.
 - [ ] **Bước 7 — sửa Figma ô giờ, rồi artboard 7.** `PublishSettings`, `preview`, hộp xác nhận, thất
       bại một phần.
 - [ ] **Bước 8 — tài liệu.** ADR-04 (*FE đang giả vờ thi hành*), ADR-22 (*"chưa có màn hình nào của
@@ -262,6 +262,26 @@ Cùng lúc, năm cỡ chữ rời của thẻ (16, 14, 12) được bind vào `D
 Câu hỏi nằm **cả** trong `turns` lẫn trên tiêu đề thẻ, nên lượt cuối bị gấp lại khi thẻ đang hiện —
 và chỉ khi chính nó là câu đó. Sau một lần F5 thì `choices` mất, câu hỏi quay về làm một bong bóng
 bình thường, và gõ tay vẫn trả lời được: không ai kẹt.
+
+Bước 6 xong: panel đề, thẻ câu hỏi, chip nguồn, và thẻ kết quả hành động. Panel là một **route**
+chứ không phải state cục bộ — nút back đóng nó, và F5 dựng lại đúng màn hình đang mở.
+
+Lại một lần nữa `border` của CSS không phải `stroke` của Figma, lần này ở **ba vạch ngăn** của
+panel: một border ăn mất một pixel bề rộng, nên panel 420 chỉ còn 419 cho ruột và mọi thứ bên trong
+lệch sang phải. Nay vẽ bằng `box-shadow: inset`, và panel đo đúng 420 với ruột đúng chỗ.
+
+Tám variant của `Action result card` thì **sáu** dựng được từ một bước đã lưu. Hai cái còn lại không
+có đường nào sinh ra: *tạo-lớp* vì `catalog_for` không cấp tool nào tạo lớp, và *phát-hành-thất-bại*
+vì `_note_publication` chỉ ghi các lớp **thành công** — khi mọi lớp trượt thì không có bước nào được
+ghi cả, nên biểu mẫu phát hành phải tự hiện phần đó.
+
+Chip nguồn là chữ bịa, và nay có hàng rào cứng: `check_invented_data_lives_in_one_file` làm build đỏ
+nếu một chuỗi của nó bị chép sang file thứ hai. Kiểm bằng cách chép thật — check đỏ đúng một dòng,
+và trả lại thì xanh. Thông báo thất bại cố ý chỉ in **tên file**: console Windows đọc cp1252, và một
+câu tiếng Việt ở đó nổ thành traceback encoding thay vì nói ra luật nào vừa bị vi phạm.
+
+Database đang chạy có schema cũ hơn model (`assessments` thiếu `teacher_id`), vì `create_all` bỏ qua
+bảng đã tồn tại. Không đụng vào nó: dựng một database **mới** `aiafa_fe` và trỏ BE sang đó.
 
 Và một rò rỉ CSS mà phép đo artboard 1 chưa với tới: `.mark`, `.composer`, `.thread` đã tồn tại trong
 `tokens.css`. Một class trùng tên **không** ghi đè — nó cộng vào, nên mọi property bản giáo viên

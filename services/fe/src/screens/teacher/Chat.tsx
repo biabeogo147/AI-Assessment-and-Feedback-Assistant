@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
+import { go } from "../../App";
 import { teacher, type Answered, type TeacherDocument, type Turn } from "../../api";
+import ActionCard from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
+import Panel from "./Panel";
 import Rail from "./Rail";
 
 /**
@@ -18,8 +21,12 @@ import Rail from "./Rail";
  * F5 giữa lượt thì không mất gì đã xảy ra: BE commit từng bước. `choices` thì mất, nhưng
  * `choices` là chuỗi đã format sẵn và bấm một nút nghĩa là gửi lại đúng chuỗi đó — gõ tay vẫn
  * trả lời được, nên không ai bị kẹt.
+ *
+ * @param openPaper - Đề đang mở trong panel bên phải, hoặc `null`. Nó tới từ **route**, không
+ *   từ một cú bấm: nhờ vậy một lần F5 khi panel đang mở dựng lại đúng màn hình đó, và nút back
+ *   đóng panel lại thay vì rời khỏi cả đoạn chat.
  */
-export default function Chat() {
+export default function Chat({ openPaper }: { openPaper: string | null }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   // Câu hỏi lại đang chờ trả lời. Nó giữ **cả** câu hỏi lẫn các phương án, vì hai thứ đó
   // nằm trên cùng một thẻ — và vì câu hỏi ấy cũng nằm trong `turns`, nên giữ nó ở đây là
@@ -116,11 +123,18 @@ export default function Chat() {
   return (
     <div className="teacher">
       <Rail documents={documents} />
-      <main className={`center ${talking ? "talking" : "empty"}`}>
+      <main
+        className={`center ${talking ? "talking" : "empty"} ${openPaper !== null ? "with-panel" : ""}`}
+      >
         {talking ? (
           <div className="stream">
             {drawn.map((one, index) => (
-              <Exchange key={index} turn={one} />
+              <Exchange
+                key={index}
+                turn={one}
+                onOpen={(paper) => go(`/teacher/de/${paper}`)}
+                onPublish={(paper) => go(`/teacher/de/${paper}/phat-hanh`)}
+              />
             ))}
             {asked !== null && pending === null && (
               <Clarify asked={asked} onPick={(one) => void send(one)} />
@@ -207,6 +221,22 @@ export default function Chat() {
           }}
         />
       </main>
+
+      {openPaper !== null && (
+        <Panel
+          assessmentId={openPaper}
+          onClose={() => go("/teacher")}
+          onApproved={() => {
+            // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
+            // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
+            // hành động vừa rồi chỉ xuất hiện sau một lần F5.
+            teacher
+              .conversation()
+              .then((answered: Answered) => setTurns(answered.turns))
+              .catch((cause: Error) => setTrouble(cause.message));
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -215,11 +245,18 @@ export default function Chat() {
  * Một lượt đã lưu.
  *
  * `tool_call` **không** vẽ gì: nó không mang kết quả, và sau khi lượt xong thì nó là tiếng ồn.
- * `tool_result` thành thẻ kết quả, và thẻ đó là việc của bước dựng artboard 6 — tới lúc đó nó
- * in ra một dòng trần, chứ không im lặng: một hành động đã xảy ra mà màn hình không nói gì là
- * đúng thứ ADR-05 ngăn.
+ * `tool_result` thì thành một thẻ kết quả — một hành động đã xảy ra mà màn hình không nói gì
+ * là đúng thứ ADR-05 ngăn.
  */
-function Exchange({ turn }: { turn: Turn }) {
+function Exchange({
+  turn,
+  onOpen,
+  onPublish,
+}: {
+  turn: Turn;
+  onOpen: (assessmentId: string) => void;
+  onPublish: (assessmentId: string) => void;
+}) {
   if (turn.kind === "teacher") {
     return (
       <div className="exchange said">
@@ -229,11 +266,7 @@ function Exchange({ turn }: { turn: Turn }) {
   }
   if (turn.kind === "tool_call") return null;
   if (turn.kind === "tool_result") {
-    return (
-      <div className="exchange">
-        <div className="reply-text">Đã chạy: {turn.tool_name}</div>
-      </div>
-    );
+    return <ActionCard turn={turn} onOpen={onOpen} onPublish={onPublish} />;
   }
   return (
     <div className="exchange">
