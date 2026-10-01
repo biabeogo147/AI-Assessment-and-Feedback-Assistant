@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { teacher, type AssessmentDetail, type TeacherQuestion } from "../../api";
 import { provenanceOf } from "./invented-not-from-be";
+import PublishSettings from "./PublishSettings";
 
 /**
  * Panel bên phải: nội dung một đề, và cổng duyệt.
@@ -15,16 +16,21 @@ import { provenanceOf } from "./invented-not-from-be";
  * một lần F5 trên route ấy phải dựng lại được — mà `turns` thì không mang nội dung đề.
  *
  * @param assessmentId - Đề nào.
+ * @param publishing - Đang ở màn cài đặt phát hành. Nó tới từ route, nên một lần F5 giữa lúc
+ *   điền sáu tham số vẫn mở lại đúng biểu mẫu — còn những gì đã gõ thì mất, và đó là đúng:
+ *   ADR-02 nói biểu mẫu **không gợi sẵn giờ nào**, kể cả giờ của chính người vừa gõ.
  * @param onClose - Đóng panel, quay về đoạn chat.
  * @param onApproved - Được gọi sau khi duyệt xong, để nơi gọi tải lại dòng lượt nói:
  *   `approve` ghi một bước vào hội thoại (ADR-01 đòi thế), và bước đó phải hiện ra.
  */
 export default function Panel({
   assessmentId,
+  publishing,
   onClose,
   onApproved,
 }: {
   assessmentId: string;
+  publishing: boolean;
   onClose: () => void;
   onApproved: () => void;
 }) {
@@ -93,6 +99,9 @@ export default function Panel({
         ))}
       </div>
 
+      {publishing && approved ? (
+        <PublishSettings assessmentId={assessmentId} onPublished={onApproved} />
+      ) : (
       <div className="panel-foot">
         <div className="note">
           {trouble ??
@@ -109,6 +118,7 @@ export default function Panel({
           {approved ? "Đã duyệt" : "Duyệt đề"}
         </button>
       </div>
+      )}
     </aside>
   );
 }

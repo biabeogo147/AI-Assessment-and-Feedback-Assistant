@@ -64,7 +64,7 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
       `ActionResultCard`. Thêm `Document` + tải lên + liệt kê trước khi dựng rail. Cổng đo artboard 2.
 - [x] **Bước 5 — artboard 3.** `ask_clarify`, `choices`, rehydrate sau F5.
 - [x] **Bước 6 — artboard 6.** `Panel`, `QuestionCard`, `SourceChip`, `provenance.ts`.
-- [ ] **Bước 7 — sửa Figma ô giờ, rồi artboard 7.** `PublishSettings`, `preview`, hộp xác nhận, thất
+- [x] **Bước 7 — sửa Figma ô giờ, rồi artboard 7.** `PublishSettings`, `preview`, hộp xác nhận, thất
       bại một phần.
 - [ ] **Bước 8 — tài liệu.** ADR-04 (*FE đang giả vờ thi hành*), ADR-22 (*"chưa có màn hình nào của
       giáo viên"* nay sai), `backlog.md`, `local-development.md`, `architecture.md`,
@@ -282,6 +282,27 @@ câu tiếng Việt ở đó nổ thành traceback encoding thay vì nói ra lu�
 
 Database đang chạy có schema cũ hơn model (`assessments` thiếu `teacher_id`), vì `create_all` bỏ qua
 bảng đã tồn tại. Không đụng vào nó: dựng một database **mới** `aiafa_fe` và trỏ BE sang đó.
+
+Bước 7 xong, và đây là bước **code ghi ngược vào thiết kế nhiều nhất** — đúng như đã chốt. Một ô
+`datetime-local` thật của Chrome cần **218px**; ba cột 118.67 của artboard 7 không chứa nổi một ô
+nào. Nên bố cục đổi: *LÀM BÀI* 118 cạnh *MỞ LÚC* 250, *ĐÓNG LÚC* một hàng riêng, *PHÚT MỖI CÂU* 118
+cạnh *HẠN CHỮA XONG* 250. Chữ trong ô đổi từ *"14:00 · 15/9"* sang *"dd/mm/yyyy --:--"*, thứ trình
+duyệt thật sự vẽ khi ô còn trống. Và link *"Chọn lớp ›"* bị ẩn: mọi lớp đã là một chip, nên nó không
+mở ra gì.
+
+Lại một cái tên trùng `tokens.css` nữa, và lần này nó tốn một vòng đo: `.row` bên học sinh có viền
+và padding 16/20, nên mỗi hàng ô giờ cao thêm 34px mà không ai nhìn ra. Nay là `.pair`. Và `.panel`
+tự **phình** từ 420 thành 492 vì `min-width: auto` của một flex item cho phép ruột đẩy nó rộng ra.
+
+**Một lượt chạy thật qua giao diện tìm ra một lỗi BE mà không test nào thấy.** `preview` trả
+`published: true` cho một lớp đã qua giờ mở, hộp xác nhận hiện ra đầy đủ hai câu luật, rồi lần gửi
+thật mới từ chối — vì `_publish_one` thoát sớm ở nhánh preview **trước** khi kiểm `_already_running`.
+Điều khoản của ADR-02 không phải *"preview tính ra cùng mấy con số"* mà là **preview đi qua cùng
+những cổng**. Đã sửa, và một test mới đỏ đúng khi trả lại thứ tự cũ. Đây là lần thứ **tư** một lượt
+chạy thật tìm ra thứ test không bắt.
+
+Bốn test FE mà *Validation Checks* đòi nay đủ cả bốn, cộng một cái thứ năm: thẻ phát hành là thẻ
+**duy nhất** không mang câu an toàn, vì đề đã tới tay học sinh thật.
 
 Và một rò rỉ CSS mà phép đo artboard 1 chưa với tới: `.mark`, `.composer`, `.thread` đã tồn tại trong
 `tokens.css`. Một class trùng tên **không** ghi đè — nó cộng vào, nên mọi property bản giáo viên

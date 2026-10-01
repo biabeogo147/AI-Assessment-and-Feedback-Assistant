@@ -26,7 +26,13 @@ import Rail from "./Rail";
  *   từ một cú bấm: nhờ vậy một lần F5 khi panel đang mở dựng lại đúng màn hình đó, và nút back
  *   đóng panel lại thay vì rời khỏi cả đoạn chat.
  */
-export default function Chat({ openPaper }: { openPaper: string | null }) {
+export default function Chat({
+  openPaper,
+  publishing,
+}: {
+  openPaper: string | null;
+  publishing: boolean;
+}) {
   const [turns, setTurns] = useState<Turn[]>([]);
   // Câu hỏi lại đang chờ trả lời. Nó giữ **cả** câu hỏi lẫn các phương án, vì hai thứ đó
   // nằm trên cùng một thẻ — và vì câu hỏi ấy cũng nằm trong `turns`, nên giữ nó ở đây là
@@ -225,6 +231,7 @@ export default function Chat({ openPaper }: { openPaper: string | null }) {
       {openPaper !== null && (
         <Panel
           assessmentId={openPaper}
+          publishing={publishing}
           onClose={() => go("/teacher")}
           onApproved={() => {
             // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi

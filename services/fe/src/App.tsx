@@ -60,7 +60,12 @@ export default function App() {
 function Teacher() {
   const route = useRoute();
   const paper = /^\/teacher\/de\/([^/]+)/.exec(route);
-  return <Chat openPaper={paper ? paper[1] : null} />;
+  return (
+    <Chat
+      openPaper={paper ? paper[1] : null}
+      publishing={/^\/teacher\/de\/[^/]+\/phat-hanh$/.test(route)}
+    />
+  );
 }
 
 /**

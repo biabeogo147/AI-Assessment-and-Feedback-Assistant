@@ -928,6 +928,10 @@
  */
 .teacher .panel {
   flex: 0 0 420px;
+  /* `min-width: auto` là mặc định của một flex item, và nó cho phép panel PHÌNH ra
+   * khi ruột rộng hơn 420 — một ô `datetime-local` rộng 218px đã đủ đẩy nó thành
+   * 492. Một panel tự ý rộng thêm 72px thì không phép đo nào cứu được. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1162,4 +1166,283 @@
 .teacher .center.with-panel .scope-strip,
 .teacher .center.with-panel .trouble {
   width: 660px;
+}
+
+/* ------------------------------------------------------- cài đặt phát hành */
+
+/*
+ * Sáu tham số, và **không ô nào được gợi sẵn** (ADR-02).
+ *
+ * Ô giờ dùng `datetime-local` thật của trình duyệt chứ không phải một ô chữ: một ô chữ
+ * nhận "14h chiều mai" rồi phải đoán, và đoán giờ là đúng việc mà cả ADR-03 lẫn hộp xác
+ * nhận được dựng ra để chống. Cái giá là bề rộng — Chrome vẽ `dd/mm/yyyy --:--` cộng một
+ * nút lịch, rộng hơn hẳn ô 118.67px của thiết kế, nên bố cục của artboard 7 đã được sửa
+ * theo trình duyệt chứ không bẻ trình duyệt theo thiết kế.
+ */
+.teacher .publish-settings {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 12px;
+  padding: 20px;
+  box-shadow: inset 0 1px 0 var(--line);
+  background: var(--surface);
+}
+
+.teacher .settings-title {
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .publish-settings .caps {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .publish-settings .field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.teacher .publish-settings .field-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.teacher .publish-settings .group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/*
+ * Một hàng: ô số hẹp, ô giờ rộng.
+ *
+ * 118 + 12 + 250 = 380, và 250 vừa đủ cho `datetime-local` của Chrome (nó cần 218).
+ * Thiết kế cũ xếp **ba** ô 118.67 cạnh nhau, và ba ô như thế thì không ô giờ nào vẽ nổi
+ * — artboard 7 đã được sửa theo trình duyệt, đúng như đã chốt.
+ */
+.teacher .publish-settings .pair {
+  display: flex;
+  gap: 12px;
+}
+
+.teacher .publish-settings .pair > .field {
+  flex: 0 0 118px;
+}
+
+.teacher .publish-settings .pair > .field.wide {
+  flex: 1;
+}
+
+.teacher .class-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.teacher .class-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 29px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .class-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+.teacher .field-note {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .publish-settings input {
+  width: 100%;
+  min-width: 0;
+  height: 35px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+/*
+ * Hai câu luật, in nguyên văn từ BE.
+ *
+ * Màu hổ phách của `state/needs-human` ở đây không phải trang trí: ADR-03 nói hai câu này
+ * là chỗ người đọc hay hiểu ngược nhất — hạn **vào** chứ không phải hạn nộp — nên chúng
+ * mang đúng màu mà ADR-12 dành cho *"một con người cần để ý"*.
+ */
+.teacher .rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  background: var(--state-needs-human-surface);
+  color: var(--state-needs-human);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .publish-settings .cta {
+  height: 42px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .publish-settings .cta:disabled {
+  background: var(--line-strong);
+}
+
+/* Kết quả từng lớp. Một lớp trượt là một HÀNG, không phải một ngoại lệ (ADR-02). */
+.teacher .outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.teacher .outcome-row {
+  display: flex;
+  gap: 10px;
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .outcome-row .who {
+  flex: none;
+  width: 58px;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+
+.teacher .outcome-row.refused .line {
+  color: var(--answer-incorrect);
+}
+
+/* ------------------------------------------------------------ hộp xác nhận */
+
+.teacher .veil {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(26 31 43 / 45%);
+}
+
+.teacher .confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 460px;
+  padding: 23px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.teacher .confirm h3 {
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .confirm .lead {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+.teacher .confirm .recap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--sunken);
+}
+
+.teacher .recap-row {
+  display: flex;
+  gap: 10px;
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .recap-row .what {
+  flex: none;
+  width: 58px;
+  color: var(--ink-faint);
+}
+
+.teacher .recap-row .is {
+  color: var(--ink);
+}
+
+.teacher .confirm .rule {
+  color: var(--state-needs-human);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.teacher .confirm-actions .btn {
+  height: 40px;
+  padding: 9px 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .confirm-actions .btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.teacher .confirm-actions .btn:disabled {
+  background: var(--line-strong);
+  color: var(--surface);
 }

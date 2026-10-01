@@ -797,14 +797,23 @@ async def _publish_one(
             aware(wanted.remediation_deadline), wanted.phase2_minutes_per_question
         ),
     )
-    if not write:
-        return settled
-
+    # Phép kiểm này chạy **trước** nhánh preview, và thứ tự đó là cả điều khoản của
+    # ADR-02. Trước đây nó nằm sau: một lớp đã qua giờ mở được preview báo `published`
+    # rồi lần gửi thật mới từ chối, nên hộp xác nhận hứa một việc mà hệ thống đã biết là
+    # không làm được. "Hộp xác nhận đọc lại giá trị thật" chỉ đúng khi preview đi qua
+    # đúng những cổng mà lần ghi sẽ đi qua.
+    #
+    # Tìm ra bằng một lượt chạy thật **qua giao diện**: bấm xem trước, hộp hiện ra đầy
+    # đủ hai câu luật, bấm phát hành và nhận lại một dòng từ chối. Không test nào thấy,
+    # vì mọi test preview đều dùng lớp chưa phát hành bao giờ.
     existing = await session.get(Publication, (assessment_id, wanted.class_id))
     if existing is not None and (running := await _already_running(session, existing, now)):
         return ClassResult(
             class_id=wanted.class_id, class_name=school_class.name, published=False, reason=running
         )
+
+    if not write:
+        return settled
 
     if existing is None:
         session.add(

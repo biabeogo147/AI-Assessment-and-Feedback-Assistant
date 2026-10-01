@@ -1097,3 +1097,48 @@ async def test_the_note_is_written_in_the_timezone_the_teacher_typed(stack) -> N
     assert shown["phase_two_note"].startswith("Chữa bài tới hết 22:00 - ")
     # Mà thứ **lưu** xuống vẫn là UTC.
     assert shown["opens_at"].endswith("Z") or "+00:00" in shown["opens_at"]
+
+
+@pytest.mark.asyncio
+async def test_the_preview_refuses_exactly_where_the_real_publish_refuses(stack) -> None:
+    """Hộp xác nhận đọc lại **giá trị thật**, kể cả khi giá trị thật là một lời từ chối.
+
+    Một lượt chạy thật qua giao diện tìm ra chỗ này: `preview` trả `published: true` cho một
+    lớp đã qua giờ mở, hộp xác nhận hiện ra đầy đủ hai câu luật, rồi lần gửi thật mới từ
+    chối. Nguyên nhân là `_publish_one` thoát sớm ở nhánh preview **trước** khi kiểm
+    `_already_running` — nên hộp xác nhận hứa một việc mà hệ thống đã biết là không làm được.
+
+    Không test nào cũ thấy được, vì mọi test preview đều dùng một lớp chưa phát hành bao giờ.
+    Điều khoản của ADR-02 không phải "preview tính ra cùng mấy con số" mà là **preview đi qua
+    cùng những cổng**.
+    """
+    client, maker = stack
+    paper = await _approved(maker)
+    morning = await _class_id(maker, "12A")
+    await client.post(
+        f"/api/teacher/assessments/{paper}/publications",
+        headers=TEACHER,
+        json={"schedules": [_schedule(morning)]},
+    )
+    async with maker() as session:
+        row = await session.get(Publication, (paper, morning))
+        assert row is not None
+        row.opens_at = datetime.now(UTC) - timedelta(minutes=5)
+        await session.commit()
+
+    asked = {"schedules": [_schedule(morning, opens_in_hours=20)], "preview": True}
+    shown = await client.post(
+        f"/api/teacher/assessments/{paper}/publications", headers=TEACHER, json=asked
+    )
+    done = await client.post(
+        f"/api/teacher/assessments/{paper}/publications",
+        headers=TEACHER,
+        json={"schedules": asked["schedules"]},
+    )
+
+    assert shown.status_code == 200
+    assert done.status_code == 200
+    # Cùng một kết luận và **cùng một câu**: hộp xác nhận không được nói một đằng rồi biên
+    # bản nói một nẻo.
+    assert shown.json()["classes"][0]["published"] is False
+    assert shown.json()["classes"][0]["reason"] == done.json()["classes"][0]["reason"]
