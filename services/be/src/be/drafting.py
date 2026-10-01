@@ -30,7 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.agent_gateway import collect_result, enqueue_task, validate_question
-from be.assessment_state import AssessmentState, advance, assert_editable
+from be.assessment_state import AssessmentState, advance, assert_editable, editable
 from be.config import Settings
 from be.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question
 from contracts import (
@@ -103,7 +103,7 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
         session: Session của database. Commit theo từng row.
         pool: Pool của arq, hoặc None khi không với tới được queue.
         settings: Settings của process, cung cấp tên queue.
-        assessment_id: Bản nháp nào.
+        assessment_id: Đề nháp nào.
 
     Returns:
         Đã đẩy bao nhiêu job vào queue.
@@ -221,7 +221,7 @@ async def rebrief(
 
     Args:
         session: Session của database. Hàm này tự commit.
-        assessment_id: Bản nháp nào.
+        assessment_id: Đề nháp nào.
         topic_scope: Phạm vi mới, theo lời giáo viên.
         question_count: Giờ bộ đề nên có bao nhiêu câu hỏi.
         difficulty: Khó đến đâu, theo lời giáo viên.
@@ -264,7 +264,7 @@ async def _write(
 
     Args:
         session: Session của database. Không commit ở đây.
-        assessment_id: Bản nháp nào.
+        assessment_id: Đề nháp nào.
         order_index: Số thứ tự câu hỏi mang trên đề, tức là vị trí giáo viên đã
             yêu cầu, chứ không phải thứ tự nó về tới.
         question: Câu hỏi đã qua validate.
@@ -350,7 +350,7 @@ async def harvest(
         session: Session của database. Hàm này tự commit.
         pool: Pool của arq, hoặc None.
         settings: Settings của process.
-        assessment_id: Bản nháp nào.
+        assessment_id: Đề nháp nào.
 
     Returns:
         Lần gọi này có bao nhiêu câu hỏi đã vào được đề nháp.
@@ -368,6 +368,18 @@ async def harvest(
         )
     )
     if not waiting or brief is None:
+        return 0
+
+    # Nội dung đã khoá thì không ghi gì, kể cả một câu hỏi đã viết xong đang nằm chờ.
+    # `fire` kiểm điều này lúc bắn job, nhưng giữa lúc bắn và lúc thu có một khoảng, và
+    # trong khoảng đó giáo viên bấm Duyệt được -- nên phép kiểm lúc bắn không đủ. Thiếu
+    # chỗ này thì `harvest` là một đường ghi `Question` đi vòng qua `assert_editable`, và
+    # câu lọt vào là câu giáo viên **chưa từng thấy** trong một đề họ đã nhận trách
+    # nhiệm: đúng cái hại mà ADR-01 khoá nội dung để chặn. Đo được trước khi sửa: một
+    # request trả 409 trong khi số câu hỏi của đề đi từ 1 lên 2.
+    assessment = await session.get(Assessment, assessment_id)
+    if assessment is None or not editable(assessment):
+        logger.info("skipping harvest of %s: content is locked", assessment_id)
         return 0
 
     seen = {_comparable(stem) for stem in await _stems(session, assessment_id)}
@@ -451,7 +463,7 @@ async def pending_count(session: AsyncSession, assessment_id: str) -> int:
 
     Args:
         session: Session của database.
-        assessment_id: Bản nháp nào.
+        assessment_id: Đề nháp nào.
 
     Returns:
         Số vị trí đang ở `pending`.

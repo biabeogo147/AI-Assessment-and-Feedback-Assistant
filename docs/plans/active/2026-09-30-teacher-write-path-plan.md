@@ -185,18 +185,94 @@ số" trong khi tham số thứ nhất của ADR-02 **là lớp**, tức một h
 
 ### Pha 4 — Duyệt, bỏ duyệt, và bất biến `state` ↔ số câu hỏi
 
-- [ ] `be/teacher_routes.py` **mới**: `POST /assessments/{id}/approve`, `POST .../unapprove`. Đây là
-      caller thật đầu tiên của `advance()` trên đường HTTP.
-- [ ] Duyệt từ chối đề **0 câu**, và từ chối khi còn `DraftItem` pending — không duyệt một bộ đề đang
-      soạn nửa. Đây là mục nợ *bất biến `state` ↔ số câu hỏi*, và chỗ đúng để đếm là endpoint, nơi đã
-      có session (đọc `.questions` trong `advance()` sẽ lazy-load và nổ `MissingGreenlet`).
-- [ ] Bỏ duyệt gọi `advance(APPROVED → HAS_QUESTIONS)`, và để lại **bằng chứng** trong `teacher_turns`
-      — ADR-01 đòi thẳng điều đó, vì nó là thao tác duy nhất hạ cấp trạng thái.
-- [ ] Mọi đường ghi câu hỏi gọi `assert_editable()` trước. Caller đầu tiên của nó.
-- [ ] Test: duyệt đề 0 câu bị từ chối; duyệt khi còn pending bị từ chối; sửa câu trên đề đã duyệt bị
-      từ chối; bỏ duyệt mở lại được và có hàng `teacher_turns` ghi lại.
+- [x] `be/teacher_routes.py` **mới**: `POST /api/teacher/assessments/{id}/approve`,
+      `POST .../unapprove`. Hai caller của `advance()` **trên đường HTTP** — không phải caller đầu
+      tiên của nó như ô này viết lúc lên plan: `drafting.fire` đã gọi `assert_editable` và
+      `drafting.harvest` đã gọi `advance` từ Pha 2. Chỗ khác biệt thật nằm ở chỗ khác và nó quan
+      trọng hơn: hai cạnh của Pha 2 là cạnh **máy tự đi** (câu đầu tiên thu được đưa đề ra khỏi
+      `EMPTY`), còn hai cạnh ở đây là lúc một **con người nhận trách nhiệm**.
+- [x] Duyệt từ chối đề **0 câu**, và từ chối khi còn `DraftItem` pending. Chỗ đếm là endpoint, nơi đã
+      có session — xem Decision Record.
+- [x] **Duyệt thu hoạch trước khi đếm.** Không có trong plan gốc, và nếu thiếu thì endpoint này từ
+      chối một giáo viên có đủ câu đã viết xong, **mãi mãi**. Xem Decision Record.
+- [x] Bỏ duyệt gọi `advance(APPROVED → HAS_QUESTIONS)` và để lại một hàng `teacher_turns` kèm
+      `entity_kind = assessment`. `teacher_chat.note_action` là chỗ nối công khai cho việc đó, vì
+      việc tính vị trí và xử đụng độ vị trí thuộc về module ấy.
+- [x] `assert_editable` đã có caller từ Pha 2 (`drafting.fire`), nên ô này không còn việc gì để làm
+      ngoài việc **kiểm rằng nó thật sự chặn** qua đường HTTP: duyệt bằng endpoint, rồi gọi
+      `start_drafting` và thấy nó bị từ chối.
+- [x] Test: chín test trong `services/be/tests/test_approval.py`, tất cả đi qua HTTP.
+
+**Mỗi call site được kiểm bằng cách phá nó.** Bỏ `harvest` → hai test đỏ; thay `if still_drafting`
+bằng `if False` → test đang-soạn đỏ; bỏ `Assessment.teacher_id == asking.teacher_id` → test ADR-22
+đỏ; bỏ `note_action` của bỏ duyệt → test bằng chứng đỏ. Bốn lần phá, bốn test, đúng cái test dự
+định — và đó là cách duy nhất biết một `assert` có canh thứ nó nói là nó canh.
+
+**Review bắt hai lỗi thật, và cả hai nằm ở chỗ phương pháp "phá call site" về bản chất không với
+tới: chúng là những chỗ *không có call site nào để phá*.**
+
+1. **Bỏ duyệt nâng một đề `EMPTY` lên `HAS_QUESTIONS`.** `unapprove` giao hết cho `_ALLOWED`, mà bảng
+   đó có cạnh `EMPTY → HAS_QUESTIONS` — cạnh tồn tại **cho `harvest`**, cho câu hỏi đầu tiên thu
+   được. Đo được: 200, rồi một đề **0 câu** mang state `đang soạn`, và vĩnh viễn như vậy vì cạnh
+   ngược chưa dựng. Tức chính bất biến mà endpoint kia bỏ công thi hành bị endpoint còn lại của **cùng
+   pha này** phá. Bài học đáng giữ: **bảng cạnh biết *cạnh nào tồn tại*, không biết *ai đang xin đi*.**
+2. **Một lần duyệt bị từ chối vẫn ghi vào database.** `harvest` tự `commit` và chạy trước khi
+   `advance` có cơ hội từ chối, nên một request trả 409 — một request nói *không có gì xảy ra* — đã
+   kịp ghi một câu hỏi vào một đề **đã khoá nội dung**. Đo được: status 409 trong khi số câu hỏi của
+   đề đi từ 1 lên 2. Và lỗ thật nằm sâu hơn Pha 4: `harvest` là một đường ghi `Question` không hỏi
+   `assert_editable`, nên docstring của `assessment_state` (*"mọi đường ghi một câu hỏi đều gọi hàm
+   này"*) nói sai, và lỗ mở cho **mọi** caller của `harvest`.
+
+Bản sửa đầu của tôi cho (2) lại quá tay, và một test bắt được: tôi kiểm `đã duyệt với tới được chưa`
+trước `harvest`, mà chính `harvest` là thứ làm câu trả lời đó đổi — nên một đề còn `EMPTY` *chỉ vì
+chưa ai thu hoạch* bị từ chối oan. Câu hỏi đúng là câu mà cả `harvest` lẫn việc duyệt cùng cần: **nội
+dung còn mở không.**
+
+Ba thứ nữa từ review, mỗi thứ là một bài học riêng:
+
+- **`still_drafting=0` là một hằng số đội lốt một phép đo.** `assert body["still_drafting"] == 0` khi
+  đó chỉ so hai hằng số. Nay cả ba field đọc lại từ database sau commit. Lời biện hộ cũ còn viện ADR-02
+  sai: luật ở đó là *"hộp xác nhận đọc lại đúng giá trị vừa **nhập**"*, nói về sáu tham số phát hành
+  giáo viên tự gõ, không nói về số câu hỏi.
+- **`note_action` biến một lần duyệt thành công thành 500.** Decision Record nói nó chọn hậu quả "state
+  đúng, thiếu một dòng transcript", mà code thì để exception bay ra — và `_record` cùng `_conversation`
+  đều `raise` thật sau hai lần thử. Nay `_note` bọc `try/except` và log, nên lựa chọn ấy mới thật sự
+  là thứ xảy ra.
+- **Hai bước mới dạy model một tool không tồn tại.** Chúng đi vào **cùng** hội thoại mà model đọc, và
+  một `tool_result` tên `approve_assessment` là một bản mô tả thuyết phục hơn cả một spec — trong khi
+  `catalog_for` không bao giờ cấp nó. Nay tên là `teacher.approve`, không phải identifier hợp lệ.
+
+**Và một lỗ của check vừa trở nên với tới được.** `tools-decide-nothing` cấm `advance(`, `withdraw(`,
+`.state =` trong `teacher_tools.py`. Pha 4 làm `teacher_routes.approve` thành một coroutine public, nên
+một tool chỉ cần `from be.teacher_routes import approve` là đạt đúng kết quả bị cấm bằng một cái tên
+không có trong pattern. Nay pattern cấm cả tên module, và tôi kiểm nó đỏ được.
+
+**Một test hỏng đã dạy ra một hành vi tôi không biết.** Tôi dựng một vị trí đang chạy ở `ordinal` 2
+trong khi brief chỉ xin 1 câu, và lần duyệt vẫn **thành công**. Không phải bug: `harvest` xoá mọi vị
+trí vượt quá `question_count` của brief hiện tại, vì đó chính là cơ chế đứng sau câu *"đổi brief là
+mở một vòng mới"*. Hệ quả thì có thật và tốt — giáo viên hạ từ 10 câu xuống 5 thì duyệt được ngay,
+không bị năm job cũ giữ lại — nên nó thành một test riêng thay vì bị đi vòng qua.
 
 ### Pha 5 — Phát hành nhiều lớp, xác nhận, thu hồi
+
+Hai mục nợ do review Pha 4 chuyển sang đây, vì Pha 5 là chỗ chúng thành nguy hiểm:
+
+- [ ] **`advance` không nguyên tử.** Nó là một read-modify-write qua hai câu lệnh với một khe ở giữa,
+      không `FOR UPDATE`, không cột version, không unique index — khác hẳn `fire` và `_record`, hai
+      chỗ đều lấy một unique index làm bên phân xử và đều có đường hồi phục. Ở Pha 4 hậu quả nhẹ: hai
+      lần duyệt song song cho hai hàng transcript. Ở Pha 5 thì `publish` song song với `unapprove` là
+      một lost update trên cùng một cột, và lúc đó *"`advance` là cửa duy nhất"* bảo vệ được tính hợp
+      lệ của **cạnh** mà không bảo vệ được tính nguyên tử của **phép đổi**. Sửa nhỏ:
+      `with_for_update()` trong `_owned`, hoặc một `UPDATE ... WHERE state = :expected` lấy `rowcount`
+      làm trọng tài.
+- [ ] **`Question` không có unique `(assessment_id, order_index)`**, trong khi `DraftItem` thì có.
+      `harvest` chống trùng bằng một snapshot trong bộ nhớ, nên hai lần `harvest` song song có thể ghi hai
+      câu vào cùng một vị trí. Pha 4 không tạo lỗ này nhưng vừa thêm một cửa thứ ba đi vào nó.
+
+**Lưu ý về fixture:** mọi test của BE chạy trên SQLite in-memory, tức `StaticPool`, tức **một
+connection** chia cho mọi session. Nên không test nào trong repo quan sát được hai cuộc đua trên, và
+con số "test xanh" không bao gồm chiều đó. Hai mục trên vì thế là việc đọc code, không phải việc chờ
+một test đỏ.
 
 - [ ] `POST /assessments/{id}/publications`: sáu tham số **mỗi lớp**, nhiều lớp một lần. Kiểm giờ mở
       ở tương lai và trước giờ đóng (ADR-02).
@@ -219,6 +295,114 @@ số" trong khi tham số thứ nhất của ADR-02 **là lớp**, tức một h
       hồi lớp không-cuối thì không.
 
 ## Decision Records
+
+### Decision: Bất biến `state` ↔ số câu hỏi xứng một dòng Invariants, và cap lên 175
+
+options considered:
+
+- **A. Thêm một dòng vào bảng Invariants của `AGENTS.md`, cap 174 → 175.**
+- **B. Không thêm. Bất biến này đã có test, và bảng thì đang phình ra — ba lần nâng cap trong hai
+  ngày.**
+
+selected option: A.
+
+reason: B là lo đúng chuyện nhưng đo sai thứ. Bảng ấy tự gọi mình là *"an enforcement index"*, nên câu
+hỏi không phải "bảng dài bao nhiêu" mà "bất biến này có cần ai nhớ hộ không". Và bất biến này là cái
+**duy nhất** trong bảng mà không constraint nào của database đỡ được: `state` và số dòng `questions`
+là hai thứ, và không gì buộc chúng khớp nhau — khác hẳn `AssessmentState` bốn giá trị, thứ đã có check
+constraint, hay `teacher_id NOT NULL`.
+
+Bằng chứng mạnh nhất cho A là chuyện đã xảy ra: **chính việc viết dòng đó ra làm lộ một lỗ.** Khi gõ
+câu *"một đề không có câu hỏi thì không duyệt được"*, câu hỏi kế tiếp tự đến — *"và nó cũng không được
+ở trạng thái `đang soạn`, đúng chứ?"* — và câu trả lời lúc đó là **không**, vì `unapprove` nâng được
+một đề 0 câu lên `đang soạn`. Một dòng đã trả tiền cho chính nó trước khi mực kịp khô.
+
+Về chuyện cap đi 173 → 174 → 175 trong hai ngày: đáng nói ra thay vì để nó trôi. Cả ba lần đều mua
+một dòng có nơi thi hành bằng máy, và cả ba đều kèm một record — tức quy trình đang chạy đúng như nó
+được thiết kế. Nhưng nếu lần thứ tư tới mà cũng chỉ vì "repo đang lớn", thì thứ cần xem lại là **cách
+đo**, không phải con số: cap đếm dòng của cả file, trong khi thứ nó muốn chặn là việc kể lại luật ở
+chỗ khác. Ghi lại ở đây để lần sau có một mốc so.
+
+### Decision: Bất biến `state` ↔ số câu hỏi thi hành ở endpoint, không ở `advance()`
+
+options considered:
+
+- **A. Endpoint duyệt đếm câu hỏi và đếm `DraftItem` pending, rồi mới gọi `advance()`.**
+- **B. `advance()` tự đếm, để không caller nào quên được.**
+- **C. Một check constraint của database buộc `state = approved` thì phải có câu hỏi.**
+
+selected option: A.
+
+reason: B là thứ nghe đúng nhất và là thứ sẽ nổ. `advance()` nhận **một hàng**, không nhận session;
+đọc `assessment.questions` bên trong nó là một lazy-load trong ngữ cảnh async — đúng cái bẫy
+`MissingGreenlet` đã cắn ba lần ở plan trước. Muốn B thì phải đưa session vào `advance()`, và lúc đó
+cái cửa duy nhất thôi là một hàm thuần trên một hàng, tức mất chính tính chất làm nó đáng tin.
+
+C thì không diễn đạt được nửa quan trọng hơn. Một check constraint đếm được số hàng `questions` là
+chuyện khó trên Postgres và bất khả trên SQLite, nhưng vấn đề thật là nó **không biết gì về
+`DraftItem`**: "còn câu đang soạn" là một trạng thái của hàng đợi, không phải một tính chất của dữ
+liệu đã lưu.
+
+A giữ cùng một cách chia mà `withdraw` của Pha 5 dùng: **bảng `_ALLOWED` trả lời "ADR-01 có cạnh này
+không", caller trả lời "lúc này đi được không".** Giá phải trả là một caller tương lai có thể quên
+đếm — nên lời đếm nằm trong endpoint duy nhất đi tới `APPROVED`, và `tools-decide-nothing` giữ cho
+không có đường thứ hai mọc ra trong `teacher_tools.py`.
+
+### Decision: Duyệt thu hoạch trước khi đếm
+
+options considered:
+
+- **A. `approve` gọi `harvest` trước, rồi mới đếm `pending`.**
+- **B. Chỉ đếm. Giáo viên gọi `draft_progress` trước nếu muốn.**
+- **C. Dựng một worker chạy nền thu hoạch định kỳ.**
+
+selected option: A.
+
+reason: B là một cái bẫy đóng kín. BE không có worker chạy nền, nên một `DraftItem` chỉ rời `pending`
+lúc `harvest` chạy — nghĩa là một đề có cả mười câu đã viết xong vẫn đọc ra là "còn 10 câu đang soạn"
+cho tới khi có ai gọi **một endpoint khác**. Giáo viên bấm Duyệt, bị từ chối, bấm lại, bị từ chối y
+như vậy, và không có gì trên màn hình nói rằng việc cần làm là mở một màn hình khác. Đây đúng là lỗi
+mà review Pha 3 đã bắt ở `start_drafting`, cùng một gốc, nên B là cố ý lặp lại nó.
+
+C đúng về lâu dài và sai cho lúc này: nó là một process mới phải triển khai, phải theo dõi, phải
+khoá — và nó không làm cho A sai, chỉ làm cho A ít phải chạy. Ghi nợ thì tốt hơn là dựng nửa vời.
+
+A còn có một tính chất đáng giá: nó làm cho câu trả lời của endpoint **tự nhất quán**. Con số
+`still_drafting` trả về là con số sau khi đã thu hoạch, nên hộp xác nhận ở màn hình kế tiếp đọc lại
+đúng thứ vừa được quyết định, không đọc một ảnh chụp cũ hơn một nhịp.
+
+### Decision: Ghi state trước, ghi bằng chứng sau — hai lần commit, có chủ ý
+
+options considered:
+
+- **A. `advance()` rồi `commit()`, sau đó mới `note_action` (và nó commit lần nữa).**
+- **B. Một transaction: thêm hàng `teacher_turns` rồi commit một lần cùng state.**
+
+selected option: A.
+
+reason: B nghe nguyên tử hơn và trả giá ở chỗ tệ hơn. `_record` xử lý hai request cùng nhắm một vị
+trí bằng cách bắt `IntegrityError`, `rollback`, đọc lại vị trí trống rồi chèn lại — mà một `rollback`
+trong cùng transaction với phép đổi state sẽ **cuốn luôn phép đổi state đi**, và sau rollback thì
+object ORM đã hết hạn, tức đường hồi phục chạy trong đúng ngữ cảnh mà `MissingGreenlet` chờ sẵn. Muốn
+B an toàn thì phải viết lại đường hồi phục của `_record` cho hai caller, và lúc đó luật "xử đụng độ
+vị trí ở một chỗ" là thứ bị mất.
+
+A chọn hậu quả nhẹ hơn trong hai hậu quả. Nếu lần ghi bước gãy thì state đúng và transcript thiếu một
+dòng. Thứ tự ngược lại cho một transcript nói rằng đề **đã được duyệt** trong khi nó chưa — một bản
+ghi nói sai thì tệ hơn một bản ghi thiếu, vì cái thứ hai còn tự nhận là thiếu.
+
+**Hai câu trong bản đầu của record này sai, và review bắt cả hai.** Thứ nhất, "hai lần commit" đếm
+thiếu: `note_action` gọi `_conversation`, và `_conversation` **tự commit** khi giáo viên chưa có hội
+thoại — mà đó là ca thường, vì ADR-05 đặt việc duyệt sau một cái nút chứ không trong khung chat. Nên
+đường này là **ba** lần commit, và lần giữa chèn một hàng vào một bảng thứ ba.
+
+Thứ hai, "cái gãy duy nhất còn lại là database biến mất" là một lời nói quá, và chính `_record` phản
+bác nó: docstring của nó có mục `Raises: IntegrityError`, và cả nó lẫn `_conversation` đều `raise`
+sau khi đường hồi phục đụng độ thất bại lần thứ hai. Hậu quả thật: giáo viên nhận **500** cho một
+việc đã thành công, bấm lại thì nhận 409 *"đề đã duyệt"*, và không bao giờ nhận được response kèm mấy
+con số. Tức code **không** hiện thực hoá lựa chọn mà record này nói là nó đã chọn — nó để exception
+bay ra. Nay `_note` bọc lời gọi trong `try/except` và ghi log, nên lựa chọn "state đúng, thiếu một
+dòng transcript" mới thật sự là thứ xảy ra.
 
 ### Decision: `advance()` giữ nguyên độ thuần; thu hồi là một **thao tác có tên**, không phải một cạnh trong bảng
 

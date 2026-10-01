@@ -12,7 +12,17 @@ thẳng từ đề nháp chỉ cách đúng một phép gán.
 
 `assert_editable` là nửa còn lại. Lập luận của ADR-01 cho việc khoá nội dung là
 "nếu nội dung còn sửa được sau khi duyệt thì việc duyệt không có nghĩa gì" -- nên
-mọi đường ghi một câu hỏi đều gọi hàm này trước.
+mọi đường ghi một câu hỏi đều phải hỏi câu đó trước. Hai cách hỏi, vì hai loại
+caller: `assert_editable` **từ chối**, dành cho một hành động giáo viên vừa yêu cầu;
+còn `editable` chỉ trả lời, dành cho một caller cần **bỏ qua** -- `drafting.harvest`
+thu hoạch trên đường đọc, và một đường đọc nổ vì một việc dọn dẹp thì tệ hơn là nó
+không dọn.
+
+Một chỗ `_ALLOWED` **không** đủ, và nó đã cắn một lần: bảng biết *cạnh nào tồn tại*,
+không biết *ai đang xin đi*. Cạnh `EMPTY → HAS_QUESTIONS` tồn tại cho `harvest`, nên
+một endpoint bỏ duyệt giao hết cho bảng sẽ đi lậu qua đúng cạnh đó và nâng một đề 0
+câu lên `đang soạn`. Nên một caller biết nó đang ở cạnh nào thì phải tự nêu tiền đề
+của mình; bảng chỉ là chốt cuối.
 """
 
 from fastapi import HTTPException
@@ -22,7 +32,14 @@ from be.models import Assessment, AssessmentState
 # Re-export để một caller chỉ cần một import là hỏi được một câu về vòng đời.
 # Phần từ vựng thuộc về schema và nằm trong `models`; phần các cạnh thì thuộc về
 # đây.
-__all__ = ["AssessmentState", "advance", "assert_editable"]
+__all__ = [
+    "AssessmentState",
+    "advance",
+    "assert_editable",
+    "editable",
+    "readable",
+    "state_of",
+]
 
 
 # Toàn bộ vòng đời, dưới dạng dữ liệu. Đọc bảng này là cách nhanh nhất để trả
@@ -74,6 +91,70 @@ def _state_of(assessment: Assessment) -> AssessmentState:
     return AssessmentState.EMPTY if assessment.state is None else AssessmentState(assessment.state)
 
 
+def state_of(assessment: Assessment) -> AssessmentState:
+    """State hiện tại của một đề, kể cả khi nó chưa từng được lưu.
+
+    Args:
+        assessment: Row đó.
+
+    Returns:
+        State hiện tại.
+    """
+    return _state_of(assessment)
+
+
+def readable(state: AssessmentState) -> str:
+    """Tên của một state theo cách giao diện gọi nó, để ghép vào một câu tiếng Việt.
+
+    Args:
+        state: State cần gọi tên.
+
+    Returns:
+        Cụm từ tiếng Việt cho state đó.
+    """
+    return _READABLE[state]
+
+
+def editable(assessment: Assessment) -> bool:
+    """Nội dung của đề này còn sửa được không (ADR-01).
+
+    Phiên bản trả lời của `assert_editable`, cho caller chỉ cần bỏ qua chứ không cần
+    từ chối.
+
+    Args:
+        assessment: Row đó.
+
+    Returns:
+        True khi đề còn ở một state sửa được.
+    """
+    return _state_of(assessment) in _EDITABLE
+
+
+def _refuse_unless_reachable(assessment: Assessment, to: AssessmentState) -> None:
+    """Từ chối khi ADR-01 không có cạnh nào tới `to`, mà không đổi gì.
+
+    Tách ra khỏi `advance` để câu từ chối có đúng một chỗ viết. Chưa công khai: endpoint
+        duyệt hỏi một câu khác -- *nội dung còn mở không* -- vì chính `harvest` làm câu trả
+        lời của hàm này đổi giữa đường. Khi nào có caller thật thì mở ra lúc đó.
+
+        Args:
+            assessment: Row đó.
+            to: State đang được nhắm tới.
+
+        Raises:
+            HTTPException: 409 kèm một câu nêu tên cả hai state.
+    """
+    current = _state_of(assessment)
+    if to not in _ALLOWED[current]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Đề đang ở trạng thái {_READABLE[current]}, "
+                f"không chuyển sang {_READABLE[to]} được."
+            ),
+        )
+
+
 def advance(assessment: Assessment, to: AssessmentState) -> None:
     """Chuyển một đề sang state khác, hoặc từ chối.
 
@@ -89,15 +170,7 @@ def advance(assessment: Assessment, to: AssessmentState) -> None:
     Side effects:
         Ghi `assessment.state` khi cạnh đó tồn tại.
     """
-    current = _state_of(assessment)
-    if to not in _ALLOWED[current]:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Đề đang ở trạng thái {_READABLE[current]}, "
-                f"không chuyển sang {_READABLE[to]} được."
-            ),
-        )
+    _refuse_unless_reachable(assessment, to)
     assessment.state = to
 
 

@@ -52,7 +52,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # đọc chính thức và im lặng ở mọi check là đúng loại thứ cần một dòng viết ra. Decision
 # record nằm ở 2026-09-30-teacher-write-path-plan.md.
 #
-AGENTS_MD_MAX_LINES = 174
+# 175: hơn con số 174 bên dưới một dòng, mua ngày 2026-10-01 bằng bất biến
+# *trạng thái ↔ số câu hỏi*. Nó xứng một dòng vì nó là bất biến duy nhất ở đây mà
+# **không** có constraint nào của database đỡ được: `state` và số dòng `questions` là
+# hai thứ, không gì buộc chúng khớp. Và chính việc viết dòng này ra đã làm lộ một lỗ
+# -- endpoint bỏ duyệt nâng được một đề 0 câu lên `đang soạn` -- nên nó là một dòng
+# đã trả tiền cho chính nó. Decision record nằm ở
+# 2026-09-30-teacher-write-path-plan.md.
+#
+AGENTS_MD_MAX_LINES = 175
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -72,13 +80,19 @@ DB_CREDENTIAL_PATTERN = re.compile(
 
 ENV_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=")
 
-# Hai hàm đưa một đề đi qua vòng đời của ADR-01, cộng với đường đi vòng qua
+# Hai hàm đưa một đề đi qua vòng đời của ADR-01, cộng hai đường đi vòng qua
 # chúng. Một tool của giáo viên mà nhắc tên một trong hai hàm đó là đang với tay
 # qua đúng cái cổng nó phải đứng sau -- còn `assessment.state = ...` là cùng cái
 # với tay ấy nhưng bỏ hẳn cổng, và đó mới là phiên bản mà một bản sửa có ý tốt dễ
 # viết hơn nhiều. `==` thì tha: đọc state chính là cách một tool quyết định từ
 # chối.
-LIFECYCLE_VERBS = re.compile(r"\b(advance|withdraw)\s*\(|\.state\s*=[^=]")
+#
+# `teacher_routes` là đường đi vòng thứ hai, và nó chỉ mở ra ở Pha 4: hai endpoint
+# duyệt/bỏ duyệt là coroutine public, nên một tool chỉ cần
+# `from be.teacher_routes import approve` rồi `await` nó là đạt đúng kết quả mà hai
+# pattern trên cấm, bằng một cái tên không có trong hai pattern đó. Cấm cả tên module
+# thì rẻ hơn là đi đoán xem nó được import kiểu gì.
+LIFECYCLE_VERBS = re.compile(r"\b(advance|withdraw)\s*\(|\.state\s*=[^=]|\bteacher_routes\b")
 
 
 # Những token KHÔNG phải code: chúng được xoá trắng trước khi mọi phép grep ở dưới

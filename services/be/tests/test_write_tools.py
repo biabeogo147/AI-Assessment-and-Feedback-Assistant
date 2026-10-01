@@ -101,7 +101,7 @@ _FULL = {
 
 @pytest.mark.asyncio
 async def test_a_complete_brief_creates_an_empty_draft(stack) -> None:
-    """Bản nháp tồn tại, thuộc về giáo viên đang hỏi, và chưa chứa câu hỏi nào.
+    """Đề nháp tồn tại, thuộc về giáo viên đang hỏi, và chưa chứa câu hỏi nào.
 
     Là `EMPTY` chứ không phải `HAS_QUESTIONS`, vì ADR-01 cho state rỗng một luật
     riêng: nó chính là thứ chặn việc phát hành một đề không có gì trên đó.

@@ -146,6 +146,20 @@ Một điều đáng để ý ở mọi response phía học sinh: **không có*
 lý do review ([ADR-08](decisions/adr-08-bon-loai-nghi-ngo.md)), và **không có** `is_correct` trước
 khi bài được nộp.
 
+Phía giáo viên, hai quyết định của ADR-01 đi qua đúng hai endpoint, với một header actor khác:
+
+```powershell
+$t = @{ "X-Actor" = "teacher:GV-001"; "Content-Type" = "application/json" }
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/<assessment_id>/approve" -Headers $t
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/<assessment_id>/unapprove" -Headers $t
+```
+
+Duyệt **tự thu hoạch** các job đã xong trước khi đếm, nên không cần gọi gì khác trước nó: BE không có
+worker chạy nền, và nếu endpoint này chỉ đếm thì một đề có đủ câu đã viết xong vẫn đọc ra là "còn
+đang soạn" cho tới khi có ai mở một màn hình khác. Hai lời từ chối đáng gặp: `409` khi đề chưa có câu
+nào, và `409` khi còn câu đang soạn — đề của giáo viên khác thì trả `404` giống hệt một đề không tồn
+tại ([ADR-22](decisions/adr-22-de-co-tac-gia.md)).
+
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) vẫn còn cho tới khi hàng đợi
 review của giáo viên được thiết kế. Nó **không** nằm trong luồng lõi nữa; đừng đọc nó như cách hệ
 thống chấm bài.

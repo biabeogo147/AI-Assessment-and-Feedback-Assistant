@@ -238,10 +238,11 @@ def _subject(result: dict) -> tuple[str, str]:
     Một lớp từ `find_class`, hoặc một đề nháp từ `create_draft` và `start_drafting`. Các
     cột chứa đúng những gì các tool thực sự trả về, nên chúng lớn dần theo các tool.
 
-    Một kết quả có nói về thứ gì đó khi nó nói là nó thành công, và các tool nói điều đó
-    bằng ba cách: `found` cho một lần tra cứu, `created` cho một đề nháp mới, `started`
-    cho một vòng sinh câu hỏi. Liệt kê cả ba thì hơn là đi soi tên tool, vì cái tên không
-    phải thứ mang theo id.
+    Một kết quả có nói về thứ gì đó khi nó nói là nó thành công, và cả tool lẫn endpoint
+    đều nói điều đó bằng một cờ: `found` cho một lần tra cứu, `created` cho một đề nháp
+    mới, `started` cho một vòng sinh câu hỏi, `approved` và `unapproved` cho hai quyết
+    định của giáo viên. Liệt kê các cờ thì hơn là đi soi tên tool, vì cái tên không phải
+    thứ mang theo id.
 
     Args:
         result: Giá trị trả về của một tool.
@@ -251,7 +252,9 @@ def _subject(result: dict) -> tuple[str, str]:
         lời từ chối thì không nói về gì cả, và ghi lại các tham số của nó như một entity
         là tạo ra những liên kết trỏ tới những row chưa bao giờ được tìm thấy.
     """
-    if not any(result.get(flag) for flag in ("found", "created", "started")):
+    if not any(
+        result.get(flag) for flag in ("found", "created", "started", "approved", "unapproved")
+    ):
         return "", ""
     for key, kind in _ENTITY_KEYS:
         value = result.get(key)
@@ -436,6 +439,34 @@ async def _record(
         return sequence + 1
 
     raise AssertionError("unreachable: the loop returns or raises")
+
+
+async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord) -> None:
+    """Ghi một hành động của giáo viên vào hội thoại đang chạy của họ.
+
+    Tồn tại cho những quyết định **không** đi qua khung chat. Duyệt và phát hành nằm
+    sau một nút và một hộp xác nhận (ADR-05), nên chúng không bao giờ là một bước do
+    model đề xuất -- nhưng chúng vẫn thuộc về cùng một dòng thời gian, vì thứ giáo viên
+    đọc lại sau một tuần là *đã xảy ra những gì*, không phải *thứ gì đi qua đường nào*.
+    ADR-01 còn đòi thẳng điều đó cho việc bỏ duyệt, thao tác duy nhất hạ một state
+    xuống.
+
+    Vị trí được tính ở đây chứ không phải ở caller, vì việc xử lý hai request cùng nhắm
+    một vị trí nằm trong `_record` và một caller thứ hai tự tính vị trí sẽ là một bản
+    sao của luật đó, chờ lệch đi.
+
+    Args:
+        session: Session của database. Hàm này commit.
+        asking: Ai đang làm.
+        record: Bước cần ghi. `tool_result` của nó nên mang một cờ thành công và một
+            `assessment_id`, vì đó là thứ `_subject` đọc để liên kết bước này với đề.
+
+    Side effects:
+        Mở một hội thoại nếu giáo viên chưa có, rồi chèn một bước và commit.
+    """
+    thread = await _conversation(session, asking)
+    stored = await _stored_turns(session, thread)
+    await _record(session, thread, len(stored), record)
 
 
 def _visible(turn: TeacherTurn) -> Turn:

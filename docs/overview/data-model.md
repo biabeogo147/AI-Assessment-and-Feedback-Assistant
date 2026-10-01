@@ -47,10 +47,17 @@ một thao tác trên cả đề.
 Cột `state` là một `Enum` có check constraint, không phải chuỗi tự do, và cạnh giữa các trạng thái nằm
 trong `services/be/src/be/assessment_state.py`. `advance()` ở đó là **cửa duy nhất** đổi trạng thái:
 một lần chuyển viết rời ở chỗ khác là một cạnh thứ năm không ai tìm được, và thứ mất trước tiên sẽ là
-cổng duyệt, vì phát hành thẳng từ bản nháp chỉ cách một phép gán.
+cổng duyệt, vì phát hành thẳng từ đề nháp chỉ cách một phép gán.
 
 Trạng thái `empty` tồn tại vì nó là thứ **chặn phát hành** một đề chưa có câu nào — ADR-01 dành cho nó
 một luật riêng, nên nó là một trạng thái chứ không phải một câu truy vấn đếm.
+
+Nhưng một trạng thái thì không tự canh được số câu hỏi: `state` và số dòng `questions` là hai thứ, và
+không constraint nào buộc chúng khớp nhau. Nên bất biến ấy được thi hành ở **endpoint duyệt**
+(`teacher_routes.py`), nơi đã có session để đếm — `advance()` thì thuần trên một hàng, và đọc
+`assessment.questions` bên trong nó sẽ là một lazy-load trong ngữ cảnh async. Hệ quả: *"`advance()` là
+cửa duy nhất"* vẫn đúng về cú pháp nhưng chưa đủ để giữ bất biến, vì cửa đó không biết **ai** đang xin
+đi cạnh nào. Caller nào biết nó đang ở cạnh nào thì phải tự nêu tiền đề của mình.
 
 ### Nhóm 3 — bài làm và điểm
 

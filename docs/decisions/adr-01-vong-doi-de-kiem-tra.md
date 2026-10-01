@@ -61,10 +61,28 @@ chiều thì giáo viên gặp hai cổng nặng liên tiếp, và sẽ học c�
 - `services/be/src/be/assessment_state.py` — `_ALLOWED` là bốn trạng thái ấy cùng các cạnh giữa
   chúng, viết thành dữ liệu. `advance()` là **cửa duy nhất** đổi trạng thái; `assert_editable()` thi
   hành luật *duyệt khoá nội dung*.
-- `services/be/tests/test_assessment_lifecycle.py` — tám test, mỗi luật của ADR này một test. Trong
-  đó `test_teacher_approves_an_assessment_before_release` là test mà bảng Invariants của `AGENTS.md`
+- `services/be/tests/test_assessment_lifecycle.py` — mười hai test. Trong đó
+  `test_teacher_approves_an_assessment_before_release` là test mà bảng Invariants của `AGENTS.md`
   trỏ tới, `test_unapproving_reopens_the_content` giữ tính đảo ngược, và
-  `test_a_published_assessment_has_no_way_back` giữ việc không có đường ra khỏi `đã phát hành`.
-- **Chưa có ở backend:** chưa có endpoint nào gọi `advance()` — cửa đã dựng, chưa ai đi qua. Bốn
-  trạng thái hiện được thi hành ở tầng dữ liệu và tầng luật, không ở tầng HTTP. Và **chưa có cạnh từ
-  `có câu hỏi` về `trống`**: nó chỉ cần khi có đường xoá câu hỏi, mà đường đó chưa dựng.
+  `test_a_published_assessment_never_returns_to_editing` giữ việc không có đường ra khỏi
+  `đã phát hành`.
+- `services/be/src/be/teacher_routes.py` — `POST /api/teacher/assessments/{id}/approve` và
+  `.../unapprove`, hai caller của `advance()` **trên đường HTTP**. Endpoint duyệt thi hành bất biến
+  *trạng thái ↔ số câu hỏi*: không duyệt được một đề trống, và không duyệt được một đề còn câu đang
+  soạn. Endpoint bỏ duyệt phải **tự nêu tiền đề** rằng đề đang `đã duyệt`, vì bảng cạnh biết *cạnh
+  nào tồn tại* mà không biết *ai đang xin đi*: cạnh `trống → có câu hỏi` tồn tại cho việc thu hoạch,
+  nên một lần bỏ duyệt giao hết cho bảng sẽ đi lậu qua nó và nâng một đề 0 câu lên `đang soạn`. Chỗ đếm là endpoint chứ không phải `advance()`, vì đếm cần một session còn `advance()` thuần
+  trên một hàng — đọc `assessment.questions` bên trong nó sẽ là một lazy-load trong ngữ cảnh async.
+- `services/be/src/be/teacher_routes.py` — endpoint bỏ duyệt ghi một hàng `teacher_turns` kèm
+  `entity_kind = assessment`, vì ADR này chỉ riêng việc bỏ duyệt ra như **thao tác duy nhất hạ một
+  trạng thái xuống**.
+- `services/be/src/be/drafting.py` — `fire()` gọi `assert_editable()` trước khi đẩy job nào vào hàng
+  đợi, nên luật *duyệt khoá nội dung* chặn trước khi tốn một lượt gọi model. Và `harvest()` hỏi lại
+  cùng câu đó qua `editable()` trước khi ghi, vì một phép kiểm lúc bắn job không đủ: giữa lúc bắn và
+  lúc thu có một khoảng, và trong khoảng đó giáo viên bấm Duyệt được. Thiếu nó thì `harvest()` là một
+  đường ghi câu hỏi đi vòng qua cả hai.
+- `services/be/tests/test_approval.py` — chín test đi qua HTTP. Mỗi call site được kiểm bằng cách phá
+  nó rồi xem test nào đỏ: bỏ `harvest`, bỏ phép kiểm đang-soạn, bỏ lọc chủ sở hữu, bỏ việc ghi bằng
+  chứng — bốn lần, bốn test, đúng cái test dự định.
+- **Chưa có ở backend: cạnh từ `có câu hỏi` về `trống`.** Nó chỉ cần khi có đường xoá câu hỏi, mà
+  đường đó chưa dựng.
