@@ -45,7 +45,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | AGENT holds no database credentials | automatic: `tools/check_contract.py` |
 | Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |
 | A whole AGENT job times out before the job waiting on it does | automatic: `tools/check_contract.py` |
-| Teacher approves an assessment before release | automatic: `test_teacher_approves_an_assessment_before_release` |
+| Teacher approves an assessment before release | automatic: `test_an_unapproved_assessment_cannot_be_published_over_http` |
 | The options in a clarifying question are written by BE from rows it read | automatic: `test_the_options_are_written_by_be_not_by_the_model` |
 | No agent tool changes an assessment's state | automatic: `tools/check_contract.py` |
 | An empty assessment is never approved | automatic: `test_an_empty_assessment_cannot_be_approved` |

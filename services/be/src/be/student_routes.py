@@ -53,6 +53,7 @@ from be.models import (
     Report,
     RoundItem,
     Student,
+    aware,
 )
 from be.remediation import round_budget_minutes, round_ends_at, will_be_cut
 from be.scoring import (
@@ -102,7 +103,7 @@ def _aware(value: datetime) -> datetime:
     Returns:
         Đúng khoảnh khắc đó, và được bảo đảm là có timezone.
     """
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return aware(value)
 
 
 class OptionOut(BaseModel):
@@ -445,7 +446,16 @@ async def _publication(session: AsyncSession, assessment_id: str, class_id: str)
             sinh thì chuyện đó không phân biệt được với việc đề không tồn tại.
     """
     found = await session.get(Publication, (assessment_id, class_id))
-    if found is None:
+    # Một lần thu hồi đọc lên y như chưa bao giờ phát hành, và đó là toàn bộ ý nghĩa của
+    # việc thu hồi: ADR-02 cho phép lấy lại **cho tới hết giờ mở**, tức trước khi có học
+    # sinh nào vào được, nên với học sinh thì lần phát hành ấy chưa từng xảy ra. Hàng vẫn
+    # ở lại với `recalled_at` đã đặt, vì nó là sổ sách của giáo viên -- nhưng sổ sách của
+    # giáo viên không phải thứ học sinh được đọc.
+    #
+    # Thiếu dòng này thì `withdraw` chỉ đổi một cột mà không đổi gì học sinh thấy: bài vẫn
+    # hiện, vẫn vào làm được, vẫn chấm. Cột `recalled_at` có từ đầu và `teacher_tools` đã
+    # đọc nó; đường học sinh thì chưa, nên luật tồn tại ở một nửa.
+    if found is None or found.recalled_at is not None:
         raise HTTPException(status_code=404, detail="Bài này chưa được phát hành")
     return found
 
@@ -602,7 +612,12 @@ async def my_assignments(
     """
     now = _now()
     publications = await session.scalars(
-        select(Publication).where(Publication.class_id == student.class_id)
+        # Lọc luôn ở câu query, cùng lý do với `_publication`: một lần thu hồi phải đọc
+        # lên y như chưa bao giờ phát hành. Đây là cửa thứ hai và là cửa **dễ quên hơn**,
+        # vì nó không gọi `_publication` mà tự query.
+        select(Publication).where(
+            Publication.class_id == student.class_id, Publication.recalled_at.is_(None)
+        )
     )
 
     rows: list[AssignmentOut] = []

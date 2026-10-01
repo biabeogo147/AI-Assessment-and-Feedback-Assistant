@@ -62,6 +62,37 @@ một con số dựng sẵn.
   cột cài đặt. Đây là thứ làm cho điều khoản
   *phát hành có thể thất bại một phần* ở mục **Quyết định** trở nên **biểu diễn được**: trước đó model
   chỉ giữ nổi một bộ hạn cho một đề, nên "một lớp nhận được, lớp khác không" không có chỗ để tồn tại.
+- `services/be/src/be/teacher_routes.py` — `POST /api/teacher/assessments/{id}/publications` nhận
+  **một bộ sáu tham số cho mỗi lớp** và nhiều lớp một lần, nên điều khoản *phát hành có thể thất bại
+  một phần* là một hàng trong kết quả chứ không phải một ngoại lệ: một lớp sai giờ nhận lý do của
+  riêng nó và những lớp còn lại vẫn nhận được đề. Ba điều kiện giờ được kiểm riêng từng cái — giờ mở
+  ở tương lai, trước giờ đóng, và hạn pha 2 sau giờ đóng — vì một câu từ chối chung buộc giáo viên
+  đoán xem cái nào sai trong sáu con số họ vừa gõ.
+- `services/be/src/be/teacher_routes.py` — `POST .../publications/{class_id}/withdraw` là nơi cửa sổ
+  thu hồi được thi hành, qua `may_withdraw(opens_at, now)`. Thu hồi **mềm**: hàng ở lại với
+  `recalled_at` đã đặt, vì `published_at`/`recalled_at` là sổ sách. Đề chỉ về **đã duyệt** khi không
+  lớp nào còn giữ nó — thu hồi 12B trong lúc 12A đang làm thì đề vẫn đang phát hành.
+- `services/be/src/be/assessment_state.py` — `_ALLOWED[PUBLISHED]` để **trống**, và `withdraw()` là
+  thao tác có tên duy nhất đi vòng qua bảng cạnh. Lý do: cạnh `đã phát hành → đã duyệt` có **điều
+  kiện**, nên để nó thành một hàng vô điều kiện sẽ cho bất kỳ caller tương lai nào quên kiểm giờ thu
+  hồi được một bài học sinh đang ngồi làm.
+- `services/be/src/be/student_routes.py` — một hàng đã thu hồi đọc lên **y như chưa bao giờ phát
+  hành**, ở cả hai cửa: `_publication()` và câu query liệt kê bài được giao. Thiếu nửa này thì thu
+  hồi chỉ đổi một cột mà không đổi gì học sinh thấy.
+- `services/be/src/be/teacher_routes.py` — một đề **đã phát hành** vẫn nhận thêm lớp được, vì ADR này
+  nói *một đề đi tới nhiều lớp* chứ không nói *trong một request*. Cái giá là một phép kiểm phải đi
+  kèm: `_already_running()` từ chối ghi đè cài đặt của một lớp **đã qua giờ mở** hoặc **đã có bài
+  làm** — nếu không thì việc nới cổng mở một đường đi vòng qua chính cửa sổ thu hồi, bằng cách đặt
+  `recalled_at = None` cộng một giờ mở mới ở tương lai.
+- `services/be/src/be/teacher_routes.py` — `ClassSchedule` dùng `AwareDatetime`, và `_publish_one`
+  chuẩn hoá về UTC trước khi ghi. Không có hai thứ đó thì một giờ gửi kèm offset địa phương bị lưu
+  mất offset trên SQLite (lệch bảy giờ ở Việt Nam) và một giờ naive bị đoán là UTC — cả hai âm thầm,
+  và hộp xác nhận **che** chúng vì nó đọc lại đúng chuỗi vừa gõ.
+- `services/be/src/be/publication_wording.py` — ba câu luật, mỗi câu một hằng số, trả về ở **cả ba**
+  payload: lúc mở biểu mẫu, lúc xem trước để xác nhận, và trong biên bản. Hộp xác nhận đọc lại giá
+  trị thật vì `preview` đi qua **đúng** đoạn code mà lần ghi thật đi qua.
+- `services/be/tests/test_publishing.py` — hai mươi ba test, tất cả qua HTTP. Bảy call site được kiểm
+  bằng cách phá từng cái rồi xem test nào đỏ.
 - `services/be/src/be/models.py` — `Attempt.class_id` ghi lớp lúc bắt đầu làm bài, vì "hạn của đề
   này" nay là một câu hỏi có nhiều câu trả lời và bài làm phải nói nó theo bộ nào.
 - `services/be/tests/test_multi_class_publication.py` — năm test: một đề giữ hai bộ hạn; mỗi lớp đọc
@@ -69,8 +100,6 @@ một con số dựng sẵn.
   chuyển lớp **không** khoá học sinh khỏi bài đang làm (ADR-03: *đã vào rồi thì không bị dừng giữa
   chừng*); và hạn pha 2 đi theo bài làm chứ không theo lớp hiện tại của học sinh — revert đúng một
   call site làm hạn ấy nhảy mười hai tiếng, nên test này có răng chứ không chỉ có tên.
-- **Chưa thi hành:** không có endpoint phát hành nào, nên luật *chỉ giáo viên phát hành* vẫn chỉ sống
-  trong thiết kế. Sáu tham số hiện chỉ do `seed.py` và test điền.
 - Figma `mOe2ZmrqOq1Uix45v6PNGD`, `Publish settings` (`67:41`) — **sáu** trường, nhóm theo hai pha,
   cả hai variant; mô tả component ghi luật chặn chiều cao.
 - Figma `Consequence dialog` (`11:41`) — khối đọc lại **sáu** giá trị.
@@ -89,6 +118,7 @@ một con số dựng sẵn.
 - **Nửa chưa thi hành:** nút Thu hồi phải **mất đi khi đã qua giờ mở**, và `Action result card`
   (`10:63`) không có trục trạng thái *chưa mở* / *đã mở* nên nút luôn hiện. Đừng đọc thẻ đó như bằng
   chứng rằng thu hồi lúc nào cũng được. Xem `docs/plans/backlog.md`.
-- **Chưa có ở backend:** không endpoint nào phát hành hay thu hồi, nên luật *chỉ giáo viên phát
-  hành* và cửa sổ thu hồi vẫn chỉ sống trong thiết kế. Sáu tham số hiện chỉ do `seed.py` và test
-  điền. Phần **đã** có ở backend là hình dạng dữ liệu, ở bốn gạch đầu dòng trên.
+- **Chưa có ở backend:** không đường nào **đọc lại** sáu tham số đã đặt cho một lớp, và
+  `ClassOption` của biểu mẫu chỉ nói lớp đó đã giữ đề hay chưa — không nói còn thu hồi được không.
+  Nên điều khoản *nút Thu hồi mất đi khi đã qua giờ mở* ở mục **Hệ quả** vẫn chưa làm được mà không
+  bắt FE tự so đồng hồ, tức tự cài lại `may_withdraw`. Xem `docs/plans/backlog.md`.

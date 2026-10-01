@@ -146,7 +146,7 @@ def normalise(name: str) -> str:
     return _SPACES.sub("", _PREFIX.sub("", composed)).casefold()
 
 
-async def _candidates(session: AsyncSession, asking: Asking) -> list[Candidate]:
+async def classes_with_counts(session: AsyncSession, asking: Asking) -> list[Candidate]:
     """Mọi lớp giáo viên này sở hữu, kèm số học sinh, trong một query.
 
     Args:
@@ -201,7 +201,7 @@ async def resolve_class(
         khi không khớp lớp nào. Không bao giờ là một phỏng đoán: không có nhánh
         code nào chọn một lớp trong nhiều lớp.
     """
-    owned = await _candidates(session, asking)
+    owned = await classes_with_counts(session, asking)
     wanted = normalise(typed)
     if not wanted:
         # Một tham số model bỏ trống thì đến đây dưới dạng "". Đem nó đi khớp

@@ -347,7 +347,7 @@ giá trị thật thay vì một con số ghi cứng.
 
 ## Model thật — hai lỗ hổng mở cùng lúc với nó
 
-Ghi từ [plan 2026-09-29](active/2026-09-29-agent-real-model-plan.md), đợt đưa AGENT lên model thật.
+Ghi từ [plan 2026-09-29](completed/2026-09-29-agent-real-model-plan.md), đợt đưa AGENT lên model thật.
 Cả hai là **quyết định có chủ đích**, không phải sót.
 
 | Việc | Cái gì đang chặn |
@@ -383,7 +383,7 @@ plan.
 
 ### Không ai chặn Markdown và LaTeX, chỉ có prompt xin
 
-Ghi từ pha 2 của [plan 2026-09-29](active/2026-09-29-agent-real-model-plan.md). Prompt của trợ lý
+Ghi từ pha 2 của [plan 2026-09-29](completed/2026-09-29-agent-real-model-plan.md). Prompt của trợ lý
 cấm LaTeX và Markdown, nhưng **không dòng code nào kiểm**. `Turn` trong
 `services/fe/src/screens/Tutor.tsx` in thẳng `text` vào JSX — không parser, không
 `dangerouslySetInnerHTML` — nên model lỡ trả `**in đậm**` hay `\(x²\)` là học sinh đọc nguyên ký tự.
@@ -478,26 +478,53 @@ không ai tìm thấy.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Test rằng **đường HTTP** phát hành từ chối đề chưa duyệt | **Bị chặn**: chưa có endpoint phát hành |
-| Bất biến giữa `Assessment.state` và số câu hỏi | Cùng vật chặn, cộng một cái bẫy async |
-| `entity_kind`/`entity_id` đủ cho bảy variant `Action result card` | **Bị chặn**: chưa có tool ghi nào |
+| ~~Test rằng **đường HTTP** phát hành từ chối đề chưa duyệt~~ | **Xong** ở Pha 5 |
+| ~~Bất biến giữa `Assessment.state` và số câu hỏi~~ | **Xong** ở Pha 4 |
+| `entity_kind`/`entity_id` đủ cho bảy variant `Action result card` | Còn **một** variant: `phát-hành-thất-bại` |
 
-**Vì sao hai việc đầu bị chặn bởi cùng một thứ.** `advance()` trong `assessment_state.py` là cửa duy
-nhất đổi trạng thái đề, và **chưa caller nào gọi nó** — cửa đã dựng, chưa ai đi qua. Dòng invariant
-*"Teacher approves an assessment before release"* trong `AGENTS.md` vì thế đúng về chữ và mỏng về
-tinh thần: hôm nay không đường HTTP nào phát hành được đề chưa duyệt, vì không đường HTTP nào phát
-hành cả. Khi có endpoint, không gì buộc nó đi qua `advance()`; một phép gán `state = PUBLISHED` viết
-rời vẫn qua mặt được, nên test ở tầng HTTP là thứ phải có cùng lúc với endpoint.
+**Hai việc đầu đã xong** (`2026-09-30-teacher-write-path-plan.md`, Pha 4 và 5), và cả hai đúng theo
+cách backlog này đoán: đường HTTP phát hành có test riêng ở tầng HTTP, và phép đếm câu hỏi nằm ở
+endpoint duyệt chứ không trong `advance()`, vì đọc `.questions` ở đó là một lazy-load async.
 
-Cái bẫy async của việc thứ hai: `advance(..., APPROVED)` không đếm `assessment.questions`, nên một
-đề `has_questions` với **0 câu** duyệt và phát hành trôi chảy. Không sửa trong `advance()` được, vì
-đọc `.questions` ở đó sẽ lazy-load và nổ `MissingGreenlet`. Chỗ đúng để đếm là endpoint duyệt, nơi
-đã có sẵn session.
+Một điều backlog này **đoán sai**: nó viết *"khi có endpoint, không gì buộc nó đi qua `advance()`"*.
+Có — `tools/check_contract.py :: tools-decide-nothing` grep `.state =` nên một phép gán viết rời
+trong `teacher_tools.py` là build đỏ, và `grep -rn '\.state\s*=' services/be/src` nay cho đúng hai
+kết quả, cả hai trong `assessment_state.py`. Nhưng phép grep ấy chỉ quét một file, và nó **không**
+bắt được `Assessment(state=...)` ở constructor — xem mục nợ mới dưới đây.
 
-**Việc thứ ba.** Hai cột tồn tại và có đường ra API qua `Turn`, nhưng bảy variant của `Action result
-card` đều là hành động **ghi** — `tạo-đề-trống`, `thêm-câu-hỏi`, `đã-duyệt`, `bỏ-duyệt`,
-`đã-phát-hành`, `phát-hành-thất-bại`, `tạo-lớp` — và đợt này không có tool ghi nào. Hiện chỉ
-`find_class` sinh ra chủ thể (`class`). Cấu trúc có, dữ liệu chưa.
+**Việc thứ ba còn một variant.** Sáu trong bảy nay có dữ liệu: `tạo-đề-trống` và `thêm-câu-hỏi` từ
+Pha 3, `đã-duyệt`/`bỏ-duyệt` từ Pha 4, `đã-phát-hành` từ Pha 5, `tạo-lớp` từ `find_class`. Thiếu
+`phát-hành-thất-bại`: `_note_publication` chỉ ghi một bước khi **có** lớp nhận được, nên một lần phát
+hành trượt toàn bộ không để lại dấu nào trong `teacher_turns`.
+
+## Ba mục nợ của Pha 5
+
+Ghi ngày 2026-10-01, từ review Pha 5.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| `UniqueConstraint` mới trên `questions` chưa áp vào database đã tồn tại | Không có migration; `create_all` bỏ qua bảng đã có |
+| Hai ADR chọn **bao gồm** ở hai phía của cùng một mốc | Cần một quyết định, không phải một bản sửa |
+| `check_contract` không bắt `Assessment(state=...)` ở constructor | Chưa quyết nên mở rộng grep hay đổi cách |
+
+**Việc thứ nhất.** `db.py` dùng `Base.metadata.create_all`, và `data-model.md` ghi rõ rằng gọi nó
+trên một bảng đã tồn tại thì *"không có gì xảy ra và cũng không có lỗi nào"*. Nên
+`UniqueConstraint("assessment_id", "order_index")` thêm ở Pha 5 chỉ có hiệu lực với ai xoá volume —
+và lập luận *"để database làm bên phân xử thay vì một biến cục bộ"* trong comment của `models.py`
+đúng về thiết kế mà chưa đúng về máy đang chạy. Cùng một vật chặn với mọi thay đổi schema khác ở đây.
+
+**Việc thứ hai, và nó là một cái hở trong ADR chứ không trong code.** ADR-02 cho thu hồi **tới hết**
+giờ mở (bao gồm); ADR-03 cho học sinh vào **từ** giờ mở (cũng bao gồm). Tại đúng khoảnh khắc
+`now == opens_at`, một học sinh được vào **và** giáo viên được thu hồi — và nếu cả hai xảy ra thì
+`_publication` trả 404 cho một bài đang làm, trái điều khoản *đã vào rồi thì không bị dừng giữa
+chừng* của ADR-03. Xác suất thực tế gần 0 vì so tới micro-giây, nhưng thứ cần sửa là **một trong hai
+ADR phải chọn loại trừ**, và đó là một quyết định về sản phẩm.
+
+**Việc thứ ba.** Pattern của `tools-decide-nothing` là `\b(advance|withdraw)\s*\(|\.state\s*=[^=]|\bteacher_routes\b`.
+Nó không bắt `Assessment(state=AssessmentState.PUBLISHED)` ở constructor, nên một tool **tạo** một đề
+ở trạng thái bất kỳ thì check vẫn xanh. Chưa sửa vì bản sửa thẳng nhất — cấm cả `state=` — sẽ đỏ ở
+`seed.py` và `teacher_tools.py`, hai chỗ tạo đề hợp lệ; nên nó cần một cách phân biệt *tạo* với *đổi*,
+và đó là việc đáng làm một lượt cùng với việc nới check sang nhiều file hơn một.
 
 ## Hai việc còn lại của plan `core-two-phase-backend`
 
@@ -506,13 +533,13 @@ hai ô này **thật sự chưa làm**, nên chúng sang đây thay vì đi theo
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành* | Không chặn. Là plan kế tiếp |
+| ~~Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*~~ | **Xong** ở Pha 4 và 5 |
 | Chuyển hai dòng invariant của UC-05 sang nhóm tự động | **Bị chặn bởi UC-05** — chưa thiết kế |
 
-Việc đầu nay có nửa dưới: `assessment_state.py` đã có `advance()` và `assert_editable()` từ plan
-harness giáo viên (`9a37864`). Cái còn thiếu là đường HTTP đi qua nó, và đó là cột mốc kế tiếp — nó
-gộp luôn ba mục backlog khác: test đường phát hành, bất biến `state` ↔ số câu hỏi, và
-`entity_kind`/`entity_id` cho bảy variant `Action result card`.
+Việc đầu **đã xong** ở `2026-09-30-teacher-write-path-plan.md`: `teacher_routes.py` có cả năm
+endpoint — duyệt, bỏ duyệt, mở biểu mẫu, phát hành nhiều lớp, thu hồi một lớp — và chúng đi qua
+`advance()`/`withdraw()`. Nó gộp luôn hai mục backlog ở trên như đã đoán; mục thứ ba
+(`entity_kind`/`entity_id`) còn đúng một variant.
 
 Việc thứ hai là hai dòng *"A low-confidence result is not shown to the Student before a Teacher
 handles it"* và *"A retry question is a variant of the same question"* trong bảng Invariants của

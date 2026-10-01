@@ -17,7 +17,7 @@ mọi query đang đọc những câu do giáo viên soạn.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from sqlalchemy import (
@@ -44,6 +44,27 @@ def new_id() -> str:
         Một UUID4 ở dạng string có dấu gạch nối.
     """
     return str(uuid.uuid4())
+
+
+def aware(value: datetime) -> datetime:
+    """Gắn UTC vào một datetime đọc từ database nếu nó về mà không có timezone.
+
+    Mọi cột thời gian ở đây khai `DateTime(timezone=True)` và mọi giá trị ghi vào đều
+    tz-aware, nhưng SQLite không có kiểu datetime nên nó trả về chuỗi đã mất phần
+    offset. So một giá trị naive với `datetime.now(UTC)` thì `TypeError`, và nó nổ ở
+    tầng route chứ không ở chỗ gây ra.
+
+    Để ở `models` vì đây là chuyện đọc một **cột** về cho đúng, không phải chuyện luật
+    nghiệp vụ -- và vì cả đường học sinh lẫn đường giáo viên đều cần nó. Hai bản của
+    cùng một phép chuẩn hoá là thứ repo này đã trả giá một lần.
+
+    Args:
+        value: Giá trị đọc từ một cột datetime.
+
+    Returns:
+        Chính nó khi đã có timezone, hoặc một bản gắn UTC.
+    """
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class Base(DeclarativeBase):
@@ -185,6 +206,12 @@ class Question(Base):
     """Một câu hỏi do giáo viên soạn, thuộc một đề."""
 
     __tablename__ = "questions"
+    # Một câu cho mỗi vị trí trong một đề. `DraftItem` đã có constraint này từ Pha 2 và
+    # bảng đích thì không, nên `harvest` chống trùng vị trí bằng một snapshot đọc vào bộ
+    # nhớ -- và một snapshot thì không chặn được lần `harvest` thứ hai chạy song song với
+    # nó. Pha 4 thêm một cửa thứ ba đi vào đó (endpoint duyệt cũng thu hoạch), nên đây là
+    # lúc để database làm bên phân xử thay vì một biến cục bộ.
+    __table_args__ = (UniqueConstraint("assessment_id", "order_index"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"))

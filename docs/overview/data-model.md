@@ -47,7 +47,10 @@ một thao tác trên cả đề.
 Cột `state` là một `Enum` có check constraint, không phải chuỗi tự do, và cạnh giữa các trạng thái nằm
 trong `services/be/src/be/assessment_state.py`. `advance()` ở đó là **cửa duy nhất** đổi trạng thái:
 một lần chuyển viết rời ở chỗ khác là một cạnh thứ năm không ai tìm được, và thứ mất trước tiên sẽ là
-cổng duyệt, vì phát hành thẳng từ đề nháp chỉ cách một phép gán.
+cổng duyệt, vì phát hành thẳng từ đề nháp chỉ cách một phép gán. Từ Pha 5 có **hai** chỗ gán
+`state`, không một: `withdraw()` là thao tác có tên đi vòng qua bảng cạnh, vì cạnh *đã phát hành → đã
+duyệt* có **điều kiện** và một hàng vô điều kiện trong bảng sẽ cho bất kỳ caller nào quên kiểm giờ thu
+hồi được một bài học sinh đang ngồi làm.
 
 Trạng thái `empty` tồn tại vì nó là thứ **chặn phát hành** một đề chưa có câu nào — ADR-01 dành cho nó
 một luật riêng, nên nó là một trạng thái chứ không phải một câu truy vấn đếm.

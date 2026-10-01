@@ -255,44 +255,94 @@ không bị năm job cũ giữ lại — nên nó thành một test riêng thay 
 
 ### Pha 5 — Phát hành nhiều lớp, xác nhận, thu hồi
 
-Hai mục nợ do review Pha 4 chuyển sang đây, vì Pha 5 là chỗ chúng thành nguy hiểm:
+- [x] `POST /api/teacher/assessments/{id}/publications`: sáu tham số **mỗi lớp**, nhiều lớp một lần.
+      Ba điều kiện giờ kiểm riêng từng cái — giờ mở ở tương lai, trước giờ đóng, và hạn pha 2 sau giờ
+      đóng (ADR-15) — vì một câu từ chối chung buộc giáo viên đoán cái nào sai trong sáu con số.
+- [x] **Từ chối phát hành đề chưa duyệt**, test ở tầng HTTP. Đây là chỗ dòng Invariants của
+      `AGENTS.md` chuyển từ đúng-về-chữ sang đúng-về-tinh-thần, nên dòng đó nay trỏ vào
+      `test_an_unapproved_assessment_cannot_be_published_over_http` thay vì test ở tầng hàm.
+- [x] Thất bại một phần: lớp sai giờ nhận lý do của riêng nó, lớp còn lại vẫn nhận được đề. `_publish_one`
+      **trả về lý do thay vì raise**, vì một `HTTPException` cho một lớp sai sẽ biến một điều khoản
+      của ADR-02 thành không biểu diễn được.
+- [x] Thêm một thứ không có trong plan: **không lớp nào nhận được thì đề không sang `đã phát hành`**.
+      Một đề `đã phát hành` mà không có hàng `Publication` nào thì mắc kẹt vĩnh viễn, vì
+      `_ALLOWED[PUBLISHED]` để rỗng.
+- [x] `be/publication_wording.py` **mới**, và nó khác plan ở một chỗ quan trọng — xem Decision Record
+      *"Lời văn của luật là hàm, không phải hằng số"*.
+- [x] `assessment_state.py`: `may_withdraw(opens_at, now)` thuần trên hai giá trị, và `withdraw(assessment,
+      still_held=...)` là thao tác có tên duy nhất đi vòng qua `_ALLOWED`.
+- [x] Thu hồi **một lớp**, và đề chỉ về `đã duyệt` khi không lớp nào còn giữ.
+- [x] Test: **23** test trong `services/be/tests/test_publishing.py`, tất cả qua HTTP. Bảy call site được
+      kiểm bằng cách phá từng cái; mỗi lần đúng một test dự định đỏ.
+- [x] Trả mục nợ về **tính nguyên tử**: `_owned` nay `with_for_update()`. Nợ này do review Pha 4
+      chuyển sang, và Pha 5 là chỗ nó thành nguy hiểm.
+- [x] Trả mục nợ thứ hai: `Question` nhận unique `(assessment_id, order_index)`, thứ `DraftItem` đã có
+      từ Pha 2.
 
-- [ ] **`advance` không nguyên tử.** Nó là một read-modify-write qua hai câu lệnh với một khe ở giữa,
-      không `FOR UPDATE`, không cột version, không unique index — khác hẳn `fire` và `_record`, hai
-      chỗ đều lấy một unique index làm bên phân xử và đều có đường hồi phục. Ở Pha 4 hậu quả nhẹ: hai
-      lần duyệt song song cho hai hàng transcript. Ở Pha 5 thì `publish` song song với `unapprove` là
-      một lost update trên cùng một cột, và lúc đó *"`advance` là cửa duy nhất"* bảo vệ được tính hợp
-      lệ của **cạnh** mà không bảo vệ được tính nguyên tử của **phép đổi**. Sửa nhỏ:
-      `with_for_update()` trong `_owned`, hoặc một `UPDATE ... WHERE state = :expected` lấy `rowcount`
-      làm trọng tài.
-- [ ] **`Question` không có unique `(assessment_id, order_index)`**, trong khi `DraftItem` thì có.
-      `harvest` chống trùng bằng một snapshot trong bộ nhớ, nên hai lần `harvest` song song có thể ghi hai
-      câu vào cùng một vị trí. Pha 4 không tạo lỗ này nhưng vừa thêm một cửa thứ ba đi vào nó.
+**Thu hồi là thu hồi *mềm*, khác plan.** Plan viết *"gỡ hàng `Publication` của lớp đó"*, và điều đó
+sai với chính schema: cột `recalled_at` đã tồn tại và `teacher_tools` đã đọc nó. Xoá hàng đi là mất
+luôn bằng chứng rằng đề từng được phát hành cho lớp ấy, mà `published_at`/`recalled_at` tồn tại chính
+là để làm sổ sách đó.
 
-**Lưu ý về fixture:** mọi test của BE chạy trên SQLite in-memory, tức `StaticPool`, tức **một
-connection** chia cho mọi session. Nên không test nào trong repo quan sát được hai cuộc đua trên, và
-con số "test xanh" không bao gồm chiều đó. Hai mục trên vì thế là việc đọc code, không phải việc chờ
-một test đỏ.
+**Và nửa còn lại của việc thu hồi thì chưa có.** `recalled_at` được `teacher_tools` đọc, nhưng đường
+học sinh thì **không** — nên trước pha này, `withdraw` chỉ đổi một cột mà không đổi gì học sinh thấy:
+bài vẫn hiện, vẫn vào làm được, vẫn chấm. Hai cửa đều phải lọc, và cửa thứ hai (`_publication`) là cửa
+dễ quên hơn vì đường liệt kê bài tự query chứ không gọi nó.
 
-- [ ] `POST /assessments/{id}/publications`: sáu tham số **mỗi lớp**, nhiều lớp một lần. Kiểm giờ mở
-      ở tương lai và trước giờ đóng (ADR-02).
-- [ ] **Từ chối phát hành đề chưa duyệt** — và đây là chỗ dòng invariant của `AGENTS.md` chuyển từ
-      đúng-về-chữ sang đúng-về-tinh-thần. Test ở tầng HTTP, không chỉ ở tầng hàm.
-- [ ] Thất bại một phần: một lớp nhận được, lớp khác không. ADR-02 cho phép **và nay biểu diễn
-      được** — trước Pha 1 thì không. Trả về kết quả từng lớp.
-- [ ] `be/publication_wording.py` **mới**: một hằng số cho chuỗi luật pha 1 và một cho pha 2. BE trả
-      chúng trong **cả ba** payload — lúc mở biểu mẫu, lúc xác nhận, và trong biên bản sau khi phát
-      hành. ADR-03 đòi ba nơi giống hệt nhau từng chữ, và *"ba cách diễn đạt cho một luật là ba
-      luật"*; để FE tự viết là ba bản sao chờ lệch nhau.
-- [ ] `assessment_state.py`: `may_withdraw(opens_at, now)` và `withdraw(...)`. Xem Decision Record.
-- [ ] Thu hồi **một lớp**: đặt `recalled_at` trên hàng của lớp đó, **không xoá hàng** — xem Status,
-      `teacher_tools` đã có nhánh đọc trường ấy và xoá hàng sẽ làm nó thành code chết. Đề chỉ về
-      `APPROVED` khi **không lớp nào còn giữ** nó — vì nó vẫn đang phát hành cho các lớp còn lại.
-- [ ] Sửa lỗi có sẵn: `_publication` ở `student_routes` chưa kiểm `recalled_at`, nên một publication
-      đã thu hồi vẫn phục vụ học sinh.
-- [ ] Test: ba chuỗi payload giống hệt nhau; phát hành đề chưa duyệt bị từ chối ở HTTP; giờ mở quá
-      khứ bị từ chối; thu hồi sau giờ mở bị từ chối; thu hồi lớp cuối cùng đưa đề về `APPROVED`, thu
-      hồi lớp không-cuối thì không.
+**Review bắt năm lỗi, và lỗi nặng nhất là lỗi duy nhất mà SQLite và Postgres cho hai kết quả khác
+nhau.**
+
+1. **Offset bị bỏ mà không chuyển đổi.** Dialect SQLite bỏ `tzinfo`, nên `19:23+07:00` ghi xuống
+   thành `19:23` naive rồi đọc lại thành `19:23Z` — **muộn hơn bảy giờ**. Postgres `timestamptz` thì
+   lưu đúng, nên cùng một input cho hai kết quả khác nhau tuỳ database. Mọi test của tôi gửi `+00:00`
+   nên không test nào với tới; một FE dùng `dayjs().format()` thì gửi offset địa phương. Và **hộp xác
+   nhận che lỗi này thay vì bắt nó**: nó đọc lại đúng chuỗi vừa gõ, nên *"đọc lại đúng giá trị vừa
+   nhập"* của ADR-02 nhìn ra vẫn đúng. `aware()` không cứu được — nó **gắn nhãn**, không chuyển đổi,
+   nên nó là sai công cụ cho việc chuẩn hoá đầu vào.
+2. **Datetime naive được nhận và đoán là UTC.** Giáo viên gõ 08:00 nhận được 15:00 giờ Việt Nam. Nay
+   `AwareDatetime` trả 422 — phép kiểm rẻ nhất có thể cho một lỗi âm thầm.
+3. **Thêm lớp sau khi đã phát hành thì bị từ chối, vĩnh viễn.** ADR-02 nói *một đề đi tới nhiều lớp*,
+   nhưng đường HTTP chỉ cho phép việc đó **trong một request duy nhất**: sau đó đề ở `đã phát hành`, và
+   đường duy nhất về `đã duyệt` là thu hồi mọi lớp — mà `may_withdraw` chặn khi đã qua giờ mở của lớp
+   đầu. Đây là lỗ tính năng lớn nhất, và nó không có test, không có dòng backlog nào.
+4. **Hạn pha 2 kiểm thiếu đúng con số mà comment của nó nêu tên.** Mốc đúng là giờ **nộp cuối** của
+   pha 1 (`closes_at + phase1_minutes`), không phải giờ đóng — nên bản đầu nhận một hạn pha 2 chỉ sau
+   giờ đóng một phút, và hai câu luật trong **cùng một payload** tự phủ định nhau: pha 1 chạy tới
+   15:28 trong khi pha 2 đóng lúc 14:29.
+5. **Trùng `class_id` trong một request:** hai dòng cùng báo thành công với hai giờ mở khác nhau, mà
+   database chỉ giữ một. `preview` nói y như vậy, nên hộp xác nhận xác nhận một thứ không xảy ra.
+
+**Và bản sửa cho (3) buộc phải kèm một phép kiểm mới, vì nới cổng mở ra một lỗ khác.** Nhánh ghi đè
+trước đây *vô tình* an toàn chỉ nhờ cổng state — không ai tới được chỗ ghi đè một lớp đang làm bài.
+An toàn nhờ một tác dụng phụ không phải an toàn. Nên `_already_running()` từ chối ghi đè một lớp **đã
+qua giờ mở** hoặc **đã có bài làm**: thiếu nó thì đặt `recalled_at = None` cộng một giờ mở mới ở
+tương lai sẽ cho thu hồi một lần phát hành mà học sinh **đã** vào — một đường đi vòng qua chính cửa
+sổ thu hồi.
+
+**Năm `assert` rỗng nghĩa**, và cái nặng nhất đúng ở chỗ pha này tuyên là đã sửa:
+`test_the_timing_rules_read_identically_in_all_three_payloads` dựng `expected` từ ba hằng số mà chính
+model lấy làm default, nên nó **so một hằng số với chính nó** sau một vòng JSON — xanh kể cả khi
+`phase_one_note` sai hoàn toàn. Nay nó so **khuôn** (bỏ số và chỗ trống) giữa ba payload. Cộng:
+`"opens_at" not in before` là tautology trên một field model không khai; `withdrawable_until == opens_at`
+so hai field gán từ cùng một biểu thức; `student_count != [0]` xanh cả khi lớp biến mất khỏi payload;
+và `test_republishing..._replaces_its_schedule` không assert rằng giờ đã đổi.
+
+**Và `rules` là một lỗi thiết kế, không chỉ một test yếu.** Biểu mẫu nhận `PHASE_ONE_RULE` chung
+chung, hai payload kia nhận `phase_one_note(...)` — **hai câu khác nhau hoàn toàn**, tức đúng "ba cách
+diễn đạt cho một luật" mà ADR-03 ngăn, và Decision Record của tôi khẳng định ngược lại. Nay một hàm
+duy nhất: không tham số thì nó in `--:--` ở chỗ số. Cùng một câu, ba nơi.
+
+**Khoá hàng: khẳng định mạnh hơn thực tế.** `_owned` khoá, nhưng `approve` gọi `harvest` và `harvest`
+**tự commit** — một COMMIT nhả mọi khoá, nên `advance` + `commit` sau đó chạy không có khoá, đúng cái
+read-modify-write mà `FOR UPDATE` được thêm vào để bảo vệ. Nay `approve` đọc lại sau `harvest` (và
+đọc lại cũng là đọc lại **sự thật**, không chỉ lấy khoá). Và `publish-form` nay `lock=False`: một
+`FOR UPDATE` trên một `GET` biến việc mở biểu mẫu thành một writer chặn `publish` song song.
+
+**Một mismatch với Figma, và nó là mismatch đáng giá nhất của pha này.** ADR-03 ghi chuỗi cụ thể đang
+có ở ba nơi trên Figma, **kèm số thật**: *"Vào tham gia tới hết 18:00 — có thể nộp lúc 18:15, và không
+dừng người đang làm."* Hằng số tôi viết đầu tiên thì chung chung, không có số — tức là **cách diễn đạt
+thứ tư** cho cùng một luật, đúng thứ mà ADR-03 gọi là ba luật. Sửa bằng cách sao đúng câu của Figma và
+biến nó thành hàm, vì 18:15 là một phép tính.
 
 ## Decision Records
 
@@ -404,6 +454,58 @@ con số. Tức code **không** hiện thực hoá lựa chọn mà record này 
 bay ra. Nay `_note` bọc lời gọi trong `try/except` và ghi log, nên lựa chọn "state đúng, thiếu một
 dòng transcript" mới thật sự là thứ xảy ra.
 
+### Decision: Thu hồi là thu hồi **mềm**, không xoá hàng
+
+options considered:
+
+- **A. Đặt `recalled_at`, giữ hàng `Publication` lại. Mọi đường đọc phía học sinh lọc nó ra.**
+- **B. Xoá hàng, như plan viết.**
+
+selected option: A.
+
+reason: B là thứ plan viết, và nó sai với chính schema mà plan ấy đã dựng. Cột `recalled_at` có từ
+đầu, `teacher_tools.py` đã đọc nó, và docstring của `Publication` gọi `published_at`/`recalled_at` là
+**sổ sách**. Xoá hàng là mất sổ sách: sau đó không câu truy vấn nào trả lời được *"đề này từng phát
+hành cho 12B chưa"*, mà đó đúng là câu một giáo viên sẽ hỏi sau khi thu hồi vì nhầm lớp.
+
+Với học sinh thì hai phương án **không khác gì nhau** — và đó là phần phải tự tay làm cho đúng. Một
+hàng đã thu hồi phải đọc lên y như chưa bao giờ phát hành, ở **cả hai** cửa: `_publication()` và câu
+query liệt kê bài được giao. Trước pha này chưa cửa nào lọc, nên `withdraw` lẽ ra chỉ đổi một cột mà
+không đổi gì học sinh thấy.
+
+Cái giá của A là một luật phải nhớ: *"mọi câu hỏi dạng lớp-nào-đang-giữ-đề đều phải lọc `recalled_at`"*.
+Nó được gói vào `_live_publications()` nên có một chỗ để đọc, và nếu quên thì hậu quả nhìn thấy ngay:
+thu hồi lớp cuối cùng sẽ không bao giờ đưa đề về `đã duyệt`.
+
+### Decision: Lời văn của luật là **hàm**, không phải hằng số
+
+options considered:
+
+- **A. `phase_one_note(closes_at, phase1_minutes)` trả về câu đã điền số, sao đúng từng chữ từ Figma.**
+- **B. Hai hằng số chung chung, không có số nào trong đó.**
+- **C. BE trả template có chỗ trống, FE điền số.**
+
+selected option: A.
+
+reason: B là thứ tôi viết đầu tiên, và nó **tạo ra đúng cái vấn đề mà ADR-03 tồn tại để ngăn**.
+ADR-03 ghi rõ chuỗi đang có ở ba nơi trên Figma, kèm số: *"Vào tham gia tới hết 18:00 — có thể nộp
+lúc 18:15"*. Một hằng số nói chung chung ở BE là **cách diễn đạt thứ tư**, và ADR-03 gọi hai cách
+diễn đạt cho một luật là hai luật. Tệ hơn: con số 18:15 không phải trang trí — nó là *giờ đóng cộng
+thời gian làm bài*, tức chính phép tính mà cả ADR-03 dựng lên để giải thích. Một câu không có nó thì
+nói đúng mà không dạy được gì, và giáo viên vẫn đi đặt giờ đóng 17:45 để bù.
+
+C thì đẩy phép tính sang FE, và lúc đó có hai bản của nó: một ở BE (để kiểm điều kiện giờ) và một ở
+FE (để hiện câu). ADR-02 đòi hộp xác nhận *"đọc lại đúng giá trị vừa nhập, không dùng con số ghi
+cứng"* — một con số FE tự tính thoả chữ ấy mà phá tinh thần của nó, vì nó là một phép tính thứ hai
+chờ lệch.
+
+A làm "ba nơi giống hệt nhau" đúng **cả với phần số**. Và nó là lý do `preview` tồn tại như một cờ
+trên chính endpoint phát hành chứ không phải một endpoint riêng: hộp xác nhận đọc kết quả của cùng
+đoạn code mà lần ghi thật sẽ chạy, nên không có đường nào cho hai con số lệch nhau.
+
+Hệ quả cho Figma: **không phải sửa gì**, vì đây là lượt code đi theo Figma chứ không phải ngược lại.
+Câu trên artboard đã đúng từ đầu; chỗ sai là bản tôi viết ở BE.
+
 ### Decision: `advance()` giữ nguyên độ thuần; thu hồi là một **thao tác có tên**, không phải một cạnh trong bảng
 
 options considered:
@@ -430,10 +532,18 @@ tác có tên, tự chở điều kiện của nó.** Cụ thể `advance()` tr�
 `withdraw()` trả lời *"thu hồi được lúc này không"* — và không ai tới `APPROVED` từ `PUBLISHED` mà
 không đi qua `withdraw()`, vì bảng không có cạnh đó.
 
-Trả lời trực tiếp câu *"advance hoạt động thế nào khi thu hồi"*: **nó không tham gia.** `withdraw()`
-kiểm `now <= opens_at`, gỡ hàng `Publication` của lớp đó, rồi — chỉ khi không lớp nào còn giữ đề —
-tự đặt `state = APPROVED` kèm comment giải thích vì sao nó được đi vòng qua `_ALLOWED`. Cả hai hàm ở
-cùng một file, nên "cửa" vẫn là một chỗ để đọc.
+Trả lời trực tiếp câu *"advance hoạt động thế nào khi thu hồi"*: **nó không tham gia.**
+
+Hai câu trong bản đầu của đoạn này **mô tả sai code đã viết**, và review bắt cả hai. Thực tế:
+`endpoint` kiểm `may_withdraw(opens_at, now)` — một hàm thuần trên hai **giá trị**, không nhận hàng
+ORM — rồi đặt `recalled_at`, đếm `still_held`, rồi gọi `withdraw(assessment, still_held=...)`. Hàm
+`withdraw()` **không** nhận `now`, và nó **không** gỡ hàng `Publication`: docstring của nó nói thẳng
+"Không chạm `Publication`", vì thu hồi là thu hồi **mềm** — xem Decision Record ngay dưới, thứ mà bản
+đầu của đoạn này tự mâu thuẫn với. Việc duy nhất `withdraw()` làm là đặt `state = APPROVED`, và chỉ
+khi `still_held` bằng 0, kèm comment giải thích vì sao nó được đi vòng qua `_ALLOWED`.
+
+Cả hai hàm ở cùng một file, nên "cửa" vẫn là một chỗ để đọc — và `grep -rn '\.state\s*=' services/be/src`
+cho đúng **hai** kết quả, cả hai trong `assessment_state.py`.
 
 ### Decision: Brief bị khoá trước khi bắn job, và tool từ chối khi brief chưa đủ
 
@@ -610,13 +720,49 @@ sẽ bấm xác nhận vì con số trông hợp lý. ADR-05 cũng đã chốt r
 
 ## Validation Checks
 
-- [ ] `.\dev.ps1 test` và `.\dev.ps1 check` sau **mỗi** pha
-- [ ] `packages/contracts` bị đổi ⇒ chạy cả hai theo bảng Validation của `AGENTS.md`
-- [ ] Pha 1: SQL kiểm hai hàng `publications` cho một đề với hai `opens_at` khác nhau
-- [ ] Pha 2 và 3: một lượt model thật (`gpt-4o-mini`) ở cuối
-- [ ] Pha 5: `curl` đủ chuỗi — tạo nháp → soạn → duyệt → phát hành hai lớp → thu hồi một lớp
+- [x] `.\dev.ps1 test` và `.\dev.ps1 check` sau **mỗi** pha
+- [x] `packages/contracts` bị đổi ⇒ chạy cả hai theo bảng Validation của `AGENTS.md`
+- [x] Pha 1: SQL kiểm hai hàng `publications` cho một đề với hai `opens_at` khác nhau — làm ở lượt
+      chạy thật cuối cùng, trên Postgres: `12A | 2026-10-02 01:00:00+00` và `12B | 07:00:00+00`.
+- [x] Pha 2 và 3: một lượt model thật (`gpt-4o-mini`)
+- [x] Pha 5: `curl` đủ chuỗi, trên Postgres, với một model thật — xem mục dưới
 - [ ] Luật Figma **không áp** lần này: không màn hình nào bị chạm
 - [ ] Mỗi commit mang trailer `Plan: 2026-09-30-teacher-write-path-plan.md`
+
+## Lượt chạy thật — Postgres, Redis, `gpt-4o-mini`
+
+Chạy ngày 2026-10-01 trên một database mới (`aiafa_p5`), vì `create_all` bỏ qua bảng đã tồn tại nên
+đó là cách duy nhất để `UniqueConstraint` mới của `questions` thật sự được tạo. Xác nhận nó có mặt:
+`questions_assessment_id_order_index_key UNIQUE CONSTRAINT, btree (assessment_id, order_index)`.
+
+Mười một bước, tất cả qua HTTP:
+
+1. *"Soạn cho tôi 2 câu về đạo hàm của đa thức cho lớp 12, mức cơ bản"* → model gọi `create_draft`
+   ngay lượt đầu, không cần hỏi lại: brief đủ trường nên cổng không chặn.
+2. *"Bắt đầu soạn đi"* → `start_drafting`, `queued: 2`.
+3. *"Soạn xong chưa?"* → `draft_progress` thu hoạch cả hai câu, `state: has_questions`. Lần này cả
+   hai câu dùng `x³` Unicode — lỗi ký hiệu ghi ở `backlog.md` **không** tái hiện, nhưng mẫu chỉ có
+   hai câu nên đó không phải bằng chứng rằng nó đã hết.
+4. `approve` → `approved`, 2 câu, 0 đang soạn.
+5. `publish-form` → `can_publish: true`, hai lớp kèm số học sinh thật (12A: 3, 12B: 1), và ba câu
+   luật với `--:--` ở chỗ số.
+6. `preview` hai lớp, giờ gửi **kèm offset `+07:00`** — ca mà SQLite làm lệch bảy giờ.
+7. `publish` thật → hai hàng `Publication`, hai `opens_at` khác nhau, `state: published`.
+8. Thu hồi 12B → `state` **vẫn** `published`, vì 12A còn giữ đề.
+9. Học sinh 12A vẫn thấy đề; học sinh 12B thấy **0 bài** và `POST attempts` trả **404**.
+10. Thu hồi 12A, lớp cuối cùng → `state: approved`.
+
+**Và lượt chạy thật tìm ra một lỗi mà không test nào có thể thấy.** Câu luật in giờ **UTC**: giáo
+viên đặt 08:45 giờ Việt Nam và đọc được *"Vào tham gia tới hết 01:45"*. Con số ấy đúng về vật lý và
+vô nghĩa với người đọc — đúng loại hiểu nhầm mà ADR-03 dành cả một tài liệu để ngăn, chỉ theo một
+chiều khác. Không test nào trước đó thấy được **vì tất cả đều gửi UTC**, nên giờ hiện luôn trùng giờ
+gửi; và đó cũng là lý do bản sửa cho lỗi múi giờ ở review không đủ: nó sửa phần **lưu** mà không sửa
+phần **hiện**. Nay lưu bằng UTC, hiện bằng offset người gửi đã gõ — offset ấy đi kèm request, nên nó
+là thứ duy nhất BE cần và nó đã có sẵn. Sau khi sửa: lưu `01:00Z`, hiện `08:45`.
+
+Đây là lần thứ ba trong dự án này một lượt chạy thật tìm ra thứ mà test không bắt, sau lỗi schema
+400 và lỗi `banned_stems` chết 100%. Mẫu số chung: **test chọn dữ liệu tiện cho test**, còn người
+dùng thì không.
 
 ## Completion Criteria
 

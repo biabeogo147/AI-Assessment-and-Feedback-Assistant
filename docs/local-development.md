@@ -146,12 +146,14 @@ Một điều đáng để ý ở mọi response phía học sinh: **không có*
 lý do review ([ADR-08](decisions/adr-08-bon-loai-nghi-ngo.md)), và **không có** `is_correct` trước
 khi bài được nộp.
 
-Phía giáo viên, hai quyết định của ADR-01 đi qua đúng hai endpoint, với một header actor khác:
+Phía giáo viên có một header actor khác, và năm endpoint:
 
 ```powershell
 $t = @{ "X-Actor" = "teacher:GV-001"; "Content-Type" = "application/json" }
-Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/<assessment_id>/approve" -Headers $t
-Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/<assessment_id>/unapprove" -Headers $t
+$a = "<assessment_id>"
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/$a/approve" -Headers $t
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/$a/unapprove" -Headers $t
+Invoke-RestMethod "http://localhost:8000/api/teacher/assessments/$a/publish-form" -Headers $t
 ```
 
 Duyệt **tự thu hoạch** các job đã xong trước khi đếm, nên không cần gọi gì khác trước nó: BE không có
@@ -159,6 +161,38 @@ worker chạy nền, và nếu endpoint này chỉ đếm thì một đề có �
 đang soạn" cho tới khi có ai mở một màn hình khác. Hai lời từ chối đáng gặp: `409` khi đề chưa có câu
 nào, và `409` khi còn câu đang soạn — đề của giáo viên khác thì trả `404` giống hệt một đề không tồn
 tại ([ADR-22](decisions/adr-22-de-co-tac-gia.md)).
+
+Phát hành nhận **sáu tham số mỗi lớp** và nhiều lớp một lần. **Giờ phải kèm múi giờ** — một giá trị
+không có offset bị trả `422`, có chủ ý: BE không có cách nào biết `08:00` là giờ nào, và đoán thì một
+giáo viên đặt tiết sáng nhận được tiết chiều.
+
+```powershell
+$open = (Get-Date).ToUniversalTime().AddHours(2).ToString("o")
+$body = @{ schedules = @(@{
+    class_id = "<class_id>"
+    opens_at = $open
+    closes_at = (Get-Date $open).AddHours(1).ToString("o")
+    phase1_minutes = 15
+    phase2_minutes_per_question = 5
+    remediation_deadline = (Get-Date $open).AddHours(6).ToString("o")
+  }); preview = $true } | ConvertTo-Json -Depth 4
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/$a/publications" -Headers $t -Body $body
+```
+
+`preview = $true` tính hết rồi **không ghi gì** — đó là thứ hộp xác nhận đọc, và nó đi qua đúng đoạn
+code mà lần ghi thật đi qua. Đổi thành `$false` để phát hành thật. Một lớp sai giờ **không** làm cả
+yêu cầu trượt: nó nhận một dòng `published = false` kèm lý do, và những lớp còn lại vẫn nhận được đề
+([ADR-02](decisions/adr-02-phat-hanh-va-cua-so-thu-hoi.md)).
+
+Thu hồi một lớp, chỉ được khi **chưa tới giờ mở** của lớp đó:
+
+```powershell
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/assessments/$a/publications/<class_id>/withdraw" -Headers $t
+```
+
+Sau giờ mở thì `409`. Thu hồi là thu hồi **mềm** — hàng ở lại với `recalled_at` làm sổ sách — nhưng
+với học sinh thì lần phát hành ấy chưa từng xảy ra: `GET /api/me/assignments` không còn thấy nó, và
+bắt đầu làm bài trả `404`. Đề chỉ về `đã duyệt` khi **không lớp nào còn giữ** nó.
 
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) vẫn còn cho tới khi hàng đợi
 review của giáo viên được thiết kế. Nó **không** nằm trong luồng lõi nữa; đừng đọc nó như cách hệ

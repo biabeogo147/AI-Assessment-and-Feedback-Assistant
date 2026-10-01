@@ -18,12 +18,19 @@ còn `editable` chỉ trả lời, dành cho một caller cần **bỏ qua** -- 
 thu hoạch trên đường đọc, và một đường đọc nổ vì một việc dọn dẹp thì tệ hơn là nó
 không dọn.
 
+`withdraw` là ngoại lệ duy nhất, và nó được ghi ra thành một thao tác có tên chính
+vì thế. Cạnh `đã phát hành → đã duyệt` có **điều kiện** -- chỉ đi được khi chưa tới giờ
+mở và không lớp nào còn giữ đề -- nên để nó thành một hàng vô điều kiện trong `_ALLOWED`
+sẽ làm cửa duy nhất thôi canh đúng cái đáng canh.
+
 Một chỗ `_ALLOWED` **không** đủ, và nó đã cắn một lần: bảng biết *cạnh nào tồn tại*,
 không biết *ai đang xin đi*. Cạnh `EMPTY → HAS_QUESTIONS` tồn tại cho `harvest`, nên
 một endpoint bỏ duyệt giao hết cho bảng sẽ đi lậu qua đúng cạnh đó và nâng một đề 0
 câu lên `đang soạn`. Nên một caller biết nó đang ở cạnh nào thì phải tự nêu tiền đề
 của mình; bảng chỉ là chốt cuối.
 """
+
+from datetime import datetime
 
 from fastapi import HTTPException
 
@@ -37,8 +44,10 @@ __all__ = [
     "advance",
     "assert_editable",
     "editable",
+    "may_withdraw",
     "readable",
     "state_of",
+    "withdraw",
 ]
 
 
@@ -53,8 +62,12 @@ _ALLOWED: dict[AssessmentState, frozenset[AssessmentState]] = {
     # chỉ riêng ra như hành động duy nhất hạ một state xuống -- nên nó là cạnh
     # cần được ghi lại trong hội thoại nhất.
     AssessmentState.APPROVED: frozenset({AssessmentState.PUBLISHED, AssessmentState.HAS_QUESTIONS}),
-    # Để trống có chủ đích. Thu hồi là cạnh của ADR-02, không phải một lần bỏ
-    # duyệt, và nó không đưa đề về trạng thái soạn được.
+    # Để trống có chủ đích, và `withdraw` dưới đây là lý do nó được phép trống.
+    # Bảng này chứa các cạnh **vô điều kiện**; `published → approved` thì có điều
+    # kiện -- nó chỉ đi được khi chưa tới giờ mở -- nên nếu nó nằm đây thì cửa duy
+    # nhất thôi canh đúng cái đáng canh: bất kỳ caller tương lai nào quên kiểm giờ
+    # đều thu hồi được một bài học sinh **đang ngồi làm**, và `advance` sẽ vui vẻ
+    # đồng ý. Một cạnh có điều kiện là một thao tác có tên, tự chở điều kiện của nó.
     AssessmentState.PUBLISHED: frozenset(),
 }
 
@@ -172,6 +185,55 @@ def advance(assessment: Assessment, to: AssessmentState) -> None:
     """
     _refuse_unless_reachable(assessment, to)
     assessment.state = to
+
+
+def may_withdraw(opens_at: datetime, now: datetime) -> bool:
+    """Lần phát hành này còn lấy lại được không (ADR-02).
+
+    Hàm thuần trên hai **giá trị**, không nhận hàng ORM nào -- cùng luật mà cả file này
+    tuân theo. Ranh giới đặt ở **giờ mở** chứ không ở lúc bấm nút, vì thứ làm hành động
+    thành không đảo ngược được là **học sinh đã có thể nhìn thấy đề**, không phải thao
+    tác của giáo viên.
+
+    Mốc là **bao gồm**: đúng giây giờ mở vẫn thu hồi được. Cùng kiểu bao gồm mà ADR-03
+    dùng cho giờ đóng, và cùng một lý do -- một luật "tới hết" mà loại trừ đúng cái mốc
+    nó nêu tên thì không ai đoán đúng được.
+
+    Args:
+        opens_at: Giờ mở của lần phát hành đó, đã tz-aware.
+        now: Bây giờ, đã tz-aware.
+
+    Returns:
+        True khi chưa qua giờ mở.
+    """
+    return now <= opens_at
+
+
+def withdraw(assessment: Assessment, *, still_held: int) -> None:
+    """Đưa một đề về `đã duyệt` khi không lớp nào còn giữ nó.
+
+    `advance` **không tham gia**, và đây là chỗ trả lời câu hỏi đó cho rõ: bảng
+    `_ALLOWED[PUBLISHED]` để trống nên không ai tới được `APPROVED` từ `PUBLISHED` mà
+    không đi qua hàm này. Hàm này tự đặt `state`, và đó là lần đi vòng duy nhất quanh
+    bảng cạnh trong cả file -- được phép vì điều kiện của cạnh ấy (chưa tới giờ mở, và
+    không lớp nào còn giữ) nằm ngay đây, cạnh phép gán, chứ không rải ở chỗ khác.
+
+    Không chạm `Publication`. Một đề phát hành cho nhiều lớp thì thu hồi một lớp **không**
+    làm nó thôi phát hành: nó vẫn đang phát hành cho những lớp còn lại, và một đề về
+    `đã duyệt` trong lúc 12B đang làm bài là đúng cái hại mà ADR-02 ngăn.
+
+    Args:
+        assessment: Row của đề. `state` được ghi tại chỗ; commit là việc của caller.
+        still_held: Còn bao nhiêu lớp đang giữ đề này, đếm **sau** khi lần thu hồi này
+            đã được ghi. Caller đếm, vì đếm cần một session.
+
+    Side effects:
+        Ghi `assessment.state` khi `still_held` bằng 0.
+    """
+    if still_held:
+        return
+    # Đi vòng qua `_ALLOWED` có chủ ý: xem docstring, và xem hàng `PUBLISHED` của bảng.
+    assessment.state = AssessmentState.APPROVED
 
 
 def assert_editable(assessment: Assessment) -> None:

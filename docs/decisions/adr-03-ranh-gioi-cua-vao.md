@@ -49,4 +49,24 @@ nhìn thấy.
   *"Chữa bài tới hết 22:00 - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị **DỪNG**."*
   Chữ *DỪNG* in đậm ngay trên màn, vì đó là phần duy nhất của câu nói về một thứ học sinh sắp mất. Xem
   [ADR-15](adr-15-thoi-gian-pha-hai.md).
-- **Chưa có ở backend**: không có trường giờ mở hay giờ đóng nào trong `packages/contracts`.
+- `services/be/src/be/publication_wording.py` — hai câu ấy nay sống trong code, **sao đúng từng
+  chữ** từ Figma. Chúng là **hàm** chứ không phải hằng số, vì con số thứ hai trong câu pha 1 (18:15)
+  là một *phép tính* — giờ đóng cộng thời gian làm bài — tức chính con số diễn đạt ra cái luật. BE
+  tính nó một lần; một câu có số do FE tự tính là bản cài đặt thứ hai của phép tính ấy.
+- `services/be/src/be/teacher_routes.py` — cùng hai câu đó đi kèm **cả ba** payload: biểu mẫu (dạng
+  chưa có số, vì chưa ai gõ giờ nào), bản `preview` mà hộp xác nhận đọc, và biên bản sau khi phát
+  hành. `preview` đi qua **đúng** đoạn code mà lần ghi thật đi qua, nên "ba nơi giống hệt nhau" đúng
+  cả với phần số, không chỉ với phần chữ.
+- `services/be/src/be/teacher_routes.py` — câu luật in theo **múi giờ giáo viên vừa gõ**, không theo
+  UTC, trong khi cột vẫn lưu UTC. Tìm ra bằng một lượt chạy thật: gửi `08:45+07:00` thì câu luật in
+  *"tới hết 01:45"* — đúng về vật lý, vô nghĩa với người đọc, và là chính hiểu nhầm mà ADR này ngăn
+  chỉ theo một chiều khác. Offset đi kèm request **là** múi giờ người gửi đang đọc.
+- `services/be/tests/test_publishing.py` — `test_the_note_is_written_in_the_timezone_the_teacher_typed`
+  pin lỗi đó. Nó là test duy nhất trong file gửi một offset khác `+00:00`, và đó là lý do không test
+  nào trước nó thấy được lỗi.
+- `services/be/tests/test_publishing.py` — `test_the_filled_in_notes_match_the_sentence_adr_03_pinned_on_figma`
+  dựng lại câu từ sáu tham số đã gửi rồi so với thứ BE trả về, chứ **không** so ba response với
+  nhau: ba bản sao của cùng một lỗi vẫn bằng nhau. Kiểm được rằng nó đỏ bằng cách bỏ phép cộng
+  `phase1_minutes`.
+- **Chưa có ở backend**: không có trường giờ mở hay giờ đóng nào trong `packages/contracts` — và sẽ
+  không có, vì phát hành không đi qua hàng đợi.

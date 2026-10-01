@@ -240,7 +240,7 @@ def _subject(result: dict) -> tuple[str, str]:
 
     Một kết quả có nói về thứ gì đó khi nó nói là nó thành công, và cả tool lẫn endpoint
     đều nói điều đó bằng một cờ: `found` cho một lần tra cứu, `created` cho một đề nháp
-    mới, `started` cho một vòng sinh câu hỏi, `approved` và `unapproved` cho hai quyết
+    mới, `started` cho một vòng sinh câu hỏi, `approved`/`unapproved`/`published` cho ba quyết
     định của giáo viên. Liệt kê các cờ thì hơn là đi soi tên tool, vì cái tên không phải
     thứ mang theo id.
 
@@ -253,7 +253,8 @@ def _subject(result: dict) -> tuple[str, str]:
         là tạo ra những liên kết trỏ tới những row chưa bao giờ được tìm thấy.
     """
     if not any(
-        result.get(flag) for flag in ("found", "created", "started", "approved", "unapproved")
+        result.get(flag)
+        for flag in ("found", "created", "started", "approved", "unapproved", "published")
     ):
         return "", ""
     for key, kind in _ENTITY_KEYS:

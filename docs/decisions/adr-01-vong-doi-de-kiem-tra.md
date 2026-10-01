@@ -59,13 +59,19 @@ chiều thì giáo viên gặp hai cổng nặng liên tiếp, và sẽ học c�
   là một `Enum` có check constraint, nên một trạng thái ngoài ADR này không vào được bảng kể cả qua
   đường bỏ qua `advance`.
 - `services/be/src/be/assessment_state.py` — `_ALLOWED` là bốn trạng thái ấy cùng các cạnh giữa
-  chúng, viết thành dữ liệu. `advance()` là **cửa duy nhất** đổi trạng thái; `assert_editable()` thi
+  chúng, viết thành dữ liệu. `advance()` là cửa cho mọi cạnh **vô điều kiện**; `withdraw()` là thao
+  tác có tên duy nhất đi vòng qua bảng, vì cạnh *đã phát hành → đã duyệt* có **điều kiện** (chưa tới
+  giờ mở, và không lớp nào còn giữ đề). Hai chỗ đó là **hai** chỗ duy nhất gán `state`, kiểm được
+  bằng một phép grep. `assert_editable()` thi
   hành luật *duyệt khoá nội dung*.
 - `services/be/tests/test_assessment_lifecycle.py` — mười hai test. Trong đó
-  `test_teacher_approves_an_assessment_before_release` là test mà bảng Invariants của `AGENTS.md`
-  trỏ tới, `test_unapproving_reopens_the_content` giữ tính đảo ngược, và
-  `test_a_published_assessment_never_returns_to_editing` giữ việc không có đường ra khỏi
-  `đã phát hành`.
+  `test_unapproving_reopens_the_content` giữ tính đảo ngược, và
+  `test_a_published_assessment_never_returns_to_editing` giữ việc **bỏ duyệt** không đưa một đề đã
+  phát hành về trạng thái soạn được — không phải *"không có đường ra khỏi đã phát hành"*: từ Pha 5 thì
+  có một đường, là `withdraw()`, và chính docstring của test ấy nói nó cố ý không khẳng định điều
+  mạnh hơn. Dòng Invariants của `AGENTS.md` nay trỏ vào
+  `test_an_unapproved_assessment_cannot_be_published_over_http`, vì luật đó nói về *release* và từ
+  Pha 5 mới có một đường HTTP phát hành để nó có gì mà canh.
 - `services/be/src/be/teacher_routes.py` — `POST /api/teacher/assessments/{id}/approve` và
   `.../unapprove`, hai caller của `advance()` **trên đường HTTP**. Endpoint duyệt thi hành bất biến
   *trạng thái ↔ số câu hỏi*: không duyệt được một đề trống, và không duyệt được một đề còn câu đang
