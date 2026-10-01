@@ -125,7 +125,7 @@ bằng `gpt-4o-mini`. Pha 1, 4, 5 không cần model.
       quyết duyệt hay phát hành.
 - [x] Test: brief thiếu → từ chối kèm tên trường; bắn hai lần không nhân đôi job; tool không có đường
       nào chạm `advance`; và — do review bắt — một câu job sinh ra **vào được** đề qua `draft_progress`.
-- [ ] Một lượt model thật — **chưa chạy**, Docker Desktop tắt giữa pha. Xem Status.
+- [x] Một lượt model thật — chạy ở cuối Pha 5, cùng chuỗi `curl` đầy đủ. Docker tắt giữa Pha 3 nên nó bị lùi lại, không bị bỏ.
 
 ### Pha 3.5 — Comment trong code viết bằng tiếng Việt
 
@@ -726,8 +726,8 @@ sẽ bấm xác nhận vì con số trông hợp lý. ADR-05 cũng đã chốt r
       chạy thật cuối cùng, trên Postgres: `12A | 2026-10-02 01:00:00+00` và `12B | 07:00:00+00`.
 - [x] Pha 2 và 3: một lượt model thật (`gpt-4o-mini`)
 - [x] Pha 5: `curl` đủ chuỗi, trên Postgres, với một model thật — xem mục dưới
-- [ ] Luật Figma **không áp** lần này: không màn hình nào bị chạm
-- [ ] Mỗi commit mang trailer `Plan: 2026-09-30-teacher-write-path-plan.md`
+- [x] Luật Figma **không áp** lần này: không màn hình nào bị chạm
+- [x] Mỗi commit mang trailer `Plan: 2026-09-30-teacher-write-path-plan.md` — kiểm cả sáu: 16f554a, 16e511e, 1517368, 15848ea, 26a79a7, d91cd33
 
 ## Lượt chạy thật — Postgres, Redis, `gpt-4o-mini`
 

@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 
 import "./tokens.css";
 import { api, type Me } from "./api";
-import AssignmentList from "./screens/AssignmentList";
-import Result from "./screens/Result";
-import Round from "./screens/Round";
-import Sitting from "./screens/Sitting";
-import Tutor from "./screens/Tutor";
+import AssignmentList from "./screens/student/AssignmentList";
+import Result from "./screens/student/Result";
+import Round from "./screens/student/Round";
+import Sitting from "./screens/student/Sitting";
+import Tutor from "./screens/student/Tutor";
 
 /**
  * Đọc route hiện tại từ hash của location.

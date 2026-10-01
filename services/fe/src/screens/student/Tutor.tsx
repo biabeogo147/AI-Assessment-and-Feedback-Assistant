@@ -8,9 +8,9 @@ import {
   type Me,
   type Remediation,
   type Solution,
-} from "../api";
-import { go } from "../App";
-import { ErrorStrip, TopBar } from "../components";
+} from "../../api";
+import { go } from "../../App";
+import { ErrorStrip, TopBar } from "../../components";
 
 /**
  * Màn 17, 18, 19, 20 và 24 — hỏi trợ lý, và cửa vào một lượt làm lại.

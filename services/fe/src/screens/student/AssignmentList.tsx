@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { api, moment, type Assignment, type Me } from "../api";
-import { go } from "../App";
-import { ErrorStrip, TopBar } from "../components";
+import { api, moment, type Assignment, type Me } from "../../api";
+import { go } from "../../App";
+import { ErrorStrip, TopBar } from "../../components";
 
 /**
  * Cách diễn đạt bằng tiếng Việt cho từng status BE có thể trả về.

@@ -10,10 +10,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { countdown, moment } from "./api";
-import AssignmentList from "./screens/AssignmentList";
-import Result from "./screens/Result";
-import Sitting from "./screens/Sitting";
-import Tutor from "./screens/Tutor";
+import AssignmentList from "./screens/student/AssignmentList";
+import Result from "./screens/student/Result";
+import Sitting from "./screens/student/Sitting";
+import Tutor from "./screens/student/Tutor";
 
 const ME = {
   student_id: "s1",

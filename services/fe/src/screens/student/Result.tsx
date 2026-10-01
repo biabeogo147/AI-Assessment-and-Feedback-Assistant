@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-import { api, moment, type AttemptResult, type Me } from "../api";
-import { go } from "../App";
-import { ErrorStrip, ScoreMark, TopBar } from "../components";
+import { api, moment, type AttemptResult, type Me } from "../../api";
+import { go } from "../../App";
+import { ErrorStrip, ScoreMark, TopBar } from "../../components";
 
 /**
  * Vì sao một điểm đứng ở chỗ nó đang đứng, bằng lời, do client chọn.

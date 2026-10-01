@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { api, type Me, type OpenRound } from "../api";
-import { go } from "../App";
-import { ErrorStrip, TimeCard, TopBar } from "../components";
+import { api, type Me, type OpenRound } from "../../api";
+import { go } from "../../App";
+import { ErrorStrip, TimeCard, TopBar } from "../../components";
 
 /**
  * Màn 21 — trả lời các câu hỏi của một lượt làm lại.
