@@ -14,6 +14,7 @@ from be.routes import router
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
 from be.teacher_chat import router as teacher_router
+from be.teacher_documents import router as teacher_document_router
 from be.teacher_routes import router as teacher_assessment_router
 
 logger = logging.getLogger(__name__)
@@ -72,3 +73,4 @@ app.include_router(router)
 app.include_router(student_router)
 app.include_router(teacher_router)
 app.include_router(teacher_assessment_router)
+app.include_router(teacher_document_router)

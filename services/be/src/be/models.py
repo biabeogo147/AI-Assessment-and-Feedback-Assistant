@@ -29,6 +29,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -654,3 +655,32 @@ class DraftItem(Base):
     # harvest.
     brief_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Document(Base):
+    """Một tài liệu giáo viên tải lên.
+
+    Gắn vào **giáo viên**, không vào đề. ADR-04 nói thẳng vì sao: *"Tài liệu thuộc về giáo
+    viên, không thuộc về từng đề. Một cuốn sách dùng cho nhiều đề suốt học kỳ."* Một khoá
+    ngoại tới `assessments` ở đây sẽ buộc tải lên lại cùng một cuốn sách cho mỗi đề mới.
+
+    Byte nằm **trong database**, và đó là một lựa chọn có thời hạn. Một thư mục trên đĩa cần
+    một đường dẫn cấu hình, một luật dọn rác và một câu trả lời cho "chạy hai bản thì file
+    nằm ở đâu"; một bucket cần credential. Cả hai đều đắt hơn thứ mà vòng này cần, mà vòng
+    này thì chưa có ai **đọc** nội dung cả. Khi nội dung thật sự đi vào prompt của AGENT thì
+    cột này đổi thành một khoá tới nơi lưu thật -- một cột, một lần chuyển.
+
+    Không có `page_count`, và không có cờ "đọc được chữ". Chúng đòi mở file ra đọc, mà đọc
+    PDF là phần lớn hơn hẳn và nằm ngoài vòng này. Một con số trang bịa ra thì tệ hơn hẳn
+    việc không có nó: giáo viên sẽ tin.
+    """
+
+    __tablename__ = "documents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    teacher_id: Mapped[str] = mapped_column(ForeignKey("teachers.id"))
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(128), default="")
+    byte_size: Mapped[int] = mapped_column(Integer)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

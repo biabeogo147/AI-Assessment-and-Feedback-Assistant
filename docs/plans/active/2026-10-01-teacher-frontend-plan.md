@@ -60,7 +60,7 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
       chọn **tại chỗ gọi tên endpoint**. Cổng: 11/11 test vẫn xanh, không sửa test nào.
 - [x] **Bước 3 — khung giáo viên + artboard 1.** `App.tsx` thành dispatcher; `TeacherBar`;
       `teacher.css` với `[data-surface="teacher"]`. Cổng đo artboard 1.
-- [ ] **Bước 4 — vòng lặp lượt + artboard 2.** `pending` → `turns`, `Thinking` hai variant,
+- [x] **Bước 4 — vòng lặp lượt + artboard 2.** `pending` → `turns`, `Thinking` hai variant,
       `ActionResultCard`. Thêm `Document` + tải lên + liệt kê trước khi dựng rail. Cổng đo artboard 2.
 - [ ] **Bước 5 — artboard 3.** `ask_clarify`, `choices`, rehydrate sau F5.
 - [ ] **Bước 6 — artboard 6.** `Panel`, `QuestionCard`, `SourceChip`, `provenance.ts`.
@@ -234,3 +234,21 @@ và đều cùng một nguồn: Figma làm tròn chiều cao text **lên số ng
 
 Cửa sổ Chrome đang maximize nên `resize_window` không ăn; khung 1440×900 được ép bằng CSS trước khi
 đo. Thứ duy nhất phép đo này không kiểm là `height: 100vh`.
+
+Bước 4 xong: bảng `documents`, hai đường HTTP, và vòng lặp lượt nói. Artboard 2 đo khớp — dòng lượt
+nói, bong bóng, khối "đang nghĩ" và dải phạm vi đều đúng vị trí, và lệch còn lại vẫn là ≤0.5px của
+phép làm tròn text bên Figma.
+
+**Lần này code ghi ngược vào thiết kế, ba chỗ, vì thiết kế hứa thứ hệ thống không biết.** Chip tài
+liệu in *"184 trang · đọc được chữ"* — không có gì mở file ra đọc, nên nó thành **kích thước**, ở cả
+component lẫn 36 instance. Nhãn *"Đang đọc…"* thành *"Đang tải lên…"*. Và dải phạm vi hứa *"chương 1,
+trang 30–62"*, một phạm vi không ai thi hành, nên nó chỉ còn tên file. Ba chỗ ấy là cùng một món nợ,
+và `backlog.md` giữ nó: tài liệu **chưa** đi vào prompt của AGENT.
+
+Tiện thể sửa một chỗ thiết kế tự lệch với chính nó: ba text của dải phạm vi để cỡ chữ **rời** (10 và
+12) trong khi mọi text khác trên artboard đều bind vào `Density`. Nay cả ba bind `type/caption`.
+
+Và một rò rỉ CSS mà phép đo artboard 1 chưa với tới: `.mark`, `.composer`, `.thread` đã tồn tại trong
+`tokens.css`. Một class trùng tên **không** ghi đè — nó cộng vào, nên mọi property bản giáo viên
+không nhắc tới thì vẫn do bản học sinh quyết (`height: 48px` của `.composer` chẳng hạn). Nay đổi
+thành `brand-mark`, `composer-bar`, `stream`, và không class gốc nào của hai file còn giao nhau.

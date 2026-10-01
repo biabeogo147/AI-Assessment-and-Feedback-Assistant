@@ -313,6 +313,16 @@ export interface Publications {
   rules: TimingRules;
 }
 
+/** Một tài liệu trong thư viện của giáo viên. */
+export interface TeacherDocument {
+  document_id: string;
+  filename: string;
+  /** Đuôi file viết hoa, thứ nhãn vuông bên trái chip in ra. */
+  kind: string;
+  byte_size: number;
+  uploaded_at: string;
+}
+
 export interface Approval {
   assessment_id: string;
   state: string;
@@ -377,6 +387,19 @@ function headers(role: Role): HeadersInit {
 }
 
 /**
+ * Header cho một request mang `FormData`.
+ *
+ * Khác `headers` ở đúng một chỗ, và chỗ đó là lý do nó tồn tại: **không** có
+ * `Content-Type`. Một upload multipart cần một boundary, mà boundary thì do
+ * trình duyệt sinh ra lúc gửi; khai tay `multipart/form-data` sẽ gửi đi một
+ * content type không có boundary, và server đọc được một body rỗng mà không có
+ * lỗi nào ở giữa.
+ */
+function formHeaders(role: Role): HeadersInit {
+  return { "X-Actor": ACTOR[role] };
+}
+
+/**
  * Gửi một request và biến thất bại thành một lỗi đáng hiện ra.
  *
  * @param role - Bề mặt nào đang gọi. Nó quyết định header actor, và nó được
@@ -389,7 +412,12 @@ function headers(role: Role): HeadersInit {
  *   sinh hơn một status code.
  */
 async function call<T>(role: Role, path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, { ...init, headers: headers(role) });
+  const response = await fetch(`/api${path}`, {
+    ...init,
+    // Nơi gọi đưa header thì nó SỞ HỮU cả bộ, không phải trộn thêm: đường upload
+    // tồn tại chính vì nó cần BỎ `Content-Type`, mà trộn thì không bỏ được gì.
+    headers: init.headers ?? headers(role),
+  });
   if (!response.ok) {
     let detail = `Lỗi ${response.status}`;
     try {
@@ -451,15 +479,28 @@ export const api = {
  */
 export const teacher = {
   me: () => call<TeacherMe>("teacher", "/teacher/me"),
+  documents: () => call<TeacherDocument[]>("teacher", "/teacher/documents"),
+  upload: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return call<TeacherDocument>("teacher", "/teacher/documents", {
+      method: "POST",
+      body: form,
+      headers: formHeaders("teacher"),
+    });
+  },
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
   publications: (assessmentId: string) =>
     call<Publications>("teacher", `/teacher/assessments/${assessmentId}/publications`),
   conversation: () => call<Answered>("teacher", "/teacher/chat"),
-  say: (text: string) =>
+  // `signal` vì một lượt có thể mất tới 90 giây bên BE: màn hình đặt hạn riêng và
+  // phải cắt được, nếu không thì một request treo sẽ khoá ô nhập vĩnh viễn.
+  say: (text: string, signal?: AbortSignal) =>
     call<Answered>("teacher", "/teacher/chat/messages", {
       method: "POST",
       body: JSON.stringify({ text }),
+      signal,
     }),
   approve: (assessmentId: string) =>
     call<Approval>("teacher", `/teacher/assessments/${assessmentId}/approve`, { method: "POST" }),

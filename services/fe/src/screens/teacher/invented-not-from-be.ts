@@ -7,14 +7,12 @@
  * nào để lưu. Nên nó bị dồn vào đúng một module, và khi BE có thật thì chỗ phải
  * sửa là một chỗ chứ không phải một cuộc đi tìm.
  *
- * Ba món, và lý do từng món chưa có thật:
+ * Hai món, và lý do từng món chưa có thật:
  *
  * - **Danh sách đoạn chat.** BE có đúng **một** luồng cho mỗi giáo viên:
  *   `GET /api/teacher/chat` không nhận id nào và `teacher_threads` khoá theo
  *   `teacher_id`. Không có "đoạn chat thứ hai" để liệt kê, nên cả nhóm ngày lẫn
  *   tiêu đề đều là chữ bịa.
- * - **Tài liệu.** Model `Document` là việc của bước sau trong plan. Khi nó có
- *   thật thì `DOCUMENTS` dưới đây biến mất, không phải đổi hình.
  * - **Con số trên huy hiệu Bảng theo dõi.** Chưa có đường đếm nào trả về nó.
  *
  * Vì chúng là chữ bịa, chúng **không bấm được**: `Rail` dựng chúng ở dạng trơ.
@@ -27,13 +25,6 @@ export interface InventedConversation {
   title: string;
 }
 
-/** Một tài liệu giả, đúng hình dạng mà chip trên rail vẽ. */
-export interface InventedDocument {
-  kind: string;
-  name: string;
-  meta: string;
-}
-
 export const CONVERSATIONS: InventedConversation[] = [
   { group: "Hôm nay", title: "Đề cuối kỳ — Hình học 11" },
   { group: "Hôm nay", title: "Lớp 11B — nhập danh sách" },
@@ -43,14 +34,6 @@ export const CONVERSATIONS: InventedConversation[] = [
   { group: "7 ngày qua", title: "Lớp 12B — nhập danh sách" },
   { group: "30 ngày qua", title: "Đề tuần 3 — Đạo hàm" },
   { group: "30 ngày qua", title: "Phân tích lỗi sai giữa kỳ" },
-];
-
-export const DOCUMENTS: InventedDocument[] = [
-  { kind: "PDF", name: "SGK Giải tích 12.pdf", meta: "184 trang · đọc được chữ" },
-  { kind: "PDF", name: "Đề cương ôn tập.pdf", meta: "12 trang · đọc được chữ" },
-  { kind: "PDF", name: "Chuyên đề Hàm số.pdf", meta: "184 trang · đọc được chữ" },
-  { kind: "PDF", name: "Ma trận đề cuối kỳ.pdf", meta: "6 trang · đọc được chữ" },
-  { kind: "PDF", name: "Bài tập chương III.pdf", meta: "28 trang · đọc được chữ" },
 ];
 
 /** Số việc đang chờ người xem trên Bảng theo dõi. Không có đường nào đếm nó. */

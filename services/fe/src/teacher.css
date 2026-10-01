@@ -8,6 +8,13 @@
  * tinh chỉnh panel giáo viên thành rủi ro cho app học sinh đang chạy — và
  * **không test nào bắt được**, vì jsdom không layout.
  *
+ * **Tên class ở đây không được trùng tên nào trong `tokens.css`.** Một `.composer`
+ * thứ hai không ghi đè cái thứ nhất — nó **cộng vào**: mọi property mà bản của
+ * giáo viên không nhắc tới thì vẫn do bản học sinh quyết, và `height: 48px` của
+ * bản kia sẽ đúng cho tới ngày ai đó xoá một dòng ở đây. Nên `mark` thành
+ * `brand-mark`, `composer` thành `composer-bar`, `thread` thành `stream`. Kiểm
+ * được bằng một lệnh: không class gốc nào của hai file giao nhau.
+ *
  * Màu thì dùng chung, và đó là một kết luận đo được chứ không phải một hy vọng:
  * collection `Color` chỉ có một mode, nên hai bề mặt đọc đúng cùng những hex ấy.
  * Thứ khác nhau là collection `Density`, và nó được viết lại ngay dưới đây.
@@ -62,7 +69,7 @@
 }
 
 /* Cùng một ô 28px như dải trên của học sinh — cùng một sản phẩm, cùng một dấu. */
-.rail .mark {
+.rail .brand-mark {
   width: 28px;
   height: 28px;
   flex: none;
@@ -426,7 +433,7 @@
 
 /* -------------------------------------------------------------- composer */
 
-.teacher .composer {
+.teacher .composer-bar {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -439,11 +446,11 @@
 }
 
 /* Viền đổi màu khi đang gõ, đúng variant `đang gõ` của Figma. */
-.teacher .composer:focus-within {
+.teacher .composer-bar:focus-within {
   border-color: var(--accent);
 }
 
-.teacher .composer .attach {
+.teacher .composer-bar .attach {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -459,7 +466,7 @@
   line-height: 1.5;
 }
 
-.teacher .composer input {
+.teacher .composer-bar input {
   flex: 1;
   min-width: 0;
   /* Trình duyệt tự cho ô nhập 1px/2px padding, và nó đẩy con trỏ lệch khỏi chỗ
@@ -474,11 +481,11 @@
   line-height: 1.5;
 }
 
-.teacher .composer input::placeholder {
+.teacher .composer-bar input::placeholder {
   color: var(--ink-faint);
 }
 
-.teacher .composer .send {
+.teacher .composer-bar .send {
   height: 33px;
   padding: 8px 14px;
   border: none;
@@ -496,7 +503,245 @@
  * Nó là thuộc tính `disabled` thật chứ không chỉ là màu: một nút trông tắt mà
  * bấm được vẫn gửi đi một tin nhắn rỗng.
  */
-.teacher .composer .send:enabled {
+.teacher .composer-bar .send:enabled {
   background: var(--accent);
   color: var(--surface);
+}
+
+/* ------------------------------------------------------- cuộc trò chuyện */
+
+/*
+ * Màn mở đầu căn giữa theo chiều dọc; màn có hội thoại thì bắt đầu từ mép trên.
+ * Cùng một `center`, hai `justify-content` — đúng như Figma vẽ hai artboard.
+ */
+.teacher .center.empty {
+  justify-content: center;
+}
+
+.teacher .center.talking {
+  justify-content: flex-start;
+}
+
+/*
+ * Vùng cuộn **duy nhất** của cột giữa. Cho cả cột cuộn thì ô nhập trôi lên khỏi
+ * mép dưới khi hội thoại dài ra, và ô nhập là thứ phải luôn ở đó.
+ */
+.teacher .stream {
+  flex: 1;
+  min-height: 0;
+  width: 820px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.teacher .stream::-webkit-scrollbar {
+  display: none;
+}
+
+/* Lượt của giáo viên dạt sang phải; lượt của Kriky bắt đầu từ mép trái. */
+.teacher .exchange {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 6px;
+}
+
+.teacher .exchange.said {
+  align-items: flex-end;
+}
+
+/*
+ * 440 là trần, không phải bề rộng. Một câu ba chữ nằm trong một bong bóng rộng
+ * 440 đọc ra như một đoạn văn bị cắt, còn trần thì giữ cho một đoạn dài không
+ * chạy hết 820px — quá dài để mắt tìm được đầu dòng sau.
+ */
+.teacher .said-bubble {
+  max-width: 440px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--accent-surface);
+  color: var(--ink);
+  font-size: var(--type-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.teacher .who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+}
+
+.teacher .face {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.teacher .who-name {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .reply-text {
+  color: var(--ink);
+  font-size: var(--type-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/*
+ * Kriky đang nghĩ: ba chấm, một câu trạng thái, một thanh sáng chạy.
+ *
+ * Nó **không** đứng trong `turns`. Lượt thật tới nơi thì nó biến mất và lượt
+ * thật hiện ra ở đúng chỗ đó — không có khoảnh khắc nào cả hai cùng nằm trên
+ * màn hình, vì cái tạm chưa bao giờ được append vào danh sách.
+ */
+.teacher .thinking {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 6px;
+}
+
+.teacher .status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+}
+
+.teacher .dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.teacher .dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  animation: kriky-blink 1.2s infinite;
+}
+
+.teacher .dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.teacher .dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes kriky-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.teacher .status {
+  color: var(--ink-muted);
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+/*
+ * Thanh sáng chạy. 300px khi vừa gửi, 420px khi lâu hơn thường lệ — Figma vẽ
+ * hai bề rộng, và bề rộng là thứ duy nhất khác nhau ngoài câu chữ.
+ */
+.teacher .shimmer {
+  width: 300px;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.teacher .thinking.slow .shimmer {
+  width: 420px;
+}
+
+.teacher .shimmer i {
+  display: block;
+  width: 62%;
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+  animation: kriky-sweep 1.6s infinite;
+}
+
+@keyframes kriky-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(160%);
+  }
+}
+
+/*
+ * Dải phạm vi, ngay trên ô nhập.
+ *
+ * Nó nói **tài liệu nào đang giới hạn câu hỏi sắp ra**, và ở vòng này điều đó
+ * chưa đúng: nội dung tài liệu chưa đi vào prompt của AGENT. Nên nó chỉ hiện
+ * khi giáo viên tự đính một tài liệu vào, và chữ trên nó nói đúng những gì hệ
+ * thống biết — tên file — chứ không hứa một phạm vi mà chưa ai thi hành.
+ */
+.teacher .scope-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 820px;
+  /* Cao theo nội dung, như Figma: 8 + một dòng + 8. Ghim một con số ở đây thì
+   * ngày cỡ chữ đổi theo Density, dải này cắt mất phần chân chữ. */
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--accent-surface);
+  color: var(--accent);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .scope-strip .kind {
+  font-weight: 600;
+}
+
+.teacher .scope-strip .what {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.teacher .scope-strip button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Lời từ chối của BE, in nguyên văn ngay trên ô nhập. */
+.teacher .trouble {
+  width: 820px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--answer-incorrect-surface);
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
 }

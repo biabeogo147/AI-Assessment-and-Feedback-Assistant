@@ -1,4 +1,5 @@
-import { CONVERSATIONS, DASHBOARD_WAITING, DOCUMENTS } from "./invented-not-from-be";
+import { type TeacherDocument } from "../../api";
+import { CONVERSATIONS, DASHBOARD_WAITING } from "./invented-not-from-be";
 
 /**
  * Dải bên trái của mọi màn hình giáo viên.
@@ -9,17 +10,23 @@ import { CONVERSATIONS, DASHBOARD_WAITING, DOCUMENTS } from "./invented-not-from
  * tên hay mã giáo viên. Nên ở đây không có dải tên, và `GET /api/teacher/me`
  * hiện **chưa có chỗ nào vẽ** — xem Status của plan.
  *
- * Gần như toàn bộ dải này đang trơ, và nó trơ một cách lộ liễu chứ không giả
- * vờ: bốn đích đến là bốn artboard chưa dựng, danh sách đoạn chat là chữ bịa
- * (BE có đúng một luồng cho mỗi giáo viên), và tài liệu thì chờ model
- * `Document`. Dựng chúng bằng `div` chứ không bằng `button` là có chủ đích —
- * một `button` hứa một việc, và không có việc nào xảy ra.
+ * Phần lớn dải này đang trơ, và nó trơ một cách lộ liễu chứ không giả vờ: bốn
+ * đích đến là bốn artboard chưa dựng, và danh sách đoạn chat là chữ bịa vì BE có
+ * đúng **một** luồng cho mỗi giáo viên. Dựng chúng bằng `div` chứ không bằng
+ * `button` là có chủ đích — một `button` hứa một việc, và không có việc nào xảy
+ * ra.
+ *
+ * Ngăn tài liệu thì **thật**: nó là `GET /api/teacher/documents`. Chip in kích
+ * thước chứ không in số trang, vì chưa có gì mở file ra đọc — và artboard 1 với
+ * 2 đã được sửa trong cùng đợt này cho khớp.
+ *
+ * @param documents - Thư viện của giáo viên, mới nhất trước.
  */
-export default function Rail() {
+export default function Rail({ documents }: { documents: TeacherDocument[] }) {
   return (
     <nav className="rail" aria-label="Điều hướng">
       <div className="brand">
-        <div className="mark" />
+        <div className="brand-mark" />
         <div className="brand-name">Kriky</div>
       </div>
 
@@ -51,12 +58,12 @@ export default function Rail() {
         </div>
 
         <Pane title="TÀI LIỆU" className="documents">
-          {DOCUMENTS.map((one) => (
-            <div className="document" key={one.name}>
+          {documents.map((one) => (
+            <div className="document" key={one.document_id}>
               <span className="kind">{one.kind}</span>
               <span className="about">
-                <span className="name">{one.name}</span>
-                <span className="meta">{one.meta}</span>
+                <span className="name">{one.filename}</span>
+                <span className="meta">{weight(one.byte_size)}</span>
               </span>
             </div>
           ))}
@@ -183,4 +190,19 @@ function Bank() {
       <rect x="6.8" y="6.8" width="5.2" height="5.2" rx="1.2" fill="currentColor" />
     </svg>
   );
+}
+
+/**
+ * Kích thước file, cho mắt người.
+ *
+ * Làm tròn ở đây chứ không ở BE: con số byte là sự thật và nó đi nguyên qua đường truyền;
+ * cái chip chỉ cần một thứ đọc được. Làm tròn phía server thì không ai lấy lại được số gốc.
+ *
+ * @param bytes - Kích thước thật.
+ * @returns Ví dụ `1,2 MB` — dấu phẩy thập phân, vì đây là bản tiếng Việt.
+ */
+function weight(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
 }

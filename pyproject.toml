@@ -21,7 +21,13 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # FastAPI khai dependency bằng giá trị mặc định của tham số; đó là cách duy nhất
 # framework này diễn đạt chúng, nên nếu không có dòng dưới thì B008 sẽ nổ ở mọi
 # route.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path"]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+]
 
 [tool.pytest.ini_options]
 # Mode importlib giữ cho các test module trùng tên ở những service khác nhau khỏi

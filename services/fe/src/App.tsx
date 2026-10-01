@@ -8,7 +8,7 @@ import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
-import Start from "./screens/teacher/Start";
+import Chat from "./screens/teacher/Chat";
 
 /**
  * Đọc route hiện tại từ hash của location.
@@ -51,9 +51,9 @@ export default function App() {
   return <Student />;
 }
 
-/** Bề mặt giáo viên. Mới có màn mở đầu; các route sâu hơn là bước sau của plan. */
+/** Bề mặt giáo viên. Mới có bề mặt chat; route có panel đề là bước sau của plan. */
 function Teacher() {
-  return <Start />;
+  return <Chat />;
 }
 
 /**
