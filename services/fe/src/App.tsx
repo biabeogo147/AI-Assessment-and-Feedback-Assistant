@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 
 import "./tokens.css";
+import "./teacher.css";
 import { api, type Me } from "./api";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
+import Start from "./screens/teacher/Start";
 
 /**
  * Đọc route hiện tại từ hash của location.
@@ -32,13 +34,36 @@ export function go(route: string): void {
 }
 
 /**
+ * Chọn bề mặt theo route, trước khi bất cứ request nào bay ra.
+ *
+ * Phải là nhánh **đầu tiên**, không phải một `if` nằm giữa các màn hình học
+ * sinh: một `#/teacher` đi qua phần dưới sẽ gọi `GET /api/me` với actor học
+ * sinh chỉ để rồi vứt kết quả đi, và trên một BE chưa có dữ liệu học sinh thì
+ * màn hình giáo viên hiện ra một câu lỗi của người khác.
+ *
+ * Hai vai không chia sẻ state nào. Đó là chủ ý: `ACTOR` trong `api.ts` nói hai
+ * người này là hai phiên khác nhau, và một `me` dùng chung sẽ là chỗ đầu tiên
+ * điều đó bị quên.
+ */
+export default function App() {
+  const route = useRoute();
+  if (route === "/teacher" || route.startsWith("/teacher/")) return <Teacher />;
+  return <Student />;
+}
+
+/** Bề mặt giáo viên. Mới có màn mở đầu; các route sâu hơn là bước sau của plan. */
+function Teacher() {
+  return <Start />;
+}
+
+/**
  * Phần giao diện dành cho học sinh.
  *
  * Danh tính được lấy một lần rồi truyền xuống, vì mọi màn hình đều mang dải tên,
  * lớp và mã học sinh mà ADR-13 đòi phải có trên một máy nhiều học sinh dùng
  * chung.
  */
-export default function App() {
+function Student() {
   const route = useRoute();
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);

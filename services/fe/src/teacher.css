@@ -1,0 +1,502 @@
+/*
+ * Hình khối của bề mặt giáo viên, đo ra từ page `Screen — Teacher` của file
+ * Figma chứ không ước lượng.
+ *
+ * Tách khỏi `tokens.css` chứ không thêm vào đó, vì ~780 dòng hình học trong file
+ * kia đo từ artboard **học sinh**: `--card-padding` bên đó là 24 trong khi thẻ
+ * của giáo viên là 16. Một file giữ hình khối của hai bề mặt sẽ biến mọi lần
+ * tinh chỉnh panel giáo viên thành rủi ro cho app học sinh đang chạy — và
+ * **không test nào bắt được**, vì jsdom không layout.
+ *
+ * Màu thì dùng chung, và đó là một kết luận đo được chứ không phải một hy vọng:
+ * collection `Color` chỉ có một mode, nên hai bề mặt đọc đúng cùng những hex ấy.
+ * Thứ khác nhau là collection `Density`, và nó được viết lại ngay dưới đây.
+ */
+
+/*
+ * Mode `Teacher` của collection `Density`, chép tay từ Figma.
+ *
+ * Nó nằm trên `.teacher` chứ không trên `:root`, nên một màn hình học sinh mở
+ * cùng phiên không bao giờ co lại theo. Một `data-density` thứ hai là thừa: bề
+ * mặt nào thì density ấy, và hai thuộc tính cho một quyết định là hai thứ sẽ
+ * lệch nhau.
+ */
+.teacher {
+  --type-display: 24px;
+  --type-heading: 18px;
+  --type-body: 14px;
+  --type-label: 13px;
+  --type-caption: 11px;
+  --card-padding: 16px;
+  --row-gap: 8px;
+  --section-gap: 24px;
+
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--paper);
+  font-size: var(--type-body);
+}
+
+/* ------------------------------------------------------------------- rail */
+
+/*
+ * 260 cố định. Nó không co: phần co là cột giữa, vì cột giữa là phần đọc được
+ * mà một dải điều hướng hẹp lại thì chỉ còn là một cột chữ bị cắt.
+ */
+.rail {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 16px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.rail .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+}
+
+/* Cùng một ô 28px như dải trên của học sinh — cùng một sản phẩm, cùng một dấu. */
+.rail .mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface) url("/kriky-face.png") center / 22px 22px no-repeat;
+}
+
+.rail .brand-name {
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.rail .new-chat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent-surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.rail .new-chat .plus {
+  font-size: var(--type-caption);
+}
+
+.rail .nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rail .destination {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.rail .destination .icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--ink);
+}
+
+.rail .destination .label {
+  flex: 1;
+}
+
+.rail .destination .badge {
+  padding: 2px 7px;
+  border-radius: var(--radius-chip);
+  background: var(--state-needs-human-surface);
+  color: var(--state-needs-human);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/*
+ * Vạch chọn: 3×28 ở mép trái, không phải một nền đổi màu.
+ *
+ * Trạng thái `đang chọn` của Figma đổi **cả hai**: nền thành surface và thêm
+ * vạch. Nền một mình thì không đủ — trên dải sunken, surface là một sắc độ
+ * nhạt hơn vài phần trăm, và đó là thứ biến mất trên máy chiếu của một lớp học.
+ */
+.rail .destination[aria-current="page"],
+.rail .conversation[aria-current="true"] {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.rail .destination[aria-current="page"]::before,
+.rail .conversation[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 3px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/*
+ * Hai ngăn chồng nhau, và chỉ ngăn trên co giãn.
+ *
+ * Ngăn tài liệu giữ đúng 225px vì nó là một danh sách **đếm được** — bốn chip
+ * là bốn chip. Danh sách đoạn chat thì dài vô hạn theo thời gian, nên chỗ thừa
+ * thuộc về nó. Ở đúng 900px chiều cao của thiết kế, phép chia này cho 337px —
+ * bằng con số Figma, mà không hardcode một chiều cao nào.
+ */
+.rail .lists {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rail .pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.rail .pane.history {
+  flex: 1;
+}
+
+.rail .pane.documents {
+  flex: 0 0 225px;
+}
+
+.rail .pane-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 5px 0;
+  color: var(--ink);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 1.5;
+}
+
+.rail .caret {
+  width: 8px;
+  height: 6px;
+  flex: none;
+  color: var(--ink-muted);
+}
+
+/*
+ * Vùng cuộn, với một dải mờ ở mép dưới.
+ *
+ * Dải mờ là `mask` chứ không phải một hình chữ nhật gradient đè lên: hình chữ
+ * nhật phải biết nền phía sau nó màu gì, và nền đó là `--sunken` ở đây nhưng
+ * `--surface` ở chỗ khác. Một dải mờ sai nền đọc ra như một vệt bẩn.
+ */
+.rail .scroll {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to bottom, black calc(100% - 14px), transparent);
+}
+
+.rail .scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.rail .group {
+  flex: none;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.rail .conversation {
+  flex: none;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail .document {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.rail .document .kind {
+  padding: 2px 5px;
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.rail .document .about {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rail .document .name {
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail .document .meta {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/*
+ * Tay nắm chia hai ngăn. Nó **chưa kéo được**, và trông đúng như thế: không có
+ * `cursor: row-resize`, vì một con trỏ hứa một việc mà thả chuột ra không có gì
+ * xảy ra là một lời nói dối rẻ tiền.
+ */
+.rail .split-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 12px;
+  flex: none;
+  position: relative;
+}
+
+.rail .split-handle::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.rail .split-handle .grip {
+  position: relative;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink-faint);
+}
+
+/* ----------------------------------------------------------------- center */
+
+.teacher .center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 32px 40px 24px;
+  background: var(--paper);
+}
+
+.teacher .hero {
+  width: 143px;
+  height: 240px;
+  object-fit: contain;
+}
+
+/*
+ * 820 là bề rộng của cả cột giữa trên thiết kế, và nó không co theo cửa sổ.
+ * Một câu văn xuôi kéo dài hết một màn 2560px là một câu không ai đọc hết dòng.
+ */
+.teacher .intro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 820px;
+  text-align: center;
+}
+
+.teacher .intro h1 {
+  font-size: var(--type-display);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .intro p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+.teacher .hint {
+  width: 820px;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.teacher .suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 820px;
+}
+
+/*
+ * Cao cố định 68 dù một gợi ý chỉ có một dòng: ba thẻ cạnh nhau phải cao bằng
+ * nhau, và `align-items: stretch` của grid làm việc đó mà không cần biết câu
+ * nào dài. Bấm vào thì **điền sẵn vào ô nhập**, không gửi — câu dưới nó đã hứa
+ * đúng như vậy, và một cú bấm gửi thẳng sẽ biến một gợi ý thành một hành động.
+ */
+.teacher .suggestion {
+  height: 68px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1.5;
+  text-align: left;
+}
+
+/* -------------------------------------------------------------- composer */
+
+.teacher .composer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 820px;
+  height: 57px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* Viền đổi màu khi đang gõ, đúng variant `đang gõ` của Figma. */
+.teacher .composer:focus-within {
+  border-color: var(--accent);
+}
+
+.teacher .composer .attach {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 31px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .composer input {
+  flex: 1;
+  min-width: 0;
+  /* Trình duyệt tự cho ô nhập 1px/2px padding, và nó đẩy con trỏ lệch khỏi chỗ
+   * Figma đặt chữ. Đặt về 0 thì mép chữ trùng đúng số đo. */
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+.teacher .composer input::placeholder {
+  color: var(--ink-faint);
+}
+
+.teacher .composer .send {
+  height: 33px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+  color: var(--ink-faint);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/*
+ * Nút gửi chỉ sáng lên khi **có chữ**, đúng hai variant `rỗng` và `đang gõ`.
+ * Nó là thuộc tính `disabled` thật chứ không chỉ là màu: một nút trông tắt mà
+ * bấm được vẫn gửi đi một tin nhắn rỗng.
+ */
+.teacher .composer .send:enabled {
+  background: var(--accent);
+  color: var(--surface);
+}

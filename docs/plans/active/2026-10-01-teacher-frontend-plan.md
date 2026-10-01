@@ -58,7 +58,7 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
       assert vào `test_the_timing_rules_read_identically_in_all_three_payloads`: ba nơi thành bốn.
 - [x] **Bước 2 — `api.ts` hai vai.** `ACTOR` thành một record hai khoá, `call(role, path, init)`, vai
       chọn **tại chỗ gọi tên endpoint**. Cổng: 11/11 test vẫn xanh, không sửa test nào.
-- [ ] **Bước 3 — khung giáo viên + artboard 1.** `App.tsx` thành dispatcher; `TeacherBar`;
+- [x] **Bước 3 — khung giáo viên + artboard 1.** `App.tsx` thành dispatcher; `TeacherBar`;
       `teacher.css` với `[data-surface="teacher"]`. Cổng đo artboard 1.
 - [ ] **Bước 4 — vòng lặp lượt + artboard 2.** `pending` → `turns`, `Thinking` hai variant,
       `ActionResultCard`. Thêm `Document` + tải lên + liệt kê trước khi dựng rail. Cổng đo artboard 2.
@@ -180,10 +180,25 @@ FE hiện **giả vờ** thi hành nó.
 - [ ] Luật Figma **có** áp lần này: artboard nào bị sửa phải nói ra trong commit
 - [ ] Mỗi commit mang trailer `Plan: 2026-10-01-teacher-frontend-plan.md`
 
-## Cần người dùng cấp
+## Node id của mọi artboard giáo viên
 
-**Link Figma có `node-id` của artboard 1, 2, 3, 6.** Figma MCP chỉ liệt kê được một page
-(`0:1 Foundations`), nên tôi tới được `70:215` (artboard 7) và các component chỉ vì docs có ghi id.
+Mục này trước đây tên là *"Cần người dùng cấp"*, và nó không còn cần nữa. `get_metadata` chỉ liệt kê
+được `0:1 Foundations` vì Figma **nạp page theo nhu cầu** và nó chỉ thấy page đang mở; `use_figma`
+chạy Plugin API thì đọc `figma.root.children` và thấy cả sáu page. Một lệnh đọc, hết chặn.
+
+Page `Screen — Teacher` là `12:2`, mười hai artboard:
+
+| # | Artboard | node-id |
+| --- | --- | --- |
+| 1 | Bắt đầu — đoạn chat mới | `12:3` |
+| 2 | Kèm tài liệu, giới hạn phạm vi | `85:327` |
+| 3 | Kriky hỏi lại trước khi làm | `69:159` |
+| 4 | Kriky đang làm | `84:421` |
+| 5 | Đã có đề nháp | `12:46` |
+| 6 | Soi từng câu trong panel | `15:55` |
+| 7 | Đã duyệt — cài đặt phát hành | `70:193` (panel bên phải là `70:215`) |
+| 8 | Xác nhận phát hành | `72:256` |
+| 9–12 | Lớp học, chi tiết lớp, kết quả, lời giải | `180:753`, `183:874`, `205:1000`, `309:1415` |
 
 ## Status
 
@@ -195,6 +210,27 @@ Bước 2 mang thêm `isoWithOffset` và **năm test cho riêng nó** — sớm 
 do là nó đứng một mình được: một hàm thuần không cần màn hình nào để kiểm, và đột biến dấu offset làm
 đúng năm test đó đỏ. Đó là test FE thứ nhất trong bốn test mà mục *Validation Checks* đòi.
 
-Tiếp theo là bước 3, và nó **đang chờ người dùng cấp link Figma có `node-id`** cho artboard 1, 2, 3,
-6 — xem mục dưới. Không có id thì cổng "đo khớp" không thi hành được, và dựng theo mắt rồi đo sau là
-đúng thứ luật trong `services/fe/AGENTS.md` cấm.
+Bước 3 xong, và nó sửa ba điều plan nói sai:
+
+**Bề mặt giáo viên không có dải trên cùng.** Plan viết `TeacherBar`; artboard 1 có một **rail 260px
+bên trái**, và không artboard nào trong mười hai cái in tên hay mã giáo viên — kiểm bằng cách quét
+mọi text node của page. Hệ quả thẳng: `GET /api/teacher/me` dựng ở bước 1 **chưa có chỗ nào vẽ**. Nó
+ở lại (có test, và màn đăng nhập thật sẽ cần) nhưng lý do trong plan là lý do sai, và đó đúng là thứ
+docstring của chính nó cảnh báo: *"một field không ai vẽ là một field sẽ lệch trong im lặng"*.
+
+**Gần cả rail đang trơ, và nó trơ lộ liễu.** Bốn đích đến là bốn artboard chưa dựng; danh sách đoạn
+chat là chữ bịa vì BE có đúng **một** luồng cho mỗi giáo viên (`GET /teacher/chat` không nhận id
+nào); tài liệu chờ bước 4. Chúng dồn vào `invented-not-from-be.ts` — tên file tự tố cáo, và dựng
+bằng `div` chứ không `button`, vì một `button` hứa một việc không xảy ra.
+
+**Density tách bằng một thuộc tính, không phải hai.** Plan định `data-surface` cộng `data-density`;
+nay mode `Teacher` viết lại ngay trên `.teacher` trong `teacher.css`. Bề mặt nào thì density ấy, và
+hai thuộc tính cho một quyết định là hai thứ sẽ lệch nhau.
+
+Phép đo artboard 1: **mọi hộp khớp**, sau khi sửa một lỗi thật mà con mắt không thấy — ba loại hàng
+trong vùng cuộn bị flex **co lại**, hàng đoạn chat cao 26.56 thay vì 40. Phần lệch còn lại đều ≤0.5px
+và đều cùng một nguồn: Figma làm tròn chiều cao text **lên số nguyên** (11px × 1.5 = 16.5 hiện thành
+17), còn trình duyệt thì không. Bề rộng của chip chữ lệch ≤1.6px vì metric glyph, không vì CSS.
+
+Cửa sổ Chrome đang maximize nên `resize_window` không ăn; khung 1440×900 được ép bằng CSS trước khi
+đo. Thứ duy nhất phép đo này không kiểm là `height: 100vh`.
