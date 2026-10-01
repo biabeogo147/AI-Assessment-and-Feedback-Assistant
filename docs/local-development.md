@@ -194,6 +194,36 @@ Sau giờ mở thì `409`. Thu hồi là thu hồi **mềm** — hàng ở lại
 với học sinh thì lần phát hành ấy chưa từng xảy ra: `GET /api/me/assignments` không còn thấy nó, và
 bắt đầu làm bài trả `404`. Đề chỉ về `đã duyệt` khi **không lớp nào còn giữ** nó.
 
+### Thư viện tài liệu
+
+```powershell
+$f = @{ "X-Actor" = "teacher:GV-001" }
+Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/documents" -Headers $f -Form @{ file = Get-Item .\sach.pdf }
+Invoke-RestMethod "http://localhost:8000/api/teacher/documents" -Headers $f
+```
+
+Nhận PDF, Word và văn bản thuần, tối đa 10 MB. Kích thước đo **sau khi đọc** chứ không lấy từ
+`content-length`. Không có số trang và không có cờ *"đọc được chữ"*: chưa có gì mở file ra đọc, nên
+nội dung tài liệu **chưa** đi vào prompt của AGENT — đây mới là cái vỏ.
+
+### Mở giao diện giáo viên
+
+Dev server của FE phục vụ **cả hai** bề mặt; route quyết định bề mặt nào:
+
+| Route | Màn hình |
+| --- | --- |
+| `http://localhost:5173/#/` | Danh sách bài của học sinh |
+| `http://localhost:5173/#/teacher` | Đoạn chat của giáo viên |
+| `http://localhost:5173/#/teacher/de/{assessment_id}` | Chat kèm panel đề |
+| `http://localhost:5173/#/teacher/de/{assessment_id}/phat-hanh` | Panel ở chế độ cài đặt phát hành |
+
+Vai được chọn **tại chỗ khai tên endpoint** trong `api.ts`, không suy từ route đang mở: một request
+bay ra giữa lúc chuyển route sẽ mang sai vai, và triệu chứng là một `403` ở rất xa nguyên nhân.
+
+Nếu `GET /api/teacher/assessments/{id}` trả `500` kèm lỗi cột thiếu thì database đang cũ hơn model:
+`create_all` tạo bảng còn thiếu nhưng **không bao giờ** sửa một bảng đã có. Dựng một database mới
+(`CREATE DATABASE aiafa_fe;`) rồi trỏ `DATABASE_URL` sang đó, đừng vá từng cột.
+
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) vẫn còn cho tới khi hàng đợi
 review của giáo viên được thiết kế. Nó **không** nằm trong luồng lõi nữa; đừng đọc nó như cách hệ
 thống chấm bài.

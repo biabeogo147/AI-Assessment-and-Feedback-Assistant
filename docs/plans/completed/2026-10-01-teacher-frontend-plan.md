@@ -66,7 +66,7 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
 - [x] **Bước 6 — artboard 6.** `Panel`, `QuestionCard`, `SourceChip`, `provenance.ts`.
 - [x] **Bước 7 — sửa Figma ô giờ, rồi artboard 7.** `PublishSettings`, `preview`, hộp xác nhận, thất
       bại một phần.
-- [ ] **Bước 8 — tài liệu.** ADR-04 (*FE đang giả vờ thi hành*), ADR-22 (*"chưa có màn hình nào của
+- [x] **Bước 8 — tài liệu.** ADR-04 (*FE đang giả vờ thi hành*), ADR-22 (*"chưa có màn hình nào của
       giáo viên"* nay sai), `backlog.md`, `local-development.md`, `architecture.md`,
       `services/fe/AGENTS.md` (đang 23/25 dòng, chật).
 
@@ -165,20 +165,26 @@ FE hiện **giả vờ** thi hành nó.
 
 ## Validation Checks
 
-- [ ] `.\dev.ps1 check` và `.\dev.ps1 test` xanh sau **mỗi** bước
-- [ ] 11 test học sinh xanh sau bước 0 và bước 2, **không sửa một dòng test nào**
-- [ ] Mỗi artboard xong thì **đo**: `get_metadata` + `get_variable_defs` từ Figma, `getComputedStyle`
+- [x] `.\dev.ps1 check` và `.\dev.ps1 test` xanh sau **mỗi** bước
+- [x] 11 test học sinh xanh sau bước 0 và bước 2, **không sửa một dòng test nào**
+- [x] Mỗi artboard xong thì **đo**: `get_metadata` + `get_variable_defs` từ Figma, `getComputedStyle`
       + `getBoundingClientRect` từ Chrome ở 1440×900, so bằng bảng. Lệch 0px ở mọi số nguyên; ≤1px
-      chỉ cho ba cột 118.667. font-size, padding, gap, radius, màu: khớp tuyệt đối.
-- [ ] `grep` hex thô trong code giáo viên phải rỗng
-- [ ] Ba phép đo không phải pixel: vùng câu hỏi cuộn còn `panel-head` và `Publish settings` thì không;
-      đỉnh `fade` trùng chân thẻ đầu; và 113 + 304 + 483 = **900**, dư bằng không
-- [ ] Bốn test FE: giờ gửi lên có offset chứ không phải `Z`; hộp xác nhận chỉ in chuỗi từ response
+      chỉ cho ba cột 118.667 (ba cột ấy nay không còn — xem bước 7). font-size, padding, gap, radius, màu: khớp tuyệt đối.
+      **Ngưỡng này phải nới một lần, và lý do đo được:** Figma làm tròn chiều cao mỗi text node
+      **lên** số nguyên (11px × 1.5 = 16.5 hiện thành 17), trình duyệt thì không. Nên mọi lệch còn
+      lại ≤0.5px cho một dòng chữ, cộng dồn nhiều nhất 2px cho một thẻ nhiều dòng — và bề rộng chip
+      chữ lệch ≤1.6px vì metric glyph, không vì CSS. Mọi con số **không** phải chiều cao text thì
+      khớp đúng 0px.
+- [x] `grep` hex thô trong code giáo viên phải rỗng
+- [x] Ba phép đo không phải pixel: vùng câu hỏi là vùng cuộn **duy nhất** của panel; dải mờ cao
+      đúng 56; và ba phần cộng lại đúng **900**, dư bằng không. Con số của phép thứ ba đổi theo bước
+      7: 113 + 242 + 545 thay cho 113 + 304 + 483, vì ô `datetime-local` thật cao hơn ô vẽ
+- [x] Bốn test FE: giờ gửi lên có offset chứ không phải `Z`; hộp xác nhận chỉ in chuỗi từ response
       `preview`; `turns` append mà bubble giáo viên không nhân đôi; `tool_result` của
       `teacher.publish` ra Action result card chứ không ra bubble lời model
-- [ ] Một lượt chạy thật end-to-end **qua giao diện** trên Postgres với `gpt-4o-mini`
-- [ ] Luật Figma **có** áp lần này: artboard nào bị sửa phải nói ra trong commit
-- [ ] Mỗi commit mang trailer `Plan: 2026-10-01-teacher-frontend-plan.md`
+- [x] Một lượt chạy thật end-to-end **qua giao diện** trên Postgres với `gpt-4o-mini`
+- [x] Luật Figma **có** áp lần này: artboard nào bị sửa phải nói ra trong commit
+- [x] Mỗi commit mang trailer `Plan: 2026-10-01-teacher-frontend-plan.md`
 
 ## Node id của mọi artboard giáo viên
 
@@ -202,109 +208,35 @@ Page `Screen — Teacher` là `12:2`, mười hai artboard:
 
 ## Status
 
-Xong bước 0, 1, 1b, 2. Bước 0 và bước 2 là hai commit **không thêm tính năng nào**, có chủ đích: nếu
-`ACTOR` đổi hình dạng mà 11 test đỏ, tôi muốn biết điều đó khi diff chỉ có `api.ts`. Cả hai cổng đã
-qua đúng như thế: 11/11 xanh mà `git diff` của `App.test.tsx` rỗng.
+**Xong cả tám bước.** Bề mặt giáo viên chạy được từ đầu tới cuối: nói với Kriky, đọc lại hội thoại,
+tải tài liệu, mở panel một đề, duyệt, rồi phát hành cho nhiều lớp qua một hộp xác nhận.
 
-Bước 2 mang thêm `isoWithOffset` và **năm test cho riêng nó** — sớm hơn bước 7, nơi nó được dùng. Lý
-do là nó đứng một mình được: một hàm thuần không cần màn hình nào để kiểm, và đột biến dấu offset làm
-đúng năm test đó đỏ. Đó là test FE thứ nhất trong bốn test mà mục *Validation Checks* đòi.
+Một lượt chạy thật qua giao diện, trên Postgres với `gpt-4o-mini`, một tin nhắn: model tự gọi
+`create_draft` rồi `start_drafting`, hai thẻ kết quả hiện ra kèm câu an toàn, bong bóng của giáo viên
+**không** nhân đôi, ô nhập khoá rồi mở lại, và nút *Xem* mở panel đúng đề vừa tạo với
+`topic_scope` đọc từ `DraftBrief`. Lượt phát hành thì chạy không tốn một lời gọi model nào: chọn lớp,
+sáu tham số, xem trước, xác nhận, và nhận lại một dòng từ chối thật của BE.
 
-Bước 3 xong, và nó sửa ba điều plan nói sai:
+### Bốn thứ đo được mà plan không đoán trước
 
-**Bề mặt giáo viên không có dải trên cùng.** Plan viết `TeacherBar`; artboard 1 có một **rail 260px
-bên trái**, và không artboard nào trong mười hai cái in tên hay mã giáo viên — kiểm bằng cách quét
-mọi text node của page. Hệ quả thẳng: `GET /api/teacher/me` dựng ở bước 1 **chưa có chỗ nào vẽ**. Nó
-ở lại (có test, và màn đăng nhập thật sẽ cần) nhưng lý do trong plan là lý do sai, và đó đúng là thứ
-docstring của chính nó cảnh báo: *"một field không ai vẽ là một field sẽ lệch trong im lặng"*.
+1. **`border` của CSS không phải `stroke` của Figma.** Figma vẽ stroke `INSIDE` nên padding đo từ mép
+   ngoài; CSS cộng border rồi mới tới padding. Năm thẻ lệch một pixel, rồi ba vạch ngăn của panel ăn
+   mất một pixel bề rộng. Không ai nhìn ra; chỉ phép đo thấy.
+2. **Ba lần trùng tên class với `tokens.css`** — `.mark`, `.composer`, `.thread`, rồi `.row`. Một
+   class trùng tên **cộng vào** chứ không ghi đè, nên `.row` của học sinh làm mỗi hàng ô giờ cao thêm
+   34px. Nay `services/fe/AGENTS.md` cấm thẳng.
+3. **`preview` từng nói dối.** Một lớp đã qua giờ mở được xem trước báo `published: true` rồi lần gửi
+   thật mới từ chối, vì `_publish_one` thoát sớm trước khi kiểm `_already_running`. Đây là lần thứ
+   **tư** trong dự án một lượt chạy thật tìm ra thứ không test nào bắt.
+4. **Thiết kế hứa bốn thứ hệ thống không biết**: số trang tài liệu, phạm vi *"chương 1, trang 30–62"*,
+   phần giải thích cho mỗi lựa chọn, và ba ô giờ 118.67px. Cả bốn đã được sửa **trên Figma**, không
+   phải lách trong code.
 
-**Gần cả rail đang trơ, và nó trơ lộ liễu.** Bốn đích đến là bốn artboard chưa dựng; danh sách đoạn
-chat là chữ bịa vì BE có đúng **một** luồng cho mỗi giáo viên (`GET /teacher/chat` không nhận id
-nào); tài liệu chờ bước 4. Chúng dồn vào `invented-not-from-be.ts` — tên file tự tố cáo, và dựng
-bằng `div` chứ không `button`, vì một `button` hứa một việc không xảy ra.
+### Thứ vẫn chưa thật
 
-**Density tách bằng một thuộc tính, không phải hai.** Plan định `data-surface` cộng `data-density`;
-nay mode `Teacher` viết lại ngay trên `.teacher` trong `teacher.css`. Bề mặt nào thì density ấy, và
-hai thuộc tính cho một quyết định là hai thứ sẽ lệch nhau.
+Chip nguồn câu hỏi là **chữ bịa** — `Question` không có cột nào nói nguồn hay việc đã kiểm. Nó nằm
+trong đúng một module tên tự tố cáo, canh bằng `check_invented_data_lives_in_one_file`, và ADR-04 nay
+ghi thẳng rằng FE đang *giả vờ* thi hành luật ấy. Năm món nợ còn lại nằm trong `docs/plans/backlog.md`,
+mỗi món kèm thứ đang chặn nó.
 
-Phép đo artboard 1: **mọi hộp khớp**, sau khi sửa một lỗi thật mà con mắt không thấy — ba loại hàng
-trong vùng cuộn bị flex **co lại**, hàng đoạn chat cao 26.56 thay vì 40. Phần lệch còn lại đều ≤0.5px
-và đều cùng một nguồn: Figma làm tròn chiều cao text **lên số nguyên** (11px × 1.5 = 16.5 hiện thành
-17), còn trình duyệt thì không. Bề rộng của chip chữ lệch ≤1.6px vì metric glyph, không vì CSS.
-
-Cửa sổ Chrome đang maximize nên `resize_window` không ăn; khung 1440×900 được ép bằng CSS trước khi
-đo. Thứ duy nhất phép đo này không kiểm là `height: 100vh`.
-
-Bước 4 xong: bảng `documents`, hai đường HTTP, và vòng lặp lượt nói. Artboard 2 đo khớp — dòng lượt
-nói, bong bóng, khối "đang nghĩ" và dải phạm vi đều đúng vị trí, và lệch còn lại vẫn là ≤0.5px của
-phép làm tròn text bên Figma.
-
-**Lần này code ghi ngược vào thiết kế, ba chỗ, vì thiết kế hứa thứ hệ thống không biết.** Chip tài
-liệu in *"184 trang · đọc được chữ"* — không có gì mở file ra đọc, nên nó thành **kích thước**, ở cả
-component lẫn 36 instance. Nhãn *"Đang đọc…"* thành *"Đang tải lên…"*. Và dải phạm vi hứa *"chương 1,
-trang 30–62"*, một phạm vi không ai thi hành, nên nó chỉ còn tên file. Ba chỗ ấy là cùng một món nợ,
-và `backlog.md` giữ nó: tài liệu **chưa** đi vào prompt của AGENT.
-
-Tiện thể sửa một chỗ thiết kế tự lệch với chính nó: ba text của dải phạm vi để cỡ chữ **rời** (10 và
-12) trong khi mọi text khác trên artboard đều bind vào `Density`. Nay cả ba bind `type/caption`.
-
-Bước 5 xong: thẻ câu hỏi lại, và một lỗi **một pixel** mà phép đo artboard 1 chưa đủ sâu để thấy.
-Figma vẽ stroke kiểu `INSIDE`, nên padding của nó đo từ mép ngoài còn CSS thì cộng border rồi mới
-tới padding — mọi hộp có viền đẩy nội dung vào thêm đúng một pixel. Năm hộp bị sửa, và phép đo lại
-cho đúng 16/12/14 như thiết kế.
-
-Thẻ hỏi lại cũng buộc hai lần sửa thiết kế. `choices` của BE là **một chuỗi**, không phải cặp tiêu
-đề + giải thích, nên ba lựa chọn trên artboard 3 nay một dòng (dòng thứ hai bị **ẩn**, không xoá: ngày
-BE gửi được phần giải thích thì bật lại là xong). Và nội dung ví dụ đổi từ *"Lấy câu hỏi từ đâu?"* sang
-câu mà hệ thống thật sự hỏi — lớp nào — vì `_offered` chỉ dựng phương án từ `candidates` của một tool.
-Cùng lúc, năm cỡ chữ rời của thẻ (16, 14, 12) được bind vào `Density`.
-
-Câu hỏi nằm **cả** trong `turns` lẫn trên tiêu đề thẻ, nên lượt cuối bị gấp lại khi thẻ đang hiện —
-và chỉ khi chính nó là câu đó. Sau một lần F5 thì `choices` mất, câu hỏi quay về làm một bong bóng
-bình thường, và gõ tay vẫn trả lời được: không ai kẹt.
-
-Bước 6 xong: panel đề, thẻ câu hỏi, chip nguồn, và thẻ kết quả hành động. Panel là một **route**
-chứ không phải state cục bộ — nút back đóng nó, và F5 dựng lại đúng màn hình đang mở.
-
-Lại một lần nữa `border` của CSS không phải `stroke` của Figma, lần này ở **ba vạch ngăn** của
-panel: một border ăn mất một pixel bề rộng, nên panel 420 chỉ còn 419 cho ruột và mọi thứ bên trong
-lệch sang phải. Nay vẽ bằng `box-shadow: inset`, và panel đo đúng 420 với ruột đúng chỗ.
-
-Tám variant của `Action result card` thì **sáu** dựng được từ một bước đã lưu. Hai cái còn lại không
-có đường nào sinh ra: *tạo-lớp* vì `catalog_for` không cấp tool nào tạo lớp, và *phát-hành-thất-bại*
-vì `_note_publication` chỉ ghi các lớp **thành công** — khi mọi lớp trượt thì không có bước nào được
-ghi cả, nên biểu mẫu phát hành phải tự hiện phần đó.
-
-Chip nguồn là chữ bịa, và nay có hàng rào cứng: `check_invented_data_lives_in_one_file` làm build đỏ
-nếu một chuỗi của nó bị chép sang file thứ hai. Kiểm bằng cách chép thật — check đỏ đúng một dòng,
-và trả lại thì xanh. Thông báo thất bại cố ý chỉ in **tên file**: console Windows đọc cp1252, và một
-câu tiếng Việt ở đó nổ thành traceback encoding thay vì nói ra luật nào vừa bị vi phạm.
-
-Database đang chạy có schema cũ hơn model (`assessments` thiếu `teacher_id`), vì `create_all` bỏ qua
-bảng đã tồn tại. Không đụng vào nó: dựng một database **mới** `aiafa_fe` và trỏ BE sang đó.
-
-Bước 7 xong, và đây là bước **code ghi ngược vào thiết kế nhiều nhất** — đúng như đã chốt. Một ô
-`datetime-local` thật của Chrome cần **218px**; ba cột 118.67 của artboard 7 không chứa nổi một ô
-nào. Nên bố cục đổi: *LÀM BÀI* 118 cạnh *MỞ LÚC* 250, *ĐÓNG LÚC* một hàng riêng, *PHÚT MỖI CÂU* 118
-cạnh *HẠN CHỮA XONG* 250. Chữ trong ô đổi từ *"14:00 · 15/9"* sang *"dd/mm/yyyy --:--"*, thứ trình
-duyệt thật sự vẽ khi ô còn trống. Và link *"Chọn lớp ›"* bị ẩn: mọi lớp đã là một chip, nên nó không
-mở ra gì.
-
-Lại một cái tên trùng `tokens.css` nữa, và lần này nó tốn một vòng đo: `.row` bên học sinh có viền
-và padding 16/20, nên mỗi hàng ô giờ cao thêm 34px mà không ai nhìn ra. Nay là `.pair`. Và `.panel`
-tự **phình** từ 420 thành 492 vì `min-width: auto` của một flex item cho phép ruột đẩy nó rộng ra.
-
-**Một lượt chạy thật qua giao diện tìm ra một lỗi BE mà không test nào thấy.** `preview` trả
-`published: true` cho một lớp đã qua giờ mở, hộp xác nhận hiện ra đầy đủ hai câu luật, rồi lần gửi
-thật mới từ chối — vì `_publish_one` thoát sớm ở nhánh preview **trước** khi kiểm `_already_running`.
-Điều khoản của ADR-02 không phải *"preview tính ra cùng mấy con số"* mà là **preview đi qua cùng
-những cổng**. Đã sửa, và một test mới đỏ đúng khi trả lại thứ tự cũ. Đây là lần thứ **tư** một lượt
-chạy thật tìm ra thứ test không bắt.
-
-Bốn test FE mà *Validation Checks* đòi nay đủ cả bốn, cộng một cái thứ năm: thẻ phát hành là thẻ
-**duy nhất** không mang câu an toàn, vì đề đã tới tay học sinh thật.
-
-Và một rò rỉ CSS mà phép đo artboard 1 chưa với tới: `.mark`, `.composer`, `.thread` đã tồn tại trong
-`tokens.css`. Một class trùng tên **không** ghi đè — nó cộng vào, nên mọi property bản giáo viên
-không nhắc tới thì vẫn do bản học sinh quyết (`height: 48px` của `.composer` chẳng hạn). Nay đổi
-thành `brand-mark`, `composer-bar`, `stream`, và không class gốc nào của hai file còn giao nhau.
+229 pytest, 21 vitest, 7 repo check, 2 import contract xanh.

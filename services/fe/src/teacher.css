@@ -1031,6 +1031,10 @@
   background: var(--paper);
   overflow-y: auto;
   scrollbar-width: none;
+  /* Dải mờ ở mép dưới, như trên rail: `mask` chứ không phải một hình chữ nhật gradient
+   * đè lên, vì một hình chữ nhật phải biết nền phía sau nó màu gì — và nền ở đây là
+   * `--paper` trong khi chỗ khác là `--surface`. */
+  mask-image: linear-gradient(to bottom, black calc(100% - 56px), transparent);
 }
 
 .teacher .panel-questions::-webkit-scrollbar {

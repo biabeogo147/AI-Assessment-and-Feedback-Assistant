@@ -64,8 +64,20 @@ chứ không phải một thiết kế. Ba đường bịt lỗ đang cân nhắ
   component ghi thẳng luật về ba màu đối nhau.
 - Figma `Document chip` (`84:25`) — mô tả ghi tài liệu thuộc về giáo viên.
 - Figma `Clarify request` (`64:23`) — ba lựa chọn dựng theo hai nguồn.
-- Figma artboard `2 · Kèm tài liệu, giới hạn phạm vi` — thanh phạm vi *"chương 1, trang 30-62"*.
+- Figma artboard `2 · Kèm tài liệu, giới hạn phạm vi` — thanh phạm vi, nay chỉ còn **tên file**:
+  *"chương 1, trang 30-62"* hứa một phạm vi không có gì thi hành, nên nó đã bị gỡ khỏi thiết kế.
 - **Ngoại lệ về câu luyện tập: chưa thi hành ở đâu cả.** `Source citation` (`84:35`) có ba variant và
   không variant nào dành cho một câu **sẽ không bao giờ được kiểm** — nhãn *chưa kiểm* ở đó nghĩa là
   *đang chờ giáo viên xem*, một nghĩa không đúng cho câu biến thể.
-- **Chưa có ở backend**: không có model Document, Class hay QuestionBank nào.
+- `services/be/src/be/models.py` — bảng `documents` gắn `teacher_id`, **không** gắn `assessment_id`:
+  một cuốn sách dùng cho nhiều đề suốt học kỳ. `services/be/src/be/teacher_documents.py` tải lên và
+  liệt kê.
+- **Frontend hiện *giả vờ* thi hành phần nguồn câu hỏi.** `Question` có năm cột và không cột nào nói
+  nguồn hay trạng thái kiểm, nên ba cái chip trên panel là **chữ bịa**, dồn vào
+  `services/fe/src/screens/teacher/invented-not-from-be.ts` và canh bằng
+  `check_invented_data_lives_in_one_file`. Màn hình đang nói với giáo viên một điều hệ thống không
+  biết là đúng; `docs/plans/backlog.md` giữ món nợ ấy.
+- **Nội dung tài liệu vẫn chưa đi vào prompt của AGENT.** Tải lên được, liệt kê được, đính được —
+  nhưng chưa có gì mở file ra đọc, nên tài liệu chưa thật sự giới hạn phạm vi ra đề. Vì thế chip
+  tài liệu in **kích thước** chứ không in số trang.
+- **Chưa có ở backend**: không có model QuestionBank nào.

@@ -20,6 +20,12 @@ Diagram liên quan:
 
 FE không biết AGENT tồn tại. Mọi thứ FE cần đều đi qua BE.
 
+Một app phục vụ **hai** bề mặt, và chúng tách ở ba chỗ: route (`#/teacher…` rẽ trước mọi request),
+actor (`ACTOR` là một record hai khoá, vai khai tại chỗ gọi endpoint), và stylesheet (`tokens.css`
+giữ màu dùng chung, `teacher.css` giữ hình khối của giáo viên). Chúng **không** chia sẻ state nào.
+Tên class của hai file không được trùng nhau: một class trùng tên không ghi đè mà **cộng vào**, nên
+mọi property bản này không nhắc tới thì vẫn do bản kia quyết.
+
 ## Đường giao tiếp
 
 ```text

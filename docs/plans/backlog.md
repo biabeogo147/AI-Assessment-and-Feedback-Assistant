@@ -10,6 +10,21 @@ File này khác `docs/decisions/`: ở đó là luật nghiệp vụ đã chốt
 Nó cũng khác mục *Còn thiếu* trong `docs/decisions/README.md`, vốn liệt kê những **luật** chưa được ghi
 thành ADR, không phải những **tính năng** chưa dựng.
 
+## Bề mặt giáo viên — sáu món nợ của đợt dựng frontend
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Nguồn câu hỏi và trạng thái kiểm là **chữ bịa** | `Question` không có cột nào nói nguồn hay việc đã kiểm, và `drafting._write` không nối `DraftItem` với `Question` — nên ngay cả *"do model viết"* cũng không truy được. Cần hai cột và một đường ghi chúng |
+| Nội dung tài liệu **chưa** đi vào prompt của AGENT | Cần đọc PDF, cắt đoạn, nhồi ngữ cảnh — một phần lớn hơn hẳn việc tải lên. Hiện mới có cái vỏ |
+| `choices` mất sau một lần F5 | Nó không được lưu; `teacher_turns` cần một cột cho nó. Không ai kẹt vì gõ tay vẫn trả lời được, nên chưa gấp |
+| Bốn đích đến trên rail trơ, và danh sách đoạn chat là chữ bịa | BE có đúng **một** luồng cho mỗi giáo viên, và bốn artboard kia chưa dựng |
+| Mỗi lớp một bộ giờ riêng | `Publication` khoá theo `(đề, lớp)` nên schema **đã** cho phép; thiếu bề mặt. Figma chưa vẽ |
+| `services/fe` nay là tên sai | Nó phục vụ **hai** bề mặt. Đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` — không khó, chỉ rộng |
+
+Món thứ nhất là món nặng nhất, vì nó là thứ **duy nhất** trong danh sách mà màn hình đang nói một
+điều hệ thống không biết là đúng. Nó bị dồn vào đúng một module tên tự tố cáo và canh bằng một repo
+check, nhưng hàng rào chỉ giữ cho nó không lan ra — nó không làm cho mấy cái chip đúng hơn.
+
 ## Màn hình Danh sách lớp học
 
 | Việc | Cái gì đang chặn |

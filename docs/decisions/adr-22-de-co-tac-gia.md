@@ -51,9 +51,11 @@ ra thành lời một cách nhiệt tình.
 - Câu từ chối **không được** nói "đề này không phải của bạn", vì chính câu đó tiết lộ rằng đề tồn tại.
 - Luật này chưa áp cho học sinh: `students` thuộc về lớp, và lớp đã thuộc về giáo viên, nên không cần
   cột thứ hai.
-- Chưa có màn hình nào của giáo viên, nên luật hiện được thi hành ở tầng dữ liệu và tầng truy vấn. Khi
-  dựng bề mặt, câu từ chối phải giữ đúng tính chất không-phân-biệt ở cả ba nơi: endpoint, tool, và chữ
-  hiện trên màn.
+- Bề mặt giáo viên nay **đã có** (`services/fe/src/screens/teacher/`), và nó không thêm một nơi thi
+  hành thứ tư: panel mở một đề bằng `GET /api/teacher/assessments/{id}`, và endpoint ấy đi qua đúng
+  `_owned` mà đường ghi dùng. Một đề của người khác làm panel hiện **đúng câu** mà một đề không tồn
+  tại làm nó hiện. Màn hình không có nhánh nào riêng cho hai ca đó, và đó là lý do nó không thể làm
+  lộ sự khác biệt.
 
 ## Nơi luật này đang được thi hành
 
