@@ -21,6 +21,10 @@ import Rail from "./Rail";
  */
 export default function Chat() {
   const [turns, setTurns] = useState<Turn[]>([]);
+  // Câu hỏi lại đang chờ trả lời. Nó giữ **cả** câu hỏi lẫn các phương án, vì hai thứ đó
+  // nằm trên cùng một thẻ — và vì câu hỏi ấy cũng nằm trong `turns`, nên giữ nó ở đây là
+  // cách để không vẽ nó hai lần.
+  const [asked, setAsked] = useState<Answered | null>(null);
   const [documents, setDocuments] = useState<TeacherDocument[]>([]);
   const [scope, setScope] = useState<TeacherDocument | null>(null);
   const [text, setText] = useState("");
@@ -57,6 +61,7 @@ export default function Chat() {
 
     setPending(trimmed);
     setText("");
+    setAsked(null);
     setTrouble(null);
 
     // 100 giây: 90 của BE cộng 10 cho đường truyền. Hết giờ thì **giữ lại chữ đã gõ**, vì
@@ -68,9 +73,9 @@ export default function Chat() {
     try {
       const answered = await teacher.say(trimmed, stop.signal);
       // Chỉ các bước CỦA LƯỢT NÀY, nên append chứ không thay: `GET /teacher/chat` mới là
-      // đường trả về cả hội thoại. `answered.choices` thuộc về câu hỏi lại, và nó được
-      // dựng ở bước sau của plan cùng với artboard 3.
+      // đường trả về cả hội thoại.
       setTurns((before) => [...before, ...answered.turns]);
+      setAsked(answered.choices.length > 0 ? answered : null);
     } catch (cause) {
       setText(trimmed);
       setTrouble(
@@ -99,15 +104,27 @@ export default function Chat() {
 
   const talking = turns.length > 0 || pending !== null;
 
+  // Câu hỏi lại đã nằm trong `turns` dưới dạng một lượt của trợ lý, và nó cũng là tiêu đề
+  // của thẻ. Vẽ cả hai thì cùng một câu hiện hai lần cách nhau 12px. Bỏ **lượt cuối**, và
+  // chỉ khi chính nó là câu đó: sau một lần F5 thì `asked` rỗng, câu hỏi quay về làm một
+  // bong bóng bình thường, và đó vẫn là một màn hình đúng.
+  const last = turns[turns.length - 1];
+  const folded =
+    asked !== null && last !== undefined && last.kind === "assistant" && last.text === asked.text;
+  const drawn = folded ? turns.slice(0, -1) : turns;
+
   return (
     <div className="teacher">
       <Rail documents={documents} />
       <main className={`center ${talking ? "talking" : "empty"}`}>
         {talking ? (
           <div className="stream">
-            {turns.map((one, index) => (
+            {drawn.map((one, index) => (
               <Exchange key={index} turn={one} />
             ))}
+            {asked !== null && pending === null && (
+              <Clarify asked={asked} onPick={(one) => void send(one)} />
+            )}
             {pending !== null && (
               <div className="exchange said">
                 <div className="said-bubble">{pending}</div>
@@ -259,6 +276,37 @@ function Thinking({ slow }: { slow: boolean }) {
       </div>
       <div className="shimmer" aria-hidden="true">
         <i />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Thẻ câu hỏi lại.
+ *
+ * Mỗi phương án là **một chuỗi do BE viết**, và bấm vào nghĩa là gửi lại đúng chuỗi đó như
+ * một câu của giáo viên. Không có id nào đi kèm, và đó là chủ ý của ADR-23: model viết câu
+ * hỏi, BE viết các câu trả lời, nên không còn văn bản tự do nào để ai đó phải đi soi.
+ *
+ * @param asked - Câu hỏi và các phương án của nó.
+ * @param onPick - Được gọi với đúng chuỗi của phương án vừa bấm.
+ */
+function Clarify({ asked, onPick }: { asked: Answered; onPick: (choice: string) => void }) {
+  return (
+    <div className="clarify">
+      <h3>{asked.text}</h3>
+      {asked.more_choices > 0 && (
+        <div className="cut">Còn {asked.more_choices} lựa chọn nữa không nằm trong danh sách.</div>
+      )}
+      <div className="choices">
+        {asked.choices.map((one) => (
+          <button className="choice" key={one} type="button" onClick={() => onPick(one)}>
+            {one}
+          </button>
+        ))}
+      </div>
+      <div className="fallback">
+        Không lựa chọn nào đúng ý? Trả lời bằng câu của bạn ở ô nhập bên dưới.
       </div>
     </div>
   );

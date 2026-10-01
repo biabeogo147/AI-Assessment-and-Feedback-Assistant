@@ -277,13 +277,22 @@
   text-overflow: ellipsis;
 }
 
+/*
+ * Viền 1px NẰM TRONG padding, không cộng thêm vào.
+ *
+ * Figma vẽ stroke kiểu `INSIDE`, nên padding của nó đo từ mép ngoài và vạch viền
+ * nằm bên trong dải padding ấy. CSS thì cộng: border rồi mới tới padding. Nên mọi
+ * hộp có viền ở file này lấy padding **trừ đi 1** — nếu không, mỗi hộp có viền đẩy
+ * nội dung vào thêm đúng một pixel, và một pixel thì không ai nhìn ra, chỉ phép đo
+ * thấy.
+ */
 .rail .document {
   flex: none;
   display: flex;
   align-items: flex-start;
   gap: 10px;
   height: 56px;
-  padding: 10px 12px;
+  padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -300,6 +309,9 @@
 }
 
 .rail .document .about {
+  /* Chiếm hết phần còn lại chứ không co theo chữ: cột này là chỗ tên file bị cắt
+   * bằng dấu ba chấm, mà một cột rộng bằng đúng cái tên thì không bao giờ cắt. */
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -420,7 +432,7 @@
  */
 .teacher .suggestion {
   height: 68px;
-  padding: 14px 16px;
+  padding: 13px 15px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -439,7 +451,7 @@
   gap: 12px;
   width: 820px;
   height: 57px;
-  padding: 12px 12px 12px 16px;
+  padding: 11px 11px 11px 15px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -742,6 +754,67 @@
   border-radius: var(--radius);
   background: var(--answer-incorrect-surface);
   color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------- Kriky hỏi lại */
+
+/*
+ * Thẻ câu hỏi lại (artboard 3).
+ *
+ * Các phương án do **BE** viết, từ chính các row mà một tool trả về (ADR-23), và chúng tới
+ * đây dưới dạng chuỗi — một dòng, không phải một cặp tiêu đề và giải thích. Thiết kế từng
+ * vẽ hai dòng; artboard 3 đã được sửa trong cùng đợt này, và dòng thứ hai bị **ẩn** chứ
+ * không xoá, để ngày BE gửi được phần giải thích thì bật lại là xong.
+ *
+ * Bấm một phương án nghĩa là **gửi lại đúng chuỗi đó** như một câu của giáo viên. Nhờ vậy
+ * một lần F5 làm mất `choices` cũng không làm ai kẹt: gõ tay vẫn trả lời được.
+ */
+.teacher .clarify {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sunken);
+}
+
+.teacher .clarify h3 {
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .clarify .cut {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .clarify .choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teacher .clarify .choice {
+  padding: 11px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.teacher .clarify .fallback {
+  color: var(--ink-muted);
   font-size: var(--type-caption);
   line-height: 1.5;
 }

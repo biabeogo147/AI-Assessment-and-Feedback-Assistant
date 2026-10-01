@@ -62,7 +62,7 @@ và câu luật đáp lại *"tới hết 07:00"*. HTTP 200, không lỗi. Phả
       `teacher.css` với `[data-surface="teacher"]`. Cổng đo artboard 1.
 - [x] **Bước 4 — vòng lặp lượt + artboard 2.** `pending` → `turns`, `Thinking` hai variant,
       `ActionResultCard`. Thêm `Document` + tải lên + liệt kê trước khi dựng rail. Cổng đo artboard 2.
-- [ ] **Bước 5 — artboard 3.** `ask_clarify`, `choices`, rehydrate sau F5.
+- [x] **Bước 5 — artboard 3.** `ask_clarify`, `choices`, rehydrate sau F5.
 - [ ] **Bước 6 — artboard 6.** `Panel`, `QuestionCard`, `SourceChip`, `provenance.ts`.
 - [ ] **Bước 7 — sửa Figma ô giờ, rồi artboard 7.** `PublishSettings`, `preview`, hộp xác nhận, thất
       bại một phần.
@@ -247,6 +247,21 @@ và `backlog.md` giữ nó: tài liệu **chưa** đi vào prompt của AGENT.
 
 Tiện thể sửa một chỗ thiết kế tự lệch với chính nó: ba text của dải phạm vi để cỡ chữ **rời** (10 và
 12) trong khi mọi text khác trên artboard đều bind vào `Density`. Nay cả ba bind `type/caption`.
+
+Bước 5 xong: thẻ câu hỏi lại, và một lỗi **một pixel** mà phép đo artboard 1 chưa đủ sâu để thấy.
+Figma vẽ stroke kiểu `INSIDE`, nên padding của nó đo từ mép ngoài còn CSS thì cộng border rồi mới
+tới padding — mọi hộp có viền đẩy nội dung vào thêm đúng một pixel. Năm hộp bị sửa, và phép đo lại
+cho đúng 16/12/14 như thiết kế.
+
+Thẻ hỏi lại cũng buộc hai lần sửa thiết kế. `choices` của BE là **một chuỗi**, không phải cặp tiêu
+đề + giải thích, nên ba lựa chọn trên artboard 3 nay một dòng (dòng thứ hai bị **ẩn**, không xoá: ngày
+BE gửi được phần giải thích thì bật lại là xong). Và nội dung ví dụ đổi từ *"Lấy câu hỏi từ đâu?"* sang
+câu mà hệ thống thật sự hỏi — lớp nào — vì `_offered` chỉ dựng phương án từ `candidates` của một tool.
+Cùng lúc, năm cỡ chữ rời của thẻ (16, 14, 12) được bind vào `Density`.
+
+Câu hỏi nằm **cả** trong `turns` lẫn trên tiêu đề thẻ, nên lượt cuối bị gấp lại khi thẻ đang hiện —
+và chỉ khi chính nó là câu đó. Sau một lần F5 thì `choices` mất, câu hỏi quay về làm một bong bóng
+bình thường, và gõ tay vẫn trả lời được: không ai kẹt.
 
 Và một rò rỉ CSS mà phép đo artboard 1 chưa với tới: `.mark`, `.composer`, `.thread` đã tồn tại trong
 `tokens.css`. Một class trùng tên **không** ghi đè — nó cộng vào, nên mọi property bản giáo viên
