@@ -693,3 +693,20 @@ async def test_a_read_tool_asked_for_while_working_is_refused(stack) -> None:
                 pool=queue,
                 phase=PHASE_WORK,
             )
+
+
+def test_the_model_never_sees_the_optional_fields_of_a_draft() -> None:
+    """Thứ không nhìn thấy thì không hỏi được.
+
+    `difficulty` và `title` là tuỳ chọn, và tool vẫn **nhận** chúng. Nhưng chúng không còn được
+    mô tả cho model: đo trên trình duyệt thật năm lần với gpt-4o-mini, mỗi lần prompt cấm hỏi một
+    mục thì model tìm ra một mục khác chưa bị cấm — tên đề, độ khó, lớp, rồi xin xác nhận lại thứ
+    vừa đọc. Mỗi câu hỏi thừa tiêu trọn một lượt của giáo viên.
+
+    Đây là cùng một phép sửa mà ADR-25 dùng cho ranh giới pha: bỏ tool ghi khỏi catalog pha 1 thay
+    vì dặn model đừng gọi. Một lời dặn thì model quên được; một danh sách thiếu thì không.
+    """
+    asking = Asking(teacher_id="t", teacher_code="GV-001", full_name="Cô Lan")
+    spec = next(one for one in catalog_for(asking, PHASE_WORK) if one.name == "create_draft")
+
+    assert set(spec.arguments) == {"subject", "grade", "topic_scope", "question_count"}

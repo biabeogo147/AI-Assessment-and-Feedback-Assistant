@@ -634,21 +634,27 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="create_draft",
             description=(
-                "Mo mot de nhap trong. BAT BUOC co du: subject (mon), grade (khoi), topic_scope "
-                "(pham vi kien thuc, theo loi giao vien) va question_count (so cau). Thieu muc nao "
+                "Mo mot de nhap trong. Can DUNG BON muc: subject (mon), grade (khoi), topic_scope "
+                "(pham vi kien thuc, theo loi giao vien) va question_count (so cau). Du bon muc do "
+                "thi LAM NGAY, dung hoi them gi nua -- ten de va muc do kho he thong tu lo. "
+                "Thieu muc nao "
                 "thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc do truoc da, "
                 "vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. difficulty "
                 "va title la tuy chon -- DUNG HOI giao vien ve chung, he thong tu lo. Tool nay "
                 "KHONG sinh cau hoi, nen mot plan chi co buoc nay "
                 "se de lai mot de rong: hay dat start_drafting ngay sau no."
             ),
+            # Bốn mục, không sáu. `difficulty` và `title` vẫn **nhận được** ở thân tool, nhưng
+            # không còn được mô tả cho model -- và đó là một phép sửa cấu trúc, không phải một
+            # lời dặn nữa. Đo trên trình duyệt thật năm lần với gpt-4o-mini: mỗi lần prompt
+            # cấm hỏi một mục, model lại tìm ra một mục khác chưa bị cấm để hỏi, và mỗi câu
+            # hỏi thừa tiêu trọn một lượt của giáo viên. Thứ không nhìn thấy thì không hỏi
+            # được -- cùng cách ADR-25 bỏ tool ghi khỏi catalog pha 1 thay vì dặn đừng gọi.
             arguments={
                 "subject": "mon hoc, vi du Toan",
                 "grade": "khoi, vi du 12",
                 "topic_scope": "pham vi kien thuc theo loi giao vien",
                 "question_count": "so cau, 1 den 50",
-                "difficulty": "muc do theo loi giao vien (tuy chon)",
-                "title": "ten de (tuy chon, he thong tu dat neu bo trong)",
             },
         ),
         run=_create_draft,
