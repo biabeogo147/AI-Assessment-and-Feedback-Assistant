@@ -39,7 +39,7 @@ Chúng ở lại trong `backlog.md`.
       `test_a_teacher_keeps_one_conversation_across_messages`: nó đang khẳng định đúng cái luật vừa
       bị bỏ, nên phải nói luật mới. Cổng: năm test còn lại của `test_teacher_memory.py` **không**
       phải sửa một dòng nào.
-- [ ] **Bước 2 — `_conversation_of`.** Tìm đoạn chat đã sinh ra một đề qua `teacher_turns`. Cho
+- [x] **Bước 2 — `_conversation_of`.** Tìm đoạn chat đã sinh ra một đề qua `teacher_turns`. Cho
       `note_action` dùng nó thay cho "đoạn mới nhất". Cổng: đột biến trả nó về "mới nhất" làm đúng
       một test đỏ.
 - [ ] **Bước 3 — `GET /api/teacher/conversations`.** Trả `conversation_id`, `title`, `started_at`,
@@ -173,3 +173,13 @@ một luồng mới nghĩa là trợ lý quên sạch những gì vừa nói. M�
 được, và luồng cũ ở nguyên đó.
 
 Năm test khác của `test_teacher_memory.py` không phải sửa một dòng nào, đúng như plan dự tính.
+
+Bước 2 xong, và nó tìm ra một lỗi plan không đoán trước. `_latest_conversation` phân giải hoà bằng
+`id DESC` — một UUID, tức **xác định nhưng tuỳ tiện**. Điều đó vô hại suốt thời gian mỗi giáo viên
+chỉ có một luồng, và hại ngay ở luồng thứ hai: `datetime.now()` trên Windows nhảy từng bước ~15ms,
+nên hai luồng mở sát nhau có `started_at` bằng nhau và luồng thắng là luồng có UUID lớn hơn. Bấm
+*Đoạn chat mới* rồi gõ một câu, một nửa số lần câu ấy rơi vào luồng cũ.
+
+Nay khoá sắp xếp là `COALESCE(lần nói cuối, started_at)`, và nó đúng hơn về nghĩa chứ không chỉ chữa
+được hoà: *"luồng đang chạy"* là luồng **vừa nói**, không phải luồng **vừa mở**. Một giáo viên mở
+luồng mới hôm qua rồi quay lại luồng cũ nói tiếp thì luồng cũ mới là luồng họ đang ở.

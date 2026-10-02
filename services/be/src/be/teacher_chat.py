@@ -265,12 +265,22 @@ def _subject(result: dict) -> tuple[str, str]:
 
 
 async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | None:
-    """Tìm id của hội thoại đang chạy của giáo viên này, nếu họ có một hội thoại.
+    """Tìm id của hội thoại **đang chạy** của giáo viên này, nếu họ có một hội thoại.
 
-    Sắp theo `started_at` **rồi mới theo id**. Không có khoá thứ hai thì hai hội thoại
-    tạo ra trong cùng một nhịp đồng hồ sẽ bằng điểm, và row hàm này trả về khi đó là row
-    nào tuỳ database thích -- nên một giáo viên sẽ thấy history của mình nhảy qua nhảy lại
-    giữa hai luồng ở hai tin nhắn liên tiếp, một bug không bao giờ tái hiện lại được.
+    Đang chạy nghĩa là *vừa nói trong đó gần đây nhất*, không phải *mở gần đây nhất*. Hai
+    thứ đó khác nhau ngay khi có luồng thứ hai: một giáo viên mở luồng mới hôm qua rồi
+    quay lại luồng cũ nói tiếp thì luồng cũ mới là luồng họ đang ở.
+
+    Bản trước sắp theo `started_at` rồi tới `id`, và `id` là một UUID — tức một khoá phân
+    giải hoà **xác định nhưng tuỳ tiện**. Một thời gian dài điều đó không hại gì vì mỗi
+    giáo viên chỉ có một luồng. Nó hại ngay ở luồng thứ hai, và phép đo chỉ ra chỗ tệ
+    nhất: `datetime.now()` trên Windows nhảy từng bước ~15ms, nên hai luồng mở sát nhau có
+    `started_at` **bằng nhau** và luồng được chọn là luồng có UUID lớn hơn. Bấm *Đoạn chat
+    mới* rồi gõ một câu, và một nửa số lần câu ấy rơi vào luồng cũ.
+
+    Nên khoá sắp xếp là `COALESCE(lần nói cuối, started_at)`. Một luồng vừa mở chưa có
+    bước nào thì lấy chính giờ mở của nó — và giờ đó mới hơn lần nói cuối của mọi luồng
+    cũ, nên luồng vừa mở thắng, đúng như người bấm nút mong đợi.
 
     Args:
         session: Session của database.
@@ -279,10 +289,61 @@ async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | N
     Returns:
         id đó, hoặc None khi giáo viên chưa nói gì bao giờ.
     """
+    spoke = (
+        select(
+            TeacherTurn.conversation_id.label("conversation_id"),
+            func.max(TeacherTurn.created_at).label("at"),
+        )
+        .group_by(TeacherTurn.conversation_id)
+        .subquery()
+    )
+    active = func.coalesce(spoke.c.at, TeacherConversation.started_at)
     return await session.scalar(
         select(TeacherConversation.id)
+        .join(spoke, spoke.c.conversation_id == TeacherConversation.id, isouter=True)
         .where(TeacherConversation.teacher_id == asking.teacher_id)
-        .order_by(TeacherConversation.started_at.desc(), TeacherConversation.id.desc())
+        .order_by(active.desc(), TeacherConversation.id.desc())
+        .limit(1)
+    )
+
+
+async def _conversation_of(session: AsyncSession, asking: Asking, assessment_id: str) -> str | None:
+    """Đoạn chat nào đã sinh ra đề này.
+
+    Từ khi giáo viên mở được nhiều đoạn chat, *"ghi vào hội thoại đang chạy"* thôi không
+    còn là một câu rõ nghĩa: duyệt và phát hành xảy ra **ngoài** khung chat, nên phải có
+    một câu trả lời cho *"ngoài khung chat thì là khung nào"*.
+
+    Câu trả lời suy ra được từ dữ liệu đã có. `_subject` đã ghi `entity_kind` và
+    `entity_id` lên mỗi bước `tool_result` từ Pha 2, nên đề nào sinh ra từ đoạn nào là một
+    sự thật đã nằm sẵn trong bảng — không cần cột mới, và không cần một tham số mới trên
+    hai endpoint duyệt/phát hành.
+
+    Lấy bước **sớm nhất**: một đề được nhắc tới trong nhiều đoạn chat thì đoạn đã tạo ra
+    nó là đoạn nói về nó trước tiên.
+
+    Lọc theo `teacher_id` dù `assessment_id` đã đủ hiếm: hai bảng nối nhau qua một id mà
+    không ai kiểm chủ sở hữu là đúng cái lỗ mà ADR-22 dành cả một tài liệu để bịt.
+
+    Args:
+        session: Session của database.
+        asking: Ai đang hỏi.
+        assessment_id: Đề nào.
+
+    Returns:
+        id của đoạn chat, hoặc None khi đề không sinh ra từ đoạn chat nào — đề seed, hoặc
+        đề tạo bằng tay. Caller lùi về đoạn mới nhất chứ không nổ: một đề vẫn phải duyệt
+        được.
+    """
+    return await session.scalar(
+        select(TeacherTurn.conversation_id)
+        .join(TeacherConversation, TeacherConversation.id == TeacherTurn.conversation_id)
+        .where(
+            TeacherConversation.teacher_id == asking.teacher_id,
+            TeacherTurn.entity_kind == "assessment",
+            TeacherTurn.entity_id == assessment_id,
+        )
+        .order_by(TeacherTurn.created_at, TeacherTurn.id)
         .limit(1)
     )
 
@@ -462,16 +523,25 @@ async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord)
     một vị trí nằm trong `_record` và một caller thứ hai tự tính vị trí sẽ là một bản
     sao của luật đó, chờ lệch đi.
 
+    **Đoạn chat nào** là câu hỏi mà nhiều luồng làm cho khó. Không phải đoạn mới nhất:
+    giáo viên đang đọc một đoạn cũ, bấm *Duyệt*, rồi sẽ không tìm thấy biên bản ở đâu cả.
+    Là đoạn **đã sinh ra đề**, suy từ `entity_id` — xem `_conversation_of`. Đề không sinh
+    ra từ đoạn nào thì lùi về mới nhất.
+
     Args:
         session: Session của database. Hàm này commit.
         asking: Ai đang làm.
         record: Bước cần ghi. `tool_result` của nó nên mang một cờ thành công và một
-            `assessment_id`, vì đó là thứ `_subject` đọc để liên kết bước này với đề.
+            `assessment_id`, vì đó là thứ `_subject` đọc để liên kết bước này với đề --
+            và cũng là thứ quyết định biên bản rơi vào đoạn chat nào.
 
     Side effects:
         Mở một hội thoại nếu giáo viên chưa có, rồi chèn một bước và commit.
     """
-    thread = await _conversation(session, asking)
+    _, subject = _subject(record.tool_result)
+    thread = (await _conversation_of(session, asking, subject)) if subject else None
+    if thread is None:
+        thread = await _conversation(session, asking)
     stored = await _stored_turns(session, thread)
     await _record(session, thread, len(stored), record)
 

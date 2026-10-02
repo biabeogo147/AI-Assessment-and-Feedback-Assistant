@@ -35,6 +35,7 @@ from be.models import (
     Method,
     Question,
     Teacher,
+    TeacherConversation,
     TeacherTurn,
 )
 from be.seed import seed_if_empty
@@ -578,3 +579,56 @@ async def test_another_teachers_assessment_cannot_be_unapproved(stack) -> None:
     assert refused.status_code == absent.status_code == 404
     assert refused.json() == absent.json()
     assert await _state(maker, theirs) is AssessmentState.APPROVED
+
+
+@pytest.mark.asyncio
+async def test_the_record_lands_in_the_conversation_that_made_the_paper(stack) -> None:
+    """Biên bản duyệt rơi vào đoạn chat đã sinh ra đề, không phải đoạn mới nhất.
+
+    Từ khi giáo viên mở được nhiều đoạn chat, *"ghi vào hội thoại đang chạy"* không còn là
+    một câu rõ nghĩa. Ba câu trả lời khả dĩ, và hai cái sai theo cách **im lặng**: ghi vào
+    đoạn mới nhất thì giáo viên đang đọc một đoạn cũ, bấm *Duyệt*, rồi không bao giờ tìm
+    thấy biên bản; tin vào một id do client gửi thì BE không còn là bên quyết định.
+
+    Cái đúng suy ra được từ dữ liệu đã có: `teacher_turns.entity_id` đã lưu đề nào sinh ra
+    từ đoạn nào, từ Pha 2. Nên không endpoint nào phải nhận thêm tham số.
+    """
+    client, maker = stack[0], stack[1]
+    paper = await _draft(maker, questions=1)
+    teacher_id = await _teacher_id(maker, "GV-001")
+
+    async with maker() as session:
+        # Đoạn chat ĐÃ sinh ra đề, mở trước.
+        made_it = TeacherConversation(
+            teacher_id=teacher_id, started_at=datetime(2026, 1, 1, tzinfo=UTC)
+        )
+        session.add(made_it)
+        await session.flush()
+        session.add(
+            TeacherTurn(
+                conversation_id=made_it.id,
+                sequence=0,
+                kind="tool_result",
+                tool_name="create_draft",
+                tool_result={"created": True, "assessment_id": paper},
+                entity_kind="assessment",
+                entity_id=paper,
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+        )
+        # Và một đoạn chat mới hơn, không liên quan gì tới đề này.
+        session.add(
+            TeacherConversation(teacher_id=teacher_id, started_at=datetime(2026, 6, 1, tzinfo=UTC))
+        )
+        await session.commit()
+        made_it_id = made_it.id
+
+    answer = await client.post(f"/api/teacher/assessments/{paper}/approve", headers=TEACHER)
+    assert answer.status_code == 200, answer.text
+
+    async with maker() as session:
+        noted = await session.scalar(
+            select(TeacherTurn).where(TeacherTurn.tool_name == "teacher.approve")
+        )
+    assert noted is not None
+    assert noted.conversation_id == made_it_id

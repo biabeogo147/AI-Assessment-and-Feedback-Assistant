@@ -13,7 +13,7 @@ của mình thì không thể trả lời chỉ bằng mấy lời thoại.
 """
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -350,6 +350,10 @@ async def test_a_new_conversation_starts_a_second_thread(stack) -> None:
     Nửa còn lại của test trên. `schema` từng cấm chuyện này ở tầng database; nay hai
     hàng cùng `teacher_id` là hợp lệ, và `_latest_conversation` phải trỏ sang cái vừa
     mở — nếu không thì nút *Đoạn chat mới* mở một luồng mà không ai nói vào được.
+
+    Luồng cũ mang một bước của **hôm qua**, đúng hình dạng một luồng thật: `start_new`
+    chỉ xảy ra khi giáo viên đã nói ở đâu đó rồi. Và đó cũng là thứ làm phép kiểm cuối
+    có nghĩa — một luồng vừa mở phải thắng một luồng nói lần cuối hôm qua.
     """
     _, maker, _ = stack
 
@@ -359,6 +363,17 @@ async def test_a_new_conversation_starts_a_second_thread(stack) -> None:
         asking = Asking.of(teacher)
 
         first = await teacher_chat._conversation(session, asking)
+        session.add(
+            TeacherTurn(
+                conversation_id=first,
+                sequence=0,
+                kind="teacher",
+                text="hôm qua tôi nói ở đây",
+                created_at=datetime.now(UTC) - timedelta(days=1),
+            )
+        )
+        await session.commit()
+
         second = await teacher_chat._conversation(session, asking, start_new=True)
         latest = await teacher_chat._latest_conversation(session, asking)
 
@@ -366,9 +381,8 @@ async def test_a_new_conversation_starts_a_second_thread(stack) -> None:
 
     assert first != second
     assert len(started) == 2
-    # Luồng mới nhất là luồng vừa mở, không phải luồng đầu. Hai hàng sinh ra trong
-    # cùng một nhịp đồng hồ thì `started_at` bằng nhau, và khoá thứ hai là thứ giữ
-    # cho câu trả lời này xác định thay vì tuỳ database.
+    # Luồng đang chạy là luồng vừa mở, không phải luồng có UUID lớn hơn. Khoá sắp xếp là
+    # lần nói cuối, và một luồng chưa nói câu nào thì lấy chính giờ mở của nó.
     assert latest == second
 
 
