@@ -213,16 +213,37 @@ Dev server của FE phục vụ **cả hai** bề mặt; route quyết định b
 | Route | Màn hình |
 | --- | --- |
 | `http://localhost:5173/#/` | Danh sách bài của học sinh |
-| `http://localhost:5173/#/teacher` | Đoạn chat của giáo viên |
-| `http://localhost:5173/#/teacher/de/{assessment_id}` | Chat kèm panel đề |
-| `http://localhost:5173/#/teacher/de/{assessment_id}/phat-hanh` | Panel ở chế độ cài đặt phát hành |
+| `http://localhost:5173/#/teacher` | Đoạn chat **đang chạy** của giáo viên |
+| `http://localhost:5173/#/teacher/moi` | Màn trống, sau khi bấm *Đoạn chat mới* |
+| `http://localhost:5173/#/teacher/chat/{conversation_id}` | Một đoạn chat cụ thể |
+| `.../chat/{conversation_id}/de/{assessment_id}` | Chat kèm panel đề |
+| `.../chat/{conversation_id}/de/{assessment_id}/phat-hanh` | Panel ở chế độ cài đặt phát hành |
+
+Panel sống **bên trong** đoạn chat đã sinh ra đề (ADR-24). Link cũ `#/teacher/de/{id}` vẫn chạy: nó
+hỏi BE xem đề ấy thuộc đoạn nào rồi tự chuyển.
 
 Vai được chọn **tại chỗ khai tên endpoint** trong `api.ts`, không suy từ route đang mở: một request
 bay ra giữa lúc chuyển route sẽ mang sai vai, và triệu chứng là một `403` ở rất xa nguyên nhân.
 
-Nếu `GET /api/teacher/assessments/{id}` trả `500` kèm lỗi cột thiếu thì database đang cũ hơn model:
-`create_all` tạo bảng còn thiếu nhưng **không bao giờ** sửa một bảng đã có. Dựng một database mới
-(`CREATE DATABASE aiafa_fe;`) rồi trỏ `DATABASE_URL` sang đó, đừng vá từng cột.
+### Database cũ hơn model
+
+`prepare_schema` chỉ `create_all`, và `create_all` **không bao giờ** sửa một bảng đã tồn tại: không
+thêm cột, không bỏ constraint. Một `500` kèm *"column ... does not exist"*, hay một `IntegrityError`
+bất ngờ, gần như luôn là chuyện này.
+
+Rẻ nhất là dựng một database mới rồi trỏ `DATABASE_URL` sang đó:
+
+```powershell
+docker exec aiafa-postgres psql -U aiafa -d postgres -c "CREATE DATABASE aiafa_fe OWNER aiafa;"
+$env:DATABASE_URL = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa_fe"
+```
+
+Muốn giữ dữ liệu đang có thì hai câu dưới đây là phần mà đợt *nhiều đoạn chat* cần:
+
+```sql
+ALTER TABLE teacher_conversations DROP CONSTRAINT teacher_conversations_teacher_id_key;
+ALTER TABLE teacher_conversations ADD COLUMN title VARCHAR(120) NOT NULL DEFAULT '';
+```
 
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) vẫn còn cho tới khi hàng đợi
 review của giáo viên được thiết kế. Nó **không** nằm trong luồng lõi nữa; đừng đọc nó như cách hệ

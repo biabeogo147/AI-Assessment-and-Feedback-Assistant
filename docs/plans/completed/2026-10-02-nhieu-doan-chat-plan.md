@@ -57,7 +57,7 @@ Chúng ở lại trong `backlog.md`.
       mới*, `#/teacher/chat/{id}/de/{paper}`. Cổng: mở hai đoạn, bấm qua lại, F5 đúng chỗ.
 - [x] **Bước 9 — FE: thanh kéo.** `pointer` events + `localStorage` + `cursor: row-resize`. Cổng:
       kéo được, F5 nhớ vị trí.
-- [ ] **Bước 10 — tài liệu.** ADR-24, `backlog.md`, `local-development.md` (kèm câu `ALTER`), đóng
+- [x] **Bước 10 — tài liệu.** ADR-24, `backlog.md`, `local-development.md` (kèm câu `ALTER`), đóng
       plan.
 
 ## Decision Records
@@ -126,17 +126,17 @@ nay* — đó là thứ người ta đi tìm khi mở rail.
 
 ## Validation Checks
 
-- [ ] `.\dev.ps1 check` và `.\dev.ps1 test` xanh sau **mỗi** bước
-- [ ] Năm ca của *Review Focus* dưới đây, mỗi ca một test
-- [ ] Break-to-test ba chỗ, mỗi lần đúng một test đỏ: bỏ lọc `teacher_id` khỏi đường đọc hội thoại;
+- [x] `.\dev.ps1 check` và `.\dev.ps1 test` xanh sau **mỗi** bước
+- [x] Năm ca của *Review Focus* dưới đây, mỗi ca một test
+- [x] Break-to-test ba chỗ, mỗi lần đúng một test đỏ: bỏ lọc `teacher_id` khỏi đường đọc hội thoại;
       trả `note_action` về "đoạn mới nhất"; bỏ `try/except` quanh phần đặt tiêu đề
-- [ ] Một lượt chạy thật qua giao diện trên Postgres với `gpt-4o-mini`: mở đoạn chat mới, nói một
+- [x] Một lượt chạy thật qua giao diện trên Postgres với `gpt-4o-mini`: mở đoạn chat mới, nói một
       câu, đợi tiêu đề hiện trên rail, mở lại đoạn cũ, kiểm hai lịch sử không lẫn nhau, và kiểm nút
       *Xem* mở panel **trong** đoạn chat đang đứng
-- [ ] Kéo thanh ngăn, F5, vị trí giữ nguyên
-- [ ] Rail trên Figma đã vẽ sẵn nhóm ngày và hàng đang chọn, nên **không phải sửa Figma**. Chỗ nào
+- [x] Kéo thanh ngăn, F5, vị trí giữ nguyên
+- [x] Rail trên Figma đã vẽ sẵn nhóm ngày và hàng đang chọn, nên **không phải sửa Figma**. Chỗ nào
       lệch thì đo rồi sửa code
-- [ ] Mỗi commit mang trailer `Plan: 2026-10-02-nhieu-doan-chat-plan.md`
+- [x] Mỗi commit mang trailer `Plan: 2026-10-02-nhieu-doan-chat-plan.md`
 
 ## Review Focus
 
@@ -167,6 +167,32 @@ Plan này ban đầu chỉ ghi câu thứ nhất, và câu thứ hai lộ ra khi
 Câu này đi vào `local-development.md` ở bước 10.
 
 ## Status
+
+**Xong cả mười một bước.** Một giáo viên nay mở được nhiều đoạn chat, mỗi đoạn một tiêu đề do model
+đặt, và hai ngăn trên rail kéo giãn được.
+
+### Ba thứ chỉ tìm ra bằng cách chạy
+
+1. **`_latest_conversation` phân giải hoà bằng một UUID.** Vô hại suốt thời gian mỗi giáo viên một
+   luồng; hại ngay ở luồng thứ hai, vì `datetime.now()` trên Windows nhảy từng bước ~15ms nên hai
+   luồng mở sát nhau có `started_at` bằng nhau. Nay khoá sắp xếp là lần nói cuối — đúng hơn về
+   nghĩa, không chỉ chữa được hoà.
+2. **Nút *Đoạn chat mới* không làm gì khi đang ở `#/teacher`.** Hash không đổi thì `hashchange`
+   không bắn. Nay màn trống là một route riêng.
+3. **Thanh kéo kéo được nhưng không lưu.** Lần `set` cuối của một cú kéo đưa đúng giá trị đang có,
+   React bỏ qua, effect không chạy lại. Nay ghi thẳng khi thả tay.
+
+Thêm một bẫy cũ cắn lần nữa: `create_all` không thêm **cột** vào bảng đã có, y như nó không bỏ một
+constraint. `local-development.md` nay nói cả hai.
+
+### Thứ đợt này đẻ ra
+
+Hai món nợ mới trong `backlog.md`: chưa xoá hay đổi tên được một đoạn chat, và danh sách chưa phân
+trang. Cả hai đều đã được ADR-24 nêu thẳng ở mục *Thứ luật này chưa nói*.
+
+249 pytest, 21 vitest, 7 repo check, 2 import contract xanh.
+
+## Status cũ
 
 Xong bước 0 và 1. Constraint đã đi, cột `title` đã có, và `_conversation` nhận `start_new` — đúng
 một tham số, không thêm một đường thứ hai, y như docstring cũ của nó đã hẹn.
