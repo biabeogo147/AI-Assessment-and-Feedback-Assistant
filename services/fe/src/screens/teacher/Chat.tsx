@@ -88,6 +88,12 @@ export default function Chat({
     setHere(conversationId);
     setTurns([]);
     setAsked(null);
+    // Màn hình vừa bị xoá trắng, nên **không còn** đoạn nào đã tải. Thiếu dòng này thì
+    // `loaded` nói dối ngay ở một đường đi thường ngày: đang đọc đoạn X, bấm *Đoạn chat
+    // mới* (turns bị xoá, `loaded` vẫn là X), rồi bấm lại chính X trong lịch sử — guard
+    // trên thấy hai giá trị bằng nhau, kết luận "đã có sẵn trên màn hình" và trả về sớm,
+    // để lại một màn trắng. Chọn một đoạn khác thì lại chạy, nên lỗi trông như ngẫu nhiên.
+    loaded.current = null;
     if (fresh) return;
     teacher
       .conversation(conversationId ?? undefined)
@@ -207,14 +213,35 @@ export default function Chat({
       >
         {talking ? (
           <div className="stream">
-            {drawn.map((one, index) => (
-              <Exchange
-                key={index}
-                turn={one}
-                onOpen={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}`)}
-                onPublish={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)}
-              />
-            ))}
+            {blocks(drawn).map((block, index) =>
+              "said" in block ? (
+                <div className="exchange said" key={index}>
+                  <div className="said-bubble">{block.said}</div>
+                </div>
+              ) : (
+                <div className="exchange" key={index}>
+                  <Who />
+                  <div className="turn-body">
+                    {block.kriky.map((one, step) =>
+                      one.kind === "tool_result" ? (
+                        <ActionCard
+                          key={step}
+                          turn={one}
+                          onOpen={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}`)}
+                          onPublish={(paper) =>
+                            go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)
+                          }
+                        />
+                      ) : (
+                        <div className="reply-text" key={step}>
+                          {one.text}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              ),
+            )}
             {asked !== null && pending === null && (
               <Clarify asked={asked} onPick={(one) => void send(one)} />
             )}
@@ -321,39 +348,47 @@ export default function Chat({
   );
 }
 
+/** Một bong bóng của giáo viên, hoặc **cả** một lượt của Kriky. */
+type Block = { said: string } | { kriky: Turn[] };
+
 /**
- * Một lượt đã lưu.
+ * Gộp các lượt liên tiếp của Kriky thành **một** khối, và xếp trong khối theo thiết kế.
  *
- * `tool_call` **không** vẽ gì: nó không mang kết quả, và sau khi lượt xong thì nó là tiếng ồn.
- * `tool_result` thì thành một thẻ kết quả — một hành động đã xảy ra mà màn hình không nói gì
- * là đúng thứ ADR-05 ngăn.
+ * Một lượt của Kriky là nhiều dòng trong `turns`: các bước tool trước, câu trả lời sau. Vẽ
+ * mỗi dòng thành một khối ngang hàng thì hàng avatar — thứ chỉ gắn vào câu trả lời — rơi
+ * xuống **dưới** các thẻ kết quả, và màn hình đọc ra như Kriky nói sau khi đã làm xong,
+ * không ai biết các thẻ kia của ai. Avatar mở đầu khối là cách nói *"từ đây là Kriky"*, và
+ * nó phải nói điều đó **trước** thứ nó giới thiệu.
+ *
+ * Trong khối, **câu trả lời đi trước thẻ**, dù tool chạy trước về thời gian. Thứ tự này
+ * không phải tôi chọn: artboard `5 · Đã có đề nháp` (`12:46`) xếp `thread` là *Thinking →
+ * agent-conclusion → Action result card*. Và nó đọc đúng — câu trả lời nói Kriky đã làm gì,
+ * thẻ là bằng chứng của câu đó, nên bằng chứng nằm dưới lời khai.
+ *
+ * `tool_call` không vẽ gì: nó không mang kết quả, và sau khi lượt xong thì nó là tiếng ồn.
+ * Nó cũng không mở một khối — một lượt chỉ có `tool_call` sẽ là một avatar giới thiệu một
+ * khoảng trống.
  */
-function Exchange({
-  turn,
-  onOpen,
-  onPublish,
-}: {
-  turn: Turn;
-  onOpen: (assessmentId: string) => void;
-  onPublish: (assessmentId: string) => void;
-}) {
-  if (turn.kind === "teacher") {
-    return (
-      <div className="exchange said">
-        <div className="said-bubble">{turn.text}</div>
-      </div>
-    );
+function blocks(turns: Turn[]): Block[] {
+  const out: Block[] = [];
+  for (const one of turns) {
+    if (one.kind === "teacher") {
+      out.push({ said: one.text });
+      continue;
+    }
+    if (one.kind === "tool_call") continue;
+    const open = out[out.length - 1];
+    if (open !== undefined && "kriky" in open) open.kriky.push(one);
+    else out.push({ kriky: [one] });
   }
-  if (turn.kind === "tool_call") return null;
-  if (turn.kind === "tool_result") {
-    return <ActionCard turn={turn} onOpen={onOpen} onPublish={onPublish} />;
+  for (const block of out) {
+    if (!("kriky" in block)) continue;
+    block.kriky = [
+      ...block.kriky.filter((one) => one.kind !== "tool_result"),
+      ...block.kriky.filter((one) => one.kind === "tool_result"),
+    ];
   }
-  return (
-    <div className="exchange">
-      <Who />
-      <div className="reply-text">{turn.text}</div>
-    </div>
-  );
+  return out;
 }
 
 /** Hàng avatar và tên, dùng chung giữa lượt trả lời và lúc đang nghĩ. */

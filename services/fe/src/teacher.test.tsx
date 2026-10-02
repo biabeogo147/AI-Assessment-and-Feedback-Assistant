@@ -1,5 +1,6 @@
 /**
- * Ba chỗ bề mặt giáo viên có thể giành một quyết định khỏi tay BE.
+ * Năm chỗ bề mặt giáo viên có thể giành một quyết định khỏi tay BE, hoặc tự nói sai về
+ * chính nó.
  *
  * Không test nào ở đây kiểm một màn hình trông có đúng không — việc đó làm bằng cách đo
  * với Figma. Chúng kiểm ba điều khoản mà một lần sửa vô ý có thể phá mà không ai thấy:
@@ -11,6 +12,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ActionCard from "./screens/teacher/ActionCard";
+import Chat from "./screens/teacher/Chat";
 import PublishSettings from "./screens/teacher/PublishSettings";
 
 afterEach(() => {
@@ -193,5 +195,98 @@ describe("một bước đã xảy ra", () => {
       />,
     );
     expect(container.querySelector(".safety")).toBeNull();
+  });
+});
+
+/**
+ * Một lượt của Kriky gồm nhiều dòng trong `turns`: các bước tool trước, câu trả lời sau.
+ * Màn hình phải gộp chúng thành một khối và mở đầu bằng hàng avatar — một avatar nằm
+ * **dưới** các thẻ kết quả đọc ra như Kriky nói sau khi việc đã xong, và không ai biết
+ * mấy thẻ kia của ai.
+ */
+const SPOKEN = {
+  kind: "assistant",
+  text: "Đã tạo xong đề.",
+  conversation_id: "c1",
+  choices: [],
+  more_choices: 0,
+  turns: [
+    blank({ kind: "teacher", text: "Tạo đề cho 12A" }),
+    blank({ kind: "tool_call", tool_name: "create_draft" }),
+    blank({
+      kind: "tool_result",
+      tool_name: "create_draft",
+      tool_result: { assessment_id: "p1", title: "Hàm số", question_count: 6 },
+    }),
+    blank({ kind: "assistant", text: "Đã tạo xong đề." }),
+  ],
+};
+
+function blank(some: Record<string, unknown>) {
+  return {
+    kind: "",
+    text: "",
+    tool_name: "",
+    tool_result: {},
+    entity_kind: "",
+    entity_id: "",
+    model_tokens: 0,
+    duration_ms: 0,
+    ...some,
+  };
+}
+
+/** Trả `SPOKEN` cho đường hội thoại, rỗng cho tài liệu và danh sách đoạn chat. */
+function serve() {
+  const asked: string[] = [];
+  // jsdom không có `scrollIntoView`, và effect cuộn-xuống-đáy gọi nó ở mỗi lượt mới.
+  Element.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string) => {
+      asked.push(url);
+      const body = url.startsWith("/api/teacher/chat") ? SPOKEN : [];
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+    }),
+  );
+  return asked;
+}
+
+describe("một lượt của Kriky trên dòng hội thoại", () => {
+  it("mở đầu bằng avatar, rồi câu trả lời, rồi thẻ kết quả", async () => {
+    serve();
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
+
+    await waitFor(() => expect(document.querySelector(".action-card")).not.toBeNull());
+
+    // Đúng MỘT hàng avatar cho cả lượt, không một hàng cho mỗi dòng.
+    expect(document.querySelectorAll(".exchange .who")).toHaveLength(1);
+
+    const who = document.querySelector(".exchange .who") as Element;
+    const card = document.querySelector(".action-card") as Element;
+    const said = document.querySelector(".reply-text") as Element;
+
+    // DOCUMENT_POSITION_FOLLOWING = 4: thứ được so nằm SAU phần tử gọi. Thứ tự phải là
+    // avatar → câu trả lời → thẻ kết quả, đúng `thread` của artboard `5 · Đã có đề nháp`.
+    expect(who.compareDocumentPosition(said) & 4).toBe(4);
+    expect(said.compareDocumentPosition(card) & 4).toBe(4);
+  });
+
+  it("tải lại một đoạn vừa rời đi vì bấm Đoạn chat mới", async () => {
+    const asked = serve();
+    const { rerender } = render(
+      <Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />,
+    );
+    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
+
+    // Bấm *Đoạn chat mới*: màn trắng, và không còn đoạn nào đang nằm trên màn hình.
+    rerender(<Chat conversationId={null} fresh openPaper={null} publishing={false} />);
+    expect(screen.queryByText("Đã tạo xong đề.")).toBeNull();
+
+    // Bấm lại ĐÚNG đoạn vừa rời đi. Nó phải hiện lại — không phải một màn trắng vì ai đó
+    // tưởng nó vẫn đang ở trên màn hình.
+    rerender(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
+    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
+    expect(asked.filter((one) => one.startsWith("/api/teacher/chat")).length).toBeGreaterThan(1);
   });
 });

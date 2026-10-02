@@ -40,16 +40,16 @@
 
   display: flex;
   /*
-   * Rộng nhất 1440 và căn giữa, y như bề mặt học sinh.
+   * Bề mặt chiếm **cả** cửa sổ, không bó 1440 rồi căn giữa.
    *
-   * `tokens.css` đã chốt luật này từ đầu — *"Mọi màn hình rộng 1440 và căn giữa.
-   * Thiết kế này không fluid"* — và bên học sinh thi hành nó bằng `.frame`. Bản
-   * giáo viên đầu tiên thiếu đúng hai dòng ấy, nên trên một màn 1920 cả bề mặt
-   * dính mép trái: rail ở x=0, cột chat trôi theo, và 480px bên phải bỏ trống.
-   * Trên một màn 2560 thì nó đúng cái mà `tokens.css` tả là "hai cột ở xa nhau".
+   * Luật 1440 của `tokens.css` nói về bề rộng *nội dung đọc được*, và ở đây nội
+   * dung ấy đã tự giữ bề rộng: cột giữa cố định 820 với `.center` căn giữa nó,
+   * panel đề cố định 420. Bó thêm ở ngoài không làm cột chat hẹp lại — nó chỉ
+   * kéo rail rời mép trái, để lại hai dải `--paper` trống hai bên một dải điều
+   * hướng. Rail là đồ nội thất của cửa sổ, không phải của trang: nó dán mép
+   * trái, chỗ dư rơi vào cột giữa, và cột chat vẫn nằm giữa chỗ dư ấy.
    */
-  max-width: var(--frame);
-  margin: 0 auto;
+  width: 100%;
   height: 100vh;
   overflow: hidden;
   background: var(--paper);
@@ -659,6 +659,17 @@
   font-size: var(--type-label);
   font-weight: 600;
   line-height: 1.5;
+}
+
+/*
+ * Thân của một lượt Kriky: câu trả lời rồi các thẻ kết quả. Avatar cách thân 6 (gap của
+ * `.exchange`) vì hai thứ ấy là một cụm; trong thân thì 20, đo từ artboard `5 · Đã có đề
+ * nháp` — conclusion cao tới y=321, thẻ bắt đầu ở y=341.
+ */
+.teacher .turn-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .teacher .reply-text {
