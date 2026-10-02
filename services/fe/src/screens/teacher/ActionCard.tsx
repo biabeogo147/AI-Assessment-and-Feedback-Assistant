@@ -38,13 +38,31 @@ export function stepFor(turn: Turn): Step {
     // Tool chưa có trong bảng vẫn phải đọc được bằng tiếng người. In `turn.tool_name` ra
     // đây là thả một định danh máy lên bề mặt giáo viên, đúng thứ `teacher-surface.md` cấm.
     title: STEP_TITLE[turn.tool_name] ?? "Một bước nữa",
-    result: refused ? dash(String(result.reason ?? "")) : dash(outcome(turn)),
+    result: refused ? dash(why(result)) : dash(outcome(turn)),
   };
 }
 
-/** Lời từ chối của một tool: ba cờ, cùng một nghĩa. */
+/**
+ * Việc đó đã **không** xảy ra: ba cờ từ chối của tool, và một `error` do BE dựng.
+ *
+ * `error` phải nằm đây. Một bước ném exception trả về `{"error": …}` và **không** có cờ nào
+ * trong ba cờ kia, nên một phép kiểm chỉ nhìn ba cờ đọc nó thành *đã xong*: dấu `✓` cho một
+ * việc chưa xảy ra, một dòng kết quả bịa ra từ các field không tồn tại (`đề "", cần 0 câu`),
+ * và một thẻ `Đã tạo đề` cho một cái đề không hề được tạo. Đo thấy cả ba trên trình duyệt
+ * thật, từ cùng một thiếu sót này.
+ */
 function refusal(result: Record<string, unknown>): boolean {
-  return result.found === false || result.created === false || result.started === false;
+  return (
+    Boolean(result.error) ||
+    result.found === false ||
+    result.created === false ||
+    result.started === false
+  );
+}
+
+/** Câu BE viết cho một việc không xảy ra: `reason` của tool, hoặc `error` của vòng chạy. */
+function why(result: Record<string, unknown>): string {
+  return String(result.reason ?? result.error ?? "");
 }
 
 /** `— ` đứng trước dòng kết quả, đúng như thiết kế; chuỗi rỗng thì vẫn rỗng. */
@@ -86,10 +104,25 @@ function outcome(turn: Turn): string {
  * @returns Lượt được lên thẻ, hoặc `null`.
  */
 export function cardTurn(turns: Turn[]): Turn | null {
+  // Đề đã bắt đầu được đổ câu vào thì trạng thái "trống" của nó không còn đứng vững: chính
+  // bước sau đã thay nó. Một plan "tạo đề 10 câu" vì thế **không** mọc ra thẻ *Chưa có câu
+  // hỏi nào* — một thẻ nói với giáo viên rằng việc được nhờ đã xong và cho ra một cái đề
+  // rỗng, trong khi việc ấy đang chạy. Đề chưa đủ câu thì ở lại trong khối bước, và câu báo
+  // cáo cuối lượt nói nó đang tới đâu (ADR-25).
+  const filling = turns.some(
+    (one) =>
+      one.kind === "tool_result" &&
+      one.tool_name === "start_drafting" &&
+      one.tool_result.started !== false,
+  );
+
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const turn = turns[index];
     if (turn.kind !== "tool_result") continue;
     if (turn.tool_name === "start_drafting") continue;
+    if (turn.tool_name === "create_draft" && filling && turn.tool_result.created !== false) {
+      continue;
+    }
     if (turn.tool_name === "find_class" || turn.tool_name === "class_assessment_summary") continue;
     // Đề chưa có câu nào thì `draft_progress` chưa phải một kết quả, nó mới là một lần ngó.
     if (turn.tool_name === "draft_progress") {
@@ -147,7 +180,7 @@ export default function ActionCard({
       <Card
         tone="refused"
         head="Không tạo được đề"
-        detail={String(result.reason ?? "")}
+        detail={why(result)}
         safety="Chưa có gì được thay đổi"
         actions={[{ label: "Thử lại", onClick: () => onCompose(""), primary: true }]}
       />

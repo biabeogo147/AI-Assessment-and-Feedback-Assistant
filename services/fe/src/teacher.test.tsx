@@ -280,6 +280,48 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
     expect(said.compareDocumentPosition(card) & 4).toBe(4);
   });
 
+  it("vẫn chỉ MỘT avatar khi lượt có cả câu mở đầu lẫn câu kết", async () => {
+    // Đây là hình dạng đầy đủ của một lượt hai pha: Kriky nói trước khi bắt tay, chạy plan,
+    // rồi kể lại. Bản trước dựng avatar lần thứ hai cho câu kết, nên cùng một người nói
+    // được giới thiệu hai lần trong một lượt — thấy rõ trên hội thoại thật, và đọc rất ồn.
+    Element.prototype.scrollIntoView = vi.fn();
+    const full = {
+      ...SPOKEN,
+      turns: [
+        blank({ kind: "teacher", text: "Tạo đề 10 câu cho 12A" }),
+        blank({ kind: "assistant", text: "Được, mình soạn đề ngay." }),
+        blank({ kind: "tool_call", tool_name: "create_draft" }),
+        blank({
+          kind: "tool_result",
+          tool_name: "create_draft",
+          tool_result: { assessment_id: "p1", title: "Hàm số", question_count: 10 },
+        }),
+        blank({ kind: "assistant", text: "Đã tạo xong đề." }),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(url.startsWith("/api/teacher/chat") ? full : []),
+        }),
+      ),
+    );
+
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
+    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
+
+    expect(document.querySelectorAll(".exchange .who")).toHaveLength(1);
+
+    // Và thứ tự đọc giữ nguyên: câu mở → khối bước → câu kết.
+    const opening = screen.getByText("Được, mình soạn đề ngay.");
+    const block = document.querySelector(".steps-block") as Element;
+    const ending = screen.getByText("Đã tạo xong đề.");
+    expect(opening.compareDocumentPosition(block) & 4).toBe(4);
+    expect(block.compareDocumentPosition(ending) & 4).toBe(4);
+  });
+
   it("tải lại một đoạn vừa rời đi vì bấm Đoạn chat mới", async () => {
     const asked = serve();
     const { rerender } = render(
@@ -312,6 +354,80 @@ describe("một lượt của Kriky", () => {
     ];
     const card = cardTurn(turns);
     expect(card?.tool_name).toBe("draft_progress");
+  });
+
+  it("KHÔNG mọc thẻ đề trống khi câu hỏi đang được đổ vào đề ấy", () => {
+    // Đúng hình dạng một plan hai bước của ADR-25: mở đề, rồi soạn câu. Lúc lượt kết thúc,
+    // các câu còn đang chạy trong hàng đợi, nên chưa có `draft_progress` nào.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { created: true, title: "Tích phân 12A1", question_count: 10 },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        tool_result: { started: true, queued: 10 },
+      }),
+    ];
+
+    // Không thẻ nào. "Đã tạo đề — Chưa có câu hỏi nào" ở đây là một lời khẳng định sai: giáo
+    // viên nhờ một đề CÓ câu hỏi, và việc ấy đang chạy, không phải vừa xong với đề rỗng.
+    expect(cardTurn(turns)).toBeNull();
+  });
+
+  it("vẫn mọc thẻ đề trống khi không có bước nào đổ câu vào nó", () => {
+    // Một lượt chỉ mở đề — giáo viên nói "mở cho tôi một đề trống" — thì trạng thái trống
+    // **là** kết quả của lượt, và thẻ ấy nói đúng.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { created: true, title: "Tích phân 12A1" },
+      }),
+    ];
+    expect(cardTurn(turns)?.tool_name).toBe("create_draft");
+  });
+
+  it("đọc một bước ném exception là HỎNG, không phải xong", () => {
+    // BE nuốt exception của một bước và ghi `{"error": …}` — không có cờ `created`/`started`
+    // nào cả. Một phép kiểm chỉ nhìn ba cờ ấy đọc nó thành *đã xong*: dấu ✓ cho một việc
+    // chưa xảy ra, và dòng kết quả bịa ra `đề "", cần 0 câu` từ các field không tồn tại.
+    // Cả hai đã thấy trên trình duyệt thật.
+    const step = stepFor(
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { error: "bước 1 chạy không xong" },
+      }),
+    );
+    expect(step.mark).toBe("failed");
+    expect(step.result).toBe("— bước 1 chạy không xong");
+  });
+
+  it("một bước ném exception cho thẻ THẤT BẠI, không phải thẻ đề trống", () => {
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { error: "bước 1 chạy không xong" },
+      }),
+    ];
+    expect(cardTurn(turns)?.tool_name).toBe("create_draft");
+
+    render(
+      <ActionCard
+        turn={turns[0]}
+        onOpen={() => undefined}
+        onPublish={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    // "Đã tạo đề" ở đây là nói rằng một cái đề đã tồn tại. Không có cái đề nào.
+    expect(screen.getByText("Không tạo được đề")).toBeTruthy();
+    expect(screen.queryByText("Chưa có câu hỏi nào")).toBeNull();
+    expect(screen.getByText("Chưa có gì được thay đổi")).toBeTruthy();
   });
 
   it("để start_drafting lại làm một bước chứ không bỏ nó đi", () => {

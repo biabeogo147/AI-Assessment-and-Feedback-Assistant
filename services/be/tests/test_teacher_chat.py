@@ -30,7 +30,15 @@ from be import teacher_chat
 from be.config import get_settings
 from be.db import bind_sessions, prepare_schema
 from be.identity import Asking
-from be.models import Assessment, AssessmentState, SchoolClass, Student, Teacher, TeacherTurn
+from be.models import (
+    Assessment,
+    AssessmentState,
+    SchoolClass,
+    Student,
+    Teacher,
+    TeacherConversation,
+    TeacherTurn,
+)
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
 from be.teacher_tools import UnknownTool, execute
@@ -653,3 +661,122 @@ async def test_nothing_is_announced_before_it_is_written(stack) -> None:
     # `tool_call` của nó cũng vậy.
     assert seen["plan"] >= 3  # teacher + câu mở đầu + plan
     assert seen["step_started"] >= 4  # thêm tool_call
+
+
+@pytest.mark.asyncio
+async def test_the_planning_phase_sees_the_working_tools_without_being_able_to_call_them(
+    stack,
+) -> None:
+    """Hai danh mục đi cùng một request, và chúng không được trộn vào nhau.
+
+    Pha 1 không gọi được tool ghi, nhưng nó phải **nêu** được chúng trong một plan — kèm
+    đúng tên tham số, vì `vet_plan` so tên tham số với spec và từ chối trọn gói cả plan.
+    Không gửi `plannable` thì model phải đoán tên tool và tên tham số của những thứ nó
+    chưa từng thấy mô tả, và mọi plan nó viết ra đều bị từ chối. Trộn hai danh mục lại thì
+    mở đúng cánh cửa ADR-25 đóng: ghi trước khi hỏi.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Chào bạn."))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    await http.post("/api/teacher/chat/messages", json={"text": "chào"}, headers=TEACHER)
+
+    asked = agent.asked[0]
+    callable_now = {one["name"] for one in asked["catalog"]}
+    plannable = {one["name"] for one in asked["plannable"]}
+    assert "create_draft" not in callable_now
+    assert "start_drafting" not in callable_now
+    assert {"create_draft", "start_drafting"} <= plannable
+    # Và chiều ngược lại: một tool tra cứu không được nằm trong danh sách "hẹn làm", nếu
+    # không model sẽ nhét một bước đọc vào plan và BE phải từ chối nó.
+    assert "find_class" not in plannable
+
+    spec = next(one for one in asked["plannable"] if one["name"] == "create_draft")
+    assert set(spec["arguments"]) >= {"subject", "grade", "topic_scope", "question_count"}
+
+
+@pytest.mark.asyncio
+async def test_a_reference_that_cannot_be_resolved_does_not_leak_field_names(stack) -> None:
+    """Lý do một bước không ghép được dữ liệu là chữ cho log, không phải chữ cho giáo viên.
+
+    `Unresolvable` nói "bước 1 trả về assessment_id rỗng" hoặc trích nguyên văn `{1.id}` —
+    đúng thứ một người sửa lỗi cần, và đúng thứ giáo viên không cần. Chuỗi ấy đi qua **ba**
+    cửa nếu không ai chặn: `step_failed.detail` ra màn hình, `StepOutcome.detail` vào prompt
+    của lời kể (model sẽ nhắc lại nguyên văn), và câu ghép dự phòng của BE.
+
+    Đây là đúng cái lỗ mà `_said_about` đã bịt ở nhánh thường, và nhánh này đi vòng qua nó.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                # Khuôn đúng và trỏ về phía sau, nên `vet_plan` cho qua: field không tồn tại
+                # là thứ chỉ biết được lúc chạy, vì `ToolSpec` không chở tên field trả về.
+                args={"assessment_id": "{1.khong_co_field_nay}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu Hàm số"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    detail = next(one["detail"] for one in agent.reported[0]["outcomes"] if not one["ok"])
+    assert "khong_co_field_nay" not in detail
+    assert "{" not in detail
+    assert detail == "chưa ghép được dữ liệu từ bước trước"
+
+
+@pytest.mark.asyncio
+async def test_a_turn_reports_only_its_own_rows_even_on_a_gapped_history(stack) -> None:
+    """Câu trả lời của một lượt chỉ chở các dòng **của lượt ấy**.
+
+    `began` từng đọc từ **số dòng** của hội thoại, và hai con số ấy chỉ bằng nhau khi dãy
+    `sequence` liền mạch từ 0. Một hội thoại dựng tay — hay một dòng bị xoá — làm `began`
+    tụt lại, nên câu trả lời chở thêm mấy dòng của lượt trước; client ghép chúng vào sau
+    những dòng nó đã vẽ, và cùng một câu hiện **hai lần**. Mất sau một lần F5, nên nó đọc
+    như một lỗi render ngẫu nhiên. Đo thấy trên trình duyệt thật.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Chào bạn."))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    teacher = await _teacher(maker, "GV-001")
+
+    # Một hội thoại có sẵn, đánh số **từ 1** — đúng hình dạng một dãy không liền mạch.
+    async with maker() as session:
+        session.add(
+            TeacherConversation(id="c-gap", teacher_id=teacher.id, started_at=datetime.now(UTC))
+        )
+        await session.flush()
+        for index, (kind, text) in enumerate(
+            [("teacher", "chào"), ("assistant", "Chào bạn, mình giúp gì được?")], start=1
+        ):
+            session.add(
+                TeacherTurn(
+                    conversation_id="c-gap",
+                    sequence=index,
+                    kind=kind,
+                    text=text,
+                    created_at=datetime.now(UTC),
+                )
+            )
+        await session.commit()
+
+    answer = await http.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn giúp tôi một đề", "conversation_id": "c-gap"},
+        headers=TEACHER,
+    )
+
+    assert answer.status_code == 200
+    said = [turn["text"] for turn in answer.json()["turns"]]
+    # Đúng hai dòng mới, và **không** có dòng nào của lượt trước đi kèm.
+    assert said == ["soạn giúp tôi một đề", "Chào bạn."]
+    assert "Chào bạn, mình giúp gì được?" not in said

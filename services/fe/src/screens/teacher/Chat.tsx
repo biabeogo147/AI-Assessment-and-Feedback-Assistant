@@ -420,9 +420,11 @@ function blocks(turns: Turn[]): Block[] {
 /**
  * Một lượt của Kriky trên dòng hội thoại.
  *
- * Avatar mở đầu **mỗi** khối lời nói: nó nói *"từ đây là Kriky"*, nên nó đứng trước thứ nó
- * giới thiệu. Artboard 5 có hai hàng avatar trong một lượt — một ở câu mở, một ở câu kết —
- * và khối các bước nằm giữa chúng, không mang avatar.
+ * **Một lượt, một avatar, ở trên cùng.** Nó nói *"từ đây là Kriky"* một lần, rồi mọi thứ
+ * thuộc về lượt ấy — câu mở, khối bước, câu kết, thẻ — nằm dưới nó. Bản trước dựng avatar
+ * lần thứ hai cho câu kết (artboard 5 vẽ vậy), và trên một hội thoại thật thì cùng một
+ * người nói được giới thiệu hai lần trong một lượt: ồn, và sai về nghĩa — hàng avatar là
+ * ranh giới giữa hai người nói, không phải một dấu trang trí cho mỗi đoạn văn.
  *
  * @param said - Lượt đã tách thành bốn khối.
  * @param onOpen - Mở panel của một đề.
@@ -441,64 +443,28 @@ function Turnful({
   onCompose: (text: string) => void;
 }) {
   const steps = said.steps.length > 0 ? <Steps steps={said.steps} /> : null;
-  // Model nói một câu trước khi bắt tay làm thì câu ấy là thứ avatar giới thiệu, và khối
-  // bước đứng riêng bên dưới — đúng artboard 5. Model gọi tool luôn, chuyện thường ngày,
-  // thì avatar giới thiệu chính khối bước: một lượt của Kriky **không bao giờ** bắt đầu
-  // bằng một khối trần không ai biết của ai.
-  const quiet = said.opening === "";
-  const hands = { onOpen, onPublish, onCompose };
 
+  // Một khối duy nhất dưới avatar, nhịp 20 giữa các phần — nhịp 6 chỉ nằm giữa avatar và
+  // phần đầu tiên. Nhờ vậy thứ tự đọc của thiết kế giữ nguyên dù lượt thiếu phần nào:
+  // câu mở → khối bước → câu kết → thẻ.
   return (
     <div className="exchange">
       <div className="voice">
         <Who />
-        {!quiet && (
-          <div className="turn-body">
-            <div className="reply-text">{said.opening}</div>
-          </div>
-        )}
-        {quiet && steps}
-        {/* Lượt chỉ có lời — trả lời một câu hỏi, chốt lại một lựa chọn — thì cả lượt nằm
-            trong khối này. Tách nó ra một `.voice` thứ hai sẽ đẩy câu nói xuống 20px dưới
-            avatar của chính nó, vì nhịp giữa hai khối là 20 còn nhịp avatar–lời là 6. */}
-        {quiet && steps === null && <Body said={said} {...hands} />}
-      </div>
-      {!quiet && steps}
-      {quiet && steps !== null && <Body said={said} {...hands} />}
-      {!quiet && (said.conclusion !== "" || said.card !== null) && (
-        <div className="voice">
-          <Who />
-          <Body said={said} {...hands} />
+        <div className="turn-body">
+          {said.opening !== "" && <div className="reply-text">{said.opening}</div>}
+          {steps}
+          {said.conclusion !== "" && <div className="reply-text">{said.conclusion}</div>}
+          {said.card !== null && (
+            <ActionCard
+              turn={said.card}
+              onOpen={onOpen}
+              onPublish={onPublish}
+              onCompose={onCompose}
+            />
+          )}
         </div>
-      )}
-    </div>
-  );
-}
-
-/** Câu kết và thẻ kết quả của một lượt — phần nằm dưới avatar, hoặc dưới khối bước. */
-function Body({
-  said,
-  onOpen,
-  onPublish,
-  onCompose,
-}: {
-  said: Spoken;
-  onOpen: (assessmentId: string) => void;
-  onPublish: (assessmentId: string) => void;
-  onCompose: (text: string) => void;
-}) {
-  if (said.conclusion === "" && said.card === null) return null;
-  return (
-    <div className="turn-body">
-      {said.conclusion !== "" && <div className="reply-text">{said.conclusion}</div>}
-      {said.card !== null && (
-        <ActionCard
-          turn={said.card}
-          onOpen={onOpen}
-          onPublish={onPublish}
-          onCompose={onCompose}
-        />
-      )}
+      </div>
     </div>
   );
 }

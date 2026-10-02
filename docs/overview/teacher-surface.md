@@ -33,18 +33,19 @@ Trường hợp artboard `5 · Đã có đề nháp` (`12:46`) chụp lại — 
 | 3 | Câu kết | `agent-conclusion`, cũng là `Message turn` (Vai=agent) | Khi lượt kết thúc bằng `say` |
 | 4 | Thẻ kết quả | `Action result card` (`10:63`) | **Tối đa một thẻ cho một lượt** |
 
-Hàng avatar mở đầu mỗi `Message turn` — nó nói *"từ đây là Kriky"*, nên nó phải đứng **trước** thứ nó
-giới thiệu, không bao giờ nằm dưới một thẻ kết quả.
-
-**Một lượt không bao giờ bắt đầu bằng khối bước trần.** Artboard 5 có câu mở đầu *"Được, tôi bắt đầu
-nhé."* nên avatar giới thiệu câu ấy, rồi khối bước đứng riêng bên dưới, cách 20. Nhưng dữ liệu thật
-thường **không có** câu mở đầu: model gọi tool ngay. Khi đó avatar giới thiệu chính khối bước và đứng
-cách nó 6 — cùng một cụm, như avatar với câu nói. Thứ tự đọc giữ nguyên trong cả hai trường hợp:
+**MỘT LƯỢT, MỘT AVATAR, Ở TRÊN CÙNG.** Hàng avatar nói *"từ đây là Kriky"* — nó là **ranh giới giữa
+hai người nói**, không phải một dấu trang trí cho mỗi đoạn văn. Nên nó xuất hiện đúng một lần cho cả
+lượt, trước thứ đầu tiên nó giới thiệu, và mọi phần còn lại nằm dưới nó:
 
 > avatar → (câu mở đầu, nếu có) → `Đã làm n bước` → câu kết → thẻ kết quả
 
-Avatar thứ hai chỉ xuất hiện khi avatar thứ nhất đã dùng cho câu mở đầu. Hai hàng avatar cho một lượt
-không có câu mở đầu là hai lần giới thiệu cùng một người nói.
+Bản trước dựng avatar lần thứ hai cho câu kết — artboard 5 vẽ vậy, và FE chép theo. Trên một hội
+thoại thật thì cùng một người nói được giới thiệu hai lần trong một lượt: ồn, và sai về nghĩa. Figma
+đã sửa cùng change set (hàng avatar của `agent-conclusion` trên artboard 5 ẩn đi).
+
+Nhịp: **6** giữa avatar và phần đầu tiên, **20** giữa các phần với nhau. Thứ tự đọc giữ nguyên dù
+lượt thiếu phần nào — dữ liệu thật thường không có câu mở đầu, và khi đó avatar giới thiệu thẳng khối
+bước.
 
 ### Luật quan trọng nhất: thẻ mọc cho kết quả còn đứng vững
 
@@ -58,7 +59,7 @@ rỗng không bao giờ thành thẻ, vì nó đã bị chính bước sau thay 
 | --- | --- | --- |
 | `find_class` | một bước trong `Thinking` | Nhập nhằng thì lượt kết thúc bằng `Clarify request`, không phải thẻ |
 | `class_assessment_summary` | một bước | Kết quả đi vào câu kết |
-| `create_draft` | một bước; **thẻ** `tạo-đề-trống` khi đó là kết quả cuối của lượt | Thất bại → thẻ `tạo-thất-bại` |
+| `create_draft` | một bước. **Thẻ** `tạo-đề-trống` **chỉ** khi không bước nào trong lượt đổ câu vào đề ấy | Có `start_drafting` phía sau thì trạng thái trống **không còn đứng vững** — chính bước sau đã thay nó, nên không thẻ nào. Thất bại → thẻ `tạo-thất-bại` |
 | `start_drafting` | **chỉ là một bước** — không có variant thẻ nào | Figma không vẽ thẻ cho nó, và một thẻ tự chế ở đây nói với giáo viên rằng một việc đã xong trong khi nó vừa bắt đầu |
 | `draft_progress` | một bước; **thẻ** `thêm-câu-hỏi` khi các câu đã về đủ | Thẻ ghi số câu **thật đã có**, không ghi số chỗ đã đặt |
 
@@ -74,11 +75,14 @@ thu gọn được nhưng không bao giờ mất."* Giáo viên đứng trước
 | --- | --- | --- | --- |
 | `đang chạy` (`83:72`) | Lượt đang chạy | Mở sẵn. Header là **tiêu đề của bước đang chạy** kèm `…`, bên phải là `bước k/n`; bước ấy đánh `○` | Được |
 
-> **`đang chạy` chưa nối dữ liệu.** BE trả cả lượt một lần khi nó xong, nên FE không bao giờ
-> thấy một bước ở giữa chừng: mọi bước tới nơi đã là `✓` hoặc `✕`. Phần dựng sẵn trong code
-> (dấu `○`, nhãn `bước k/n`, tiêu đề đậm) vì thế **chưa chạy lần nào**, và nó chỉ sống khi BE
-> có đường đẩy từng bước về. Ngày ấy tới thì phải sửa thêm một chỗ: khối đang mở vì đang chạy
-> phải **tự thu lại** lúc lượt xong, mà state hiện giữ nguyên lựa chọn của người đọc.
+> **`đang chạy` chưa nối dữ liệu, nhưng `k/n` nay là số thật.** BE đã có một dãy sự kiện cho
+> từng bước (`run_turn` phát `plan`, `step_started`, `step_done`, `step_failed`), và `n` đọc từ
+> số bước của plan — nói được `bước 3/5` chính vì plan có **trước** khi chạy (ADR-25). Chỗ còn
+> thiếu là **cửa ra**: `POST` rút cạn dãy ấy rồi chỉ trả trạng thái cuối, nên FE vẫn nhận cả
+> lượt một lần và mọi bước tới nơi đã là `✓` hoặc `✕`. Dấu `○` và nhãn `bước k/n` vì thế **chưa
+> chạy lần nào**; chúng sống khi đường SSE mở. Ngày ấy tới thì phải sửa thêm một chỗ: khối đang
+> mở vì đang chạy phải **tự thu lại** lúc lượt xong, mà state hiện giữ nguyên lựa chọn của
+> người đọc.
 | `đã xong` (`83:73`) | Lượt kết thúc **thành công** | **Tự thu lại** còn một dòng `Đã làm {n} bước` | Đang thu |
 | `đã xong — mở` (`83:74`) | Người dùng bấm chevron | Mở lại đầy đủ các bước | Được |
 | `thất bại` (`83:75`) | Lượt dừng vì một bước hỏng | Mở sẵn. Header `Dừng ở bước {k} — {lý do}`; bước hỏng đánh `✕` kèm dòng giải thích | **Không.** Thu một lỗi lại là giấu lỗi |
@@ -86,11 +90,17 @@ thu gọn được nhưng không bao giờ mất."* Giáo viên đứng trước
 Một bước gồm ba phần: **dấu** (`✓` xong, `○` đang chạy, `✕` hỏng), **tiêu đề việc**, và tuỳ chọn một
 **dòng kết quả** mở đầu bằng `— `. Dòng kết quả là chữ của BE; FE in nguyên văn, không viết lại.
 
-**Chữ mẫu trong Figma không phải dữ liệu.** Các bước mẫu nói về ngân hàng câu hỏi (*"Tìm câu Hàm số
-trong ngân hàng — được 24 câu"*) và thẻ mẫu ghi *"8 câu từ ngân hàng, 2 câu Kriky soạn"*. Thiết kế
-giả định một tính năng BE **chưa có** (`docs/plans/backlog.md`). Các bước phải dựng từ `tool_call` /
-`tool_result` thật; chép chữ mẫu vào code là biến thiết kế thành một lời khẳng định sai về hệ thống,
-đúng loại lỗi mà `services/fe/src/screens/teacher/invented-not-from-be.ts` sinh ra để dồn lại một chỗ.
+**Hai con số, hai chỗ đứng.** `bước k/n` ở góc phải header đếm **bước của plan** — nói được `2/2`
+chính vì pha 1 nêu plan trước khi chạy (ADR-25). Số câu đã soạn là **dòng kết quả của bước đang
+chạy** (*"— đã soạn 4/10 câu"*), không bao giờ gộp vào `k/n`: một con số trộn hai sự thật thì sai với
+cả hai. Artboard 4 đã có sẵn chỗ cho dòng ấy, nên không cần thêm hàng mới.
+
+**Chữ mẫu trong Figma không phải dữ liệu.** Các bước mẫu nay chụp đúng một plan hai bước thật (*"Tạo
+đề trống"*, *"Soạn 10 câu hỏi"*); bản trước mô tả một ngân hàng câu hỏi mà BE **chưa có**
+(`docs/plans/backlog.md`), và một thiết kế mô tả tính năng chưa tồn tại sẽ được chép vào code như một
+lời khẳng định sai về hệ thống. Dù vậy luật không đổi: các bước phải dựng từ `tool_call` /
+`tool_result` thật, đúng loại lỗi mà `services/fe/src/screens/teacher/invented-not-from-be.ts` sinh ra
+để dồn lại một chỗ.
 
 ## `Action result card` — tám variant, hai luật chung
 
@@ -106,6 +116,11 @@ giả định một tính năng BE **chưa có** (`docs/plans/backlog.md`). Các
 | Variant | Head | Nút chính | Nút phụ |
 | --- | --- | --- | --- |
 | `tạo-đề-trống` | `Đã tạo đề "{tên}"` · detail `Chưa có câu hỏi nào` | `Thêm câu hỏi` | — |
+
+**`tạo-đề-trống` chỉ mọc cho một lượt *chỉ* mở đề** — giáo viên nói *"mở cho tôi một đề trống"*. Khi
+họ nói *"tạo đề 10 câu"* thì plan có hai bước (ADR-25) và thẻ này **không được xuất hiện**: nó nói
+rằng việc được nhờ đã xong và cho ra một cái đề rỗng, trong khi việc ấy đang chạy. Một đề chưa đủ
+câu ở lại **trong khối bước**, và câu báo cáo cuối lượt nói nó đang tới đâu.
 | `thêm-câu-hỏi` | `Đã thêm {n} câu vào đề` | `Duyệt đề` | `Xem` |
 | `đã-duyệt` | `Đã duyệt đề "{tên}"` | `Phát hành` | `Hoàn tác` |
 | `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | `Duyệt đề` | `Xem` |

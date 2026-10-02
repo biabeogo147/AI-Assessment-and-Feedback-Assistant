@@ -202,6 +202,7 @@ async def _ask_agent(
     settings: Settings,
     teacher_name: str,
     catalog: tuple[ToolSpec, ...],
+    plannable: tuple[ToolSpec, ...],
     history: list[TurnRecord],
 ) -> NextStepCompleted:
     """Hỏi AGENT một đề xuất.
@@ -216,7 +217,10 @@ async def _ask_agent(
             một chỗ mà cầu nối async của SQLAlchemy không với tới được --
             `MissingGreenlet`, ở rất xa nguyên nhân của nó. Không có id nào đi theo chiều
             nào cả, vì AGENT không resolve thứ gì.
-        catalog: Những tool giáo viên này được dùng, lấy một lần trước vòng lặp.
+        catalog: Những tool model được gọi ngay, lấy một lần trước vòng lặp.
+        plannable: Những tool model được nêu trong một plan nhưng không gọi được bây giờ.
+            Pha 1 phải biết chúng tồn tại và nhận tham số nào, nếu không nó đoán -- và một
+            plan đoán sai tên tham số bị `vet_plan` từ chối trọn gói (ADR-25).
         history: Mọi thứ đã có tới lúc này, cũ nhất trước.
 
     Returns:
@@ -230,6 +234,7 @@ async def _ask_agent(
         teacher_name=teacher_name,
         history=tuple(history),
         catalog=catalog,
+        plannable=plannable,
     )
     answer = await run_task(
         getattr(request.app.state, "queue_pool", None),
@@ -900,6 +905,11 @@ class TurnEvent(BaseModel):
 # identifier tiếng Anh. Nguyên nhân đi vào log; chỗ này nói bằng lời người.
 _WHY_IT_STOPPED = "chưa làm được bước này"
 
+# Bước sau cần một giá trị bước trước không đưa được. Một câu, không phải `str(Unresolvable)`:
+# cái sau gọi tên field và trích cú pháp tham chiếu, tức là mở mặt trong của hệ thống ra cho
+# người không cần thấy nó -- và nó còn đi vào prompt của lời kể, nơi model sẽ nhắc lại.
+_COULD_NOT_CARRY_OVER = "chưa ghép được dữ liệu từ bước trước"
+
 
 def _said_about(result: dict) -> str:
     """Một dòng tiếng Việt kể kết quả của một bước, dựng từ **con số** của chính kết quả ấy.
@@ -1000,7 +1010,11 @@ async def run_turn(
         thread = await _conversation(session, asking, start_new=said.start_new)
 
     stored = await _stored_turns(session, thread)
-    position = len(stored)
+    # Vị trí kế tiếp đọc từ **số thứ tự lớn nhất**, không từ số dòng. Hai con số ấy chỉ bằng
+    # nhau khi dãy liền mạch từ 0, và một dãy không liền mạch thì `began` tụt lại phía sau:
+    # câu trả lời của lượt này sẽ chở theo mấy dòng của lượt trước, client ghép thêm vào
+    # những dòng nó đã vẽ, và cùng một câu hiện hai lần. Đo thấy trên trình duyệt thật.
+    position = stored[-1].sequence + 1 if stored else 0
     began = position
 
     history = _as_records(stored)
@@ -1024,7 +1038,7 @@ async def run_turn(
 
         started = time.monotonic()
         try:
-            step = await _ask_agent(request, settings, asking.full_name, planning, history)
+            step = await _ask_agent(request, settings, asking.full_name, planning, working, history)
         except AgentError as unreachable:
             logger.warning("agent unreachable for %s: %s", asking.teacher_code, unreachable)
             raise HTTPException(status_code=503, detail=_AGENT_UNAVAILABLE) from unreachable
@@ -1147,12 +1161,23 @@ async def run_turn(
                 phase=PHASE_PLAN,
             )
         except UnknownTool:
-            # Trả về cho model dưới dạng dữ liệu, không phải dưới dạng một exception. Nó
-            # đã đề xuất một thứ không tồn tại -- hoặc một tool ghi, thứ chỉ chạy được
-            # trong một plan -- và cách hồi lại là để nó đọc lời từ chối rồi chọn trong
-            # đúng cái catalog nó đã được đưa.
+            # Trả về cho model dưới dạng dữ liệu, không phải dưới dạng một exception. Cách
+            # hồi lại là để nó đọc lời từ chối rồi chọn lại trong đúng cái catalog nó đã
+            # được đưa.
+            #
+            # Hai lời từ chối, không một. Từ Pha C model **thấy** mô tả của các tool ghi, để
+            # nêu được chúng trong plan. Bảo nó rằng `create_draft` không tồn tại, ngay sau
+            # khi nó vừa đọc mô tả của `create_draft`, là dạy nó một điều sai: kết luận hợp
+            # lý nhất là "hệ thống này không tạo đề được", và nó sẽ nói câu đó với giáo viên
+            # thay vì sửa thành một plan.
             logger.info("refused tool %r for %s", step.tool_name, asking.teacher_code)
-            result = {"error": f"không có tool nào tên {step.tool_name}"}
+            result = {
+                "error": (
+                    f"{step.tool_name} chỉ nêu được trong plan, không gọi ngay"
+                    if step.tool_name in {spec.name for spec in working}
+                    else f"không có tool nào tên {step.tool_name}"
+                )
+            }
         except Exception:
             # Mọi sự cố khác cũng vậy, và cũng vì đúng lý do đó. Một tool hỏng không phải
             # là trợ lý hỏng: model có thể nói "mình chưa tra được" và giáo viên có thể
@@ -1199,12 +1224,18 @@ async def run_turn(
         try:
             args = resolve_args(step_of_plan.args, done)
         except Unresolvable as missing:
+            # `str(missing)` gọi tên field và trích nguyên văn cú pháp tham chiếu --
+            # "bước 1 trả về assessment_id rỗng". Đó là chữ để một người sửa lỗi đọc trong
+            # log, không phải chữ để giáo viên đọc trên màn hình, và nó cũng không được đi
+            # vào prompt của lời kể: model sẽ nhắc lại nguyên văn.
             logger.warning("step %d of a plan could not resolve: %s", index, missing)
-            outcomes.append(StepOutcome(title=step_of_plan.title, ok=False, detail=str(missing)))
+            outcomes.append(
+                StepOutcome(title=step_of_plan.title, ok=False, detail=_COULD_NOT_CARRY_OVER)
+            )
             yield TurnEvent(
                 kind="step_failed",
                 title=step_of_plan.title,
-                detail=str(missing),
+                detail=_COULD_NOT_CARRY_OVER,
                 index=index,
                 total=len(plan),
                 conversation_id=thread,
