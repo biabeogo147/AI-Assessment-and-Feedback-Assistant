@@ -48,6 +48,33 @@ class ToolSpec(BaseModel):
     arguments: dict[str, object] = Field(default_factory=dict)
 
 
+class PlanStep(BaseModel):
+    """Một bước của plan: một việc sẽ làm, chưa làm.
+
+    `args` chỉ chứa chuỗi, vì model chỉ trả về được chuỗi phẳng. Một tham số lấy giá trị từ kết quả
+    của bước trước được viết là `{k.ten_field}` với `k` đếm từ 1 -- `start_drafting` cần một
+    `assessment_id` mà `create_draft` mới sinh ra, và không có cú pháp ấy thì một plan hai bước phụ
+    thuộc nhau không diễn tả được (ADR-25). **BE là bên duy nhất giải nó**, từ `tool_result` của
+    bước được trỏ tới.
+
+    `frozen=True` ở đây là **đóng băng nông**: không gán lại được field, nhưng `args` vẫn là một
+    dict sửa được tại chỗ. Luật đi kèm: không ai giữ lại reference tới `args` của một bước rồi sửa
+    nó sau; BE giải tham chiếu thành một dict **mới** trước khi đưa cho tool.
+
+    Attributes:
+        tool_name: Tool sẽ chạy. BE kiểm lại nó có trong catalog pha 2 hay không.
+        args: Tham số, dạng chuỗi. Có thể chứa `{k.ten_field}`.
+        title: Câu tiếng Việt hiện trên khối bằng chứng, ví dụ *"Tạo đề trống"*. Nó là thứ giáo
+            viên đọc, nên nó nói việc chứ không nói tên tool.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tool_name: str = Field(min_length=1)
+    args: dict[str, str] = Field(default_factory=dict)
+    title: str = Field(min_length=1, max_length=120)
+
+
 class TurnRecord(BaseModel):
     """Một việc đã xảy ra trong cuộc hội thoại này.
 
@@ -111,6 +138,8 @@ class NextStepCompleted(BaseModel):
     - `call_tool`: BE nên chạy `tool_name` với `tool_args`, rồi hỏi lại.
     - `ask_clarify`: chưa đủ thông tin để hành động; `text` là câu hỏi và `choices` là các lựa chọn,
       mà chúng phải đến từ dữ liệu BE cấp chứ không phải từ tưởng tượng của model.
+    - `plan`: đã đủ thông tin để làm; `steps` là các bước ghi, theo thứ tự, và `text` là câu nói
+      trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
 
     `ask_clarify` là cổng đầu vào của ADR-05, và luật của nó -- kể cả việc một câu hỏi làm rõ được
     phép và không được phép hỏi những gì -- nằm trong chính decision record đó, do BE thi hành. Chép
@@ -122,11 +151,12 @@ class NextStepCompleted(BaseModel):
 
     schema_version: int = SCHEMA_VERSION
     request_id: str
-    kind: Literal["say", "call_tool", "ask_clarify"]
+    kind: Literal["say", "call_tool", "ask_clarify", "plan"]
     text: str = ""
     tool_name: str = ""
     tool_args: dict[str, object] = Field(default_factory=dict)
     choices: tuple[str, ...] = ()
+    steps: tuple[PlanStep, ...] = ()
     # Lời gọi tốn bao nhiêu, do AGENT điền từ báo cáo usage của chính nhà cung
     # cấp, **sau khi** model đã trả lời. Model không thể biết con số này, nên
     # bất cứ thứ gì nó viết vào đây đều bị ghi đè -- đúng cách `request_id`
@@ -146,10 +176,16 @@ class NextStepCompleted(BaseModel):
             Chính nó, khi message mạch lạc.
 
         Raises:
-            ValueError: Khi `kind` là `call_tool` mà `tool_name` rỗng.
+            ValueError: Khi `kind` là `call_tool` mà `tool_name` rỗng, khi `plan` mà không có bước
+                nào, hoặc khi một `kind` khác lại chở `steps` -- cái cuối là để BE không phải nhớ
+                bỏ qua chúng ở mọi nhánh, vì một luật phải nhớ là một luật sẽ quên.
         """
         if self.kind == "call_tool" and not self.tool_name.strip():
             raise ValueError("kind='call_tool' needs a tool_name")
+        if self.kind == "plan" and not self.steps:
+            raise ValueError("kind='plan' needs at least one step")
+        if self.kind != "plan" and self.steps:
+            raise ValueError("only kind='plan' may carry steps")
         return self
 
 
@@ -195,3 +231,63 @@ class ConversationNameCompleted(BaseModel):
     schema_version: int = SCHEMA_VERSION
     request_id: str
     title: str = ""
+
+
+# Tên task của arq, cũng như trên: BE enqueue bằng chuỗi.
+REPORT_PLAN_TASK = "report_plan"
+
+
+class StepOutcome(BaseModel):
+    """Một bước của plan đã chạy, và nó ra sao.
+
+    Attributes:
+        title: Câu đã hiện trên khối bằng chứng, chép lại từ `PlanStep.title`.
+        ok: Bước đó xong hay hỏng.
+        detail: Con số hoặc lý do, bằng lời của BE. Rỗng khi không có gì đáng nói.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    title: str
+    ok: bool
+    detail: str = ""
+
+
+class PlanReportRequested(BaseModel):
+    """Kể lại cho giáo viên những gì plan vừa làm.
+
+    Payload tự chứa: nó chở câu giáo viên đã gõ và kết quả từng bước, không chở id nào để AGENT đi
+    tra -- AGENT không có credential database.
+
+    Đây là một task riêng chứ không phải một vòng nữa của `propose_next_step`, vì đầu vào của nó
+    khác hẳn: nó đọc kết quả của cả plan, không đọc catalog.
+
+    Attributes:
+        schema_version: Phiên bản hình dạng.
+        request_id: Id của yêu cầu, dội lại trong câu trả lời.
+        said: Câu giáo viên đã gõ, để lời kể trả lời đúng thứ họ hỏi.
+        outcomes: Các bước đã chạy, theo thứ tự. Rỗng là một plan bị từ chối trước khi chạy.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    request_id: str
+    said: str = Field(min_length=1, max_length=2000)
+    outcomes: tuple[StepOutcome, ...] = ()
+
+
+class PlanReportCompleted(BaseModel):
+    """Lời kể của Kriky sau khi plan chạy xong.
+
+    Attributes:
+        schema_version: Phiên bản hình dạng.
+        request_id: Dội lại từ yêu cầu.
+        text: Câu kết. Rỗng nghĩa là model không nói được, và BE lùi về một câu dựng từ `outcomes`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    request_id: str
+    text: str = ""

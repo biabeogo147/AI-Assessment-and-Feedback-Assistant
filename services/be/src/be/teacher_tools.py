@@ -34,6 +34,7 @@ Hai luật mà mọi tool đều tuân theo:
 """
 
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -123,10 +124,10 @@ class Tool:
         run: Nhận context đang chạy và các tham số. Identity nằm trong context đó chứ
             không phải được đọc ở bên trong, nên không có đường nào để một tool chạy
             mà không biết nó được chạm vào dữ liệu của ai.
-        writes: True khi tool đổi một thứ gì đó. Chưa được dùng để quyết định điều gì
-            -- mọi lần ghi ở đây đều đảo lại được khi đề chưa duyệt -- nhưng nó là
-            thứ mà một cổng xác nhận sẽ đọc, và ghi lại nó theo từng tool thì rẻ hơn
-            là sau này suy ra từ cái tên.
+        writes: True khi tool đổi một thứ gì đó. **Đây là ranh giới pha của ADR-25**:
+            `catalog_for` chia hai pha theo đúng cờ này, nên lật nó là đổi pha của tool
+            chứ không phải sửa một dòng metadata. Một tool ghi lọt vào pha lên plan là
+            một câu hỏi lại có thể bỏ lại việc đã làm dở.
     """
 
     spec: ToolSpec
@@ -478,12 +479,18 @@ async def _create_draft(running: Running, args: dict) -> dict:
 
 
 async def _draft_progress(running: Running, args: dict) -> dict:
-    """Thu về những gì đã xong, và nói đề nháp đã đi được tới đâu.
+    """Nói đề nháp đã đi được tới đâu, và **không ghi gì**.
 
-    Việc harvest mới là điểm cốt yếu. BE không có worker chạy nền, nên một câu hỏi chỉ
-    vào được đề nháp khi có thứ gì hỏi tới nó -- và trước khi có tool này thì không gì
-    hỏi tới cả: `start_drafting` đẩy các job vào queue mà câu trả lời của chúng hết hạn
-    trong Redis một tiếng sau đó, để lại đề nháp trống và "đang soạn dở" mãi mãi.
+    Trước ADR-25 hàm này còn gọi `harvest`, tức nó ghi `Question` và đẩy state của đề
+    sang `HAS_QUESTIONS` -- trong khi `writes` của nó khai là False. Một tool đọc mà ghi
+    là chỗ làm hỏng ranh giới pha: pha 1 được phép hỏi tiến độ, và pha 1 không được ghi
+    gì, nếu không thì một câu hỏi lại vẫn bỏ lại việc làm dở đúng như trước.
+
+    Việc thu hoạch ở lại ba chỗ có người đang chờ kết quả: `start_drafting` (thu vòng cũ
+    trước khi mở vòng mới), cổng duyệt, và -- khi nó tồn tại -- đường nghe tiến độ của
+    một lượt đang chạy. Chừng nào đường thứ ba chưa có, một đề đang soạn chỉ đầy lên khi
+    giáo viên bấm duyệt hoặc soạn thêm; đó là cái giá đã biết của việc tách đọc khỏi ghi,
+    và plan trả nó ở Pha D.
 
     Args:
         running: Session, giáo viên đang hỏi, và queue.
@@ -494,7 +501,7 @@ async def _draft_progress(running: Running, args: dict) -> dict:
         lời không-tìm-thấy mà một đề nháp của người khác cho ra (ADR-22).
 
     Side effects:
-        Ghi mọi câu hỏi đã xong vào đề nháp.
+        Không có. Đó là cả điểm của hàm này sau ADR-25.
     """
     session, asking = running.session, running.asking
     assessment_id = str(args.get("assessment_id") or "")
@@ -507,7 +514,6 @@ async def _draft_progress(running: Running, args: dict) -> dict:
     if owned is None:
         return {"found": False, "reason": _NO_SUCH_DRAFT["reason"]}
 
-    landed = await harvest(session, running.pool, running.settings, assessment_id)
     brief = await session.get(DraftBrief, assessment_id)
     stems = await session.scalars(
         select(Question.stem)
@@ -523,7 +529,6 @@ async def _draft_progress(running: Running, args: dict) -> dict:
         "state": str(owned.state),
         "asked_for": brief.question_count if brief is not None else 0,
         "written": list(stems),
-        "just_landed": landed,
         "still_drafting": still_running,
     }
 
@@ -664,9 +669,9 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="draft_progress",
             description=(
-                "Xem một đề nháp đã soạn được bao nhiêu câu, và đọc các câu đã có. Gọi tool này "
-                "sau start_drafting để biết đã xong chưa — câu hỏi chỉ vào đề khi có ai hỏi tới, "
-                "nên không gọi thì đề vẫn trống. still_drafting > 0 nghĩa là còn đang soạn."
+                "Xem mot de nhap da soan duoc bao nhieu cau, va doc cac cau da co. Chi doc, "
+                "khong doi gi: goi lai nhieu lan khong lam cau hoi vao de nhanh hon. "
+                "still_drafting > 0 nghia la con job dang chay."
             ),
             arguments={"assessment_id": "id đề nháp"},
         ),
@@ -676,22 +681,108 @@ _TOOLS: tuple[Tool, ...] = (
 
 _BY_NAME = {tool.spec.name: tool for tool in _TOOLS}
 
+# Hai pha của một lượt (ADR-25). Pha lên plan chỉ tra cứu; pha thực hiện chỉ ghi.
+PHASE_PLAN = 1
+PHASE_WORK = 2
 
-def catalog_for(asking: Asking) -> tuple[ToolSpec, ...]:
-    """Mô tả những tool giáo viên này được dùng trong lượt này.
+# Vòng lặp phẳng có từ trước ADR-25, nơi đọc và ghi còn chung một danh sách. Nó có tên
+# riêng chứ không phải `None` ngầm: một caller mới quên truyền pha sẽ không vô tình được
+# cấp cả catalog. Hằng này mất đi cùng lúc vòng lặp ấy mất đi.
+LEGACY_PHASE = "legacy"
+
+
+def catalog_for(asking: Asking, phase: int | None = None) -> tuple[ToolSpec, ...]:
+    """Mô tả những tool giáo viên này được dùng ở pha này.
 
     Mọi tool đều đã giới hạn theo chủ sở hữu, nên cả danh sách được đưa cho mọi giáo
     viên. Signature vẫn nhận vào giáo viên, vì tool đầu tiên không dành cho tất cả mọi
     người sẽ phải thu hẹp danh sách này lại chứ không phải bị chặn ở một chỗ muộn hơn --
     một tool đã được mô tả cho model là một tool model sẽ thử gọi.
 
+    Phép chia theo pha đọc từ chính cờ `writes`, không từ một danh sách thứ hai: hai
+    danh sách sẽ trôi dạt, còn một cờ trên chính tool thì đi theo tool khi ai đó thêm
+    cái mới. Khi vòng lặp hai pha thay vòng phẳng, pha lên plan chỉ thấy tool đọc và vì
+    thế **không còn đường nào** để một câu hỏi lại bỏ lại việc đã làm dở (ADR-25). Tới
+    lúc đó, caller duy nhất vẫn là vòng phẳng và nó gọi hàm này không kèm pha.
+
     Args:
         asking: Ai đang hỏi.
+        phase: `PHASE_PLAN` khi đang lên plan, `PHASE_WORK` khi đang chạy plan. `None` là
+            vòng lặp phẳng có từ trước ADR-25, nơi đọc và ghi còn nằm chung một danh
+            sách; nó mất đi cùng lúc vòng lặp ấy mất đi.
 
     Returns:
         Các spec mà model được chọn trong đó.
     """
-    return tuple(tool.spec for tool in _TOOLS)
+    if phase is None:
+        return tuple(tool.spec for tool in _TOOLS)
+    wanted = phase == PHASE_WORK
+    return tuple(tool.spec for tool in _TOOLS if tool.writes is wanted)
+
+
+class Unresolvable(Exception):
+    """Một tham số trỏ tới thứ không có trong kết quả của bước nó gọi tên."""
+
+
+_REFERENCE = re.compile(r"^\{(\d+)\.([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+# Trông như một tham chiếu. Dùng để bắt những chuỗi gần đúng -- `{0.x}`, `{1.x} thêm chữ`,
+# `{1.}` -- vì chúng là lỗi của model, không phải chữ của giáo viên. Để chúng đi tiếp
+# nguyên văn nghĩa là một id rác tới tay một tool ghi, rồi hỏng ở trong đó dưới dạng một
+# bước hỏng thay vì một plan bị từ chối.
+_LOOKS_LIKE_REFERENCE = re.compile(r"\{\s*\d+\s*\.")
+
+
+def resolve_args(args: dict[str, str], done: list[dict]) -> dict[str, object]:
+    """Thay các tham chiếu `{k.ten_field}` bằng giá trị thật của bước thứ k.
+
+    Model chỉ trả về được chuỗi phẳng, nên một plan hai bước phụ thuộc nhau chỉ diễn tả
+    được bằng một chuỗi như vậy: `start_drafting` cần `assessment_id` mà `create_draft`
+    mới sinh ra (ADR-25). BE là bên duy nhất giải nó.
+
+    **Tầm của hàm này là một bước**, không phải cả plan: nó giải ngay trước khi bước ấy
+    chạy, từ kết quả các bước đã xong. Việc từ chối **trọn gói** một plan trước khi chạy
+    bước nào cần một phép kiểm tĩnh -- `k` phải nhỏ hơn số thứ tự của bước đang xét, và
+    field phải nằm trong những thứ tool của bước `k` hứa trả về -- và phép kiểm ấy thuộc
+    về vòng chạy plan, không thuộc về đây.
+
+    `k` đếm từ 1 và trỏ tới bước, không trỏ tới "bước trước": một plan ba bước có thể
+    cần lại thứ bước đầu tiên sinh ra.
+
+    Args:
+        args: Tham số của một bước, toàn chuỗi.
+        done: Kết quả của các bước đã chạy, theo thứ tự.
+
+    Returns:
+        Tham số đã giải, sẵn sàng đưa cho `execute`.
+
+    Raises:
+        Unresolvable: Khi `k` nằm ngoài những bước đã chạy, hoặc field không có trong
+            kết quả của bước ấy.
+    """
+    out: dict[str, object] = {}
+    for key, value in args.items():
+        if not isinstance(value, str):
+            raise Unresolvable(f"{key} không phải một chuỗi")
+        match = _REFERENCE.match(value.strip())
+        if match is None:
+            if _LOOKS_LIKE_REFERENCE.search(value):
+                raise Unresolvable(f"{key} viết sai khuôn tham chiếu: {value}")
+            out[key] = value
+            continue
+        index, field = int(match.group(1)), match.group(2)
+        if not 1 <= index <= len(done):
+            raise Unresolvable(f"bước {index} chưa chạy")
+        taken = done[index - 1].get(field)
+        # Một field **có mặt mà rỗng** cũng là một tham chiếu vô dụng: để nó đi tiếp là
+        # đưa một chuỗi rỗng vào chỗ đáng lẽ là một id, và cái sai ấy chỉ lộ ra ở tận bên
+        # trong tool, dưới dạng "không tìm thấy đề nào".
+        if taken is None or (isinstance(taken, str) and not taken.strip()):
+            raise Unresolvable(f"bước {index} trả về {field} rỗng")
+        if not isinstance(taken, (str, int, float, bool)):
+            raise Unresolvable(f"bước {index} trả về {field} không phải một giá trị đơn")
+        out[key] = taken
+    return out
 
 
 async def execute(
@@ -702,6 +793,7 @@ async def execute(
     *,
     pool: object = None,
     settings: Settings | None = None,
+    phase: int | str = LEGACY_PHASE,
 ) -> dict:
     """Chạy một tool thay mặt giáo viên này.
 
@@ -721,6 +813,10 @@ async def execute(
         args: Các tham số được nêu trong đề xuất, chưa qua validate.
         pool: Pool của arq, dành cho những tool đẩy việc vào queue.
         settings: Settings của process. Đọc từ process khi không được truyền vào.
+        phase: Pha đang chạy. Một tool ghi gọi ở pha lên plan bị từ chối y như một tool
+            không tồn tại -- cổng là chỗ này, không phải catalog. `LEGACY_PHASE` là vòng
+            lặp phẳng có từ trước ADR-25, nơi mọi tool đều gọi được; nó có một cái tên
+            phải gõ ra, để một caller mới quên `phase=` không lọt qua cổng trong im lặng.
 
     Returns:
         Kết quả của tool, đã được tóm tắt sẵn.
@@ -729,7 +825,8 @@ async def execute(
         UnknownTool: Nếu không có tool nào mang tên đó dành cho giáo viên này.
     """
     tool = _BY_NAME.get(name)
-    if tool is None or tool.spec not in catalog_for(asking):
+    allowed = catalog_for(asking, None if phase == LEGACY_PHASE else phase)
+    if tool is None or tool.spec not in allowed:
         raise UnknownTool(name)
 
     logger.info("teacher %s runs %s", asking.teacher_code, name)

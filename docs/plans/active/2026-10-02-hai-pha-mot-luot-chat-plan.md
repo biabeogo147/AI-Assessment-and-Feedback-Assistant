@@ -65,13 +65,20 @@ Năm ca ADR ngụ ý mà đường đi hạnh phúc không chạm tới. Mỗi c
 
 **Files:** `packages/contracts/src/contracts/teacher_chat.py`, `packages/contracts/src/contracts/__init__.py`
 
-`PlanStep(tool_name: str, args: dict, title: str)` — `title` là câu tiếng Việt hiện trên khối bước.
-`PlannedWork(steps: tuple[PlanStep, ...])`. `REPORT_PLAN_TASK = "report_plan"`,
-`PlanReportRequested(schema_version, request_id, said, outcomes: tuple[StepOutcome, ...])`,
-`StepOutcome(title, ok, detail)`, `PlanReportCompleted(schema_version, request_id, text)`. Tất cả
-`frozen=True`, mở đầu bằng `schema_version` + `request_id`, thêm vào import block **và** `__all__`.
+`PlanStep(tool_name: str, args: dict[str, str], title: str)` — `title` là câu tiếng Việt hiện trên
+khối bước. Plan **không** là một message riêng: `kind="plan"` và `steps` là hình dạng thứ tư của
+`NextStepCompleted`, vì một lượt suy nghĩ trả về một thứ chứ không hai. `REPORT_PLAN_TASK`,
+`PlanReportRequested(schema_version, request_id, said, outcomes)`, `StepOutcome(title, ok, detail)`,
+`PlanReportCompleted(schema_version, request_id, text)`. Tất cả `frozen=True`, mở đầu bằng
+`schema_version` + `request_id`, thêm vào import block **và** `__all__`.
 
-Test: `packages/contracts/tests/test_contracts.py` — frozen, và `PlannedWork` rỗng bị từ chối.
+Hai luật đối xứng trong một validator: `plan` phải có ít nhất một bước, và **chỉ** `plan` được chở
+`steps` — nếu không thì mọi nhánh của vòng lặp phải nhớ bỏ qua chúng, và một luật phải nhớ là một
+luật sẽ quên.
+
+Test: `packages/contracts/tests/test_teacher_plan.py` — gán thật rồi bắt `ValidationError` (đọc
+`model_config` là đọc cái cờ, không phải hành vi), payload báo cáo không có field nào kết thúc bằng
+`_id` ngoài `request_id`, và `say` kèm `steps` bị từ chối.
 
 ### Task 2: Catalog chia theo pha, và tham chiếu `$prev`
 
@@ -88,11 +95,27 @@ Test: `packages/contracts/tests/test_contracts.py` — frozen, và `PlannedWork`
   ngược hai bước. Model chỉ trả về được chuỗi phẳng (`_Argument{name, value}` —
   `propose.py:84-124`), nên một chuỗi như thế là thứ duy nhất đi lọt qua structured output.
 
-Test: `test_a_plan_step_reads_the_id_the_step_before_it_made`,
-`test_an_unresolvable_reference_refuses_the_plan_before_anything_runs`,
-`test_reading_progress_does_not_write_anything`.
+`resolve_args` giải cho **một bước**, ngay trước khi bước ấy chạy. Một chuỗi *trông như* tham
+chiếu mà sai khuôn (`{0.x}`, `{1.x} thêm chữ`, `{ 1.x }`) là lỗi của model chứ không phải chữ của
+giáo viên, nên nó cũng `Unresolvable`; để nó đi tiếp nguyên văn là đưa một id rác tới tay một tool
+ghi. Một field có mặt mà rỗng, hoặc không phải giá trị đơn, cũng vậy.
 
-**Cổng qua pha:** đột biến — cho `create_draft` vào catalog pha 1 → đúng một test đỏ.
+Phép kiểm **trọn gói** một plan trước khi chạy bước nào là chuyện của Task 3: nó tĩnh, nên nó kiểm
+được `k < số thứ tự bước` mà không cần kết quả thật.
+
+Test: `test_a_plan_step_reads_the_id_the_step_before_it_made`,
+`test_a_reference_that_cannot_be_resolved_stops_the_step` (năm ca),
+`test_a_reference_to_an_empty_field_is_refused`, `test_reading_progress_does_not_write_anything`,
+`test_a_read_tool_asked_for_while_working_is_refused`.
+
+**Cổng qua pha:** bốn đột biến, mỗi cái phải làm đỏ ít nhất một test: cho tool ghi vào pha lên
+plan; cho `{0.x}` lọt; bỏ phép kiểm "trông như tham chiếu"; bỏ luật chỉ-plan-mới-chở-steps.
+
+**Một món nợ Pha A tự tạo ra, và Pha D trả.** Bỏ `harvest` khỏi `draft_progress` nghĩa là giữa một
+lượt không còn đường thu hoạch nào: `still_drafting` không giảm và `written` rỗng cho tới khi giáo
+viên bấm duyệt hoặc soạn thêm. Vì vậy **Pha A tới Pha D ra cùng một lần release**, không deploy
+riêng Pha A. Dòng `draft_progress` trong `docs/overview/teacher-surface.md` cũng chỉ đúng trở lại
+khi Pha D xong.
 
 ---
 

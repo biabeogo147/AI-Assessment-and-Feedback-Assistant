@@ -27,11 +27,21 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import db as db_module
 from be import drafting
 from be.assessment_state import AssessmentState
+from be.config import get_settings
 from be.db import bind_sessions, prepare_schema
+from be.drafting import harvest
 from be.identity import Asking
 from be.models import Assessment, DraftBrief, DraftItem, Teacher
 from be.seed import seed_if_empty
-from be.teacher_tools import catalog_for, execute
+from be.teacher_tools import (
+    PHASE_PLAN,
+    PHASE_WORK,
+    UnknownTool,
+    Unresolvable,
+    catalog_for,
+    execute,
+    resolve_args,
+)
 from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
 
 
@@ -434,13 +444,13 @@ async def test_asking_twice_opens_two_drafts_rather_than_reusing_one(stack) -> N
 
 
 @pytest.mark.asyncio
-async def test_progress_collects_a_finished_question_into_the_draft(stack) -> None:
-    """Con đường duy nhất để một câu hỏi do job viết ra tới được đề.
+async def test_reading_progress_does_not_write_anything(stack) -> None:
+    """Một tool đọc thì đọc, kể cả khi có một câu đang nằm sẵn chờ được thu.
 
-    BE không chạy background worker nào, nên một job đã xong cứ nằm trong Redis
-    cho tới khi có ai hỏi tới. Trước khi có tool này thì không ai hỏi: các câu trả
-    lời hết hạn sau một giờ, đề nháp vẫn rỗng, và không vòng mới nào khởi động
-    được vì vòng cũ pending mãi mãi.
+    Trước ADR-25, `draft_progress` gọi `harvest`: nó ghi `Question` và đẩy đề sang
+    `HAS_QUESTIONS` trong khi khai `writes=False`. Đó là chỗ làm hỏng ranh giới pha —
+    pha lên plan được phép hỏi tiến độ, và pha lên plan không được ghi gì, nếu không
+    thì một câu hỏi lại vẫn bỏ lại việc làm dở đúng như trước.
     """
     maker, queue = stack
 
@@ -460,10 +470,148 @@ async def test_progress_collects_a_finished_question_into_the_draft(stack) -> No
         )
 
     assert progress["found"] is True
-    assert progress["just_landed"] == 1
-    assert progress["written"] == ["Đạo hàm của y = x² là gì?"]
+    assert progress["written"] == []
     assert progress["asked_for"] == 3
+    assert progress["still_drafting"] == 3
+    # Đề vẫn rỗng và vẫn ở EMPTY: không có `advance` nào chạy sau một lần đọc.
+    assert progress["state"] == AssessmentState.EMPTY
+
+
+@pytest.mark.asyncio
+async def test_harvest_is_what_brings_a_finished_question_into_the_draft(stack) -> None:
+    """Thu hoạch vẫn là đường duy nhất, chỉ không còn đi kèm một tool đọc.
+
+    Sau ADR-25 nó chạy ở hai chỗ có người đang chờ: đường nghe tiến độ của một lượt
+    đang chạy, và cổng duyệt. Test này gọi thẳng nó, vì nó là cái cửa chứ không phải
+    một hiệu ứng phụ của ai đó.
+    """
+    maker, queue = stack
+
+    async with maker() as session:
+        asking = await _asking(session)
+        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        await execute(
+            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+        )
+
+    queue.finish("job-1", _good("Đạo hàm của y = x² là gì?"))
+
+    async with maker() as session:
+        landed = await harvest(session, queue, get_settings(), made["assessment_id"])
+
+    assert landed == 1
+
+    async with maker() as session:
+        asking = await _asking(session)
+        progress = await execute(
+            session, asking, "draft_progress", {"assessment_id": made["assessment_id"]}, pool=queue
+        )
+
+    assert progress["written"] == ["Đạo hàm của y = x² là gì?"]
     assert progress["still_drafting"] == 2
-    # Câu hỏi đầu tiên được `harvest` chính là thứ đưa đề ra khỏi `EMPTY`, và
-    # `advance` là cửa duy nhất nó đi qua được.
     assert progress["state"] == AssessmentState.HAS_QUESTIONS
+
+
+@pytest.mark.asyncio
+async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
+    """Ranh giới pha của ADR-25, đọc từ chính cờ `writes` chứ không từ một danh sách thứ hai.
+
+    Pha lên plan chỉ tra cứu. Đó là thứ làm cho một câu hỏi lại không bao giờ bỏ lại việc
+    đã làm dở: không phải vì prompt dặn thế, mà vì model không được cấp tool nào để ghi.
+    """
+    maker, _ = stack
+    async with maker() as session:
+        asking = await _asking(session)
+
+    planning = {spec.name for spec in catalog_for(asking, PHASE_PLAN)}
+    working = {spec.name for spec in catalog_for(asking, PHASE_WORK)}
+
+    assert planning == {"find_class", "class_assessment_summary", "draft_progress"}
+    assert working == {"create_draft", "start_drafting"}
+    assert planning & working == set()
+
+
+@pytest.mark.asyncio
+async def test_a_write_tool_asked_for_while_planning_is_refused(stack) -> None:
+    """Cổng nằm ở `execute`, không ở catalog: catalog chỉ là lời mời, model đọc sai được."""
+    maker, queue = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        with pytest.raises(UnknownTool):
+            await execute(
+                session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_PLAN
+            )
+
+
+def test_a_plan_step_reads_the_id_the_step_before_it_made() -> None:
+    """`start_drafting` cần một id mà `create_draft` mới sinh ra.
+
+    Không có cú pháp này thì một plan hai bước phụ thuộc nhau không diễn tả được, và cả
+    ADR-25 sụp ở đúng chỗ đó.
+    """
+    done = [{"created": True, "assessment_id": "a-42", "title": "Đề tích phân"}]
+    resolved = resolve_args({"assessment_id": "{1.assessment_id}"}, done)
+    assert resolved == {"assessment_id": "a-42"}
+
+
+def test_a_literal_argument_passes_through_untouched() -> None:
+    """Chỉ đúng hình dạng `{k.field}` mới là tham chiếu; mọi thứ khác là chữ của giáo viên."""
+    resolved = resolve_args({"topic_scope": "chương Hàm số {nâng cao}"}, [])
+    assert resolved == {"topic_scope": "chương Hàm số {nâng cao}"}
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "{2.assessment_id}",  # bước chưa chạy
+        "{1.khong_co_field_nay}",  # field không có trong kết quả
+        "{0.assessment_id}",  # không có bước 0 — cạnh dưới
+        "{1.assessment_id} thêm chữ",  # trông như tham chiếu mà sai khuôn
+        "{ 1.assessment_id }",  # khoảng trắng bên trong
+    ],
+)
+def test_a_reference_that_cannot_be_resolved_stops_the_step(reference: str) -> None:
+    """Hỏng thì hỏng **trước khi bước này chạy**, chứ không hỏng ở trong tool.
+
+    Ba ca cuối là ba chỗ một chuỗi *gần đúng* đi lọt: để chúng qua nguyên văn nghĩa là một id
+    rác tới tay một tool ghi, rồi lộ ra ở tận bên trong dưới dạng "không tìm thấy đề nào".
+    Việc từ chối **trọn gói** một plan là phép kiểm tĩnh của vòng chạy plan, không phải của
+    hàm này.
+    """
+    done = [{"created": True, "assessment_id": "a-42"}]
+    with pytest.raises(Unresolvable):
+        resolve_args({"assessment_id": reference}, done)
+
+
+@pytest.mark.parametrize("empty", [None, "", "   "])
+def test_a_reference_to_an_empty_field_is_refused(empty) -> None:
+    """Một field có mặt mà rỗng là một tham chiếu vô dụng, không phải một giá trị."""
+    with pytest.raises(Unresolvable):
+        resolve_args({"assessment_id": "{1.assessment_id}"}, [{"assessment_id": empty}])
+
+
+def test_a_reference_to_a_list_is_refused() -> None:
+    """`written` là một danh sách câu hỏi; nhét nó vào một tham số chuỗi là một lỗi im lặng."""
+    with pytest.raises(Unresolvable):
+        resolve_args({"assessment_id": "{1.written}"}, [{"written": ["c1", "c2"]}])
+
+
+@pytest.mark.asyncio
+async def test_a_read_tool_asked_for_while_working_is_refused(stack) -> None:
+    """Cổng chặn cả hai chiều: pha thực hiện chỉ chạy tool ghi.
+
+    Chiều này ít rõ hơn chiều kia nhưng cũng là một luật: một plan chứa `draft_progress` là một
+    plan muốn đọc trong lúc đang ghi, và tiến độ nay tới bằng đường khác.
+    """
+    maker, queue = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        with pytest.raises(UnknownTool):
+            await execute(
+                session,
+                asking,
+                "draft_progress",
+                {"assessment_id": "x"},
+                pool=queue,
+                phase=PHASE_WORK,
+            )
