@@ -69,7 +69,7 @@ from be.models import (
 )
 from be.publication_wording import RECALL_RULE, phase_one_note, phase_two_note
 from be.resolve import Candidate, classes_with_counts
-from be.teacher_chat import note_action
+from be.teacher_chat import conversation_of, note_action
 from contracts import TurnRecord
 
 logger = logging.getLogger(__name__)
@@ -1213,6 +1213,9 @@ class AssessmentDetail(BaseModel):
         still_drafting: Còn bao nhiêu vị trí đang có job chạy.
         topic_scope: Phạm vi giáo viên đã giới hạn, bằng lời của họ.
         difficulty: Mức độ, bằng lời của họ. Rỗng khi không nói.
+        conversation_id: Đoạn chat đã sinh ra đề này. Panel sống bên trong đoạn chat của
+            nó, nên một link trỏ thẳng vào đề cần con số này để về đúng chỗ. Rỗng khi đề
+            không sinh ra từ đoạn chat nào -- đề seed, hoặc đề tạo bằng tay.
         questions: Các câu, đã sắp theo thứ tự.
     """
 
@@ -1225,6 +1228,7 @@ class AssessmentDetail(BaseModel):
     still_drafting: int
     topic_scope: str = ""
     difficulty: str = ""
+    conversation_id: str = ""
     questions: tuple[QuestionRead, ...] = ()
 
 
@@ -1357,6 +1361,7 @@ async def assessment_detail(
         still_drafting=await pending_count(session, assessment_id),
         topic_scope=brief.topic_scope if brief is not None else "",
         difficulty=brief.difficulty if brief is not None else "",
+        conversation_id=await conversation_of(session, asking, assessment_id) or "",
         questions=questions,
     )
 

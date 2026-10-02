@@ -47,7 +47,7 @@ Chúng ở lại trong `backlog.md`.
 - [x] **Bước 4 — chọn đoạn chat.** `GET /teacher/chat` nhận `conversation_id`; `Said` nhận
       `conversation_id` và cờ `start_new`, loại trừ nhau. Cổng: hai đoạn song song cho hai lịch sử
       khác nhau, và gửi kèm cả hai tham số trả 422.
-- [ ] **Bước 5 — `AssessmentDetail.conversation_id`.** Cổng: đề sinh từ chat trả đúng id; đề seed
+- [x] **Bước 5 — `AssessmentDetail.conversation_id`.** Cổng: đề sinh từ chat trả đúng id; đề seed
       trả `null`.
 - [ ] **Bước 6 — task `name_conversation`.** Contract, graph, handler, một dòng ở worker. Cổng: test
       AGENT xanh mà không gọi model thật.
@@ -194,3 +194,9 @@ của người khác trả về y hệt một id không tồn tại, và có tes
 
 `Answered` nay mang `conversation_id`. Không có nó thì FE bấm *Đoạn chat mới*, gửi câu đầu, rồi
 không biết mình vừa nói vào đâu — và phải đoán bằng "đoạn mới nhất", đúng thứ vừa sửa ở bước 2.
+
+Bước 5 xong. `conversation_of` thành public vì nay có hai module gọi nó — và điều đó đúng về nghĩa:
+*"đề này sinh ra từ đoạn chat nào"* là một câu hỏi của sản phẩm, không phải chi tiết nội bộ của
+module chat. Đề không thuộc đoạn nào thì trả **rỗng** chứ không đoán: panel vẫn mở được, nhưng nó
+không được bịa ra một nguồn gốc.
+

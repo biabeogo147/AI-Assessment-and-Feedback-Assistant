@@ -30,6 +30,8 @@ from be.models import (
     Question,
     SchoolClass,
     Teacher,
+    TeacherConversation,
+    TeacherTurn,
 )
 from be.publication_wording import phase_one_note, phase_two_note
 from be.seed import seed_if_empty
@@ -367,3 +369,57 @@ async def test_another_teachers_publications_read_as_absent_too(stack) -> None:
 
     assert mine_but_theirs.status_code == absent.status_code == 404
     assert mine_but_theirs.json() == absent.json()
+
+
+@pytest.mark.asyncio
+async def test_a_paper_says_which_conversation_made_it(stack) -> None:
+    """Panel sống bên trong đoạn chat của nó, nên đề phải nói được đoạn ấy là đoạn nào.
+
+    Không có con số này thì một link trỏ thẳng vào đề — một bookmark, một tab mở từ hôm
+    qua — không có cách nào về đúng chỗ, và panel sẽ mở trong một đoạn chat không liên
+    quan gì tới đề đang xem.
+    """
+    client, maker = stack
+    paper = await _paper(maker)
+
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert teacher is not None
+        thread = TeacherConversation(teacher_id=teacher.id, started_at=datetime.now(UTC))
+        session.add(thread)
+        await session.flush()
+        session.add(
+            TeacherTurn(
+                conversation_id=thread.id,
+                sequence=0,
+                kind="tool_result",
+                tool_name="create_draft",
+                tool_result={"created": True, "assessment_id": paper},
+                entity_kind="assessment",
+                entity_id=paper,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+        made_it = thread.id
+
+    read = await client.get(f"/api/teacher/assessments/{paper}", headers=TEACHER)
+
+    assert read.status_code == 200
+    assert read.json()["conversation_id"] == made_it
+
+
+@pytest.mark.asyncio
+async def test_a_paper_from_no_conversation_says_so(stack) -> None:
+    """Đề seed hoặc đề tạo bằng tay không thuộc đoạn chat nào, và nói thẳng ra.
+
+    Trả rỗng chứ không đoán một đoạn nào đó: panel vẫn phải mở được, nhưng nó không được
+    bịa ra một nguồn gốc. Màn hình đọc chuỗi rỗng rồi tự quyết mở ở đâu.
+    """
+    client, maker = stack
+    paper = await _paper(maker)
+
+    read = await client.get(f"/api/teacher/assessments/{paper}", headers=TEACHER)
+
+    assert read.status_code == 200
+    assert read.json()["conversation_id"] == ""

@@ -376,8 +376,11 @@ async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | N
     )
 
 
-async def _conversation_of(session: AsyncSession, asking: Asking, assessment_id: str) -> str | None:
+async def conversation_of(session: AsyncSession, asking: Asking, assessment_id: str) -> str | None:
     """Đoạn chat nào đã sinh ra đề này.
+
+    Public vì `teacher_routes` cũng cần nó: panel đề mở từ bên trong đoạn chat của nó,
+    nên `AssessmentDetail` phải nói được đoạn ấy là đoạn nào.
 
     Từ khi giáo viên mở được nhiều đoạn chat, *"ghi vào hội thoại đang chạy"* thôi không
     còn là một câu rõ nghĩa: duyệt và phát hành xảy ra **ngoài** khung chat, nên phải có
@@ -594,7 +597,7 @@ async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord)
 
     **Đoạn chat nào** là câu hỏi mà nhiều luồng làm cho khó. Không phải đoạn mới nhất:
     giáo viên đang đọc một đoạn cũ, bấm *Duyệt*, rồi sẽ không tìm thấy biên bản ở đâu cả.
-    Là đoạn **đã sinh ra đề**, suy từ `entity_id` — xem `_conversation_of`. Đề không sinh
+    Là đoạn **đã sinh ra đề**, suy từ `entity_id` — xem `conversation_of`. Đề không sinh
     ra từ đoạn nào thì lùi về mới nhất.
 
     Args:
@@ -608,7 +611,7 @@ async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord)
         Mở một hội thoại nếu giáo viên chưa có, rồi chèn một bước và commit.
     """
     _, subject = _subject(record.tool_result)
-    thread = (await _conversation_of(session, asking, subject)) if subject else None
+    thread = (await conversation_of(session, asking, subject)) if subject else None
     if thread is None:
         thread = await _conversation(session, asking)
     stored = await _stored_turns(session, thread)
