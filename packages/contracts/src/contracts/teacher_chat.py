@@ -83,7 +83,9 @@ class TurnRecord(BaseModel):
     tắt của dữ liệu thay vì đọc dữ liệu.
 
     Attributes:
-        kind: Ai hay cái gì tạo ra turn này.
+        kind: Ai hay cái gì tạo ra turn này. `plan` là danh sách việc model vừa nêu ở cuối pha 1
+            (ADR-25); nó được lưu như một turn vì `bước k/n` phải dựng lại được sau một lần F5, và
+            một con số không có chỗ nào lưu là một con số chỉ đúng khi không ai tải lại trang.
         text: Lời, cho turn `teacher` và `assistant`.
         tool_name: Tool nào, cho `tool_call` và `tool_result`.
         tool_args: Tham số mà BE đã thực thi với.
@@ -93,7 +95,7 @@ class TurnRecord(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["teacher", "assistant", "tool_call", "tool_result"]
+    kind: Literal["teacher", "assistant", "tool_call", "tool_result", "plan"]
     text: str = ""
     tool_name: str = ""
     tool_args: dict[str, object] = Field(default_factory=dict)
@@ -266,7 +268,8 @@ class PlanReportRequested(BaseModel):
         schema_version: Phiên bản hình dạng.
         request_id: Id của yêu cầu, dội lại trong câu trả lời.
         said: Câu giáo viên đã gõ, để lời kể trả lời đúng thứ họ hỏi.
-        outcomes: Các bước đã chạy, theo thứ tự. Rỗng là một plan bị từ chối trước khi chạy.
+        outcomes: Các bước đã chạy, theo thứ tự. Không bao giờ rỗng: một plan bị từ chối thì
+            không bước nào chạy và BE không gọi tới task này.
     """
 
     model_config = ConfigDict(frozen=True)

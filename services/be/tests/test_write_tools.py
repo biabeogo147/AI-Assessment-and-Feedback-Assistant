@@ -120,7 +120,9 @@ async def test_a_complete_brief_creates_an_empty_draft(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        answer = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        answer = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
 
         draft = await session.get(Assessment, answer["assessment_id"])
         brief = await session.get(DraftBrief, answer["assessment_id"])
@@ -155,6 +157,7 @@ async def test_an_incomplete_brief_names_what_is_missing_and_writes_nothing(stac
             "create_draft",
             {"subject": "Toán", "topic_scope": "đạo hàm"},
             pool=queue,
+            phase=PHASE_WORK,
         )
         drafts = (await session.scalars(select(Assessment))).all()
 
@@ -176,7 +179,12 @@ async def test_a_brief_asking_for_too_many_questions_is_refused_at_the_door(stac
     async with maker() as session:
         asking = await _asking(session)
         answer = await execute(
-            session, asking, "create_draft", dict(_FULL, question_count=60), pool=queue
+            session,
+            asking,
+            "create_draft",
+            dict(_FULL, question_count=60),
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert answer["created"] is False
@@ -194,12 +202,19 @@ async def test_drafting_starts_one_job_per_question(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
 
     async with maker() as session:
         asking = await _asking(session)
         started = await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert started["started"] is True
@@ -219,14 +234,26 @@ async def test_drafting_twice_does_not_start_a_second_round(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
         again = await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
         assert again["started"] is True
 
         second = await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert second["started"] is False
@@ -245,7 +272,9 @@ async def test_no_tool_writes_into_an_approved_paper(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
         draft = await session.get(Assessment, made["assessment_id"])
         assert draft is not None
         # Gán tay chỉ vì chưa có gì khác làm được: endpoint duyệt tới ở pha 4, và
@@ -256,7 +285,12 @@ async def test_no_tool_writes_into_an_approved_paper(stack) -> None:
         await session.commit()
 
         locked = await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert locked["started"] is False
@@ -301,10 +335,20 @@ async def test_a_tool_cannot_draft_into_another_teachers_paper(stack) -> None:
     async with maker() as session:
         asking = await _asking(session)
         refused = await execute(
-            session, asking, "start_drafting", {"assessment_id": stranger_draft}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": stranger_draft},
+            pool=queue,
+            phase=PHASE_WORK,
         )
         absent = await execute(
-            session, asking, "start_drafting", {"assessment_id": "không-tồn-tại"}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": "không-tồn-tại"},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert refused == absent
@@ -326,7 +370,11 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        offered = {tool.name for tool in catalog_for(asking)}
+        # Hợp đồng là **cả** catalog, nên hợp hai pha lại: một tool thứ sáu lọt vào pha nào
+        # cũng phải tự biện hộ cho mình.
+        offered = {
+            tool.name for phase in (PHASE_PLAN, PHASE_WORK) for tool in catalog_for(asking, phase)
+        }
 
     # Nửa bền vững: không tên nào ở đây đẩy việc tới học sinh, dù sau này có thêm
     # bao nhiêu tool nữa.
@@ -356,9 +404,16 @@ async def test_a_started_round_is_visible_as_pending_work(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
         await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     async with maker() as session:
@@ -414,7 +469,12 @@ async def test_no_job_is_fired_for_a_draft_without_a_brief(stack) -> None:
         await session.commit()
 
         refused = await execute(
-            session, asking, "start_drafting", {"assessment_id": bare.id}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": bare.id},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert refused["started"] is False
@@ -435,8 +495,12 @@ async def test_asking_twice_opens_two_drafts_rather_than_reusing_one(stack) -> N
 
     async with maker() as session:
         asking = await _asking(session)
-        first = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
-        second = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        first = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
+        second = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
 
     assert first["created"] is True
     assert second["created"] is True
@@ -456,9 +520,16 @@ async def test_reading_progress_does_not_write_anything(stack) -> None:
 
     async with maker() as session:
         asking = await _asking(session)
-        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
         await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     queue.finish("job-1", _good("Đạo hàm của y = x² là gì?"))
@@ -489,9 +560,16 @@ async def test_harvest_is_what_brings_a_finished_question_into_the_draft(stack) 
 
     async with maker() as session:
         asking = await _asking(session)
-        made = await execute(session, asking, "create_draft", dict(_FULL), pool=queue)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
         await execute(
-            session, asking, "start_drafting", {"assessment_id": made["assessment_id"]}, pool=queue
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"]},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     queue.finish("job-1", _good("Đạo hàm của y = x² là gì?"))

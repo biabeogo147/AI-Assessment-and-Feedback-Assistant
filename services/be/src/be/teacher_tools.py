@@ -685,13 +685,8 @@ _BY_NAME = {tool.spec.name: tool for tool in _TOOLS}
 PHASE_PLAN = 1
 PHASE_WORK = 2
 
-# Vòng lặp phẳng có từ trước ADR-25, nơi đọc và ghi còn chung một danh sách. Nó có tên
-# riêng chứ không phải `None` ngầm: một caller mới quên truyền pha sẽ không vô tình được
-# cấp cả catalog. Hằng này mất đi cùng lúc vòng lặp ấy mất đi.
-LEGACY_PHASE = "legacy"
 
-
-def catalog_for(asking: Asking, phase: int | None = None) -> tuple[ToolSpec, ...]:
+def catalog_for(asking: Asking, phase: int) -> tuple[ToolSpec, ...]:
     """Mô tả những tool giáo viên này được dùng ở pha này.
 
     Mọi tool đều đã giới hạn theo chủ sở hữu, nên cả danh sách được đưa cho mọi giáo
@@ -701,21 +696,18 @@ def catalog_for(asking: Asking, phase: int | None = None) -> tuple[ToolSpec, ...
 
     Phép chia theo pha đọc từ chính cờ `writes`, không từ một danh sách thứ hai: hai
     danh sách sẽ trôi dạt, còn một cờ trên chính tool thì đi theo tool khi ai đó thêm
-    cái mới. Khi vòng lặp hai pha thay vòng phẳng, pha lên plan chỉ thấy tool đọc và vì
-    thế **không còn đường nào** để một câu hỏi lại bỏ lại việc đã làm dở (ADR-25). Tới
-    lúc đó, caller duy nhất vẫn là vòng phẳng và nó gọi hàm này không kèm pha.
+    cái mới. Pha lên plan chỉ thấy tool đọc, nên **không có đường nào** để một câu hỏi
+    lại bỏ lại việc đã làm dở (ADR-25).
 
     Args:
         asking: Ai đang hỏi.
-        phase: `PHASE_PLAN` khi đang lên plan, `PHASE_WORK` khi đang chạy plan. `None` là
-            vòng lặp phẳng có từ trước ADR-25, nơi đọc và ghi còn nằm chung một danh
-            sách; nó mất đi cùng lúc vòng lặp ấy mất đi.
+        phase: `PHASE_PLAN` khi đang lên plan, `PHASE_WORK` khi đang chạy plan. Không có
+            giá trị mặc định: một caller chưa nói mình đang ở pha nào là một caller chưa
+            quyết định xem nó được phép ghi hay chưa, và chỗ để quyết là chỗ gọi.
 
     Returns:
         Các spec mà model được chọn trong đó.
     """
-    if phase is None:
-        return tuple(tool.spec for tool in _TOOLS)
     wanted = phase == PHASE_WORK
     return tuple(tool.spec for tool in _TOOLS if tool.writes is wanted)
 
@@ -724,13 +716,13 @@ class Unresolvable(Exception):
     """Một tham số trỏ tới thứ không có trong kết quả của bước nó gọi tên."""
 
 
-_REFERENCE = re.compile(r"^\{(\d+)\.([A-Za-z_][A-Za-z0-9_]*)\}$")
+REFERENCE = re.compile(r"^\{(\d+)\.([A-Za-z_][A-Za-z0-9_]*)\}$")
 
 # Trông như một tham chiếu. Dùng để bắt những chuỗi gần đúng -- `{0.x}`, `{1.x} thêm chữ`,
 # `{1.}` -- vì chúng là lỗi của model, không phải chữ của giáo viên. Để chúng đi tiếp
 # nguyên văn nghĩa là một id rác tới tay một tool ghi, rồi hỏng ở trong đó dưới dạng một
 # bước hỏng thay vì một plan bị từ chối.
-_LOOKS_LIKE_REFERENCE = re.compile(r"\{\s*\d+\s*\.")
+LOOKS_LIKE_REFERENCE = re.compile(r"\{\s*\d+\s*\.")
 
 
 def resolve_args(args: dict[str, str], done: list[dict]) -> dict[str, object]:
@@ -764,9 +756,9 @@ def resolve_args(args: dict[str, str], done: list[dict]) -> dict[str, object]:
     for key, value in args.items():
         if not isinstance(value, str):
             raise Unresolvable(f"{key} không phải một chuỗi")
-        match = _REFERENCE.match(value.strip())
+        match = REFERENCE.match(value.strip())
         if match is None:
-            if _LOOKS_LIKE_REFERENCE.search(value):
+            if LOOKS_LIKE_REFERENCE.search(value):
                 raise Unresolvable(f"{key} viết sai khuôn tham chiếu: {value}")
             out[key] = value
             continue
@@ -793,7 +785,7 @@ async def execute(
     *,
     pool: object = None,
     settings: Settings | None = None,
-    phase: int | str = LEGACY_PHASE,
+    phase: int = PHASE_PLAN,
 ) -> dict:
     """Chạy một tool thay mặt giáo viên này.
 
@@ -814,9 +806,9 @@ async def execute(
         pool: Pool của arq, dành cho những tool đẩy việc vào queue.
         settings: Settings của process. Đọc từ process khi không được truyền vào.
         phase: Pha đang chạy. Một tool ghi gọi ở pha lên plan bị từ chối y như một tool
-            không tồn tại -- cổng là chỗ này, không phải catalog. `LEGACY_PHASE` là vòng
-            lặp phẳng có từ trước ADR-25, nơi mọi tool đều gọi được; nó có một cái tên
-            phải gõ ra, để một caller mới quên `phase=` không lọt qua cổng trong im lặng.
+            không tồn tại -- cổng là chỗ này, không phải catalog. Mặc định là pha lên
+            plan, tức mặc định **không ghi được gì**: một caller quên nói mình đang ở pha
+            nào thì bị từ chối, chứ không lặng lẽ được cấp quyền ghi.
 
     Returns:
         Kết quả của tool, đã được tóm tắt sẵn.
@@ -825,8 +817,7 @@ async def execute(
         UnknownTool: Nếu không có tool nào mang tên đó dành cho giáo viên này.
     """
     tool = _BY_NAME.get(name)
-    allowed = catalog_for(asking, None if phase == LEGACY_PHASE else phase)
-    if tool is None or tool.spec not in allowed:
+    if tool is None or tool.spec not in catalog_for(asking, phase):
         raise UnknownTool(name)
 
     logger.info("teacher %s runs %s", asking.teacher_code, name)

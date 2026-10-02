@@ -1,9 +1,13 @@
 """Chat của giáo viên, nơi BE chạy vòng lặp và AGENT chỉ tư vấn.
 
-Một lượt là nhiều lượt gọi model. BE hỏi AGENT bước tiếp theo nên làm gì, làm nó hoặc
-từ chối nó, rồi hỏi lại kèm kết quả, cho đến khi AGENT trả lời bằng lời hoặc mức trần
-chặn lại. AGENT không bao giờ tự chạy gì: nó không giữ credential nào của database, và
-việc phân quyền thuộc về process đang giữ session và biết ai đang gọi.
+Một lượt có **hai pha** (ADR-25). **Pha 1 lên plan**: BE hỏi AGENT bước tiếp theo nên làm
+gì, chạy các tool **đọc**, rồi hỏi lại kèm kết quả -- cho tới khi AGENT trả lời bằng lời,
+hỏi lại giáo viên, hoặc nêu một **plan**: danh sách việc sẽ làm, có thứ tự. **Pha 2 thực
+hiện plan**: BE chạy từng bước **ghi** theo đúng thứ tự ấy và dừng ở bước đầu tiên hỏng.
+Xong thì model được hỏi một lần nữa, lần này để **kể lại** những gì đã xảy ra.
+
+AGENT không bao giờ tự chạy gì: nó không giữ credential nào của database, và việc phân
+quyền thuộc về process đang giữ session và biết ai đang gọi.
 
 Ba tính chất sinh ra từ cách bố trí đó, chứ không phải từ một prompt:
 
@@ -16,8 +20,13 @@ Ba tính chất sinh ra từ cách bố trí đó, chứ không phải từ mộ
   vì tám bước nhanh thì không ai sốt ruột còn ba bước chậm thì có. Chạm phải mức nào cũng được
   nói ra thành lời. Một request không bao giờ về mới là sự cố tệ hơn -- không có gì
   trong log gọi tên được nguyên nhân của nó.
-- **Mỗi bước là một lượt gọi model**, nên cái invariant rằng một job của AGENT timeout
-  trước khi BE thôi đợi là đúng trên đường này.
+- **Pha 1 không có tool nào ghi.** Catalog chia theo pha, nên một câu hỏi lại không thể
+  bỏ lại việc đã làm dở -- đó là cấu trúc, không phải một lời dặn trong prompt, và lời dặn
+  thì model quên được.
+- **Một lượt tiêu nhiều lời gọi model, và chúng không giống nhau.** Mỗi bước của pha 1 là
+  một lời gọi; pha 2 **không** gọi model lần nào; rồi lời kể cuối lượt là một job riêng với
+  đầu vào khác hẳn. Invariant "một job của AGENT timeout trước khi BE thôi đợi" áp cho từng
+  job trong số đó.
 
 Hội thoại được lưu bền, và chính điều đó làm cho `ask_clarify` trả lời được. Một tin
 nhắn mang theo cả luồng hội thoại, nên khi trợ lý hỏi "lớp nào?" và giáo viên đáp "12A",
@@ -42,6 +51,7 @@ import asyncio
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -55,19 +65,39 @@ from be.config import Settings, get_settings
 from be.db import get_session
 from be.identity import Asking, current_teacher
 from be.models import Teacher, TeacherConversation, TeacherTurn, aware, new_id
-from be.teacher_tools import UnknownTool, catalog_for, execute
+from be.teacher_tools import (
+    LOOKS_LIKE_REFERENCE,
+    PHASE_PLAN,
+    PHASE_WORK,
+    REFERENCE,
+    UnknownTool,
+    Unresolvable,
+    catalog_for,
+    execute,
+    resolve_args,
+)
 from contracts import (
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
+    REPORT_PLAN_TASK,
     ConversationNameCompleted,
     ConversationNameRequested,
     NextStepCompleted,
     NextStepRequested,
+    PlanReportCompleted,
+    PlanReportRequested,
+    PlanStep,
+    StepOutcome,
     ToolSpec,
     TurnRecord,
 )
 
 logger = logging.getLogger(__name__)
+
+# Trần số bước của một plan. Pha 1 có `max_tool_steps`; pha 2 phải có trần của riêng nó,
+# vì mỗi bước ở đây là một tool **ghi**: một plan năm mươi bước `create_draft` lọt qua sẽ để
+# lại năm mươi đề rỗng mang tên giáo viên, và không có đường nào xoá chúng.
+_MOST_STEPS = 8
 
 router = APIRouter(prefix="/api", tags=["teacher-chat"])
 
@@ -263,6 +293,12 @@ _HISTORY_STEPS = 40
 _ENTITY_KEYS = (("class_id", "class"), ("assessment_id", "assessment"))
 
 
+# Sáu cờ, một câu hỏi: việc đó có xảy ra không. Mọi tool trả lời bằng đúng một trong
+# chúng, và hai chỗ cần biết câu trả lời -- `_subject` để quyết có chủ thể hay không, và
+# `_went_wrong` để quyết bước đó hỏng hay xong -- đọc chung danh sách này.
+_DID_IT_HAPPEN = ("found", "created", "started", "approved", "unapproved", "published")
+
+
 def _subject(result: dict) -> tuple[str, str]:
     """Gọi tên entity mà một kết quả tool nói về, khi nó có nói về một entity.
 
@@ -283,10 +319,7 @@ def _subject(result: dict) -> tuple[str, str]:
         lời từ chối thì không nói về gì cả, và ghi lại các tham số của nó như một entity
         là tạo ra những liên kết trỏ tới những row chưa bao giờ được tìm thấy.
     """
-    if not any(
-        result.get(flag)
-        for flag in ("found", "created", "started", "approved", "unapproved", "published")
-    ):
+    if not any(result.get(flag) for flag in _DID_IT_HAPPEN):
         return "", ""
     for key, kind in _ENTITY_KEYS:
         value = result.get(key)
@@ -362,6 +395,97 @@ async def _name_the_thread(
     row.title = title
     session.add(row)
     await session.commit()
+
+
+# Câu BE nói khi một plan không dùng được. Nó nói **cái gì** sai chứ không nói "có lỗi":
+# giáo viên không sửa được một plan họ chưa bao giờ thấy, nên câu này là lời xin lỗi kèm
+# một đề nghị gõ lại, không phải một mã lỗi.
+_PLAN_REFUSED = "Mình chưa dựng được các bước cho việc này. Bạn nói lại giúp mình một lần nữa nhé."
+
+
+def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str | None:
+    """Kiểm một plan **trước** khi chạy bước nào.
+
+    Bốn thứ kiểm được mà không cần chạy gì: plan không dài quá trần, mỗi tool có trong
+    catalog pha thực hiện, mỗi tên tham số có trong spec của tool ấy, và mỗi tham chiếu
+    `{k.field}` **đúng khuôn** và trỏ về **phía sau**. Bắt được chúng ở đây nghĩa là không
+    có bước nào kịp ghi trước khi cái sai lộ ra -- mà một bước đã ghi thì để lại rác không
+    xoá được, đúng thứ ADR-25 sinh ra để diệt.
+
+    Thứ **không** kiểm được ở đây: field được trỏ tới có thật trong kết quả của bước `k` hay
+    không. `ToolSpec` chở tên tham số chứ không chở tên field trả về, nên luật ấy chỉ thi
+    hành được lúc chạy, trong `resolve_args`. Muốn nó thành phép kiểm tĩnh thì `ToolSpec`
+    phải chở thêm dữ liệu -- một việc có thật, chưa làm, và không được nói là đã làm.
+
+    Args:
+        steps: Các bước model đề nghị, theo thứ tự.
+        allowed: Catalog của pha thực hiện.
+
+    Returns:
+        None khi plan dùng được, hoặc một câu nói vì sao nó không dùng được -- **để log**,
+        không để in ra màn hình.
+    """
+    if len(steps) > _MOST_STEPS:
+        return f"plan có {len(steps)} bước, quá trần {_MOST_STEPS}"
+
+    by_name = {spec.name: spec for spec in allowed}
+    for index, step in enumerate(steps, start=1):
+        spec = by_name.get(step.tool_name)
+        if spec is None:
+            return f"bước {index} gọi {step.tool_name}, không có trong catalog pha thực hiện"
+        for key, value in step.args.items():
+            if key not in spec.arguments:
+                return f"bước {index} đưa tham số {key}, không có trong spec của {step.tool_name}"
+            found = REFERENCE.match(value.strip())
+            if found is None:
+                # Trông như tham chiếu mà sai khuôn thì là lỗi của model, không phải chữ
+                # của giáo viên -- cùng một luật `resolve_args` dùng lúc chạy, và phép
+                # kiểm tĩnh không được phép nhẹ hơn phép kiểm runtime.
+                if LOOKS_LIKE_REFERENCE.search(value):
+                    return f"bước {index} viết sai khuôn tham chiếu ở {key}: {value}"
+                continue
+            points_at = int(found.group(1))
+            if not 1 <= points_at < index:
+                return f"bước {index} trỏ tới bước {points_at}, chưa chạy lúc nó cần"
+    return None
+
+
+async def _report(
+    request: Request, settings: Settings, said: str, outcomes: list[StepOutcome]
+) -> str:
+    """Nhờ model kể lại những gì plan vừa làm.
+
+    Một lời gọi riêng vì đầu vào của nó khác: nó đọc kết quả của cả plan, không đọc catalog
+    (ADR-25). Hỏng thì lùi về một câu dựng từ chính `outcomes` -- lượt không bao giờ chết vì
+    phần kể lại, đúng như `_name_the_thread`.
+
+    Args:
+        request: Mang theo pool của queue.
+        settings: Cho timeout của job.
+        said: Câu giáo viên đã gõ.
+        outcomes: Các bước đã chạy, theo thứ tự.
+
+    Returns:
+        Câu kết để hiện trên màn hình. Không bao giờ rỗng.
+    """
+    fallback = "; ".join(
+        f"{one.title}{'' if not one.detail else f' — {one.detail}'}" for one in outcomes
+    )
+    fallback = fallback or "Mình chưa làm được bước nào."
+    try:
+        answer = await run_task(
+            getattr(request.app.state, "queue_pool", None),
+            settings,
+            REPORT_PLAN_TASK,
+            PlanReportRequested(
+                request_id=new_id(), said=said, outcomes=tuple(outcomes)
+            ).model_dump(mode="json"),
+        )
+        written = PlanReportCompleted.model_validate(answer).text.strip()
+        return written or fallback
+    except Exception:  # noqa: BLE001 -- xem docstring
+        logger.exception("could not report the plan for %s", said[:40])
+        return fallback
 
 
 async def _owned_conversation(session: AsyncSession, asking: Asking, thread: str) -> str | None:
@@ -729,82 +853,166 @@ async def _rendered(session: AsyncSession, conversation_id: str, since: int) -> 
     return [_visible(turn) for turn in rows]
 
 
-@router.post("/teacher/chat/messages", response_model=Answered)
-async def say_something(
-    said: Said,
+class TurnEvent(BaseModel):
+    """Một việc vừa xảy ra trong lượt này, đủ để vẽ ngay mà không cần đọc lại database.
+
+    Lượt là một **dãy sự kiện**, không phải một khuôn cố định: harness tiêm context và tool,
+    còn model quyết nói lúc nào, tra lúc nào, hỏi lúc nào (ADR-25). Màn hình vẽ theo đúng
+    thứ tự nhận được.
+
+    Attributes:
+        kind: `say`, `clarify`, `plan`, `step_started`, `step_done`, `step_failed`, `report`
+            hay `done`.
+        text: Lời, cho `say`, `clarify`, `report` và `done`.
+        choices: Phương án của một câu hỏi lại, do BE dựng từ dữ liệu (ADR-23).
+        more_choices: Bao nhiêu candidate đã bị cắt khỏi `choices`.
+        conversation_id: Lượt này nằm trong đoạn chat nào.
+        ended_as: Lượt kết thúc bằng nhánh nào -- `say`, `clarify` hay `report`. Chỉ có ở sự kiện
+            `done`. Suy nó từ việc `choices` có rỗng hay không thì sai ở đúng ca một câu hỏi lại
+            chưa có candidate nào: nó là câu hỏi, mà bị báo về như một câu trả lời.
+        title: Câu tiếng Việt của một bước, cho ba sự kiện `step_*`.
+        detail: Dòng kết quả của một bước, hoặc lý do nó hỏng.
+        index: Bước thứ mấy, đếm từ 1.
+        total: Plan có bao nhiêu bước. Đây là `n` của `bước k/n`, và nó nói thật được
+            chính vì plan có trước khi chạy.
+        titles: Tiêu đề của từng bước, chỉ ở sự kiện `plan`. Khối bằng chứng vẽ được cả
+            danh sách việc trước khi bước đầu tiên chạy.
+        began: Lượt này bắt đầu ở vị trí nào trong hội thoại.
+    """
+
+    kind: str
+    text: str = ""
+    choices: tuple[str, ...] = ()
+    more_choices: int = 0
+    conversation_id: str = ""
+    ended_as: str = ""
+    title: str = ""
+    detail: str = ""
+    index: int = 0
+    total: int = 0
+    titles: tuple[str, ...] = ()
+    began: int = 0
+
+
+# Câu nói cho giáo viên khi một bước hỏng. `reason` của một tool là văn bản viết **cho
+# model** -- "hãy hỏi giáo viên những mục còn thiếu", "question_count phải là một con số" --
+# và in nó ra màn hình là để giáo viên đọc trợ lý nói về mình ở ngôi thứ ba, kèm một
+# identifier tiếng Anh. Nguyên nhân đi vào log; chỗ này nói bằng lời người.
+_WHY_IT_STOPPED = "chưa làm được bước này"
+
+
+def _said_about(result: dict) -> str:
+    """Một dòng tiếng Việt kể kết quả của một bước, dựng từ **con số** của chính kết quả ấy.
+
+    Không bao giờ in `reason` hay `error` nguyên văn: cả hai là chữ viết cho model đọc, và
+    chúng chở cả tên field lẫn lời dặn model phải làm gì tiếp. Một màn hình in chúng ra là
+    một màn hình để lộ mặt trong của hệ thống cho người không cần thấy nó.
+
+    Args:
+        result: Thứ tool vừa trả về.
+
+    Returns:
+        Dòng để hiện dưới tiêu đề bước. Rỗng khi kết quả không có con số nào đáng nói.
+    """
+    if result.get("error") or _went_wrong(result):
+        if result.get("missing"):
+            return "thiếu thông tin để làm bước này"
+        if result.get("unreadable") or result.get("too_long"):
+            return "một mục trong yêu cầu chưa dùng được"
+        return _WHY_IT_STOPPED
+    if "queued" in result:
+        return f"{result['queued']} câu bắt đầu soạn"
+    if "title" in result:
+        asked = result.get("question_count")
+        named = f'đề "{result["title"]}"'
+        return named if asked is None else f"{named}, cần {asked} câu"
+    return ""
+
+
+def _went_wrong(result: dict) -> bool:
+    """Bước đó hỏng hay xong.
+
+    Dùng chung đúng một danh sách cờ với `_subject`, vì hai danh sách trong một file là định
+    nghĩa của trôi dạt -- và chúng **đã** lệch nhau một lần: bản đầu của hàm này biết ba cờ
+    trong khi `_subject` biết sáu, nên một bước phát hành hỏng sẽ được báo là xong.
+
+    Args:
+        result: Thứ tool vừa trả về.
+
+    Returns:
+        True khi việc không xảy ra.
+    """
+    return bool(result.get("error")) or any(result.get(flag) is False for flag in _DID_IT_HAPPEN)
+
+
+async def run_turn(
+    said: "Said",
     request: Request,
-    teacher: Teacher = Depends(current_teacher),
-    session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
-) -> Answered:
-    """Đi một lượt trong hội thoại của giáo viên.
+    teacher: Teacher,
+    session: AsyncSession,
+    settings: Settings,
+) -> AsyncIterator[TurnEvent]:
+    """Đi một lượt của giáo viên, phát ra từng việc ngay khi nó xảy ra.
+
+    Hai pha (ADR-25). **Pha 1 lên plan**: model tra cứu bằng tool đọc, hỏi lại khi thiếu dữ
+    kiện, và kết thúc bằng một câu nói, một câu hỏi lại, hoặc một plan. **Pha 2 thực hiện
+    plan**: BE chạy từng bước ghi theo thứ tự, dừng ở bước đầu tiên hỏng, rồi nhờ model kể
+    lại kết quả.
+
+    Ranh giới pha là cấu trúc chứ không phải một lời dặn: pha 1 được cấp một catalog **không
+    có tool ghi nào**, nên một câu hỏi lại không thể bỏ lại việc đã làm dở. Trước ADR-25 thì
+    chuyện ấy xảy ra được, và database còn một đề rỗng sinh ra đúng theo đường đó.
+
+    Đây là generator chứ không phải một hàm trả về một lần, vì cùng một lượt **sẽ** phải đi
+    ra hai cửa: hôm nay `POST` rút cạn nó rồi trả một `Answered`; đường SSE của Pha E sẽ
+    forward từng sự kiện. Một bản cài đặt, hai cửa -- hai bản sẽ trôi dạt khỏi nhau ở đúng
+    chỗ khó thấy nhất.
 
     Args:
         said: Thứ giáo viên vừa gõ.
         request: Mang theo pool của queue.
         teacher: Được resolve từ header actor (ADR-13).
         session: Session của database mà mọi tool chạy trên đó.
-        settings: Cung cấp `max_tool_steps`.
+        settings: Cung cấp `max_tool_steps` và ngân sách thời gian của pha 1.
 
-    Returns:
-        Lượt đó kết thúc kiểu gì, kèm các bước của **chính lượt này** đọc lại từ bảng.
-        Không phải cả hội thoại: một client đem chúng ghép thêm vào thứ nó đang hiện sẽ vẽ
-        lại cả luồng lên trên chính nó.
+    Yields:
+        Từng `TurnEvent` theo thứ tự xảy ra. Sự kiện cuối luôn là `done`.
 
     Raises:
-        HTTPException: 503 khi không với tới được AGENT chút nào. Không sự cố tool nào tới
-            được đây: mọi sự cố, dù là tên tool không có hay một query hỏng, đều thành một
-            kết quả mà model đọc được và hồi lại được. Đó chính là chỗ khác nhau giữa việc
-            trợ lý bị hỏng và việc trợ lý bị nói không.
+        HTTPException: 404 khi đoạn chat không phải của giáo viên này (ADR-22), 503 khi
+            không với tới được AGENT chút nào.
 
     Side effects:
-        Ghi thêm mọi bước của lượt vào hội thoại của giáo viên và commit từng bước một.
-        Đẩy một job của AGENT vào queue cho mỗi bước, và chạy các tool chỉ đọc lên
-        database.
+        Ghi mọi bước của lượt vào hội thoại và commit từng bước; chạy các tool.
     """
-    # Identity và catalog đọc một lần, dưới dạng giá trị. Mỗi bước gọi tool rollback
-    # session để thả connection của nó ra, và việc đó làm hết hạn mọi object ORM đang gắn
-    # vào session -- nên không dòng nào bên dưới được chạm lại vào row `teacher`.
     asking = Asking.of(teacher)
-    catalog = catalog_for(asking)
+    planning = catalog_for(asking, PHASE_PLAN)
+    working = catalog_for(asking, PHASE_WORK)
 
-    # id dưới dạng một string trần, đọc một lần -- luật này xem ở docstring của module.
-    # Đáng gọi tên cơ chế cho thật chính xác, vì bản đầu tiên của comment này quy tội cho
-    # `commit` và như thế là sai: `bind_sessions` dựng các session với
-    # `expire_on_commit=False`, nên các lần commit ở đây để các object vẫn dùng được. Thứ
-    # làm chúng hết hạn là `rollback` giữa các bước gọi tool, và nó bỏ qua setting đó.
-    # Cùng một cách phòng, khác nguyên nhân -- và một bài học ghi lại sai nguyên nhân thì
-    # lần sau sẽ được đem áp vào sai chỗ.
     if said.conversation_id is not None:
         thread = await _owned_conversation(session, asking, said.conversation_id)
-        # Một đoạn chat không tồn tại và một đoạn của người khác nhận cùng một câu trả
-        # lời (ADR-22). `404` chứ không phải mở hộ một đoạn mới: gõ nhầm id rồi được
-        # nói vào một nơi khác là mất câu vừa gõ ở một chỗ không ai đi tìm.
+        # Một đoạn chat không tồn tại và một đoạn của người khác nhận cùng một câu trả lời
+        # (ADR-22). `404` chứ không phải mở hộ một đoạn mới: gõ nhầm id rồi được nói vào
+        # một nơi khác là mất câu vừa gõ ở một chỗ không ai đi tìm.
         if thread is None:
             raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
     else:
         thread = await _conversation(session, asking, start_new=said.start_new)
+
     stored = await _stored_turns(session, thread)
     position = len(stored)
-    # Chỗ lượt này bắt đầu, để câu trả lời báo cáo được các bước của chính nó chứ không
-    # phải cả hội thoại.
     began = position
 
-    # Cả hội thoại, không chỉ tin nhắn này. Trước khi nó được lưu, một giáo viên trả lời
-    # chính câu hỏi lại của trợ lý thì gửi câu trả lời đó đi mà không còn dấu vết nào của
-    # câu đã hỏi -- nên cái cổng đầu vào của ADR-05 tồn tại mà không có cách nào để trả
-    # lời.
     history = _as_records(stored)
     history.append(TurnRecord(kind="teacher", text=said.text))
     position = await _record(session, thread, position, history[-1])
 
-    # Các phương án cho một câu hỏi lại, do BE dựng ra từ kết quả tool gần nhất có cho ra
-    # candidate. Một câu hỏi được phép đưa ra những phương án này và không gì khác
-    # (ADR-05, ADR-23).
     offered: list[str] = []
     offered_more = 0
     deadline = asyncio.get_running_loop().time() + settings.turn_budget_seconds
+    plan: tuple[PlanStep, ...] = ()
 
+    # ---------------------------------------------------------------- pha 1: lên plan
     for _ in range(settings.max_tool_steps):
         if asyncio.get_running_loop().time() >= deadline:
             # Mức trần số bước, một mình nó, không phải một lời hứa về thời gian đợi: tám
@@ -816,7 +1024,7 @@ async def say_something(
 
         started = time.monotonic()
         try:
-            step = await _ask_agent(request, settings, asking.full_name, catalog, history)
+            step = await _ask_agent(request, settings, asking.full_name, planning, history)
         except AgentError as unreachable:
             logger.warning("agent unreachable for %s: %s", asking.teacher_code, unreachable)
             raise HTTPException(status_code=503, detail=_AGENT_UNAVAILABLE) from unreachable
@@ -841,16 +1049,80 @@ async def say_something(
                     len(step.choices),
                     asking.teacher_code,
                 )
+            yield TurnEvent(
+                kind="clarify" if step.kind == "ask_clarify" else "say",
+                text=step.text,
+                choices=tuple(offered),
+                more_choices=offered_more,
+                conversation_id=thread,
+            )
             if began == 0:
                 await _name_the_thread(session, request, settings, thread, said.text)
-            return Answered(
-                kind=step.kind,
+            yield TurnEvent(
+                kind="done",
                 text=step.text,
-                conversation_id=thread,
-                choices=offered,
+                choices=tuple(offered),
                 more_choices=offered_more,
-                turns=await _rendered(session, thread, began),
+                conversation_id=thread,
+                ended_as="clarify" if step.kind == "ask_clarify" else "say",
+                began=began,
             )
+            return
+
+        if step.kind == "plan":
+            wrong = vet_plan(step.steps, working)
+            if wrong is None:
+                plan = step.steps
+                if step.text:
+                    history.append(TurnRecord(kind="assistant", text=step.text))
+                    position = await _record(
+                        session,
+                        thread,
+                        position,
+                        history[-1],
+                        duration_ms=spent_ms,
+                        model_tokens=step.model_tokens,
+                    )
+                    yield TurnEvent(kind="say", text=step.text, conversation_id=thread)
+
+                # Plan được **lưu** trước khi phát đi. `bước k/n` phải dựng lại được sau
+                # một lần F5, và một con số không có chỗ nào lưu là một con số chỉ đúng
+                # chừng nào không ai tải lại trang. Các tiêu đề đi cùng, vì khối bằng
+                # chứng vẽ cả danh sách việc trước khi bước đầu tiên chạy.
+                history.append(
+                    TurnRecord(
+                        kind="plan",
+                        tool_result={
+                            "steps": [one.title for one in plan],
+                            "total": len(plan),
+                        },
+                    )
+                )
+                position = await _record(session, thread, position, history[-1])
+                yield TurnEvent(
+                    kind="plan",
+                    total=len(plan),
+                    conversation_id=thread,
+                    titles=tuple(one.title for one in plan),
+                )
+                break
+
+            # Plan hỏng thì **không bước nào chạy**, và giáo viên nhận một câu nói chứ
+            # không phải một bước đỏ: với họ, chưa có gì xảy ra cả.
+            logger.warning("refused a plan for %s: %s", asking.teacher_code, wrong)
+            history.append(TurnRecord(kind="assistant", text=_PLAN_REFUSED))
+            position = await _record(session, thread, position, history[-1])
+            yield TurnEvent(kind="say", text=_PLAN_REFUSED, conversation_id=thread)
+            if began == 0:
+                await _name_the_thread(session, request, settings, thread, said.text)
+            yield TurnEvent(
+                kind="done",
+                text=_PLAN_REFUSED,
+                conversation_id=thread,
+                ended_as="say",
+                began=began,
+            )
+            return
 
         history.append(
             TurnRecord(kind="tool_call", tool_name=step.tool_name, tool_args=step.tool_args)
@@ -870,16 +1142,14 @@ async def say_something(
                 asking,
                 step.tool_name,
                 step.tool_args,
-                # Các tool ghi thì đẩy việc vào queue; các tool đọc thì không bao giờ
-                # chạm vào cái này. Một queue chết vì thế chỉ làm mất việc soạn đề và
-                # không gì khác.
                 pool=getattr(request.app.state, "queue_pool", None),
                 settings=settings,
+                phase=PHASE_PLAN,
             )
         except UnknownTool:
             # Trả về cho model dưới dạng dữ liệu, không phải dưới dạng một exception. Nó
-            # đã đề xuất một thứ không tồn tại -- thường là một tool nó nhớ lờ mờ từ một
-            # bối cảnh khác -- và cách hồi lại là để nó đọc lời từ chối rồi chọn trong
+            # đã đề xuất một thứ không tồn tại -- hoặc một tool ghi, thứ chỉ chạy được
+            # trong một plan -- và cách hồi lại là để nó đọc lời từ chối rồi chọn trong
             # đúng cái catalog nó đã được đưa.
             logger.info("refused tool %r for %s", step.tool_name, asking.teacher_code)
             result = {"error": f"không có tool nào tên {step.tool_name}"}
@@ -887,37 +1157,170 @@ async def say_something(
             # Mọi sự cố khác cũng vậy, và cũng vì đúng lý do đó. Một tool hỏng không phải
             # là trợ lý hỏng: model có thể nói "mình chưa tra được" và giáo viên có thể
             # hỏi chuyện khác, và đó là một lượt tốt hơn một lỗi 500 không có chữ tiếng
-            # Việt nào trong đó. Nguyên nhân đi vào log, không đi vào prompt -- một stack
-            # trace nằm trong history là văn bản mà model sẽ thử hành động theo.
+            # Việt nào trong đó.
             logger.exception("tool %r failed for %s", step.tool_name, asking.teacher_code)
             result = {"error": f"tool {step.tool_name} chạy không xong"}
         finally:
             # Thả connection ra giữa các bước. Không có dòng này thì một session giữ một
             # connection lấy từ pool -- và một transaction Postgres nằm không -- xuyên qua
-            # mọi lần đợi `run_task` trong cả lượt. Pool rộng 15, nên vài giáo viên đang
-            # chat là đủ làm nghẽn mọi request khác trong process, kể cả những request mà
-            # học sinh đang poll.
+            # mọi lần đợi `run_task` trong cả lượt.
             await session.rollback()
 
         # Thay hẳn, không gộp vào. Giữ lại candidate của tool trước nghĩa là một câu hỏi
-        # về chuyện khác đến nơi mà vẫn còn dính chúng: hỏi về một lớp, rồi hỏi bao nhiêu
-        # câu, thì câu hỏi thứ hai về tới với hai tên lớp làm phương án trả lời.
+        # về chuyện khác đến nơi mà vẫn còn dính chúng.
         offered, offered_more = _offered(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
         position = await _record(session, thread, position, history[-1])
 
-    # Mức trần. Chạm tới, không phải đâm vào: giáo viên nhận được một câu gọi tên nguyên
-    # nhân và gợi ý đúng một việc có ích.
-    logger.warning("tool loop hit %d steps for %s", settings.max_tool_steps, asking.teacher_code)
-    history.append(TurnRecord(kind="assistant", text=_CEILING_REACHED))
+    if not plan:
+        # Mức trần. Chạm tới, không phải đâm vào: giáo viên nhận được một câu gọi tên
+        # nguyên nhân và gợi ý đúng một việc có ích.
+        logger.warning(
+            "tool loop hit %d steps for %s", settings.max_tool_steps, asking.teacher_code
+        )
+        history.append(TurnRecord(kind="assistant", text=_CEILING_REACHED))
+        await _record(session, thread, position, history[-1])
+        yield TurnEvent(kind="say", text=_CEILING_REACHED, conversation_id=thread)
+        if began == 0:
+            await _name_the_thread(session, request, settings, thread, said.text)
+        yield TurnEvent(
+            kind="done",
+            text=_CEILING_REACHED,
+            conversation_id=thread,
+            ended_as="say",
+            began=began,
+        )
+        return
+
+    # ------------------------------------------------------------ pha 2: chạy plan
+    done: list[dict] = []
+    outcomes: list[StepOutcome] = []
+    for index, step_of_plan in enumerate(plan, start=1):
+        try:
+            args = resolve_args(step_of_plan.args, done)
+        except Unresolvable as missing:
+            logger.warning("step %d of a plan could not resolve: %s", index, missing)
+            outcomes.append(StepOutcome(title=step_of_plan.title, ok=False, detail=str(missing)))
+            yield TurnEvent(
+                kind="step_failed",
+                title=step_of_plan.title,
+                detail=str(missing),
+                index=index,
+                total=len(plan),
+                conversation_id=thread,
+            )
+            break
+
+        history.append(
+            TurnRecord(kind="tool_call", tool_name=step_of_plan.tool_name, tool_args=args)
+        )
+        position = await _record(session, thread, position, history[-1])
+        # Phát **sau** khi đã ghi. Một sự kiện đi trước dòng của nó trong bảng nghĩa là một
+        # lần F5 ngay sau đó cho ra ít hơn thứ vừa xem -- và màn hình đã hứa dựng lại được
+        # đúng những gì nó đang hiện.
+        yield TurnEvent(
+            kind="step_started",
+            title=step_of_plan.title,
+            index=index,
+            total=len(plan),
+            conversation_id=thread,
+        )
+
+        try:
+            result = await execute(
+                session,
+                asking,
+                step_of_plan.tool_name,
+                args,
+                pool=getattr(request.app.state, "queue_pool", None),
+                settings=settings,
+                phase=PHASE_WORK,
+            )
+        except UnknownTool:
+            result = {"error": f"không có tool nào tên {step_of_plan.tool_name}"}
+        except Exception:
+            logger.exception("step %d of a plan failed for %s", index, asking.teacher_code)
+            result = {"error": f"bước {index} chạy không xong"}
+        finally:
+            await session.rollback()
+
+        history.append(
+            TurnRecord(kind="tool_result", tool_name=step_of_plan.tool_name, tool_result=result)
+        )
+        position = await _record(session, thread, position, history[-1])
+        done.append(result)
+
+        detail = _said_about(result)
+        broke = _went_wrong(result)
+        outcomes.append(StepOutcome(title=step_of_plan.title, ok=not broke, detail=detail))
+        yield TurnEvent(
+            kind="step_failed" if broke else "step_done",
+            title=step_of_plan.title,
+            detail=detail,
+            index=index,
+            total=len(plan),
+            conversation_id=thread,
+        )
+        if broke:
+            # Dừng plan. Chạy tiếp một bước dựa trên một bước vừa hỏng là làm việc trên
+            # một thế giới không còn như plan tưởng.
+            break
+
+    # ------------------------------------------------------------ model kể lại kết quả
+    telling = await _report(request, settings, said.text, outcomes)
+    history.append(TurnRecord(kind="assistant", text=telling))
     await _record(session, thread, position, history[-1])
+    yield TurnEvent(kind="report", text=telling, conversation_id=thread)
     if began == 0:
         await _name_the_thread(session, request, settings, thread, said.text)
+    yield TurnEvent(
+        kind="done", text=telling, conversation_id=thread, ended_as="report", began=began
+    )
+
+
+@router.post("/teacher/chat/messages", response_model=Answered)
+async def say_something(
+    said: "Said",
+    request: Request,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> Answered:
+    """Đi một lượt trong hội thoại của giáo viên, rồi trả về khi nó xong.
+
+    Cửa này **rút cạn** `run_turn` và báo cáo trạng thái cuối. Đường SSE của Pha E sẽ
+    forward từng sự kiện của chính generator ấy, nên hai cửa sẽ không nói hai chuyện.
+
+    Args:
+        said: Thứ giáo viên vừa gõ.
+        request: Mang theo pool của queue.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+        settings: Settings của process.
+
+    Returns:
+        Lượt đó kết thúc kiểu gì, kèm các bước của **chính lượt này** đọc lại từ bảng.
+
+    Raises:
+        HTTPException: 404 cho một đoạn chat không phải của mình, 503 khi không với tới
+            được AGENT.
+    """
+    last: TurnEvent | None = None
+    async for event in run_turn(said, request, teacher, session, settings):
+        if event.kind == "done":
+            last = event
+    if last is None:
+        # Không bao giờ xảy ra: mọi đường ra của generator đều phát `done`. Nổ ở đây chứ
+        # không dựng một `Answered` rỗng -- một 200 với thân rỗng là một lượt bịa ra, và
+        # người sửa sau sẽ đi tìm nguyên nhân ở phía client.
+        raise RuntimeError("run_turn ended without a done event")
     return Answered(
-        kind="say",
-        text=_CEILING_REACHED,
-        conversation_id=thread,
-        turns=await _rendered(session, thread, began),
+        kind="ask_clarify" if last.ended_as == "clarify" else "say",
+        text=last.text,
+        conversation_id=last.conversation_id,
+        choices=list(last.choices),
+        more_choices=last.more_choices,
+        turns=await _rendered(session, last.conversation_id, last.began),
     )
 
 

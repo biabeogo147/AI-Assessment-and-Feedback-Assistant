@@ -320,12 +320,17 @@ async def test_an_approved_assessment_refuses_new_questions(stack) -> None:
 
     async with maker() as session:
         from be.identity import Asking
-        from be.teacher_tools import execute
+        from be.teacher_tools import PHASE_WORK, execute
 
         teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
         assert teacher is not None
         refused = await execute(
-            session, Asking.of(teacher), "start_drafting", {"assessment_id": draft}, pool=queue
+            session,
+            Asking.of(teacher),
+            "start_drafting",
+            {"assessment_id": draft},
+            pool=queue,
+            phase=PHASE_WORK,
         )
 
     assert refused["started"] is False
