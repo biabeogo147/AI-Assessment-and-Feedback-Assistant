@@ -121,7 +121,9 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
   rồi gọi lại"* — một câu chỉ đúng khi tool còn gọi được giữa lượt. Trong một plan, thiếu mục nào thì
   bước ấy **không được nhét vào plan**, vì nó sẽ dừng cả plan và để lại một đề rỗng.
 - **Lời từ chối `missing` mất vai trò cũ**: thiếu dữ kiện bị chặn trước khi plan dựng, nên nó chỉ còn
-  là lưới cuối. Màn hình **không** được vẽ nó thành bước hỏng — nó là đường dẫn tới câu hỏi lại.
+  là lưới cuối. Và khi nó vẫn xảy ra — một tham số rỗng, một con số không đọc được — thì nó **là**
+  một bước hỏng: plan đã nêu, bước đã chạy, và nó không làm được việc. Câu "đừng vẽ thành bước
+  hỏng" viết khi `missing` còn là một lời mời hỏi lại giữa lượt; nay pha 1 mới là chỗ hỏi.
 - **ADR-23 có kết quả thứ tư.** Nhập nhằng lẽ ra đã giải xong ở pha 1; nếu một bước pha 2 vẫn gặp,
   nó **dừng plan** và câu báo cáo nói ra, thay vì hỏi lại giữa chừng. Đó là một kết quả mới so với ba
   kết quả của ADR-23, và nó được ghi ở đây chứ không đi vòng.
@@ -164,9 +166,21 @@ với AGENT. Nay nó đã chạy. Plan thi hành:
 - `services/be/src/be/teacher_tools.py` — catalog theo pha; `draft_progress` bỏ `harvest`.
 - `services/be/src/be/drafting.py` — sinh channel, nghe chuông; thu hoạch vẫn là đường bền.
 - `services/fe/src/screens/teacher/Chat.tsx` — vẽ theo thứ tự nhận được, khối bằng chứng sống.
-- `tools/check_contract.py` — check thứ tám: *báo cáo là một job riêng*.
+- `services/be/src/be/teacher_routes.py` — đọc một đề cũng thu hoạch; đó là "lần quan sát kế tiếp"
+  mà ADR nói tới, và là chỗ thứ ba (cùng `start_drafting` và cổng duyệt) đưa câu vào đề.
+- `tools/check_contract.py` — check thứ tám: *báo cáo là một job riêng, và nó không cầm catalog*.
 - `docs/overview/teacher-surface.md` — luật hiển thị của hai pha.
 
-**Thứ chưa có nơi thi hành**, và vì thế vẫn là một ý định: *"hai tab cùng chạy một plan trong một
-đoạn chat"*. Không có khoá nào cho chuyện ấy. Cái duy nhất đã làm là `harvest` không còn nổ khi hai
-người thu cùng lúc — còn hai plan chạy song song thì vẫn chạy song song.
+**Ba thứ chưa có nơi thi hành**, và vì thế vẫn là ý định chứ chưa phải luật:
+
+1. *"Đóng tab giữa pha 2 thì lượt vẫn ghi đủ"* và *"báo cáo viết ở lần quan sát kế tiếp"*. Starlette
+   huỷ generator khi client ngắt kết nối, nên lượt **bị cắt** ngay chỗ nó đang đợi: các bước đã ghi
+   còn đó (mỗi bước commit riêng), nhưng không có câu kết, và nếu là lượt đầu thì đoạn chat cũng
+   chưa có tên. Làm được thì phải đẩy pha 2 sang một job arq, cộng một cờ *"lượt này đã báo cáo
+   chưa"* trong `teacher_turns` — hiện không có chỗ nào để ghi cờ ấy.
+2. *"Hai tab cùng chạy một plan trong một đoạn chat"*. Không khoá nào. Cái duy nhất đã làm là
+   `harvest` không còn nổ khi hai người thu cùng lúc; hai plan song song thì vẫn song song, và hai
+   dãy bước cài răng lược trong một đoạn chat.
+3. *"Pha 2 xong khi plan chạy hết **và** không còn câu nào đang soạn"* chỉ đúng ở **cửa SSE**. Cửa
+   `POST` vẫn mở và không đợi — nó rút cạn lượt trong một request, và một request đứng chờ hàng phút
+   sẽ bị cắt. Lời kể ở cửa ấy vì thế nói về một đề vừa bắt đầu soạn.

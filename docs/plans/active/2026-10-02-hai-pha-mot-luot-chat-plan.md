@@ -248,8 +248,8 @@ chụp. Đo lại: `đang chạy` 820×154 cho hai bước hai dòng, `đã xong
 *đang thi hành* kèm mục **Nơi luật này đang được thi hành** trỏ tới file thật; `backlog.md` xoá món
 *"BE không có worker chạy nền"* nếu Pha D đã trả nó.
 
-**Cổng cuối:** `.\dev.ps1 check` 7/7, toàn bộ test xanh, **một subagent review cả nhánh**, rồi xin
-phép commit.
+**Cổng cuối:** `.\dev.ps1 check` **8/8** (check thứ tám là của chính Task 12), toàn bộ test xanh,
+**một subagent review cả nhánh**, rồi xin phép commit.
 
 ---
 

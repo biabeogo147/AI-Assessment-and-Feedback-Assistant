@@ -84,7 +84,7 @@ thu gọn được nhưng không bao giờ mất."* Giáo viên đứng trước
 > chuyển trạng thái.
 | `đã xong` (`83:73`) | Lượt kết thúc **thành công** | **Tự thu lại** còn một dòng `Đã làm {n} bước` | Đang thu |
 | `đã xong — mở` (`83:74`) | Người dùng bấm chevron | Mở lại đầy đủ các bước | Được |
-| `thất bại` (`83:75`) | Lượt dừng vì một bước hỏng | Mở sẵn. Header `Dừng ở bước {k} — {lý do}`; bước hỏng đánh `✕` kèm dòng giải thích | **Không.** Thu một lỗi lại là giấu lỗi |
+| `thất bại` (`83:75`) | Lượt dừng vì một bước hỏng | Mở sẵn. Header `Dừng ở bước {k}` — **không** nhắc lại lý do, vì lý do đã nằm ở dòng của chính bước hỏng; bước ấy đánh `✕` | **Không.** Thu một lỗi lại là giấu lỗi |
 
 Một bước gồm ba phần: **dấu** (`✓` xong, `○` đang chạy, `✕` hỏng), **tiêu đề việc**, và tuỳ chọn một
 **dòng kết quả** mở đầu bằng `— `. Dòng kết quả là chữ của BE; FE in nguyên văn, không viết lại.
@@ -111,6 +111,12 @@ lời khẳng định sai về hệ thống. Dù vậy luật không đổi: cá
   nhượng: một thẻ im lặng về hậu quả là một thẻ mời người ta tưởng là xong, và thẻ có hậu quả lớn
   nhất mà im lặng thì là lỗi nặng nhất trong nhóm này.
 - **Nút trên thẻ mời bước tiếp theo**, không phải `Xem`. `Xem` luôn là nút phụ.
+
+**Một lượt soạn đề thành công hôm nay kết thúc KHÔNG có thẻ nào.** `create_draft` bị loại khi có
+`start_drafting` phía sau, `start_drafting` không bao giờ lên thẻ, và `draft_progress` là tool của
+pha 1 nên một plan không gọi nó. Giáo viên mở đề bằng rail hoặc bằng một câu nói tiếp theo. Đó là
+một khoảng trống đã biết, không phải một luật — ngày thẻ `thêm-câu-hỏi` mọc được từ chính kết quả
+bước soạn thì nó nên mọc.
 
 | Variant | Head | Nút chính | Nút phụ |
 | --- | --- | --- | --- |
