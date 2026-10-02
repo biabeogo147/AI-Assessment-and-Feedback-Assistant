@@ -151,3 +151,47 @@ class NextStepCompleted(BaseModel):
         if self.kind == "call_tool" and not self.tool_name.strip():
             raise ValueError("kind='call_tool' needs a tool_name")
         return self
+
+
+# Tên task của arq, cũng như trên: BE enqueue bằng chuỗi.
+NAME_CONVERSATION_TASK = "name_conversation"
+
+
+class ConversationNameRequested(BaseModel):
+    """Đặt tên cho một đoạn chat, từ câu mở đầu của nó.
+
+    Chở nguyên câu giáo viên đã gõ, không chở `conversation_id`. AGENT không giữ credential
+    database nào và không bao giờ tra một hàng nào -- payload tự chứa là luật của cả package
+    này, và ở đây nó cũng là thứ làm cho task này rẻ: một lời gọi model trên một chuỗi.
+
+    Attributes:
+        schema_version: Phiên bản hình dạng.
+        request_id: Id của yêu cầu, dội lại trong câu trả lời.
+        said: Câu đầu tiên giáo viên gõ trong đoạn chat ấy.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    request_id: str
+    said: str = Field(min_length=1, max_length=2000)
+
+
+class ConversationNameCompleted(BaseModel):
+    """Một cái tên ngắn cho đoạn chat.
+
+    BE **không** tin con số dài: nó cắt và dọn trước khi lưu, vì một model trả về ba trăm ký
+    tự hay một câu bọc trong dấu ngoặc kép là chuyện thường, và chỗ chuỗi này đi tới là một
+    hàng rộng 228px trên rail.
+
+    Attributes:
+        schema_version: Phiên bản hình dạng.
+        request_id: Dội lại từ yêu cầu.
+        title: Cái tên. Rỗng nghĩa là model không đặt được, và BE lùi về câu đầu cắt ngắn.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    request_id: str
+    title: str = ""

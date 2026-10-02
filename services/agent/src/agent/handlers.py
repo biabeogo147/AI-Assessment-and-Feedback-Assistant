@@ -23,8 +23,11 @@ import re
 from agent import llm
 from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_question
 from agent.graphs.explain import speak
+from agent.graphs.naming import name_it
 from agent.graphs.propose import propose
 from contracts import (
+    ConversationNameCompleted,
+    ConversationNameRequested,
     DraftQuestionCompleted,
     DraftQuestionRequested,
     ExplainTurnCompleted,
@@ -792,3 +795,46 @@ async def explain(ctx: dict, payload: dict) -> dict:
         return explain_turn(request).model_dump(mode="json")
 
     return ExplainTurnCompleted(request_id=request.request_id, text=text).model_dump(mode="json")
+
+
+def conversation_name(request: ConversationNameRequested) -> ConversationNameCompleted:
+    """Đặt tên cho một đoạn chat, không cần model.
+
+    Mock: lấy mấy từ đầu của câu mở đầu. Nó xấu hơn hẳn một cái tên model viết, và nó
+    **đúng** — đó là điều kiện duy nhất một mock phải đạt. Cùng đường này chạy khi
+    `LLM_ENABLED=false`, nên một bản dev không có API key vẫn có rail đọc được.
+
+    Args:
+        request: Câu mở đầu của đoạn chat.
+
+    Returns:
+        Một cái tên ngắn.
+    """
+    words = request.said.split()
+    return ConversationNameCompleted(request_id=request.request_id, title=" ".join(words[:6]))
+
+
+async def name_conversation(ctx: dict, payload: dict) -> dict:
+    """Điểm vào arq cho việc đặt tên một đoạn chat.
+
+    Args:
+        ctx: Ngữ cảnh của arq. Không dùng gì trong đó: task này không stream và không
+            chạm Redis.
+        payload: `ConversationNameRequested` dưới dạng JSON.
+
+    Returns:
+        `ConversationNameCompleted` dưới dạng JSON.
+    """
+    request = ConversationNameRequested.model_validate(payload)
+    if not llm.enabled():
+        return conversation_name(request).model_dump(mode="json")
+
+    try:
+        title = await name_it(request)
+    except Exception:
+        logger.exception("model failed to name a conversation")
+        return conversation_name(request).model_dump(mode="json")
+
+    return ConversationNameCompleted(request_id=request.request_id, title=title).model_dump(
+        mode="json"
+    )

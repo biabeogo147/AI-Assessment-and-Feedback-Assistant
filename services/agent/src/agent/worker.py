@@ -19,6 +19,7 @@ from agent.config import get_settings
 from agent.handlers import (
     explain,
     generate_retry_question,
+    name_conversation,
     propose_next_step,
     write_draft_question,
 )
@@ -27,6 +28,7 @@ from contracts import (
     EXPLAIN_TURN_TASK,
     GENERATE_RETRY_QUESTION_TASK,
     GRADE_SUBMISSION_TASK,
+    NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
     WRITE_DRAFT_QUESTION_TASK,
 )
@@ -84,6 +86,7 @@ class WorkerSettings:
         func(write_draft_question, name=WRITE_DRAFT_QUESTION_TASK),
         func(generate_retry_question, name=GENERATE_RETRY_QUESTION_TASK),
         func(explain, name=EXPLAIN_TURN_TASK),
+        func(name_conversation, name=NAME_CONVERSATION_TASK),
         # Một lượt suy nghĩ cho khung chat của giáo viên. Khác ba task trên, nó
         # không hoàn thành việc nào của riêng mình: BE gọi nó một lần cho mỗi bước
         # của một loop mà BE sở hữu, nên một job ở đây là một lần gọi model và

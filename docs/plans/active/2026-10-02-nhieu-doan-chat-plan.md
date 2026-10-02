@@ -49,7 +49,7 @@ Chúng ở lại trong `backlog.md`.
       khác nhau, và gửi kèm cả hai tham số trả 422.
 - [x] **Bước 5 — `AssessmentDetail.conversation_id`.** Cổng: đề sinh từ chat trả đúng id; đề seed
       trả `null`.
-- [ ] **Bước 6 — task `name_conversation`.** Contract, graph, handler, một dòng ở worker. Cổng: test
+- [x] **Bước 6 — task `name_conversation`.** Contract, graph, handler, một dòng ở worker. Cổng: test
       AGENT xanh mà không gọi model thật.
 - [ ] **Bước 7 — BE đặt tiêu đề.** Sau lượt đầu của một hội thoại mới, kèm đường lùi. Cổng: tắt
       `LLM_ENABLED` vẫn có tiêu đề; model ném lỗi không làm hỏng lượt nói.
@@ -199,4 +199,14 @@ Bước 5 xong. `conversation_of` thành public vì nay có hai module gọi nó
 *"đề này sinh ra từ đoạn chat nào"* là một câu hỏi của sản phẩm, không phải chi tiết nội bộ của
 module chat. Đề không thuộc đoạn nào thì trả **rỗng** chứ không đoán: panel vẫn mở được, nhưng nó
 không được bịa ra một nguồn gốc.
+
+Bước 6 xong. Task thứ sáu của AGENT, và nó nhỏ vì nó **được phép** nhỏ: không đọc lịch sử, không
+gọi tool, không quyết định gì — nhận một chuỗi, trả một chuỗi ngắn hơn. Vẫn dựng thành graph, vì
+luật của repo nói graph là nơi **duy nhất** gọi model; giữ đúng ranh giới ấy đáng hơn mười lăm dòng
+tiết kiệm được.
+
+Ba đường ra đều trả về một `ConversationNameCompleted` hợp lệ, và test đáng giá nhất là đường hỏng:
+task này chạy ở **cuối một lượt nói**, sau khi giáo viên đã chờ xong và mọi bước đã commit, nên một
+exception thoát ra từ đây sẽ biến một lượt đã thành công thành lỗi 500 — mất cả việc vừa làm, vì
+một cái tên.
 
