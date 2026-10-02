@@ -640,7 +640,7 @@ _TOOLS: tuple[Tool, ...] = (
                 "Thieu muc nao "
                 "thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc do truoc da, "
                 "vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. difficulty "
-                "va title la tuy chon -- DUNG HOI giao vien ve chung, he thong tu lo. Tool nay "
+                "He thong tu dat ten de. Tool nay "
                 "KHONG sinh cau hoi, nen mot plan chi co buoc nay "
                 "se de lai mot de rong: hay dat start_drafting ngay sau no."
             ),

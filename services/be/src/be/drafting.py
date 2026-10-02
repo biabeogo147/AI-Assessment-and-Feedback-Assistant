@@ -24,7 +24,8 @@ khi nó soạn trước một câu hỏi remediation.
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -114,92 +115,99 @@ def progress_channel(assessment_id: str) -> str:
     return f"draft:{assessment_id}"
 
 
-async def listen_for_progress(
-    pool: object,
-    assessment_id: str,
-    patience_seconds: float,
-    start: Callable[[], Awaitable[object]] | None = None,
-) -> AsyncIterator[int]:
-    """Nghe chuông của một đề nháp, yield số thứ tự của từng câu vừa xong.
+@asynccontextmanager
+async def open_bells(
+    pool: object, assessment_id: str, patience_seconds: float
+) -> AsyncIterator[AsyncIterator[int]]:
+    """Mở tai nghe chuông của một đề nháp; bên trong khối, mỗi tiếng chuông là một số thứ tự.
 
-    **`start` chạy ngay sau khi đã subscribe, và đó là lý do nó là một tham số.** Việc đẩy
-    job phải xảy ra sau việc mở tai: pub/sub của Redis không giữ lịch sử, arq giao job cho
-    worker gần như tức thì, và trên một máy dev không có API key thì một câu "soạn xong"
-    trong vài micro-giây. Đẩy job trước là trao cho worker cơ hội nói vào một căn phòng
-    trống -- và vì generator của Python **lười**, thân hàm này không chạy cho tới lần lặp
-    đầu tiên, nên một caller viết `await fire(...)` rồi `async for ...` sẽ subscribe muộn mà
-    không có gì báo. Đưa việc ấy vào đây là cách duy nhất để thứ tự không phụ thuộc vào trí
-    nhớ của người gọi; `agent_gateway.stream_task` giữ cùng một luật theo cùng một cách.
+    **Một context manager, không phải một generator.** Thân một async generator không chạy
+    cho tới lần lặp đầu tiên, nên một bản trước đó nhận tham số `start` để giữ đúng thứ tự
+    *subscribe rồi mới đẩy job* đã im lặng không chạy `start` lần nào khi chưa có chuông nào
+    để lặp — và đường sản xuất mất trọn vòng soạn đầu tiên. Ở đây việc subscribe xảy ra tại
+    `__aenter__`, nên câu "mở tai trước đã" là một tính chất của cú pháp, không phải một lời
+    dặn: thứ nằm trong `async with` chắc chắn chạy sau nó.
 
-    Pub/sub **không bền**, và cả thiết kế dựa trên điều đó: không ai nghe thì tiếng chuông
-    mất, mà câu hỏi thì không -- nó nằm trong result store của arq và vào đề ở lần quan sát
-    kế tiếp. Hàm này chỉ cắt độ trễ; nó không bao giờ là đường duy nhất đưa một câu vào đề.
+    Vì sao thứ tự ấy quan trọng: pub/sub của Redis **không giữ lịch sử**. Job chạy xong trước
+    khi ai subscribe thì tiếng chuông rơi vào một căn phòng trống — và trên máy dev không có
+    API key, một câu "soạn xong" trong vài micro-giây.
 
-    Nó **không chạm database**. Người gọi nghe một tiếng chuông rồi tự quyết thu hoạch --
-    giữ chỗ này không có session nghĩa là nó không giữ một connection database suốt thời
-    gian một vòng soạn chạy.
-
-    Chuông **không phải một bộ đếm**: một vị trí được thử lại sẽ rung thêm một lần cho cùng
-    số thứ tự, và một tiếng chuông có thể mất. Số câu đã soạn phải đếm từ database, không
-    phải từ số lần nghe.
+    Chuông **không phải một bộ đếm**: một vị trí thử lại rung thêm một lần cho cùng số thứ
+    tự, và một tiếng chuông có thể mất. Số câu đã soạn phải đếm từ database.
 
     Args:
         pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
         assessment_id: Đề nháp nào.
-        patience_seconds: Im lặng bao lâu thì thôi nghe.
-        start: Việc cần làm ngay sau khi đã subscribe -- thường là đẩy job.
+        patience_seconds: Im lặng bao lâu thì thôi nghe. Đồng hồ đặt lại sau mỗi tiếng
+            chuông, nên đây là hạn cho **sự im lặng**, không phải trần cho cả khoảng đợi.
 
     Yields:
-        Số thứ tự của câu vừa viết xong, theo đúng thứ tự chuông tới.
+        Một iterator các số thứ tự, theo đúng thứ tự chuông tới.
 
     Side effects:
-        Subscribe một channel Redis, chạy `start`, và huỷ đăng ký khi đi ra. Người gọi
-        thoát sớm bằng `break` thì bọc vòng lặp trong `contextlib.aclosing`, nếu không việc
-        dọn dẹp bị hoãn tới lượt gc.
+        Subscribe một channel Redis khi vào, huỷ đăng ký khi ra.
     """
-    if pool is None:
-        if start is not None:
-            await start()
+    opener = getattr(pool, "pubsub", None)
+    if pool is None or opener is None:
+        # Không có queue, hoặc một pool không nói pub/sub được: cả hai nghĩa là không có
+        # tiếng chuông nào, và không có tiếng chuông thì vẫn không mất câu nào — chúng nằm
+        # trong result store và vào đề ở lần quan sát kế tiếp.
+        yield _no_bells()
         return
 
     channel = progress_channel(assessment_id)
-    pubsub = pool.pubsub()
+    pubsub = opener()
     try:
         await pubsub.subscribe(channel)
-        if start is not None:
-            await start()
-
-        deadline = asyncio.get_running_loop().time() + patience_seconds
-        while asyncio.get_running_loop().time() < deadline:
-            try:
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=_BELL_WAIT
-                )
-            except Exception:  # noqa: BLE001 -- xem bên dưới
-                # Redis gãy giữa lúc nghe thì thôi nghe, không ném. Hàm này chạy trong cùng
-                # một lượt chat với việc soạn đề; một exception thoát ra đây biến một hàng
-                # đợi tạm thời không với tới được thành một lượt chat hỏng, trong khi thứ
-                # duy nhất mất đi là sự sống động của một khối bước.
-                logger.warning("stopped listening on %s", channel, exc_info=True)
-                return
-            if message is None or message.get("type") != "message":
-                continue
-            raw = message["data"]
-            text = raw.decode() if isinstance(raw, bytes) else str(raw)
-            if not text.isdigit():
-                # Không làm mới deadline cho một tin rác: nếu không, một publisher nói
-                # linh tinh giữ generator này sống mãi.
-                continue
-            deadline = asyncio.get_running_loop().time() + patience_seconds
-            yield int(text)
+        yield _bells_from(pubsub, channel, patience_seconds)
     finally:
-        # Chạy khi generator bị cancel hoặc được `aclose`. Lỗi bị nuốt, vì một lần gãy lúc
+        # Chạy cả khi người nghe thoát sớm hay bị cancel. Lỗi bị nuốt, vì một lần gãy lúc
         # dọn dẹp sẽ *thay thế* đúng cái thứ đã sai trước đó.
         try:
             await pubsub.unsubscribe(channel)
             await pubsub.aclose()
         except Exception:  # noqa: BLE001 -- dọn dẹp không được đứng trên lỗi thật
             logger.warning("could not close the progress channel %s", channel, exc_info=True)
+
+
+async def _no_bells() -> AsyncIterator[int]:
+    """Không có queue thì không có tiếng chuông nào, và đó không phải một lỗi."""
+    return
+    yield 0  # pragma: no cover -- chỉ để Python coi đây là một async generator
+
+
+async def _bells_from(pubsub: object, channel: str, patience_seconds: float) -> AsyncIterator[int]:
+    """Đọc từng tiếng chuông từ một subscription đã mở.
+
+    Args:
+        pubsub: Subscription đã subscribe xong.
+        channel: Tên channel, chỉ để log.
+        patience_seconds: Im lặng bao lâu thì thôi.
+
+    Yields:
+        Số thứ tự của câu vừa viết xong.
+    """
+    deadline = asyncio.get_running_loop().time() + patience_seconds
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=_BELL_WAIT)
+        except Exception:  # noqa: BLE001 -- xem bên dưới
+            # Redis gãy giữa lúc nghe thì thôi nghe, không ném. Hàm này chạy trong cùng một
+            # lượt chat với việc soạn đề; một exception thoát ra đây biến một hàng đợi tạm
+            # thời không với tới được thành một lượt chat hỏng, trong khi thứ duy nhất mất
+            # đi là sự sống động của một khối bước.
+            logger.warning("stopped listening on %s", channel, exc_info=True)
+            return
+        if message is None or message.get("type") != "message":
+            continue
+        raw = message["data"]
+        text = raw.decode() if isinstance(raw, bytes) else str(raw)
+        if not text.isdigit():
+            # Không làm mới deadline cho một tin rác: nếu không, một publisher nói linh tinh
+            # giữ vòng nghe này sống mãi.
+            continue
+        deadline = asyncio.get_running_loop().time() + patience_seconds
+        yield int(text)
 
 
 async def fire(session: AsyncSession, pool: object, settings: Settings, assessment_id: str) -> int:

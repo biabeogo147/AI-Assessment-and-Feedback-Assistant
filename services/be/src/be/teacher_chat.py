@@ -51,8 +51,7 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import AsyncIterator
-from contextlib import aclosing
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -65,7 +64,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
 from be.db import get_session, session_scope
-from be.drafting import harvest, listen_for_progress, pending_count
+from be.drafting import harvest, open_bells, pending_count
 from be.identity import Asking, current_teacher
 from be.models import (
     DraftBrief,
@@ -426,12 +425,13 @@ _PLAN_REFUSED = "Mình chưa dựng được các bước cho việc này. Bạn
 def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str | None:
     """Kiểm một plan **trước** khi chạy bước nào.
 
-    Năm thứ kiểm được mà không cần chạy gì: plan không dài quá trần, mỗi tool có trong
-    catalog pha thực hiện, **đủ** tham số mà spec nêu, mỗi tên tham số có trong spec, và mỗi
-    tham chiếu
-    `{k.field}` **đúng khuôn** và trỏ về **phía sau**. Bắt được chúng ở đây nghĩa là không
-    có bước nào kịp ghi trước khi cái sai lộ ra -- mà một bước đã ghi thì để lại rác không
-    xoá được, đúng thứ ADR-25 sinh ra để diệt.
+    Bốn thứ kiểm được mà không cần chạy gì: plan không dài quá trần, mỗi tool có trong catalog
+    pha thực hiện, **đủ** tham số mà spec nêu, và mỗi tham chiếu `{k.field}` **đúng khuôn** và
+    trỏ về **phía sau**. Một tham số *lạ* thì chỉ bị bỏ, vì nó không làm bước nào ghi sai —
+    giết cả plan vì nó là đổi một lời từ chối cho giáo viên lấy một thứ không ai mất.
+
+    Bắt được bốn thứ kia ở đây nghĩa là không có bước nào kịp ghi trước khi cái sai lộ ra --
+    mà một bước đã ghi thì để lại rác không xoá được, đúng thứ ADR-25 sinh ra để diệt.
 
     Thứ **không** kiểm được ở đây: field được trỏ tới có thật trong kết quả của bước `k` hay
     không. `ToolSpec` chở tên tham số chứ không chở tên field trả về, nên luật ấy chỉ thi
@@ -464,7 +464,13 @@ def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str 
             return f"bước {index} thiếu tham số {sorted(missing)} của {step.tool_name}"
         for key, value in step.args.items():
             if key not in spec.arguments:
-                return f"bước {index} đưa tham số {key}, không có trong spec của {step.tool_name}"
+                # Bỏ qua, **không** giết cả plan. Một tham số lạ không làm bước nào ghi sai:
+                # `execute` chỉ đưa cho tool những thứ tool nhận. Còn từ chối vì nó thì giáo
+                # viên nhận "mình chưa dựng được các bước" cho một yêu cầu hoàn toàn hợp lệ,
+                # và lần gõ lại cũng hỏng y vậy — đo được khi mô tả `create_draft` còn nhắc
+                # `title`, nên chính mô tả ấy mời model gửi một thứ `vet_plan` giết.
+                logger.info("step %d sent an argument outside the spec: %s", index, key)
+                continue
             found = REFERENCE.match(value.strip())
             if found is None:
                 # Trông như tham chiếu mà sai khuôn thì là lỗi của model, không phải chữ
@@ -1089,6 +1095,7 @@ async def _wait_for_questions(
     settings: Settings,
     assessment_id: str,
     thread: str,
+    start: Callable[[], Awaitable[None]] | None = None,
 ) -> AsyncIterator[TurnEvent]:
     """Nghe chuông tiến độ, thu hoạch, và phát `progress` cho tới khi hết câu đang soạn.
 
@@ -1113,6 +1120,8 @@ async def _wait_for_questions(
         settings: Cho timeout khi đọc kết quả job.
         assessment_id: Đề đang được soạn.
         thread: Đoạn chat, để gắn vào sự kiện.
+        start: Việc mở vòng soạn — chạy **sau khi đã subscribe**. Pub/sub không giữ lịch sử,
+            nên đẩy job trước là trao cho worker cơ hội nói vào một căn phòng trống.
 
     Yields:
         `progress` mỗi khi số câu đổi.
@@ -1121,14 +1130,21 @@ async def _wait_for_questions(
         Ghi câu hỏi vào đề qua `harvest`.
     """
     pool = getattr(request.app.state, "queue_pool", None)
-    written, asked_for, running = await _count_questions(session, assessment_id)
-    if running == 0:
-        return
-    yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
 
-    async with aclosing(
-        listen_for_progress(pool, assessment_id, _WAIT_FOR_QUESTIONS_SECONDS)
-    ) as bells:
+    async with open_bells(pool, assessment_id, _WAIT_FOR_QUESTIONS_SECONDS) as bells:
+        # **Trong** khối, nên nó chạy sau khi đã subscribe. Đó là cả lý do `open_bells` là
+        # một context manager: thân một async generator không chạy cho tới lần lặp đầu, nên
+        # một tham số `start` kiểu cũ im lặng không chạy lần nào khi chưa có chuông để lặp.
+        if start is not None:
+            await start()
+
+        written, asked_for, running = await _count_questions(session, assessment_id)
+        if running == 0:
+            # Không có gì để đợi: hoặc vòng soạn chưa mở được, hoặc nó đã xong trước cả
+            # tiếng chuông đầu tiên. Cả hai đều không phải lỗi.
+            return
+        yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
+
         async for _ in bells:
             await harvest(session, pool, settings, assessment_id)
             now, asked_for, running = await _count_questions(session, assessment_id)
@@ -1442,6 +1458,13 @@ async def run_turn(
             )
             break
 
+        # Chỉ những thứ tool thật sự nhận. Một tham số lạ đã được `vet_plan` bỏ qua, nhưng
+        # nó vẫn nằm trong `args` cho tới đây, và ghi nó vào lịch sử là dạy model rằng lần
+        # sau cứ gửi tiếp.
+        known = {spec.name: spec for spec in working}.get(step_of_plan.tool_name)
+        if known is not None:
+            args = {key: value for key, value in args.items() if key in known.arguments}
+
         history.append(
             TurnRecord(kind="tool_call", tool_name=step_of_plan.tool_name, tool_args=args)
         )
@@ -1457,23 +1480,62 @@ async def run_turn(
             conversation_id=thread,
         )
 
-        try:
-            result = await execute(
-                session,
-                asking,
-                step_of_plan.tool_name,
-                args,
-                pool=getattr(request.app.state, "queue_pool", None),
-                settings=settings,
-                phase=PHASE_WORK,
-            )
-        except UnknownTool:
-            result = {"error": f"không có tool nào tên {step_of_plan.tool_name}"}
-        except Exception:
-            logger.exception("step %d of a plan failed for %s", index, asking.teacher_code)
-            result = {"error": f"bước {index} chạy không xong"}
-        finally:
-            await session.rollback()
+        # Bước này sắp mở một vòng soạn thì **mở tai trước đã**. Pub/sub của Redis không giữ
+        # lịch sử: job chạy xong trước khi ai subscribe thì tiếng chuông của nó rơi vào một
+        # căn phòng trống, và trên máy dev không có API key thì một câu "soạn xong" trong vài
+        # micro-giây — mất **mọi** tiếng chuông, khối bước đứng im trọn ba phút rồi mới kể.
+        # ADR-25 nói thẳng thứ tự này; `listen_for_progress(start=...)` tồn tại để nó nằm
+        # trong một hàm chứ không nằm trong trí nhớ người viết. Review Pha F bắt được rằng
+        # đường thật chưa dùng nó.
+        #
+        # Biết trước được vì `start_drafting` nhận đúng cái id đề trong tham số của nó.
+        opening_a_round = watching and step_of_plan.tool_name == "start_drafting"
+        paper = args.get("assessment_id", "") if opening_a_round else ""
+        held: dict[str, dict] = {}
+
+        async def run_the_step(
+            held: dict[str, dict] = held,
+            step_of_plan: PlanStep = step_of_plan,
+            args: dict[str, str] = args,
+            index: int = index,
+        ) -> None:
+            # Mọi thứ của vòng lặp đi vào qua tham số mặc định. Closure bắt **biến**, không
+            # bắt giá trị, nên một coroutine dựng ở vòng này mà chạy ở vòng sau sẽ chạy với
+            # bước của vòng sau -- ở đây nó luôn chạy ngay, nhưng luật thì không nên dựa vào
+            # một thứ "luôn đúng hôm nay".
+            try:
+                held["result"] = await execute(
+                    session,
+                    asking,
+                    step_of_plan.tool_name,
+                    args,
+                    pool=getattr(request.app.state, "queue_pool", None),
+                    settings=settings,
+                    phase=PHASE_WORK,
+                )
+            except UnknownTool:
+                held["result"] = {"error": f"không có tool nào tên {step_of_plan.tool_name}"}
+            except Exception:
+                logger.exception("step %d of a plan failed for %s", index, asking.teacher_code)
+                held["result"] = {"error": f"bước {index} chạy không xong"}
+            finally:
+                await session.rollback()
+
+        detail = ""
+        if paper:
+            # Một khối: subscribe → chạy bước (đẩy job) → nghe chuông → thu hoạch. Các câu
+            # đang được viết trong lúc bước này vẫn **đang mở**, và ADR-25 nói số câu là tiến
+            # độ bên trong MỘT bước, không phải một con số thứ hai ở đâu khác.
+            async for event in _wait_for_questions(
+                request, session, settings, paper, thread, start=run_the_step
+            ):
+                yield event
+            result = held.get("result", {"error": f"bước {index} chạy không xong"})
+            if not _went_wrong(result):
+                detail = _how_many(await _count_questions(session, paper))
+        else:
+            await run_the_step()
+            result = held.get("result", {"error": f"bước {index} chạy không xong"})
 
         history.append(
             TurnRecord(kind="tool_result", tool_name=step_of_plan.tool_name, tool_result=result)
@@ -1481,23 +1543,9 @@ async def run_turn(
         position = await _record(session, thread, position, history[-1])
         done.append(result)
 
-        detail = _said_about(result)
         broke = _went_wrong(result)
-
-        # Bước vừa **bắt đầu** một vòng soạn thì nó chưa xong: các câu đang được viết trong
-        # worker, và ADR-25 nói số câu là tiến độ **bên trong một bước**, không phải một con
-        # số thứ hai ở đâu khác. Nên đợi ngay tại đây, trong lúc bước vẫn đang mở — bản đầu
-        # của Pha E đóng bước rồi mới đợi, và hệ quả là màn hình không còn bước nào `đang
-        # chạy` để gắn dòng tiến độ vào: con số bị bỏ lặng lẽ, khối bước đứng im suốt hàng
-        # phút, và `bước k/n` không hiện lần nào. Review bắt được.
-        started_drafting = not broke and bool(result.get("queued")) and bool(paper_now(result))
-        if watching and started_drafting:
-            async for event in _wait_for_questions(
-                request, session, settings, str(result["assessment_id"]), thread
-            ):
-                yield event
-            counted = await _count_questions(session, str(result["assessment_id"]))
-            detail = _how_many(counted)
+        if not detail:
+            detail = _said_about(result)
 
         outcomes.append(StepOutcome(title=step_of_plan.title, ok=not broke, detail=detail))
         yield TurnEvent(

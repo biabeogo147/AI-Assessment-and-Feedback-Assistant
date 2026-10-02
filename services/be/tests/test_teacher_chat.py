@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
-from be import teacher_chat
+from be import drafting, teacher_chat
 from be.config import get_settings
 from be.db import bind_sessions, prepare_schema
 from be.identity import Asking
@@ -47,9 +47,13 @@ from contracts import (
     NAME_CONVERSATION_TASK,
     REPORT_PLAN_TASK,
     ConversationNameCompleted,
+    DraftQuestionCompleted,
+    GeneratedOption,
+    GeneratedQuestion,
     NextStepCompleted,
     PlanReportCompleted,
     PlanStep,
+    SolutionMethod,
 )
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
@@ -138,6 +142,23 @@ async def _teacher(maker, code: str) -> Teacher:
         found = await session.scalar(select(Teacher).where(Teacher.teacher_code == code))
         assert found is not None
         return found
+
+
+def _question(job_id: str) -> GeneratedQuestion:
+    """Một câu hỏi hợp lệ, khác nhau theo job để `harvest` không coi là trùng."""
+    return GeneratedQuestion(
+        stem=f"Câu của {job_id}?",
+        options=(
+            GeneratedOption(label="A", text="đúng", is_correct=True),
+            GeneratedOption(label="B", text="sai", is_correct=False, error_label="lỗi B"),
+            GeneratedOption(label="C", text="sai", is_correct=False, error_label="lỗi C"),
+        ),
+        methods=(
+            SolutionMethod(title="Cách 1", body="..."),
+            SolutionMethod(title="Cách 2", body="..."),
+        ),
+        learning_objective="hàm số",
+    )
 
 
 def _request():
@@ -934,16 +955,20 @@ async def test_each_event_is_its_own_sse_frame(stack) -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_stream_waits_for_the_questions_before_it_reports(stack) -> None:
-    """Cửa SSE **phải** đợi — đó là nửa thứ hai của "pha 2 xong" (ADR-25).
+async def test_the_stream_waits_for_the_questions_and_opens_its_ears_first(stack) -> None:
+    """Đường đợi chạy **thật**, và nó subscribe **trước** khi job được đẩy đi.
 
-    Một test chỉ canh *cửa POST không đợi* để lại nửa kia không ai giữ: đổi `watching=True`
-    thành `False` ở endpoint stream thì cả bộ test vẫn xanh, trong khi giáo viên mất hẳn
-    dòng tiến độ và lời kể nói về một đề chưa có câu nào. Review Pha E đo được.
+    Hai luật trong một test, vì chúng chỉ sai cùng nhau:
 
-    Và việc đợi phải xảy ra **trong lúc bước vẫn đang mở**: dòng tiến độ là một dòng bên
-    trong một bước, nên nếu `step_done` đi trước `progress` thì màn hình không còn bước nào
-    đang chạy để gắn con số vào — bản đầu của Pha E hỏng đúng như vậy.
+    - Cửa SSE phải đợi (`watching=True`). Một test chỉ canh *cửa POST không đợi* để lại nửa
+      kia không ai giữ.
+    - Việc mở tai phải xảy ra trước việc đẩy job. Pub/sub của Redis không giữ lịch sử, và
+      trên một máy dev không có API key thì một câu "soạn xong" trong vài micro-giây — mọi
+      tiếng chuông rơi vào phòng trống, khối bước đứng im trọn ba phút rồi mới kể. Review
+      Pha F đo được rằng đường thật chưa dùng tham số `start` dựng ra cho đúng luật ấy.
+
+    Và nó **không** monkeypatch `_wait_for_questions`: năm đột biến một dòng bên trong hàm ấy
+    từng sống sót qua cả bộ test vì không test nào chạy qua nó.
     """
     http, maker, monkeypatch = stack
     agent = ScriptedAgent(
@@ -959,24 +984,7 @@ async def test_the_stream_waits_for_the_questions_before_it_reports(stack) -> No
     monkeypatch.setattr(teacher_chat, "run_task", agent)
     await _teacher(maker, "GV-001")
 
-    real_execute = teacher_chat.execute
-
-    async def pretend_execute(session, asking, name, args, **rest):
-        if name == "start_drafting":
-            # Hàng đợi giả không đẩy được job thật, nên dựng đúng hình dạng một vòng soạn
-            # vừa mở: có `queued` thì mới có gì để đợi.
-            return {"started": True, "queued": 3, "assessment_id": args["assessment_id"]}
-        return await real_execute(session, asking, name, args, **rest)
-
-    monkeypatch.setattr(teacher_chat, "execute", pretend_execute)
-
-    waited: list[str] = []
-
-    async def pretend_wait(request, session, settings, assessment_id, thread):
-        waited.append(assessment_id)
-        yield teacher_chat.TurnEvent(kind="progress", index=2, total=3, conversation_id=thread)
-
-    monkeypatch.setattr(teacher_chat, "_wait_for_questions", pretend_wait)
+    order = _drafting_stack(http, monkeypatch, rings_for={1, 2, 3}, ready_for={1, 2, 3})
 
     frames = []
     async with http.stream(
@@ -989,14 +997,190 @@ async def test_the_stream_waits_for_the_questions_before_it_reports(stack) -> No
             if line.startswith("data: "):
                 frames.append(json.loads(line[6:]))
 
-    assert len(waited) == 1
+    # Mở tai trước khi job đi. Đảo thứ tự lại là mất mọi tiếng chuông của một worker nhanh.
+    assert order[0] == "subscribe"
+    assert "fire" in order
+    assert order.index("subscribe") < order.index("fire")
 
     kinds = [one["kind"] for one in frames]
-    # `progress` phải nằm **giữa** `step_started` và `step_done` của bước soạn câu.
-    started = [index for index, one in enumerate(kinds) if one == "step_started"]
-    progress = kinds.index("progress")
-    closed = [index for index, one in enumerate(kinds) if one == "step_done"]
-    assert started[-1] < progress < closed[-1]
+    # `progress` nằm **giữa** `step_started` và `step_done` của bước soạn câu: số câu là tiến
+    # độ bên trong MỘT bước, nên bước ấy phải còn đang mở lúc con số tới.
+    started = [i for i, one in enumerate(kinds) if one == "step_started"]
+    closed = [i for i, one in enumerate(kinds) if one == "step_done"]
+    progress = [i for i, one in enumerate(kinds) if one == "progress"]
+    assert progress, "không có khung tiến độ nào"
+    assert started[-1] < progress[0] <= progress[-1] < closed[-1]
+
+    # Và con số đi lên tới đủ: lần thu cuối sau vòng nghe là thứ giữ cho `3/3` không bị mất.
+    last = [one for one in frames if one["kind"] == "progress"][-1]
+    assert last["index"] == 3
+    assert last["total"] == 3
+
+    # Dòng kết quả của bước soạn nói con số thật, không nói số job đã đẩy đi.
+    closing = [one for one in frames if one["kind"] == "step_done"][-1]
+    assert closing["detail"] == "đã soạn 3/3 câu"
+
+
+def _drafting_stack(
+    http,
+    monkeypatch,
+    rings_for: set[int],
+    ready_for: set[int],
+    failed_for: frozenset[int] = frozenset(),
+) -> list[str]:
+    """Dựng một hàng đợi giả rung chuông cho `rings_for` và trả kết quả cho `ready_for`.
+
+    Hai tập hợp tách nhau là cả ý nghĩa của nó: chuông **không bền**, nên một job xong mà
+    tiếng chuông của nó rơi mất là chuyện thường ngày — và đề vẫn phải đủ câu.
+
+    Args:
+        http: Client, để với tới `app.state`.
+        monkeypatch: Để thay `collect_result` và mức kiên nhẫn.
+        rings_for: Những `ordinal` có chuông.
+        ready_for: Những `ordinal` rồi sẽ có kết quả đọc được.
+        failed_for: Những `ordinal` mà chính job đã nổ — rời `pending` mà không mang câu nào.
+
+    Returns:
+        Một list ghi thứ tự các việc đã xảy ra (`subscribe`, `fire`).
+    """
+    order: list[str] = []
+    bells: list[bytes] = []
+    # Một câu chỉ **đọc được** sau khi tiếng chuông của nó tới. Không mô phỏng chuyện đó thì
+    # mọi kết quả có sẵn ngay từ tiếng chuông đầu, lần thu đầu lấy hết, và test không phân
+    # biệt được "thu theo từng tiếng chuông" với "thu một lần ở cuối".
+    revealed: set[int] = set()
+    silence: list[int] = []
+
+    class Ears:
+        async def subscribe(self, channel: str) -> None:
+            order.append("subscribe")
+
+        async def get_message(self, ignore_subscribe_messages: bool, timeout: float):
+            if bells:
+                rung = bells.pop(0)
+                revealed.add(int(rung))
+                return {"type": "message", "data": rung}
+            silence.append(1)
+            if len(silence) >= 2:
+                # Im lặng một lúc rồi những câu còn lại cũng xong — nhưng chuông của chúng
+                # đã rơi mất. Đây là ca mà lần thu sau vòng nghe sinh ra để cứu.
+                revealed.update(ready_for | failed_for)
+            return None
+
+        async def unsubscribe(self, channel: str) -> None:
+            order.append("unsubscribe")
+
+        async def aclose(self) -> None:
+            pass
+
+    class Queue:
+        def pubsub(self) -> Ears:
+            return Ears()
+
+        async def enqueue_job(self, name: str, payload: dict, _queue_name: str):
+            order.append("fire")
+            if payload["ordinal"] in rings_for:
+                bells.append(str(payload["ordinal"]).encode())
+            return type("Queued", (), {"job_id": f"job-{payload['ordinal']}"})()
+
+    http._transport.app.state.queue_pool = Queue()
+
+    async def collected(pool, settings, job_id):
+        ordinal = int(job_id.rsplit("-", 1)[1])
+        if ordinal in failed_for and ordinal in revealed:
+            return "failed", None
+        if ordinal not in ready_for or ordinal not in revealed:
+            return "pending", None
+        return "ready", DraftQuestionCompleted(
+            request_id="r", question=_question(job_id)
+        ).model_dump(mode="json")
+
+    monkeypatch.setattr(drafting, "collect_result", collected)
+    # Không ai đợi ba phút trong một test. Đây là hạn cho **sự im lặng**, nên 0,5 giây là đủ
+    # để vòng nghe đi hết rồi thu lần cuối.
+    monkeypatch.setattr(teacher_chat, "_WAIT_FOR_QUESTIONS_SECONDS", 0.5)
+    return order
+
+
+async def _drafting_frames(http) -> list[dict]:
+    """Chạy một lượt soạn đề qua cửa SSE và trả về các khung đã nhận."""
+    frames = []
+    async with http.stream(
+        "POST",
+        "/api/teacher/chat/messages/stream",
+        json={"text": "Tạo đề 3 câu Hàm số"},
+        headers=TEACHER,
+    ) as answer:
+        async for line in answer.aiter_lines():
+            if line.startswith("data: "):
+                frames.append(json.loads(line[6:]))
+    return frames
+
+
+@pytest.mark.asyncio
+async def test_a_lost_last_bell_still_ends_with_every_question_in(stack) -> None:
+    """Tiếng chuông cuối rơi mất thì **lần thu sau vòng nghe** là thứ cứu con số.
+
+    Chuông không bền: một tiếng rơi vào lúc người nghe đang bận là chuyện thường. Không có
+    lần thu cuối ấy thì một đề đủ ba câu kết thúc lượt ở `2/3`, và lời kể nói sai theo.
+
+    Và các con số ở giữa phải lên dần: nếu không thu ở mỗi tiếng chuông mà chỉ thu một lần ở
+    cuối thì màn hình đứng ở `0/3` suốt rồi nhảy một phát — mất đúng cái mà Pha E làm ra.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+    _drafting_stack(http, monkeypatch, rings_for={1, 2}, ready_for={1, 2, 3})
+
+    frames = await _drafting_frames(http)
+
+    counts = [one["index"] for one in frames if one["kind"] == "progress"]
+    assert counts[-1] == 3, f"thiếu lần thu cuối: {counts}"
+    assert 1 in counts and 2 in counts, f"không thu theo từng tiếng chuông: {counts}"
+    closing = [one for one in frames if one["kind"] == "step_done"][-1]
+    assert closing["detail"] == "đã soạn 3/3 câu"
+
+
+@pytest.mark.asyncio
+async def test_a_draft_that_stops_short_says_it_stopped(stack) -> None:
+    """Hết chuông mà vẫn thiếu câu thì dòng kết quả nói **dừng**, không nói đã soạn đủ.
+
+    Một `đã soạn 3/3 câu` cho một đề có hai câu đi thẳng vào prompt báo cáo, và model được
+    bảo rằng đề đã xong rồi mời giáo viên duyệt. Duyệt một đề thiếu câu là phát hành một bài
+    kiểm tra dở — đúng cái hại ADR-01 khoá nội dung để chặn.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+    # Câu thứ ba: chính job đã nổ, nên nó rời `pending` mà không mang theo câu nào.
+    _drafting_stack(
+        http, monkeypatch, rings_for={1, 2}, ready_for={1, 2}, failed_for=frozenset({3})
+    )
+
+    frames = await _drafting_frames(http)
+
+    closing = [one for one in frames if one["kind"] == "step_done"][-1]
+    assert closing["detail"] == "dừng ở 2/3 câu"
 
 
 @pytest.mark.asyncio

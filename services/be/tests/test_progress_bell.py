@@ -7,7 +7,6 @@ Chuông chở một con số, câu hỏi đi result store của arq, và hai tes
 nửa ấy đứng tách nhau.
 """
 
-from contextlib import aclosing
 from datetime import UTC, datetime
 
 import pytest
@@ -18,7 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import drafting
 from be.config import get_settings
 from be.db import prepare_schema
-from be.drafting import fire, harvest, listen_for_progress, progress_channel
+from be.drafting import fire, harvest, open_bells, progress_channel
 from be.models import (
     Assessment,
     AssessmentState,
@@ -210,38 +209,43 @@ class FakePool:
 
 @pytest.mark.asyncio
 async def test_the_channel_is_open_before_the_job_is_handed_over() -> None:
-    """Mở tai **trước** khi đẩy job, và luật ấy phải nằm trong hàm.
+    """Mở tai **trước** khi đẩy job, và luật ấy nằm trong cú pháp.
 
     Pub/sub không giữ lịch sử, arq giao job gần như tức thì, và trên máy dev không có API
     key thì một câu "soạn xong" trong vài micro-giây — đẩy job trước là trao cho worker cơ
-    hội nói vào một căn phòng trống. Generator của Python lại **lười**: thân hàm không chạy
-    cho tới lần lặp đầu tiên, nên một caller viết `await fire(...)` rồi mới `async for` sẽ
-    subscribe muộn mà không có gì báo. Vì thế việc đẩy job đi vào tham số `start`.
+    hội nói vào một căn phòng trống.
+
+    Bản trước nhận một tham số `start` trên một **async generator**, và thân một async
+    generator không chạy cho tới lần lặp đầu tiên: khi chưa có chuông nào để lặp, `start`
+    không chạy lần nào. Đường sản xuất vì thế mất trọn vòng soạn, và cả bộ test vẫn xanh vì
+    test gọi hàm ấy trực tiếp rồi lặp ngay. Một context manager thì không có cửa đó: thứ
+    nằm trong `async with` chắc chắn chạy sau `__aenter__`.
     """
     log: list[str] = []
     pool = FakePool(FakePubSub(log, [b"1"]))
 
-    async def fire_now() -> None:
+    async with open_bells(pool, "de-1", 0.3) as bells:
         log.append("fire")
-
-    heard = [one async for one in listen_for_progress(pool, "de-1", 0.3, start=fire_now)]
+        heard = [one async for one in bells]
 
     assert heard == [1]
     assert log[0] == "subscribe draft:de-1"
     assert log[1] == "fire"
+    assert log[-2:] == ["unsubscribe", "aclose"]
 
 
 @pytest.mark.asyncio
 async def test_only_numbers_are_heard_and_rubbish_does_not_keep_it_alive() -> None:
     """Tin không phải số bị bỏ, và nó **không** làm mới đồng hồ kiên nhẫn.
 
-    Nếu một tin rác cũng gia hạn, một publisher nói linh tinh giữ generator này sống mãi —
+    Nếu một tin rác cũng gia hạn, một publisher nói linh tinh giữ vòng nghe này sống mãi —
     và nó đang chạy bên trong một request.
     """
     log: list[str] = []
     pool = FakePool(FakePubSub(log, [b"4", b"khong-phai-so", b"7"]))
 
-    heard = [one async for one in listen_for_progress(pool, "de-1", 0.3)]
+    async with open_bells(pool, "de-1", 0.3) as bells:
+        heard = [one async for one in bells]
 
     assert heard == [4, 7]
 
@@ -250,17 +254,17 @@ async def test_only_numbers_are_heard_and_rubbish_does_not_keep_it_alive() -> No
 async def test_a_redis_that_breaks_mid_listen_stops_quietly() -> None:
     """Redis gãy giữa lúc nghe thì thôi nghe, không ném.
 
-    Hàm này chạy trong cùng một lượt chat với việc soạn đề. Một exception thoát ra đây biến
-    một hàng đợi tạm thời không với tới được thành một lượt chat hỏng, trong khi thứ duy
-    nhất mất đi là sự sống động của một khối bước.
+    Nó chạy trong cùng một lượt chat với việc soạn đề. Một exception thoát ra đây biến một
+    hàng đợi tạm thời không với tới được thành một lượt chat hỏng, trong khi thứ duy nhất
+    mất đi là sự sống động của một khối bước.
     """
     log: list[str] = []
     pool = FakePool(FakePubSub(log, [], breaks=True))
 
-    heard = [one async for one in listen_for_progress(pool, "de-1", 0.3)]
+    async with open_bells(pool, "de-1", 0.3) as bells:
+        heard = [one async for one in bells]
 
     assert heard == []
-    # Và nó vẫn dọn dẹp: một subscription bỏ lại giữ một connection của pool suốt đời process.
     assert log[-2:] == ["unsubscribe", "aclose"]
 
 
@@ -268,13 +272,13 @@ async def test_a_redis_that_breaks_mid_listen_stops_quietly() -> None:
 async def test_leaving_early_still_closes_the_channel() -> None:
     """Người nghe `break` giữa chừng thì channel vẫn phải đóng.
 
-    Pha E dừng nghe bằng đúng `break` khi đã đủ câu. Không có `aclosing`, việc dọn dẹp bị
-    hoãn tới lượt gc, và mỗi lượt chat để lại một subscription treo.
+    Đường chạy thật dừng nghe bằng đúng `break` khi đã đủ câu. Một subscription bỏ lại giữ
+    một connection của pool suốt đời process.
     """
     log: list[str] = []
     pool = FakePool(FakePubSub(log, [b"1", b"2", b"3"]))
 
-    async with aclosing(listen_for_progress(pool, "de-1", 0.3)) as bells:
+    async with open_bells(pool, "de-1", 0.3) as bells:
         async for one in bells:
             if one == 2:
                 break
@@ -284,18 +288,17 @@ async def test_leaving_early_still_closes_the_channel() -> None:
 
 @pytest.mark.asyncio
 async def test_listening_without_a_queue_still_does_the_work() -> None:
-    """Queue chết thì đường nghe im lặng đi ra — nhưng `start` vẫn phải chạy.
+    """Queue chết thì không nghe được gì — nhưng thân khối **vẫn** phải chạy.
 
-    `start` là việc thật (đẩy job, và trước đó là `fire` ghi row). Bỏ qua nó khi không có
-    pool nghĩa là một hàng đợi tạm thời không với tới được sẽ **nuốt luôn** việc soạn đề,
-    chứ không chỉ nuốt phần hiển thị.
+    Việc trong khối là việc thật (đẩy job, và trước đó là `fire` ghi row). Bỏ qua nó khi
+    không có pool nghĩa là một hàng đợi tạm thời không với tới được sẽ **nuốt luôn** việc
+    soạn đề, chứ không chỉ nuốt phần hiển thị.
     """
     done: list[str] = []
 
-    async def fire_now() -> None:
+    async with open_bells(None, "bat-ky", 0.1) as bells:
         done.append("fire")
-
-    heard = [one async for one in listen_for_progress(None, "bat-ky", 0.1, start=fire_now)]
+        heard = [one async for one in bells]
 
     assert heard == []
     assert done == ["fire"]
