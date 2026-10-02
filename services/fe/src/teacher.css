@@ -39,6 +39,17 @@
   --section-gap: 24px;
 
   display: flex;
+  /*
+   * Rộng nhất 1440 và căn giữa, y như bề mặt học sinh.
+   *
+   * `tokens.css` đã chốt luật này từ đầu — *"Mọi màn hình rộng 1440 và căn giữa.
+   * Thiết kế này không fluid"* — và bên học sinh thi hành nó bằng `.frame`. Bản
+   * giáo viên đầu tiên thiếu đúng hai dòng ấy, nên trên một màn 1920 cả bề mặt
+   * dính mép trái: rail ở x=0, cột chat trôi theo, và 480px bên phải bỏ trống.
+   * Trên một màn 2560 thì nó đúng cái mà `tokens.css` tả là "hai cột ở xa nhau".
+   */
+  max-width: var(--frame);
+  margin: 0 auto;
   height: 100vh;
   overflow: hidden;
   background: var(--paper);

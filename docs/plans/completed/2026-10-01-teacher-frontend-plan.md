@@ -232,6 +232,20 @@ sáu tham số, xem trước, xác nhận, và nhận lại một dòng từ ch�
    phần giải thích cho mỗi lựa chọn, và ba ô giờ 118.67px. Cả bốn đã được sửa **trên Figma**, không
    phải lách trong code.
 
+### Một lỗi tìm ra sau khi plan đã đóng
+
+`.teacher` thiếu `max-width` và `margin: 0 auto`, nên trên màn rộng hơn 1440 cả bề mặt dính mép
+trái: rail ở x=0, cột chat trôi theo, và phần dư bên phải bỏ trống. `tokens.css` đã chốt luật ngược
+lại ngay từ đầu — *"Mọi màn hình rộng 1440 và căn giữa. Thiết kế này không fluid"* — và bên học sinh
+thi hành nó bằng `.frame`; bản giáo viên thiếu đúng hai dòng ấy.
+
+**Vì sao cả đợt đo không bắt được.** Mọi phép đo đều chạy sau khi tiêm một style ép
+`.teacher { width: 1440px }` — cửa sổ Chrome đang maximize nên không resize xuống 1440 được. Style
+ấy dựng lại đúng khung thiết kế cho mọi con số bên trong, và cũng **che mất** đúng câu hỏi "ở ngoài
+khung thì sao". Một phép đo nào cũng chỉ trả lời câu nó được hỏi.
+
+Sau khi sửa thì không cần tiêm gì nữa: trên một cửa sổ rộng hơn 1440, bề mặt **tự** rộng đúng 1440.
+
 ### Thứ vẫn chưa thật
 
 Chip nguồn câu hỏi là **chữ bịa** — `Question` không có cột nào nói nguồn hay việc đã kiểm. Nó nằm
