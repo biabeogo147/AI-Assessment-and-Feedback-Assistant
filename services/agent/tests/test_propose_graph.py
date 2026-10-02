@@ -422,7 +422,11 @@ async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
     assert "lớp 12A" in prompt and "khối" in prompt
     # Và luật "chỉ hỏi bốn mục bắt buộc": đo trên trình duyệt thật, model hỏi giáo viên có
     # muốn đặt tên cho đề không — một câu hỏi về một mục tuỳ chọn, tốn trọn một lượt.
-    assert "TUỲ CHỌN" in prompt
+    # Đo ba lần trên trình duyệt thật: model hỏi tên đề, rồi hỏi độ khó, rồi hỏi phạm vi
+    # cho một câu đã nói phạm vi. Luật phải nói tuyệt đối — "đủ bốn mục thì nêu plan NGAY" —
+    # chứ không liệt kê từng mục không được hỏi.
+    assert "ĐỦ BỐN MỤC THÌ NÊU PLAN NGAY" in prompt
+    assert "KHÔNG bắt buộc" in prompt
     # Và luật đi kèm: chỉ trỏ về phía sau. `vet_plan` từ chối một plan trỏ về phía trước,
     # nên không nói ra là để model tự tìm ra bằng cách bị từ chối.
     assert "ĐỨNG TRƯỚC" in prompt
