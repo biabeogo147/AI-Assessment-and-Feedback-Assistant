@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { go } from "../../App";
-import { teacher, type Answered, type TeacherDocument, type Turn } from "../../api";
+import {
+  teacher,
+  type Answered,
+  type TeacherConversation,
+  type TeacherDocument,
+  type Turn,
+} from "../../api";
 import ActionCard from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
@@ -22,14 +28,24 @@ import Rail from "./Rail";
  * `choices` là chuỗi đã format sẵn và bấm một nút nghĩa là gửi lại đúng chuỗi đó — gõ tay vẫn
  * trả lời được, nên không ai bị kẹt.
  *
+ * @param conversationId - Đoạn chat đang mở, hoặc `null` cho *đoạn đang chạy*. Cũng tới từ
+ *   route, cùng một lý do.
+ * @param fresh - Màn hình đang ở trạng thái *chưa có đoạn nào*, sau khi bấm **Đoạn chat mới**.
+ *   Nó là một route (`#/teacher/moi`) chứ không phải một state cục bộ, và lý do đo được: bấm
+ *   nút ấy khi đang đứng ở `#/teacher` không đổi hash, nên không có gì xảy ra — câu gõ tiếp
+ *   theo rơi vào đoạn cũ mà màn hình không hề báo.
  * @param openPaper - Đề đang mở trong panel bên phải, hoặc `null`. Nó tới từ **route**, không
  *   từ một cú bấm: nhờ vậy một lần F5 khi panel đang mở dựng lại đúng màn hình đó, và nút back
  *   đóng panel lại thay vì rời khỏi cả đoạn chat.
  */
 export default function Chat({
+  conversationId,
+  fresh,
   openPaper,
   publishing,
 }: {
+  conversationId: string | null;
+  fresh: boolean;
   openPaper: string | null;
   publishing: boolean;
 }) {
@@ -39,6 +55,10 @@ export default function Chat({
   // cách để không vẽ nó hai lần.
   const [asked, setAsked] = useState<Answered | null>(null);
   const [documents, setDocuments] = useState<TeacherDocument[]>([]);
+  const [threads, setThreads] = useState<TeacherConversation[]>([]);
+  // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
+  // đầu thì id chỉ có sau khi BE trả lời.
+  const [here, setHere] = useState<string | null>(conversationId);
   const [scope, setScope] = useState<TeacherDocument | null>(null);
   const [text, setText] = useState("");
   // Bong bóng **tạm** của câu vừa gửi. Nó không nằm trong `turns`, nên lúc lượt thật về tới
@@ -51,14 +71,42 @@ export default function Chat({
   const picker = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
+  // Đổi route thì đổi hội thoại. `live` cắt một câu trả lời về muộn của đoạn chat vừa rời
+  // đi: không có nó, bấm nhanh qua hai đoạn sẽ vẽ lịch sử của đoạn đầu lên đoạn sau.
   useEffect(() => {
+    let live = true;
+    // Route vừa gọi tên đúng đoạn đang hiện — chuyện xảy ra ngay sau câu đầu của một đoạn
+    // mới. Không tải lại: dữ liệu đã nằm sẵn trên màn hình, và một lần tải nữa chỉ làm nó
+    // nháy rỗng rồi hiện lại y như cũ.
+    if (conversationId !== null && conversationId === here) return;
+    setHere(conversationId);
+    setTurns([]);
+    setAsked(null);
+    if (fresh) return;
     teacher
-      .conversation()
-      .then((answered: Answered) => setTurns(answered.turns))
-      .catch((cause: Error) => setTrouble(cause.message));
+      .conversation(conversationId ?? undefined)
+      .then((answered: Answered) => {
+        if (!live) return;
+        setTurns(answered.turns);
+        if (answered.conversation_id) setHere(answered.conversation_id);
+      })
+      .catch((cause: Error) => live && setTrouble(cause.message));
+    return () => {
+      live = false;
+    };
+    // `here` cố ý không nằm trong danh sách phụ thuộc: nó chỉ dùng để nhận ra route vừa
+    // đuổi kịp màn hình, và nghe nó sẽ làm effect chạy lại sau mỗi lượt nói.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, fresh]);
+
+  useEffect(() => {
     teacher
       .documents()
       .then(setDocuments)
+      .catch((cause: Error) => setTrouble(cause.message));
+    teacher
+      .conversations()
+      .then(setThreads)
       .catch((cause: Error) => setTrouble(cause.message));
   }, []);
 
@@ -84,7 +132,18 @@ export default function Chat({
     const later = window.setTimeout(() => setSlow(true), 20_000);
 
     try {
-      const answered = await teacher.say(trimmed, stop.signal);
+      // Một trong hai, không bao giờ cả hai: BE trả 422 cho một request tự mâu thuẫn.
+      const answered = await teacher.say(
+        trimmed,
+        here === null ? { startNew: true } : { conversationId: here },
+        stop.signal,
+      );
+      setHere(answered.conversation_id);
+      // URL gọi tên đoạn vừa mở, để F5 và nút back đều về đúng chỗ.
+      if (here === null) go(`/teacher/chat/${answered.conversation_id}`);
+      // Lượt đầu của một đoạn mới vừa đặt tên cho nó, nên rail phải đọc lại — nếu không
+      // thì đoạn vừa tạo không có hàng nào, và nó trông như đã mất.
+      teacher.conversations().then(setThreads).catch(() => undefined);
       // Chỉ các bước CỦA LƯỢT NÀY, nên append chứ không thay: `GET /teacher/chat` mới là
       // đường trả về cả hội thoại.
       setTurns((before) => [...before, ...answered.turns]);
@@ -128,7 +187,13 @@ export default function Chat({
 
   return (
     <div className="teacher">
-      <Rail documents={documents} />
+      <Rail
+        conversations={threads}
+        current={here}
+        documents={documents}
+        onOpen={(thread) => go(`/teacher/chat/${thread}`)}
+        onNew={() => go("/teacher/moi")}
+      />
       <main
         className={`center ${talking ? "talking" : "empty"} ${openPaper !== null ? "with-panel" : ""}`}
       >
@@ -138,8 +203,8 @@ export default function Chat({
               <Exchange
                 key={index}
                 turn={one}
-                onOpen={(paper) => go(`/teacher/de/${paper}`)}
-                onPublish={(paper) => go(`/teacher/de/${paper}/phat-hanh`)}
+                onOpen={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}`)}
+                onPublish={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)}
               />
             ))}
             {asked !== null && pending === null && (
@@ -232,7 +297,7 @@ export default function Chat({
         <Panel
           assessmentId={openPaper}
           publishing={publishing}
-          onClose={() => go("/teacher")}
+          onClose={() => go(here === null ? "/teacher" : `/teacher/chat/${here}`)}
           onApproved={() => {
             // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
             // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính

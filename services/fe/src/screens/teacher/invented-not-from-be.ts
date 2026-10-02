@@ -7,34 +7,17 @@
  * nào để lưu. Nên nó bị dồn vào đúng một module, và khi BE có thật thì chỗ phải
  * sửa là một chỗ chứ không phải một cuộc đi tìm.
  *
- * Hai món, và lý do từng món chưa có thật:
+ * Một món, và lý do nó chưa có thật:
  *
- * - **Danh sách đoạn chat.** BE có đúng **một** luồng cho mỗi giáo viên:
- *   `GET /api/teacher/chat` không nhận id nào và `teacher_threads` khoá theo
- *   `teacher_id`. Không có "đoạn chat thứ hai" để liệt kê, nên cả nhóm ngày lẫn
- *   tiêu đề đều là chữ bịa.
  * - **Con số trên huy hiệu Bảng theo dõi.** Chưa có đường đếm nào trả về nó.
  *
- * Vì chúng là chữ bịa, chúng **không bấm được**: `Rail` dựng chúng ở dạng trơ.
- * Một hàng bấm vào không mở ra gì thì thà đừng mời bấm.
+ * Danh sách đoạn chat từng nằm ở đây và nay đã **thật**: `teacher_conversations`
+ * chứa nhiều luồng, và `GET /api/teacher/conversations` trả chúng kèm tiêu đề do
+ * model đặt. Một món nợ của `backlog.md` được trả.
+ *
+ * Vì con số kia là chữ bịa, nó **không bấm được**: `Rail` dựng bốn đích đến ở dạng
+ * trơ. Một hàng bấm vào không mở ra gì thì thà đừng mời bấm.
  */
-
-/** Một đoạn chat giả, xếp dưới một nhãn thời gian giả. */
-export interface InventedConversation {
-  group: string;
-  title: string;
-}
-
-export const CONVERSATIONS: InventedConversation[] = [
-  { group: "Hôm nay", title: "Đề cuối kỳ — Hình học 11" },
-  { group: "Hôm nay", title: "Lớp 11B — nhập danh sách" },
-  { group: "7 ngày qua", title: "Giữa kỳ I — Đại số tổ hợp" },
-  { group: "7 ngày qua", title: "Thống kê lỗi sai Toán 12" },
-  { group: "7 ngày qua", title: "Ôn tập chương Giới hạn" },
-  { group: "7 ngày qua", title: "Lớp 12B — nhập danh sách" },
-  { group: "30 ngày qua", title: "Đề tuần 3 — Đạo hàm" },
-  { group: "30 ngày qua", title: "Phân tích lỗi sai giữa kỳ" },
-];
 
 /** Số việc đang chờ người xem trên Bảng theo dõi. Không có đường nào đếm nó. */
 export const DASHBOARD_WAITING = 3;

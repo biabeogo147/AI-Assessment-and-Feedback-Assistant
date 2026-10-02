@@ -53,9 +53,9 @@ Chúng ở lại trong `backlog.md`.
       AGENT xanh mà không gọi model thật.
 - [x] **Bước 7 — BE đặt tiêu đề.** Sau lượt đầu của một hội thoại mới, kèm đường lùi. Cổng: tắt
       `LLM_ENABLED` vẫn có tiêu đề; model ném lỗi không làm hỏng lượt nói.
-- [ ] **Bước 8 — FE: rail thật và route lồng nhau.** `api.ts`, danh sách đoạn chat, nút *Đoạn chat
+- [x] **Bước 8 — FE: rail thật và route lồng nhau.** `api.ts`, danh sách đoạn chat, nút *Đoạn chat
       mới*, `#/teacher/chat/{id}/de/{paper}`. Cổng: mở hai đoạn, bấm qua lại, F5 đúng chỗ.
-- [ ] **Bước 9 — FE: thanh kéo.** `pointer` events + `localStorage` + `cursor: row-resize`. Cổng:
+- [x] **Bước 9 — FE: thanh kéo.** `pointer` events + `localStorage` + `cursor: row-resize`. Cổng:
       kéo được, F5 nhớ vị trí.
 - [ ] **Bước 10 — tài liệu.** ADR-24, `backlog.md`, `local-development.md` (kèm câu `ALTER`), đóng
       plan.
@@ -158,7 +158,11 @@ bảng đã tồn tại. Database dev sẽ giữ ràng buộc cũ và đoạn ch
 
 ```sql
 ALTER TABLE teacher_conversations DROP CONSTRAINT teacher_conversations_teacher_id_key;
+ALTER TABLE teacher_conversations ADD COLUMN title VARCHAR(120) NOT NULL DEFAULT '';
 ```
+
+Plan này ban đầu chỉ ghi câu thứ nhất, và câu thứ hai lộ ra khi chạy thật: `create_all` không thêm
+**cột** vào một bảng đã có, y như nó không bỏ một constraint. Cùng một cái bẫy, hai mặt.
 
 Câu này đi vào `local-development.md` ở bước 10.
 
@@ -218,4 +222,22 @@ là làm cho bản giả **giống cái thật hơn**, không phải nới lỏn
 Năm ca dọn tiêu đề đều có test: dấu ngoặc kép, dấu chấm cuối, khoảng trắng thừa, ba trăm ký tự, và
 chuỗi rỗng. Prompt đã bảo model đừng làm bốn chuyện đầu — prompt là một lời nhờ, không phải một
 ràng buộc, nên chỗ ràng buộc là BE.
+
+Bước 8 và 9 xong, và **một lượt chạy thật tìm ra hai lỗi mà không test nào thấy** — lần thứ năm
+trong dự án này.
+
+**Nút *Đoạn chat mới* không làm gì khi đang đứng ở `#/teacher`.** Nó gọi `go("/teacher")`, hash
+không đổi, `hashchange` không bắn, effect không chạy lại. Màn hình giữ nguyên đoạn cũ, và câu gõ
+tiếp theo rơi vào đó — không có gì báo. Nay màn trống là một **route** riêng (`#/teacher/moi`), nên
+cú bấm luôn đổi hash, F5 giữ đúng trạng thái, và nút back quay lại được.
+
+**Thanh kéo kéo được nhưng không lưu.** Bản đầu ghi `localStorage` trong một effect nghe
+`documentsHeight`; lần `set` cuối của một cú kéo đưa đúng giá trị đang có, React bỏ qua, effect
+không chạy lại. Nay ghi thẳng khi thả tay — và đó cũng là chỗ đúng về số lượng, vì một cú kéo là
+hàng trăm `pointermove` còn `localStorage` ghi đồng bộ trên luồng chính.
+
+Đo lại rail sau cả hai: mọi con số trùng khớp đợt đo trước, không xê dịch một pixel.
+
+Và `create_all` cắn lần thứ hai: nó không thêm **cột** vào bảng đã có, y như nó không bỏ một
+constraint. Câu `ALTER` nay có hai dòng.
 

@@ -225,6 +225,8 @@ export interface AssessmentDetail {
   still_drafting: number;
   topic_scope: string;
   difficulty: string;
+  /** Đoạn chat đã sinh ra đề. Rỗng với đề seed hoặc đề tạo tay — panel vẫn mở được. */
+  conversation_id: string;
   questions: TeacherQuestion[];
 }
 
@@ -357,9 +359,25 @@ export interface Turn {
 export interface Answered {
   kind: string;
   text: string;
+  /** Lượt vừa rồi nằm trong đoạn chat nào. Thứ FE cần sau khi bấm *Đoạn chat mới*. */
+  conversation_id: string;
   choices: string[];
   more_choices: number;
   turns: Turn[];
+}
+
+/**
+ * Một đoạn chat trên rail.
+ *
+ * `last_spoke_at` chứ không phải `started_at` là thứ quyết định nó nằm dưới nhãn ngày
+ * nào: một đoạn mở từ tuần trước mà hôm nay vừa nói tiếp thì thuộc về *Hôm nay*, và đó
+ * là chỗ người ta đi tìm nó.
+ */
+export interface TeacherConversation {
+  conversation_id: string;
+  title: string;
+  started_at: string;
+  last_spoke_at: string;
 }
 
 /**
@@ -493,13 +511,31 @@ export const teacher = {
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
   publications: (assessmentId: string) =>
     call<Publications>("teacher", `/teacher/assessments/${assessmentId}/publications`),
-  conversation: () => call<Answered>("teacher", "/teacher/chat"),
+  conversations: () => call<TeacherConversation[]>("teacher", "/teacher/conversations"),
+  // Thiếu id thì BE trả đoạn **đang chạy**, y như trước khi giáo viên có nhiều đoạn.
+  conversation: (conversationId?: string) =>
+    call<Answered>(
+      "teacher",
+      conversationId === undefined
+        ? "/teacher/chat"
+        : `/teacher/chat?conversation_id=${encodeURIComponent(conversationId)}`,
+    ),
+  // `conversationId` và `startNew` loại trừ nhau, và BE trả 422 khi gửi cả hai — nên
+  // chỗ này không được "tiện tay" gửi kèm cả hai cho chắc.
   // `signal` vì một lượt có thể mất tới 90 giây bên BE: màn hình đặt hạn riêng và
   // phải cắt được, nếu không thì một request treo sẽ khoá ô nhập vĩnh viễn.
-  say: (text: string, signal?: AbortSignal) =>
+  say: (
+    text: string,
+    into: { conversationId?: string; startNew?: boolean } = {},
+    signal?: AbortSignal,
+  ) =>
     call<Answered>("teacher", "/teacher/chat/messages", {
       method: "POST",
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({
+        text,
+        conversation_id: into.conversationId ?? null,
+        start_new: into.startNew ?? false,
+      }),
       signal,
     }),
   approve: (assessmentId: string) =>

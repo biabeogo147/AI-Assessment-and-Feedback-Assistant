@@ -98,7 +98,7 @@ describe("hộp xác nhận phát hành", () => {
     const bodies: Record<string, unknown>[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (path: string, init?: RequestInit) => {
+      vi.fn(async (_path: string, init?: RequestInit) => {
         if (init?.method === "POST") bodies.push(JSON.parse(String(init.body)));
         const payload = init?.method === "POST" ? PREVIEW : FORM;
         return new Response(JSON.stringify(payload), { status: 200 });
@@ -128,7 +128,7 @@ describe("hộp xác nhận phát hành", () => {
     const bodies: Record<string, unknown>[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (path: string, init?: RequestInit) => {
+      vi.fn(async (_path: string, init?: RequestInit) => {
         if (init?.method === "POST") bodies.push(JSON.parse(String(init.body)));
         return new Response(JSON.stringify(init?.method === "POST" ? PREVIEW : FORM), {
           status: 200,

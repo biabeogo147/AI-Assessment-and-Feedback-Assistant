@@ -334,9 +334,12 @@
 }
 
 /*
- * Tay nắm chia hai ngăn. Nó **chưa kéo được**, và trông đúng như thế: không có
- * `cursor: row-resize`, vì một con trỏ hứa một việc mà thả chuột ra không có gì
- * xảy ra là một lời nói dối rẻ tiền.
+ * Tay nắm chia hai ngăn, nay kéo được thật.
+ *
+ * `cursor: row-resize` xuất hiện **cùng lúc** với việc kéo được, không sớm hơn:
+ * một con trỏ hứa một việc mà thả chuột ra không có gì xảy ra là một lời nói dối
+ * rẻ tiền. `touch-action: none` để trình duyệt không cuộn trang khi người ta kéo
+ * bằng ngón tay — không có nó thì `pointermove` ngừng bắn ngay giữa cú kéo.
  */
 .rail .split-handle {
   display: flex;
@@ -345,6 +348,8 @@
   height: 12px;
   flex: none;
   position: relative;
+  cursor: row-resize;
+  touch-action: none;
 }
 
 .rail .split-handle::before {

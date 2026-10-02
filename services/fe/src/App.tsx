@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import "./tokens.css";
 import "./teacher.css";
-import { api, type Me } from "./api";
+import { api, teacher, type Me } from "./api";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
@@ -54,18 +54,67 @@ export default function App() {
 /**
  * Bề mặt giáo viên.
  *
- * Panel là một **route**, không phải một state cục bộ: `#/teacher/de/{id}` mở nó, nút back
- * đóng nó, và một lần F5 dựng lại đúng màn hình đang mở. Một state cục bộ thì mất cả ba.
+ * Cả đoạn chat lẫn panel là **route**, không phải state cục bộ: nút back đóng panel rồi
+ * mới rời đoạn chat, và một lần F5 dựng lại đúng màn hình đang mở. Một state cục bộ thì
+ * mất cả ba.
+ *
+ * Panel **lồng trong** đoạn chat đã sinh ra đề, vì đó là nơi nó thuộc về: biên bản duyệt
+ * và phát hành rơi vào đoạn chat ấy, nên mở panel từ một đoạn khác sẽ là mở một thứ mà
+ * những gì nó ghi ra lại hiện ở chỗ khác.
  */
 function Teacher() {
   const route = useRoute();
-  const paper = /^\/teacher\/de\/([^/]+)/.exec(route);
-  return (
-    <Chat
-      openPaper={paper ? paper[1] : null}
-      publishing={/^\/teacher\/de\/[^/]+\/phat-hanh$/.test(route)}
-    />
-  );
+
+  // Màn trống sau khi bấm *Đoạn chat mới*. Là một route vì nếu không thì cú bấm ấy không
+  // đổi hash khi đang đứng ở `#/teacher`, và một nút không làm gì là một nút nói dối.
+  if (route === "/teacher/moi") {
+    return <Chat conversationId={null} fresh openPaper={null} publishing={false} />;
+  }
+
+  const nested = /^\/teacher\/chat\/([^/]+)(?:\/de\/([^/]+))?/.exec(route);
+  if (nested) {
+    return (
+      <Chat
+        conversationId={nested[1]}
+        fresh={false}
+        openPaper={nested[2] ?? null}
+        publishing={route.endsWith("/phat-hanh")}
+      />
+    );
+  }
+
+  // Link cũ `#/teacher/de/{id}`: không biết đoạn chat nào, nên hỏi BE rồi chuyển. Giữ nó
+  // sống vì một bookmark hay một tab mở từ hôm qua không có lỗi gì.
+  const bare = /^\/teacher\/de\/([^/]+)/.exec(route);
+  if (bare) return <Settle paper={bare[1]} tail={route.endsWith("/phat-hanh")} />;
+
+  return <Chat conversationId={null} fresh={false} openPaper={null} publishing={false} />;
+}
+
+/**
+ * Chuyển một link cũ về route lồng nhau của nó.
+ *
+ * Màn hình này không vẽ gì ngoài một dòng chờ: nó tồn tại đúng một nhịp, để hỏi BE xem
+ * đề ấy sinh ra từ đoạn chat nào. Đề không thuộc đoạn nào — đề seed, đề tạo tay — thì về
+ * đoạn đang chạy, vì panel vẫn phải mở được.
+ *
+ * @param paper - Đề trong link cũ.
+ * @param tail - Link ấy có đang ở chế độ phát hành không.
+ */
+function Settle({ paper, tail }: { paper: string; tail: boolean }) {
+  const [failed, setFailed] = useState<string | null>(null);
+
+  useEffect(() => {
+    teacher
+      .assessment(paper)
+      .then((found) => {
+        const where = found.conversation_id;
+        go(where === "" ? "/teacher" : `/teacher/chat/${where}/de/${paper}${tail ? "/phat-hanh" : ""}`);
+      })
+      .catch((cause: Error) => setFailed(cause.message));
+  }, [paper, tail]);
+
+  return <div className="page">{failed ?? "Đang mở…"}</div>;
 }
 
 /**
