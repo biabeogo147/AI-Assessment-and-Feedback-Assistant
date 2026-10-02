@@ -30,7 +30,12 @@ from be.identity import Asking
 from be.models import SchoolClass, Student, Teacher, TeacherConversation, TeacherTurn
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
-from contracts import NextStepCompleted, TurnRecord
+from contracts import (
+    NAME_CONVERSATION_TASK,
+    ConversationNameCompleted,
+    NextStepCompleted,
+    TurnRecord,
+)
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 
@@ -50,6 +55,13 @@ class ScriptedAgent:
         self.asked: list[dict] = []
 
     async def __call__(self, pool, settings, task_name, payload) -> dict:
+        # Một cái cửa, nhiều loại việc. Từ khi BE nhờ AGENT đặt tên đoạn chat, bản giả
+        # phải phân việc y như cái cửa thật — và việc đặt tên **không** vào `asked`, vì
+        # `asked` nghĩa là "trợ lý đã được hỏi những gì", không phải "đã có bao nhiêu job".
+        if task_name == NAME_CONVERSATION_TASK:
+            return ConversationNameCompleted(
+                request_id=payload["request_id"], title="tên do model đặt"
+            ).model_dump(mode="json")
         self.asked.append(payload)
         if self.takes:
             await asyncio.sleep(self.takes)
@@ -627,3 +639,92 @@ async def test_asking_for_both_a_thread_and_a_new_one_is_refused(stack) -> None:
     )
 
     assert both.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_the_first_message_names_the_thread(stack) -> None:
+    """Lượt đầu tiên đặt tên cho đoạn chat; lượt thứ hai không đổi tên nữa.
+
+    Đổi tên theo câu mới nhất sẽ làm rail nhảy chữ sau mỗi tin nhắn, và một hàng vừa đọc
+    xong đã mang tên khác là một hàng không ai tìm lại được.
+    """
+    client, maker, monkeypatch = stack
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent())
+
+    opened = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn đề đạo hàm"}, headers=TEACHER
+    )
+    await client.post("/api/teacher/chat/messages", json={"text": "thêm hai câu"}, headers=TEACHER)
+
+    async with maker() as session:
+        row = await session.get(TeacherConversation, opened.json()["conversation_id"])
+    assert row is not None
+    assert row.title == "tên do model đặt"
+
+
+@pytest.mark.asyncio
+async def test_a_thread_still_gets_a_name_when_the_model_cannot(stack) -> None:
+    """Model hỏng thì tên là câu đầu cắt ngắn, và lượt nói **vẫn thành công**.
+
+    Đây là ca đáng giá nhất của phần đặt tên. Nó chạy ở cuối một lượt đã xong và đã commit
+    từng bước; một lỗi thoát ra từ đây sẽ biến lượt ấy thành 500 và giáo viên mất cả việc
+    vừa nhờ, vì một dòng chữ trên rail.
+    """
+    client, maker, monkeypatch = stack
+
+    class Grumpy(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload) -> dict:
+            if task_name == NAME_CONVERSATION_TASK:
+                raise RuntimeError("AGENT đi vắng")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    monkeypatch.setattr(teacher_chat, "run_task", Grumpy())
+
+    said = "soạn cho tôi một đề về đạo hàm của đa thức dành cho lớp 12 ban cơ bản nhé"
+    opened = await client.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    assert opened.status_code == 200, opened.text
+    async with maker() as session:
+        row = await session.get(TeacherConversation, opened.json()["conversation_id"])
+    assert row is not None
+    assert row.title == said[:60]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("wrote", "kept"),
+    [
+        ('"Đề đạo hàm"', "Đề đạo hàm"),
+        ("Đề đạo hàm.", "Đề đạo hàm"),
+        ("  Đề   đạo\n hàm  ", "Đề đạo hàm"),
+        ("x" * 300, "x" * 60),
+        ("   ", "soạn đề đạo hàm"),
+    ],
+)
+async def test_a_model_written_title_is_tidied_before_it_is_stored(stack, wrote, kept) -> None:
+    """Prompt là một lời nhờ, không phải một ràng buộc.
+
+    Model được bảo đừng dùng dấu ngoặc kép và đừng chấm câu, và model vẫn làm cả hai. Chỗ
+    ràng buộc là BE, vì BE biết chuỗi này sẽ nằm ở đâu: một hàng rộng 228px. Rỗng thì lùi
+    về câu đầu — một hàng không tên là một hàng không bấm vào được.
+    """
+    client, maker, monkeypatch = stack
+
+    class Sloppy(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload) -> dict:
+            if task_name == NAME_CONVERSATION_TASK:
+                return ConversationNameCompleted(
+                    request_id=payload["request_id"], title=wrote
+                ).model_dump(mode="json")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    monkeypatch.setattr(teacher_chat, "run_task", Sloppy())
+
+    opened = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn đề đạo hàm"}, headers=TEACHER
+    )
+
+    async with maker() as session:
+        row = await session.get(TeacherConversation, opened.json()["conversation_id"])
+    assert row is not None
+    assert row.title == kept

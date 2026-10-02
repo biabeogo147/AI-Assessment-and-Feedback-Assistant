@@ -33,7 +33,7 @@ from be.models import Assessment, AssessmentState, SchoolClass, Student, Teacher
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
 from be.teacher_tools import UnknownTool, execute
-from contracts import NextStepCompleted
+from contracts import NAME_CONVERSATION_TASK, ConversationNameCompleted, NextStepCompleted
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 STRANGER = {"X-Actor": "teacher:GV-002"}
@@ -52,6 +52,13 @@ class ScriptedAgent:
         self.asked: list[dict] = []
 
     async def __call__(self, pool, settings, task_name, payload) -> dict:
+        # Một cái cửa, nhiều loại việc. Từ khi BE nhờ AGENT đặt tên đoạn chat, bản giả
+        # phải phân việc y như cái cửa thật — và việc đặt tên **không** vào `asked`, vì
+        # `asked` nghĩa là "trợ lý đã được hỏi những gì", không phải "đã có bao nhiêu job".
+        if task_name == NAME_CONVERSATION_TASK:
+            return ConversationNameCompleted(
+                request_id=payload["request_id"], title="tên do model đặt"
+            ).model_dump(mode="json")
         self.asked.append(payload)
         step = (
             self.steps.pop(0)

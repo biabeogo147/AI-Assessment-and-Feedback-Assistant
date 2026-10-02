@@ -51,7 +51,7 @@ Chúng ở lại trong `backlog.md`.
       trả `null`.
 - [x] **Bước 6 — task `name_conversation`.** Contract, graph, handler, một dòng ở worker. Cổng: test
       AGENT xanh mà không gọi model thật.
-- [ ] **Bước 7 — BE đặt tiêu đề.** Sau lượt đầu của một hội thoại mới, kèm đường lùi. Cổng: tắt
+- [x] **Bước 7 — BE đặt tiêu đề.** Sau lượt đầu của một hội thoại mới, kèm đường lùi. Cổng: tắt
       `LLM_ENABLED` vẫn có tiêu đề; model ném lỗi không làm hỏng lượt nói.
 - [ ] **Bước 8 — FE: rail thật và route lồng nhau.** `api.ts`, danh sách đoạn chat, nút *Đoạn chat
       mới*, `#/teacher/chat/{id}/de/{paper}`. Cổng: mở hai đoạn, bấm qua lại, F5 đúng chỗ.
@@ -209,4 +209,13 @@ Ba đường ra đều trả về một `ConversationNameCompleted` hợp lệ, 
 task này chạy ở **cuối một lượt nói**, sau khi giáo viên đã chờ xong và mọi bước đã commit, nên một
 exception thoát ra từ đây sẽ biến một lượt đã thành công thành lỗi 500 — mất cả việc vừa làm, vì
 một cái tên.
+
+Bước 7 xong, và nó lộ ra một điều về chính các test: `run_task` là **một cái cửa, nhiều loại việc**.
+Từ khi BE nhờ AGENT đặt tên, bản giả trong test phải phân việc theo `task_name` y như cái cửa thật
+— nếu không thì job đặt tên ăn mất một bước của kịch bản. Hai test đỏ vì đúng lý do ấy, và cách sửa
+là làm cho bản giả **giống cái thật hơn**, không phải nới lỏng phần kiểm.
+
+Năm ca dọn tiêu đề đều có test: dấu ngoặc kép, dấu chấm cuối, khoảng trắng thừa, ba trăm ký tự, và
+chuỗi rỗng. Prompt đã bảo model đừng làm bốn chuyện đầu — prompt là một lời nhờ, không phải một
+ràng buộc, nên chỗ ràng buộc là BE.
 

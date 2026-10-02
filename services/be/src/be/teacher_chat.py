@@ -54,10 +54,13 @@ from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
 from be.db import get_session
 from be.identity import Asking, current_teacher
-from be.models import Teacher, TeacherConversation, TeacherTurn, aware
+from be.models import Teacher, TeacherConversation, TeacherTurn, aware, new_id
 from be.teacher_tools import UnknownTool, catalog_for, execute
 from contracts import (
+    NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
+    ConversationNameCompleted,
+    ConversationNameRequested,
     NextStepCompleted,
     NextStepRequested,
     ToolSpec,
@@ -290,6 +293,75 @@ def _subject(result: dict) -> tuple[str, str]:
         if isinstance(value, str) and value:
             return kind, value
     return "", ""
+
+
+# Cái tên nằm trên một hàng rộng 228px của rail, và `title` là `String(120)`. Cắt ở 60:
+# quá con số đó thì không ai đọc hết, và một chuỗi bị cắt giữa chừng trông như một lỗi.
+_TITLE_LIMIT = 60
+
+
+def _tidy(title: str) -> str:
+    """Dọn một cái tên model vừa viết.
+
+    Model được bảo là đừng dùng dấu ngoặc kép và đừng chấm câu, và model vẫn làm cả hai.
+    Một prompt là một lời nhờ, không phải một ràng buộc -- nên chỗ ràng buộc là đây.
+
+    Args:
+        title: Nguyên văn model trả về.
+
+    Returns:
+        Một dòng đã dọn, dài nhất `_TITLE_LIMIT` ký tự. Rỗng khi không còn gì.
+    """
+    cleaned = " ".join(title.split()).strip().strip('"').strip("'").rstrip(".").strip()
+    return cleaned[:_TITLE_LIMIT]
+
+
+async def _name_the_thread(
+    session: AsyncSession, request: Request, settings: Settings, thread: str, said: str
+) -> None:
+    """Đặt tên cho một đoạn chat vừa mở, sau khi lượt đầu của nó đã xong.
+
+    Chạy **sau** lượt nói, không phải trước: trước thì giáo viên chờ thêm một lời gọi model
+    nữa mới thấy câu trả lời, mà cái tên thì chỉ có ích sau khi có đoạn chat thứ hai.
+
+    `run_task` chờ kết quả thay vì bắn rồi quên, vì BE **không có worker chạy nền** -- một
+    job không ai thu thì cái tên không bao giờ được ghi.
+
+    Nuốt mọi lỗi. Task này đứng ở cuối một lượt đã thành công và đã commit từng bước; một
+    exception thoát ra từ đây sẽ biến lượt ấy thành một lỗi 500 và giáo viên mất cả việc
+    vừa nhờ, vì một dòng chữ trên rail. Đường lùi là câu đầu cắt ngắn, và nó luôn có.
+
+    Args:
+        session: Session của database. Hàm này commit.
+        request: Request đang chạy, để lấy pool của hàng đợi.
+        settings: Cấu hình, cho timeout của job.
+        thread: Đoạn chat nào.
+        said: Câu đầu tiên của giáo viên.
+
+    Side effects:
+        Ghi `title` lên hàng hội thoại và commit. Không làm gì khi hàng đã có tên.
+    """
+    row = await session.get(TeacherConversation, thread)
+    if row is None or row.title:
+        return
+
+    title = _tidy(said)
+    try:
+        answer = await run_task(
+            getattr(request.app.state, "queue_pool", None),
+            settings,
+            NAME_CONVERSATION_TASK,
+            ConversationNameRequested(request_id=new_id(), said=said).model_dump(mode="json"),
+        )
+        written = _tidy(ConversationNameCompleted.model_validate(answer).title)
+        if written:
+            title = written
+    except Exception:  # noqa: BLE001 -- xem docstring
+        logger.exception("could not name conversation %s", thread)
+
+    row.title = title
+    session.add(row)
+    await session.commit()
 
 
 async def _owned_conversation(session: AsyncSession, asking: Asking, thread: str) -> str | None:
@@ -769,6 +841,8 @@ async def say_something(
                     len(step.choices),
                     asking.teacher_code,
                 )
+            if began == 0:
+                await _name_the_thread(session, request, settings, thread, said.text)
             return Answered(
                 kind=step.kind,
                 text=step.text,
@@ -837,6 +911,8 @@ async def say_something(
     logger.warning("tool loop hit %d steps for %s", settings.max_tool_steps, asking.teacher_code)
     history.append(TurnRecord(kind="assistant", text=_CEILING_REACHED))
     await _record(session, thread, position, history[-1])
+    if began == 0:
+        await _name_the_thread(session, request, settings, thread, said.text)
     return Answered(
         kind="say",
         text=_CEILING_REACHED,
