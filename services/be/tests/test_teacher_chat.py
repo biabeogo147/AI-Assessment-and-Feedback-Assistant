@@ -438,10 +438,17 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
     http, maker, monkeypatch = stack
     agent = ScriptedAgent(
         _plan(
-            # Thiếu `topic_scope` và `question_count`: `create_draft` từ chối, không ghi gì.
+            # Đủ tham số nên plan qua được `vet_plan`, nhưng `question_count` không đọc
+            # được thành số: tool từ chối lúc chạy, không ghi gì. Đây là ca "hỏng lúc
+            # chạy", khác hẳn ca "plan sai từ đầu" ở test ngay dưới.
             PlanStep(
                 tool_name="create_draft",
-                args={"subject": "Toán", "grade": "12"},
+                args={
+                    "subject": "Toán",
+                    "grade": "12",
+                    "topic_scope": "đạo hàm",
+                    "question_count": "rất nhiều",
+                },
                 title="Tạo đề trống",
             ),
             PlanStep(
@@ -471,7 +478,7 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
     # dặn model, và in nó ra là để giáo viên đọc trợ lý nói về mình ở ngôi thứ ba. Tên
     # field thì càng không: `question_count` trên màn hình là mặt trong của hệ thống.
     detail = outcomes[0]["detail"]
-    assert detail == "thiếu thông tin để làm bước này"
+    assert detail == "một mục trong yêu cầu chưa dùng được"
     assert "hãy hỏi giáo viên" not in detail
     assert "question_count" not in detail
 
@@ -990,3 +997,35 @@ async def test_the_stream_waits_for_the_questions_before_it_reports(stack) -> No
     progress = kinds.index("progress")
     closed = [index for index, one in enumerate(kinds) if one == "step_done"]
     assert started[-1] < progress < closed[-1]
+
+
+@pytest.mark.asyncio
+async def test_a_plan_missing_an_argument_is_refused_before_anything_runs(stack) -> None:
+    """Thiếu một tham số là plan sai từ đầu, và không bước nào được chạy.
+
+    Mọi tham số được mô tả cho model đều là tham số **bắt buộc** — catalog chỉ nêu những thứ
+    tool thật sự cần. Đo trên trình duyệt thật: model nêu `start_drafting` không kèm
+    `assessment_id`, bước ấy chạy với tay không, và lượt để lại một **đề rỗng** mang tên
+    giáo viên cùng một câu kể vòng vo. Từ chối trọn gói là cách duy nhất không có gì kịp ghi.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(tool_name="start_drafting", args={}, title="Soạn câu hỏi"),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu Hàm số"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    kinds = [turn["kind"] for turn in answer.json()["turns"]]
+    assert "tool_call" not in kinds
+    async with maker() as session:
+        made = list(await session.scalars(select(Assessment)))
+    # Chỉ còn đề của seed; không đề rỗng nào mới sinh ra.
+    assert all(one.title != "Hàm số" for one in made)

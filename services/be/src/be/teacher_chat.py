@@ -426,8 +426,9 @@ _PLAN_REFUSED = "Mình chưa dựng được các bước cho việc này. Bạn
 def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str | None:
     """Kiểm một plan **trước** khi chạy bước nào.
 
-    Bốn thứ kiểm được mà không cần chạy gì: plan không dài quá trần, mỗi tool có trong
-    catalog pha thực hiện, mỗi tên tham số có trong spec của tool ấy, và mỗi tham chiếu
+    Năm thứ kiểm được mà không cần chạy gì: plan không dài quá trần, mỗi tool có trong
+    catalog pha thực hiện, **đủ** tham số mà spec nêu, mỗi tên tham số có trong spec, và mỗi
+    tham chiếu
     `{k.field}` **đúng khuôn** và trỏ về **phía sau**. Bắt được chúng ở đây nghĩa là không
     có bước nào kịp ghi trước khi cái sai lộ ra -- mà một bước đã ghi thì để lại rác không
     xoá được, đúng thứ ADR-25 sinh ra để diệt.
@@ -453,6 +454,14 @@ def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str 
         spec = by_name.get(step.tool_name)
         if spec is None:
             return f"bước {index} gọi {step.tool_name}, không có trong catalog pha thực hiện"
+        missing = set(spec.arguments) - set(step.args)
+        if missing:
+            # Mọi tham số được mô tả cho model đều là tham số **bắt buộc**: catalog chỉ nêu
+            # những thứ tool thật sự cần. Thiếu một cái là một bước sẽ chạy với tay không --
+            # đo trên trình duyệt thật, model nêu `start_drafting` không kèm `assessment_id`,
+            # bước ấy hỏng, và lượt để lại một đề rỗng mang tên giáo viên. Từ chối trọn gói ở
+            # đây là cách duy nhất không có gì kịp ghi.
+            return f"bước {index} thiếu tham số {sorted(missing)} của {step.tool_name}"
         for key, value in step.args.items():
             if key not in spec.arguments:
                 return f"bước {index} đưa tham số {key}, không có trong spec của {step.tool_name}"
