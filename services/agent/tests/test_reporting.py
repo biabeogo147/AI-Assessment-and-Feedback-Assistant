@@ -233,3 +233,38 @@ async def test_a_draft_still_running_says_so(on, monkeypatch) -> None:
     prompt = "\n".join(seen)
     assert "đã có 4/10 câu" in prompt
     assert "còn 6 câu đang soạn" in prompt
+
+
+@pytest.mark.asyncio
+async def test_a_draft_that_stopped_short_is_not_called_finished(on, monkeypatch) -> None:
+    """Hết job mà vẫn thiếu câu nghĩa là **dừng**, không phải xong.
+
+    Ba ca thật đi vào đây: plan chỉ mở đề mà chưa soạn, `start_drafting` bị từ chối, và mọi
+    vị trí đã bỏ sau ba lần thử. Bản đầu chỉ xét `còn đang soạn == 0` nên nó nói *"đã đủ
+    0/10 câu"* — rồi prompt bảo model mời giáo viên duyệt. Duyệt một đề rỗng là đúng cái hại
+    ADR-01 khoá nội dung để chặn, chỉ đi bằng đường lời nói.
+    """
+    seen: list[str] = []
+
+    def listen(messages):
+        seen.append("\n".join(str(message.content) for message in messages))
+        return AIMessage(content="Đề chưa đủ câu.")
+
+    monkeypatch.setattr(llm, "chat_models", lambda: (RunnableLambda(listen),))
+
+    stopped = PlanReportRequested(
+        request_id="r11",
+        said="Tạo đề 10 câu",
+        outcomes=(StepOutcome(title="Tạo đề trống", ok=True, detail='đề "X", cần 10 câu'),),
+        written=0,
+        asked_for=10,
+        still_drafting=0,
+    )
+    await handlers.report_plan({}, stopped.model_dump(mode="json"))
+
+    prompt = "\n".join(seen)
+    assert "DỪNG ở 0/10 câu" in prompt
+    # "đã đủ" chỉ bị cấm trong **dòng tiến độ**; luật của prompt có nhắc cụm ấy.
+    assert "Tiến độ soạn: đã đủ" not in prompt
+    # Và prompt phải cấm mời duyệt trong ca này.
+    assert "ĐỪNG mời duyệt" in prompt

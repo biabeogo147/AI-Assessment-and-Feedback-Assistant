@@ -891,3 +891,102 @@ async def test_the_post_door_does_not_wait_for_the_questions(stack) -> None:
 
     assert answer.status_code == 200
     assert waited == []
+
+
+@pytest.mark.asyncio
+async def test_each_event_is_its_own_sse_frame(stack) -> None:
+    """Ranh giới khung là thứ duy nhất của giao thức SSE mà BE phải làm đúng.
+
+    Test cũ tự parse bằng `aiter_lines()` + `startswith("data: ")`, nên nó **không đi qua**
+    ranh giới khung: đổi dòng trống kết khung thành một dòng xuống thì nó vẫn xanh, trong
+    khi parser thật ở `api.ts` cắt theo dòng trống và sẽ gộp cả lượt thành một khung rồi
+    `JSON.parse` nổ. Chỗ này đọc body thô và đếm khung đúng cách client đếm.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"))
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    body = ""
+    async with http.stream(
+        "POST",
+        "/api/teacher/chat/messages/stream",
+        json={"text": "Tạo đề 3 câu Hàm số"},
+        headers=TEACHER,
+    ) as answer:
+        async for piece in answer.aiter_text():
+            body += piece
+
+    frames = [one for one in body.split("\n\n") if one.strip()]
+    assert len(frames) >= 4
+    for frame in frames:
+        assert frame.startswith("data: ")
+        json.loads(frame[6:])
+
+
+@pytest.mark.asyncio
+async def test_the_stream_waits_for_the_questions_before_it_reports(stack) -> None:
+    """Cửa SSE **phải** đợi — đó là nửa thứ hai của "pha 2 xong" (ADR-25).
+
+    Một test chỉ canh *cửa POST không đợi* để lại nửa kia không ai giữ: đổi `watching=True`
+    thành `False` ở endpoint stream thì cả bộ test vẫn xanh, trong khi giáo viên mất hẳn
+    dòng tiến độ và lời kể nói về một đề chưa có câu nào. Review Pha E đo được.
+
+    Và việc đợi phải xảy ra **trong lúc bước vẫn đang mở**: dòng tiến độ là một dòng bên
+    trong một bước, nên nếu `step_done` đi trước `progress` thì màn hình không còn bước nào
+    đang chạy để gắn con số vào — bản đầu của Pha E hỏng đúng như vậy.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    real_execute = teacher_chat.execute
+
+    async def pretend_execute(session, asking, name, args, **rest):
+        if name == "start_drafting":
+            # Hàng đợi giả không đẩy được job thật, nên dựng đúng hình dạng một vòng soạn
+            # vừa mở: có `queued` thì mới có gì để đợi.
+            return {"started": True, "queued": 3, "assessment_id": args["assessment_id"]}
+        return await real_execute(session, asking, name, args, **rest)
+
+    monkeypatch.setattr(teacher_chat, "execute", pretend_execute)
+
+    waited: list[str] = []
+
+    async def pretend_wait(request, session, settings, assessment_id, thread):
+        waited.append(assessment_id)
+        yield teacher_chat.TurnEvent(kind="progress", index=2, total=3, conversation_id=thread)
+
+    monkeypatch.setattr(teacher_chat, "_wait_for_questions", pretend_wait)
+
+    frames = []
+    async with http.stream(
+        "POST",
+        "/api/teacher/chat/messages/stream",
+        json={"text": "Tạo đề 3 câu Hàm số"},
+        headers=TEACHER,
+    ) as answer:
+        async for line in answer.aiter_lines():
+            if line.startswith("data: "):
+                frames.append(json.loads(line[6:]))
+
+    assert len(waited) == 1
+
+    kinds = [one["kind"] for one in frames]
+    # `progress` phải nằm **giữa** `step_started` và `step_done` của bước soạn câu.
+    started = [index for index, one in enumerate(kinds) if one == "step_started"]
+    progress = kinds.index("progress")
+    closed = [index for index, one in enumerate(kinds) if one == "step_done"]
+    assert started[-1] < progress < closed[-1]

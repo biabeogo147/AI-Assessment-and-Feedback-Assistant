@@ -141,11 +141,13 @@ export default function Chat({
     setTrouble(null);
     setLive(null);
 
-    // Bốn phút: pha 1 của BE là 90 giây, rồi lượt còn **đợi các câu hỏi về** trước khi kể
-    // lại (ADR-25), và mười câu mất hàng phút. Hết giờ thì giữ lại chữ đã gõ — bắt gõ lại
-    // một yêu cầu dài là hình phạt cho một lỗi của máy.
+    // Tám phút. Không phải một phép tính từ ngân sách BE — **không có** phép tính nào đóng
+    // được: BE đợi theo *sự im lặng* (180 giây kể từ tiếng chuông cuối), nên một vòng soạn
+    // dài vẫn hợp lệ và không có trần tổng. Con số này là trần của phía client, và nó phải
+    // rộng hơn mọi chuỗi kiên nhẫn của BE: client cắt trước thì lượt mất câu kết, trong khi
+    // database đã có đủ câu. Hết giờ thì giữ lại chữ đã gõ.
     const stop = new AbortController();
-    const cut = window.setTimeout(() => stop.abort(), 240_000);
+    const cut = window.setTimeout(() => stop.abort(), 480_000);
     const later = window.setTimeout(() => setSlow(true), 20_000);
 
     let thread = here;
@@ -155,6 +157,13 @@ export default function Chat({
         trimmed,
         here === null ? { startNew: true } : { conversationId: here },
         (event) => {
+          // Lượt gãy sau khi header đã gửi đi thì không còn status code nào để nói, nên BE
+          // nói bằng một khung `done` mang `ended_as="error"`. Ném ở đây để nó đi đúng
+          // đường lỗi có sẵn: chữ đã gõ được trả lại ô nhập, và câu lỗi hiện ra. Bỏ qua nó
+          // thì giáo viên thấy ô nhập trống, không một lời nào, và chữ vừa gõ đã mất.
+          if (event.kind === "done" && event.ended_as === "error") {
+            throw new Error(event.text);
+          }
           if (event.conversation_id) thread = event.conversation_id;
           // Từ sự kiện đầu tiên là đã có thứ để xem, nên vòng quay chờ nhường chỗ cho
           // việc thật: `setSlow(false)` ở đây chứ không đợi tới lúc lượt xong.
@@ -493,13 +502,16 @@ export function grow(before: Live | null, event: TurnEvent): Live {
       // Bước đang chạy là bước vừa xong — tìm từ cuối, vì các bước chạy tuần tự và một
       // tiêu đề có thể lặp lại giữa hai lượt.
       const last = steps.map((one) => one.mark).lastIndexOf("running");
-      if (last >= 0) {
-        steps[last] = {
-          mark: event.kind === "step_done" ? "done" : "failed",
-          title: event.title || steps[last].title,
-          result: event.detail === "" ? "" : `— ${event.detail}`,
-        };
-      }
+      const closed = {
+        mark: (event.kind === "step_done" ? "done" : "failed") as Step["mark"],
+        title: event.title || (last >= 0 ? steps[last].title : "Một bước nữa"),
+        result: event.detail === "" ? "" : `— ${event.detail}`,
+      };
+      // Không có bước nào đang chạy nghĩa là bước này hỏng **trước khi** nó bắt đầu — BE
+      // phát `step_failed` không kèm `step_started` khi một tham chiếu không giải được.
+      // Bỏ qua nó thì màn hình sống im lặng về đúng cái bước đã làm lượt dừng lại.
+      if (last >= 0) steps[last] = closed;
+      else steps.push(closed);
       return { ...now, steps };
     }
     case "progress": {

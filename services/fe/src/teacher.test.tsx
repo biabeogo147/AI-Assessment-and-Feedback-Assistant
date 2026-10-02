@@ -342,6 +342,28 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
   });
 });
 
+describe("khối bước lúc đang chạy", () => {
+  it("hiện bước k/n với n LẤY TỪ PLAN, không phải số bước đã bắt đầu", () => {
+    // `bước 1/3` nói thật được vì plan có trước khi chạy (ADR-25). Đếm theo số bước đã bắt
+    // đầu thì `n` luôn bằng `k`, và con số ấy không nói gì cả. Trước test này, `Steps` chưa
+    // bao giờ được render với một bước đang chạy — nên cả nhãn ấy chưa từng được đo.
+    render(
+      <Steps
+        steps={[
+          { mark: "done", title: "Tạo đề trống", result: "" },
+          { mark: "running", title: "Soạn 3 câu hỏi", result: "— đã soạn 2/3 câu" },
+        ]}
+        total={3}
+      />,
+    );
+
+    expect(screen.getByText("bước 2/3")).toBeTruthy();
+    // Khối đang chạy mở sẵn, nên dòng tiến độ đọc được ngay.
+    expect(screen.getByText("— đã soạn 2/3 câu")).toBeTruthy();
+    expect(screen.getByText("Soạn 3 câu hỏi…")).toBeTruthy();
+  });
+});
+
 describe("một lượt của Kriky", () => {
   it("cho ra ĐÚNG MỘT thẻ, và start_drafting không bao giờ là thẻ", () => {
     const turns = [
@@ -506,6 +528,38 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
     expect(live.total).toBe(2);
     expect(live.steps[0].result).toBe("— đã soạn 4/10 câu");
     expect(live.steps[0].mark).toBe("running");
+  });
+
+  it("gắn dòng tiến độ vào bước soạn câu — đúng dãy sự kiện BE phát", () => {
+    // Dãy THẬT: bước một mở rồi đóng, bước hai mở, rồi `progress` tới trong lúc nó vẫn
+    // đang chạy. Test đầu tiên của Pha E nạp `step_started → progress` không có `step_done`
+    // ở giữa — một dãy BE không bao giờ phát — nên nó xanh trong khi màn hình thật bỏ con
+    // số đi lặng lẽ. Review bắt được.
+    let live = grow(null, event({ kind: "say", text: "Được, mình soạn đề ngay." }));
+    live = grow(live, event({ kind: "plan", total: 2 }));
+    live = grow(live, event({ kind: "step_started", title: "Tạo đề trống", total: 2 }));
+    live = grow(live, event({ kind: "step_done", title: "Tạo đề trống", detail: 'đề "X"' }));
+    live = grow(live, event({ kind: "step_started", title: "Soạn 3 câu hỏi", total: 2 }));
+    live = grow(live, event({ kind: "progress", index: 2, total: 3 }));
+
+    expect(live.steps).toHaveLength(2);
+    expect(live.steps[0].mark).toBe("done");
+    expect(live.steps[1].mark).toBe("running");
+    expect(live.steps[1].result).toBe("— đã soạn 2/3 câu");
+  });
+
+  it("một bước hỏng TRƯỚC khi nó bắt đầu vẫn hiện ra", () => {
+    // BE phát `step_failed` không kèm `step_started` khi một tham chiếu `{k.field}` không
+    // giải được. Bỏ qua nó thì màn hình sống im lặng về đúng cái bước đã làm lượt dừng lại.
+    let live = grow(null, event({ kind: "plan", total: 2 }));
+    live = grow(
+      live,
+      event({ kind: "step_failed", title: "Soạn câu hỏi", detail: "chưa ghép được dữ liệu" }),
+    );
+
+    expect(live.steps).toHaveLength(1);
+    expect(live.steps[0].mark).toBe("failed");
+    expect(live.steps[0].title).toBe("Soạn câu hỏi");
   });
 
   it("một bước hỏng đọc ra là hỏng, kèm lý do", () => {

@@ -159,10 +159,13 @@ def bind_sessions(engine: AsyncEngine) -> None:
 async def session_scope() -> AsyncIterator[AsyncSession]:
     """Một session sống theo **một việc**, không theo một request.
 
-    `get_session` là dependency của FastAPI: session nó mở bị đóng khi request kết thúc. Với
-    một lượt chat phát ra qua SSE thì "request kết thúc" có thể là lúc giáo viên đóng tab —
-    và lượt vẫn còn đang ghi. ADR-25 đòi lượt chạy hết dù không còn ai xem, nên đường ấy mở
-    session của riêng nó và đóng trong `finally` của chính nó.
+    `get_session` là dependency của FastAPI: session nó mở bị đóng khi **response** kết
+    thúc. Với một lượt chat phát ra qua SSE, "response kết thúc" là sau cả vòng soạn đề —
+    nên một đường dài như vậy nên sở hữu session của chính nó thay vì mượn vòng đời của
+    request.
+
+    Nó **không** làm cho việc chạy tiếp khi client bỏ đi: generator bị cancel thì cả khối
+    `async with` này đi theo. Quyền sở hữu rõ ràng là thứ duy nhất nó mua.
 
     Yields:
         Một AsyncSession, đóng khi khối `async with` đi ra.

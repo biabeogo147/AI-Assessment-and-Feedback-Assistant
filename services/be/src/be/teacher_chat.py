@@ -983,11 +983,48 @@ def _went_wrong(result: dict) -> bool:
     return bool(result.get("error")) or any(result.get(flag) is False for flag in _DID_IT_HAPPEN)
 
 
-# Đợi các câu hỏi về bao lâu trước khi thôi và kể lại những gì đang có. Mười câu, mỗi câu
-# một lời gọi model, chạy song song trong worker -- vài chục giây là chuyện thường, và một
-# model chậm có thể lâu hơn. Con số này không phải một lời hứa về tốc độ: hết hạn thì lượt
-# vẫn kể lại, chỉ là kể một cái đề đang soạn dở.
+# **Im lặng** bao lâu thì thôi đợi -- không phải trần cho cả khoảng đợi. Đồng hồ được đặt
+# lại sau mỗi tiếng chuông, nên một vòng soạn mười câu vẫn đi tới cùng dù mất vài phút, còn
+# một worker chết thì bị bỏ sau ngần này giây. Hết hạn thì lượt vẫn kể lại, chỉ là kể một
+# cái đề đang soạn dở.
+#
+# Hệ quả cần nhớ: channel dùng chung cho cả đề, nên chuông của một tab khác cũng gia hạn
+# đồng hồ này. Trần thật của một lượt vì thế là trần của client -- và nó phải lớn hơn tổng
+# chuỗi kiên nhẫn của BE, nếu không client cắt trước và lượt mất câu kết.
 _WAIT_FOR_QUESTIONS_SECONDS = 180.0
+
+
+def paper_now(result: dict) -> str:
+    """Id đề mà **một** kết quả vừa nói tới, hoặc chuỗi rỗng.
+
+    Args:
+        result: Thứ một tool vừa trả về.
+
+    Returns:
+        Id đề, hoặc rỗng.
+    """
+    found = result.get("assessment_id")
+    return found if isinstance(found, str) else ""
+
+
+def _how_many(counted: tuple[int, int, int]) -> str:
+    """Dòng kết quả của bước soạn câu, viết từ ba con số đã đếm.
+
+    Nó thay cho dòng `— N câu bắt đầu soạn` của lúc vừa bắn job: tới cuối bước thì con số
+    đáng nói là **số câu thật sự đã có**, không phải số job đã đẩy đi.
+
+    Args:
+        counted: `(đã có, xin bao nhiêu, còn đang soạn)`.
+
+    Returns:
+        Dòng tiếng Việt để hiện dưới tiêu đề bước.
+    """
+    written, asked_for, running = counted
+    if running:
+        return f"đã soạn {written}/{asked_for} câu, còn {running} câu đang chạy"
+    if asked_for and written < asked_for:
+        return f"dừng ở {written}/{asked_for} câu"
+    return f"đã soạn {written}/{asked_for} câu"
 
 
 def _paper_in(results: list[dict]) -> str:
@@ -1021,14 +1058,20 @@ async def _count_questions(session: AsyncSession, assessment_id: str) -> tuple[i
         assessment_id: Đề nào.
 
     Returns:
-        Ba con số. `(0, 0, 0)` khi đề không còn hoặc chưa có brief.
+        Ba con số. Không có brief thì `xin bao nhiêu` là 0 — hàm này đếm theo id, nó không
+        kiểm đề có tồn tại hay không.
     """
     written = await session.scalar(
         select(func.count()).select_from(Question).where(Question.assessment_id == assessment_id)
     )
     brief = await session.get(DraftBrief, assessment_id)
     running = await pending_count(session, assessment_id)
-    return int(written or 0), int(brief.question_count if brief else 0), running
+    counted = int(written or 0), int(brief.question_count if brief else 0), running
+    # Thả connection ra ngay. Ba câu select này mở một transaction, và chỗ gọi nó rồi đứng
+    # đợi tiếng chuông kế tiếp -- hàng chục giây một connection Postgres nằm `idle in
+    # transaction`, nhân với số tab đang mở. Cùng luật mà vòng lặp tool đã giữ sau mỗi bước.
+    await session.rollback()
+    return counted
 
 
 async def _wait_for_questions(
@@ -1045,8 +1088,10 @@ async def _wait_for_questions(
 
     Ba điều đáng nói về hình dạng của nó:
 
-    - **Thu hoạch rồi mới đếm.** Tiếng chuông chỉ nói "có thứ để lấy"; chính `harvest` mới
-      đưa câu vào đề. Phát một con số đọc trước khi thu là phát con số của lần trước.
+    - **Thu hoạch rồi mới đếm**, ở mỗi tiếng chuông. Chuông chỉ nói "có thứ để lấy"; chính
+      `harvest` mới đưa câu vào đề. Khung `progress` đầu tiên là ngoại lệ có chủ ý: nó phát
+      con số **đang có** ngay khi bắt đầu đợi, để màn hình có một mốc thay vì một khoảng
+      trống — nó không khẳng định vừa thu được gì.
     - **Một lần thu cuối, sau vòng lặp.** Chuông không bền: tiếng cuối cùng có thể rơi vào
       khoảnh khắc người nghe đang bận. Không có lần thu ấy thì một đề xong đủ mười câu vẫn
       có thể kết thúc lượt ở `9/10`.
@@ -1429,6 +1474,22 @@ async def run_turn(
 
         detail = _said_about(result)
         broke = _went_wrong(result)
+
+        # Bước vừa **bắt đầu** một vòng soạn thì nó chưa xong: các câu đang được viết trong
+        # worker, và ADR-25 nói số câu là tiến độ **bên trong một bước**, không phải một con
+        # số thứ hai ở đâu khác. Nên đợi ngay tại đây, trong lúc bước vẫn đang mở — bản đầu
+        # của Pha E đóng bước rồi mới đợi, và hệ quả là màn hình không còn bước nào `đang
+        # chạy` để gắn dòng tiến độ vào: con số bị bỏ lặng lẽ, khối bước đứng im suốt hàng
+        # phút, và `bước k/n` không hiện lần nào. Review bắt được.
+        started_drafting = not broke and bool(result.get("queued")) and bool(paper_now(result))
+        if watching and started_drafting:
+            async for event in _wait_for_questions(
+                request, session, settings, str(result["assessment_id"]), thread
+            ):
+                yield event
+            counted = await _count_questions(session, str(result["assessment_id"]))
+            detail = _how_many(counted)
+
         outcomes.append(StepOutcome(title=step_of_plan.title, ok=not broke, detail=detail))
         yield TurnEvent(
             kind="step_failed" if broke else "step_done",
@@ -1443,21 +1504,15 @@ async def run_turn(
             # một thế giới không còn như plan tưởng.
             break
 
-    # ----------------------------------- đợi các câu về, rồi mới để model kể lại kết quả
+    # ------------------------------------------------------------ model kể lại kết quả
     #
-    # ADR-25: pha 2 xong khi plan đã chạy hết **và** không còn câu nào đang soạn. Hai điều
-    # kiện, vì các bước plan mất chưa tới một giây còn việc soạn mười câu mất hàng phút --
-    # và một lời kể viết lúc chưa có câu nào thì chỉ nói được "đang soạn".
-    #
-    # `watching` là False ở cửa `POST`: nó rút cạn generator này bên trong một request, và
-    # bắt một request HTTP đứng chờ hàng phút là cách chắc chắn nhất để một proxy cắt nó
-    # giữa chừng. Cửa SSE thì ngược lại -- nó sinh ra để đứng chờ.
-    counted = (0, 0, 0)
+    # Việc **đợi** nằm trong vòng lặp trên, ở đúng bước đã mở nó. Chỗ này chỉ đếm, và đếm
+    # trên **cả hai** cửa: một lời kể không biết đề có bao nhiêu câu thì không nói được gì
+    # về việc vừa làm, mà ba câu query thì cửa nào cũng trả nổi. Thứ chỉ cửa SSE làm là
+    # đứng chờ -- cửa `POST` rút cạn generator này bên trong một request, và bắt một request
+    # HTTP đợi hàng phút là cách chắc chắn nhất để một proxy cắt nó giữa chừng.
     paper = _paper_in(done)
-    if watching and paper:
-        async for event in _wait_for_questions(request, session, settings, paper, thread):
-            yield event
-        counted = await _count_questions(session, paper)
+    counted = await _count_questions(session, paper) if paper else (0, 0, 0)
 
     telling = await _report(request, settings, said.text, outcomes, counted)
     history.append(TurnRecord(kind="assistant", text=telling))
@@ -1547,11 +1602,17 @@ async def say_something_streaming(
     `POST` không đợi, vì nó rút cạn generator bên trong một request và một request đứng chờ
     hàng phút sẽ bị cắt ở đâu đó giữa đường.
 
-    **Session của riêng nó.** Một session lấy qua `Depends` sống theo request, và ở đây
-    "request" kéo dài suốt cả vòng soạn đề; tệ hơn, giáo viên đóng tab thì phần dọn dẹp của
-    dependency chạy trong khi generator vẫn đang ghi. Mở session ở đây và đóng nó trong
-    `finally` nghĩa là **lượt chạy hết dù không còn ai xem** — đúng điều ADR-25 đòi: đóng tab
-    giữa pha 2 thì lượt vẫn ghi đủ, và mở lại thấy đúng trạng thái.
+    **Session của riêng nó.** Một session lấy qua `Depends` sống theo request và bị đóng khi
+    response kết thúc — ở đây "kết thúc" là sau cả vòng soạn đề, nên nó giữ một connection
+    suốt thời gian ấy. Mở session của chính đường này giữ quyền sở hữu rõ ràng và cho phép
+    thả connection giữa các lần đợi.
+
+    **Thứ nó KHÔNG làm: giữ lượt sống khi giáo viên đóng tab.** Starlette cancel generator
+    khi client ngắt kết nối, nên lượt **bị cắt** ngay chỗ nó đang đợi: không câu kết, và nếu
+    là lượt đầu thì đoạn chat cũng chưa có tên. ADR-25 đòi *"đóng tab giữa pha 2 thì lượt
+    vẫn ghi đủ, và báo cáo viết ở lần quan sát kế tiếp"* — cả hai nửa đều **chưa làm**, và
+    làm được thì phải đẩy pha 2 sang một job arq cùng một cờ *"lượt này đã báo cáo chưa"*
+    trong `teacher_turns`. Món nợ ghi ở plan; đừng đọc docstring này thành một lời hứa.
 
     Args:
         said: Thứ giáo viên vừa gõ.

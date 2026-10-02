@@ -44,6 +44,8 @@ Luật:
   - nó nói "đã đủ" → đề đã soạn XONG. Nói xong, rồi mời giáo viên xem và duyệt. TUYỆT ĐỐI
     không nói "đang soạn", "sẽ soạn", "đang viết nội dung" — những câu ấy sai.
   - nó nói "còn N câu đang soạn" → nói đang soạn, và nói đúng con số.
+  - nó nói "DỪNG ở k/n" → đề **chưa đủ câu** và không còn gì đang chạy. Nói thẳng con số còn
+    thiếu, và ĐỪNG mời duyệt: duyệt một đề thiếu câu là phát hành một bài kiểm tra dở.
   - không có dòng ấy → lượt này không soạn đề, đừng nhắc gì tới số câu.
 - Hai tới ba câu. Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi
   giáo viên là "bạn".
@@ -111,6 +113,15 @@ def _progress(request: PlanReportRequested) -> str:
         return (
             f"Tiến độ soạn: đã có {request.written}/{request.asked_for} câu, "
             f"còn {request.still_drafting} câu đang soạn."
+        )
+    if request.written < request.asked_for:
+        # Không còn job nào chạy mà vẫn thiếu câu: vòng soạn đã **dừng**, không phải đã
+        # xong. Bản đầu chỉ xét `still_drafting == 0` và nói "đã đủ 0/10 câu" cho một đề
+        # chưa có câu nào — rồi prompt bảo model mời giáo viên duyệt nó. Đó đúng là cái
+        # hại ADR-01 khoá nội dung để chặn, chỉ đi bằng đường lời nói.
+        return (
+            f"Tiến độ soạn: DỪNG ở {request.written}/{request.asked_for} câu, "
+            "không còn câu nào đang chạy — đề CHƯA đủ."
         )
     return (
         f"Tiến độ soạn: đã đủ {request.written}/{request.asked_for} câu, "
