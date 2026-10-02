@@ -2,6 +2,10 @@
 
 **Spec:** `docs/decisions/adr-25-hai-pha-mot-luot-chat.md`
 
+**Trạng thái: Pha A–F đã chạy** (2026-10-03). Sáu commit, mỗi pha một lần review của subagent và một
+lần test tay trên trình duyệt với `gpt-4o-mini`. Thứ còn lại là một rủi ro đã ghi và chưa quyết: hai
+tab cùng chạy một plan trong một đoạn chat.
+
 ## Context
 
 Một lượt chat của giáo viên hiện là một vòng lặp phẳng trộn đọc với ghi, kết thúc ngay khi model

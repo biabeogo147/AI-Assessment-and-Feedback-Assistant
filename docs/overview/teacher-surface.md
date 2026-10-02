@@ -75,14 +75,13 @@ thu gọn được nhưng không bao giờ mất."* Giáo viên đứng trước
 | --- | --- | --- | --- |
 | `đang chạy` (`83:72`) | Lượt đang chạy | Mở sẵn. Header là **tiêu đề của bước đang chạy** kèm `…`, bên phải là `bước k/n`; bước ấy đánh `○` | Được |
 
-> **`đang chạy` chưa nối dữ liệu, nhưng `k/n` nay là số thật.** BE đã có một dãy sự kiện cho
-> từng bước (`run_turn` phát `plan`, `step_started`, `step_done`, `step_failed`), và `n` đọc từ
-> số bước của plan — nói được `bước 3/5` chính vì plan có **trước** khi chạy (ADR-25). Chỗ còn
-> thiếu là **cửa ra**: `POST` rút cạn dãy ấy rồi chỉ trả trạng thái cuối, nên FE vẫn nhận cả
-> lượt một lần và mọi bước tới nơi đã là `✓` hoặc `✕`. Dấu `○` và nhãn `bước k/n` vì thế **chưa
-> chạy lần nào**; chúng sống khi đường SSE mở. Ngày ấy tới thì phải sửa thêm một chỗ: khối đang
-> mở vì đang chạy phải **tự thu lại** lúc lượt xong, mà state hiện giữ nguyên lựa chọn của
-> người đọc.
+> **`đang chạy` nay chạy thật.** FE gửi lượt qua `POST /teacher/chat/messages/stream` và vẽ
+> theo đúng thứ tự sự kiện nhận được: `say` → `plan` → `step_started` → `step_done` →
+> `progress` → `report`. `n` của `bước k/n` lấy từ **plan**, nói được vì plan có trước khi chạy;
+> số câu đã soạn là dòng kết quả của bước đang chạy. Khi lượt xong, màn hình **đọc lại cả đoạn
+> từ database** — thứ ở lại phải là thứ database đang giữ, nếu không một lần F5 cho ra một màn
+> hình khác. Vì thế khối tự thu lại lúc xong: nó được dựng lại từ dữ liệu, không phải được
+> chuyển trạng thái.
 | `đã xong` (`83:73`) | Lượt kết thúc **thành công** | **Tự thu lại** còn một dòng `Đã làm {n} bước` | Đang thu |
 | `đã xong — mở` (`83:74`) | Người dùng bấm chevron | Mở lại đầy đủ các bước | Được |
 | `thất bại` (`83:75`) | Lượt dừng vì một bước hỏng | Mở sẵn. Header `Dừng ở bước {k} — {lý do}`; bước hỏng đánh `✕` kèm dòng giải thích | **Không.** Thu một lỗi lại là giấu lỗi |

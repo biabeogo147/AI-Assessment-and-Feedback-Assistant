@@ -1,6 +1,6 @@
 # ADR-25 — Một lượt chat có hai pha: lên plan, rồi thực hiện plan
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đang thi hành
 - **Ngày:** 2026-10-02
 - **Mở rộng:** [ADR-23](adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) (thêm một kết quả thứ tư)
 
@@ -151,16 +151,22 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
 
 ## Nơi luật này đang được thi hành
 
-Chưa chỗ nào — ADR viết **trước** khi code, có chủ đích, vì nó đổi ranh giới giữa hai service và đổi
-hợp đồng giữa BE với AGENT. Plan thi hành: `docs/plans/active/2026-10-02-hai-pha-mot-luot-chat-plan.md`.
-Những chỗ sẽ phải thi hành nó:
+ADR viết **trước** khi code, có chủ đích, vì nó đổi ranh giới giữa hai service và đổi hợp đồng giữa BE
+với AGENT. Nay nó đã chạy. Plan thi hành:
+`docs/plans/active/2026-10-02-hai-pha-mot-luot-chat-plan.md`.
 
-- `packages/contracts/src/contracts/teacher_chat.py` — kiểu của một plan, và task báo cáo.
+- `packages/contracts/src/contracts/teacher_chat.py` — kiểu của một plan, task báo cáo, và ba con số
+  tiến độ mà lời kể đọc.
 - `services/agent/src/agent/graphs/propose.py` — prompt pha 1, và đường trả về một plan.
 - `services/agent/src/agent/graphs/reporting.py` — lời kể sau khi plan chạy; một task riêng.
-- `services/be/src/be/teacher_chat.py` — hai pha, và đường SSE của một lượt.
+- `services/agent/src/agent/handlers.py` + `worker.py` — chuông tiến độ, rung từ `after_job_end`.
+- `services/be/src/be/teacher_chat.py` — hai pha, `vet_plan`, đường đợi câu, và cửa SSE.
 - `services/be/src/be/teacher_tools.py` — catalog theo pha; `draft_progress` bỏ `harvest`.
-- `services/be/src/be/drafting.py` — nghe chuông tiến độ; thu hoạch vẫn là đường bền.
+- `services/be/src/be/drafting.py` — sinh channel, nghe chuông; thu hoạch vẫn là đường bền.
 - `services/fe/src/screens/teacher/Chat.tsx` — vẽ theo thứ tự nhận được, khối bằng chứng sống.
-- `tools/check_contract.py` — check mới cho luật *báo cáo là một job riêng*.
+- `tools/check_contract.py` — check thứ tám: *báo cáo là một job riêng*.
 - `docs/overview/teacher-surface.md` — luật hiển thị của hai pha.
+
+**Thứ chưa có nơi thi hành**, và vì thế vẫn là một ý định: *"hai tab cùng chạy một plan trong một
+đoạn chat"*. Không có khoá nào cho chuyện ấy. Cái duy nhất đã làm là `harvest` không còn nổ khi hai
+người thu cùng lúc — còn hai plan chạy song song thì vẫn chạy song song.

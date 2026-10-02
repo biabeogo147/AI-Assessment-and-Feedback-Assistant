@@ -393,6 +393,91 @@ def check_invented_data_lives_in_one_file() -> str | None:
     return None
 
 
+def check_the_report_is_a_job_of_its_own() -> str | None:
+    """Lời kể cuối lượt phải là một **task riêng**, không phải một vòng nữa của pha 1.
+
+    ADR-25 dựng cả vòng chạy quanh một ranh giới: pha 1 lên plan với một catalog tool, pha 2 chạy
+    plan, rồi **một lời gọi model riêng** kể lại. Lời gọi ấy đọc kết quả của cả plan và *không* đọc
+    catalog — đó là lý do nó không thể đề nghị thêm một bước nữa.
+
+    Nhập nó vào vòng lặp pha 1 sẽ không làm test nào đỏ: lượt vẫn kết thúc, chữ vẫn hiện ra. Thứ
+    mất đi là cái ranh giới — một model được đưa cho catalog ở đúng lúc không còn gì để gọi sẽ gọi,
+    và bất biến *"một job là một lần gọi model"* thôi đúng trên đường này. Chính ADR đã nói trước:
+    một luật không có nơi thi hành là một ý định.
+
+    Hai thứ được kiểm:
+
+    1. `worker.py` **đăng ký** `report_plan` dưới `REPORT_PLAN_TASK` — không phải chỉ import nó.
+    2. Lời gọi `run_task(..., REPORT_PLAN_TASK, ...)` trong BE không nằm trong một vòng lặp.
+
+    Đọc bằng `ast`, không bằng mức thụt dòng. Bản đầu của check này đếm khoảng trắng, và cả hai
+    đột biến -- bỏ dòng đăng ký, kéo lời gọi vào một vòng `for` -- đều sống sót qua nó: một
+    `REPORT_PLAN_TASK` trong khối import cũng khớp chuỗi, và phép đi ngược lên theo thụt dòng thì
+    dừng sai chỗ. Một check không bắt được gì còn tệ hơn không có check, vì nó làm người ta tin.
+
+    Returns:
+        None khi luật còn đứng, ngược lại là một thông báo thất bại gọi tên chỗ hỏng.
+    """
+    import ast
+
+    worker = (REPO_ROOT / "services" / "agent" / "src" / "agent" / "worker.py").read_text(
+        encoding="utf-8"
+    )
+    registered = False
+    for node in ast.walk(ast.parse(worker)):
+        if not isinstance(node, ast.Call) or getattr(node.func, "id", "") != "func":
+            continue
+        first = node.args[0] if node.args else None
+        named = next((one for one in node.keywords if one.arg == "name"), None)
+        if (
+            isinstance(first, ast.Name)
+            and first.id == "report_plan"
+            and named is not None
+            and getattr(named.value, "id", "") == "REPORT_PLAN_TASK"
+        ):
+            registered = True
+    if not registered:
+        return _fail(
+            "report-is-its-own-job",
+            "worker.py no longer registers report_plan under REPORT_PLAN_TASK. BE would keep "
+            "enqueueing the job, nobody would consume it, and every closing line would quietly "
+            "fall back to a sentence BE wrote (ADR-25).",
+        )
+
+    chat_path = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py"
+    tree = ast.parse(chat_path.read_text(encoding="utf-8"))
+
+    def mentions_report(node: ast.AST) -> bool:
+        return any(
+            isinstance(one, ast.Name) and one.id == "REPORT_PLAN_TASK" for one in ast.walk(node)
+        )
+
+    found = False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not mentions_report(node):
+            continue
+        if getattr(node.func, "id", "") != "run_task":
+            continue
+        found = True
+        for loop in ast.walk(tree):
+            if not isinstance(loop, ast.For | ast.AsyncFor | ast.While):
+                continue
+            if any(one is node for one in ast.walk(loop)):
+                return _fail(
+                    "report-is-its-own-job",
+                    f"the report call at teacher_chat.py:{node.lineno} sits inside a loop that "
+                    f"starts on line {loop.lineno}. The closing line is a separate job precisely "
+                    "so a model handed the tool catalog cannot propose one more step (ADR-25).",
+                )
+    if not found:
+        return _fail(
+            "report-is-its-own-job",
+            "teacher_chat.py no longer calls run_task with REPORT_PLAN_TASK; the model no longer "
+            "tells the teacher what happened (ADR-25).",
+        )
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
@@ -401,6 +486,7 @@ CHECKS = (
     check_named_dev_tasks_exist,
     check_no_tool_changes_an_assessment_state,
     check_invented_data_lives_in_one_file,
+    check_the_report_is_a_job_of_its_own,
 )
 
 
