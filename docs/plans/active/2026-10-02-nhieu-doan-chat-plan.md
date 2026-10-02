@@ -1,0 +1,167 @@
+# Nhiều đoạn chat cho một giáo viên, và một thanh kéo có thật
+
+Plan bắt buộc theo `AGENTS.md`: đợt này chạm hai service, sửa `packages/contracts`, bỏ một ràng
+buộc schema, và thêm một ADR.
+
+## Goal
+
+Giáo viên mở được **nhiều** đoạn chat, mỗi đoạn một tiêu đề đọc được, và bấm vào một đoạn cũ thì
+đọc lại được nó. Hai ngăn trên rail kéo giãn được và nhớ vị trí sau khi tải lại trang.
+
+Hai thứ đang giả, và đợt này trả cả hai: danh sách đoạn chat trên rail là chữ bịa trong
+`invented-not-from-be.ts`, còn thanh kéo là một vạch không làm gì.
+
+## Scope
+
+BE có đúng một luồng cho mỗi giáo viên, và đó **không** phải tình cờ: `models.py` có
+`UniqueConstraint("teacher_id")` cưỡng chế nó. Code đã viết sẵn lời chỉ dẫn cho ngày hôm nay ở hai
+chỗ — comment cạnh chính constraint ấy (*"Ngày mà giáo viên mở được luồng thứ hai, constraint này
+được bỏ đi một cách có chủ ý"*) và docstring của `_conversation` (*"Khi nó trở thành một thứ xin
+được thì đây là hàm duy nhất phải đổi"*).
+
+Ngoài phạm vi: bốn đích đến trên rail vẫn trơ, và huy hiệu *Bảng theo dõi* vẫn là một con số bịa.
+Chúng ở lại trong `backlog.md`.
+
+## Bốn điều người dùng đã chốt
+
+1. **Tiêu đề do model đặt.** Câu đầu cắt ngắn là **đường lùi**, không phải phương án chính.
+2. **Bấm "Đoạn chat mới" không tạo dòng nào.** Dòng xuất hiện khi có câu đầu tiên, nên danh sách
+   không bao giờ chứa một đoạn chat rỗng — và một cú bấm nhầm không để lại rác mà chưa có đường xoá.
+3. **Panel đề sống bên trong đoạn chat đã tạo ra nó.** Đây là câu trả lời làm thiết kế gọn hơn, xem
+   Decision Records.
+4. **Vị trí thanh kéo nhớ bằng `localStorage`.** Không cột nào ở BE.
+
+## Ordered Tasks
+
+- [ ] **Bước 0 — plan này.** Cổng: `.\dev.ps1 check` xanh.
+- [ ] **Bước 1 — bỏ ràng buộc, thêm cột.** Gỡ `UniqueConstraint("teacher_id")` khỏi
+      `TeacherConversation`, thêm `title: str` (mặc định rỗng). Viết lại
+      `test_a_teacher_keeps_one_conversation_across_messages`: nó đang khẳng định đúng cái luật vừa
+      bị bỏ, nên phải nói luật mới. Cổng: năm test còn lại của `test_teacher_memory.py` **không**
+      phải sửa một dòng nào.
+- [ ] **Bước 2 — `_conversation_of`.** Tìm đoạn chat đã sinh ra một đề qua `teacher_turns`. Cho
+      `note_action` dùng nó thay cho "đoạn mới nhất". Cổng: đột biến trả nó về "mới nhất" làm đúng
+      một test đỏ.
+- [ ] **Bước 3 — `GET /api/teacher/conversations`.** Trả `conversation_id`, `title`, `started_at`,
+      `last_spoke_at`. Cổng: đoạn chat của giáo viên khác đọc ra y như một đoạn không tồn tại.
+- [ ] **Bước 4 — chọn đoạn chat.** `GET /teacher/chat` nhận `conversation_id`; `Said` nhận
+      `conversation_id` và cờ `start_new`, loại trừ nhau. Cổng: hai đoạn song song cho hai lịch sử
+      khác nhau, và gửi kèm cả hai tham số trả 422.
+- [ ] **Bước 5 — `AssessmentDetail.conversation_id`.** Cổng: đề sinh từ chat trả đúng id; đề seed
+      trả `null`.
+- [ ] **Bước 6 — task `name_conversation`.** Contract, graph, handler, một dòng ở worker. Cổng: test
+      AGENT xanh mà không gọi model thật.
+- [ ] **Bước 7 — BE đặt tiêu đề.** Sau lượt đầu của một hội thoại mới, kèm đường lùi. Cổng: tắt
+      `LLM_ENABLED` vẫn có tiêu đề; model ném lỗi không làm hỏng lượt nói.
+- [ ] **Bước 8 — FE: rail thật và route lồng nhau.** `api.ts`, danh sách đoạn chat, nút *Đoạn chat
+      mới*, `#/teacher/chat/{id}/de/{paper}`. Cổng: mở hai đoạn, bấm qua lại, F5 đúng chỗ.
+- [ ] **Bước 9 — FE: thanh kéo.** `pointer` events + `localStorage` + `cursor: row-resize`. Cổng:
+      kéo được, F5 nhớ vị trí.
+- [ ] **Bước 10 — tài liệu.** ADR-24, `backlog.md`, `local-development.md` (kèm câu `ALTER`), đóng
+      plan.
+
+## Decision Records
+
+### Panel sống trong đoạn chat đã tạo ra đề, và vì thế BE tự suy ra được
+
+Duyệt và phát hành xảy ra **ngoài** khung chat, nên khi một giáo viên có nhiều đoạn chat thì câu
+*"biên bản rơi vào đoạn nào"* trở thành một câu hỏi thật. Ba câu trả lời khả dĩ: đoạn mới nhất (hiện
+nay), đoạn đang mở trên màn hình (client gửi id lên), hoặc đoạn đã sinh ra đề.
+
+Chọn cái thứ ba, và nó **rẻ hơn** cái thứ hai chứ không đắt hơn. Panel chỉ mở được từ bên trong đoạn
+chat của nó, nên hai thứ trùng nhau — mà suy ra từ `teacher_turns.entity_id` thì không phải thêm
+tham số vào hai endpoint duyệt/phát hành, và không phải tin một id do client gửi. Một hàm
+`_conversation_of`, ba người gọi: `note_action`, `AssessmentDetail.conversation_id`, và đường chuyển
+hướng của link cũ.
+
+Cái thứ nhất bị loại vì nó sai một cách im lặng: giáo viên đang đọc một đoạn chat cũ, bấm *Duyệt*,
+và biên bản rơi vào một đoạn khác — họ sẽ không tìm thấy nó, và không có gì trên màn hình nói đã xảy
+ra chuyện đó.
+
+Đề không thuộc đoạn chat nào — seed, hoặc tạo tay — thì `_conversation_of` trả `None` và
+`note_action` lùi về đoạn mới nhất. Lùi, chứ không nổ: một đề vẫn phải duyệt được.
+
+### Mặc định cũ giữ nguyên nghĩa
+
+`GET /teacher/chat` không kèm id, và `POST` không kèm cờ, vẫn là *"đoạn mới nhất"*. Nhờ vậy sáu test
+hiện có không phải sửa dòng nào, và sáu test ấy chính là thứ chứng minh đợt này không làm vỡ hành vi
+cũ. Chỉ một test phải viết lại, và nó phải viết lại vì nó khẳng định đúng cái luật vừa bị bỏ.
+
+### Tiêu đề: chờ model, không bắn rồi quên
+
+BE **không có worker chạy nền**. Một job bắn đi mà không ai thu thì tiêu đề không bao giờ được ghi,
+nên `run_task` chờ kết quả ngay trong request. Giá phải trả là một lời gọi model nhỏ cộng vào **lượt
+đầu tiên** của mỗi hội thoại mới — chỉ lượt đầu, và chỉ khi hội thoại chưa có tên.
+
+Payload tự chứa: chở nguyên câu đầu của giáo viên, không chở `conversation_id`. AGENT không có
+credential database và sẽ không bao giờ có.
+
+Hỏng thì nuốt `AgentError` và ghi log. Một tiêu đề không đặt được là một dòng chữ xấu trên rail;
+làm hỏng lượt nói vì nó là mất cả việc giáo viên vừa nhờ.
+
+### Nhóm ngày tính theo lần nói cuối
+
+Không theo `started_at`. Một đoạn chat mở từ tuần trước mà hôm nay vừa nói tiếp thì thuộc về *Hôm
+nay* — đó là thứ người ta đi tìm khi mở rail.
+
+## Files
+
+| File | Việc |
+| --- | --- |
+| `services/be/src/be/models.py` | bỏ `UniqueConstraint("teacher_id")`, thêm `TeacherConversation.title` |
+| `services/be/src/be/teacher_chat.py` | `_conversation_of`, `note_action`, hai endpoint chat, phần đặt tiêu đề |
+| `services/be/src/be/teacher_routes.py` | `AssessmentDetail.conversation_id` |
+| `packages/contracts/src/contracts/teacher_chat.py` | `NAME_CONVERSATION_TASK` và cặp model của nó |
+| `packages/contracts/src/contracts/__init__.py` | import block và `__all__` |
+| `services/agent/src/agent/graphs/naming.py` | **mới** — graph một node |
+| `services/agent/src/agent/handlers.py` | hàm mock sync + handler |
+| `services/agent/src/agent/worker.py` | hai import, một dòng `func(...)` |
+| `services/fe/src/api.ts` | type hội thoại, `teacher.conversations()`, tham số cho `say` |
+| `services/fe/src/screens/teacher/Rail.tsx` | danh sách thật, nhóm ngày, hàng đang chọn, thanh kéo |
+| `services/fe/src/screens/teacher/Chat.tsx` | nhận `conversationId`, nút *Đoạn chat mới* |
+| `services/fe/src/App.tsx` | route lồng nhau, chuyển hướng link cũ |
+| `services/fe/src/teacher.css` | `cursor: row-resize`, chiều cao ngăn theo biến |
+| `services/fe/src/screens/teacher/invented-not-from-be.ts` | bỏ `CONVERSATIONS` |
+| `docs/decisions/adr-24-...` | **mới** |
+
+## Validation Checks
+
+- [ ] `.\dev.ps1 check` và `.\dev.ps1 test` xanh sau **mỗi** bước
+- [ ] Năm ca của *Review Focus* dưới đây, mỗi ca một test
+- [ ] Break-to-test ba chỗ, mỗi lần đúng một test đỏ: bỏ lọc `teacher_id` khỏi đường đọc hội thoại;
+      trả `note_action` về "đoạn mới nhất"; bỏ `try/except` quanh phần đặt tiêu đề
+- [ ] Một lượt chạy thật qua giao diện trên Postgres với `gpt-4o-mini`: mở đoạn chat mới, nói một
+      câu, đợi tiêu đề hiện trên rail, mở lại đoạn cũ, kiểm hai lịch sử không lẫn nhau, và kiểm nút
+      *Xem* mở panel **trong** đoạn chat đang đứng
+- [ ] Kéo thanh ngăn, F5, vị trí giữ nguyên
+- [ ] Rail trên Figma đã vẽ sẵn nhóm ngày và hàng đang chọn, nên **không phải sửa Figma**. Chỗ nào
+      lệch thì đo rồi sửa code
+- [ ] Mỗi commit mang trailer `Plan: 2026-10-02-nhieu-doan-chat-plan.md`
+
+## Review Focus
+
+Năm ca thiết kế này ngụ ý mà đường đi hạnh phúc không chạm tới:
+
+1. **`conversation_id` của giáo viên khác** → trả lời y hệt một id không tồn tại (ADR-22). Bước 3, 4.
+2. **Gửi kèm cả `conversation_id` lẫn `start_new`** → 422, không phải một trong hai bị bỏ qua trong
+   im lặng. Bước 4.
+3. **`LLM_ENABLED=false`** → tiêu đề vẫn có, là câu đầu cắt ngắn. Bước 7.
+4. **Model trả tiêu đề rỗng, dài ba trăm ký tự, hoặc kèm dấu ngoặc kép** → dọn và cắt; rỗng thì dùng
+   đường lùi. Bước 7.
+5. **Một đề không thuộc đoạn chat nào** → `conversation_id` là `null`, panel vẫn mở được,
+   `note_action` lùi về đoạn mới nhất. Bước 2, 5.
+
+## Một câu SQL cho database đang chạy
+
+Repo không có migration: `prepare_schema` chỉ `create_all`, và `create_all` không bao giờ sửa một
+bảng đã tồn tại. Database dev sẽ giữ ràng buộc cũ và đoạn chat thứ hai nổ `IntegrityError`:
+
+```sql
+ALTER TABLE teacher_conversations DROP CONSTRAINT teacher_conversations_teacher_id_key;
+```
+
+Câu này đi vào `local-development.md` ở bước 10.
+
+## Status
+
+Chưa bắt đầu.
