@@ -316,9 +316,16 @@ async def test_a_step_aimed_at_a_taken_position_moves_to_the_next_free_one(stack
 async def test_a_teacher_keeps_one_conversation_across_messages(stack) -> None:
     """Hỏi lần nữa thì nhận lại đúng luồng đang chạy, không phải một luồng mới.
 
-    `schema` nói mỗi giáo viên một luồng, nên một lần chèn thứ hai bị từ chối chứ
-    không được bỏ qua — và đây chính là con đường không bao giờ được phép là thứ từ
-    chối một tin nhắn.
+    Luật này từng do **schema** cưỡng chế: `teacher_conversations` có một
+    `UniqueConstraint("teacher_id")`, nên một lần chèn thứ hai bị database từ chối.
+    Constraint ấy đã đi, vì giáo viên nay mở được luồng thứ hai. Luật thì ở lại, và
+    nay nó nằm trong `_conversation`: **nói tiếp** không bao giờ được âm thầm mở một
+    luồng mới, vì một luồng mới nghĩa là trợ lý quên sạch những gì vừa nói.
+
+    Nên test này không đổi phần kiểm, chỉ đổi thứ nó đang canh: từ một constraint
+    sang một hàm. Và nó là nửa còn lại của
+    `test_a_new_conversation_starts_a_second_thread` ngay dưới — một hàm mở luồng
+    mới **khi được xin**, và chỉ khi được xin.
     """
     _, maker, _ = stack
 
@@ -334,6 +341,35 @@ async def test_a_teacher_keeps_one_conversation_across_messages(stack) -> None:
 
     assert first == again
     assert len(started) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_new_conversation_starts_a_second_thread(stack) -> None:
+    """Xin một luồng mới thì được một luồng mới, và luồng cũ ở nguyên đó.
+
+    Nửa còn lại của test trên. `schema` từng cấm chuyện này ở tầng database; nay hai
+    hàng cùng `teacher_id` là hợp lệ, và `_latest_conversation` phải trỏ sang cái vừa
+    mở — nếu không thì nút *Đoạn chat mới* mở một luồng mà không ai nói vào được.
+    """
+    _, maker, _ = stack
+
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher))
+        assert teacher is not None
+        asking = Asking.of(teacher)
+
+        first = await teacher_chat._conversation(session, asking)
+        second = await teacher_chat._conversation(session, asking, start_new=True)
+        latest = await teacher_chat._latest_conversation(session, asking)
+
+        started = (await session.scalars(select(TeacherConversation))).all()
+
+    assert first != second
+    assert len(started) == 2
+    # Luồng mới nhất là luồng vừa mở, không phải luồng đầu. Hai hàng sinh ra trong
+    # cùng một nhịp đồng hồ thì `started_at` bằng nhau, và khoá thứ hai là thứ giữ
+    # cho câu trả lời này xác định thay vì tuỳ database.
+    assert latest == second
 
 
 @pytest.mark.asyncio

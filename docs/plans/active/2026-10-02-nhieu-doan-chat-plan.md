@@ -33,8 +33,8 @@ Chúng ở lại trong `backlog.md`.
 
 ## Ordered Tasks
 
-- [ ] **Bước 0 — plan này.** Cổng: `.\dev.ps1 check` xanh.
-- [ ] **Bước 1 — bỏ ràng buộc, thêm cột.** Gỡ `UniqueConstraint("teacher_id")` khỏi
+- [x] **Bước 0 — plan này.** Cổng: `.\dev.ps1 check` xanh.
+- [x] **Bước 1 — bỏ ràng buộc, thêm cột.** Gỡ `UniqueConstraint("teacher_id")` khỏi
       `TeacherConversation`, thêm `title: str` (mặc định rỗng). Viết lại
       `test_a_teacher_keeps_one_conversation_across_messages`: nó đang khẳng định đúng cái luật vừa
       bị bỏ, nên phải nói luật mới. Cổng: năm test còn lại của `test_teacher_memory.py` **không**
@@ -164,4 +164,12 @@ Câu này đi vào `local-development.md` ở bước 10.
 
 ## Status
 
-Chưa bắt đầu.
+Xong bước 0 và 1. Constraint đã đi, cột `title` đã có, và `_conversation` nhận `start_new` — đúng
+một tham số, không thêm một đường thứ hai, y như docstring cũ của nó đã hẹn.
+
+Test khẳng định "một giáo viên một luồng" **không bị xoá**: nó giữ nguyên phần kiểm và đổi thứ nó
+đang canh, từ một constraint sang một hàm. Nói tiếp vẫn không bao giờ được âm thầm mở luồng mới, vì
+một luồng mới nghĩa là trợ lý quên sạch những gì vừa nói. Một test thứ hai nói nửa còn lại: xin thì
+được, và luồng cũ ở nguyên đó.
+
+Năm test khác của `test_teacher_memory.py` không phải sửa một dòng nào, đúng như plan dự tính.

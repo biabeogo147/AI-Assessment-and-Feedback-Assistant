@@ -513,28 +513,33 @@ class Report(Base):
 
 
 class TeacherConversation(Base):
-    """Một cuộc hội thoại đang chạy giữa một giáo viên và trợ lý.
+    """Một cuộc hội thoại giữa một giáo viên và trợ lý.
 
-    Là một bảng chứ không phải một id trơ trên từng lượt, để sau này giáo viên có
-    thể mở một luồng mới mà những lượt cũ không đi theo vào đó. Chừng nào thứ đó
-    chưa được làm, BE dùng lại cuộc hội thoại gần nhất.
+    Là một bảng chứ không phải một id trơ trên từng lượt, để giáo viên mở được một
+    luồng mới mà những lượt cũ không đi theo vào đó.
+
+    **Ngày đó là hôm nay.** `UniqueConstraint("teacher_id")` từng đứng ở đây, và nó
+    đứng đó một cách thật lòng: BE dùng lại luồng đang chạy và không cho cách nào mở
+    cái khác, nên luật ấy thuộc về schema chứ không thuộc về niềm hy vọng rằng hai
+    request không bao giờ tới cùng lúc. Nay giáo viên xin được một luồng mới, nên
+    constraint đi -- và `_latest_conversation` vốn đã sắp theo một khoá thứ hai, nên
+    việc chọn giữa các luồng vẫn xác định chứ không tuỳ database thích.
+
+    Bỏ một constraint thì `create_all` **không** giúp được gì cho một database đã
+    tồn tại: nó tạo bảng còn thiếu và không bao giờ sửa bảng đã có. Câu `ALTER` nằm
+    trong `docs/local-development.md`.
     """
 
     __tablename__ = "teacher_conversations"
-    # Một cái cho mỗi giáo viên, ở thời điểm này. Luật đó là thật -- BE dùng lại
-    # cuộc hội thoại đang chạy và không cho cách nào mở cái khác -- nên nó thuộc về
-    # schema, chứ không thuộc về niềm hy vọng rằng hai request không bao giờ tới
-    # cùng lúc. Hai request của một giáo viên vẫn tới cùng lúc như thường: một màn
-    # hình đang tải trong khi họ đang gõ.
-    #
-    # Ngày mà giáo viên mở được luồng thứ hai, constraint này được bỏ đi một cách có
-    # chủ ý, và `_latest_conversation` vốn đã sắp theo một khoá thứ hai nên việc chọn
-    # giữa các luồng vẫn xác định.
-    __table_args__ = (UniqueConstraint("teacher_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     teacher_id: Mapped[str] = mapped_column(ForeignKey("teachers.id"))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Tên hiện trên rail. Rỗng nghĩa là **chưa đặt**, không phải "không có tên": một
+    # luồng vừa mở chưa có câu nào thì chưa có gì để đặt tên theo. Model đặt nó sau
+    # lượt đầu tiên, và khi model không đặt được thì BE lùi về câu đầu cắt ngắn --
+    # nên một luồng đã nói mà vẫn rỗng ở đây là một chuyện đáng đi tìm.
+    title: Mapped[str] = mapped_column(String(120), default="")
 
     turns: Mapped[list[TeacherTurn]] = relationship(
         back_populates="conversation", order_by="TeacherTurn.sequence"

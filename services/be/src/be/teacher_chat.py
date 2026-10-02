@@ -287,15 +287,21 @@ async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | N
     )
 
 
-async def _conversation(session: AsyncSession, asking: Asking) -> str:
+async def _conversation(session: AsyncSession, asking: Asking, *, start_new: bool = False) -> str:
     """Tìm hội thoại đang chạy của giáo viên này, hoặc mở một hội thoại mới.
 
-    Lấy cái mới nhất, vì mở một luồng mới chưa phải là thứ giáo viên xin được. Khi nó trở
-    thành một thứ xin được thì đây là hàm duy nhất phải đổi.
+    Docstring cũ ở đây viết: *"mở một luồng mới chưa phải là thứ giáo viên xin được. Khi
+    nó trở thành một thứ xin được thì đây là hàm duy nhất phải đổi."* Nay nó xin được, và
+    đây đúng là hàm đã đổi — thêm một tham số, không thêm một đường thứ hai.
+
+    `start_new` là **duy nhất** đường mở luồng thứ hai. Nói tiếp mà âm thầm mở luồng mới
+    nghĩa là trợ lý quên sạch những gì vừa nói, nên mặc định vẫn là dùng lại luồng mới
+    nhất, y như trước.
 
     Args:
         session: Session của database.
         asking: Hội thoại của ai.
+        start_new: Mở một luồng mới kể cả khi giáo viên đã có luồng.
 
     Returns:
         id của nó, dưới dạng string. Không phải cái row: các caller commit giữa các bước
@@ -303,10 +309,10 @@ async def _conversation(session: AsyncSession, asking: Asking) -> str:
         `MissingGreenlet` ở lần đọc attribute tiếp theo.
 
     Side effects:
-        Chèn một row khi giáo viên chưa từng nói gì trước đó.
+        Chèn một row khi giáo viên chưa từng nói gì trước đó, hoặc khi `start_new`.
     """
     for attempt in range(2):
-        found = await _latest_conversation(session, asking)
+        found = None if start_new else await _latest_conversation(session, asking)
         if found is not None:
             return found
 
