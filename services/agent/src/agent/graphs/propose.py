@@ -1,4 +1,13 @@
-"""Một lượt suy nghĩ cho khung chat của giáo viên: dựng prompt, rồi chọn.
+"""Pha lên plan của một lượt chat giáo viên: dựng prompt, rồi chọn.
+
+Module này là **pha 1** của ADR-25. Nó tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một
+plan — chứ không bao giờ ghi gì. Lời kể sau khi plan chạy nằm ở `reporting.py`, một task
+riêng, vì đầu vào của nó khác hẳn: nó đọc kết quả của cả plan, không đọc catalog.
+
+Hai danh mục tới riêng và điều đó là cố ý: `catalog` là tool gọi được ngay, `plannable` là
+tool chỉ hẹn làm được ở pha 2. Model phải thấy cả hai — nó nêu tên tool và tên tham số
+trong plan — nhưng phải phân biệt được chúng, vì gọi một tool ghi ngay lượt này sẽ bị BE
+từ chối và tiêu một vòng để phát hiện lại đúng điều ấy.
 
 Hai node, và node thứ hai là một lần gọi structured duy nhất. Nó nhỏ hơn graph soạn
 đề một cách có chủ ý -- ở đây không có loop tự check, vì thứ được sinh ra không phải
@@ -26,18 +35,38 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ConfigDict
 
 from agent import llm
-from contracts import NextStepCompleted, NextStepRequested, ToolSpec, TurnRecord
+from contracts import NextStepCompleted, NextStepRequested, PlanStep, ToolSpec, TurnRecord
 
 logger = logging.getLogger(__name__)
 
 
 _SYSTEM = """Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
 
-Mỗi lượt bạn chọn ĐÚNG MỘT trong ba việc:
-- say: trả lời bằng lời. Dùng khi bạn đã có đủ thông tin để nói.
-- call_tool: nhờ hệ thống chạy một tool trong danh sách được cấp, rồi bạn sẽ được hỏi lại với kết
-  quả. Dùng khi bạn cần dữ liệu mà mình chưa có.
-- ask_clarify: hỏi lại giáo viên. Dùng khi câu vừa rồi có thể hiểu theo nhiều cách.
+Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
+danh sách những việc sẽ làm. Hệ thống chạy plan ấy ở pha sau, rồi hỏi bạn kể lại kết quả.
+
+Mỗi lượt bạn chọn ĐÚNG MỘT trong bốn việc:
+- say: trả lời bằng lời. Dùng khi câu vừa rồi chỉ cần một câu trả lời, không cần làm gì.
+- call_tool: nhờ hệ thống chạy một tool TRA CỨU trong danh sách "tool dùng ngay", rồi bạn sẽ được
+  hỏi lại với kết quả. Dùng khi bạn cần dữ liệu mà mình chưa có.
+- ask_clarify: hỏi lại giáo viên. Dùng khi câu vừa rồi có thể hiểu theo nhiều cách, hoặc khi còn
+  thiếu một mục bắt buộc để làm việc họ nhờ.
+- plan: nêu các việc sẽ làm, mỗi việc một tool trong danh sách "tool nêu được trong plan". text là
+  câu bạn nói với giáo viên trước khi bắt tay, ví dụ "Được, mình soạn đề ngay."
+
+Về plan:
+- Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: giáo viên nhờ "tạo
+  đề 10 câu" nghĩa là đề phải CÓ CÂU HỎI khi xong, nên plan gồm cả bước mở đề lẫn bước soạn câu.
+  Một plan chỉ mở đề trống là một plan làm sai việc được nhờ.
+- title của mỗi bước là câu tiếng Việt giáo viên đọc trên màn hình: "Tạo đề trống", "Soạn 10 câu
+  hỏi". Nói VIỆC, đừng nói tên tool.
+- Một tham số lấy giá trị từ kết quả của bước trước thì viết là {k.ten_field}, với k là số thứ tự
+  bước, đếm từ 1. Ví dụ bước 2 cần id của đề mà bước 1 vừa mở: assessment_id = {1.assessment_id}.
+  Chỉ viết đúng khuôn đó, không thêm chữ nào quanh nó, và chỉ trỏ về một bước ĐỨNG TRƯỚC nó.
+- Một plan là một lời hứa, nên đừng nêu plan khi còn thiếu một mục bắt buộc — hỏi trước. Sau khi
+  plan đã nêu thì KHÔNG còn chỗ nào để hỏi lại nữa.
+- TUYỆT ĐỐI không nêu một tool tra cứu trong plan, và không gọi call_tool với một tool chỉ nêu
+  được trong plan. Hai danh sách là hai quyền khác nhau.
 
 Bốn điều không thương lượng:
 - Bạn KHÔNG tự làm gì cả. call_tool là một lời đề nghị; hệ thống mới là người chạy. Vì thế TUYỆT ĐỐI
@@ -63,13 +92,16 @@ Khi tool trả "found": false mà không ambiguous, hãy nói là không tìm th
 "your_classes" — đừng thử lại cùng một tên.
 
 Về soạn đề:
-- create_draft trả "created": false kèm "missing" là danh sách mục còn thiếu. Hãy HỎI giáo viên đúng
-  những mục đó trong MỘT lượt, rồi gọi lại. TUYỆT ĐỐI không tự điền thay họ: cả bộ đề được sinh từ
-  một brief duy nhất, nên một mục đoán sai làm sai toàn bộ bộ đề, không chỉ một câu.
-- Sau create_draft thì gọi start_drafting. Nó trả về ngay và câu hỏi hiện dần ở panel, nên hãy nói
-  với giáo viên là đang soạn — đừng nói là đã soạn xong.
-- start_drafting trả "started": false kèm "reason". Đọc reason rồi nói lại cho giáo viên; đừng gọi
-  lại ngay, vì phần lớn lý do là "đang soạn dở" hoặc "đề đã duyệt" và gọi lại không đổi được gì.
+- Để mở một đề nháp cần ĐỦ bốn mục: môn, khối, phạm vi kiến thức, số câu. Thiếu mục nào thì
+  ask_clarify hỏi đúng những mục đó trong MỘT lượt, và chưa nêu plan. TUYỆT ĐỐI không tự điền thay
+  giáo viên: cả bộ đề được sinh từ một brief duy nhất, nên một mục đoán sai làm sai toàn bộ bộ đề,
+  không chỉ một câu.
+- Nhưng ĐỌC KỸ câu họ vừa gõ trước khi hỏi. Hỏi lại một mục họ VỪA NÓI là bắt người ta gõ lại chữ
+  của chính mình. Bốn mục thường nằm sẵn trong một câu: "10 câu" là số câu; "môn Toán" là môn;
+  "về tích phân", "chương Hàm số" là phạm vi; và TÊN LỚP ĐÃ NÓI RA KHỐI — "lớp 12A" nghĩa là khối
+  12, "10B" nghĩa là khối 10. Chỉ hỏi những mục thật sự không có trong câu.
+- Đủ bốn mục thì plan có hai bước: mở đề nháp, rồi soạn câu hỏi cho đúng đề vừa mở.
+- Việc soạn câu chạy ngầm và câu hỏi hiện dần ở panel, nên đừng nói là đã soạn xong.
 
 Hai việc bạn KHÔNG làm được, và không có tool nào cho chúng: duyệt đề, và phát hành đề. Giáo viên tự
 làm ở panel bên phải. Nếu họ nhờ bạn duyệt hay phát hành, hãy nói rằng chỗ làm việc đó là panel và
@@ -96,6 +128,21 @@ class _Argument(BaseModel):
     value: str
 
 
+class _Step(BaseModel):
+    """Một bước của plan, dưới hình dạng model trả lời được.
+
+    Cùng lý do với `_Argument`: `args` là một dãy cặp tên–giá trị chứ không phải một mapping, vì
+    một JSON object với key tuỳ ý bị structured output chế độ strict từ chối. `contracts.PlanStep`
+    mới là hình dạng BE đọc, và `completed` dịch sang nó.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_name: str
+    args: tuple[_Argument, ...] = ()
+    title: str
+
+
 class _Proposal(BaseModel):
     """Đúng những gì model được hỏi -- và không gì khác.
 
@@ -118,10 +165,11 @@ class _Proposal(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["say", "call_tool", "ask_clarify"]
+    kind: Literal["say", "call_tool", "ask_clarify", "plan"]
     text: str = ""
     tool_name: str = ""
     tool_args: tuple[_Argument, ...] = ()
+    steps: tuple[_Step, ...] = ()
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
         """Biến câu trả lời của model thành message BE đọc.
@@ -130,8 +178,14 @@ class _Proposal(BaseModel):
             request_id: Id BE đã hỏi dưới.
             model_tokens: Con số provider báo lại.
 
+        Raises:
+            ValidationError: Khi model nói `plan` mà không nêu bước nào, hoặc nêu một bước không có
+                tên tool. Handler ở tầng trên bắt và lùi về mock -- chưa có gì tới tay giáo viên
+                lúc này, nên lùi về là an toàn.
+
         Returns:
-            Đề nghị, kèm hai field model không bao giờ được hỏi. `choices` để rỗng:
+            Đề nghị, kèm hai field model không bao giờ được hỏi. `steps` chỉ đi theo một `plan`,
+            vì hợp đồng từ chối chúng ở mọi `kind` khác. `choices` để rỗng:
             BE tự viết các lựa chọn cho một câu hỏi lại từ những dòng nó đã đọc
             (ADR-23), nên hỏi model lấy chúng là hỏi một thứ rồi bị ném đi.
         """
@@ -141,6 +195,16 @@ class _Proposal(BaseModel):
             text=self.text,
             tool_name=self.tool_name,
             tool_args={argument.name: argument.value for argument in self.tool_args},
+            steps=tuple(
+                PlanStep(
+                    tool_name=step.tool_name,
+                    args={argument.name: argument.value for argument in step.args},
+                    title=step.title,
+                )
+                for step in self.steps
+            )
+            if self.kind == "plan"
+            else (),
             model_tokens=model_tokens,
         )
 
@@ -213,11 +277,23 @@ def _compose(state: ProposeState) -> dict:
         opening.append(f"Bạn đang nói với {request.teacher_name}.")
     if request.catalog:
         catalog = "\n".join(_describe_tool(tool) for tool in request.catalog)
-        opening.append(f"Các tool bạn được dùng lượt này:\n{catalog}")
+        opening.append(f"Tool dùng ngay (call_tool) lượt này:\n{catalog}")
     else:
         # Nói ra điều đó tốt hơn bỏ hẳn phần này: một model không được cấp danh
         # sách nào thường cho rằng việc thiếu đó là sơ suất và vẫn gọi tên một tool.
-        opening.append("Lượt này bạn không có tool nào. Chỉ say hoặc ask_clarify.")
+        opening.append("Lượt này bạn không có tool dùng ngay nào.")
+    if request.plannable:
+        # Hai danh sách tới riêng, vì model phải phân biệt được "gọi được bây giờ" với "hẹn làm ở
+        # pha sau". Trộn chúng lại là mời model gọi một tool ghi ngay lượt này -- BE từ chối, và
+        # cái vòng lặp tiêu một lần gọi model để phát hiện lại đúng điều ấy.
+        planning = "\n".join(_describe_tool(tool) for tool in request.plannable)
+        opening.append(f"Tool nêu được trong plan (không gọi ngay):\n{planning}")
+    else:
+        # Không nhắc `call_tool` ở đây: khi `catalog` cũng rỗng thì dòng trên vừa nói là
+        # không có tool nào, và một câu mời gọi tool ngay sau đó là một lời tự mâu thuẫn --
+        # đúng loại chỗ model chọn câu nào nghe tích cực hơn.
+        can_also = ", call_tool" if request.catalog else ""
+        opening.append(f"Lượt này bạn không nêu plan được. Chỉ say{can_also} hoặc ask_clarify.")
 
     messages: list[BaseMessage] = [SystemMessage("\n\n".join(opening))]
     for turn in request.history:

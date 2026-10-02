@@ -113,7 +113,13 @@ class NextStepRequested(BaseModel):
         teacher_name: Cách gọi người đang hỏi. Không phải một identifier -- AGENT không bao giờ nhận
             một identifier mà nó sẽ phải tra, và danh tính dùng để phân quyền ở lại trong BE.
         history: Mọi thứ đã xảy ra, cũ nhất trước.
-        catalog: Những tool giáo viên này được dùng, trong lượt này.
+        catalog: Những tool model được **gọi** lượt này. Ở pha lên plan, danh sách này chỉ có tool
+            đọc (ADR-25).
+        plannable: Những tool model được **nêu trong một plan** nhưng chưa được gọi bây giờ. Không
+            có nó thì pha 1 phải nêu tên và tham số của những tool nó chưa từng thấy mô tả, tức là
+            đoán -- mà BE kiểm tên tham số theo spec và sẽ từ chối cả plan. Hai danh sách chứ không
+            một, vì "được gọi ngay" và "được hẹn làm" là hai quyền khác nhau và trộn chúng lại là
+            mở đúng cánh cửa ADR-25 đóng: ghi trước khi hỏi.
 
     Ở đây **không có** `stream_channel`, khác với `ExplainTurnRequested`. Một lượt của cuộc hội
     thoại này là một vòng lặp gồm vài lời gọi model và chỉ lời gọi cuối cùng sinh ra chữ, nên một
@@ -129,6 +135,7 @@ class NextStepRequested(BaseModel):
     teacher_name: str = ""
     history: tuple[TurnRecord, ...] = ()
     catalog: tuple[ToolSpec, ...] = ()
+    plannable: tuple[ToolSpec, ...] = ()
 
 
 class NextStepCompleted(BaseModel):

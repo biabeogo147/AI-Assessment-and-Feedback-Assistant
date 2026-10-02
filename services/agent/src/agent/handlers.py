@@ -25,6 +25,7 @@ from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_qu
 from agent.graphs.explain import speak
 from agent.graphs.naming import name_it
 from agent.graphs.propose import propose
+from agent.graphs.reporting import tell_about
 from contracts import (
     ConversationNameCompleted,
     ConversationNameRequested,
@@ -36,6 +37,9 @@ from contracts import (
     GeneratedQuestion,
     NextStepCompleted,
     NextStepRequested,
+    PlanReportCompleted,
+    PlanReportRequested,
+    PlanStep,
     RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
@@ -552,6 +556,112 @@ _NO_CLASS_NAMED = (
 
 _NOTHING_TO_USE = "Lượt này mình chưa tra được dữ liệu nào. Bạn thử hỏi lại sau một chút nhé."
 
+# Giáo viên đang **nhờ làm** một đề. Ba điều kiện, không một: một động từ nhờ, chữ "đề"
+# đứng thành một từ, và câu đó không phải một câu hỏi. Bản đầu của chỗ này chỉ dò substring
+# `(đề|soạn|tạo)`, và nó đọc "đề Toán 12A1 đã có 10 câu chưa?" thành một lệnh tạo đề mới --
+# nhớ rằng mock cũng là đường lùi khi model lỗi, nên một lần timeout trên một câu HỎI sẽ
+# ghi một đề thật vào database. Nó cũng đọc "lớp 12A1 có vấn đề gì không" thành việc soạn
+# đề, vì "vấn đề" chứa "đề".
+_ASKS_TO_MAKE = re.compile(r"(?:^|\s)(tạo|soạn|làm|lên|dựng)(?=\s)", re.IGNORECASE)
+_A_PAPER = re.compile(r"(?:^|\s)(?:đề|bộ đề)(?=\s|$|[,.;:!?])", re.IGNORECASE)
+# Dấu hỏi và mấy chữ chỉ câu hỏi. Chặn rộng tay là cố ý: nhận nhầm một câu nhờ thành câu
+# hỏi thì mock hỏi lại một lượt, nhận nhầm chiều kia thì nó ghi một đề không ai yêu cầu.
+_SOUNDS_LIKE_A_QUESTION = re.compile(
+    r"\?|(?:^|\s)(chưa|mấy|bao nhiêu|thế nào|ra sao|đã có|có không|không\?)(?=\s|$|[,.;:?])",
+    re.IGNORECASE,
+)
+
+# Số câu, và khối. Khối đọc từ tên lớp trước ("12A1" → 12) rồi mới tới chữ "lớp 12".
+# `(?<!\d)` và ba chữ số là để "100 câu" đọc ra 100 rồi bị chặn vì quá trần, chứ không bị
+# cắt thành "00" -- một con số 0 đi tới `create_draft` thành một bước đỏ, trong khi việc
+# đúng là hỏi lại.
+_HOW_MANY = re.compile(r"(?<!\d)(\d{1,3})\s*câu")
+_WHICH_GRADE = re.compile(r"(?:lớp|khối)\s*(\d{1,2})")
+
+# Trần của chính `create_draft`. Mock đọc được một con số ngoài khoảng thì hỏi lại, vì một
+# bước đỏ không nói cho giáo viên biết phải sửa gì.
+_MOST_QUESTIONS = 50
+
+# Môn, đọc từ chính chữ giáo viên gõ. Một bảng tra chứ không một giá trị mặc định: mock
+# **không** được đoán môn, vì cả bộ đề sinh ra từ một brief và một môn sai làm sai cả bộ.
+#
+# Hai bảng, vì tiếng Việt không có biên từ như tiếng Anh. Bản đầu dò substring và đọc
+# "cho học sinh lớp 12" thành môn Sinh học, "soạn nhanh" thành Tiếng Anh, "xử lý số liệu"
+# thành Vật lý -- cả ba đều là câu bình thường của giáo viên, và cả ba đều cho ra một bộ
+# đề sai môn. Những tên môn trùng với từ thường dùng vì thế đòi chữ "môn" đứng ngay trước.
+_SUBJECTS = {"toán": "Toán", "hoá": "Hoá học", "hóa": "Hoá học"}
+_ONLY_AFTER_THE_WORD_MON = {
+    "lý": "Vật lý",
+    "sinh": "Sinh học",
+    "văn": "Ngữ văn",
+    "anh": "Tiếng Anh",
+    "sử": "Lịch sử",
+    "địa": "Địa lý",
+}
+
+
+def _subject_in(asked: str) -> str | None:
+    """Đọc tên môn ra khỏi câu giáo viên gõ, hoặc trả `None` khi họ chưa nói.
+
+    Args:
+        asked: Câu giáo viên vừa gõ.
+
+    Returns:
+        Tên môn đầy đủ, hoặc `None` -- và `None` dẫn tới một câu hỏi lại, không tới một
+        giá trị mặc định.
+    """
+    low = asked.lower()
+    for word, full in _SUBJECTS.items():
+        if re.search(rf"(?:^|\s){word}(?=\s|$|[,.;:!?])", low):
+            return full
+    for word, full in _ONLY_AFTER_THE_WORD_MON.items():
+        if re.search(rf"(?:^|\s)môn\s+{word}(?=\s|$|[,.;:!?])", low):
+            return full
+    return None
+
+
+_WHAT_IS_MISSING = (
+    "Bạn cho mình biết thêm: môn gì, khối nào, phạm vi kiến thức, và bao nhiêu câu nhé."
+)
+
+
+def _brief_from(asked: str) -> dict[str, str] | None:
+    """Đọc một brief soạn đề ra từ chính câu giáo viên gõ.
+
+    Mock, và nó **chỉ đọc**: không có giá trị mặc định nào cho môn hay số câu, vì mock mà
+    đoán thay giáo viên thì đang trình diễn đúng cái hành vi prompt cấm (ADR-25). Thiếu
+    một mục thì trả `None` và đường gọi sẽ hỏi lại.
+
+    `topic_scope` lấy nguyên câu giáo viên gõ. Đó không phải cách đọc lười: spec của tool
+    nói đúng thế -- *phạm vi kiến thức theo lời giáo viên* -- nên lời họ là giá trị đúng
+    nhất mock có.
+
+    Args:
+        asked: Câu giáo viên vừa gõ.
+
+    Returns:
+        Các tham số cho `create_draft`, hoặc `None` khi câu ấy chưa đủ -- kể cả khi số câu
+        đọc được nhưng nằm ngoài trần của tool, vì một bước đỏ không nói cho giáo viên biết
+        phải sửa gì.
+    """
+    how_many = _HOW_MANY.search(asked)
+    named = _CLASS_NAME.search(asked)
+    grade = named.group(1)[:2].rstrip("ABCDEFabcdef") if named else None
+    if grade is None or not grade.isdigit():
+        found = _WHICH_GRADE.search(asked)
+        grade = found.group(1) if found else None
+    subject = _subject_in(asked)
+    if how_many is None or grade is None or subject is None:
+        return None
+    if not 1 <= int(how_many.group(1)) <= _MOST_QUESTIONS:
+        return None
+    return {
+        "subject": subject,
+        "grade": grade,
+        "topic_scope": asked.strip(),
+        "question_count": how_many.group(1),
+    }
+
 
 def _current_turn(history: tuple[TurnRecord, ...]) -> tuple[TurnRecord, ...]:
     """Mọi thứ kể từ tin nhắn gần nhất của giáo viên.
@@ -591,10 +701,46 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
     Returns:
         Một đề nghị. Không bao giờ là một tool ngoài danh mục BE gửi tới, vì một đề
         nghị mà BE buộc phải từ chối sẽ chạy qua đường lỗi và không dạy gì về đường
-        bình thường.
+        bình thường. Một plan chỉ được nêu khi `plannable` thực sự có các tool của nó --
+        hai danh mục là hai quyền khác nhau (ADR-25).
     """
     turn = _current_turn(request.history)
     harvested = next((step for step in reversed(turn) if step.kind == "tool_result"), None)
+    asked = next((step.text for step in reversed(turn) if step.kind == "teacher"), "")
+    plannable = {tool.name for tool in request.plannable}
+
+    wants_a_paper = (
+        _ASKS_TO_MAKE.search(asked) is not None
+        and _A_PAPER.search(asked) is not None
+        and _SOUNDS_LIKE_A_QUESTION.search(asked) is None
+    )
+    if wants_a_paper and {"create_draft", "start_drafting"} <= plannable:
+        # Đường soạn đề đi trước đường tra lớp, vì "tạo đề 10 câu Toán cho lớp 12A1" có cả
+        # hai dấu hiệu và việc được nhờ là soạn đề, không phải tra lớp.
+        brief = _brief_from(asked)
+        if brief is None:
+            return NextStepCompleted(
+                request_id=request.request_id, kind="ask_clarify", text=_WHAT_IS_MISSING
+            )
+        return NextStepCompleted(
+            request_id=request.request_id,
+            kind="plan",
+            text="Được, mình soạn đề ngay.",
+            steps=(
+                PlanStep(
+                    tool_name="create_draft",
+                    args=brief,
+                    title=f"Tạo đề {brief['question_count']} câu",
+                ),
+                # `{1.assessment_id}` là cú pháp BE giải, và một mock viết nó ra là cách
+                # đường ấy được đi qua ở một bản dev không có API key.
+                PlanStep(
+                    tool_name="start_drafting",
+                    args={"assessment_id": "{1.assessment_id}"},
+                    title=f"Soạn {brief['question_count']} câu hỏi",
+                ),
+            ),
+        )
 
     if harvested is not None and harvested.tool_result.get("ambiguous"):
         # ADR-23: không ai chọn giữa các candidates, và điều đó gồm cả mock. Đây là
@@ -620,7 +766,6 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
             text=f"Mình tra được: {body}.",
         )
 
-    asked = next((step.text for step in reversed(turn) if step.kind == "teacher"), "")
     named = _CLASS_NAME.search(asked)
     usable = {tool.name for tool in request.catalog}
 
@@ -812,6 +957,66 @@ def conversation_name(request: ConversationNameRequested) -> ConversationNameCom
     """
     words = request.said.split()
     return ConversationNameCompleted(request_id=request.request_id, title=" ".join(words[:6]))
+
+
+def plan_report(request: PlanReportRequested) -> PlanReportCompleted:
+    """Kể lại một plan đã chạy, không cần model.
+
+    Mock: ghép từ chính `outcomes`. Nó khô hơn hẳn một câu model viết, và nó **đúng** --
+    nó không thể nói quá, vì nó không có gì ngoài những dòng BE đã viết.
+
+    Args:
+        request: Câu giáo viên đã nhờ và kết quả từng bước.
+
+    Returns:
+        Một câu kết.
+    """
+    done = [one for one in request.outcomes if one.ok]
+    broke = next((one for one in request.outcomes if not one.ok), None)
+    did = "; ".join(one.title.lower() for one in done)
+    if broke is None:
+        text = f"Mình đã {did}." if did else "Mình chưa làm được bước nào."
+    elif did:
+        tail = f" ({broke.detail})" if broke.detail else ""
+        text = f"Mình đã {did}, nhưng dừng ở bước {broke.title.lower()}{tail}."
+    else:
+        tail = f" ({broke.detail})" if broke.detail else ""
+        text = f"Mình chưa làm được bước {broke.title.lower()}{tail}."
+    return PlanReportCompleted(request_id=request.request_id, text=text)
+
+
+async def report_plan(ctx: dict, payload: dict) -> dict:
+    """Điểm vào arq cho lời kể sau khi một plan đã chạy.
+
+    Một job riêng, không phải một vòng nữa của `propose_next_step`: đầu vào của nó là kết
+    quả của cả plan, không phải một catalog (ADR-25). Một job là một lần gọi model, nên
+    invariant về timeout vẫn đúng trên đường này.
+
+    Args:
+        ctx: Ngữ cảnh của arq. Không dùng: task này không stream và không chạm Redis.
+        payload: `PlanReportRequested` dưới dạng JSON.
+
+    Returns:
+        `PlanReportCompleted` dưới dạng JSON. Mọi cách model hỏng đều lùi về mock: lượt chat
+        đã chạy xong và đã ghi đủ trước khi task này được gọi, nên một exception từ phần kể
+        lại sẽ biến một lượt đã thành công thành một lỗi.
+
+    Raises:
+        ValidationError: Khi `payload` không phải một `PlanReportRequested`. Nằm ngoài
+            `try` có chủ ý, như ba handler kia: payload do BE tự dựng, nên một payload sai
+            hình dạng là lỗi lập trình và phải nổ ở chỗ gần nguyên nhân.
+    """
+    request = PlanReportRequested.model_validate(payload)
+    if not llm.enabled():
+        return plan_report(request).model_dump(mode="json")
+
+    try:
+        text = await tell_about(request)
+    except Exception:
+        logger.exception("model failed to report a plan for %s", request.request_id)
+        return plan_report(request).model_dump(mode="json")
+
+    return PlanReportCompleted(request_id=request.request_id, text=text).model_dump(mode="json")
 
 
 async def name_conversation(ctx: dict, payload: dict) -> dict:

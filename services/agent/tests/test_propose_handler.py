@@ -36,10 +36,33 @@ _CATALOG = (
 )
 
 
-def _payload(*history: TurnRecord, catalog: tuple[ToolSpec, ...] = _CATALOG) -> dict:
-    return NextStepRequested(request_id="r1", history=history, catalog=catalog).model_dump(
-        mode="json"
-    )
+_PLANNABLE = (
+    ToolSpec(
+        name="create_draft",
+        description="Mở một đề nháp trống.",
+        arguments={
+            "subject": "môn",
+            "grade": "khối",
+            "topic_scope": "phạm vi kiến thức",
+            "question_count": "số câu",
+        },
+    ),
+    ToolSpec(
+        name="start_drafting",
+        description="Bắt đầu sinh câu hỏi.",
+        arguments={"assessment_id": "id đề nháp"},
+    ),
+)
+
+
+def _payload(
+    *history: TurnRecord,
+    catalog: tuple[ToolSpec, ...] = _CATALOG,
+    plannable: tuple[ToolSpec, ...] = (),
+) -> dict:
+    return NextStepRequested(
+        request_id="r1", history=history, catalog=catalog, plannable=plannable
+    ).model_dump(mode="json")
 
 
 @pytest.mark.asyncio
@@ -196,3 +219,135 @@ async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> 
 
     assert answer["kind"] == "call_tool"
     assert answer["tool_args"] == {"name": "12B"}
+
+
+@pytest.mark.asyncio
+async def test_the_mock_plans_both_steps_when_the_sentence_carries_a_whole_brief() -> None:
+    """Một bản dev không có API key vẫn phải soạn được một đề có câu hỏi.
+
+    Hai bước, không một: "tạo đề" nghĩa là tạo **và** thêm câu, nên một mock chỉ mở đề
+    trống đang trình diễn đúng cái lỗi ADR-25 sinh ra để diệt. Và bước hai trỏ về bước một
+    bằng cú pháp BE giải, nên đường ấy được đi qua ngay cả khi không ai gọi model.
+    """
+    answer = await propose_next_step(
+        {},
+        _payload(
+            TurnRecord(kind="teacher", text="tạo đề 10 câu Toán về tích phân cho lớp 12A1"),
+            plannable=_PLANNABLE,
+        ),
+    )
+
+    assert answer["kind"] == "plan"
+    assert [one["tool_name"] for one in answer["steps"]] == ["create_draft", "start_drafting"]
+    assert answer["steps"][0]["args"]["subject"] == "Toán"
+    assert answer["steps"][0]["args"]["grade"] == "12"
+    assert answer["steps"][0]["args"]["question_count"] == "10"
+    assert answer["steps"][1]["args"] == {"assessment_id": "{1.assessment_id}"}
+
+
+@pytest.mark.asyncio
+async def test_the_mock_asks_instead_of_guessing_a_brief_it_does_not_have() -> None:
+    """Thiếu một mục bắt buộc thì hỏi, không điền hộ.
+
+    Cả bộ đề sinh ra từ một brief duy nhất, nên một mục đoán sai làm sai toàn bộ bộ đề.
+    Mock mà đoán thay giáo viên đang trình diễn đúng hành vi prompt cấm -- và nó cũng để
+    lại một đề thật trong database.
+    """
+    answer = await propose_next_step(
+        {}, _payload(TurnRecord(kind="teacher", text="soạn cho tôi một đề"), plannable=_PLANNABLE)
+    )
+
+    assert answer["kind"] == "ask_clarify"
+    assert answer["steps"] == []
+
+
+@pytest.mark.asyncio
+async def test_the_mock_never_plans_a_tool_it_was_not_given() -> None:
+    """Không có `plannable` thì không có plan, dù câu gõ nghe rõ là nhờ soạn đề.
+
+    Hai danh mục là hai quyền. Một mock nêu plan với những tool BE không gửi tới đang
+    khẳng định rằng ranh giới pha là chuyện của prompt, chứ không phải chuyện cấu trúc.
+    """
+    answer = await propose_next_step(
+        {}, _payload(TurnRecord(kind="teacher", text="tạo đề 10 câu Toán cho lớp 12A1"))
+    )
+
+    assert answer["kind"] != "plan"
+
+
+@pytest.mark.asyncio
+async def test_the_mock_reads_the_brief_instead_of_remembering_one() -> None:
+    """Câu thứ hai, với cả bốn mục khác hẳn câu thứ nhất.
+
+    Một test với đúng một câu đầu vào không phân biệt được *đọc* với *hằng số*: mock gán
+    cứng `subject="Toán"` hay `grade="12"` vẫn xanh. Hai câu khác nhau là giá rẻ nhất để
+    luật "mock chỉ đọc" có một nơi thi hành.
+    """
+    answer = await propose_next_step(
+        {},
+        _payload(
+            TurnRecord(kind="teacher", text="soạn đề 25 câu môn Hoá học cho lớp 10B"),
+            plannable=_PLANNABLE,
+        ),
+    )
+
+    assert answer["kind"] == "plan"
+    args = answer["steps"][0]["args"]
+    assert args["subject"] == "Hoá học"
+    assert args["grade"] == "10"
+    assert args["question_count"] == "25"
+    # `topic_scope` là *phạm vi kiến thức theo lời giáo viên*, nên lời họ là giá trị đúng
+    # nhất mock có -- và nó phải là lời của **câu này**, không phải một chuỗi dọn sẵn.
+    assert args["topic_scope"] == "soạn đề 25 câu môn Hoá học cho lớp 10B"
+
+
+@pytest.mark.asyncio
+async def test_the_mock_does_not_find_a_subject_inside_an_ordinary_word() -> None:
+    """Tiếng Việt không có biên từ như tiếng Anh, và một bảng tra substring thì bịa.
+
+    "học sinh" chứa "sinh", "nhanh" chứa "anh", "xử lý" chứa "lý". Cả ba là câu bình thường
+    của giáo viên, và cả ba từng cho ra một bộ đề **sai môn** -- mà cả bộ đề sinh từ một
+    brief, nên một môn sai làm sai cả mười câu, không chỉ một.
+    """
+    for text in (
+        "tạo đề 10 câu cho học sinh lớp 12 về tích phân",
+        "soạn nhanh đề 10 câu cho lớp 12 phần tích phân",
+        "tạo đề 10 câu xử lý số liệu lớp 12",
+    ):
+        answer = await propose_next_step(
+            {}, _payload(TurnRecord(kind="teacher", text=text), plannable=_PLANNABLE)
+        )
+        assert answer["kind"] == "ask_clarify", text
+
+
+@pytest.mark.asyncio
+async def test_a_question_about_a_paper_is_not_an_order_to_make_one() -> None:
+    """Mock là **đường lùi khi model lỗi**, không chỉ là đường của máy dev không key.
+
+    Vì thế một mock đọc "đề Toán 12A1 đã có 10 câu chưa?" thành một lệnh tạo đề nghĩa là:
+    một lần model timeout trên một câu HỎI sẽ ghi một đề mới cùng mười job soạn câu vào
+    database của giáo viên. Đó đúng là việc ADR-25 sinh ra để diệt, chỉ là từ phía khác.
+    """
+    for text in ("đề Toán 12A1 đã có 10 câu chưa?", "lớp 12A1 có vấn đề gì không"):
+        answer = await propose_next_step(
+            {}, _payload(TurnRecord(kind="teacher", text=text), plannable=_PLANNABLE)
+        )
+        assert answer["kind"] != "plan", text
+
+
+@pytest.mark.asyncio
+async def test_the_mock_asks_back_when_the_number_is_outside_what_the_tool_takes() -> None:
+    """ "100 câu" quá trần của `create_draft`, nên nó là một câu hỏi lại, không một bước đỏ.
+
+    Hai cách sai ở đây, và bản đầu mắc cả hai: regex hai chữ số cắt "100" thành "00" rồi
+    đưa số 0 cho tool, và một con số ngoài khoảng đi vào plan thì thành một bước đỏ --
+    một bước đỏ không nói cho giáo viên biết phải sửa gì.
+    """
+    answer = await propose_next_step(
+        {},
+        _payload(
+            TurnRecord(kind="teacher", text="tạo đề 100 câu Toán lớp 12"), plannable=_PLANNABLE
+        ),
+    )
+
+    assert answer["kind"] == "ask_clarify"

@@ -21,6 +21,7 @@ from agent.handlers import (
     generate_retry_question,
     name_conversation,
     propose_next_step,
+    report_plan,
     write_draft_question,
 )
 from agent.legacy_grading import grade_submission
@@ -30,6 +31,7 @@ from contracts import (
     GRADE_SUBMISSION_TASK,
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
+    REPORT_PLAN_TASK,
     WRITE_DRAFT_QUESTION_TASK,
 )
 
@@ -92,6 +94,10 @@ class WorkerSettings:
         # của một loop mà BE sở hữu, nên một job ở đây là một lần gọi model và
         # invariant về timeout vẫn đúng trên đường này.
         func(propose_next_step, name=PROPOSE_NEXT_STEP_TASK),
+        # Lời kể sau khi một plan đã chạy. Một task riêng chứ không phải một vòng nữa
+        # của task trên: đầu vào của nó là kết quả cả plan, không phải một catalog
+        # (ADR-25). Nhờ vậy một job vẫn là một lần gọi model.
+        func(report_plan, name=REPORT_PLAN_TASK),
         # Đường cũ, đã bị ADR-20 thay thế. Vẫn đăng ký để một client cũ không treo
         # mãi trên một task không ai tiêu thụ.
         func(grade_submission, name=GRADE_SUBMISSION_TASK),

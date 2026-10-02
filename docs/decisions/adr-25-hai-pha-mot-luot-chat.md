@@ -38,7 +38,14 @@ chỉ trả về được chuỗi phẳng (`_Argument{name, value}`), và vì `s
 mà `create_draft` mới sinh ra.
 
 **Trong pha 1 không có tool nào ghi.** Pha 1 có `find_class`, `class_assessment_summary`,
-`draft_progress`; pha 2 có `create_draft`, `start_drafting`. **`draft_progress` phải bỏ phần
+`draft_progress`; pha 2 có `create_draft`, `start_drafting`.
+
+**Nhưng pha 1 vẫn phải *thấy* danh mục pha 2.** Nó nêu tên tool và tên tham số trong plan, nên không
+thấy mô tả thì nó đoán — và một tham số đoán sai tên làm `vet_plan` từ chối trọn gói cả plan, tức một
+yêu cầu hợp lệ nhận một lời từ chối. Vì thế `NextStepRequested` chở **hai** danh mục: `catalog` là
+những tool gọi được ngay, `plannable` là những tool chỉ hẹn làm được. Hai field chứ không một danh
+sách kèm cờ, vì "được gọi ngay" và "được hẹn làm" là hai quyền khác nhau, và trộn chúng lại là mở
+đúng cánh cửa ADR này đóng. **`draft_progress` phải bỏ phần
 `harvest`** trước khi luật này đúng: hôm nay nó khai `writes=False` nhưng thân nó ghi `Question` và
 đẩy state đề sang `HAS_QUESTIONS`. Việc thu hoạch chuyển về đường nghe tiến độ và về cổng duyệt.
 
@@ -110,6 +117,9 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
   tiên. Cờ `writes` của nó hôm nay cũng sai và phải sửa cùng lúc.
 - **Prompt pha 1 đổi nghĩa.** Lời dặn *"Sau create_draft thì gọi start_drafting"* mô tả một thế giới
   không còn và phải viết lại, nếu không model sẽ gọi một tool không có trong catalog pha nó đứng.
+- **Mô tả của chính các tool ghi cũng đổi nghĩa.** `create_draft` hôm nay dặn *"thiếu mục nào thì hỏi
+  rồi gọi lại"* — một câu chỉ đúng khi tool còn gọi được giữa lượt. Trong một plan, thiếu mục nào thì
+  bước ấy **không được nhét vào plan**, vì nó sẽ dừng cả plan và để lại một đề rỗng.
 - **Lời từ chối `missing` mất vai trò cũ**: thiếu dữ kiện bị chặn trước khi plan dựng, nên nó chỉ còn
   là lưới cuối. Màn hình **không** được vẽ nó thành bước hỏng — nó là đường dẫn tới câu hỏi lại.
 - **ADR-23 có kết quả thứ tư.** Nhập nhằng lẽ ra đã giải xong ở pha 1; nếu một bước pha 2 vẫn gặp,
@@ -140,6 +150,7 @@ Những chỗ sẽ phải thi hành nó:
 
 - `packages/contracts/src/contracts/teacher_chat.py` — kiểu của một plan, và task báo cáo.
 - `services/agent/src/agent/graphs/propose.py` — prompt pha 1, và đường trả về một plan.
+- `services/agent/src/agent/graphs/reporting.py` — lời kể sau khi plan chạy; một task riêng.
 - `services/be/src/be/teacher_chat.py` — hai pha, và đường SSE của một lượt.
 - `services/be/src/be/teacher_tools.py` — catalog theo pha; `draft_progress` bỏ `harvest`.
 - `services/be/src/be/drafting.py` — nghe chuông tiến độ; thu hoạch vẫn là đường bền.

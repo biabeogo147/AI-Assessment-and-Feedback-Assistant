@@ -636,9 +636,10 @@ _TOOLS: tuple[Tool, ...] = (
             description=(
                 "Mo mot de nhap trong. BAT BUOC co du: subject (mon), grade (khoi), topic_scope "
                 "(pham vi kien thuc, theo loi giao vien) va question_count (so cau). Thieu muc nao "
-                "thi tool tra ve danh sach missing -- hay HOI giao vien nhung muc do roi goi lai, "
-                "dung tu doan. difficulty va title la tuy chon. Tool nay KHONG sinh cau hoi; goi "
-                "start_drafting sau."
+                "thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc do truoc da, "
+                "vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. difficulty "
+                "va title la tuy chon. Tool nay KHONG sinh cau hoi, nen mot plan chi co buoc nay "
+                "se de lai mot de rong: hay dat start_drafting ngay sau no."
             ),
             arguments={
                 "subject": "mon hoc, vi du Toan",
@@ -657,8 +658,9 @@ _TOOLS: tuple[Tool, ...] = (
             name="start_drafting",
             description=(
                 "Bat dau sinh cau hoi cho mot de nhap da co brief. Moi cau mot job chay nen, nen "
-                "tool tra ve ngay va cau hoi hien dan -- dung cho, hay noi voi giao vien la dang "
-                "soan. Tu choi neu de dang soan do hoac da duyet."
+                "tool tra ve ngay va cau hoi hien dan. Tu choi neu de dang soan do hoac da duyet. "
+                "Trong mot plan, hay dat buoc nay ngay sau create_draft va lay assessment_id bang "
+                "cach tro ve buoc do."
             ),
             arguments={"assessment_id": "id de nhap, lay tu create_draft"},
         ),

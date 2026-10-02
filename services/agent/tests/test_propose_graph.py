@@ -18,7 +18,7 @@ import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from agent import llm
-from agent.graphs.propose import _Argument, _Proposal, propose
+from agent.graphs.propose import _Argument, _Proposal, _Step, propose
 from contracts import NextStepRequested, ToolSpec, TurnRecord
 
 _CATALOG = (
@@ -81,6 +81,37 @@ def _asked(text: str) -> NextStepRequested:
         teacher_name="Cô Lan",
         history=(TurnRecord(kind="teacher", text=text),),
         catalog=_CATALOG,
+    )
+
+
+# Những tool chỉ nêu được trong plan. Chúng tới riêng với `catalog`, vì "gọi được bây giờ"
+# và "hẹn làm ở pha sau" là hai quyền khác nhau (ADR-25).
+_PLANNABLE = (
+    ToolSpec(
+        name="create_draft",
+        description="Mở một đề nháp trống.",
+        arguments={
+            "subject": "môn",
+            "grade": "khối",
+            "topic_scope": "phạm vi kiến thức",
+            "question_count": "số câu",
+        },
+    ),
+    ToolSpec(
+        name="start_drafting",
+        description="Bắt đầu sinh câu hỏi cho một đề nháp đã có brief.",
+        arguments={"assessment_id": "id đề nháp"},
+    ),
+)
+
+
+def _to_plan(text: str) -> NextStepRequested:
+    return NextStepRequested(
+        request_id="r1",
+        teacher_name="Cô Lan",
+        history=(TurnRecord(kind="teacher", text=text),),
+        catalog=_CATALOG,
+        plannable=_PLANNABLE,
     )
 
 
@@ -269,3 +300,147 @@ def test_the_schema_the_model_sees_is_one_openai_accepts() -> None:
     asked_for = set(schema["properties"])
     assert "request_id" not in asked_for
     assert "model_tokens" not in asked_for
+
+
+@pytest.mark.asyncio
+async def test_a_plan_keeps_its_steps_in_order_and_its_references_intact(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Một plan đi ngược về mà không bị sửa, kể cả cú pháp tham chiếu.
+
+    `{1.assessment_id}` là một chuỗi BE giải, không phải một chỗ trống để graph điền. Một
+    graph nắn lại nó -- bỏ ngoặc, đổi số, thêm khoảng trắng -- sẽ làm `vet_plan` từ chối
+    trọn gói cả plan, và giáo viên nhận một lời từ chối cho một plan đúng.
+    """
+    model = Scripted(
+        [
+            _Proposal(
+                kind="plan",
+                text="Được, mình soạn đề ngay.",
+                steps=(
+                    _Step(
+                        tool_name="create_draft",
+                        args=(
+                            _Argument(name="subject", value="Toán"),
+                            _Argument(name="question_count", value="10"),
+                        ),
+                        title="Tạo đề trống",
+                    ),
+                    _Step(
+                        tool_name="start_drafting",
+                        args=(_Argument(name="assessment_id", value="{1.assessment_id}"),),
+                        title="Soạn 10 câu hỏi",
+                    ),
+                ),
+            )
+        ]
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("tạo đề 10 câu tích phân lớp 12"))
+
+    assert step.kind == "plan"
+    assert step.text == "Được, mình soạn đề ngay."
+    assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
+    assert step.steps[0].args == {"subject": "Toán", "question_count": "10"}
+    assert step.steps[1].args == {"assessment_id": "{1.assessment_id}"}
+    assert [one.title for one in step.steps] == ["Tạo đề trống", "Soạn 10 câu hỏi"]
+
+
+@pytest.mark.asyncio
+async def test_the_model_is_told_which_tools_it_may_only_plan(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Hai danh mục, và model phải đọc được cái nào là cái nào.
+
+    Pha 1 không gọi được tool ghi, nên nếu mô tả của chúng không tới thì model phải đoán
+    tên tham số -- và một plan đoán sai tên tham số bị `vet_plan` từ chối trước khi bước
+    nào chạy. Danh sách này là thứ duy nhất làm cho một plan đúng có thể viết ra được.
+    """
+    model = Scripted([_said("vâng")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    await propose(_to_plan("tạo đề 10 câu"))
+
+    prompt = model.prompts[0]
+    assert "create_draft" in prompt
+    assert "topic_scope" in prompt
+    assert "start_drafting" in prompt
+    # Và nó phải đọc ra được rằng đây là nhóm **không gọi ngay**, nếu không nó sẽ gọi
+    # `call_tool` với `create_draft` và tiêu một vòng để nhận lại một lời từ chối.
+    assert "không gọi ngay" in prompt
+
+
+@pytest.mark.asyncio
+async def test_steps_never_ride_along_with_a_plain_answer(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Model nói `say` mà vẫn kèm bước thì các bước ấy bị bỏ, không đi tiếp.
+
+    Hợp đồng từ chối `steps` ở mọi `kind` khác `plan`, nên để chúng đi qua là biến một
+    câu trả lời bình thường thành một `ValidationError` ở giữa một lượt đang chạy.
+    """
+    model = Scripted(
+        [
+            _Proposal(
+                kind="say",
+                text="Đề 12A1 có 10 câu rồi.",
+                steps=(_Step(tool_name="create_draft", args=(), title="Tạo đề"),),
+            )
+        ]
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("đề 12A1 mấy câu"))
+
+    assert step.kind == "say"
+    assert step.steps == ()
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Cú pháp `{k.ten_field}` là hợp đồng, không phải văn phong.
+
+    Đây là luật đắt nhất của ADR-25 trong prompt: không có nó thì model không diễn tả được
+    một plan hai bước phụ thuộc nhau, nên mọi plan nó viết ra đều bị `vet_plan` từ chối và
+    giáo viên nhận một lời từ chối cho một yêu cầu hợp lệ. Nó không được phép mất đi trong
+    một lần dọn prompt mà cả bộ test vẫn xanh.
+    """
+    model = Scripted([_said("vâng")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    await propose(_to_plan("tạo đề 10 câu tích phân lớp 12"))
+
+    prompt = model.prompts[0]
+    assert "{k.ten_field}" in prompt
+    assert "{1.assessment_id}" in prompt
+    # Và luật chống hỏi lại thứ vừa nghe: đo trên trình duyệt thật, model hỏi "phạm vi kiến
+    # thức và số câu" cho một câu đã nói cả hai. Khối đọc được từ tên lớp, và nói ra điều ấy
+    # là chỗ rẻ nhất để một lượt không chết vì một câu hỏi thừa.
+    assert "lớp 12A" in prompt and "khối" in prompt
+    # Và luật đi kèm: chỉ trỏ về phía sau. `vet_plan` từ chối một plan trỏ về phía trước,
+    # nên không nói ra là để model tự tìm ra bằng cách bị từ chối.
+    assert "ĐỨNG TRƯỚC" in prompt
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_calls_the_two_catalogs_by_the_names_it_uses_for_them(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Luật và nhãn phải khớp nhau, vì chúng nằm ở hai chỗ khác nhau trong cùng một prompt.
+
+    `_SYSTEM` dặn model chọn trong *"tool dùng ngay"* và *"tool nêu được trong plan"*;
+    `_compose` mới là chỗ in hai tiêu đề ấy ra. Đổi tiêu đề mà quên sửa luật -- hoặc ngược
+    lại -- để lại một prompt dặn model đọc một mục không tồn tại, và nó sẽ đoán mục nào là
+    mục nào.
+    """
+    model = Scripted([_said("vâng")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    await propose(_to_plan("tạo đề 10 câu tích phân lớp 12"))
+
+    prompt = model.prompts[0].lower()
+    assert prompt.count("tool dùng ngay") >= 2
+    assert prompt.count("tool nêu được trong plan") >= 2
