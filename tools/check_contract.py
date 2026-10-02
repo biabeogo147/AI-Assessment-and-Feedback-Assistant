@@ -394,26 +394,26 @@ def check_invented_data_lives_in_one_file() -> str | None:
 
 
 def check_the_report_is_a_job_of_its_own() -> str | None:
-    """Lời kể cuối lượt phải là một **task riêng**, không phải một vòng nữa của pha 1.
+    """Lời kể cuối lượt là một task riêng, và nó **không cầm tool nào**.
 
     ADR-25 dựng cả vòng chạy quanh một ranh giới: pha 1 lên plan với một catalog tool, pha 2 chạy
-    plan, rồi **một lời gọi model riêng** kể lại. Lời gọi ấy đọc kết quả của cả plan và *không* đọc
-    catalog — đó là lý do nó không thể đề nghị thêm một bước nữa.
+    plan, rồi **một lời gọi model riêng** kể lại. Câu quyết định của ADR là vế sau: *"lời gọi ấy
+    đọc kết quả của cả plan và **không** đọc catalog — đó là lý do nó không thể đề nghị thêm một
+    bước nữa."*
 
-    Nhập nó vào vòng lặp pha 1 sẽ không làm test nào đỏ: lượt vẫn kết thúc, chữ vẫn hiện ra. Thứ
-    mất đi là cái ranh giới — một model được đưa cho catalog ở đúng lúc không còn gì để gọi sẽ gọi,
-    và bất biến *"một job là một lần gọi model"* thôi đúng trên đường này. Chính ADR đã nói trước:
-    một luật không có nơi thi hành là một ý định.
+    Bản đầu của check này chỉ đếm xem lời gọi có nằm trong một vòng `for` hay không. Review đo
+    được bảy cách phá luật mà nó vẫn xanh, trong đó có cách đúng-chữ-ADR nhất: thêm một field
+    `catalog` vào `PlanReportRequested`, nhồi catalog pha 2 vào đó, và dặn model *"còn có thể gọi
+    các tool sau"*. Không một test nào đỏ. Nên check nay nhìn vào thứ chịu lực:
 
-    Hai thứ được kiểm:
+    1. `worker.py` **đăng ký** `report_plan` dưới `REPORT_PLAN_TASK` — một task riêng thật.
+    2. `PlanReportRequested` **không có field nào chở tool**: không `catalog`, không `tools`,
+       không `plannable`. Hợp đồng là nơi duy nhất một cái catalog đi được sang AGENT.
+    3. Graph viết lời kể **không chạm `ToolSpec`** và không import gì từ catalog.
 
-    1. `worker.py` **đăng ký** `report_plan` dưới `REPORT_PLAN_TASK` — không phải chỉ import nó.
-    2. Lời gọi `run_task(..., REPORT_PLAN_TASK, ...)` trong BE không nằm trong một vòng lặp.
-
-    Đọc bằng `ast`, không bằng mức thụt dòng. Bản đầu của check này đếm khoảng trắng, và cả hai
-    đột biến -- bỏ dòng đăng ký, kéo lời gọi vào một vòng `for` -- đều sống sót qua nó: một
-    `REPORT_PLAN_TASK` trong khối import cũng khớp chuỗi, và phép đi ngược lên theo thụt dòng thì
-    dừng sai chỗ. Một check không bắt được gì còn tệ hơn không có check, vì nó làm người ta tin.
+    Thứ check này cố ý **không** làm: đếm vòng lặp quanh lời gọi. Luật *"báo cáo viết ở lần quan
+    sát kế tiếp"* của cùng ADR gần như chắc chắn sẽ là một vòng lặp qua những lượt chưa báo cáo,
+    và một check chặn nó là một check chặn chính ADR mình đang giữ.
 
     Returns:
         None khi luật còn đứng, ngược lại là một thông báo thất bại gọi tên chỗ hỏng.
@@ -444,37 +444,49 @@ def check_the_report_is_a_job_of_its_own() -> str | None:
             "fall back to a sentence BE wrote (ADR-25).",
         )
 
-    chat_path = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py"
-    tree = ast.parse(chat_path.read_text(encoding="utf-8"))
-
-    def mentions_report(node: ast.AST) -> bool:
-        return any(
-            isinstance(one, ast.Name) and one.id == "REPORT_PLAN_TASK" for one in ast.walk(node)
-        )
-
-    found = False
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not mentions_report(node):
-            continue
-        if getattr(node.func, "id", "") != "run_task":
-            continue
-        found = True
-        for loop in ast.walk(tree):
-            if not isinstance(loop, ast.For | ast.AsyncFor | ast.While):
-                continue
-            if any(one is node for one in ast.walk(loop)):
-                return _fail(
-                    "report-is-its-own-job",
-                    f"the report call at teacher_chat.py:{node.lineno} sits inside a loop that "
-                    f"starts on line {loop.lineno}. The closing line is a separate job precisely "
-                    "so a model handed the tool catalog cannot propose one more step (ADR-25).",
-                )
-    if not found:
+    contracts = (
+        REPO_ROOT / "packages" / "contracts" / "src" / "contracts" / "teacher_chat.py"
+    ).read_text(encoding="utf-8")
+    asked = next(
+        (
+            node
+            for node in ast.walk(ast.parse(contracts))
+            if isinstance(node, ast.ClassDef) and node.name == "PlanReportRequested"
+        ),
+        None,
+    )
+    if asked is None:
         return _fail(
             "report-is-its-own-job",
-            "teacher_chat.py no longer calls run_task with REPORT_PLAN_TASK; the model no longer "
-            "tells the teacher what happened (ADR-25).",
+            "PlanReportRequested is gone; the closing line no longer has a payload of its own.",
         )
+    carries_tools = sorted(
+        node.target.id
+        for node in asked.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and any(word in node.target.id for word in ("catalog", "tool", "plannable"))
+    )
+    if carries_tools:
+        return _fail(
+            "report-is-its-own-job",
+            f"PlanReportRequested now carries {carries_tools}. The closing call reads the plan's "
+            "results and NOT the catalog -- that is the whole reason it cannot propose one more "
+            "step (ADR-25). A tool list in this payload removes the boundary without failing a "
+            "single test.",
+        )
+
+    graphs = REPO_ROOT / "services" / "agent" / "src" / "agent" / "graphs"
+    telling = (graphs / "reporting.py").read_text(encoding="utf-8")
+    for node in ast.walk(ast.parse(telling)):
+        named = [one.name for one in node.names] if isinstance(node, ast.ImportFrom) else []
+        if any(one in {"ToolSpec", "NextStepRequested"} for one in named):
+            return _fail(
+                "report-is-its-own-job",
+                "reporting.py imports a tool type. The model that writes the closing line must "
+                "not be handed a catalog at the one moment there is nothing left to call "
+                "(ADR-25).",
+            )
     return None
 
 
