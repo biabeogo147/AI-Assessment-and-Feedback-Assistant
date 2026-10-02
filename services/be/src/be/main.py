@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from be.config import get_settings
-from be.db import bind_sessions, create_engine, prepare_schema
+from be.db import bind_sessions, check_schema, create_engine, prepare_schema
 from be.db import get_session as _session_dependency
 from be.queue import create_queue_pool
 from be.routes import router
@@ -33,11 +33,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Side effects:
         Mở một database engine và một Redis pool, tạo những bảng còn thiếu, và
         seed dữ liệu demo vào một database rỗng. Đóng cả hai khi shutdown.
+
+    Raises:
+        SchemaDrifted: Khi database đang có thiếu cột so với model. Startup dừng ở đây,
+            kèm tên cột và lệnh dựng lại — một process chạy tiếp trên schema lệch chỉ
+            dời cái lỗi tới chỗ khó đọc hơn.
     """
     settings = get_settings()
 
     engine = create_engine(settings)
     await prepare_schema(engine)
+    # Chết ngay tại đây khi database cũ hơn model. `create_all` ở dòng trên tạo bảng còn
+    # thiếu nhưng không bao giờ `ALTER` một bảng đã có, nên không có chốt này thì process
+    # khởi động sạch sẽ rồi hỏng ở lần ghi đầu tiên — dưới dạng một chuỗi 500 từ những
+    # route không liên quan gì nhau, cách rất xa nguyên nhân.
+    await check_schema(engine)
     bind_sessions(engine)
     app.state.db_engine = engine
 

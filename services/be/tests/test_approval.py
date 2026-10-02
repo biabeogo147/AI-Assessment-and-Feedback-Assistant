@@ -637,3 +637,41 @@ async def test_the_record_lands_in_the_conversation_that_made_the_paper(stack) -
         )
     assert noted is not None
     assert noted.conversation_id == made_it_id
+
+
+@pytest.mark.asyncio
+async def test_reading_a_draft_harvests_what_the_jobs_already_wrote(stack) -> None:
+    """Đọc một đề là một lần **quan sát**, và quan sát là lúc thu hoạch.
+
+    BE không có worker chạy nền. Trước ADR-25, tool `draft_progress` thu hoạch; nó đã thành
+    tool chỉ-đọc để pha lên plan không ghi gì, và món nợ ấy rơi vào đây. Không thu ở route
+    này thì panel của giáo viên hiện **0 câu** cho tới khi họ bấm Duyệt — mà cổng duyệt lại
+    từ chối một đề `EMPTY`, nên không có đường nào ra. Đo thấy trên trình duyệt thật: mười
+    câu nằm sẵn trong Redis, `questions` trong database vẫn rỗng.
+    """
+    client, maker, queue = stack
+    draft = await _draft(maker)
+    async with maker() as session:
+        session.add(
+            DraftItem(
+                assessment_id=draft,
+                ordinal=1,
+                job_id="job-read",
+                status="pending",
+                brief_version=1,
+                attempts=1,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    queue.finish("job-read", _good("Tích phân của y = 2x là gì?"))
+
+    answer = await client.get(f"/api/teacher/assessments/{draft}", headers=TEACHER)
+
+    assert answer.status_code == 200
+    body = answer.json()
+    assert body["question_count"] == 1
+    assert body["still_drafting"] == 0
+    assert [one["stem"] for one in body["questions"]] == ["Tích phân của y = 2x là gì?"]
+    # Và nó **ghi** chứ không chỉ trả về: lần đọc sau, kể cả từ một đường khác, thấy câu ấy.
+    assert await _state(maker, draft) is AssessmentState.HAS_QUESTIONS

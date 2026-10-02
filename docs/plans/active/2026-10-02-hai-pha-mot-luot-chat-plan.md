@@ -232,6 +232,12 @@ Test: `test_cac_doan_hien_dung_thu_tu_nhan_duoc`, `test_khoi_buoc_thu_lai_khi_lu
 - Mô tả component `Thinking` (`83:76`): cập nhật liên tục trong pha 2; `k/n` lấy từ số bước của plan.
 - Artboard 4: thêm dòng tiến độ số câu (`đã soạn 4/10 câu`) nếu đo cho thấy FE cần một chỗ đặt nó.
 
+**Đã làm trước Pha F** (cùng lúc viết lại hội thoại mẫu): artboard 4 và 5 nay chụp đúng một plan hai
+bước — `bước 2/2`, `Tạo đề trống` ✓, `Soạn 10 câu hỏi` ○ kèm dòng `— đã soạn 4/10 câu`; artboard 5 đổi
+`Đã làm 5 bước` → `Đã làm 2 bước`, câu kết và thẻ bỏ hết chữ về ngân hàng câu hỏi. Mô tả component
+`Thinking` (`83:76`) thêm ba luật: hai con số hai chỗ đứng, khối sống trong pha 2, và artboard là ảnh
+chụp. Đo lại: `đang chạy` 820×154 cho hai bước hai dòng, `đã xong` 820×40 — khớp `teacher.css`.
+
 ### Task 11: Tài liệu kể đúng hiện trạng
 
 `docs/overview/teacher-surface.md` viết lại phần luồng theo hai pha; `adr-25` đổi trạng thái sang
@@ -266,11 +272,29 @@ nơi thi hành là một ý định. Check mới: `report_plan` phải có tên 
 
 Phản biện ADR-25 đã về và ADR đã sửa theo nó. Ba chỗ còn là rủi ro thật:
 
-- **Hai con số `k/n`.** `bước k/n` đếm bước plan; số câu đã soạn là một dòng riêng. Nếu đo trên
-  artboard 4 cho thấy không có chỗ đặt dòng thứ hai thì Figma phải thêm, không được gộp hai sự thật
-  vào một con số.
+- ~~**Hai con số `k/n`.**~~ Đã giải: dòng kết quả của bước đang chạy là chỗ đặt số câu, artboard 4 đã
+  có sẵn nó, nên không hàng nào phải thêm và hai sự thật không bị gộp.
 - **Đóng tab giữa lúc soạn.** Các bước plan chạy trong request (dưới một giây mỗi bước), việc soạn
   câu sống trong arq và không phụ thuộc request. Câu báo cáo khi đó được viết ở **lần quan sát kế
   tiếp**. Task 4 phải có test cho đường ấy.
 - **Hai tab cùng một đoạn chat.** Chưa có khoá nào cho *"đoạn chat này đang chạy một plan"*. Task 3
   phải quyết: một plan thứ hai bị từ chối, hay hai plan chạy song song.
+
+Review Pha C bổ sung bốn món nợ, tất cả đáo hạn ở Pha D/E:
+
+- **Luật "đang soạn" đang là một câu trong prompt, phải thành dữ liệu.** `reporting.py:_SYSTEM` dặn
+  cứng *"nói là 'đang soạn' chứ không nói 'đã soạn xong'"*. Nó đúng **chỉ vì** hôm nay báo cáo chạy
+  ngay sau bước cuối, lúc arq còn đang soạn. Pha D làm pha 2 xong **sau khi** hết câu đang soạn, và
+  đúng lúc đó dòng prompt này biến thành máy sinh lời nói sai chiều ngược lại. Task 7 phải chuyển nó
+  vào `PlanReportRequested` (còn bao nhiêu câu đang soạn), rồi xoá khỏi prompt.
+- **`StepOutcome` không có chỗ cho con số thật.** `detail` của `start_drafting` mãi là *"10 câu bắt
+  đầu soạn"*. Câu kết của artboard 5 — *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* — **không có
+  field nào để đi qua**. Quyết ngay ở Task 7 trong lúc hợp đồng chưa deploy, nếu không là một lần
+  bump `SCHEMA_VERSION` nữa.
+- **Không có cờ "lượt này đã báo cáo chưa".** ADR nói đóng tab giữa lúc soạn thì câu kết viết ở lần
+  quan sát kế tiếp; `_report` hôm nay chạy đúng một lần và lượt được ghi `kind="assistant"` ngay sau
+  đó. Task 8 phải phân biệt được hai trạng thái ấy trong `teacher_turns` — hiện không có chỗ.
+- **Lời gọi báo cáo không nằm trong ngân sách nào.** Nó là lời gọi model thứ hai (thứ ba nếu tính
+  đặt tên) trong cùng một request POST, **sau** `turn_budget_seconds = 90` của pha 1, chỉ bị chặn bởi
+  job timeout. Vô hại khi Pha E mở SSE; chừng nào `POST` còn rút cạn generator thì p99 của endpoint
+  là `90s + report + naming`.

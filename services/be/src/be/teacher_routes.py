@@ -1302,18 +1302,31 @@ async def who_am_i(teacher: Teacher = Depends(current_teacher)) -> TeacherMe:
 @router.get("/teacher/assessments/{assessment_id}", response_model=AssessmentDetail)
 async def assessment_detail(
     assessment_id: str,
+    request: Request,
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> AssessmentDetail:
     """Nội dung một đề: câu hỏi, phương án, lời giải.
 
     Nạp bằng `selectinload` chứ không để quan hệ tự lazy-load: cả file này làm việc với giá trị
     vì một lần lazy-load trong ngữ cảnh async là `MissingGreenlet`, nổ ở rất xa nguyên nhân.
 
+    **Đọc là một lần quan sát, và quan sát là lúc thu hoạch.** BE không có worker chạy nền
+    (ADR-25), nên câu hỏi do AGENT viết chỉ vào đề khi có ai đó hỏi tới nó. Trước ADR-25 chỗ
+    làm việc ấy là tool `draft_progress`; nó đã thành tool chỉ-đọc để pha lên plan không ghi
+    gì, và món nợ ấy rơi đúng vào đây: không thu ở route này thì panel của giáo viên hiện
+    *0 câu* cho tới khi họ bấm Duyệt, dù mười câu đã nằm sẵn trong Redis. Đo thấy trên trình
+    duyệt thật.
+
+    Một GET có ghi, và điều đó được cân nhắc: thứ nó ghi là kết quả **đã có**, việc thu lặp
+    lại không sinh thêm gì, và lựa chọn còn lại là để giáo viên nhìn một cái đề trống trong
+    khi hệ thống đã làm xong việc. Đường đẩy xuống (SSE) chỉ cắt độ trễ, không thay chỗ này.
+
     Args:
         assessment_id: Đề nào.
-        teacher: Được resolve từ header actor (ADR-13).
-        session: Session của database.
+        request: Mang theo pool của queue.
+        settings: Cho timeout khi đọc kết quả job.
 
     Returns:
         Đề, kèm mọi câu hỏi đã sắp thứ tự.
@@ -1323,6 +1336,10 @@ async def assessment_detail(
     """
     asking = Asking.of(teacher)
     assessment = await _owned(session, asking, assessment_id, lock=False)
+
+    landed = await harvest(session, request.app.state.queue_pool, settings, assessment_id)
+    if landed:
+        logger.info("harvested %d question(s) of %s on a read", landed, assessment_id)
 
     rows = await session.scalars(
         select(Question)

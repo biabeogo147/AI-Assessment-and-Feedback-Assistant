@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'be', 'agent', 'fe', 'test', 'check', 'typecheck', 'fmt', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'agent', 'fe', 'test', 'check', 'typecheck', 'fmt', 'help')]
     [string]$Task = 'help'
 )
 
@@ -79,6 +79,13 @@ switch ($Task) {
         Invoke-Step 'stop redis and postgres' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
     }
 
+    'db-reset' {
+        # Xoá sạch rồi dựng lại theo model hiện tại. Repo không giữ migration, nên đây là
+        # đường duy nhất đưa một database cũ về khớp với code — và ở local thì dữ liệu là
+        # thứ seed lại được. BE phải TẮT lúc chạy lệnh này.
+        Invoke-Step 'reset database' { & $Python -m be.reset_db }
+    }
+
     'be' {
         & $Python -m uvicorn be.main:app --reload --host 127.0.0.1 --port 8000
     }
@@ -121,6 +128,7 @@ Usage: .\dev.ps1 <task>
   install      Install Python packages editable and frontend dependencies
   infra-up     Start Redis and Postgres in Docker
   infra-down   Stop them
+  db-reset     Wipe the database and rebuild it from the models, then seed (BE must be off)
   be           Run the BE API on http://localhost:8000
   agent        Run the AGENT worker
   fe           Run the FE dev server on http://localhost:5173
