@@ -12,9 +12,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ActionCard, { cardTurn, stepFor } from "./screens/teacher/ActionCard";
-import Chat from "./screens/teacher/Chat";
+import Chat, { grow } from "./screens/teacher/Chat";
 import PublishSettings from "./screens/teacher/PublishSettings";
 import Steps from "./screens/teacher/Steps";
+import type { TurnEvent } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -449,6 +450,73 @@ describe("một lượt của Kriky", () => {
     );
     expect(step.mark).toBe("failed");
     expect(step.result).toBe("— đề này đang soạn dở");
+  });
+});
+
+describe("một lượt đang chạy, dựng từ các sự kiện", () => {
+  function event(some: Record<string, unknown>) {
+    return {
+      kind: "",
+      text: "",
+      choices: [],
+      more_choices: 0,
+      conversation_id: "c1",
+      ended_as: "",
+      title: "",
+      detail: "",
+      index: 0,
+      total: 0,
+      titles: [],
+      began: 0,
+      ...some,
+    } as TurnEvent;
+  }
+
+  it("vẽ theo đúng thứ tự nhận được, và `n` lấy từ plan", () => {
+    // Cốt lõi của ADR-25: `bước 1/2` nói thật được vì plan có TRƯỚC khi chạy. Nếu `n` đếm
+    // theo số bước đã bắt đầu thì nó luôn bằng `k`, và con số ấy không nói gì cả.
+    let live = grow(null, event({ kind: "say", text: "Được, mình soạn đề ngay." }));
+    live = grow(live, event({ kind: "plan", total: 2, titles: ["Tạo đề trống", "Soạn câu"] }));
+    live = grow(live, event({ kind: "step_started", title: "Tạo đề trống", index: 1, total: 2 }));
+
+    expect(live.opening).toBe("Được, mình soạn đề ngay.");
+    expect(live.total).toBe(2);
+    expect(live.steps).toHaveLength(1);
+    expect(live.steps[0].mark).toBe("running");
+  });
+
+  it("đóng bước đang chạy khi nó xong, và giữ dòng kết quả của BE", () => {
+    let live = grow(null, event({ kind: "step_started", title: "Tạo đề trống", total: 2 }));
+    live = grow(
+      live,
+      event({ kind: "step_done", title: "Tạo đề trống", detail: 'đề "X", cần 10 câu' }),
+    );
+
+    expect(live.steps[0].mark).toBe("done");
+    expect(live.steps[0].result).toBe('— đề "X", cần 10 câu');
+  });
+
+  it("số câu đã soạn là dòng của bước đang chạy, không phải con số thứ hai trên header", () => {
+    // Hai con số, hai chỗ đứng (ADR-25): `bước k/n` đếm bước của plan, số câu là tiến độ
+    // bên trong MỘT bước. Gộp chúng vào một chỗ là nói sai cả hai.
+    let live = grow(null, event({ kind: "plan", total: 2 }));
+    live = grow(live, event({ kind: "step_started", title: "Soạn 10 câu hỏi", total: 2 }));
+    live = grow(live, event({ kind: "progress", index: 4, total: 10 }));
+
+    expect(live.total).toBe(2);
+    expect(live.steps[0].result).toBe("— đã soạn 4/10 câu");
+    expect(live.steps[0].mark).toBe("running");
+  });
+
+  it("một bước hỏng đọc ra là hỏng, kèm lý do", () => {
+    let live = grow(null, event({ kind: "step_started", title: "Soạn câu hỏi" }));
+    live = grow(
+      live,
+      event({ kind: "step_failed", title: "Soạn câu hỏi", detail: "chưa làm được bước này" }),
+    );
+
+    expect(live.steps[0].mark).toBe("failed");
+    expect(live.steps[0].result).toBe("— chưa làm được bước này");
   });
 });
 

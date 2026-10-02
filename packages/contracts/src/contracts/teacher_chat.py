@@ -277,6 +277,15 @@ class PlanReportRequested(BaseModel):
         said: Câu giáo viên đã gõ, để lời kể trả lời đúng thứ họ hỏi.
         outcomes: Các bước đã chạy, theo thứ tự. Không bao giờ rỗng: một plan bị từ chối thì
             không bước nào chạy và BE không gọi tới task này.
+        written: Đề đã có bao nhiêu câu, **đếm từ database** chứ không đếm từ số tiếng chuông --
+            chuông có thể mất, và một vị trí thử lại rung hai lần.
+        asked_for: Giáo viên xin bao nhiêu câu. `written == asked_for` là lúc nói "xong".
+        still_drafting: Còn bao nhiêu câu đang soạn. Lớn hơn 0 thì lời kể nói "đang soạn".
+
+    Ba con số cuối tồn tại để luật *"nói đang soạn chứ đừng nói đã xong"* là **dữ liệu**, không
+    phải một câu cứng trong prompt. Câu cứng ấy đúng chừng nào báo cáo còn chạy trước lúc soạn
+    xong; từ khi đường SSE đợi hết câu rồi mới kể, chính nó thành máy sinh lời nói sai chiều
+    ngược lại (ADR-25).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -285,6 +294,9 @@ class PlanReportRequested(BaseModel):
     request_id: str
     said: str = Field(min_length=1, max_length=2000)
     outcomes: tuple[StepOutcome, ...] = ()
+    written: int = 0
+    asked_for: int = 0
+    still_drafting: int = 0
 
 
 class PlanReportCompleted(BaseModel):

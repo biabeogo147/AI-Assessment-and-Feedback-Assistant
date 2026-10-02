@@ -7,6 +7,7 @@ import {
   type TeacherConversation,
   type TeacherDocument,
   type Turn,
+  type TurnEvent,
 } from "../../api";
 import ActionCard, { cardTurn, stepFor } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
@@ -51,6 +52,9 @@ export default function Chat({
   publishing: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
+  // Lượt đang chạy, dựng từ các sự kiện SSE. Nó **không** phải nguồn của màn hình sau khi
+  // lượt xong: lúc đó cả đoạn được đọc lại từ database.
+  const [live, setLive] = useState<Live | null>(null);
   // Câu hỏi lại đang chờ trả lời. Nó giữ **cả** câu hỏi lẫn các phương án, vì hai thứ đó
   // nằm trên cùng một thẻ — và vì câu hỏi ấy cũng nằm trong `turns`, nên giữ nó ở đây là
   // cách để không vẽ nó hai lần.
@@ -135,33 +139,45 @@ export default function Chat({
     setText("");
     setAsked(null);
     setTrouble(null);
+    setLive(null);
 
-    // 100 giây: 90 của BE cộng 10 cho đường truyền. Hết giờ thì **giữ lại chữ đã gõ**, vì
-    // bắt gõ lại một yêu cầu dài sau một phút rưỡi chờ là hình phạt cho một lỗi của máy.
+    // Bốn phút: pha 1 của BE là 90 giây, rồi lượt còn **đợi các câu hỏi về** trước khi kể
+    // lại (ADR-25), và mười câu mất hàng phút. Hết giờ thì giữ lại chữ đã gõ — bắt gõ lại
+    // một yêu cầu dài là hình phạt cho một lỗi của máy.
     const stop = new AbortController();
-    const cut = window.setTimeout(() => stop.abort(), 100_000);
+    const cut = window.setTimeout(() => stop.abort(), 240_000);
     const later = window.setTimeout(() => setSlow(true), 20_000);
 
+    let thread = here;
     try {
       // Một trong hai, không bao giờ cả hai: BE trả 422 cho một request tự mâu thuẫn.
-      const answered = await teacher.say(
+      await teacher.stream(
         trimmed,
         here === null ? { startNew: true } : { conversationId: here },
+        (event) => {
+          if (event.conversation_id) thread = event.conversation_id;
+          // Từ sự kiện đầu tiên là đã có thứ để xem, nên vòng quay chờ nhường chỗ cho
+          // việc thật: `setSlow(false)` ở đây chứ không đợi tới lúc lượt xong.
+          setSlow(false);
+          setLive((before) => grow(before, event));
+        },
         stop.signal,
       );
-      setHere(answered.conversation_id);
-      // Lượt nói vừa về **là** nội dung của đoạn ấy, nên đánh dấu đã tải: route sắp đổi
-      // sang tên nó, và effect phải bỏ qua lần đổi đó thay vì nháy rỗng rồi tải lại.
-      loaded.current = answered.conversation_id;
-      // URL gọi tên đoạn vừa mở, để F5 và nút back đều về đúng chỗ.
-      if (here === null) go(`/teacher/chat/${answered.conversation_id}`);
-      // Lượt đầu của một đoạn mới vừa đặt tên cho nó, nên rail phải đọc lại — nếu không
-      // thì đoạn vừa tạo không có hàng nào, và nó trông như đã mất.
+
+      setHere(thread);
+      // Lượt vừa chạy **là** nội dung của đoạn ấy, nên đánh dấu đã tải: route sắp đổi sang
+      // tên nó, và effect phải bỏ qua lần đổi đó thay vì nháy rỗng rồi tải lại.
+      loaded.current = thread;
+      if (here === null && thread !== null) go(`/teacher/chat/${thread}`);
+      // Lượt đầu của một đoạn mới vừa đặt tên cho nó, nên rail phải đọc lại.
       teacher.conversations().then(setThreads).catch(() => undefined);
-      // Chỉ các bước CỦA LƯỢT NÀY, nên append chứ không thay: `GET /teacher/chat` mới là
-      // đường trả về cả hội thoại.
-      setTurns((before) => [...before, ...answered.turns]);
-      setAsked(answered.choices.length > 0 ? answered : null);
+
+      // Đọc lại cả đoạn thay vì ghép từ các sự kiện. Sự kiện là thứ để **xem trong lúc
+      // chạy**; thứ ở lại trên màn hình phải là thứ database đang giữ, nếu không một lần F5
+      // sẽ cho ra một màn hình khác với màn hình vừa rồi — và không ai hiểu vì sao.
+      const whole = await teacher.conversation(thread ?? undefined);
+      setTurns(whole.turns);
+      setAsked(whole.choices.length > 0 ? whole : null);
     } catch (cause) {
       setText(trimmed);
       setTrouble(
@@ -174,6 +190,7 @@ export default function Chat({
       window.clearTimeout(later);
       setSlow(false);
       setPending(null);
+      setLive(null);
     }
   }
 
@@ -237,7 +254,24 @@ export default function Chat({
                 <div className="said-bubble">{pending}</div>
               </div>
             )}
-            {pending !== null && <Thinking slow={slow} />}
+            {/* Lượt đang chạy. Hình dạng y hệt một lượt đã xong — avatar một lần, rồi câu
+                mở, khối bước, câu kết — nên không có cú nhảy nào lúc nó chuyển thành lượt
+                đã lưu. Chỉ khi chưa có sự kiện nào thì mới là vòng quay chờ. */}
+            {pending !== null && live !== null && (
+              <div className="exchange">
+                <div className="voice">
+                  <Who />
+                  <div className="turn-body">
+                    {live.opening !== "" && <div className="reply-text">{live.opening}</div>}
+                    {live.steps.length > 0 && (
+                      <Steps steps={live.steps} total={live.total || undefined} />
+                    )}
+                    {live.report !== "" && <div className="reply-text">{live.report}</div>}
+                  </div>
+                </div>
+              </div>
+            )}
+            {pending !== null && live === null && <Thinking slow={slow} />}
             <div ref={bottom} />
           </div>
         ) : (
@@ -415,6 +449,76 @@ function blocks(turns: Turn[]): Block[] {
     else out.push({ kriky: [one] });
   }
   return out;
+}
+
+/** Một lượt **đang chạy**, dựng dần từ các sự kiện SSE. */
+interface Live {
+  /** Câu Kriky nói trước khi bắt tay, nếu có. */
+  opening: string;
+  /** Các bước đã bắt đầu, theo thứ tự. */
+  steps: Step[];
+  /** Plan có bao nhiêu bước — `n` của `bước k/n`, biết được vì plan có trước khi chạy. */
+  total: number;
+  /** Câu kết, có từ lúc model kể lại. */
+  report: string;
+}
+
+/**
+ * Một sự kiện nữa vừa tới: dựng lại lượt đang chạy.
+ *
+ * Thuần tuý, và trả về một object mới mỗi lần — React so sánh theo tham chiếu, nên sửa tại
+ * chỗ là cách chắc chắn nhất để màn hình đứng im trong khi state đã đổi.
+ *
+ * Màn hình vẽ **theo đúng thứ tự nhận được** (ADR-25): không có khuôn cố định nào, model
+ * quyết nói lúc nào và tra lúc nào.
+ *
+ * @param before - Lượt đang dựng, hoặc null khi đây là sự kiện đầu.
+ * @param event - Việc vừa xảy ra.
+ * @returns Lượt sau khi đã nhận sự kiện ấy.
+ */
+export function grow(before: Live | null, event: TurnEvent): Live {
+  const now: Live = before ?? { opening: "", steps: [], total: 0, report: "" };
+  const steps = [...now.steps];
+
+  switch (event.kind) {
+    case "say":
+      return { ...now, opening: event.text };
+    case "plan":
+      return { ...now, total: event.total };
+    case "step_started":
+      steps.push({ mark: "running", title: event.title, result: "" });
+      return { ...now, steps, total: now.total || event.total };
+    case "step_done":
+    case "step_failed": {
+      // Bước đang chạy là bước vừa xong — tìm từ cuối, vì các bước chạy tuần tự và một
+      // tiêu đề có thể lặp lại giữa hai lượt.
+      const last = steps.map((one) => one.mark).lastIndexOf("running");
+      if (last >= 0) {
+        steps[last] = {
+          mark: event.kind === "step_done" ? "done" : "failed",
+          title: event.title || steps[last].title,
+          result: event.detail === "" ? "" : `— ${event.detail}`,
+        };
+      }
+      return { ...now, steps };
+    }
+    case "progress": {
+      // Số câu đã soạn là **dòng kết quả của bước đang chạy**, không phải một con số thứ
+      // hai trên header: `bước k/n` đếm bước của plan, và trộn hai sự thật vào một con số
+      // là sai với cả hai (ADR-25).
+      const last = steps.map((one) => one.mark).lastIndexOf("running");
+      if (last >= 0) {
+        steps[last] = { ...steps[last], result: `— đã soạn ${event.index}/${event.total} câu` };
+      }
+      return { ...now, steps };
+    }
+    case "report":
+      return { ...now, report: event.text };
+    case "clarify":
+      return { ...now, report: event.text };
+    default:
+      return now;
+  }
 }
 
 /**

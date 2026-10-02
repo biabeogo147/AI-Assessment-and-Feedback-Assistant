@@ -52,9 +52,11 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -62,9 +64,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
-from be.db import get_session
+from be.db import get_session, session_scope
+from be.drafting import harvest, listen_for_progress, pending_count
 from be.identity import Asking, current_teacher
-from be.models import Teacher, TeacherConversation, TeacherTurn, aware, new_id
+from be.models import (
+    DraftBrief,
+    Question,
+    Teacher,
+    TeacherConversation,
+    TeacherTurn,
+    aware,
+    new_id,
+)
 from be.teacher_tools import (
     LOOKS_LIKE_REFERENCE,
     PHASE_PLAN,
@@ -108,6 +119,10 @@ _CEILING_REACHED = (
     "Mình tra mãi mà chưa ra câu trả lời gọn cho câu này. Bạn thử hỏi cụ thể hơn giúp mình nhé, "
     "ví dụ nói rõ tên lớp và tên bài kiểm tra."
 )
+
+# Câu cho một lượt gãy giữa stream. Header đã gửi đi rồi, nên không còn status code nào
+# để nói, và một màn hình không nghe gì nữa sẽ đứng im tới khi người đọc bỏ đi.
+_TURN_BROKE = "Lượt này hỏng giữa chừng. Bạn thử gửi lại câu vừa rồi nhé."
 
 _AGENT_UNAVAILABLE = "Trợ lý chưa trả lời được. Bạn thử lại sau một chút nhé."
 
@@ -456,7 +471,11 @@ def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str 
 
 
 async def _report(
-    request: Request, settings: Settings, said: str, outcomes: list[StepOutcome]
+    request: Request,
+    settings: Settings,
+    said: str,
+    outcomes: list[StepOutcome],
+    counted: tuple[int, int, int] = (0, 0, 0),
 ) -> str:
     """Nhờ model kể lại những gì plan vừa làm.
 
@@ -469,6 +488,10 @@ async def _report(
         settings: Cho timeout của job.
         said: Câu giáo viên đã gõ.
         outcomes: Các bước đã chạy, theo thứ tự.
+        counted: `(đã có, xin bao nhiêu, còn đang soạn)` câu, đếm từ database. Ba con số này
+            làm cho luật *"nói đang soạn hay nói đã xong"* thành **dữ liệu** thay vì một câu
+            cứng trong prompt -- câu cứng ấy đúng hay sai tuỳ vào thời điểm báo cáo chạy, và
+            thời điểm ấy vừa đổi khi cửa SSE bắt đầu đợi các câu về.
 
     Returns:
         Câu kết để hiện trên màn hình. Không bao giờ rỗng.
@@ -483,7 +506,12 @@ async def _report(
             settings,
             REPORT_PLAN_TASK,
             PlanReportRequested(
-                request_id=new_id(), said=said, outcomes=tuple(outcomes)
+                request_id=new_id(),
+                said=said,
+                outcomes=tuple(outcomes),
+                written=counted[0],
+                asked_for=counted[1],
+                still_drafting=counted[2],
             ).model_dump(mode="json"),
         )
         written = PlanReportCompleted.model_validate(answer).text.strip()
@@ -955,12 +983,119 @@ def _went_wrong(result: dict) -> bool:
     return bool(result.get("error")) or any(result.get(flag) is False for flag in _DID_IT_HAPPEN)
 
 
+# Đợi các câu hỏi về bao lâu trước khi thôi và kể lại những gì đang có. Mười câu, mỗi câu
+# một lời gọi model, chạy song song trong worker -- vài chục giây là chuyện thường, và một
+# model chậm có thể lâu hơn. Con số này không phải một lời hứa về tốc độ: hết hạn thì lượt
+# vẫn kể lại, chỉ là kể một cái đề đang soạn dở.
+_WAIT_FOR_QUESTIONS_SECONDS = 180.0
+
+
+def _paper_in(results: list[dict]) -> str:
+    """Id của đề mà plan vừa đụng tới, nếu có.
+
+    Đọc từ kết quả các bước chứ không từ tên tool: `create_draft` và `start_drafting` đều
+    trả `assessment_id`, và cái cuối cùng là cái đang được soạn.
+
+    Args:
+        results: Kết quả từng bước, theo thứ tự đã chạy.
+
+    Returns:
+        Id đề, hoặc chuỗi rỗng khi lượt này không đụng tới đề nào.
+    """
+    for result in reversed(results):
+        found = result.get("assessment_id")
+        if isinstance(found, str) and found:
+            return found
+    return ""
+
+
+async def _count_questions(session: AsyncSession, assessment_id: str) -> tuple[int, int, int]:
+    """Đếm `(đã có, xin bao nhiêu, còn đang soạn)` câu của một đề.
+
+    Đếm từ **database**, không đếm từ số tiếng chuông đã nghe: chuông có thể mất, và một vị
+    trí thử lại rung hai lần. Một con số dựng từ số lần nghe là đúng loại con số mà ADR-25
+    mở đầu bằng cách phê phán.
+
+    Args:
+        session: Session của database.
+        assessment_id: Đề nào.
+
+    Returns:
+        Ba con số. `(0, 0, 0)` khi đề không còn hoặc chưa có brief.
+    """
+    written = await session.scalar(
+        select(func.count()).select_from(Question).where(Question.assessment_id == assessment_id)
+    )
+    brief = await session.get(DraftBrief, assessment_id)
+    running = await pending_count(session, assessment_id)
+    return int(written or 0), int(brief.question_count if brief else 0), running
+
+
+async def _wait_for_questions(
+    request: Request,
+    session: AsyncSession,
+    settings: Settings,
+    assessment_id: str,
+    thread: str,
+) -> AsyncIterator[TurnEvent]:
+    """Nghe chuông tiến độ, thu hoạch, và phát `progress` cho tới khi hết câu đang soạn.
+
+    Đây là nửa thứ hai của điều kiện "pha 2 xong" (ADR-25): plan chạy hết **và** không còn
+    câu nào đang soạn. Nửa này mất hàng phút, nên nó chỉ chạy ở cửa SSE.
+
+    Ba điều đáng nói về hình dạng của nó:
+
+    - **Thu hoạch rồi mới đếm.** Tiếng chuông chỉ nói "có thứ để lấy"; chính `harvest` mới
+      đưa câu vào đề. Phát một con số đọc trước khi thu là phát con số của lần trước.
+    - **Một lần thu cuối, sau vòng lặp.** Chuông không bền: tiếng cuối cùng có thể rơi vào
+      khoảnh khắc người nghe đang bận. Không có lần thu ấy thì một đề xong đủ mười câu vẫn
+      có thể kết thúc lượt ở `9/10`.
+    - **Hết hạn thì vẫn kể.** Một lượt chat không được treo mãi vì một worker chết; nó kể
+      lại những gì đang có, và lần quan sát sau sẽ đưa nốt phần còn lại vào đề.
+
+    Args:
+        request: Mang theo pool của queue.
+        session: Session của database.
+        settings: Cho timeout khi đọc kết quả job.
+        assessment_id: Đề đang được soạn.
+        thread: Đoạn chat, để gắn vào sự kiện.
+
+    Yields:
+        `progress` mỗi khi số câu đổi.
+
+    Side effects:
+        Ghi câu hỏi vào đề qua `harvest`.
+    """
+    pool = getattr(request.app.state, "queue_pool", None)
+    written, asked_for, running = await _count_questions(session, assessment_id)
+    if running == 0:
+        return
+    yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
+
+    async with aclosing(
+        listen_for_progress(pool, assessment_id, _WAIT_FOR_QUESTIONS_SECONDS)
+    ) as bells:
+        async for _ in bells:
+            await harvest(session, pool, settings, assessment_id)
+            written, asked_for, running = await _count_questions(session, assessment_id)
+            yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
+            if running == 0:
+                return
+
+    # Hết kiên nhẫn, hoặc tiếng chuông cuối rơi mất. Thu một lần nữa trước khi đi.
+    landed = await harvest(session, pool, settings, assessment_id)
+    if landed:
+        written, asked_for, _ = await _count_questions(session, assessment_id)
+        yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
+
+
 async def run_turn(
     said: "Said",
     request: Request,
     teacher: Teacher,
     session: AsyncSession,
     settings: Settings,
+    watching: bool = False,
 ) -> AsyncIterator[TurnEvent]:
     """Đi một lượt của giáo viên, phát ra từng việc ngay khi nó xảy ra.
 
@@ -973,10 +1108,9 @@ async def run_turn(
     có tool ghi nào**, nên một câu hỏi lại không thể bỏ lại việc đã làm dở. Trước ADR-25 thì
     chuyện ấy xảy ra được, và database còn một đề rỗng sinh ra đúng theo đường đó.
 
-    Đây là generator chứ không phải một hàm trả về một lần, vì cùng một lượt **sẽ** phải đi
-    ra hai cửa: hôm nay `POST` rút cạn nó rồi trả một `Answered`; đường SSE của Pha E sẽ
-    forward từng sự kiện. Một bản cài đặt, hai cửa -- hai bản sẽ trôi dạt khỏi nhau ở đúng
-    chỗ khó thấy nhất.
+    Đây là generator chứ không phải một hàm trả về một lần, vì cùng một lượt đi ra **hai
+    cửa**: `POST` rút cạn nó rồi trả một `Answered`, còn đường SSE forward từng sự kiện. Một
+    bản cài đặt, hai cửa -- hai bản sẽ trôi dạt khỏi nhau ở đúng chỗ khó thấy nhất.
 
     Args:
         said: Thứ giáo viên vừa gõ.
@@ -984,6 +1118,10 @@ async def run_turn(
         teacher: Được resolve từ header actor (ADR-13).
         session: Session của database mà mọi tool chạy trên đó.
         settings: Cung cấp `max_tool_steps` và ngân sách thời gian của pha 1.
+        watching: Có ai đang xem không. True thì lượt **đợi** các câu hỏi về trước khi để
+            model kể lại, và phát `progress` mỗi lần có thêm câu. Cửa `POST` để False: nó
+            rút cạn generator trong một request, và một request đứng chờ hàng phút sẽ bị
+            cắt ở đâu đó giữa đường.
 
     Yields:
         Từng `TurnEvent` theo thứ tự xảy ra. Sự kiện cuối luôn là `done`.
@@ -1297,8 +1435,23 @@ async def run_turn(
             # một thế giới không còn như plan tưởng.
             break
 
-    # ------------------------------------------------------------ model kể lại kết quả
-    telling = await _report(request, settings, said.text, outcomes)
+    # ----------------------------------- đợi các câu về, rồi mới để model kể lại kết quả
+    #
+    # ADR-25: pha 2 xong khi plan đã chạy hết **và** không còn câu nào đang soạn. Hai điều
+    # kiện, vì các bước plan mất chưa tới một giây còn việc soạn mười câu mất hàng phút --
+    # và một lời kể viết lúc chưa có câu nào thì chỉ nói được "đang soạn".
+    #
+    # `watching` là False ở cửa `POST`: nó rút cạn generator này bên trong một request, và
+    # bắt một request HTTP đứng chờ hàng phút là cách chắc chắn nhất để một proxy cắt nó
+    # giữa chừng. Cửa SSE thì ngược lại -- nó sinh ra để đứng chờ.
+    counted = (0, 0, 0)
+    paper = _paper_in(done)
+    if watching and paper:
+        async for event in _wait_for_questions(request, session, settings, paper, thread):
+            yield event
+        counted = await _count_questions(session, paper)
+
+    telling = await _report(request, settings, said.text, outcomes, counted)
     history.append(TurnRecord(kind="assistant", text=telling))
     await _record(session, thread, position, history[-1])
     yield TurnEvent(kind="report", text=telling, conversation_id=thread)
@@ -1352,6 +1505,80 @@ async def say_something(
         choices=list(last.choices),
         more_choices=last.more_choices,
         turns=await _rendered(session, last.conversation_id, last.began),
+    )
+
+
+def _as_sse(event: TurnEvent) -> str:
+    """Một sự kiện dưới dạng một khung `text/event-stream`.
+
+    Dùng `data:` một dòng với JSON, không dùng `event:` theo loại: client đọc `kind` trong
+    chính payload, nên thêm một trục phân loại thứ hai ở tầng giao thức là hai nguồn sự thật
+    cho cùng một câu hỏi.
+
+    Args:
+        event: Sự kiện vừa xảy ra.
+
+    Returns:
+        Chuỗi đã có dòng trống kết khung.
+    """
+    return f"data: {event.model_dump_json()}\n\n"
+
+
+@router.post("/teacher/chat/messages/stream")
+async def say_something_streaming(
+    said: "Said",
+    request: Request,
+    teacher: Teacher = Depends(current_teacher),
+    settings: Settings = Depends(get_settings),
+) -> StreamingResponse:
+    """Đi một lượt và phát từng việc ra ngay khi nó xảy ra.
+
+    Cùng một `run_turn` với cửa `POST`, chỉ khác hai điều, và cả hai đều đáng nói:
+
+    **`watching=True`** — lượt này đợi các câu hỏi về rồi mới để model kể lại (ADR-25). Cửa
+    `POST` không đợi, vì nó rút cạn generator bên trong một request và một request đứng chờ
+    hàng phút sẽ bị cắt ở đâu đó giữa đường.
+
+    **Session của riêng nó.** Một session lấy qua `Depends` sống theo request, và ở đây
+    "request" kéo dài suốt cả vòng soạn đề; tệ hơn, giáo viên đóng tab thì phần dọn dẹp của
+    dependency chạy trong khi generator vẫn đang ghi. Mở session ở đây và đóng nó trong
+    `finally` nghĩa là **lượt chạy hết dù không còn ai xem** — đúng điều ADR-25 đòi: đóng tab
+    giữa pha 2 thì lượt vẫn ghi đủ, và mở lại thấy đúng trạng thái.
+
+    Args:
+        said: Thứ giáo viên vừa gõ.
+        request: Mang theo pool của queue.
+        teacher: Được resolve từ header actor (ADR-13).
+        settings: Settings của process.
+
+    Returns:
+        Một `text/event-stream`, mỗi khung là một `TurnEvent` dưới dạng JSON.
+    """
+
+    async def frames() -> AsyncIterator[str]:
+        async with session_scope() as session:
+            try:
+                async for event in run_turn(
+                    said, request, teacher, session, settings, watching=True
+                ):
+                    yield _as_sse(event)
+            except HTTPException as refused:
+                # 404/503 không còn gửi được bằng status code: header đã đi rồi. Gửi nó
+                # thành một sự kiện để màn hình nói ra được, thay vì đứng im tới timeout.
+                yield _as_sse(TurnEvent(kind="done", text=str(refused.detail), ended_as="error"))
+            except Exception:
+                logger.exception("a streamed turn broke for %s", teacher.teacher_code)
+                yield _as_sse(TurnEvent(kind="done", text=_TURN_BROKE, ended_as="error"))
+
+    return StreamingResponse(
+        frames(),
+        media_type="text/event-stream",
+        headers={
+            # Một proxy gom buffer sẽ giữ cả stream lại tới lúc nó xong, và khi đó SSE
+            # không hơn gì một POST chậm.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

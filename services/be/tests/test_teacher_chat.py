@@ -15,6 +15,7 @@ Mọi test ở đây đều viết kịch bản cho AGENT thay vì gọi nó th�
 worker sẽ là vết nứt đầu tiên trên bức tường giữa các service.
 """
 
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -780,3 +781,113 @@ async def test_a_turn_reports_only_its_own_rows_even_on_a_gapped_history(stack) 
     # Đúng hai dòng mới, và **không** có dòng nào của lượt trước đi kèm.
     assert said == ["soạn giúp tôi một đề", "Chào bạn."]
     assert "Chào bạn, mình giúp gì được?" not in said
+
+
+@pytest.mark.asyncio
+async def test_the_stream_sends_each_event_as_it_happens(stack) -> None:
+    """Cửa SSE phát từng việc, không gửi dồn một lần ở cuối.
+
+    Đây là cả lý do Pha E tồn tại. Cửa `POST` rút cạn generator rồi trả trạng thái cuối, nên
+    màn hình nhận cả lượt một lần và dấu `○` của khối bước chưa chạy lần nào. Cùng một
+    `run_turn`, hai cửa — nếu cửa này tự dựng một dãy sự kiện riêng thì hai bản sẽ trôi dạt
+    khỏi nhau ở đúng chỗ khó thấy nhất.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    frames = []
+    async with http.stream(
+        "POST",
+        "/api/teacher/chat/messages/stream",
+        json={"text": "Tạo đề 3 câu Hàm số"},
+        headers=TEACHER,
+    ) as answer:
+        assert answer.status_code == 200
+        assert answer.headers["content-type"].startswith("text/event-stream")
+        async for line in answer.aiter_lines():
+            if line.startswith("data: "):
+                frames.append(json.loads(line[6:]))
+
+    kinds = [one["kind"] for one in frames]
+    assert kinds[0] == "say"
+    assert "plan" in kinds
+    assert kinds.count("step_started") == 2
+    assert kinds[-1] == "done"
+    assert frames[-1]["ended_as"] == "report"
+
+    # Và mỗi khung là một `TurnEvent` đủ hình dạng, không phải một chuỗi tự chế.
+    plan_frame = next(one for one in frames if one["kind"] == "plan")
+    assert plan_frame["total"] == 2
+    assert plan_frame["titles"] == ["Tạo đề trống", "Soạn câu hỏi"]
+
+
+@pytest.mark.asyncio
+async def test_a_turn_that_breaks_mid_stream_still_says_something(stack) -> None:
+    """Lượt gãy sau khi header đã gửi thì không còn status code nào để nói.
+
+    Một màn hình đang đọc stream mà nguồn im lặng sẽ đứng im tới khi người đọc bỏ đi — không
+    có vòng quay, không có lỗi, không có gì. Nên mọi đường gãy đều phải ra bằng một khung
+    `done`.
+    """
+    http, maker, monkeypatch = stack
+
+    class Broken(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload):
+            raise RuntimeError("cái gì đó vỡ")
+
+    monkeypatch.setattr(teacher_chat, "run_task", Broken())
+    await _teacher(maker, "GV-001")
+
+    frames = []
+    async with http.stream(
+        "POST", "/api/teacher/chat/messages/stream", json={"text": "chào"}, headers=TEACHER
+    ) as answer:
+        async for line in answer.aiter_lines():
+            if line.startswith("data: "):
+                frames.append(json.loads(line[6:]))
+
+    assert frames[-1]["kind"] == "done"
+    assert frames[-1]["ended_as"] == "error"
+    assert frames[-1]["text"]
+
+
+@pytest.mark.asyncio
+async def test_the_post_door_does_not_wait_for_the_questions(stack) -> None:
+    """Cửa `POST` **không** đợi các câu về, và đó là một quyết định chứ không phải thiếu sót.
+
+    Nó rút cạn generator bên trong một request. Đợi mười câu ở đó nghĩa là một request HTTP
+    đứng hàng phút — một proxy hay một browser sẽ cắt nó, và lượt chat biến mất giữa chừng
+    dù BE vẫn ghi xong. Đường đợi thuộc về cửa SSE, nơi đứng chờ là việc của nó.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"))
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    waited = []
+
+    async def never(*args, **kwargs):
+        waited.append(args)
+        raise AssertionError("cửa POST không được đợi câu hỏi")
+
+    monkeypatch.setattr(teacher_chat, "_wait_for_questions", never)
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu Hàm số"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    assert waited == []

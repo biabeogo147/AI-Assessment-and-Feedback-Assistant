@@ -26,8 +26,11 @@ export interface Step {
  * Luật behavior đầy đủ nằm ở `docs/overview/teacher-surface.md`; đừng suy lại từ bố cục.
  *
  * @param steps - Các bước, theo đúng thứ tự đã xảy ra.
+ * @param total - Plan có bao nhiêu bước. Trong lúc lượt đang chạy, `steps` mới chỉ có những
+ *   bước đã bắt đầu, nên `n` của `bước k/n` phải lấy từ plan — nói được `2/5` chính vì plan
+ *   có trước khi chạy (ADR-25). Bỏ trống thì đếm theo `steps`, đúng cho một lượt đã xong.
  */
-export default function Steps({ steps }: { steps: Step[] }) {
+export default function Steps({ steps, total }: { steps: Step[]; total?: number }) {
   const failed = steps.some((one) => one.mark === "failed");
   const live = steps.some((one) => one.mark === "running");
   // Chỉ là giá trị khởi tạo: sau đó người đọc làm chủ. Một lượt đang chạy mà tự đóng lại
@@ -59,7 +62,11 @@ export default function Steps({ steps }: { steps: Step[] }) {
             được là lời mời bấm vào thứ không nhận. Artboard cũng bỏ nó ở variant này. */}
         {!failed && <span className={`caret ${shown ? "open" : ""}`} aria-hidden="true" />}
         <span className="what">{head}</span>
-        {live && <span className="count">bước {steps.indexOf(doing!) + 1}/{steps.length}</span>}
+        {live && (
+          <span className="count">
+            bước {steps.indexOf(doing!) + 1}/{total ?? steps.length}
+          </span>
+        )}
       </button>
       {shown && (
         <div className="steps-list">

@@ -495,6 +495,77 @@ export const api = {
  * actor khác nhau, và một tên gọi nằm sai object là thứ `tsc` không bắt được. Đứng riêng thì
  * `teacher.` ở đầu mỗi lời gọi tự nói nó mang vai nào.
  */
+/**
+ * Một việc vừa xảy ra trong một lượt, đúng hình dạng BE phát ra.
+ *
+ * `kind` là trục duy nhất: khung SSE không mang `event:` theo loại, vì hai nguồn sự thật
+ * cho cùng một câu hỏi là hai thứ sẽ lệch nhau.
+ */
+export interface TurnEvent {
+  kind: string;
+  text: string;
+  choices: string[];
+  more_choices: number;
+  conversation_id: string;
+  ended_as: string;
+  title: string;
+  detail: string;
+  index: number;
+  total: number;
+  titles: string[];
+  began: number;
+}
+
+/**
+ * Gửi một lượt và đọc từng sự kiện ngay khi nó tới.
+ *
+ * Parser SSE ở đây cố tình nhỏ: BE chỉ gửi khung `data:` một dòng, nên thứ duy nhất cần
+ * đúng là **ranh giới khung** (một dòng trống) và việc giữ lại phần đuôi chưa đủ một khung.
+ * Bỏ phần giữ đuôi ấy thì mọi thứ chạy tốt trên máy nhanh và vỡ khi mạng cắt một khung làm
+ * đôi — đúng loại lỗi chỉ xuất hiện ở nhà người dùng.
+ *
+ * @param text - Chữ giáo viên gõ.
+ * @param into - Đoạn chat nào, hoặc mở một đoạn mới.
+ * @param onEvent - Gọi cho **mỗi** sự kiện, theo đúng thứ tự tới.
+ * @param signal - Để màn hình cắt được một lượt treo.
+ */
+async function streamTurn(
+  text: string,
+  into: { conversationId?: string; startNew?: boolean },
+  onEvent: (event: TurnEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch("/api/teacher/chat/messages/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Actor": ACTOR.teacher },
+    body: JSON.stringify({
+      text,
+      conversation_id: into.conversationId ?? null,
+      start_new: into.startNew ?? false,
+    }),
+    signal,
+  });
+  if (!response.ok || response.body === null) {
+    throw new Error(`Lỗi ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let rest = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    rest += decoder.decode(value, { stream: true });
+    const frames = rest.split("\n\n");
+    rest = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.split("\n").find((one) => one.startsWith("data: "));
+      if (line === undefined) continue;
+      onEvent(JSON.parse(line.slice(6)) as TurnEvent);
+    }
+  }
+}
+
 export const teacher = {
   me: () => call<TeacherMe>("teacher", "/teacher/me"),
   documents: () => call<TeacherDocument[]>("teacher", "/teacher/documents"),
@@ -538,6 +609,15 @@ export const teacher = {
       }),
       signal,
     }),
+  // Cùng một lượt với `say`, chỉ khác cửa ra: BE phát từng việc ngay khi nó xảy ra, nên
+  // khối bước sống thay vì hiện cả cục lúc xong. Dùng `fetch` chứ không `EventSource` —
+  // lượt gửi bằng POST và mang một body, mà `EventSource` chỉ biết GET.
+  stream: (
+    text: string,
+    into: { conversationId?: string; startNew?: boolean } = {},
+    onEvent: (event: TurnEvent) => void,
+    signal?: AbortSignal,
+  ) => streamTurn(text, into, onEvent, signal),
   approve: (assessmentId: string) =>
     call<Approval>("teacher", `/teacher/assessments/${assessmentId}/approve`, { method: "POST" }),
   unapprove: (assessmentId: string) =>

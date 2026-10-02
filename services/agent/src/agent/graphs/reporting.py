@@ -40,8 +40,8 @@ Luật:
   không nhận xét về chất lượng và không nói một con số không có trong kết quả.
 - Có bước hỏng thì nói thẳng là chưa làm được tới đâu, và nói phần đã làm được là gì.
   Đừng xin lỗi dài, đừng hứa làm lại.
-- Câu hỏi được soạn ngầm và hiện dần ở panel bên phải, nên nói là "đang soạn" chứ không
-  nói "đã soạn xong".
+- Dòng "Tiến độ soạn" nói đề đang ở đâu. Còn câu đang soạn thì nói "đang soạn"; đã đủ số
+  câu thì nói đã xong. ĐỪNG đoán: chỉ đọc đúng mấy con số ấy.
 - Hai tới ba câu. Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi
   giáo viên là "bạn".
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
@@ -54,11 +54,13 @@ class ReportState(TypedDict):
     Attributes:
         said: Câu giáo viên đã gõ.
         outcomes: Các bước đã chạy, đã dọn thành từng dòng.
+        progress: Một dòng về số câu, hoặc rỗng khi lượt này không soạn đề.
         text: Lời kể model trả về.
     """
 
     said: str
     outcomes: str
+    progress: str
     text: str
 
 
@@ -83,6 +85,36 @@ def _as_lines(request: PlanReportRequested) -> str:
     return "\n".join(lines)
 
 
+def _progress(request: PlanReportRequested) -> str:
+    """Một dòng về số câu, lấy từ **con số BE đếm trong database**.
+
+    Nó thay cho một câu cứng trong prompt. Trước đây prompt dặn *"nói đang soạn chứ đừng nói
+    đã xong"* — đúng chừng nào báo cáo còn chạy trước lúc soạn xong, và sai ngược lại từ khi
+    đường SSE đợi hết câu rồi mới kể (ADR-25). Một luật phụ thuộc thời điểm thì phải là dữ
+    liệu, không phải một dòng prompt.
+
+    Con số đếm từ database chứ không từ số tiếng chuông: chuông có thể mất, và một vị trí
+    thử lại rung hai lần.
+
+    Args:
+        request: Yêu cầu, mang theo ba con số.
+
+    Returns:
+        Dòng để đưa model đọc, hoặc rỗng khi lượt này không soạn đề nào.
+    """
+    if request.asked_for == 0 and request.written == 0:
+        return ""
+    if request.still_drafting > 0:
+        return (
+            f"Tiến độ soạn: đã có {request.written}/{request.asked_for} câu, "
+            f"còn {request.still_drafting} câu đang soạn."
+        )
+    return (
+        f"Tiến độ soạn: đã đủ {request.written}/{request.asked_for} câu, "
+        "không còn câu nào đang soạn."
+    )
+
+
 async def _tell(state: ReportState) -> dict:
     """Hỏi model một lời kể.
 
@@ -97,7 +129,11 @@ async def _tell(state: ReportState) -> dict:
         [
             SystemMessage(content=_SYSTEM),
             HumanMessage(
-                content=f"Giáo viên nhờ: {state['said']}\n\nCác bước đã chạy:\n{state['outcomes']}"
+                content=(
+                    f"Giáo viên nhờ: {state['said']}\n\n"
+                    f"Các bước đã chạy:\n{state['outcomes']}"
+                    + (f"\n\n{state['progress']}" if state["progress"] else "")
+                )
             ),
         ]
     )
@@ -132,5 +168,12 @@ async def tell_about(request: PlanReportRequested) -> str:
         hỏng, nhưng nó **không** cắt và không dọn chuỗi — khác đường đặt tên đoạn chat, nơi
         có một hàm dọn thật. Luật về độ dài và về Markdown vì thế chỉ nằm trong prompt.
     """
-    final = await _GRAPH.ainvoke({"said": request.said, "outcomes": _as_lines(request), "text": ""})
+    final = await _GRAPH.ainvoke(
+        {
+            "said": request.said,
+            "outcomes": _as_lines(request),
+            "progress": _progress(request),
+            "text": "",
+        }
+    )
     return final["text"]

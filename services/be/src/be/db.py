@@ -10,6 +10,7 @@ chi mà dự án này nhận lấy.
 """
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import (
@@ -152,6 +153,27 @@ def bind_sessions(engine: AsyncEngine) -> None:
     """
     global _SESSION_MAKER
     _SESSION_MAKER = async_sessionmaker(engine, expire_on_commit=False)
+
+
+@asynccontextmanager
+async def session_scope() -> AsyncIterator[AsyncSession]:
+    """Một session sống theo **một việc**, không theo một request.
+
+    `get_session` là dependency của FastAPI: session nó mở bị đóng khi request kết thúc. Với
+    một lượt chat phát ra qua SSE thì "request kết thúc" có thể là lúc giáo viên đóng tab —
+    và lượt vẫn còn đang ghi. ADR-25 đòi lượt chạy hết dù không còn ai xem, nên đường ấy mở
+    session của riêng nó và đóng trong `finally` của chính nó.
+
+    Yields:
+        Một AsyncSession, đóng khi khối `async with` đi ra.
+
+    Raises:
+        RuntimeError: Nếu ứng dụng chưa bao giờ gọi `bind_sessions`.
+    """
+    if _SESSION_MAKER is None:
+        raise RuntimeError("Database is not configured; bind_sessions was never called")
+    async with _SESSION_MAKER() as session:
+        yield session
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
