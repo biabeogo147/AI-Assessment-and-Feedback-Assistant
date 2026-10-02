@@ -100,6 +100,14 @@ class DraftQuestionRequested(BaseModel):
             bằng luật của chính nó lúc nhận, nên hai service không bao giờ phải giữ hai bộ chuẩn hoá
             đồng bộ với nhau. Dù sao cũng chỉ là cố gắng hết sức: các job bắn cùng lúc không thể
             biết đầu ra của nhau, nên BE kiểm trùng lại lúc harvest.
+        progress_channel: Nơi AGENT rung một tiếng chuông khi câu này viết xong. Rỗng nghĩa là
+            không ai quan tâm, và khi đó không có gì được publish.
+
+            Chuông chở **một con số thứ tự, không chở câu hỏi** (ADR-25). Câu hỏi vẫn đi đường
+            cũ -- result store của arq, BE thu hoạch -- vì pub/sub của Redis không bền: không ai
+            nghe thì lời nói mất luôn. Nếu chuông chở nội dung thì một người đóng tab đúng lúc
+            sẽ làm mất hẳn một câu đã soạn xong. Chở một con số thì mất một tiếng chuông chỉ là
+            mất một lần cập nhật màn hình, và lần quan sát sau vẫn đưa đủ câu vào đề.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -113,6 +121,7 @@ class DraftQuestionRequested(BaseModel):
     ordinal: int = Field(ge=1)
     of_total: int = Field(ge=1, le=50)
     banned_stems: tuple[str, ...] = ()
+    progress_channel: str = ""
 
 
 class DraftQuestionCompleted(BaseModel):

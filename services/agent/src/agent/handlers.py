@@ -814,6 +814,35 @@ async def propose_next_step(ctx: dict, payload: dict) -> dict:
         return next_step(request).model_dump(mode="json")
 
 
+async def _ring(ctx: dict, request: DraftQuestionRequested) -> None:
+    """Rung một tiếng chuông báo câu này đã viết xong.
+
+    Chuông chở **số thứ tự của câu, không chở câu hỏi** (ADR-25). Câu hỏi đi đường cũ --
+    result store của arq, BE thu hoạch -- vì pub/sub của Redis không bền: publish vào một
+    channel không ai nghe thì lời nói mất luôn. Chở nội dung ở đây nghĩa là một người đóng
+    tab đúng lúc sẽ làm mất hẳn một câu đã soạn xong; chở một con số thì mất chuông chỉ là
+    mất một lần cập nhật màn hình.
+
+    Mọi lỗi bị nuốt, và đó là toàn bộ ý nghĩa của từ *chuông*: công việc đã xong và đã nằm
+    trong result store trước khi hàm này chạy. Để một Redis dở chứng làm job thất bại là
+    đánh đổi một câu hỏi thật lấy một lần cập nhật màn hình.
+
+    Args:
+        ctx: Context job của arq; `ctx["redis"]` là connection arq đã cấp sẵn.
+        request: Yêu cầu, mang theo channel và số thứ tự.
+
+    Side effects:
+        Publish một con số lên Redis, hoặc không làm gì.
+    """
+    redis = ctx.get("redis")
+    if not request.progress_channel or redis is None:
+        return
+    try:
+        await redis.publish(request.progress_channel, str(request.ordinal))
+    except Exception:  # noqa: BLE001 -- xem docstring
+        logger.warning("could not ring the progress bell for %s", request.request_id, exc_info=True)
+
+
 async def write_draft_question(ctx: dict, payload: dict) -> dict:
     """Điểm vào arq cho một câu của đề nháp của giáo viên.
 
@@ -821,20 +850,28 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
     `tools/check_contract.py` so số lần retry đáng cho một câu với mức kiên nhẫn của BE
     với một job, còn task mà nó thay thế thì nhận tới năm mươi câu trong một job.
 
+    Xong một câu thì **rung chuông** (ADR-25): BE đang nghe sẽ thu hoạch ngay và đẩy con
+    số mới xuống màn hình, thay vì để giáo viên nhìn một khối bước đứng yên. Chuông rung
+    trên **cả ba** đường ra -- model viết được, model hỏng và lùi về nội dung dọn trước,
+    và máy dev không có API key -- vì cả ba đều đặt một kết quả vào result store, và một
+    màn hình chỉ sống khi có model thì không phải một màn hình sống.
+
     Args:
-        ctx: Context job của arq. Không dùng; arq truyền nó theo vị trí.
+        ctx: Context job của arq. `ctx["redis"]` dùng để rung chuông.
         payload: Một DraftQuestionRequested đã serialise.
 
     Returns:
         Một DraftQuestionCompleted đã serialise.
 
     Side effects:
-        Không có gì ngoài việc log. AGENT không ghi vào store nào của riêng nó; BE
-        harvest kết quả và quyết định nó có được vào đề nháp hay không.
+        Publish một tiếng chuông lên Redis. AGENT không ghi vào store nào của riêng nó;
+        BE harvest kết quả và quyết định nó có được vào đề nháp hay không.
     """
     request = DraftQuestionRequested.model_validate(payload)
     if not llm.enabled():
-        return draft_question(request).model_dump(mode="json")
+        answer = draft_question(request).model_dump(mode="json")
+        await _ring(ctx, request)
+        return answer
 
     try:
         # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `_faults` so
@@ -850,11 +887,15 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
         # chuyện giáo viên hỏi lại một lần; một đề nháp từ chối bắt đầu là một tính năng
         # không hoạt động.
         logger.exception("model could not write question %d of the draft", request.ordinal)
-        return draft_question(request).model_dump(mode="json")
+        answer = draft_question(request).model_dump(mode="json")
+        await _ring(ctx, request)
+        return answer
 
-    return DraftQuestionCompleted(request_id=request.request_id, question=question).model_dump(
+    written = DraftQuestionCompleted(request_id=request.request_id, question=question).model_dump(
         mode="json"
     )
+    await _ring(ctx, request)
+    return written
 
 
 async def generate_retry_question(ctx: dict, payload: dict) -> dict:

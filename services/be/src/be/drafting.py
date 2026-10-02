@@ -22,7 +22,9 @@ và các câu hỏi hiện ra dần khi chúng về -- đúng cái đánh đổi
 khi nó soạn trước một câu hỏi remediation.
 """
 
+import asyncio
 import logging
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -41,6 +43,10 @@ from contracts import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Mỗi lần ngó vào channel chờ bao lâu. Ngắn, vì nó chỉ quyết độ trễ giữa lúc chuông tới và
+# lúc vòng lặp thấy nó; mức kiên nhẫn thật nằm ở `patience_seconds` của người gọi.
+_BELL_WAIT = 0.2
 
 # Contract chặn `of_total` ở năm mươi, và cái ngưỡng đó phải được kiểm tra trước
 # job đầu tiên chứ không phải phát hiện ra ở job thứ năm mươi mốt: bắn từng job một
@@ -89,6 +95,75 @@ async def _stems(session: AsyncSession, assessment_id: str) -> list[str]:
         select(Question.stem).where(Question.assessment_id == assessment_id)
     )
     return list(written)
+
+
+def progress_channel(assessment_id: str) -> str:
+    """Tên channel mà các job của một đề nháp rung chuông vào.
+
+    Dựng từ chính id của đề chứ không phải một id ngẫu nhiên cho mỗi lượt: người nghe và
+    người rung gặp nhau qua **cái đề**, nên một tab mở sau vẫn nghe được tiến độ của một
+    vòng soạn bắt đầu từ trước, và hai tab cùng mở thì cùng nghe. Một id phát theo lượt sẽ
+    chỉ phục vụ đúng cái request đã đẻ ra nó.
+
+    Args:
+        assessment_id: Đề nháp nào.
+
+    Returns:
+        Tên channel.
+    """
+    return f"draft:{assessment_id}"
+
+
+async def listen_for_progress(
+    pool: object, assessment_id: str, patience_seconds: float
+) -> AsyncIterator[int]:
+    """Nghe chuông của một đề nháp, yield số thứ tự của từng câu vừa xong.
+
+    Pub/sub của Redis **không bền**, và cả thiết kế dựa trên điều đó: không ai nghe thì
+    tiếng chuông mất, mà câu hỏi thì không -- nó nằm trong result store của arq và vào đề ở
+    lần quan sát kế tiếp. Nên hàm này chỉ cắt độ trễ; nó không bao giờ là đường duy nhất
+    đưa một câu vào đề, và không có nó thì không mất gì ngoài sự sống động.
+
+    Nó **không chạm database**. Người gọi nghe một tiếng chuông rồi tự quyết thu hoạch và
+    phát gì xuống màn hình -- giữ chỗ này không có session nghĩa là nó không giữ một
+    connection database suốt thời gian một vòng soạn chạy.
+
+    Args:
+        pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
+        assessment_id: Đề nháp nào.
+        patience_seconds: Im lặng bao lâu thì thôi nghe.
+
+    Yields:
+        Số thứ tự của câu vừa viết xong, theo đúng thứ tự chuông tới.
+
+    Side effects:
+        Subscribe một channel Redis, và luôn huỷ đăng ký khi đi ra.
+    """
+    if pool is None:
+        return
+
+    channel = progress_channel(assessment_id)
+    pubsub = pool.pubsub()
+    try:
+        await pubsub.subscribe(channel)
+        deadline = asyncio.get_running_loop().time() + patience_seconds
+        while asyncio.get_running_loop().time() < deadline:
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=_BELL_WAIT)
+            if message is None or message.get("type") != "message":
+                continue
+            deadline = asyncio.get_running_loop().time() + patience_seconds
+            raw = message["data"]
+            text = raw.decode() if isinstance(raw, bytes) else str(raw)
+            if text.isdigit():
+                yield int(text)
+    finally:
+        # Cũng chạy khi người nghe bỏ đi giữa chừng: generator bị cancel, và một
+        # subscription chưa đóng giữ một connection của pool suốt đời process.
+        try:
+            await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
+        except Exception:  # noqa: BLE001 -- dọn dẹp không được đứng trên lỗi thật
+            logger.warning("could not close the progress channel %s", channel, exc_info=True)
 
 
 async def fire(session: AsyncSession, pool: object, settings: Settings, assessment_id: str) -> int:
@@ -164,6 +239,7 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
             ordinal=ordinal,
             of_total=brief.question_count,
             banned_stems=banned,
+            progress_channel=progress_channel(assessment_id),
         )
         job_id = await enqueue_task(
             pool, settings, WRITE_DRAFT_QUESTION_TASK, asked.model_dump(mode="json")
