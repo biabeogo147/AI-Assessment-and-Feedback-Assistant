@@ -31,8 +31,9 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [20](adr-20-cham-trac-nghiem-thuoc-be.md) | Chấm trắc nghiệm là việc của BE, không của AGENT | đã chốt, chưa thi hành |
 | [21](adr-21-trang-thai-bai-lam-la-ben.md) | Trạng thái bài làm là bền; hạn một giờ chỉ áp cho job | đã chốt, chưa thi hành |
 | [22](adr-22-de-co-tac-gia.md) | Đề và lớp có tác giả; của người khác đọc ra như không tồn tại | đã chốt, đang thi hành |
-| [23](adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) | Không phân định được thì hỏi lại; lựa chọn đến từ dữ liệu | đã chốt, đang thi hành |
+| [23](adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) | Không phân định được thì hỏi lại; lựa chọn đến từ dữ liệu | đã mở rộng bởi ADR-25 |
 | [24](adr-24-mot-giao-vien-nhieu-doan-chat.md) | Một giáo viên nhiều đoạn chat; biên bản rơi vào đoạn đã tạo ra đề | đã chốt, đang thi hành |
+| [25](adr-25-hai-pha-mot-luot-chat.md) | Một lượt chat có hai pha: lên plan, rồi thực hiện plan | đã chốt, chưa thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.
