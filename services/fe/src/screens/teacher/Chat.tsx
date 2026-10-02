@@ -59,6 +59,12 @@ export default function Chat({
   // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
   // đầu thì id chỉ có sau khi BE trả lời.
   const [here, setHere] = useState<string | null>(conversationId);
+  // Đoạn chat đã **tải xong**, khác với đoạn đang hiện trên route. Phải là một ref riêng
+  // chứ không phải `here`: lúc mount sạch ở `#/teacher/chat/X` thì `here` đã bằng `X` từ
+  // giá trị khởi tạo, nên so với nó là so một con số với chính nó — và effect bỏ qua lần
+  // chạy duy nhất có ích. Một lần F5 khi đó cho ra màn mở đầu kèm rail tô sáng đúng đoạn
+  // chat ấy: hai thứ nói hai chuyện trái ngược, không lỗi console nào.
+  const loaded = useRef<string | null>(null);
   const [scope, setScope] = useState<TeacherDocument | null>(null);
   const [text, setText] = useState("");
   // Bong bóng **tạm** của câu vừa gửi. Nó không nằm trong `turns`, nên lúc lượt thật về tới
@@ -75,10 +81,10 @@ export default function Chat({
   // đi: không có nó, bấm nhanh qua hai đoạn sẽ vẽ lịch sử của đoạn đầu lên đoạn sau.
   useEffect(() => {
     let live = true;
-    // Route vừa gọi tên đúng đoạn đang hiện — chuyện xảy ra ngay sau câu đầu của một đoạn
+    // Route vừa gọi tên đúng đoạn **đã tải** — chuyện xảy ra ngay sau câu đầu của một đoạn
     // mới. Không tải lại: dữ liệu đã nằm sẵn trên màn hình, và một lần tải nữa chỉ làm nó
     // nháy rỗng rồi hiện lại y như cũ.
-    if (conversationId !== null && conversationId === here) return;
+    if (conversationId !== null && conversationId === loaded.current) return;
     setHere(conversationId);
     setTurns([]);
     setAsked(null);
@@ -88,15 +94,13 @@ export default function Chat({
       .then((answered: Answered) => {
         if (!live) return;
         setTurns(answered.turns);
+        loaded.current = answered.conversation_id || conversationId;
         if (answered.conversation_id) setHere(answered.conversation_id);
       })
       .catch((cause: Error) => live && setTrouble(cause.message));
     return () => {
       live = false;
     };
-    // `here` cố ý không nằm trong danh sách phụ thuộc: nó chỉ dùng để nhận ra route vừa
-    // đuổi kịp màn hình, và nghe nó sẽ làm effect chạy lại sau mỗi lượt nói.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, fresh]);
 
   useEffect(() => {
@@ -139,6 +143,9 @@ export default function Chat({
         stop.signal,
       );
       setHere(answered.conversation_id);
+      // Lượt nói vừa về **là** nội dung của đoạn ấy, nên đánh dấu đã tải: route sắp đổi
+      // sang tên nó, và effect phải bỏ qua lần đổi đó thay vì nháy rỗng rồi tải lại.
+      loaded.current = answered.conversation_id;
       // URL gọi tên đoạn vừa mở, để F5 và nút back đều về đúng chỗ.
       if (here === null) go(`/teacher/chat/${answered.conversation_id}`);
       // Lượt đầu của một đoạn mới vừa đặt tên cho nó, nên rail phải đọc lại — nếu không
@@ -191,6 +198,7 @@ export default function Chat({
         conversations={threads}
         current={here}
         documents={documents}
+        starting={fresh}
         onOpen={(thread) => go(`/teacher/chat/${thread}`)}
         onNew={() => go("/teacher/moi")}
       />

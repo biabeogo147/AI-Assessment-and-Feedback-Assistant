@@ -95,15 +95,25 @@
   line-height: 1.5;
 }
 
+/*
+ * Nền accent nghĩa là **đang ở chức năng này**, không phải "đây là nút chính".
+ *
+ * Một nút lúc nào cũng xanh thì màu ấy thôi không nói gì — và nó nói sai, vì lúc
+ * giáo viên đang đọc một đoạn chat cũ thì chỗ sáng lên phải là hàng của đoạn ấy.
+ * Cùng một dấu sẽ dùng cho bốn đích đến, ngày chúng có màn hình.
+ */
 .rail .new-chat {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 38px;
-  padding: 9px 12px;
+  /* 40, bằng bốn đích đến. Từ ngày nó vào chung một nhóm thì 38 của thiết kế cũ
+   * thành một hàng thấp hơn hàng dưới 2px — đủ để mắt thấy lệch mà không đủ để
+   * ai chỉ ra được vì sao. */
+  height: 40px;
+  padding: 10px 12px;
   border: none;
   border-radius: var(--radius);
-  background: var(--accent-surface);
+  background: none;
   color: var(--accent);
   font-family: inherit;
   font-size: var(--type-label);
@@ -168,13 +178,46 @@
  * vạch. Nền một mình thì không đủ — trên dải sunken, surface là một sắc độ
  * nhạt hơn vài phần trăm, và đó là thứ biến mất trên máy chiếu của một lớp học.
  */
-.rail .destination[aria-current="page"],
+/*
+ * Hover trên những thứ bấm được. Figma có sẵn variant `hover` cho `Conversation
+ * item` và nó là nền surface, nên đây không phải một màu nghĩ thêm.
+ *
+ * Chỉ cho `:hover` trên thiết bị có con trỏ thật: trên màn cảm ứng, `:hover` dính
+ * lại sau khi chạm và để lại một hàng sáng mà không ai đang trỏ vào nó.
+ */
+@media (hover: hover) {
+  .rail .new-chat:hover:not([aria-current]),
+  .rail .conversation:hover:not([aria-current]) {
+    background: var(--surface);
+  }
+}
+
+/*
+ * Vòng focus của bàn phím. Mặc định của Chrome là một viền đen mảnh — đọc được,
+ * nhưng nó không thuộc về bảng màu nào ở đây, và trên nền sunken của rail thì nó
+ * là thứ duy nhất trên màn hình không ai chọn.
+ */
+.teacher :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rail .new-chat[aria-current="page"],
+.rail .destination[aria-current="page"] {
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+/*
+ * Một hàng trong danh sách thì khác một chức năng: nó được tô bằng surface cộng một
+ * vạch accent ở mép trái. Nền accent dành cho *"đang ở chức năng này"*, và một đoạn
+ * chat không phải một chức năng — nó là một trong nhiều thứ cùng loại.
+ */
 .rail .conversation[aria-current="true"] {
   background: var(--surface);
   color: var(--ink);
 }
 
-.rail .destination[aria-current="page"]::before,
 .rail .conversation[aria-current="true"]::before {
   content: "";
   position: absolute;
@@ -1171,8 +1214,14 @@
   line-height: 1.5;
 }
 
+/*
+ * Chữ trắng trên `--line-strong` cho tỉ lệ tương phản ~1.8:1 — dưới mọi ngưỡng,
+ * và một nút tắt vẫn phải đọc được để người ta biết nó là nút gì. Nền chìm cộng
+ * chữ mực nhạt là cách nút *Gửi* đã làm từ đầu.
+ */
 .teacher .panel-foot .cta:disabled {
-  background: var(--line-strong);
+  background: var(--sunken);
+  color: var(--ink-faint);
 }
 
 /* Cột giữa hẹp lại khi panel mở — đúng 760, và dòng lượt nói còn 660. */
@@ -1342,7 +1391,8 @@
 }
 
 .teacher .publish-settings .cta:disabled {
-  background: var(--line-strong);
+  background: var(--sunken);
+  color: var(--ink-faint);
 }
 
 /* Kết quả từng lớp. Một lớp trượt là một HÀNG, không phải một ngoại lệ (ADR-02). */
@@ -1463,6 +1513,14 @@
 }
 
 .teacher .confirm-actions .btn:disabled {
-  background: var(--line-strong);
-  color: var(--surface);
+  background: var(--sunken);
+  color: var(--ink-faint);
+}
+
+/* Câu giải thích khi panel chưa có câu hỏi nào. */
+.teacher .panel-empty {
+  padding: 12px 4px;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.5;
 }

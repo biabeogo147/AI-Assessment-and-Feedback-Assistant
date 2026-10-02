@@ -94,6 +94,19 @@ export default function Panel({
       </div>
 
       <div className="panel-questions">
+        {/*
+          Một panel trống phải nói vì sao nó trống. Thẻ kết quả trong chat vừa báo *"đã đặt
+          chỗ cho 10 câu"* còn panel hiện *"0 câu"* — hai con số đúng cả hai (một cái là số
+          đã xin, một cái là số đã viết xong) nhưng đọc cạnh nhau thì như mâu thuẫn, và một
+          khoảng trắng cao nửa mét không giải thích gì cả.
+        */}
+        {paper.questions.length === 0 && (
+          <div className="panel-empty">
+            {paper.still_drafting > 0
+              ? `Đang soạn ${paper.still_drafting} câu. Mở lại sau một lát.`
+              : "Chưa có câu hỏi nào trong đề này."}
+          </div>
+        )}
         {paper.questions.map((one) => (
           <QuestionCard key={one.question_id} question={one} editable={!approved} />
         ))}

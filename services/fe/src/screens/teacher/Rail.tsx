@@ -26,6 +26,9 @@ const SPLIT_MAX = 520;
  * @param current - Đoạn đang mở, để tô hàng của nó.
  * @param documents - Thư viện tài liệu.
  * @param onOpen - Mở một đoạn chat cũ.
+ * @param starting - Đang đứng ở màn *Đoạn chat mới*. Nó quyết định nút nào mang nền accent,
+ *   và nền accent nghĩa là **đang ở chức năng này** — không phải "đây là nút chính". Một nút
+ *   lúc nào cũng xanh thì màu ấy thôi không còn nói gì.
  * @param onNew - Bắt đầu một đoạn chat mới. Chưa tạo gì ở BE — dòng chỉ xuất hiện khi
  *   có câu đầu tiên, nên một cú bấm nhầm không để lại rác.
  */
@@ -33,17 +36,24 @@ export default function Rail({
   conversations,
   current,
   documents,
+  starting,
   onOpen,
   onNew,
 }: {
   conversations: TeacherConversation[];
   current: string | null;
   documents: TeacherDocument[];
+  starting: boolean;
   onOpen: (conversationId: string) => void;
   onNew: () => void;
 }) {
   const [documentsHeight, setDocumentsHeight] = useState(readSplit);
   const dragging = useRef(false);
+  // Chiều cao **đang kéo tới**, cập nhật ngay trong `pointermove`. State thì không đủ:
+  // `pointermove` cuối và `pointerup` rơi vào cùng một task, React chưa render lại, nên
+  // handler lúc thả tay vẫn là handler của render cũ và nó ghi lại con số **trước** cú
+  // kéo. Một ref thì không chờ render.
+  const wanted = useRef(documentsHeight);
 
   return (
     <nav className="rail" aria-label="Điều hướng">
@@ -52,14 +62,23 @@ export default function Rail({
         <div className="brand-name">Kriky</div>
       </div>
 
-      <button className="new-chat" type="button" onClick={onNew}>
-        <span className="plus" aria-hidden="true">
-          ＋
-        </span>
-        Đoạn chat mới
-      </button>
-
+      {/*
+        Nút mở đoạn chat cùng một nhóm với bốn đích đến, nhịp 4px. Một hành động và bốn chỗ
+        đi tới đọc thành **một** danh sách; để nó cách ra 16px thì mắt đọc thành hai nhóm
+        mà chúng không phải hai nhóm.
+      */}
       <div className="nav">
+        <button
+          className="new-chat"
+          type="button"
+          aria-current={starting ? "page" : undefined}
+          onClick={onNew}
+        >
+          <span className="plus" aria-hidden="true">
+            ＋
+          </span>
+          Đoạn chat mới
+        </button>
         <Destination icon={<Dashboard />} label="Bảng theo dõi" badge={DASHBOARD_WAITING} />
         <Destination icon={<Classes />} label="Danh sách lớp học" />
         <Destination icon={<Papers />} label="Các bài kiểm tra" />
@@ -94,19 +113,21 @@ export default function Rail({
             // Đo từ **mép dưới cửa sổ** chứ không cộng dồn delta: cộng dồn thì mỗi lần
             // chạm biên 120/520 là một pixel bị nuốt mất, và sau vài lần kéo thanh ngăn
             // trôi khỏi con trỏ.
-            const wanted = window.innerHeight - event.clientY - 26;
-            setDocumentsHeight(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, wanted)));
+            const asked = window.innerHeight - event.clientY - 26;
+            wanted.current = Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, asked));
+            setDocumentsHeight(wanted.current);
           }}
           onPointerUp={(event) => {
             dragging.current = false;
             event.currentTarget.releasePointerCapture(event.pointerId);
-            // Ghi ở đây chứ không trong một effect nghe `documentsHeight`. Bản trước làm
-            // thế và nó **không ghi gì**: lần `set` cuối cùng của một cú kéo đưa đúng giá
-            // trị đang có, React bỏ qua, effect không chạy lại. Ghi khi thả tay cũng là
-            // chỗ đúng về số lượng — một cú kéo là hàng trăm `pointermove`, mà
-            // `localStorage` ghi đồng bộ trên luồng chính.
+            // Ghi khi thả tay, và ghi từ **ref** chứ không từ state. Hai bản trước đều
+            // sai ở đây: bản đầu ghi trong một effect nghe `documentsHeight` và effect
+            // không chạy lại vì giá trị không đổi; bản thứ hai ghi trong handler này
+            // nhưng đọc state của render cũ. Một phép đo có `await` giữa `pointermove`
+            // và `pointerup` làm cả hai bản *trông như* chạy được — chuột thật thì hai
+            // sự kiện rơi vào cùng một task.
             try {
-              window.localStorage.setItem(SPLIT_KEY, String(documentsHeight));
+              window.localStorage.setItem(SPLIT_KEY, String(wanted.current));
             } catch {
               /* ẩn danh hoặc storage đầy; vị trí thanh kéo không đáng làm hỏng gì */
             }
