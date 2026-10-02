@@ -174,3 +174,62 @@ async def test_the_prompt_forbids_saying_more_than_the_results_say(on, monkeypat
     assert "không nhận xét về chất lượng" in prompt
     assert "không nói một con số không có trong kết quả" in prompt
     assert "đang soạn" in prompt
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_says_which_way_the_numbers_point(on, monkeypatch) -> None:
+    """Đề đã đủ câu thì lời kể phải nói **xong**, không nói "đang soạn".
+
+    Luật này từng là một câu cứng trong prompt — đúng chừng nào báo cáo còn chạy trước lúc
+    soạn xong. Từ khi đường SSE đợi hết câu rồi mới kể, chính câu cứng ấy sinh ra lời nói
+    sai chiều ngược lại: đo trên trình duyệt thật, đề đủ 3/3 câu mà Kriky vẫn nói *"đang
+    soạn nội dung cho từng câu"*. Nay con số đi vào prompt, và prompt nói rõ nó nghĩa là gì.
+    """
+    seen: list[str] = []
+
+    def listen(messages):
+        seen.append("\n".join(str(message.content) for message in messages))
+        return AIMessage(content="Đề đã xong.")
+
+    monkeypatch.setattr(llm, "chat_models", lambda: (RunnableLambda(listen),))
+
+    done = PlanReportRequested(
+        request_id="r9",
+        said="Tạo đề 3 câu",
+        outcomes=(StepOutcome(title="Soạn 3 câu hỏi", ok=True, detail="3 câu bắt đầu soạn"),),
+        written=3,
+        asked_for=3,
+        still_drafting=0,
+    )
+    await handlers.report_plan({}, done.model_dump(mode="json"))
+
+    prompt = "\n".join(seen)
+    assert "Tiến độ soạn: đã đủ 3/3 câu" in prompt
+    # Và prompt phải nói thẳng con số ấy nghĩa là gì, chứ không để model tự suy.
+    assert "đã soạn XONG" in prompt or "đã soạn xong" in prompt.lower()
+
+
+@pytest.mark.asyncio
+async def test_a_draft_still_running_says_so(on, monkeypatch) -> None:
+    """Còn câu đang soạn thì dòng tiến độ nói đúng con số còn lại."""
+    seen: list[str] = []
+
+    def listen(messages):
+        seen.append("\n".join(str(message.content) for message in messages))
+        return AIMessage(content="Đang soạn.")
+
+    monkeypatch.setattr(llm, "chat_models", lambda: (RunnableLambda(listen),))
+
+    half = PlanReportRequested(
+        request_id="r10",
+        said="Tạo đề 10 câu",
+        outcomes=(StepOutcome(title="Soạn 10 câu hỏi", ok=True, detail="10 câu bắt đầu soạn"),),
+        written=4,
+        asked_for=10,
+        still_drafting=6,
+    )
+    await handlers.report_plan({}, half.model_dump(mode="json"))
+
+    prompt = "\n".join(seen)
+    assert "đã có 4/10 câu" in prompt
+    assert "còn 6 câu đang soạn" in prompt

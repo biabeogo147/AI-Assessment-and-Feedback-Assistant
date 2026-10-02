@@ -1077,8 +1077,16 @@ async def _wait_for_questions(
     ) as bells:
         async for _ in bells:
             await harvest(session, pool, settings, assessment_id)
-            written, asked_for, running = await _count_questions(session, assessment_id)
-            yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
+            now, asked_for, running = await _count_questions(session, assessment_id)
+            if now != written:
+                # Chỉ phát khi con số **đổi**. Chuông không phải một bộ đếm: một vị trí thử
+                # lại rung thêm một lần cho cùng số thứ tự, và hai tab cùng nghe thì cả hai
+                # cùng thu — nên cùng một con số tới hai lần là chuyện thường. Phát lại nó
+                # là bắt màn hình nhấp nháy mà không nói thêm điều gì.
+                written = now
+                yield TurnEvent(
+                    kind="progress", index=written, total=asked_for, conversation_id=thread
+                )
             if running == 0:
                 return
 
