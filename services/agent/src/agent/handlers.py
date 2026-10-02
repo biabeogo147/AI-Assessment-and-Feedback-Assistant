@@ -814,33 +814,65 @@ async def propose_next_step(ctx: dict, payload: dict) -> dict:
         return next_step(request).model_dump(mode="json")
 
 
-async def _ring(ctx: dict, request: DraftQuestionRequested) -> None:
-    """Rung một tiếng chuông báo câu này đã viết xong.
+# Chỗ handler đặt tiếng chuông xuống cho `after_job_end` nhặt lên. Một khoá trong `ctx`,
+# là dict arq dựng riêng cho từng job và truyền **cùng một object** cho cả hàm job lẫn các
+# hook vòng đời của nó.
+_BELL = "draft_progress_bell"
 
-    Chuông chở **số thứ tự của câu, không chở câu hỏi** (ADR-25). Câu hỏi đi đường cũ --
-    result store của arq, BE thu hoạch -- vì pub/sub của Redis không bền: publish vào một
-    channel không ai nghe thì lời nói mất luôn. Chở nội dung ở đây nghĩa là một người đóng
-    tab đúng lúc sẽ làm mất hẳn một câu đã soạn xong; chở một con số thì mất chuông chỉ là
-    mất một lần cập nhật màn hình.
 
-    Mọi lỗi bị nuốt, và đó là toàn bộ ý nghĩa của từ *chuông*: công việc đã xong và đã nằm
-    trong result store trước khi hàm này chạy. Để một Redis dở chứng làm job thất bại là
-    đánh đổi một câu hỏi thật lấy một lần cập nhật màn hình.
+def _arm_bell(ctx: dict, request: DraftQuestionRequested) -> None:
+    """Đặt sẵn tiếng chuông cho câu này; ai rung là việc của worker.
+
+    Vì sao không publish thẳng trong thân job: lúc hàm job còn đang chạy, **kết quả chưa
+    nằm trong result store**. arq ghi kết quả bằng `finish_job`, và nó chỉ chạy sau khi
+    coroutine của job trả về. Một BE nghe chuông rồi thu hoạch ngay sẽ đọc được `pending`
+    cho đúng câu vừa báo — màn hình luôn trễ một nhịp, và **tiếng chuông cuối cùng không
+    gặt được gì**, nên một lượt chat chờ "hết câu đang soạn" sẽ treo tới hết hạn kiên nhẫn.
+    Review Pha D đo được chuyện này; bản đầu của chỗ này publish ngay trong job.
+
+    `after_job_end` của arq chạy **sau** `finish_job`. Chuông rung từ đó (`ring_bell`), còn
+    chỗ này chỉ ghi lại *rung cái gì*.
+
+    Chuông chở **số thứ tự, không chở câu hỏi** (ADR-25): pub/sub không bền, nên thứ gì nằm
+    trong chuông là thứ có thể mất hẳn.
 
     Args:
-        ctx: Context job của arq; `ctx["redis"]` là connection arq đã cấp sẵn.
+        ctx: Context job của arq, dùng chung giữa hàm job và hook vòng đời.
         request: Yêu cầu, mang theo channel và số thứ tự.
+
+    Side effects:
+        Ghi một khoá vào `ctx`.
+    """
+    if request.progress_channel:
+        ctx[_BELL] = (request.progress_channel, str(request.ordinal))
+
+
+async def ring_bell(ctx: dict) -> None:
+    """Rung tiếng chuông job vừa xong đã đặt sẵn. Đăng ký làm `after_job_end` của worker.
+
+    Chạy sau `finish_job`, nên lúc nó publish thì kết quả **đã** đọc được: một BE nghe
+    chuông rồi thu hoạch ngay sẽ thấy đúng câu vừa được báo.
+
+    Mọi lỗi bị nuốt. Công việc đã xong và đã nằm trong store trước khi hàm này chạy, nên để
+    một Redis dở chứng ném ra là đánh đổi một câu hỏi thật lấy một lần cập nhật màn hình --
+    và tệ hơn: BE đọc một job ném là *"chính job đó đã nổ"*, không hỏi lại, nên vị trí ấy
+    mất câu vĩnh viễn.
+
+    Args:
+        ctx: Context của job vừa xong.
 
     Side effects:
         Publish một con số lên Redis, hoặc không làm gì.
     """
+    bell = ctx.pop(_BELL, None)
     redis = ctx.get("redis")
-    if not request.progress_channel or redis is None:
+    if bell is None or redis is None:
         return
+    channel, ordinal = bell
     try:
-        await redis.publish(request.progress_channel, str(request.ordinal))
+        await redis.publish(channel, ordinal)
     except Exception:  # noqa: BLE001 -- xem docstring
-        logger.warning("could not ring the progress bell for %s", request.request_id, exc_info=True)
+        logger.warning("could not ring the progress bell on %s", channel, exc_info=True)
 
 
 async def write_draft_question(ctx: dict, payload: dict) -> dict:
@@ -850,28 +882,30 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
     `tools/check_contract.py` so số lần retry đáng cho một câu với mức kiên nhẫn của BE
     với một job, còn task mà nó thay thế thì nhận tới năm mươi câu trong một job.
 
-    Xong một câu thì **rung chuông** (ADR-25): BE đang nghe sẽ thu hoạch ngay và đẩy con
-    số mới xuống màn hình, thay vì để giáo viên nhìn một khối bước đứng yên. Chuông rung
-    trên **cả ba** đường ra -- model viết được, model hỏng và lùi về nội dung dọn trước,
-    và máy dev không có API key -- vì cả ba đều đặt một kết quả vào result store, và một
-    màn hình chỉ sống khi có model thì không phải một màn hình sống.
+    Xong một câu thì **đặt sẵn một tiếng chuông** (ADR-25), và worker rung nó sau khi kết
+    quả đã vào store — xem `_arm_bell`. BE đang nghe thu hoạch ngay và đẩy con số mới xuống
+    màn hình, thay vì để giáo viên nhìn một khối bước đứng yên.
+
+    Chuông đặt **trước** khi làm việc, nên nó có mặt trên cả ba đường ra -- model viết được,
+    model hỏng và lùi về nội dung dọn trước, và máy dev không có API key. Cả ba đều đặt một
+    kết quả vào result store, và một màn hình chỉ sống khi có API key thì không phải một màn
+    hình sống.
 
     Args:
-        ctx: Context job của arq. `ctx["redis"]` dùng để rung chuông.
+        ctx: Context job của arq, nơi tiếng chuông được đặt xuống.
         payload: Một DraftQuestionRequested đã serialise.
 
     Returns:
         Một DraftQuestionCompleted đã serialise.
 
     Side effects:
-        Publish một tiếng chuông lên Redis. AGENT không ghi vào store nào của riêng nó;
-        BE harvest kết quả và quyết định nó có được vào đề nháp hay không.
+        Ghi tiếng chuông vào `ctx`. AGENT không ghi vào store nào của riêng nó; BE harvest
+        kết quả và quyết định nó có được vào đề nháp hay không.
     """
     request = DraftQuestionRequested.model_validate(payload)
+    _arm_bell(ctx, request)
     if not llm.enabled():
-        answer = draft_question(request).model_dump(mode="json")
-        await _ring(ctx, request)
-        return answer
+        return draft_question(request).model_dump(mode="json")
 
     try:
         # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `_faults` so
@@ -887,15 +921,11 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
         # chuyện giáo viên hỏi lại một lần; một đề nháp từ chối bắt đầu là một tính năng
         # không hoạt động.
         logger.exception("model could not write question %d of the draft", request.ordinal)
-        answer = draft_question(request).model_dump(mode="json")
-        await _ring(ctx, request)
-        return answer
+        return draft_question(request).model_dump(mode="json")
 
-    written = DraftQuestionCompleted(request_id=request.request_id, question=question).model_dump(
+    return DraftQuestionCompleted(request_id=request.request_id, question=question).model_dump(
         mode="json"
     )
-    await _ring(ctx, request)
-    return written
 
 
 async def generate_retry_question(ctx: dict, payload: dict) -> dict:

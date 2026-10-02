@@ -7,6 +7,7 @@ Chuông chở một con số, câu hỏi đi result store của arq, và hai tes
 nửa ấy đứng tách nhau.
 """
 
+from contextlib import aclosing
 from datetime import UTC, datetime
 
 import pytest
@@ -140,8 +141,10 @@ async def test_a_question_lands_even_when_nobody_listened(stack) -> None:
     phòng trống và mất luôn — đúng như pub/sub vốn vậy. Thứ không được phép mất là câu hỏi:
     nó nằm trong result store của arq, và lần quan sát kế tiếp đưa nó vào đề.
 
-    Nếu một ngày ai đó chuyển nội dung câu hỏi vào tiếng chuông để "đỡ một vòng đọc", test
-    này là thứ đỏ lên.
+    Test này **không** chạm tới chuông: nó dựng kết quả bằng hàng đợi giả rồi thu hoạch. Đó
+    đúng là điều nó muốn nói — đường đưa câu vào đề không đi qua pub/sub ở bất kỳ đâu, nên
+    nó chạy được mà không cần một tiếng chuông nào tồn tại. Luật "chuông chở số, không chở
+    câu hỏi" được canh ở phía AGENT (`services/agent/tests/test_progress_bell.py`).
     """
     maker, queue = stack
     draft = await _draft(maker)
@@ -170,14 +173,129 @@ async def test_a_question_lands_even_when_nobody_listened(stack) -> None:
     assert waiting == []
 
 
-@pytest.mark.asyncio
-async def test_listening_without_a_queue_ends_quietly() -> None:
-    """Queue chết thì đường nghe im lặng đi ra, không ném.
+class FakePubSub:
+    """Đứng thay cho một kết nối pub/sub của Redis, và ghi lại những gì nó được bảo."""
 
-    Nó chạy trong cùng request với một lượt chat. Một `AttributeError` ở đây sẽ biến một
-    hàng đợi tạm thời không với tới được thành một lượt chat hỏng — trong khi thứ duy nhất
-    mất đi là sự sống động của một khối bước.
+    def __init__(self, log: list[str], bells: list[object], breaks: bool = False) -> None:
+        self.log = log
+        self.bells = bells
+        self.breaks = breaks
+
+    async def subscribe(self, channel: str) -> None:
+        self.log.append(f"subscribe {channel}")
+
+    async def get_message(self, ignore_subscribe_messages: bool, timeout: float) -> dict | None:
+        if self.breaks:
+            raise ConnectionError("redis đi vắng giữa lúc nghe")
+        if self.bells:
+            return {"type": "message", "data": self.bells.pop(0)}
+        return None
+
+    async def unsubscribe(self, channel: str) -> None:
+        self.log.append("unsubscribe")
+
+    async def aclose(self) -> None:
+        self.log.append("aclose")
+
+
+class FakePool:
+    """Pool chỉ biết đẻ ra một pubsub giả."""
+
+    def __init__(self, pubsub: FakePubSub) -> None:
+        self._pubsub = pubsub
+
+    def pubsub(self) -> FakePubSub:
+        return self._pubsub
+
+
+@pytest.mark.asyncio
+async def test_the_channel_is_open_before_the_job_is_handed_over() -> None:
+    """Mở tai **trước** khi đẩy job, và luật ấy phải nằm trong hàm.
+
+    Pub/sub không giữ lịch sử, arq giao job gần như tức thì, và trên máy dev không có API
+    key thì một câu "soạn xong" trong vài micro-giây — đẩy job trước là trao cho worker cơ
+    hội nói vào một căn phòng trống. Generator của Python lại **lười**: thân hàm không chạy
+    cho tới lần lặp đầu tiên, nên một caller viết `await fire(...)` rồi mới `async for` sẽ
+    subscribe muộn mà không có gì báo. Vì thế việc đẩy job đi vào tham số `start`.
     """
-    heard = [one async for one in listen_for_progress(None, "bat-ky", 0.1)]
+    log: list[str] = []
+    pool = FakePool(FakePubSub(log, [b"1"]))
+
+    async def fire_now() -> None:
+        log.append("fire")
+
+    heard = [one async for one in listen_for_progress(pool, "de-1", 0.3, start=fire_now)]
+
+    assert heard == [1]
+    assert log[0] == "subscribe draft:de-1"
+    assert log[1] == "fire"
+
+
+@pytest.mark.asyncio
+async def test_only_numbers_are_heard_and_rubbish_does_not_keep_it_alive() -> None:
+    """Tin không phải số bị bỏ, và nó **không** làm mới đồng hồ kiên nhẫn.
+
+    Nếu một tin rác cũng gia hạn, một publisher nói linh tinh giữ generator này sống mãi —
+    và nó đang chạy bên trong một request.
+    """
+    log: list[str] = []
+    pool = FakePool(FakePubSub(log, [b"4", b"khong-phai-so", b"7"]))
+
+    heard = [one async for one in listen_for_progress(pool, "de-1", 0.3)]
+
+    assert heard == [4, 7]
+
+
+@pytest.mark.asyncio
+async def test_a_redis_that_breaks_mid_listen_stops_quietly() -> None:
+    """Redis gãy giữa lúc nghe thì thôi nghe, không ném.
+
+    Hàm này chạy trong cùng một lượt chat với việc soạn đề. Một exception thoát ra đây biến
+    một hàng đợi tạm thời không với tới được thành một lượt chat hỏng, trong khi thứ duy
+    nhất mất đi là sự sống động của một khối bước.
+    """
+    log: list[str] = []
+    pool = FakePool(FakePubSub(log, [], breaks=True))
+
+    heard = [one async for one in listen_for_progress(pool, "de-1", 0.3)]
 
     assert heard == []
+    # Và nó vẫn dọn dẹp: một subscription bỏ lại giữ một connection của pool suốt đời process.
+    assert log[-2:] == ["unsubscribe", "aclose"]
+
+
+@pytest.mark.asyncio
+async def test_leaving_early_still_closes_the_channel() -> None:
+    """Người nghe `break` giữa chừng thì channel vẫn phải đóng.
+
+    Pha E dừng nghe bằng đúng `break` khi đã đủ câu. Không có `aclosing`, việc dọn dẹp bị
+    hoãn tới lượt gc, và mỗi lượt chat để lại một subscription treo.
+    """
+    log: list[str] = []
+    pool = FakePool(FakePubSub(log, [b"1", b"2", b"3"]))
+
+    async with aclosing(listen_for_progress(pool, "de-1", 0.3)) as bells:
+        async for one in bells:
+            if one == 2:
+                break
+
+    assert log[-2:] == ["unsubscribe", "aclose"]
+
+
+@pytest.mark.asyncio
+async def test_listening_without_a_queue_still_does_the_work() -> None:
+    """Queue chết thì đường nghe im lặng đi ra — nhưng `start` vẫn phải chạy.
+
+    `start` là việc thật (đẩy job, và trước đó là `fire` ghi row). Bỏ qua nó khi không có
+    pool nghĩa là một hàng đợi tạm thời không với tới được sẽ **nuốt luôn** việc soạn đề,
+    chứ không chỉ nuốt phần hiển thị.
+    """
+    done: list[str] = []
+
+    async def fire_now() -> None:
+        done.append("fire")
+
+    heard = [one async for one in listen_for_progress(None, "bat-ky", 0.1, start=fire_now)]
+
+    assert heard == []
+    assert done == ["fire"]

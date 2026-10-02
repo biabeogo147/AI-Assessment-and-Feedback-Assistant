@@ -100,8 +100,10 @@ class DraftQuestionRequested(BaseModel):
             bằng luật của chính nó lúc nhận, nên hai service không bao giờ phải giữ hai bộ chuẩn hoá
             đồng bộ với nhau. Dù sao cũng chỉ là cố gắng hết sức: các job bắn cùng lúc không thể
             biết đầu ra của nhau, nên BE kiểm trùng lại lúc harvest.
-        progress_channel: Nơi AGENT rung một tiếng chuông khi câu này viết xong. Rỗng nghĩa là
-            không ai quan tâm, và khi đó không có gì được publish.
+        progress_channel: Channel của **cái đề này** — nơi worker rung một tiếng chuông sau khi
+            câu này đã vào result store. BE luôn điền nó; chuỗi rỗng chỉ là mặc định cho một
+            payload cũ, và khi đó không có gì được publish. Nó **không** nói "có ai đang nghe
+            hay không": lúc đẩy job thì BE không biết điều đó, và cũng không cần biết.
 
             Chuông chở **một con số thứ tự, không chở câu hỏi** (ADR-25). Câu hỏi vẫn đi đường
             cũ -- result store của arq, BE thu hoạch -- vì pub/sub của Redis không bền: không ai

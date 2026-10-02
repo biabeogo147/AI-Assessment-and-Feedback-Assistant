@@ -24,7 +24,7 @@ khi nó soạn trước một câu hỏi remediation.
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -115,50 +115,86 @@ def progress_channel(assessment_id: str) -> str:
 
 
 async def listen_for_progress(
-    pool: object, assessment_id: str, patience_seconds: float
+    pool: object,
+    assessment_id: str,
+    patience_seconds: float,
+    start: Callable[[], Awaitable[object]] | None = None,
 ) -> AsyncIterator[int]:
     """Nghe chuông của một đề nháp, yield số thứ tự của từng câu vừa xong.
 
-    Pub/sub của Redis **không bền**, và cả thiết kế dựa trên điều đó: không ai nghe thì
-    tiếng chuông mất, mà câu hỏi thì không -- nó nằm trong result store của arq và vào đề ở
-    lần quan sát kế tiếp. Nên hàm này chỉ cắt độ trễ; nó không bao giờ là đường duy nhất
-    đưa một câu vào đề, và không có nó thì không mất gì ngoài sự sống động.
+    **`start` chạy ngay sau khi đã subscribe, và đó là lý do nó là một tham số.** Việc đẩy
+    job phải xảy ra sau việc mở tai: pub/sub của Redis không giữ lịch sử, arq giao job cho
+    worker gần như tức thì, và trên một máy dev không có API key thì một câu "soạn xong"
+    trong vài micro-giây. Đẩy job trước là trao cho worker cơ hội nói vào một căn phòng
+    trống -- và vì generator của Python **lười**, thân hàm này không chạy cho tới lần lặp
+    đầu tiên, nên một caller viết `await fire(...)` rồi `async for ...` sẽ subscribe muộn mà
+    không có gì báo. Đưa việc ấy vào đây là cách duy nhất để thứ tự không phụ thuộc vào trí
+    nhớ của người gọi; `agent_gateway.stream_task` giữ cùng một luật theo cùng một cách.
 
-    Nó **không chạm database**. Người gọi nghe một tiếng chuông rồi tự quyết thu hoạch và
-    phát gì xuống màn hình -- giữ chỗ này không có session nghĩa là nó không giữ một
-    connection database suốt thời gian một vòng soạn chạy.
+    Pub/sub **không bền**, và cả thiết kế dựa trên điều đó: không ai nghe thì tiếng chuông
+    mất, mà câu hỏi thì không -- nó nằm trong result store của arq và vào đề ở lần quan sát
+    kế tiếp. Hàm này chỉ cắt độ trễ; nó không bao giờ là đường duy nhất đưa một câu vào đề.
+
+    Nó **không chạm database**. Người gọi nghe một tiếng chuông rồi tự quyết thu hoạch --
+    giữ chỗ này không có session nghĩa là nó không giữ một connection database suốt thời
+    gian một vòng soạn chạy.
+
+    Chuông **không phải một bộ đếm**: một vị trí được thử lại sẽ rung thêm một lần cho cùng
+    số thứ tự, và một tiếng chuông có thể mất. Số câu đã soạn phải đếm từ database, không
+    phải từ số lần nghe.
 
     Args:
         pool: Pool arq đã kết nối, hoặc None khi không tới được queue.
         assessment_id: Đề nháp nào.
         patience_seconds: Im lặng bao lâu thì thôi nghe.
+        start: Việc cần làm ngay sau khi đã subscribe -- thường là đẩy job.
 
     Yields:
         Số thứ tự của câu vừa viết xong, theo đúng thứ tự chuông tới.
 
     Side effects:
-        Subscribe một channel Redis, và luôn huỷ đăng ký khi đi ra.
+        Subscribe một channel Redis, chạy `start`, và huỷ đăng ký khi đi ra. Người gọi
+        thoát sớm bằng `break` thì bọc vòng lặp trong `contextlib.aclosing`, nếu không việc
+        dọn dẹp bị hoãn tới lượt gc.
     """
     if pool is None:
+        if start is not None:
+            await start()
         return
 
     channel = progress_channel(assessment_id)
     pubsub = pool.pubsub()
     try:
         await pubsub.subscribe(channel)
+        if start is not None:
+            await start()
+
         deadline = asyncio.get_running_loop().time() + patience_seconds
         while asyncio.get_running_loop().time() < deadline:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=_BELL_WAIT)
+            try:
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=_BELL_WAIT
+                )
+            except Exception:  # noqa: BLE001 -- xem bên dưới
+                # Redis gãy giữa lúc nghe thì thôi nghe, không ném. Hàm này chạy trong cùng
+                # một lượt chat với việc soạn đề; một exception thoát ra đây biến một hàng
+                # đợi tạm thời không với tới được thành một lượt chat hỏng, trong khi thứ
+                # duy nhất mất đi là sự sống động của một khối bước.
+                logger.warning("stopped listening on %s", channel, exc_info=True)
+                return
             if message is None or message.get("type") != "message":
                 continue
-            deadline = asyncio.get_running_loop().time() + patience_seconds
             raw = message["data"]
             text = raw.decode() if isinstance(raw, bytes) else str(raw)
-            if text.isdigit():
-                yield int(text)
+            if not text.isdigit():
+                # Không làm mới deadline cho một tin rác: nếu không, một publisher nói
+                # linh tinh giữ generator này sống mãi.
+                continue
+            deadline = asyncio.get_running_loop().time() + patience_seconds
+            yield int(text)
     finally:
-        # Cũng chạy khi người nghe bỏ đi giữa chừng: generator bị cancel, và một
-        # subscription chưa đóng giữ một connection của pool suốt đời process.
+        # Chạy khi generator bị cancel hoặc được `aclose`. Lỗi bị nuốt, vì một lần gãy lúc
+        # dọn dẹp sẽ *thay thế* đúng cái thứ đã sai trước đó.
         try:
             await pubsub.unsubscribe(channel)
             await pubsub.aclose()
@@ -527,7 +563,19 @@ async def harvest(
             # chứ không phải một phép gán.
             advance(assessment, AssessmentState.HAS_QUESTIONS)
 
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Hai người thu cùng một lúc. Trước chuông tiến độ đây là một trùng hợp hiếm; nay
+        # mỗi tiếng chuông đánh thức **mọi** tab đang mở cùng một đề, nên nó là chuyện
+        # thường ngày. `Question` có unique trên (đề, vị trí), nên bên thua cuộc vướng vào
+        # đó — và bên thua không có gì để làm: câu hỏi đã nằm trong đề, do bên kia ghi.
+        #
+        # Cùng cách `fire` xử một cuộc đua ở cùng chỗ: rollback, nói ra, và trả về 0 chứ
+        # không ném. Một lượt chat không được hỏng vì một tab thứ hai nhanh tay hơn.
+        await session.rollback()
+        logger.info("another reader harvested %s first", assessment_id)
+        return 0
     return landed
 
 

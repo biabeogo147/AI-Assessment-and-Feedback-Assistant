@@ -141,6 +141,13 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
 - **Một lượt đầu tiên nay tiêu ba loại lời gọi model**: pha 1, báo cáo, và đặt tên đoạn chat.
 - **Figma phải nói rõ artboard là ảnh chụp**, và mô tả component `Thinking` phải nói nó cập nhật liên
   tục trong pha 2.
+- **Chuông phải rung sau khi kết quả đã vào store.** arq ghi kết quả *sau khi* coroutine của job trả
+  về, nên một tiếng chuông phát ra từ trong thân job báo một câu xong trước khi ai đọc được nó: BE
+  nghe chuông rồi thu hoạch sẽ gặp `pending`, màn hình trễ một nhịp, và **tiếng chuông cuối cùng
+  không gặt được gì** — tức điều kiện *"pha 2 xong khi không còn câu nào đang soạn"* không bao giờ
+  được thoả. Chỗ đúng là hook `after_job_end` của worker.
+- **Chuông không phải một bộ đếm.** Một vị trí thử lại rung thêm một lần cho cùng số thứ tự, và một
+  tiếng chuông có thể mất. Số câu đã soạn phải đếm từ database.
 
 ## Nơi luật này đang được thi hành
 

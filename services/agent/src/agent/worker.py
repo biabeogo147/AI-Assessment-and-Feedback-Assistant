@@ -22,6 +22,7 @@ from agent.handlers import (
     name_conversation,
     propose_next_step,
     report_plan,
+    ring_bell,
     write_draft_question,
 )
 from agent.legacy_grading import grade_submission
@@ -106,3 +107,9 @@ class WorkerSettings:
     redis_settings = _redis_settings()
     keep_result = _settings.job_result_ttl_seconds
     on_startup = startup
+
+    # Chuông tiến độ rung ở đây chứ không trong thân job, và thứ tự là cả lý do: arq ghi
+    # kết quả bằng `finish_job` rồi mới gọi hook này. Rung từ trong job là báo một câu xong
+    # trước khi ai đọc được nó — BE nghe chuông rồi thu hoạch sẽ gặp `pending`, màn hình
+    # trễ một nhịp, và tiếng chuông cuối cùng không gặt được gì (ADR-25).
+    after_job_end = ring_bell

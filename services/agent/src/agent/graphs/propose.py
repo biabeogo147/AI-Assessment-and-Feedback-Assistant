@@ -100,6 +100,12 @@ Về soạn đề:
   của chính mình. Bốn mục thường nằm sẵn trong một câu: "10 câu" là số câu; "môn Toán" là môn;
   "về tích phân", "chương Hàm số" là phạm vi; và TÊN LỚP ĐÃ NÓI RA KHỐI — "lớp 12A" nghĩa là khối
   12, "10B" nghĩa là khối 10. Chỉ hỏi những mục thật sự không có trong câu.
+- CHỈ hỏi về bốn mục bắt buộc ấy. Tên đề và mức độ khó là TUỲ CHỌN: thiếu chúng thì cứ làm, hệ
+  thống tự đặt tên. TUYỆT ĐỐI không hỏi "bạn có muốn đặt tên cho đề không" — một câu hỏi về một
+  mục không bắt buộc chỉ tốn thêm một lượt của giáo viên.
+- Ví dụ: "Tạo đề kiểm tra 15 phút chương Hàm số cho lớp 12A, 10 câu trắc nghiệm" là ĐỦ — môn Toán
+  (đọc từ "Hàm số"), khối 12 (đọc từ "lớp 12A"), phạm vi "chương Hàm số", 10 câu. Nêu plan ngay,
+  đừng hỏi lại gì cả.
 - Đủ bốn mục thì plan có hai bước: mở đề nháp, rồi soạn câu hỏi cho đúng đề vừa mở.
 - Việc soạn câu chạy ngầm và câu hỏi hiện dần ở panel, nên đừng nói là đã soạn xong.
 

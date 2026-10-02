@@ -420,6 +420,9 @@ async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
     # thức và số câu" cho một câu đã nói cả hai. Khối đọc được từ tên lớp, và nói ra điều ấy
     # là chỗ rẻ nhất để một lượt không chết vì một câu hỏi thừa.
     assert "lớp 12A" in prompt and "khối" in prompt
+    # Và luật "chỉ hỏi bốn mục bắt buộc": đo trên trình duyệt thật, model hỏi giáo viên có
+    # muốn đặt tên cho đề không — một câu hỏi về một mục tuỳ chọn, tốn trọn một lượt.
+    assert "TUỲ CHỌN" in prompt
     # Và luật đi kèm: chỉ trỏ về phía sau. `vet_plan` từ chối một plan trỏ về phía trước,
     # nên không nói ra là để model tự tìm ra bằng cách bị từ chối.
     assert "ĐỨNG TRƯỚC" in prompt
