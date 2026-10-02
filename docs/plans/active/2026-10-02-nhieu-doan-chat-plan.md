@@ -42,9 +42,9 @@ Chúng ở lại trong `backlog.md`.
 - [x] **Bước 2 — `_conversation_of`.** Tìm đoạn chat đã sinh ra một đề qua `teacher_turns`. Cho
       `note_action` dùng nó thay cho "đoạn mới nhất". Cổng: đột biến trả nó về "mới nhất" làm đúng
       một test đỏ.
-- [ ] **Bước 3 — `GET /api/teacher/conversations`.** Trả `conversation_id`, `title`, `started_at`,
+- [x] **Bước 3 — `GET /api/teacher/conversations`.** Trả `conversation_id`, `title`, `started_at`,
       `last_spoke_at`. Cổng: đoạn chat của giáo viên khác đọc ra y như một đoạn không tồn tại.
-- [ ] **Bước 4 — chọn đoạn chat.** `GET /teacher/chat` nhận `conversation_id`; `Said` nhận
+- [x] **Bước 4 — chọn đoạn chat.** `GET /teacher/chat` nhận `conversation_id`; `Said` nhận
       `conversation_id` và cờ `start_new`, loại trừ nhau. Cổng: hai đoạn song song cho hai lịch sử
       khác nhau, và gửi kèm cả hai tham số trả 422.
 - [ ] **Bước 5 — `AssessmentDetail.conversation_id`.** Cổng: đề sinh từ chat trả đúng id; đề seed
@@ -183,3 +183,14 @@ nên hai luồng mở sát nhau có `started_at` bằng nhau và luồng thắng
 Nay khoá sắp xếp là `COALESCE(lần nói cuối, started_at)`, và nó đúng hơn về nghĩa chứ không chỉ chữa
 được hoà: *"luồng đang chạy"* là luồng **vừa nói**, không phải luồng **vừa mở**. Một giáo viên mở
 luồng mới hôm qua rồi quay lại luồng cũ nói tiếp thì luồng cũ mới là luồng họ đang ở.
+
+Bước 3 và 4 xong. Danh sách đoạn chat chỉ trả những đoạn **đã có ít nhất một bước** — một hàng rỗng
+không có gì để vẽ và không có đường nào xoá, nên `JOIN` thay cho `LEFT JOIN` là cách rẻ nhất để rác
+không bao giờ lên màn hình.
+
+`conversation_id` là id **đầu tiên trong file này đi ngược chiều**: mọi id trước đây đều do BE tự tìm
+từ `teacher_id`, nên luật sở hữu là cấu trúc; cái này do client gửi, nên nó phải được kiểm. Một id
+của người khác trả về y hệt một id không tồn tại, và có test so **nguyên body** của hai ca đó.
+
+`Answered` nay mang `conversation_id`. Không có nó thì FE bấm *Đoạn chat mới*, gửi câu đầu, rồi
+không biết mình vừa nói vào đâu — và phải đoán bằng "đoạn mới nhất", đúng thứ vừa sửa ở bước 2.

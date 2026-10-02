@@ -406,3 +406,224 @@ async def test_a_teacher_who_only_reads_starts_no_conversation(stack) -> None:
         started = (await session.scalars(select(TeacherConversation))).all()
 
     assert started == []
+
+
+@pytest.mark.asyncio
+async def test_the_rail_lists_conversations_newest_spoken_first(stack) -> None:
+    """Danh sách sắp theo **lần nói cuối**, không theo giờ mở.
+
+    Một đoạn chat mở từ tuần trước mà hôm nay vừa nói tiếp thì đứng đầu, vì đó là chỗ
+    người ta đi tìm nó. Sắp theo giờ mở thì đoạn đang dùng nhiều nhất lại trôi xuống dưới
+    cùng — và trên một rail chỉ hiện vài dòng, trôi xuống dưới nghĩa là biến mất.
+    """
+    client, maker, _ = stack
+
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher))
+        assert teacher is not None
+        for name, opened, spoke in (
+            (
+                "cũ nhưng vừa nói",
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 9, 30, tzinfo=UTC),
+            ),
+            (
+                "mới mở, nói lâu rồi",
+                datetime(2026, 9, 1, tzinfo=UTC),
+                datetime(2026, 9, 2, tzinfo=UTC),
+            ),
+        ):
+            thread = TeacherConversation(teacher_id=teacher.id, started_at=opened, title=name)
+            session.add(thread)
+            await session.flush()
+            session.add(
+                TeacherTurn(
+                    conversation_id=thread.id,
+                    sequence=0,
+                    kind="teacher",
+                    text=name,
+                    created_at=spoke,
+                )
+            )
+        await session.commit()
+
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+
+    assert listed.status_code == 200
+    assert [one["title"] for one in listed.json()] == ["cũ nhưng vừa nói", "mới mở, nói lâu rồi"]
+
+
+@pytest.mark.asyncio
+async def test_an_empty_conversation_never_reaches_the_rail(stack) -> None:
+    """Một hàng chưa có bước nào không lên danh sách.
+
+    Nó không có gì để vẽ và không có đường nào xoá, nên nó chỉ có thể là rác: `start_new`
+    ghi bước đầu tiên trong cùng request, nên một hàng rỗng nghĩa là một request đã chết
+    giữa chừng. Người dùng đã chốt *"danh sách không bao giờ có đoạn chat rỗng"*.
+    """
+    client, maker, _ = stack
+
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher))
+        assert teacher is not None
+        session.add(TeacherConversation(teacher_id=teacher.id, started_at=datetime.now(UTC)))
+        await session.commit()
+
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+
+    assert listed.status_code == 200
+    assert listed.json() == []
+
+
+@pytest.mark.asyncio
+async def test_one_teacher_never_lists_another_teachers_conversations(stack) -> None:
+    """ADR-22, và ở đây luật ấy là **cấu trúc**: endpoint không nhận id nào cả.
+
+    Không có tham số nào để truyền một id của người khác vào, nên không có đường nào để
+    bịt — đó là hình dạng rẻ nhất của luật này.
+    """
+    client, maker, _ = stack
+
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        stranger = Teacher(full_name="Thầy Nguyễn Văn B", teacher_code="GV-002")
+        session.add(stranger)
+        await session.flush()
+        for who, name in ((mine, "của tôi"), (stranger, "của người khác")):
+            thread = TeacherConversation(
+                teacher_id=who.id, started_at=datetime.now(UTC), title=name
+            )
+            session.add(thread)
+            await session.flush()
+            session.add(
+                TeacherTurn(
+                    conversation_id=thread.id,
+                    sequence=0,
+                    kind="teacher",
+                    text=name,
+                    created_at=datetime.now(UTC),
+                )
+            )
+        await session.commit()
+
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+
+    assert [one["title"] for one in listed.json()] == ["của tôi"]
+
+
+@pytest.mark.asyncio
+async def test_two_conversations_keep_two_histories(stack) -> None:
+    """Hai đoạn chat song song không lẫn vào nhau.
+
+    Đây là lý do cả đợt này tồn tại. Nếu lịch sử lẫn nhau thì nhiều đoạn chat còn tệ hơn
+    một đoạn: trợ lý đọc một hội thoại chắp vá của hai việc không liên quan, và giáo viên
+    không có cách nào biết điều đó đang xảy ra.
+    """
+    client, _, monkeypatch = stack
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent())
+
+    first = await client.post(
+        "/api/teacher/chat/messages", json={"text": "việc thứ nhất"}, headers=TEACHER
+    )
+    second = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "việc thứ hai", "start_new": True},
+        headers=TEACHER,
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json()["conversation_id"] != second.json()["conversation_id"]
+
+    older = await client.get(
+        "/api/teacher/chat",
+        params={"conversation_id": first.json()["conversation_id"]},
+        headers=TEACHER,
+    )
+    newer = await client.get(
+        "/api/teacher/chat",
+        params={"conversation_id": second.json()["conversation_id"]},
+        headers=TEACHER,
+    )
+
+    assert [turn["text"] for turn in older.json()["turns"] if turn["kind"] == "teacher"] == [
+        "việc thứ nhất"
+    ]
+    assert [turn["text"] for turn in newer.json()["turns"] if turn["kind"] == "teacher"] == [
+        "việc thứ hai"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_another_teachers_conversation_reads_as_absent(stack) -> None:
+    """ADR-22 trên một id **do client gửi**.
+
+    Mọi id trước đây trong file này đều do BE tự tìm ra từ `teacher_id`, nên luật sở hữu
+    là cấu trúc. `conversation_id` là id đầu tiên đi ngược chiều, và nó phải được kiểm —
+    một id của người khác đọc ra y hệt một id không tồn tại, vì phân biệt được hai ca ấy
+    là cho bất kỳ ai dò xem giáo viên khác đang có những gì.
+    """
+    client, maker, monkeypatch = stack
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent())
+
+    async with maker() as session:
+        stranger = Teacher(full_name="Thầy Nguyễn Văn B", teacher_code="GV-002")
+        session.add(stranger)
+        await session.flush()
+        thread = TeacherConversation(
+            teacher_id=stranger.id, started_at=datetime.now(UTC), title="của người khác"
+        )
+        session.add(thread)
+        await session.flush()
+        session.add(
+            TeacherTurn(
+                conversation_id=thread.id,
+                sequence=0,
+                kind="teacher",
+                text="bí mật",
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+        theirs = thread.id
+
+    read = await client.get(
+        "/api/teacher/chat", params={"conversation_id": theirs}, headers=TEACHER
+    )
+    made_up = await client.get(
+        "/api/teacher/chat", params={"conversation_id": "khong-ton-tai"}, headers=TEACHER
+    )
+    said = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "chen vao", "conversation_id": theirs},
+        headers=TEACHER,
+    )
+
+    assert read.status_code == 404
+    assert read.json() == made_up.json()
+    assert said.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_asking_for_both_a_thread_and_a_new_one_is_refused(stack) -> None:
+    """Gửi cả `conversation_id` lẫn `start_new` là một request tự mâu thuẫn.
+
+    Chọn hộ một trong hai là chọn hộ sai một nửa số lần, và cái sai ấy im lặng: câu vừa gõ
+    rơi vào một đoạn chat khác chỗ người ta tưởng. `422` ở biên rẻ hơn hẳn.
+    """
+    client, _, monkeypatch = stack
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent())
+
+    opened = await client.post(
+        "/api/teacher/chat/messages", json={"text": "mở một đoạn"}, headers=TEACHER
+    )
+    both = await client.post(
+        "/api/teacher/chat/messages",
+        json={
+            "text": "vừa cái này vừa cái kia",
+            "conversation_id": opened.json()["conversation_id"],
+            "start_new": True,
+        },
+        headers=TEACHER,
+    )
+
+    assert both.status_code == 422

@@ -45,7 +45,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,7 +54,7 @@ from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
 from be.db import get_session
 from be.identity import Asking, current_teacher
-from be.models import Teacher, TeacherConversation, TeacherTurn
+from be.models import Teacher, TeacherConversation, TeacherTurn, aware
 from be.teacher_tools import UnknownTool, catalog_for, execute
 from contracts import (
     PROPOSE_NEXT_STEP_TASK,
@@ -80,9 +80,36 @@ _AGENT_UNAVAILABLE = "Trợ lý chưa trả lời được. Bạn thử lại sa
 
 
 class Said(BaseModel):
-    """Thứ giáo viên vừa gõ."""
+    """Thứ giáo viên vừa gõ, và nói vào đâu.
+
+    Hai field sau loại trừ nhau, và việc đó được **kiểm** chứ không phải được mong: gửi
+    cả hai nghĩa là client đang nói hai điều trái nhau — *"nói tiếp đoạn này"* và *"mở
+    đoạn mới"* — và chọn hộ một trong hai là chọn hộ một nửa số lần sai.
+
+    Attributes:
+        text: Câu vừa gõ.
+        conversation_id: Nói vào đoạn chat nào. Thiếu thì vào đoạn đang chạy, y như
+            trước khi giáo viên có nhiều đoạn.
+        start_new: Mở một đoạn mới. Đây là đường **duy nhất** mở đoạn thứ hai.
+    """
 
     text: str = Field(min_length=1, max_length=2000)
+    conversation_id: str | None = None
+    start_new: bool = False
+
+    @model_validator(mode="after")
+    def _one_or_the_other(self) -> "Said":
+        """Chặn một request tự mâu thuẫn ngay ở biên.
+
+        Returns:
+            Chính nó khi hợp lệ.
+
+        Raises:
+            ValueError: Khi vừa chỉ định đoạn chat vừa xin đoạn mới.
+        """
+        if self.start_new and self.conversation_id is not None:
+            raise ValueError("chọn một đoạn chat hoặc mở đoạn mới, không phải cả hai")
+        return self
 
 
 class Turn(BaseModel):
@@ -131,6 +158,7 @@ class Answered(BaseModel):
 
     kind: str
     text: str
+    conversation_id: str = ""
     choices: list[str] = Field(default_factory=list)
     more_choices: int = 0
     turns: list[Turn] = Field(default_factory=list)
@@ -264,6 +292,54 @@ def _subject(result: dict) -> tuple[str, str]:
     return "", ""
 
 
+async def _owned_conversation(session: AsyncSession, asking: Asking, thread: str) -> str | None:
+    """Đoạn chat này có phải của người đang hỏi không.
+
+    `conversation_id` nay là thứ **client gửi lên**, nên nó là một id không tin được —
+    khác hẳn mọi id trước đây trong file này, vốn do chính BE tìm ra từ `teacher_id`. Một
+    id của người khác mà lọt qua sẽ cho đọc nguyên một hội thoại không phải của mình.
+
+    Trả `None` cho cả hai ca — không tồn tại, và không phải của bạn — vì ADR-22 nói hai ca
+    ấy phải đọc ra **y hệt nhau**. Phân biệt được chúng là cho bất kỳ ai dò xem giáo viên
+    khác đang có những gì, chỉ bằng cách thử id.
+
+    Args:
+        session: Session của database.
+        asking: Ai đang hỏi.
+        thread: Id client gửi lên.
+
+    Returns:
+        Chính id đó khi nó là của người hỏi, ngược lại `None`.
+    """
+    return await session.scalar(
+        select(TeacherConversation.id).where(
+            TeacherConversation.id == thread,
+            TeacherConversation.teacher_id == asking.teacher_id,
+        )
+    )
+
+
+def _spoke_at():
+    """Lần nói cuối của mỗi hội thoại, dưới dạng một subquery ghép được.
+
+    Hai nơi cần đúng con số này: `_latest_conversation` chọn luồng đang chạy, và danh
+    sách trên rail sắp các luồng theo nó. Một biểu thức, hai người gọi — vì hai bản của
+    cùng một phép sắp xếp là hai bản sẽ lệch nhau, và lúc lệch thì luồng đứng đầu danh
+    sách không còn là luồng mà một tin nhắn không ghi id sẽ rơi vào.
+
+    Returns:
+        Subquery hai cột: `conversation_id` và `at`.
+    """
+    return (
+        select(
+            TeacherTurn.conversation_id.label("conversation_id"),
+            func.max(TeacherTurn.created_at).label("at"),
+        )
+        .group_by(TeacherTurn.conversation_id)
+        .subquery()
+    )
+
+
 async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | None:
     """Tìm id của hội thoại **đang chạy** của giáo viên này, nếu họ có một hội thoại.
 
@@ -289,14 +365,7 @@ async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | N
     Returns:
         id đó, hoặc None khi giáo viên chưa nói gì bao giờ.
     """
-    spoke = (
-        select(
-            TeacherTurn.conversation_id.label("conversation_id"),
-            func.max(TeacherTurn.created_at).label("at"),
-        )
-        .group_by(TeacherTurn.conversation_id)
-        .subquery()
-    )
+    spoke = _spoke_at()
     active = func.coalesce(spoke.c.at, TeacherConversation.started_at)
     return await session.scalar(
         select(TeacherConversation.id)
@@ -631,7 +700,15 @@ async def say_something(
     # làm chúng hết hạn là `rollback` giữa các bước gọi tool, và nó bỏ qua setting đó.
     # Cùng một cách phòng, khác nguyên nhân -- và một bài học ghi lại sai nguyên nhân thì
     # lần sau sẽ được đem áp vào sai chỗ.
-    thread = await _conversation(session, asking)
+    if said.conversation_id is not None:
+        thread = await _owned_conversation(session, asking, said.conversation_id)
+        # Một đoạn chat không tồn tại và một đoạn của người khác nhận cùng một câu trả
+        # lời (ADR-22). `404` chứ không phải mở hộ một đoạn mới: gõ nhầm id rồi được
+        # nói vào một nơi khác là mất câu vừa gõ ở một chỗ không ai đi tìm.
+        if thread is None:
+            raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+    else:
+        thread = await _conversation(session, asking, start_new=said.start_new)
     stored = await _stored_turns(session, thread)
     position = len(stored)
     # Chỗ lượt này bắt đầu, để câu trả lời báo cáo được các bước của chính nó chứ không
@@ -692,6 +769,7 @@ async def say_something(
             return Answered(
                 kind=step.kind,
                 text=step.text,
+                conversation_id=thread,
                 choices=offered,
                 more_choices=offered_more,
                 turns=await _rendered(session, thread, began),
@@ -759,30 +837,50 @@ async def say_something(
     return Answered(
         kind="say",
         text=_CEILING_REACHED,
+        conversation_id=thread,
         turns=await _rendered(session, thread, began),
     )
 
 
 @router.get("/teacher/chat", response_model=Answered)
 async def read_conversation(
+    conversation_id: str | None = None,
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
 ) -> Answered:
-    """Đọc lại hội thoại của giáo viên này.
+    """Đọc lại một hội thoại của giáo viên này.
 
-    Giới hạn theo chủ sở hữu như mọi thứ khác (ADR-22): hội thoại được tìm qua
-    `teacher_id`, nên không có id nào mà một caller truyền vào để với tới hội thoại của
-    người khác.
+    Thiếu `conversation_id` thì vẫn là **hội thoại đang chạy**, y như trước khi giáo viên
+    có nhiều đoạn. Giữ nguyên mặc định ấy là có chủ ý: nó là thứ sáu test hiện có dựa
+    vào, và sáu test ấy chính là bằng chứng rằng đợt thêm nhiều luồng không làm vỡ hành
+    vi cũ.
+
+    Giới hạn theo chủ sở hữu (ADR-22). Khi không có id thì luật ấy là **cấu trúc** —
+    hội thoại được tìm qua `teacher_id`. Khi có id thì nó là một phép kiểm thật, và một
+    id của người khác đọc ra **y hệt** một id không tồn tại.
 
     Args:
+        conversation_id: Đoạn chat nào. Thiếu thì lấy đoạn đang chạy.
         teacher: Được resolve từ header actor.
         session: Session của database.
 
     Returns:
         Mọi bước đã có tới lúc này. `kind` là "say" và `text` rỗng, vì đọc không phải một
         lượt -- việc trả lời request này không nói ra điều gì cả.
+
+    Raises:
+        HTTPException: 404 khi đoạn chat không tồn tại **hoặc** thuộc về người khác.
     """
     asking = Asking.of(teacher)
+    if conversation_id is not None:
+        thread = await _owned_conversation(session, asking, conversation_id)
+        if thread is None:
+            raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+        stored = await _stored_turns(session, thread)
+        return Answered(
+            kind="say", text="", conversation_id=thread, turns=[_visible(turn) for turn in stored]
+        )
+
     # Có chủ đích không dùng `_conversation`: hàm đó mở một luồng mới khi chưa có luồng
     # nào, và một GET mà ghi dữ liệu là một GET mà một lần prefetch của browser, một cú dò
     # HEAD hay một lần retry có thể nhân lên. Một giáo viên chưa nói gì bao giờ thì có một
@@ -792,4 +890,70 @@ async def read_conversation(
         return Answered(kind="say", text="", turns=[])
 
     stored = await _stored_turns(session, thread)
-    return Answered(kind="say", text="", turns=[_visible(turn) for turn in stored])
+    return Answered(
+        kind="say", text="", conversation_id=thread, turns=[_visible(turn) for turn in stored]
+    )
+
+
+class ConversationRead(BaseModel):
+    """Một đoạn chat trên rail.
+
+    Attributes:
+        conversation_id: Đoạn nào.
+        title: Tên model đã đặt, hoặc câu đầu cắt ngắn khi model không đặt được. Rỗng chỉ
+            trong một khoảnh khắc: giữa lúc luồng được mở và lúc lượt đầu tiên xong.
+        started_at: Lúc mở, UTC.
+        last_spoke_at: Lần nói cuối, UTC. Rail nhóm theo con số **này** chứ không theo giờ
+            mở: một đoạn mở từ tuần trước mà hôm nay vừa nói tiếp thì thuộc về *Hôm nay*,
+            và đó là chỗ người ta đi tìm nó.
+    """
+
+    conversation_id: str
+    title: str
+    started_at: datetime
+    last_spoke_at: datetime
+
+
+@router.get("/teacher/conversations", response_model=list[ConversationRead])
+async def conversations(
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> list[ConversationRead]:
+    """Mọi đoạn chat của giáo viên đang gọi, mới nói nhất lên đầu.
+
+    Chỉ những đoạn **đã có ít nhất một bước**. Một hàng rỗng không có gì để vẽ và không có
+    đường nào xoá, nên nó chỉ có thể là rác — mà `start_new` ghi bước đầu tiên ngay trong
+    cùng request, nên một hàng rỗng nghĩa là một request đã chết giữa chừng. `JOIN` thay
+    cho `LEFT JOIN` là cách rẻ nhất để rác đó không bao giờ lên màn hình.
+
+    Lọc theo `teacher_id`, nên không có id nào một caller truyền vào để với tới đoạn chat
+    của người khác (ADR-22) — ở đây luật ấy là **cấu trúc**: endpoint không nhận id nào cả.
+
+    Args:
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Một dòng cho mỗi đoạn chat, sắp theo lần nói cuối.
+    """
+    spoke = _spoke_at()
+    rows = await session.execute(
+        select(
+            TeacherConversation.id,
+            TeacherConversation.title,
+            TeacherConversation.started_at,
+            spoke.c.at,
+        )
+        .join(spoke, spoke.c.conversation_id == TeacherConversation.id)
+        .where(TeacherConversation.teacher_id == teacher.id)
+        .order_by(spoke.c.at.desc(), TeacherConversation.id.desc())
+    )
+    return [
+        ConversationRead(
+            conversation_id=row.id,
+            title=row.title,
+            started_at=aware(row.started_at),
+            last_spoke_at=aware(row.at),
+        )
+        for row in rows
+    ]
