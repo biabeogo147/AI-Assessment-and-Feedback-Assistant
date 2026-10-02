@@ -8,10 +8,11 @@ import {
   type TeacherDocument,
   type Turn,
 } from "../../api";
-import ActionCard from "./ActionCard";
+import ActionCard, { cardTurn, stepFor } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
 import Rail from "./Rail";
+import Steps, { type Step } from "./Steps";
 
 /**
  * Bề mặt chat của giáo viên: artboard `1 · Bắt đầu` và `2 · Kèm tài liệu`.
@@ -219,27 +220,13 @@ export default function Chat({
                   <div className="said-bubble">{block.said}</div>
                 </div>
               ) : (
-                <div className="exchange" key={index}>
-                  <Who />
-                  <div className="turn-body">
-                    {block.kriky.map((one, step) =>
-                      one.kind === "tool_result" ? (
-                        <ActionCard
-                          key={step}
-                          turn={one}
-                          onOpen={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}`)}
-                          onPublish={(paper) =>
-                            go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)
-                          }
-                        />
-                      ) : (
-                        <div className="reply-text" key={step}>
-                          {one.text}
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
+                <Turnful
+                  key={index}
+                  said={spoken(block.kriky)}
+                  onOpen={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}`)}
+                  onPublish={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)}
+                  onCompose={setText}
+                />
               ),
             )}
             {asked !== null && pending === null && (
@@ -299,7 +286,12 @@ export default function Chat({
             void send(text);
           }}
         >
-          <button className="attach" type="button" onClick={() => picker.current?.click()}>
+          <button
+            className="attach"
+            type="button"
+            disabled={pending !== null}
+            onClick={() => picker.current?.click()}
+          >
             ＋ Tài liệu
           </button>
           <input
@@ -351,6 +343,49 @@ export default function Chat({
 /** Một bong bóng của giáo viên, hoặc **cả** một lượt của Kriky. */
 type Block = { said: string } | { kriky: Turn[] };
 
+/** Một lượt của Kriky, đã tách thành bốn khối của artboard `5 · Đã có đề nháp`. */
+interface Spoken {
+  /** Câu Kriky nói trước khi bắt tay làm. Rỗng thì không có khối nào. */
+  opening: string;
+  /** Các bước tool, vào khối `Thinking`. */
+  steps: Step[];
+  /** Câu kết sau khi làm xong. */
+  conclusion: string;
+  /** Lượt được lên thẻ, hoặc `null`. **Tối đa một thẻ cho một lượt.** */
+  card: Turn | null;
+}
+
+/**
+ * Tách một lượt của Kriky thành bốn khối, theo đúng thứ tự của artboard `5 · Đã có đề nháp`:
+ * câu mở đầu → khối các bước → câu kết → **một** thẻ kết quả.
+ *
+ * Trước đây mỗi `tool_result` thành một thẻ ngang hàng, nên một lượt năm bước cho ra năm thẻ
+ * và hàng avatar rơi xuống dưới chúng. Thiết kế nói điều ngược lại: các bước là **bằng chứng**
+ * nằm trong một khối thu gọn được, còn thẻ là **kết quả** và một lượt chỉ có một kết quả.
+ *
+ * @param turns - Các lượt không phải của giáo viên, theo thứ tự đã xảy ra.
+ */
+function spoken(turns: Turn[]): Spoken {
+  const steps: Step[] = [];
+  let opening = "";
+  let conclusion = "";
+  for (const one of turns) {
+    if (one.kind === "tool_result") {
+      steps.push(stepFor(one));
+      continue;
+    }
+    if (one.kind !== "assistant") continue;
+    // Câu nói trước bước đầu tiên là lời mở; mọi câu sau đó là câu kết, và câu cuối thắng.
+    if (steps.length === 0 && opening === "") opening = one.text;
+    else conclusion = one.text;
+  }
+  if (conclusion === "" && steps.length === 0) {
+    conclusion = opening;
+    opening = "";
+  }
+  return { opening, steps, conclusion, card: cardTurn(turns) };
+}
+
 /**
  * Gộp các lượt liên tiếp của Kriky thành **một** khối, và xếp trong khối theo thiết kế.
  *
@@ -360,10 +395,8 @@ type Block = { said: string } | { kriky: Turn[] };
  * không ai biết các thẻ kia của ai. Avatar mở đầu khối là cách nói *"từ đây là Kriky"*, và
  * nó phải nói điều đó **trước** thứ nó giới thiệu.
  *
- * Trong khối, **câu trả lời đi trước thẻ**, dù tool chạy trước về thời gian. Thứ tự này
- * không phải tôi chọn: artboard `5 · Đã có đề nháp` (`12:46`) xếp `thread` là *Thinking →
- * agent-conclusion → Action result card*. Và nó đọc đúng — câu trả lời nói Kriky đã làm gì,
- * thẻ là bằng chứng của câu đó, nên bằng chứng nằm dưới lời khai.
+ * Việc xếp bên trong một khối là việc của `spoken`: các bước vào khối `Thinking`, câu kết
+ * và **một** thẻ đi sau nó — đúng `thread` của artboard `5 · Đã có đề nháp` (`12:46`).
  *
  * `tool_call` không vẽ gì: nó không mang kết quả, và sau khi lượt xong thì nó là tiếng ồn.
  * Nó cũng không mở một khối — một lượt chỉ có `tool_call` sẽ là một avatar giới thiệu một
@@ -381,14 +414,93 @@ function blocks(turns: Turn[]): Block[] {
     if (open !== undefined && "kriky" in open) open.kriky.push(one);
     else out.push({ kriky: [one] });
   }
-  for (const block of out) {
-    if (!("kriky" in block)) continue;
-    block.kriky = [
-      ...block.kriky.filter((one) => one.kind !== "tool_result"),
-      ...block.kriky.filter((one) => one.kind === "tool_result"),
-    ];
-  }
   return out;
+}
+
+/**
+ * Một lượt của Kriky trên dòng hội thoại.
+ *
+ * Avatar mở đầu **mỗi** khối lời nói: nó nói *"từ đây là Kriky"*, nên nó đứng trước thứ nó
+ * giới thiệu. Artboard 5 có hai hàng avatar trong một lượt — một ở câu mở, một ở câu kết —
+ * và khối các bước nằm giữa chúng, không mang avatar.
+ *
+ * @param said - Lượt đã tách thành bốn khối.
+ * @param onOpen - Mở panel của một đề.
+ * @param onPublish - Mở biểu mẫu phát hành.
+ * @param onCompose - Điền sẵn một câu vào ô nhập.
+ */
+function Turnful({
+  said,
+  onOpen,
+  onPublish,
+  onCompose,
+}: {
+  said: Spoken;
+  onOpen: (assessmentId: string) => void;
+  onPublish: (assessmentId: string) => void;
+  onCompose: (text: string) => void;
+}) {
+  const steps = said.steps.length > 0 ? <Steps steps={said.steps} /> : null;
+  // Model nói một câu trước khi bắt tay làm thì câu ấy là thứ avatar giới thiệu, và khối
+  // bước đứng riêng bên dưới — đúng artboard 5. Model gọi tool luôn, chuyện thường ngày,
+  // thì avatar giới thiệu chính khối bước: một lượt của Kriky **không bao giờ** bắt đầu
+  // bằng một khối trần không ai biết của ai.
+  const quiet = said.opening === "";
+  const hands = { onOpen, onPublish, onCompose };
+
+  return (
+    <div className="exchange">
+      <div className="voice">
+        <Who />
+        {!quiet && (
+          <div className="turn-body">
+            <div className="reply-text">{said.opening}</div>
+          </div>
+        )}
+        {quiet && steps}
+        {/* Lượt chỉ có lời — trả lời một câu hỏi, chốt lại một lựa chọn — thì cả lượt nằm
+            trong khối này. Tách nó ra một `.voice` thứ hai sẽ đẩy câu nói xuống 20px dưới
+            avatar của chính nó, vì nhịp giữa hai khối là 20 còn nhịp avatar–lời là 6. */}
+        {quiet && steps === null && <Body said={said} {...hands} />}
+      </div>
+      {!quiet && steps}
+      {quiet && steps !== null && <Body said={said} {...hands} />}
+      {!quiet && (said.conclusion !== "" || said.card !== null) && (
+        <div className="voice">
+          <Who />
+          <Body said={said} {...hands} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Câu kết và thẻ kết quả của một lượt — phần nằm dưới avatar, hoặc dưới khối bước. */
+function Body({
+  said,
+  onOpen,
+  onPublish,
+  onCompose,
+}: {
+  said: Spoken;
+  onOpen: (assessmentId: string) => void;
+  onPublish: (assessmentId: string) => void;
+  onCompose: (text: string) => void;
+}) {
+  if (said.conclusion === "" && said.card === null) return null;
+  return (
+    <div className="turn-body">
+      {said.conclusion !== "" && <div className="reply-text">{said.conclusion}</div>}
+      {said.card !== null && (
+        <ActionCard
+          turn={said.card}
+          onOpen={onOpen}
+          onPublish={onPublish}
+          onCompose={onCompose}
+        />
+      )}
+    </div>
+  );
 }
 
 /** Hàng avatar và tên, dùng chung giữa lượt trả lời và lúc đang nghĩ. */

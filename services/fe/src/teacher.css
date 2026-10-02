@@ -612,12 +612,17 @@
   display: none;
 }
 
-/* Lượt của giáo viên dạt sang phải; lượt của Kriky bắt đầu từ mép trái. */
+/*
+ * Lượt của giáo viên dạt sang phải; lượt của Kriky bắt đầu từ mép trái.
+ *
+ * 20 là nhịp giữa các khối trong MỘT lượt, đo trên artboard `5 · Đã có đề nháp`: Message
+ * turn hết ở y=153, Thinking mở ở y=173, hết ở y=213, agent-conclusion mở ở y=233.
+ */
 .teacher .exchange {
   display: flex;
   flex-direction: column;
   flex: none;
-  gap: 6px;
+  gap: 20px;
 }
 
 .teacher .exchange.said {
@@ -661,15 +666,154 @@
   line-height: 1.5;
 }
 
-/*
- * Thân của một lượt Kriky: câu trả lời rồi các thẻ kết quả. Avatar cách thân 6 (gap của
- * `.exchange`) vì hai thứ ấy là một cụm; trong thân thì 20, đo từ artboard `5 · Đã có đề
- * nháp` — conclusion cao tới y=321, thẻ bắt đầu ở y=341.
- */
+/* Một khối lời nói: hàng avatar cách phần nói 6, đúng gap của component `Message turn`. */
+.teacher .voice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .teacher .turn-body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* ------------------------------------------------- khối các bước (`Thinking` 83:76) */
+
+/*
+ * Các bước là **bằng chứng**, không phải hiệu ứng chờ: thu gọn được, không bao giờ mất.
+ * Luật đầy đủ ở `docs/overview/teacher-surface.md`.
+ *
+ * Viền `strokeAlign: INSIDE` của Figma nằm **trong** khung, nên mọi padding dưới đây đã
+ * trừ đi 1px của `border`. Không trừ thì mỗi khối thụt vào 1px so với thiết kế.
+ */
+.teacher .steps-block {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.teacher .steps-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 13px;
+  border: none;
+  background: none;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-body);
+  font-weight: 600;
+  /*
+   * 20 chẵn, không phải 1.5 (=21): đây là chiều cao ô chữ trên artboard 4 và 5, và nó
+   * quyết định cả khối — 9 + 20 + 9 cộng hai đường viền 1px ra đúng 40 của `Thinking`
+   * đã thu gọn. Mọi số trong khối này đọc từ **artboard**, không đọc từ trang Components:
+   * hai nơi chạy hai density khác nhau, và bề mặt giáo viên là density Teacher.
+   */
+  line-height: 20px;
+  text-align: left;
+}
+
+.teacher .steps-block.broken .steps-head {
+  color: var(--answer-incorrect);
+}
+
+.teacher .steps-head .what {
+  flex: 1;
+}
+
+.teacher .steps-head .count {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 400;
+}
+
+/* Tam giác xoay, không phải hai ký tự khác nhau: một hình xoay thì mắt theo được nó. */
+/* 9×8, để chữ của header bắt đầu ở x=31 như artboard: 13 + 1 viền + 9 + 8. */
+.teacher .steps-head .caret {
+  width: 0;
+  height: 0;
+  flex: none;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 9px solid var(--ink-faint);
+  transition: transform 160ms ease;
+}
+
+.teacher .steps-head .caret.open {
+  transform: rotate(90deg);
+}
+
+.teacher .steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /*
+   * Hai bên trừ viền (4-1), đáy thì KHÔNG: đường viền dưới nằm ngoài padding của danh
+   * sách, nên trừ ở đây là trừ hai lần và cả khối hụt đúng 1px so với artboard.
+   */
+  padding: 2px 3px 10px;
+}
+
+.teacher .step {
+  display: flex;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.teacher .step-mark {
+  flex: none;
+  width: 10px;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .step-mark.done {
+  color: var(--state-settled);
+}
+
+.teacher .step-mark.failed {
+  color: var(--answer-incorrect);
+}
+
+/*
+ * Bước hai dòng cao 50 = 6 + 20 + 1 + 17 + 6; bước một dòng cao 32 = 6 + 20 + 6. Hai con
+ * số ấy đọc từ artboard 4, và chúng chỉ ra đúng khi tiêu đề là 13px/20 — tức `type-label`
+ * của density Teacher, không phải `type-body`. Dòng kết quả 11px cao 17: Figma làm tròn
+ * LÊN chiều cao ô chữ, nên 16.5 thành 17, và đó là nguồn của mọi sai khác nửa pixel ở đây.
+ */
+.teacher .step-said {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/*
+ * Tiêu đề một bước **đã xong** là chữ mực nhạt: nó là lịch sử, không phải thứ đang xảy ra.
+ * Bước đang chạy thì đậm lên và về màu mực đầy — artboard 4 dùng đúng hai màu ấy cho hai
+ * loại bước, và đó là cách mắt tìm ra chỗ đang động mà không cần hiệu ứng nào.
+ */
+.teacher .step-said .title {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 20px;
+}
+
+.teacher .step-said .title.doing {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.teacher .step-said .result {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 17px;
 }
 
 .teacher .reply-text {
