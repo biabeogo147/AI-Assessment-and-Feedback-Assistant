@@ -504,6 +504,64 @@ def check_the_report_is_a_job_of_its_own() -> str | None:
     return None
 
 
+def check_the_form_fills_the_slots_the_wording_declares() -> str | None:
+    """Khuôn câu luật ở BE và chỗ điền ở biểu mẫu phải nói cùng một thứ.
+
+    ADR-03 đòi bốn nơi phát biểu luật thời gian **giống hệt nhau từng chữ**, và
+    `publication_wording.py` tồn tại để chỉ có một nơi viết chữ ấy. Biểu mẫu phát hành là
+    ngoại lệ có chủ ý: ở đó chưa có giờ nào lúc mở màn, nên nó nhận **khuôn** rồi điền con
+    số giáo viên đang gõ. Chữ nghĩa vẫn một nơi — nhưng ba thứ nhỏ hơn thành hợp đồng giữa
+    hai file: tên các chỗ trống, chỗ trống của một mốc giờ, và chỗ trống của một con số.
+
+    Không có check này thì đổi `{last}` thành `{last_submission}` ở BE là một thay đổi
+    **xanh hết mọi lưới**: BE tự sửa cùng lúc, test BE so khuôn với chính nó nên vẫn khớp,
+    `tsc` không biết gì về nội dung chuỗi, và test FE dùng khuôn trong fixture của chính
+    nó. Thứ duy nhất đổi là biểu mẫu thật in ra `{last_submission}` nguyên văn.
+
+    Returns:
+        None khi hai bên khớp, ngược lại là một thông báo thất bại.
+    """
+    wording = REPO_ROOT / "services" / "be" / "src" / "be" / "publication_wording.py"
+    form = REPO_ROOT / "services" / "fe" / "src" / "screens" / "teacher" / "PublishSettings.tsx"
+    for path in (wording, form):
+        if not path.exists():
+            return _fail("publish-wording", f"{path} is missing; the check cannot run")
+
+    said = wording.read_text(encoding="utf-8")
+    filled = form.read_text(encoding="utf-8")
+
+    # Chỗ trống mà hai khuôn khai báo, lấy từ chính hai hằng số chứ không từ một danh sách
+    # chép tay -- một danh sách chép tay ở đây lại là bản sao thứ ba của cùng một thứ.
+    templates = re.findall(r"^(PHASE_ONE|PHASE_TWO) = (.+?)(?=^\S|\Z)", said, re.M | re.S)
+    if len(templates) != 2:
+        return _fail("publish-wording", "could not read PHASE_ONE and PHASE_TWO from the wording")
+    declared = {slot for _, body in templates for slot in re.findall(r"\{([a-z_]+)\}", body)}
+
+    # Chỗ biểu mẫu điền: khoá của hai object truyền vào `fill(...)`.
+    used = set(re.findall(r"^\s{4}([a-z_]+):\s", filled, re.M))
+    missing = declared - used
+    if missing:
+        return _fail(
+            "publish-wording",
+            f"the publish form never fills {sorted(missing)}, which the wording templates declare",
+        )
+
+    # Và hai chỗ trống phải là cùng một chuỗi ở hai bên.
+    for name, pattern in (
+        ("_BLANK", r'_BLANK = "(.+?)"'),
+        ("_BLANK_RATE", r'_BLANK_RATE = "(.+?)"'),
+    ):
+        found = re.search(pattern, said)
+        if found is None:
+            return _fail("publish-wording", f"could not read {name} from the wording")
+        if f'"{found.group(1)}"' not in filled:
+            return _fail(
+                "publish-wording",
+                f"{name} is {found.group(1)!r} in the wording but the publish form never uses it",
+            )
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
@@ -513,6 +571,7 @@ CHECKS = (
     check_no_tool_changes_an_assessment_state,
     check_invented_data_lives_in_one_file,
     check_the_report_is_a_job_of_its_own,
+    check_the_form_fills_the_slots_the_wording_declares,
 )
 
 
