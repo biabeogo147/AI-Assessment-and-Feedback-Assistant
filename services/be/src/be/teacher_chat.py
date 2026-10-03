@@ -49,7 +49,9 @@ IO database từ một chỗ mà cầu nối async của SQLAlchemy không với
 
 import asyncio
 import logging
+import re
 import time
+import unicodedata
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
@@ -370,6 +372,47 @@ def _tidy(title: str) -> str:
     return cleaned[:_TITLE_LIMIT]
 
 
+# Chỉ các cụm **chữ**, bỏ dấu câu và bỏ cả chữ số. `[^\W\d_]` là "ký tự chữ" theo Unicode.
+#
+# Chữ số bị bỏ vì nó là token dễ trùng nhất mà **nghĩa** thì không trùng: câu "soạn 10 câu
+# đạo hàm" và một tiêu đề bịa "Đề 15 phút lớp 10" chung đúng một chữ "10", một bên là số
+# câu một bên là số lớp -- và thế là một cái tên bịa trọn gói đi lọt.
+_WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def _echoes(said: str, title: str) -> bool:
+    """Cái tên này có nói về câu đã gõ không, hay model vừa bịa ra một việc?
+
+    Đo được trên trình duyệt thật: giáo viên gõ *"Chào bạn"* và rail hiện *"Tạo đề kiểm tra
+    15 phút"*. Không khâu nào bắt được, vì cái tên ấy **tuân thủ** mọi luật của prompt --
+    sáu từ, viết thường, không ngoặc kép, không chấm câu. `_tidy` chỉ dọn hình thức, và
+    hình thức thì không sai.
+
+    Nên phép kiểm phải hỏi một câu khác: *cái tên có chung chữ nào với câu đã gõ không*.
+    Bịa trọn gói thì không có chữ nào chung. Một bản rút gọn, một bản diễn đạt lại, hay một
+    cái tên ghép từ chính câu ấy thì luôn có.
+
+    Cố ý **không** bỏ hư từ. Mục tiêu là bắt chuyện bịa trọn gói, không phải chấm điểm cái
+    tên: một tiêu đề chung đúng một hư từ với câu đã gõ vẫn là một tiêu đề đọc được, còn
+    một tiêu đề không chung chữ nào thì nói về một đoạn chat khác.
+
+    Args:
+        said: Câu đầu tiên của giáo viên.
+        title: Tên model vừa viết, đã dọn.
+
+    Returns:
+        True khi hai chuỗi chung ít nhất một từ.
+    """
+    # Chuẩn hoá NFC hai phía. Bàn phím tiếng Việt trên iOS và macOS sinh **NFD**: dấu là
+    # một ký tự tổ hợp riêng, và ký tự ấy không phải "ký tự chữ", nên regex băm "Soạn" ra
+    # thành "Soa" + "n". Một bên NFD gặp một bên NFC thì không từ nào khớp từ nào, và việc
+    # đặt tên **tắt hoàn toàn** mà dấu vết duy nhất là một dòng log.
+    spoken = {one.casefold() for one in _WORD.findall(unicodedata.normalize("NFC", said))}
+    return any(
+        one.casefold() in spoken for one in _WORD.findall(unicodedata.normalize("NFC", title))
+    )
+
+
 async def _name_the_thread(
     session: AsyncSession, request: Request, settings: Settings, thread: str, said: str
 ) -> None:
@@ -400,16 +443,27 @@ async def _name_the_thread(
         return
 
     title = _tidy(said)
+    asked = new_id()
     try:
         answer = await run_task(
             getattr(request.app.state, "queue_pool", None),
             settings,
             NAME_CONVERSATION_TASK,
-            ConversationNameRequested(request_id=new_id(), said=said).model_dump(mode="json"),
+            ConversationNameRequested(request_id=asked, said=said).model_dump(mode="json"),
         )
-        written = _tidy(ConversationNameCompleted.model_validate(answer).title)
-        if written:
+        completed = ConversationNameCompleted.model_validate(answer)
+        written = _tidy(completed.title)
+        if completed.request_id != asked:
+            # Câu trả lời của một job khác. Chưa đo được lần nào, nhưng không có phép kiểm
+            # này thì nó sẽ là một cái tên sai **không để lại dấu vết nào** -- hai đoạn
+            # chat mở cùng lúc, và một trong hai mang tên của đoạn kia.
+            logger.warning("naming answer for %s did not match the job asked", thread)
+        elif _echoes(said, written):
             title = written
+        else:
+            # Model bịa trọn gói. Giữ câu đầu cắt ngắn -- nó luôn đúng về đoạn chat này,
+            # kể cả khi nó kém duyên hơn một cái tên model viết.
+            logger.info("ignored an invented title for %s: %r", thread, written)
     except Exception:  # noqa: BLE001 -- xem docstring
         logger.exception("could not name conversation %s", thread)
 

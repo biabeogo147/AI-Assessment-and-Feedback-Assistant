@@ -79,7 +79,7 @@ class ScriptedAgent:
         # `asked` nghĩa là "trợ lý đã được hỏi những gì", không phải "đã có bao nhiêu job".
         if task_name == NAME_CONVERSATION_TASK:
             return ConversationNameCompleted(
-                request_id=payload["request_id"], title="tên do model đặt"
+                request_id=payload["request_id"], title="đề do model đặt tên"
             ).model_dump(mode="json")
         if task_name == REPORT_PLAN_TASK:
             # Lời kể cuối lượt cũng là một job riêng, nên bản giả phải biết nó —

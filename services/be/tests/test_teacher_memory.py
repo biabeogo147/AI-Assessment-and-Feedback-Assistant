@@ -60,7 +60,7 @@ class ScriptedAgent:
         # `asked` nghĩa là "trợ lý đã được hỏi những gì", không phải "đã có bao nhiêu job".
         if task_name == NAME_CONVERSATION_TASK:
             return ConversationNameCompleted(
-                request_id=payload["request_id"], title="tên do model đặt"
+                request_id=payload["request_id"], title="đề do model đặt tên"
             ).model_dump(mode="json")
         self.asked.append(payload)
         if self.takes:
@@ -659,7 +659,7 @@ async def test_the_first_message_names_the_thread(stack) -> None:
     async with maker() as session:
         row = await session.get(TeacherConversation, opened.json()["conversation_id"])
     assert row is not None
-    assert row.title == "tên do model đặt"
+    assert row.title == "đề do model đặt tên"
 
 
 @pytest.mark.asyncio
@@ -697,7 +697,7 @@ async def test_a_thread_still_gets_a_name_when_the_model_cannot(stack) -> None:
         ('"Đề đạo hàm"', "Đề đạo hàm"),
         ("Đề đạo hàm.", "Đề đạo hàm"),
         ("  Đề   đạo\n hàm  ", "Đề đạo hàm"),
-        ("x" * 300, "x" * 60),
+        ("đạo " + "x" * 300, "đạo " + "x" * 56),
         ("   ", "soạn đề đạo hàm"),
     ],
 )
@@ -728,6 +728,119 @@ async def test_a_model_written_title_is_tidied_before_it_is_stored(stack, wrote,
         row = await session.get(TeacherConversation, opened.json()["conversation_id"])
     assert row is not None
     assert row.title == kept
+
+
+@pytest.mark.asyncio
+async def test_a_greeting_is_not_named_after_a_job_nobody_asked_for(stack) -> None:
+    """Một lời chào không biến thành một việc model tự nghĩ ra.
+
+    Đo được trên trình duyệt thật: giáo viên gõ *"Chào bạn"* và rail hiện *"Tạo đề kiểm tra
+    15 phút"*. Prompt cũ nói *"gọi tên VIỆC, không chào hỏi"* mà không cho đường ra nào cho
+    một câu không chứa việc nào, nên model buộc phải bịa — và nguồn chữ duy nhất trong tầm
+    với là chính hai ví dụ của prompt.
+
+    Cái tên sai ấy **tuân thủ** mọi luật còn lại: sáu từ, viết thường, không ngoặc kép,
+    không chấm câu. Nên `_tidy` không bắt được, và không phép kiểm hình thức nào bắt được.
+    Phép kiểm phải hỏi một câu khác: *cái tên có chung chữ nào với câu đã gõ không*.
+    """
+    client, maker, monkeypatch = stack
+
+    class Inventive(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload) -> dict:
+            if task_name == NAME_CONVERSATION_TASK:
+                return ConversationNameCompleted(
+                    request_id=payload["request_id"], title="Tạo đề kiểm tra 15 phút"
+                ).model_dump(mode="json")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    monkeypatch.setattr(teacher_chat, "run_task", Inventive())
+
+    opened = await client.post(
+        "/api/teacher/chat/messages", json={"text": "Chào bạn"}, headers=TEACHER
+    )
+
+    assert opened.status_code == 200, opened.text
+    async with maker() as session:
+        row = await session.get(TeacherConversation, opened.json()["conversation_id"])
+    assert row is not None
+    assert row.title == "Chào bạn"
+
+
+@pytest.mark.asyncio
+async def test_a_naming_answer_from_another_job_is_ignored(stack) -> None:
+    """Tên của một job khác không được đeo vào đoạn chat này.
+
+    Chưa đo được lần nào, và đó chính là lý do nó đáng một test: nếu xảy ra, nó là một cái
+    tên sai **không để lại dấu vết nào** — hai đoạn chat mở gần nhau, một trong hai mang tên
+    của đoạn kia, và không có gì trên màn hình nói rằng đã có chuyện gì.
+    """
+    client, maker, monkeypatch = stack
+
+    class Mixed(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload) -> dict:
+            if task_name == NAME_CONVERSATION_TASK:
+                # Tên này **có** chung chữ với câu đã gõ, nên nó đi lọt `_echoes`. Thứ duy
+                # nhất sai là nó trả lời một câu hỏi khác.
+                return ConversationNameCompleted(
+                    request_id="một-job-nào-đó", title="soạn đề đạo hàm lớp khác"
+                ).model_dump(mode="json")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    monkeypatch.setattr(teacher_chat, "run_task", Mixed())
+
+    opened = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn đề đạo hàm"}, headers=TEACHER
+    )
+
+    async with maker() as session:
+        row = await session.get(TeacherConversation, opened.json()["conversation_id"])
+    assert row is not None
+    assert row.title == "soạn đề đạo hàm"
+
+
+@pytest.mark.parametrize(
+    ("said", "title", "echoes"),
+    [
+        # Ca đã đo hỏng trên trình duyệt.
+        ("Chào bạn", "Tạo đề kiểm tra 15 phút", False),
+        # Một lời chào dài hơn hai từ. Lời chào tiếng Việt gần như luôn có một hư từ, và
+        # một cái tên bịa kiểu "Đề kiểm tra lớp 12 có 10 câu" rất dễ chứa đúng hư từ ấy —
+        # nhưng nó **không** được đi lọt chỉ nhờ chữ "có".
+        ("Chào bạn, bạn có khỏe không", "Đề kiểm tra lớp 12 có 10 câu", True),
+        # Chữ số không chứng minh gì: một bên là số câu, một bên là số lớp.
+        ("Soạn giúp mình 10 câu đạo hàm", "Đề 15 phút lớp 10", False),
+        # Tên tốt thì luôn chung chữ.
+        ("Soạn giúp mình 10 câu về đạo hàm cho 12A1", "Soạn đề đạo hàm 12A1", True),
+        ("Lớp 11B làm bài vừa rồi thế nào", "Kết quả lớp 11B", True),
+        ("Chào buổi sáng nhé", "Chào buổi sáng", True),
+    ],
+)
+def test_echoes_catches_a_title_made_up_whole(said, title, echoes) -> None:
+    """Chốt kiểm bắt **bịa trọn gói**, không chấm điểm cái tên.
+
+    Hai ca ở giữa là hai lỗ review đo được. Lỗ thứ hai đã bịt bằng cách thôi tính chữ số
+    là một từ chung. Lỗ thứ nhất thì **vẫn mở** và nằm đây có chủ ý: bịt nó cần một danh
+    sách hư từ, mà một danh sách hư từ là một thứ phải nuôi, và nó đổi phép kiểm từ *"có
+    bịa không"* thành *"tên này hay không"* — một câu hỏi khác hẳn, và không phải câu hỏi
+    chốt kiểm này sinh ra để trả lời. Ghi lại thành test để lần sau ai siết thì biết mình
+    đang siết cái gì.
+    """
+    assert teacher_chat._echoes(said, title) is echoes
+
+
+def test_echoes_survives_a_keyboard_that_types_nfd() -> None:
+    """Bàn phím tiếng Việt trên iOS và macOS sinh **NFD**, AGENT trả **NFC**.
+
+    Dấu trong NFD là một ký tự tổ hợp riêng và nó không phải "ký tự chữ", nên regex băm
+    "Soạn" thành "Soa" + "n". Không chuẩn hoá thì một bên NFD gặp một bên NFC là **không
+    từ nào khớp từ nào**: việc đặt tên tắt hoàn toàn, mọi đoạn chat mang câu đầu cắt 60 ký
+    tự, và dấu vết duy nhất là một dòng log.
+    """
+    import unicodedata
+
+    said = unicodedata.normalize("NFD", "Soạn đề đạo hàm")
+    assert said != "Soạn đề đạo hàm"
+    assert teacher_chat._echoes(said, "đề đạo hàm 12A1") is True
 
 
 async def _a_thread(maker, *, title: str = "Đoạn cũ", code: str = "GV-001") -> str:
