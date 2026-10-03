@@ -636,13 +636,11 @@ _TOOLS: tuple[Tool, ...] = (
             description=(
                 "Mo mot de nhap trong. Can DUNG BON muc: subject (mon), grade (khoi), topic_scope "
                 "(pham vi kien thuc, theo loi giao vien) va question_count (so cau). Du bon muc do "
-                "thi LAM NGAY, dung hoi them gi nua -- ten de va muc do kho he thong tu lo. "
-                "Thieu muc nao "
-                "thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc do truoc da, "
-                "vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. difficulty "
-                "He thong tu dat ten de. Tool nay "
-                "KHONG sinh cau hoi, nen mot plan chi co buoc nay "
-                "se de lai mot de rong: hay dat start_drafting ngay sau no."
+                "thi LAM NGAY, dung hoi them gi nua -- he thong tu dat ten de va tu lo do kho. "
+                "Thieu muc nao thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc "
+                "do truoc da, vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. "
+                "Tool nay KHONG sinh cau hoi, nen mot plan chi co buoc nay se de lai mot de rong: "
+                "hay dat start_drafting ngay sau no."
             ),
             # Bốn mục, không sáu. `difficulty` và `title` vẫn **nhận được** ở thân tool, nhưng
             # không còn được mô tả cho model -- và đó là một phép sửa cấu trúc, không phải một
