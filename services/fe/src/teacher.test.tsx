@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ActionCard, { cardTurn, stepFor } from "./screens/teacher/ActionCard";
 import Chat, { grow } from "./screens/teacher/Chat";
+import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
 import Steps from "./screens/teacher/Steps";
 import type { TurnEvent } from "./api";
@@ -202,7 +203,6 @@ describe("một bước đã xảy ra", () => {
           duration_ms: 0,
         }}
         onOpen={() => {}}
-        onPublish={() => {}}
         onCompose={() => {}}
       />,
     );
@@ -236,7 +236,6 @@ describe("một bước đã xảy ra", () => {
           duration_ms: 0,
         }}
         onOpen={() => {}}
-        onPublish={() => {}}
         onCompose={() => {}}
       />,
     );
@@ -549,7 +548,6 @@ describe("một lượt của Kriky", () => {
       <ActionCard
         turn={turns[0]}
         onOpen={() => undefined}
-        onPublish={() => undefined}
         onCompose={() => undefined}
       />,
     );
@@ -931,7 +929,6 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
       <ActionCard
         turn={card!}
         onOpen={(paper) => opened.push(paper)}
-        onPublish={() => undefined}
         onCompose={() => undefined}
       />,
     );
@@ -949,7 +946,6 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
       <ActionCard
         turn={card!}
         onOpen={() => undefined}
-        onPublish={() => undefined}
         onCompose={() => undefined}
       />,
     );
@@ -988,7 +984,6 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
       <ActionCard
         turn={card!}
         onOpen={() => undefined}
-        onPublish={() => undefined}
         onCompose={() => undefined}
       />,
     );
@@ -1308,7 +1303,751 @@ describe("tải một tài liệu lên", () => {
 
     await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
     expect(screen.getByText("Đã tải lên: de-cuong.pdf")).toBeTruthy();
-    expect(screen.getByText(/chưa được dùng để soạn đề/)).toBeTruthy();
     expect(screen.queryByText("Đổi phạm vi")).toBeNull();
+    // Tải lên có **một** cửa: cái icon cạnh nhãn TÀI LIỆU. Dải này chỉ nói tệp nào vừa
+    // lên, nó không phải một cửa thứ hai — hai cửa cho cùng một việc thì cửa nào cũng
+    // thành chỗ phải đoán.
+    expect(screen.queryByText("Tải tệp khác")).toBeNull();
+    expect(container.querySelectorAll(".scope-strip button").length).toBe(0);
+  });
+});
+
+/** Một đề đủ để panel vẽ được, ở trạng thái gọi tên. */
+function paper(state: string) {
+  return {
+    assessment_id: "p1",
+    title: "Kiểm tra 15 phút — Hàm số",
+    subject: "Toán",
+    grade: "12",
+    state,
+    question_count: 1,
+    still_drafting: 0,
+    topic_scope: "chương Hàm số",
+    difficulty: "",
+    conversation_id: "c1",
+    questions: [
+      {
+        question_id: "q1",
+        order: 1,
+        stem: "Đạo hàm của y = x² + 3x là gì?",
+        learning_objective: "đạo hàm đa thức",
+        options: [
+          { label: "A", text: "2x + 3", is_correct: true, error_label: null },
+          {
+            label: "B",
+            text: "x + 3",
+            is_correct: false,
+            error_label: "quên hệ số",
+          },
+        ],
+        methods: [{ title: "Cách 1", body: "Đạo hàm từng hạng tử." }],
+      },
+    ],
+  };
+}
+
+describe("chân panel đề", () => {
+  /** Stub `fetch` trả về một đề ở trạng thái cho trước, và ghi lại mọi lời gọi. */
+  function serving(state: string) {
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, method: (init?.method ?? "GET").toUpperCase() });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paper(state)),
+        });
+      }),
+    );
+    return calls;
+  }
+
+  it("đề chưa duyệt: một nút Duyệt đề, không có đường lùi nào", async () => {
+    serving("has_questions");
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Duyệt đề")).toBeTruthy());
+    expect(screen.queryByText("Hoàn tác")).toBeNull();
+    expect(screen.queryByText("Phát hành đề")).toBeNull();
+  });
+
+  it("đề đã duyệt: nút chính thành Phát hành đề, và Hoàn tác đứng trên nó", async () => {
+    // Bản trước để đúng một nút ở đây, và với đề đã duyệt thì nút ấy **bị khoá** với nhãn
+    // *Đã duyệt* — trong khi dòng chữ ngay trên bảo "muốn sửa thì bỏ duyệt trước". Nút
+    // *Hoàn tác* trên thẻ trong khung chat mở panel, và panel không có gì để làm: một
+    // đường dẫn tới hư không, và giáo viên đọc ra là nút hỏng.
+    serving("approved");
+    const opened: string[] = [];
+    const { container } = render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => opened.push("phát hành")}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Phát hành đề")).toBeTruthy());
+    const undo = screen.getByText("Hoàn tác");
+    const go = screen.getByText("Phát hành đề");
+    // DOCUMENT_POSITION_FOLLOWING = 4: đường lùi đứng TRƯỚC đường tiến, không đứng cạnh.
+    expect(undo.compareDocumentPosition(go) & 4).toBe(4);
+    expect(container.querySelector(".panel-foot .cta")).toBeTruthy();
+
+    fireEvent.click(go);
+    expect(opened).toEqual(["phát hành"]);
+  });
+
+  it("đề ĐÃ PHÁT HÀNH không mời Hoàn tác, vì bỏ duyệt ở đó chắc chắn 409", async () => {
+    // `POST .../unapprove` chỉ nhận đúng `APPROVED` (`teacher_routes.py:403`). Gộp
+    // `published` vào `approved` làm nút `Hoàn tác` hiện ra cho một đề đã tới tay học
+    // sinh, và cú bấm ấy chắc chắn trả 409 — đúng khuyết điểm mà đợt này đi sửa, chỉ dịch
+    // sang một trạng thái khác. Đường lùi của đề đã phát hành là **thu hồi**.
+    serving("published");
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Phát hành thêm lớp")).toBeTruthy());
+    expect(screen.queryByText("Hoàn tác")).toBeNull();
+    // Và câu dưới chân nói đúng đường mở lại.
+    expect(screen.getByText(/thu hồi khỏi mọi lớp/)).toBeTruthy();
+  });
+
+  it("bấm Hoàn tác gọi đúng endpoint bỏ duyệt", async () => {
+    // `teacher.unapprove` có trong `api.ts` từ lâu và chưa một dòng nào gọi nó.
+    const calls = serving("approved");
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Hoàn tác")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Hoàn tác"));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (one) => one.url.endsWith("/unapprove") && one.method === "POST",
+        ),
+      ).toBe(true),
+    );
+  });
+});
+
+describe("lời giải mở thành hộp thoại", () => {
+  /** Stub `fetch` trả về một đề đã duyệt với một câu đủ lời giải và nhãn lỗi. */
+  function serving() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(paper("approved")),
+        }),
+      ),
+    );
+  }
+
+  async function opened() {
+    serving();
+    const view = render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/Lời giải · 1 cách/)).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByText(/Lời giải · 1 cách/));
+    await waitFor(() =>
+      expect(document.querySelector(".confirm.wide")).not.toBeNull(),
+    );
+    return view;
+  }
+
+  it("hiện đủ cách giải VÀ ánh xạ nhiễu — thứ panel chưa bao giờ vẽ", async () => {
+    // `error_label` nằm trong response từ lâu mà không chỗ nào hiện nó. Đó là phần nói cho
+    // giáo viên biết mỗi phương án sai sai ở đâu, tức phần đáng đọc nhất của lời giải —
+    // và nó không vừa một cột rộng 380, nên nó là lý do hộp thoại tồn tại.
+    await opened();
+
+    expect(screen.getByText("Lời giải — Câu 1")).toBeTruthy();
+    expect(screen.getByText("Đạo hàm từng hạng tử.")).toBeTruthy();
+    expect(screen.getByText("MỖI PHƯƠNG ÁN NHIỄU GẮN MỘT LỖI")).toBeTruthy();
+    expect(screen.getByText("quên hệ số")).toBeTruthy();
+    expect(screen.getByText("✓ đúng")).toBeTruthy();
+  });
+
+  // Ba đường đóng dưới đây **không có ở bất kỳ hộp thoại nào** của bề mặt giáo viên trước
+  // đợt này — ba bản sao cùng thiếu cùng ba thứ, tức một khuôn chưa được rút ra. Mỗi đường
+  // một test, vì ba lần `render` trong một test để lại ba cây DOM và phép tìm bắt nhầm cây.
+  it("đóng bằng nút Đóng", async () => {
+    await opened();
+    // Panel-head cũng có một nút `Đóng`, nên phải nhắm vào nút trong hộp.
+    fireEvent.click(document.querySelector(".confirm.wide .close") as Element);
+    await waitFor(() =>
+      expect(document.querySelector(".confirm.wide")).toBeNull(),
+    );
+  });
+
+  it("đóng bằng Esc", async () => {
+    await opened();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(document.querySelector(".confirm.wide")).toBeNull(),
+    );
+  });
+
+  it("đóng bằng cách bấm ra ngoài", async () => {
+    await opened();
+    fireEvent.click(document.querySelector(".veil") as Element);
+    await waitFor(() =>
+      expect(document.querySelector(".confirm.wide")).toBeNull(),
+    );
+  });
+
+  it("bấm TRONG hộp thì hộp ở lại", async () => {
+    await opened();
+    fireEvent.click(screen.getByText("Lời giải — Câu 1"));
+    expect(document.querySelector(".confirm.wide")).not.toBeNull();
+  });
+});
+
+
+describe("Chat mở panel đề", () => {
+  it("duyệt xong thì đọc lại ĐÚNG đoạn đang mở, không phải đoạn đang chạy", async () => {
+    // Đây là sửa chính của Pha 2 cho `Chat.tsx`, và nó chưa có một dòng test nào: mọi lần
+    // `teacher.test.tsx` render `Chat` đều truyền `openPaper={null}`, nên `Panel` chưa bao
+    // giờ được mount từ `Chat` và cả dây nối nằm ngoài lưới.
+    //
+    // Hỏng ra sao: `teacher.conversation()` không id nghĩa là *đoạn đang chạy*. Duyệt một
+    // đề mở từ một đoạn cũ sẽ ghi lượt của đoạn khác đè lên màn hình.
+    const calls: string[] = [];
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push(`${(init?.method ?? "GET").toUpperCase()} ${url}`);
+        let body: unknown = [];
+        if (url.includes("/teacher/assessments/")) body = paper("has_questions");
+        else if (url.startsWith("/api/teacher/chat")) body = SPOKEN;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+
+    render(<Chat conversationId="c1" fresh={false} openPaper="p1" publishing={false} />);
+    await waitFor(() => expect(screen.getByText("Duyệt đề")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Duyệt đề"));
+
+    await waitFor(() =>
+      expect(calls.some((one) => one.includes("/approve"))).toBe(true),
+    );
+    await waitFor(() =>
+      expect(
+        calls.some((one) => one.includes("/teacher/chat?conversation_id=c1")),
+      ).toBe(true),
+    );
+    // Và **không** được gọi đường không-id, vì đường ấy trả đoạn đang chạy.
+    expect(calls.filter((one) => one === "GET /api/teacher/chat")).toEqual([]);
+  });
+});
+
+
+describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", () => {
+  const FILES = [
+    {
+      document_id: "d1",
+      filename: "de-cuong.pdf",
+      kind: "PDF",
+      byte_size: 2048,
+      uploaded_at: "2026-10-03T00:00:00+00:00",
+    },
+  ];
+
+  function serving() {
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        let body: unknown = [];
+        if (url.startsWith("/api/teacher/documents")) body = FILES;
+        else if (url.startsWith("/api/teacher/chat")) body = SPOKEN;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+  }
+
+  it("nút tải lên nằm trên đầu ngăn TÀI LIỆU, không nằm ở thanh chat", async () => {
+    // Tài liệu thuộc về **giáo viên** và nằm trong kho chung (ADR-04) — nó không thuộc về
+    // một đoạn chat nào. Đặt nút tải lên ở composer là nói ngược lại điều đó.
+    serving();
+    const { container } = render(
+      <Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />,
+    );
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+
+    const upload = screen.getByLabelText("Tải tài liệu lên");
+    expect(upload.closest(".pane.documents")).not.toBeNull();
+    expect(upload.closest(".composer-bar")).toBeNull();
+    expect(screen.queryByText("＋ Tài liệu")).toBeNull();
+    expect(container.querySelector(".composer-bar .attach")).toBeNull();
+  });
+
+  it("kéo một chip tài liệu thả vào ô nhập thì nó được đính vào câu", async () => {
+    serving();
+    const { container } = render(
+      <Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />,
+    );
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+
+    const chip = container.querySelector(".pane.documents .document") as HTMLElement;
+    expect(chip.getAttribute("draggable")).toBe("true");
+
+    // Một `DataTransfer` giả: jsdom không dựng sẵn cái thật.
+    const held: Record<string, string> = {};
+    const dataTransfer = {
+      types: ["text/kriky-document"],
+      setData: (kind: string, value: string) => {
+        held[kind] = value;
+      },
+      getData: (kind: string) => held[kind] ?? "",
+      effectAllowed: "",
+      dropEffect: "",
+    };
+
+    fireEvent.dragStart(chip, { dataTransfer });
+    expect(held["text/kriky-document"]).toBe("d1");
+
+    const bar = container.querySelector(".composer-bar") as HTMLElement;
+    fireEvent.dragOver(bar, { dataTransfer });
+    expect(bar.className).toContain("dropping");
+
+    fireEvent.drop(bar, { dataTransfer });
+    await waitFor(() => expect(screen.getByText("Đã tải lên: de-cuong.pdf")).toBeTruthy());
+    expect((container.querySelector(".composer-bar") as HTMLElement).className).not.toContain(
+      "dropping",
+    );
+  });
+});
+
+
+describe("sửa chữ của một câu", () => {
+  /** Stub `fetch`; `refuse` khác rỗng thì PATCH trả 422 với câu ấy. */
+  function serving(state: string, refuse = "") {
+    const calls: { url: string; method: string; body: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method, body: typeof init?.body === "string" ? init.body : "" });
+        if (method === "PATCH" && refuse) {
+          return Promise.resolve({
+            ok: false,
+            status: 422,
+            json: () => Promise.resolve({ detail: refuse }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(paper(state)) });
+      }),
+    );
+    return calls;
+  }
+
+  function mount() {
+    return render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+  }
+
+  it("nút Sửa thôi là nút chết: nó mở một ô soạn tại chỗ", async () => {
+    // Nút này đã nằm trên panel từ lâu **không có `onClick`**.
+    serving("has_questions");
+    mount();
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Sửa"));
+
+    expect(screen.getByLabelText("Đề bài")).toBeTruthy();
+    expect(screen.getByLabelText("Phương án A")).toBeTruthy();
+    expect(screen.getByText("Đang sửa")).toBeTruthy();
+    // Chip nguồn **ở lại**: biết câu này lấy từ đâu là thứ cần nhất đúng lúc đang sửa nó.
+    expect(document.querySelector(".qcard.editing .source-chip")).not.toBeNull();
+  });
+
+  it("đề đã duyệt thì không có nút Sửa nào (ADR-01)", async () => {
+    serving("approved");
+    mount();
+    await waitFor(() => expect(screen.getByText("Phát hành đề")).toBeTruthy());
+    expect(screen.queryByText("Sửa")).toBeNull();
+  });
+
+  it("Lưu gửi CẢ câu đi, không gửi từng mảnh", async () => {
+    // ADR-18 là một luật về quan hệ giữa các mảnh, nên gửi từng mảnh rời là cho câu hỏi đi
+    // qua những trạng thái không ai kiểm được.
+    const calls = serving("has_questions");
+    mount();
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    fireEvent.click(screen.getByText("Sửa"));
+
+    fireEvent.change(screen.getByLabelText("Đề bài"), {
+      target: { value: "Đạo hàm của $y = x^3$ là gì?" },
+    });
+    fireEvent.click(screen.getByText("Lưu"));
+
+    await waitFor(() => expect(calls.some((one) => one.method === "PATCH")).toBe(true));
+    const sent = calls.find((one) => one.method === "PATCH")!;
+    expect(sent.url).toBe("/api/teacher/assessments/p1/questions/q1");
+    const body = JSON.parse(sent.body);
+    expect(body.stem).toBe("Đạo hàm của $y = x^3$ là gì?");
+    expect(body.options).toHaveLength(2);
+    expect(body.methods).toHaveLength(1);
+  });
+
+  it("BE từ chối thì câu từ chối hiện NGAY DƯỚI ô gõ, và ô vẫn mở", async () => {
+    // Đẩy nó lên dòng chung ở chân panel thì nó đứng xa chỗ gõ và không nói nó nói về câu
+    // nào — mà panel có thể đang hiện mười thẻ.
+    serving("has_questions", "math in stem is not delimited");
+    mount();
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    fireEvent.click(screen.getByText("Sửa"));
+    fireEvent.click(screen.getByText("Lưu"));
+
+    await waitFor(() =>
+      expect(screen.getByText("math in stem is not delimited")).toBeTruthy(),
+    );
+    expect(screen.getByLabelText("Đề bài")).toBeTruthy();
+  });
+
+  it("Huỷ đóng ô soạn và không gửi gì", async () => {
+    const calls = serving("has_questions");
+    mount();
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    fireEvent.click(screen.getByText("Sửa"));
+    fireEvent.change(screen.getByLabelText("Đề bài"), { target: { value: "bỏ đi" } });
+    fireEvent.click(screen.getByText("Huỷ"));
+
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    expect(screen.queryByLabelText("Đề bài")).toBeNull();
+    expect(calls.some((one) => one.method === "PATCH")).toBe(false);
+  });
+});
+
+describe("việc giáo viên tự làm không phải một bước của model", () => {
+  /** Một đoạn chat trong đó giáo viên đã bấm *Duyệt đề* trên panel. */
+  const APPROVED = {
+    kind: "assistant",
+    text: "Đã tạo xong đề.",
+    conversation_id: "c1",
+    choices: [],
+    more_choices: 0,
+    turns: [
+      blank({ kind: "teacher", text: "Tạo đề cho 12A" }),
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { assessment_id: "p1", title: "Hàm số" },
+      }),
+      blank({ kind: "assistant", text: "Đã tạo xong đề." }),
+      blank({
+        kind: "tool_result",
+        tool_name: "teacher.approve",
+        tool_result: { assessment_id: "p1", title: "Hàm số", questions: 10 },
+        entity_kind: "assessment",
+        entity_id: "p1",
+      }),
+    ],
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function serving() {
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        let body: unknown = [];
+        if (url.startsWith("/api/teacher/chat")) body = APPROVED;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+  }
+
+  it("lượt duyệt KHÔNG mọc một dòng trong khối bước", async () => {
+    // Đo được trên trình duyệt: một cú bấm *Duyệt đề* hiện **hai lần** — một dòng `Duyệt
+    // đề` trong khối `Thinking` và một cái thẻ. Khối ấy là bằng chứng **model** đã làm gì;
+    // một dòng của giáo viên nằm trong đó nói rằng Kriky tự duyệt đề.
+    serving();
+    const { container } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/Đã duyệt đề/)).toBeTruthy(),
+    );
+
+    // Khối đã xong thì tự thu lại còn một dòng đếm, nên con số ấy **là** thứ giáo viên
+    // nhìn thấy. Hai bước nghĩa là lượt duyệt đã lọt vào; một bước là đúng.
+    expect(screen.getByText("Đã làm 1 bước")).toBeTruthy();
+    expect(screen.queryByText("Đã làm 2 bước")).toBeNull();
+
+    fireEvent.click(screen.getByText("Đã làm 1 bước"));
+    const steps = [...container.querySelectorAll(".step-said .title")].map(
+      (one) => one.textContent,
+    );
+    expect(steps).toEqual(["Tạo đề trống"]);
+  });
+
+  it("nhưng biên bản vẫn còn: nó lên thẻ (ADR-24)", async () => {
+    // Nửa kia của cùng một luật. Bỏ lượt duyệt khỏi khối bước mà cũng bỏ luôn cái thẻ thì
+    // việc giáo viên vừa làm biến mất khỏi dòng hội thoại — đúng thứ ADR-24 cấm.
+    serving();
+    const { container } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/Đã duyệt đề/)).toBeTruthy(),
+    );
+    expect(container.querySelector(".action-card")).toBeTruthy();
+  });
+});
+
+describe("thẻ của một việc giáo viên tự làm là biên bản, không phải bộ điều khiển", () => {
+  /**
+   * Dựng thẻ cho một tool bất kỳ.
+   *
+   * @param name - Tên tool.
+   * @param result - Thân `tool_result`.
+   * @param onOpen - Chỗ nhận cú bấm, nếu test cần đo.
+   */
+  function card(
+    name: string,
+    result: Record<string, unknown>,
+    onOpen: (paper: string) => void = () => {},
+  ) {
+    return render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: name,
+          tool_result: result,
+          entity_kind: "assessment",
+          entity_id: "p1",
+        })}
+        onOpen={onOpen}
+        onCompose={() => {}}
+      />,
+    );
+  }
+
+  it("thẻ đã duyệt chỉ còn một nút, và nút ấy mở đề", () => {
+    // Ba nút cũ (*Phát hành*, *Hoàn tác*, *Duyệt đề*) đều **không chạy**, đo được: duyệt
+    // thì bấm từ trong panel, nên lúc thẻ hiện ra route đã là `.../de/{paper}`, và cả ba
+    // chỉ gọi `go()` tới đúng route ấy — gán lại một hash không đổi thì trình duyệt không
+    // bắn `hashchange` nào. Sửa không phải nối lại dây: chỗ đổi trạng thái một đề là chân
+    // panel, nơi duy nhất nói trạng thái **hiện tại**.
+    const opened: string[] = [];
+    const { container } = card(
+      "teacher.approve",
+      { assessment_id: "p1", title: "Hàm số", questions: 10 },
+      (paper) => opened.push(paper),
+    );
+
+    const buttons = [...container.querySelectorAll(".actions .btn")].map(
+      (one) => one.textContent,
+    );
+    expect(buttons).toEqual(["Xem"]);
+    fireEvent.click(screen.getByText("Xem"));
+    expect(opened).toEqual(["p1"]);
+  });
+
+  it("thẻ bỏ duyệt cũng vậy", () => {
+    const { container } = card("teacher.unapprove", {
+      assessment_id: "p1",
+      title: "Hàm số",
+    });
+    expect(
+      [...container.querySelectorAll(".actions .btn")].map(
+        (one) => one.textContent,
+      ),
+    ).toEqual(["Xem"]);
+  });
+
+  it("và không thẻ nào còn dòng chi tiết người dùng đã bỏ", () => {
+    for (const [name, gone] of [
+      ["teacher.approve", "nội dung đã khoá"],
+      ["teacher.unapprove", "Sửa lại được rồi"],
+    ]) {
+      const { container, unmount } = card(name, {
+        assessment_id: "p1",
+        title: "Hàm số",
+        questions: 10,
+      });
+      expect(container.querySelector(".detail")).toBeNull();
+      expect(container.textContent).not.toContain(gone);
+      // Câu an toàn thì **ở lại**: nó nói đề đã tới tay học sinh chưa, và đó là thứ duy
+      // nhất trên thẻ mà giáo viên không đoán được từ chỗ khác.
+      expect(container.querySelector(".safety")).toBeTruthy();
+      unmount();
+    }
+  });
+});
+
+describe("kéo để đổi bề rộng hai cột", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+  });
+
+  function serving() {
+    Element.prototype.scrollIntoView = vi.fn();
+    // jsdom không có Pointer Capture. Không có hai hàm này thì `onPointerDown` ném, và
+    // cú ném ấy nói về jsdom chứ không nói gì về thanh kéo.
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    // Và nó cũng không có `PointerEvent`. Thiếu lớp ấy thì `fireEvent.pointerMove` rơi về
+    // một `Event` trần, `clientX` không đi theo, và phép đo nhận `NaN` — một cái bẫy của
+    // môi trường test, không phải một lời nói gì về thanh kéo.
+    vi.stubGlobal("PointerEvent", MouseEvent);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        let body: unknown = [];
+        if (url.includes("/teacher/assessments/")) body = paper("has_questions");
+        else if (url.startsWith("/api/teacher/chat")) body = SPOKEN;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+  }
+
+  /**
+   * Kéo một thanh từ `x` tới `to`.
+   *
+   * @param bar - Chính cái thanh.
+   * @param to - Toạ độ ngang lúc thả tay.
+   */
+  function drag(bar: Element, to: number) {
+    fireEvent.pointerDown(bar, { pointerId: 1, clientX: 260 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: to });
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: to });
+  }
+
+  it("kéo thanh bên trái thì rail rộng ra, và bề rộng ấy được nhớ", async () => {
+    serving();
+    const { container } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
+
+    const shell = container.querySelector(".teacher") as HTMLElement;
+    expect(shell.style.getPropertyValue("--rail-w")).toBe("260px");
+
+    drag(container.querySelector(".split-x")!, 330);
+
+    expect(shell.style.getPropertyValue("--rail-w")).toBe("330px");
+    // Ghi lúc **thả tay**, và ghi từ ref. Ba bản của thanh kéo ngang trong rail đều sai
+    // đúng chỗ này: handler đọc state là đọc giá trị của lần render cũ.
+    expect(window.localStorage.getItem("kriky.teacher.rail-width")).toBe("330");
+  });
+
+  it("biên là thật: kéo quá tay không làm cột biến mất", async () => {
+    // Không có `min` thì kéo hết cỡ sang trái làm rail rộng 0 — và khi ấy không còn gì
+    // để kéo trở lại. Cái biên là đường lùi duy nhất.
+    serving();
+    const { container } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
+    const shell = container.querySelector(".teacher") as HTMLElement;
+    const bar = container.querySelector(".split-x")!;
+
+    drag(bar, 10);
+    expect(shell.style.getPropertyValue("--rail-w")).toBe("200px");
+
+    drag(bar, 9000);
+    expect(shell.style.getPropertyValue("--rail-w")).toBe("420px");
+  });
+
+  it("thanh của panel chỉ tồn tại khi panel có mặt", async () => {
+    serving();
+    const { container, rerender } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
+    expect(container.querySelectorAll(".split-x").length).toBe(1);
+
+    rerender(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper="p1"
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(container.querySelectorAll(".split-x").length).toBe(2),
+    );
   });
 });

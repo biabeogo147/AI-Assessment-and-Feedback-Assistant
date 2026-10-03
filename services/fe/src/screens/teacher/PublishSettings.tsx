@@ -9,6 +9,7 @@ import {
   type PublishForm,
   type PublishResult,
 } from "../../api";
+import Veil from "./Veil";
 
 /**
  * Sáu tham số của một lần phát hành, cộng một hộp xác nhận.
@@ -278,8 +279,7 @@ function Confirm({
   const refused = preview.classes.filter((one) => !one.published);
 
   return (
-    <div className="veil" role="dialog" aria-modal="true">
-      <div className="confirm">
+    <Veil onClose={onCancel}>
         <h3>Phát hành đề kiểm tra?</h3>
         <p className="lead">
           Đề sẽ hiển thị cho {heads} học sinh của lớp {names}. Bạn còn thu hồi được cho tới giờ
@@ -328,8 +328,7 @@ function Confirm({
             Phát hành cho {heads} học sinh
           </button>
         </div>
-      </div>
-    </div>
+    </Veil>
   );
 }
 

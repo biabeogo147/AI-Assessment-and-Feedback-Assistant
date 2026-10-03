@@ -37,6 +37,9 @@ const SPLIT_MAX = 520;
  *   cũ, nên một cái tên sai là một đoạn chat mất tích.
  * @param onDelete - Xin xoá một đoạn. Rail **không** tự xoá: nó mở hộp xác nhận của màn
  *   hình, vì xoá là việc một chiều với người bấm nút.
+ * @param onUpload - Mở ô chọn tệp. Nút tải lên nằm trên **đầu ngăn TÀI LIỆU**, không nằm ở
+ *   thanh chat: tài liệu thuộc về giáo viên và nằm trong kho chung (ADR-04), nó không
+ *   thuộc về một đoạn chat nào. Đặt nút ở composer là nói ngược lại điều đó.
  */
 export default function Rail({
   conversations,
@@ -47,6 +50,7 @@ export default function Rail({
   onNew,
   onRename,
   onDelete,
+  onUpload,
 }: {
   conversations: TeacherConversation[];
   current: string | null;
@@ -56,6 +60,7 @@ export default function Rail({
   onNew: () => void;
   onRename: (conversationId: string, title: string) => void;
   onDelete: (conversationId: string) => void;
+  onUpload: () => void;
 }) {
   // Hàng nào đang mở menu `⋯`, nếu có. Ở đây chứ không trong từng hàng: *chỉ một menu mở
   // một lúc* là một luật giữa các hàng.
@@ -184,9 +189,37 @@ export default function Rail({
           <div className="grip" />
         </div>
 
-        <Pane title="TÀI LIỆU" className="documents" height={documentsHeight}>
+        <Pane
+          title="TÀI LIỆU"
+          className="documents"
+          height={documentsHeight}
+          action={
+            <button
+              className="upload"
+              type="button"
+              aria-label="Tải tài liệu lên"
+              onClick={onUpload}
+            >
+              <Upload />
+            </button>
+          }
+        >
           {documents.map((one) => (
-            <div className="document" key={one.document_id}>
+            // Kéo được: thả vào ô nhập là cách đính một tài liệu vào một câu chat. Chip
+            // mang `document_id` chứ không mang tên tệp — tên tệp trùng nhau được, id thì
+            // không.
+            <div
+              className="document"
+              key={one.document_id}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData(
+                  "text/kriky-document",
+                  one.document_id,
+                );
+                event.dataTransfer.effectAllowed = "copy";
+              }}
+            >
               <span className="kind">{one.kind}</span>
               <span className="about">
                 <span className="name">{one.filename}</span>
@@ -277,11 +310,13 @@ function Pane({
   title,
   className,
   height,
+  action,
   children,
 }: {
   title: string;
   className: string;
   height?: number;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -293,7 +328,8 @@ function Pane({
         <svg className="caret" viewBox="0 0 8 6" aria-hidden="true">
           <path d="M0 0h8L4 6z" fill="currentColor" />
         </svg>
-        {title}
+        <span className="label">{title}</span>
+        {action}
       </div>
       <div className="scroll">{children}</div>
     </section>
@@ -450,6 +486,23 @@ function Row({
 
 /* Bốn icon 12×12, vẽ lại từ Figma. Chúng dùng `currentColor` nên không có hex
  * thô nào ở đây, và màu do CSS quyết định. */
+
+/** Mũi tên đi lên khỏi một vạch — 16×16, vẽ lại từ Figma. */
+function Upload() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 3 L12 8 H9.5 V12 H6.5 V8 H4 Z" fill="currentColor" />
+      <rect
+        x="2"
+        y="13"
+        width="12"
+        height="1.5"
+        rx="0.75"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 function Dashboard() {
   return (

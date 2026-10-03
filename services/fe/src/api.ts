@@ -219,6 +219,14 @@ export interface TeacherQuestion {
   methods: Method[];
 }
 
+/** Chữ của một câu, như giáo viên vừa sửa. Đủ bộ, không từng mảnh. */
+export interface QuestionEdit {
+  stem: string;
+  learning_objective: string;
+  options: TeacherOption[];
+  methods: Method[];
+}
+
 /** Một đề, đủ để vẽ cả panel bên phải. `state` là nguồn duy nhất cho *sửa được hay không*. */
 export interface AssessmentDetail {
   assessment_id: string;
@@ -646,6 +654,15 @@ export const teacher = {
       headers: formHeaders("teacher"),
     });
   },
+  // Sửa chữ của một câu. Gửi **cả câu** chứ không từng mảnh: ADR-18 là một luật về quan hệ
+  // giữa các mảnh (đúng một phương án đúng, mọi phương án nhiễu có nhãn lỗi, hơn một lời
+  // giải), nên gửi từng mảnh rời là cho câu hỏi đi qua những trạng thái không ai kiểm được.
+  editQuestion: (assessmentId: string, questionId: string, question: QuestionEdit) =>
+    call<TeacherQuestion>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/questions/${questionId}`,
+      { method: "PATCH", body: JSON.stringify(question) },
+    ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
   publications: (assessmentId: string) =>

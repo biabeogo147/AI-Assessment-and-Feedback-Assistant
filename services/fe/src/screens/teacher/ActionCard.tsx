@@ -22,6 +22,31 @@ const STEP_TITLE: Record<string, string> = {
 };
 
 /**
+ * Những tool mà **giáo viên** gọi, không phải model.
+ *
+ * Ba cái này là nút trên panel đề: bấm *Duyệt đề* là một lượt `teacher.approve` được ghi
+ * vào hội thoại, vì ADR-24 đòi biên bản duyệt sống sót. Nhưng ghi lại một việc không có
+ * nghĩa là xếp nó vào khối `Thinking` — khối ấy là **bằng chứng model đã làm gì**, và một
+ * dòng "Duyệt đề" trong đó nói rằng Kriky tự duyệt đề. Đo được: lượt duyệt hiện **hai
+ * lần**, một dòng trong khối bước và một cái thẻ, cho cùng một cú bấm.
+ */
+const BY_THE_TEACHER = new Set([
+  "teacher.approve",
+  "teacher.unapprove",
+  "teacher.publish",
+]);
+
+/**
+ * Lượt này có phải một việc giáo viên tự làm không.
+ *
+ * @param turn - Một lượt bất kỳ.
+ * @returns `true` khi nó không thuộc về khối bước của model.
+ */
+export function byTheTeacher(turn: Turn): boolean {
+  return turn.kind === "tool_result" && BY_THE_TEACHER.has(turn.tool_name);
+}
+
+/**
  * Một bước đã lưu, đọc thành một dòng trong khối `Thinking`.
  *
  * Dòng kết quả chỉ nói lại những con số **chính `tool_result` ấy mang theo**. Không có con
@@ -198,8 +223,8 @@ export function cardTurn(turns: Turn[]): Turn | null {
  * chỉ ghi các lớp **thành công** — biểu mẫu phát hành phải tự hiện phần thất bại tại chỗ.
  *
  * @param turn - Bước đã lưu.
- * @param onOpen - Mở panel của một đề.
- * @param onPublish - Mở biểu mẫu phát hành của một đề.
+ * @param onOpen - Mở panel của một đề. Cửa **duy nhất** của một thẻ: đổi trạng thái đề là
+ *   việc của chân panel, không phải của một biên bản đã nằm lại trong dòng chat.
  * @param onCompose - Điền sẵn một câu vào ô nhập. Đây là cách một nút *mời bước tiếp theo*
  *   khi bước ấy làm bằng lời nói chứ không bằng một endpoint — chuỗi rỗng là chỉ đặt con
  *   trỏ vào ô nhập.
@@ -207,12 +232,10 @@ export function cardTurn(turns: Turn[]): Turn | null {
 export default function ActionCard({
   turn,
   onOpen,
-  onPublish,
   onCompose,
 }: {
   turn: Turn;
   onOpen: (assessmentId: string) => void;
-  onPublish: (assessmentId: string) => void;
   onCompose: (text: string) => void;
 }) {
   const result = turn.tool_result;
@@ -325,22 +348,17 @@ export default function ActionCard({
       <Card
         tone=""
         head={`Đã duyệt đề${named}`}
-        detail={`${Number(result.questions ?? 0)} câu · nội dung đã khoá, muốn sửa thì bỏ duyệt trước`}
+        detail=""
         safety="Chưa phát hành cho học sinh"
-        actions={
-          paper === ""
-            ? []
-            : [
-                {
-                  label: "Phát hành",
-                  onClick: () => onPublish(paper),
-                  primary: true,
-                },
-                // Figma gọi nút này là `Hoàn tác`, và nó đi tới chỗ bỏ duyệt — chỗ ấy nằm
-                // trong panel. Nhãn giữ nguyên của thiết kế, đích là cổng thật.
-                { label: "Hoàn tác", onClick: () => onOpen(paper) },
-              ]
-        }
+        // Chỉ một cửa vào đề, không nút đổi trạng thái nào. Thẻ này là **biên bản** của một
+        // việc giáo viên vừa làm, và chỗ đổi trạng thái của một đề là chân panel — nơi duy
+        // nhất nói trạng thái **hiện tại**. Hai thẻ duyệt và bỏ duyệt nằm cạnh nhau trong
+        // một đoạn chat cũ mà cả hai đều bấm được thì chúng nói hai chuyện trái nhau.
+        //
+        // Và ba cái nút cũ ở đây **không chạy**, đo được: duyệt thì bấm từ trong panel, nên
+        // lúc thẻ hiện ra route đã là `.../de/{paper}` rồi, mà cả ba đều chỉ gọi `go()` tới
+        // đúng route ấy. Gán lại một hash không đổi thì không có `hashchange` nào.
+        actions={see}
       />
     );
   }
@@ -350,19 +368,9 @@ export default function ActionCard({
       <Card
         tone=""
         head={`Đã bỏ duyệt đề${named}`}
-        detail="Sửa lại được rồi · cài đặt phát hành vẫn giữ nguyên"
+        detail=""
         safety="Chưa duyệt · chưa phát hành"
-        actions={
-          paper === ""
-            ? []
-            : [
-                {
-                  label: "Duyệt đề",
-                  onClick: () => onOpen(paper),
-                  primary: true,
-                },
-              ]
-        }
+        actions={see}
       />
     );
   }
@@ -409,10 +417,13 @@ function Card({
     <div className={`action-card ${tone}`}>
       <div className="head">
         <span className="dot" aria-hidden="true" />
-        {head}
+        {/* Câu an toàn đi **cùng dòng** với đầu đề: cả hai nói về một sự việc — việc gì vừa
+            xảy ra, và nó đã tới tay học sinh chưa. Tách làm hai dòng là xé một câu làm
+            đôi, và trên một thẻ chỉ còn ba thành phần thì dòng thừa ấy càng rõ. */}
+        <span className="what">{head}</span>
+        {safety !== undefined && <span className="safety">{safety}</span>}
       </div>
       {detail !== "" && <div className="detail">{detail}</div>}
-      {safety !== undefined && <div className="safety">{safety}</div>}
       {actions.length > 0 && (
         <div className="actions">
           {actions.map((one) => (

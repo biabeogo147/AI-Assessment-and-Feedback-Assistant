@@ -37,6 +37,10 @@
   --card-padding: 16px;
   --row-gap: 8px;
   --section-gap: 24px;
+  /* Bề rộng hai cột kéo được. `Chat.tsx` ghi đè hai biến này bằng con số đã nhớ;
+   * mặc định nằm ở đây vì CSS là chỗ đã biết hình dạng nghỉ của bề mặt. */
+  --rail-w: 260px;
+  --panel-w: 420px;
 
   display: flex;
   /*
@@ -63,7 +67,7 @@
  * mà một dải điều hướng hẹp lại thì chỉ còn là một cột chữ bị cắt.
  */
 .rail {
-  flex: 0 0 260px;
+  flex: 0 0 var(--rail-w);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -320,6 +324,31 @@
  *
  * `overflow` nằm trên phần chữ chứ không trên hộp: để trên hộp thì menu bị cắt.
  */
+/* Nhãn chiếm hết chỗ còn lại để icon dán mép phải — đo trên Figma: icon 16×16 ở x=212
+ * trong một `pane-head` rộng 228. */
+.rail .pane-head .label {
+  flex: 1;
+  min-width: 0;
+}
+
+.rail .pane-head .upload {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ink-muted);
+}
+
+.rail .pane-head .upload svg {
+  width: 16px;
+  height: 16px;
+}
+
 .rail .conversation {
   flex: none;
   position: relative;
@@ -525,6 +554,10 @@
 /* ----------------------------------------------------------------- center */
 
 .teacher .center {
+  /* Không có dòng này thì `min-width: auto` của một flex item giữ cột giữa rộng bằng
+   * nội dung, và chỗ thiếu bị lấy từ rail — kéo panel rộng ra sẽ đẩy rail co lại rồi
+   * trôi khỏi mép trái. Đo được ngay lần kéo đầu tiên. */
+  min-width: 0;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -550,7 +583,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 820px;
+  width: min(820px, 100%);
   text-align: center;
 }
 
@@ -567,19 +600,11 @@
   line-height: 1.5;
 }
 
-.teacher .hint {
-  width: 820px;
-  color: var(--ink-muted);
-  font-size: var(--type-caption);
-  line-height: 1.5;
-  text-align: center;
-}
-
 .teacher .suggestions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  width: 820px;
+  width: min(820px, 100%);
 }
 
 /*
@@ -603,11 +628,17 @@
 
 /* -------------------------------------------------------------- composer */
 
+/* Ô nhập lúc có tài liệu đang được kéo tới. Viền accent là toàn bộ tín hiệu — không đổi
+ * nền, vì đổi nền làm chữ đang gõ nhảy tương phản ngay giữa lúc kéo. */
+.teacher .composer-bar.dropping {
+  border-color: var(--accent);
+}
+
 .teacher .composer-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 820px;
+  width: min(820px, 100%);
   height: 57px;
   padding: 11px 11px 11px 15px;
   border: 1px solid var(--line);
@@ -699,7 +730,7 @@
 .teacher .stream {
   flex: 1;
   min-height: 0;
-  width: 820px;
+  width: min(820px, 100%);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -1032,7 +1063,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 820px;
+  width: min(820px, 100%);
   /* Cao theo nội dung, như Figma: 8 + một dòng + 8. Ghim một con số ở đây thì
    * ngày cỡ chữ đổi theo Density, dải này cắt mất phần chân chữ. */
   padding: 8px 12px;
@@ -1047,15 +1078,6 @@
  * Câu nói thật, đặt ngay dưới dải. `--muted` chứ không `--accent`: nó là một lời đính
  * chính, không phải một thứ để mời bấm vào.
  */
-.teacher .scope-note {
-  width: 820px;
-  /* Đo trên artboard 2: dòng này thụt vào 12 so với mép dải, và cách dải 6. */
-  padding: 6px 12px 0;
-  color: var(--muted);
-  font-size: var(--type-caption);
-  line-height: 1.5;
-}
-
 .teacher .scope-strip .kind {
   font-weight: 600;
 }
@@ -1067,20 +1089,10 @@
   text-overflow: ellipsis;
 }
 
-.teacher .scope-strip button {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent);
-  font-family: inherit;
-  font-size: var(--type-caption);
-  font-weight: 600;
-  line-height: 1.5;
-}
 
 /* Lời từ chối của BE, in nguyên văn ngay trên ô nhập. */
 .teacher .trouble {
-  width: 820px;
+  width: min(820px, 100%);
   padding: 8px 12px;
   border-radius: var(--radius);
   background: var(--answer-incorrect-surface);
@@ -1215,15 +1227,24 @@
   line-height: 1.5;
 }
 
+/* Chip đẩy về mép phải của dòng đầu đề: `.what` giãn ra lấp chỗ trống giữa hai thứ. */
+.teacher .action-card .head .what {
+  flex: 1;
+}
+
 .teacher .action-card .safety {
-  align-self: flex-start;
+  flex: none;
   padding: 4px 10px;
   border-radius: var(--radius-chip);
   background: var(--state-needs-human-surface);
   color: var(--state-needs-human);
   font-size: var(--type-caption);
-  font-weight: 600;
   line-height: 1.5;
+  /* Dòng đầu đề đổi màu theo trạng thái thẻ (`.settled`, `.refused`), và chip giờ nằm
+   * **trong** dòng ấy. Nó không thừa kế: `color` khai báo thẳng ở đây luôn thắng một
+   * giá trị thừa kế, bất kể specificity bên kia — nên không cần `!important`. Màu chip
+   * nói một chuyện khác với màu đầu đề: đề đã tới tay học sinh chưa. */
+  font-weight: 600;
 }
 
 .teacher .action-card .actions {
@@ -1243,6 +1264,19 @@
   line-height: 1.5;
 }
 
+/*
+ * Nút phụ **im lặng**: không viền, không nền, chữ xám. Trước đợt này nó dùng đúng màu
+ * `--accent` mà nút chính dùng cho nền, cùng cỡ chữ, cùng cân nặng, cùng bo góc — nên
+ * hai nút đọc ra là "hai viên xanh" và giáo viên bấm nhầm. Figma cũng vẽ sai y vậy ở
+ * tám trên chín variant; variant `đã-duyệt` thì vẽ đúng từ đầu, và đây là luật của nó
+ * mở rộng ra cả bộ.
+ */
+.teacher .action-card .btn:not(.primary) {
+  border-color: transparent;
+  background: none;
+  color: var(--ink-muted);
+}
+
 /* Hành động chính: nền accent, chữ trắng, không viền — một nút trên một thẻ. */
 .teacher .action-card .btn.primary {
   border-color: transparent;
@@ -1258,7 +1292,7 @@
  * thứ quyết định điều đó — giao diện không tự kết luận (ADR-01).
  */
 .teacher .panel {
-  flex: 0 0 420px;
+  flex: 0 0 var(--panel-w);
   /* `min-width: auto` là mặc định của một flex item, và nó cho phép panel PHÌNH ra
    * khi ruột rộng hơn 420 — một ô `datetime-local` rộng 218px đã đủ đẩy nó thành
    * 492. Một panel tự ý rộng thêm 72px thì không phép đo nào cứu được. */
@@ -1268,12 +1302,18 @@
   min-height: 0;
   background: var(--surface);
   /*
-   * Vạch ngăn vẽ bằng `box-shadow` chứ không bằng `border`, và ba chỗ trong panel
-   * đều thế. Figma vẽ stroke kiểu `INSIDE`: vạch nằm **trên** mép, không đẩy nội
-   * dung đi đâu cả. Một `border` thì ăn mất một pixel bề rộng, nên panel 420 chỉ
-   * còn 419 cho ruột, và mọi thứ bên trong lệch sang phải một pixel.
+   * Vạch ngăn vẽ bằng `box-shadow` chứ không bằng `border`: một `border` ăn mất một
+   * pixel bề rộng, nên panel 420 chỉ còn 419 cho ruột và mọi thứ bên trong lệch sang
+   * phải một pixel.
+   *
+   * Nhưng **không `inset`**. Inset shadow của cha được vẽ **dưới** nền của con, và
+   * `.panel-questions`, `.panel-foot`, `.publish-settings` đều trải hết bề rộng — nên
+   * chúng phủ mất đúng dải 1px ấy trên gần hết chiều cao, và vạch chỉ còn sống ở dải
+   * `.panel-head` (head không có nền). Giáo viên đọc ra là panel dính liền khung chat.
+   * Bỏ `inset` thì vạch nằm **ngoài** mép trái, trên cột giữa, và không con nào với
+   * tới được.
    */
-  box-shadow: inset 1px 0 0 var(--line);
+  box-shadow: -1px 0 0 var(--line);
 }
 
 .teacher .panel-head {
@@ -1359,12 +1399,21 @@
   flex-direction: column;
   gap: 12px;
   padding: 4px 20px 20px;
+  /*
+   * `--paper`, đúng như Figma đo được: `questions` là `#FAFAF8`, và mỗi `qcard` là
+   * `#FFFFFF` có viền — thẻ **nổi lên** nhờ chênh nền ấy.
+   *
+   * Tôi đã thử bỏ nền này đi, nghĩ rằng panel toàn trắng sẽ tách khỏi cột chat rõ hơn.
+   * Sai, và phép đo bác lại: bỏ nó thì `qcard` thành trắng trên trắng, và thứ duy nhất
+   * còn vạch ra một thẻ là một hairline `--line`. Thứ tách panel khỏi cột chat không
+   * phải màu nền vùng câu hỏi — nó là vạch 1px, và vạch ấy vô hình chỉ vì `inset`
+   * shadow bị chính nền này phủ lên.
+   */
   background: var(--paper);
   overflow-y: auto;
   scrollbar-width: none;
   /* Dải mờ ở mép dưới, như trên rail: `mask` chứ không phải một hình chữ nhật gradient
-   * đè lên, vì một hình chữ nhật phải biết nền phía sau nó màu gì — và nền ở đây là
-   * `--paper` trong khi chỗ khác là `--surface`. */
+   * đè lên, vì một hình chữ nhật phải biết nền phía sau nó màu gì. */
   mask-image: linear-gradient(to bottom, black calc(100% - 56px), transparent);
 }
 
@@ -1422,15 +1471,28 @@
   line-height: 1.5;
 }
 
+/*
+ * Hai cột, không bốn hàng.
+ *
+ * Bốn phương án xếp dọc đẩy `Lời giải` xuống quá tầm mắt, và panel vốn là cột hẹp nhất
+ * của bề mặt — một đề mười câu thành mười lần cuộn. Hai cột đưa A/B lên cùng một hàng và
+ * C/D xuống hàng dưới, đúng hình `Question card` đo được (`307:17`).
+ *
+ * `auto-fit` chứ không `repeat(2, 1fr)` cứng: panel kéo hẹp tới 340 thì lưới tự rơi về
+ * một cột thay vì cắt chữ làm đôi. Và số phương án **không** luôn là bốn — ADR-18 chỉ
+ * đòi đúng một đáp án đúng, nên năm phương án cho ra 2+2+1, không phải một hàng tràn.
+ */
 .teacher .qcard .options {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px 8px;
 }
 
 .teacher .qcard .opt {
   color: var(--ink-muted);
-  font-size: var(--type-caption);
+  /* 13px, một bậc trên `--type-caption`: hai cột cho mỗi phương án một nửa bề rộng, và ở
+   * 11px thì một công thức KaTeX trong đó nhỏ tới mức phải nheo mắt. */
+  font-size: var(--type-label);
   line-height: 1.5;
 }
 
@@ -1438,6 +1500,91 @@
 .teacher .qcard .opt.correct {
   color: var(--answer-correct);
   font-weight: 600;
+}
+
+/*
+ * Thẻ lúc đang sửa. Mỗi ô là `textarea` chứ không phải `input`: đề bài và lời giải xuống
+ * dòng được, và một ô một dòng biến một lời giải ba bước thành một dải chữ cuộn ngang.
+ * Số đo lấy từ component `Question card — đang sửa` (`468:2050`).
+ */
+.teacher .qcard.editing {
+  gap: 8px;
+}
+
+.teacher .qcard .edit-mark {
+  color: var(--accent);
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.teacher .qcard .field {
+  width: 100%;
+  /* Chiều cao do `Field` tính theo nội dung; chỗ này chỉ đặt sàn, và `overflow: hidden`
+   * để không có thanh cuộn nào loé lên giữa hai lần đo. */
+  min-height: 30px;
+  overflow: hidden;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.teacher .qcard .field.stem {
+  min-height: 50px;
+}
+
+/* Chip nguồn ở lại lúc đang sửa, nên hàng đầu của thẻ đang sửa xếp y như thẻ chỉ đọc. */
+.teacher .qcard.editing .top {
+  align-items: center;
+}
+
+.teacher .qcard .field:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Lời từ chối đứng **ngay dưới ô gõ**, không đẩy lên dòng chung ở chân panel: ở đó nó xa
+ * chỗ gõ và không nói nó nói về câu nào. */
+.teacher .qcard .refused {
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .qcard .edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.teacher .qcard .edit-actions .quiet,
+.teacher .qcard .edit-actions .cta {
+  height: 28px;
+  padding: 0 11px;
+  border: none;
+  border-radius: var(--radius-chip);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.teacher .qcard .edit-actions .quiet {
+  background: none;
+  color: var(--ink-muted);
+}
+
+.teacher .qcard .edit-actions .cta {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.teacher .qcard .edit-actions button:disabled {
+  background: var(--sunken);
+  color: var(--ink-faint);
 }
 
 .teacher .qcard .solution {
@@ -1474,6 +1621,29 @@
   line-height: 1.5;
 }
 
+/*
+ * Nút lùi, đứng **trên** nút chính. Không nền, không viền, chữ xám — đúng cách Figma
+ * vẽ `Hoàn tác` trên variant `đã-duyệt` của thẻ kết quả từ đầu. Một đường lùi trông
+ * ngang hàng với đường tiến là một đường lùi sẽ bị bấm nhầm.
+ */
+.teacher .panel-foot .quiet {
+  height: 34px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Tắt thì phải **trông** là tắt. `.cta` có trạng thái này từ đầu; `.quiet` thì không, nên
+ * bấm `Hoàn tác` rồi đợi hai giây là hai giây màn hình không trả lời cú bấm nào. */
+.teacher .panel-foot .quiet:disabled {
+  color: var(--ink-faint);
+}
+
 .teacher .panel-foot .cta {
   height: 42px;
   border: none;
@@ -1506,7 +1676,7 @@
 .teacher .center.with-panel .composer-bar,
 .teacher .center.with-panel .scope-strip,
 .teacher .center.with-panel .trouble {
-  width: 660px;
+  width: min(660px, 100%);
 }
 
 /* ------------------------------------------------------- cài đặt phát hành */
@@ -1694,7 +1864,12 @@
 
 /* ------------------------------------------------------------ hộp xác nhận */
 
+/*
+ * `z-index` cao hơn menu `⋯` của rail (20). Không có nó thì một menu đang mở vẽ **đè lên**
+ * hộp thoại, vì menu đi qua portal vào `body` còn hộp thoại thì không.
+ */
 .teacher .veil {
+  z-index: 30;
   position: fixed;
   inset: 0;
   display: flex;
@@ -1712,6 +1887,123 @@
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
+}
+
+/* Lời giải cần chỗ: Figma vẽ 680 (`Solution dialog` `309:41`), padding 28 — trừ một cho
+ * viền, theo đúng luật của mọi hộp có viền ở file này. */
+.teacher .confirm.wide {
+  width: 680px;
+  padding: 27px;
+  /* Đo trên `Solution dialog`: viền `--line`, không phải `--line-strong` của hộp xác nhận. */
+  border-color: var(--line);
+}
+
+.teacher .solution-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.teacher .solution-head h3 {
+  flex: 1;
+  margin: 0;
+}
+
+.teacher .solution-head .close {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  /* Chữ xám, không phải accent: nút này **lùi** khỏi nội dung. Đo trên Figma. */
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.teacher .solution-stem {
+  margin-top: 16px;
+  /* Đề bài là chữ **phụ** ở đây: tiêu đề hộp mới là chủ. Dùng màu mực chính thì đề bài
+   * trông nặng hơn dòng nó phụ thuộc. Đo trên Figma. */
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.6;
+}
+
+.teacher .ways {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--radius);
+  /* `--sunken`, **không viền**. Một mảng nền chìm đọc ra là một phần của hộp; thêm viền
+   * vào thì nó thành một cái hộp rời nằm trong hộp. Đo trên Figma. */
+  background: var(--sunken);
+}
+
+.teacher .ways .way strong {
+  display: block;
+  color: var(--ink);
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.teacher .ways .way .body {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.6;
+}
+
+.teacher .faults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.teacher .faults-head {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/*
+ * Mỗi phương án nhiễu gắn một lỗi. Đây là phần đáng đọc nhất của lời giải và panel **chưa
+ * bao giờ hiện nó**: `error_label` đã nằm trong response từ lâu mà không chỗ nào vẽ ra.
+ */
+.teacher .fault {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .fault .which {
+  flex: none;
+  width: 120px;
+  /*
+   * Hai màu **có nghĩa**, không phải hai sắc độ cho đẹp: ADR-12 chốt `--answer-correct` là
+   * một câu trả lời đúng và `--answer-incorrect` là một câu sai, và đây đúng là chỗ cần
+   * nói điều đó. Bản đầu dùng `--accent` cho đáp án đúng và màu mực thường cho phương án
+   * nhiễu — liếc một cái không phân biệt được đúng với sai, tức khối này mất hết việc của
+   * nó.
+   */
+  color: var(--answer-incorrect);
+  font-weight: 600;
+}
+
+.teacher .fault .which.correct {
+  color: var(--answer-correct);
+}
+
+.teacher .fault .why {
+  flex: 1;
+  color: var(--ink-muted);
 }
 
 .teacher .confirm h3 {
@@ -1795,4 +2087,49 @@
   color: var(--ink-muted);
   font-size: var(--type-label);
   line-height: 1.5;
+}
+
+/* ------------------------------------------------------------- thanh kéo dọc */
+
+/*
+ * Vùng kéo đổi bề rộng rail và panel.
+ *
+ * Bề rộng `0` trong dòng flex và một vùng bắt chuột **tràn ra ngoài**: một thanh chiếm
+ * chỗ thật sẽ đẩy ba cột lệch đi 7px, và bề mặt này đo từng pixel với Figma. Vùng bắt
+ * rộng 7 vì một vạch 1px là mục tiêu chuột gần như không trúng; tay nắm thì chỉ 2px, vì
+ * dày hơn là cạnh tranh với chính cái viền nó nằm đè lên.
+ */
+.teacher .split-x {
+  position: relative;
+  z-index: 5;
+  /* `flex-basis` phải là 7, không phải 0. Bản đầu viết `flex: 0 0 0` cộng `width: 7px`,
+   * và với một flex item thì `flex-basis` thắng `width`: hộp rộng **0**, nên trong trình
+   * duyệt thật không có gì để trỏ vào. Test jsdom bắn sự kiện thẳng vào element nên nó
+   * xanh suốt — đo trên màn hình thật mới thấy. Hai lề âm trả lại đúng 7px ấy cho bố cục,
+   * nên ba cột không xê dịch một pixel nào. */
+  flex: 0 0 7px;
+  margin: 0 -3.5px;
+  align-self: stretch;
+  cursor: col-resize;
+  /* `touch-action: none` để một cú kéo trên máy cảm ứng không bị hiểu thành cuộn trang. */
+  touch-action: none;
+}
+
+.teacher .split-x i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+  background: var(--line);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Tay nắm chỉ hiện khi có người định dùng nó: ở trạng thái nghỉ, viền 1px của hai cột đã
+ * nói đủ chuyện ranh giới. */
+.teacher .split-x:hover i {
+  opacity: 1;
 }

@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 
-import { teacher, type AssessmentDetail, type TeacherQuestion } from "../../api";
+import {
+  teacher,
+  type AssessmentDetail,
+  type QuestionEdit,
+  type TeacherQuestion,
+} from "../../api";
 import { provenanceOf } from "./invented-not-from-be";
 import PublishSettings from "./PublishSettings";
+import Veil from "./Veil";
+import MathText from "../../MathText";
 
 /**
  * Panel bên phải: nội dung một đề, và cổng duyệt.
@@ -20,7 +27,10 @@ import PublishSettings from "./PublishSettings";
  *   điền sáu tham số vẫn mở lại đúng biểu mẫu — còn những gì đã gõ thì mất, và đó là đúng:
  *   ADR-02 nói biểu mẫu **không gợi sẵn giờ nào**, kể cả giờ của chính người vừa gõ.
  * @param onClose - Đóng panel, quay về đoạn chat.
- * @param onApproved - Được gọi sau khi duyệt xong, để nơi gọi tải lại dòng lượt nói:
+ * @param onApproved - Dòng lượt nói phải đọc lại. Gọi sau **cả ba** việc ghi của panel:
+ *   duyệt, bỏ duyệt, và phát hành — cả ba đều để lại một biên bản trong đoạn chat.
+ * @param onPublish - Mở biểu mẫu phát hành. Panel không tự mở được: `publishing` tới từ
+ *   route, nên việc mở là một cú điều hướng của màn hình bao ngoài.
  *   `approve` ghi một bước vào hội thoại (ADR-01 đòi thế), và bước đó phải hiện ra.
  */
 export default function Panel({
@@ -28,15 +38,20 @@ export default function Panel({
   publishing,
   onClose,
   onApproved,
+  onPublish,
 }: {
   assessmentId: string;
   publishing: boolean;
   onClose: () => void;
   onApproved: () => void;
+  onPublish: () => void;
 }) {
   const [paper, setPaper] = useState<AssessmentDetail | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  // Câu đang mở lời giải. Ở đây chứ không trong từng thẻ: hộp thoại là thứ **một lúc chỉ
+  // một cái**, và đó là một luật giữa các thẻ, không phải việc riêng của một thẻ.
+  const [solving, setSolving] = useState<TeacherQuestion | null>(null);
 
   useEffect(() => {
     setPaper(null);
@@ -50,6 +65,52 @@ export default function Panel({
     setWorking(true);
     try {
       await teacher.approve(assessmentId);
+      setPaper(await teacher.assessment(assessmentId));
+      setTrouble(null);
+      onApproved();
+    } catch (cause) {
+      setTrouble((cause as Error).message);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  /**
+   * Lưu chữ vừa sửa của một câu.
+   *
+   * Trả về lỗi dưới dạng một chuỗi thay vì ném: thẻ đang sửa cần in lời từ chối **ngay
+   * dưới ô nhập** để giáo viên sửa tiếp, chứ không đẩy nó lên dòng chung ở chân panel —
+   * ở đó nó đứng xa chỗ gõ và không nói nó nói về câu nào.
+   *
+   * @param questionId - Câu nào.
+   * @param edited - Toàn bộ chữ của câu, sau khi sửa.
+   * @returns Chuỗi rỗng khi lưu được, ngược lại là câu từ chối của BE.
+   */
+  async function save(
+    questionId: string,
+    edited: QuestionEdit,
+  ): Promise<string> {
+    try {
+      await teacher.editQuestion(assessmentId, questionId, edited);
+      setPaper(await teacher.assessment(assessmentId));
+      return "";
+    } catch (cause) {
+      return (cause as Error).message;
+    }
+  }
+
+  /**
+   * Bỏ duyệt, mở lại nội dung.
+   *
+   * Song sinh với `approve` tới từng dòng, và đó là chủ ý: hai nửa của cùng một cổng thì
+   * hỏng cùng kiểu, nên chúng nên đọc giống nhau. `teacher.unapprove` có trong `api.ts` từ
+   * lâu và **chưa ai gọi một lần nào** — thẻ *Hoàn tác* trong khung chat mở panel, mà panel
+   * không có đường bỏ duyệt nào, nên nút ấy dẫn tới hư không.
+   */
+  async function undo() {
+    setWorking(true);
+    try {
+      await teacher.unapprove(assessmentId);
       setPaper(await teacher.assessment(assessmentId));
       setTrouble(null);
       onApproved();
@@ -75,7 +136,14 @@ export default function Panel({
     );
   }
 
-  const approved = paper.state === "approved" || paper.state === "published";
+  // **Ba** trạng thái, không hai. Gộp `published` vào `approved` là cách nút `Hoàn tác`
+  // hiện ra cho một đề đã tới tay học sinh — và `POST .../unapprove` chỉ nhận đúng
+  // `APPROVED`, nên cú bấm ấy chắc chắn trả 409. Đó đúng là khuyết điểm mà đợt này đi
+  // sửa, chỉ dịch sang một trạng thái khác: một chỉ dẫn trên màn hình trỏ tới một hành
+  // động không làm được. Đường lùi của một đề đã phát hành là **thu hồi**, không phải bỏ
+  // duyệt.
+  const locked = paper.state === "approved" || paper.state === "published";
+  const released = paper.state === "published";
 
   return (
     <aside className="panel">
@@ -108,31 +176,304 @@ export default function Panel({
           </div>
         )}
         {paper.questions.map((one) => (
-          <QuestionCard key={one.question_id} question={one} editable={!approved} />
+          <QuestionCard
+            key={one.question_id}
+            question={one}
+            editable={!locked}
+            onSolve={() => setSolving(one)}
+            onSave={(edited) => save(one.question_id, edited)}
+          />
         ))}
       </div>
 
-      {publishing && approved ? (
+      {publishing && locked ? (
         <PublishSettings assessmentId={assessmentId} onPublished={onApproved} />
       ) : (
-      <div className="panel-foot">
-        <div className="note">
-          {trouble ??
-            (approved
-              ? "Đã duyệt. Nội dung khoá lại; muốn sửa thì bỏ duyệt trước."
-              : "Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.")}
+        <div className="panel-foot">
+          <div className="note">{trouble ?? _note(paper.state)}</div>
+          {/* Đã duyệt thì việc tiếp theo là **phát hành**, và đường lùi là *Hoàn tác* đứng
+            trên nó — không đứng cạnh, vì hai nút cạnh nhau đọc ra là hai lựa chọn ngang
+            hàng. Bản trước để đúng một nút ở đây, và với đề đã duyệt thì nút ấy bị khoá
+            với nhãn *Đã duyệt*, trong khi dòng chữ ngay trên lại bảo "muốn sửa thì bỏ
+            duyệt trước" — một chỉ dẫn tới một hành động không có trên màn hình. */}
+          {locked && !released && (
+            <button
+              className="quiet"
+              type="button"
+              disabled={working}
+              onClick={() => void undo()}
+            >
+              Hoàn tác
+            </button>
+          )}
+          <button
+            className="cta"
+            type="button"
+            disabled={working || paper.question_count === 0}
+            onClick={() => (locked ? onPublish() : void approve())}
+          >
+            {released
+              ? "Phát hành thêm lớp"
+              : locked
+                ? "Phát hành đề"
+                : "Duyệt đề"}
+          </button>
         </div>
+      )}
+
+      {solving !== null && (
+        <Solution question={solving} onClose={() => setSolving(null)} />
+      )}
+    </aside>
+  );
+}
+
+/**
+ * Lời giải của một câu, trong một hộp thoại.
+ *
+ * Mở tại chỗ thì lời giải phải vừa một cột rộng 380, nên hai cách giải và bốn dòng ánh xạ
+ * nhiễu không có chỗ đứng — và ánh xạ nhiễu là thứ nói cho giáo viên biết **mỗi phương án
+ * sai sai ở đâu**, tức phần đáng đọc nhất. Figma vẽ hộp này rộng 680 (`Solution dialog`
+ * `309:41`, artboard `309:1415`); đây là bản dựng của nó.
+ *
+ * @param question - Câu hỏi, kèm phương án và lời giải.
+ * @param onClose - Đóng hộp.
+ */
+function Solution({
+  question,
+  onClose,
+}: {
+  question: TeacherQuestion;
+  onClose: () => void;
+}) {
+  return (
+    <Veil onClose={onClose} wide>
+      <div className="solution-head">
+        <h3>Lời giải — Câu {question.order}</h3>
+        <button className="close" type="button" onClick={onClose}>
+          Đóng
+        </button>
+      </div>
+
+      <div className="solution-stem">
+        <MathText>{question.stem}</MathText>
+      </div>
+
+      <div className="ways">
+        {/* `key` theo thứ tự, không theo tên: hai cách giải trùng tên là chuyện BE cho
+            qua, và hai key trùng làm React ghép nhầm hai phần tử. */}
+        {question.methods.map((one, index) => (
+          <div className="way" key={index}>
+            <strong>{one.title}</strong>
+            <div className="body">
+              <MathText>{one.body}</MathText>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="faults">
+        <div className="faults-head">MỖI PHƯƠNG ÁN NHIỄU GẮN MỘT LỖI</div>
+        {question.options.map((one) => (
+          <div className="fault" key={one.label}>
+            <span className={`which ${one.is_correct ? "correct" : ""}`}>
+              {one.label}. <MathText>{one.text}</MathText>
+            </span>
+            <span className="why">
+              {one.is_correct ? (
+                "✓ đúng"
+              ) : (
+                <MathText>{one.error_label ?? ""}</MathText>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Veil>
+  );
+}
+
+/**
+ * Câu dưới chân panel, một câu cho mỗi trạng thái.
+ *
+ * Ba, không hai. Một đề **đã phát hành** không nói được câu của một đề mới duyệt: nội dung
+ * vẫn khoá, nhưng đường mở lại không còn là bỏ duyệt — nó là thu hồi, vì đề đã ra khỏi tay
+ * giáo viên.
+ *
+ * @param state - Trạng thái đề, nguyên văn từ BE.
+ * @returns Câu để in, hoặc câu của trạng thái chưa duyệt khi state lạ.
+ */
+function _note(state: string): string {
+  if (state === "published") {
+    return "Đề đã tới học sinh. Muốn sửa thì thu hồi khỏi mọi lớp trước.";
+  }
+  if (state === "approved") {
+    return "Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.";
+  }
+  return "Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.";
+}
+
+/**
+ * Một ô soạn **tự giãn theo nội dung**.
+ *
+ * Một chiều cao cố định nhốt lời giải lại và mọc một thanh cuộn **bên trong ô** — đo được:
+ * hai ô lời giải có `scrollHeight` 78 và 95 trong một ô cao 45, tức giáo viên phải cuộn
+ * trong một ô để đọc thứ mình đang gõ. Đó là chỗ khó dùng nhất của cả màn này.
+ *
+ * Cao lại theo `scrollHeight` sau mỗi lần gõ, và một lần lúc gắn vào DOM — chữ có sẵn khi
+ * mở ô ra cũng phải vừa.
+ *
+ * @param className - Lớp CSS, để ô đề bài có chiều cao tối thiểu riêng.
+ * @param label - Nhãn cho trình đọc màn hình.
+ * @param value - Chữ đang có.
+ * @param onChange - Chữ vừa đổi.
+ */
+function Field({
+  className,
+  label,
+  value,
+  onChange,
+}: {
+  className: string;
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const fit = (node: HTMLTextAreaElement | null) => {
+    if (node === null) return;
+    node.style.height = "auto";
+    // Cộng phần viền. `box-sizing: border-box` tính chiều cao kể cả viền, còn
+    // `scrollHeight` thì không — đặt thẳng `scrollHeight` làm ô hụt đúng 2px, và dòng cuối
+    // mất phần chân chữ. Đo được: `scrollHeight` 78 trong một ô `clientHeight` 76.
+    const frame = node.offsetHeight - node.clientHeight;
+    node.style.height = `${node.scrollHeight + frame}px`;
+  };
+
+  return (
+    <textarea
+      className={className}
+      aria-label={label}
+      ref={fit}
+      rows={1}
+      value={value}
+      onChange={(event) => {
+        fit(event.currentTarget);
+        onChange(event.target.value);
+      }}
+    />
+  );
+}
+
+/**
+ * Thẻ câu hỏi lúc đang sửa — bản dựng của component `Question card — đang sửa` (`468:2050`).
+ *
+ * Mỗi ô là một `textarea` chứ không phải một ô nhập một dòng: đề bài và lời giải xuống
+ * dòng được, và một ô một dòng biến một lời giải ba bước thành một dải chữ cuộn ngang.
+ *
+ * Chữ gõ ở đây là **LaTeX nguồn**, không phải công thức đã dựng hình. Sửa cái đã dựng hình
+ * thì cần một trình soạn công thức, và đó là một việc khác hẳn; sửa nguồn thì giáo viên
+ * thấy đúng thứ sẽ được lưu, và thứ ấy đúng là thứ `validate_question` sẽ kiểm.
+ *
+ * @param question - Câu hỏi gốc, để lấy số câu.
+ * @param source - Chip nguồn câu hỏi. Nó **ở lại** lúc đang sửa: biết câu này lấy từ đâu là
+ *   thứ cần nhất đúng lúc đang sửa nó, không phải thứ bỏ đi được.
+ * @param draft - Bản đang gõ.
+ * @param refused - Lời từ chối của BE, hoặc chuỗi rỗng.
+ * @param saving - Đang gửi; hai nút phải khoá để không lưu hai lần.
+ * @param onChange - Bản gõ vừa đổi.
+ * @param onCancel - Bỏ, quay về thẻ chỉ đọc.
+ * @param onSave - Gửi đi.
+ */
+function Editing({
+  question,
+  source,
+  draft,
+  refused,
+  saving,
+  onChange,
+  onCancel,
+  onSave,
+}: {
+  question: TeacherQuestion;
+  source: { tone: string; label: string };
+  draft: QuestionEdit;
+  refused: string;
+  saving: boolean;
+  onChange: (next: QuestionEdit) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="qcard editing">
+      <div className="top">
+        <span className="num">Câu {question.order}</span>
+        <span className={`source-chip ${source.tone}`}>{source.label}</span>
+        <span className="spacer" />
+        <span className="edit-mark">Đang sửa</span>
+      </div>
+
+      <Field
+        className="field stem"
+        label="Đề bài"
+        value={draft.stem}
+        onChange={(next) => onChange({ ...draft, stem: next })}
+      />
+
+      {draft.options.map((one, index) => (
+        <Field
+          className="field"
+          key={one.label}
+          label={`Phương án ${one.label}`}
+          value={one.text}
+          onChange={(next) =>
+            onChange({
+              ...draft,
+              options: draft.options.map((other, at) =>
+                at === index ? { ...other, text: next } : other,
+              ),
+            })
+          }
+        />
+      ))}
+
+      {draft.methods.map((one, index) => (
+        <Field
+          className="field"
+          key={index}
+          label={`Lời giải ${index + 1}`}
+          value={one.body}
+          onChange={(next) =>
+            onChange({
+              ...draft,
+              methods: draft.methods.map((other, at) =>
+                at === index ? { ...other, body: next } : other,
+              ),
+            })
+          }
+        />
+      ))}
+
+      {refused !== "" && <div className="refused">{refused}</div>}
+
+      <div className="edit-actions">
+        <button
+          className="quiet"
+          type="button"
+          disabled={saving}
+          onClick={onCancel}
+        >
+          Huỷ
+        </button>
         <button
           className="cta"
           type="button"
-          disabled={approved || working || paper.question_count === 0}
-          onClick={() => void approve()}
+          disabled={saving}
+          onClick={onSave}
         >
-          {approved ? "Đã duyệt" : "Duyệt đề"}
+          Lưu
         </button>
       </div>
-      )}
-    </aside>
+    </div>
   );
 }
 
@@ -152,12 +493,18 @@ function Provenance({ questions }: { questions: TeacherQuestion[] }) {
   }
   return (
     <div className="provenance">
-      {tally.bank > 0 && <span className="lead">{tally.bank} câu ngân hàng ·</span>}
+      {tally.bank > 0 && (
+        <span className="lead">{tally.bank} câu ngân hàng ·</span>
+      )}
       {tally.checked > 0 && (
-        <span className="source-chip checked">{tally.checked} câu thêm mới đã kiểm</span>
+        <span className="source-chip checked">
+          {tally.checked} câu thêm mới đã kiểm
+        </span>
       )}
       {tally.unchecked > 0 && (
-        <span className="source-chip unchecked">{tally.unchecked} câu chưa kiểm</span>
+        <span className="source-chip unchecked">
+          {tally.unchecked} câu chưa kiểm
+        </span>
       )}
     </div>
   );
@@ -166,23 +513,57 @@ function Provenance({ questions }: { questions: TeacherQuestion[] }) {
 /**
  * Một câu hỏi trong panel.
  *
- * Lời giải mở ra tại chỗ chứ không mở một hộp thoại: *"Lời giải · 2 cách"* đọc được ngay
- * khi còn thu gọn, và con số đó là `methods.length` — nó đi kèm trong cùng một response,
+ * Nút lời giải mở một **hộp thoại**, không mở tại chỗ. *"Lời giải · 2 cách"* vẫn đọc được
+ * ngay khi chưa mở, và con số đó là `methods.length` — nó đi kèm trong cùng một response,
  * nên một panel mười thẻ không phải gọi mười request chỉ để đếm.
  *
  * @param question - Câu hỏi, kèm phương án và lời giải.
  * @param editable - Đề còn sửa được hay không. Tới từ `state`, không từ một phép so sánh
  *   ở đây.
+ * @param onSolve - Xin mở lời giải của câu này.
+ * @param onSave - Gửi bản vừa sửa đi. Trả về chuỗi rỗng khi BE nhận, hoặc lời từ chối để
+ *   thẻ hiện ngay tại chỗ — ô nhập **không** đóng lại khi bị từ chối, vì đóng là mất chữ
+ *   giáo viên vừa gõ.
  */
 function QuestionCard({
   question,
   editable,
+  onSolve,
+  onSave,
 }: {
   question: TeacherQuestion;
   editable: boolean;
+  onSolve: () => void;
+  onSave: (edited: QuestionEdit) => Promise<string>;
 }) {
-  const [open, setOpen] = useState(false);
   const source = provenanceOf(question.question_id);
+  const [editing, setEditing] = useState<QuestionEdit | null>(null);
+  const [refused, setRefused] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (editing !== null) {
+    return (
+      <Editing
+        question={question}
+        source={source}
+        draft={editing}
+        refused={refused}
+        saving={saving}
+        onChange={setEditing}
+        onCancel={() => {
+          setEditing(null);
+          setRefused("");
+        }}
+        onSave={async () => {
+          setSaving(true);
+          const wrong = await onSave(editing);
+          setSaving(false);
+          setRefused(wrong);
+          if (!wrong) setEditing(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="qcard">
@@ -191,38 +572,44 @@ function QuestionCard({
         <span className={`source-chip ${source.tone}`}>{source.label}</span>
         <span className="spacer" />
         {editable && (
-          <button className="edit" type="button">
+          <button
+            className="edit"
+            type="button"
+            onClick={() =>
+              setEditing({
+                stem: question.stem,
+                learning_objective: question.learning_objective,
+                options: question.options.map((one) => ({ ...one })),
+                methods: question.methods.map((one) => ({ ...one })),
+              })
+            }
+          >
             Sửa
           </button>
         )}
       </div>
 
-      <div className="stem">{question.stem}</div>
+      <div className="stem">
+        <MathText>{question.stem}</MathText>
+      </div>
 
       <div className="options">
         {question.options.map((one) => (
-          <div className={`opt ${one.is_correct ? "correct" : ""}`} key={one.label}>
-            {one.label}. {one.text}
+          <div
+            className={`opt ${one.is_correct ? "correct" : ""}`}
+            key={one.label}
+          >
+            {one.label}. <MathText>{one.text}</MathText>
             {one.is_correct && "   ✓"}
           </div>
         ))}
       </div>
 
-      <button className="solution" type="button" onClick={() => setOpen(!open)}>
-        <span>
-          Lời giải · {question.methods.length} cách
-        </span>
+      <button className="solution" type="button" onClick={onSolve}>
+        <span>Lời giải · {question.methods.length} cách</span>
         <span className="spacer" />
-        <span aria-hidden="true">{open ? "⌄" : "›"}</span>
+        <span aria-hidden="true">›</span>
       </button>
-
-      {open &&
-        question.methods.map((one) => (
-          <div className="stem" key={one.title}>
-            <strong>{one.title}</strong>
-            <div className="opt">{one.body}</div>
-          </div>
-        ))}
     </div>
   );
 }

@@ -9,11 +9,14 @@ import {
   type Turn,
   type TurnEvent,
 } from "../../api";
-import ActionCard, { cardTurn, stepFor } from "./ActionCard";
+import ActionCard, { byTheTeacher, cardTurn, stepFor } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
 import Rail from "./Rail";
+import Split from "./Split";
 import Steps, { type Step } from "./Steps";
+import Veil from "./Veil";
+import MathText from "../../MathText";
 
 /**
  * Một câu hỏi lại đang chờ trả lời: câu hỏi, cùng các phương án đi với nó.
@@ -108,10 +111,16 @@ export default function Chat({
   // chat ấy: hai thứ nói hai chuyện trái ngược, không lỗi console nào.
   const loaded = useRef<string | null>(null);
   const [scope, setScope] = useState<TeacherDocument | null>(null);
+  // Có tài liệu đang được kéo lơ lửng trên ô nhập hay không. Chỉ để vẽ, không để quyết.
+  const [dropping, setDropping] = useState(false);
   // Đoạn chat đang chờ xác nhận xoá. Xoá bên BE là xoá mềm, nhưng với người bấm nút thì nó
   // là một việc một chiều — không có nút hoàn tác nào trên màn hình này — nên nó đi qua hộp
   // xác nhận y như việc phát hành.
   const [erasing, setErasing] = useState<TeacherConversation | null>(null);
+  // Bề rộng hai cột, giáo viên kéo được. Giữ ở đây chứ không trong `Rail` và `Panel`: cả
+  // hai đều là con của cùng một hàng flex, và chỉ chỗ này thấy được cả hàng.
+  const [railWidth, setRailWidth] = useState(() => readWidth(RAIL));
+  const [panelWidth, setPanelWidth] = useState(() => readWidth(PAPER));
   const [text, setText] = useState("");
   // Bong bóng **tạm** của câu vừa gửi. Nó không nằm trong `turns`, nên lúc lượt thật về tới
   // thì nó biến mất đúng vào khoảnh khắc bong bóng thật xuất hiện — không có khả năng nhân
@@ -330,13 +339,24 @@ export default function Chat({
   const drawn = folded ? turns.slice(0, -1) : turns;
 
   return (
-    <div className="teacher">
+    <div
+      className="teacher"
+      // Hai con số đi xuống bằng custom property chứ không bằng prop: `Rail` và `Panel`
+      // không cần biết chúng tồn tại, và CSS là chỗ duy nhất đã biết bề rộng mặc định.
+      style={
+        {
+          "--rail-w": `${railWidth}px`,
+          "--panel-w": `${panelWidth}px`,
+        } as React.CSSProperties
+      }
+    >
       <Rail
         conversations={threads}
         current={here}
         documents={documents}
         starting={fresh}
         onOpen={(thread) => go(`/teacher/chat/${thread}`)}
+        onUpload={() => picker.current?.click()}
         onRename={(thread, title) => void rename(thread, title)}
         onDelete={(thread) =>
           setErasing(
@@ -344,6 +364,14 @@ export default function Chat({
           )
         }
         onNew={() => go("/teacher/moi")}
+      />
+      <Split
+        side="left"
+        min={RAIL.min}
+        max={RAIL.max}
+        label="Kéo để đổi bề rộng cột bên trái"
+        onWidth={setRailWidth}
+        onSettle={(width) => keepWidth(RAIL, width)}
       />
       <main
         className={`center ${talking ? "talking" : "empty"} ${openPaper !== null ? "with-panel" : ""}`}
@@ -353,17 +381,24 @@ export default function Chat({
             {blocks(drawn).map((block, index) =>
               "said" in block ? (
                 <div className="exchange said" key={index}>
-                  <div className="said-bubble">{block.said}</div>
+                  <div className="said-bubble">
+                    <MathText>{block.said}</MathText>
+                  </div>
                 </div>
               ) : (
                 <Turnful
                   key={index}
                   said={spoken(block.kriky)}
+                  // Chưa biết tên đoạn chat thì đi đường `#/teacher/de/{id}`: route ấy
+                  // hỏi BE xem đề thuộc đoạn nào rồi chuyển tiếp. Ghép một id rỗng vào
+                  // giữa đường dẫn cho ra `/teacher/chat//de/X`, và `([^/]+)` không khớp
+                  // một đoạn rỗng — nút trông như hỏng.
                   onOpen={(paper) =>
-                    go(`/teacher/chat/${here ?? ""}/de/${paper}`)
-                  }
-                  onPublish={(paper) =>
-                    go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)
+                    go(
+                      here === null
+                        ? `/teacher/de/${paper}`
+                        : `/teacher/chat/${here}/de/${paper}`,
+                    )
                   }
                   onCompose={setText}
                 />
@@ -374,7 +409,9 @@ export default function Chat({
             )}
             {pending !== null && (
               <div className="exchange said">
-                <div className="said-bubble">{pending}</div>
+                <div className="said-bubble">
+                  <MathText>{pending}</MathText>
+                </div>
               </div>
             )}
             {/* Lượt đang chạy. Hình dạng y hệt một lượt đã xong — avatar một lần, rồi câu
@@ -386,7 +423,9 @@ export default function Chat({
                   <Who />
                   <div className="turn-body">
                     {live.opening !== "" && (
-                      <div className="reply-text">{live.opening}</div>
+                      <div className="reply-text">
+                        <MathText>{live.opening}</MathText>
+                      </div>
                     )}
                     {live.steps.length > 0 && (
                       <Steps
@@ -395,7 +434,9 @@ export default function Chat({
                       />
                     )}
                     {live.report !== "" && (
-                      <div className="reply-text">{live.report}</div>
+                      <div className="reply-text">
+                        <MathText>{live.report}</MathText>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -419,9 +460,6 @@ export default function Chat({
                 Nói bằng câu bình thường. Kriky sẽ tạo lớp, soạn đề, thêm câu
                 hỏi — nhưng chỉ bạn mới phát hành được đề cho học sinh.
               </p>
-            </div>
-            <div className="hint">
-              Bấm một gợi ý để điền sẵn vào ô nhập, bạn sửa lại trước khi gửi.
             </div>
             <div className="suggestions">
               {OPENERS.map((one) => (
@@ -454,33 +492,49 @@ export default function Chat({
           <div className="scope-strip">
             <span className="kind">{scope.kind}</span>
             <span className="what">Đã tải lên: {scope.filename}</span>
-            <button type="button" onClick={() => picker.current?.click()}>
-              Tải tệp khác
-            </button>
           </div>
         )}
-        {scope !== null && (
-          <div className="scope-note">
-            Tệp đã vào thư viện tài liệu của bạn. Nội dung của nó chưa được dùng
-            để soạn đề.
-          </div>
-        )}
-
+        {/* Kéo một chip tài liệu từ rail thả vào đây để đính nó vào câu đang gõ. Nút tải
+            lên thì **không** ở đây nữa: tài liệu thuộc về giáo viên và nằm trong kho chung
+            (ADR-04), nên chỗ của nó là trên đầu ngăn TÀI LIỆU. Đính một tệp **đã có** vào
+            một câu thì mới là việc của thanh chat, và cử chỉ cho việc ấy là kéo thả. */}
         <form
-          className="composer-bar"
+          className={dropping ? "composer-bar dropping" : "composer-bar"}
           onSubmit={(event) => {
             event.preventDefault();
             void send(text);
           }}
+          onDragOver={(event) => {
+            // `preventDefault()` **vô điều kiện**, trước mọi phép phân loại. Chặn mặc định
+            // ở `dragover` là thứ làm cú thả xảy ra được; nhưng quan trọng hơn: không chặn
+            // thì một tệp kéo từ desktop rơi xuống `document`, và mặc định của trình duyệt
+            // là **mở tệp ấy** — tức rời khỏi SPA, mất chữ đang gõ, mất tài liệu đã đính,
+            // mất cả câu hỏi lại chưa trả lời. Nút tải lên vừa rời khỏi composer, nên kéo
+            // một PDF vào ô nhập đúng là cử chỉ tự nhiên còn lại.
+            event.preventDefault();
+            if (!event.dataTransfer.types.includes("text/kriky-document"))
+              return;
+            event.dataTransfer.dropEffect = "copy";
+            setDropping(true);
+          }}
+          onDragLeave={(event) => {
+            // Chỉ tắt khi con trỏ rời **cả** cái form. `dragleave` nổi bọt từ con, nên đi
+            // ngang qua ô nhập bên trong cũng bắn — và viền nhấp nháy suốt cú kéo.
+            if (
+              event.currentTarget.contains(event.relatedTarget as Node | null)
+            )
+              return;
+            setDropping(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDropping(false);
+            const id = event.dataTransfer.getData("text/kriky-document");
+            if (!id) return;
+            const found = documents.find((one) => one.document_id === id);
+            if (found) setScope(found);
+          }}
         >
-          <button
-            className="attach"
-            type="button"
-            disabled={pending !== null}
-            onClick={() => picker.current?.click()}
-          >
-            ＋ Tài liệu
-          </button>
           <input
             value={text}
             onChange={(event) => setText(event.target.value)}
@@ -499,7 +553,7 @@ export default function Chat({
           </button>
         </form>
 
-        {/* Ô chọn file thật, ẩn đi: nút "＋ Tài liệu" của thiết kế không phải một input. */}
+        {/* Ô chọn file thật, ẩn đi: nút tải lên trên rail không phải một input. */}
         <input
           ref={picker}
           type="file"
@@ -514,18 +568,36 @@ export default function Chat({
       </main>
 
       {openPaper !== null && (
+        <Split
+          side="right"
+          min={PAPER.min}
+          max={PAPER.max}
+          label="Kéo để đổi bề rộng panel đề"
+          onWidth={setPanelWidth}
+          onSettle={(width) => keepWidth(PAPER, width)}
+        />
+      )}
+
+      {openPaper !== null && (
         <Panel
           assessmentId={openPaper}
           publishing={publishing}
           onClose={() =>
             go(here === null ? "/teacher" : `/teacher/chat/${here}`)
           }
+          onPublish={() =>
+            go(`/teacher/chat/${here ?? ""}/de/${openPaper}/phat-hanh`)
+          }
           onApproved={() => {
             // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
             // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
             // hành động vừa rồi chỉ xuất hiện sau một lần F5.
+            //
+            // Đọc lại **đúng đoạn đang mở**. Bản trước gọi không id, mà không id nghĩa là
+            // *đoạn đang chạy* — nên duyệt một đề mở từ một đoạn cũ sẽ ghi lượt của đoạn
+            // khác đè lên màn hình.
             teacher
-              .conversation()
+              .conversation(here ?? undefined)
               .then((answered: Answered) => setTurns(answered.turns))
               .catch((cause: Error) => setTrouble(cause.message));
           }}
@@ -533,32 +605,30 @@ export default function Chat({
       )}
 
       {erasing !== null && (
-        <div className="veil" role="dialog" aria-modal="true">
-          <div className="confirm">
-            <h3>Xoá đoạn chat này?</h3>
-            <p className="lead">
-              “{erasing.title || "Đoạn chat"}” sẽ không còn trên danh sách, và
-              bạn sẽ không mở lại được nó. Các đề đã tạo trong đoạn này thì vẫn
-              còn nguyên.
-            </p>
-            <div className="confirm-actions">
-              <button
-                className="btn"
-                type="button"
-                onClick={() => setErasing(null)}
-              >
-                Giữ lại
-              </button>
-              <button
-                className="btn primary"
-                type="button"
-                onClick={() => void erase(erasing.conversation_id)}
-              >
-                Xoá đoạn chat
-              </button>
-            </div>
+        <Veil onClose={() => setErasing(null)}>
+          <h3>Xoá đoạn chat này?</h3>
+          <p className="lead">
+            “{erasing.title || "Đoạn chat"}” sẽ không còn trên danh sách, và bạn
+            sẽ không mở lại được nó. Các đề đã tạo trong đoạn này thì vẫn còn
+            nguyên.
+          </p>
+          <div className="confirm-actions">
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setErasing(null)}
+            >
+              Giữ lại
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => void erase(erasing.conversation_id)}
+            >
+              Xoá đoạn chat
+            </button>
           </div>
-        </div>
+        </Veil>
       )}
     </div>
   );
@@ -595,7 +665,9 @@ function spoken(turns: Turn[]): Spoken {
   let conclusion = "";
   for (const one of turns) {
     if (one.kind === "tool_result") {
-      steps.push(stepFor(one));
+      // Việc giáo viên tự làm thì không vào khối bước: khối ấy là bằng chứng **model** đã
+      // làm gì. Nó vẫn lên thẻ, nên biên bản không mất đi đâu (ADR-24).
+      if (!byTheTeacher(one)) steps.push(stepFor(one));
       continue;
     }
     if (one.kind !== "assistant") continue;
@@ -728,18 +800,15 @@ export function grow(before: Live | null, event: TurnEvent): Live {
  *
  * @param said - Lượt đã tách thành bốn khối.
  * @param onOpen - Mở panel của một đề.
- * @param onPublish - Mở biểu mẫu phát hành.
  * @param onCompose - Điền sẵn một câu vào ô nhập.
  */
 function Turnful({
   said,
   onOpen,
-  onPublish,
   onCompose,
 }: {
   said: Spoken;
   onOpen: (assessmentId: string) => void;
-  onPublish: (assessmentId: string) => void;
   onCompose: (text: string) => void;
 }) {
   const steps = said.steps.length > 0 ? <Steps steps={said.steps} /> : null;
@@ -753,17 +822,20 @@ function Turnful({
         <Who />
         <div className="turn-body">
           {said.opening !== "" && (
-            <div className="reply-text">{said.opening}</div>
+            <div className="reply-text">
+              <MathText>{said.opening}</MathText>
+            </div>
           )}
           {steps}
           {said.conclusion !== "" && (
-            <div className="reply-text">{said.conclusion}</div>
+            <div className="reply-text">
+              <MathText>{said.conclusion}</MathText>
+            </div>
           )}
           {said.card !== null && (
             <ActionCard
               turn={said.card}
               onOpen={onOpen}
-              onPublish={onPublish}
               onCompose={onCompose}
             />
           )}
@@ -861,4 +933,67 @@ function Clarify({
       </div>
     </div>
   );
+}
+
+/**
+ * Một cột kéo được: tên chỗ nhớ, bề rộng mặc định, và hai biên.
+ *
+ * Biên là thật chứ không phải cho đẹp. Không có `min` thì kéo quá tay làm cột biến mất và
+ * không còn gì để kéo trở lại; không có `max` thì một cột nuốt hết chỗ của cột kia.
+ */
+interface Column {
+  key: string;
+  fallback: number;
+  min: number;
+  max: number;
+}
+
+/** Rail: hẹp hơn 200 thì tên đoạn chat cụt hết, rộng hơn 420 thì nó không còn là một rail. */
+const RAIL: Column = {
+  key: "kriky.teacher.rail-width",
+  fallback: 260,
+  min: 200,
+  max: 420,
+};
+
+/** Panel đề: 340 là chỗ vừa đủ cho một hàng hai phương án, dưới mức ấy lưới gãy. */
+const PAPER: Column = {
+  key: "kriky.teacher.panel-width",
+  fallback: 420,
+  min: 340,
+  max: 720,
+};
+
+/**
+ * Bề rộng đã nhớ của một cột, hoặc mặc định.
+ *
+ * Số ngoài biên bị bỏ chứ không bị kẹp lại: nó chỉ tới từ một lần đổi `min`/`max` trong
+ * code, và khi ấy con số cũ là ý của một bản cũ, không phải ý của giáo viên.
+ *
+ * @param column - Cột cần đọc.
+ * @returns Bề rộng tính bằng pixel.
+ */
+function readWidth(column: Column): number {
+  try {
+    const saved = Number(window.localStorage.getItem(column.key));
+    if (Number.isFinite(saved) && saved >= column.min && saved <= column.max)
+      return saved;
+  } catch {
+    /* ẩn danh hoặc storage bị chặn; mặc định vẫn dùng được */
+  }
+  return column.fallback;
+}
+
+/**
+ * Ghi nhớ bề rộng một cột. Hỏng thì im lặng — vị trí một thanh kéo không đáng làm hỏng gì.
+ *
+ * @param column - Cột vừa kéo.
+ * @param width - Bề rộng lúc thả tay.
+ */
+function keepWidth(column: Column, width: number): void {
+  try {
+    window.localStorage.setItem(column.key, String(width));
+  } catch {
+    /* như trên */
+  }
 }
