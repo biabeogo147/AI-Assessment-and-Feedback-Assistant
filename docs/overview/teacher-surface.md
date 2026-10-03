@@ -300,6 +300,47 @@ duyệt* — trong khi dòng chữ ngay trên bảo *"muốn sửa thì bỏ duy
 động **không có trên màn hình**. `teacher.unapprove` đã nằm trong `api.ts` từ lâu mà **chưa một
 dòng nào gọi**.
 
+## Biểu mẫu phát hành — hai bậc nhãn, và câu luật nói đúng số đang gõ
+
+**Câu luật điền bằng khuôn, không dựng sẵn.** Bản trước in `rules.phase_one` — một câu BE dựng với
+`--:--` và FE tải **một lần lúc mở màn**. Nó đứng ngay dưới mấy ô nhập, trông như sắp đổi theo con
+số vừa gõ, mà về cấu trúc thì không bao giờ đổi được. Một câu luật nói sai số ngay cạnh chỗ gõ số
+tệ hơn hẳn một câu luật vắng mặt.
+
+Nay `publication_wording.PHASE_ONE` / `PHASE_TWO` là **khuôn**, và là nguồn duy nhất của chữ nghĩa
+ấy: BE dựng câu thật bằng chính chúng, biểu mẫu nhận chúng qua `rules.phase_one_form` rồi điền số
+đang gõ. Đổi một chữ trong khuôn là đổi ở cả bốn chỗ ADR-03 đòi phải giống nhau. Hộp xác nhận và
+biên bản **không** dùng khuôn — chúng có số thật và nhận câu đã dựng từ BE.
+
+Cái giá, nói đủ: **bốn** thứ có hai bản — phép cộng *giờ đóng + phút làm bài*, tên bốn chỗ trống,
+`--:--`, và `--`. Chữ nghĩa thì không. Ba thứ sau là hợp đồng giữa `publication_wording.py` và
+`PublishSettings.tsx`, và nơi thi hành là check thứ chín trong `tools/check_contract.py`: đổi
+`{last}` thành `{last_submission}` ở BE là một thay đổi **xanh hết mọi lưới khác** — BE tự sửa cùng
+lúc, `tsc` không biết gì về nội dung chuỗi, test FE dùng khuôn trong fixture của chính nó — và thứ
+duy nhất đổi là biểu mẫu thật in ra `{last_submission}` nguyên văn. Phép cộng thì được ghim bằng
+một test BE và ba test FE, gồm ca `23:50 + 20` mà một phép cộng viết ẩu cho ra `23:70`.
+
+**Và biểu mẫu tôn trọng khoảng BE nhận.** `min={1}` của một ô số không ngăn người ta gõ `-15`, và
+khi ấy câu luật in ra *"đóng 18:00 - có thể nộp lúc 17:45"* — một câu tự phản bác, đúng con số
+17:45 mà ADR-03 dành cả tài liệu để chống. Ngoài khoảng `1..600` thì chỗ trống ở lại: chưa nói gì
+còn hơn nói sai.
+
+**Vạch ngăn mang class `divider`, không phải `rule`.** Hộp xác nhận đã dùng `.rule` cho ba câu luật
+của nó, và `Veil` không dựng qua portal — nên cả hộp nằm *bên trong* `.publish-settings`, và một
+luật `.publish-settings .rule { height: 1px }` bóp ba câu ấy xuống cao một pixel. `tsc` không thấy,
+jsdom không thấy; thứ ghim được là cái tên.
+
+**Hai bậc nhãn.** Biểu mẫu từng có **tám** nhãn VIẾT HOA cùng một sức nặng — `LỚP`, `PHA 1`,
+`LÀM BÀI`, `MỞ LÚC`, `ĐÓNG LÚC`, `PHA 2`, `PHÚT MỖI CÂU`, `HẠN CHỮA XONG` — nên nhãn mục và nhãn
+trường trông y hệt nhau, và mắt không có bậc nào để bám. Nay `.caps` còn đúng ba chỗ (tên ba mục),
+còn nhãn từng ô là `.label`: chữ thường, nhạt hơn, không đậm.
+
+**Một vạch `--line` 1px trên mỗi mục pha**, không phải một khối viền: trong cột 420 thì ba cái hộp
+lồng nhau đọc ra nặng hơn chứ không nhẹ đi.
+
+**Và biểu mẫu thôi đếm lớp.** Dòng *"Đã chọn x trong y lớp · z học sinh"* đi mất: các chip lớp ngay
+trên nó đã nói ai được chọn, và con số đầu người thì nằm ở hộp xác nhận — chỗ nó thật sự chịu lực.
+
 ## Panel tách khỏi khung chat bằng **nền**, vạch chỉ là nét cuối
 
 Số đo trên Figma: `panel` nền `#FFFFFF` + stroke `#E3E5E2` **cả bốn cạnh**; `questions` bên trong nó

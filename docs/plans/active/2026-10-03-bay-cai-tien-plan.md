@@ -240,6 +240,27 @@ nhất, mà không kiểm xem request có tới nổi chỗ ấy không. Bài h�
 ra trên màn hình, **đọc chính câu ấy trước** rồi mới đi tìm luật nào phát ra nó — `curl
 /openapi.json` tốn ba giây và đã trả lời xong câu hỏi.
 
+## Đợt bốn — biểu mẫu phát hành đọc đỡ rối
+
+- [x] **Bỏ dòng *"Đã chọn x trong y lớp · z học sinh"*.**
+- [x] **Câu luật `--:--` không bao giờ cập nhật.** BE gửi **khuôn**, FE điền số đang gõ.
+- [x] **Hai bậc nhãn + vạch mảnh.** Tám nhãn VIẾT HOA cùng sức nặng còn ba; năm nhãn ô xuống
+  chữ thường. Một hairline `--line` trên mỗi mục pha.
+
+### Decision: khuôn câu ở BE, chỗ trống do FE điền
+
+options considered: bỏ hai câu khỏi biểu mẫu (chúng đã đúng số ở hộp xác nhận); gọi preview sau
+mỗi lần gõ để lấy câu thật; hoặc BE trả khuôn và FE điền.
+
+selected option: BE trả khuôn, FE điền.
+
+reason: Người dùng chọn. Rủi ro tôi nêu trước khi làm là phép cộng *giờ đóng + phút làm bài* sẽ có
+hai bản — và chính docstring của `publication_wording.py` lúc ấy đang **cấm** điều đó
+(*"một câu có số do FE tự tính là một bản cài đặt thứ hai của phép tính ấy"*). Cách giữ lời hứa gốc
+mà vẫn làm được việc: biến chính khuôn thành nguồn duy nhất — BE dựng câu thật **bằng** khuôn nó
+gửi đi — nên thứ nhân đôi chỉ còn phép cộng, không phải chữ nghĩa. Docstring đã được viết lại cho
+thành thật về chuyện này, và một test ghim khuôn-điền-tay phải khớp câu hàm dựng ra.
+
 ## Status
 
 Bảy pha đã xong; `check` 8/8, pytest xanh, 79 test FE xanh, `tsc` sạch. Chưa commit — chờ người
