@@ -11,6 +11,7 @@ import {
 } from "../../api";
 import { go } from "../../App";
 import { ErrorStrip, TopBar } from "../../components";
+import MathText from "../../MathText";
 
 /**
  * Màn 17, 18, 19, 20 và 24 — hỏi trợ lý, và cửa vào một lượt làm lại.
@@ -47,7 +48,9 @@ function Turn({ role, text }: { role: string; text: string }) {
       )}
       <div className="said">
         <span className="faint">{student ? "Bạn" : "Kriky"}</span>
-        <div className={`bubble ${student ? "student" : ""}`}>{text}</div>
+        <div className={`bubble ${student ? "student" : ""}`}>
+          <MathText>{text}</MathText>
+        </div>
       </div>
     </div>
   );
@@ -283,19 +286,21 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
                   </span>
                 ) : null}
               </div>
-              <div style={{ fontSize: "var(--type-label)", lineHeight: 1.35 }}>{item.stem}</div>
+              <div style={{ fontSize: "var(--type-label)", lineHeight: 1.35 }}>
+                <MathText>{item.stem}</MathText>
+              </div>
               {item.chosen ? (
                 <div
                   className="muted"
                   style={{ color: "var(--answer-incorrect)", fontWeight: 600 }}
                 >
-                  Em đã chọn {item.chosen.label}. {item.chosen.text}
+                  Em đã chọn {item.chosen.label}. <MathText>{item.chosen.text}</MathText>
                 </div>
               ) : (
                 <div className="muted">Em chưa chọn phương án nào.</div>
               )}
               <div className="muted" style={{ color: "var(--answer-correct)", fontWeight: 600 }}>
-                Đáp án đúng {item.correct.label}. {item.correct.text}
+                Đáp án đúng {item.correct.label}. <MathText>{item.correct.text}</MathText>
               </div>
               <button
                 className="btn-quiet"
@@ -378,7 +383,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
                 color: "var(--ink-muted)",
               }}
             >
-              {solution.stem}
+              <MathText>{solution.stem}</MathText>
             </p>
 
             <div className="panel-card plain" style={{ gap: 14, padding: 16 }}>
@@ -388,7 +393,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
                     {method.title}
                   </div>
                   <div className="muted" style={{ marginTop: 4, lineHeight: 1.25 }}>
-                    {method.body}
+                    <MathText>{method.body}</MathText>
                   </div>
                 </div>
               ))}
@@ -409,10 +414,14 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
                         : "var(--answer-incorrect)",
                     }}
                   >
-                    {option.label}. {option.text}
+                    {option.label}. <MathText>{option.text}</MathText>
                   </span>
                   <span className="muted">
-                    {option.is_correct ? "✓ đúng" : option.error_label}
+                    {option.is_correct ? (
+                      "✓ đúng"
+                    ) : (
+                      <MathText>{option.error_label ?? ""}</MathText>
+                    )}
                   </span>
                 </div>
               ))}

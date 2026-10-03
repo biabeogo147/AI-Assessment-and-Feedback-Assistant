@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, type Me, type OpenRound } from "../../api";
 import { go } from "../../App";
 import { ErrorStrip, TimeCard, TopBar } from "../../components";
+import MathText from "../../MathText";
 
 /**
  * Màn 21 — trả lời các câu hỏi của một lượt làm lại.
@@ -114,7 +115,7 @@ export default function Round({
               fontWeight: 400,
             }}
           >
-            {item.stem}
+            <MathText>{item.stem}</MathText>
           </p>
 
           <ErrorStrip message={error} />
@@ -128,7 +129,9 @@ export default function Round({
             >
               <span className="radio" aria-hidden />
               <span className="label">{option.label}</span>
-              <span>{option.text}</span>
+              <span>
+                <MathText>{option.text}</MathText>
+              </span>
             </button>
           ))}
         </section>

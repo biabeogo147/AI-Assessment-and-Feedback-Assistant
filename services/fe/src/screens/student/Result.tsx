@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { api, moment, type AttemptResult, type Me } from "../../api";
 import { go } from "../../App";
 import { ErrorStrip, ScoreMark, TopBar } from "../../components";
+import MathText from "../../MathText";
 
 /**
  * Vì sao một điểm đứng ở chỗ nó đang đứng, bằng lời, do client chọn.
@@ -117,7 +118,9 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
               </span>
             </div>
             <div className="col-body">
-              <div>{item.stem}</div>
+              <div>
+                <MathText>{item.stem}</MathText>
+              </div>
               {item.rounds.length > 0 ? (
                 <div
                   style={{
@@ -151,7 +154,7 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
                         {round.outcome}
                       </span>
                       <span className="muted" style={{ color: "var(--ink)" }}>
-                        {round.stem}
+                        <MathText>{round.stem}</MathText>
                       </span>
                     </div>
                   ))}

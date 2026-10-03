@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, type Attempt, type Me } from "../../api";
 import { go } from "../../App";
 import { ErrorStrip, TimeCard, TopBar } from "../../components";
+import MathText from "../../MathText";
 
 /**
  * Màn 14 — ngồi làm đề, pha 1.
@@ -93,7 +94,7 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
               fontWeight: 400,
             }}
           >
-            {question.stem}
+            <MathText>{question.stem}</MathText>
           </p>
 
           <ErrorStrip message={error} />
@@ -107,7 +108,7 @@ export default function Sitting({ me, attemptId }: { me: Me; attemptId: string }
             >
               <span className="radio" aria-hidden />
               <span className="label">{option.label}</span>
-              <span>{option.text}</span>
+              <span><MathText>{option.text}</MathText></span>
             </button>
           ))}
         </section>
