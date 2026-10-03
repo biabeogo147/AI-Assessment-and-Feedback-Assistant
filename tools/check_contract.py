@@ -60,7 +60,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # đã trả tiền cho chính nó. Decision record nằm ở
 # 2026-09-30-teacher-write-path-plan.md.
 #
-AGENTS_MD_MAX_LINES = 176
+# 178: hai dòng nữa, mua ngày 2026-10-03 lúc chốt chặng A. Dòng thứ nhất gộp cả ba vế
+# của xoá mềm: một đoạn đã xoá đọc ra như không có, không nhận lượt mới, **và** giữ
+# nguyên các lượt nó đang có. Vế thứ ba là thứ ADR-24 đòi và là thứ dễ mất nhất trong
+# một lần dọn code sau này -- đổi `deleted_at` thành một câu `DELETE` thì hai vế đầu
+# vẫn đúng. Dòng thứ hai: *chỉ một câu hỏi lại mới mang nút bấm*. Nó mua bằng một lỗi
+# đo được -- một lời thông báo sau `find_class` mọc ra hai cái nút, và bấm một nút gửi
+# đi một câu giáo viên không hề gõ. Luật ấy chỉ đứng được ở BE, nơi duy nhất biết
+# `step.kind`. Decision record nằm ở 2026-10-03-chot-chang-a-plan.md.
+#
+AGENTS_MD_MAX_LINES = 178
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (

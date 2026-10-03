@@ -728,3 +728,275 @@ async def test_a_model_written_title_is_tidied_before_it_is_stored(stack, wrote,
         row = await session.get(TeacherConversation, opened.json()["conversation_id"])
     assert row is not None
     assert row.title == kept
+
+
+async def _a_thread(maker, *, title: str = "Đoạn cũ", code: str = "GV-001") -> str:
+    """Một đoạn chat đã có một bước, tức một đoạn đã lên rail.
+
+    Args:
+        maker: Session maker của test.
+        title: Tên đặt sẵn.
+        code: Mã giáo viên sở hữu.
+
+    Returns:
+        Id của đoạn.
+    """
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == code))
+        assert teacher is not None
+        thread = TeacherConversation(
+            teacher_id=teacher.id, started_at=datetime(2026, 9, 1, tzinfo=UTC), title=title
+        )
+        session.add(thread)
+        await session.flush()
+        session.add(
+            TeacherTurn(
+                conversation_id=thread.id,
+                sequence=0,
+                kind="teacher",
+                text="một câu đã nói",
+                created_at=datetime(2026, 9, 2, tzinfo=UTC),
+            )
+        )
+        await session.commit()
+        return thread.id
+
+
+@pytest.mark.asyncio
+async def test_a_renamed_conversation_keeps_the_name_the_teacher_typed(stack) -> None:
+    """Tên giáo viên gõ thắng tên model đã đặt, và nó sống qua một lần đọc lại.
+
+    Tên vốn do model đặt **một lần** sau lượt đầu và không ai sửa được. Rail là chỗ giáo viên
+    đi tìm lại việc cũ, nên một cái tên model đặt sai là một đoạn chat mất tích.
+    """
+    client, maker, _ = stack
+    thread = await _a_thread(maker, title="Tên model đặt sai")
+
+    renamed = await client.patch(
+        f"/api/teacher/conversations/{thread}",
+        json={"title": '  "Đề giữa kỳ 12A."  '},
+        headers=TEACHER,
+    )
+
+    assert renamed.status_code == 200
+    # Dọn bằng chính `_tidy` của đường đặt tên tự động: cùng một cột, cùng một giới hạn, nên
+    # cùng một hàm dọn — chứ không phải một luật thứ hai chờ lệch đi.
+    assert renamed.json()["title"] == "Đề giữa kỳ 12A"
+
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+    assert [one["title"] for one in listed.json()] == ["Đề giữa kỳ 12A"]
+
+
+@pytest.mark.asyncio
+async def test_a_title_that_is_only_spaces_is_refused(stack) -> None:
+    """Gõ về rỗng bị từ chối, vì cột rỗng đã có nghĩa riêng.
+
+    Rỗng nghĩa là *chưa đặt tên* — một đoạn vừa mở chưa có gì để đặt tên theo. Cho phép gõ
+    về rỗng là trộn chuyện ấy với *"tôi đặt tên là không gì cả"*, và rail sẽ vẽ ra nhãn dự
+    phòng `Đoạn chat` như thể model chưa kịp chạy.
+    """
+    client, maker, _ = stack
+    thread = await _a_thread(maker, title="Tên cũ")
+
+    refused = await client.patch(
+        f"/api/teacher/conversations/{thread}", json={"title": "   "}, headers=TEACHER
+    )
+
+    assert refused.status_code == 400
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+    assert [one["title"] for one in listed.json()] == ["Tên cũ"]
+
+
+@pytest.mark.asyncio
+async def test_a_deleted_conversation_leaves_the_rail(stack) -> None:
+    """Xoá rồi thì đoạn rời rail, và đọc lại ra **y như một đoạn không tồn tại**."""
+    client, maker, _ = stack
+    gone = await _a_thread(maker, title="Gõ nhầm")
+    kept = await _a_thread(maker, title="Đoạn thật")
+
+    erased = await client.delete(f"/api/teacher/conversations/{gone}", headers=TEACHER)
+
+    assert erased.status_code == 204
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+    assert [one["title"] for one in listed.json()] == ["Đoạn thật"]
+    assert (
+        await client.get(f"/api/teacher/chat?conversation_id={gone}", headers=TEACHER)
+    ).status_code == 404
+    # Xoá hai lần ra 404: lần thứ hai thật sự không tìm thấy gì.
+    assert (
+        await client.delete(f"/api/teacher/conversations/{gone}", headers=TEACHER)
+    ).status_code == 404
+    assert (
+        await client.get(f"/api/teacher/chat?conversation_id={kept}", headers=TEACHER)
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_deleted_conversation_keeps_its_turns(stack) -> None:
+    """Xoá là **xoá mềm**, và lý do là ADR-24.
+
+    Biên bản duyệt đề là một row `teacher_turns` của chính đoạn đã sinh ra đề. Xoá thật thì
+    một cú dọn nhà phá mất bằng chứng cho một cuộc đi tìm của tháng sau — mà người đang bấm
+    nút chỉ muốn một đoạn gõ nhầm biến khỏi mắt mình. Hai đòi hỏi ấy cùng được, miễn là
+    "biến đi" không có nghĩa là "mất hẳn".
+    """
+    client, maker, _ = stack
+    thread = await _a_thread(maker, title="Có biên bản trong này")
+
+    assert (
+        await client.delete(f"/api/teacher/conversations/{thread}", headers=TEACHER)
+    ).status_code == 204
+
+    async with maker() as session:
+        kept = list(
+            await session.scalars(select(TeacherTurn).where(TeacherTurn.conversation_id == thread))
+        )
+    assert len(kept) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_new_turn_never_lands_in_a_deleted_conversation(stack) -> None:
+    """Một câu mới không rơi vào một đoạn đã xoá.
+
+    `_owned_conversation` canh cả hai cửa bằng một mệnh đề, nên luật này không phải một bản
+    sao đặt cạnh luật kia. Không có nó thì một tab còn mở từ trước lúc xoá vẫn gửi được câu
+    vào đó, và câu ấy đi vào một nơi không còn đường nào mở ra.
+    """
+    client, maker, monkeypatch = stack
+    thread = await _a_thread(maker, title="Đã xoá")
+    monkeypatch.setattr(
+        teacher_chat,
+        "run_task",
+        ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Chào bạn.")),
+    )
+
+    assert (
+        await client.delete(f"/api/teacher/conversations/{thread}", headers=TEACHER)
+    ).status_code == 204
+
+    refused = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "còn đó không", "conversation_id": thread},
+        headers=TEACHER,
+    )
+
+    assert refused.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_one_teacher_cannot_delete_or_rename_anothers_conversation(stack) -> None:
+    """Đoạn của người khác và đoạn không tồn tại đọc ra y hệt nhau (ADR-22).
+
+    Phân biệt được chúng là cho bất kỳ ai dò xem giáo viên khác đang có những gì, chỉ bằng
+    cách thử id — và ở đây cái giá còn cao hơn một lần đọc: hai endpoint này **ghi**.
+    """
+    client, maker, _ = stack
+    async with maker() as session:
+        stranger = Teacher(full_name="Thầy Nguyễn Văn B", teacher_code="GV-002")
+        session.add(stranger)
+        await session.commit()
+    theirs = await _a_thread(maker, title="Của người khác", code="GV-002")
+
+    assert (
+        await client.delete(f"/api/teacher/conversations/{theirs}", headers=TEACHER)
+    ).status_code == 404
+    assert (
+        await client.patch(
+            f"/api/teacher/conversations/{theirs}", json={"title": "của tôi"}, headers=TEACHER
+        )
+    ).status_code == 404
+
+    async with maker() as session:
+        row = await session.get(TeacherConversation, theirs)
+        assert row is not None
+        assert row.title == "Của người khác"
+        assert row.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_a_deleted_conversation_is_not_the_running_one(stack) -> None:
+    """Xoá đoạn **duy nhất** rồi nói tiếp thì câu mới mở một đoạn khác.
+
+    Đây là cửa không mang id: `POST /teacher/chat/messages` thiếu `conversation_id` đi qua
+    `_latest_conversation`, không qua `_owned_conversation`. Thiếu mệnh đề lọc ở đó thì câu
+    vừa gõ rơi vào chính đoạn vừa xoá — một nơi không còn trên rail và không mở lại được, và
+    giáo viên không được báo gì cả.
+    """
+    client, maker, monkeypatch = stack
+    thread = await _a_thread(maker, title="Đã xoá")
+    monkeypatch.setattr(
+        teacher_chat,
+        "run_task",
+        ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Chào bạn.")),
+    )
+
+    assert (
+        await client.delete(f"/api/teacher/conversations/{thread}", headers=TEACHER)
+    ).status_code == 204
+
+    # Đọc mà không có id: không thấy gì, chứ không thấy đoạn đã xoá.
+    empty = await client.get("/api/teacher/chat", headers=TEACHER)
+    assert empty.status_code == 200
+    assert empty.json()["turns"] == []
+
+    spoken = await client.post(
+        "/api/teacher/chat/messages", json={"text": "chào bạn"}, headers=TEACHER
+    )
+
+    assert spoken.status_code == 200
+    assert spoken.json()["conversation_id"] != thread
+
+
+@pytest.mark.asyncio
+async def test_a_record_never_lands_in_a_deleted_conversation(stack) -> None:
+    """Biên bản của một đề rơi vào một đoạn giáo viên **mở ra được**.
+
+    Duyệt và phát hành xảy ra ngoài khung chat, nên `note_action` phải tự tìm đoạn. Nó hỏi
+    `conversation_of`, và nếu hàm ấy trả về một đoạn đã xoá thì ADR-24 đạt về chữ — row vẫn
+    tồn tại — mà hỏng về việc: không ai mở được nó ra đọc, và `AssessmentDetail` sẽ chỉ tới
+    một id mà `GET /teacher/chat?conversation_id=` ấy trả 404.
+    """
+    client, maker, _ = stack
+    gone = await _a_thread(maker, title="Đoạn đã xoá")
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher))
+        assert teacher is not None
+        session.add(
+            TeacherTurn(
+                conversation_id=gone,
+                sequence=1,
+                kind="tool_result",
+                tool_name="create_draft",
+                tool_result={"created": True, "assessment_id": "p1"},
+                entity_kind="assessment",
+                entity_id="p1",
+                created_at=datetime(2026, 9, 2, tzinfo=UTC),
+            )
+        )
+        await session.commit()
+        asking = Asking.of(teacher)
+
+    assert (
+        await client.delete(f"/api/teacher/conversations/{gone}", headers=TEACHER)
+    ).status_code == 204
+
+    async with maker() as session:
+        assert await teacher_chat.conversation_of(session, asking, "p1") is None
+        await teacher_chat.note_action(
+            session,
+            asking,
+            TurnRecord(
+                kind="tool_result",
+                tool_name="teacher.approve",
+                tool_result={"approved": True, "assessment_id": "p1"},
+            ),
+        )
+
+    listed = await client.get("/api/teacher/conversations", headers=TEACHER)
+    landed = [one["conversation_id"] for one in listed.json()]
+    assert gone not in landed
+    # Và nó rơi vào một đoạn **đọc được**, không rơi vào hư không.
+    assert landed
+    kept = await client.get(f"/api/teacher/chat?conversation_id={landed[0]}", headers=TEACHER)
+    assert kept.status_code == 200
+    assert any(one["tool_name"] == "teacher.approve" for one in kept.json()["turns"])

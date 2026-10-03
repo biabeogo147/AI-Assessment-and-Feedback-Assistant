@@ -28,7 +28,9 @@ const FORM = {
   question_count: 6,
   can_publish: true,
   reason: "",
-  classes: [{ class_id: "c1", name: "12A", student_count: 40, published: false }],
+  classes: [
+    { class_id: "c1", name: "12A", student_count: 40, published: false },
+  ],
   rules: {
     phase_one: "Vào tham gia tới hết --:--",
     phase_two: "Chữa bài tới hết --:--",
@@ -62,7 +64,13 @@ const PREVIEW = {
 
 function fill() {
   const boxes = document.querySelectorAll(".publish-settings input");
-  const values = ["15", "2026-10-02T14:00", "2026-10-02T16:00", "5", "2026-10-02T22:00"];
+  const values = [
+    "15",
+    "2026-10-02T14:00",
+    "2026-10-02T16:00",
+    "5",
+    "2026-10-02T22:00",
+  ];
   boxes.forEach((box, index) => {
     fireEvent.change(box, { target: { value: values[index] } });
   });
@@ -74,20 +82,27 @@ describe("hộp xác nhận phát hành", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (path: string, init?: RequestInit) => {
-        sent.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
+        sent.push({
+          path,
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        });
         const payload = init?.method === "POST" ? PREVIEW : FORM;
         return new Response(JSON.stringify(payload), { status: 200 });
       }),
     );
 
     render(<PublishSettings assessmentId="p1" onPublished={() => {}} />);
-    await waitFor(() => expect(screen.getByText("Cài đặt phát hành")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
+    );
 
     fireEvent.click(screen.getByText("12A"));
     fill();
     fireEvent.click(screen.getByText(/Phát hành cho/));
 
-    await waitFor(() => expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy(),
+    );
     expect(screen.getByText("CÂU-LUẬT-MỘT-TỪ-BE")).toBeTruthy();
     expect(screen.getByText("CÂU-LUẬT-HAI-TỪ-BE")).toBeTruthy();
     expect(screen.getByText("CÂU-THU-HỒI-TỪ-BE")).toBeTruthy();
@@ -110,14 +125,20 @@ describe("hộp xác nhận phát hành", () => {
     );
 
     render(<PublishSettings assessmentId="p1" onPublished={() => {}} />);
-    await waitFor(() => expect(screen.getByText("Cài đặt phát hành")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
+    );
     fireEvent.click(screen.getByText("12A"));
     fill();
     fireEvent.click(screen.getByText(/Phát hành cho/));
-    await waitFor(() => expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy(),
+    );
     // Nút trong hộp thoại, không phải nút của biểu mẫu: hai nút cùng chữ, và chỉ nút
     // trong hộp mới gửi đi lần thật.
-    fireEvent.click(document.querySelector(".confirm .btn.primary") as HTMLElement);
+    fireEvent.click(
+      document.querySelector(".confirm .btn.primary") as HTMLElement,
+    );
 
     await waitFor(() => expect(bodies.length).toBe(2));
     const [shown, done] = bodies;
@@ -125,7 +146,9 @@ describe("hộp xác nhận phát hành", () => {
     expect(done.preview).toBe(false);
     // Byte-identical trừ một cờ. Đây là cách duy nhất để "hộp xác nhận đọc lại đúng cái
     // sắp xảy ra" là một tính chất của code chứ không phải một lời hứa.
-    expect(JSON.stringify(shown.schedules)).toBe(JSON.stringify(done.schedules));
+    expect(JSON.stringify(shown.schedules)).toBe(
+      JSON.stringify(done.schedules),
+    );
   });
 
   it("gửi giờ kèm offset, không phải Z", async () => {
@@ -134,14 +157,19 @@ describe("hộp xác nhận phát hành", () => {
       "fetch",
       vi.fn(async (_path: string, init?: RequestInit) => {
         if (init?.method === "POST") bodies.push(JSON.parse(String(init.body)));
-        return new Response(JSON.stringify(init?.method === "POST" ? PREVIEW : FORM), {
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify(init?.method === "POST" ? PREVIEW : FORM),
+          {
+            status: 200,
+          },
+        );
       }),
     );
 
     render(<PublishSettings assessmentId="p1" onPublished={() => {}} />);
-    await waitFor(() => expect(screen.getByText("Cài đặt phát hành")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
+    );
     fireEvent.click(screen.getByText("12A"));
     fill();
     fireEvent.click(screen.getByText(/Phát hành cho/));
@@ -161,9 +189,15 @@ describe("một bước đã xảy ra", () => {
           kind: "tool_result",
           text: "",
           tool_name: "teacher.publish",
-          tool_result: { published: true, assessment_id: "p1", classes: ["12A", "12B"] },
+          tool_result: {
+            published: true,
+            assessment_id: "p1",
+            classes: ["12A", "12B"],
+          },
           entity_kind: "assessment",
           entity_id: "p1",
+          choices: [],
+          more_choices: 0,
           model_tokens: 0,
           duration_ms: 0,
         }}
@@ -189,9 +223,15 @@ describe("một bước đã xảy ra", () => {
           kind: "tool_result",
           text: "",
           tool_name: "teacher.publish",
-          tool_result: { published: true, assessment_id: "p1", classes: ["12A"] },
+          tool_result: {
+            published: true,
+            assessment_id: "p1",
+            classes: ["12A"],
+          },
           entity_kind: "assessment",
           entity_id: "p1",
+          choices: [],
+          more_choices: 0,
           model_tokens: 0,
           duration_ms: 0,
         }}
@@ -239,6 +279,8 @@ function blank(some: Record<string, unknown>) {
     tool_result: {},
     entity_kind: "",
     entity_id: "",
+    choices: [] as string[],
+    more_choices: 0,
     model_tokens: 0,
     duration_ms: 0,
     ...some,
@@ -264,9 +306,18 @@ function serve() {
 describe("một lượt của Kriky trên dòng hội thoại", () => {
   it("mở đầu bằng avatar, rồi câu trả lời, rồi thẻ kết quả", async () => {
     serve();
-    render(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
 
-    await waitFor(() => expect(document.querySelector(".action-card")).not.toBeNull());
+    await waitFor(() =>
+      expect(document.querySelector(".action-card")).not.toBeNull(),
+    );
 
     // Đúng MỘT hàng avatar cho cả lượt, không một hàng cho mỗi dòng.
     expect(document.querySelectorAll(".exchange .who")).toHaveLength(1);
@@ -295,7 +346,11 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
         blank({
           kind: "tool_result",
           tool_name: "create_draft",
-          tool_result: { assessment_id: "p1", title: "Hàm số", question_count: 10 },
+          tool_result: {
+            assessment_id: "p1",
+            title: "Hàm số",
+            question_count: 10,
+          },
         }),
         blank({ kind: "assistant", text: "Đã tạo xong đề." }),
       ],
@@ -305,13 +360,23 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
       vi.fn((url: string) =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(url.startsWith("/api/teacher/chat") ? full : []),
+          json: () =>
+            Promise.resolve(url.startsWith("/api/teacher/chat") ? full : []),
         }),
       ),
     );
 
-    render(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
-    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
 
     expect(document.querySelectorAll(".exchange .who")).toHaveLength(1);
 
@@ -326,19 +391,39 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
   it("tải lại một đoạn vừa rời đi vì bấm Đoạn chat mới", async () => {
     const asked = serve();
     const { rerender } = render(
-      <Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />,
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
     );
-    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
 
     // Bấm *Đoạn chat mới*: màn trắng, và không còn đoạn nào đang nằm trên màn hình.
-    rerender(<Chat conversationId={null} fresh openPaper={null} publishing={false} />);
+    rerender(
+      <Chat conversationId={null} fresh openPaper={null} publishing={false} />,
+    );
     expect(screen.queryByText("Đã tạo xong đề.")).toBeNull();
 
     // Bấm lại ĐÚNG đoạn vừa rời đi. Nó phải hiện lại — không phải một màn trắng vì ai đó
     // tưởng nó vẫn đang ở trên màn hình.
-    rerender(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
-    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
-    expect(asked.filter((one) => one.startsWith("/api/teacher/chat")).length).toBeGreaterThan(1);
+    rerender(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
+    expect(
+      asked.filter((one) => one.startsWith("/api/teacher/chat")).length,
+    ).toBeGreaterThan(1);
   });
 });
 
@@ -351,7 +436,11 @@ describe("khối bước lúc đang chạy", () => {
       <Steps
         steps={[
           { mark: "done", title: "Tạo đề trống", result: "" },
-          { mark: "running", title: "Soạn 3 câu hỏi", result: "— đã soạn 2/3 câu" },
+          {
+            mark: "running",
+            title: "Soạn 3 câu hỏi",
+            result: "— đã soạn 2/3 câu",
+          },
         ]}
         total={3}
       />,
@@ -367,12 +456,25 @@ describe("khối bước lúc đang chạy", () => {
 describe("một lượt của Kriky", () => {
   it("cho ra ĐÚNG MỘT thẻ, và start_drafting không bao giờ là thẻ", () => {
     const turns = [
-      blank({ kind: "tool_result", tool_name: "create_draft", tool_result: { created: true } }),
-      blank({ kind: "tool_result", tool_name: "start_drafting", tool_result: { started: true } }),
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { created: true },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        tool_result: { started: true },
+      }),
       blank({
         kind: "tool_result",
         tool_name: "draft_progress",
-        tool_result: { found: true, written: ["a", "b"], asked_for: 2, still_drafting: 0 },
+        tool_result: {
+          found: true,
+          written: ["a", "b"],
+          asked_for: 2,
+          still_drafting: 0,
+        },
       }),
     ];
     const card = cardTurn(turns);
@@ -386,7 +488,11 @@ describe("một lượt của Kriky", () => {
       blank({
         kind: "tool_result",
         tool_name: "create_draft",
-        tool_result: { created: true, title: "Tích phân 12A1", question_count: 10 },
+        tool_result: {
+          created: true,
+          title: "Tích phân 12A1",
+          question_count: 10,
+        },
       }),
       blank({
         kind: "tool_result",
@@ -455,7 +561,11 @@ describe("một lượt của Kriky", () => {
 
   it("để start_drafting lại làm một bước chứ không bỏ nó đi", () => {
     const step = stepFor(
-      blank({ kind: "tool_result", tool_name: "start_drafting", tool_result: { started: true, queued: 5 } }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        tool_result: { started: true, queued: 5 },
+      }),
     );
     expect(step.mark).toBe("done");
     expect(step.title).toBe("Soạn câu hỏi");
@@ -497,9 +607,23 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
   it("vẽ theo đúng thứ tự nhận được, và `n` lấy từ plan", () => {
     // Cốt lõi của ADR-25: `bước 1/2` nói thật được vì plan có TRƯỚC khi chạy. Nếu `n` đếm
     // theo số bước đã bắt đầu thì nó luôn bằng `k`, và con số ấy không nói gì cả.
-    let live = grow(null, event({ kind: "say", text: "Được, mình soạn đề ngay." }));
-    live = grow(live, event({ kind: "plan", total: 2, titles: ["Tạo đề trống", "Soạn câu"] }));
-    live = grow(live, event({ kind: "step_started", title: "Tạo đề trống", index: 1, total: 2 }));
+    let live = grow(
+      null,
+      event({ kind: "say", text: "Được, mình soạn đề ngay." }),
+    );
+    live = grow(
+      live,
+      event({ kind: "plan", total: 2, titles: ["Tạo đề trống", "Soạn câu"] }),
+    );
+    live = grow(
+      live,
+      event({
+        kind: "step_started",
+        title: "Tạo đề trống",
+        index: 1,
+        total: 2,
+      }),
+    );
 
     expect(live.opening).toBe("Được, mình soạn đề ngay.");
     expect(live.total).toBe(2);
@@ -508,10 +632,17 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
   });
 
   it("đóng bước đang chạy khi nó xong, và giữ dòng kết quả của BE", () => {
-    let live = grow(null, event({ kind: "step_started", title: "Tạo đề trống", total: 2 }));
+    let live = grow(
+      null,
+      event({ kind: "step_started", title: "Tạo đề trống", total: 2 }),
+    );
     live = grow(
       live,
-      event({ kind: "step_done", title: "Tạo đề trống", detail: 'đề "X", cần 10 câu' }),
+      event({
+        kind: "step_done",
+        title: "Tạo đề trống",
+        detail: 'đề "X", cần 10 câu',
+      }),
     );
 
     expect(live.steps[0].mark).toBe("done");
@@ -522,7 +653,10 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
     // Hai con số, hai chỗ đứng (ADR-25): `bước k/n` đếm bước của plan, số câu là tiến độ
     // bên trong MỘT bước. Gộp chúng vào một chỗ là nói sai cả hai.
     let live = grow(null, event({ kind: "plan", total: 2 }));
-    live = grow(live, event({ kind: "step_started", title: "Soạn 10 câu hỏi", total: 2 }));
+    live = grow(
+      live,
+      event({ kind: "step_started", title: "Soạn 10 câu hỏi", total: 2 }),
+    );
     live = grow(live, event({ kind: "progress", index: 4, total: 10 }));
 
     expect(live.total).toBe(2);
@@ -535,11 +669,23 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
     // đang chạy. Test đầu tiên của Pha E nạp `step_started → progress` không có `step_done`
     // ở giữa — một dãy BE không bao giờ phát — nên nó xanh trong khi màn hình thật bỏ con
     // số đi lặng lẽ. Review bắt được.
-    let live = grow(null, event({ kind: "say", text: "Được, mình soạn đề ngay." }));
+    let live = grow(
+      null,
+      event({ kind: "say", text: "Được, mình soạn đề ngay." }),
+    );
     live = grow(live, event({ kind: "plan", total: 2 }));
-    live = grow(live, event({ kind: "step_started", title: "Tạo đề trống", total: 2 }));
-    live = grow(live, event({ kind: "step_done", title: "Tạo đề trống", detail: 'đề "X"' }));
-    live = grow(live, event({ kind: "step_started", title: "Soạn 3 câu hỏi", total: 2 }));
+    live = grow(
+      live,
+      event({ kind: "step_started", title: "Tạo đề trống", total: 2 }),
+    );
+    live = grow(
+      live,
+      event({ kind: "step_done", title: "Tạo đề trống", detail: 'đề "X"' }),
+    );
+    live = grow(
+      live,
+      event({ kind: "step_started", title: "Soạn 3 câu hỏi", total: 2 }),
+    );
     live = grow(live, event({ kind: "progress", index: 2, total: 3 }));
 
     expect(live.steps).toHaveLength(2);
@@ -554,7 +700,11 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
     let live = grow(null, event({ kind: "plan", total: 2 }));
     live = grow(
       live,
-      event({ kind: "step_failed", title: "Soạn câu hỏi", detail: "chưa ghép được dữ liệu" }),
+      event({
+        kind: "step_failed",
+        title: "Soạn câu hỏi",
+        detail: "chưa ghép được dữ liệu",
+      }),
     );
 
     expect(live.steps).toHaveLength(1);
@@ -563,10 +713,17 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
   });
 
   it("một bước hỏng đọc ra là hỏng, kèm lý do", () => {
-    let live = grow(null, event({ kind: "step_started", title: "Soạn câu hỏi" }));
+    let live = grow(
+      null,
+      event({ kind: "step_started", title: "Soạn câu hỏi" }),
+    );
     live = grow(
       live,
-      event({ kind: "step_failed", title: "Soạn câu hỏi", detail: "chưa làm được bước này" }),
+      event({
+        kind: "step_failed",
+        title: "Soạn câu hỏi",
+        detail: "chưa làm được bước này",
+      }),
     );
 
     expect(live.steps[0].mark).toBe("failed");
@@ -579,7 +736,7 @@ describe("khối các bước", () => {
     render(
       <Steps
         steps={[
-          { mark: "done", title: "Tạo đề trống", result: "— đề \"X\"" },
+          { mark: "done", title: "Tạo đề trống", result: '— đề "X"' },
           { mark: "done", title: "Soạn câu hỏi", result: "" },
         ]}
       />,
@@ -596,14 +753,20 @@ describe("khối các bước", () => {
       <Steps
         steps={[
           { mark: "done", title: "Tạo đề trống", result: "" },
-          { mark: "failed", title: "Soạn câu hỏi", result: "— hàng đợi đang hỏng" },
+          {
+            mark: "failed",
+            title: "Soạn câu hỏi",
+            result: "— hàng đợi đang hỏng",
+          },
         ]}
       />,
     );
     // Các bước hiện sẵn, và cái nút thu gọn không mời bấm.
     expect(screen.getByText("Soạn câu hỏi")).toBeTruthy();
     expect(screen.getByText("— hàng đợi đang hỏng")).toBeTruthy();
-    expect(container.querySelector(".steps-head")?.hasAttribute("disabled")).toBe(true);
+    expect(
+      container.querySelector(".steps-head")?.hasAttribute("disabled"),
+    ).toBe(true);
   });
 });
 
@@ -628,7 +791,10 @@ describe("một lượt chỉ có lời", () => {
                     more_choices: 0,
                     turns: [
                       blank({ kind: "teacher", text: "Tạo đề" }),
-                      blank({ kind: "assistant", text: "Mình chưa rõ lớp nào." }),
+                      blank({
+                        kind: "assistant",
+                        text: "Mình chưa rõ lớp nào.",
+                      }),
                     ],
                   }
                 : [],
@@ -637,23 +803,512 @@ describe("một lượt chỉ có lời", () => {
       ),
     );
     Element.prototype.scrollIntoView = vi.fn();
-    render(<Chat conversationId="c1" fresh={false} openPaper={null} publishing={false} />);
-    await waitFor(() => expect(screen.getByText("Mình chưa rõ lớp nào.")).toBeTruthy());
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Mình chưa rõ lớp nào.")).toBeTruthy(),
+    );
 
     const voices = document.querySelectorAll(".exchange .voice");
     expect(voices).toHaveLength(1);
     const only = voices[0];
     expect(only.querySelector(".who")).toBeTruthy();
-    expect(only.querySelector(".reply-text")?.textContent).toBe("Mình chưa rõ lớp nào.");
+    expect(only.querySelector(".reply-text")?.textContent).toBe(
+      "Mình chưa rõ lớp nào.",
+    );
   });
 });
 
 describe("một tool chưa có trong bảng", () => {
   it("không in định danh máy ra bề mặt giáo viên", () => {
     const step = stepFor(
-      blank({ kind: "tool_result", tool_name: "teacher.some_new_thing", tool_result: {} }),
+      blank({
+        kind: "tool_result",
+        tool_name: "teacher.some_new_thing",
+        tool_result: {},
+      }),
     );
     expect(step.title).not.toMatch(/teacher\.|_/);
     expect(step.title).toBe("Một bước nữa");
+  });
+});
+
+/**
+ * Một `fetch` giả định tuyến theo URL, và ghi lại mọi lời gọi.
+ *
+ * `serve()` chỉ trả đúng một thân cho đường hội thoại và rỗng cho mọi đường khác, nên nó
+ * không đủ cho rail: rail cần một danh sách đoạn chat, và hai endpoint mới thì cần đo được
+ * **method** nào đã đi ra.
+ *
+ * @param answered - Thân cho `GET /teacher/chat`.
+ * @param threads - Thân cho `GET /teacher/conversations`.
+ * @returns Danh sách các lời gọi đã xảy ra.
+ */
+function routes(answered: unknown, threads: Record<string, unknown>[] = []) {
+  const calls: { url: string; method: string; body: string }[] = [];
+  Element.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: (init?.method ?? "GET").toUpperCase(),
+        body: typeof init?.body === "string" ? init.body : "",
+      });
+      let body: unknown = [];
+      if (init?.method === "PATCH") {
+        // BE trả về **hàng đã đổi**, nên bản giả cũng phải trả một hàng chứ không trả cả
+        // danh sách: màn hình đọc `title` của nó để thay đúng một nhãn.
+        body = { ...threads[0], ...JSON.parse(String(init.body)) };
+      } else if (url.startsWith("/api/teacher/conversations")) body = threads;
+      else if (url.startsWith("/api/teacher/chat")) body = answered;
+      else if (url.startsWith("/api/teacher/documents")) body = [];
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+    }),
+  );
+  return calls;
+}
+
+/** Một lượt soạn đề đã đợi xong: bước soạn mang ba con số thật. */
+function drafted(written: number, asked: number, running = 0) {
+  return {
+    kind: "assistant",
+    text: "Mình soạn xong rồi.",
+    conversation_id: "c1",
+    choices: [] as string[],
+    more_choices: 0,
+    turns: [
+      blank({ kind: "teacher", text: "Tạo đề 3 câu về tích phân" }),
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: {
+          created: true,
+          assessment_id: "p1",
+          title: "Tích phân",
+          question_count: asked,
+        },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        tool_result: {
+          started: true,
+          assessment_id: "p1",
+          queued: asked,
+          written,
+          asked_for: asked,
+          still_drafting: running,
+        },
+        entity_kind: "assessment",
+        entity_id: "p1",
+      }),
+      blank({ kind: "assistant", text: "Mình soạn xong rồi." }),
+    ],
+  };
+}
+
+describe("thẻ kết quả của một lượt soạn đề", () => {
+  it("mọc từ bước soạn đã đợi xong, với nút Duyệt đề", () => {
+    const turns = drafted(3, 3).turns;
+
+    // Trước đợt này `cardTurn` loại `start_drafting` vô điều kiện, `create_draft` bị loại vì
+    // có bước soạn phía sau, và `draft_progress` là tool của pha 1 nên một plan không gọi
+    // nó — ba lần loại trừ giao nhau đúng ở đường đi hạnh phúc, và một lượt soạn đề THÀNH
+    // CÔNG kết thúc không thẻ nào. Mà panel đề chỉ mở được từ một nút trên thẻ, nên Kriky
+    // nói "đã soạn xong" và màn hình không có cửa nào vào xem. Đo được trên hội thoại thật.
+    const card = cardTurn(turns);
+    expect(card?.tool_name).toBe("start_drafting");
+
+    const opened: string[] = [];
+    render(
+      <ActionCard
+        turn={card!}
+        onOpen={(paper) => opened.push(paper)}
+        onPublish={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Đã thêm 3 câu vào đề")).toBeTruthy();
+    fireEvent.click(screen.getByText("Duyệt đề"));
+    expect(opened).toEqual(["p1"]);
+  });
+
+  it("đề thiếu câu thì KHÔNG mời duyệt", () => {
+    // Cùng một luật đã đứng trong `reporting._progress` của AGENT: duyệt một đề thiếu câu là
+    // phát hành một bài kiểm tra dở. Lời kể và thẻ phải nói cùng một câu.
+    const card = cardTurn(drafted(2, 10).turns);
+
+    render(
+      <ActionCard
+        turn={card!}
+        onOpen={() => undefined}
+        onPublish={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Dừng ở 2/10 câu")).toBeTruthy();
+    expect(screen.queryByText("Duyệt đề")).toBeNull();
+    expect(screen.getByText("Xem đề")).toBeTruthy();
+  });
+
+  it("bước soạn CHƯA đợi xong thì không mọc thẻ nào", () => {
+    // Cửa `POST` không đợi, nên kết quả ở đó không có con số nào. Một thẻ dựng từ đó sẽ nói
+    // "Đã thêm 0 câu vào đề" cho một đề sắp có đủ câu.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { created: true, title: "Tích phân", question_count: 10 },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        tool_result: { started: true, queued: 10 },
+      }),
+    ];
+    expect(cardTurn(turns)).toBeNull();
+  });
+
+  it("đề còn câu đang soạn thì KHÔNG mời duyệt, và nói đủ hai con số", () => {
+    // Đường ra có thật: hết hạn im lặng thì `_wait_for_questions` rời vòng nghe với
+    // `still_drafting > 0`. Bản đầu coi "thiếu câu" là `written < asked && running === 0`,
+    // nên ca này rơi vào nhánh còn lại — thẻ in `Đã thêm 3 câu vào đề`, giấu mất số 10, và
+    // mời **Duyệt đề** cho một đề mới có 3/10 câu. Lời kể của AGENT trong cùng ca ấy chỉ
+    // được nói "đang soạn": hai câu ngược nhau trên cùng một màn hình.
+    const card = cardTurn(drafted(3, 10, 7).turns);
+
+    render(
+      <ActionCard
+        turn={card!}
+        onOpen={() => undefined}
+        onPublish={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Đã soạn 3/10 câu")).toBeTruthy();
+    expect(screen.getByText("còn 7 câu đang soạn")).toBeTruthy();
+    expect(screen.queryByText("Duyệt đề")).toBeNull();
+    expect(screen.getByText("Xem đề")).toBeTruthy();
+  });
+
+  it("dòng dưới bước nói cùng một câu với BE, cả ba nhánh", () => {
+    // `detail` do BE gửi lúc lượt đang chạy, `tool_result` đã lưu sau một lần F5 — hai
+    // đường, một bước. Lệch một chữ là một lần tải lại làm đổi nghĩa một việc đã xong, nên
+    // cả ba nhánh của `_how_many` đều phải được soi lại, không chỉ nhánh đi-đúng-đường.
+    const line = (written: number, asked: number, running: number) =>
+      stepFor(
+        blank({
+          kind: "tool_result",
+          tool_name: "start_drafting",
+          tool_result: {
+            started: true,
+            written,
+            asked_for: asked,
+            still_drafting: running,
+          },
+        }),
+      ).result;
+
+    expect(line(3, 3, 0)).toBe("— đã soạn 3/3 câu");
+    expect(line(3, 10, 7)).toBe("— đã soạn 3/10 câu, còn 7 câu đang chạy");
+    expect(line(2, 10, 0)).toBe("— dừng ở 2/10 câu");
+  });
+});
+
+describe("câu hỏi lại sau một lần tải lại", () => {
+  it("các nút vẫn còn, và câu hỏi không hiện hai lần", async () => {
+    // Trước đợt này `choices` chỉ sống trong response: `teacher_turns` không có cột nào cho
+    // chúng, nên `GET /teacher/chat` không bao giờ trả chúng — và `asked` được set từ chính
+    // đường ấy. Tức thẻ hỏi lại có thể CHƯA BAO GIỜ hiện, không chỉ sau F5.
+    routes({
+      kind: "say",
+      text: "",
+      conversation_id: "c1",
+      choices: ["12A (3 học sinh)", "12B (1 học sinh)"],
+      more_choices: 0,
+      turns: [
+        blank({ kind: "teacher", text: "lớp 12 thế nào" }),
+        blank({
+          kind: "assistant",
+          text: "Bạn muốn xem lớp nào?",
+          choices: ["12A (3 học sinh)", "12B (1 học sinh)"],
+        }),
+      ],
+    });
+
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(document.querySelector(".clarify")).not.toBeNull(),
+    );
+    expect(screen.getByText("12A (3 học sinh)")).toBeTruthy();
+    expect(screen.getByText("12B (1 học sinh)")).toBeTruthy();
+    // Câu hỏi là tiêu đề của thẻ, và nó cũng là một lượt trong `turns`. Vẽ cả hai thì cùng
+    // một câu hiện hai lần cách nhau 12px.
+    expect(screen.getAllByText("Bạn muốn xem lớp nào?")).toHaveLength(1);
+  });
+});
+
+describe("rail: đổi tên và xoá một đoạn chat", () => {
+  const THREADS = [
+    {
+      conversation_id: "c1",
+      title: "Tên model đặt sai",
+      started_at: "2026-10-01T00:00:00+00:00",
+      last_spoke_at: "2026-10-03T00:00:00+00:00",
+    },
+    {
+      conversation_id: "c2",
+      title: "Đoạn khác",
+      started_at: "2026-10-01T00:00:00+00:00",
+      last_spoke_at: "2026-10-02T00:00:00+00:00",
+    },
+  ];
+
+  it("gõ tên mới rồi Enter thì gửi PATCH và hàng đổi nhãn", async () => {
+    const calls = routes(SPOKEN, THREADS);
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Tên model đặt sai")).toBeTruthy(),
+    );
+
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Tên model đặt sai"));
+    fireEvent.click(screen.getByText("Đổi tên"));
+    const box = screen.getByLabelText("Tên đoạn chat");
+    fireEvent.change(box, { target: { value: "Đề giữa kỳ 12A" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(screen.getByText("Đề giữa kỳ 12A")).toBeTruthy(),
+    );
+    const patch = calls.find((one) => one.method === "PATCH");
+    expect(patch?.url).toBe("/api/teacher/conversations/c1");
+    expect(JSON.parse(patch?.body ?? "{}")).toEqual({
+      title: "Đề giữa kỳ 12A",
+    });
+  });
+
+  it("xoá phải qua hộp xác nhận, và chỉ sau khi xác nhận mới gửi DELETE", async () => {
+    // Xoá bên BE là xoá mềm, nhưng trên màn hình này không có nút hoàn tác nào — nên với
+    // người bấm nút nó là việc một chiều, và nó đi qua hộp xác nhận y như việc phát hành.
+    const calls = routes(SPOKEN, THREADS);
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Đoạn khác")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Đoạn khác"));
+    fireEvent.click(screen.getByText("Xoá"));
+
+    // Hộp đã mở, nhưng chưa có gì bị xoá.
+    expect(screen.getByText("Xoá đoạn chat này?")).toBeTruthy();
+    expect(calls.some((one) => one.method === "DELETE")).toBe(false);
+
+    // Và đường thoát phải thoát thật.
+    fireEvent.click(screen.getByText("Giữ lại"));
+    expect(screen.queryByText("Xoá đoạn chat này?")).toBeNull();
+    expect(calls.some((one) => one.method === "DELETE")).toBe(false);
+
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Đoạn khác"));
+    fireEvent.click(screen.getByText("Xoá"));
+    fireEvent.click(screen.getByText("Xoá đoạn chat"));
+
+    await waitFor(() => expect(screen.queryByText("Đoạn khác")).toBeNull());
+    const erased = calls.find((one) => one.method === "DELETE");
+    expect(erased?.url).toBe("/api/teacher/conversations/c2");
+    // Đoạn còn lại không bị kéo theo.
+    expect(screen.getByText("Tên model đặt sai")).toBeTruthy();
+  });
+});
+
+describe("rail: khi BE từ chối", () => {
+  const THREAD = [
+    {
+      conversation_id: "c1",
+      title: "Đoạn duy nhất",
+      started_at: "2026-10-01T00:00:00+00:00",
+      last_spoke_at: "2026-10-03T00:00:00+00:00",
+    },
+  ];
+
+  /** Như `routes`, nhưng mọi request không-GET đều hỏng với câu của BE. */
+  function refusing(detail: string, status: number) {
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        if (method !== "GET") {
+          return Promise.resolve({
+            ok: false,
+            status,
+            json: () => Promise.resolve({ detail }),
+          });
+        }
+        let body: unknown = [];
+        if (url.startsWith("/api/teacher/conversations")) body = THREAD;
+        else if (url.startsWith("/api/teacher/chat")) body = SPOKEN;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+  }
+
+  it("một tên bị từ chối thì hàng trở về tên cũ, và câu của BE hiện ra", async () => {
+    // Nhãn được đổi **trước** khi BE trả lời, nên đường lùi lại phải có thật. Không có nó
+    // thì rail đứng mãi với một cái tên database không hề có.
+    refusing("tên đoạn chat không được để trống", 400);
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Đoạn duy nhất")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Đoạn duy nhất"));
+    fireEvent.click(screen.getByText("Đổi tên"));
+    const box = screen.getByLabelText("Tên đoạn chat");
+    fireEvent.change(box, { target: { value: "Tên mới" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("tên đoạn chat không được để trống"),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByText("Đoạn duy nhất")).toBeTruthy();
+    expect(screen.queryByText("Tên mới")).toBeNull();
+  });
+
+  it("xoá hỏng thì đoạn ở lại rail, và hộp xác nhận đóng", async () => {
+    refusing("không tìm thấy đoạn chat này", 404);
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Đoạn duy nhất")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Đoạn duy nhất"));
+    fireEvent.click(screen.getByText("Xoá"));
+    fireEvent.click(screen.getByText("Xoá đoạn chat"));
+
+    await waitFor(() =>
+      expect(screen.getByText("không tìm thấy đoạn chat này")).toBeTruthy(),
+    );
+    expect(screen.getByText("Đoạn duy nhất")).toBeTruthy();
+    expect(screen.queryByText("Xoá đoạn chat này?")).toBeNull();
+  });
+
+  it("chỉ MỘT menu mở một lúc, và bấm ra ngoài thì nó đóng", async () => {
+    const calls = routes(SPOKEN, [
+      ...THREAD,
+      {
+        conversation_id: "c2",
+        title: "Đoạn thứ hai",
+        started_at: "2026-10-01T00:00:00+00:00",
+        last_spoke_at: "2026-10-02T00:00:00+00:00",
+      },
+    ]);
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Đoạn thứ hai")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Đoạn duy nhất"));
+    fireEvent.click(screen.getByLabelText("Tuỳ chọn cho Đoạn thứ hai"));
+    // Hai menu mở cùng lúc là hai lần chữ *Xoá* trên màn hình.
+    expect(screen.getAllByText("Xoá")).toHaveLength(1);
+
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByText("Xoá")).toBeNull());
+    expect(calls.some((one) => one.method !== "GET")).toBe(false);
+  });
+});
+
+describe("tải một tài liệu lên", () => {
+  it("tệp vừa tải lên hiện trên rail, và dải dưới ô nhập nói đúng việc đã xảy ra", async () => {
+    // Dải này từng in "Đổi phạm vi", và chữ ấy hứa một việc không xảy ra: thân request gửi
+    // đi đúng ba field và không có `document_id` nào, chưa đoạn code nào mở tệp ra đọc.
+    const saved = {
+      document_id: "d1",
+      filename: "de-cuong.pdf",
+      kind: "PDF",
+      byte_size: 2048,
+      uploaded_at: "2026-10-03T00:00:00+00:00",
+    };
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        let body: unknown = [];
+        if (url.startsWith("/api/teacher/documents") && init?.method === "POST")
+          body = saved;
+        else if (url.startsWith("/api/teacher/chat")) body = SPOKEN;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+
+    const { container } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy(),
+    );
+
+    const picker = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(picker, {
+      target: {
+        files: [new File(["x"], "de-cuong.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+    expect(screen.getByText("Đã tải lên: de-cuong.pdf")).toBeTruthy();
+    expect(screen.getByText(/chưa được dùng để soạn đề/)).toBeTruthy();
+    expect(screen.queryByText("Đổi phạm vi")).toBeNull();
   });
 });

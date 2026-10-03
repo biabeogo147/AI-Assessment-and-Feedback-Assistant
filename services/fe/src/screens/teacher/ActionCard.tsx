@@ -70,6 +70,27 @@ function dash(text: string): string {
   return text === "" ? "" : `— ${text}`;
 }
 
+/**
+ * Ba con số của một bước soạn đã đóng, đọc thành một dòng.
+ *
+ * Soi lại `_how_many` của BE từng nhánh một, và đó là chủ ý chứ không phải trùng lặp tình
+ * cờ: cùng một bước được vẽ bằng hai đường — `detail` do BE gửi khi lượt đang chạy, và
+ * `tool_result` đã lưu sau một lần F5 — nên hai đường phải cho cùng một câu. Lệch một chữ
+ * là một lần tải lại làm đổi nghĩa một việc đã xong.
+ *
+ * @param result - `tool_result` của bước `start_drafting` đã đợi xong.
+ * @returns Dòng kết quả, y như BE viết.
+ */
+function drafted(result: Record<string, unknown>): string {
+  const written = Number(result.written ?? 0);
+  const asked = Number(result.asked_for ?? 0);
+  const running = Number(result.still_drafting ?? 0);
+  if (running > 0)
+    return `đã soạn ${written}/${asked} câu, còn ${running} câu đang chạy`;
+  if (asked > 0 && written < asked) return `dừng ở ${written}/${asked} câu`;
+  return `đã soạn ${written}/${asked} câu`;
+}
+
 /** Con số của một bước đã xong, lấy từ chính kết quả của nó. */
 function outcome(turn: Turn): string {
   const result = turn.tool_result;
@@ -80,6 +101,12 @@ function outcome(turn: Turn): string {
     return `đề "${String(result.title ?? "")}", cần ${Number(result.question_count ?? 0)} câu`;
   }
   if (turn.tool_name === "start_drafting") {
+    // Bước đã đợi xong thì nó mang con số **thật**, và dòng này phải nói đúng câu mà khối
+    // bước đang chạy đã nói — nếu không thì một lần F5 đổi `đã soạn 3/3 câu` thành `3 câu
+    // bắt đầu soạn`, và giáo viên đọc ra là việc vừa quay về lúc mới bắt đầu.
+    if (result.asked_for !== undefined) {
+      return drafted(result);
+    }
     return `${Number(result.queued ?? 0)} câu bắt đầu soạn`;
   }
   if (turn.tool_name === "draft_progress") {
@@ -96,9 +123,9 @@ function outcome(turn: Turn): string {
  * Lượt nào trong một khối được lên thẻ, hay không lượt nào cả.
  *
  * Quét **ngược** và lấy cái đầu tiên đủ tư cách: thẻ kể kết quả của lượt, mà kết quả thì là
- * thứ xảy ra sau cùng. `start_drafting` không bao giờ đủ tư cách — Figma không có variant
- * nào cho nó, và một thẻ ở đó nói với giáo viên rằng một việc đã xong trong khi nó vừa mới
- * bắt đầu.
+ * thứ xảy ra sau cùng. `start_drafting` đủ tư cách **khi và chỉ khi** nó đã đợi hết câu và
+ * mang con số thật về; chưa có con số thì một thẻ ở đó nói với giáo viên rằng một việc đã
+ * xong trong khi nó vừa mới bắt đầu.
  *
  * @param turns - Các lượt của một khối Kriky, theo thứ tự đã xảy ra.
  * @returns Lượt được lên thẻ, hoặc `null`.
@@ -119,14 +146,35 @@ export function cardTurn(turns: Turn[]): Turn | null {
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const turn = turns[index];
     if (turn.kind !== "tool_result") continue;
-    if (turn.tool_name === "start_drafting") continue;
-    if (turn.tool_name === "create_draft" && filling && turn.tool_result.created !== false) {
+    // Bước soạn **chưa đợi xong** vẫn không lên thẻ: không có con số nào thì một thẻ ở đó
+    // nói một việc đã xong trong khi nó vừa mới bắt đầu. Bước đã đợi xong thì ngược lại —
+    // nó là kết quả cuối cùng có hậu quả cho giáo viên, và trước đợt này nó bị loại vô điều
+    // kiện. Hệ quả đã đo trên trình duyệt thật: một lượt soạn đề **thành công** kết thúc
+    // không thẻ nào, mà panel đề chỉ mở được từ một nút trên thẻ — Kriky nói đã soạn xong và
+    // không có cửa nào vào xem.
+    if (
+      turn.tool_name === "start_drafting" &&
+      turn.tool_result.asked_for === undefined
+    ) {
       continue;
     }
-    if (turn.tool_name === "find_class" || turn.tool_name === "class_assessment_summary") continue;
+    if (
+      turn.tool_name === "create_draft" &&
+      filling &&
+      turn.tool_result.created !== false
+    ) {
+      continue;
+    }
+    if (
+      turn.tool_name === "find_class" ||
+      turn.tool_name === "class_assessment_summary"
+    )
+      continue;
     // Đề chưa có câu nào thì `draft_progress` chưa phải một kết quả, nó mới là một lần ngó.
     if (turn.tool_name === "draft_progress") {
-      const written = Array.isArray(turn.tool_result.written) ? turn.tool_result.written.length : 0;
+      const written = Array.isArray(turn.tool_result.written)
+        ? turn.tool_result.written.length
+        : 0;
       if (written === 0) continue;
     }
     return turn;
@@ -171,7 +219,8 @@ export default function ActionCard({
   const paper = String(result.assessment_id ?? turn.entity_id ?? "");
   const title = String(result.title ?? "");
   const named = title === "" ? "" : ` "${title}"`;
-  const see = paper === "" ? [] : [{ label: "Xem", onClick: () => onOpen(paper) }];
+  const see =
+    paper === "" ? [] : [{ label: "Xem", onClick: () => onOpen(paper) }];
 
   // Một tool từ chối: `reason` là câu của BE, in nguyên văn. Viết hoa hay thêm dấu chấm vào
   // đó là viết lại lời người khác, và câu gốc là câu đã được cân nhắc.
@@ -182,7 +231,9 @@ export default function ActionCard({
         head="Không tạo được đề"
         detail={why(result)}
         safety="Chưa có gì được thay đổi"
-        actions={[{ label: "Thử lại", onClick: () => onCompose(""), primary: true }]}
+        actions={[
+          { label: "Thử lại", onClick: () => onCompose(""), primary: true },
+        ]}
       />
     );
   }
@@ -195,8 +246,50 @@ export default function ActionCard({
         detail="Chưa có câu hỏi nào"
         safety="Đề trống, chưa phát hành được"
         actions={[
-          { label: "Thêm câu hỏi", onClick: () => onCompose("Soạn câu hỏi cho đề này"), primary: true },
+          {
+            label: "Thêm câu hỏi",
+            onClick: () => onCompose("Soạn câu hỏi cho đề này"),
+            primary: true,
+          },
         ]}
+      />
+    );
+  }
+
+  if (turn.tool_name === "start_drafting") {
+    const written = Number(result.written ?? 0);
+    const asked = Number(result.asked_for ?? 0);
+    const running = Number(result.still_drafting ?? 0);
+    // **Đủ câu** là điều kiện duy nhất để mời duyệt, và nó không nhắc tới `still_drafting`.
+    // Bản đầu viết ngược: nó coi "thiếu câu" là `written < asked && running === 0`, nên một
+    // đề 3/10 mà bảy câu còn đang chạy rơi vào nhánh *còn lại* — thẻ in `Đã thêm 3 câu vào
+    // đề` (không nhắc số 10) và mời **Duyệt đề**. Đường ra ấy có thật: hết hạn im lặng thì
+    // `_wait_for_questions` rời vòng nghe với `still_drafting > 0`. Và nó cãi lại chính luật
+    // ở `reporting._progress` của AGENT, nơi lời kể trong cùng ca ấy chỉ được nói *"đang
+    // soạn"* chứ không mời duyệt — hai câu ngược nhau trên cùng một màn hình.
+    const enough = asked > 0 && written >= asked;
+    const head = enough
+      ? `Đã thêm ${written} câu vào đề`
+      : running > 0
+        ? `Đã soạn ${written}/${asked} câu`
+        : `Dừng ở ${written}/${asked} câu`;
+    return (
+      <Card
+        tone=""
+        head={head}
+        detail={running > 0 ? `còn ${running} câu đang soạn` : ""}
+        safety="Chưa duyệt · chưa phát hành"
+        actions={
+          paper === ""
+            ? []
+            : [
+                {
+                  label: enough ? "Duyệt đề" : "Xem đề",
+                  onClick: () => onOpen(paper),
+                  primary: true,
+                },
+              ]
+        }
       />
     );
   }
@@ -213,7 +306,15 @@ export default function ActionCard({
         // Chỉ một nút: cổng duyệt nằm trong panel, nên `Duyệt đề` và `Xem` sẽ mở đúng
         // cùng một chỗ. Hai nhãn khác nhau cho một hành vi là một lời hứa rỗng.
         actions={
-          paper === "" ? [] : [{ label: "Duyệt đề", onClick: () => onOpen(paper), primary: true }]
+          paper === ""
+            ? []
+            : [
+                {
+                  label: "Duyệt đề",
+                  onClick: () => onOpen(paper),
+                  primary: true,
+                },
+              ]
         }
       />
     );
@@ -230,7 +331,11 @@ export default function ActionCard({
           paper === ""
             ? []
             : [
-                { label: "Phát hành", onClick: () => onPublish(paper), primary: true },
+                {
+                  label: "Phát hành",
+                  onClick: () => onPublish(paper),
+                  primary: true,
+                },
                 // Figma gọi nút này là `Hoàn tác`, và nó đi tới chỗ bỏ duyệt — chỗ ấy nằm
                 // trong panel. Nhãn giữ nguyên của thiết kế, đích là cổng thật.
                 { label: "Hoàn tác", onClick: () => onOpen(paper) },
@@ -248,14 +353,24 @@ export default function ActionCard({
         detail="Sửa lại được rồi · cài đặt phát hành vẫn giữ nguyên"
         safety="Chưa duyệt · chưa phát hành"
         actions={
-          paper === "" ? [] : [{ label: "Duyệt đề", onClick: () => onOpen(paper), primary: true }]
+          paper === ""
+            ? []
+            : [
+                {
+                  label: "Duyệt đề",
+                  onClick: () => onOpen(paper),
+                  primary: true,
+                },
+              ]
         }
       />
     );
   }
 
   if (turn.tool_name === "teacher.publish") {
-    const classes = Array.isArray(result.classes) ? result.classes.map(String) : [];
+    const classes = Array.isArray(result.classes)
+      ? result.classes.map(String)
+      : [];
     return (
       <Card
         tone="settled"

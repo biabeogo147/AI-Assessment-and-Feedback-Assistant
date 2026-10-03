@@ -129,7 +129,12 @@ export interface Solution {
   question_id: string;
   stem: string;
   methods: { title: string; body: string }[];
-  options: { label: string; text: string; is_correct: boolean; error_label: string | null }[];
+  options: {
+    label: string;
+    text: string;
+    is_correct: boolean;
+    error_label: string | null;
+  }[];
 }
 
 export interface ChatMessage {
@@ -346,6 +351,9 @@ export interface Turn {
   tool_result: Record<string, unknown>;
   entity_kind: string;
   entity_id: string;
+  /** Các phương án bày ra cùng bước này, nếu nó là một câu hỏi lại. BE viết chúng (ADR-23). */
+  choices: string[];
+  more_choices: number;
   model_tokens: number;
   duration_ms: number;
 }
@@ -353,8 +361,9 @@ export interface Turn {
 /**
  * Một lượt trả lời đã xong.
  *
- * `choices` là các câu **đã format sẵn**, và bấm một nút nghĩa là gửi lại đúng chuỗi đó. Nên
- * khi F5 làm mất `choices` thì gõ tay vẫn trả lời được: không ai bị kẹt.
+ * `choices` là các câu **đã format sẵn**, và bấm một nút nghĩa là gửi lại đúng chuỗi đó.
+ * Chúng nay được lưu cùng bước đã hỏi, nên một lần F5 **không** còn lấy mất các nút: lúc đọc
+ * lại, BE chở `choices` của bước cuối cùng lên đây.
  */
 export interface Answered {
   kind: string;
@@ -429,7 +438,11 @@ function formHeaders(role: Role): HeadersInit {
  *   trong API này đều tự giải thích bằng tiếng Việt, và câu đó có ích cho học
  *   sinh hơn một status code.
  */
-async function call<T>(role: Role, path: string, init: RequestInit = {}): Promise<T> {
+async function call<T>(
+  role: Role,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
     // Nơi gọi đưa header thì nó SỞ HỮU cả bộ, không phải trộn thêm: đường upload
@@ -449,44 +462,99 @@ async function call<T>(role: Role, path: string, init: RequestInit = {}): Promis
   return (await response.json()) as T;
 }
 
+/**
+ * Một request **không có thân trả về**: `204`.
+ *
+ * Không dùng `call` được, và lý do là cơ học: `call` kết bằng `response.json()`, mà một
+ * `204` không có một byte nào để parse — nên một lần xoá thành công sẽ ném đúng như một lần
+ * xoá thất bại. Phần đọc lỗi thì giữ y nguyên: một `404` vẫn phải nói câu tiếng Việt của BE.
+ *
+ * @param role - Ai đang gọi.
+ * @param path - Đường dẫn, không gồm `/api`.
+ * @param init - Phần còn lại của request.
+ */
+async function silent(
+  role: Role,
+  path: string,
+  init: RequestInit = {},
+): Promise<void> {
+  const response = await fetch(`/api${path}`, {
+    ...init,
+    headers: init.headers ?? headers(role),
+  });
+  if (response.ok) return;
+  let detail = `Lỗi ${response.status}`;
+  try {
+    const body = (await response.json()) as { detail?: string };
+    if (body.detail) detail = body.detail;
+  } catch {
+    /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
+  }
+  throw new Error(detail);
+}
+
 export const api = {
   me: () => call<Me>("student", "/me"),
   assignments: () => call<Assignment[]>("student", "/me/assignments"),
   startAttempt: (assignmentId: string) =>
-    call<Attempt>("student", `/assignments/${assignmentId}/attempts`, { method: "POST" }),
-  attempt: (attemptId: string) => call<Attempt>("student", `/attempts/${attemptId}`),
-  saveAnswer: (attemptId: string, questionId: string, optionId: string) =>
-    call<{ saved_at: string }>("student", `/attempts/${attemptId}/answers/${questionId}`, {
-      method: "PUT",
-      body: JSON.stringify({ option_id: optionId }),
-    }),
-  submit: (attemptId: string) =>
-    call<SubmitResult>("student", `/attempts/${attemptId}/submit`, { method: "POST" }),
-  result: (attemptId: string) => call<AttemptResult>("student", `/attempts/${attemptId}/result`),
-  remediation: (attemptId: string) => call<Remediation>("student", `/attempts/${attemptId}/remediation`),
-  solution: (questionId: string) => call<Solution>("student", `/questions/${questionId}/solution`),
-  chat: (attemptId: string) => call<ChatHistory>("student", `/attempts/${attemptId}/chat`),
-  postChat: (attemptId: string, text: string) =>
-    call<{ message_id: string; stream_url: string }>("student", `/attempts/${attemptId}/chat/messages`, {
+    call<Attempt>("student", `/assignments/${assignmentId}/attempts`, {
       method: "POST",
-      body: JSON.stringify({ text }),
     }),
+  attempt: (attemptId: string) =>
+    call<Attempt>("student", `/attempts/${attemptId}`),
+  saveAnswer: (attemptId: string, questionId: string, optionId: string) =>
+    call<{ saved_at: string }>(
+      "student",
+      `/attempts/${attemptId}/answers/${questionId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ option_id: optionId }),
+      },
+    ),
+  submit: (attemptId: string) =>
+    call<SubmitResult>("student", `/attempts/${attemptId}/submit`, {
+      method: "POST",
+    }),
+  result: (attemptId: string) =>
+    call<AttemptResult>("student", `/attempts/${attemptId}/result`),
+  remediation: (attemptId: string) =>
+    call<Remediation>("student", `/attempts/${attemptId}/remediation`),
+  solution: (questionId: string) =>
+    call<Solution>("student", `/questions/${questionId}/solution`),
+  chat: (attemptId: string) =>
+    call<ChatHistory>("student", `/attempts/${attemptId}/chat`),
+  postChat: (attemptId: string, text: string) =>
+    call<{ message_id: string; stream_url: string }>(
+      "student",
+      `/attempts/${attemptId}/chat/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      },
+    ),
   startRound: (attemptId: string) =>
-    call<OpenRound>("student", `/attempts/${attemptId}/rounds`, { method: "POST" }),
-  saveRoundAnswer: (roundId: string, itemId: string, label: string) =>
-    call<{ saved_at: string }>("student", `/rounds/${roundId}/answers/${itemId}`, {
-      method: "PUT",
-      body: JSON.stringify({ label }),
+    call<OpenRound>("student", `/attempts/${attemptId}/rounds`, {
+      method: "POST",
     }),
+  saveRoundAnswer: (roundId: string, itemId: string, label: string) =>
+    call<{ saved_at: string }>(
+      "student",
+      `/rounds/${roundId}/answers/${itemId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ label }),
+      },
+    ),
   submitRound: (roundId: string) =>
-    call<RoundVerdict>("student", `/rounds/${roundId}/submit`, { method: "POST" }),
+    call<RoundVerdict>("student", `/rounds/${roundId}/submit`, {
+      method: "POST",
+    }),
   report: (attemptId: string, note: string | null) =>
     call<{ report_id: string }>("student", `/attempts/${attemptId}/reports`, {
       method: "POST",
       body: JSON.stringify({ note }),
     }),
 };
-
 
 /**
  * Các đường của bề mặt giáo viên.
@@ -581,8 +649,29 @@ export const teacher = {
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
   publications: (assessmentId: string) =>
-    call<Publications>("teacher", `/teacher/assessments/${assessmentId}/publications`),
-  conversations: () => call<TeacherConversation[]>("teacher", "/teacher/conversations"),
+    call<Publications>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/publications`,
+    ),
+  conversations: () =>
+    call<TeacherConversation[]>("teacher", "/teacher/conversations"),
+  renameConversation: (conversationId: string, title: string) =>
+    call<TeacherConversation>(
+      "teacher",
+      `/teacher/conversations/${encodeURIComponent(conversationId)}`,
+      { method: "PATCH", body: JSON.stringify({ title }) },
+    ),
+  // Xoá mềm bên BE: đoạn rời rail và đọc lại ra 404, các lượt của nó vẫn nằm trong bảng vì
+  // ADR-24 đòi biên bản duyệt đề giữ được. Màn hình không cần biết chuyện đó — với nó thì
+  // đoạn ấy đã không còn.
+  deleteConversation: (conversationId: string) =>
+    silent(
+      "teacher",
+      `/teacher/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        method: "DELETE",
+      },
+    ),
   // Thiếu id thì BE trả đoạn **đang chạy**, y như trước khi giáo viên có nhiều đoạn.
   conversation: (conversationId?: string) =>
     call<Answered>(
@@ -619,19 +708,36 @@ export const teacher = {
     signal?: AbortSignal,
   ) => streamTurn(text, into, onEvent, signal),
   approve: (assessmentId: string) =>
-    call<Approval>("teacher", `/teacher/assessments/${assessmentId}/approve`, { method: "POST" }),
+    call<Approval>("teacher", `/teacher/assessments/${assessmentId}/approve`, {
+      method: "POST",
+    }),
   unapprove: (assessmentId: string) =>
-    call<Approval>("teacher", `/teacher/assessments/${assessmentId}/unapprove`, { method: "POST" }),
+    call<Approval>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/unapprove`,
+      { method: "POST" },
+    ),
   publishForm: (assessmentId: string) =>
-    call<PublishForm>("teacher", `/teacher/assessments/${assessmentId}/publish-form`),
+    call<PublishForm>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/publish-form`,
+    ),
   // `preview` là một cờ trên CHÍNH endpoint phát hành, không phải một endpoint khác. Hộp xác
   // nhận gửi object này với cờ bật, nút trong hộp gửi lại CÙNG object với cờ tắt — nên "hộp
   // xác nhận đọc lại đúng cái sắp xảy ra" là một tính chất của code, không phải một lời hứa.
-  publish: (assessmentId: string, schedules: ClassSchedule[], preview: boolean) =>
-    call<PublishResult>("teacher", `/teacher/assessments/${assessmentId}/publications`, {
-      method: "POST",
-      body: JSON.stringify({ schedules, preview }),
-    }),
+  publish: (
+    assessmentId: string,
+    schedules: ClassSchedule[],
+    preview: boolean,
+  ) =>
+    call<PublishResult>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/publications`,
+      {
+        method: "POST",
+        body: JSON.stringify({ schedules, preview }),
+      },
+    ),
   withdraw: (assessmentId: string, classId: string) =>
     call<PublishResult>(
       "teacher",
@@ -657,7 +763,9 @@ export async function streamReply(
   attemptId: string,
   onChunk: (text: string) => void,
 ): Promise<void> {
-  const response = await fetch(`/api/attempts/${attemptId}/chat/stream`, { headers: headers("student") });
+  const response = await fetch(`/api/attempts/${attemptId}/chat/stream`, {
+    headers: headers("student"),
+  });
   if (!response.ok || response.body === null) {
     throw new Error("Trợ lý chưa trả lời được.");
   }
@@ -675,7 +783,9 @@ export async function streamReply(
     buffer = events.pop() ?? "";
     for (const event of events) {
       const lines = event.split("\n");
-      const name = lines.find((part) => part.startsWith("event: "))?.slice("event: ".length);
+      const name = lines
+        .find((part) => part.startsWith("event: "))
+        ?.slice("event: ".length);
       // Mọi dòng `data:`, nối lại bằng ký tự xuống dòng — đúng như định dạng
       // quy định cho một field lặp lại. Chỉ đọc dòng đầu tiên thì mọi câu trả
       // lời có dấu xuống dòng đều bị cắt ngắn mà không báo gì.
@@ -687,7 +797,8 @@ export async function streamReply(
       if (name === "chunk") onChunk(data);
       // Stream bắt đầu trước khi BE biết model có trả lời được hay không, nên
       // thất bại về tới đây chứ không về dưới dạng một status code.
-      if (name === "error") throw new Error(data || "Trợ lý chưa trả lời được.");
+      if (name === "error")
+        throw new Error(data || "Trợ lý chưa trả lời được.");
     }
   }
 }
@@ -705,7 +816,6 @@ export function countdown(msLeft: number): string {
   const two = (value: number) => String(value).padStart(2, "0");
   return `${two(Math.floor(seconds / 60))}:${two(seconds % 60)}`;
 }
-
 
 /**
  * Biến giá trị của một ô `datetime-local` thành chuỗi ISO **mang offset địa phương**.

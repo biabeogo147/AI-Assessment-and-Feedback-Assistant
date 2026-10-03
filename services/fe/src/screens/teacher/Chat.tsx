@@ -16,19 +16,54 @@ import Rail from "./Rail";
 import Steps, { type Step } from "./Steps";
 
 /**
+ * Một câu hỏi lại đang chờ trả lời: câu hỏi, cùng các phương án đi với nó.
+ *
+ * Không dùng lại `Answered` nữa. Thứ đứng trên thẻ hỏi lại là **một bước** của đoạn chat,
+ * không phải kết quả của một request — và từ khi các phương án được lưu cùng bước ấy, một
+ * lần đọc lại đoạn chat cho ra đúng cùng một thứ như lúc lượt vừa chạy xong.
+ */
+interface Question {
+  text: string;
+  choices: string[];
+  more_choices: number;
+}
+
+/**
+ * Câu hỏi lại đang mở, dựng từ một lần đọc đoạn chat.
+ *
+ * Các phương án lấy thẳng từ `answered.choices` — **không** tự đi tìm trong `turns`. Luật
+ * *"chỉ bước cuối còn bày nút"* là của BE (`_read_back`), và chép nó sang đây là bản thứ
+ * hai của cùng một luật, tức bản sẽ lệch. FE chỉ còn lấy **câu hỏi** từ bước cuối, vì một
+ * lần đọc không phải một lượt nên `answered.text` rỗng.
+ *
+ * @param answered - Kết quả một lần đọc đoạn chat.
+ * @returns Câu hỏi đang chờ, hoặc `null` khi không có phương án nào.
+ */
+function questionIn(answered: Answered): Question | null {
+  if (answered.choices.length === 0) return null;
+  const last = answered.turns[answered.turns.length - 1];
+  return {
+    text: last === undefined ? "" : last.text,
+    choices: answered.choices,
+    more_choices: answered.more_choices,
+  };
+}
+
+/**
  * Bề mặt chat của giáo viên: artboard `1 · Bắt đầu` và `2 · Kèm tài liệu`.
  *
  * Một màn hình ở hai trạng thái, không phải hai màn hình. Chưa nói gì thì chỗ của hội thoại
  * là linh vật và ba gợi ý; nói rồi thì chính chỗ đó là dòng lượt nói. Tách làm hai component
  * sẽ phải nhân đôi rail, ô nhập và cả vòng gửi — ba thứ giống hệt nhau ở hai bên.
  *
- * **Không poll.** `GET /teacher/chat` trả cả hội thoại nhưng **không** trả `choices`, nên một
- * lần poll giữa lượt sẽ xoá sạch các nút của câu hỏi lại đang hiện. Và `Turn` không có id để
- * dedupe, nên cách hợp lệ duy nhất là thay toàn bộ — tức hai nguồn sự thật cho một dòng.
+ * **Không poll.** `Turn` không có id để dedupe, nên cách hợp lệ duy nhất là thay toàn bộ —
+ * tức hai nguồn sự thật cho một dòng, và một lần poll giữa lượt sẽ giật màn hình về trạng
+ * thái của một khoảnh khắc khác.
  *
- * F5 giữa lượt thì không mất gì đã xảy ra: BE commit từng bước. `choices` thì mất, nhưng
- * `choices` là chuỗi đã format sẵn và bấm một nút nghĩa là gửi lại đúng chuỗi đó — gõ tay vẫn
- * trả lời được, nên không ai bị kẹt.
+ * F5 giữa lượt thì không mất gì đã xảy ra: BE commit từng bước, và nay cả các phương án của
+ * một câu hỏi lại cũng nằm trong row của chính bước đã hỏi — nên các nút còn nguyên sau khi
+ * tải lại. Trước đợt này chúng chỉ sống trong response, và một lần F5 bỏ giáo viên lại trước
+ * một câu hỏi mà không còn câu trả lời nào bày ra.
  *
  * @param conversationId - Đoạn chat đang mở, hoặc `null` cho *đoạn đang chạy*. Cũng tới từ
  *   route, cùng một lý do.
@@ -57,8 +92,10 @@ export default function Chat({
   const [live, setLive] = useState<Live | null>(null);
   // Câu hỏi lại đang chờ trả lời. Nó giữ **cả** câu hỏi lẫn các phương án, vì hai thứ đó
   // nằm trên cùng một thẻ — và vì câu hỏi ấy cũng nằm trong `turns`, nên giữ nó ở đây là
-  // cách để không vẽ nó hai lần.
-  const [asked, setAsked] = useState<Answered | null>(null);
+  // cách để không vẽ nó hai lần. Suy ra từ `turns` bằng `questionIn`, không nhận từ một
+  // field rời của response: một luật, một chỗ, và hai đường (vừa chạy xong, và vừa F5) cho
+  // ra cùng một màn hình.
+  const [asked, setAsked] = useState<Question | null>(null);
   const [documents, setDocuments] = useState<TeacherDocument[]>([]);
   const [threads, setThreads] = useState<TeacherConversation[]>([]);
   // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
@@ -71,6 +108,10 @@ export default function Chat({
   // chat ấy: hai thứ nói hai chuyện trái ngược, không lỗi console nào.
   const loaded = useRef<string | null>(null);
   const [scope, setScope] = useState<TeacherDocument | null>(null);
+  // Đoạn chat đang chờ xác nhận xoá. Xoá bên BE là xoá mềm, nhưng với người bấm nút thì nó
+  // là một việc một chiều — không có nút hoàn tác nào trên màn hình này — nên nó đi qua hộp
+  // xác nhận y như việc phát hành.
+  const [erasing, setErasing] = useState<TeacherConversation | null>(null);
   const [text, setText] = useState("");
   // Bong bóng **tạm** của câu vừa gửi. Nó không nằm trong `turns`, nên lúc lượt thật về tới
   // thì nó biến mất đúng vào khoảnh khắc bong bóng thật xuất hiện — không có khả năng nhân
@@ -105,6 +146,7 @@ export default function Chat({
       .then((answered: Answered) => {
         if (!live) return;
         setTurns(answered.turns);
+        setAsked(questionIn(answered));
         loaded.current = answered.conversation_id || conversationId;
         if (answered.conversation_id) setHere(answered.conversation_id);
       })
@@ -179,14 +221,17 @@ export default function Chat({
       loaded.current = thread;
       if (here === null && thread !== null) go(`/teacher/chat/${thread}`);
       // Lượt đầu của một đoạn mới vừa đặt tên cho nó, nên rail phải đọc lại.
-      teacher.conversations().then(setThreads).catch(() => undefined);
+      teacher
+        .conversations()
+        .then(setThreads)
+        .catch(() => undefined);
 
       // Đọc lại cả đoạn thay vì ghép từ các sự kiện. Sự kiện là thứ để **xem trong lúc
       // chạy**; thứ ở lại trên màn hình phải là thứ database đang giữ, nếu không một lần F5
       // sẽ cho ra một màn hình khác với màn hình vừa rồi — và không ai hiểu vì sao.
       const whole = await teacher.conversation(thread ?? undefined);
       setTurns(whole.turns);
-      setAsked(whole.choices.length > 0 ? whole : null);
+      setAsked(questionIn(whole));
     } catch (cause) {
       setText(trimmed);
       setTrouble(
@@ -200,6 +245,63 @@ export default function Chat({
       setSlow(false);
       setPending(null);
       setLive(null);
+    }
+  }
+
+  /**
+   * Đổi tên một đoạn chat.
+   *
+   * Đổi nhãn trên rail **trước** khi BE trả lời, rồi lùi lại nếu hỏng. Không phải để trông
+   * nhanh hơn: `label` của hàng là một prop, nên chờ response xong mới đổi để lại một khe
+   * trong đó hàng vẫn mang tên cũ — gõ tên mới, bấm `⋯` (blur lưu), rồi bấm *Đổi tên* ngay
+   * thì ô nhập mở ra với tên **cũ**, và một lần Enter nữa ghi đè mất tên vừa đặt.
+   *
+   * @param conversationId - Đoạn nào.
+   * @param title - Tên giáo viên gõ. BE dọn nó, và câu trả lời của BE mới là tên thật.
+   */
+  async function rename(conversationId: string, title: string) {
+    const was = threads.find((one) => one.conversation_id === conversationId);
+    // Thay đúng một hàng chứ không tải lại cả rail: BE trả về hàng đã đổi, và một lần tải
+    // lại ở đây sẽ sắp xếp lại danh sách ngay dưới ngón tay người vừa bấm.
+    const put = (named: string) =>
+      setThreads((before) =>
+        before.map((one) =>
+          one.conversation_id === conversationId
+            ? { ...one, title: named }
+            : one,
+        ),
+      );
+    put(title);
+    try {
+      const renamed = await teacher.renameConversation(conversationId, title);
+      // Tên thật là tên BE đã dọn, không phải chuỗi vừa gõ.
+      put(renamed.title);
+      setTrouble(null);
+    } catch (cause) {
+      if (was !== undefined) put(was.title);
+      setTrouble((cause as Error).message);
+    }
+  }
+
+  /**
+   * Xoá một đoạn chat, sau khi giáo viên đã xác nhận.
+   *
+   * @param conversationId - Đoạn nào.
+   */
+  async function erase(conversationId: string) {
+    try {
+      await teacher.deleteConversation(conversationId);
+      setThreads((before) =>
+        before.filter((one) => one.conversation_id !== conversationId),
+      );
+      setErasing(null);
+      setTrouble(null);
+      // Xoá đoạn **đang mở** thì phải rời khỏi nó: đứng lại là đứng trên một màn hình mà
+      // mọi lần đọc lại từ nay sẽ ra 404, và câu gõ tiếp theo cũng bị từ chối.
+      if (conversationId === here) go("/teacher/moi");
+    } catch (cause) {
+      setErasing(null);
+      setTrouble((cause as Error).message);
     }
   }
 
@@ -218,11 +320,13 @@ export default function Chat({
 
   // Câu hỏi lại đã nằm trong `turns` dưới dạng một lượt của trợ lý, và nó cũng là tiêu đề
   // của thẻ. Vẽ cả hai thì cùng một câu hiện hai lần cách nhau 12px. Bỏ **lượt cuối**, và
-  // chỉ khi chính nó là câu đó: sau một lần F5 thì `asked` rỗng, câu hỏi quay về làm một
-  // bong bóng bình thường, và đó vẫn là một màn hình đúng.
+  // chỉ khi chính nó là câu đó — nay cả sau một lần F5, vì `asked` không còn rỗng ở đó.
   const last = turns[turns.length - 1];
   const folded =
-    asked !== null && last !== undefined && last.kind === "assistant" && last.text === asked.text;
+    asked !== null &&
+    last !== undefined &&
+    last.kind === "assistant" &&
+    last.text === asked.text;
   const drawn = folded ? turns.slice(0, -1) : turns;
 
   return (
@@ -233,6 +337,12 @@ export default function Chat({
         documents={documents}
         starting={fresh}
         onOpen={(thread) => go(`/teacher/chat/${thread}`)}
+        onRename={(thread, title) => void rename(thread, title)}
+        onDelete={(thread) =>
+          setErasing(
+            threads.find((one) => one.conversation_id === thread) ?? null,
+          )
+        }
         onNew={() => go("/teacher/moi")}
       />
       <main
@@ -249,8 +359,12 @@ export default function Chat({
                 <Turnful
                   key={index}
                   said={spoken(block.kriky)}
-                  onOpen={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}`)}
-                  onPublish={(paper) => go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)}
+                  onOpen={(paper) =>
+                    go(`/teacher/chat/${here ?? ""}/de/${paper}`)
+                  }
+                  onPublish={(paper) =>
+                    go(`/teacher/chat/${here ?? ""}/de/${paper}/phat-hanh`)
+                  }
                   onCompose={setText}
                 />
               ),
@@ -271,11 +385,18 @@ export default function Chat({
                 <div className="voice">
                   <Who />
                   <div className="turn-body">
-                    {live.opening !== "" && <div className="reply-text">{live.opening}</div>}
-                    {live.steps.length > 0 && (
-                      <Steps steps={live.steps} total={live.total || undefined} />
+                    {live.opening !== "" && (
+                      <div className="reply-text">{live.opening}</div>
                     )}
-                    {live.report !== "" && <div className="reply-text">{live.report}</div>}
+                    {live.steps.length > 0 && (
+                      <Steps
+                        steps={live.steps}
+                        total={live.total || undefined}
+                      />
+                    )}
+                    {live.report !== "" && (
+                      <div className="reply-text">{live.report}</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -285,12 +406,18 @@ export default function Chat({
           </div>
         ) : (
           <>
-            <img className="hero" src="/kriky-hero.png" alt="" width={143} height={240} />
+            <img
+              className="hero"
+              src="/kriky-hero.png"
+              alt=""
+              width={143}
+              height={240}
+            />
             <div className="intro">
               <h1>Hôm nay bạn muốn làm gì?</h1>
               <p>
-                Nói bằng câu bình thường. Kriky sẽ tạo lớp, soạn đề, thêm câu hỏi — nhưng chỉ bạn
-                mới phát hành được đề cho học sinh.
+                Nói bằng câu bình thường. Kriky sẽ tạo lớp, soạn đề, thêm câu
+                hỏi — nhưng chỉ bạn mới phát hành được đề cho học sinh.
               </p>
             </div>
             <div className="hint">
@@ -298,7 +425,12 @@ export default function Chat({
             </div>
             <div className="suggestions">
               {OPENERS.map((one) => (
-                <button className="suggestion" key={one} type="button" onClick={() => setText(one)}>
+                <button
+                  className="suggestion"
+                  key={one}
+                  type="button"
+                  onClick={() => setText(one)}
+                >
                   {one}
                 </button>
               ))}
@@ -312,13 +444,25 @@ export default function Chat({
           </div>
         )}
 
+        {/* Dải này **từng** nói "Đổi phạm vi", và chữ ấy hứa một việc không xảy ra: tệp vừa
+            tải lên đi vào thư viện của giáo viên và không rời khỏi màn hình này — thân
+            request gửi đi đúng ba field `{text, conversation_id, start_new}`, không có
+            `document_id` nào, và chưa đoạn code nào mở tệp ra đọc. Nên dải nói đúng việc đã
+            xảy ra, và nói thẳng việc chưa xảy ra. Đọc nội dung tài liệu vào đề là một món
+            riêng trong `docs/plans/backlog.md`. */}
         {scope !== null && (
           <div className="scope-strip">
             <span className="kind">{scope.kind}</span>
-            <span className="what">{scope.filename}</span>
+            <span className="what">Đã tải lên: {scope.filename}</span>
             <button type="button" onClick={() => picker.current?.click()}>
-              Đổi phạm vi
+              Tải tệp khác
             </button>
+          </div>
+        )}
+        {scope !== null && (
+          <div className="scope-note">
+            Tệp đã vào thư viện tài liệu của bạn. Nội dung của nó chưa được dùng
+            để soạn đề.
           </div>
         )}
 
@@ -340,11 +484,17 @@ export default function Chat({
           <input
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder={pending === null ? "Nhắn cho Kriky…" : "Đang chờ Kriky trả lời…"}
+            placeholder={
+              pending === null ? "Nhắn cho Kriky…" : "Đang chờ Kriky trả lời…"
+            }
             disabled={pending !== null}
             aria-label="Nhắn cho Kriky"
           />
-          <button className="send" type="submit" disabled={text.trim() === "" || pending !== null}>
+          <button
+            className="send"
+            type="submit"
+            disabled={text.trim() === "" || pending !== null}
+          >
             {pending === null ? "Gửi" : "Đang gửi…"}
           </button>
         </form>
@@ -367,7 +517,9 @@ export default function Chat({
         <Panel
           assessmentId={openPaper}
           publishing={publishing}
-          onClose={() => go(here === null ? "/teacher" : `/teacher/chat/${here}`)}
+          onClose={() =>
+            go(here === null ? "/teacher" : `/teacher/chat/${here}`)
+          }
           onApproved={() => {
             // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
             // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
@@ -378,6 +530,35 @@ export default function Chat({
               .catch((cause: Error) => setTrouble(cause.message));
           }}
         />
+      )}
+
+      {erasing !== null && (
+        <div className="veil" role="dialog" aria-modal="true">
+          <div className="confirm">
+            <h3>Xoá đoạn chat này?</h3>
+            <p className="lead">
+              “{erasing.title || "Đoạn chat"}” sẽ không còn trên danh sách, và
+              bạn sẽ không mở lại được nó. Các đề đã tạo trong đoạn này thì vẫn
+              còn nguyên.
+            </p>
+            <div className="confirm-actions">
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setErasing(null)}
+              >
+                Giữ lại
+              </button>
+              <button
+                className="btn primary"
+                type="button"
+                onClick={() => void erase(erasing.conversation_id)}
+              >
+                Xoá đoạn chat
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -520,7 +701,10 @@ export function grow(before: Live | null, event: TurnEvent): Live {
       // là sai với cả hai (ADR-25).
       const last = steps.map((one) => one.mark).lastIndexOf("running");
       if (last >= 0) {
-        steps[last] = { ...steps[last], result: `— đã soạn ${event.index}/${event.total} câu` };
+        steps[last] = {
+          ...steps[last],
+          result: `— đã soạn ${event.index}/${event.total} câu`,
+        };
       }
       return { ...now, steps };
     }
@@ -568,9 +752,13 @@ function Turnful({
       <div className="voice">
         <Who />
         <div className="turn-body">
-          {said.opening !== "" && <div className="reply-text">{said.opening}</div>}
+          {said.opening !== "" && (
+            <div className="reply-text">{said.opening}</div>
+          )}
           {steps}
-          {said.conclusion !== "" && <div className="reply-text">{said.conclusion}</div>}
+          {said.conclusion !== "" && (
+            <div className="reply-text">{said.conclusion}</div>
+          )}
           {said.card !== null && (
             <ActionCard
               turn={said.card}
@@ -589,7 +777,13 @@ function Turnful({
 function Who() {
   return (
     <div className="who">
-      <img className="face" src="/kriky-face.png" alt="" width={40} height={40} />
+      <img
+        className="face"
+        src="/kriky-face.png"
+        alt=""
+        width={40}
+        height={40}
+      />
       <span className="who-name">Kriky</span>
     </div>
   );
@@ -613,7 +807,9 @@ function Thinking({ slow }: { slow: boolean }) {
           <i />
         </span>
         <span className="status">
-          {slow ? "Vẫn đang xử lý — yêu cầu này cần nhiều bước hơn thường lệ…" : "Đang đọc yêu cầu…"}
+          {slow
+            ? "Vẫn đang xử lý — yêu cầu này cần nhiều bước hơn thường lệ…"
+            : "Đang đọc yêu cầu…"}
         </span>
       </div>
       <div className="shimmer" aria-hidden="true">
@@ -633,16 +829,29 @@ function Thinking({ slow }: { slow: boolean }) {
  * @param asked - Câu hỏi và các phương án của nó.
  * @param onPick - Được gọi với đúng chuỗi của phương án vừa bấm.
  */
-function Clarify({ asked, onPick }: { asked: Answered; onPick: (choice: string) => void }) {
+function Clarify({
+  asked,
+  onPick,
+}: {
+  asked: Question;
+  onPick: (choice: string) => void;
+}) {
   return (
     <div className="clarify">
       <h3>{asked.text}</h3>
       {asked.more_choices > 0 && (
-        <div className="cut">Còn {asked.more_choices} lựa chọn nữa không nằm trong danh sách.</div>
+        <div className="cut">
+          Còn {asked.more_choices} lựa chọn nữa không nằm trong danh sách.
+        </div>
       )}
       <div className="choices">
         {asked.choices.map((one) => (
-          <button className="choice" key={one} type="button" onClick={() => onPick(one)}>
+          <button
+            className="choice"
+            key={one}
+            type="button"
+            onClick={() => onPick(one)}
+          >
             {one}
           </button>
         ))}

@@ -540,6 +540,13 @@ class TeacherConversation(Base):
     # lượt đầu tiên, và khi model không đặt được thì BE lùi về câu đầu cắt ngắn --
     # nên một luồng đã nói mà vẫn rỗng ở đây là một chuyện đáng đi tìm.
     title: Mapped[str] = mapped_column(String(120), default="")
+    # Xoá là **xoá mềm**, và đó là một quyết định chứ không phải một sự tiện tay. Giáo
+    # viên muốn một đoạn gõ nhầm biến khỏi mắt mình; ADR-24 lại đòi biên bản duyệt đề
+    # phải giữ được, và biên bản ấy là một row trong `teacher_turns` của chính đoạn này.
+    # Xoá thật thì một cú dọn nhà phá mất bằng chứng cho một cuộc đi tìm sau này. Nên
+    # đoạn đã xoá đọc ra **y như một đoạn không tồn tại** — 404, rời rail — còn các lượt
+    # của nó thì vẫn nằm nguyên trong bảng.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     turns: Mapped[list[TeacherTurn]] = relationship(
         back_populates="conversation", order_by="TeacherTurn.sequence"
@@ -583,6 +590,14 @@ class TeacherTurn(Base):
     # một lớp, một đề -- đủ để liên kết tới nó và để chọn cách vẽ step ra.
     entity_kind: Mapped[str] = mapped_column(String(32), default="")
     entity_id: Mapped[str] = mapped_column(String(36), default="")
+    # Các phương án của một câu hỏi lại, do **BE** viết từ chính các row mà một tool trả
+    # về (ADR-23). Chúng sống ở đây chứ không chỉ trong response, vì màn hình hứa dựng lại
+    # được từ database: không lưu thì một lần F5 lấy mất các nút và câu hỏi tụt xuống thành
+    # một bong bóng thường, bỏ giáo viên lại trước một câu hỏi mà không còn câu trả lời nào
+    # bày ra. Chúng **không** đi sang AGENT: `TurnRecord` là payload của queue và model
+    # không dùng được chúng — cùng lý do `Turn` tách khỏi `TurnRecord`.
+    choices: Mapped[list] = mapped_column(JSON, default=list)
+    more_choices: Mapped[int] = mapped_column(Integer, default=0)
     model_tokens: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

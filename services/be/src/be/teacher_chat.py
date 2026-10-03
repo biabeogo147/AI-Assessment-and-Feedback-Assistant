@@ -164,9 +164,9 @@ class Turn(BaseModel):
 
     Soi lại `TurnRecord` chứ không dùng lại chính nó: type đó đi qua queue sang AGENT, và
     thêm một field ở đây vì nhu cầu của giao diện là nhét field đó vào một payload mà
-    AGENT không dùng được. Bốn field cuối chính là trường hợp đó -- chủ thể của bước và
-    cái giá nó tốn là để cho màn hình và cho người đi debug, và chẳng có nghĩa gì với
-    model.
+    AGENT không dùng được. Sáu field cuối chính là trường hợp đó -- chủ thể của bước, các
+    phương án bày ra cùng nó, và cái giá nó tốn đều là để cho màn hình và cho người đi
+    debug, và chẳng có nghĩa gì với model.
 
     `tool_args` vắng mặt có chủ đích. Các tham số vẫn được lưu, vì một vết truy ngược
     không có chúng thì không trả lời được câu hỏi đã hỏi cái gì; chúng không được gửi
@@ -179,6 +179,8 @@ class Turn(BaseModel):
     tool_result: dict = Field(default_factory=dict)
     entity_kind: str = ""
     entity_id: str = ""
+    choices: list[str] = Field(default_factory=list)
+    more_choices: int = 0
     model_tokens: int = 0
     duration_ms: int = 0
 
@@ -547,18 +549,23 @@ async def _owned_conversation(session: AsyncSession, asking: Asking, thread: str
     ấy phải đọc ra **y hệt nhau**. Phân biệt được chúng là cho bất kỳ ai dò xem giáo viên
     khác đang có những gì, chỉ bằng cách thử id.
 
+    Một đoạn **đã xoá** cũng trả `None`, và cùng một hàm này canh cả hai cửa: đọc lại nó ra
+    404, và một câu mới không bao giờ rơi vào nó. Gộp vào đây chứ không viết hai lần ở hai
+    chỗ, vì hai bản sao của một luật là hai thứ chờ lệch đi.
+
     Args:
         session: Session của database.
         asking: Ai đang hỏi.
         thread: Id client gửi lên.
 
     Returns:
-        Chính id đó khi nó là của người hỏi, ngược lại `None`.
+        Chính id đó khi nó là của người hỏi và chưa bị xoá, ngược lại `None`.
     """
     return await session.scalar(
         select(TeacherConversation.id).where(
             TeacherConversation.id == thread,
             TeacherConversation.teacher_id == asking.teacher_id,
+            TeacherConversation.deleted_at.is_(None),
         )
     )
 
@@ -614,7 +621,10 @@ async def _latest_conversation(session: AsyncSession, asking: Asking) -> str | N
     return await session.scalar(
         select(TeacherConversation.id)
         .join(spoke, spoke.c.conversation_id == TeacherConversation.id, isouter=True)
-        .where(TeacherConversation.teacher_id == asking.teacher_id)
+        .where(
+            TeacherConversation.teacher_id == asking.teacher_id,
+            TeacherConversation.deleted_at.is_(None),
+        )
         .order_by(active.desc(), TeacherConversation.id.desc())
         .limit(1)
     )
@@ -646,16 +656,21 @@ async def conversation_of(session: AsyncSession, asking: Asking, assessment_id: 
         asking: Ai đang hỏi.
         assessment_id: Đề nào.
 
+    Đoạn chat đã **xoá** đọc ra như không có: caller lùi về đoạn đang chạy, nên biên bản
+    duyệt rơi vào một nơi giáo viên nhìn thấy được. Ghi nó vào một đoạn đã ẩn thì ADR-24 đạt
+    về chữ — row vẫn tồn tại — và hỏng về việc: không ai mở được nó ra để đọc.
+
     Returns:
-        id của đoạn chat, hoặc None khi đề không sinh ra từ đoạn chat nào — đề seed, hoặc
-        đề tạo bằng tay. Caller lùi về đoạn mới nhất chứ không nổ: một đề vẫn phải duyệt
-        được.
+        id của đoạn chat, hoặc None khi đề không sinh ra từ đoạn chat nào — đề seed, đề tạo
+        bằng tay, hoặc đoạn sinh ra nó đã bị xoá. Caller lùi về đoạn mới nhất chứ không nổ:
+        một đề vẫn phải duyệt được.
     """
     return await session.scalar(
         select(TeacherTurn.conversation_id)
         .join(TeacherConversation, TeacherConversation.id == TeacherTurn.conversation_id)
         .where(
             TeacherConversation.teacher_id == asking.teacher_id,
+            TeacherConversation.deleted_at.is_(None),
             TeacherTurn.entity_kind == "assessment",
             TeacherTurn.entity_id == assessment_id,
         )
@@ -755,6 +770,8 @@ async def _record(
     *,
     duration_ms: int = 0,
     model_tokens: int = 0,
+    choices: list[str] | None = None,
+    more_choices: int = 0,
 ) -> int:
     """Ghi thêm một bước vào hội thoại rồi commit nó.
 
@@ -777,6 +794,10 @@ async def _record(
         record: Bước đó.
         duration_ms: Lượt gọi model sinh ra nó mất bao lâu.
         model_tokens: Lượt gọi đó tiêu bao nhiêu.
+        choices: Các phương án bày ra cùng bước này, nếu nó là một câu hỏi lại. Đi vào
+            đây chứ không vào `record` vì `TurnRecord` là payload sang AGENT và model
+            không dùng được chúng — y như `duration_ms` ngay trên.
+        more_choices: Bao nhiêu phương án nữa đã bị cắt.
 
     Returns:
         Vị trí sau bước này, thứ caller dùng cho bước tiếp theo.
@@ -802,6 +823,8 @@ async def _record(
                 tool_result=dict(record.tool_result),
                 entity_kind=kind,
                 entity_id=entity_id,
+                choices=list(choices or []),
+                more_choices=more_choices,
                 duration_ms=duration_ms,
                 model_tokens=model_tokens,
                 created_at=datetime.now(UTC),
@@ -871,8 +894,35 @@ def _visible(turn: TeacherTurn) -> Turn:
         tool_result=turn.tool_result or {},
         entity_kind=turn.entity_kind,
         entity_id=turn.entity_id,
+        choices=list(turn.choices or []),
+        more_choices=turn.more_choices,
         model_tokens=turn.model_tokens,
         duration_ms=turn.duration_ms,
+    )
+
+
+def _read_back(conversation_id: str, stored: "list[TeacherTurn]") -> "Answered":
+    """Dựng câu trả lời cho một lần **đọc lại** một đoạn chat.
+
+    Chỗ duy nhất quyết việc các phương án của một câu hỏi lại có còn được bày ra hay không.
+    Chỉ bước **cuối cùng** được chở `choices` lên: một câu hỏi đã được trả lời thì các nút
+    của nó không còn nghĩa gì, và bày lại chúng là mời giáo viên trả lời hai lần một câu.
+
+    Args:
+        conversation_id: Đoạn nào.
+        stored: Mọi bước của đoạn, theo thứ tự.
+
+    Returns:
+        Câu trả lời. `kind` là "say" và `text` rỗng, vì đọc không phải một lượt.
+    """
+    last = stored[-1] if stored else None
+    return Answered(
+        kind="say",
+        text="",
+        conversation_id=conversation_id,
+        choices=list(last.choices or []) if last else [],
+        more_choices=last.more_choices if last else 0,
+        turns=[_visible(turn) for turn in stored],
     )
 
 
@@ -1262,6 +1312,15 @@ async def run_turn(
         spent_ms = int((time.monotonic() - started) * 1000)
 
         if step.kind in {"say", "ask_clarify"}:
+            # Các phương án chỉ đi cùng một **câu hỏi lại**. Bản đầu gửi chúng cho cả `say`,
+            # và ca đó có thật: giáo viên hỏi *"lớp 12 thế nào"*, `find_class` trả hai
+            # candidate, rồi model **nói** chứ không hỏi. Một lời thông báo mang theo hai cái
+            # nút thì màn hình dựng nó thành thẻ hỏi lại, gấp bong bóng thật đi, và bấm một
+            # nút gửi `"12A (3 học sinh)"` đi như một câu của giáo viên. Đường live đã sai
+            # như vậy từ trước; từ khi có cột trong database thì nó còn sống qua cả F5 — nên
+            # chỗ chặn phải là đây, nơi duy nhất biết `step.kind`.
+            asking_back = step.kind == "ask_clarify"
+            bare: list[str] = []
             history.append(TurnRecord(kind="assistant", text=step.text))
             position = await _record(
                 session,
@@ -1270,6 +1329,8 @@ async def run_turn(
                 history[-1],
                 duration_ms=spent_ms,
                 model_tokens=step.model_tokens,
+                choices=offered if asking_back else bare,
+                more_choices=offered_more if asking_back else 0,
             )
             if step.choices:
                 # Bỏ qua, không phải lọc lại. BE là bên giữ các row; thứ model viết ra ở
@@ -1280,10 +1341,10 @@ async def run_turn(
                     asking.teacher_code,
                 )
             yield TurnEvent(
-                kind="clarify" if step.kind == "ask_clarify" else "say",
+                kind="clarify" if asking_back else "say",
                 text=step.text,
-                choices=tuple(offered),
-                more_choices=offered_more,
+                choices=tuple(offered) if asking_back else (),
+                more_choices=offered_more if asking_back else 0,
                 conversation_id=thread,
             )
             if began == 0:
@@ -1291,10 +1352,10 @@ async def run_turn(
             yield TurnEvent(
                 kind="done",
                 text=step.text,
-                choices=tuple(offered),
-                more_choices=offered_more,
+                choices=tuple(offered) if asking_back else (),
+                more_choices=offered_more if asking_back else 0,
                 conversation_id=thread,
-                ended_as="clarify" if step.kind == "ask_clarify" else "say",
+                ended_as="clarify" if asking_back else "say",
                 began=began,
             )
             return
@@ -1536,7 +1597,23 @@ async def run_turn(
                 # thứ trước nó đã commit (`_record` và `harvest` tự commit cả hai) -- nhưng
                 # một caller tương lai có việc chưa commit thì sẽ mất nó, nên đừng gọi hàm
                 # ấy giữa một chuỗi ghi.
-                detail = _how_many(await _count_questions(session, paper))
+                counted_now = await _count_questions(session, paper)
+                detail = _how_many(counted_now)
+
+                # Và ba con số ấy đi **vào chính kết quả của bước**, vài dòng trước `_record`.
+                # Lý do: `_start_drafting` chỉ trả `started/queued/assessment_id` — không một
+                # con số nào — nên màn hình không dựng nổi thẻ kết quả từ nó, và một lượt soạn
+                # đề **thành công** kết thúc không có thẻ nào, tức không có cửa nào vào đề vừa
+                # soạn. Làm giàu ở đây chứ không ở FE vì FE không được quyết luật; và làm giàu
+                # **trước** khi ghi row chứ không sau, vì ghi sau thì SSE thấy con số còn một
+                # lần F5 thì không, và hai đường của cùng một lượt sẽ nói hai chuyện.
+                written_now, asked_now, running_now = counted_now
+                result = {
+                    **result,
+                    "written": written_now,
+                    "asked_for": asked_now,
+                    "still_drafting": running_now,
+                }
         else:
             await run_the_step()
             result = held.get("result", {"error": f"bước {index} chạy không xong"})
@@ -1747,9 +1824,7 @@ async def read_conversation(
         if thread is None:
             raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
         stored = await _stored_turns(session, thread)
-        return Answered(
-            kind="say", text="", conversation_id=thread, turns=[_visible(turn) for turn in stored]
-        )
+        return _read_back(thread, list(stored))
 
     # Có chủ đích không dùng `_conversation`: hàm đó mở một luồng mới khi chưa có luồng
     # nào, và một GET mà ghi dữ liệu là một GET mà một lần prefetch của browser, một cú dò
@@ -1760,9 +1835,7 @@ async def read_conversation(
         return Answered(kind="say", text="", turns=[])
 
     stored = await _stored_turns(session, thread)
-    return Answered(
-        kind="say", text="", conversation_id=thread, turns=[_visible(turn) for turn in stored]
-    )
+    return _read_back(thread, list(stored))
 
 
 class ConversationRead(BaseModel):
@@ -1815,7 +1888,10 @@ async def conversations(
             spoke.c.at,
         )
         .join(spoke, spoke.c.conversation_id == TeacherConversation.id)
-        .where(TeacherConversation.teacher_id == teacher.id)
+        .where(
+            TeacherConversation.teacher_id == teacher.id,
+            TeacherConversation.deleted_at.is_(None),
+        )
         .order_by(spoke.c.at.desc(), TeacherConversation.id.desc())
     )
     return [
@@ -1827,3 +1903,118 @@ async def conversations(
         )
         for row in rows
     ]
+
+
+class Renaming(BaseModel):
+    """Tên mới cho một đoạn chat.
+
+    Attributes:
+        title: Tên giáo viên gõ. Dọn bằng `_tidy` y như tên model viết — cùng một cột,
+            cùng một giới hạn, nên cùng một hàm dọn. Rỗng sau khi dọn thì bị từ chối: cột
+            rỗng có nghĩa riêng của nó (*chưa đặt tên*), và cho phép gõ về rỗng là trộn
+            *"tôi chưa đặt"* với *"tôi đặt tên là không gì cả"*.
+    """
+
+    title: str
+
+
+@router.patch("/teacher/conversations/{conversation_id}", response_model=ConversationRead)
+async def rename_conversation(
+    conversation_id: str,
+    renaming: Renaming,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> ConversationRead:
+    """Đổi tên một đoạn chat.
+
+    Tên vốn do model đặt một lần sau lượt đầu (`_name_the_thread`) và trước đợt này không
+    ai sửa được. Một cái tên model đặt sai thì đứng đó mãi, và rail là chỗ giáo viên đi tìm
+    lại việc cũ — nên một cái tên sai là một đoạn chat mất tích.
+
+    Args:
+        conversation_id: Đoạn nào.
+        renaming: Tên mới.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Hàng của đoạn ấy sau khi đổi, đủ để rail vẽ lại mà không gọi thêm.
+
+    Raises:
+        HTTPException: 404 khi đoạn không tồn tại, của người khác, hoặc đã xoá (ADR-22);
+            400 khi tên dọn xong còn rỗng.
+
+    Side effects:
+        Cập nhật một row và commit.
+    """
+    asking = Asking.of(teacher)
+    thread = await _owned_conversation(session, asking, conversation_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+
+    named = _tidy(renaming.title)
+    if not named:
+        raise HTTPException(status_code=400, detail="tên đoạn chat không được để trống")
+
+    row = await session.get(TeacherConversation, thread)
+    if row is None:  # pragma: no cover - `_owned_conversation` vừa thấy nó
+        raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+    # Đọc `started_at` **trước** khi commit. Commit làm hết hạn các object ORM, và một lần
+    # đọc attribute sau đó là một lazy load — thứ nổ `MissingGreenlet` trên session async.
+    # `_conversation` đã chép lại đúng bài học này trong docstring của nó.
+    started = row.started_at
+    row.title = named
+    await session.commit()
+
+    spoke = await session.scalar(
+        select(func.max(TeacherTurn.created_at)).where(TeacherTurn.conversation_id == thread)
+    )
+    return ConversationRead(
+        conversation_id=thread,
+        title=named,
+        started_at=aware(started),
+        last_spoke_at=aware(spoke or started),
+    )
+
+
+@router.delete("/teacher/conversations/{conversation_id}", status_code=204)
+async def delete_conversation(
+    conversation_id: str,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Xoá một đoạn chat khỏi mắt giáo viên.
+
+    **Xoá mềm**, và lý do nằm ở chỗ hai đòi hỏi kéo ngược nhau. Giáo viên muốn một đoạn gõ
+    nhầm biến đi; ADR-24 lại đòi biên bản duyệt đề giữ được, và biên bản ấy là một row
+    `teacher_turns` của chính đoạn này. Xoá thật thì một cú dọn nhà phá mất bằng chứng cho
+    một cuộc đi tìm sau này, mà cuộc đi tìm ấy là chuyện của tháng sau chứ không phải của
+    người đang bấm nút. Nên đoạn đã xoá đọc ra **y như một đoạn không tồn tại** — rời rail,
+    `GET` ra 404, không nhận câu mới nào — còn các lượt của nó nằm nguyên trong bảng.
+
+    Không trả về gì: `204`. Rail tự bỏ hàng đó đi, và không có trạng thái nào của đoạn đã
+    xoá mà client cần biết.
+
+    Args:
+        conversation_id: Đoạn nào.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Raises:
+        HTTPException: 404 khi đoạn không tồn tại, của người khác, hoặc đã xoá (ADR-22).
+            Xoá hai lần vì thế ra 404 chứ không ra 204 — lần thứ hai thật sự không tìm thấy
+            gì, và nói ngược lại là nói rằng vừa xoá được một thứ đã không còn.
+
+    Side effects:
+        Cập nhật một row và commit.
+    """
+    asking = Asking.of(teacher)
+    thread = await _owned_conversation(session, asking, conversation_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+
+    row = await session.get(TeacherConversation, thread)
+    if row is None:  # pragma: no cover - `_owned_conversation` vừa thấy nó
+        raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+    row.deleted_at = datetime.now(UTC)
+    await session.commit()

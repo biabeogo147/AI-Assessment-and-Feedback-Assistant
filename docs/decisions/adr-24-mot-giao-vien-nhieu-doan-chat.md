@@ -60,16 +60,40 @@ Trên một hàng rộng 228px, phần bị cắt là phần phân biệt hai đ
 gọi model nhỏ cho mỗi đoạn mới — chỉ lượt đầu, và nó chạy **sau** câu trả lời nên không ai phải chờ
 thêm.
 
-**Vì sao không có đoạn chat rỗng.** Chưa có đường xoá. Một cú bấm nhầm để lại một hàng không có gì
-để vẽ và không có cách nào dọn, và sau một tuần rail đầy những hàng như thế.
+**Vì sao không có đoạn chat rỗng.** Một cú bấm nhầm để lại một hàng không có gì để vẽ, và rail chỉ
+hiện những đoạn đã có ít nhất một bước — `JOIN` thay cho `LEFT JOIN` là cách rẻ nhất để rác đó không
+bao giờ lên màn hình.
+
+**Xoá là xoá mềm.** Câu chặn của ADR này — *"xoá một đoạn thì biên bản duyệt trong đó đi đâu"* —
+trả bằng một cột `deleted_at`, không bằng một câu `DELETE`. Hai đòi hỏi kéo ngược nhau: giáo viên
+muốn một đoạn gõ nhầm biến khỏi mắt mình, còn biên bản duyệt là một row `teacher_turns` của chính
+đoạn ấy và ADR này đòi nó giữ được. Xoá thật thì một cú dọn nhà phá mất bằng chứng cho một cuộc đi
+tìm của tháng sau, mà cuộc đi tìm ấy không phải việc của người đang bấm nút. Nên đoạn đã xoá **đọc
+ra y như một đoạn không tồn tại** — rời rail, `GET` ra 404, không nhận câu mới nào, và không còn là
+*"đoạn đang chạy"* — còn các lượt của nó nằm nguyên trong bảng.
+
+Hệ quả phải nói ra: một đề sinh ra từ một đoạn đã xoá thì biên bản duyệt của nó rơi vào đoạn đang
+chạy, và nếu giáo viên không còn đoạn nào thì một đoạn mới được mở ra để chứa biên bản ấy. Ghi nó
+vào đoạn đã ẩn thì ADR này đạt về chữ và hỏng về việc: không ai mở được ra đọc.
+
+**Đổi tên.** Tên vốn do model đặt một lần sau lượt đầu. Rail là chỗ giáo viên đi tìm lại việc cũ,
+nên một cái tên model đặt sai là một đoạn chat mất tích — giáo viên sửa được, qua cùng hàm dọn mà
+đường đặt tên tự động dùng. Tên rỗng bị từ chối: cột rỗng đã có nghĩa riêng của nó (*chưa đặt*).
 
 ## Nơi luật này đang được thi hành
 
 - `services/be/src/be/teacher_chat.py` — `_conversation(start_new=...)` là đường duy nhất mở luồng
   mới; `conversation_of` trả lời *"đề này sinh ra từ đoạn nào"*; `_latest_conversation` sắp theo
   `COALESCE(lần nói cuối, started_at)`; `_name_the_thread` đặt tên sau lượt đầu và nuốt mọi lỗi.
-- `services/be/src/be/models.py` — `TeacherConversation` **không còn** `UniqueConstraint`, và có cột
-  `title`.
+- `services/be/src/be/models.py` — `TeacherConversation` **không còn** `UniqueConstraint`, và có hai
+  cột `title`, `deleted_at`.
+- `services/be/src/be/teacher_chat.py` — `_owned_conversation` canh **cả hai** cửa của một đoạn đã
+  xoá (đọc lại ra 404, và câu mới không rơi vào đó) bằng một mệnh đề; `_latest_conversation`,
+  `conversations` và `conversation_of` lọc cùng cột ấy; `rename_conversation` dọn tên bằng `_tidy`.
+- `services/be/tests/test_teacher_memory.py` — `test_a_deleted_conversation_keeps_its_turns`,
+  `test_a_new_turn_never_lands_in_a_deleted_conversation`,
+  `test_a_deleted_conversation_is_not_the_running_one`,
+  `test_a_record_never_lands_in_a_deleted_conversation`.
 - `services/be/tests/test_teacher_memory.py` — *"nói tiếp không mở luồng mới"* và *"xin thì được"* là
   hai nửa của cùng một luật, mỗi nửa một test.
 - `services/be/tests/test_approval.py` —
@@ -79,7 +103,7 @@ thêm.
 
 ## Thứ luật này **chưa** nói
 
-- **Xoá hay đổi tên một đoạn chat.** Chưa có đường nào, và vì thế cũng chưa có câu trả lời cho *"xoá
-  một đoạn thì biên bản duyệt trong đó đi đâu"*.
+- **Khôi phục một đoạn đã xoá.** `deleted_at` giữ đủ dữ liệu để làm, nhưng không có đường nào trên
+  màn hình, và hộp xác nhận nói thẳng với giáo viên rằng họ sẽ không mở lại được.
 - **Lưu trữ.** Danh sách trả về mọi đoạn, không phân trang. Một giáo viên dùng một năm sẽ có vài
   trăm hàng, và lúc ấy rail cần một đường tìm kiếm chứ không phải một danh sách dài hơn.

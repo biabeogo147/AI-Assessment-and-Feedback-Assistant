@@ -60,8 +60,8 @@ rỗng không bao giờ thành thẻ, vì nó đã bị chính bước sau thay 
 | `find_class` | một bước trong `Thinking` | Nhập nhằng thì lượt kết thúc bằng `Clarify request`, không phải thẻ |
 | `class_assessment_summary` | một bước | Kết quả đi vào câu kết |
 | `create_draft` | một bước. **Thẻ** `tạo-đề-trống` **chỉ** khi không bước nào trong lượt đổ câu vào đề ấy | Có `start_drafting` phía sau thì trạng thái trống **không còn đứng vững** — chính bước sau đã thay nó, nên không thẻ nào. Thất bại → thẻ `tạo-thất-bại` |
-| `start_drafting` | **chỉ là một bước** — không có variant thẻ nào | Figma không vẽ thẻ cho nó, và một thẻ tự chế ở đây nói với giáo viên rằng một việc đã xong trong khi nó vừa bắt đầu |
-| `draft_progress` | một bước; **thẻ** `thêm-câu-hỏi` khi các câu đã về đủ | Thẻ ghi số câu **thật đã có**, không ghi số chỗ đã đặt |
+| `start_drafting` | một bước. **Thẻ** `thêm-câu-hỏi` **chỉ khi** bước ấy đã đợi hết câu và mang về `written`/`asked_for`/`still_drafting` | Chưa có ba con số ấy thì vẫn chỉ là một bước: một thẻ ở đó nói với giáo viên rằng một việc đã xong trong khi nó vừa bắt đầu. Cửa `POST` không đợi, nên ở đó không bao giờ có thẻ |
+| `draft_progress` | một bước; **thẻ** `thêm-câu-hỏi` khi các câu đã về đủ | Thẻ ghi số câu **thật đã có**, không ghi số chỗ đã đặt. Nó là tool của **pha 1**, nên một plan không gọi nó — đường này chỉ còn sống khi giáo viên hỏi riêng về tiến độ |
 
 Một tool mới phải có dòng trong bảng này **trước** khi nó có mặt trên màn hình. Không có dòng nào thì
 nó là một bước, không phải một thẻ — mặc định an toàn, vì một bước không hứa gì.
@@ -112,11 +112,12 @@ lời khẳng định sai về hệ thống. Dù vậy luật không đổi: cá
   nhất mà im lặng thì là lỗi nặng nhất trong nhóm này.
 - **Nút trên thẻ mời bước tiếp theo**, không phải `Xem`. `Xem` luôn là nút phụ.
 
-**Một lượt soạn đề thành công hôm nay kết thúc KHÔNG có thẻ nào.** `create_draft` bị loại khi có
-`start_drafting` phía sau, `start_drafting` không bao giờ lên thẻ, và `draft_progress` là tool của
-pha 1 nên một plan không gọi nó. Giáo viên mở đề bằng rail hoặc bằng một câu nói tiếp theo. Đó là
-một khoảng trống đã biết, không phải một luật — ngày thẻ `thêm-câu-hỏi` mọc được từ chính kết quả
-bước soạn thì nó nên mọc.
+**Khoảng trống đã đóng.** Tới hết đợt ADR-25, một lượt soạn đề **thành công** kết thúc không thẻ
+nào: `create_draft` bị loại khi có `start_drafting` phía sau, `start_drafting` bị loại vô điều kiện,
+và `draft_progress` là tool của pha 1 nên một plan không gọi nó. Ba lần loại trừ ấy giao nhau đúng ở
+đường đi hạnh phúc — mà panel đề **chỉ mở được từ một nút trên thẻ**, nên Kriky nói *"đã soạn xong"*
+và màn hình không có cửa nào vào xem. Nay bước soạn khi đóng lại đã biết số câu thật, và thẻ
+`thêm-câu-hỏi` mọc từ chính nó.
 
 | Variant | Head | Nút chính | Nút phụ |
 | --- | --- | --- | --- |
@@ -126,7 +127,19 @@ bước soạn thì nó nên mọc.
 họ nói *"tạo đề 10 câu"* thì plan có hai bước (ADR-25) và thẻ này **không được xuất hiện**: nó nói
 rằng việc được nhờ đã xong và cho ra một cái đề rỗng, trong khi việc ấy đang chạy. Một đề chưa đủ
 câu ở lại **trong khối bước**, và câu báo cáo cuối lượt nói nó đang tới đâu.
-| `thêm-câu-hỏi` | `Đã thêm {n} câu vào đề` | `Duyệt đề` | `Xem` |
+| `thêm-câu-hỏi` | `Đã thêm {n} câu vào đề` | `Duyệt đề` | — (xem ghi chú) |
+| `thiếu-câu` (`455:16`) | `Dừng ở {k}/{n} câu` | `Xem đề` — **không** mời duyệt | — |
+| `đang-soạn-dở` (`456:16`) | `Đã soạn {k}/{n} câu` · detail `còn {r} câu đang soạn` | `Xem đề` — **không** mời duyệt | — |
+
+**Điều kiện mời duyệt là `đã đủ câu`, và chỉ thế.** Không phải *"thiếu câu **và** không còn gì đang
+chạy"* — viết thế thì một đề 3/10 còn bảy câu đang chạy rơi vào nhánh còn lại, thẻ in `Đã thêm 3 câu
+vào đề` (giấu mất số 10) và mời duyệt. Đường ra ấy có thật: hết hạn im lặng thì vòng nghe chuông
+đóng lại với `still_drafting > 0`. Và nó cãi lại `reporting._progress` của AGENT, nơi lời kể trong
+cùng ca ấy chỉ được nói *"đang soạn"*.
+
+Bảng này in `Xem` làm nút phụ cho `thêm-câu-hỏi` theo đúng Figma, nhưng **code chỉ dựng một nút**:
+cổng duyệt nằm trong panel, nên `Duyệt đề` và `Xem` sẽ mở đúng cùng một chỗ, và hai nhãn khác nhau
+cho một hành vi là một lời hứa rỗng.
 | `đã-duyệt` | `Đã duyệt đề "{tên}"` | `Phát hành` | `Hoàn tác` |
 | `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | `Duyệt đề` | `Xem` |
 | `tạo-thất-bại` | `Không tạo được đề` | `Thử lại` | — |
@@ -155,6 +168,11 @@ mở (ADR-02); component set chưa có trục trạng thái đó và đã ghi n�
 - **Nợ hợp đồng BE:** `Answered.choices` hiện là `list[str]`, không chở nổi dòng thứ hai. Dựng đủ thẻ
   này cần BE trả về cặp (nhãn, đánh đổi), hoặc một quyết định bỏ dòng thứ hai khỏi thiết kế. Tới lúc
   đó FE dựng phần dựng được và **không bịa** dòng đánh đổi.
+- **Các phương án sống qua F5.** Chúng nằm trong hai cột của `teacher_turns`, trên row của chính bước
+  đã hỏi, và chỉ **bước cuối** của một đoạn chở chúng lên khi đọc lại — một câu hỏi đã được trả lời
+  thì các nút của nó không còn nghĩa gì. Trước đợt chốt chặng A, `choices` chỉ sống trong response,
+  và màn hình lấy chúng từ đúng cái response **không bao giờ** có chúng; nên thẻ này có thể chưa từng
+  hiện lần nào, chứ không phải chỉ mất sau khi tải lại.
 
 ## Avatar `Kriky state` đổi theo pha của lượt
 
@@ -169,6 +187,48 @@ Không phải trang trí. Năm variant, pha nào variant ấy:
 | Lượt đã kết thúc, có thẻ kết quả | `đã xong` |
 
 Chuyển cảnh 260ms, hai hình chồng nhau 60ms, **không phóng to, không xoay** (ghi chú `234:1349`).
+
+## Hàng đoạn chat — một hộp, hai việc
+
+Cả hàng **từng là một `<button>`**. Nó phải hết là thế từ đợt chốt chặng A, và lý do là cơ học chứ
+không phải thẩm mỹ: một nút lồng trong một nút là HTML không hợp lệ, browser tự gỡ lồng, và cú bấm
+vào nút trong rơi vào nút ngoài — tức bấm *Xoá* sẽ mở đoạn chat. Nên hàng là một `div`, phần chữ là
+một nút chiếm hết chỗ còn lại, và `⋯` là một nút ngang hàng với nó.
+
+`⋯` hiện khi con trỏ ở trên hàng hoặc khi bàn phím đang ở trong hàng, và nó giữ chỗ bằng
+`visibility` chứ không `display`: tên đoạn chat không được giật ngang 24px mỗi lần chuột đi qua.
+Menu hai mục — *Đổi tên* (phần chữ thành một ô nhập tại chỗ; Enter lưu, Esc huỷ) và *Xoá*.
+
+Menu được dựng **qua portal vào `body`**, không nằm trong rail. Hai bước, mỗi bước mua bằng một
+phép đo: `position: absolute` thì vùng cuộn (`overflow-y: auto`) cắt nó ở hàng cuối; đổi sang
+`fixed` thì nó thoát ra được nhưng `mask-image` của chính vùng ấy dựng một stacking context, nên
+`z-index` chỉ xếp hạng bên trong vùng cuộn và ngăn TÀI LIỆU vẽ đè lên — `elementFromPoint` ở giữa
+mục *Xoá* trả về một chip tài liệu, tức mục nhìn thấy mà không bấm được. Vì menu không còn là con
+cháu của rail, CSS của nó là `.row-menu`, **không** `.rail .row-menu`.
+
+**Số đo, từ artboard `13 · Xoá một đoạn chat` (`455:2224`):** hàng 228×41; `⋯` 24×24, cách mép phải
+**6**; menu 114 rộng, bo **8**, padding **4**, viền 1 — nên CSS lấy padding **3**, theo đúng luật
+trừ-một của mọi hộp có viền ở file này; mỗi mục menu cao 28, bo 4, chữ 13. Variant hover của
+`Conversation item` là `11:26`, và hộp xác nhận là `Consequence dialog — xoá đoạn chat` (`455:2195`),
+460×202.
+
+**Xoá đi qua hộp xác nhận**, dùng lại `.veil` / `.confirm` của biểu mẫu phát hành. Dưới lớp sơn nó là
+xoá mềm (`deleted_at`), nhưng trên màn hình này không có nút hoàn tác nào — nên với người bấm nút đó
+là một việc một chiều, và nó phải được hỏi lại. Xoá đoạn **đang mở** thì màn hình rời sang
+`/teacher/moi`: đứng lại là đứng trên một màn hình mà mọi lần đọc lại từ nay sẽ ra 404.
+
+## Ngăn `TÀI LIỆU` — chip in kích thước, không in số trang
+
+Tài liệu tải lên được và liệt kê được; **nội dung của chúng chưa đi vào việc soạn đề**. Mỗi chip vì
+thế in kích thước (`B` / `KB` / `MB`, dấu thập phân phẩy) chứ không in số trang: một con số trang
+nói rằng hệ thống đã mở tệp ra đọc, và nó chưa mở. `documents` cũng không có cột số trang, nên đây
+là một luật của schema chứ không chỉ của màn hình (ADR-04).
+
+Dải dưới ô nhập, sau một lần tải lên, in `Đã tải lên: {tên tệp}` kèm nút `Tải tệp khác`, và một dòng
+nhỏ nói thẳng rằng nội dung chưa được dùng để soạn đề. Đo trên artboard `2 · Kèm tài liệu` (`85:327`):
+dải 820×33, dòng nhỏ rộng 820, thụt vào **12** so với mép dải và cách dải **6**, cỡ chữ `--type-caption`. Nó **từng** in *"Đổi phạm vi"* — chữ ấy hứa
+một việc không xảy ra: thân request của một lượt chat đúng ba field (`text`, `conversation_id`,
+`start_new`), không có `document_id` nào.
 
 ## Bề rộng, và chỗ duy nhất đọc được những con số này
 

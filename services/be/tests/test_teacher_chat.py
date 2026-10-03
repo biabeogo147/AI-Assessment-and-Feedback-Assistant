@@ -298,6 +298,169 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_the_options_survive_a_reload(stack) -> None:
+    """Các phương án sống sót qua một lần F5.
+
+    Test ngay trên canh cửa POST, và một câu trả lời của POST thì không ai F5. Các phương án
+    trước đợt này chỉ sống trong response: `teacher_turns` không có cột nào cho chúng, nên
+    `GET /teacher/chat` **không bao giờ** trả `choices`, và một lần tải lại lấy mất các nút,
+    bỏ giáo viên lại trước một câu hỏi mà không còn câu trả lời nào bày ra. Đây là chỗ duy
+    nhất đo được chuyện đó.
+    """
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert mine is not None
+        second = SchoolClass(teacher_id=mine.id, name="12B")
+        session.add(second)
+        await session.flush()
+        session.add(
+            Student(class_id=second.id, full_name="Ngô Thị Hai", student_code="HS2026-7001")
+        )
+        await session.commit()
+
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
+        ),
+        NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    live = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+    assert live.status_code == 200
+    offered = live.json()["choices"]
+    assert offered == ["12A (3 học sinh)", "12B (1 học sinh)"]
+
+    again = await client.get("/api/teacher/chat", headers=TEACHER)
+
+    assert again.status_code == 200
+    reread = again.json()
+    assert reread["choices"] == offered
+    assert reread["more_choices"] == 0
+    # Và chúng đi cùng **đúng bước** đã hỏi, không phải một danh sách rời bên cạnh hội thoại.
+    assert reread["turns"][-1]["choices"] == offered
+
+
+@pytest.mark.asyncio
+async def test_an_answered_question_no_longer_offers_its_buttons(stack) -> None:
+    """Một câu hỏi đã được trả lời thì các nút của nó không còn nghĩa gì.
+
+    Bày lại chúng là mời giáo viên trả lời hai lần một câu -- và lần thứ hai thì câu hỏi đó
+    đã không còn là câu hỏi đang mở nữa. Nên chỉ **bước cuối** chở `choices` lên.
+    """
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert mine is not None
+        session.add(SchoolClass(teacher_id=mine.id, name="12B"))
+        await session.commit()
+
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
+        ),
+        NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
+        NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    asked = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+    assert asked.json()["choices"]
+
+    answered = await client.post(
+        "/api/teacher/chat/messages", json={"text": "12A"}, headers=TEACHER
+    )
+    assert answered.status_code == 200
+
+    again = await client.get("/api/teacher/chat", headers=TEACHER)
+    assert again.json()["choices"] == []
+
+
+@pytest.mark.asyncio
+async def test_the_cut_count_survives_a_reload_too(stack) -> None:
+    """Con số *"còn mấy lựa chọn nữa"* cũng phải sống qua F5.
+
+    Nó có một lý do mạnh — một giáo viên có ba mươi lớp mà chỉ được xem sáu lớp, không được
+    nói gì thêm, thì đọc ra là dữ liệu đã mất — nhưng trước test này **không chỗ nào** đo nó
+    khác 0: ba đột biến một dòng (`_record`, `_visible`, `_read_back` cùng ghi `0`) đều sống
+    sót qua cả bộ test. Một cột không ai đo là một cột sẽ lặng lẽ thành số không.
+    """
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert mine is not None
+        # Bảy lớp khớp "12", mà danh sách chỉ chở sáu.
+        for name in ("12B", "12C", "12D", "12E", "12G", "12H"):
+            session.add(SchoolClass(teacher_id=mine.id, name=name))
+        await session.commit()
+
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
+        ),
+        NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    live = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+    assert live.status_code == 200
+    assert len(live.json()["choices"]) == 6
+    assert live.json()["more_choices"] == 1
+
+    again = await client.get("/api/teacher/chat", headers=TEACHER)
+
+    assert again.json()["more_choices"] == 1
+    assert again.json()["turns"][-1]["more_choices"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_plain_answer_carries_no_buttons_even_with_candidates_in_hand(stack) -> None:
+    """Một lời **thông báo** không mang theo nút nào, dù tool vừa trả về candidate.
+
+    Ca này có thật và nó không hiếm: giáo viên hỏi *"lớp 12 thế nào"*, `find_class` trả hai
+    candidate, rồi model quyết **nói** chứ không hỏi. Gửi `choices` kèm một câu thông báo thì
+    màn hình dựng nó thành thẻ hỏi lại, gấp bong bóng thật đi, và bấm một nút gửi
+    `"12A (3 học sinh)"` đi như một câu của giáo viên — một câu giáo viên không hề gõ, trả
+    lời một câu hỏi không hề được hỏi.
+
+    `step.kind` chỉ BE biết, nên luật này không có chỗ nào khác để đứng.
+    """
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert mine is not None
+        session.add(SchoolClass(teacher_id=mine.id, name="12B"))
+        await session.commit()
+
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
+        ),
+        NextStepCompleted(request_id="x", kind="say", text="Bạn có hai lớp 12: 12A và 12B."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    live = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+
+    assert live.status_code == 200
+    assert live.json()["kind"] == "say"
+    assert live.json()["choices"] == []
+
+    again = await client.get("/api/teacher/chat", headers=TEACHER)
+    assert again.json()["choices"] == []
+    assert again.json()["turns"][-1]["choices"] == []
+
+
+@pytest.mark.asyncio
 async def test_a_tool_outside_the_catalog_is_refused(stack) -> None:
     """Catalog chỉ là thứ cho tiện; executor mới là cái cổng.
 
@@ -1019,6 +1182,102 @@ async def test_the_stream_waits_for_the_questions_and_opens_its_ears_first(stack
     # Dòng kết quả của bước soạn nói con số thật, không nói số job đã đẩy đi.
     closing = [one for one in frames if one["kind"] == "step_done"][-1]
     assert closing["detail"] == "đã soạn 3/3 câu"
+
+
+@pytest.mark.asyncio
+async def test_a_finished_drafting_step_carries_the_real_counts(stack) -> None:
+    """Bước soạn khi đóng lại đã **biết số câu thật**, và con số ấy nằm trong row.
+
+    Đây là nguyên nhân gốc của chuyện Kriky nói *"đã soạn xong"* mà màn hình không có thẻ
+    nào: `_start_drafting` trả `started/queued/assessment_id` và không một con số nào, nên
+    không có gì dựng nổi thẻ kết quả — mà panel đề thì chỉ mở được từ một nút trên thẻ.
+
+    Và con số phải vào **row**, không chỉ vào khung SSE. Ghi sau khi `_record` chạy thì màn
+    hình đang mở có thẻ còn một lần F5 thì không, tức hai đường của cùng một lượt nói hai
+    chuyện khác nhau.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    _drafting_stack(http, monkeypatch, rings_for={1, 2, 3}, ready_for={1, 2, 3})
+
+    async with http.stream(
+        "POST",
+        "/api/teacher/chat/messages/stream",
+        json={"text": "Tạo đề 3 câu Hàm số"},
+        headers=TEACHER,
+    ) as answer:
+        async for _ in answer.aiter_lines():
+            pass
+
+    async with maker() as session:
+        row = await session.scalar(
+            select(TeacherTurn)
+            .where(TeacherTurn.kind == "tool_result", TeacherTurn.tool_name == "start_drafting")
+            .order_by(TeacherTurn.sequence.desc())
+        )
+    assert row is not None
+    assert row.tool_result["written"] == 3
+    assert row.tool_result["asked_for"] == 3
+    assert row.tool_result["still_drafting"] == 0
+
+    # Và đọc lại bằng đúng cửa mà một lần F5 đi qua.
+    again = await http.get("/api/teacher/chat", headers=TEACHER)
+    assert again.status_code == 200
+    drafted = [
+        one
+        for one in again.json()["turns"]
+        if one["kind"] == "tool_result" and one["tool_name"] == "start_drafting"
+    ]
+    assert drafted and drafted[-1]["tool_result"]["written"] == 3
+
+
+@pytest.mark.asyncio
+async def test_the_post_door_adds_no_counts_it_did_not_wait_for(stack) -> None:
+    """Cửa `POST` không đợi, nên nó **không** nói một con số nào về số câu.
+
+    Thẻ kết quả mọc từ chính ba con số ấy, nên cửa này điền chúng bằng một giá trị đoán là
+    dựng một thẻ `Đã thêm 0 câu vào đề` cho một đề sắp có đủ câu — đúng cái hại mà vòng
+    trước đã đo được một lần ở lời kể.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}"},
+                title="Soạn câu hỏi",
+            ),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu Hàm số"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    drafted = [
+        one
+        for one in answer.json()["turns"]
+        if one["kind"] == "tool_result" and one["tool_name"] == "start_drafting"
+    ]
+    assert drafted
+    assert "written" not in drafted[-1]["tool_result"]
+    assert "asked_for" not in drafted[-1]["tool_result"]
 
 
 def _drafting_stack(

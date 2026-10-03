@@ -50,6 +50,8 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | No agent tool changes an assessment's state | automatic: `tools/check_contract.py` |
 | Invented screen data stays in its one self-accusing module | automatic: `tools/check_contract.py` |
 | An empty assessment is never approved | automatic: `test_an_empty_assessment_cannot_be_approved` |
+| A deleted conversation reads as absent, takes no new turn, and keeps the turns it holds | automatic: `test_a_deleted_conversation_is_not_the_running_one`, `test_a_deleted_conversation_keeps_its_turns` |
+| Only a question back carries buttons | automatic: `test_a_plain_answer_carries_no_buttons_even_with_candidates_in_hand` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
 | FE never applies its own confidence threshold | review: `confidence` may be displayed, never compared |
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |

@@ -10,21 +10,31 @@ File này khác `docs/decisions/`: ở đó là luật nghiệp vụ đã chốt
 Nó cũng khác mục *Còn thiếu* trong `docs/decisions/README.md`, vốn liệt kê những **luật** chưa được ghi
 thành ADR, không phải những **tính năng** chưa dựng.
 
-## Bề mặt giáo viên — bảy món nợ còn lại
+## Bề mặt giáo viên — năm món nợ còn lại
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | Nguồn câu hỏi và trạng thái kiểm là **chữ bịa** | `Question` không có cột nào nói nguồn hay việc đã kiểm, và `drafting._write` không nối `DraftItem` với `Question` — nên ngay cả *"do model viết"* cũng không truy được. Cần hai cột và một đường ghi chúng |
-| Nội dung tài liệu **chưa** đi vào prompt của AGENT | Cần đọc PDF, cắt đoạn, nhồi ngữ cảnh — một phần lớn hơn hẳn việc tải lên. Hiện mới có cái vỏ |
-| `choices` mất sau một lần F5 | Nó không được lưu; `teacher_turns` cần một cột cho nó. Không ai kẹt vì gõ tay vẫn trả lời được, nên chưa gấp |
+| Nội dung tài liệu **chưa** đi vào prompt của AGENT | Cần đọc PDF, cắt đoạn, nhồi ngữ cảnh — một phần lớn hơn hẳn việc tải lên, và nó đổi cả thứ AGENT nhận, nên nó xứng một ADR riêng. Việc **tải lên** thì đã trả xong, và màn hình nay nói thẳng rằng nội dung chưa được dùng |
 | Bốn đích đến trên rail trơ | Bốn artboard kia chưa dựng |
-| Không xoá hay đổi tên được một đoạn chat | Chưa quyết: xoá một đoạn thì biên bản duyệt nằm trong đó đi đâu (ADR-24) |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
 | Mỗi lớp một bộ giờ riêng | `Publication` khoá theo `(đề, lớp)` nên schema **đã** cho phép; thiếu bề mặt. Figma chưa vẽ |
 | `services/fe` nay là tên sai | Nó phục vụ **hai** bề mặt. Đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` — không khó, chỉ rộng |
 
 Danh sách đoạn chat **đã trả xong**: `teacher_conversations` nay chứa nhiều luồng, mỗi luồng một
-tiêu đề do model đặt (ADR-24). Hai món mới ở cuối bảng là những gì đợt ấy đẻ ra.
+tiêu đề do model đặt (ADR-24), và từ đợt chốt chặng A thì xoá và đổi tên được. Món *phân trang* ở
+cuối bảng là thứ đợt ấy đẻ ra.
+
+Hai món vừa rời bảng, cộng một món chưa từng là một dòng ở đây — và một câu cho mỗi món:
+
+- **`choices` mất sau F5** — `teacher_turns` nay có hai cột cho chúng, và bước cuối của một đoạn
+  chở các phương án lên khi đọc lại. Đo ra chuyện nặng hơn dòng cũ ghi: `asked` được set từ đúng
+  cái response **không bao giờ** có `choices`, nên thẻ hỏi lại có thể chưa từng hiện lần nào.
+- **Xoá và đổi tên một đoạn chat** — câu chặn (*biên bản duyệt đi đâu*) trả bằng **xoá mềm**: một
+  cột `deleted_at`, đoạn rời rail và đọc ra 404, các lượt của nó nằm nguyên trong bảng.
+- **Tải tài liệu lên** — chưa từng là một dòng của bảng, vì nó vốn đã chạy; thứ còn thiếu là một
+  cái vỏ không hứa sai. Dải dưới ô nhập từng in *"Đổi phạm vi"* cho một thứ không rời khỏi màn
+  hình. Dòng *nội dung tài liệu chưa đi vào prompt* thì **vẫn còn trong bảng**: việc ấy chưa làm.
 
 Món thứ nhất vẫn là món nặng nhất, vì nó là thứ **duy nhất** trong danh sách mà màn hình đang nói
 một điều hệ thống không biết là đúng. Nó bị dồn vào đúng một module tên tự tố cáo và canh bằng một repo

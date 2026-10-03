@@ -310,15 +310,32 @@
   line-height: 1.5;
 }
 
+/*
+ * Hàng đoạn chat: một hộp, hai việc.
+ *
+ * Nó từng là một `<button>` duy nhất. Thêm nút `⋯` vào trong một `<button>` là HTML không
+ * hợp lệ — browser gỡ lồng, và cú bấm vào nút trong rơi vào nút ngoài, tức bấm *Xoá* mở
+ * đoạn chat. Nên hộp ngoài là `div`, phần chữ là một nút chiếm hết chỗ còn lại, và `⋯` là
+ * một nút ngang hàng với nó.
+ *
+ * `overflow` nằm trên phần chữ chứ không trên hộp: để trên hộp thì menu bị cắt.
+ */
 .rail .conversation {
   flex: none;
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   height: 40px;
-  padding: 10px 12px;
-  border: none;
   border-radius: var(--radius-chip);
+}
+
+.rail .conversation .open {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 10px 4px 10px 12px;
+  border: none;
   background: none;
   color: var(--ink);
   font-family: inherit;
@@ -329,6 +346,88 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.rail .conversation .rename {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin-left: 11px;
+  padding: 0 7px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+}
+
+/*
+ * `⋯` chỉ hiện khi con trỏ ở trên hàng, hoặc khi bàn phím đang ở trong hàng. `visibility`
+ * chứ không `display`: chỗ của nó được giữ lại, nên tên đoạn chat không giật ngang 24px mỗi
+ * lần chuột đi qua.
+ */
+.rail .conversation .more {
+  flex: none;
+  visibility: hidden;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1;
+}
+
+.rail .conversation:hover .more,
+.rail .conversation:focus-within .more,
+.rail .conversation .more[aria-expanded="true"] {
+  visibility: visible;
+}
+
+/*
+ * `fixed`, không `absolute`. Vùng cuộn của rail có `overflow-y: auto` **và** một
+ * `mask-image`, và cả hai đều cắt một con cháu `absolute`: ở hàng cuối danh sách, mục `Xoá`
+ * rơi ra ngoài khung và không bấm được, phần còn thấy thì bị mask làm mờ dần. Toạ độ do
+ * `Row` đo từ nút `⋯` rồi đặt qua `style`.
+ */
+/* Không `.rail .row-menu`: menu được dựng qua portal vào `body`, nên nó
+ * không còn là con cháu của rail. */
+.row-menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  /* Đo trên Figma: hộp 114 rộng, bo 8, padding 4, viền 1. Padding ở đây là **3**, không
+   * phải 4: stroke của Figma vẽ kiểu INSIDE nên viền nằm trong dải padding, còn CSS thì
+   * cộng viền vào. Đây là cùng một luật trừ-một mà mọi hộp có viền ở file này theo. */
+  min-width: 114px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
+}
+
+.row-menu button {
+  padding: 6px 8px;
+  font-size: 13px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .row-menu button:hover {
+    background: var(--sunken);
+  }
 }
 
 /*
@@ -903,7 +1002,12 @@
   width: 62%;
   height: 100%;
   border-radius: 6px;
-  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-strong),
+    transparent
+  );
   animation: kriky-sweep 1.6s infinite;
 }
 
@@ -935,6 +1039,19 @@
   border-radius: var(--radius);
   background: var(--accent-surface);
   color: var(--accent);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/*
+ * Câu nói thật, đặt ngay dưới dải. `--muted` chứ không `--accent`: nó là một lời đính
+ * chính, không phải một thứ để mời bấm vào.
+ */
+.teacher .scope-note {
+  width: 820px;
+  /* Đo trên artboard 2: dòng này thụt vào 12 so với mép dải, và cách dải 6. */
+  padding: 6px 12px 0;
+  color: var(--muted);
   font-size: var(--type-caption);
   line-height: 1.5;
 }

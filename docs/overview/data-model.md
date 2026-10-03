@@ -86,8 +86,8 @@ một câu có một câu trả lời ở pha 1 và nhiều lượt ở pha 2, n
 
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
-| `teacher_conversations` | một mạch hội thoại của một giáo viên | một bảng riêng chứ không phải một id trần, để sau này mở mạch mới mà lượt cũ không đi theo |
-| `teacher_turns` | từng **bước** một lượt: lời nói, hoặc tool đã chạy | `UniqueConstraint(conversation_id, sequence)`; commit theo từng bước |
+| `teacher_conversations` | một mạch hội thoại của một giáo viên | một bảng riêng chứ không phải một id trần, để sau này mở mạch mới mà lượt cũ không đi theo. `title` do model đặt sau lượt đầu, giáo viên sửa được; `deleted_at` là **xoá mềm** |
+| `teacher_turns` | từng **bước** một lượt: lời nói, hoặc tool đã chạy | `UniqueConstraint(conversation_id, sequence)`; commit theo từng bước. `choices` + `more_choices` giữ các phương án của một câu hỏi lại |
 
 Hai bảng này **không** dùng lại `chat_messages`, và lý do là cơ học chứ không phải khẩu vị:
 `chat_messages.attempt_id` là khoá ngoại tới `attempts`, mà hội thoại của giáo viên không có bài làm
@@ -100,6 +100,18 @@ chở chủ thể ấy, và là thứ sẽ cho giao diện chọn đúng variant
 **Hiện chỉ một tool sinh ra chủ thể**: `find_class` trả `class_id`. Bảy variant của `Action result
 card` đều là hành động **ghi**, mà đợt này không có tool ghi nào — nên hai cột ấy là cấu trúc đã
 dựng, chưa phải dữ liệu đã có.
+
+**`deleted_at` là xoá mềm, và đó là một quyết định** (ADR-24): giáo viên muốn một đoạn gõ nhầm
+biến khỏi mắt mình, còn ADR-24 đòi biên bản duyệt đề giữ được — mà biên bản ấy là một row
+`teacher_turns` của chính đoạn đó. Nên đoạn đã xoá đọc ra y như một đoạn không tồn tại, và các lượt
+của nó nằm nguyên trong bảng. Không có cột nào nói *ai* xoá: chỉ chủ sở hữu xoá được, nên câu trả
+lời đã nằm trong `teacher_id`.
+
+**`choices` và `more_choices` là nhu cầu của màn hình, không phải của model.** Chúng không có trong
+`TurnRecord` — payload đi sang AGENT — vì model không dùng được chúng; chúng ở đây vì màn hình hứa
+dựng lại được từ database, và không lưu thì một lần F5 lấy mất các nút của một câu hỏi lại. Chỉ bước
+**cuối** của một đoạn còn bày chúng ra, và chỉ một bước `ask_clarify` mới được ghi chúng: một lời
+thông báo mang theo nút bấm là mời giáo viên trả lời một câu không ai hỏi.
 
 `model_tokens` và `duration_ms` làm bảng này thành **trace** cùng lúc với transcript. Một hệ trace
 riêng sẽ là cùng những dòng ấy ghi hai lần, và với một agent tự chọn bước thì câu *"nó đã làm gì"*
