@@ -103,14 +103,23 @@ lời khẳng định sai về hệ thống. Dù vậy luật không đổi: cá
 
 ## `Action result card` — tám variant, hai luật chung
 
-- **Mỗi thẻ nói hậu quả của việc vừa xong.** Bảy variant nói bằng một chip `safety` — *"Đề trống,
-  chưa phát hành được"*, *"Chưa duyệt · chưa phát hành"*, *"Chưa có gì được thay đổi"*. Variant
+- **Mỗi thẻ nói hậu quả của việc vừa xong**, bằng một chip `safety` **trên cùng dòng với đầu đề**,
+  đẩy về mép phải — *"Đề trống, chưa phát hành được"*, *"Chưa duyệt · chưa phát hành"*, *"Chưa có gì
+  được thay đổi"*. Cùng dòng vì cả hai nói về một sự việc: việc gì vừa xảy ra, và nó đã tới tay học
+  sinh chưa; hai dòng cho một sự việc là một dòng thừa. Chip **không** thừa kế màu của đầu đề dù giờ
+  nằm trong nó: màu chip nói chuyện khác, và một `color` khai báo thẳng luôn thắng giá trị thừa kế.
+  Variant
   `đã-phát-hành` khác hình: **không có chip `safety`**, mà có ba dòng chữ trần — câu khoá–thu hồi,
   câu luật pha 1, câu luật pha 2. FE hiện gói hậu quả ấy vào **một** chip một dòng; ba dòng của
   thiết kế cần biểu mẫu phát hành trả về chúng, và đó là nợ chưa trả. Điều không được phép nhân
   nhượng: một thẻ im lặng về hậu quả là một thẻ mời người ta tưởng là xong, và thẻ có hậu quả lớn
   nhất mà im lặng thì là lỗi nặng nhất trong nhóm này.
 - **Nút trên thẻ mời bước tiếp theo**, không phải `Xem`. `Xem` luôn là nút phụ.
+- **Nút chính và nút phụ không được đọc ra giống nhau.** Nút chính: nền `--accent`, chữ trắng,
+  không viền. Nút phụ: **không nền, không viền**, chữ `--ink-muted`. Trước đợt này nút phụ dùng
+  đúng màu `--accent` mà nút chính dùng cho nền, cùng cỡ chữ, cùng cân nặng, cùng bo góc — hai
+  nút đọc ra là *hai viên xanh*, và giáo viên bấm nhầm. Figma vẽ sai y vậy ở tám trên chín
+  variant; variant `đã-duyệt` thì vẽ đúng từ đầu, nên đây là luật của nó mở rộng ra cả bộ.
 
 **Khoảng trống đã đóng.** Tới hết đợt ADR-25, một lượt soạn đề **thành công** kết thúc không thẻ
 nào: `create_draft` bị loại khi có `start_drafting` phía sau, `start_drafting` bị loại vô điều kiện,
@@ -140,8 +149,8 @@ cùng ca ấy chỉ được nói *"đang soạn"*.
 Bảng này in `Xem` làm nút phụ cho `thêm-câu-hỏi` theo đúng Figma, nhưng **code chỉ dựng một nút**:
 cổng duyệt nằm trong panel, nên `Duyệt đề` và `Xem` sẽ mở đúng cùng một chỗ, và hai nhãn khác nhau
 cho một hành vi là một lời hứa rỗng.
-| `đã-duyệt` | `Đã duyệt đề "{tên}"` | `Phát hành` | `Hoàn tác` |
-| `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | `Duyệt đề` | `Xem` |
+| `đã-duyệt` | `Đã duyệt đề "{tên}"` | `Xem` | — |
+| `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | `Xem` | — |
 | `tạo-thất-bại` | `Không tạo được đề` | `Thử lại` | — |
 | `đã-phát-hành` | `Đã phát hành cho {lớp}` | `Xem` | `Thu hồi` — **chưa dựng** |
 | `phát-hành-thất-bại` | `Phát hành chưa xong` | `Thử lại cho {lớp}` | — |
@@ -150,7 +159,22 @@ cho một hành vi là một lời hứa rỗng.
 **Nút mời một việc làm bằng lời nói thì điền sẵn ô nhập.** `Thêm câu hỏi` và `Thử lại` không có
 endpoint nào để gọi — thêm câu hỏi là một câu nói với Kriky, không phải một nút trên REST. Hai nút ấy
 đặt con trỏ vào ô nhập và viết sẵn câu mở đầu; giáo viên sửa rồi gửi. Nút nào mời một việc **có** cổng
-thì đi thẳng tới cổng ấy: `Duyệt đề` và `Hoàn tác` mở panel, `Phát hành` mở biểu mẫu phát hành.
+thì đi thẳng tới cổng ấy: `Duyệt đề` mở panel.
+
+**Thẻ của một việc giáo viên tự làm là biên bản, không phải bộ điều khiển.** `đã-duyệt` và `bỏ-duyệt`
+chỉ còn **một** nút `Xem`, và không còn dòng chi tiết nào. Hai lý do, cả hai đo được:
+
+- Ba nút cũ (`Phát hành`, `Hoàn tác`, `Duyệt đề`) **không chạy**. Duyệt thì bấm từ trong panel, nên
+  lúc thẻ hiện ra route đã là `#/teacher/chat/{đoạn}/de/{đề}` rồi — mà cả ba chỉ gán lại đúng hash
+  ấy, và một hash không đổi thì không bắn `hashchange` nào.
+- Chỗ đổi trạng thái một đề là **chân panel**, nơi duy nhất nói trạng thái *hiện tại*. Hai thẻ duyệt
+  và bỏ duyệt nằm cạnh nhau trong một đoạn chat cũ mà cả hai đều bấm được thì chúng nói hai chuyện
+  trái nhau.
+
+**Và việc giáo viên tự làm không vào khối `Thinking`.** `teacher.approve`, `teacher.unapprove`,
+`teacher.publish` vẫn được ghi thành lượt — ADR-24 đòi biên bản duyệt sống sót — nhưng khối bước là
+**bằng chứng model đã làm gì**, nên một dòng *Duyệt đề* trong đó nói rằng Kriky tự duyệt đề. Trước
+đợt này một cú bấm hiện **hai lần**: một dòng trong khối bước và một cái thẻ.
 
 `Thu hồi` **chưa dựng**: endpoint thu hồi có, nhưng FE chưa có đường gọi nó, nên thẻ chỉ mang
 `Xem`. Một nút mang nhãn của thiết kế mà không làm được việc của nhãn ấy còn tệ hơn một nút vắng mặt.
@@ -188,6 +212,114 @@ Không phải trang trí. Năm variant, pha nào variant ấy:
 
 Chuyển cảnh 260ms, hai hình chồng nhau 60ms, **không phóng to, không xoay** (ghi chú `234:1349`).
 
+## Phương án xếp hai cột, không bốn hàng
+
+`options` của `Question card` (`307:17`) là một lưới `repeat(auto-fit, minmax(140px, 1fr))`, cỡ chữ
+`--type-label` (13px, một bậc trên trước đây). Bốn phương án xếp dọc đẩy `Lời giải` xuống quá tầm
+mắt, và panel là cột hẹp nhất của bề mặt — một đề mười câu thành mười lần cuộn.
+
+`auto-fit` chứ không `repeat(2, 1fr)` cứng, vì hai chuyện: panel kéo hẹp tới 340 thì lưới tự rơi về
+một cột thay vì cắt chữ làm đôi; và số phương án **không** luôn là bốn — ADR-18 chỉ đòi đúng một đáp
+án đúng, nên năm phương án cho ra 2+2+1 chứ không phải một hàng tràn.
+
+## Lời giải mở thành hộp thoại, không mở tại chỗ
+
+Figma đã vẽ sẵn: `Solution dialog` (`309:41`, 680×431) và artboard `12 · Xem lời giải một câu`
+(`309:1415`). Hộp mang bốn phần — tiêu đề `Lời giải — Câu n` kèm nút `Đóng`, đề bài, các cách giải,
+và **ánh xạ mỗi phương án nhiễu gắn một lỗi**.
+
+Phần cuối là lý do hộp thoại tồn tại. `error_label` nằm trong response từ lâu mà **panel chưa bao
+giờ vẽ nó**, vì nó không vừa một cột rộng 380 — và nó là thứ nói cho giáo viên biết mỗi phương án
+sai sai ở đâu, tức phần đáng đọc nhất.
+
+**Số đo, đối chiếu sau khi dựng** (`Solution dialog` `309:41`): hộp 680, bo 14, viền `--line` (không
+phải `--line-strong` của hộp xác nhận), padding 28; khối cách giải nền `--sunken` và **không viền** —
+một mảng nền chìm là một phần của hộp, thêm viền vào thì nó thành một hộp rời nằm trong hộp; cột
+nhãn phương án 120; mỗi dòng padding dọc 6.
+
+**Hai màu của khối nhiễu là màu *có nghĩa*, không phải hai sắc độ cho đẹp.** ADR-12 chốt
+`--answer-correct` là một câu trả lời đúng và `--answer-incorrect` là một câu sai, và đây đúng là
+chỗ cần nói điều đó. Bản đầu của hộp này dùng `--accent` cho đáp án đúng và màu mực thường cho
+phương án nhiễu — liếc một cái không phân biệt được đúng với sai, tức khối ấy mất hết việc của nó.
+
+**Chữ trên bề mặt giáo viên nhỏ hơn bản vẽ 1–2px, và đó là cố ý**: `teacher.css` hạ `--type-label`
+14→13 và `--type-caption` 12→11 cho cả bề mặt. Một phép đối chiếu với Figma sẽ báo lệch ở **mọi**
+dòng chữ; đó là mật độ đã chọn, không phải lỗi từng chỗ.
+
+**Mọi hộp thoại đi qua một khuôn chung** (`Veil.tsx`). Trước đợt này có ba bản sao của `.veil` +
+`.confirm` ở ba file, và cả ba **cùng thiếu cùng ba thứ**: không đóng bằng `Esc`, không đóng bằng
+cách bấm ra ngoài, và `.veil` không có `z-index` — trong khi menu `⋯` của rail có `z-index: 20` và
+vẽ qua portal, nên một menu đang mở vẽ đè lên hộp thoại. Ba bản sao thiếu cùng ba thứ là dấu hiệu
+của một khuôn chưa rút ra, không phải của ba lần quên. Hộp rộng dùng `.confirm.wide` (680, padding
+27 = 28 trừ một cho viền).
+
+## Chân panel đề — ba trạng thái, và đường lùi đứng trên đường tiến
+
+| Trạng thái | Dòng chữ | Nút |
+| --- | --- | --- |
+| chưa duyệt | *Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.* | một nút `Duyệt đề` |
+| đã duyệt | *Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.* | `Hoàn tác` (im lặng) **trên** `Phát hành đề` (nút chính) |
+| đã phát hành | *Đề đã tới học sinh. Muốn sửa thì thu hồi khỏi mọi lớp trước.* | một nút `Phát hành thêm lớp`. **Không** `Hoàn tác` |
+
+**Ba trạng thái, không hai.** Gộp `đã phát hành` vào `đã duyệt` làm nút `Hoàn tác` hiện ra cho một
+đề đã tới tay học sinh — mà `POST .../unapprove` chỉ nhận đúng `APPROVED`, nên cú bấm ấy chắc chắn
+trả 409. Đó đúng là khuyết điểm mục này đi sửa, chỉ dịch sang một trạng thái khác. Đường lùi của
+một đề đã phát hành là **thu hồi**, không phải bỏ duyệt. Và nhãn `Phát hành thêm lớp` nói đúng việc
+nút ấy làm: `_RELEASABLE` có cả `PUBLISHED`, nên bấm nó là thêm một lớp nữa, không phải phát hành
+lại từ đầu.
+
+**Đường lùi đứng trên, không đứng cạnh.** Hai nút cạnh nhau đọc ra là hai lựa chọn ngang hàng, mà
+bỏ duyệt không ngang hàng với phát hành.
+
+Bản trước để đúng **một** nút ở đây, và với đề đã duyệt thì nút ấy bị khoá với nhãn *Đã duyệt* —
+trong khi dòng chữ ngay trên bảo *"muốn sửa thì bỏ duyệt trước"*, một chỉ dẫn tới hành động **không
+có trên màn hình**. Hệ quả đo được: nút `Hoàn tác` trên thẻ kết quả mở panel, panel không có gì để
+làm, và giáo viên đọc ra là nút hỏng. `teacher.unapprove` đã nằm trong `api.ts` từ lâu mà **chưa
+một dòng nào gọi**.
+
+Số đo từ artboard `14 · Đã duyệt — chưa mở cài đặt phát hành` (`461:2257`): chân panel cao 149,
+`Hoàn tác` cao 34, `Phát hành đề` cao 42, khoảng cách 10.
+
+## Panel tách khỏi khung chat bằng **nền**, vạch chỉ là nét cuối
+
+Số đo trên Figma: `panel` nền `#FFFFFF` + stroke `#E3E5E2` **cả bốn cạnh**; `questions` bên trong nó
+nền `#FAFAF8` (`--paper`); mỗi `qcard` nền `#FFFFFF` có viền. Nghĩa là vùng câu hỏi của panel **cố ý**
+cùng màu với cột giữa, và thẻ câu hỏi nổi lên nhờ chênh nền với nó.
+
+Nên thứ tách panel khỏi khung chat là **vạch 1px**, không phải màu nền. Tôi đã thử bỏ nền `--paper`
+của vùng câu hỏi cho panel toàn trắng; phép đo bác lại — bỏ nó thì `qcard` thành trắng trên trắng và
+thứ duy nhất vạch ra một thẻ là một hairline.
+
+Và vạch 1px dùng `box-shadow` **không `inset`**. Inset shadow của cha được vẽ **dưới** nền của con,
+mà `.panel-questions`, `.panel-foot`, `.publish-settings` đều trải hết bề rộng — nên chúng phủ mất
+đúng dải 1px ấy trên gần hết chiều cao, và vạch chỉ sống ở dải `.panel-head`, chỗ duy nhất không có
+nền. Bỏ `inset` thì vạch nằm ngoài mép trái, trên cột giữa, và không con nào với tới được. Vẫn
+không dùng `border`: một `border` ăn mất một pixel của 420.
+
+## Nút `Sửa` thôi là một nút chết
+
+Nó nằm trên mỗi thẻ câu hỏi từ lâu và **không có `onClick`**. Nay nó mở một ô soạn tại chỗ — bản
+dựng của component `Question card — đang sửa` (`468:2050`).
+
+**Gửi cả câu, không gửi từng mảnh.** ADR-18 là một luật về *quan hệ giữa các mảnh*: đúng một
+phương án đúng, mọi phương án nhiễu có nhãn lỗi, hơn một lời giải. Nhận từng mảnh rời thì mỗi lần
+sửa là một lần câu hỏi đi qua một trạng thái không ai kiểm được, và luật ấy chỉ còn đúng ở những
+khoảnh khắc may mắn.
+
+**Một câu sửa tay đi qua đúng cái lưới mà một câu model viết phải đi qua** — cùng một
+`validate_question`, không phải một bản kiểm thứ hai viết riêng cho đường này. Hai bản kiểm của
+cùng một luật là hai thứ chờ lệch nhau, và bản lỏng hơn sẽ là bản người ta đi qua. Gồm cả luật
+toán trong cặp `$`: nếu không, đường sửa thành cửa sau đưa công thức không dựng hình được vào đúng
+cái đề mà luật ấy đang bảo vệ.
+
+**Cổng ADR-01**: chỉ sửa được khi đề còn mở. Đề đã duyệt thì nội dung khoá — chính cái khoá đó làm
+việc duyệt có nghĩa — và đường mở lại là *Hoàn tác* ở chân panel.
+
+Lời từ chối hiện **ngay dưới ô gõ**, không đẩy lên dòng chung ở chân panel: ở đó nó đứng xa chỗ gõ
+và không nói nó nói về câu nào, mà panel có thể đang hiện mười thẻ. Chữ gõ ở ô là **LaTeX nguồn**,
+không phải công thức đã dựng hình — giáo viên thấy đúng thứ sẽ được lưu, và đúng thứ phép kiểm sẽ
+đọc.
+
 ## Hàng đoạn chat — một hộp, hai việc
 
 Cả hàng **từng là một `<button>`**. Nó phải hết là thế từ đợt chốt chặng A, và lý do là cơ học chứ
@@ -217,6 +349,53 @@ xoá mềm (`deleted_at`), nhưng trên màn hình này không có nút hoàn t�
 là một việc một chiều, và nó phải được hỏi lại. Xoá đoạn **đang mở** thì màn hình rời sang
 `/teacher/moi`: đứng lại là đứng trên một màn hình mà mọi lần đọc lại từ nay sẽ ra 404.
 
+## Toán viết bằng LaTeX trong cặp `$`
+
+Bốn prompt **cấm** LaTeX suốt một thời gian dài và không dòng code nào thi hành, nên model cứ viết.
+Đo được trên panel thật, nguyên văn trước mặt giáo viên: `\int_{0}^{1}(3x^2 - 2x + 1)\, dx` và
+`\(\frac{1}{3}\)`.
+
+Hướng nay đổi: toán **được** viết bằng LaTeX, trong cặp `$`, và màn hình dựng hình nó. Unicode không
+viết nổi phân số chồng tầng, tích phân có cận, căn hay giới hạn — mà đề Toán 12 đầy những thứ đó.
+
+Và thứ cần canh cũng đổi theo: không phải *"có LaTeX không"* mà là *"LaTeX có được đánh dấu
+không"*. `validate_question` (`agent_gateway._math_is_loose`) từ chối một câu hỏi có `\frac`,
+`\int`, `\sqrt`… nằm **ngoài** cặp `$`, có `\(`/`\[`, hoặc có số dấu `$` lẻ — kiểm trên đề bài,
+từng phương án và từng lời giải, **trước** khi câu hỏi được lưu. Chặn sau khi lưu thì công thức
+hỏng đã nằm trong đề và đường duy nhất gỡ ra là sửa tay từng câu.
+
+Phía màn hình, một component **`MathText`** thay cho `{text}` ở **mọi** chỗ chữ của model lên màn
+hình, cả bề mặt giáo viên lẫn bề mặt học sinh: đề bài, phương án, lời giải, **nhãn lỗi**, và **bong
+bóng chat** của cả hai bên.
+
+Hai nhóm cuối suýt bị bỏ sót, và bỏ sót chúng thì đợt này làm mọi thứ **tệ hơn trước**: ba prompt
+`propose`, `reporting`, `explain` sinh ra lời kể trong khung chat, và chúng vừa đổi từ *cấm LaTeX*
+sang *bắt viết LaTeX* — nếu chỗ hiển thị không dựng hình thì giáo viên và học sinh nhận nguyên văn
+`$\frac{1}{3}$` ở đúng ba bề mặt trước đây vẫn sạch. Nhãn lỗi thì hiện ngay trong hộp lời giải, cạnh
+những công thức đã dựng hình đẹp. Hai bề mặt đi cùng một lượt: giáo
+viên thấy công thức đẹp mà học sinh thấy `$x^2$` thô thì tệ hơn hiện trạng.
+
+**Phép tách cụm toán là MỘT luật, và nó phải có cùng một bản cài đặt ở hai bên** —
+`agent_gateway._MATH` và `MathText.MATH` dùng đúng một khuôn. Lệch nhau thì BE nói một câu hợp lệ
+còn màn hình vẽ ra một thứ khác. Ba điều kiện quanh dấu `$`, mỗi cái mua bằng một ca hỏng đo được:
+dấu mở **không dính chữ số** (`Một quyển 20$, hai quyển 40$` có hai dấu, số chẵn, và đoạn giữa bị
+dựng thành công thức); **không khoảng trắng** ngay sau dấu mở hay ngay trước dấu đóng; và **cho phép
+xuống dòng** bên trong, vì một công thức dài model ngắt dòng thì bản đầu in nguyên văn.
+
+Nó nhận **bốn** kiểu dấu — `$…$`, `$$…$$`, `\(…\)`, `\[…\]` — không phải một. Hợp đồng mới là `$`,
+nhưng dữ liệu đã lưu thì mang `\(…\)`: model viết thế suốt thời gian lệnh cấm không có nơi thi
+hành. Nhận cả bốn nghĩa là corpus cũ đọc được ngay, không cần một lần chuyển đổi nào. Corpus Unicode
+thuần không có dấu nào cũng đi qua nguyên vẹn.
+
+**Một thứ không chữa được bằng dựng hình:** những row cũ có LaTeX **trần**, không dấu nào —
+`\int_{0}^{1}(3x^2 - 2x + 1)\, dx` đứng giữa một câu tiếng Việt. Không có dấu thì không ai biết
+công thức bắt đầu và kết thúc ở đâu, nên chúng ở lại dạng thô. Đoán bằng heuristic là đường đã được
+cân nhắc và bỏ: `*` còn là phép nhân, nên một bộ lọc ngây thơ ăn cả toán thật. Chốt kiểm mới chặn
+không cho sinh thêm row như vậy; row cũ thì sửa tay, hoặc soạn lại.
+
+`throwOnError: false`: một công thức hỏng in ra chính nó bằng màu lỗi thay vì ném. Một câu hỏi xấu
+vẫn phải đọc được, và một exception ở đó sẽ giết cả panel vì một dấu ngoặc thiếu.
+
 ## Ngăn `TÀI LIỆU` — chip in kích thước, không in số trang
 
 Tài liệu tải lên được và liệt kê được; **nội dung của chúng chưa đi vào việc soạn đề**. Mỗi chip vì
@@ -224,17 +403,40 @@ thế in kích thước (`B` / `KB` / `MB`, dấu thập phân phẩy) chứ kh�
 nói rằng hệ thống đã mở tệp ra đọc, và nó chưa mở. `documents` cũng không có cột số trang, nên đây
 là một luật của schema chứ không chỉ của màn hình (ADR-04).
 
-Dải dưới ô nhập, sau một lần tải lên, in `Đã tải lên: {tên tệp}` kèm nút `Tải tệp khác`, và một dòng
-nhỏ nói thẳng rằng nội dung chưa được dùng để soạn đề. Đo trên artboard `2 · Kèm tài liệu` (`85:327`):
-dải 820×33, dòng nhỏ rộng 820, thụt vào **12** so với mép dải và cách dải **6**, cỡ chữ `--type-caption`. Nó **từng** in *"Đổi phạm vi"* — chữ ấy hứa
+**Nút tải lên nằm trên đầu ngăn, không ở thanh chat.** Tài liệu thuộc về **giáo viên** và nằm trong
+kho chung (ADR-04) — nó không thuộc về một đoạn chat nào, nên đặt nút ở composer là nói ngược lại
+điều đó. Icon 16×16 dán mép phải nhãn `TÀI LIỆU`, đo trên Figma ở x=212 trong một `pane-head` rộng
+228.
+
+**Đính một tệp đã có vào một câu chat thì kéo thả**: kéo một chip từ rail, thả vào ô nhập. Chip
+mang `document_id` chứ không mang tên tệp — tên tệp trùng nhau được, id thì không. Ô nhập lúc có
+tệp đang lơ lửng trên nó đổi viền sang `--accent`, không đổi nền: đổi nền làm chữ đang gõ nhảy
+tương phản ngay giữa lúc kéo.
+
+Dải dưới ô nhập, sau một lần tải lên, in `Đã tải lên: {tên tệp}` và **không gì khác**: không nút,
+không dòng chú thích. Tải lên có đúng **một** cửa — icon cạnh nhãn `TÀI LIỆU` — vì hai cửa cho cùng
+một việc thì cửa nào cũng thành chỗ phải đoán. Đo trên artboard `2 · Kèm tài liệu` (`85:327`):
+dải 820×33, cỡ chữ `--type-caption`. Nó **từng** in *"Đổi phạm vi"* — chữ ấy hứa
 một việc không xảy ra: thân request của một lượt chat đúng ba field (`text`, `conversation_id`,
 `start_new`), không có `document_id` nào.
 
 ## Bề rộng, và chỗ duy nhất đọc được những con số này
 
-Rail luôn **260**, panel đề luôn **420**, cột giữa cố định **820** và co còn **660** khi panel mở. Ba
-con số sau chỉ đọc được từ artboard 6/7/8, nên chúng được ghi lại ở đây. Rail dán mép trái cửa sổ và
-chỗ dư rơi vào cột giữa: rail là đồ nội thất của cửa sổ, không phải của trang.
+Rail **260** và panel đề **420** là hình dạng *lúc nghỉ*, không còn là hằng số: giáo viên kéo được
+cả hai, và con số đã chọn sống qua F5 trong `localStorage`. Biên là rail 200–420 và panel 340–720 —
+hẹp hơn thì tên đoạn chat cụt hoặc lưới hai cột của phương án gãy, rộng hơn thì một cột nuốt chỗ của
+cột kia. Cột giữa **không** còn cố định: nó là `min(820px, 100%)`, và `min(660px, 100%)` khi panel
+mở; một con số cứng ở đó sẽ tràn khỏi màn hình ngay khi panel kéo rộng.
+
+Thanh kéo là một dải **7px** với `flex-basis: 7px` và hai lề âm `-3.5px` — lề âm trả lại đúng 7px ấy
+cho bố cục, nên ba cột không xê dịch một pixel nào so với số đo Figma. Bản đầu viết `flex: 0 0 0`
+cộng `width: 7px`, và với một flex item thì `flex-basis` thắng `width`: hộp rộng **0**, không có gì
+để trỏ vào. Test jsdom không bắt được — nó bắn sự kiện thẳng vào element, không dựng bố cục — nên
+chỗ này chỉ có một lưới duy nhất là đo trên trình duyệt thật.
+
+Rail dán mép trái cửa sổ và chỗ dư rơi vào cột giữa: rail là đồ nội thất của cửa sổ, không phải của
+trang. Cột giữa mang `min-width: 0`, nếu không thì `min-width: auto` mặc định của một flex item giữ
+nó rộng bằng nội dung và chỗ thiếu bị lấy từ rail.
 
 ## Composer trong lúc Kriky làm việc
 
