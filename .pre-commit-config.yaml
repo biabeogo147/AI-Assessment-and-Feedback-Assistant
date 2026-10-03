@@ -37,9 +37,16 @@ repos:
       # kiểm gì cả, còn `python -m importlinter` thì chết thẳng -- package không có
       # __main__. Cái thứ nhất là một lần xanh âm thầm, nên nó sẽ vô hiệu hoá đúng
       # cái check ranh giới duy nhất của repo.
+      #
+      # Và phải đi qua `cmd /c` để đặt `PYTHONIOENCODING`. pre-commit nối stdout vào
+      # một pipe; `rich` thấy thế thì rơi về bộ render Windows cũ và encode bằng
+      # cp1252, rồi chết vì cái emoji trong chuỗi "Building graph...". Nó chết ở chỗ
+      # IN RA, không phải ở chỗ kiểm -- nên hook đỏ trong khi hai contract vẫn KEPT,
+      # và câu lỗi thật thì bị chính exception encode ấy nuốt mất. `dev.ps1 check`
+      # không gặp vì ở đó console nói UTF-8 được.
       - id: lint-imports
         name: service boundary (import-linter)
-        entry: D:/Anaconda/envs/AI-Assessment-and-Feedback-Assistant/Scripts/lint-imports.exe --config pyproject.toml
+        entry: cmd /c "set PYTHONIOENCODING=utf-8&& D:/Anaconda/envs/AI-Assessment-and-Feedback-Assistant/Scripts/lint-imports.exe --config pyproject.toml"
         language: system
         pass_filenames: false
         always_run: true

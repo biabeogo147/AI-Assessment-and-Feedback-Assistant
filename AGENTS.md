@@ -18,6 +18,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `packages/contracts` | Messages crossing the queue. Data only |
 | `tools/` | Repo-level checks no single service can make about itself |
 | `docs/local-development.md` | Running, demoing and troubleshooting locally |
+| `docs/kich-ban-thu-tay-giao-vien.md` | The by-hand walkthrough of the teacher pipeline |
 | `docs/overview/project-overview.md` | Problem, actors, scope, glossary |
 | `docs/overview/business-workflows.md` | The five business workflows |
 | `docs/overview/use-case-specification.md` | UC-01 to UC-06 |

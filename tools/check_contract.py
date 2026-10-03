@@ -69,7 +69,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # đi một câu giáo viên không hề gõ. Luật ấy chỉ đứng được ở BE, nơi duy nhất biết
 # `step.kind`. Decision record nằm ở 2026-10-03-chot-chang-a-plan.md.
 #
-AGENTS_MD_MAX_LINES = 178
+# 179: một dòng mua ngày 2026-10-03 cho hàng ownership của
+# `docs/kich-ban-thu-tay-giao-vien.md`. Kịch bản thử tay là thứ chạy lại nhiều lần,
+# không phải phần phụ của một plan rồi chết theo plan -- và một file ở gốc `docs/`
+# không có chủ là đúng loại drift mà bảng ấy tồn tại để chặn. Decision record nằm ở
+# 2026-10-03-bay-cai-tien-plan.md.
+AGENTS_MD_MAX_LINES = 179
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
