@@ -72,8 +72,8 @@ bình thường, **không** có nút bấm (vì chưa tool nào trả về danh 
 **Gõ:** `Toán 12, chương tích phân, 3 câu`
 
 **Phải thấy:** khối bước chạy với `bước 1/2` rồi `bước 2/2`; dòng dưới bước soạn đếm tăng dần rồi
-dừng ở `— đã soạn 3/3 câu`; một câu kể; và **một thẻ** `Đã thêm 3 câu vào đề` kèm nút **Duyệt
-đề**.
+dừng ở `— đã soạn 3/3 câu`; một câu kể; và **một thẻ** `Đã thêm 3 câu vào đề`. Thẻ **không có nút
+nào** — bấm vào chính nó là mở panel đề.
 
 **Sai nếu:**
 - **không thẻ nào** — đây là lỗi vừa sửa, nó quay lại thì đề không còn cửa nào mở ra;
@@ -145,8 +145,8 @@ trước đợt vừa rồi.
 
 ### C4. F5 sau một lượt đã xong `[0]`
 
-**Phải thấy:** thẻ `Đã thêm 3 câu vào đề` của mục A3 vẫn còn, con số vẫn là 3, nút **Duyệt đề**
-vẫn bấm được. Dòng dưới bước soạn vẫn là `— đã soạn 3/3 câu`.
+**Phải thấy:** thẻ `Đã thêm 3 câu vào đề` của mục A3 vẫn còn, con số vẫn là 3, và bấm vào thẻ
+vẫn mở được panel. Dòng dưới bước soạn vẫn là `— đã soạn 3/3 câu`.
 
 **Sai nếu:** dòng ấy đổi thành `— 3 câu bắt đầu soạn` — tức một lần tải lại làm việc đã xong quay
 về lúc mới bắt đầu.
@@ -165,7 +165,7 @@ Bấm **Đoạn chat mới** → màn hình trắng. Bấm lại đoạn cũ tr�
 
 ### D1. Mở panel từ thẻ
 
-Bấm **Duyệt đề** trên thẻ.
+Bấm vào **chính cái thẻ** (không phải một nút trên nó — thẻ không còn nút nào).
 
 **Phải thấy:** panel bên phải mở đúng đề ấy, ba câu hỏi, mỗi câu có đáp án đúng đánh dấu và hai
 cách giải. Địa chỉ trên thanh URL đổi.
@@ -185,15 +185,46 @@ nó và bấm **Duyệt đề**. `[1 lượt]`
 
 Quay lại đề 3 câu, bấm **Duyệt đề**.
 
-**Phải thấy:** đề sang trạng thái đã duyệt; một **biên bản** xuất hiện trong dòng chat — thẻ
-`Đã duyệt đề …` với nút **Phát hành**.
+**Phải thấy:** màn hình sang **thẳng** cài đặt phát hành (màn 7), ở đó có `Hoàn tác` trên
+`Phát hành đề`. Và một **biên bản** xuất hiện trong dòng chat — thẻ `Đã duyệt đề …`, một dòng, chip
+*Chưa phát hành cho học sinh* ở mép phải, **không nút nào**.
+
+**Sai nếu:** màn hình dừng lại ở panel với hai nút `Hoàn tác` + `Phát hành đề` — đó là chặng 6.5 đã
+bỏ; hoặc lượt duyệt mọc thêm một dòng trong khối bước, vì đó là việc bạn làm chứ không phải việc
+model làm.
 
 **Soi kỹ:** biên bản ấy phải rơi vào **đoạn chat đã sinh ra đề**, không phải đoạn mới nhất. Nếu
 bạn đang đứng ở một đoạn khác lúc bấm Duyệt, hãy quay lại đoạn gốc và kiểm.
 
 ### D4. Bỏ duyệt
 
+Bấm **Hoàn tác** ở màn cài đặt phát hành.
+
 **Phải thấy:** thẻ `Đã bỏ duyệt đề …`, đề sửa lại được, và **cài đặt phát hành giữ nguyên**.
+
+### D5. Sửa chữ một câu
+
+Bấm **Sửa** trên một thẻ câu hỏi.
+
+**Phải thấy:** mỗi phương án nhiễu có **hai** ô — chữ phương án và nhãn lỗi; đáp án đúng chỉ có một
+ô và **không có nút Xoá**; mỗi lời giải có ô tên và ô thân. Hai nút `+ Thêm phương án` và
+`+ Thêm cách giải`.
+
+Thêm một phương án, gõ cả chữ lẫn nhãn lỗi, rồi **Lưu**.
+
+**Phải thấy:** thẻ đóng lại, phương án mới hiện trong lưới hai cột.
+
+**Sai nếu:** Lưu trả `Not Found` — BE đang chạy bản cũ không có endpoint sửa câu, khởi động lại nó;
+hoặc Lưu bị từ chối vì một công thức LaTeX nằm ngoài cặp `$` — luật ấy đã bỏ, công thức viết sai thì
+hiện nguyên văn để bạn sửa tay.
+
+### D6. Lời giải mở thành hộp thoại
+
+Bấm **Lời giải · n cách**.
+
+**Phải thấy:** một hộp thoại rộng, các bước của lời giải **xuống dòng đúng chỗ** (không dính thành
+một dải chữ), và ánh xạ mỗi phương án nhiễu gắn một lỗi. Đóng được bằng `Esc`, bằng nút `Đóng`, và
+bằng cách bấm ra nền.
 
 Duyệt lại trước khi sang chặng E.
 

@@ -199,6 +199,47 @@ Một khoảng trống subagent nêu — chưa đo được rail mặc định 2
 đã mang giá trị đã kéo — thực ra đã kín: phép đo đầu tiên của đợt này, **trước** cú kéo đầu tiên,
 cho `rail: 260`, `--rail-w: "260px"`, `saved: null`.
 
+## Đợt ba — bốn bug từ lượt review
+
+- [x] **1 · Lời giải mất xuống dòng.** Bong bóng chat có `white-space: pre-wrap` từ lâu; ba khối
+  chữ của hộp lời giải thì chưa bao giờ, nên một lời giải ba bước dính thành một dải chữ.
+- [x] **2 · Cho sửa nhưng không cho lưu.** Xem *"Chẩn đoán sai"* bên dưới.
+- [x] **3 · Số phương án và số lời giải không cố định.** Form sửa thêm/bớt được, và có ô cho
+  `error_label` lẫn `method.title` — thiếu ô nhãn lỗi thì nút *Thêm phương án* chỉ dẫn tới một lần
+  422, vì ADR-18 bắt mọi nhiễu phải có nhãn.
+- [x] **4a · Thẻ kết quả.** Bỏ `detail` ở mọi variant, bỏ cả nút `Xem`: **bấm vào thẻ** là mở
+  panel. Năm nút cũ (`Duyệt đề`, `Xem đề`, `Xem`) đều gọi đúng một hàm.
+- [x] **4b · Xoá màn 6.5.** Duyệt xong là sang thẳng cài đặt phát hành; `Hoàn tác` chuyển về màn
+  7; nút chính ở đó bỏ con số đầu người. Artboard 14 xoá khỏi Figma.
+
+### Decision: lưới toán thôi chặn
+
+options considered: giữ phép từ chối và chỉ đích danh ô sai; chỉ kiểm những ô giáo viên đã đổi;
+hoặc bỏ hẳn phép chặn và hiện nguyên văn.
+
+selected option: bỏ hẳn, hiện nguyên văn.
+
+reason: **Đây là đảo chiều một quyết định của Pha 5** trong chính plan này, và lý do thì không phải
+vì chẩn đoán cũ sai mà vì cái giá đã đo được: mọi câu soạn trước khi hợp đồng `$...$` ra đời đều
+không lưu lại được — công cụ duy nhất để dọn nội dung hỏng lại từ chối lưu vì nội dung đang hỏng.
+`MathText` chạy KaTeX với `throwOnError: false` và cho chuỗi không có cặp `$` đi qua như chữ
+thường, nên một dòng LaTeX thô là thứ **đọc được và sửa được**. Những phép kiểm còn lại nói về tính
+đúng của đề, không về cách gõ: cách gõ sửa được bằng mắt, còn một đề hai đáp án đúng thì không ai
+nhìn ra lúc học sinh đang làm bài.
+
+### Chẩn đoán sai, và nó sai ở đâu
+
+Với bug 2 tôi chạy `_math_is_loose` lên đúng hai chuỗi đang nằm trên màn hình và chúng bị từ chối
+thật. Tôi kết luận đó **là** nguyên nhân. Đo trên trình duyệt sau khi sửa thì lời từ chối hiện ra
+là `Not Found`: tiến trình BE đang chạy khởi động từ trước khi endpoint `PATCH .../questions/{id}`
+ra đời, và `--reload` không reload thật trong setup này — nên cú bấm Lưu trả **404**, chưa bao giờ
+tới được phép kiểm kia.
+
+Phép đo của tôi đúng về chuyện nó đo; sai là ở chỗ tôi gọi một **chặn thứ hai** là nguyên nhân duy
+nhất, mà không kiểm xem request có tới nổi chỗ ấy không. Bài học giữ lại: khi một lời từ chối hiện
+ra trên màn hình, **đọc chính câu ấy trước** rồi mới đi tìm luật nào phát ra nó — `curl
+/openapi.json` tốn ba giây và đã trả lời xong câu hỏi.
+
 ## Status
 
 Bảy pha đã xong; `check` 8/8, pytest xanh, 79 test FE xanh, `tsc` sạch. Chưa commit — chờ người

@@ -114,7 +114,14 @@ lời khẳng định sai về hệ thống. Dù vậy luật không đổi: cá
   thiết kế cần biểu mẫu phát hành trả về chúng, và đó là nợ chưa trả. Điều không được phép nhân
   nhượng: một thẻ im lặng về hậu quả là một thẻ mời người ta tưởng là xong, và thẻ có hậu quả lớn
   nhất mà im lặng thì là lỗi nặng nhất trong nhóm này.
-- **Nút trên thẻ mời bước tiếp theo**, không phải `Xem`. `Xem` luôn là nút phụ.
+- **Bấm vào thẻ là mở panel đề**, và thẻ không mang nút nào cho việc ấy. Trước đó mỗi thẻ có một
+  nút `Duyệt đề` / `Xem đề` / `Xem`, và cả năm nhãn gọi đúng một hàm — năm cách gọi tên cho một
+  việc là năm lời hứa khác nhau về một thứ. Thẻ nào **không có đề** thì nằm yên: không `role`,
+  không con trỏ, vì một thẻ bấm được mà chẳng mở gì tệ hơn hẳn một thẻ nằm yên.
+- **Nút chỉ còn ở chỗ làm việc khác.** `Thử lại` và `Thêm câu hỏi` điền sẵn ô nhập; chúng chặn nổi
+  bọt, nếu không một cú bấm vừa điền ô nhập vừa mở panel.
+- **Không thẻ nào còn dòng `detail`.** Nội dung của nó do model hoặc BE ghép, khó kiểm soát trong
+  thực tế — và sau khi nút biến mất thì một dòng chữ tự do giữa đầu đề và chip chỉ làm loãng thẻ.
 - **Nút chính và nút phụ không được đọc ra giống nhau.** Nút chính: nền `--accent`, chữ trắng,
   không viền. Nút phụ: **không nền, không viền**, chữ `--ink-muted`. Trước đợt này nút phụ dùng
   đúng màu `--accent` mà nút chính dùng cho nền, cùng cỡ chữ, cùng cân nặng, cùng bo góc — hai
@@ -130,15 +137,15 @@ và màn hình không có cửa nào vào xem. Nay bước soạn khi đóng l�
 
 | Variant | Head | Nút chính | Nút phụ |
 | --- | --- | --- | --- |
-| `tạo-đề-trống` | `Đã tạo đề "{tên}"` · detail `Chưa có câu hỏi nào` | `Thêm câu hỏi` | — |
+| `tạo-đề-trống` | `Đã tạo đề "{tên}"` | `Thêm câu hỏi` (điền ô nhập) | — |
 
 **`tạo-đề-trống` chỉ mọc cho một lượt *chỉ* mở đề** — giáo viên nói *"mở cho tôi một đề trống"*. Khi
 họ nói *"tạo đề 10 câu"* thì plan có hai bước (ADR-25) và thẻ này **không được xuất hiện**: nó nói
 rằng việc được nhờ đã xong và cho ra một cái đề rỗng, trong khi việc ấy đang chạy. Một đề chưa đủ
 câu ở lại **trong khối bước**, và câu báo cáo cuối lượt nói nó đang tới đâu.
-| `thêm-câu-hỏi` | `Đã thêm {n} câu vào đề` | `Duyệt đề` | — (xem ghi chú) |
-| `thiếu-câu` (`455:16`) | `Dừng ở {k}/{n} câu` | `Xem đề` — **không** mời duyệt | — |
-| `đang-soạn-dở` (`456:16`) | `Đã soạn {k}/{n} câu` · detail `còn {r} câu đang soạn` | `Xem đề` — **không** mời duyệt | — |
+| `thêm-câu-hỏi` | `Đã thêm {n} câu vào đề` | — | — |
+| `thiếu-câu` (`455:16`) | `Dừng ở {k}/{n} câu` | — | — |
+| `đang-soạn-dở` (`456:16`) | `Đã soạn {k}/{n} câu` | — | — |
 
 **Điều kiện mời duyệt là `đã đủ câu`, và chỉ thế.** Không phải *"thiếu câu **và** không còn gì đang
 chạy"* — viết thế thì một đề 3/10 còn bảy câu đang chạy rơi vào nhánh còn lại, thẻ in `Đã thêm 3 câu
@@ -146,20 +153,21 @@ vào đề` (giấu mất số 10) và mời duyệt. Đường ra ấy có th�
 đóng lại với `still_drafting > 0`. Và nó cãi lại `reporting._progress` của AGENT, nơi lời kể trong
 cùng ca ấy chỉ được nói *"đang soạn"*.
 
-Bảng này in `Xem` làm nút phụ cho `thêm-câu-hỏi` theo đúng Figma, nhưng **code chỉ dựng một nút**:
-cổng duyệt nằm trong panel, nên `Duyệt đề` và `Xem` sẽ mở đúng cùng một chỗ, và hai nhãn khác nhau
-cho một hành vi là một lời hứa rỗng.
-| `đã-duyệt` | `Đã duyệt đề "{tên}"` | `Xem` | — |
-| `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | `Xem` | — |
-| `tạo-thất-bại` | `Không tạo được đề` | `Thử lại` | — |
-| `đã-phát-hành` | `Đã phát hành cho {lớp}` | `Xem` | `Thu hồi` — **chưa dựng** |
-| `phát-hành-thất-bại` | `Phát hành chưa xong` | `Thử lại cho {lớp}` | — |
-| `tạo-lớp` | `Đã tạo lớp {tên}` | `Xem` | — |
+| `đã-duyệt` | `Đã duyệt đề "{tên}"` | — | — |
+| `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | — | — |
+| `tạo-thất-bại` | `Không tạo được đề` | `Thử lại` (điền ô nhập) | — |
+| `đã-phát-hành` | `Đã phát hành cho {lớp}` | — | `Thu hồi` — **chưa dựng** |
+| `phát-hành-thất-bại` | `Phát hành chưa xong` | `Thử lại cho {lớp}` (điền ô nhập) | — |
+| `tạo-lớp` | `Đã tạo lớp {tên}` | — | — |
 
 **Nút mời một việc làm bằng lời nói thì điền sẵn ô nhập.** `Thêm câu hỏi` và `Thử lại` không có
 endpoint nào để gọi — thêm câu hỏi là một câu nói với Kriky, không phải một nút trên REST. Hai nút ấy
 đặt con trỏ vào ô nhập và viết sẵn câu mở đầu; giáo viên sửa rồi gửi. Nút nào mời một việc **có** cổng
-thì đi thẳng tới cổng ấy: `Duyệt đề` mở panel.
+thì đi thẳng tới cổng ấy — và với *"mở đề"* thì cổng ấy là **chính cái thẻ**.
+
+**Luật *"đề thiếu câu thì không mời duyệt"* nay sống ở chữ đầu đề.** Nó từng sống trong nhãn nút
+(`Xem đề` thay vì `Duyệt đề`); nút đã bỏ, nên `Dừng ở 2/10 câu` phải tự nói ra điều đó. Cổng duyệt
+thật thì nằm ở chân panel, nơi duy nhất đọc được trạng thái hiện tại của đề.
 
 **Thẻ của một việc giáo viên tự làm là biên bản, không phải bộ điều khiển.** `đã-duyệt` và `bỏ-duyệt`
 chỉ còn **một** nút `Xem`, và không còn dòng chi tiết nào. Hai lý do, cả hai đo được:
@@ -237,6 +245,11 @@ phải `--line-strong` của hộp xác nhận), padding 28; khối cách giải
 một mảng nền chìm là một phần của hộp, thêm viền vào thì nó thành một hộp rời nằm trong hộp; cột
 nhãn phương án 120; mỗi dòng padding dọc 6.
 
+**Ba khối chữ của hộp giữ nguyên xuống dòng** (`white-space: pre-wrap` trên `.solution-stem`,
+`.ways .way .body`, `.fault .why`). Một lời giải ba bước xuống dòng giữa các bước, và không có luật
+này thì cả ba bước dính thành một dải chữ. Bong bóng chat có `pre-wrap` từ lâu; hộp này thì chưa
+bao giờ, và nó là chỗ chữ dài nhất của cả bề mặt.
+
 **Hai màu của khối nhiễu là màu *có nghĩa*, không phải hai sắc độ cho đẹp.** ADR-12 chốt
 `--answer-correct` là một câu trả lời đúng và `--answer-incorrect` là một câu sai, và đây đúng là
 chỗ cần nói điều đó. Bản đầu của hộp này dùng `--accent` cho đáp án đúng và màu mực thường cho
@@ -253,32 +266,39 @@ vẽ qua portal, nên một menu đang mở vẽ đè lên hộp thoại. Ba b�
 của một khuôn chưa rút ra, không phải của ba lần quên. Hộp rộng dùng `.confirm.wide` (680, padding
 27 = 28 trừ một cho viền).
 
-## Chân panel đề — ba trạng thái, và đường lùi đứng trên đường tiến
+## Chân panel đề — ba trạng thái, mỗi trạng thái một nút
 
 | Trạng thái | Dòng chữ | Nút |
 | --- | --- | --- |
-| chưa duyệt | *Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.* | một nút `Duyệt đề` |
-| đã duyệt | *Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.* | `Hoàn tác` (im lặng) **trên** `Phát hành đề` (nút chính) |
-| đã phát hành | *Đề đã tới học sinh. Muốn sửa thì thu hồi khỏi mọi lớp trước.* | một nút `Phát hành thêm lớp`. **Không** `Hoàn tác` |
+| chưa duyệt | *Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.* | `Duyệt đề` |
+| đã duyệt | *Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.* | `Phát hành đề` — mở lại màn cài đặt phát hành |
+| đã phát hành | *Đề đã tới học sinh. Muốn sửa thì thu hồi khỏi mọi lớp trước.* | `Phát hành thêm lớp` |
 
-**Ba trạng thái, không hai.** Gộp `đã phát hành` vào `đã duyệt` làm nút `Hoàn tác` hiện ra cho một
+**Duyệt xong là sang THẲNG cài đặt phát hành.** Luồng thiết kế là màn 6 → màn 7. Trước đó cú bấm
+`Duyệt đề` chỉ đổi chân panel thành hai nút rồi đứng im — một chặng dừng không có việc gì của riêng
+nó, và giáo viên phải bấm thêm một lần nữa để tới đúng chỗ họ đang đi tới. Chặng ấy (artboard
+`14 · Đã duyệt — chưa mở cài đặt phát hành`) đã bị xoá khỏi Figma.
+
+Trạng thái *đã duyệt* vẫn **tới được** — mở lại một đề đã duyệt từ đoạn chat cũ, hoặc đóng màn 7 —
+nhưng khi ấy chân panel chỉ còn một việc: mở lại màn 7.
+
+**`Hoàn tác` sống ở màn cài đặt phát hành**, đứng trên nút chính. Một việc một chỗ: để đường lùi ở
+cả chân panel lẫn màn 7 là cùng một việc có hai chỗ bấm, và hai chỗ bấm thì sớm muộn lệch nhau.
+Đứng *trên* chứ không đứng *cạnh*, vì hai nút cạnh nhau đọc ra là hai lựa chọn ngang hàng mà bỏ
+duyệt không ngang hàng với phát hành. Nút chính ở đó mang nhãn `Phát hành đề`, không mang con số
+đầu người: con số ấy đã nằm ngay trên biểu mẫu, và chỗ nó thật sự chịu lực là **hộp xác nhận cuối
+cùng** — nơi duy nhất không còn đường lùi nào sau đó.
+
+**Ba trạng thái, không hai.** Gộp `đã phát hành` vào `đã duyệt` làm đường bỏ duyệt hiện ra cho một
 đề đã tới tay học sinh — mà `POST .../unapprove` chỉ nhận đúng `APPROVED`, nên cú bấm ấy chắc chắn
-trả 409. Đó đúng là khuyết điểm mục này đi sửa, chỉ dịch sang một trạng thái khác. Đường lùi của
-một đề đã phát hành là **thu hồi**, không phải bỏ duyệt. Và nhãn `Phát hành thêm lớp` nói đúng việc
-nút ấy làm: `_RELEASABLE` có cả `PUBLISHED`, nên bấm nó là thêm một lớp nữa, không phải phát hành
-lại từ đầu.
+trả 409. Đường lùi của một đề đã phát hành là **thu hồi**, không phải bỏ duyệt. Và nhãn `Phát hành
+thêm lớp` nói đúng việc nút ấy làm: `_RELEASABLE` có cả `PUBLISHED`, nên bấm nó là thêm một lớp
+nữa, không phải phát hành lại từ đầu.
 
-**Đường lùi đứng trên, không đứng cạnh.** Hai nút cạnh nhau đọc ra là hai lựa chọn ngang hàng, mà
-bỏ duyệt không ngang hàng với phát hành.
-
-Bản trước để đúng **một** nút ở đây, và với đề đã duyệt thì nút ấy bị khoá với nhãn *Đã duyệt* —
-trong khi dòng chữ ngay trên bảo *"muốn sửa thì bỏ duyệt trước"*, một chỉ dẫn tới hành động **không
-có trên màn hình**. Hệ quả đo được: nút `Hoàn tác` trên thẻ kết quả mở panel, panel không có gì để
-làm, và giáo viên đọc ra là nút hỏng. `teacher.unapprove` đã nằm trong `api.ts` từ lâu mà **chưa
-một dòng nào gọi**.
-
-Số đo từ artboard `14 · Đã duyệt — chưa mở cài đặt phát hành` (`461:2257`): chân panel cao 149,
-`Hoàn tác` cao 34, `Phát hành đề` cao 42, khoảng cách 10.
+Bản trước để đúng **một** nút ở chân panel, và với đề đã duyệt thì nút ấy bị khoá với nhãn *Đã
+duyệt* — trong khi dòng chữ ngay trên bảo *"muốn sửa thì bỏ duyệt trước"*, một chỉ dẫn tới hành
+động **không có trên màn hình**. `teacher.unapprove` đã nằm trong `api.ts` từ lâu mà **chưa một
+dòng nào gọi**.
 
 ## Panel tách khỏi khung chat bằng **nền**, vạch chỉ là nét cuối
 
@@ -308,12 +328,21 @@ khoảnh khắc may mắn.
 
 **Một câu sửa tay đi qua đúng cái lưới mà một câu model viết phải đi qua** — cùng một
 `validate_question`, không phải một bản kiểm thứ hai viết riêng cho đường này. Hai bản kiểm của
-cùng một luật là hai thứ chờ lệch nhau, và bản lỏng hơn sẽ là bản người ta đi qua. Gồm cả luật
-toán trong cặp `$`: nếu không, đường sửa thành cửa sau đưa công thức không dựng hình được vào đúng
-cái đề mà luật ấy đang bảo vệ.
+cùng một luật là hai thứ chờ lệch nhau, và bản lỏng hơn sẽ là bản người ta đi qua.
+
+**Số phương án và số lời giải KHÔNG cố định.** ADR-18 chỉ đòi đúng một đáp án đúng, mọi phương án
+nhiễu có nhãn lỗi, và hơn một lời giải — nó không nói gì về con số bốn hay con số hai. Form sửa vì
+thế thêm và bớt được, với ba luật đứng ngay trên màn hình thay vì đứng ở một lời từ chối:
+
+- **Nhãn lỗi có ô riêng cho mỗi phương án nhiễu.** Không có ô này thì nút *Thêm phương án* chỉ dẫn
+  tới một lần 422, vì ADR-18 bắt mọi nhiễu phải có nhãn.
+- **Đáp án đúng không xoá được** — xoá nó là bỏ luật tính điểm của câu, một việc khác hẳn sửa chữ.
+- **Nút xoá biến mất** khi còn đúng hai phương án, hoặc đúng hai lời giải; không để bấm rồi nhận
+  một lời từ chối. Nhãn của phương án mới là chữ cái **trống đầu tiên**, không phải chữ sau chữ lớn
+  nhất: xoá B rồi thêm lại cho ra B, không cho ra E.
 
 **Cổng ADR-01**: chỉ sửa được khi đề còn mở. Đề đã duyệt thì nội dung khoá — chính cái khoá đó làm
-việc duyệt có nghĩa — và đường mở lại là *Hoàn tác* ở chân panel.
+việc duyệt có nghĩa — và đường mở lại là *Hoàn tác* ở màn cài đặt phát hành.
 
 Lời từ chối hiện **ngay dưới ô gõ**, không đẩy lên dòng chung ở chân panel: ở đó nó đứng xa chỗ gõ
 và không nói nó nói về câu nào, mà panel có thể đang hiện mười thẻ. Chữ gõ ở ô là **LaTeX nguồn**,
@@ -358,11 +387,20 @@ Bốn prompt **cấm** LaTeX suốt một thời gian dài và không dòng code
 Hướng nay đổi: toán **được** viết bằng LaTeX, trong cặp `$`, và màn hình dựng hình nó. Unicode không
 viết nổi phân số chồng tầng, tích phân có cận, căn hay giới hạn — mà đề Toán 12 đầy những thứ đó.
 
-Và thứ cần canh cũng đổi theo: không phải *"có LaTeX không"* mà là *"LaTeX có được đánh dấu
-không"*. `validate_question` (`agent_gateway._math_is_loose`) từ chối một câu hỏi có `\frac`,
-`\int`, `\sqrt`… nằm **ngoài** cặp `$`, có `\(`/`\[`, hoặc có số dấu `$` lẻ — kiểm trên đề bài,
-từng phương án và từng lời giải, **trước** khi câu hỏi được lưu. Chặn sau khi lưu thì công thức
-hỏng đã nằm trong đề và đường duy nhất gỡ ra là sửa tay từng câu.
+**Và nó KHÔNG phải một phép kiểm chặn.** `validate_question` từng từ chối công thức nằm ngoài cặp
+`$`. Hệ quả đo được là một cái bẫy: mọi câu soạn **trước** khi hợp đồng ra đời đều không lưu lại
+được — mở `Sửa`, không đổi một chữ nào, bấm `Lưu` thì 422. Công cụ duy nhất để dọn nội dung hỏng
+lại từ chối lưu vì nội dung đang hỏng.
+
+Hướng đã chốt: một công thức viết sai thì **hiện ra nguyên văn** và giáo viên sửa tay. `MathText`
+đã làm đúng thế — KaTeX chạy với `throwOnError: false`, và chuỗi không có cặp `$` nào đi qua như
+chữ thường. Một dòng LaTeX thô trên màn hình là thứ đọc được và sửa được; một lượt soạn bị giết vì
+một dấu gạch chéo thì không.
+
+Những phép kiểm còn lại của `validate_question` nói về **tính đúng của đề** — đúng một đáp án đúng,
+mọi nhiễu có nhãn lỗi, đủ phương án, đủ lời giải — chứ không về cách gõ công thức. Khác biệt giữ
+lại: cách gõ thì sửa được bằng mắt, còn một đề hai đáp án đúng thì không ai nhìn ra lúc học sinh
+đang làm bài.
 
 Phía màn hình, một component **`MathText`** thay cho `{text}` ở **mọi** chỗ chữ của model lên màn
 hình, cả bề mặt giáo viên lẫn bề mặt học sinh: đề bài, phương án, lời giải, **nhãn lỗi**, và **bong
