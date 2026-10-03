@@ -30,13 +30,21 @@ import Veil from "./Veil";
  *
  * @param assessmentId - Đề nào.
  * @param onPublished - Được gọi sau khi có ít nhất một lớp nhận được đề.
+ * @param onUndo - Bỏ duyệt, mở nội dung đề ra sửa lại. Đường lùi sống **ở đây** chứ không
+ *   ở chân panel: duyệt xong là sang thẳng màn này, nên đây là chỗ đầu tiên giáo viên
+ *   nhìn thấy sau cú bấm duyệt, và cũng là chỗ duy nhất cần một đường lùi.
+ * @param undoing - Đang bỏ duyệt. Khoá nút để không bấm hai lần.
  */
 export default function PublishSettings({
   assessmentId,
   onPublished,
+  onUndo,
+  undoing,
 }: {
   assessmentId: string;
   onPublished: () => void;
+  onUndo: () => void;
+  undoing: boolean;
 }) {
   const [form, setForm] = useState<PublishForm | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
@@ -218,13 +226,25 @@ export default function PublishSettings({
 
       {done !== null && <Outcome classes={done} />}
 
+      {/* Đường lùi đứng **trên** nút chính, không đứng cạnh: hai nút cạnh nhau đọc ra là
+          hai lựa chọn ngang hàng, mà phát hành và bỏ duyệt thì không ngang hàng chút nào. */}
+      <button
+        className="quiet"
+        type="button"
+        disabled={working || undoing}
+        onClick={onUndo}
+      >
+        Hoàn tác
+      </button>
+      {/* Nhãn bỏ con số đầu người. Con số ấy đã nằm ngay trên biểu mẫu, và chỗ nó thật sự
+          chịu lực là hộp xác nhận cuối cùng — nơi duy nhất không còn đường lùi nào sau đó. */}
       <button
         className="cta"
         type="button"
         disabled={!form.can_publish || !filled || working}
         onClick={() => void ask()}
       >
-        {form.can_publish ? `Phát hành cho ${heads} học sinh` : form.reason}
+        {form.can_publish ? "Phát hành đề" : form.reason}
       </button>
 
       {preview !== null && (

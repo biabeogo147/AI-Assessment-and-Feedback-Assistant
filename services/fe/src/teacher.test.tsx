@@ -92,14 +92,19 @@ describe("hộp xác nhận phát hành", () => {
       }),
     );
 
-    render(<PublishSettings assessmentId="p1" onPublished={() => {}} />);
+    render(<PublishSettings
+        assessmentId="p1"
+        onPublished={() => {}}
+        onUndo={() => {}}
+        undoing={false}
+      />);
     await waitFor(() =>
       expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
     );
 
     fireEvent.click(screen.getByText("12A"));
     fill();
-    fireEvent.click(screen.getByText(/Phát hành cho/));
+    fireEvent.click(screen.getByText("Phát hành đề"));
 
     await waitFor(() =>
       expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy(),
@@ -125,13 +130,18 @@ describe("hộp xác nhận phát hành", () => {
       }),
     );
 
-    render(<PublishSettings assessmentId="p1" onPublished={() => {}} />);
+    render(<PublishSettings
+        assessmentId="p1"
+        onPublished={() => {}}
+        onUndo={() => {}}
+        undoing={false}
+      />);
     await waitFor(() =>
       expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
     );
     fireEvent.click(screen.getByText("12A"));
     fill();
-    fireEvent.click(screen.getByText(/Phát hành cho/));
+    fireEvent.click(screen.getByText("Phát hành đề"));
     await waitFor(() =>
       expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy(),
     );
@@ -167,13 +177,18 @@ describe("hộp xác nhận phát hành", () => {
       }),
     );
 
-    render(<PublishSettings assessmentId="p1" onPublished={() => {}} />);
+    render(<PublishSettings
+        assessmentId="p1"
+        onPublished={() => {}}
+        onUndo={() => {}}
+        undoing={false}
+      />);
     await waitFor(() =>
       expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
     );
     fireEvent.click(screen.getByText("12A"));
     fill();
-    fireEvent.click(screen.getByText(/Phát hành cho/));
+    fireEvent.click(screen.getByText("Phát hành đề"));
 
     await waitFor(() => expect(bodies.length).toBe(1));
     const when = (bodies[0].schedules as { opens_at: string }[])[0].opens_at;
@@ -913,7 +928,7 @@ function drafted(written: number, asked: number, running = 0) {
 }
 
 describe("thẻ kết quả của một lượt soạn đề", () => {
-  it("mọc từ bước soạn đã đợi xong, với nút Duyệt đề", () => {
+  it("mọc từ bước soạn đã đợi xong, và bấm vào thẻ thì mở đề", () => {
     const turns = drafted(3, 3).turns;
 
     // Trước đợt này `cardTurn` loại `start_drafting` vô điều kiện, `create_draft` bị loại vì
@@ -933,7 +948,12 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
       />,
     );
     expect(screen.getByText("Đã thêm 3 câu vào đề")).toBeTruthy();
-    fireEvent.click(screen.getByText("Duyệt đề"));
+    // Không nút nào: `Duyệt đề`, `Xem đề` và `Xem` đều gọi đúng một hàm, nên năm nhãn
+    // cho một việc rút về chính cái thẻ.
+    expect(screen.queryByText("Duyệt đề")).toBeNull();
+    expect(screen.queryByText("Xem đề")).toBeNull();
+
+    fireEvent.click(screen.getByText("Đã thêm 3 câu vào đề"));
     expect(opened).toEqual(["p1"]);
   });
 
@@ -949,9 +969,11 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
         onCompose={() => undefined}
       />,
     );
+    // Luật *"đề thiếu câu thì không mời duyệt"* trước đây sống trong nhãn nút. Nút đã
+    // bỏ, nên nó sống ở **chữ đầu đề**: `Dừng ở 2/10 câu` không mời gì cả, và cổng duyệt
+    // thật thì nằm ở chân panel, nơi duy nhất đọc được trạng thái hiện tại của đề.
     expect(screen.getByText("Dừng ở 2/10 câu")).toBeTruthy();
     expect(screen.queryByText("Duyệt đề")).toBeNull();
-    expect(screen.getByText("Xem đề")).toBeTruthy();
   });
 
   it("bước soạn CHƯA đợi xong thì không mọc thẻ nào", () => {
@@ -988,9 +1010,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
       />,
     );
     expect(screen.getByText("Đã soạn 3/10 câu")).toBeTruthy();
-    expect(screen.getByText("còn 7 câu đang soạn")).toBeTruthy();
     expect(screen.queryByText("Duyệt đề")).toBeNull();
-    expect(screen.getByText("Xem đề")).toBeTruthy();
   });
 
   it("dòng dưới bước nói cùng một câu với BE, cả ba nhánh", () => {
@@ -1354,9 +1374,12 @@ describe("chân panel đề", () => {
       "fetch",
       vi.fn((url: string, init?: RequestInit) => {
         calls.push({ url, method: (init?.method ?? "GET").toUpperCase() });
+        // Màn cài đặt phát hành đọc một hình dạng khác hẳn. Trả đề cho cả hai đường thì
+        // nó nổ ở chỗ render, và cú nổ ấy nói về cái stub chứ không nói về panel.
+        const body = url.includes("/publish-form") ? FORM : paper(state);
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(paper(state)),
+          json: () => Promise.resolve(body),
         });
       }),
     );
@@ -1380,11 +1403,11 @@ describe("chân panel đề", () => {
     expect(screen.queryByText("Phát hành đề")).toBeNull();
   });
 
-  it("đề đã duyệt: nút chính thành Phát hành đề, và Hoàn tác đứng trên nó", async () => {
-    // Bản trước để đúng một nút ở đây, và với đề đã duyệt thì nút ấy **bị khoá** với nhãn
-    // *Đã duyệt* — trong khi dòng chữ ngay trên bảo "muốn sửa thì bỏ duyệt trước". Nút
-    // *Hoàn tác* trên thẻ trong khung chat mở panel, và panel không có gì để làm: một
-    // đường dẫn tới hư không, và giáo viên đọc ra là nút hỏng.
+  it("đề đã duyệt: đúng MỘT nút, và đường lùi không còn ở chân panel", async () => {
+    // Duyệt xong là sang thẳng cài đặt phát hành, nên trạng thái "đã duyệt mà chưa mở
+    // cài đặt" thôi làm một chặng dừng. Nó vẫn tới được — mở lại một đề đã duyệt từ đoạn
+    // chat cũ, hoặc đóng màn 7 — và khi ấy chân panel chỉ còn một việc: mở lại màn 7.
+    // `Hoàn tác` sống ở màn 7, một việc một chỗ.
     serving("approved");
     const opened: string[] = [];
     const { container } = render(
@@ -1398,13 +1421,10 @@ describe("chân panel đề", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Phát hành đề")).toBeTruthy());
-    const undo = screen.getByText("Hoàn tác");
-    const go = screen.getByText("Phát hành đề");
-    // DOCUMENT_POSITION_FOLLOWING = 4: đường lùi đứng TRƯỚC đường tiến, không đứng cạnh.
-    expect(undo.compareDocumentPosition(go) & 4).toBe(4);
-    expect(container.querySelector(".panel-foot .cta")).toBeTruthy();
+    expect(screen.queryByText("Hoàn tác")).toBeNull();
+    expect(container.querySelectorAll(".panel-foot button").length).toBe(1);
 
-    fireEvent.click(go);
+    fireEvent.click(screen.getByText("Phát hành đề"));
     expect(opened).toEqual(["phát hành"]);
   });
 
@@ -1430,13 +1450,36 @@ describe("chân panel đề", () => {
     expect(screen.getByText(/thu hồi khỏi mọi lớp/)).toBeTruthy();
   });
 
-  it("bấm Hoàn tác gọi đúng endpoint bỏ duyệt", async () => {
-    // `teacher.unapprove` có trong `api.ts` từ lâu và chưa một dòng nào gọi nó.
-    const calls = serving("approved");
+  it("duyệt xong là sang THẲNG cài đặt phát hành, không dừng ở giữa", async () => {
+    // Trước đợt này cú bấm `Duyệt đề` chỉ đổi chân panel thành hai nút rồi đứng im — một
+    // chặng dừng không có việc gì của riêng nó, và giáo viên phải bấm thêm một lần nữa
+    // để tới đúng chỗ họ đang đi tới. Luồng thiết kế là màn 6 → màn 7.
+    serving("has_questions");
+    const went: string[] = [];
     render(
       <Panel
         assessmentId="p1"
         publishing={false}
+        onPublish={() => went.push("màn 7")}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Duyệt đề")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Duyệt đề"));
+
+    await waitFor(() => expect(went).toEqual(["màn 7"]));
+  });
+
+  it("bấm Hoàn tác ở màn cài đặt phát hành gọi đúng endpoint bỏ duyệt", async () => {
+    // `teacher.unapprove` có trong `api.ts` từ lâu và chưa một dòng nào gọi nó. Nay nó
+    // được gọi từ màn 7 — chỗ giáo viên nhìn thấy ngay sau cú bấm duyệt.
+    const calls = serving("approved");
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
@@ -1865,6 +1908,7 @@ describe("thẻ của một việc giáo viên tự làm là biên bản, không
     name: string,
     result: Record<string, unknown>,
     onOpen: (paper: string) => void = () => {},
+    paper = "p1",
   ) {
     return render(
       <ActionCard
@@ -1873,7 +1917,7 @@ describe("thẻ của một việc giáo viên tự làm là biên bản, không
           tool_name: name,
           tool_result: result,
           entity_kind: "assessment",
-          entity_id: "p1",
+          entity_id: paper,
         })}
         onOpen={onOpen}
         onCompose={() => {}}
@@ -1881,7 +1925,7 @@ describe("thẻ của một việc giáo viên tự làm là biên bản, không
     );
   }
 
-  it("thẻ đã duyệt chỉ còn một nút, và nút ấy mở đề", () => {
+  it("thẻ đã duyệt không còn nút nào, và chính nó mở đề", () => {
     // Ba nút cũ (*Phát hành*, *Hoàn tác*, *Duyệt đề*) đều **không chạy**, đo được: duyệt
     // thì bấm từ trong panel, nên lúc thẻ hiện ra route đã là `.../de/{paper}`, và cả ba
     // chỉ gọi `go()` tới đúng route ấy — gán lại một hash không đổi thì trình duyệt không
@@ -1894,12 +1938,19 @@ describe("thẻ của một việc giáo viên tự làm là biên bản, không
       (paper) => opened.push(paper),
     );
 
-    const buttons = [...container.querySelectorAll(".actions .btn")].map(
-      (one) => one.textContent,
-    );
-    expect(buttons).toEqual(["Xem"]);
-    fireEvent.click(screen.getByText("Xem"));
+    expect(container.querySelectorAll(".actions .btn").length).toBe(0);
+    // Thẻ là cái nút. `role="button"` + `tabIndex` chứ không phải một `<button>` bọc
+    // ngoài: thẻ chứa nút, và một nút lồng trong nút là HTML sai.
+    const shown = container.querySelector(".action-card")!;
+    expect(shown.getAttribute("role")).toBe("button");
+    expect(shown.getAttribute("tabindex")).toBe("0");
+
+    fireEvent.click(shown);
     expect(opened).toEqual(["p1"]);
+
+    // Và bàn phím đi được cùng đường.
+    fireEvent.keyDown(shown, { key: "Enter" });
+    expect(opened).toEqual(["p1", "p1"]);
   });
 
   it("thẻ bỏ duyệt cũng vậy", () => {
@@ -1907,11 +1958,17 @@ describe("thẻ của một việc giáo viên tự làm là biên bản, không
       assessment_id: "p1",
       title: "Hàm số",
     });
-    expect(
-      [...container.querySelectorAll(".actions .btn")].map(
-        (one) => one.textContent,
-      ),
-    ).toEqual(["Xem"]);
+    expect(container.querySelectorAll(".actions .btn").length).toBe(0);
+    expect(container.querySelector(".action-card.open-able")).toBeTruthy();
+  });
+
+  it("thẻ KHÔNG có đề thì nằm yên, không giả làm nút", () => {
+    // Một thẻ bấm được mà chẳng mở gì tệ hơn hẳn một thẻ nằm yên: nó hứa một cửa rồi
+    // nuốt cú bấm. `paper` rỗng là ca ấy.
+    const { container } = card("teacher.approve", {}, () => {}, "");
+    const one = container.querySelector(".action-card")!;
+    expect(one.getAttribute("role")).toBeNull();
+    expect(one.classList.contains("open-able")).toBe(false);
   });
 
   it("và không thẻ nào còn dòng chi tiết người dùng đã bỏ", () => {
@@ -2049,5 +2106,148 @@ describe("kéo để đổi bề rộng hai cột", () => {
     await waitFor(() =>
       expect(container.querySelectorAll(".split-x").length).toBe(2),
     );
+  });
+});
+
+describe("số phương án và số lời giải không cố định", () => {
+  /** Một đề còn mở với một câu hai phương án và hai cách giải. */
+  function serving() {
+    const calls: { url: string; method: string; body: string }[] = [];
+    const one = paper("has_questions");
+    one.questions[0].methods = [
+      { title: "Cách 1", body: "Đạo hàm từng hạng tử." },
+      { title: "Cách 2", body: "Dùng định nghĩa." },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({
+          url,
+          method,
+          body: typeof init?.body === "string" ? init.body : "",
+        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(one) });
+      }),
+    );
+    return calls;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Mở thẻ câu 1 ở trạng thái đang sửa. */
+  async function editing() {
+    const view = render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    fireEvent.click(screen.getByText("Sửa"));
+    await waitFor(() => expect(screen.getByText("Lưu")).toBeTruthy());
+    return view;
+  }
+
+  it("mỗi phương án nhiễu có ô gõ nhãn lỗi", async () => {
+    // Không có ô này thì nút *Thêm phương án* chỉ dẫn tới một lần 422: ADR-18 bắt mọi
+    // phương án nhiễu phải có nhãn lỗi, và `validate_question` thi hành đúng luật ấy.
+    serving();
+    await editing();
+
+    expect(screen.getByLabelText("Lỗi của phương án B")).toBeTruthy();
+    // Đáp án đúng thì không: `error_label` null ở đúng dòng của nó (`models.py`).
+    expect(screen.queryByLabelText("Lỗi của phương án A")).toBeNull();
+  });
+
+  it("thêm một phương án thì nó lấy chữ cái còn trống đầu tiên", async () => {
+    serving();
+    await editing();
+
+    fireEvent.click(screen.getByText("+ Thêm phương án"));
+
+    expect(screen.getByText("Phương án C")).toBeTruthy();
+    expect(screen.getByLabelText("Lỗi của phương án C")).toBeTruthy();
+  });
+
+  it("đáp án ĐÚNG không xoá được", async () => {
+    // Xoá nó là bỏ luật tính điểm của câu — một việc khác hẳn việc sửa chữ, và nó cần
+    // một quyết định riêng về những lượt đã làm.
+    serving();
+    const { container } = await editing();
+
+    fireEvent.click(screen.getByText("+ Thêm phương án"));
+    const heads = [...container.querySelectorAll(".edit-option-head")];
+    const right = heads.find((one) => one.textContent?.includes("đáp án đúng"))!;
+    expect(right.querySelector("button")).toBeNull();
+    // Còn phương án nhiễu thì có, vì giờ đã hơn hai phương án.
+    expect(heads[1].querySelector("button")).toBeTruthy();
+  });
+
+  it("dưới hai phương án thì nút xoá biến mất, không phải bấm rồi bị từ chối", async () => {
+    serving();
+    const { container } = await editing();
+
+    // Hai phương án: không nút xoá nào.
+    expect(container.querySelectorAll(".edit-option-head button").length).toBe(0);
+
+    fireEvent.click(screen.getByText("+ Thêm phương án"));
+    expect(container.querySelectorAll(".edit-option-head button").length).toBe(2);
+  });
+
+  it("lời giải thêm và bớt được, nhưng không xuống dưới hai", async () => {
+    // ADR-18 đòi **hơn một** lời giải: một câu một cách giải dạy được một lối nghĩ, mà
+    // cả việc này sinh ra là để dạy nhiều lối.
+    serving();
+    const { container } = await editing();
+
+    expect(container.querySelectorAll(".edit-method").length).toBe(2);
+    expect(container.querySelectorAll(".edit-method-head button").length).toBe(0);
+
+    fireEvent.click(screen.getByText("+ Thêm cách giải"));
+    expect(container.querySelectorAll(".edit-method").length).toBe(3);
+
+    fireEvent.click(container.querySelectorAll(".edit-method-head button")[2]);
+    expect(container.querySelectorAll(".edit-method").length).toBe(2);
+    expect(container.querySelectorAll(".edit-method-head button").length).toBe(0);
+  });
+
+  it("tên cách giải sửa được, không chỉ thân nó", async () => {
+    serving();
+    await editing();
+
+    const title = screen.getByLabelText("Tên cách giải 1");
+    fireEvent.change(title, { target: { value: "Cách 1 — xét dấu" } });
+    expect((title as HTMLTextAreaElement).value).toBe("Cách 1 — xét dấu");
+  });
+
+  it("bản gửi đi mang đủ phương án mới, nhãn lỗi và tên cách giải", async () => {
+    const calls = serving();
+    await editing();
+
+    fireEvent.click(screen.getByText("+ Thêm phương án"));
+    fireEvent.change(screen.getByLabelText("Phương án C"), {
+      target: { value: "3x" },
+    });
+    fireEvent.change(screen.getByLabelText("Lỗi của phương án C"), {
+      target: { value: "nhân nhầm hệ số" },
+    });
+    fireEvent.click(screen.getByText("Lưu"));
+
+    await waitFor(() =>
+      expect(calls.some((one) => one.method === "PATCH")).toBe(true),
+    );
+    const sent = JSON.parse(calls.find((one) => one.method === "PATCH")!.body);
+    expect(sent.options).toHaveLength(3);
+    expect(sent.options[2]).toEqual({
+      label: "C",
+      text: "3x",
+      is_correct: false,
+      error_label: "nhân nhầm hệ số",
+    });
+    expect(sent.methods[0].title).toBe("Cách 1");
   });
 });

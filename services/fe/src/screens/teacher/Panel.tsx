@@ -68,6 +68,10 @@ export default function Panel({
       setPaper(await teacher.assessment(assessmentId));
       setTrouble(null);
       onApproved();
+      // Duyệt xong là **sang thẳng** cài đặt phát hành. Trước đó cú bấm này chỉ đổi chân
+      // panel thành hai nút rồi đứng im — một chặng dừng không có việc gì của riêng nó,
+      // và giáo viên phải bấm thêm một lần nữa để tới đúng chỗ họ đang đi tới.
+      onPublish();
     } catch (cause) {
       setTrouble((cause as Error).message);
     } finally {
@@ -187,25 +191,18 @@ export default function Panel({
       </div>
 
       {publishing && locked ? (
-        <PublishSettings assessmentId={assessmentId} onPublished={onApproved} />
+        <PublishSettings
+          assessmentId={assessmentId}
+          onPublished={onApproved}
+          undoing={working}
+          onUndo={() => void undo()}
+        />
       ) : (
         <div className="panel-foot">
           <div className="note">{trouble ?? _note(paper.state)}</div>
-          {/* Đã duyệt thì việc tiếp theo là **phát hành**, và đường lùi là *Hoàn tác* đứng
-            trên nó — không đứng cạnh, vì hai nút cạnh nhau đọc ra là hai lựa chọn ngang
-            hàng. Bản trước để đúng một nút ở đây, và với đề đã duyệt thì nút ấy bị khoá
-            với nhãn *Đã duyệt*, trong khi dòng chữ ngay trên lại bảo "muốn sửa thì bỏ
-            duyệt trước" — một chỉ dẫn tới một hành động không có trên màn hình. */}
-          {locked && !released && (
-            <button
-              className="quiet"
-              type="button"
-              disabled={working}
-              onClick={() => void undo()}
-            >
-              Hoàn tác
-            </button>
-          )}
+          {/* Một nút, không hai. *Hoàn tác* sống ở màn cài đặt phát hành, vì duyệt xong
+            là sang thẳng màn ấy — để đường lùi ở cả hai chỗ là một việc có hai chỗ bấm.
+            Chân panel ở trạng thái đã duyệt chỉ còn một việc: mở lại màn 7. */}
           <button
             className="cta"
             type="button"
@@ -384,6 +381,23 @@ function Field({
  * @param onCancel - Bỏ, quay về thẻ chỉ đọc.
  * @param onSave - Gửi đi.
  */
+/**
+ * Một phương án nhiễu mới, với nhãn chữ cái còn trống đầu tiên.
+ *
+ * Nhãn là **khoá** của phương án trong câu: cột có `UniqueConstraint(question_id, label)`,
+ * nên trùng nhãn ra 500 chứ không ra một lời từ chối đọc được. Lấy chữ cái trống đầu tiên
+ * chứ không lấy "chữ sau chữ lớn nhất": xoá B rồi thêm lại sẽ cho ra B, không cho ra E.
+ *
+ * @param draft - Bản đang gõ, để biết nhãn nào đã dùng.
+ * @returns Phương án mới, chưa có chữ và chưa có nhãn lỗi.
+ */
+function blankOption(draft: QuestionEdit): QuestionEdit["options"][number] {
+  const used = new Set(draft.options.map((one) => one.label));
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const free = [...letters].find((one) => !used.has(one)) ?? "?";
+  return { label: free, text: "", is_correct: false, error_label: "" };
+}
+
 function Editing({
   question,
   source,
@@ -420,38 +434,141 @@ function Editing({
       />
 
       {draft.options.map((one, index) => (
-        <Field
-          className="field"
-          key={one.label}
-          label={`Phương án ${one.label}`}
-          value={one.text}
-          onChange={(next) =>
-            onChange({
-              ...draft,
-              options: draft.options.map((other, at) =>
-                at === index ? { ...other, text: next } : other,
-              ),
-            })
-          }
-        />
+        <div className="edit-option" key={one.label}>
+          <div className="edit-option-head">
+            <span className={one.is_correct ? "tag right" : "tag"}>
+              {one.is_correct ? `${one.label} · đáp án đúng` : `Phương án ${one.label}`}
+            </span>
+            <span className="spacer" />
+            {/* Đáp án **đúng** không có nút xoá. Xoá nó là bỏ luật tính điểm của câu, và
+                việc ấy cần một quyết định riêng về những lượt đã làm — khác hẳn việc sửa
+                chữ. Và dưới hai phương án thì câu không còn là một câu trắc nghiệm, nên
+                nút biến mất ở đó luôn thay vì để bấm rồi nhận một lời từ chối. */}
+            {!one.is_correct && draft.options.length > 2 && (
+              <button
+                className="quiet"
+                type="button"
+                disabled={saving}
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    options: draft.options.filter((_, at) => at !== index),
+                  })
+                }
+              >
+                Xoá
+              </button>
+            )}
+          </div>
+
+          <Field
+            className="field"
+            label={`Phương án ${one.label}`}
+            value={one.text}
+            onChange={(next) =>
+              onChange({
+                ...draft,
+                options: draft.options.map((other, at) =>
+                  at === index ? { ...other, text: next } : other,
+                ),
+              })
+            }
+          />
+
+          {/* Nhãn lỗi là **bắt buộc** với mọi phương án nhiễu (ADR-18), nên nó phải có ô
+              để gõ. Bản trước không có, nên thêm một phương án là tạo ra một câu chắc
+              chắn bị từ chối: một nút dẫn thẳng tới một lần 422. */}
+          {!one.is_correct && (
+            <Field
+              className="field fault"
+              label={`Lỗi của phương án ${one.label}`}
+              value={one.error_label ?? ""}
+              onChange={(next) =>
+                onChange({
+                  ...draft,
+                  options: draft.options.map((other, at) =>
+                    at === index ? { ...other, error_label: next } : other,
+                  ),
+                })
+              }
+            />
+          )}
+        </div>
       ))}
 
+      <button
+        className="add"
+        type="button"
+        disabled={saving}
+        onClick={() => onChange({ ...draft, options: [...draft.options, blankOption(draft)] })}
+      >
+        + Thêm phương án
+      </button>
+
       {draft.methods.map((one, index) => (
-        <Field
-          className="field"
-          key={index}
-          label={`Lời giải ${index + 1}`}
-          value={one.body}
-          onChange={(next) =>
-            onChange({
-              ...draft,
-              methods: draft.methods.map((other, at) =>
-                at === index ? { ...other, body: next } : other,
-              ),
-            })
-          }
-        />
+        <div className="edit-method" key={index}>
+          <div className="edit-method-head">
+            <Field
+              className="field title"
+              label={`Tên cách giải ${index + 1}`}
+              value={one.title}
+              onChange={(next) =>
+                onChange({
+                  ...draft,
+                  methods: draft.methods.map((other, at) =>
+                    at === index ? { ...other, title: next } : other,
+                  ),
+                })
+              }
+            />
+            {/* ADR-18 đòi **hơn một** lời giải: một câu một cách giải dạy được một lối
+                nghĩ, và cả việc này sinh ra là để dạy nhiều lối. */}
+            {draft.methods.length > 2 && (
+              <button
+                className="quiet"
+                type="button"
+                disabled={saving}
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    methods: draft.methods.filter((_, at) => at !== index),
+                  })
+                }
+              >
+                Xoá
+              </button>
+            )}
+          </div>
+
+          <Field
+            className="field"
+            label={`Lời giải ${index + 1}`}
+            value={one.body}
+            onChange={(next) =>
+              onChange({
+                ...draft,
+                methods: draft.methods.map((other, at) =>
+                  at === index ? { ...other, body: next } : other,
+                ),
+              })
+            }
+          />
+        </div>
       ))}
+
+      <button
+        className="add"
+        type="button"
+        disabled={saving}
+        onClick={() =>
+          onChange({
+            ...draft,
+            methods: [...draft.methods, { title: "", body: "" }],
+          })
+        }
+      >
+        + Thêm cách giải
+      </button>
 
       {refused !== "" && <div className="refused">{refused}</div>}
 

@@ -1183,6 +1183,31 @@
   background: var(--state-processing-surface);
 }
 
+/*
+ * Thẻ có đề để mở thì chính nó là cái nút.
+ *
+ * Trước đây mỗi thẻ mang một nút `Duyệt đề` / `Xem đề` / `Xem`, và cả năm nhãn gọi đúng
+ * một hàm. Bỏ nút đi thì phải trả lại dấu hiệu bằng đường khác, không thì giáo viên không
+ * có cách nào biết thẻ bấm được: con trỏ đổi hình, viền đậm lên khi rê chuột, và một vòng
+ * focus thật cho bàn phím — `role="button"` mà không thấy được focus thì nó chỉ đúng với
+ * trình đọc màn hình, không đúng với người dùng bàn phím.
+ */
+.teacher .action-card.open-able {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.teacher .action-card.open-able:hover {
+  border-color: var(--accent);
+}
+
+.teacher .action-card.open-able:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .teacher .action-card.settled {
   background: var(--state-settled-surface);
 }
@@ -1219,12 +1244,6 @@
 
 .teacher .action-card.refused .head .dot {
   background: var(--answer-incorrect);
-}
-
-.teacher .action-card .detail {
-  color: var(--ink-muted);
-  font-size: var(--type-caption);
-  line-height: 1.5;
 }
 
 /* Chip đẩy về mép phải của dòng đầu đề: `.what` giãn ra lấp chỗ trống giữa hai thứ. */
@@ -1555,6 +1574,90 @@
   line-height: 1.5;
 }
 
+/*
+ * Một phương án hoặc một lời giải là một **khối**, không phải một ô rời.
+ *
+ * Số phương án và số lời giải không cố định: ADR-18 chỉ đòi đúng một đáp án đúng, mọi
+ * phương án nhiễu có nhãn lỗi, và hơn một lời giải. Bản trước dựng đúng bốn ô phương án
+ * và hai ô lời giải phẳng, nên không có chỗ nào để thêm hay bớt — và cũng không có ô nào
+ * cho nhãn lỗi, thứ mà một phương án nhiễu **bắt buộc** phải có.
+ */
+.teacher .qcard .edit-option,
+.teacher .qcard .edit-method {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.teacher .qcard .edit-option-head,
+.teacher .qcard .edit-method-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.teacher .qcard .edit-option-head .tag {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Đáp án đúng mang màu ngữ nghĩa của ADR-12, không mang màu nhấn. */
+.teacher .qcard .edit-option-head .tag.right {
+  color: var(--answer-correct);
+}
+
+.teacher .qcard .edit-option-head .spacer {
+  flex: 1;
+}
+
+.teacher .qcard .edit-method-head .field.title {
+  flex: 1;
+}
+
+.teacher .qcard .edit-option-head .quiet,
+.teacher .qcard .edit-method-head .quiet {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0 4px;
+  font-family: inherit;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.teacher .qcard .edit-option-head .quiet:hover,
+.teacher .qcard .edit-method-head .quiet:hover {
+  color: var(--answer-incorrect);
+}
+
+/* Nhãn lỗi chìm hơn chữ phương án: nó là chú thích cho phương án ngay trên nó, không
+ * phải một trường ngang hàng. */
+.teacher .qcard .field.fault {
+  color: var(--ink-muted);
+}
+
+.teacher .qcard .add {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font-family: inherit;
+  color: var(--accent);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.teacher .qcard .add:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
 .teacher .qcard .edit-actions {
   display: flex;
   justify-content: flex-end;
@@ -1837,6 +1940,35 @@
   color: var(--ink-faint);
 }
 
+/*
+ * Đường lùi, đứng **trên** nút chính.
+ *
+ * Chữ trần, không nền: phát hành và bỏ duyệt không ngang hàng, nên chúng không được
+ * trông giống nhau. Không có luật này thì nút nhận nền mặc định của trình duyệt —
+ * `rgb(240,240,240)`, đo được — và nó đọc ra như một nút chính thứ hai.
+ */
+.teacher .publish-settings .quiet {
+  height: 34px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  font-family: inherit;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.teacher .publish-settings .quiet:hover:not(:disabled) {
+  background: var(--sunken);
+}
+
+.teacher .publish-settings .quiet:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
 /* Kết quả từng lớp. Một lớp trượt là một HÀNG, không phải một ngoại lệ (ADR-02). */
 .teacher .outcome {
   display: flex;
@@ -1928,6 +2060,10 @@
   color: var(--ink-muted);
   font-size: var(--type-label);
   line-height: 1.6;
+  /* Đề bài model viết có xuống dòng thật. Không `pre-wrap` thì mọi `
+` co lại thành
+   * một dấu cách — y như ba khối chữ còn lại của hộp này. */
+  white-space: pre-wrap;
 }
 
 .teacher .ways {
@@ -1954,6 +2090,10 @@
   color: var(--ink-muted);
   font-size: var(--type-caption);
   line-height: 1.6;
+  /* Chỗ đau nhất: một lời giải ba bước xuống dòng giữa các bước, và không có dòng này
+   * thì cả ba bước dính thành một dải chữ. Bong bóng chat có `pre-wrap` từ lâu; hộp
+   * lời giải thì chưa bao giờ. */
+  white-space: pre-wrap;
 }
 
 .teacher .faults {
@@ -2004,6 +2144,7 @@
 .teacher .fault .why {
   flex: 1;
   color: var(--ink-muted);
+  white-space: pre-wrap;
 }
 
 .teacher .confirm h3 {

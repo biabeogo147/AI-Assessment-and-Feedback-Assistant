@@ -242,17 +242,15 @@ export default function ActionCard({
   const paper = String(result.assessment_id ?? turn.entity_id ?? "");
   const title = String(result.title ?? "");
   const named = title === "" ? "" : ` "${title}"`;
-  const see =
-    paper === "" ? [] : [{ label: "Xem", onClick: () => onOpen(paper) }];
 
   // Một tool từ chối: `reason` là câu của BE, in nguyên văn. Viết hoa hay thêm dấu chấm vào
   // đó là viết lại lời người khác, và câu gốc là câu đã được cân nhắc.
   if (refusal(result)) {
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone="refused"
         head="Không tạo được đề"
-        detail={why(result)}
         safety="Chưa có gì được thay đổi"
         actions={[
           { label: "Thử lại", onClick: () => onCompose(""), primary: true },
@@ -264,9 +262,9 @@ export default function ActionCard({
   if (turn.tool_name === "create_draft") {
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone=""
         head={`Đã tạo đề${named}`}
-        detail="Chưa có câu hỏi nào"
         safety="Đề trống, chưa phát hành được"
         actions={[
           {
@@ -298,47 +296,22 @@ export default function ActionCard({
         : `Dừng ở ${written}/${asked} câu`;
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone=""
         head={head}
-        detail={running > 0 ? `còn ${running} câu đang soạn` : ""}
         safety="Chưa duyệt · chưa phát hành"
-        actions={
-          paper === ""
-            ? []
-            : [
-                {
-                  label: enough ? "Duyệt đề" : "Xem đề",
-                  onClick: () => onOpen(paper),
-                  primary: true,
-                },
-              ]
-        }
       />
     );
   }
 
   if (turn.tool_name === "draft_progress") {
     const written = Array.isArray(result.written) ? result.written.length : 0;
-    const running = Number(result.still_drafting ?? 0);
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone=""
         head={`Đã thêm ${written} câu vào đề`}
-        detail={running > 0 ? `${title} · còn ${running} câu đang soạn` : title}
         safety="Chưa duyệt · chưa phát hành"
-        // Chỉ một nút: cổng duyệt nằm trong panel, nên `Duyệt đề` và `Xem` sẽ mở đúng
-        // cùng một chỗ. Hai nhãn khác nhau cho một hành vi là một lời hứa rỗng.
-        actions={
-          paper === ""
-            ? []
-            : [
-                {
-                  label: "Duyệt đề",
-                  onClick: () => onOpen(paper),
-                  primary: true,
-                },
-              ]
-        }
       />
     );
   }
@@ -346,9 +319,9 @@ export default function ActionCard({
   if (turn.tool_name === "teacher.approve") {
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone=""
         head={`Đã duyệt đề${named}`}
-        detail=""
         safety="Chưa phát hành cho học sinh"
         // Chỉ một cửa vào đề, không nút đổi trạng thái nào. Thẻ này là **biên bản** của một
         // việc giáo viên vừa làm, và chỗ đổi trạng thái của một đề là chân panel — nơi duy
@@ -358,7 +331,6 @@ export default function ActionCard({
         // Và ba cái nút cũ ở đây **không chạy**, đo được: duyệt thì bấm từ trong panel, nên
         // lúc thẻ hiện ra route đã là `.../de/{paper}` rồi, mà cả ba đều chỉ gọi `go()` tới
         // đúng route ấy. Gán lại một hash không đổi thì không có `hashchange` nào.
-        actions={see}
       />
     );
   }
@@ -366,11 +338,10 @@ export default function ActionCard({
   if (turn.tool_name === "teacher.unapprove") {
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone=""
         head={`Đã bỏ duyệt đề${named}`}
-        detail=""
         safety="Chưa duyệt · chưa phát hành"
-        actions={see}
       />
     );
   }
@@ -381,14 +352,13 @@ export default function ActionCard({
       : [];
     return (
       <Card
+        onOpen={paper === "" ? undefined : () => onOpen(paper)}
         tone="settled"
         head={`Đã phát hành cho ${classes.length > 0 ? classes.join(" và ") : "lớp đã chọn"}`}
-        detail="Nội dung đã khoá"
         // Thẻ có hậu quả lớn nhất mà im lặng về hậu quả thì là lỗi nặng nhất trong nhóm
         // này. Thu hồi **chỉ** được cho tới giờ mở của từng lớp (ADR-02), nên câu này nói
         // cả hai nửa: còn thu hồi được, và cái mốc chấm dứt việc đó.
         safety="Thu hồi được cho tới giờ mở của từng lớp, sau giờ mở thì không"
-        actions={see}
       />
     );
   }
@@ -399,31 +369,64 @@ export default function ActionCard({
   return null;
 }
 
-/** Hình dạng chung của tám variant: một đầu đề có chấm, một dòng chi tiết, một câu an toàn, vài nút. */
+/**
+ * Hình dạng chung của mọi variant: một đầu đề có chấm, một câu an toàn, và đôi khi một nút.
+ *
+ * **Bấm vào thẻ là mở panel đề.** Trước đó mỗi thẻ mang một nút `Duyệt đề` / `Xem đề` /
+ * `Xem`, và cả năm nhãn ấy gọi đúng một hàm — `onOpen(paper)`. Năm cách gọi tên cho một
+ * việc là năm lời hứa khác nhau về một thứ, nên chúng rút về chính cái thẻ.
+ *
+ * Nút chỉ còn ở những chỗ làm việc **khác**: `Thử lại` và `Thêm câu hỏi` điền sẵn ô nhập,
+ * vì bước ấy làm bằng lời nói chứ không bằng một endpoint. Chúng chặn nổi bọt, nếu không
+ * một cú bấm vào chúng vừa điền ô nhập vừa mở panel.
+ *
+ * @param tone - Sắc thẻ: thường, đã xong, hay bị từ chối.
+ * @param head - Việc vừa xảy ra.
+ * @param safety - Hậu quả, in thành chip ở mép phải dòng đầu đề.
+ * @param actions - Nút làm việc khác với "mở đề". Thường rỗng.
+ * @param onOpen - Mở panel đề. Bỏ trống khi thẻ này không có đề nào để mở — một thẻ bấm
+ *   được mà chẳng mở gì tệ hơn hẳn một thẻ nằm yên.
+ */
 function Card({
   tone,
   head,
-  detail,
   safety,
   actions = [],
+  onOpen,
 }: {
   tone: "" | "settled" | "refused";
   head: string;
-  detail: string;
   safety?: string;
   actions?: { label: string; onClick: () => void; primary?: boolean }[];
+  onOpen?: () => void;
 }) {
+  const open = onOpen !== undefined;
   return (
-    <div className={`action-card ${tone}`}>
+    <div
+      className={`action-card ${tone} ${open ? "open-able" : ""}`}
+      // `role` và `tabIndex` chứ không phải một `<button>` bọc ngoài: thẻ chứa nút, và
+      // một nút lồng trong nút là HTML sai — trình duyệt tự gỡ nó ra, và cú bấm rơi vào
+      // chỗ không ai đoán được.
+      role={open ? "button" : undefined}
+      tabIndex={open ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (!open) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        // Space cuộn trang nếu không chặn, và một thẻ mở ra kèm một cú nhảy trang thì
+        // giáo viên mất chỗ đang đọc.
+        event.preventDefault();
+        onOpen();
+      }}
+    >
       <div className="head">
-        <span className="dot" aria-hidden="true" />
         {/* Câu an toàn đi **cùng dòng** với đầu đề: cả hai nói về một sự việc — việc gì vừa
-            xảy ra, và nó đã tới tay học sinh chưa. Tách làm hai dòng là xé một câu làm
-            đôi, và trên một thẻ chỉ còn ba thành phần thì dòng thừa ấy càng rõ. */}
+            xảy ra, và nó đã tới tay học sinh chưa. Tách làm hai dòng là xé một câu làm đôi,
+            và trên một thẻ chỉ còn hai thành phần thì dòng thừa ấy càng rõ. */}
+        <span className="dot" aria-hidden="true" />
         <span className="what">{head}</span>
         {safety !== undefined && <span className="safety">{safety}</span>}
       </div>
-      {detail !== "" && <div className="detail">{detail}</div>}
       {actions.length > 0 && (
         <div className="actions">
           {actions.map((one) => (
@@ -431,7 +434,10 @@ function Card({
               className={`btn ${one.primary === true ? "primary" : ""}`}
               key={one.label}
               type="button"
-              onClick={one.onClick}
+              onClick={(event) => {
+                event.stopPropagation();
+                one.onClick();
+              }}
             >
               {one.label}
             </button>
