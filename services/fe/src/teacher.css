@@ -1809,11 +1809,46 @@
   line-height: 1.5;
 }
 
+/*
+ * Hai bậc nhãn, không một.
+ *
+ * Biểu mẫu từng có **tám** nhãn VIẾT HOA cùng một sức nặng — `LỚP`, `PHA 1`, `LÀM BÀI`,
+ * `MỞ LÚC`, `ĐÓNG LÚC`, `PHA 2`, `PHÚT MỖI CÂU`, `HẠN CHỮA XONG` — nên nhãn mục và nhãn
+ * trường trông y hệt nhau và mắt không có bậc nào để bám. Vạch kẻ chữa phần ngăn cách;
+ * phần thứ bậc thì phải chữa ở đây.
+ *
+ * `.caps` còn lại đúng ba chỗ: tên của ba mục.
+ */
 .teacher .publish-settings .caps {
   color: var(--ink-faint);
   font-size: var(--type-caption);
   font-weight: 600;
   line-height: 1.5;
+}
+
+/** Nhãn của một ô: chữ thường, nhạt hơn, không đậm. */
+.teacher .publish-settings .label {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/*
+ * Vạch ngăn giữa ba mục. Một hairline chứ không phải một cái hộp: trong cột 420 thì ba
+ * khối viền lồng nhau đọc ra nặng hơn, không nhẹ đi.
+ *
+ * Tên là `divider`, **không** phải `rule`. Hộp xác nhận đã dùng `.rule` cho ba câu luật
+ * của nó từ trước, và `Veil` không dựng qua portal — nên cả hộp nằm *bên trong*
+ * `.publish-settings`, và một luật `.publish-settings .rule { height: 1px }` bóp ba câu
+ * ấy xuống cao một pixel. `.teacher .confirm .rule` cùng specificity nên nó thắng ở
+ * `color`, nhưng `height` thì không ai ghi đè, nên chữ tràn ra ngoài hộp và chồng lên
+ * nhau. Trùng tên class trong một cây DOM lồng nhau là thứ `tsc` không thấy, jsdom không
+ * thấy, và chỉ mắt người hoặc một phép đo mới thấy.
+ */
+.teacher .publish-settings .divider {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--line);
 }
 
 .teacher .publish-settings .field {
@@ -1882,12 +1917,6 @@
   border-color: var(--accent);
   background: var(--accent-surface);
   color: var(--accent);
-}
-
-.teacher .field-note {
-  color: var(--ink-muted);
-  font-size: var(--type-caption);
-  line-height: 1.5;
 }
 
 .teacher .publish-settings input {

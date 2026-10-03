@@ -79,6 +79,16 @@ export default function PublishSettings({
     perQuestion !== "" &&
     deadline !== "";
 
+  // Hai câu luật, điền bằng số đang gõ. Khuôn tới từ BE; chỗ này chỉ thay chỗ trống.
+  const phaseOneLive = fill(form.rules.phase_one_form, {
+    closes: clock(closesAt),
+    last: clock(lastSubmission(closesAt, minutes)),
+  });
+  const phaseTwoLive = fill(form.rules.phase_two_form, {
+    deadline: clock(deadline),
+    rate: perQuestion === "" ? "--" : perQuestion,
+  });
+
   /** Đúng object sẽ được gửi đi — xem trước và phát hành dùng chung nó. */
   function schedules(): ClassSchedule[] {
     return picked.map((class_id) => ({
@@ -147,16 +157,15 @@ export default function PublishSettings({
             </button>
           ))}
         </div>
-        <div className="field-note">
-          Đã chọn {picked.length} trong {form.classes.length} lớp · {heads} học sinh
-        </div>
       </div>
+
+      <div className="divider" />
 
       <div className="group">
         <div className="caps">PHA 1 — LÀM BÀI VÀ NỘP</div>
         <div className="pair">
           <label className="field">
-            <span className="caps">LÀM BÀI</span>
+            <span className="label">Làm bài</span>
             <input
               type="number"
               min={1}
@@ -166,7 +175,7 @@ export default function PublishSettings({
             />
           </label>
           <label className="field wide">
-            <span className="caps">MỞ LÚC</span>
+            <span className="label">Mở lúc</span>
             <input
               type="datetime-local"
               value={opensAt}
@@ -176,7 +185,7 @@ export default function PublishSettings({
         </div>
         <div className="pair">
           <label className="field wide">
-            <span className="caps">ĐÓNG LÚC</span>
+            <span className="label">Đóng lúc</span>
             <input
               type="datetime-local"
               value={closesAt}
@@ -186,11 +195,13 @@ export default function PublishSettings({
         </div>
       </div>
 
+      <div className="divider" />
+
       <div className="group">
         <div className="caps">PHA 2 — CHỮA BÀI</div>
         <div className="pair">
           <label className="field">
-            <span className="caps">PHÚT MỖI CÂU</span>
+            <span className="label">Phút mỗi câu</span>
             <input
               type="number"
               min={1}
@@ -200,7 +211,7 @@ export default function PublishSettings({
             />
           </label>
           <label className="field wide">
-            <span className="caps">HẠN CHỮA XONG</span>
+            <span className="label">Hạn chữa xong</span>
             <input
               type="datetime-local"
               value={deadline}
@@ -210,12 +221,17 @@ export default function PublishSettings({
         </div>
       </div>
 
-      {/* Ba câu luật, lấy nguyên văn từ BE. Cùng string mà hộp xác nhận và biên bản in ra
-          — ADR-03 đòi bốn nơi giống hệt nhau từng chữ, và cách duy nhất chắc chắn đúng là
-          không nơi nào tự viết lại. */}
+      {/* Hai câu luật, điền bằng chính con số đang gõ.
+          Bản trước in `form.rules.phase_one` — một câu BE dựng sẵn với `--:--`, tải MỘT
+          LẦN lúc mở màn. Nó đứng ngay dưới mấy ô nhập, trông như sắp đổi theo, mà về cấu
+          trúc thì không bao giờ đổi được: một câu luật nói sai số ngay cạnh chỗ gõ số tệ
+          hơn hẳn một câu luật vắng mặt.
+          Chữ nghĩa vẫn chỉ có một nơi — khuôn tới từ BE, và BE dựng câu thật bằng đúng
+          khuôn ấy (`publication_wording.py`). Hộp xác nhận và biên bản thì **không** dùng
+          khuôn: chúng có số thật và nhận câu đã dựng. */}
       <div className="rules">
-        <div>{form.rules.phase_one}</div>
-        <div>{form.rules.phase_two}</div>
+        <div>{phaseOneLive}</div>
+        <div>{phaseTwoLive}</div>
       </div>
 
       {trouble !== null && (
@@ -380,4 +396,77 @@ function Outcome({ classes }: { classes: ClassResult[] }) {
       ))}
     </div>
   );
+}
+
+/**
+ * Một mốc `datetime-local` đọc thành `HH:MM`, hoặc chỗ trống.
+ *
+ * `--:--` là chỗ trống của BE (`publication_wording._BLANK`), không phải một chuỗi chọn
+ * đại ở đây: biểu mẫu lúc chưa gõ gì phải ra **đúng** câu mà BE dựng khi không có tham số
+ * nào, nếu không thì hai bên đã là hai câu khác nhau ngay từ trạng thái rỗng.
+ *
+ * @param local - Giá trị của một `input[type=datetime-local]`, hoặc chuỗi rỗng.
+ * @returns `HH:MM`, hoặc `--:--`.
+ */
+function clock(local: string): string {
+  if (local === "") return "--:--";
+  const at = new Date(local);
+  if (Number.isNaN(at.getTime())) return "--:--";
+  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Giờ bài cuối cùng còn có thể nộp: giờ đóng cộng thời gian làm bài.
+ *
+ * **Đây là bản thứ hai của một phép tính**, bản kia ở `publication_wording.phase_one_note`.
+ * Nó tồn tại vì biểu mẫu phải nói đúng số **ngay lúc giáo viên đang gõ**, mà hỏi BE sau
+ * mỗi phím là một request theo nhịp gõ. Cái giá được trả bằng một test ở BE ghim khuôn và
+ * câu dựng ra phải khớp — chữ nghĩa chỉ có một bản, chỉ phép cộng này có hai.
+ *
+ * Con số ấy chính là thứ diễn đạt ra luật của ADR-03: *"đóng 18:00, làm 15 phút, thì bài
+ * cuối nộp 18:15"*. Một giáo viên đọc nó **trước** khi gõ thì không đặt giờ đóng 17:45 để
+ * bù — đúng cái hiểu nhầm mà ADR-03 dành cả tài liệu để ngăn.
+ *
+ * @param closes - Giờ đóng, dạng `datetime-local`.
+ * @param minutes - Thời gian làm bài, tính bằng phút.
+ * @returns Mốc nộp cuối dạng `datetime-local`, hoặc chuỗi rỗng khi thiếu một trong hai.
+ */
+function lastSubmission(closes: string, minutes: string): string {
+  if (closes === "" || minutes === "") return "";
+  const span = Number(minutes);
+  // Cùng khoảng mà BE nhận (`phase1_minutes: gt=0, le=600`). `min={1}` của ô số **không**
+  // ngăn người ta gõ `-15`, và khi ấy câu luật in ra *"đóng 18:00 - có thể nộp lúc 17:45"*
+  // — một câu tự phản bác, và trớ trêu là đúng con số 17:45 mà ADR-03 dành cả tài liệu để
+  // chống. Ngoài khoảng thì để chỗ trống: chưa nói gì còn hơn nói sai.
+  if (!Number.isInteger(span) || span <= 0 || span > 600) return "";
+  const at = new Date(closes);
+  if (Number.isNaN(at.getTime())) return "";
+  at.setMinutes(at.getMinutes() + span);
+  // `toISOString` đổi sang UTC và làm lệch giờ đúng bằng offset máy. Ghép tay giữ đúng
+  // giờ địa phương, cùng cách `isoWithOffset` ở trên giữ nó.
+  const pad = (one: number) => String(one).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
+/**
+ * Điền chỗ trống của một khuôn câu.
+ *
+ * `replaceAll` chứ không `replace`: Python `.format` ở BE điền **mọi** lần xuất hiện, còn
+ * `String.replace` với một chuỗi chỉ điền lần đầu. Hôm nay mỗi chỗ trống xuất hiện đúng
+ * một lần nên hai bên trùng nhau — nhưng ngày câu luật nhắc lại một mốc, BE ra câu đúng
+ * còn màn hình để lại một `{closes}` thứ hai, và không test nào thấy.
+ *
+ * Và thay bằng **hàm**, không bằng chuỗi: một chuỗi thay thế hiểu `$&` và `$'` là ký hiệu
+ * đặc biệt, mà một trong các giá trị là chữ thô của một ô nhập.
+ *
+ * @param form - Khuôn, với chỗ trống dạng `{ten}`.
+ * @param values - Giá trị cho từng chỗ trống.
+ * @returns Câu đã điền.
+ */
+function fill(form: string, values: Record<string, string>): string {
+  let out = form;
+  for (const [slot, value] of Object.entries(values)) {
+    out = out.replaceAll(`{${slot}}`, () => value);
+  }
+  return out;
 }

@@ -36,6 +36,11 @@ const FORM = {
     phase_one: "Vào tham gia tới hết --:--",
     phase_two: "Chữa bài tới hết --:--",
     recall: "Thu hồi được cho tới hết giờ mở.",
+    // Khuôn, sao đúng từ `publication_wording.PHASE_ONE` / `PHASE_TWO`.
+    phase_one_form:
+      "Vào tham gia tới hết {closes} - có thể nộp lúc {last}, và không dừng người đang làm.",
+    phase_two_form:
+      "Chữa bài tới hết {deadline} - mỗi lượt {rate} phút một câu, và hết hạn thì lượt đang làm bị DỪNG.",
   },
 };
 
@@ -2249,5 +2254,111 @@ describe("số phương án và số lời giải không cố định", () => {
       error_label: "nhân nhầm hệ số",
     });
     expect(sent.methods[0].title).toBe("Cách 1");
+  });
+});
+
+describe("câu luật trên biểu mẫu nói đúng số đang gõ", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function serving() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(FORM) })),
+    );
+  }
+
+  async function mount() {
+    const view = render(
+      <PublishSettings
+        assessmentId="p1"
+        onPublished={() => {}}
+        onUndo={() => {}}
+        undoing={false}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
+    );
+    return view;
+  }
+
+  /** Gõ vào một ô theo nhãn của nó. */
+  function type(label: string, value: string) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+
+  it("chưa gõ gì thì câu ấy là câu `--:--` y như BE dựng", async () => {
+    // Trạng thái rỗng của hai bên phải là **cùng một câu**, nếu không thì chúng đã khác
+    // nhau ngay từ chỗ chưa ai gõ gì.
+    serving();
+    const { container } = await mount();
+
+    const rules = [...container.querySelectorAll(".rules div")].map(
+      (one) => one.textContent,
+    );
+    expect(rules[0]).toBe(
+      "Vào tham gia tới hết --:-- - có thể nộp lúc --:--, và không dừng người đang làm.",
+    );
+    expect(rules[1]).toContain("mỗi lượt -- phút một câu");
+  });
+
+  it("gõ giờ đóng và thời gian làm bài thì câu ấy nói ra GIỜ NỘP CUỐI", async () => {
+    // Đây là bug: câu luật tải một lần lúc mở màn nên `--:--` đứng mãi, ngay dưới chính
+    // mấy ô vừa gõ. Và con số nó phải nói ra là một **phép tính** — giờ đóng cộng thời
+    // gian làm bài — tức chính con số diễn đạt ra luật của ADR-03.
+    serving();
+    const { container } = await mount();
+
+    type("Đóng lúc", "2026-09-15T18:00");
+    type("Làm bài", "15");
+
+    expect(container.querySelectorAll(".rules div")[0].textContent).toBe(
+      "Vào tham gia tới hết 18:00 - có thể nộp lúc 18:15, và không dừng người đang làm.",
+    );
+  });
+
+  it("câu pha 2 nói đúng hạn và đúng tỉ lệ phút mỗi câu", async () => {
+    serving();
+    const { container } = await mount();
+
+    type("Hạn chữa xong", "2026-09-15T22:00");
+    type("Phút mỗi câu", "5");
+
+    expect(container.querySelectorAll(".rules div")[1].textContent).toBe(
+      "Chữa bài tới hết 22:00 - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị DỪNG.",
+    );
+  });
+
+  it("giờ nộp cuối cộng qua nửa đêm vẫn đúng", async () => {
+    // `23:50 + 20` là ca mà một phép cộng viết ẩu cho ra `23:70`.
+    serving();
+    const { container } = await mount();
+
+    type("Đóng lúc", "2026-09-15T23:50");
+    type("Làm bài", "20");
+
+    expect(container.querySelectorAll(".rules div")[0].textContent).toContain(
+      "có thể nộp lúc 00:10",
+    );
+  });
+
+  it("vạch ngăn KHÔNG mang class `rule` — hộp xác nhận đã dùng tên ấy", async () => {
+    // `Confirm` dùng `.rule` cho ba câu luật của nó từ lâu, và `Veil` không dựng qua
+    // portal — nên cả hộp nằm *bên trong* `.publish-settings`. Một luật
+    // `.publish-settings .rule { height: 1px }` vì thế bóp ba câu ấy xuống cao một pixel,
+    // chữ tràn ra ngoài và chồng lên nhau. jsdom không áp CSS nên không test nào thấy hậu
+    // quả; thứ ghim được là **cái tên**.
+    serving();
+    const { container } = await mount();
+
+    expect(container.querySelectorAll(".publish-settings > .divider").length).toBe(2);
+    expect(container.querySelectorAll(".publish-settings > .rule").length).toBe(0);
+  });
+
+  it("biểu mẫu thôi đếm lớp đã chọn", async () => {
+    serving();
+    const { container } = await mount();
+    expect(container.querySelector(".field-note")).toBeNull();
+    expect(screen.queryByText(/Đã chọn/)).toBeNull();
   });
 });

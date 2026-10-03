@@ -248,6 +248,24 @@ export interface TimingRules {
   phase_one: string;
   phase_two: string;
   recall: string;
+  /**
+   * Khuôn của hai câu trên, với chỗ trống `{closes}` / `{last}` và `{deadline}` / `{rate}`.
+   *
+   * Chỉ biểu mẫu dùng tới. Ở đó chưa có giờ nào lúc mở màn, nên câu dựng sẵn chỉ có thể là
+   * câu `--:--` — và nó đứng ngay dưới mấy ô nhập, trông như sắp đổi theo con số vừa gõ mà
+   * về cấu trúc thì không bao giờ đổi được. Chữ nghĩa vẫn chỉ có một nơi: BE dựng câu thật
+   * bằng đúng khuôn này (`publication_wording.py`).
+   *
+   * Hai đường kia (hộp xác nhận, biên bản) **không** dùng khuôn: chúng có số thật và nhận
+   * câu đã dựng từ BE.
+   *
+   * **Bắt buộc, không optional.** BE và FE ở repo này deploy cùng nhau, nên một field
+   * optional kèm `?? form.rules.phase_one` chỉ mua được một thứ: khi BE thôi gửi khuôn,
+   * màn hình lặng lẽ quay về đúng câu `--:--` đứng mãi dưới mấy ô nhập — chính cái bug cả
+   * đợt này tồn tại để chữa — mà không một lỗi hay một test nào kêu lên.
+   */
+  phase_one_form: string;
+  phase_two_form: string;
 }
 
 export interface ClassOption {
