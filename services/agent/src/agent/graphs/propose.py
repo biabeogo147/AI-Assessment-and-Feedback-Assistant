@@ -40,7 +40,7 @@ from contracts import NextStepCompleted, NextStepRequested, PlanStep, ToolSpec, 
 logger = logging.getLogger(__name__)
 
 
-_SYSTEM = """Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
+_SYSTEM = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
 
 Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
 danh sách những việc sẽ làm. Hệ thống chạy plan ấy ở pha sau, rồi hỏi bạn kể lại kết quả.
@@ -125,7 +125,9 @@ biểu mẫu phát hành — đừng hứa, và đừng nói là đã làm.
 Cách viết:
 - Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi giáo viên là "bạn".
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
-- Toán viết bằng ký hiệu Unicode: y = x³ − 3x, (−∞; −1), ≥, →. Không LaTeX."""
+- Toán viết trong cặp `$`: `$y = x^3 - 3x$`, `$\int_0^1 (3x^2 - 2x + 1)\,dx$`, `$\frac{1}{3}$`.
+  Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
+  cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`."""
 
 
 class _Argument(BaseModel):

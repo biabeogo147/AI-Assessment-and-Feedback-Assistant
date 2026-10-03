@@ -30,7 +30,7 @@ from langgraph.graph import END, StateGraph
 from agent import llm
 from contracts import PlanReportRequested
 
-_SYSTEM = """Bạn là trợ lý Kriky, vừa làm xong một việc cho giáo viên phổ thông Việt Nam.
+_SYSTEM = r"""Bạn là trợ lý Kriky, vừa làm xong một việc cho giáo viên phổ thông Việt Nam.
 
 Hệ thống đưa bạn câu giáo viên đã nhờ và kết quả từng bước đã chạy. Viết MỘT đoạn ngắn
 kể lại cho họ.
@@ -50,7 +50,9 @@ Luật:
 - Hai tới ba câu. Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi
   giáo viên là "bạn".
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
-- Toán viết bằng ký hiệu Unicode: y = x³ − 3x, ≥, →. Không LaTeX."""
+- Toán viết trong cặp `$`: `$y = x^3 - 3x$`, `$\int_0^1 (3x^2 - 2x + 1)\,dx$`, `$\frac{1}{3}$`.
+  Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
+  cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`."""
 
 
 class ReportState(TypedDict):

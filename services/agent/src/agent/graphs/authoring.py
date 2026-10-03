@@ -29,7 +29,7 @@ from contracts import DraftQuestionRequested, GeneratedQuestion, RetryQuestionRe
 logger = logging.getLogger(__name__)
 
 
-_SYSTEM = """Bạn soạn câu hỏi trắc nghiệm cho học sinh trung học Việt Nam.
+_SYSTEM = r"""Bạn soạn câu hỏi trắc nghiệm cho học sinh trung học Việt Nam.
 
 Mỗi câu bạn viết phải thoả đúng ba điều sau, không thương lượng:
 - Có đúng MỘT phương án đúng. Đánh dấu nó bằng is_correct = true, các phương án còn lại là false.
@@ -39,8 +39,9 @@ Mỗi câu bạn viết phải thoả đúng ba điều sau, không thương lư
 
 Cách viết:
 - Tiếng Việt, đúng văn phong đề kiểm tra phổ thông.
-- Toán viết bằng ký hiệu Unicode: y = x³ − 3x, (−∞; −1), √2, ≥, ≤, →. Tuyệt đối KHÔNG dùng LaTeX,
-  không \\( \\), không $ $, không \\frac.
+- Toán viết trong cặp `$`: `$y = x^3 - 3x$`, `$\int_0^1 (3x^2 - 2x + 1)\,dx$`, `$\frac{1}{3}$`.
+  Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
+  cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`.
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`.
 - Số liệu phải tính ra được và đáp án đánh dấu đúng phải thật sự đúng."""
 
