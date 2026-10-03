@@ -176,8 +176,6 @@ async def test_a_question_in_an_approved_paper_is_locked(stack) -> None:
         ),
         # Một lời giải: ADR-18 đòi hơn một.
         ({"methods": [{"title": "Cách 1", "body": "..."}]}, "worked solution"),
-        # Toán nằm ngoài cặp `$` — đúng cái lưới của Pha 5.
-        ({"stem": r"Tính \int_0^1 x\,dx"}, "not delimited"),
     ],
 )
 async def test_a_hand_edit_goes_through_the_same_net(stack, over, why) -> None:
@@ -301,25 +299,10 @@ async def test_a_question_someone_already_answered_cannot_be_rewritten(stack) ->
             {"options": [{"label": "A", "text": "$2x$", "is_correct": True}]},
             "more than one option",
         ),
-        # Nhãn lỗi **được hiện trên màn hình**, nên nó phải qua cùng cái lưới toán.
-        (
-            {
-                "options": [
-                    {"label": "A", "text": "$2x$", "is_correct": True},
-                    {
-                        "label": "B",
-                        "text": "$x$",
-                        "is_correct": False,
-                        "error_label": r"quên hệ số \frac{1}{2}",
-                    },
-                ]
-            },
-            "not delimited",
-        ),
     ],
 )
-async def test_three_holes_the_old_net_let_through(stack, over, why) -> None:
-    """Ba lỗ đo được, hai trong đó ra 500 chứ không ra một câu từ chối."""
+async def test_two_holes_the_old_net_let_through(stack, over, why) -> None:
+    """Hai lỗ đo được, cả hai ra 500 chứ không ra một câu từ chối."""
     http, _, (paper, question) = stack
 
     answer = await http.patch(
@@ -367,3 +350,28 @@ async def test_the_order_the_teacher_typed_is_the_order_stored(stack) -> None:
 
     assert answer.status_code == 200, answer.text
     assert [one["title"] for one in answer.json()["methods"]] == ["Zeta", "Alpha"]
+
+
+@pytest.mark.asyncio
+async def test_latex_outside_the_dollars_saves_now_instead_of_blocking(stack) -> None:
+    r"""Công thức viết sai thì hiện ra nguyên văn, không chặn ai cả.
+
+    Pha 5 từng từ chối chuyện này, và hệ quả đo được là một cái bẫy: mọi câu soạn
+    **trước** khi hợp đồng `$...$` ra đời đều không lưu lại được — mở `Sửa`, không đổi
+    một chữ nào, bấm `Lưu` thì 422. Công cụ duy nhất để dọn nội dung hỏng lại từ chối
+    lưu vì nội dung đang hỏng.
+
+    `MathText` dựng hình phần nằm trong cặp `$` và in nguyên phần còn lại, nên một dòng
+    LaTeX thô là thứ đọc được và sửa được. Đó là cả lý do phép chặn kia không còn.
+    """
+    http, _, (paper, question) = stack
+    loose = "Tính " + chr(92) + "int_0^1 x" + chr(92) + ",dx rồi so sánh"
+
+    answer = await http.patch(
+        f"/api/teacher/assessments/{paper}/questions/{question}",
+        json=_body(stem=loose),
+        headers=TEACHER,
+    )
+
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["stem"] == loose

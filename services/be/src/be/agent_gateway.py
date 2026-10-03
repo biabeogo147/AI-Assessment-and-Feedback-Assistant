@@ -10,7 +10,6 @@ review dữ liệu mẫu viết tay vào 2026-09-11 tìm ra một câu hỏi có
 
 import asyncio
 import logging
-import re
 from collections.abc import AsyncIterator
 
 from arq.connections import ArqRedis
@@ -358,75 +357,24 @@ async def ask_for_retry_question(
     raise AgentError(f"{1 + _RETRY_ASKS} lần thử đều không đạt — {last}")
 
 
-# Một dấu `$` chỉ là **dấu mở** khi nó không dính vào một chữ số và không đứng ngay
-# trước khoảng trắng. Luật ấy tồn tại vì tiền tệ: `Một quyển 20$, hai quyển 40$` có hai
-# dấu `$`, số chẵn, và nếu coi chúng là một cặp thì cả đoạn `, hai quyển 40` thành công
-# thức. Đo được ở cả hai đầu — BE cho qua, màn hình dựng hình đoạn văn ấy. Đề toán về
-# giá tiền là ca thường gặp, không phải ca bịa.
+# Toán **không** còn là một phép kiểm chặn.
 #
-# **Cùng một luật tách phải có cùng một phép tách ở hai bên.** `MathText.tsx` dùng đúng
-# khuôn này; lệch nhau thì BE nói một câu hợp lệ còn màn hình vẽ ra một thứ khác.
-_MATH = re.compile(
-    r"(?<![0-9A-Za-z])[$]{2}(?![\s$])(.+?)(?<![\s$])[$]{2}(?![0-9])"
-    r"|(?<![0-9A-Za-z$])[$](?![\s$])([^$]+?)(?<![\s$])[$](?![0-9])",
-    re.DOTALL,
-)
-
-# Bất kỳ lệnh LaTeX nào, không phải một danh sách trắng. Danh sách chín lệnh của bản
-# trước để lọt `\pm`, `\times`, `\le`, `\to`, `\infty`, `\log`, `\vec`… và
-# **mọi** thứ không có gạch chéo: `x^2`, `y_1`, `a_{n+1}` là dạng toán trần model gõ
-# nhiều nhất, và cái lưới cũ không thấy chúng.
-_BARE_LATEX = re.compile(r"\\[A-Za-z]+|[\^_]\{?[0-9A-Za-z]")
-_PAREN_MATH = re.compile(r"\\[(\[]")
-
-
-def _outside_math(text: str) -> str:
-    """Phần của chuỗi **không** nằm trong một cặp `$`.
-
-    Nối bằng khoảng trắng chứ không dán liền: dán liền thì hai mảnh rời ghép lại tạo ra
-    một lệnh không ai viết, và chuỗi bị từ chối vì một thứ nó không hề chứa.
-
-    Args:
-        text: Chuỗi cần xét.
-
-    Returns:
-        Các mảnh ngoài công thức, nối bằng khoảng trắng.
-    """
-    pieces = []
-    at = 0
-    for found in _MATH.finditer(text):
-        pieces.append(text[at : found.start()])
-        at = found.end()
-    pieces.append(text[at:])
-    return " ".join(pieces)
-
-
-def _math_is_loose(text: str) -> str:
-    r"""Chuỗi này có công thức toán nằm ngoài cặp `$` không.
-
-    Bốn prompt cấm LaTeX suốt một thời gian dài và **không dòng code nào thi hành**, nên
-    model cứ viết. Đo được trên panel thật, nguyên văn trước mặt giáo viên:
-    `\int_{0}^{1}(3x^2 - 2x + 1)\, dx` và `\(\frac{1}{3}\)`.
-
-    Nay hướng đã đổi -- toán **được** viết bằng LaTeX và màn hình dựng hình nó -- nên thứ
-    cần canh cũng đổi: không phải *"có LaTeX không"* mà là *"LaTeX có được đánh dấu
-    không"*. Một công thức không đánh dấu thì màn hình in nguyên xi, đúng như hôm nay.
-
-    Args:
-        text: Một chuỗi của câu hỏi -- đề bài, một phương án, một nhãn lỗi, hay một lời
-            giải.
-
-    Returns:
-        Lý do từ chối, hoặc chuỗi rỗng khi chuỗi này ổn.
-    """
-    outside = _outside_math(text)
-    # `\[` chỉ sai khi nó **ngoài** công thức. Bản trước quét cả chuỗi, nên nó bắt cả
-    # `\\[4pt]` -- cú pháp giãn dòng chuẩn của `cases`/`align`, rất thường gặp trong hệ
-    # phương trình -- và từ chối một câu viết hoàn toàn đúng hợp đồng.
-    if _PAREN_MATH.search(outside):
-        return "dùng dấu ngoặc LaTeX thay vì $"
-    found = _BARE_LATEX.search(outside)
-    return f"công thức {found.group()!r} nằm ngoài cặp $" if found else ""
+# Pha 5 từng dựng ở đây một lưới từ chối công thức nằm ngoài cặp `$`, với lý lẽ: bốn
+# prompt cấm LaTeX mà không có nơi thi hành thì model cứ viết. Lý lẽ ấy đúng về chẩn
+# đoán và sai về thuốc. Hệ quả đo được: mọi câu soạn **trước** khi hợp đồng `$...$` ra
+# đời đều không lưu lại được -- mở `Sửa`, không đổi một chữ nào, bấm `Lưu` thì 422. Công
+# cụ duy nhất để dọn nội dung hỏng lại từ chối lưu vì nội dung đang hỏng.
+#
+# Hướng đã chốt với người dùng: một công thức viết sai thì **hiện ra nguyên văn** chứ
+# không chặn ai cả, và giáo viên sửa tay. `MathText` đã làm đúng thế rồi -- KaTeX chạy
+# với `throwOnError: false`, và chuỗi không có cặp `$` nào thì đi qua như chữ thường. Một
+# dòng LaTeX thô trên màn hình là thứ đọc được và sửa được; một lượt soạn bị giết vì một
+# dấu gạch chéo thì không.
+#
+# Những phép kiểm còn lại ở dưới nói về **tính đúng của đề** -- đúng một đáp án đúng, mọi
+# nhiễu có nhãn lỗi, đủ phương án, đủ lời giải -- chứ không về cách gõ công thức. Đó là
+# khác biệt giữ lại: cách gõ thì sửa được bằng mắt, còn một đề hai đáp án đúng thì không
+# ai nhìn ra lúc học sinh đang làm bài.
 
 
 def validate_question(question: GeneratedQuestion) -> None:
@@ -468,20 +416,6 @@ def validate_question(question: GeneratedQuestion) -> None:
 
     if len(question.methods) < 2:
         raise AgentError(f"a question needs more than one worked solution: {question.stem}")
-
-    pieces = [("stem", question.stem)]
-    pieces += [(f"option {one.label}", one.text) for one in question.options]
-    # Nhãn lỗi **được hiện trên màn hình**, ở đúng khối mà hộp thoại lời giải gọi là phần
-    # đáng đọc nhất — nên nó phải qua cùng cái lưới, không thì công thức thô hiện ra ngay
-    # cạnh những công thức đã dựng hình đẹp.
-    pieces += [
-        (f"error label {one.label}", one.error_label) for one in question.options if one.error_label
-    ]
-    pieces += [(f"method {one.title}", one.body) for one in question.methods]
-    for where, text in pieces:
-        loose = _math_is_loose(text)
-        if loose:
-            raise AgentError(f"math in {where} is not delimited ({loose}): {question.stem}")
 
 
 def validate_retry(question: GeneratedQuestion, origin_stem: str, spent: list[str]) -> None:
