@@ -1532,6 +1532,10 @@ async def run_turn(
                 yield event
             result = held.get("result", {"error": f"bước {index} chạy không xong"})
             if not _went_wrong(result):
+                # `_count_questions` **thả connection** khi đếm xong. An toàn ở đây vì mọi
+                # thứ trước nó đã commit (`_record` và `harvest` tự commit cả hai) -- nhưng
+                # một caller tương lai có việc chưa commit thì sẽ mất nó, nên đừng gọi hàm
+                # ấy giữa một chuỗi ghi.
                 detail = _how_many(await _count_questions(session, paper))
         else:
             await run_the_step()

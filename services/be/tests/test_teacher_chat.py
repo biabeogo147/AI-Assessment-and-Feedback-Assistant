@@ -1184,6 +1184,53 @@ async def test_a_draft_that_stops_short_says_it_stopped(stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_an_extra_argument_is_dropped_not_fatal(stack) -> None:
+    """Một tham số **lạ** chỉ bị bỏ; plan vẫn chạy.
+
+    Đây là ranh giới giữa hai ca dễ gộp nhầm. *Thiếu* một tham số là plan sai từ đầu — bước
+    ấy sẽ chạy với tay không và để lại rác, nên từ chối trọn gói. *Thừa* một tham số thì
+    không làm bước nào ghi sai: BE chỉ đưa cho tool những thứ tool nhận.
+
+    Gộp hai ca lại đúng là hồi quy đã đo được: mô tả `create_draft` còn nhắc `title`, nên
+    chính mô tả ấy mời model gửi một thứ `vet_plan` giết — và giáo viên nhận *"mình chưa dựng
+    được các bước"* cho một yêu cầu hoàn toàn hợp lệ, lần gõ lại cũng hỏng y vậy.
+
+    Và tham số lạ **không được ghi vào lịch sử**: lịch sử là thứ model đọc ở lượt sau, nên
+    giữ nó lại là dạy model rằng lần sau cứ gửi tiếp.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(
+            PlanStep(
+                tool_name="create_draft",
+                args={**_BRIEF, "title": "Đề tự đặt tên", "difficulty": "cơ bản"},
+                title="Tạo đề trống",
+            )
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu Hàm số"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    turns = answer.json()["turns"]
+    made = next(one for one in turns if one["kind"] == "tool_result")
+    assert made["tool_result"]["created"] is True
+
+    async with maker() as session:
+        call = await session.scalar(
+            select(TeacherTurn)
+            .where(TeacherTurn.kind == "tool_call")
+            .order_by(TeacherTurn.sequence.desc())
+        )
+    assert call is not None
+    assert set(call.tool_args) == set(_BRIEF)
+
+
+@pytest.mark.asyncio
 async def test_a_plan_missing_an_argument_is_refused_before_anything_runs(stack) -> None:
     """Thiếu một tham số là plan sai từ đầu, và không bước nào được chạy.
 

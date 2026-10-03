@@ -130,9 +130,10 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
 - **ADR-01 làm đúng việc của nó vẫn ra "bước hỏng".** Đề đã duyệt thì `fire` ném 409 và `harvest` lặng
   lẽ không ghi gì. Trong một plan, hai ca ấy dừng plan — và câu báo cáo phải nói rằng **không có gì
   sai**, chỉ là nội dung đã khoá.
-- **Thẻ kết quả mọc cho mỗi kết quả còn đứng vững tới cuối lượt**, không phải mỗi `tool_result`. Luật
-  *"tối đa một thẻ cho một lượt"* trong `teacher-surface.md` là một suy diễn từ artboard 5 và phải
-  viết lại theo luật này.
+- **Thẻ kết quả mọc cho kết quả còn đứng vững tới cuối lượt**, không phải cho mỗi `tool_result` — và
+  **tối đa một thẻ cho một lượt**. Hai câu ấy không mâu thuẫn: một lượt chỉ có một kết quả sau cùng,
+  vì mỗi bước ghi đè ý nghĩa của bước trước nó (mở đề rồi đổ câu vào thì trạng thái "trống" không
+  còn đứng vững). `teacher-surface.md` và `ActionCard.cardTurn` đều nói đúng một thẻ.
 - **`teacher-surface.md` phải sửa trong cùng change set**: mục *"Một lượt của Kriky gồm bốn khối, theo
   đúng thứ tự này"* trái thẳng với luật vẽ-theo-thứ-tự-nhận-được ở trên.
 - **Ngân sách tách đôi.** Pha 1 giữ `max_tool_steps = 8` và 90 giây. Các bước plan chạy trong cùng
