@@ -38,7 +38,13 @@ from be.models import (
     TeacherTurn,
     aware,
 )
-from be.publication_wording import RECALL_RULE, phase_one_note, phase_two_note
+from be.publication_wording import (
+    PHASE_ONE,
+    PHASE_TWO,
+    RECALL_RULE,
+    phase_one_note,
+    phase_two_note,
+)
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
 from be.teacher_chat import router as chat_router
@@ -1142,3 +1148,26 @@ async def test_the_preview_refuses_exactly_where_the_real_publish_refuses(stack)
     # bản nói một nẻo.
     assert shown.json()["classes"][0]["published"] is False
     assert shown.json()["classes"][0]["reason"] == done.json()["classes"][0]["reason"]
+
+
+def test_the_form_template_builds_exactly_the_sentence_the_function_builds() -> None:
+    """Khuôn gửi cho biểu mẫu và câu BE dựng ra phải là **một** thứ.
+
+    Biểu mẫu nay điền chỗ trống của khuôn bằng con số giáo viên đang gõ, thay vì hiện một
+    câu `--:--` tải một lần lúc mở màn — câu ấy đứng ngay dưới mấy ô nhập, trông như sắp
+    đổi theo, mà về cấu trúc thì không bao giờ đổi được.
+
+    Cái giá của hướng ấy là phép cộng *giờ đóng + phút làm bài* tồn tại hai bản, một ở đây
+    và một ở FE. Phép kiểm này ghim nửa còn lại: **chữ nghĩa** chỉ có một bản, và điền
+    khuôn bằng tay phải ra đúng chuỗi mà hàm dựng ra. Lệch nhau là lúc một cách diễn đạt
+    thứ hai vừa sinh ra, đúng thứ ADR-03 dành cả tài liệu để ngăn.
+    """
+    closes = datetime(2026, 9, 15, 18, 0, tzinfo=UTC)
+    deadline = datetime(2026, 9, 15, 22, 0, tzinfo=UTC)
+
+    assert PHASE_ONE.format(closes="18:00", last="18:15") == phase_one_note(closes, 15)
+    assert PHASE_TWO.format(deadline="22:00", rate="5") == phase_two_note(deadline, 5)
+
+    # Và chỗ trống cũng đi qua đúng khuôn ấy, nên biểu mẫu lúc chưa gõ gì vẫn là cùng câu.
+    assert PHASE_ONE.format(closes="--:--", last="--:--") == phase_one_note()
+    assert PHASE_TWO.format(deadline="--:--", rate="--") == phase_two_note()

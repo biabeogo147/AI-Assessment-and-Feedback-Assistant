@@ -18,8 +18,25 @@ là nơi câu ấy sống trong code.
 Và chúng là **hàm**, không phải hằng số, vì ADR-02 đòi hộp xác nhận *"đọc lại đúng giá trị
 vừa nhập, không dùng con số ghi cứng"*. Câu của Figma có 18:00 và 18:15 trong đó, và 18:15
 là một **phép tính** — giờ đóng cộng thời gian làm bài — tức chính con số diễn đạt ra cái
-luật. Một câu chung chung không có số thì nói đúng mà không dạy được gì; một câu có số do
-FE tự tính là một bản cài đặt thứ hai của phép tính ấy.
+luật. Một câu chung chung không có số thì nói đúng mà không dạy được gì.
+
+**Và biểu mẫu điền được chỗ trống của chính câu ấy.** Bản trước gửi cho biểu mẫu một câu đã
+dựng sẵn với `--:--`; biểu mẫu tải nó **một lần lúc mở**, nên nó đứng ngay dưới mấy ô nhập,
+trông như sắp đổi theo con số vừa gõ, mà về cấu trúc thì không bao giờ đổi được. Một câu
+luật nói sai số ngay cạnh chỗ gõ số tệ hơn hẳn một câu luật vắng mặt.
+
+Nên câu ấy nay sống dưới dạng **khuôn**: `PHASE_ONE` và `PHASE_TWO` ở dưới là nguồn duy
+nhất, hàm dựng câu thật điền vào chính khuôn ấy, và biểu mẫu nhận đúng khuôn ấy qua API
+rồi điền số đang gõ. Chữ nghĩa vì thế vẫn có **một** nơi — đổi một chữ ở đây là đổi ở cả
+bốn chỗ.
+
+**Và bốn thứ nhỏ hơn thì có hai bản**, nên hãy đọc rõ chúng ra thay vì hứa suông: phép cộng
+*giờ đóng + phút làm bài*; tên bốn chỗ trống; `--:--`; và `--`. Ba thứ sau là **hợp đồng**
+giữa file này và `PublishSettings.tsx`, không phải chuyện nội bộ — đổi một cái ở đây mà
+không đổi bên kia thì biểu mẫu in ra `{last}` nguyên văn, hoặc hai bề mặt hiện hai kiểu chỗ
+trống. `check_the_form_fills_the_slots_the_wording_declares` trong `tools/check_contract.py` là
+nơi thi hành: nó đọc khuôn ở đây, đọc chỗ điền ở FE, và đỏ khi hai bên lệch. Phép cộng thì
+được ghim bằng một test ở `test_publishing.py` và ba test ở FE.
 """
 
 from datetime import datetime, timedelta
@@ -29,6 +46,22 @@ from datetime import datetime, timedelta
 # là nơi quan trọng nhất: một giáo viên đọc luật *trước* khi gõ thì không đặt giờ đóng
 # 17:45 để bù.
 _BLANK = "--:--"
+
+# Chỗ trống cho một **con số**, không phải một mốc giờ. Dùng nhầm `--:--` ở đây thì khuôn
+# câu của biểu mẫu lệch khuôn của hai payload kia, và đó đúng là thứ phép so khuôn trong
+# test bắt được.
+_BLANK_RATE = "--"
+
+# Hai khuôn câu — **nguồn duy nhất** của chữ nghĩa này.
+#
+# Hàm ở dưới điền vào chính chúng, và biểu mẫu nhận đúng chúng qua API rồi điền con số
+# đang gõ. Nhờ thế đổi một chữ ở đây là đổi ở cả bốn chỗ ADR-03 đòi phải giống nhau; và
+# không chỗ nào còn hiện một câu luật nói sai số ngay cạnh ô nhập số ấy.
+PHASE_ONE = "Vào tham gia tới hết {closes} - có thể nộp lúc {last}, và không dừng người đang làm."
+PHASE_TWO = (
+    "Chữa bài tới hết {deadline} - mỗi lượt {rate} phút một câu, và hết hạn thì lượt đang "
+    "làm bị DỪNG."
+)
 
 # Cửa sổ thu hồi (ADR-02). Không có số nào để điền: nó nói về giờ mở, mà giờ mở đã được
 # nêu ra riêng dưới dạng `withdrawable_until`.
@@ -78,10 +111,7 @@ def phase_one_note(closes_at: datetime | None = None, phase1_minutes: int | None
         if closes_at is None or phase1_minutes is None
         else closes_at + timedelta(minutes=phase1_minutes)
     )
-    return (
-        f"Vào tham gia tới hết {_clock(closes_at)} - có thể nộp lúc "
-        f"{_clock(last_submission)}, và không dừng người đang làm."
-    )
+    return PHASE_ONE.format(closes=_clock(closes_at), last=_clock(last_submission))
 
 
 def phase_two_note(
@@ -101,11 +131,5 @@ def phase_two_note(
     Returns:
         Câu luật của pha 2, đúng khuôn trên Figma.
     """
-    # `--`, không phải `--:--`: đây là một con số, không phải một mốc giờ. Dùng sai chỗ
-    # trống thì khuôn câu của biểu mẫu lệch khuôn của hai payload kia, và đó đúng là thứ
-    # phép so khuôn trong test bắt được.
-    rate = "--" if minutes_per_question is None else str(minutes_per_question)
-    return (
-        f"Chữa bài tới hết {_clock(remediation_deadline)} - mỗi lượt "
-        f"{rate} phút một câu, và hết hạn thì lượt đang làm bị DỪNG."
-    )
+    rate = _BLANK_RATE if minutes_per_question is None else str(minutes_per_question)
+    return PHASE_TWO.format(deadline=_clock(remediation_deadline), rate=rate)

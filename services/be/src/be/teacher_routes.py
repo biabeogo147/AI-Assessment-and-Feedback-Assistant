@@ -71,7 +71,13 @@ from be.models import (
     Teacher,
     aware,
 )
-from be.publication_wording import RECALL_RULE, phase_one_note, phase_two_note
+from be.publication_wording import (
+    PHASE_ONE,
+    PHASE_TWO,
+    RECALL_RULE,
+    phase_one_note,
+    phase_two_note,
+)
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
@@ -432,14 +438,23 @@ class TimingRules(BaseModel):
     là có ba bản, và ba cách diễn đạt cho một luật là ba luật.
 
     Attributes:
-        phase_one: Luật của giờ đóng (ADR-03).
+        phase_one: Luật của giờ đóng (ADR-03), đã dựng sẵn với số của lần phát hành này.
         phase_two: Luật của hạn pha 2 (ADR-15), ngược lại luật trên.
         recall: Cửa sổ thu hồi (ADR-02), thứ quyết định lần này còn lấy lại được không.
+        phase_one_form: **Khuôn** của câu trên, với hai chỗ trống `{closes}` và `{last}`.
+            Chỉ biểu mẫu dùng tới: ở đó chưa có giờ nào lúc mở màn, nên một câu dựng sẵn
+            chỉ có thể là câu `--:--`, và nó đứng ngay dưới mấy ô nhập trông như sắp đổi
+            theo con số vừa gõ mà không bao giờ đổi được. Gửi khuôn thì biểu mẫu điền được
+            ngay lúc gõ, và chữ nghĩa vẫn chỉ có một nơi — `publication_wording` dựng câu
+            thật bằng đúng khuôn này.
+        phase_two_form: Khuôn của câu pha 2, với `{deadline}` và `{rate}`.
     """
 
     phase_one: str = Field(default_factory=phase_one_note)
     phase_two: str = Field(default_factory=phase_two_note)
     recall: str = RECALL_RULE
+    phase_one_form: str = PHASE_ONE
+    phase_two_form: str = PHASE_TWO
 
 
 class ClassOption(BaseModel):
