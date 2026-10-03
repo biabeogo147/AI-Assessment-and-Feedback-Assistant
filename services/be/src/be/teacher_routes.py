@@ -45,6 +45,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from be.agent_gateway import AgentError, validate_question
 from be.assessment_state import (
     AssessmentState,
     advance,
@@ -59,9 +60,12 @@ from be.db import get_session
 from be.drafting import harvest, pending_count
 from be.identity import Asking, current_teacher
 from be.models import (
+    Answer,
+    AnswerOption,
     Assessment,
     Attempt,
     DraftBrief,
+    Method,
     Publication,
     Question,
     Teacher,
@@ -70,7 +74,7 @@ from be.models import (
 from be.publication_wording import RECALL_RULE, phase_one_note, phase_two_note
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
-from contracts import TurnRecord
+from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
 
 logger = logging.getLogger(__name__)
 
@@ -1380,6 +1384,217 @@ async def assessment_detail(
         difficulty=brief.difficulty if brief is not None else "",
         conversation_id=await conversation_of(session, asking, assessment_id) or "",
         questions=questions,
+    )
+
+
+class OptionEdit(BaseModel):
+    """Một phương án như giáo viên vừa sửa.
+
+    Attributes:
+        label: Chữ cái. Cả bộ phương án bị thay, nên nhãn đi theo payload chứ không
+            đối chiếu với nhãn cũ; hai nhãn trùng nhau thì bị từ chối, vì cột có
+            `UniqueConstraint(question_id, label)`.
+        text: Nội dung.
+        is_correct: Phương án đúng. Đúng một phương án mỗi câu (ADR-18).
+        error_label: Lỗi mà phương án nhiễu này đại diện (ADR-18). Gửi kèm cho
+            phương án **đúng** thì bị bỏ, không bị từ chối — `models.py` để cột ấy
+            null ở đúng dòng của đáp án đúng.
+    """
+
+    label: str
+    text: str
+    is_correct: bool
+    error_label: str | None = None
+
+
+class MethodEdit(BaseModel):
+    """Một cách giải như giáo viên vừa sửa."""
+
+    title: str
+    body: str
+
+
+class QuestionEdit(BaseModel):
+    """Toàn bộ chữ của một câu hỏi, gửi lên cùng một lúc.
+
+    Gửi **cả câu** chứ không gửi từng mảnh, và đó là chủ ý: ADR-18 là một luật về *quan hệ
+    giữa các mảnh* — đúng một phương án đúng, mọi phương án nhiễu có nhãn lỗi, hơn một lời
+    giải. Nhận từng mảnh rời thì mỗi lần sửa là một lần câu hỏi đi qua một trạng thái không
+    ai kiểm được, và luật ấy chỉ còn đúng ở những khoảnh khắc may mắn.
+
+    Attributes:
+        stem: Đề bài.
+        learning_objective: Câu hỏi kiểm cái gì.
+        options: Các phương án, đủ bộ.
+        methods: Các lời giải, đủ bộ.
+    """
+
+    stem: str
+    learning_objective: str
+    options: tuple[OptionEdit, ...]
+    methods: tuple[MethodEdit, ...]
+
+
+@router.patch(
+    "/teacher/assessments/{assessment_id}/questions/{question_id}",
+    response_model=QuestionRead,
+)
+async def edit_question(
+    assessment_id: str,
+    question_id: str,
+    wanted: QuestionEdit,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> QuestionRead:
+    """Sửa chữ của một câu hỏi trong một đề còn mở.
+
+    Nút *Sửa* đã có trên panel từ lâu và **không có `onClick`** — một nút chết. Đây là đường
+    nó nối vào.
+
+    **Cổng ADR-01**: chỉ sửa được khi đề còn `editable`. Đề đã duyệt thì nội dung khoá, và
+    chính cái khoá đó là lý do việc duyệt có nghĩa; đường mở lại là *Hoàn tác* ở chân panel.
+
+    **Và một câu sửa tay phải qua đúng cái lưới mà một câu model viết phải qua.** Cùng một
+    `validate_question` (ADR-18 + luật toán trong cặp `$`), không phải một bản kiểm thứ hai
+    viết riêng cho đường này — hai bản kiểm của cùng một luật là hai thứ chờ lệch nhau, và
+    bản lỏng hơn sẽ là bản người ta đi qua.
+
+    Args:
+        assessment_id: Đề nào.
+        question_id: Câu nào.
+        wanted: Toàn bộ chữ của câu, sau khi sửa.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Câu hỏi sau khi sửa, đúng hình dạng panel đang vẽ.
+
+    Raises:
+        HTTPException: 404 khi đề hoặc câu không tồn tại, hoặc thuộc về người khác (ADR-22);
+            409 khi đề đã khoá nội dung; 422 khi câu sửa xong vi phạm ADR-18 hoặc có công
+            thức toán nằm ngoài cặp `$`.
+
+    Side effects:
+        Thay chữ của câu, thay cả bộ phương án và bộ lời giải, rồi commit.
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id)
+
+    if not editable(assessment):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Đề đang ở trạng thái {readable(state_of(assessment))} nên không sửa được. "
+                "Hoàn tác việc duyệt trước đã."
+            ),
+        )
+
+    question = await session.scalar(
+        select(Question).where(Question.id == question_id, Question.assessment_id == assessment_id)
+    )
+    if question is None:
+        raise HTTPException(status_code=404, detail=_NO_SUCH)
+
+    # **Không sửa một câu đã có người làm.** `AnswerOption.id` là `new_id()`, nên thay cả
+    # bộ phương án sinh ra id mới kể cả khi giáo viên chỉ đổi một dấu phẩy — và mọi
+    # `Answer.option_id` của câu ấy thành mồ côi. Trên SQLite nó im lặng; trên Postgres,
+    # `DELETE FROM options` nổ `ForeignKeyViolation` và giáo viên nhận một 500 không có
+    # chữ tiếng Việt nào.
+    #
+    # Hôm nay ca ấy chưa tới được, vì ADR-02 chỉ cho thu hồi trước giờ mở nên một đề quay
+    # về `HAS_QUESTIONS` thì chưa ai làm. Nhưng đó là một luật đứng ở **một file khác**
+    # (`may_withdraw`), và một ngày nào đó cạnh `published → approved` được nới thì hàng
+    # mồ côi tới mà không ai báo. Phép kiểm phải ở ngay chỗ có thể vỡ.
+    answered = await session.scalar(
+        select(func.count())
+        .select_from(Answer)
+        .join(AnswerOption, Answer.option_id == AnswerOption.id)
+        .where(AnswerOption.question_id == question_id)
+    )
+    if answered:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Đã có {answered} lượt trả lời cho câu này nên không sửa được. "
+                "Sửa một câu đã có người làm sẽ làm hỏng bài của họ."
+            ),
+        )
+
+    # Dựng lại hình dạng mà `validate_question` nhận, rồi gọi **chính nó**.
+    try:
+        validate_question(
+            GeneratedQuestion(
+                stem=wanted.stem,
+                options=tuple(
+                    GeneratedOption(
+                        label=one.label,
+                        text=one.text,
+                        is_correct=one.is_correct,
+                        error_label=one.error_label or "",
+                    )
+                    for one in wanted.options
+                ),
+                methods=tuple(
+                    SolutionMethod(title=one.title, body=one.body) for one in wanted.methods
+                ),
+                learning_objective=wanted.learning_objective,
+            )
+        )
+    except (AgentError, ValueError) as refused:
+        raise HTTPException(status_code=422, detail=str(refused)) from refused
+
+    question.stem = wanted.stem
+    question.learning_objective = wanted.learning_objective
+
+    # Thay cả bộ chứ không vá từng dòng: `label` là khoá, và một lần sửa đổi nhãn sẽ để lại
+    # những hàng mồ côi mà không ai đi tìm.
+    for row in await session.scalars(
+        select(AnswerOption).where(AnswerOption.question_id == question_id)
+    ):
+        await session.delete(row)
+    for row in await session.scalars(select(Method).where(Method.question_id == question_id)):
+        await session.delete(row)
+    await session.flush()
+
+    for one in wanted.options:
+        session.add(
+            AnswerOption(
+                question_id=question_id,
+                label=one.label,
+                text=one.text,
+                is_correct=one.is_correct,
+                error_label=None if one.is_correct else (one.error_label or None),
+            )
+        )
+    for index, one in enumerate(wanted.methods):
+        session.add(
+            Method(question_id=question_id, order_index=index, title=one.title, body=one.body)
+        )
+    await session.commit()
+
+    fresh = await session.scalar(
+        select(Question)
+        .where(Question.id == question_id)
+        .options(selectinload(Question.options), selectinload(Question.methods))
+    )
+    return QuestionRead(
+        question_id=fresh.id,
+        order=fresh.order_index,
+        stem=fresh.stem,
+        learning_objective=fresh.learning_objective,
+        options=tuple(
+            OptionRead(
+                label=one.label,
+                text=one.text,
+                is_correct=one.is_correct,
+                error_label=one.error_label,
+            )
+            for one in sorted(fresh.options, key=lambda one: one.label)
+        ),
+        methods=tuple(
+            MethodRead(title=one.title, body=one.body)
+            for one in sorted(fresh.methods, key=lambda one: one.order_index)
+        ),
     )
 
 
