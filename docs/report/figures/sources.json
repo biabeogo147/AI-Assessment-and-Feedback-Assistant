@@ -1,0 +1,22 @@
+{
+  "activity-overview.pdf": {
+    "source": "docs/diagrams/activity-overview.drawio",
+    "sha256": "6059ee5af201ee1e77432b044bf9f6e8ebe35af766336894ed3072ba812ad835"
+  },
+  "business-workflows.pdf": {
+    "source": "docs/diagrams/business-workflows.drawio",
+    "sha256": "c9d7d779edd50aa404ea9d333d670cd65dbe26b7e4b66c320320c87d2b6a0d25"
+  },
+  "domain-context.pdf": {
+    "source": "docs/diagrams/domain-context.drawio",
+    "sha256": "b710e117eecb4f15cf2d67a206e8cfbb82b9ab395b5f010f7273110e6d4daf53"
+  },
+  "system-architecture.pdf": {
+    "source": "docs/diagrams/system-architecture.drawio",
+    "sha256": "7b7f5f5d7a836e14bf283625eec2bcde1988babeec0b24cff2f72e9c55ea9796"
+  },
+  "use-case.pdf": {
+    "source": "docs/diagrams/use-case.drawio",
+    "sha256": "0556ffc943d4b59d8789507c1349e202975a066641a94f64312328251ed5ff85"
+  }
+}
