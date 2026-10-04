@@ -1,2 +1,218 @@
-% Chương này được viết ở một task sau. Hiện chỉ có tiêu đề để khung build được.
 \chapter{Các luồng nghiệp vụ}
+\label{ch:luong-nghiep-vu}
+
+Nghiệp vụ của hệ thống gồm năm luồng. Hình~\ref{fig:activity-overview} cho thấy luồng tổng quan;
+hình~\ref{fig:business-workflows} cho thấy trách nhiệm của từng vị trí.
+
+Hình~\ref{fig:activity-overview} và hình~\ref{fig:vong-hoc} ở chương~\ref{ch:y-tuong} mô tả cùng một luồng, nhưng ở hai mức chi tiết khác nhau. 
+
+\begin{landscape}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{activity-overview.pdf}
+  \caption[Activity Overview]{Activity Overview --- toàn bộ vòng, hai giai đoạn nằm trong hai khung
+  riêng}
+  \label{fig:activity-overview}
+\end{figure}
+\end{landscape}
+
+\begin{landscape}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{business-workflows.pdf}
+  \caption[Business Workflows]{Business Workflows --- cùng vòng ấy, tách theo lane}
+  \label{fig:business-workflows}
+\end{figure}
+\end{landscape}
+
+\section{Workflow 1 --- Tạo và duyệt đề}
+
+\paragraph{Mục tiêu.} Giúp giáo viên tạo được đề phù hợp với mục tiêu học tập, nhưng giáo viên
+vẫn là người duyệt cuối cùng trước khi phát hành.
+
+\paragraph{Luồng chính.}
+\begin{enumerate}
+  \item Teacher nhập yêu cầu tạo đề.
+  \item Teacher cung cấp ràng buộc: chủ đề, độ khó, số lượng câu hỏi, loại bài kiểm tra, thời
+        gian làm bài.
+  \item \texttt{System/AI} phân tích yêu cầu.
+  \item \texttt{System/AI} tạo đề nháp gồm câu hỏi, phương án trả lời, đáp án đúng, lời giải và
+        metadata cơ bản.
+  \item Teacher xem đề nháp.
+  \item Teacher chỉnh sửa thủ công, hoặc yêu cầu tạo lại một phần.
+  \item Teacher duyệt đề.
+  \item Teacher phát hành đề cho Student.
+\end{enumerate}
+
+\paragraph{Điểm kiểm soát.} Teacher phải duyệt đề trước khi đề được phát hành. Đề kiểm tra ảnh
+hưởng trực tiếp đến việc đánh giá học sinh, nên trợ lí không được tự phát hành.
+
+\paragraph{Sáu tham số phát hành.} Việc phát hành cần sáu con số: lớp, thời gian làm bài, giờ mở,
+giờ đóng, số phút mỗi câu ở giai đoạn 2, và hạn kết thúc giai đoạn 2. Bốn trong sáu là tham số thời
+gian, và mục~\ref{sec:ba-con-so} nói vì sao chúng dễ bị hiểu nhầm.
+
+\section{Workflow 2 --- Làm bài (giai đoạn 1)}
+
+\paragraph{Mục tiêu.} Cho phép học sinh làm bài và ghi nhận bài nộp để hệ thống đánh giá.
+
+\paragraph{Luồng chính.}
+\begin{enumerate}
+  \item Student nhận assessment đã được Teacher phát hành.
+  \item Student vào làm, \emph{tới hết} giờ đóng.
+  \item Student trả lời câu hỏi trắc nghiệm.
+  \item Student nộp bài.
+  \item Hệ thống ghi nhận submission để đánh giá.
+\end{enumerate}
+
+\subsection{Ba mốc thời gian}
+\label{sec:ba-con-so}
+
+Giai đoạn 1 có ba tham số thời gian độc lập: thời gian làm bài, giờ mở và giờ đóng. Ba con số này
+rất dễ bị gộp thành một trong đầu người đọc.
+
+Luật là: giờ đóng chặn việc \emph{vào làm}, không chặn việc nộp. Học sinh vào tới hết giờ đóng vẫn
+được, vì mốc này bao gồm chứ không loại trừ. Ai đã vào rồi thì không bị dừng giữa chừng, và được đủ
+thời gian làm bài kể cả khi tràn qua giờ đóng. Chẳng hạn, đóng lúc 18:00 với thời gian làm bài 15
+phút thì bài cuối có thể nộp lúc 18:15.
+
+Đây là chỗ dễ hiểu nhầm nhất trong luồng phát hành, và cái hại đi theo chiều ngược với dự đoán. Một
+giáo viên muốn cả lớp nộp xong trước 18:00 sẽ đặt giờ đóng thành 17:45 để bù, và như vậy là tự cắt
+mất mười lăm phút của học sinh mà không biết. Vì thế câu giải thích luật phải xuất hiện ở cả ba nơi:
+lúc đang chọn giờ, lúc xác nhận, và trong biên bản sau khi phát hành. Ba chỗ ấy phải dùng đúng một
+câu giống hệt nhau, vì ba cách diễn đạt cho một luật sẽ được hiểu thành ba luật.
+
+\subsection{Giai đoạn 1 không thu lời giải thích}
+
+Những bài khó hoặc nhiều bước vẫn cần học sinh giải thích cách làm, nhưng chỗ hỏi là hội thoại ở
+giai đoạn 2: hỏi đúng vào câu em làm sai, và hỏi sau khi đồng hồ giai đoạn 1 đã dừng.
+
+Hỏi ngay ở giai đoạn 1 bằng một ô nhập tuỳ chọn sẽ tạo ra một cái bẫy. Ô đó bỏ trống thì hệ thống
+coi như không đủ căn cứ và đẩy kết quả vào hàng đợi review, nên rốt cuộc em nào lười gõ lại là em
+không nhận được gì.
+
+\section{Workflow 3 --- Chấm bài và sinh nhận xét}
+
+\paragraph{Mục tiêu.} Đánh giá bài làm, xác định lỗi sai hoặc hiểu nhầm, và tạo nhận xét phù hợp.
+
+\paragraph{Luồng chính.}
+\begin{enumerate}
+  \item \texttt{System/AI} nhận submission.
+  \item So sánh với đáp án chuẩn và lời giải chuẩn.
+  \item Giai đoạn 1 không thu lời giải thích, nên bước đánh giá cách làm chỉ chạy với lời học sinh nói
+        trong hội thoại giai đoạn 2.
+  \item Hệ thống \textbf{tra} lỗi sai từ phương án nhiễu đã chọn --- tra cứu, không phải suy
+        đoán, vì mỗi nhiễu được soạn kèm một lỗi cụ thể.
+  \item Tạo kết quả gồm điểm, nhận xét, lỗi sai, mã hiểu nhầm và độ tin cậy.
+  \item Hệ thống quyết định kết quả có cần giáo viên xem lại hay không.
+\end{enumerate}
+
+\paragraph{Nguyên tắc đánh giá.}
+\begin{itemize}
+  \item Đáp án đúng nhưng cách làm sai \emph{không} nên mặc định là đã hiểu.
+  \item Đáp án sai nhưng một phần cách làm đúng cần được ghi nhận.
+  \item Mỗi phương án nhiễu phải đại diện cho một lỗi cụ thể, soạn cùng câu hỏi. Đây là điều kiện
+        để giai đoạn 2 giải thích được.
+  \item Nhận xét nên giúp học sinh hiểu lỗi và biết bước tiếp theo.
+\end{itemize}
+
+\section{Workflow 4 --- Hàng đợi review}
+
+\paragraph{Mục tiêu.} Đưa các kết quả có độ tin cậy thấp hoặc có dấu hiệu bất thường cho giáo
+viên xem xét.
+
+\paragraph{Luồng chính.}
+\begin{enumerate}
+  \item \texttt{System/AI} hoàn thành đánh giá và tính độ tin cậy ở mức nghiệp vụ.
+  \item Độ tin cậy đủ cao thì kết quả đi thẳng sang giai đoạn 2.
+  \item Độ tin cậy thấp thì kết quả đi vào Teacher Review Queue.
+  \item Teacher xem câu hỏi, đáp án chuẩn, bài làm, nhận xét của trợ lí, và lý do cần xem lại.
+  \item Teacher xác nhận hoặc chỉnh sửa điểm, lỗi sai, hiểu nhầm và nhận xét.
+  \item Hệ thống lưu kết quả cuối cùng.
+\end{enumerate}
+
+\paragraph{Nhánh này không chặn giai đoạn 2.} Đây là điểm đáng chú ý: một kết quả đi vào hàng đợi
+\emph{không} giữ học sinh lại. Teacher chốt xong thì luồng hợp lại, còn học sinh vẫn chữa bài
+bình thường trong lúc chờ.
+
+\paragraph{Teacher bắt buộc xem lại khi:} độ tin cậy thấp; bài làm có mâu thuẫn, ví dụ đáp án
+đúng nhưng cách làm sai; hệ thống không đủ căn cứ để xác định lỗi; hoặc có trường hợp bất thường cần
+người có chuyên môn xem lại.
+
+\section{Workflow 5 --- Chữa bài (giai đoạn 2)}
+
+\paragraph{Mục tiêu.} Học sinh sửa được lỗi vừa mắc, và bài kiểm tra chỉ kết thúc khi việc đó đã
+diễn ra.
+
+\paragraph{Luồng chính.}
+\begin{enumerate}
+  \item Hệ thống liệt kê những câu học sinh làm sai ở giai đoạn 1.
+  \item Với mỗi câu sai, hệ thống giải thích lỗi \emph{theo lời giải đã soạn kèm câu hỏi}. Học
+        sinh hỏi lại đến khi hiểu. Phần này \textbf{không tính giờ}.
+  \item Học sinh bấm nút làm bài mới. Đồng hồ của lượt bắt đầu chạy.
+  \item Hệ thống sinh câu biến thể của chính câu sai.
+  \item Học sinh làm các câu biến thể trong lượt.
+  \item Câu nào đúng thì câu gốc chốt \textbf{0,5} điểm; câu nào còn sai thì sang vòng tiếp.
+  \item Mỗi câu tối đa \textbf{ba vòng}, đếm riêng. Hết ba vòng mà vẫn sai thì câu gốc chốt
+        \textbf{0} điểm.
+  \item Bài kết thúc khi mọi câu đã chốt, hoặc khi hết hạn giai đoạn 2.
+\end{enumerate}
+
+\subsection{Hai đồng hồ}
+\label{sec:hai-dong-ho}
+
+Giai đoạn 2 nhận hai tham số: số phút mỗi câu, và hạn kết thúc giai đoạn 2.
+
+Số phút mỗi câu là một tỉ lệ chứ không phải một khoảng cố định. Thời lượng của một lượt bằng số phút
+mỗi câu nhân với số câu còn dở trong lượt đó, nên sai hai câu với tỉ lệ 5 phút mỗi câu thì lượt ấy
+dài 10 phút. Thời lượng đó là một quỹ chung, và học sinh được dồn thời gian sang câu khó hơn. Sở dĩ
+chọn tỉ lệ vì số câu phải chữa giảm dần qua từng lượt, mà giáo viên thì không có cách nào đoán trước
+lớp mình sẽ sai bao nhiêu câu.
+
+Phần giải thích không tính giờ. Đồng hồ chỉ bắt đầu khi học sinh tự bấm nút làm bài mới, bởi lúc
+nghe giải thích là lúc em đang học chứ không phải đang chứng minh. Đặt đồng hồ lên một cuộc giải
+thích chỉ dạy học sinh gật cho xong rồi bấm tiếp. Ranh giới được đặt ở nút làm bài mới vì đó là hành
+động do chính em chọn: một cánh cửa một chiều mà người đi qua tự mở thì công bằng, còn một cánh cửa
+tự đóng sau lưng họ thì không.
+
+\subsection{Hết hạn thì cắt}
+
+Hạn kết thúc giai đoạn 2 là một mốc tuyệt đối do giáo viên đặt, chung cho cả lớp, và dài hơn hẳn hạn
+của giai đoạn 1, chẳng hạn là cuối ngày.
+
+Hết hạn thì cắt, kể cả khi học sinh đang làm dở một lượt, và câu chưa xong nhận 0 điểm. Một lượt vẫn
+được mở ngay cả khi thời lượng của nó vượt quá phần hạn còn lại.
+
+Đây là chỗ giai đoạn 2 làm ngược với giai đoạn 1. Ở giai đoạn 1, học sinh đã vào thì không bị dừng
+giữa chừng; ở giai đoạn 2, hết hạn là dừng. Hai luật nghịch nhau một cách có chủ ý, và
+chương~\ref{ch:quyet-dinh} giải thích vì sao.
+
+\subsection{Trình bày ở giai đoạn 2}
+
+Mọi câu sai của bài nằm cùng một màn, kèm đáp án em đã chọn và đáp án đúng, vì đơn vị của giai đoạn
+2 là một bài chứ không phải một câu. Lỗi tương ứng và các cách giải thì nằm sau một cú bấm. In thẳng
+ra thì danh sách câu sai dài gấp ba, và tên lỗi bị dán lên đầu học sinh trước khi trợ lí kịp hỏi em
+nghĩ gì.
+
+Với học sinh, từ \emph{biến thể} không xuất hiện, mỗi vòng được gọi là \emph{lượt làm lại thứ n}. Vì
+mỗi lượt thật sự là một câu khác, màn kết quả in đề của từng lượt bên dưới câu gốc kèm kết quả của
+lượt đó. Không in ra thì con số 0,5 chỉ nói rằng em làm lại đúng, mà không nói đúng cái gì.
+
+\subsection{Báo cáo giải thích chưa rõ}
+
+Học sinh đánh dấu một câu hoặc một đoạn hội thoại là \emph{giải thích chưa rõ}, ở hai thời điểm:
+ngay trước khi bấm nút làm bài mới, và sau khi bài của chính em đó kết thúc. Giáo viên xem được các
+báo cáo này.
+
+Việc này không chặn học sinh, không chặn lượt và không chặn điểm, nên nó không phải một cổng kiểm
+soát thứ tư.
+
+\section{Những điểm chưa chốt}
+
+Các điểm sau được ghi nhận nhưng chưa thiết kế chi tiết:
+
+\begin{itemize}
+  \item Công thức tính độ tin cậy, và nó đo cái gì khi phần chấm đã xác định.
+  \item Câu biến thể có nên đi qua một cổng duyệt nào không.
+  \item Rubric chi tiết cho từng môn học hoặc từng loại bài.
+  \item Cách hệ thống quyết định khi nào giảm độ khó hoặc cung cấp gợi ý.
+\end{itemize}

@@ -1,2 +1,179 @@
-% Chương này được viết ở một task sau. Hiện chỉ có tiêu đề để khung build được.
 \chapter{Use case}
+\label{ch:use-case}
+
+\section{Bảy use case}
+
+\begin{table}[htbp]
+\centering
+\caption{Bảy use case và actor chính của từng cái}
+\label{tab:bay-use-case}
+\begin{tabular}{@{}llL{5.4cm}@{}}
+\toprule
+\textbf{Mã} & \textbf{Actor chính} & \textbf{Tên} \\
+\midrule
+UC-01 & Teacher & Tạo đề nháp \\
+UC-02 & Teacher & Review và phát hành đề \\
+UC-03 & Student & Làm và nộp bài (giai đoạn 1) \\
+UC-04 & Student & Chữa bài sau khi nộp (giai đoạn 2) \\
+UC-05 & Teacher & Xử lý bài cần review \\
+UC-06 & --- & Hệ thống tạo câu biến thể \\
+UC-07 & Student & Báo cáo chỗ trợ lí giải thích chưa rõ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+UC-06 không có actor trực tiếp: đó là hành vi hệ thống, được \texttt{<<include>>} từ UC-04.
+
+\section{Quy ước đọc sơ đồ}
+
+Hình~\ref{fig:use-case} dùng bốn quan hệ và bốn màu. Hai bộ quy ước này độc lập với nhau, và đó là
+điều dễ nhầm nhất khi đọc hình.
+
+\begin{table}[htbp]
+\centering
+\caption{Bốn quan hệ dùng trong Use Case Diagram}
+\label{tab:quan-he}
+\begin{tabular}{@{}lL{8.2cm}@{}}
+\toprule
+\textbf{Quan hệ} & \textbf{Ý nghĩa} \\
+\midrule
+Association & Actor trực tiếp tương tác với use case. \\
+\texttt{<<include>>} & Hành vi \emph{bắt buộc} xảy ra như một phần của use case chính. \\
+\texttt{<<extend>>} & Hành vi chỉ xảy ra khi có một điều kiện nghiệp vụ cụ thể. \\
+Generalization & Use case chuyên biệt kế thừa mục tiêu chung từ use case tổng quát. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{0.4cm}
+
+\begin{table}[htbp]
+\centering
+\caption{Bốn màu dùng trong Use Case Diagram}
+\label{tab:mau}
+\begin{tabular}{@{}lL{8.2cm}@{}}
+\toprule
+\textbf{Màu} & \textbf{Ý nghĩa} \\
+\midrule
+Xanh dương & Mục tiêu chính của Teacher. \\
+Xanh lá & Mục tiêu chính của Student. \\
+Cam & Hành vi hệ thống bắt buộc, thường đi với \texttt{<<include>>}. \\
+Hồng & Hành vi điều kiện, ngoại lệ hoặc review, thường đi với \texttt{<<extend>>}. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Màu nói việc đó thuộc về ai, không nói kiểu quan hệ.} Ví dụ \emph{Báo cáo giải thích chưa
+rõ} là mục tiêu của Student nên tô xanh lá, kể cả khi nó nối bằng \texttt{<<extend>>}.
+
+\begin{landscape}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{use-case.pdf}
+  \caption[Use Case Diagram]{Use Case Diagram --- bảy use case, hai actor, và ranh giới hệ thống}
+  \label{fig:use-case}
+\end{figure}
+\end{landscape}
+
+\section{Đặc tả từng use case}
+
+\subsection{UC-01 --- Tạo đề nháp}
+
+\paragraph{Điều kiện trước.} Teacher biết chủ đề hoặc mục tiêu học tập cần kiểm tra, và mô tả
+được yêu cầu ở mức đủ hiểu.
+
+\paragraph{Luồng chính.} Teacher nhập yêu cầu và các ràng buộc (chủ đề, số câu, độ khó, thời gian
+làm bài, loại bài). Hệ thống phân tích, sinh đề nháp gồm câu hỏi, phương án, đáp án đúng, lời giải
+và metadata, rồi hiển thị cho Teacher.
+
+\paragraph{Quan hệ.} \emph{Tạo đề nháp} \texttt{<<include>>} \emph{Sinh nội dung đề}. \emph{Hỏi bổ
+sung yêu cầu} \texttt{<<extend>>} \emph{Tạo đề nháp}, khi yêu cầu ban đầu chưa đủ rõ --- đây chính
+là cổng đầu vào ở mục~\ref{sec:ba-cong}.
+
+\subsection{UC-02 --- Review và phát hành đề}
+
+\paragraph{Điều kiện trước.} Đã có đề nháp.
+
+\paragraph{Luồng chính.} Teacher xem từng câu hỏi, xem đáp án đúng, lời giải và phương án sai;
+chỉnh sửa nếu cần; duyệt đề; rồi phát hành với sáu tham số.
+
+\paragraph{Quan hệ.} \emph{Tạo lại nội dung đề} \texttt{<<extend>>} \emph{Review và phát hành đề},
+khi Teacher thấy một phần hoặc toàn bộ đề chưa phù hợp.
+
+\subsection{UC-03 --- Làm và nộp bài}
+
+\paragraph{Điều kiện trước.} Bài đã được phát hành và Student có quyền truy cập.
+
+\paragraph{Luồng chính.} Student mở bài, đọc câu hỏi, chọn đáp án, nộp bài. Hệ thống ghi nhận,
+chấm, và tra cứu lỗi sai từ phương án nhiễu đã chọn.
+
+\paragraph{Quan hệ.} \emph{Làm bài thường xuyên} và \emph{Làm bài cuối kỳ} đều generalize lên
+\emph{Làm và nộp bài (giai đoạn 1)}.
+
+Sơ đồ \emph{không} dùng \texttt{<<include>>} từ \emph{Làm và nộp bài} sang \emph{Chấm bài và tra cứu
+lỗi sai}: chấm bài là bước xử lý \emph{sau} khi có bài nộp, không phải hành vi bắt buộc để Student
+hoàn thành mục tiêu nộp bài của mình.
+
+\paragraph{Kết quả.} Bài nộp được ghi nhận và được chấm. \textbf{Nộp bài không kết thúc bài kiểm
+tra} --- nó kết thúc giai đoạn 1.
+
+\subsection{UC-04 --- Chữa bài}
+
+\paragraph{Điều kiện trước.} Student đã nộp bài ở giai đoạn 1 và hệ thống đã chấm; chưa quá hạn kết
+thúc giai đoạn 2.
+
+\paragraph{Luồng chính.} Student mở kết quả; mở màn hỏi trợ lí, nơi mọi câu sai nằm cùng một màn
+và phần giải thích không tính giờ; bấm nút làm bài mới để khởi động đồng hồ của lượt; làm câu biến
+thể của từng câu còn dở. Câu đúng thì câu gốc chốt 0,5; câu còn sai thì sang vòng tiếp, tối đa ba
+vòng, hết ba vòng thì chốt 0.
+
+\paragraph{Ngoại lệ.} Hết hạn giai đoạn 2 giữa một lượt thì lượt bị \emph{dừng} và các câu còn dở nhận
+0 điểm. Student không mở giai đoạn 2 lần nào thì mọi câu sai nhận 0 điểm --- bằng đúng kết quả của
+việc vào rồi sai cả ba vòng.
+
+\paragraph{Quan hệ.} \emph{Chữa bài} \texttt{<<include>>} \emph{Chấm bài và tra cứu lỗi sai}, và
+\texttt{<<include>>} \emph{Làm câu biến thể, tối đa ba vòng}. \emph{Yêu cầu giải thích cách làm}
+và \emph{Báo cáo giải thích chưa rõ} đều \texttt{<<extend>>} từ nó.
+
+Quan hệ với \emph{Làm câu biến thể} là \texttt{<<include>>} chứ không phải \texttt{<<extend>>},
+\textbf{vì giai đoạn 2 bắt buộc}: nó không phải một nhánh có thể không xảy ra. Đây là ví dụ rõ nhất
+trong cả sơ đồ về việc một quyết định sư phạm đổi luôn kiểu quan hệ trên hình.
+
+\subsection{UC-05 --- Xử lý bài cần review}
+
+\paragraph{Điều kiện trước.} Hệ thống đã tạo một kết quả đánh giá cần Teacher xem lại.
+
+\paragraph{Luồng chính.} Teacher mở danh sách; xem câu hỏi, đáp án chuẩn, bài làm, lời giải thích
+của Student và nhận xét hệ thống đề xuất; xem \emph{lý do} hệ thống yêu cầu review; xác nhận hoặc
+chỉnh sửa điểm, lỗi sai, hiểu nhầm và nhận xét. Hệ thống lưu kết quả cuối cùng.
+
+\paragraph{Quan hệ.} \emph{Xử lý bài cần review} \texttt{<<extend>>} \emph{Chấm bài và sinh
+feedback}, khi độ tin cậy thấp hoặc có dấu hiệu bất thường.
+
+\subsection{UC-06 --- Tạo câu biến thể}
+
+\paragraph{Điều kiện trước.} Một câu ở giai đoạn 1 bị làm sai, và câu đó chưa dùng hết ba vòng.
+
+\paragraph{Luồng chính.} Hệ thống lấy câu gốc Student làm sai, sinh biến thể của \emph{chính câu
+đó} --- giữ nguyên cấu trúc và lỗi cần kiểm, thay dữ kiện --- rồi đưa thẳng tới Student. Kết quả của
+câu biến thể quyết định câu gốc chốt 0,5 hay sang vòng tiếp.
+
+\paragraph{Ghi chú.} Điều kiện dừng là \textbf{số vòng}, không phải mastery. Và câu biến thể
+\textbf{không đi qua cổng duyệt của Teacher}, vì nó sinh ra giữa lúc Student đang làm bài --- đây
+là ngoại lệ đã biết của cổng thứ nhất, đã nói ở chương~\ref{ch:y-tuong}.
+
+\subsection{UC-07 --- Báo cáo giải thích chưa rõ}
+
+\paragraph{Điều kiện trước.} Student đang ở giai đoạn 2, hoặc bài của \emph{chính em đó} đã kết thúc.
+Và trợ lí đã trả lời ít nhất một lần --- trước đó không có gì để báo cáo, nên nút không xuất hiện.
+
+\paragraph{Luồng chính.} Student bấm một nút ở \emph{chân màn hỏi trợ lí}, không phải một nút
+trên mỗi lượt trả lời. Hệ thống ghi lại \textbf{cả đoạn hội thoại của bài đó} kèm những câu Student
+làm sai: đơn vị báo cáo là đoạn chat, vì trợ lí làm việc trên cả bài chứ không theo từng câu.
+
+\paragraph{Vì sao đây không phải cổng thứ tư.} Nó không chặn Student, không chặn lượt, không chặn
+điểm, và không chặn việc bài kết thúc. Một cổng là chỗ hệ thống \emph{dừng lại chờ người}; ở đây
+không có gì dừng lại.
+
+Sơ đồ cũng \emph{không} vẽ association từ Teacher tới use case này: Teacher đọc được báo cáo, nhưng
+chỗ để đọc thì chưa tồn tại --- nó không thuộc Teacher Review Queue, vốn dành cho việc có tính chặn.

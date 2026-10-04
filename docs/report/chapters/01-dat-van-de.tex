@@ -1,2 +1,79 @@
-% Chương này được viết ở một task sau. Hiện chỉ có tiêu đề để khung build được.
 \chapter{Đặt vấn đề}
+\label{ch:dat-van-de}
+
+\section{Bối cảnh}
+
+Ở trường phổ thông, một bài kiểm tra thường kết thúc khi giáo viên trả điểm. Học sinh nhận lại bài,
+nhìn những câu bị gạch chéo, rồi phần lớn dừng ở đó. Thứ thực sự làm thay đổi kết quả học tập là
+việc hiểu ra mình sai ở đâu và làm lại được, nhưng việc đó hiếm khi xảy ra, vì nó cần một cuộc trao
+đổi riêng cho từng em về từng câu.
+
+Giáo viên không phải không muốn làm. Vấn đề nằm ở khối lượng công việc. Một lớp bốn mươi học sinh
+làm một đề mười câu sẽ sinh ra bốn trăm lượt trả lời, và mỗi lượt sai có thể sai vì một lý do khác
+nhau. Giải thích riêng cho từng em, rồi ra thêm một câu tương tự để kiểm xem em đã sửa được chưa, là
+công việc tăng theo sĩ số và không có cách nào rút gọn.
+
+Kriky là hệ thống được xây để gánh phần công việc đó, nhưng không lấy đi quyền quyết định của giáo
+viên. Hình~\ref{fig:domain-context} cho thấy ranh giới của hệ thống: hai actor ở hai phía, cùng
+những gì đi vào và đi ra.
+
+\begin{landscape}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{domain-context.pdf}
+  \caption[Domain Context]{Domain Context --- ranh giới hệ thống, hai actor, và những gì đi qua
+  ranh giới ấy}
+  \label{fig:domain-context}
+\end{figure}
+\end{landscape}
+
+\section{Vấn đề cần giải quyết}
+
+Phần tốn thời gian nhất của giáo viên không phải là gõ ra đề bài, mà là năm việc sau. Cả năm đều là
+công việc chuyên môn:
+
+\begin{itemize}
+  \item Soạn đề bám đúng mục tiêu học tập, thay vì gom câu hỏi cho đủ số lượng.
+  \item Tạo phương án nhiễu có ý nghĩa. Một phương án sai ngẫu nhiên không nói lên điều gì, còn
+        một phương án nhiễu tốt là phương án mà học sinh mắc một lỗi cụ thể sẽ chọn.
+  \item Chấm bài và viết nhận xét cho từng học sinh.
+  \item Phân định học sinh sai vì thiếu kiến thức, vì suy luận hỏng, vì tính nhầm, hay vì hiểu
+        sai một khái niệm.
+  \item Ra câu biến thể của đúng câu học sinh vừa làm sai, để kiểm xem em đã sửa được chỗ sai đó
+        hay chỉ nhớ được đáp án.
+\end{itemize}
+
+Phía học sinh, nhu cầu ngược lại nhưng khớp vào: phản hồi cần đến nhanh, và bài luyện tập cần đúng
+với điểm yếu của riêng mình. Một phản hồi đúng nhưng đến sau hai tuần thì không còn tác dụng, vì học
+sinh đã quên mình nghĩ gì lúc làm bài.
+
+\section{Mục tiêu sản phẩm}
+
+Hệ thống hướng tới bốn mục tiêu nghiệp vụ:
+
+\begin{enumerate}
+  \item Hỗ trợ giáo viên tạo đề từ một yêu cầu bằng ngôn ngữ tự nhiên. Một đề có hai nguồn câu
+        hỏi: nội dung sinh mới, và kho câu hỏi đã dùng qua.
+  \item Hỗ trợ chấm bài và sinh nhận xét có căn cứ. Mỗi nhận xét phải dẫn được về một bằng
+        chứng, thay vì là một lời khuyên chung chung.
+  \item Phân tích lỗi sai hoặc hiểu nhầm khái niệm của học sinh.
+  \item Bắt buộc học sinh chữa lại những câu đã sai, ngay trong cùng bài kiểm tra.
+\end{enumerate}
+
+Mục tiêu thứ tư là thứ phân biệt hệ thống này với một công cụ sinh đề thông thường.
+Chương~\ref{ch:y-tuong} dành phần lớn dung lượng cho nó.
+
+\section{Phạm vi}
+
+Hệ thống dựng trọn một vòng nghiệp vụ, thay vì dựng sâu một khâu:
+
+\begin{itemize}
+  \item Giáo viên tạo, xem lại và phát hành đề. Việc duyệt bao gồm cả lời giải và ánh xạ từ
+        phương án nhiễu sang lỗi, không chỉ câu hỏi và đáp án.
+  \item Giai đoạn 2: Học sinh làm bài và nộp bài.
+  \item Hệ thống chấm bài và tra lỗi sai từ phương án nhiễu mà học sinh đã chọn.
+  \item Kết quả có độ tin cậy thấp, hoặc có dấu hiệu bất thường, đi vào hàng đợi chờ giáo viên
+        xem lại.
+  \item Giai đoạn 2: hệ thống giải thích lỗi và sinh câu biến thể, học sinh làm lại cho tới khi điểm
+        của từng câu được chốt.
+\end{itemize}

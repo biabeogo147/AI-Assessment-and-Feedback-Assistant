@@ -1,2 +1,113 @@
-% Chương này được viết ở một task sau. Hiện chỉ có tiêu đề để khung build được.
 \chapter{Ý tưởng sản phẩm}
+\label{ch:y-tuong}
+
+Dùng AI để sinh đề là chuyện đã có nhiều người làm. Chương này nói về những chỗ Kriky quyết khác, và
+lý do đằng sau mỗi quyết định.
+
+\section{Luồng tổng thể}
+\label{sec:vong-hoc}
+
+Ý tưởng lõi không nằm ở việc sinh câu hỏi, mà ở việc khép kín một vòng tám bước:
+
+\begin{enumerate}
+  \item Giáo viên tạo và duyệt đề.
+  \item Học sinh làm bài.
+  \item Hệ thống đánh giá đáp án và cách tư duy.
+  \item Hệ thống xác định lỗi sai hoặc hiểu nhầm khái niệm.
+  \item Hệ thống giải thích lỗi, học sinh hỏi lại đến khi hiểu.
+  \item Hệ thống tạo câu biến thể của chính câu vừa sai.
+  \item Học sinh làm lại, tối đa ba vòng cho mỗi câu.
+  \item Mỗi câu chốt ở một trong ba mức điểm, và bài kết thúc.
+\end{enumerate}
+
+Hình~\ref{fig:vong-hoc} vẽ tám bước ấy kèm chỗ vòng lặp quay lại, và nó là bản đồ của cả chương
+này.
+
+\begin{landscape}
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{vong-hoc.pdf}
+  \caption[Vòng học khép kín]{Vòng học khép kín --- tám bước, và chỗ vòng lặp quay lại}
+  \label{fig:vong-hoc}
+\end{figure}
+\end{landscape}
+
+\section{Hai giai đoạn làm bài của học sinh}
+\label{sec:hai-giai-doan}
+
+\emph{Bước 2, 7 và 8 của hình~\ref{fig:vong-hoc}.}
+
+Một bài kiểm tra có hai giai đoạn: giai đoạn 1 là làm bài và nộp, 
+giai đoạn 2 là chữa những câu đã sai. Nộp bài kết thúc giai đoạn 1 chứ không kết thúc
+bài. Bài chỉ kết thúc khi giai đoạn 2 xong, hoặc khi hạn của giai đoạn 2 hết.
+
+Kéo theo đó là một hệ quả cần nói rõ: một bài kiểm tra có hai trạng thái hoàn thành khác nhau,
+\emph{đã nộp} và \emph{đã hoàn thành}, và chúng không thay thế cho nhau được.
+
+\section{Làm sao phân tích lỗi của học sinh?}
+\label{sec:nhan-loi}
+
+\emph{Bước 4 của hình~\ref{fig:vong-hoc}.}
+
+Với hình thức trắc nghiệm, việc chấm chỉ là một phép so. Khó khăn nằm ở chẩn đoán lỗi sai của học sinh, 
+bởi cùng chọn một phương án sai có thể do nhiều lỗi khác nhau sinh ra. Nếu hệ thống đoán lỗi rồi đi giải 
+thích một lỗi học sinh không hề mắc thì nó còn tệ hơn im lặng: em vừa mất thời gian, vừa được dạy sai chỗ.
+
+Vì vậy, mỗi phương án sai phải mang theo lỗi mà nó đại diện, và được soạn cùng câu hỏi
+chứ không suy ra lúc chấm. 
+
+Hai luật đi kèm:
+
+\begin{itemize}
+  \item Mỗi câu hỏi phải mang theo lời giải có nhiều hơn một cách làm. 
+  \item Số phương án không cố định. Một câu có thể có ba, bốn hay năm lựa chọn tuỳ từng câu,
+        nhưng chỉ đúng một lựa chọn là đáp án đúng. Mọi phương án còn lại đều là nhiễu, nên đều
+        phải có lỗi gắn kèm.
+\end{itemize}
+
+\section{Tạo câu hỏi mới dựa trên câu làm sai}
+\label{sec:ba-vong}
+
+\emph{Bước 6 và 7 của hình~\ref{fig:vong-hoc}}
+
+Khi học sinh sai câu 3, hệ thống sinh câu 3\`, gọi là câu biến thể. Thứ cần chữa là một lỗi cụ thể vừa xảy ra, không phải một chủ đề.
+
+Câu biến thể giữ nguyên dạng đề và cách làm, chỉ đổi dữ kiện, con số và cách hỏi. Đó là cách duy
+nhất kiểm được rằng học sinh đã sửa đúng chỗ mình sai, chứ không phải chỉ nhớ được đáp án.
+
+\section{Thang điểm}
+\label{sec:thang-diem}
+
+\emph{Bước 8 của hình~\ref{fig:vong-hoc}.}
+
+\begin{table}[htbp]
+\centering
+\caption{Ba mức điểm của một câu hỏi}
+\label{tab:thang-ba-muc}
+\begin{tabular}{@{}cl@{}}
+\toprule
+\textbf{Điểm} & \textbf{Nghĩa} \\
+\midrule
+1   & Đúng ngay ở giai đoạn 1 \\
+0,5 & Sai ở giai đoạn 1 nhưng chữa được ở giai đoạn 2 \\
+0   & Sai và không chữa được \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ba mức thay vì hai, vì hai mức sẽ biến việc chữa bài thành công việc không được có ý nghĩa. Một học
+sinh sửa được lỗi của mình đã học đúng thứ mà bài kiểm tra muốn dạy, và mức giữa là chỗ duy nhất ghi
+nhận điều đó. Vì vậy giai đoạn 2 chỉ cộng chứ không bao giờ trừ: điểm tính ngay sau khi nộp là sàn.
+
+\section{Giáo viên đưa ra quyết định ở đâu?}
+\label{sec:ba-cong}
+
+\emph{Bước 1 của hình~\ref{fig:vong-hoc}.}
+
+Với nội dung đề, trợ lí viết còn giáo viên quyết nội dung đó có đến tay học sinh hay không. 
+Giáo viên bắt buộc tham gia ở ba điểm, hai ở đầu ra và một ở đầu vào:
+
+\begin{enumerate}
+  \item Duyệt đề trước khi phát hành (đầu ra).
+  \item Trợ lí hỏi lại khi chưa đủ thông tin, thay vì tự đoán (đầu vào).
+\end{enumerate}
