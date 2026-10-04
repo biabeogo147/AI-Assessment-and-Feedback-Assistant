@@ -226,6 +226,50 @@ Nên bề rộng của hình khổ ngang là `\linewidth`, và trần chiều ca
 Lấy `\textheight` làm bề rộng — cái tên nghe có vẻ đúng, và đó là thứ tôi viết lần đầu — cho
 ra hình hẹp hơn đáng có 37%, mà vẫn build sạch không một cảnh báo. Chỉ nhìn trang in mới thấy.
 
+## Bìa
+
+Báo cáo nộp cho môn **Project III**, **làm cá nhân**, giảng viên hướng dẫn **Vũ Văn Thiệu**,
+Đại học Bách khoa Hà Nội. Bìa dựng theo khuôn một báo cáo môn khác người dùng đưa ngày
+2026-10-04: logo trường, tên môn, tên đề tài, rồi bảng họ tên kèm mã số sinh viên.
+
+Mẫu được đưa là báo cáo **nhóm năm người** của môn khác, nên đừng chép danh sách thành viên
+trong mẫu sang. Hai macro `\tensinhvien` và `\mssv` trong `report.tex` đang **để trống** vì chưa
+biết, và cả bảng tự ẩn khi chúng rỗng — bìa vẫn ra gọn, không có dòng tiêu đề treo trên một hàng
+rỗng. Điền hai dòng đó là xong bìa.
+
+## Sơ đồ thứ sáu: `vong-hoc.drawio`
+
+Mục 2.1 cần một bức tranh toàn cảnh để các mục sau tham chiếu về. `activity-overview` đã là bức
+tranh ấy nhưng dày, có nhánh rẽ và ô quyết định, nên nặng cho một mục mở đầu chương. Người dùng
+chốt: **vẽ sơ đồ mới, nhưng phải nói rõ quan hệ của nó với Activity Overview** để người đọc nối
+được hai hình.
+
+Rủi ro có thật và không có công cụ nào bắt: hai sơ đồ cùng mô tả một vòng thì lệch nhau được, mà
+check thứ mười chỉ so hình với `.drawio` sinh ra nó chứ không so hai sơ đồ với nhau. Ba thứ dùng
+để ghìm:
+
+- Sơ đồ mới dùng **đúng bộ màu của `activity-overview`** với đúng nghĩa ấy — `#e7f5ff/#1971c2`
+  Teacher, `#ebfbee/#2b8a3e` Student, `#fff4e6/#e67700` hệ thống, `#f1f3f5/#495057` điểm đã chốt.
+  Mã màu lấy từ chính file gốc, không tự chọn.
+- Tiêu đề in ngay trong hình nói nó là *bản rút gọn của Activity Overview*.
+- Một đoạn ở **đầu chương 4**, và dòng mô tả trong `project-overview.md`, nói ra quan hệ ấy.
+
+Chỗ đặt đoạn giải thích quan hệ là một quyết định, không phải chuyện tiện tay: nó nằm ở đầu
+chương 4 chứ không phải ở mục 2.1, vì đó là chỗ người đọc **vừa nhìn thấy hình thứ hai**. Đặt ở
+2.1 thì phải so sánh với một hình còn cách đó mười lăm trang. Và nó là một đoạn văn, không phải
+một mục có số — một đầu mục cho việc đối chiếu hai hình là nặng hơn mức việc ấy đáng có.
+
+Cấu trúc chương 2 đi kèm: bảng tra *bước → mục* ở 2.1.1, và mỗi mục 2.2–2.6 mở đầu bằng một dòng
+nói nó phóng to bước nào của hình 2.1.
+
+`project-overview.md` phải trỏ tới sơ đồ mới, vì `AGENTS.md` buộc mỗi `.drawio` được ít nhất một
+file Markdown tham chiếu — report là `.tex` nên không tính.
+
+**Không bao giờ sinh lại `sources.json` trong `.\dev.ps1 report`.** Làm vậy thì manifest luôn
+khớp và check thứ mười thành một phép kiểm không bao giờ đỏ. Nó phải được cập nhật bằng một bước
+riêng, có ý thức. Luật này đã tự chứng minh hai lần trong lúc làm: check đỏ khi sơ đồ mới chưa có
+hình, và đỏ lần nữa khi sửa sơ đồ rồi xuất lại hình mà quên cập nhật hash.
+
 ## Review sau mỗi đợt chương
 
 Mỗi task viết chương — Task 4, 5, 6, 7 — kết thúc bằng **một subagent review**, trước khi
