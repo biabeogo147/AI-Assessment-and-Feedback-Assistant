@@ -1,0 +1,89 @@
+% Báo cáo đồ án môn học cho project Kriky.
+%
+% Build: .\dev.ps1 report   (chạy latexmk -xelatex, xem dev.ps1)
+% Đừng gọi pdflatex -- lý do ở comment đầu preamble.tex.
+
+\documentclass[12pt,a4paper,oneside]{report}
+
+\input{preamble}
+
+% Bốn thông tin chỉ chủ nhân báo cáo biết. Bìa in một dòng chỉ khi dòng đó có chữ, nên để
+% trống vẫn build ra một bìa gọn -- không có chỗ nào hiện ra chữ "TODO".
+\newcommand{\tentruong}{ĐẠI HỌC BÁCH KHOA HÀ NỘI}
+\newcommand{\tenkhoa}{}
+\newcommand{\tenmonhoc}{}
+\newcommand{\tengiangvien}{}
+
+\newcommand{\tentacgia}{biabeogo147}
+\newcommand{\linkrepo}{https://github.com/biabeogo147/AI-Assessment-and-Feedback-Assistant}
+
+% In một dòng bìa, và bỏ qua nếu nội dung rỗng.
+%
+% Dùng \ifdefempty của etoolbox chứ không phải phép thử `\ifx\relax#2\relax` quen thuộc: ở
+% đây #2 luôn là **một macro** như \tengiangvien, nên phép thử ấy so chính cái token đó với
+% \relax, thấy khác, và in dòng ra kể cả khi macro rỗng. Lỗi ấy đã xảy ra thật -- bìa in
+% "Giảng viên hướng dẫn:" treo lơ lửng không có tên -- và chỉ lộ ra khi nhìn trang in.
+% Nhóm \begingroup...\endgroup là bắt buộc, không phải thói quen: tham số thứ ba của
+% \ifdefempty chạy **không có nhóm**, nên một \bfseries hay \scshape truyền vào #1 sẽ rò ra
+% và nhuộm hết phần bìa còn lại. Đã xảy ra thật: cả tên đề tài lẫn ngày tháng cùng hoá đậm.
+\newcommand{\dongbia}[2]{%
+  \ifdefempty{#2}{}{\begingroup#1#2\par\endgroup}%
+}
+
+\begin{document}
+
+% polyglossia dịch sẵn phần lớn nhãn, nhưng nó gọi hai danh mục là "Danh sách". Quy ước của
+% một đồ án tiếng Việt là "Danh mục", nên sửa ở đây -- sau \begin{document}, vì polyglossia
+% nạp bộ nhãn của nó lúc tài liệu bắt đầu và sẽ ghi đè một \renewcommand đặt trong preamble.
+\renewcommand{\listfigurename}{Danh mục hình vẽ}
+\renewcommand{\listtablename}{Danh mục bảng}
+
+\begin{titlepage}
+\centering
+\vspace*{0.5cm}
+
+\includegraphics[height=3.2cm]{Logo_DHBK_HN.png}\par
+\vspace{0.6cm}
+
+\dongbia{\large\bfseries}{\tentruong}
+\dongbia{\large}{\tenkhoa}
+
+\vfill
+
+{\scshape\large Báo cáo đồ án môn học\par}
+\vspace{0.4cm}
+\dongbia{\large}{\tenmonhoc}
+
+\vspace{1.6cm}
+{\Huge\bfseries Kriky\par}
+\vspace{0.6cm}
+{\LARGE Trợ lí ra đề và chữa bài\par}
+\vspace{0.4cm}
+{\large Ý tưởng, luồng nghiệp vụ và kiến trúc\par}
+
+\vfill
+
+{\large Tác giả: \tentacgia\par}
+\dongbia{\large Giảng viên hướng dẫn: }{\tengiangvien}
+
+\vspace{0.8cm}
+{\small Mã nguồn: \url{\linkrepo}\par}
+
+\vspace{0.6cm}
+{\large\today\par}
+
+\end{titlepage}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\input{chapters/01-dat-van-de}
+\input{chapters/02-y-tuong}
+\input{chapters/03-actor-va-khai-niem}
+\input{chapters/04-luong-nghiep-vu}
+\input{chapters/05-use-case}
+\input{chapters/06-quyet-dinh-nghiep-vu}
+\input{chapters/07-kien-truc-va-du-lieu}
+
+\end{document}

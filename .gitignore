@@ -62,3 +62,15 @@ vite.config.ts.timestamp-*
 .cache/
 tmp/
 temp/
+
+# LaTeX (docs/report)
+*.aux
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+*.toc
+*.xdv
+docs/report/*.log

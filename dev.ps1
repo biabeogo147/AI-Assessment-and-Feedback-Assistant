@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'agent', 'fe', 'test', 'check', 'typecheck', 'fmt', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'agent', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'help')]
     [string]$Task = 'help'
 )
 
@@ -121,6 +121,16 @@ switch ($Task) {
         Invoke-Step 'ruff fix' { & $Python -m ruff check --fix $RepoRoot }
     }
 
+    'report' {
+        # XeLaTeX, không phải pdfLaTeX: báo cáo là tiếng Việt. `-cd` bắt latexmk chuyển vào
+        # thư mục của file, nhờ đó \input{preamble} và \graphicspath{{figures/}} giải được, và
+        # mọi file phụ nằm gọn trong docs/report thay vì rải ra gốc repo.
+        Invoke-Step 'latexmk' {
+            & latexmk -xelatex -cd -interaction=nonstopmode -halt-on-error `
+                "$RepoRoot\docs\report\report.tex"
+        }
+    }
+
     default {
         Write-Host @'
 Usage: .\dev.ps1 <task>
@@ -136,6 +146,7 @@ Usage: .\dev.ps1 <task>
   typecheck    Run tsc over the frontend without building
   check        Run ruff, the import boundary check and the repo contract checks
   fmt          Format and autofix
+  report       Build docs/report/report.pdf with XeLaTeX
 
 First run in a session may need:
   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass

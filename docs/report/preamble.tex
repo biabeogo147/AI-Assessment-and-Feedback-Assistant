@@ -1,0 +1,51 @@
+% Preamble của báo cáo. Nạp bởi report.tex, không tự biên dịch được.
+%
+% BẮT BUỘC dùng XeLaTeX, không phải pdfLaTeX. Lý do nằm ở decision record trong
+% docs/plans/active/2026-10-04-bao-cao-latex-plan.md: tiếng Việt cần Unicode đầy đủ và một
+% font có đủ dấu tổ hợp, mà đường encoding 8-bit của pdfLaTeX vỡ ngay khi gặp một ký tự
+% ngoài bảng mã.
+%
+% Font hệ thống mà bản build cần: Times New Roman (chữ) và Consolas (mã). Cả hai có sẵn trên
+% Windows. Trên máy không có chúng, XeLaTeX sẽ dừng với lỗi "cannot find font" -- khi đó đổi
+% hai dòng \setmainfont và \setmonofont bên dưới, đừng đổi gì khác.
+
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{vietnamese}
+\setmainfont{Times New Roman}
+\setmonofont{Consolas}[Scale=0.88]
+
+\usepackage[a4paper,inner=3cm,outer=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+
+% polyglossia khai báo tiếng Việt là `nohyphenation`, và đúng như vậy: tiếng Việt không ngắt
+% âm tiết bằng gạch nối. Hệ quả là TeX mất hẳn công cụ chính để chỉnh một dòng quá dài, nên
+% văn bản tiếng Việt không nới gì sẽ đầy overfull hbox -- chữ tràn ra ngoài lề phải. Hai dòng
+% dưới trả lại cho nó chỗ co giãn ở khoảng trắng giữa từ.
+\setlength{\emergencystretch}{3em}
+\tolerance=2000
+
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+% Trang ngang cho các sơ đồ dày. Kích thước bên trong \begin{landscape}, đo bằng \typeout
+% chứ không suy ra: \textwidth giữ nguyên 441pt, \textheight bị gán **thành** 441pt, và thứ
+% rộng 702,8pt là \linewidth. Nên bề rộng hình khổ ngang là `width=\linewidth`, còn trần
+% chiều cao là `height=\textheight`. Dùng \textheight làm bề rộng -- cái tên nghe có vẻ
+% đúng -- cho ra hình hẹp hơn đáng có 37%.
+\usepackage{pdflscape}
+\usepackage{etoolbox}           % \ifdefempty, dùng cho các dòng bìa có thể để trống
+\usepackage[font=small,labelfont=bf]{caption}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}          % bảng 13 bảng dữ liệu ở chương 7 vắt qua trang
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+
+\usepackage[unicode,hidelinks]{hyperref}
+\hypersetup{
+  pdftitle={Kriky — Trợ lí ra đề và chữa bài},
+  pdflang={vi},
+}
+
+% Một cột hẹp cố định, căn trên, dùng cho cột đầu của các bảng tra ở chương 5 và 7.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
