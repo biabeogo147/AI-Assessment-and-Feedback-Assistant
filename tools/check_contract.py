@@ -10,7 +10,9 @@ hai phía chính là toàn bộ công việc của nó. Không đoạn code nào
 
 from __future__ import annotations
 
+import hashlib
 import io
+import json
 import re
 import sys
 import tokenize
@@ -74,7 +76,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # không phải phần phụ của một plan rồi chết theo plan -- và một file ở gốc `docs/`
 # không có chủ là đúng loại drift mà bảng ấy tồn tại để chặn. Decision record nằm ở
 # 2026-10-03-bay-cai-tien-plan.md.
-AGENTS_MD_MAX_LINES = 179
+#
+# 181: hơn con số 179 bên trên hai dòng, mua ngày 2026-10-04 bởi báo cáo đồ án ở
+# `docs/report/`. Hai dòng ấy là một hàng ownership và một hàng invariant, và chúng mua hai
+# thứ khác nhau. Hàng ownership tồn tại vì `docs/report/` là thư mục đầu tiên dưới `docs/`
+# chứa **sản phẩm sinh ra từ** một thư mục khác: hình trong đó là bản xuất của
+# `docs/diagrams/`, nên không có chủ thì sẽ có người sửa hình thay vì sửa sơ đồ. Hàng
+# invariant tồn tại vì luật mới ấy có một chỗ thi hành thật, và bảng Invariants là chỉ mục
+# của những chỗ thi hành -- một luật không được nêu ở đó thì không ai biết để trông. Dòng
+# Validation của `.drawio` thì được **sửa** chứ không thêm, nên nó không tốn gì. Decision
+# record nằm ở 2026-10-04-bao-cao-latex-plan.md.
+AGENTS_MD_MAX_LINES = 181
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -562,6 +574,75 @@ def check_the_form_fills_the_slots_the_wording_declares() -> str | None:
     return None
 
 
+def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
+    """Mỗi hình trong báo cáo phải được xuất lại từ `.drawio` hiện tại, không phải bản cũ.
+
+    `AGENTS.md` để `.drawio` làm source of truth cho mọi diagram, nên báo cáo LaTeX không vẽ
+    lại sơ đồ mà nhúng hình **xuất ra** từ chúng. Bước xuất ấy là một lệnh riêng, chạy tay:
+    không có gì buộc nó chạy lại sau khi một sơ đồ đổi.
+
+    Không có check này thì sửa một `.drawio` là một thay đổi **xanh hết mọi lưới**: XML vẫn
+    parse, `tsc` và pytest không biết `docs/` tồn tại, và báo cáo vẫn build ra PDF -- chỉ là
+    nó in bản hình cũ. Người đọc không có cách nào biết, kể cả người viết. Nên lưới ở đây là
+    một manifest ghi sha256 của `.drawio` tại thời điểm xuất, và phép so lại chính nó.
+
+    Tên hàm cố ý không có chữ `report`: `check_the_report_is_a_job_of_its_own` ở trên nói về
+    báo cáo của agent trong ADR-25, một thứ khác hẳn.
+
+    Returns:
+        None khi mọi hình khớp sơ đồ của nó, ngược lại là một thông báo thất bại.
+    """
+    diagrams = REPO_ROOT / "docs" / "diagrams"
+    figures = REPO_ROOT / "docs" / "report" / "figures"
+    manifest_path = figures / "sources.json"
+
+    if not manifest_path.exists():
+        return _fail("report-figures", f"{manifest_path} is missing; no figure can be trusted")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as broken:
+        return _fail("report-figures", f"sources.json does not parse: {broken}")
+
+    if not isinstance(manifest, dict) or not manifest:
+        return _fail("report-figures", "sources.json must be a non-empty object keyed by figure")
+
+    problems: list[str] = []
+    accounted: set[str] = set()
+
+    for figure, entry in sorted(manifest.items()):
+        if not isinstance(entry, dict) or "source" not in entry or "sha256" not in entry:
+            problems.append(f"{figure}: entry needs both 'source' and 'sha256'")
+            continue
+
+        source = REPO_ROOT / entry["source"]
+        if not source.exists():
+            problems.append(f"{figure}: source {entry['source']} does not exist")
+            continue
+        accounted.add(entry["source"].replace("\\", "/"))
+
+        if not (figures / figure).exists():
+            problems.append(f"{figure}: named in sources.json but the file is gone")
+            continue
+
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        if digest != entry["sha256"]:
+            problems.append(
+                f"{figure}: {entry['source']} changed since it was exported -- re-export it"
+            )
+
+    # Chiều ngược lại, và đây là chiều dễ quên: thêm một sơ đồ mới mà không xuất hình thì
+    # không hash nào lệch, vì không có entry nào để lệch cả.
+    for diagram in sorted(diagrams.glob("*.drawio")):
+        relative = diagram.relative_to(REPO_ROOT).as_posix()
+        if relative not in accounted:
+            problems.append(f"{relative}: no figure in the report was exported from it")
+
+    if problems:
+        return _fail("report-figures", "\n      ".join(problems))
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
@@ -572,6 +653,7 @@ CHECKS = (
     check_invented_data_lives_in_one_file,
     check_the_report_is_a_job_of_its_own,
     check_the_form_fills_the_slots_the_wording_declares,
+    check_every_figure_matches_the_diagram_it_came_from,
 )
 
 

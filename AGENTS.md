@@ -25,6 +25,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `docs/overview/architecture.md` | Services, communication, boundaries, service naming |
 | `docs/overview/data-model.md` | The database schema and why it is shaped that way |
 | `docs/diagrams/*.drawio` | Every diagram, as source of truth |
+| `docs/report/` | The course report, and the figures exported from `docs/diagrams/` |
 | `docs/decisions/` | Records business rules. They outlive every plan |
 | `docs/plans/` | Plans, their technical decision records, and `backlog.md` for deferred work |
 | `docs/raw-idea/` | Historical input only. Never cite as current truth |
@@ -48,6 +49,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | A whole AGENT job times out before the job waiting on it does | automatic: `tools/check_contract.py` |
 | Teacher approves an assessment before release | automatic: `test_an_unapproved_assessment_cannot_be_published_over_http` |
 | The options in a clarifying question are written by BE from rows it read | automatic: `test_the_options_are_written_by_be_not_by_the_model` |
+| Every report figure was exported from the current `.drawio` | automatic: `tools/check_contract.py` |
 | No agent tool changes an assessment's state | automatic: `tools/check_contract.py` |
 | Invented screen data stays in its one self-accusing module | automatic: `tools/check_contract.py` |
 | An empty assessment is never approved | automatic: `test_an_empty_assessment_cannot_be_approved` |
@@ -145,7 +147,7 @@ in the language's native style — Python docstrings, JSDoc for TypeScript. `dec
 | Any frontend file | `.\dev.ps1 test` and `.\dev.ps1 typecheck` |
 | `packages/contracts` | Both of the above; it affects BE and AGENT alike |
 | `import-linter`, pre-commit, or a build backend | The boundary probe below, in addition |
-| A `.drawio` file | Confirm it still parses as XML |
+| A `.drawio` file | Confirm it parses as XML, re-export its figure, then `.\dev.ps1 report` |
 | A Markdown file | Confirm it is non-empty and its internal links resolve |
 
 Record any check you could not run, and why. Never claim work is complete on an unrun check.
