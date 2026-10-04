@@ -18,5 +18,9 @@
   "use-case.pdf": {
     "source": "docs/diagrams/use-case.drawio",
     "sha256": "0556ffc943d4b59d8789507c1349e202975a066641a94f64312328251ed5ff85"
+  },
+  "vong-hoc.pdf": {
+    "source": "docs/diagrams/vong-hoc.drawio",
+    "sha256": "ae5b54bc0aca41497713358d9b25b30c4a5577657dbc9c8ba3d755dddf9b55e3"
   }
 }

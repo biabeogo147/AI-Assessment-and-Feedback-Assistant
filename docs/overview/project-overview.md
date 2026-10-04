@@ -10,6 +10,9 @@ Diagram liên quan:
 
 - [Use Case Diagram](../diagrams/use-case.drawio)
 - [Domain Context Diagram](../diagrams/domain-context.drawio)
+- [Vòng học khép kín](../diagrams/vong-hoc.drawio) — tám bước ở mục *Tóm tắt project* vẽ thành
+  hình. Là **bản rút gọn** của [Activity Overview](../diagrams/activity-overview.drawio): cùng
+  một vòng, bỏ nhánh rẽ và ô quyết định, giữ đúng tám bước và đánh số để tham chiếu được.
 
 ## Tóm tắt project
 
