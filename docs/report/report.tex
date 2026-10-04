@@ -7,14 +7,16 @@
 
 \input{preamble}
 
-% Bốn thông tin chỉ chủ nhân báo cáo biết. Bìa in một dòng chỉ khi dòng đó có chữ, nên để
-% trống vẫn build ra một bìa gọn -- không có chỗ nào hiện ra chữ "TODO".
+% Thông tin bìa. Bìa in một dòng chỉ khi dòng đó có chữ, nên để trống vẫn build ra một bìa
+% gọn -- không có chỗ nào hiện ra chữ "TODO".
+%
+% \tensinhvien và \mssv còn trống vì chỉ chủ nhân báo cáo biết. Điền hai dòng đó là xong bìa.
 \newcommand{\tentruong}{ĐẠI HỌC BÁCH KHOA HÀ NỘI}
 \newcommand{\tenkhoa}{}
-\newcommand{\tenmonhoc}{}
-\newcommand{\tengiangvien}{}
-
-\newcommand{\tentacgia}{biabeogo147}
+\newcommand{\tenmonhoc}{Project III}
+\newcommand{\tengiangvien}{Vũ Văn Thiệu}
+\newcommand{\tensinhvien}{Lê Nguyễn Phước Thành}
+\newcommand{\mssv}{20235561}
 \newcommand{\linkrepo}{https://github.com/biabeogo147/AI-Assessment-and-Feedback-Assistant}
 
 % In một dòng bìa, và bỏ qua nếu nội dung rỗng.
@@ -38,41 +40,51 @@
 \renewcommand{\listfigurename}{Danh mục hình vẽ}
 \renewcommand{\listtablename}{Danh mục bảng}
 
+\hypersetup{pageanchor=false}
 \begin{titlepage}
 \centering
-\vspace*{0.5cm}
+\vspace*{0.4cm}
 
-\includegraphics[height=3.2cm]{Logo_DHBK_HN.png}\par
-\vspace{0.6cm}
-
+% Khối một: trường.
 \dongbia{\large\bfseries}{\tentruong}
 \dongbia{\large}{\tenkhoa}
 
+\vspace{1.1cm}
+\includegraphics[width=0.5\textwidth]{Logo_DHBK_HN.png}\par
+
 \vfill
 
-{\scshape\large Báo cáo đồ án môn học\par}
-\vspace{0.4cm}
-\dongbia{\large}{\tenmonhoc}
+% Khối hai: loại tài liệu, rồi tên đề tài đóng giữa hai vạch mảnh. Đây là tâm điểm của bìa,
+% nên nó là thứ duy nhất được đóng khung.
+{\large\bfseries \MakeUppercase{\tenmonhoc}\par}
 
-\vspace{1.6cm}
+\vspace{0.9cm}
+\rule{\linewidth}{0.4pt}\par
+\vspace{0.75cm}
 {\Huge\bfseries Kriky\par}
-\vspace{0.6cm}
-{\LARGE Trợ lí ra đề và chữa bài\par}
-\vspace{0.4cm}
-{\large Ý tưởng, luồng nghiệp vụ và kiến trúc\par}
+\vspace{0.45cm}
+{\LARGE Trợ lí hỗ trợ giáo viên ra đề và chữa bài\par}
+\vspace{0.75cm}
+\rule{\linewidth}{0.4pt}\par
 
 \vfill
 
-{\large Tác giả: \tentacgia\par}
-\dongbia{\large Giảng viên hướng dẫn: }{\tengiangvien}
+% Khối ba: hai dòng thông tin, dấu hai chấm thẳng hàng.
+%
+% Đây là chỗ `tabular` đúng việc: nó dựng một trục để căn hai nhãn có độ dài khác nhau. Căn
+% giữa từng dòng riêng lẻ thì không làm được, vì mỗi dòng có bề rộng khác nhau nên dấu hai
+% chấm sẽ lệch. Khác với cái bảng từng nằm ở đây và đã bỏ: cái đó có một dòng tiêu đề cột đặt
+% trên đúng một dòng dữ liệu, tức nghi thức không mua được gì.
+\large
+\begin{tabular}{@{}r@{\enspace}l@{}}
+  \textbf{Giảng viên hướng dẫn:} & \tengiangvien \\[0.4cm]
+  \textbf{Sinh viên thực hiện:}  & \tensinhvien{} -- \mssv \\
+\end{tabular}\par
 
-\vspace{0.8cm}
-{\small Mã nguồn: \url{\linkrepo}\par}
-
-\vspace{0.6cm}
-{\large\today\par}
+\vspace{0.4cm}
 
 \end{titlepage}
+\hypersetup{pageanchor=true}
 
 \tableofcontents
 \listoffigures
