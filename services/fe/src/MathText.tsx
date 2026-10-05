@@ -26,8 +26,13 @@ import { Fragment } from "react";
 /**
  * Bốn kiểu dấu: `$$…$$`, `$…$`, `\[…\]`, `\(…\)`. Cụm chặn đặt trước cụm thường.
  *
- * **Cùng một khuôn với `agent_gateway._MATH` ở BE.** Lệch nhau thì BE nói một câu hợp lệ
- * còn màn hình vẽ ra một thứ khác — và đó là chuyện đã đo được, không phải lo xa.
+ * **Khuôn này nay chỉ có một bản, và nó ở đây.** `agent_gateway._MATH` ở BE từng là bản
+ * thứ hai, và dòng này từng hứa hai bản khớp nhau — nhưng bản ấy đã bị xoá cùng với lưới
+ * kiểm cú pháp toán ở BE, nên lời hứa trỏ vào một symbol không còn tồn tại. Một tài liệu
+ * trỏ vào hư không còn tệ hơn không có tài liệu: nó mời người đọc đi tìm.
+ *
+ * Hệ quả của việc chỉ còn một bản: BE **không** phán xét chuỗi toán nữa, nên thứ quyết
+ * định một công thức có được dựng hình hay không là đúng cái regex dưới đây.
  *
  * Ba điều kiện quanh dấu `$`, mỗi cái mua bằng một ca hỏng:
  *

@@ -385,8 +385,13 @@ def validate_question(question: GeneratedQuestion) -> None:
 
     Raises:
         AgentError: Nếu câu hỏi có số phương án đúng khác đúng một, có một Distractor
-            không có error label, có ít hơn hai lời giải chi tiết, hoặc có công thức toán
-            nằm ngoài cặp `$`.
+            không có error label, hoặc có ít hơn hai lời giải chi tiết.
+
+    Note:
+        Dòng này từng kể thêm một ca thứ tư -- *"có công thức toán nằm ngoài cặp `$`"* --
+        và ca ấy đã bị gỡ cùng cả lưới toán (xem comment ở đầu module). Nó sống thêm một
+        đợt vì nằm cách comment gỡ lưới đúng mười lăm dòng: một hàm tự nói ngược chính nó
+        trong cùng một màn hình, và không ai đọc hai chỗ cùng lúc.
     """
     correct = [option for option in question.options if option.is_correct]
     if len(correct) != 1:

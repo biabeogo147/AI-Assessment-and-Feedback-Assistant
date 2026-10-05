@@ -646,3 +646,21 @@ Chưa làm vì xoá là thao tác **không đảo ngược được**, nên theo
 phải một tool — và nó cần ít nhất một hộp xác nhận. Nó cũng cần biết một đề `EMPTY` khác gì một đề
 giáo viên đang cố ý soạn dở: `created_at` cũ bao lâu thì được coi là rác là một quyết định về sản
 phẩm, không phải về code. Tác hại hiện tại chỉ là rác trong bảng, không ai thấy, nên nó chờ được.
+
+## Lỗi từ đợt khảo sát 05/10/2026 chưa làm
+
+Đợt khảo sát tìm 16 lỗi; tám món đã vào `2026-10-06-tam-loi-khao-sat-plan.md`. Tám món còn lại nằm
+đây, mỗi món kèm lý do nó chờ.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| `vet_plan` cho lọt một id là chuỗi số trần (`"1"` thay cho `{1.assessment_id}`) | Siết hợp đồng lập kế hoạch của agent — người dùng gạt ra ngoài đợt này |
+| `start_drafting` gọi thẳng không qua plan, bị ADR-25 từ chối, mất một lượt model | Cùng hợp đồng trên |
+| Model đánh dấu sai đáp án đúng, và đáp án đúng không nằm trong bốn phương án | Chất lượng model sinh ra; đường sửa đi qua prompt |
+| Model viết *"định thức"* cho một bài tích phân, và `\bigint` — một lệnh không có thật | Cùng trên |
+| Chip nguồn câu hỏi vẫn là chữ bịa (`invented-not-from-be.ts`) | Chờ BE có cột nguồn; nợ đã khai báo, có check giữ nó ở một file |
+
+Đã làm trong đợt này nhưng đáng ghi lại vì nó mở rộng phạm vi ADR-26: chữ Kriky nói trong khung chat
+(`propose.py` → `_Proposal.text` → `MathText`) đi **cùng một ống JSON** với đề bài, và trước đợt này
+không chỗ nào sửa. Check `escape-repair-is-wired-in` nay tự tìm mọi chỗ gọi `with_structured_output`
+trong `graphs/`, nên một graph mới quên nối dây sẽ làm build đỏ thay vì im lặng.

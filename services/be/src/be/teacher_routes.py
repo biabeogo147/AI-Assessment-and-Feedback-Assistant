@@ -1470,7 +1470,8 @@ async def edit_question(
     chính cái khoá đó là lý do việc duyệt có nghĩa; đường mở lại là *Hoàn tác* ở chân panel.
 
     **Và một câu sửa tay phải qua đúng cái lưới mà một câu model viết phải qua.** Cùng một
-    `validate_question` (ADR-18 + luật toán trong cặp `$`), không phải một bản kiểm thứ hai
+    `validate_question` -- nay chỉ còn ADR-18, vì lưới cú pháp toán đã bị gỡ: chữ sai cú
+    pháp đi thẳng tới giáo viên để họ sửa tay, chứ không bị chặn. Không phải một bản kiểm thứ hai
     viết riêng cho đường này — hai bản kiểm của cùng một luật là hai thứ chờ lệch nhau, và
     bản lỏng hơn sẽ là bản người ta đi qua.
 
@@ -1486,8 +1487,8 @@ async def edit_question(
 
     Raises:
         HTTPException: 404 khi đề hoặc câu không tồn tại, hoặc thuộc về người khác (ADR-22);
-            409 khi đề đã khoá nội dung; 422 khi câu sửa xong vi phạm ADR-18 hoặc có công
-            thức toán nằm ngoài cặp `$`.
+            409 khi đề đã khoá nội dung, hoặc câu đã có người trả lời; 422 khi câu sửa xong
+            vi phạm ADR-18. Cú pháp toán **không** nằm trong danh sách này: lưới ấy đã bị gỡ.
 
     Side effects:
         Thay chữ của câu, thay cả bộ phương án và bộ lời giải, rồi commit.
