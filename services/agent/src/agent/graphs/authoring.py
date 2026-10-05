@@ -24,6 +24,7 @@ from langgraph.graph import END, StateGraph
 
 from agent import llm
 from agent.config import get_settings
+from agent.latex_escapes import restore_latex_escapes
 from contracts import DraftQuestionRequested, GeneratedQuestion, RetryQuestionRequested
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,58 @@ def _faults(question: GeneratedQuestion, banned: frozenset[str]) -> list[str]:
     return faults
 
 
+def _unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
+    r"""Trả lại dấu gạch chéo mà bộ giải mã JSON đã nuốt của mọi chữ trong một câu hỏi.
+
+    **Đây là chỗ duy nhất việc này được làm, và nó nằm ở đây chứ không ở `contracts` vì
+    một lý do đo được.** `be/teacher_routes.py` dựng lại chính `GeneratedQuestion` để
+    kiểm tra đường PATCH của giáo viên; một validator đặt ở tầng contract sẽ sửa luôn
+    chữ **giáo viên tự gõ** -- thứ không ai nhờ, và là một bề mặt đoán mò đặt đúng vào
+    cổng người của ADR-05. Hỏng hóc sinh ra ở ranh giới structured-output, nên nó được
+    chữa ở đúng ranh giới ấy.
+
+    Chạy **trước** `_check`, nên mọi lời phàn nàn gửi lại cho model nói về chữ thật nó
+    viết, không nói về chữ đã bị JSON cắt xén.
+
+    Args:
+        question: Thứ model vừa viết, ngay sau khi qua bộ giải mã JSON.
+
+    Returns:
+        Một bản mới với mọi field chữ đã dựng lại. `GeneratedQuestion` là `frozen=True`.
+    """
+    return question.model_copy(
+        update={
+            "stem": restore_latex_escapes(question.stem),
+            # `learning_objective` dễ bị quên vì giáo viên không nhìn thấy nó, và chính vì
+            # thế nó là field **cần** nhất ở đây: form sửa không có ô nào cho nó, nên nếu
+            # hỏng thì không ai sửa được bằng tay. Nó đi vào báo cáo (ADR-17).
+            "learning_objective": restore_latex_escapes(question.learning_objective),
+            "options": tuple(
+                option.model_copy(
+                    update={
+                        "text": restore_latex_escapes(option.text),
+                        "error_label": (
+                            None
+                            if option.error_label is None
+                            else restore_latex_escapes(option.error_label)
+                        ),
+                    }
+                )
+                for option in question.options
+            ),
+            "methods": tuple(
+                method.model_copy(
+                    update={
+                        "title": restore_latex_escapes(method.title),
+                        "body": restore_latex_escapes(method.body),
+                    }
+                )
+                for method in question.methods
+            ),
+        }
+    )
+
+
 async def _write(state: WriteState) -> dict:
     """Hỏi model một câu hỏi, kèm theo chuyện lần trước đã sai ở đâu.
 
@@ -136,7 +189,7 @@ async def _write(state: WriteState) -> dict:
 
     model = llm.with_fallback(lambda chat: chat.with_structured_output(GeneratedQuestion))
     question = await model.ainvoke(messages)
-    return {"question": question, "attempts": state["attempts"] + 1}
+    return {"question": _unmangled(question), "attempts": state["attempts"] + 1}
 
 
 def _check(state: WriteState) -> dict:

@@ -451,3 +451,35 @@ async def test_the_prompt_calls_the_two_catalogs_by_the_names_it_uses_for_them(
     prompt = model.prompts[0].lower()
     assert prompt.count("tool dùng ngay") >= 2
     assert prompt.count("tool nêu được trong plan") >= 2
+
+
+@pytest.mark.asyncio
+async def test_json_an_mat_dau_gach_cheo_trong_loi_kriky_noi(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    r"""Chữ Kriky nói trong khung chat đi qua cùng bộ sửa như chữ của đề bài.
+
+    `authoring` không phải ống structured-output duy nhất. `_Proposal.text` cũng ra từ
+    `with_structured_output`, cũng qua cùng bộ giải mã JSON, và cũng kết thúc trong
+    `MathText` -- `Chat.tsx` dựng hình nó ở năm chỗ. Nên Kriky giải thích một công thức
+    thì `rac` thành form-feed y hệt, rồi dấu đô la lọt ra màn hình (ADR-26).
+
+    Thiếu test này thì check `escape-repair-is-wired-in` là nơi thi hành duy nhất, mà một
+    check đọc cây cú pháp chỉ nói được *có gọi hay không*, không nói được *gọi có đúng
+    field hay không*.
+    """
+    model = Scripted(
+        [
+            _Proposal(
+                kind="plan",
+                text="Mình tính $\x0crac{1}{2} \x09imes 4$ nhé.",
+                steps=(_Step(tool_name="create_draft", title="Tạo đề $\x0crac{1}{3}$"),),
+            )
+        ]
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("tính giúp mình"))
+
+    assert step.text == r"Mình tính $\frac{1}{2} \times 4$ nhé."
+    assert step.steps[0].title == r"Tạo đề $\frac{1}{3}$"

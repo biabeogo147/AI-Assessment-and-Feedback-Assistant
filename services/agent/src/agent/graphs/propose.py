@@ -35,6 +35,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ConfigDict
 
 from agent import llm
+from agent.latex_escapes import restore_latex_escapes
 from contracts import NextStepCompleted, NextStepRequested, PlanStep, ToolSpec, TurnRecord
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,39 @@ class _Step(BaseModel):
     tool_name: str
     args: tuple[_Argument, ...] = ()
     title: str
+
+
+def _unmangled(proposal: "_Proposal") -> "_Proposal":
+    r"""Trả lại dấu gạch chéo mà bộ giải mã JSON đã nuốt của lời model nói.
+
+    **Chỗ thứ hai, cùng một hỏng hóc.** `authoring` không phải ống structured-output duy
+    nhất: `_Proposal.text` cũng ra từ `with_structured_output`, cũng đi qua cùng bộ giải mã
+    JSON, và cũng kết thúc trong `<MathText>` -- `Chat.tsx` dựng hình nó ở năm chỗ
+    (`block.said`, `live.opening`, `live.report`, `said.opening`, `said.conclusion`).
+
+    Nghĩa là Kriky giải thích một công thức trong khung chat thì `\frac` thành form-feed y
+    hệt, rồi luật pandoc `\$(?![\s$])` từ chối nhận cả cụm là toán và dấu đô la lọt ra màn
+    hình. Cùng nguyên nhân, cùng hậu quả, cùng người nhìn thấy (ADR-26).
+
+    `title` của mỗi bước plan cũng đi qua: nó hiện trong khối bước ngay dưới câu Kriky nói.
+    `tool_name` và `args` thì **không** -- chúng là identifier và giá trị, không phải chữ
+    cho người đọc, và một dấu gạch chéo mọc thêm trong đó là một id hỏng.
+
+    Args:
+        proposal: Thứ model vừa trả lời, ngay sau khi qua bộ giải mã JSON.
+
+    Returns:
+        Một bản mới với mọi chữ dành cho người đọc đã dựng lại.
+    """
+    return proposal.model_copy(
+        update={
+            "text": restore_latex_escapes(proposal.text),
+            "steps": tuple(
+                step.model_copy(update={"title": restore_latex_escapes(step.title)})
+                for step in proposal.steps
+            ),
+        }
+    )
 
 
 class _Proposal(BaseModel):
@@ -386,7 +420,7 @@ async def _choose(state: ProposeState) -> dict:
 
     # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
-    return {"step": proposal.completed(request_id="", model_tokens=spent)}
+    return {"step": _unmangled(proposal).completed(request_id="", model_tokens=spent)}
 
 
 def _build() -> object:

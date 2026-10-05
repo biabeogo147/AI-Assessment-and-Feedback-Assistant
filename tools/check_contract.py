@@ -10,6 +10,7 @@ hai phía chính là toàn bộ công việc của nó. Không đoạn code nào
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import io
 import json
@@ -643,6 +644,78 @@ def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
     return None
 
 
+def check_the_model_text_passes_through_the_escape_repair() -> str | None:
+    r"""Chữ model vừa viết phải đi qua bộ dựng lại dấu gạch chéo trước khi đi tiếp.
+
+    JSON có đúng tám escape hợp lệ, và `\b \f \n \r \t` nằm trong đó. Model viết toán bằng LaTeX,
+    nên khi nó đặt `\frac` vào một chuỗi JSON mà không nhân đôi dấu gạch chéo, bộ giải mã đọc `\f`
+    thành form-feed và nuốt luôn chữ `f`. Đo được trên database ngày 05/10/2026: phương án A của
+    một câu vừa soạn là `24 0c 72 61 63 ...` -- `$` rồi `0x0C` rồi `rac`.
+
+    Hậu quả không dừng ở chỗ xấu mã. `0x0C` đứng ngay sau `$` **là khoảng trắng** theo `\s` của
+    regex, nên luật pandoc trong `MathText` từ chối nhận cả cụm là toán và dấu đô la lọt nguyên ra
+    màn hình giáo viên. Một hỏng hóc ở ranh giới JSON hiện ra như một lỗi hiển thị ở đầu kia của
+    hệ thống, cách đó ba service -- và đó là lý do nó tốn một buổi để tìm.
+
+    Thứ dễ mất không phải bản thân phép thay chữ: `test_latex_escapes.py` ghim nó kỹ. Thứ dễ mất là
+    **lời gọi** -- một lần dọn dẹp thấy `_unmangled` trông như một lớp bọc thừa và gỡ nó đi, rồi mọi
+    test của hàm vẫn xanh trong khi dữ liệu thật lại hỏng. Check này đứng ở đúng chỗ ấy.
+
+    **Hỏi bằng `ast` chứ không bằng grep**, và khác biệt ấy đo được: bản grep đầu tiên tìm chuỗi
+    `_unmangled(` trong file, mà chuỗi ấy khớp luôn với dòng `def _unmangled(` -- nên gỡ lời gọi đi
+    thì check vẫn xanh. Một luật không đỏ khi bị vi phạm thì không phải luật. Ở đây câu hỏi đúng là
+    *"thân hàm `_write` có một lời gọi tới `_unmangled` không"*, và chỉ cây cú pháp trả lời được.
+
+    Returns:
+        None khi lời gọi còn đó, ngược lại là một thông báo thất bại.
+    """
+    graphs = REPO_ROOT / "services" / "agent" / "src" / "agent" / "graphs"
+    repair = REPO_ROOT / "services" / "agent" / "src" / "agent" / "latex_escapes.py"
+
+    if not repair.exists():
+        return _fail(
+            "escape-repair-is-wired-in",
+            f"{repair} is missing; model text would reach the database with the "
+            "backslashes JSON ate still missing.",
+        )
+
+    faults = []
+    for file in sorted(graphs.glob("*.py")):
+        source = file.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        # Chỗ nào gọi `with_structured_output` là chỗ nào đi qua bộ giải mã JSON. Tìm
+        # theo **hành vi** chứ không theo tên hàm: thêm một graph mới mà quên nối dây thì
+        # check này phải đỏ, và nó chỉ đỏ được nếu nó tự đi tìm chứ không đọc một danh
+        # sách viết tay -- một danh sách như thế chỉ đúng tới lần thêm graph kế tiếp.
+        holders = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef)
+            and any(
+                isinstance(inner, ast.Attribute) and inner.attr == "with_structured_output"
+                for inner in ast.walk(node)
+            )
+        ]
+        for node in holders:
+            called = {
+                inner.func.id
+                for inner in ast.walk(node)
+                if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
+            }
+            if not called & {"_unmangled", "restore_latex_escapes"}:
+                faults.append(f"{file.name}:{node.name}")
+
+    if faults:
+        return _fail(
+            "escape-repair-is-wired-in",
+            f"{faults} ask the model through with_structured_output but never repair what "
+            "comes back. That text must pass through restore_latex_escapes, or `\\frac` "
+            "arrives as a form-feed and the teacher sees `$rac{1}{2}$` on screen (ADR-26).",
+        )
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
@@ -654,6 +727,7 @@ CHECKS = (
     check_the_report_is_a_job_of_its_own,
     check_the_form_fills_the_slots_the_wording_declares,
     check_every_figure_matches_the_diagram_it_came_from,
+    check_the_model_text_passes_through_the_escape_repair,
 )
 
 

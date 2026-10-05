@@ -198,3 +198,66 @@ async def test_a_banned_stem_is_recognised_however_be_stored_it(
     assert len(model.prompts) == 2
     assert "trùng" in model.prompts[1]
     assert answer["question"]["stem"] != repeated
+
+
+def _mangled() -> GeneratedQuestion:
+    r"""Một câu hỏi như nó **thật sự** về tới đây khi model viết `\frac` vào JSON.
+
+    Byte thật, đo từ database ngày 05/10/2026: `0x0C` thay cho `\f`, `0x09` thay cho
+    `\t`, `0x08` thay cho `\b`. Mọi field chữ đều dính, không chỉ đề bài -- và đó là
+    điểm của test này.
+    """
+    return GeneratedQuestion(
+        stem="Tính $I = \x0crac{1}{2} \x09imes \x08igg|x\x08igg|$",
+        options=(
+            GeneratedOption(label="A", text="$\x0crac{1}{2}$", is_correct=True),
+            GeneratedOption(
+                label="B", text="$\x0crac{1}{4}$", error_label="quên \x0crac bên ngoài"
+            ),
+        ),
+        methods=(
+            SolutionMethod(title="Cách \x0crac", body="Rút gọn $\x0crac{2}{4}$ trước."),
+            SolutionMethod(title="Cách 2", body="Thay số rồi kiểm lại."),
+        ),
+        learning_objective="tích phân có \x0crac",
+    )
+
+
+@pytest.mark.asyncio
+async def test_json_an_mat_dau_gach_cheo_thi_duoc_dung_lai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r"""Mọi field chữ đi qua bộ khôi phục, không riêng đề bài.
+
+    Trước việc này, một câu vừa soạn xong tới màn hình giáo viên dưới dạng
+    `$⬆rac{1}{2} imes ⬅igg|` -- và phương án thì còn tệ hơn: `0x0C` ngay sau `$` là
+    khoảng trắng theo `\s`, nên `MathText` không nhận ra đó là toán và dấu đô la lọt
+    nguyên ra màn hình.
+
+    Test này ghim **chỗ gọi**, không ghim bản thân phép thay chữ -- phần ấy đã có
+    `test_latex_escapes.py`. Thứ dễ mất là lời gọi, không phải cái hàm.
+    """
+    model = Scripted([_mangled()])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    question = await authoring.write_question("viết một câu")
+
+    assert question.stem == r"Tính $I = \frac{1}{2} \times \bigg|x\bigg|$"
+    assert question.options[0].text == r"$\frac{1}{2}$"
+    assert question.options[1].error_label == r"quên \frac bên ngoài"
+    assert question.methods[0].title == r"Cách \frac"
+    assert question.methods[0].body == r"Rút gọn $\frac{2}{4}$ trước."
+
+    # Gom **mọi** field chữ của `GeneratedQuestion`, không gom một phần. Bản đầu của
+    # phép khẳng định này bỏ qua `learning_objective` và `error_label`, nên nó xanh
+    # trong khi `_unmangled` thật sự thiếu `learning_objective` -- một test tự nhận là
+    # kiểm "mọi field" mà lại chừa đúng field bị quên. Danh sách dưới đây phải đi cùng
+    # `GeneratedQuestion` ở `contracts/authoring.py`: thêm field chữ thì thêm vào đây.
+    everything = " ".join(
+        [question.stem, question.learning_objective]
+        + [one.text for one in question.options]
+        + [one.error_label or "" for one in question.options]
+        + [one.title for one in question.methods]
+        + [one.body for one in question.methods]
+    )
+    assert not any(ch in everything for ch in "\x08\x09\x0c"), "không còn byte hỏng nào sót"
