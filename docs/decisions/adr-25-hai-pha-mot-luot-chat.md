@@ -131,9 +131,19 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
   lẽ không ghi gì. Trong một plan, hai ca ấy dừng plan — và câu báo cáo phải nói rằng **không có gì
   sai**, chỉ là nội dung đã khoá.
 - **Thẻ kết quả mọc cho kết quả còn đứng vững tới cuối lượt**, không phải cho mỗi `tool_result` — và
-  **tối đa một thẻ cho một lượt**. Hai câu ấy không mâu thuẫn: một lượt chỉ có một kết quả sau cùng,
-  vì mỗi bước ghi đè ý nghĩa của bước trước nó (mở đề rồi đổ câu vào thì trạng thái "trống" không
-  còn đứng vững). `teacher-surface.md` và `ActionCard.cardTurn` đều nói đúng một thẻ.
+  **tối đa một thẻ cho một lượt của model**. Hai câu ấy không mâu thuẫn: một lượt chỉ có một kết quả
+  sau cùng, vì mỗi bước ghi đè ý nghĩa của bước trước nó (mở đề rồi đổ câu vào thì trạng thái "trống"
+  không còn đứng vững). `teacher-surface.md` và `ActionCard.cardTurns` đều nói đúng một thẻ.
+
+  > **Sửa ngày 06/10/2026 — thêm bốn chữ *"của model"*.** Dòng này ban đầu viết *"tối đa một thẻ cho
+  > một lượt"*, không phân biệt ai làm, và `cardTurn` thi hành đúng như thế. Nhưng khối chat chỉ cắt
+  > ở lượt **giáo viên nói**, mà bấm *Duyệt đề* trên panel không phải một lượt nói — nên hai cú duyệt
+  > và bỏ duyệt rơi vào cùng một khối, và luật một-thẻ để cú sau xoá cú trước. Đo được trên hội thoại
+  > thật: bốn việc trong database, một thẻ trên màn hình. Điều đó vi phạm **ADR-24**, vốn đòi biên bản
+  > duyệt phải sống sót. Luật mới: một thẻ cho việc của model, cộng một thẻ cho **mỗi** việc giáo
+  > viên tự làm. Nơi thi hành: `ActionCard.cardTurns`, và các test *"duyệt rồi hoàn tác trong một
+  > khối cho ra HAI thẻ"* và *"thẻ của model KHÔNG biến mất khi giáo viên duyệt trong cùng khối"*
+  > trong `services/fe/src/teacher.test.tsx`.
 - **`teacher-surface.md` phải sửa trong cùng change set**: mục *"Một lượt của Kriky gồm bốn khối, theo
   đúng thứ tự này"* trái thẳng với luật vẽ-theo-thứ-tự-nhận-được ở trên.
 - **Ngân sách tách đôi.** Pha 1 giữ `max_tool_steps = 8` và 90 giây. Các bước plan chạy trong cùng

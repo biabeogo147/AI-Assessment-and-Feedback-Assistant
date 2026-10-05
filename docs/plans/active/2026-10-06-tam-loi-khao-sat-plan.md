@@ -63,11 +63,13 @@ chỗ hỏng mà sửa; ba lỗ ở dòng lượt nói, biểu mẫu sửa câu 
 
 ### Pha 2 — dòng lượt nói và đường lùi (B5, B6, B7, E15)
 
-- [ ] Figma: trạng thái **hai thẻ xếp chồng** trong một khối Kriky
-- [ ] `spoken()` đổi mốc từ `steps.length` sang "đã gặp lượt `plan` chưa" (B5 + B7)
-- [ ] `cardTurn()` → `cardTurns()`: mọi lượt `byTheTeacher` đều lên thẻ (B6, ADR-24)
-- [ ] `onUnpublish` song sinh với `onPublish`, hash rụng đuôi `/phat-hanh` (E15)
-- [ ] Review subagent
+- [x] Figma: ba thẻ xếp chồng trong một khối Kriky — thẻ của model, rồi hai biên bản
+- [x] `spoken()` đổi mốc sang **phép nhìn trước**: có plan thì câu cuối trước plan là lời
+      mở, không plan thì câu trước bước đầu tiên (B5 + B7)
+- [x] `cardTurn()` → `cardTurns()`: thẻ của model **cộng** mỗi việc giáo viên một thẻ
+      (B6, ADR-24); ADR-25 được sửa vì luật một-thẻ của nó bị nới
+- [x] `onUnpublish` song sinh với `onPublish`, cộng `goInstead` thay vì đẩy mục (E15)
+- [x] Review subagent, và sửa cả hai lỗi correctness nó tìm ra
 
 ### Pha 3 — hai biểu mẫu (D11, E13, E14)
 
@@ -128,7 +130,21 @@ cả hai hợp đồng KEPT. Một cổng báo đỏ khi mọi thứ đúng sẽ
 
 ## Status
 
-Pha 1 **xong**, gồm cả sáu phát hiện của review. Pha 2 và pha 3 chưa bắt đầu.
+Pha 1 **xong** (4 commit), gồm cả sáu phát hiện của review.
+
+Pha 2 **xong**, chưa commit. Review tìm được **hai lỗi correctness thật trong chính bản sửa**,
+cả hai đã chữa và có test ghim:
+
+- `cardTurns` trả *chỉ* việc của giáo viên khi khối có một việc như thế, nên thẻ của model
+  biến mất — dựng lại đúng cái bug `2026-10-03-chot-chang-a-plan.md` đã sửa. Lý lẽ trong
+  comment ("khối ấy không có việc nào của model") sai, vì `blocks()` chỉ cắt ở lượt `teacher`
+  mà bấm *Duyệt đề* không phải một lượt nói.
+- Lấy `plan` làm mốc duy nhất làm hỏng ca **không có plan** (ADR-25 cho pha 1 kết thúc bằng
+  một câu nói): câu trả lời nhảy lên **trên** khối bước, ngược thứ tự đọc đã chốt.
+
+Pha 3 đang làm: Figma xong (cột radio, biến thể *cửa sổ thời gian sai*), BE xong (ba hằng
+`FAULT_*` đi lên biểu mẫu), FE xong phần `aria-pressed` và chặn cửa sổ vô lý; còn radio đáp
+án đúng và check thứ chín mở rộng.
 
 Ngoài phạm vi plan này, đã ghi vào `docs/plans/backlog.md`: chữ model nói trong khung chat
 giáo viên (`propose.py` → `_Proposal.text` → `MathText`) đi cùng một ống JSON mà **chưa** được

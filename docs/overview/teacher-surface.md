@@ -31,7 +31,17 @@ Trường hợp artboard `5 · Đã có đề nháp` (`12:46`) chụp lại — 
 | 1 | Câu mở đầu của Kriky | `Message turn` (Vai=agent) | Khi model nói một câu trước lúc gọi tool |
 | 2 | Khối các bước | `Thinking` (`83:76`) | Khi lượt có từ một bước tool trở lên |
 | 3 | Câu kết | `agent-conclusion`, cũng là `Message turn` (Vai=agent) | Khi lượt kết thúc bằng `say` |
-| 4 | Thẻ kết quả | `Action result card` (`10:63`) | **Tối đa một thẻ cho một lượt** |
+| 4 | Thẻ kết quả | `Action result card` (`10:63`) | **Một thẻ cho việc của model, cộng một thẻ cho mỗi việc giáo viên tự làm** |
+
+Luật thẻ có **hai nửa**, vì nó trả lời hai câu hỏi khác nhau. Một lượt của model là *một* việc được
+nhờ dù nó đi qua năm bước tool, nên nó có *một* kết quả — đó là nửa cũ, và nó không đổi. Nhưng mỗi
+lần giáo viên tự duyệt, tự bỏ duyệt hay tự phát hành là một **biên bản riêng** mà ADR-24 đòi phải
+sống sót; gộp chúng vào "một thẻ cho một lượt" thì cú sau xoá cú trước, và màn hình nói *"Đã bỏ duyệt
+đề"* như thể chưa ai từng duyệt.
+
+Hai nửa ấy gặp nhau trong **cùng một khối**, vì khối chỉ cắt ở lượt của giáo viên nói — mà bấm *Duyệt
+đề* trên panel không phải một lượt nói. Nên một khối thường có **cả hai**: thẻ *Đã thêm N câu vào đề*
+của model, rồi thẻ *Đã duyệt đề* của giáo viên, theo thứ tự thời gian.
 
 **MỘT LƯỢT, MỘT AVATAR, Ở TRÊN CÙNG.** Hàng avatar nói *"từ đây là Kriky"* — nó là **ranh giới giữa
 hai người nói**, không phải một dấu trang trí cho mỗi đoạn văn. Nên nó xuất hiện đúng một lần cho cả
