@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import {
   teacher,
@@ -311,6 +311,34 @@ function _note(state: string): string {
 }
 
 /**
+ * Ký tự điều khiển **không bao giờ** có nghĩa trong chữ của một câu hỏi.
+ *
+ * Trừ đúng hai cái: `\n` (`0x0A`) và `\r` (`0x0D`) là xuống dòng thật, và lời giải nào
+ * cũng có chúng. Gộp cả hai vào đây thì mọi ô lời giải mọc một cảnh báo, và một cảnh báo
+ * luôn hiện là một cảnh báo không ai đọc.
+ */
+const MANGLED = /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]/g;
+
+/**
+ * In lại một chuỗi với ký tự điều khiển thay bằng ký hiệu nhìn thấy được.
+ *
+ * **Chuỗi trong ô nhập không được đổi.** Nếu đổi, ký hiệu sẽ theo nút Lưu xuống database
+ * và một lỗi hiển thị thành một lỗi dữ liệu. Chỗ này chỉ dựng một bản để đọc.
+ *
+ * Khối *Control Pictures* của Unicode đặt ký hiệu của ký tự `c` tại `U+2400 + c`, trừ
+ * `DEL` nằm riêng ở `U+2421`.
+ *
+ * @param text - Chuỗi gốc, nguyên byte.
+ * @returns Bản để đọc: `0x0C` thành `␌`, `0x09` thành `␉`.
+ */
+function visible(text: string): string {
+  return text.replace(MANGLED, (one) => {
+    const code = one.charCodeAt(0);
+    return String.fromCharCode(code === 0x7f ? 0x2421 : 0x2400 + code);
+  });
+}
+
+/**
  * Một ô soạn **tự giãn theo nội dung**.
  *
  * Một chiều cao cố định nhốt lời giải lại và mọc một thanh cuộn **bên trong ô** — đo được:
@@ -336,6 +364,7 @@ function Field({
   value: string;
   onChange: (next: string) => void;
 }) {
+  const noteId = useId();
   const fit = (node: HTMLTextAreaElement | null) => {
     if (node === null) return;
     node.style.height = "auto";
@@ -346,18 +375,36 @@ function Field({
     node.style.height = `${node.scrollHeight + frame}px`;
   };
 
+  const hidden = value.match(MANGLED)?.length ?? 0;
+
   return (
-    <textarea
-      className={className}
-      aria-label={label}
-      ref={fit}
-      rows={1}
-      value={value}
-      onChange={(event) => {
-        fit(event.currentTarget);
-        onChange(event.target.value);
-      }}
-    />
+    // Fragment chứ không bọc `<div>`: `.edit-method-head .field.title` nhận `flex: 1` từ
+    // một selector nhắm thẳng vào `textarea`, nên một lớp bọc sẽ cướp mất chỗ flex item
+    // và ô tiêu đề thôi giãn. Dòng cảnh báo tự xuống hàng bằng `flex-basis: 100%`.
+    <>
+      <textarea
+        className={className}
+        aria-label={label}
+        aria-describedby={hidden > 0 ? noteId : undefined}
+        ref={fit}
+        rows={1}
+        value={value}
+        onChange={(event) => {
+          fit(event.currentTarget);
+          onChange(event.target.value);
+        }}
+      />
+      {hidden > 0 && (
+        <div className="mangled" id={noteId}>
+          {/* Không `role="status"`: vùng sống sẽ đọc lại cả dòng này sau **mỗi** phím gõ.
+              Buộc vào ô bằng `aria-describedby` thì nó được đọc đúng một lần, lúc vào ô. */}
+          <span className="mangled-head">
+            {hidden} ký tự hỏng, không nhìn thấy được trong ô:
+          </span>{" "}
+          <span className="mangled-body">{visible(value)}</span>
+        </div>
+      )}
+    </>
   );
 }
 

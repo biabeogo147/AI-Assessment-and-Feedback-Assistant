@@ -1566,6 +1566,36 @@
   border-color: var(--accent);
 }
 
+/*
+ * Cảnh báo ký tự hỏng, ngay dưới ô chứa nó.
+ *
+ * Chỉ `width`, **không** `flex-basis`. Trong một container xếp dọc — `.edit-option`,
+ * `.edit-method`, `.qcard` — `flex-basis` đặt lên trục **chính**, tức là **chiều cao**,
+ * chứ không phải chiều rộng. Bản đầu đặt `flex-basis: 100%` ở đây kèm một comment nói nó
+ * "để xuống hàng riêng", và lời ấy sai ở bốn trong năm chỗ gọi: ở đó nó là một luật về
+ * chiều cao, vô hại chỉ vì chiều cao container là `auto` nên phần trăm rơi về `content`.
+ * Đặt một `height` lên `.qcard` là nó phình ra.
+ */
+.teacher .qcard .mangled {
+  width: 100%;
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/* Hàng ngang là chỗ duy nhất cần `flex-basis`, và ở đó nó mới thật sự là luật về chiều
+ * rộng — nó đẩy cảnh báo xuống hàng riêng thay vì để nó chen cạnh ô tiêu đề. */
+.teacher .qcard .edit-method-head .mangled {
+  flex-basis: 100%;
+}
+
+/* Bản in lại dùng font đều nét: ký hiệu `␌` phải đếm được so với chữ quanh nó, mà font
+ * chữ thường thì mỗi ký tự một bề rộng. */
+.teacher .qcard .mangled .mangled-body {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  word-break: break-all;
+}
+
 /* Lời từ chối đứng **ngay dưới ô gõ**, không đẩy lên dòng chung ở chân panel: ở đó nó xa
  * chỗ gõ và không nói nó nói về câu nào. */
 .teacher .qcard .refused {
@@ -1594,6 +1624,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Chỉ hàng của **lời giải** mới cần xuống dòng được: nó là hàng duy nhất chứa một ô nhập
+ * (ô tiêu đề), nên nó là hàng duy nhất có thể mọc ra một dòng cảnh báo. Bản đầu đặt luật
+ * này cho cả `.edit-option-head`, nơi không có ô nhập nào — ở đó nó không làm được việc
+ * nó nói, mà lại cho nút `Xoá` tụt xuống hàng khi nhãn dài. */
+.teacher .qcard .edit-method-head {
+  flex-wrap: wrap;
 }
 
 .teacher .qcard .edit-option-head .tag {

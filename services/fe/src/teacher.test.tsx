@@ -2362,3 +2362,105 @@ describe("câu luật trên biểu mẫu nói đúng số đang gõ", () => {
     expect(screen.queryByText(/Đã chọn/)).toBeNull();
   });
 });
+
+describe("ký tự điều khiển ẩn trong ô sửa", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Một đề còn mở, với đúng bộ byte đã đo được trong database ngày 05/10/2026. */
+  function mangled() {
+    const FF = String.fromCharCode(0x0c);
+    const TAB = String.fromCharCode(0x09);
+    const one = paper("has_questions");
+    one.questions[0].stem = `Tính $I = ${FF}rac{1}{2} ${TAB}imes 3$`;
+    one.questions[0].methods = [
+      { title: "Cách 1", body: "Bước một.\nBước hai." },
+      { title: "Cách 2", body: "Dùng định nghĩa." },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(one) })),
+    );
+    return one;
+  }
+
+  async function open() {
+    const view = render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    fireEvent.click(screen.getByText("Sửa"));
+    await waitFor(() => expect(screen.getByText("Lưu")).toBeTruthy());
+    return view;
+  }
+
+  it("ký tự hỏng hiện ra bằng ký hiệu đọc được, và ô nhập vẫn giữ nguyên byte gốc", async () => {
+    // Chính sách đã chốt là *"giáo viên tự sửa tay"*. Đo được trên trình duyệt rằng nó
+    // không đi được: 7 trong 12 ô chứa ký tự điều khiển, mà chúng VÔ HÌNH trong textarea.
+    // Giáo viên nhìn thấy `$rac{1}{6}$`, gõ thêm dấu gạch chéo vào trước, và vẫn hỏng.
+    const data = mangled();
+    const { container } = await open();
+
+    const note = container.querySelector(".mangled");
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toContain("2 ký tự hỏng");
+    expect(note!.textContent).toContain("␌");
+    expect(note!.textContent).toContain("␉");
+
+    // Và đây là nửa quan trọng hơn: ô nhập KHÔNG bị đổi. Nếu đổi, ký hiệu sẽ theo nút
+    // Lưu xuống database và một lỗi hiển thị thành một lỗi dữ liệu.
+    const stem = screen.getByLabelText("Đề bài") as HTMLTextAreaElement;
+    expect(stem.value).toBe(data.questions[0].stem);
+    expect(stem.value).toContain(String.fromCharCode(0x0c));
+
+  });
+
+  it("DEL hiện ra ␡, không phải một ký hiệu vô nghĩa", async () => {
+    // Khối Control Pictures đặt ký hiệu của `c` tại `U+2400 + c` cho 0x00–0x1F, nhưng
+    // DEL (0x7F) nằm **riêng** ở U+2421. Bỏ ca riêng thì `0x2400 + 0x7f` ra `U+247F` —
+    // ký hiệu "khoanh số 12", vô nghĩa hoàn toàn trước mặt giáo viên.
+    const one = paper("has_questions");
+    one.questions[0].stem = `Tính $x${String.fromCharCode(0x7f)}$`;
+    one.questions[0].methods = [
+      { title: "Cách 1", body: "Đạo hàm." },
+      { title: "Cách 2", body: "Định nghĩa." },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(one) })),
+    );
+    const { container } = await open();
+
+    expect(container.querySelector(".mangled")!.textContent).toContain("␡");
+  });
+
+  it("xuống dòng thật không bị gọi là ký tự hỏng", async () => {
+    // Lời giải nào cũng có xuống dòng. Cảnh báo ở mọi ô là cảnh báo không ai đọc.
+    mangled();
+    const { container } = await open();
+
+    const notes = [...container.querySelectorAll(".mangled")];
+    const bodies = notes.filter((n) => n.textContent?.includes("Bước một"));
+    expect(bodies.length).toBe(0);
+  });
+
+  it("chữ sạch thì không có cảnh báo nào", async () => {
+    const one = paper("has_questions");
+    one.questions[0].methods = [
+      { title: "Cách 1", body: "Đạo hàm." },
+      { title: "Cách 2", body: "Định nghĩa." },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(one) })),
+    );
+    const { container } = await open();
+
+    expect(container.querySelectorAll(".mangled").length).toBe(0);
+  });
+});
