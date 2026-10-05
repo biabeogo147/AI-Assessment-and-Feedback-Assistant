@@ -266,6 +266,20 @@ export interface TimingRules {
    */
   phase_one_form: string;
   phase_two_form: string;
+
+  /**
+   * Ba lời từ chối của `_schedule_fault`, gửi lên để biểu mẫu nói được **trước** cú bấm.
+   *
+   * Cổng thật vẫn ở BE — FE không bao giờ là nơi duy nhất kiểm — nhưng một cổng chỉ nói
+   * ra sau cú bấm thì giáo viên đã gõ xong sáu ô rồi mới biết mình gõ sai. Và tệ hơn:
+   * câu luật ngay dưới mấy ô ấy vẫn in ra một sự thật bất khả thi bằng giọng khẳng định.
+   *
+   * Lấy chữ từ BE chứ không viết lại ở đây, cùng lý lẽ với hai khuôn trên: hai cách diễn
+   * đạt cho một luật là hai luật (ADR-03).
+   */
+  opens_in_the_past: string;
+  closes_before_opens: string;
+  phase_two_too_early: string;
 }
 
 export interface ClassOption {

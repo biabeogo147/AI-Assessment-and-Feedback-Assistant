@@ -471,6 +471,13 @@ function Editing({
   onCancel: () => void;
   onSave: () => void;
 }) {
+  // Phương án nhiễu nào chưa có nhãn lỗi. Tính ở đây chứ không trong `onChange` của
+  // radio: nó là một tính chất của **cả bộ phương án** tại mỗi lúc, không phải hậu quả
+  // của riêng một cú bấm — thêm một phương án mới cũng rơi vào đúng trạng thái này.
+  const missing = draft.options
+    .filter((one) => !one.is_correct && (one.error_label ?? "").trim() === "")
+    .map((one) => one.label);
+
   return (
     <div className="qcard editing">
       <div className="top">
@@ -490,6 +497,43 @@ function Editing({
       {draft.options.map((one, index) => (
         <div className="edit-option" key={one.label}>
           <div className="edit-option-head">
+            {/* **Đổi được đáp án đúng.** Trước đợt này phương án đúng chỉ có một cái nhãn
+                và không control nào — nên thứ duy nhất hỏng ở một câu model soạn sai lại
+                là thứ duy nhất giáo viên không sửa được. Đo được: một câu có đáp án đúng
+                là 1/2, bốn phương án không chứa 1/2, và 1/3 đang đeo dấu đúng. Cổng người
+                thứ nhất của ADR-05 hở đúng chỗ ấy.
+
+                Radio chứ không phải nút *Đặt làm đáp án đúng*: nó là **một cú bấm** để
+                chuyển, và cả nhóm đọc ra như một lựa chọn duy nhất thay vì bốn nút rời.
+                Nhưng nó **không tự** giữ ADR-18 — `checked` đi từ state nên nhóm radio
+                của trình duyệt không quyết gì cả; thứ bỏ cờ cũ là `onChange` ngay dưới,
+                và một đột biến ở đó làm payload ra hai đáp án đúng. `name` theo
+                `question_id` để hai thẻ mở cùng lúc không nằm chung một nhóm. */}
+            <input
+              type="radio"
+              className="right-mark"
+              name={`correct-${question.question_id}`}
+              checked={one.is_correct}
+              disabled={saving}
+              aria-label={`Đặt phương án ${one.label} làm đáp án đúng`}
+              onChange={() =>
+                onChange({
+                  ...draft,
+                  // **Chỉ đổi cờ, không đụng tới chữ.** Bản đầu xoá `error_label` của
+                  // phương án vừa thành đúng, với lý lẽ "payload phải sạch". Lý lẽ sai:
+                  // `OptionEdit` ở BE nói thẳng rằng nhãn gửi kèm đáp án đúng **bị bỏ,
+                  // không bị từ chối**, và `models.py` tự đặt `null` ở đúng dòng ấy.
+                  //
+                  // Và cái xoá ấy không khôi phục được: A→B xoá nhãn của B, bấm nhầm rồi
+                  // bấm lại là mất **cả hai** nhãn giáo viên đã gõ tay, không có undo.
+                  // Giữ chữ lại thì một lần bấm nhầm chỉ tốn một lần bấm nữa.
+                  options: draft.options.map((other, at) => ({
+                    ...other,
+                    is_correct: at === index,
+                  })),
+                })
+              }
+            />
             <span className={one.is_correct ? "tag right" : "tag"}>
               {one.is_correct ? `${one.label} · đáp án đúng` : `Phương án ${one.label}`}
             </span>
@@ -624,6 +668,22 @@ function Editing({
         + Thêm cách giải
       </button>
 
+      {/* **Nói bằng tiếng Việt, trước cú bấm.** ADR-18 bắt mọi phương án nhiễu có nhãn
+          lỗi, và đổi đáp án đúng biến phương án cũ thành một phương án nhiễu — mà nó
+          thường chưa có nhãn, vì BE ghi `null` ở đúng dòng đáp án đúng. Để nó đi tới BE
+          thì lời từ chối về là `distractors ['A'] carry no error label: <cả đề bài>`:
+          tiếng Anh, kèm `repr` của một list Python, kèm nguyên văn câu hỏi.
+          Đây là cùng một lý lẽ với hộp cảnh báo của biểu mẫu phát hành, và cùng một lý
+          lẽ với ô nhãn lỗi đã thêm ở đợt trước — một nút dẫn thẳng tới một lần 422 là
+          một nút nói dối. */}
+      {missing.length > 0 && (
+        <div className="refused">
+          {missing.length === 1
+            ? `Phương án ${missing[0]} chưa có nhãn lỗi. ADR-18 bắt mọi phương án nhiễu phải có.`
+            : `Các phương án ${missing.join(", ")} chưa có nhãn lỗi. ADR-18 bắt mọi phương án nhiễu phải có.`}
+        </div>
+      )}
+
       {refused !== "" && <div className="refused">{refused}</div>}
 
       <div className="edit-actions">
@@ -638,7 +698,7 @@ function Editing({
         <button
           className="cta"
           type="button"
-          disabled={saving}
+          disabled={saving || missing.length > 0}
           onClick={onSave}
         >
           Lưu

@@ -1634,6 +1634,27 @@
   flex-wrap: wrap;
 }
 
+/*
+ * Nút chọn đáp án đúng. 14px, khớp `radio` trong component `Question card — đang sửa`.
+ *
+ * `accent-color` thay vì vẽ lại cả nút: trình duyệt giữ nguyên hành vi bàn phím và vùng
+ * bấm của một radio thật, và chỉ màu là thứ cần đổi. Màu là màu **ngữ nghĩa** của ADR-12,
+ * cùng màu với nhãn `A · đáp án đúng` ngay cạnh — không phải màu nhấn, vì đây không phải
+ * một hành động chính mà là một trạng thái của câu trả lời.
+ */
+.teacher .qcard .edit-option-head .right-mark {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--answer-correct);
+  cursor: pointer;
+}
+
+.teacher .qcard .edit-option-head .right-mark:disabled {
+  cursor: default;
+}
+
 .teacher .qcard .edit-option-head .tag {
   color: var(--ink-muted);
   font-size: var(--type-caption);

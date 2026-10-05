@@ -99,6 +99,14 @@ function fill() {
   });
 }
 
+/** Biểu mẫu phát hành, không có cú POST nào. */
+function serveForm() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify(FORM), { status: 200 })),
+  );
+}
+
 describe("hộp xác nhận phát hành", () => {
   it("chỉ in những chuỗi của response preview, không tự viết lại câu luật", async () => {
     const sent: { body: unknown; path: string }[] = [];
@@ -2796,5 +2804,172 @@ describe("goInstead không kéo người dùng về từ một closure cũ", () 
     window.location.hash = "/teacher/chat/c1/de/p1/phat-hanh";
     goInstead("/teacher/chat/c1/de/p1", "/teacher/chat/c1/de/p1/phat-hanh");
     expect(window.location.hash).toBe("#/teacher/chat/c1/de/p1");
+  });
+});
+
+describe("đổi đáp án đúng, và chặn cửa sổ thời gian vô lý", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("bấm radio của B rồi Lưu: payload có ĐÚNG MỘT đáp án đúng, và nó là B", async () => {
+    // Trước đợt này phương án đúng chỉ có một cái nhãn và không control nào, nên thứ duy
+    // nhất hỏng ở một câu model soạn sai lại là thứ duy nhất giáo viên không sửa được.
+    // Đo được trên dữ liệu thật: một câu có đáp án đúng là 1/2, bốn phương án không chứa
+    // 1/2, và 1/3 đang đeo dấu đúng.
+    const calls: { url: string; method: string; body: string }[] = [];
+    const one = paper("has_questions");
+    one.questions[0].methods = [
+      { title: "Cách 1", body: "Đạo hàm." },
+      { title: "Cách 2", body: "Định nghĩa." },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({
+          url,
+          method: (init?.method ?? "GET").toUpperCase(),
+          body: typeof init?.body === "string" ? init.body : "",
+        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(one) });
+      }),
+    );
+
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing={false}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+        onUnpublish={() => undefined}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
+    fireEvent.click(screen.getByText("Sửa"));
+    await waitFor(() => expect(screen.getByText("Lưu")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Đặt phương án B làm đáp án đúng"));
+
+    // A vừa thôi là đáp án đúng, nên nó thành một phương án nhiễu CHƯA có nhãn lỗi —
+    // ADR-18 cấm, và nút Lưu khoá lại kèm một câu tiếng Việt thay vì để giáo viên bấm
+    // rồi nhận `distractors ['A'] carry no error label: <cả đề bài>` từ BE.
+    expect(
+      (screen.getByText("Lưu").closest("button") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(document.querySelector(".refused")?.textContent).toContain(
+      "Phương án A chưa có nhãn lỗi",
+    );
+
+    fireEvent.change(screen.getByLabelText("Lỗi của phương án A"), {
+      target: { value: "nhầm hệ số" },
+    });
+    fireEvent.click(screen.getByText("Lưu"));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === "PATCH")).toBe(true),
+    );
+    const sent = JSON.parse(calls.find((c) => c.method === "PATCH")!.body);
+    const right = sent.options.filter(
+      (o: { is_correct: boolean }) => o.is_correct,
+    );
+    expect(right.length).toBe(1);
+    expect(right[0].label).toBe("B");
+
+    // Và nhãn lỗi cũ của B KHÔNG bị xoá. `OptionEdit` nói thẳng rằng nhãn gửi kèm đáp án
+    // đúng thì bị bỏ, không bị từ chối — nên xoá nó ở FE chỉ mua được một thứ: bấm nhầm
+    // rồi bấm lại là mất chữ giáo viên đã gõ tay, không có undo nào.
+    const b = sent.options.find((o: { label: string }) => o.label === "B");
+    expect(b.error_label).not.toBe("");
+  });
+
+  it("chip lớp nói ra trạng thái chọn của nó, không chỉ đổi màu", async () => {
+    // Đây là nút quyết định AI NHẬN ĐỀ (ADR-02). Thiếu `aria-pressed` thì trình đọc màn
+    // hình đọc "12A, button" y hệt dù đã chọn hay chưa — dấu ✓ đã `aria-hidden`, và
+    // `class-chip on` là chuyện của CSS.
+    serveForm();
+    render(<PublishSettings assessmentId="p1" onPublished={() => undefined} onUndo={() => undefined} undoing={false} />);
+    await waitFor(() => expect(screen.getByText("12A")).toBeTruthy());
+
+    const chip = screen.getByText("12A").closest("button")!;
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(chip);
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("mở sau đóng: nút khoá, và câu từ chối là câu của BE", async () => {
+    // Cổng thật vẫn ở BE. Chỗ này chỉ nói SỚM HƠN, bằng đúng chữ BE sẽ dùng — vì hai câu
+    // luật ngay trên đang khẳng định một sự thật bất khả thi bằng giọng bình thản.
+    serveForm();
+    render(<PublishSettings assessmentId="p1" onPublished={() => undefined} onUndo={() => undefined} undoing={false} />);
+    await waitFor(() => expect(screen.getByText("12A")).toBeTruthy());
+    fireEvent.click(screen.getByText("12A").closest("button")!);
+
+    const values = ["15", inHours(26), inHours(24), "5", inHours(32)];
+    document.querySelectorAll(".publish-settings input").forEach((box, i) => {
+      if (i < values.length) fireEvent.change(box, { target: { value: values[i] } });
+    });
+
+    await waitFor(() =>
+      expect(document.querySelector(".trouble")?.textContent).toBe(
+        "giờ đóng phải sau giờ mở",
+      ),
+    );
+    const cta = screen.getByText("Phát hành đề").closest("button") as HTMLButtonElement;
+    expect(cta.disabled).toBe(true);
+  });
+});
+
+
+describe("ba lời từ chối, mỗi lời một lưới", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Mở biểu mẫu, chọn lớp, rồi gõ năm ô theo thứ tự của màn hình. */
+  async function filled(values: string[]) {
+    serveForm();
+    render(<PublishSettings assessmentId="p1" onPublished={() => undefined} onUndo={() => undefined} undoing={false} />);
+    await waitFor(() => expect(screen.getByText("12A")).toBeTruthy());
+    fireEvent.click(screen.getByText("12A").closest("button")!);
+    document.querySelectorAll(".publish-settings input").forEach((box, i) => {
+      if (i < values.length) fireEvent.change(box, { target: { value: values[i] } });
+    });
+    return () =>
+      (screen.getByText("Phát hành đề").closest("button") as HTMLButtonElement);
+  }
+
+  it("giờ mở ở quá khứ", async () => {
+    const cta = await filled(["15", inHours(-2), inHours(24), "5", inHours(48)]);
+    await waitFor(() =>
+      expect(document.querySelector(".trouble")?.textContent).toBe(
+        "giờ mở phải ở tương lai",
+      ),
+    );
+    expect(cta().disabled).toBe(true);
+  });
+
+  it("hạn pha 2 nằm giữa giờ đóng và giờ NỘP CUỐI", async () => {
+    // Mốc là `closes_at + phase1_minutes`, không phải giờ đóng — người vào đúng giây giờ
+    // đóng vẫn còn cả thời gian làm bài (ADR-15). Đây là con số mà ADR-03 dành cả tài
+    // liệu để chống, và BE vừa phải sửa đúng nó. Hạn dưới đây sau giờ đóng 10 phút nhưng
+    // TRƯỚC giờ nộp cuối (đóng + 30), nên so với giờ đóng thì nó lọt.
+    const cta = await filled([
+      "30",
+      inHours(24),
+      inHours(26),
+      "5",
+      inHours(26 + 10 / 60),
+    ]);
+    await waitFor(() =>
+      expect(document.querySelector(".trouble")?.textContent).toBe(
+        "hạn pha 2 phải sau giờ nộp cuối của pha 1",
+      ),
+    );
+    expect(cta().disabled).toBe(true);
+  });
+
+  it("số phút ngoài khoảng BE nhận thì KHÔNG đoán bừa là dùng được", async () => {
+    // `-15` kéo mốc nộp cuối về TRƯỚC giờ đóng, nên một hạn pha 2 vô lý lọt qua phép so,
+    // nút sáng lên, và BE trả một ValidationError của pydantic mà `.detail` là một mảng —
+    // màn hình in ra `[object Object]`.
+    const cta = await filled(["-15", inHours(24), inHours(26), "5", inHours(25)]);
+    await waitFor(() => expect(cta().disabled).toBe(true));
   });
 });

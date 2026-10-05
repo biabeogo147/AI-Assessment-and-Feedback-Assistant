@@ -7,6 +7,7 @@ import {
   type ClassResult,
   type ClassSchedule,
   type PublishForm,
+  type TimingRules,
   type PublishResult,
 } from "../../api";
 import Veil from "./Veil";
@@ -71,13 +72,29 @@ export default function PublishSettings({
 
   const chosen = form.classes.filter((one) => picked.includes(one.class_id));
   const heads = chosen.reduce((total, one) => total + one.student_count, 0);
+  // `phaseOneMinutes` chứ không `minutes !== ""`: một `-15` **có** chữ trong ô nhưng
+  // không phải một giá trị dùng được, và coi nó là "đã điền" thì `faultOf` trả chuỗi rỗng
+  // — mà rỗng ở đó nghĩa là *dùng được*. Nút sáng lên trên một lời khẳng định sai, rồi BE
+  // trả một `ValidationError` của pydantic mà `.detail` là một mảng, và màn hình in ra
+  // `[object Object]`. Không bịa ra một câu từ chối cho ca này: BE không có câu nào cho
+  // nó, và chưa nói gì còn hơn nói một câu không phải của ai.
   const filled =
     picked.length > 0 &&
-    minutes !== "" &&
+    phaseOneMinutes(minutes) !== null &&
     opensAt !== "" &&
     closesAt !== "" &&
     perQuestion !== "" &&
     deadline !== "";
+
+  // Cửa sổ thời gian có dùng được không, **bằng đúng lời BE sẽ nói**.
+  //
+  // Lặp lại phép so của `_schedule_fault`, không thay nó: cổng thật vẫn ở BE, và hai bản
+  // kiểm của một luật thì bản lỏng hơn là bản người ta đi qua. Chỗ này chỉ nói sớm hơn.
+  // Chữ thì mượn nguyên, nên không có cách diễn đạt thứ hai nào sinh ra ở đây (ADR-03).
+  //
+  // Chỉ xét khi đã gõ đủ: một biểu mẫu mới mở mà đã đỏ là một biểu mẫu mắng người chưa
+  // làm gì.
+  const impossible = !filled ? "" : faultOf(form.rules, opensAt, closesAt, deadline, minutes);
 
   // Hai câu luật, điền bằng số đang gõ. Khuôn tới từ BE; chỗ này chỉ thay chỗ trống.
   const phaseOneLive = fill(form.rules.phase_one_form, {
@@ -144,6 +161,12 @@ export default function PublishSettings({
               className={`class-chip ${picked.includes(one.class_id) ? "on" : ""}`}
               key={one.class_id}
               type="button"
+              // Nút này là một **toggle**, và `aria-pressed` là cách duy nhất nói ra điều
+              // đó. Thiếu nó thì trình đọc màn hình đọc *"12A, button"* y hệt dù đã chọn
+              // hay chưa — dấu ✓ đã `aria-hidden`, và `class-chip on` là chuyện của CSS.
+              // Đây là nút quyết định **ai nhận đề** (ADR-02), nên nó là chỗ tệ nhất để
+              // một người không biết mình vừa chọn gì.
+              aria-pressed={picked.includes(one.class_id)}
               onClick={() =>
                 setPicked((before) =>
                   before.includes(one.class_id)
@@ -234,6 +257,16 @@ export default function PublishSettings({
         <div>{phaseTwoLive}</div>
       </div>
 
+      {/* Cửa sổ thời gian vô lý nói ra **ngay chỗ câu luật**, vì hai câu ngay trên đang
+          khẳng định một sự thật bất khả thi bằng giọng bình thản — *"Vào tham gia tới hết
+          08:00 - có thể nộp lúc 08:15"* cho một lần mở lúc 20:00. Lời cải chính phải đứng
+          cạnh lời nó cải chính, không đợi tới sau cú bấm. Chữ là chữ của BE. */}
+      {impossible !== "" && (
+        <div className="trouble" role="alert">
+          {impossible}
+        </div>
+      )}
+
       {trouble !== null && (
         <div className="trouble" role="alert">
           {trouble}
@@ -257,7 +290,7 @@ export default function PublishSettings({
       <button
         className="cta"
         type="button"
-        disabled={!form.can_publish || !filled || working}
+        disabled={!form.can_publish || !filled || impossible !== "" || working}
         onClick={() => void ask()}
       >
         {form.can_publish ? "Phát hành đề" : form.reason}
@@ -431,14 +464,35 @@ function clock(local: string): string {
  * @param minutes - Thời gian làm bài, tính bằng phút.
  * @returns Mốc nộp cuối dạng `datetime-local`, hoặc chuỗi rỗng khi thiếu một trong hai.
  */
-function lastSubmission(closes: string, minutes: string): string {
-  if (closes === "" || minutes === "") return "";
+/**
+ * Số phút làm bài, hoặc `null` khi nó nằm ngoài khoảng BE nhận.
+ *
+ * Cùng khoảng mà BE nhận (`phase1_minutes: gt=0, le=600`). `min={1}` của ô số **không**
+ * ngăn người ta gõ `-15`, và khi ấy câu luật in ra *"đóng 18:00 - có thể nộp lúc 17:45"*
+ * — một câu tự phản bác, và trớ trêu là đúng con số 17:45 mà ADR-03 dành cả tài liệu để
+ * chống.
+ *
+ * Một hàm riêng vì **hai** chỗ cần đúng phép chặn này: câu luật đang gõ, và phép so
+ * "hạn pha 2 phải sau giờ nộp cuối". Bản đầu chỉ chặn ở chỗ thứ nhất, nên `-15` làm mốc
+ * nộp cuối lùi về **trước** giờ đóng, một hạn pha 2 vô lý lọt qua, nút sáng lên, và BE
+ * trả về một `ValidationError` của pydantic mà `.detail` là một **mảng** — màn hình in
+ * ra `[object Object]`. Hai bản kiểm của một con số, bản lỏng hơn là bản người ta đi qua.
+ *
+ * @param minutes - Chữ thô của ô nhập.
+ * @returns Số phút, hoặc `null`.
+ */
+function phaseOneMinutes(minutes: string): number | null {
+  if (minutes === "") return null;
   const span = Number(minutes);
-  // Cùng khoảng mà BE nhận (`phase1_minutes: gt=0, le=600`). `min={1}` của ô số **không**
-  // ngăn người ta gõ `-15`, và khi ấy câu luật in ra *"đóng 18:00 - có thể nộp lúc 17:45"*
-  // — một câu tự phản bác, và trớ trêu là đúng con số 17:45 mà ADR-03 dành cả tài liệu để
-  // chống. Ngoài khoảng thì để chỗ trống: chưa nói gì còn hơn nói sai.
-  if (!Number.isInteger(span) || span <= 0 || span > 600) return "";
+  if (!Number.isInteger(span) || span <= 0 || span > 600) return null;
+  return span;
+}
+
+function lastSubmission(closes: string, minutes: string): string {
+  if (closes === "") return "";
+  const span = phaseOneMinutes(minutes);
+  // Ngoài khoảng thì để chỗ trống: chưa nói gì còn hơn nói sai.
+  if (span === null) return "";
   const at = new Date(closes);
   if (Number.isNaN(at.getTime())) return "";
   at.setMinutes(at.getMinutes() + span);
@@ -469,4 +523,62 @@ function fill(form: string, values: Record<string, string>): string {
     out = out.replaceAll(`{${slot}}`, () => value);
   }
   return out;
+}
+
+/**
+ * Lý do bộ sáu tham số đang gõ không dùng được, hoặc chuỗi rỗng.
+ *
+ * **Bản sao của `_schedule_fault` ở BE, và nó cố ý là bản sao.** Cổng thật vẫn ở BE: một
+ * biểu mẫu không bao giờ là nơi duy nhất kiểm, vì request đi tới đó bằng nhiều đường hơn
+ * là một cú bấm. Chỗ này chỉ nói **sớm hơn**, bằng đúng chữ BE sẽ dùng nếu cú bấm ấy đi
+ * tới nơi — nên khi hai bên lệch nhau, FE nói sai chứ không nói khác.
+ *
+ * `check_the_form_fills_the_slots_the_wording_declares` trong `tools/check_contract.py`
+ * giữ **chữ**: nó đọc tên ba hằng ở `publication_wording.py` và đòi biểu mẫu này đọc đúng
+ * ba field ấy, nên không ai chép tay được một câu từ chối. Nó **không** giữ phép so — đo
+ * bằng đột biến: đổi mốc nộp cuối thành giờ đóng thì check vẫn xanh. Phép so được giữ bằng
+ * test, mỗi lời từ chối một test, và mốc nộp cuối một test riêng.
+ *
+ * Thứ tự ba phép so khớp thứ tự của BE, vì lời từ chối **đầu tiên** là lời được trả về.
+ *
+ * Mốc so là `Date.now()` lúc render, nên nó **không tự cập nhật**: ngồi yên không gõ thì
+ * một `opens_at` sát hiện tại trôi vào quá khứ mà biểu mẫu chưa đổi. Không vỡ gì — cổng
+ * thật ở BE và nó dùng đồng hồ của chính nó — nhưng đừng đọc hàm này như một đồng hồ.
+ *
+ * @param rules - Câu luật và lời từ chối của lần phát hành này, nguyên văn từ BE.
+ * @param opensAt - Giờ mở, dạng `datetime-local`.
+ * @param closesAt - Giờ đóng.
+ * @param deadline - Hạn chữa xong.
+ * @param minutes - Số phút làm bài của pha 1.
+ * @returns Câu tiếng Việt, hoặc chuỗi rỗng khi bộ tham số dùng được.
+ */
+function faultOf(
+  rules: TimingRules,
+  opensAt: string,
+  closesAt: string,
+  deadline: string,
+  minutes: string,
+): string {
+  const opens = new Date(opensAt).getTime();
+  const closes = new Date(closesAt).getTime();
+  const ends = new Date(deadline).getTime();
+  if (!Number.isFinite(opens) || !Number.isFinite(closes) || !Number.isFinite(ends)) {
+    return "";
+  }
+
+  if (opens <= Date.now()) return rules.opens_in_the_past;
+  if (closes <= opens) return rules.closes_before_opens;
+
+  // Mốc là giờ **nộp cuối**, không phải giờ đóng: người vào đúng giây giờ đóng vẫn còn cả
+  // `phase1_minutes` để làm (ADR-15). So với giờ đóng thì một hạn pha 2 chỉ sau giờ đóng
+  // một phút lọt qua, và hai câu luật trong cùng một biểu mẫu tự phủ định nhau — đúng ca
+  // mà BE vừa sửa, nên dựng lại nó ở đây là dựng lại một bug đã có tên.
+  //
+  // Số phút đi qua `phaseOneMinutes` chứ không `Number` trần: một `-15` lọt vào đây sẽ
+  // kéo mốc nộp cuối về **trước** giờ đóng, và phép so này thành lỏng hơn của BE.
+  const span = phaseOneMinutes(minutes);
+  if (span === null) return "";
+  if (ends <= closes + span * 60_000) return rules.phase_two_too_early;
+
+  return "";
 }
