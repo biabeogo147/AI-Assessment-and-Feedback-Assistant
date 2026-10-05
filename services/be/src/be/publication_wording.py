@@ -63,6 +63,22 @@ PHASE_TWO = (
     "làm bị DỪNG."
 )
 
+# Ba lý do một bộ sáu tham số không dùng được.
+#
+# **Chúng là lời của BE, và biểu mẫu mượn đúng lời ấy để nói TRƯỚC cú bấm.** Trước đợt này
+# chúng là ba string literal nằm trong `_schedule_fault`, và biểu mẫu không biết tới chúng:
+# giáo viên điền mở 20:00 / đóng 08:00, nút vẫn sáng, và câu luật ngay dưới đó in ra *"Vào
+# tham gia tới hết 08:00 - có thể nộp lúc 08:15"* bằng giọng khẳng định. Cổng BE chặn đúng,
+# nên không ai phát hành được một cửa sổ vô lý -- nhưng câu luật là thứ duy nhất giáo viên
+# đọc, và nó không bao giờ nói "bất khả thi".
+#
+# Cùng một lý lẽ với `PHASE_ONE` và `PHASE_TWO`: viết lại bằng lời khác ở FE là cách diễn
+# đạt thứ hai cho một luật, và hai cách diễn đạt cho một luật là hai luật. ADR-03 đòi mọi
+# nơi nói giống hệt nhau, và một lời từ chối cũng là một nơi nói ra luật ấy.
+FAULT_OPENS_IN_THE_PAST = "giờ mở phải ở tương lai"
+FAULT_CLOSES_BEFORE_OPENS = "giờ đóng phải sau giờ mở"
+FAULT_PHASE_TWO_TOO_EARLY = "hạn pha 2 phải sau giờ nộp cuối của pha 1"
+
 # Cửa sổ thu hồi (ADR-02). Không có số nào để điền: nó nói về giờ mở, mà giờ mở đã được
 # nêu ra riêng dưới dạng `withdrawable_until`.
 RECALL_RULE = (

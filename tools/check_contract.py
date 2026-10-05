@@ -572,6 +572,31 @@ def check_the_form_fills_the_slots_the_wording_declares() -> str | None:
                 "publish-wording",
                 f"{name} is {found.group(1)!r} in the wording but the publish form never uses it",
             )
+
+    # Và ba lời từ chối phải được **mượn**, không viết lại.
+    #
+    # Biểu mẫu nay nói trước cú bấm rằng một cửa sổ thời gian không dùng được, bằng đúng
+    # chữ `_schedule_fault` sẽ trả về. Chép ba câu ấy sang FE là cách diễn đạt thứ hai cho
+    # một luật, đúng thứ ADR-03 gọi là hai luật -- và nó hỏng **im lặng**: đổi chữ ở BE thì
+    # cổng thật đổi theo, còn biểu mẫu vẫn nói câu cũ, và không test nào ở hai phía thấy.
+    #
+    # Check theo **tên field**, không theo nội dung chuỗi: nội dung là thứ được phép sửa,
+    # còn việc FE đọc nó từ payload thay vì tự gõ mới là luật.
+    faults = re.findall(r"^(FAULT_[A-Z_]+) = ", said, re.M)
+    if len(faults) != 3:
+        return _fail(
+            "publish-wording",
+            f"expected three FAULT_* sentences in the wording, found {faults}",
+        )
+    for constant in faults:
+        field = constant.removeprefix("FAULT_").lower()
+        if f"rules.{field}" not in filled:
+            return _fail(
+                "publish-wording",
+                f"{constant} is declared in the wording but the publish form never reads "
+                f"`rules.{field}`. The form must borrow the refusal BE will give, not write "
+                "its own — two phrasings of one rule are two rules (ADR-03).",
+            )
     return None
 
 

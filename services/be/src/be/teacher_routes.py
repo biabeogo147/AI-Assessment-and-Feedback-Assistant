@@ -72,6 +72,9 @@ from be.models import (
     aware,
 )
 from be.publication_wording import (
+    FAULT_CLOSES_BEFORE_OPENS,
+    FAULT_OPENS_IN_THE_PAST,
+    FAULT_PHASE_TWO_TOO_EARLY,
     PHASE_ONE,
     PHASE_TWO,
     RECALL_RULE,
@@ -448,6 +451,15 @@ class TimingRules(BaseModel):
             ngay lúc gõ, và chữ nghĩa vẫn chỉ có một nơi — `publication_wording` dựng câu
             thật bằng đúng khuôn này.
         phase_two_form: Khuôn của câu pha 2, với `{deadline}` và `{rate}`.
+        opens_in_the_past: Lời từ chối khi giờ mở không ở tương lai (ADR-02).
+        closes_before_opens: Lời từ chối khi giờ đóng không sau giờ mở.
+        phase_two_too_early: Lời từ chối khi hạn pha 2 không sau giờ nộp cuối (ADR-15).
+
+    Ba lời từ chối cuối đi lên **cùng biểu mẫu**, không chờ tới lúc bị từ chối. Cổng thật
+    vẫn là `_schedule_fault` ở BE — FE không được phép là nơi duy nhất kiểm — nhưng một
+    cổng chỉ nói ra sau cú bấm thì giáo viên đã gõ xong sáu ô rồi mới biết mình gõ sai.
+    Gửi lời ấy lên thì biểu mẫu nói được **lúc đang gõ**, bằng đúng chữ mà BE sẽ dùng nếu
+    cú bấm ấy đi tới nơi.
     """
 
     phase_one: str = Field(default_factory=phase_one_note)
@@ -455,6 +467,9 @@ class TimingRules(BaseModel):
     recall: str = RECALL_RULE
     phase_one_form: str = PHASE_ONE
     phase_two_form: str = PHASE_TWO
+    opens_in_the_past: str = FAULT_OPENS_IN_THE_PAST
+    closes_before_opens: str = FAULT_CLOSES_BEFORE_OPENS
+    phase_two_too_early: str = FAULT_PHASE_TWO_TOO_EARLY
 
 
 class ClassOption(BaseModel):
@@ -688,9 +703,9 @@ def _schedule_fault(wanted: ClassSchedule, now: datetime) -> str:
     if opens_at <= now:
         # ADR-02: giờ mở phải ở tương lai. Không có luật này thì cửa sổ thu hồi dài
         # không giây nào mà chẳng ai vi phạm luật gì.
-        return "giờ mở phải ở tương lai"
+        return FAULT_OPENS_IN_THE_PAST
     if closes_at <= opens_at:
-        return "giờ đóng phải sau giờ mở"
+        return FAULT_CLOSES_BEFORE_OPENS
     # ADR-15: hạn pha 2 "dài hơn hẳn hạn của pha 1". Mốc đúng là giờ **nộp cuối** của pha
     # 1 -- `closes_at + phase1_minutes` -- chứ không phải giờ đóng: người vào đúng giây giờ
     # đóng vẫn còn cả `phase1_minutes` để làm. So với giờ đóng thì bản trước nhận một hạn
@@ -699,7 +714,7 @@ def _schedule_fault(wanted: ClassSchedule, now: datetime) -> str:
     # số mà comment cũ nêu tên lại là con số nó không dùng.
     last_submission = closes_at + timedelta(minutes=wanted.phase1_minutes)
     if deadline <= last_submission:
-        return "hạn pha 2 phải sau giờ nộp cuối của pha 1"
+        return FAULT_PHASE_TWO_TOO_EARLY
     return ""
 
 

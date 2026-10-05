@@ -39,6 +39,9 @@ from be.models import (
     aware,
 )
 from be.publication_wording import (
+    FAULT_CLOSES_BEFORE_OPENS,
+    FAULT_OPENS_IN_THE_PAST,
+    FAULT_PHASE_TWO_TOO_EARLY,
     PHASE_ONE,
     PHASE_TWO,
     RECALL_RULE,
@@ -1171,3 +1174,38 @@ def test_the_form_template_builds_exactly_the_sentence_the_function_builds() -> 
     # Và chỗ trống cũng đi qua đúng khuôn ấy, nên biểu mẫu lúc chưa gõ gì vẫn là cùng câu.
     assert PHASE_ONE.format(closes="--:--", last="--:--") == phase_one_note()
     assert PHASE_TWO.format(deadline="--:--", rate="--") == phase_two_note()
+
+
+@pytest.mark.asyncio
+async def test_bieu_mau_cho_ba_loi_tu_choi_dung_day(stack) -> None:
+    """Ba field lời từ chối phải nối đúng ba hằng, không nối chéo.
+
+    Biểu mẫu phát hành nay nói TRƯỚC cú bấm rằng một cửa sổ thời gian không dùng được, và
+    nó mượn chữ của BE để không sinh ra cách diễn đạt thứ hai (ADR-03). Nhưng việc mượn ấy
+    đi qua ba dòng gán trong `TimingRules`, và **nối chéo chúng là một thay đổi xanh hết
+    mọi lưới**: `check_the_form_fills_the_slots_the_wording_declares` kiểm tên hằng ở
+    `publication_wording.py` và tên field mà FE đọc, nhưng không kiểm khúc nối giữa hai
+    cái. Hệ quả: giáo viên gõ giờ mở vào quá khứ và màn hình nói *"giờ đóng phải sau giờ
+    mở"* — một câu đúng ngữ pháp, sai hoàn toàn, và chỉ sai với người đang đọc nó.
+
+    So với **hằng số**, không so ba câu với nhau: ba bản sao của cùng một lỗi vẫn bằng nhau.
+    """
+    client, maker = stack
+    paper = await _approved(maker)
+
+    answer = await client.get(f"/api/teacher/assessments/{paper}/publish-form", headers=TEACHER)
+    assert answer.status_code == 200
+    rules = answer.json()["rules"]
+
+    assert rules["opens_in_the_past"] == FAULT_OPENS_IN_THE_PAST
+    assert rules["closes_before_opens"] == FAULT_CLOSES_BEFORE_OPENS
+    assert rules["phase_two_too_early"] == FAULT_PHASE_TWO_TOO_EARLY
+
+    # Và ba câu phải khác nhau: nối cả ba vào cùng một hằng cũng là nối sai dây, mà ba
+    # phép so ở trên không bắt được nếu hằng ấy trùng.
+    assert (
+        len(
+            {rules["opens_in_the_past"], rules["closes_before_opens"], rules["phase_two_too_early"]}
+        )
+        == 3
+    )
