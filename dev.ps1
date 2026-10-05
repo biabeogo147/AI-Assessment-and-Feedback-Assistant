@@ -111,7 +111,21 @@ switch ($Task) {
 
     'check' {
         Invoke-Step 'ruff' { & $Python -m ruff check $RepoRoot }
-        Invoke-Step 'lint-imports' { & "$Scripts\lint-imports.exe" --config "$RepoRoot\pyproject.toml" }
+        # `PYTHONIOENCODING` không phải thừa. `rich` -- thứ import-linter dùng để vẽ --
+        # nhìn stdout: nối vào console thì nó nói UTF-8, còn nối vào **pipe** thì nó rơi
+        # về bộ render Windows cũ và encode bằng cp1252, rồi chết vì cái emoji trong
+        # chuỗi "Building graph...". Đo được ngày 06/10/2026: `.\dev.ps1 check 2>&1 | ...`
+        # báo đỏ trong khi cả hai hợp đồng đều KEPT.
+        #
+        # Và đó mới là phần đáng sợ: lỗi encode xảy ra **sau** khi check đã chạy, nên nó
+        # nuốt kết quả thật và trả về exit 1 bất kể hợp đồng còn hay vỡ. Một cổng báo đỏ
+        # khi mọi thứ đúng sẽ dạy người ta bỏ qua nó, rồi nó im lặng lúc có vi phạm thật.
+        Invoke-Step 'lint-imports' {
+            $before = $env:PYTHONIOENCODING
+            $env:PYTHONIOENCODING = 'utf-8'
+            try { & "$Scripts\lint-imports.exe" --config "$RepoRoot\pyproject.toml" }
+            finally { $env:PYTHONIOENCODING = $before }
+        }
         # Những invariant ở tầm repo mà không service nào tự kiểm được về chính nó.
         Invoke-Step 'repo contracts' { & $Python "$RepoRoot\tools\check_contract.py" }
     }
