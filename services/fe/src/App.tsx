@@ -34,6 +34,39 @@ export function go(route: string): void {
 }
 
 /**
+ * Đi sang một route và **thay** mục lịch sử đang đứng, thay vì đẩy thêm một mục.
+ *
+ * Dành cho những cú điều hướng **huỷ** một bước vừa làm: sau khi bỏ duyệt, màn cài đặt
+ * phát hành không còn là một chỗ đi tới được — đề đã quay về trạng thái chưa duyệt. Đẩy
+ * một mục mới thì nút Back của trình duyệt dẫn ngược vào đúng cái route đã chết ấy, và
+ * nó vẽ ra một màn hình **giống hệt** chỗ đang đứng, nên cú bấm trông như không làm gì.
+ *
+ * `replaceState` không bắn `hashchange` — đó là luật của trình duyệt, không phải thiếu
+ * sót — nên phải tự bắn, nếu không `useRoute` ngồi im và màn hình đứng lại ở route cũ.
+ *
+ * **Chưa dọn hết, và đây là phần còn lại.** Mở panel đã đẩy một mục `/de/X`, rồi cú thay
+ * này biến mục `/phat-hanh` thành `/de/X` lần nữa — nên lịch sử còn **hai** mục cùng
+ * route, và một lần Back vẫn chưa ra khỏi panel. Khác biệt so với trước là nó không còn
+ * dẫn vào một route đã chết. Dọn nốt cần biết mục trước đó có phải do chính phiên này
+ * đẩy hay không — một thứ `history` không cho đọc — nên nó cần thêm state riêng, và việc
+ * ấy chưa đáng ở đây. Đo được: `replaceState` **không** làm `history.length` tăng; cả
+ * vòng duyệt–hoàn tác tăng đúng một mục, là mục của cú duyệt.
+ *
+ * @param route - Route mới, không gồm dấu `#`.
+ * @param from - Chỉ thay khi đang đứng đúng ở route này. Dành cho những cú điều hướng
+ *   phát ra **sau một lần `await`**: trong lúc chờ, giáo viên có thể đã bấm *Đóng* hoặc
+ *   Back, và khi ấy một cú thay vô điều kiện vừa kéo họ ngược về vừa **xoá** mục lịch sử
+ *   họ vừa tới — `replaceState` phá huỷ chứ không đẩy. Bỏ trống thì thay vô điều kiện.
+ */
+export function goInstead(route: string, from?: string): void {
+  const now = window.location.hash.slice(1);
+  if (now === route) return;
+  if (from !== undefined && now !== from) return;
+  window.history.replaceState(null, "", `#${route}`);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+/**
  * Chọn bề mặt theo route, trước khi bất cứ request nào bay ra.
  *
  * Phải là nhánh **đầu tiên**, không phải một `if` nằm giữa các màn hình học

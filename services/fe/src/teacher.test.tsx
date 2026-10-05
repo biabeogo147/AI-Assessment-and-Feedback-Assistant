@@ -11,7 +11,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import ActionCard, { cardTurn, stepFor } from "./screens/teacher/ActionCard";
+import ActionCard, { cardTurns, stepFor } from "./screens/teacher/ActionCard";
+import { goInstead } from "./App";
 import Chat, { grow } from "./screens/teacher/Chat";
 import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
@@ -41,6 +42,11 @@ const FORM = {
       "Vào tham gia tới hết {closes} - có thể nộp lúc {last}, và không dừng người đang làm.",
     phase_two_form:
       "Chữa bài tới hết {deadline} - mỗi lượt {rate} phút một câu, và hết hạn thì lượt đang làm bị DỪNG.",
+    // Ba lời từ chối, sao đúng từ `publication_wording.FAULT_*`. Biểu mẫu mượn chúng để
+    // nói TRƯỚC cú bấm, nên chúng phải là chữ của BE chứ không phải chữ viết lại ở FE.
+    opens_in_the_past: "giờ mở phải ở tương lai",
+    closes_before_opens: "giờ đóng phải sau giờ mở",
+    phase_two_too_early: "hạn pha 2 phải sau giờ nộp cuối của pha 1",
   },
 };
 
@@ -68,15 +74,26 @@ const PREVIEW = {
   rules: { phase_one: "x", phase_two: "y", recall: "CÂU-THU-HỒI-TỪ-BE" },
 };
 
+/**
+ * Một mốc `datetime-local` cách **bây giờ** bao nhiêu giờ.
+ *
+ * Tính tương đối chứ không viết cứng, vì một trong sáu tham số là *giờ mở phải ở tương
+ * lai* (ADR-02). Fixture cũ ghi `2026-10-02T14:00`, và nó đúng cho tới ngày 02/10 rồi
+ * lặng lẽ thành một bộ tham số **không hợp lệ** — một test của luật "phải ở tương lai"
+ * mà tự hết hạn là một test hẹn ngày đỏ mà không ai hẹn.
+ */
+function inHours(hours: number): string {
+  const when = new Date(Date.now() + hours * 3_600_000);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${when.getFullYear()}-${two(when.getMonth() + 1)}-${two(when.getDate())}` +
+    `T${two(when.getHours())}:${two(when.getMinutes())}`
+  );
+}
+
 function fill() {
   const boxes = document.querySelectorAll(".publish-settings input");
-  const values = [
-    "15",
-    "2026-10-02T14:00",
-    "2026-10-02T16:00",
-    "5",
-    "2026-10-02T22:00",
-  ];
+  const values = ["15", inHours(24), inHours(26), "5", inHours(32)];
   boxes.forEach((box, index) => {
     fireEvent.change(box, { target: { value: values[index] } });
   });
@@ -496,7 +513,7 @@ describe("một lượt của Kriky", () => {
         },
       }),
     ];
-    const card = cardTurn(turns);
+    const card = cardTurns(turns)[0] ?? null;
     expect(card?.tool_name).toBe("draft_progress");
   });
 
@@ -522,7 +539,7 @@ describe("một lượt của Kriky", () => {
 
     // Không thẻ nào. "Đã tạo đề — Chưa có câu hỏi nào" ở đây là một lời khẳng định sai: giáo
     // viên nhờ một đề CÓ câu hỏi, và việc ấy đang chạy, không phải vừa xong với đề rỗng.
-    expect(cardTurn(turns)).toBeNull();
+    expect(cardTurns(turns)).toEqual([]);
   });
 
   it("vẫn mọc thẻ đề trống khi không có bước nào đổ câu vào nó", () => {
@@ -535,7 +552,7 @@ describe("một lượt của Kriky", () => {
         tool_result: { created: true, title: "Tích phân 12A1" },
       }),
     ];
-    expect(cardTurn(turns)?.tool_name).toBe("create_draft");
+    expect(cardTurns(turns)[0]?.tool_name).toBe("create_draft");
   });
 
   it("đọc một bước ném exception là HỎNG, không phải xong", () => {
@@ -562,7 +579,7 @@ describe("một lượt của Kriky", () => {
         tool_result: { error: "bước 1 chạy không xong" },
       }),
     ];
-    expect(cardTurn(turns)?.tool_name).toBe("create_draft");
+    expect(cardTurns(turns)[0]?.tool_name).toBe("create_draft");
 
     render(
       <ActionCard
@@ -936,12 +953,12 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
   it("mọc từ bước soạn đã đợi xong, và bấm vào thẻ thì mở đề", () => {
     const turns = drafted(3, 3).turns;
 
-    // Trước đợt này `cardTurn` loại `start_drafting` vô điều kiện, `create_draft` bị loại vì
+    // Trước đợt này `cardTurns` loại `start_drafting` vô điều kiện, `create_draft` bị loại vì
     // có bước soạn phía sau, và `draft_progress` là tool của pha 1 nên một plan không gọi
     // nó — ba lần loại trừ giao nhau đúng ở đường đi hạnh phúc, và một lượt soạn đề THÀNH
     // CÔNG kết thúc không thẻ nào. Mà panel đề chỉ mở được từ một nút trên thẻ, nên Kriky
     // nói "đã soạn xong" và màn hình không có cửa nào vào xem. Đo được trên hội thoại thật.
-    const card = cardTurn(turns);
+    const card = cardTurns(turns)[0] ?? null;
     expect(card?.tool_name).toBe("start_drafting");
 
     const opened: string[] = [];
@@ -965,7 +982,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
   it("đề thiếu câu thì KHÔNG mời duyệt", () => {
     // Cùng một luật đã đứng trong `reporting._progress` của AGENT: duyệt một đề thiếu câu là
     // phát hành một bài kiểm tra dở. Lời kể và thẻ phải nói cùng một câu.
-    const card = cardTurn(drafted(2, 10).turns);
+    const card = cardTurns(drafted(2, 10).turns)[0] ?? null;
 
     render(
       <ActionCard
@@ -996,7 +1013,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
         tool_result: { started: true, queued: 10 },
       }),
     ];
-    expect(cardTurn(turns)).toBeNull();
+    expect(cardTurns(turns)).toEqual([]);
   });
 
   it("đề còn câu đang soạn thì KHÔNG mời duyệt, và nói đủ hai con số", () => {
@@ -1005,7 +1022,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
     // nên ca này rơi vào nhánh còn lại — thẻ in `Đã thêm 3 câu vào đề`, giấu mất số 10, và
     // mời **Duyệt đề** cho một đề mới có 3/10 câu. Lời kể của AGENT trong cùng ca ấy chỉ
     // được nói "đang soạn": hai câu ngược nhau trên cùng một màn hình.
-    const card = cardTurn(drafted(3, 10, 7).turns);
+    const card = cardTurns(drafted(3, 10, 7).turns)[0] ?? null;
 
     render(
       <ActionCard
@@ -1400,6 +1417,7 @@ describe("chân panel đề", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
 
@@ -1422,6 +1440,7 @@ describe("chân panel đề", () => {
         onPublish={() => opened.push("phát hành")}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
 
@@ -1446,6 +1465,7 @@ describe("chân panel đề", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
 
@@ -1468,6 +1488,7 @@ describe("chân panel đề", () => {
         onPublish={() => went.push("màn 7")}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
     await waitFor(() => expect(screen.getByText("Duyệt đề")).toBeTruthy());
@@ -1488,6 +1509,7 @@ describe("chân panel đề", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
     await waitFor(() => expect(screen.getByText("Hoàn tác")).toBeTruthy());
@@ -1527,6 +1549,7 @@ describe("lời giải mở thành hộp thoại", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
     await waitFor(() =>
@@ -1736,6 +1759,7 @@ describe("sửa chữ của một câu", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
   }
@@ -2149,6 +2173,7 @@ describe("số phương án và số lời giải không cố định", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
     await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
@@ -2391,6 +2416,7 @@ describe("ký tự điều khiển ẩn trong ô sửa", () => {
         onPublish={() => {}}
         onClose={() => undefined}
         onApproved={() => undefined}
+        onUnpublish={() => undefined}
       />,
     );
     await waitFor(() => expect(screen.getByText("Sửa")).toBeTruthy());
@@ -2462,5 +2488,313 @@ describe("ký tự điều khiển ẩn trong ô sửa", () => {
     const { container } = await open();
 
     expect(container.querySelectorAll(".mangled").length).toBe(0);
+  });
+});
+
+describe("biên bản của giáo viên không được đè lên nhau", () => {
+  it("duyệt rồi hoàn tác trong một khối cho ra HAI thẻ, không một", () => {
+    // ADR-24 đòi biên bản duyệt phải sống sót. Bản trước của `cardTurns` trả đúng một thẻ
+    // cho cả khối, nên `unapprove` đè mất `approve` và màn hình chỉ còn nói "Đã bỏ duyệt
+    // đề" như thể chưa ai từng duyệt. Đo được trên hội thoại thật: hai lượt trong
+    // database, một thẻ trên màn hình.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "teacher.approve",
+        entity_kind: "assessment",
+        entity_id: "p1",
+        tool_result: { approved: true, assessment_id: "p1", questions: 3 },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "teacher.unapprove",
+        entity_kind: "assessment",
+        entity_id: "p1",
+        tool_result: { unapproved: true, assessment_id: "p1", questions: 3 },
+      }),
+    ];
+
+    const cards = cardTurns(turns);
+    expect(cards.length).toBe(2);
+    // Theo đúng thứ tự thời gian: duyệt trước, hoàn tác sau.
+    expect(cards[0].tool_name).toBe("teacher.approve");
+    expect(cards[1].tool_name).toBe("teacher.unapprove");
+  });
+
+  it("một lượt của model vẫn chỉ cho ra MỘT thẻ", () => {
+    // Luật cũ không bị nới ra cho model: một lượt là một việc được nhờ, dù nó đi qua năm
+    // bước tool, nên nó có một kết quả.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { created: true, title: "Tích phân", question_count: 0 },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "draft_progress",
+        tool_result: { found: true, written: ["a"], asked_for: 1, still_drafting: 0 },
+      }),
+    ];
+
+    expect(cardTurns(turns).length).toBe(1);
+  });
+});
+
+describe("ranh giới của một lượt là lượt plan, không phải số bước đã có", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Đúng chuỗi lượt đã đo trong database: một tool TRƯỢT trước khi plan kịp tồn tại. */
+  const MISSED = [
+    blank({ kind: "teacher", text: "Soạn 3 câu vào đề đi" }),
+    blank({
+      kind: "tool_result",
+      tool_name: "start_drafting",
+      tool_result: { error: "start_drafting chỉ nêu được trong plan, không gọi ngay" },
+    }),
+    blank({ kind: "assistant", text: "Mình sẽ soạn 3 câu cho đề đã tạo." }),
+    blank({ kind: "plan", tool_result: { steps: ["Soạn 3 câu hỏi"], total: 1 } }),
+    blank({
+      kind: "tool_result",
+      tool_name: "start_drafting",
+      entity_kind: "assessment",
+      entity_id: "p1",
+      tool_result: { started: true, asked_for: 3, written: ["a", "b", "c"] },
+    }),
+    blank({ kind: "assistant", text: "Mình đã soạn xong đề với đủ 3 câu hỏi." }),
+  ];
+
+  it("câu mở đầu không bị câu kết nuốt mất khi một tool trượt trước plan", async () => {
+    // Đo được trên hội thoại thật: câu "Mình sẽ soạn 3 câu cho đề đã tạo." có trong
+    // database mà KHÔNG có trên màn hình. Bản trước phân biệt lời mở với câu kết bằng
+    // `steps.length === 0`, và bước trượt ở trên làm `steps` tăng lên 1 trước khi câu ấy
+    // tới — nên nó rơi vào `conclusion` rồi bị câu kết đè.
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              url.startsWith("/api/teacher/chat")
+                ? { ...SPOKEN, turns: MISSED }
+                : [],
+            ),
+        }),
+      ),
+    );
+
+    render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(document.querySelectorAll(".reply-text").length).toBeGreaterThan(0),
+    );
+
+    const said = [...document.querySelectorAll(".reply-text")].map(
+      (one) => one.textContent ?? "",
+    );
+    expect(said.some((one) => one.includes("Mình sẽ soạn 3 câu"))).toBe(true);
+    expect(said.some((one) => one.includes("đã soạn xong"))).toBe(true);
+  });
+});
+
+describe("đường về từ màn cài đặt phát hành", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("Hoàn tác gọi onUnpublish, không chỉ nạp lại đề", async () => {
+    // `approve` có `onPublish` để đi tới màn 7; bỏ duyệt phải có đường về tương ứng.
+    // Bản trước gọi `unapprove` rồi nạp lại đề nhưng KHÔNG điều hướng, nên hash ở lại
+    // `/phat-hanh` trong khi màn hình đã quay về nội dung đề. Hậu quả đo trên trình
+    // duyệt: bấm Back lần đầu không đổi gì nhìn thấy được, phải bấm hai lần.
+    let state = "approved";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        if (method === "POST" && url.endsWith("/unapprove")) state = "has_questions";
+        const body = url.includes("/publish-form") ? FORM : paper(state);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+
+    const back: string[] = [];
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing={true}
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+        onUnpublish={() => back.push("ve")}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Hoàn tác")).toBeTruthy());
+    fireEvent.click(screen.getByText("Hoàn tác"));
+
+    await waitFor(() => expect(back).toEqual(["ve"]));
+  });
+});
+
+describe("goInstead — đường lùi thay mục lịch sử thay vì đẩy thêm", () => {
+  it("không đẩy mục mới, và vẫn báo cho màn hình biết route đã đổi", () => {
+    // `replaceState` KHÔNG bắn `hashchange` — luật của trình duyệt. Thiếu cú bắn tay thì
+    // `useRoute` ngồi im và màn hình đứng lại ở route cũ trong khi URL đã đổi: đúng cái
+    // kiểu lệch mà việc này đi sửa, chỉ là lệch theo chiều ngược lại.
+    window.location.hash = "/teacher/chat/c1/de/p1/phat-hanh";
+    const before = window.history.length;
+
+    const heard: string[] = [];
+    const listen = () => heard.push(window.location.hash.slice(1));
+    window.addEventListener("hashchange", listen);
+
+    goInstead("/teacher/chat/c1/de/p1");
+
+    window.removeEventListener("hashchange", listen);
+    expect(window.location.hash).toBe("#/teacher/chat/c1/de/p1");
+    expect(window.history.length).toBe(before);
+    expect(heard).toEqual(["/teacher/chat/c1/de/p1"]);
+  });
+
+  it("đi tới chính chỗ đang đứng thì không làm gì", () => {
+    // `window.location.hash = <giá trị cũ>` không bắn `hashchange` nào, nên một cú bắn
+    // tay ở đây sẽ là một sự kiện không có thật.
+    window.location.hash = "/teacher/chat/c1";
+    const heard: string[] = [];
+    const listen = () => heard.push("co");
+    window.addEventListener("hashchange", listen);
+
+    goInstead("/teacher/chat/c1");
+
+    window.removeEventListener("hashchange", listen);
+    expect(heard).toEqual([]);
+  });
+});
+
+describe("khối trộn: model làm rồi giáo viên duyệt", () => {
+  it("thẻ của model KHÔNG biến mất khi giáo viên duyệt trong cùng khối", () => {
+    // `blocks()` chỉ cắt khối ở lượt `teacher`, mà bấm *Duyệt đề* trên panel không sinh
+    // lượt `teacher` nào — nên cú duyệt rơi vào ĐÚNG cái khối model vừa soạn đề. Bản đầu
+    // của `cardTurns` trả *chỉ* việc của giáo viên trong ca ấy, và thẻ "Đã thêm N câu vào
+    // đề" biến mất cùng với cửa duy nhất vào đề vừa soạn. Đó là đúng cái bug mà
+    // `2026-10-03-chot-chang-a-plan.md` đã đi sửa, dựng lại lần nữa.
+    const turns = [
+      blank({ kind: "plan", tool_result: { steps: ["Soạn 3 câu"], total: 1 } }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        entity_kind: "assessment",
+        entity_id: "p1",
+        tool_result: { started: true, asked_for: 3, written: ["a", "b", "c"] },
+      }),
+      blank({ kind: "assistant", text: "Đã soạn xong 3 câu." }),
+      blank({
+        kind: "tool_result",
+        tool_name: "teacher.approve",
+        entity_kind: "assessment",
+        entity_id: "p1",
+        tool_result: { approved: true, assessment_id: "p1", questions: 3 },
+      }),
+    ];
+
+    const names = cardTurns(turns).map((one) => one.tool_name);
+    expect(names).toEqual(["start_drafting", "teacher.approve"]);
+  });
+
+  it("một cú duyệt không mọc ra hai thẻ giống nhau", () => {
+    // `modelCardTurn` quét ngược; nếu nó không bỏ qua việc của giáo viên thì cú duyệt
+    // đứng cuối khối được chọn làm "kết quả của model" và lên thẻ lần thứ hai.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "teacher.approve",
+        entity_kind: "assessment",
+        entity_id: "p1",
+        tool_result: { approved: true, assessment_id: "p1", questions: 3 },
+      }),
+    ];
+
+    expect(cardTurns(turns).length).toBe(1);
+  });
+});
+
+describe("lượt không có plan vẫn đọc theo đúng thứ tự", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("câu trả lời đứng SAU khối bước, không nhảy lên trên nó", async () => {
+    // ADR-25 cho pha 1 kết thúc bằng *một câu nói* chứ không nhất thiết một plan — hỏi
+    // đáp thuần đọc là ca ấy. Lấy `plan` làm mốc duy nhất thì câu trả lời thành "lời mở"
+    // và nhảy lên trên bằng chứng, ngược thứ tự mà `teacher-surface.md` đã chốt:
+    // avatar → câu mở → khối bước → câu kết → thẻ.
+    const turns = [
+      blank({ kind: "teacher", text: "Lớp 12A có bao nhiêu học sinh?" }),
+      blank({
+        kind: "tool_result",
+        tool_name: "find_class",
+        tool_result: { found: true, name: "12A", student_count: 40 },
+      }),
+      blank({ kind: "assistant", text: "Lớp 12A có 40 học sinh." }),
+    ];
+
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              url.startsWith("/api/teacher/chat") ? { ...SPOKEN, turns } : [],
+            ),
+        }),
+      ),
+    );
+
+    const { container } = render(
+      <Chat
+        conversationId="c1"
+        fresh={false}
+        openPaper={null}
+        publishing={false}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector(".reply-text")).not.toBeNull(),
+    );
+
+    const body = container.querySelector(".turn-body") as Element;
+    const order = [...body.children].map((one) =>
+      one.className.split(" ")[0],
+    );
+    const steps = order.indexOf("steps-block");
+    const reply = order.indexOf("reply-text");
+    expect(steps).toBeGreaterThanOrEqual(0);
+    expect(reply).toBeGreaterThan(steps);
+  });
+});
+
+describe("goInstead không kéo người dùng về từ một closure cũ", () => {
+  it("route đã đi chỗ khác thì không thay gì", () => {
+    // `undo()` await hai request rồi mới điều hướng. Trong lúc chờ, giáo viên có thể đã
+    // bấm Đóng. Một cú thay vô điều kiện vừa kéo họ ngược vào panel, vừa XOÁ mục lịch sử
+    // họ vừa tới — `replaceState` phá huỷ chứ không đẩy.
+    window.location.hash = "/teacher/chat/c1";
+    goInstead("/teacher/chat/c1/de/p1", "/teacher/chat/c1/de/p1/phat-hanh");
+    expect(window.location.hash).toBe("#/teacher/chat/c1");
+  });
+
+  it("còn đứng đúng chỗ thì vẫn thay", () => {
+    window.location.hash = "/teacher/chat/c1/de/p1/phat-hanh";
+    goInstead("/teacher/chat/c1/de/p1", "/teacher/chat/c1/de/p1/phat-hanh");
+    expect(window.location.hash).toBe("#/teacher/chat/c1/de/p1");
   });
 });

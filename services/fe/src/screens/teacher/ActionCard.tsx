@@ -5,8 +5,10 @@ import { type Step } from "./Steps";
  * Việc mỗi tool hiện thành gì: một **bước** trong khối `Thinking`, hay một **thẻ** kết quả.
  *
  * Đây là bản cài đặt của bảng trong `docs/overview/teacher-surface.md`, và là chỗ duy nhất
- * được phép quyết chuyện đó. Luật: một lượt sinh ra **tối đa một thẻ** — chỉ kết quả cuối
- * cùng có hậu quả cho giáo viên mới lên thẻ, mọi bước trung gian ở lại trong `Thinking`.
+ * được phép quyết chuyện đó. Luật có **hai nửa**: một lượt của model sinh ra tối đa một thẻ
+ * — chỉ kết quả cuối cùng có hậu quả cho giáo viên mới lên thẻ, mọi bước trung gian ở lại
+ * trong `Thinking` — còn **mỗi** việc giáo viên tự làm thì một thẻ, vì ADR-24 đòi từng biên
+ * bản sống sót. Cả hai nửa gặp nhau trong cùng một khối; xem `cardTurns`.
  * Thiếu một dòng ở đây thì tool mới chỉ là một bước, và đó là mặc định an toàn: một bước
  * không hứa gì.
  */
@@ -145,17 +147,57 @@ function outcome(turn: Turn): string {
 }
 
 /**
- * Lượt nào trong một khối được lên thẻ, hay không lượt nào cả.
+ * Những lượt nào trong một khối được lên thẻ.
  *
- * Quét **ngược** và lấy cái đầu tiên đủ tư cách: thẻ kể kết quả của lượt, mà kết quả thì là
- * thứ xảy ra sau cùng. `start_drafting` đủ tư cách **khi và chỉ khi** nó đã đợi hết câu và
- * mang con số thật về; chưa có con số thì một thẻ ở đó nói với giáo viên rằng một việc đã
- * xong trong khi nó vừa mới bắt đầu.
+ * **Việc của model thì một thẻ; việc của giáo viên thì mỗi việc một thẻ.** Hai luật khác
+ * nhau vì chúng trả lời hai câu hỏi khác nhau.
+ *
+ * Một lượt của model là *một* việc được nhờ, dù nó đi qua năm bước tool — nên nó có *một*
+ * kết quả, và thẻ kể kết quả ấy. Quét **ngược** lấy cái đầu tiên đủ tư cách, vì kết quả là
+ * thứ xảy ra sau cùng.
+ *
+ * Còn mỗi lần giáo viên tự duyệt hay tự bỏ duyệt là một **biên bản riêng**. ADR-24 đòi biên
+ * bản duyệt phải sống sót, và bản trước của hàm này trả đúng một thẻ cho cả khối — nên
+ * `unapprove` đè mất `approve`, và màn hình chỉ còn nói *"Đã bỏ duyệt đề"* như thể chưa ai
+ * từng duyệt. Đo được trên hội thoại thật: hai lượt trong database, một thẻ trên màn hình.
+ *
+ * Đáng nói là comment ở `spoken()` lúc ấy đã tự khẳng định *"Nó vẫn lên thẻ, nên biên bản
+ * không mất đi đâu (ADR-24)"* — một lời hứa sai nằm ngay cạnh chỗ phá nó.
+ *
+ * `start_drafting` đủ tư cách **khi và chỉ khi** nó đã đợi hết câu và mang con số thật về;
+ * chưa có con số thì một thẻ ở đó nói với giáo viên rằng một việc đã xong trong khi nó vừa
+ * mới bắt đầu.
+ *
+ * @param turns - Các lượt của một khối Kriky, theo thứ tự đã xảy ra.
+ * @returns Các lượt được lên thẻ, theo đúng thứ tự thời gian. Rỗng khi không có lượt nào.
+ */
+export function cardTurns(turns: Turn[]): Turn[] {
+  // **Cả hai loại cùng ở lại**, và bản đầu của hàm này sai đúng chỗ ấy: nó trả *chỉ*
+  // việc của giáo viên khi khối có một việc như thế, với lý lẽ "khối ấy không có việc
+  // nào của model để kể". Lý lẽ sai, vì `blocks()` chỉ cắt khối ở lượt `teacher` — mà
+  // bấm *Duyệt đề* trên panel không sinh lượt `teacher` nào. Nên cú duyệt rơi vào **đúng
+  // cái khối** model vừa soạn đề, và thẻ *Đã thêm N câu vào đề* biến mất cùng với cửa
+  // duy nhất vào đề ấy. Đó là đúng cái bug `2026-10-03-chot-chang-a-plan.md` đã đi sửa.
+  const keep = new Set<Turn>(
+    turns.filter((one) => one.kind === "tool_result" && byTheTeacher(one)),
+  );
+
+  const one = modelCardTurn(turns);
+  if (one !== null) keep.add(one);
+
+  // Lọc theo `turns` chứ không ghép hai mảng: thứ tự thời gian là thứ kể đúng chuyện đã
+  // xảy ra, và một cái thẻ *Đã duyệt* đứng trước thẻ *Đã soạn xong* đọc ra là duyệt một
+  // đề chưa có câu nào.
+  return turns.filter((turn) => keep.has(turn));
+}
+
+/**
+ * Lượt kết quả của **model** trong một khối, hay `null`.
  *
  * @param turns - Các lượt của một khối Kriky, theo thứ tự đã xảy ra.
  * @returns Lượt được lên thẻ, hoặc `null`.
  */
-export function cardTurn(turns: Turn[]): Turn | null {
+function modelCardTurn(turns: Turn[]): Turn | null {
   // Đề đã bắt đầu được đổ câu vào thì trạng thái "trống" của nó không còn đứng vững: chính
   // bước sau đã thay nó. Một plan "tạo đề 10 câu" vì thế **không** mọc ra thẻ *Chưa có câu
   // hỏi nào* — một thẻ nói với giáo viên rằng việc được nhờ đã xong và cho ra một cái đề
@@ -171,6 +213,10 @@ export function cardTurn(turns: Turn[]): Turn | null {
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const turn = turns[index];
     if (turn.kind !== "tool_result") continue;
+    // Việc của giáo viên đã có thẻ riêng, và nó không phải "kết quả của lượt model" —
+    // không có nó thì một cú duyệt đứng cuối khối sẽ được chọn làm thẻ của model, rồi
+    // `cardTurns` trả hai thẻ giống hệt nhau cho một hành động.
+    if (byTheTeacher(turn)) continue;
     // Bước soạn **chưa đợi xong** vẫn không lên thẻ: không có con số nào thì một thẻ ở đó
     // nói một việc đã xong trong khi nó vừa mới bắt đầu. Bước đã đợi xong thì ngược lại —
     // nó là kết quả cuối cùng có hậu quả cho giáo viên, và trước đợt này nó bị loại vô điều
@@ -363,7 +409,7 @@ export default function ActionCard({
     );
   }
 
-  // Không rơi vào đây được: `cardTurn` đã lọc, và mọi tool còn lại là một bước. Nếu có ngày
+  // Không rơi vào đây được: `cardTurns` đã lọc, và mọi tool còn lại là một bước. Nếu có ngày
   // nó rơi vào thì **không vẽ gì** — một thẻ in tên tool ra màn hình giáo viên là một chuỗi
   // kỹ thuật lọt ra bề mặt, tệ hơn hẳn một thẻ vắng mặt.
   return null;

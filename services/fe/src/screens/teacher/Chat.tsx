@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { go } from "../../App";
+import { go, goInstead } from "../../App";
 import {
   teacher,
   type Answered,
@@ -9,7 +9,7 @@ import {
   type Turn,
   type TurnEvent,
 } from "../../api";
-import ActionCard, { byTheTeacher, cardTurn, stepFor } from "./ActionCard";
+import ActionCard, { byTheTeacher, cardTurns, stepFor } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
 import Rail from "./Rail";
@@ -588,6 +588,17 @@ export default function Chat({
           onPublish={() =>
             go(`/teacher/chat/${here ?? ""}/de/${openPaper}/phat-hanh`)
           }
+          // Đường về, song sinh với `onPublish`. Trước đó chỉ có đường đi: `undo()` gọi
+          // `unapprove` rồi nạp lại đề, nhưng **không điều hướng**, nên hash vẫn là
+          // `/phat-hanh` trong khi màn hình đã quay về nội dung đề. Hậu quả đo được: bấm
+          // Back lần đầu không đổi gì nhìn thấy được — URL đổi, màn hình y nguyên — và
+          // phải bấm hai lần mới ra khỏi panel.
+          onUnpublish={() =>
+            goInstead(
+              `/teacher/chat/${here ?? ""}/de/${openPaper}`,
+              `/teacher/chat/${here ?? ""}/de/${openPaper}/phat-hanh`,
+            )
+          }
           onApproved={() => {
             // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
             // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
@@ -645,17 +656,24 @@ interface Spoken {
   steps: Step[];
   /** Câu kết sau khi làm xong. */
   conclusion: string;
-  /** Lượt được lên thẻ, hoặc `null`. **Tối đa một thẻ cho một lượt.** */
-  card: Turn | null;
+  /**
+   * Các lượt được lên thẻ, theo thứ tự thời gian.
+   *
+   * **Một thẻ cho một lượt của model, nhưng mỗi việc của giáo viên một thẻ.** Trường này
+   * từng là `card: Turn | null`, và cái `null` ấy làm mất biên bản duyệt khi giáo viên
+   * duyệt rồi hoàn tác trong cùng một khối (ADR-24). Xem `cardTurns`.
+   */
+  cards: Turn[];
 }
 
 /**
  * Tách một lượt của Kriky thành bốn khối, theo đúng thứ tự của artboard `5 · Đã có đề nháp`:
- * câu mở đầu → khối các bước → câu kết → **một** thẻ kết quả.
+ * câu mở đầu → khối các bước → câu kết → các thẻ kết quả.
  *
  * Trước đây mỗi `tool_result` thành một thẻ ngang hàng, nên một lượt năm bước cho ra năm thẻ
  * và hàng avatar rơi xuống dưới chúng. Thiết kế nói điều ngược lại: các bước là **bằng chứng**
- * nằm trong một khối thu gọn được, còn thẻ là **kết quả** và một lượt chỉ có một kết quả.
+ * nằm trong một khối thu gọn được, còn thẻ là **kết quả**, và một lượt của model chỉ có một
+ * kết quả. Việc giáo viên tự làm thì khác — mỗi việc một thẻ; `cardTurns` giữ ranh giới ấy.
  *
  * @param turns - Các lượt không phải của giáo viên, theo thứ tự đã xảy ra.
  */
@@ -663,23 +681,46 @@ function spoken(turns: Turn[]): Spoken {
   const steps: Step[] = [];
   let opening = "";
   let conclusion = "";
-  for (const one of turns) {
+  // **Mốc của lời mở đầu, nhìn trước chứ không đếm dần.** Hai ca đối nhau, và bản đếm dần
+  // chỉ đúng được một:
+  //
+  // - Lượt **có plan**: câu Kriky nói trước khi bắt tay là lời mở. Đếm `steps.length === 0`
+  //   hỏng ở đây khi một tool **trượt trước khi plan kịp tồn tại** — bước trượt làm `steps`
+  //   tăng lên, nên lời mở rơi vào `conclusion` rồi bị câu kết đè. Đo được trên hội thoại
+  //   thật: câu *"Mình sẽ soạn 3 câu cho đề đã tạo"* có trong database, không có trên màn.
+  // - Lượt **không plan** — ADR-25 cho pha 1 kết thúc bằng *một câu nói* chứ không nhất
+  //   thiết một plan, ví dụ hỏi đáp thuần đọc. Ở đây câu trả lời đi **sau** bằng chứng,
+  //   nên nó là câu kết. Lấy `plan` làm mốc duy nhất thì nó thành lời mở và câu trả lời
+  //   nhảy lên **trên** khối bước — ngược thứ tự đọc mà `teacher-surface.md` đã chốt.
+  //
+  // Nên mốc là: có plan thì lời mở là câu cuối **trước plan đầu tiên**; không plan thì là
+  // câu trước **bước đầu tiên**. Một phép nhìn trước trả lời được cả hai; một biến đếm thì
+  // không, vì lúc gặp câu ấy nó chưa biết sau này có plan hay không.
+  const firstPlan = turns.findIndex((one) => one.kind === "plan");
+  const firstStep = turns.findIndex(
+    (one) => one.kind === "tool_result" && !byTheTeacher(one),
+  );
+  const edge = firstPlan >= 0 ? firstPlan : firstStep;
+
+  for (const [at, one] of turns.entries()) {
     if (one.kind === "tool_result") {
       // Việc giáo viên tự làm thì không vào khối bước: khối ấy là bằng chứng **model** đã
-      // làm gì. Nó vẫn lên thẻ, nên biên bản không mất đi đâu (ADR-24).
+      // làm gì. Nó vẫn lên thẻ, nên biên bản không mất đi đâu (ADR-24) — và nay là **mỗi
+      // việc một thẻ**, vì bản trước để `unapprove` đè mất `approve`.
       if (!byTheTeacher(one)) steps.push(stepFor(one));
       continue;
     }
     if (one.kind !== "assistant") continue;
-    // Câu nói trước bước đầu tiên là lời mở; mọi câu sau đó là câu kết, và câu cuối thắng.
-    if (steps.length === 0 && opening === "") opening = one.text;
+    // Câu trước mốc là lời mở — câu **cuối** trong số đó, vì model có thể nói hai câu
+    // trước khi bắt tay. Mọi câu sau mốc là câu kết, và câu cuối thắng.
+    if (edge >= 0 && at < edge) opening = one.text;
     else conclusion = one.text;
   }
   if (conclusion === "" && steps.length === 0) {
     conclusion = opening;
     opening = "";
   }
-  return { opening, steps, conclusion, card: cardTurn(turns) };
+  return { opening, steps, conclusion, cards: cardTurns(turns) };
 }
 
 /**
@@ -691,8 +732,11 @@ function spoken(turns: Turn[]): Spoken {
  * không ai biết các thẻ kia của ai. Avatar mở đầu khối là cách nói *"từ đây là Kriky"*, và
  * nó phải nói điều đó **trước** thứ nó giới thiệu.
  *
- * Việc xếp bên trong một khối là việc của `spoken`: các bước vào khối `Thinking`, câu kết
- * và **một** thẻ đi sau nó — đúng `thread` của artboard `5 · Đã có đề nháp` (`12:46`).
+ * Việc xếp bên trong một khối là việc của `spoken`: các bước vào khối `Thinking`, rồi câu
+ * kết, rồi các thẻ — đúng `thread` của artboard `5 · Đã có đề nháp` (`12:46`).
+ *
+ * **Khối chỉ cắt ở lượt `teacher`**, và đó là một sự thật có hậu quả: bấm *Duyệt đề* trên
+ * panel không sinh lượt `teacher` nào, nên cú duyệt nằm chung khối với việc model vừa làm.
  *
  * `tool_call` không vẽ gì: nó không mang kết quả, và sau khi lượt xong thì nó là tiếng ồn.
  * Nó cũng không mở một khối — một lượt chỉ có `tool_call` sẽ là một avatar giới thiệu một
@@ -832,13 +876,18 @@ function Turnful({
               <MathText>{said.conclusion}</MathText>
             </div>
           )}
-          {said.card !== null && (
+          {said.cards.map((one, index) => (
+            // `key` theo thứ tự, vì **không có khoá nào khác**: `Turn` không mang id hay
+            // số thứ tự nào (`api.ts`). Và `tool_name` không thay được: một đề duyệt →
+            // bỏ duyệt → duyệt lại cho ra hai lượt `teacher.approve` trùng tên trong cùng
+            // một khối, mà hai key trùng làm React ghép nhầm hai thẻ.
             <ActionCard
-              turn={said.card}
+              key={index}
+              turn={one}
               onOpen={onOpen}
               onCompose={onCompose}
             />
-          )}
+          ))}
         </div>
       </div>
     </div>

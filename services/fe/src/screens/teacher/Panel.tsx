@@ -39,12 +39,14 @@ export default function Panel({
   onClose,
   onApproved,
   onPublish,
+  onUnpublish,
 }: {
   assessmentId: string;
   publishing: boolean;
   onClose: () => void;
   onApproved: () => void;
   onPublish: () => void;
+  onUnpublish: () => void;
 }) {
   const [paper, setPaper] = useState<AssessmentDetail | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -118,6 +120,11 @@ export default function Panel({
       setPaper(await teacher.assessment(assessmentId));
       setTrouble(null);
       onApproved();
+      // Và quay về route của nội dung đề. `approve` có `onPublish` để đi tới, nên bỏ
+      // duyệt phải có đường về tương ứng — nếu không, hash ở lại `/phat-hanh` trong khi
+      // màn hình đã là nội dung đề, và nút Back của trình duyệt mất một lần bấm vào một
+      // chỗ trông y hệt chỗ đang đứng.
+      onUnpublish();
     } catch (cause) {
       setTrouble((cause as Error).message);
     } finally {
