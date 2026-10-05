@@ -351,6 +351,19 @@ lồng nhau đọc ra nặng hơn chứ không nhẹ đi.
 **Và biểu mẫu thôi đếm lớp.** Dòng *"Đã chọn x trong y lớp · z học sinh"* đi mất: các chip lớp ngay
 trên nó đã nói ai được chọn, và con số đầu người thì nằm ở hộp xác nhận — chỗ nó thật sự chịu lực.
 
+**Chip lớp mang `aria-pressed`.** Nó là một toggle thật, nhưng dấu ✓ đã `aria-hidden` và
+`class-chip on` là chuyện của CSS — nên thiếu thuộc tính ấy thì trình đọc màn hình đọc *"12A,
+button"* y hệt dù đã chọn hay chưa. Đây là nút quyết định **ai nhận đề** (ADR-02), tức chỗ tệ nhất
+để một người không biết mình vừa chọn gì.
+
+**Cửa sổ thời gian vô lý bị chặn TRƯỚC cú bấm, bằng đúng lời của BE.** Biểu mẫu từng nhận mở-20:00 /
+đóng-08:00 rồi vẫn sáng nút, và câu luật ngay dưới in ra *"Vào tham gia tới hết 08:00 - có thể nộp
+lúc 08:15"* bằng giọng khẳng định. Cổng thật vẫn ở `_schedule_fault`; biểu mẫu chỉ nói sớm hơn, và
+mượn nguyên ba hằng `FAULT_*` qua payload thay vì viết lại — ADR-03 đòi mọi nơi nói giống hệt nhau,
+và một lời từ chối cũng là một nơi nói ra luật ấy. `check_the_form_fills_the_slots_the_wording_declares`
+giữ việc mượn ấy; ba test giữ ba phép so, trong đó mốc *giờ nộp cuối* có test riêng vì nó là con số
+ADR-03 dành cả tài liệu để chống.
+
 ## Panel tách khỏi khung chat bằng **nền**, vạch chỉ là nét cuối
 
 Số đo trên Figma: `panel` nền `#FFFFFF` + stroke `#E3E5E2` **cả bốn cạnh**; `questions` bên trong nó
@@ -391,6 +404,18 @@ thế thêm và bớt được, với ba luật đứng ngay trên màn hình th
 - **Nút xoá biến mất** khi còn đúng hai phương án, hoặc đúng hai lời giải; không để bấm rồi nhận
   một lời từ chối. Nhãn của phương án mới là chữ cái **trống đầu tiên**, không phải chữ sau chữ lớn
   nhất: xoá B rồi thêm lại cho ra B, không cho ra E.
+- **Đáp án đúng đổi được, bằng một nhóm radio.** Trước đó phương án đúng chỉ có một cái nhãn và
+  không control nào — nên thứ duy nhất hỏng ở một câu model soạn sai lại là thứ duy nhất giáo viên
+  không sửa được. Đo được trên dữ liệu thật: một câu có đáp án đúng là `1/2`, bốn phương án không
+  chứa `1/2`, và `1/3` đang đeo dấu đúng. Cổng người thứ nhất của ADR-05 hở đúng chỗ ấy.
+
+  Nhóm radio **không** tự giữ ADR-18: `checked` đi từ state, nên thứ bỏ cờ cũ là `onChange`. Và nó
+  **không xoá** nhãn lỗi của phương án vừa thành đúng — `OptionEdit` ở BE nói thẳng rằng nhãn gửi
+  kèm đáp án đúng thì bị bỏ, không bị từ chối, nên xoá ở FE chỉ mua được một thứ: bấm nhầm rồi bấm
+  lại là mất chữ giáo viên đã gõ tay.
+- **Nút Lưu khoá khi còn nhiễu nào chưa có nhãn lỗi**, kèm một câu tiếng Việt. Đổi đáp án đúng biến
+  phương án cũ thành một phương án nhiễu, mà nó thường chưa có nhãn — để cú bấm ấy đi tới BE thì
+  lời từ chối về là `distractors ['A'] carry no error label: <cả đề bài>`.
 
 **Cổng ADR-01**: chỉ sửa được khi đề còn mở. Đề đã duyệt thì nội dung khoá — chính cái khoá đó làm
 việc duyệt có nghĩa — và đường mở lại là *Hoàn tác* ở màn cài đặt phát hành.

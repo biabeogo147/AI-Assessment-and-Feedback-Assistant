@@ -37,7 +37,10 @@ chỗ hỏng mà sửa; ba lỗ ở dòng lượt nói, biểu mẫu sửa câu 
 |---|---|
 | `services/agent/src/agent/latex_escapes.py` | MỚI — bộ khôi phục theo từ điển lệnh |
 | `services/agent/src/agent/graphs/authoring.py` | `_unmangled()`, gọi trong `_write` |
-| `tools/check_contract.py` | check thứ 11, đọc cây cú pháp của `_write` |
+| `tools/check_contract.py` | check thứ 11 (bộ khôi phục được nối dây); check thứ 9 nới ra giữ ba lời từ chối |
+| `services/be/src/be/publication_wording.py` | ba hằng `FAULT_*` |
+| `services/be/tests/test_publishing.py` | ghim khúc nối ba field với ba hằng |
+| `services/fe/src/api.ts`, `teacher.css`, `teacher.test.tsx` | kiểu, hình, và lưới |
 | `services/fe/src/screens/teacher/Panel.tsx` | `MANGLED`, `visible()`, dòng `.mangled`; radio đáp án đúng |
 | `services/fe/src/screens/teacher/Chat.tsx` | mốc plan trong `spoken()` |
 | `services/fe/src/screens/teacher/ActionCard.tsx` | `cardTurns()` trả nhiều thẻ |
@@ -73,12 +76,14 @@ chỗ hỏng mà sửa; ba lỗ ở dòng lượt nói, biểu mẫu sửa câu 
 
 ### Pha 3 — hai biểu mẫu (D11, E13, E14)
 
-- [ ] Figma: cột radio trong `Question card — đang sửa`; trạng thái cảnh báo ở `Publish settings`
-- [ ] Radio đáp án đúng, ô nhãn lỗi ẩn ở phương án đang đúng (D11)
-- [ ] `aria-pressed` cho chip lớp (E13)
-- [ ] Ba câu của `_schedule_fault` thành hằng BE, FE hiện trước cú bấm (E14)
-- [ ] Mở rộng check thứ 9: ba câu FE hiện phải là ba hằng BE khai
-- [ ] Review subagent
+- [x] Figma: cột radio trong `Question card — đang sửa`; biến thể `cửa sổ thời gian sai` ở
+      `Publish settings`
+- [x] Radio đáp án đúng, ô nhãn lỗi ẩn ở phương án đang đúng (D11), cộng một cú chặn
+      tiếng Việt khi còn nhiễu chưa có nhãn
+- [x] `aria-pressed` cho chip lớp (E13)
+- [x] Ba câu của `_schedule_fault` thành hằng BE, FE hiện trước cú bấm (E14)
+- [x] Mở rộng check thứ 9: ba câu FE hiện phải là ba hằng BE khai
+- [x] Review subagent, và sửa cả bảy phát hiện có thật của nó
 
 ## Validation Checks
 
@@ -130,22 +135,23 @@ cả hai hợp đồng KEPT. Một cổng báo đỏ khi mọi thứ đúng sẽ
 
 ## Status
 
-Pha 1 **xong** (4 commit), gồm cả sáu phát hiện của review.
+Cả ba pha **xong**. Pha 1 và pha 2 đã commit (6 commit); pha 3 chờ commit.
 
-Pha 2 **xong**, chưa commit. Review tìm được **hai lỗi correctness thật trong chính bản sửa**,
-cả hai đã chữa và có test ghim:
+Mỗi pha có một subagent review, và **cả ba lần review đều tìm được lỗi thật trong chính
+bản sửa** — không lần nào là nghi thức:
 
-- `cardTurns` trả *chỉ* việc của giáo viên khi khối có một việc như thế, nên thẻ của model
-  biến mất — dựng lại đúng cái bug `2026-10-03-chot-chang-a-plan.md` đã sửa. Lý lẽ trong
-  comment ("khối ấy không có việc nào của model") sai, vì `blocks()` chỉ cắt ở lượt `teacher`
-  mà bấm *Duyệt đề* không phải một lượt nói.
-- Lấy `plan` làm mốc duy nhất làm hỏng ca **không có plan** (ADR-25 cho pha 1 kết thúc bằng
-  một câu nói): câu trả lời nhảy lên **trên** khối bước, ngược thứ tự đọc đã chốt.
-
-Pha 3 đang làm: Figma xong (cột radio, biến thể *cửa sổ thời gian sai*), BE xong (ba hằng
-`FAULT_*` đi lên biểu mẫu), FE xong phần `aria-pressed` và chặn cửa sổ vô lý; còn radio đáp
-án đúng và check thứ chín mở rộng.
+- **Pha 1:** cả file test bị CRLF hoá, chôn 82 dòng thật trong một diff 4810 dòng;
+  `learning_objective` không đi qua bộ khôi phục trong khi docstring nói "mọi field chữ";
+  chữ model nói trong khung chat đi cùng ống JSON mà chưa ai sửa; thiếu plan và ADR theo
+  hợp đồng; ba docstring BE còn kể về một lưới đã gỡ.
+- **Pha 2:** `cardTurns` nuốt mất thẻ của model khi giáo viên duyệt trong cùng khối —
+  dựng lại đúng cái bug `chot-chang-a-plan` đã sửa; và lấy `plan` làm mốc duy nhất làm
+  hỏng ca **không có plan**, đảo thứ tự đọc đã chốt.
+- **Pha 3:** radio xoá `error_label` nên bấm xong là một đường thẳng tới 422 **tiếng
+  Anh**, và cái xoá ấy làm mất chữ giáo viên đã gõ; mốc *giờ nộp cuối* ở FE không có lưới
+  nào (đột biến xanh); hai trong ba lời từ chối không có test; khúc nối ba field với ba
+  hằng ở BE không ai gác; `Number(minutes)` ngoài khoảng cho ra `[object Object]`.
 
 Ngoài phạm vi plan này, đã ghi vào `docs/plans/backlog.md`: chữ model nói trong khung chat
-giáo viên (`propose.py` → `_Proposal.text` → `MathText`) đi cùng một ống JSON mà **chưa** được
-khôi phục; `vet_plan` cho lọt một id là chuỗi số trần; chất lượng toán model sinh ra.
+giáo viên đi cùng ống JSON (**đã sửa trong pha 1**); `vet_plan` cho lọt một id là chuỗi số
+trần; chất lượng toán model sinh ra.

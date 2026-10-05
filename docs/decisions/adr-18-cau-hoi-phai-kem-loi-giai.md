@@ -77,6 +77,17 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
   mỗi instance ẩn bớt ô thừa, nên artboard 7 có câu ba lựa chọn, câu bốn và câu năm cạnh nhau. Đáp án
   đúng đánh dấu bằng **một dấu ✓**, không kèm chữ. Mười thẻ trên artboard 6 và 7 là instance của
   component này; trước đó là mười frame dựng tay.
+- **Bề mặt sửa của giáo viên, từ 06/10/2026**: Figma `Question card — đang sửa` (`468:2050`) có một
+  `radio` 14px ở đầu mỗi `option-head`, và `Panel.tsx` dựng nó thành một nhóm `<input type="radio">`
+  chung `name` theo `question_id`. Đây là nơi luật *đúng một đáp án đúng* được thi hành ở tầng người
+  dùng — trước đó phương án đúng chỉ có một cái nhãn và không control nào, nên một câu model đánh
+  dấu sai đáp án là một câu **không ai sửa được**, dù cả ba cổng người của ADR-05 đều mở.
+  Nhóm radio **không** tự giữ luật: `checked` đi từ state, nên `onChange` mới là chỗ bỏ cờ cũ, và
+  test *"payload có ĐÚNG MỘT đáp án đúng"* trong `teacher.test.tsx` là lưới của nó.
+- **Và luật *mọi nhiễu có nhãn lỗi* được nói trước cú bấm**: `Editing` khoá nút *Lưu* kèm một câu
+  tiếng Việt khi còn nhiễu nào chưa có nhãn. Không có nó thì đổi đáp án đúng là một đường dẫn thẳng
+  tới 422, và lời từ chối về là `distractors ['A'] carry no error label: <cả đề bài>` — tiếng Anh,
+  kèm `repr` của một list Python.
 - Figma `Solution dialog` (`309:41`) trên artboard `12 · Xem lời giải một câu` — hai cách giải và bảng
   ánh xạ nhiễu→lỗi nằm trong một hộp thoại, **không mở bung trong thẻ**. Mở bung đẩy chín thẻ còn lại
   ra khỏi tầm nhìn của người đang duyệt, mà duyệt là việc so sánh giữa các câu.

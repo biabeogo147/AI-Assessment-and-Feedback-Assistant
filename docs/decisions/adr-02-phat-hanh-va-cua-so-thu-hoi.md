@@ -56,6 +56,12 @@ một con số dựng sẵn.
 
 ## Nơi luật này đang được thi hành
 
+- **Chip lớp trên biểu mẫu phát hành mang `aria-pressed`** (từ 06/10/2026). Việc chọn lớp là
+  tham số **thứ nhất** trong sáu, và là tham số quyết định ai nhận đề — nhưng nút ấy từng chỉ nói
+  ra trạng thái của mình bằng màu và một dấu ✓ đã `aria-hidden`, nên trình đọc màn hình đọc
+  *"12A, button"* y hệt dù đã chọn hay chưa. Một luật về *ai* nhận đề mà người dùng không biết
+  mình vừa chọn ai thì không có cổng nào cả.
+
 - `services/be/src/be/models.py` — `Publication` có khoá chính **kép** `(assessment_id, class_id)`,
   nên một đề phát hành được cho nhiều lớp, mỗi lớp một bộ năm cài đặt riêng — tham số **thứ nhất**
   trong sáu tham số ở mục trên là **lớp**, và ở bảng này nó là nửa còn lại của khoá chứ không phải một

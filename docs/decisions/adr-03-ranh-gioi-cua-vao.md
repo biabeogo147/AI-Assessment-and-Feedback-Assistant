@@ -53,6 +53,14 @@ nhìn thấy.
   chữ** từ Figma. Chúng là **hàm** chứ không phải hằng số, vì con số thứ hai trong câu pha 1 (18:15)
   là một *phép tính* — giờ đóng cộng thời gian làm bài — tức chính con số diễn đạt ra cái luật. BE
   tính nó một lần; một câu có số do FE tự tính là bản cài đặt thứ hai của phép tính ấy.
+- **Ba lời từ chối cũng là ba nơi nói ra luật này**, nên từ 06/10/2026 chúng là hằng có tên trong
+  cùng file: `FAULT_OPENS_IN_THE_PAST`, `FAULT_CLOSES_BEFORE_OPENS`, `FAULT_PHASE_TWO_TOO_EARLY`.
+  `_schedule_fault` trả chúng, và biểu mẫu phát hành **mượn** chúng qua payload để nói trước cú bấm
+  — trước đó biểu mẫu nhận mở-20:00 / đóng-08:00 rồi vẫn sáng nút, và câu luật ngay dưới khẳng định
+  một sự thật bất khả thi. Việc mượn được giữ bởi
+  `check_the_form_fills_the_slots_the_wording_declares`, và khúc nối ba field với ba hằng được giữ
+  bởi `test_bieu_mau_cho_ba_loi_tu_choi_dung_day` — nối chéo chúng là một thay đổi xanh hết mọi
+  lưới khác, và hệ quả là màn hình nói một câu đúng ngữ pháp, sai hoàn toàn.
 - `services/be/src/be/teacher_routes.py` — cùng hai câu đó đi kèm **cả ba** payload: biểu mẫu (dạng
   chưa có số, vì chưa ai gõ giờ nào), bản `preview` mà hộp xác nhận đọc, và biên bản sau khi phát
   hành. `preview` đi qua **đúng** đoạn code mà lần ghi thật đi qua, nên "ba nơi giống hệt nhau" đúng
