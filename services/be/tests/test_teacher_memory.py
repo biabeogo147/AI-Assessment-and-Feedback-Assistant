@@ -156,6 +156,11 @@ async def test_a_tool_step_stores_what_it_ran_and_what_came_back(stack) -> None:
     trả lời sai" mà lượt gọi tool sinh ra câu trả lời đó thì chẳng nằm ở đâu cả.
     """
     client, maker, monkeypatch = stack
+    async with maker() as session:
+        wanted = await session.scalar(select(SchoolClass).where(SchoolClass.name == "12B"))
+        assert wanted is not None
+        class_id = wanted.id
+
     monkeypatch.setattr(
         teacher_chat,
         "run_task",
@@ -163,8 +168,8 @@ async def test_a_tool_step_stores_what_it_ran_and_what_came_back(stack) -> None:
             NextStepCompleted(
                 request_id="x",
                 kind="call_tool",
-                tool_name="find_class",
-                tool_args={"name": "12B"},
+                tool_name="get_class",
+                tool_args={"class_id": class_id},
             ),
             NextStepCompleted(request_id="x", kind="say", text="Lớp 12B có 1 học sinh."),
         ),
@@ -178,8 +183,8 @@ async def test_a_tool_step_stores_what_it_ran_and_what_came_back(stack) -> None:
     assert [turn.kind for turn in stored] == ["teacher", "tool_call", "tool_result", "assistant"]
 
     ran = stored[1]
-    assert ran.tool_name == "find_class"
-    assert ran.tool_args == {"name": "12B"}
+    assert ran.tool_name == "get_class"
+    assert ran.tool_args == {"class_id": class_id}
 
     came_back = stored[2]
     assert came_back.tool_result["found"] is True

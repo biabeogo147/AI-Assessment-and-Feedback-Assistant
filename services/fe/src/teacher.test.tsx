@@ -11,7 +11,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import ActionCard, { cardTurns, stepFor } from "./screens/teacher/ActionCard";
+import ActionCard, {
+  cardState,
+  cardTurns,
+  stepFor,
+} from "./screens/teacher/ActionCard";
 import { goInstead } from "./App";
 import Chat, { grow } from "./screens/teacher/Chat";
 import Panel from "./screens/teacher/Panel";
@@ -30,8 +34,12 @@ const FORM = {
   question_count: 6,
   can_publish: true,
   reason: "",
+  // Hai lớp, không một. Một biểu mẫu chỉ có một lớp thì mọi luật về **tập** lớp đều
+  // không đo được: `picked` và `picked.slice(0, 1)` ra cùng một kết quả, nên một đột
+  // biến bỏ rơi lớp thứ hai vẫn xanh.
   classes: [
     { class_id: "c1", name: "12A", student_count: 40, published: false },
+    { class_id: "c2", name: "12B", student_count: 32, published: false },
   ],
   rules: {
     phase_one: "Vào tham gia tới hết --:--",
@@ -48,6 +56,8 @@ const FORM = {
     closes_before_opens: "giờ đóng phải sau giờ mở",
     phase_two_too_early: "hạn pha 2 phải sau giờ nộp cuối của pha 1",
   },
+  // Rỗng là *còn lùi được*. Câu chặn do BE viết, và biểu mẫu hiện nó TRƯỚC cú bấm.
+  undo_blocked: "",
 };
 
 // Hai câu này KHÔNG phải câu mà biểu mẫu trả về, và cũng không phải thứ FE dựng nổi từ
@@ -143,6 +153,12 @@ describe("hộp xác nhận phát hành", () => {
     expect(screen.getByText("CÂU-LUẬT-HAI-TỪ-BE")).toBeTruthy();
     expect(screen.getByText("CÂU-THU-HỒI-TỪ-BE")).toBeTruthy();
 
+    // Và hộp thoại **không** kể hai câu chuyện cùng lúc. Đo được trên trình duyệt ngày
+    // 06/10/2026: câu mở đầu hứa thu hồi "cho tới giờ mở của TỪNG LỚP" trong khi dòng luật
+    // ngay dưới nó — do BE viết — nói "cho tới hết giờ mở", và dòng `Thu hồi` in đúng một
+    // giờ. Một lần phát hành có một khung giờ, nên "từng lớp" không còn thứ gì để chỉ tới.
+    expect(document.querySelector(".confirm")?.textContent).not.toContain("từng lớp");
+
     // Và lần gọi xem trước mang đúng cờ `preview`, vì nếu không thì cái "xem trước" ấy
     // đã phát hành thật rồi.
     const asked = sent.find((one) => one.path.endsWith("/publications"));
@@ -169,7 +185,10 @@ describe("hộp xác nhận phát hành", () => {
     await waitFor(() =>
       expect(screen.getByText("Cài đặt phát hành")).toBeTruthy(),
     );
+    // **Hai** lớp, vì luật cần đo là *cùng một tập lớp đi cả hai lần*. Với một lớp thì
+    // mọi cách bỏ sót đều trùng với cách làm đúng.
     fireEvent.click(screen.getByText("12A"));
+    fireEvent.click(screen.getByText("12B"));
     fill();
     fireEvent.click(screen.getByText("Phát hành đề"));
     await waitFor(() =>
@@ -187,9 +206,15 @@ describe("hộp xác nhận phát hành", () => {
     expect(done.preview).toBe(false);
     // Byte-identical trừ một cờ. Đây là cách duy nhất để "hộp xác nhận đọc lại đúng cái
     // sắp xảy ra" là một tính chất của code chứ không phải một lời hứa.
-    expect(JSON.stringify(shown.schedules)).toBe(
-      JSON.stringify(done.schedules),
-    );
+    //
+    // Dòng này từng đọc `shown.schedules` — một khoá đã đổi tên thành `schedule` ở Pha 5.
+    // `JSON.stringify(undefined)` là `undefined` ở **cả hai** vế, nên phép so vẫn xanh
+    // trong khi nó không còn so cái gì nữa. Một test xanh vì cả hai vế đều rỗng là một
+    // test đã chết mà không ai báo tang, nên ở đây có thêm một khẳng định rằng vế trái
+    // thật sự có nội dung.
+    expect(shown.schedule).toBeTruthy();
+    expect(JSON.stringify(shown.schedule)).toBe(JSON.stringify(done.schedule));
+    expect(JSON.stringify(shown.class_ids)).toBe(JSON.stringify(done.class_ids));
   });
 
   it("gửi giờ kèm offset, không phải Z", async () => {
@@ -221,7 +246,10 @@ describe("hộp xác nhận phát hành", () => {
     fireEvent.click(screen.getByText("Phát hành đề"));
 
     await waitFor(() => expect(bodies.length).toBe(1));
-    const when = (bodies[0].schedules as { opens_at: string }[])[0].opens_at;
+    // Một khung giờ cho cả lần phát hành, nên `schedule` là một object chứ không
+    // phải một mảng — và `class_ids` đi riêng.
+    expect(bodies[0].class_ids).toEqual(["c1"]);
+    const when = (bodies[0].schedule as { opens_at: string }).opens_at;
     expect(when.endsWith("Z")).toBe(false);
     expect(/[+-]\d{2}:\d{2}$/.test(when)).toBe(true);
   });
@@ -254,7 +282,12 @@ describe("một bước đã xảy ra", () => {
 
     expect(container.querySelector(".action-card")).toBeTruthy();
     expect(container.querySelector(".reply-text")).toBeNull();
-    expect(screen.getByText(/Đã phát hành cho 12A và 12B/)).toBeTruthy();
+    // Đầu đề KHÔNG chở tên lớp. `Đã phát hành cho 12A và 12B` là một trạng thái thứ tư
+    // trá hình: nó đổi chữ theo dữ liệu, nên hai lần phát hành cho hai bộ lớp đọc ra như
+    // hai nấc khác nhau của cùng một đề. Danh sách lớp thuộc về hộp xác nhận và bảng kết
+    // quả, không thuộc một dòng tiêu đề.
+    expect(screen.getByText("Đã phát hành")).toBeTruthy();
+    expect(screen.queryByText(/12A/)).toBeNull();
   });
 
   it("nói hậu quả của việc phát hành, và không nói nó chưa tới học sinh", () => {
@@ -498,7 +531,30 @@ describe("khối bước lúc đang chạy", () => {
 });
 
 describe("một lượt của Kriky", () => {
-  it("cho ra ĐÚNG MỘT thẻ, và start_drafting không bao giờ là thẻ", () => {
+  it("cho ra ĐÚNG MỘT thẻ, và nó là bước đã đợi xong", () => {
+    // Bản trước của test này lấy `draft_progress` làm thẻ. Tool ấy đã bỏ, nên ca đo được
+    // bây giờ là ca thật của một plan hai bước: `create_draft` bị loại vì bước sau đã thay
+    // nó, và `start_drafting` lên thẻ **khi và chỉ khi** nó mang con số thật về.
+    const turns = [
+      blank({
+        kind: "tool_result",
+        tool_name: "create_draft",
+        tool_result: { created: true },
+      }),
+      blank({
+        kind: "tool_result",
+        tool_name: "start_drafting",
+        tool_result: { started: true, written: 3, asked_for: 3, still_drafting: 0 },
+      }),
+    ];
+
+    expect(cardTurns(turns).map((o) => o.tool_name)).toEqual(["start_drafting"]);
+  });
+
+  it("KHÔNG thẻ nào khi các câu còn đang chạy", () => {
+    // `asked_for` vắng nghĩa là bước soạn trả về ngay, chưa đợi câu nào. Một thẻ ở đó nói
+    // với giáo viên rằng việc đã xong trong khi nó vừa bắt đầu — và `create_draft` cũng
+    // không được lên thẻ, vì trạng thái "đề trống" đã bị chính bước sau thay thế.
     const turns = [
       blank({
         kind: "tool_result",
@@ -510,24 +566,14 @@ describe("một lượt của Kriky", () => {
         tool_name: "start_drafting",
         tool_result: { started: true },
       }),
-      blank({
-        kind: "tool_result",
-        tool_name: "draft_progress",
-        tool_result: {
-          found: true,
-          written: ["a", "b"],
-          asked_for: 2,
-          still_drafting: 0,
-        },
-      }),
     ];
-    const card = cardTurns(turns)[0] ?? null;
-    expect(card?.tool_name).toBe("draft_progress");
+
+    expect(cardTurns(turns)).toEqual([]);
   });
 
   it("KHÔNG mọc thẻ đề trống khi câu hỏi đang được đổ vào đề ấy", () => {
     // Đúng hình dạng một plan hai bước của ADR-25: mở đề, rồi soạn câu. Lúc lượt kết thúc,
-    // các câu còn đang chạy trong hàng đợi, nên chưa có `draft_progress` nào.
+    // các câu còn đang chạy trong hàng đợi, nên bước soạn chưa mang con số thật về.
     const turns = [
       blank({
         kind: "tool_result",
@@ -962,7 +1008,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
     const turns = drafted(3, 3).turns;
 
     // Trước đợt này `cardTurns` loại `start_drafting` vô điều kiện, `create_draft` bị loại vì
-    // có bước soạn phía sau, và `draft_progress` là tool của pha 1 nên một plan không gọi
+    // có bước soạn phía sau, và tool kiểm tiến độ đã bỏ nên không plan nào gọi
     // nó — ba lần loại trừ giao nhau đúng ở đường đi hạnh phúc, và một lượt soạn đề THÀNH
     // CÔNG kết thúc không thẻ nào. Mà panel đề chỉ mở được từ một nút trên thẻ, nên Kriky
     // nói "đã soạn xong" và màn hình không có cửa nào vào xem. Đo được trên hội thoại thật.
@@ -977,19 +1023,29 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
         onCompose={() => undefined}
       />,
     );
-    expect(screen.getByText("Đã thêm 3 câu vào đề")).toBeTruthy();
+    // Thẻ thôi kể con số: khối `Thinking` ngay trên nó đã in "đã soạn 3/3 câu". Thẻ trả
+    // lời câu khác — đề này đang ở nấc nào — và nấc ấy là "đã tạo đề".
+    expect(screen.getByText("Đã tạo đề")).toBeTruthy();
     // Không nút nào: `Duyệt đề`, `Xem đề` và `Xem` đều gọi đúng một hàm, nên năm nhãn
     // cho một việc rút về chính cái thẻ.
     expect(screen.queryByText("Duyệt đề")).toBeNull();
     expect(screen.queryByText("Xem đề")).toBeNull();
 
-    fireEvent.click(screen.getByText("Đã thêm 3 câu vào đề"));
+    fireEvent.click(screen.getByText("Đã tạo đề"));
     expect(opened).toEqual(["p1"]);
   });
 
-  it("đề thiếu câu thì KHÔNG mời duyệt", () => {
+  it("đề thiếu câu vẫn đứng ở nấc một, và vẫn KHÔNG mời duyệt", () => {
     // Cùng một luật đã đứng trong `reporting._progress` của AGENT: duyệt một đề thiếu câu là
     // phát hành một bài kiểm tra dở. Lời kể và thẻ phải nói cùng một câu.
+    //
+    // Luật ấy **đổi chỗ** hai lần, và chỗ cuối là chỗ chắc nhất. Đầu tiên nó sống trong
+    // nhãn nút (`Xem đề` thay vì `Duyệt đề`); nút bỏ thì nó sang chữ đầu đề (`Dừng ở 2/10
+    // câu`); từ 06/10/2026 đầu đề chỉ còn bốn chuỗi cố định, nên nó sống ở chỗ nó đáng
+    // sống từ đầu: **thẻ không có cổng duyệt nào cả**. Cổng thật ở chân panel, nơi duy
+    // nhất đọc được trạng thái hiện tại của đề, và con số thì ở khối `Thinking` ngay trên
+    // thẻ — hỏi nó thì được một câu đúng tại thời điểm hỏi, chứ không phải một con số
+    // đóng băng trong một biên bản cũ.
     const card = cardTurns(drafted(2, 10).turns)[0] ?? null;
 
     render(
@@ -999,11 +1055,10 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
         onCompose={() => undefined}
       />,
     );
-    // Luật *"đề thiếu câu thì không mời duyệt"* trước đây sống trong nhãn nút. Nút đã
-    // bỏ, nên nó sống ở **chữ đầu đề**: `Dừng ở 2/10 câu` không mời gì cả, và cổng duyệt
-    // thật thì nằm ở chân panel, nơi duy nhất đọc được trạng thái hiện tại của đề.
-    expect(screen.getByText("Dừng ở 2/10 câu")).toBeTruthy();
+    expect(screen.getByText("Đã tạo đề")).toBeTruthy();
     expect(screen.queryByText("Duyệt đề")).toBeNull();
+    // Và không con số nào trên thẻ: hai chỗ cho một thông tin thì một chỗ sẽ cũ đi.
+    expect(screen.queryByText(/2\/10/)).toBeNull();
   });
 
   it("bước soạn CHƯA đợi xong thì không mọc thẻ nào", () => {
@@ -1024,7 +1079,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
     expect(cardTurns(turns)).toEqual([]);
   });
 
-  it("đề còn câu đang soạn thì KHÔNG mời duyệt, và nói đủ hai con số", () => {
+  it("đề còn câu đang soạn cũng đứng ở nấc một, và KHÔNG mời duyệt", () => {
     // Đường ra có thật: hết hạn im lặng thì `_wait_for_questions` rời vòng nghe với
     // `still_drafting > 0`. Bản đầu coi "thiếu câu" là `written < asked && running === 0`,
     // nên ca này rơi vào nhánh còn lại — thẻ in `Đã thêm 3 câu vào đề`, giấu mất số 10, và
@@ -1039,8 +1094,9 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
         onCompose={() => undefined}
       />,
     );
-    expect(screen.getByText("Đã soạn 3/10 câu")).toBeTruthy();
+    expect(screen.getByText("Đã tạo đề")).toBeTruthy();
     expect(screen.queryByText("Duyệt đề")).toBeNull();
+    expect(screen.queryByText(/3\/10/)).toBeNull();
   });
 
   it("dòng dưới bước nói cùng một câu với BE, cả ba nhánh", () => {
@@ -1460,11 +1516,14 @@ describe("chân panel đề", () => {
     expect(opened).toEqual(["phát hành"]);
   });
 
-  it("đề ĐÃ PHÁT HÀNH không mời Hoàn tác, vì bỏ duyệt ở đó chắc chắn 409", async () => {
-    // `POST .../unapprove` chỉ nhận đúng `APPROVED` (`teacher_routes.py:403`). Gộp
-    // `published` vào `approved` làm nút `Hoàn tác` hiện ra cho một đề đã tới tay học
-    // sinh, và cú bấm ấy chắc chắn trả 409 — đúng khuyết điểm mà đợt này đi sửa, chỉ dịch
-    // sang một trạng thái khác. Đường lùi của đề đã phát hành là **thu hồi**.
+  it("đề ĐÃ PHÁT HÀNH mời đúng một việc: phát hành đề", async () => {
+    // Chân panel của một đề đã phát hành **không** mời thêm lớp. Muốn đổi lớp thì hoàn
+    // tác trước — người dùng chốt ngày 06/10/2026 — và `Hoàn tác` sống ở màn cài đặt
+    // phát hành, một chỗ chứ không hai.
+    //
+    // Bản trước của test này ghim một luật đã hết đúng: `POST .../unapprove` khi ấy chỉ
+    // nhận `APPROVED`, nên nút `Hoàn tác` cho một đề đã phát hành chắc chắn trả 409. Nay
+    // endpoint ấy thu hồi mọi lớp rồi hạ hai nấc, nên đường lùi là một đường.
     serving("published");
     render(
       <Panel
@@ -1477,10 +1536,10 @@ describe("chân panel đề", () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByText("Phát hành thêm lớp")).toBeTruthy());
-    expect(screen.queryByText("Hoàn tác")).toBeNull();
-    // Và câu dưới chân nói đúng đường mở lại.
-    expect(screen.getByText(/thu hồi khỏi mọi lớp/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Phát hành đề")).toBeTruthy());
+    expect(screen.queryByText("Phát hành thêm lớp")).toBeNull();
+    // Và câu dưới chân nói đúng đường mở lại: một cú bấm, không một chuỗi thao tác.
+    expect(screen.getByText(/hoàn tác trước/)).toBeTruthy();
   });
 
   it("duyệt xong là sang THẲNG cài đặt phát hành, không dừng ở giữa", async () => {
@@ -1530,6 +1589,86 @@ describe("chân panel đề", () => {
           (one) => one.url.endsWith("/unapprove") && one.method === "POST",
         ),
       ).toBe(true),
+    );
+  });
+
+  it("hết cửa lùi thì Hoàn tác KHOÁ, kèm câu của BE", async () => {
+    // Biểu mẫu nói trước cú bấm, cùng khuôn với cách nó chặn một cửa sổ thời gian vô lý.
+    // Giấu nút đi thì giáo viên đi tìm một đường lùi không còn tồn tại; để nó bấm được thì
+    // cú bấm nhận 409 — mà `Panel` từng nuốt mất câu ấy, nên màn hình im lặng hoàn toàn.
+    const shut = "Đã qua giờ mở của lớp 12A nên không hoàn tác được nữa.";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              url.includes("/publish-form")
+                ? { ...FORM, undo_blocked: shut }
+                : paper("published"),
+            ),
+        }),
+      ),
+    );
+
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+        onUnpublish={() => undefined}
+      />,
+    );
+
+    const button = await screen.findByText("Hoàn tác");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    // Và câu nói ra, nguyên văn của BE: một nút khoá mà không nói vì sao là một nút hỏng.
+    expect(screen.getByText(shut)).toBeTruthy();
+  });
+
+  it("lỗi của Hoàn tác hiện ra Ở MÀN cài đặt phát hành, không im lặng", async () => {
+    // Đo được trên trình duyệt thật ngày 06/10/2026: bấm `Hoàn tác` trên một đề đã phát
+    // hành, BE trả 409, và màn hình **không nói một chữ nào**. `trouble` vốn chỉ sống trong
+    // nhánh `panel-foot`, mà màn 7 vẽ nhánh kia — nên mọi lỗi phát ra ở đây đều rơi vào
+    // khoảng không.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET").toUpperCase() === "POST") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ detail: "Một lớp vừa qua giờ mở." }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              url.includes("/publish-form") ? FORM : paper("published"),
+            ),
+        });
+      }),
+    );
+
+    render(
+      <Panel
+        assessmentId="p1"
+        publishing
+        onPublish={() => {}}
+        onClose={() => undefined}
+        onApproved={() => undefined}
+        onUnpublish={() => undefined}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Hoàn tác"));
+
+    await waitFor(() =>
+      expect(screen.getByText("Một lớp vừa qua giờ mở.")).toBeTruthy(),
     );
   });
 });
@@ -2499,34 +2638,92 @@ describe("ký tự điều khiển ẩn trong ô sửa", () => {
   });
 });
 
-describe("biên bản của giáo viên không được đè lên nhau", () => {
-  it("duyệt rồi hoàn tác trong một khối cho ra HAI thẻ, không một", () => {
-    // ADR-24 đòi biên bản duyệt phải sống sót. Bản trước của `cardTurns` trả đúng một thẻ
-    // cho cả khối, nên `unapprove` đè mất `approve` và màn hình chỉ còn nói "Đã bỏ duyệt
-    // đề" như thể chưa ai từng duyệt. Đo được trên hội thoại thật: hai lượt trong
-    // database, một thẻ trên màn hình.
-    const turns = [
+describe("thẻ kể TRẠNG THÁI của đề, không kể từng cú bấm", () => {
+  it("duyệt rồi hoàn tác cho ra MỘT thẻ, và nó quay về nấc đã tạo đề", () => {
+    // Một đợt xử lí cho đúng một thẻ. Duyệt → hoàn tác → duyệt lại là một trạng thái đi
+    // qua bốn bước, không phải bốn kết quả — đo được trên hội thoại thật: bốn lượt trong
+    // database cho ra bốn thẻ chồng nhau nói luân phiên hai câu.
+    //
+    // Và bỏ duyệt đưa đề VỀ nấc một — chính lượt `teacher.unapprove` vẽ ra thẻ ấy, chứ
+    // không phải một lượt cũ nào đó của model. Bản trước trả thẻ của model ở đây và nó
+    // **mất thẻ** ở ca không có việc model nào trong khối; test ngay dưới đo đúng ca đó.
+    const base = [
+      blank({ kind: "plan", tool_result: { steps: ["Soạn 3 câu"], total: 1 } }),
       blank({
         kind: "tool_result",
-        tool_name: "teacher.approve",
+        tool_name: "start_drafting",
         entity_kind: "assessment",
         entity_id: "p1",
-        tool_result: { approved: true, assessment_id: "p1", questions: 3 },
-      }),
-      blank({
-        kind: "tool_result",
-        tool_name: "teacher.unapprove",
-        entity_kind: "assessment",
-        entity_id: "p1",
-        tool_result: { unapproved: true, assessment_id: "p1", questions: 3 },
+        tool_result: { started: true, assessment_id: "p1", asked_for: 3, written: 3 },
       }),
     ];
+    const approve = blank({
+      kind: "tool_result",
+      tool_name: "teacher.approve",
+      entity_kind: "assessment",
+      entity_id: "p1",
+      tool_result: { approved: true, assessment_id: "p1", questions: 3 },
+    });
+    const undo = blank({
+      kind: "tool_result",
+      tool_name: "teacher.unapprove",
+      entity_kind: "assessment",
+      entity_id: "p1",
+      tool_result: { unapproved: true, assessment_id: "p1", questions: 3 },
+    });
 
-    const cards = cardTurns(turns);
-    expect(cards.length).toBe(2);
-    // Theo đúng thứ tự thời gian: duyệt trước, hoàn tác sau.
-    expect(cards[0].tool_name).toBe("teacher.approve");
-    expect(cards[1].tool_name).toBe("teacher.unapprove");
+    // Nấc hai.
+    expect(cardTurns([...base, approve]).map((o) => o.tool_name)).toEqual([
+      "teacher.approve",
+    ]);
+
+    // Hoàn tác → về nấc một, vẫn đúng một thẻ, và nấc đọc được là `drafted`.
+    const after = cardTurns([...base, approve, undo]);
+    expect(after.map((o) => o.tool_name)).toEqual(["teacher.unapprove"]);
+    expect(cardState(after[0])).toBe("drafted");
+
+    // Và bấm bốn lần cũng vẫn một thẻ.
+    expect(
+      cardTurns([...base, approve, undo, approve, undo]).map((o) => o.tool_name),
+    ).toEqual(["teacher.unapprove"]);
+  });
+
+  it("hoàn tác trong một khối KHÔNG có việc nào của model vẫn còn thẻ", () => {
+    // Ca có thật, và bản trước mất thẻ ở đúng đây. `blocks()` chỉ cắt khối ở lượt
+    // `teacher` **gõ tay**, mà hai cú bấm trên panel không sinh lượt nào như thế — nên
+    // một giáo viên gõ "cảm ơn", mở một đề cũ từ danh sách, bấm Duyệt rồi bấm Hoàn tác
+    // có cả hai cú bấm rơi vào một khối không có `tool_result` nào của model.
+    //
+    // Bản trước trả thẻ của model ở nhánh `teacher.unapprove`, mà ở đây model không có
+    // thẻ nào, nên màn hình còn **0 thẻ**: thẻ `Đã duyệt đề` biến mất cùng với cửa duy
+    // nhất vào panel đề.
+    const approve = blank({
+      kind: "tool_result",
+      tool_name: "teacher.approve",
+      entity_kind: "assessment",
+      entity_id: "p1",
+      tool_result: { approved: true, assessment_id: "p1", title: "Tích phân" },
+    });
+    const undo = blank({
+      kind: "tool_result",
+      tool_name: "teacher.unapprove",
+      entity_kind: "assessment",
+      entity_id: "p1",
+      tool_result: { unapproved: true, assessment_id: "p1", title: "Tích phân" },
+    });
+
+    const only = cardTurns([approve, undo]);
+    expect(only.length).toBe(1);
+    expect(cardState(only[0])).toBe("drafted");
+
+    render(
+      <ActionCard
+        turn={only[0]}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    expect(screen.getByText('Đã tạo đề "Tích phân"')).toBeTruthy();
   });
 
   it("một lượt của model vẫn chỉ cho ra MỘT thẻ", () => {
@@ -2540,8 +2737,8 @@ describe("biên bản của giáo viên không được đè lên nhau", () => {
       }),
       blank({
         kind: "tool_result",
-        tool_name: "draft_progress",
-        tool_result: { found: true, written: ["a"], asked_for: 1, still_drafting: 0 },
+        tool_name: "start_drafting",
+        tool_result: { started: true, written: 1, asked_for: 1, still_drafting: 0 },
       }),
     ];
 
@@ -2713,8 +2910,10 @@ describe("khối trộn: model làm rồi giáo viên duyệt", () => {
       }),
     ];
 
+    // Một thẻ, và nó là nấc hiện tại: đề đã duyệt. Thẻ ấy vẫn mở được panel, nên cửa vào
+    // đề vừa soạn không mất đi đâu — đó là thứ `2026-10-03-chot-chang-a-plan.md` đã sửa.
     const names = cardTurns(turns).map((one) => one.tool_name);
-    expect(names).toEqual(["start_drafting", "teacher.approve"]);
+    expect(names).toEqual(["teacher.approve"]);
   });
 
   it("một cú duyệt không mọc ra hai thẻ giống nhau", () => {
@@ -2746,7 +2945,7 @@ describe("lượt không có plan vẫn đọc theo đúng thứ tự", () => {
       blank({ kind: "teacher", text: "Lớp 12A có bao nhiêu học sinh?" }),
       blank({
         kind: "tool_result",
-        tool_name: "find_class",
+        tool_name: "get_class",
         tool_result: { found: true, name: "12A", student_count: 40 },
       }),
       blank({ kind: "assistant", text: "Lớp 12A có 40 học sinh." }),
@@ -2971,5 +3170,227 @@ describe("ba lời từ chối, mỗi lời một lưới", () => {
     // màn hình in ra `[object Object]`.
     const cta = await filled(["-15", inHours(24), inHours(26), "5", inHours(25)]);
     await waitFor(() => expect(cta().disabled).toBe(true));
+  });
+});
+
+
+describe("shimmer chỉ ở bước đang chạy", () => {
+  /** Một sự kiện SSE, mọi field có mặt — `grow` đọc cả những field nó không dùng. */
+  function sse(some: Record<string, unknown>) {
+    return {
+      kind: "",
+      text: "",
+      choices: [],
+      more_choices: 0,
+      conversation_id: "c1",
+      ended_as: "",
+      title: "",
+      detail: "",
+      index: 0,
+      total: 0,
+      titles: [],
+      began: 0,
+      ...some,
+    } as TurnEvent;
+  }
+
+  it("đúng MỘT hàng mang class running, và nó là bước đang chạy", () => {
+    // Khối `Thinking` là bằng chứng đọc lại được (ADR-05): giáo viên mở nó ra SAU khi mọi
+    // thứ xong để biết câu hỏi từ đâu ra. Cho cả khối động thì phần đã xong cũng trông như
+    // đang xảy ra, và chỗ thật sự đang chạy chìm vào đó.
+    //
+    // jsdom không áp CSS nên nó không thấy dải sáng; thứ ghim được ở đây là CÁI TÊN — và
+    // tên là thứ CSS bám vào. Hiệu ứng thật đo trên trình duyệt.
+    const { container } = render(
+      <Steps
+        steps={[
+          { mark: "done", title: "Tạo đề trống", result: "" },
+          { mark: "running", title: "Soạn câu hỏi", result: "" },
+          { mark: "done", title: "Chưa tới lượt", result: "" },
+        ]}
+        total={3}
+      />,
+    );
+
+    const running = container.querySelectorAll(".step.running");
+    expect(running.length).toBe(1);
+    expect(running[0].textContent).toContain("Soạn câu hỏi");
+  });
+
+  it("shimmer ĐI XUỐNG theo bước: bước một xong thì bước hai sáng", () => {
+    // Đây là phần mà một ảnh tĩnh không nói được, và cũng là phần dễ hỏng nhất: không
+    // phải "có shimmer" mà là "shimmer ở ĐÚNG bước đang chạy tại mỗi lúc".
+    //
+    // Dựng chuỗi bằng chính `grow` — bộ dựng lượt-đang-chạy từ sự kiện SSE — nên test này
+    // đi qua đúng đường mà một lượt thật đi, không phải một mảng `steps` bịa ra.
+    let live = grow(null, sse({ kind: "plan", total: 2, titles: ["Tạo đề trống", "Soạn câu"] }));
+    live = grow(live, sse({ kind: "step_started", title: "Tạo đề trống", index: 1, total: 2 }));
+
+    const one = render(<Steps steps={live!.steps} total={live!.total} />);
+    const sang = (view: { container: HTMLElement }) =>
+      [...view.container.querySelectorAll(".step.running")].map((r) =>
+        (r.textContent ?? "").replace(/^[○✓✕]/, ""),
+      );
+    expect(sang(one)).toEqual(["Tạo đề trống"]);
+    one.unmount();
+
+    live = grow(live, sse({ kind: "step_done", title: "Tạo đề trống", index: 1, total: 2 }));
+    live = grow(live, sse({ kind: "step_started", title: "Soạn câu", index: 2, total: 2 }));
+
+    const two = render(<Steps steps={live!.steps} total={live!.total} />);
+    const rows = [...two.container.querySelectorAll(".step")];
+    expect(rows.map((r) => r.className.includes("running"))).toEqual([false, true]);
+    expect(sang(two)).toEqual(["Soạn câu"]);
+  });
+
+  it("lượt đã xong thì KHÔNG hàng nào sáng", () => {
+    // Một khối mở lại sau khi xong mà vẫn nhấp nháy là một màn hình nói dối về thì.
+    const { container } = render(
+      <Steps
+        steps={[
+          { mark: "done", title: "Tạo đề trống", result: "" },
+          { mark: "done", title: "Soạn câu hỏi", result: "— đã soạn 3/3 câu" },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Đã làm 2 bước"));
+    expect(container.querySelectorAll(".step.running").length).toBe(0);
+    expect(container.querySelectorAll(".step.done").length).toBe(2);
+  });
+});
+
+describe("thẻ kết quả là một máy trạng thái ba nấc", () => {
+  /**
+   * Mọi tool có thể tới được một thẻ, kèm **đúng hình dạng `tool_result` mà BE ghi** và
+   * đầu đề phải ra.
+   *
+   * Hình dạng thật, không phải hình dạng tiện tay. Bản trước của bảng này cho
+   * `teacher.approve` một field `title` mà `_note` chưa bao giờ ghi, nên nó khẳng định
+   * một đầu đề `Đã duyệt đề "Tích phân"` mà production **không dựng nổi** — thẻ duyệt
+   * thật ra im lặng về tên đề. Một test dựng dữ liệu bịa thì đo chính nó.
+   */
+  const EVERY_TOOL: [string, Record<string, unknown>, string][] = [
+    ["create_draft", { created: true, title: "Tích phân" }, 'Đã tạo đề "Tích phân"'],
+    ["create_draft", { created: false, reason: "thiếu môn" }, "Không tạo được đề"],
+    [
+      "start_drafting",
+      { started: true, title: "Tích phân", written: 3, asked_for: 3, still_drafting: 0 },
+      'Đã tạo đề "Tích phân"',
+    ],
+    [
+      "start_drafting",
+      { started: true, title: "Tích phân", written: 2, asked_for: 10, still_drafting: 0 },
+      'Đã tạo đề "Tích phân"',
+    ],
+    [
+      "teacher.approve",
+      { approved: true, assessment_id: "p1", title: "Tích phân", questions: 3 },
+      'Đã duyệt đề "Tích phân"',
+    ],
+    [
+      "teacher.unapprove",
+      { unapproved: true, assessment_id: "p1", title: "Tích phân", questions: 3 },
+      'Đã tạo đề "Tích phân"',
+    ],
+    [
+      "teacher.publish",
+      { published: true, assessment_id: "p1", classes: ["12A", "12B"] },
+      "Đã phát hành",
+    ],
+  ];
+
+  it("mỗi tool cho ra ĐÚNG đầu đề của nấc nó tới", () => {
+    // Đây là nơi thi hành của luật người dùng chốt, và nó khẳng định **đẳng thức** chứ
+    // không phải *thuộc một tập*. Bản trước dùng `toContain` trên một danh sách bốn
+    // chuỗi, nên một tool bị gán sai nấc vẫn xanh miễn chuỗi kết quả còn nằm trong tập:
+    // đột biến `?? "drafted"` thành `?? "published"` — mọi tool lạ nói *đã phát hành*,
+    // tức bài đã tới tay học sinh — đi lọt qua cả test lẫn check thứ 12.
+    for (const [tool, result, head] of EVERY_TOOL) {
+      const { container, unmount } = render(
+        <ActionCard
+          turn={blank({ kind: "tool_result", tool_name: tool, tool_result: result })}
+          onOpen={() => undefined}
+          onCompose={() => undefined}
+        />,
+      );
+      expect(
+        container.querySelector(".action-card .head .what")?.textContent,
+        tool,
+      ).toBe(head);
+      unmount();
+    }
+  });
+
+  it("một tool không có nấc nào thì KHÔNG vẽ thẻ", () => {
+    // Mặc định an toàn. Bản trước mặc định `drafted`, nên một tool chưa ai biết làm gì
+    // cho ra một thẻ khẳng định *một cái đề đã tồn tại và đang chờ duyệt*. Một thẻ vắng
+    // mặt tệ hơn — nhưng tệ theo cách nhìn thấy được.
+    const stranger = blank({
+      kind: "tool_result",
+      tool_name: "mot_tool_nao_do",
+      tool_result: { created: true },
+    });
+
+    expect(cardState(stranger)).toBeNull();
+    // Và `cardTurns` không chọn nó làm thẻ, nên đường kia không tới được.
+    expect(cardTurns([stranger])).toEqual([]);
+
+    const { container } = render(
+      <ActionCard
+        turn={stranger}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    expect(container.querySelector(".action-card")).toBeNull();
+  });
+
+  it("đề vừa mở còn rỗng thì thẻ mời bước tiếp theo", () => {
+    // Variant `tạo-đề-trống` của Figma: cùng nấc `drafted`, khác ở chỗ đề chưa có câu
+    // nào nên có một nút mời. Không có test này thì đột biến `const empty = false` xoá
+    // sạch nút và câu an toàn ấy mà cả 130 test lẫn check thứ 12 đều xanh — đo được.
+    render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: "create_draft",
+          tool_result: { created: true, title: "Tích phân" },
+        })}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Thêm câu hỏi")).toBeTruthy();
+    expect(screen.getByText("Đề trống, chưa phát hành được")).toBeTruthy();
+  });
+
+  it("một việc KHÔNG xảy ra thì không đưa đề đi đâu cả", () => {
+    // `failed` thắng mọi nấc khác. Thiếu điều này, một `create_draft` bị từ chối đọc ra là
+    // `Đã tạo đề` — đo được trên trình duyệt thật, cho một cái đề không hề được tạo.
+    for (const tool of ["create_draft", "start_drafting", "teacher.publish"]) {
+      expect(
+        cardState(
+          blank({
+            kind: "tool_result",
+            tool_name: tool,
+            tool_result: { error: "nổ ở đâu đó" },
+          }),
+        ),
+      ).toBe("failed");
+    }
+  });
+
+  it("bỏ duyệt đưa đề VỀ nấc một, không sinh nấc thứ tư", () => {
+    expect(
+      cardState(
+        blank({
+          kind: "tool_result",
+          tool_name: "teacher.unapprove",
+          tool_result: { unapproved: true },
+        }),
+      ),
+    ).toBe("drafted");
   });
 });

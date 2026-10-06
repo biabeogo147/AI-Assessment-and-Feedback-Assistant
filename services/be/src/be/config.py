@@ -55,6 +55,9 @@ class Settings(BaseSettings):
             mức job timeout là hơn chín phút, và một proxy hay một browser sẽ ngắt
             kết nối từ lâu trước đó trong khi BE vẫn log thành công. Đây là giới
             hạn mà giáo viên thật sự cảm thấy.
+        log_level: Mức log của cây logger `be.*`. `INFO` là mặc định vì đúng những
+            dòng cần nhất khi truy một đề thiếu câu -- *vì sao* một câu bị loại --
+            nằm ở mức đó. Hạ xuống `WARNING` là tự bịt mắt mình.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -70,6 +73,7 @@ class Settings(BaseSettings):
     stream_silence_timeout_seconds: float = 25.0
     max_tool_steps: int = 8
     turn_budget_seconds: float = 90.0
+    log_level: str = "INFO"
 
 
 @lru_cache

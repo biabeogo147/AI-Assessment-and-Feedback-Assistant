@@ -32,7 +32,7 @@ def off(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 _CATALOG = (
-    ToolSpec(name="find_class", description="Tìm lớp theo tên.", arguments={"name": "tên lớp"}),
+    ToolSpec(name="list_class", description="Liệt kê các lớp của giáo viên.", arguments={}),
 )
 
 
@@ -44,13 +44,12 @@ _PLANNABLE = (
             "subject": "môn",
             "grade": "khối",
             "topic_scope": "phạm vi kiến thức",
-            "question_count": "số câu",
         },
     ),
     ToolSpec(
         name="start_drafting",
         description="Bắt đầu sinh câu hỏi.",
-        arguments={"assessment_id": "id đề nháp"},
+        arguments={"assessment_id": "id đề nháp", "question_count": "số câu"},
     ),
 )
 
@@ -67,18 +66,19 @@ def _payload(
 
 @pytest.mark.asyncio
 async def test_the_mock_asks_for_a_class_it_was_told_about() -> None:
-    """Một tên lớp trong câu hỏi trở thành một lời gọi tool với đúng tên đó.
+    """Một tên lớp trong câu hỏi trở thành một lời gọi tool tra lớp.
 
-    Việc truyền cái tên đi qua là quan trọng: một mock gọi `find_class` với một argument
-    viết cứng sẽ làm cái loop trông đúng mà chẳng chứng minh được gì về chuyện các argument
-    có sống sót qua một vòng đi về hay không.
+    Cái tên **không** đi vào tham số: `list_class` không nhận tham số nào, vì việc gỡ nhập
+    nhằng đã rời khỏi tool. Nên thứ đo được ở đây là một quyết định, không phải một giá
+    trị — mock nhận ra giáo viên đang nói về một lớp và đi tra, thay vì hỏi lại một câu đã
+    có câu trả lời. Test ngay dưới đo chiều còn lại: không tên nào thì hỏi lại.
     """
     asked = _payload(TurnRecord(kind="teacher", text="lớp 12A1 thế nào"))
     answer = await propose_next_step({}, asked)
 
     assert answer["kind"] == "call_tool"
-    assert answer["tool_name"] == "find_class"
-    assert answer["tool_args"] == {"name": "12A1"}
+    assert answer["tool_name"] == "list_class"
+    assert answer["tool_args"] == {}
 
 
 @pytest.mark.asyncio
@@ -92,8 +92,15 @@ async def test_the_mock_stops_asking_once_the_result_is_in() -> None:
         {},
         _payload(
             TurnRecord(kind="teacher", text="lớp 12A1 thế nào"),
-            TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A1"}),
-            TurnRecord(kind="tool_result", tool_name="find_class", tool_result={"name": "12A1"}),
+            TurnRecord(kind="tool_call", tool_name="list_class", tool_args={}),
+            TurnRecord(
+                kind="tool_result",
+                tool_name="list_class",
+                tool_result={
+                    "candidates": [{"class_id": "c-1", "name": "12A1", "student_count": 3}],
+                    "more": 0,
+                },
+            ),
         ),
     )
 
@@ -117,13 +124,12 @@ async def test_the_mock_asks_which_class_when_the_name_matched_several() -> None
         {},
         _payload(
             TurnRecord(kind="teacher", text="lớp 12A thế nào"),
-            TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A"}),
+            TurnRecord(kind="tool_call", tool_name="list_class", tool_args={}),
             TurnRecord(
                 kind="tool_result",
-                tool_name="find_class",
+                tool_name="list_class",
                 tool_result={
-                    "found": False,
-                    "ambiguous": True,
+                    "more": 0,
                     "candidates": [
                         {"class_id": "c-1", "name": "12A", "student_count": 3},
                         {"class_id": "c-2", "name": "12A", "student_count": 2},
@@ -167,7 +173,7 @@ async def test_the_mock_finds_a_name_written_against_the_word_lop() -> None:
     answer = await propose_next_step({}, asked)
 
     assert answer["kind"] == "call_tool"
-    assert answer["tool_args"] == {"name": "12A"}
+    assert answer["tool_name"] == "list_class"
 
 
 @pytest.mark.asyncio
@@ -209,8 +215,15 @@ async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> 
         {},
         _payload(
             TurnRecord(kind="teacher", text="lớp 12A thế nào"),
-            TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A"}),
-            TurnRecord(kind="tool_result", tool_name="find_class", tool_result={"name": "12A"}),
+            TurnRecord(kind="tool_call", tool_name="list_class", tool_args={}),
+            TurnRecord(
+                kind="tool_result",
+                tool_name="list_class",
+                tool_result={
+                    "candidates": [{"class_id": "c-1", "name": "12A", "student_count": 3}],
+                    "more": 0,
+                },
+            ),
             TurnRecord(kind="assistant", text="Lớp 12A có 3 học sinh."),
             # Một câu hỏi mới. Kết quả ở trên thuộc về câu hỏi cũ.
             TurnRecord(kind="teacher", text="còn lớp 12B thì sao"),
@@ -218,7 +231,6 @@ async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> 
     )
 
     assert answer["kind"] == "call_tool"
-    assert answer["tool_args"] == {"name": "12B"}
 
 
 @pytest.mark.asyncio
@@ -241,8 +253,14 @@ async def test_the_mock_plans_both_steps_when_the_sentence_carries_a_whole_brief
     assert [one["tool_name"] for one in answer["steps"]] == ["create_draft", "start_drafting"]
     assert answer["steps"][0]["args"]["subject"] == "Toán"
     assert answer["steps"][0]["args"]["grade"] == "12"
-    assert answer["steps"][0]["args"]["question_count"] == "10"
-    assert answer["steps"][1]["args"] == {"assessment_id": "{1.assessment_id}"}
+    # Số câu đi với bước **hai**, không bước một: `create_draft` thôi nhận nó. Khẳng định
+    # này là nơi thi hành của luật ấy ở phía mock -- gửi nó vào `create_draft` thì
+    # `vet_plan` từ chối trọn gói cả plan, và một bản dev không API key mất đường soạn đề.
+    assert "question_count" not in answer["steps"][0]["args"]
+    assert answer["steps"][1]["args"] == {
+        "assessment_id": "{1.assessment_id}",
+        "question_count": "10",
+    }
 
 
 @pytest.mark.asyncio
@@ -277,7 +295,7 @@ async def test_the_mock_never_plans_a_tool_it_was_not_given() -> None:
 
 @pytest.mark.asyncio
 async def test_the_mock_reads_the_brief_instead_of_remembering_one() -> None:
-    """Câu thứ hai, với cả bốn mục khác hẳn câu thứ nhất.
+    """Câu thứ hai, với mọi mục khác hẳn câu thứ nhất.
 
     Một test với đúng một câu đầu vào không phân biệt được *đọc* với *hằng số*: mock gán
     cứng `subject="Toán"` hay `grade="12"` vẫn xanh. Hai câu khác nhau là giá rẻ nhất để
@@ -295,7 +313,7 @@ async def test_the_mock_reads_the_brief_instead_of_remembering_one() -> None:
     args = answer["steps"][0]["args"]
     assert args["subject"] == "Hoá học"
     assert args["grade"] == "10"
-    assert args["question_count"] == "25"
+    assert answer["steps"][1]["args"]["question_count"] == "25"
     # `topic_scope` là *phạm vi kiến thức theo lời giáo viên*, nên lời họ là giá trị đúng
     # nhất mock có -- và nó phải là lời của **câu này**, không phải một chuỗi dọn sẵn.
     assert args["topic_scope"] == "soạn đề 25 câu môn Hoá học cho lớp 10B"

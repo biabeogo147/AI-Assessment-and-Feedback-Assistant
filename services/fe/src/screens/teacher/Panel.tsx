@@ -147,14 +147,15 @@ export default function Panel({
     );
   }
 
-  // **Ba** trạng thái, không hai. Gộp `published` vào `approved` là cách nút `Hoàn tác`
-  // hiện ra cho một đề đã tới tay học sinh — và `POST .../unapprove` chỉ nhận đúng
-  // `APPROVED`, nên cú bấm ấy chắc chắn trả 409. Đó đúng là khuyết điểm mà đợt này đi
-  // sửa, chỉ dịch sang một trạng thái khác: một chỉ dẫn trên màn hình trỏ tới một hành
-  // động không làm được. Đường lùi của một đề đã phát hành là **thu hồi**, không phải bỏ
-  // duyệt.
+  // `approved` và `published` cùng khoá nội dung, nên chúng cùng mở màn cài đặt phát hành.
+  //
+  // Trước 06/10/2026 chỗ này phải phân biệt ba trạng thái, vì `POST .../unapprove` chỉ nhận
+  // đúng `APPROVED`: một nút `Hoàn tác` hiện ra cho đề đã phát hành là một chỉ dẫn trỏ tới
+  // một hành động chắc chắn trả 409. Nay endpoint ấy nhận cả `published` — nó thu hồi mọi
+  // lớp rồi hạ hai nấc — nên đường lùi là **một** đường, và màn hình thôi phải kể lại luật
+  // của BE bằng một biến riêng. Thứ còn chặn là giờ mở, và câu chặn tới từ
+  // `publish-form.undo_blocked`.
   const locked = paper.state === "approved" || paper.state === "published";
-  const released = paper.state === "published";
 
   return (
     <aside className="panel">
@@ -198,12 +199,27 @@ export default function Panel({
       </div>
 
       {publishing && locked ? (
-        <PublishSettings
-          assessmentId={assessmentId}
-          onPublished={onApproved}
-          undoing={working}
-          onUndo={() => void undo()}
-        />
+        <>
+          {/* Lỗi của `undo()` phải hiện ra **ở đây nữa**, không chỉ ở `panel-foot`.
+              `trouble` vốn chỉ sống trong nhánh kia, nên mọi lỗi phát ra ở màn cài đặt
+              phát hành đều im lặng: đo được trên trình duyệt thật — bấm `Hoàn tác` trên
+              một đề đã phát hành, BE trả 409, và màn hình không nói một chữ nào.
+
+              Nút ấy nay khoá sẵn khi hết cửa lùi (`form.undo_blocked`), nên đường này
+              chỉ còn chở những lỗi không đoán trước được — mạng hỏng, một lớp vừa qua
+              giờ mở giữa hai lần đọc. Chính vì không đoán trước được mà nó phải nói ra. */}
+          {trouble !== null && (
+            <div className="trouble" role="alert">
+              {trouble}
+            </div>
+          )}
+          <PublishSettings
+            assessmentId={assessmentId}
+            onPublished={onApproved}
+            undoing={working}
+            onUndo={() => void undo()}
+          />
+        </>
       ) : (
         <div className="panel-foot">
           <div className="note">{trouble ?? _note(paper.state)}</div>
@@ -216,11 +232,7 @@ export default function Panel({
             disabled={working || paper.question_count === 0}
             onClick={() => (locked ? onPublish() : void approve())}
           >
-            {released
-              ? "Phát hành thêm lớp"
-              : locked
-                ? "Phát hành đề"
-                : "Duyệt đề"}
+            {locked ? "Phát hành đề" : "Duyệt đề"}
           </button>
         </div>
       )}
@@ -309,7 +321,10 @@ function Solution({
  */
 function _note(state: string): string {
   if (state === "published") {
-    return "Đề đã tới học sinh. Muốn sửa thì thu hồi khỏi mọi lớp trước.";
+    // Một đường, không hai. Trước 06/10/2026 câu này bảo *thu hồi khỏi mọi lớp* vì
+    // `unapprove` chưa nhận đề đã phát hành — tức bảo giáo viên tự dựng lại một thao
+    // tác mà hệ thống nay làm trọn trong một cú bấm.
+    return "Đề đã tới học sinh. Muốn sửa thì hoàn tác trước.";
   }
   if (state === "approved") {
     return "Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.";

@@ -674,6 +674,12 @@ class DraftItem(Base):
     # Job này được bắn dưới brief nào. Một dòng thuộc brief cũ hơn sẽ bị loại bỏ lúc
     # harvest.
     brief_version: Mapped[int] = mapped_column(Integer, default=1)
+    # **Vì sao lần gần nhất không dùng được.** `status` nói *chuyện gì đã xảy ra*, cột này
+    # nói *vì sao* — và thiếu nó thì một câu hỏi biến mất không để lại dấu vết nào: lý do
+    # đi vào `logger.info`, mà cho tới 06/10/2026 `be` không cấu hình logging nào cả, nên
+    # dòng ấy đi vào hư không. Đo được: một đề 3 câu về 2, và phải đọc bốn nhánh code rồi
+    # loại trừ mới đoán ra nguyên nhân. Rỗng nghĩa là chưa lần nào hỏng.
+    last_fault: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

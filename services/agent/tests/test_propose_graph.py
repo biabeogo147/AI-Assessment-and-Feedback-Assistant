@@ -23,9 +23,9 @@ from contracts import NextStepRequested, ToolSpec, TurnRecord
 
 _CATALOG = (
     ToolSpec(
-        name="find_class",
-        description="Tìm lớp của giáo viên theo tên.",
-        arguments={"name": "tên lớp, ví dụ 12A1"},
+        name="get_class",
+        description="Lấy thông tin một lớp của giáo viên.",
+        arguments={"class_id": "id lớp, lấy từ list_class"},
     ),
     ToolSpec(
         name="class_assessment_summary",
@@ -120,14 +120,14 @@ async def test_a_tool_proposal_keeps_its_name_and_arguments(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
     """BE dispatch theo hai field này, nên không gì được viết lại chúng."""
-    model = Scripted([_wants("find_class", name="12A1")])
+    model = Scripted([_wants("get_class", class_id="c-1")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_asked("lớp 12A1 làm bài hôm qua thế nào"))
 
     assert step.kind == "call_tool"
-    assert step.tool_name == "find_class"
-    assert step.tool_args == {"name": "12A1"}
+    assert step.tool_name == "get_class"
+    assert step.tool_args == {"class_id": "c-1"}
 
 
 @pytest.mark.asyncio
@@ -145,7 +145,7 @@ async def test_the_model_is_told_which_tools_it_may_use(
     await propose(_asked("chào"))
 
     prompt = model.prompts[0]
-    assert "find_class" in prompt
+    assert "get_class" in prompt
     assert "class_assessment_summary" in prompt
     assert "Tóm tắt kết quả một bài kiểm tra" in prompt
 
@@ -167,10 +167,10 @@ async def test_a_tool_result_reaches_the_model_as_data(
         request_id="r1",
         history=(
             TurnRecord(kind="teacher", text="lớp 12A1 thế nào"),
-            TurnRecord(kind="tool_call", tool_name="find_class", tool_args={"name": "12A1"}),
+            TurnRecord(kind="tool_call", tool_name="get_class", tool_args={"class_id": "c-1"}),
             TurnRecord(
                 kind="tool_result",
-                tool_name="find_class",
+                tool_name="get_class",
                 tool_result={"class_id": "c-1", "name": "12A1", "student_count": 40},
             ),
         ),
@@ -420,12 +420,19 @@ async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
     # thức và số câu" cho một câu đã nói cả hai. Khối đọc được từ tên lớp, và nói ra điều ấy
     # là chỗ rẻ nhất để một lượt không chết vì một câu hỏi thừa.
     assert "lớp 12A" in prompt and "khối" in prompt
-    # Và luật "chỉ hỏi bốn mục bắt buộc": đo trên trình duyệt thật, model hỏi giáo viên có
+    # Và luật "chỉ hỏi những mục bắt buộc": đo trên trình duyệt thật, model hỏi giáo viên có
     # muốn đặt tên cho đề không — một câu hỏi về một mục tuỳ chọn, tốn trọn một lượt.
     # Đo ba lần trên trình duyệt thật: model hỏi tên đề, rồi hỏi độ khó, rồi hỏi phạm vi
-    # cho một câu đã nói phạm vi. Luật phải nói tuyệt đối — "đủ bốn mục thì nêu plan NGAY" —
-    # chứ không liệt kê từng mục không được hỏi.
-    assert "ĐỦ BỐN MỤC THÌ NÊU PLAN NGAY" in prompt
+    # cho một câu đã nói phạm vi. Luật phải nói tuyệt đối — "đủ thì nêu plan NGAY" — chứ
+    # không liệt kê từng mục không được hỏi.
+    assert "NÊU PLAN NGAY" in prompt
+    # Ba mục, không bốn: `create_draft` thôi nhận `question_count`, nên một prompt còn đòi
+    # bốn mục sẽ bắt giáo viên khai số câu cho một việc không dùng tới nó. Và con số ấy
+    # phải được gọi tên ở đúng chỗ của nó, không thì model gửi nó vào `create_draft` và
+    # `vet_plan` từ chối trọn gói cả plan.
+    assert "ĐỦ BA mục" in prompt
+    assert "start_drafting" in prompt and "question_count" in prompt
+    assert "bốn mục" not in prompt and "BỐN MỤC" not in prompt
     assert "KHÔNG bắt buộc" in prompt
     # Và luật đi kèm: chỉ trỏ về phía sau. `vet_plan` từ chối một plan trỏ về phía trước,
     # nên không nói ra là để model tự tìm ra bằng cách bị từ chối.
@@ -462,7 +469,7 @@ async def test_json_an_mat_dau_gach_cheo_trong_loi_kriky_noi(
     `authoring` không phải ống structured-output duy nhất. `_Proposal.text` cũng ra từ
     `with_structured_output`, cũng qua cùng bộ giải mã JSON, và cũng kết thúc trong
     `MathText` -- `Chat.tsx` dựng hình nó ở năm chỗ. Nên Kriky giải thích một công thức
-    thì `rac` thành form-feed y hệt, rồi dấu đô la lọt ra màn hình (ADR-26).
+    thì `\frac` thành form-feed y hệt, rồi dấu đô la lọt ra màn hình (ADR-26).
 
     Thiếu test này thì check `escape-repair-is-wired-in` là nơi thi hành duy nhất, mà một
     check đọc cây cú pháp chỉ nói được *có gọi hay không*, không nói được *gọi có đúng
@@ -483,3 +490,38 @@ async def test_json_an_mat_dau_gach_cheo_trong_loi_kriky_noi(
 
     assert step.text == r"Mình tính $\frac{1}{2} \times 4$ nhé."
     assert step.steps[0].title == r"Tạo đề $\frac{1}{3}$"
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_is_where_adr_23_reaches_the_real_model(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """ADR-23 trên đường model thật sống **chỉ** trong prompt này, nên nó phải đo được.
+
+    Và nó đã mất một lần, lặng lẽ. Bản prompt trước dặn: *"khi một tool trả `ambiguous: true`
+    kèm `candidates`, đó là lúc dùng ask_clarify"* — một điều kiện không tool nào còn trả về
+    sau khi `find_class` tách thành `list_class` + `get_class`. Mock trong `handlers.py` đã
+    được sửa sang `len(candidates) > 1`, nên **test và demo vẫn xanh trong khi đường thật
+    hỏng**: gpt-4o-mini không thấy cờ nào khớp lời dặn thì nó tự chọn một lớp, hoặc tự liệt
+    kê tên lớp trong một bước `say` — đúng hai việc ADR-23 cấm. Và `_offered` chỉ gắn nút vào
+    `ask_clarify`, nên một bước `say` ra bong bóng chữ không nút.
+
+    Ba khẳng định là ba nửa của cùng một luật: khi nào hỏi lại, ai viết các phương án, và
+    `more` nghĩa là gọi lại tool chứ không phải bắt giáo viên gõ lại.
+    """
+    model = Scripted([_said("vâng")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    await propose(_asked("lớp 12 thế nào"))
+
+    prompt = model.prompts[0]
+    assert "ask_clarify" in prompt
+    assert "candidates" in prompt
+    # Không còn cờ nào đã chết: một điều kiện không tool nào trả về là một điều kiện không
+    # bao giờ đúng, và model sẽ làm thứ gì đó khác.
+    assert "ambiguous" not in prompt
+    assert "your_classes" not in prompt
+    # BE viết các phương án, model viết câu hỏi.
+    assert "choices" in prompt
+    # Và `more` có một đường ra, không chỉ một lời thừa nhận.
+    assert "more" in prompt and "name" in prompt

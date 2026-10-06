@@ -325,8 +325,12 @@ _DID_IT_HAPPEN = ("found", "created", "started", "approved", "unapproved", "publ
 def _subject(result: dict) -> tuple[str, str]:
     """Gọi tên entity mà một kết quả tool nói về, khi nó có nói về một entity.
 
-    Một lớp từ `find_class`, hoặc một đề nháp từ `create_draft` và `start_drafting`. Các
+    Một lớp từ `get_class`, hoặc một đề nháp từ `create_draft` và `start_drafting`. Các
     cột chứa đúng những gì các tool thực sự trả về, nên chúng lớn dần theo các tool.
+
+    `list_class` thì không: nó trả về một **danh sách**, và một bước nói về nhiều lớp thì
+    không nói về lớp nào cả. Chủ thể của nó là lựa chọn giáo viên sắp đưa ra, không phải
+    một dòng trong database.
 
     Một kết quả có nói về thứ gì đó khi nó nói là nó thành công, và cả tool lẫn endpoint
     đều nói điều đó bằng một cờ: `found` cho một lần tra cứu, `created` cho một đề nháp
@@ -1367,7 +1371,7 @@ async def run_turn(
 
         if step.kind in {"say", "ask_clarify"}:
             # Các phương án chỉ đi cùng một **câu hỏi lại**. Bản đầu gửi chúng cho cả `say`,
-            # và ca đó có thật: giáo viên hỏi *"lớp 12 thế nào"*, `find_class` trả hai
+            # và ca đó có thật: giáo viên hỏi *"lớp 12 thế nào"*, `list_class` trả hai
             # candidate, rồi model **nói** chứ không hỏi. Một lời thông báo mang theo hai cái
             # nút thì màn hình dựng nó thành thẻ hỏi lại, gấp bong bóng thật đi, và bấm một
             # nút gửi `"12A (3 học sinh)"` đi như một câu của giáo viên. Đường live đã sai

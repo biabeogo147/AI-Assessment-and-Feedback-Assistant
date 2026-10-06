@@ -45,19 +45,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.assessment_state import AssessmentState
 from be.config import Settings, get_settings
-from be.drafting import _MOST_QUESTIONS, fire, harvest, pending_count, rebrief
+from be.drafting import _MOST_QUESTIONS, fire, harvest, pending_count, rebrief, too_many
 from be.identity import Asking
 from be.models import (
     Assessment,
     Attempt,
-    DraftBrief,
     Publication,
     Question,
     QuestionOutcome,
     SchoolClass,
     Student,
 )
-from be.resolve import Ambiguous, Candidate, NotFound, Resolved, resolve_class
+from be.resolve import Candidate, capped, classes_with_counts, normalise
 from contracts import ToolSpec
 
 logger = logging.getLogger(__name__)
@@ -135,64 +134,113 @@ class Tool:
     writes: bool = False
 
 
-async def _find_class(running: Running, args: dict) -> dict:
-    """Tra một lớp của giáo viên này theo cái tên họ gõ.
+async def _list_class(running: Running, args: dict) -> dict:
+    """Mọi lớp của giáo viên này.
+
+    **Một hình dạng trả về, không bốn.** Tool trước (`find_class`) nhận một cái tên rồi
+    trả về một trong bốn hình: lớp đã tìm thấy, `ambiguous` kèm candidate, không-tìm-thấy
+    kèm danh sách, và một lời từ chối khi không có tên nào. Model phải đoán lần này nhận
+    hình nào, và ba trong bốn hình đều là *"đây là danh sách, tự chọn đi"* -- tức chính
+    cái việc tool này làm thẳng.
+
+    Việc chọn giữa hai lớp trùng tên nay về đúng chỗ của nó: model đọc danh sách rồi hỏi
+    giáo viên (ADR-23), thay vì tool vừa tra vừa tự dựng một câu hỏi lại.
+
+    **`name` là tuỳ chọn, và nó ở đây vì một lỗi đo được.** Bản đầu không nhận tham số nào:
+    tool trả mọi lớp rồi `capped` giữ sáu. Với một giáo viên có mười lớp, lớp thứ bảy trở đi
+    thành **không với tới được** -- `more` nói đúng rằng còn ba lớp nữa, nhưng không có đường
+    nào lấy id của chúng, vì `get_class` cần một id model chưa bao giờ thấy. `more` khi đó là
+    một lời thừa nhận, không phải một đường ra.
+
+    Lọc theo tên **không** đem bốn hình dạng của `find_class` quay lại: lọc rồi vẫn trả đúng
+    `candidates` kèm `more`, và việc chọn giữa hai lớp trùng tên vẫn thuộc về model (ADR-23).
+    Khác biệt là tool thôi *quyết*, chỉ *thu hẹp*.
 
     Args:
-        running: Session và giáo viên đang hỏi. Mọi candidate đều được filter theo
-            `running.asking`.
-        args: `name`, theo đúng cách giáo viên viết.
+        running: Session và giáo viên đang hỏi.
+        args: `name` tuỳ chọn -- một phần tên lớp để thu hẹp danh sách. Không có thì liệt kê
+            mọi lớp.
 
     Returns:
-        Một trong bốn hình dạng: chính lớp đó; `ambiguous` kèm các candidate nó có thể
-        là; không-tìm-thấy kèm những lớp giáo viên này thực sự có; hoặc, khi không có
-        tên nào được đưa ra, một lời từ chối nói rõ điều đó. Không bao giờ đoán giữa
-        các candidate -- lời từ chối đó là ADR-23, và vòng lặp biến nó thành một câu
-        hỏi lại.
+        `candidates`: mỗi lớp một dòng với `class_id`, `name`, `student_count`. Cộng `more`:
+        đã bỏ lại bao nhiêu lớp vì danh sách chỉ chở sáu. `more` là **một nửa hợp đồng**,
+        không phải một con số trang trí — `_offered` đọc nó để nói ra rằng danh sách chưa
+        đầy đủ, và prompt pha 1 dặn model gọi lại tool với `name` để thu hẹp. Luôn trả nó,
+        kể cả khi bằng 0.
+
+        **Khoá tên là `candidates`, không phải `classes`, và đó là một hợp đồng chứ không
+        phải một lựa chọn chữ nghĩa.** `teacher_chat._choices_from` dựng các nút của một
+        câu hỏi lại **chỉ** từ khoá ấy — đó là cách ADR-23 giữ cho *model viết câu hỏi,
+        BE viết các câu trả lời*, nên không một chuỗi nào trên nút đi qua tay model. Đổi
+        tên khoá này là bỏ các nút đi, và câu hỏi lại tụt về một bong bóng chữ.
+
+        Danh sách này **là** bộ phương án: model gọi tool này đúng lúc nó cần giáo viên
+        chọn một lớp. Khác với một danh sách "không tìm thấy, đây là những lớp bạn có",
+        vốn chỉ là context để nhắc tới.
     """
-    # `or ""` chứ không phải một giá trị mặc định, vì model có thể gửi `null` và
-    # `str(None)` là "none" -- một string sẽ bị đem đi tìm, khớp với mọi lớp có tên
-    # chứa nó, và nếu không khớp thì cho ra "không có lớp nào tên đó". Đó là câu sai
-    # cho một câu hỏi không gọi tên lớp nào, và là câu trả lời sai cho một câu hỏi có
-    # gọi tên lớp.
-    session, asking = running.session, running.asking
-    typed = str(args.get("name") or "")
-    answer = await resolve_class(session, asking, typed)
+    # `classes_with_counts` đếm học sinh trong **một** query và lọc theo `teacher_id` --
+    # cái filter ấy chính là toàn bộ ADR-22 ở đây. Nó cũng sắp theo name rồi id, nên hai
+    # lớp cùng tên lần nào cũng về theo cùng thứ tự.
+    found = await classes_with_counts(running.session, running.asking)
 
-    if not typed.strip():
-        listed = answer.available if isinstance(answer, NotFound) else ()
-        return {
-            "found": False,
-            "ambiguous": False,
-            "reason": "chưa có tên lớp nào trong câu hỏi",
-            "your_classes": [_shown(candidate) for candidate in listed],
-            "more": answer.more if isinstance(answer, NotFound) else 0,
-        }
+    # `normalise` trả rỗng khi không có tên nào, và caller **không được** coi rỗng là "khớp
+    # tất cả" -- docstring của nó nói thẳng điều đó. Ở đây rỗng nghĩa là không lọc, và hai
+    # việc ấy tình cờ cùng một kết quả; viết tách ra để cái tình cờ không thành một luật.
+    narrowing = normalise(str(args.get("name") or ""))
+    if narrowing:
+        found = [one for one in found if narrowing in normalise(one.name)]
+    # `capped` cắt danh sách xuống mức một câu hỏi lại chở được, và nói ra đã bỏ lại bao
+    # nhiêu. Trả hết ba mươi lớp rồi báo `more: 0` là nói sai: giao diện chỉ vẽ sáu nút,
+    # nên hai mươi bốn lớp kia mất đi mà không dòng nào trên màn hình nhắc tới chúng.
+    kept, more = capped(found)
+    return {"candidates": [_shown(candidate) for candidate in kept], "more": more}
 
-    if isinstance(answer, Resolved):
-        return {
-            "found": True,
-            "class_id": answer.class_id,
-            "name": answer.name,
-            "student_count": answer.student_count,
-        }
 
-    if isinstance(answer, Ambiguous):
-        return {
-            "found": False,
-            "ambiguous": True,
-            "reason": "tên đó khớp nhiều lớp, cần hỏi lại giáo viên chọn lớp nào",
-            "candidates": [_shown(candidate) for candidate in answer.candidates],
-            "more": answer.more,
-        }
+async def _get_class(running: Running, args: dict) -> dict:
+    """Thông tin một lớp, theo `class_id`.
 
-    return {
-        "found": False,
-        "ambiguous": False,
-        "reason": "không có lớp nào tên đó trong danh sách của bạn",
-        "your_classes": [_shown(candidate) for candidate in answer.available],
-        "more": answer.more,
-    }
+    Nhận **id**, không nhận tên: tên là thứ nhập nhằng, và việc gỡ nhập nhằng đã chuyển
+    lên `list_class`. Một tool nhận id thì chỉ có hai kết cục, và cả hai đều đọc được.
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: `class_id`.
+
+    Returns:
+        `found` kèm `class_id`, `name`, `student_count`; hoặc `found: False` kèm `reason`.
+    """
+    wanted = str(args.get("class_id") or "").strip()
+    if not wanted:
+        return {"found": False, "reason": "thiếu class_id; gọi list_class để lấy id trước"}
+
+    # Lọc ngay trong danh sách đã thuộc về giáo viên này, nên một id của người khác đọc
+    # ra **giống hệt** một id không tồn tại (ADR-22).
+    for candidate in await classes_with_counts(running.session, running.asking):
+        if candidate.class_id == wanted:
+            return {"found": True, **_shown(candidate)}
+    return {"found": False, "reason": "không có lớp nào như vậy trong danh sách của bạn"}
+
+
+async def _list_assessment(running: Running, args: dict) -> dict:
+    """Những đề đã phát hành cho một lớp.
+
+    **Đề thuộc về giáo viên, không thuộc về lớp** -- `assessments` có `teacher_id` chứ
+    không có `class_id`. Lớp nối vào qua `publications`, nên "đề của một lớp" nghĩa là đề
+    đã phát hành cho lớp ấy, và một đề nháp chưa phát hành thì không thuộc lớp nào.
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: `class_id`.
+
+    Returns:
+        `assessments`: mỗi đề một dòng với `assessment_id` và `title`, mới nhất trước.
+    """
+    wanted = str(args.get("class_id") or "").strip()
+    if not wanted:
+        return {"found": False, "reason": "thiếu class_id; gọi list_class để lấy id trước"}
+
+    listed = await _assessments_of(running.session, running.asking, wanted)
+    return {"found": True, "assessments": listed}
 
 
 async def _assessments_of(session: AsyncSession, asking: Asking, class_id: str) -> list[dict]:
@@ -259,17 +307,18 @@ async def _class_assessment_summary(running: Running, args: dict) -> dict:
         )
     )
     if owns_class is None or assessment is None:
-        # Lời từ chối mang theo những thứ thực sự có, theo đúng cách `find_class` làm
-        # (ADR-23). Một lời từ chối trống rỗng là một lời mời bịa ra, và đó không phải
-        # một mối lo đoán trước -- nó đã được đo ở lần chạy đầu tiên với model thật,
-        # khi gpt-4o-mini trả lời một câu không-tìm-thấy trơ trọi bằng cách gọi tên bốn
-        # lớp không tồn tại. Nó cũng bịt luôn cái khe mà chính lần chạy đó lộ ra: không
-        # có gì trong catalog nói cho model biết nên hỏi về đề nào, nên nó phải đoán
-        # một id.
+        # Lời từ chối nay **không** mang theo danh sách đề. Nó từng mang, vì không có gì
+        # trong catalog nói cho model biết nên hỏi về đề nào -- đo ở lần chạy đầu với
+        # gpt-4o-mini: một câu không-tìm-thấy trơ trọi khiến nó gọi tên bốn lớp không tồn
+        # tại. Cái khe ấy nay có một tool đứng chắn: `list_assessment`. Chở danh sách trong
+        # một lời từ chối là hình dạng trả về thứ năm của tool này, và nó dạy model rằng
+        # cách tra đề là gọi sai tool một lần.
         return {
             "found": False,
-            "reason": "không tìm thấy lớp hoặc đề trong danh sách của bạn",
-            "assessments_in_this_class": await _assessments_of(session, asking, class_id),
+            "reason": (
+                "không tìm thấy lớp hoặc đề trong danh sách của bạn; "
+                "hãy gọi list_assessment với class_id để lấy đúng assessment_id"
+            ),
         }
 
     publication = await session.scalar(
@@ -356,7 +405,9 @@ async def _class_assessment_summary(running: Running, args: dict) -> dict:
 # câu hỏi do những job độc lập soạn ra, nên một brief còn đang ghép dở sẽ cho ra một bộ
 # đề mà hai nửa trả lời hai câu hỏi khác nhau, và đó là loại lỗi không ai tìm ra bằng
 # cách đọc từng câu hỏi một.
-_BRIEF_FIELDS = ("subject", "grade", "topic_scope", "question_count")
+# Ba muc, khong bon. `question_count` roi khoi day cung luc no roi khoi `create_draft`:
+# mot de trong chua co so cau nao de khai.
+_BRIEF_FIELDS = ("subject", "grade", "topic_scope")
 
 # Mỗi field văn bản tự do dài được bao nhiêu, lấy từ chính các cột lưu nó:
 # `Assessment.subject` và `DraftBrief.difficulty` là String(64) còn `Assessment.grade`
@@ -387,8 +438,8 @@ async def _create_draft(running: Running, args: dict) -> dict:
 
     Args:
         running: Session và giáo viên đang hỏi, người sẽ thành tác giả.
-        args: `subject`, `grade`, `topic_scope`, `question_count`, và tuỳ chọn thêm
-            `difficulty` cùng `title`.
+        args: `subject`, `grade`, `topic_scope`, và tuỳ chọn thêm `difficulty` cùng
+            `title`.
 
     Returns:
         id của đề nháp mới, hoặc một lời từ chối gọi tên những gì brief còn thiếu.
@@ -406,27 +457,12 @@ async def _create_draft(running: Running, args: dict) -> dict:
             "reason": "chưa đủ thông tin để soạn đề; hãy hỏi giáo viên những mục còn thiếu",
         }
 
-    try:
-        count = int(str(args["question_count"]).strip())
-    except (TypeError, ValueError):
-        # Không giống thiếu field. Báo "chưa đủ thông tin" cho một field model đã điền
-        # rồi là đẩy nó đi một vòng để điền lại đúng giá trị đó, và cả lượt đó tiêu hết
-        # mức trần của mình chỉ để phát hiện ra rằng "ba" không phải một con số.
-        return {
-            "created": False,
-            "missing": [],
-            "unreadable": ["question_count"],
-            "reason": "question_count phải là một con số, ví dụ 10",
-        }
-
-    if not 1 <= count <= _MOST_QUESTIONS:
-        return {
-            "created": False,
-            "missing": [],
-            "unreadable": ["question_count"],
-            "reason": f"số câu phải từ 1 đến {_MOST_QUESTIONS}",
-        }
-
+    # **Không có số câu ở đây, và không có mức trần ở đây.** Một đề trống chưa có số câu
+    # nào để khai: con số ấy chỉ có nghĩa lúc bắt đầu soạn, và nó đổi được -- soạn 3 câu
+    # rồi soạn thêm 2 là chuyện thường. Bắt khai trước buộc giáo viên quyết một con số
+    # trước khi biết đề sẽ dài bao nhiêu, và làm tool này từ chối một việc không phải
+    # của nó. Mức trần nay thuộc về `start_drafting`, nơi con số thật sự được tiêu.
+    #
     # Độ dài lấy từ chính các cột, và câu trả lời là một lời từ chối chứ không phải một
     # lần cắt ngắn lặng lẽ: một `grade` bị cắt là dữ liệu sai nhưng trông như dữ liệu.
     # Bộ test chạy trên SQLite, nơi `String(n)` không có tác dụng gì, nên không dòng nào
@@ -461,11 +497,13 @@ async def _create_draft(running: Running, args: dict) -> dict:
     session.add(draft)
     await session.flush()
 
+    # `question_count=0`: đề vừa mở thì chưa ai xin câu nào. `start_drafting` ghi đè con số
+    # thật khi giáo viên nói rõ muốn bao nhiêu.
     await rebrief(
         session,
         draft.id,
         topic_scope=scope,
-        question_count=count,
+        question_count=0,
         difficulty=str(args.get("difficulty") or "").strip(),
     )
 
@@ -474,62 +512,6 @@ async def _create_draft(running: Running, args: dict) -> dict:
         "created": True,
         "assessment_id": draft.id,
         "title": draft.title,
-        "question_count": count,
-    }
-
-
-async def _draft_progress(running: Running, args: dict) -> dict:
-    """Nói đề nháp đã đi được tới đâu, và **không ghi gì**.
-
-    Trước ADR-25 hàm này còn gọi `harvest`, tức nó ghi `Question` và đẩy state của đề
-    sang `HAS_QUESTIONS` -- trong khi `writes` của nó khai là False. Một tool đọc mà ghi
-    là chỗ làm hỏng ranh giới pha: pha 1 được phép hỏi tiến độ, và pha 1 không được ghi
-    gì, nếu không thì một câu hỏi lại vẫn bỏ lại việc làm dở đúng như trước.
-
-    Việc thu hoạch ở lại ba chỗ có người đang chờ kết quả: `start_drafting` (thu vòng cũ
-    trước khi mở vòng mới), cổng duyệt, và -- khi nó tồn tại -- đường nghe tiến độ của
-    một lượt đang chạy. Chừng nào đường thứ ba chưa có, một đề đang soạn chỉ đầy lên khi
-    giáo viên bấm duyệt hoặc soạn thêm; đó là cái giá đã biết của việc tách đọc khỏi ghi,
-    và plan trả nó ở Pha D.
-
-    Args:
-        running: Session, giáo viên đang hỏi, và queue.
-        args: `assessment_id`.
-
-    Returns:
-        Các con số đếm được và các stem câu hỏi đã có tới lúc này, hoặc đúng cái câu trả
-        lời không-tìm-thấy mà một đề nháp của người khác cho ra (ADR-22).
-
-    Side effects:
-        Không có. Đó là cả điểm của hàm này sau ADR-25.
-    """
-    session, asking = running.session, running.asking
-    assessment_id = str(args.get("assessment_id") or "")
-
-    owned = await session.scalar(
-        select(Assessment).where(
-            Assessment.id == assessment_id, Assessment.teacher_id == asking.teacher_id
-        )
-    )
-    if owned is None:
-        return {"found": False, "reason": _NO_SUCH_DRAFT["reason"]}
-
-    brief = await session.get(DraftBrief, assessment_id)
-    stems = await session.scalars(
-        select(Question.stem)
-        .where(Question.assessment_id == assessment_id)
-        .order_by(Question.order_index)
-    )
-    still_running = await pending_count(session, assessment_id)
-
-    return {
-        "found": True,
-        "assessment_id": assessment_id,
-        "title": owned.title,
-        "state": str(owned.state),
-        "asked_for": brief.question_count if brief is not None else 0,
-        "written": list(stems),
-        "still_drafting": still_running,
     }
 
 
@@ -540,9 +522,13 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     brief được lưu lại sinh ra để ngăn -- những câu hỏi soạn theo hai bộ hướng dẫn cùng
     nằm chung một đề -- và từ chối thì rẻ hơn là đi hoà giải.
 
+    **Số câu đi vào đây, không vào `create_draft`.** Một đề trống chưa có số câu nào để
+    khai; con số ấy chỉ có nghĩa lúc bắt đầu soạn. Và mức trần sống ở đây vì đây là chỗ
+    con số thật sự được tiêu -- mỗi câu một job, mỗi job một lượt gọi model.
+
     Args:
         running: Session, giáo viên đang hỏi, và queue.
-        args: `assessment_id`.
+        args: `assessment_id` và `question_count`.
 
     Returns:
         Đã đẩy bao nhiêu job vào queue, hoặc một lời từ chối. Lời từ chối cho đề nháp
@@ -563,6 +549,24 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     if owned is None:
         return dict(_NO_SUCH_DRAFT)
 
+    try:
+        wanted = int(str(args.get("question_count") or "").strip())
+    except (TypeError, ValueError):
+        # Không giống thiếu field. Báo "chưa đủ thông tin" cho một field model đã điền
+        # rồi là đẩy nó đi một vòng để điền lại đúng giá trị đó.
+        #
+        # `unreadable` là cờ cho người kể, không phải cho model: `_said_about` đọc nó để
+        # nói "một mục trong yêu cầu chưa dùng được" mà không in `reason` ra màn hình --
+        # `reason` chở theo tên field, và tên field là mặt trong của hệ thống.
+        return {
+            "started": False,
+            "unreadable": ["question_count"],
+            "reason": "question_count phải là một con số, ví dụ 10",
+        }
+
+    if not 1 <= wanted <= _MOST_QUESTIONS:
+        return {"started": False, "reason": f"số câu phải từ 1 đến {_MOST_QUESTIONS}"}
+
     # Thu về trước đã. Không có gì khác trong BE đi thu những job này, nên một vòng đã
     # xong trong lúc không ai để ý thì vẫn đọc ra là đang chạy -- và lời từ chối bên
     # dưới khi đó sẽ là vĩnh viễn: đề nháp đó không bao giờ soạn tiếp được nữa.
@@ -574,8 +578,15 @@ async def _start_drafting(running: Running, args: dict) -> dict:
             "reason": "đề này đang soạn dở; chờ xong rồi hãy soạn thêm",
         }
 
+    # Hỏi **sau** `harvest`, vì chỉ lúc này số câu đã có mới là số thật. Và hỏi ở đây chứ
+    # không để `fire` tự canh: `fire` canh đúng nhưng chỉ `return 0`, mà caller dịch 0
+    # thành "hàng đợi đang hỏng" -- một lời từ chối nêu nguyên nhân không có thật.
+    overflowing = await too_many(session, assessment_id, wanted)
+    if overflowing:
+        return {"started": False, "reason": overflowing}
+
     try:
-        queued = await fire(session, running.pool, running.settings, assessment_id)
+        queued = await fire(session, running.pool, running.settings, assessment_id, wanted)
     except HTTPException:
         # `fire` gọi `assert_editable`, nên một đề đã duyệt sẽ rơi vào đây. ADR-01 khoá
         # nội dung ở lúc duyệt, và chính cái khoá đó là lý do việc duyệt có nghĩa.
@@ -596,20 +607,55 @@ async def _start_drafting(running: Running, args: dict) -> dict:
             "started": False,
             "reason": "chưa soạn được câu nào; có thể đề chưa có brief, hoặc hàng đợi đang hỏng",
         }
-    return {"started": True, "queued": queued, "assessment_id": assessment_id}
+    # `title` đi theo vì **thẻ kết quả đọc nó**. Một thẻ `Đã tạo đề` trần không nói đề nào,
+    # và nó là cửa duy nhất vào panel của chính cái đề ấy -- giáo viên bấm vào một cái tên
+    # họ không đọc được. `create_draft` đã trả `title` từ đầu; bước này thì không, nên thẻ
+    # của một plan hai bước mất tên trong khi thẻ của một plan một bước thì có.
+    return {
+        "started": True,
+        "queued": queued,
+        "assessment_id": assessment_id,
+        "title": owned.title,
+    }
 
 
 _TOOLS: tuple[Tool, ...] = (
     Tool(
         spec=ToolSpec(
-            name="find_class",
+            name="list_class",
             description=(
-                "Tìm một lớp của giáo viên theo tên để lấy class_id. Gọi tool này trước khi hỏi "
-                "về kết quả của một lớp, vì các tool khác cần class_id chứ không nhận tên lớp."
+                "Liet ke cac lop cua giao vien, kem so hoc sinh. Goi tool nay truoc khi hoi ve "
+                "mot lop, vi cac tool khac can class_id chu khong nhan ten lop. Hai lop trung "
+                "ten thi KHONG duoc tu chon: hay hoi giao vien, va so hoc sinh la thu phan biet "
+                "chung. Danh sach nhieu nhat 6 lop; neu more lon hon 0 thi goi lai tool nay voi "
+                "name la mot phan ten lop de thu hep."
             ),
-            arguments={"name": "tên lớp như giáo viên vừa nói, ví dụ 12A1"},
+            arguments={"name": "tuy chon: mot phan ten lop de thu hep, vi du 12 hoac 12A"},
         ),
-        run=_find_class,
+        run=_list_class,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="get_class",
+            description=(
+                "Thông tin một lớp theo class_id: tên và số học sinh. Lấy class_id từ list_class, "
+                "TUYỆT ĐỐI không tự đoán."
+            ),
+            arguments={"class_id": "id lớp, lấy từ list_class"},
+        ),
+        run=_get_class,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="list_assessment",
+            description=(
+                "Liệt kê các đề đã phát hành cho một lớp, mới nhất trước. Dùng để tìm "
+                "assessment_id trước khi hỏi kết quả. Đề nháp chưa phát hành KHÔNG nằm ở đây, vì "
+                "nó chưa thuộc lớp nào."
+            ),
+            arguments={"class_id": "id lớp, lấy từ list_class"},
+        ),
+        run=_list_assessment,
     ),
     Tool(
         spec=ToolSpec(
@@ -617,14 +663,14 @@ _TOOLS: tuple[Tool, ...] = (
             description=(
                 "Tóm tắt kết quả một bài kiểm tra trong một lớp: bao nhiêu em đã nộp, tổng điểm "
                 "trung bình trên thang bằng số câu, và còn bao nhiêu câu chưa chữa xong. Cần "
-                "class_id và assessment_id. Chưa biết assessment_id thì cứ gọi với class_id và một "
-                "assessment_id rỗng: kết quả sẽ trả về assessments_in_this_class để bạn chọn đúng "
-                "đề rồi gọi lại. TUYỆT ĐỐI không tự đoán assessment_id. Khi nói lại con số, PHẢI "
+                "class_id và assessment_id. Chưa biết assessment_id thì gọi list_assessment với "
+                "class_id trước để lấy đúng id, rồi gọi lại tool này. TUYỆT ĐỐI không tự đoán "
+                "assessment_id. Khi nói lại con số, PHẢI "
                 "nói kèm thang — average_total_marks là điểm trên average_out_of câu, KHÔNG phải "
                 "trên thang 10."
             ),
             arguments={
-                "class_id": "id lớp, lấy từ find_class",
+                "class_id": "id lớp, lấy từ list_class",
                 "assessment_id": "id đề",
             },
         ),
@@ -634,15 +680,17 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="create_draft",
             description=(
-                "Mo mot de nhap trong. Can DUNG BON muc: subject (mon), grade (khoi), topic_scope "
-                "(pham vi kien thuc, theo loi giao vien) va question_count (so cau). Du bon muc do "
+                "Mo mot de nhap trong. Can DUNG BA muc: subject (mon), grade (khoi) va "
+                "topic_scope (pham vi kien thuc, theo loi giao vien). Du ba muc do "
                 "thi LAM NGAY, dung hoi them gi nua -- he thong tu dat ten de va tu lo do kho. "
+                "KHONG hoi so cau o buoc nay: mot de trong chua co so cau nao, con so do thuoc "
+                "ve start_drafting. "
                 "Thieu muc nao thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc "
                 "do truoc da, vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. "
                 "Tool nay KHONG sinh cau hoi, nen mot plan chi co buoc nay se de lai mot de rong: "
                 "hay dat start_drafting ngay sau no."
             ),
-            # Bốn mục, không sáu. `difficulty` và `title` vẫn **nhận được** ở thân tool, nhưng
+            # Ba mục, không sáu. `difficulty` và `title` vẫn **nhận được** ở thân tool, nhưng
             # không còn được mô tả cho model -- và đó là một phép sửa cấu trúc, không phải một
             # lời dặn nữa. Đo trên trình duyệt thật năm lần với gpt-4o-mini: mỗi lần prompt
             # cấm hỏi một mục, model lại tìm ra một mục khác chưa bị cấm để hỏi, và mỗi câu
@@ -652,7 +700,6 @@ _TOOLS: tuple[Tool, ...] = (
                 "subject": "mon hoc, vi du Toan",
                 "grade": "khoi, vi du 12",
                 "topic_scope": "pham vi kien thuc theo loi giao vien",
-                "question_count": "so cau, 1 den 50",
             },
         ),
         run=_create_draft,
@@ -662,27 +709,19 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="start_drafting",
             description=(
-                "Bat dau sinh cau hoi cho mot de nhap da co brief. Moi cau mot job chay nen, nen "
-                "tool tra ve ngay va cau hoi hien dan. Tu choi neu de dang soan do hoac da duyet. "
+                "Bat dau sinh cau hoi cho mot de nhap. Can assessment_id VA question_count. "
+                "Moi cau mot job chay nen, nen tool tra ve ngay va cau hoi hien dan. "
+                "Tu choi neu de dang soan do hoac da duyet. "
                 "Trong mot plan, hay dat buoc nay ngay sau create_draft va lay assessment_id bang "
                 "cach tro ve buoc do."
             ),
-            arguments={"assessment_id": "id de nhap, lay tu create_draft"},
+            arguments={
+                "assessment_id": "id de nhap, lay tu create_draft",
+                "question_count": "so cau can soan lan nay, 1 den 50",
+            },
         ),
         run=_start_drafting,
         writes=True,
-    ),
-    Tool(
-        spec=ToolSpec(
-            name="draft_progress",
-            description=(
-                "Xem mot de nhap da soan duoc bao nhieu cau, va doc cac cau da co. Chi doc, "
-                "khong doi gi: goi lai nhieu lan khong lam cau hoi vao de nhanh hon. "
-                "still_drafting > 0 nghia la con job dang chay."
-            ),
-            arguments={"assessment_id": "id đề nháp"},
-        ),
-        run=_draft_progress,
     ),
 )
 

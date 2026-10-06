@@ -153,7 +153,7 @@ async def test_every_job_carries_the_same_brief(stack) -> None:
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
 
     scopes = {payload["topic_scope"] for payload in queue.payloads()}
     counts = {payload["of_total"] for payload in queue.payloads()}
@@ -174,7 +174,7 @@ async def test_each_job_knows_which_question_of_the_set_it_is(stack) -> None:
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
 
     assert sorted(payload["ordinal"] for payload in queue.payloads()) == [1, 2, 3]
 
@@ -190,7 +190,7 @@ async def test_harvest_writes_a_finished_question_in_full(stack) -> None:
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
 
     queue.finish("job-0", _good("Đạo hàm của y = x² là gì?"))
 
@@ -228,7 +228,7 @@ async def test_the_first_question_moves_the_draft_out_of_empty(stack) -> None:
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
         before = await session.get(Assessment, draft_id)
         assert before is not None and before.state == AssessmentState.EMPTY
 
@@ -253,7 +253,7 @@ async def test_a_question_that_breaks_adr_18_never_reaches_the_draft(stack) -> N
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
 
     queue.finish("job-0", _two_right())
 
@@ -268,11 +268,14 @@ async def test_a_question_that_breaks_adr_18_never_reaches_the_draft(stack) -> N
 
     assert landed == 0
     assert questions == []
-    # `retry`, không phải `failed`: hai phương án cùng đánh dấu đúng là chuyện may
-    # rủi chứ không phải một lỗi cố định, nên vị trí đó đáng thêm một job nữa. Thứ
-    # ngăn nó lặp vô hạn là bộ đếm attempts, không phải status này.
-    assert item is not None and item.status == "retry"
-    assert item.attempts == 1
+    # Vị trí ấy được hỏi lại NGAY, không phải chờ giáo viên nhờ lần nữa: hai phương án
+    # cùng đánh dấu đúng là chuyện may rủi chứ không phải một lỗi cố định. Trước đợt này
+    # nó dừng ở `retry` và chỉ `start_drafting` mới nhặt lên — nên một đề 3 câu đứng ở
+    # 2/3 vĩnh viễn. Thứ ngăn nó lặp vô hạn là bộ đếm attempts, không phải status.
+    assert item is not None and item.status == "pending"
+    assert item.attempts == 2
+    # Và lý do còn đọc được, chứ không chỉ nằm trong một dòng log không ai bật.
+    assert item.last_fault == "câu trả về sai hình dạng ADR-18"
 
 
 @pytest.mark.asyncio
@@ -286,7 +289,7 @@ async def test_two_jobs_returning_the_same_stem_yield_one_question(stack) -> Non
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
 
     same = "Đạo hàm của y = x² là gì?"
     queue.finish("job-0", _good(same))
@@ -297,9 +300,28 @@ async def test_two_jobs_returning_the_same_stem_yield_one_question(stack) -> Non
         questions = (
             await session.scalars(select(Question).where(Question.assessment_id == draft_id))
         ).all()
+        rows = {
+            row.ordinal: (row.status, row.attempts, row.last_fault)
+            for row in await session.scalars(
+                select(DraftItem).where(DraftItem.assessment_id == draft_id)
+            )
+        }
 
     assert landed == 1
     assert len(questions) == 1
+
+    # Đây là A3, đo được. Giáo viên xin 3 câu và nhận 2, âm thầm: ô 2 trùng câu của ô 1
+    # nên bị đánh `retry`, mà `fire` chỉ được gọi từ `start_drafting` -- nên `retry` thực
+    # tế nghĩa là **bỏ dở**. Năm mắt xích: `fire` tính `banned` một lần (rỗng, đề mới) →
+    # ba job song song cùng cầm danh sách rỗng ấy → hai câu mở đầu giống nhau → ô 2 bị
+    # loại → không ai bắn lại.
+    #
+    # Lượt bắn lại nằm **trong** `harvest`, không ngoài nó, vì đó là nơi `banned` đã có
+    # câu vừa ghi: hỏi lại với một danh sách cũ là hỏi lại để trùng thêm một lần.
+    assert rows[2][:2] == ("pending", 2)
+    # Và lý do đọc được bằng một câu SQL. Một status `retry` không nói vì sao là một dấu
+    # vết không dùng được -- đúng thứ đã biến A3 thành "không ai truy được".
+    assert rows[2][2] == "đề trùng một câu đã có"
 
 
 @pytest.mark.asyncio
@@ -319,7 +341,7 @@ async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
     settings = get_settings()
 
     async with maker() as session:
-        await drafting.fire(session, queue, settings, draft_id)
+        await drafting.fire(session, queue, settings, draft_id, 3)
 
     queue.lose("job-0")
     queue.break_("job-1")
@@ -333,22 +355,22 @@ async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
             )
         }
 
-    assert rows == {1: "retry", 2: "failed", 3: "pending"}
+    # Ô 1 hết hạn trong Redis thì được hỏi lại **ngay trong lượt harvest ấy**; ô 2 có
+    # job tự nổ nên bỏ cuộc, không thử lại. Trước đợt này ô 1 dừng ở `retry` và chờ một
+    # cú `start_drafting` nữa — mà không có cú ấy thì nó chờ mãi.
+    assert rows == {1: "pending", 2: "failed", 3: "pending"}
 
-    before = len(queue.jobs)
     async with maker() as session:
-        requeued = await drafting.fire(session, queue, settings, draft_id)
         after = {
-            row.ordinal: (row.status, row.attempts)
+            row.ordinal: (row.status, row.attempts, row.last_fault)
             for row in await session.scalars(
                 select(DraftItem).where(DraftItem.assessment_id == draft_id)
             )
         }
 
-    assert requeued == 1
-    assert len(queue.jobs) == before + 1
-    assert after[1] == ("pending", 2)
-    assert after[2] == ("failed", 1)
+    assert after[1] == ("pending", 2, "kết quả đã hết hạn trong Redis")
+    # Job tự nổ thì KHÔNG đi qua bộ đếm: hỏi lại sẽ nhận đúng cái lỗi đó.
+    assert after[2][:2] == ("failed", 1)
 
 
 @pytest.mark.asyncio
@@ -364,7 +386,7 @@ async def test_a_question_keeps_the_position_it_was_asked_for(stack) -> None:
     maker, draft_id, queue = stack
 
     async with maker() as session:
-        await drafting.fire(session, queue, get_settings(), draft_id)
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
 
     # Job giữa và job cuối trả lời trước; job đầu vẫn đang chạy.
     queue.finish("job-1", _good("Câu hai"))
@@ -402,29 +424,33 @@ async def test_a_refused_question_is_asked_again_but_not_forever(stack) -> None:
     settings = get_settings()
 
     async with maker() as session:
-        await drafting.fire(session, queue, settings, draft_id)
+        await drafting.fire(session, queue, settings, draft_id, 3)
 
     queue.finish("job-0", _two_right())
 
     async with maker() as session:
         await drafting.harvest(session, queue, settings, draft_id)
-        # Bắn lại sẽ nhặt vị trí đó lên, vì nó còn `retry` được.
-        requeued = await drafting.fire(session, queue, settings, draft_id)
+        # `harvest` tự bắn lại, nên không cần một cú `fire` nào ở giữa.
+        asked = await session.scalar(
+            select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 1)
+        )
 
-    assert requeued == 1
+    assert asked is not None and (asked.status, asked.attempts) == ("pending", 2)
 
     # Vẫn câu trả lời đó hai lần nữa, và vị trí ấy bỏ cuộc thay vì lặp vô hạn.
     for job in ("job-3", "job-4"):
         queue.finish(job, _two_right())
         async with maker() as session:
             await drafting.harvest(session, queue, settings, draft_id)
-            await drafting.fire(session, queue, settings, draft_id)
+            await drafting.fire(session, queue, settings, draft_id, 3)
 
     async with maker() as session:
         item = await session.scalar(
             select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 1)
         )
-        again = await drafting.fire(session, queue, settings, draft_id)
+        # `wanted=0`: hỏi "còn ô nào cần bắn lại không" mà **không** xin thêm câu nào.
+        # Một `fire(…, 3)` ở đây sẽ hợp lệ thêm ba ô mới, và che mất điều đang kiểm.
+        again = await drafting.fire(session, queue, settings, draft_id, 0)
 
     assert item is not None and item.status == "failed"
     assert again == 0
@@ -443,10 +469,12 @@ async def test_firing_twice_does_not_queue_the_same_position_twice(stack) -> Non
     settings = get_settings()
 
     async with maker() as session:
-        first = await drafting.fire(session, queue, settings, draft_id)
+        first = await drafting.fire(session, queue, settings, draft_id, 3)
 
+    # `wanted=0`: không xin thêm câu nào, chỉ hỏi xem ba ô cũ có bị bắn lại không.
+    # `fire(…, 3)` ở đây là **soạn thêm ba câu** — hợp lệ, nhưng là một câu hỏi khác.
     async with maker() as session:
-        second = await drafting.fire(session, queue, settings, draft_id)
+        second = await drafting.fire(session, queue, settings, draft_id, 0)
         rows = (
             await session.scalars(select(DraftItem).where(DraftItem.assessment_id == draft_id))
         ).all()
@@ -467,14 +495,11 @@ async def test_a_brief_asking_for_more_than_the_contract_allows_fires_nothing(st
     """
     maker, draft_id, queue = stack
 
+    # Con số tới từ **lời gọi**, không từ brief: một đề trống chưa có số câu nào để khai,
+    # nên `start_drafting` mới là chỗ giáo viên nói ra nó. `fire` chặn một lần nữa cho
+    # TỔNG sau khi cộng, vì xin thêm 10 câu vào một đề đã có 45 cũng vượt trần.
     async with maker() as session:
-        brief = await session.get(DraftBrief, draft_id)
-        assert brief is not None
-        brief.question_count = 60
-        await session.commit()
-
-    async with maker() as session:
-        queued = await drafting.fire(session, queue, get_settings(), draft_id)
+        queued = await drafting.fire(session, queue, get_settings(), draft_id, 60)
 
     assert queued == 0
     assert queue.jobs == []
@@ -493,7 +518,7 @@ async def test_a_new_brief_discards_questions_written_for_the_old_one(stack) -> 
     settings = get_settings()
 
     async with maker() as session:
-        await drafting.fire(session, queue, settings, draft_id)
+        await drafting.fire(session, queue, settings, draft_id, 3)
 
     async with maker() as session:
         await drafting.rebrief(session, draft_id, topic_scope="tích phân", question_count=2)
@@ -509,3 +534,81 @@ async def test_a_new_brief_discards_questions_written_for_the_old_one(stack) -> 
 
     assert landed == 0
     assert questions == []
+
+
+@pytest.mark.asyncio
+async def test_a_second_round_adds_on_top_instead_of_starting_over(stack) -> None:
+    """Gọi `fire` lần nữa là **soạn thêm**, không phải soạn lại.
+
+    Luật này được tuyên bố ở hai chỗ — comment của `fire` nói *"câu mới nối tiếp câu cũ,
+    không ghi đè"*, docstring `start_drafting` nói *"gọi lại với số khác là soạn thêm"* — và
+    trước test này **không chỗ nào đo nó**: mọi test gọi `fire` trên một đề mới, nơi
+    `start = 0`, nên `total = start + wanted` và `total = wanted` cho cùng một kết quả. Đột
+    biến bỏ `start +` sống sót qua cả bộ test.
+
+    Thứ nó hỏng nếu mất: giáo viên có hai câu rồi xin thêm hai câu, và nhận lại **hai** câu —
+    hai câu cũ bị hỏi lại thay vì giữ, hoặc bị ghi đè. Cộng thêm `brief.question_count` sai,
+    mà `harvest` dùng chính con số ấy để biết ô nào đã cũ.
+    """
+    maker, draft_id, queue = stack
+    settings = get_settings()
+
+    async with maker() as session:
+        await drafting.fire(session, queue, settings, draft_id, 2)
+
+    queue.finish("job-0", _good("Câu một"))
+    queue.finish("job-1", _good("Câu hai"))
+
+    async with maker() as session:
+        await drafting.harvest(session, queue, settings, draft_id)
+
+    async with maker() as session:
+        queued = await drafting.fire(session, queue, settings, draft_id, 2)
+        rows = sorted(
+            row.ordinal
+            for row in await session.scalars(
+                select(DraftItem).where(DraftItem.assessment_id == draft_id)
+            )
+        )
+        brief = await session.get(DraftBrief, draft_id)
+
+    # Hai ô MỚI, ở vị trí 3 và 4. Hai ô cũ không bị hỏi lại.
+    assert queued == 2
+    assert rows == [1, 2, 3, 4]
+    # Và brief mang **tổng**, vì đó là con số `harvest` đọc để biết ô nào đã cũ.
+    assert brief is not None and brief.question_count == 4
+
+
+@pytest.mark.asyncio
+async def test_the_cap_counts_the_questions_already_there(stack) -> None:
+    """Mức trần tính trên **tổng**, và nó nói ra con số ấy bằng tiếng Việt.
+
+    `fire` canh tổng nhưng chỉ `logger.warning` rồi `return 0`, mà caller dịch `queued == 0`
+    thành *"có thể đề chưa có brief, hoặc hàng đợi đang hỏng"* — một lời từ chối nêu một
+    nguyên nhân **không có thật**, và không chỗ nào nhắc tới con số 50. `too_many` là chỗ
+    trần ấy có tiếng nói; `fire` giữ phép kiểm làm chốt cuối.
+
+    Trước test này, đột biến `1 <= total` thành `1 <= wanted` sống sót: test trần duy nhất
+    gọi `fire` trên một đề rỗng, tức đo trần của `wanted`.
+    """
+    maker, draft_id, queue = stack
+    settings = get_settings()
+
+    async with maker() as session:
+        # Một đề đã gần đầy: 48 ô đã đặt.
+        await drafting.fire(session, queue, settings, draft_id, 48)
+
+    async with maker() as session:
+        # Xin thêm 5 câu nữa: 48 + 5 = 53, quá trần.
+        complaint = await drafting.too_many(session, draft_id, 5)
+        queued = await drafting.fire(session, queue, settings, draft_id, 5)
+
+    assert queued == 0
+    # Câu nói chở cả ba con số, vì một lời từ chối không nói "còn mấy chỗ" thì giáo viên
+    # phải đoán. Và nó không nhắc tới hàng đợi, vì hàng đợi không hỏng.
+    assert "48" in complaint and "5" in complaint and "53" in complaint
+    assert "hàng đợi" not in complaint
+
+    async with maker() as session:
+        # Và còn đúng 2 chỗ thì xin 2 câu vẫn được: trần là 50, không phải 48.
+        assert await drafting.too_many(session, draft_id, 2) == ""

@@ -37,8 +37,8 @@ không có trong kết quả thì **plan bị từ chối trước khi chạy b�
 chỉ trả về được chuỗi phẳng (`_Argument{name, value}`), và vì `start_drafting` cần một `assessment_id`
 mà `create_draft` mới sinh ra.
 
-**Trong pha 1 không có tool nào ghi.** Pha 1 có `find_class`, `class_assessment_summary`,
-`draft_progress`; pha 2 có `create_draft`, `start_drafting`.
+**Trong pha 1 không có tool nào ghi.** Pha 1 có `list_class`, `get_class`, `list_assessment`,
+`class_assessment_summary`; pha 2 có `create_draft`, `start_drafting`.
 
 **Nhưng pha 1 vẫn phải *thấy* danh mục pha 2.** Nó nêu tên tool và tên tham số trong plan, nên không
 thấy mô tả thì nó đoán — và một tham số đoán sai tên làm `vet_plan` từ chối trọn gói cả plan, tức một
@@ -46,8 +46,10 @@ yêu cầu hợp lệ nhận một lời từ chối. Vì thế `NextStepRequest
 những tool gọi được ngay, `plannable` là những tool chỉ hẹn làm được. Hai field chứ không một danh
 sách kèm cờ, vì "được gọi ngay" và "được hẹn làm" là hai quyền khác nhau, và trộn chúng lại là mở
 đúng cánh cửa ADR này đóng. **`draft_progress` phải bỏ phần
-`harvest`** trước khi luật này đúng: hôm nay nó khai `writes=False` nhưng thân nó ghi `Question` và
-đẩy state đề sang `HAS_QUESTIONS`. Việc thu hoạch chuyển về đường nghe tiến độ và về cổng duyệt.
+`harvest`** trước khi luật này đúng: lúc viết ADR nó khai `writes=False` nhưng thân nó ghi `Question`
+và đẩy state đề sang `HAS_QUESTIONS`. Việc thu hoạch chuyển về đường nghe tiến độ và về cổng duyệt.
+*(Cập nhật 06/10/2026: tool ấy đã **bỏ hẳn** — SSE kể tiến độ, nên một tool chỉ để ngó là một tool
+không ai gọi, và câu "pha 1 không ghi gì" nay đúng ở mọi dòng thay vì đúng trừ một.)*
 
 **Pha 2 — thực hiện plan.** BE chạy từng bước theo thứ tự và phát sự kiện cho mỗi bước: bắt đầu, xong
 kèm một dòng kết quả, hoặc hỏng kèm lý do. **Một bước hỏng thì dừng plan**; các bước sau không chạy.
@@ -174,7 +176,9 @@ với AGENT. Nay nó đã chạy. Plan thi hành:
 - `services/agent/src/agent/graphs/reporting.py` — lời kể sau khi plan chạy; một task riêng.
 - `services/agent/src/agent/handlers.py` + `worker.py` — chuông tiến độ, rung từ `after_job_end`.
 - `services/be/src/be/teacher_chat.py` — hai pha, `vet_plan`, đường đợi câu, và cửa SSE.
-- `services/be/src/be/teacher_tools.py` — catalog theo pha; `draft_progress` bỏ `harvest`.
+- `services/be/src/be/teacher_tools.py` — catalog theo pha. `draft_progress` đã bỏ hẳn, nên pha 1
+  không còn tool nào từng phải `harvest`; `test_the_planning_phase_sees_no_tool_that_writes` là nơi
+  thi hành, và `test_each_reading_tool_answers_in_exactly_one_shape` ghim hình dạng của ba tool đọc.
 - `services/be/src/be/drafting.py` — sinh channel, nghe chuông; thu hoạch vẫn là đường bền.
 - `services/fe/src/screens/teacher/Chat.tsx` — vẽ theo thứ tự nhận được, khối bằng chứng sống.
 - `services/be/src/be/teacher_routes.py` — đọc một đề cũng thu hoạch; đó là "lần quan sát kế tiếp"

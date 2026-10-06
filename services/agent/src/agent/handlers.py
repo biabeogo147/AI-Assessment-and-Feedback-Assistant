@@ -722,6 +722,11 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
             return NextStepCompleted(
                 request_id=request.request_id, kind="ask_clarify", text=_WHAT_IS_MISSING
             )
+        # Số câu đi với `start_drafting`, không với `create_draft`: một đề trống chưa có
+        # số câu nào để khai. Mock chia đôi brief ở đây cho đúng chỗ của con số ấy -- gửi
+        # nó vào `create_draft` là gửi một tham số tool đó không còn nhận.
+        wanted = brief["question_count"]
+        fields = {key: value for key, value in brief.items() if key != "question_count"}
         return NextStepCompleted(
             request_id=request.request_id,
             kind="plan",
@@ -729,20 +734,20 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
             steps=(
                 PlanStep(
                     tool_name="create_draft",
-                    args=brief,
-                    title=f"Tạo đề {brief['question_count']} câu",
+                    args=fields,
+                    title=f"Tạo đề {wanted} câu",
                 ),
                 # `{1.assessment_id}` là cú pháp BE giải, và một mock viết nó ra là cách
                 # đường ấy được đi qua ở một bản dev không có API key.
                 PlanStep(
                     tool_name="start_drafting",
-                    args={"assessment_id": "{1.assessment_id}"},
-                    title=f"Soạn {brief['question_count']} câu hỏi",
+                    args={"assessment_id": "{1.assessment_id}", "question_count": wanted},
+                    title=f"Soạn {wanted} câu hỏi",
                 ),
             ),
         )
 
-    if harvested is not None and harvested.tool_result.get("ambiguous"):
+    if harvested is not None and len(harvested.tool_result.get("candidates") or ()) > 1:
         # ADR-23: không ai chọn giữa các candidates, và điều đó gồm cả mock. Đây là
         # đường một buổi demo đi qua, nên một mock âm thầm chọn một cái sẽ đang trình
         # diễn đúng cái hành vi mà thiết kế cấm.
@@ -755,10 +760,21 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         return NextStepCompleted(
             request_id=request.request_id,
             kind="ask_clarify",
-            text=f"Bạn có nhiều lớp khớp tên đó. Bạn muốn xem lớp nào?{tail}",
+            text=f"Bạn đang dạy nhiều lớp. Bạn muốn xem lớp nào?{tail}",
         )
 
     if harvested is not None:
+        shown = harvested.tool_result.get("candidates") or ()
+        if len(shown) == 1:
+            # Một lớp thì không có gì để hỏi lại. Đọc tên nó ra, chứ không in cả cái dict
+            # `candidates` lên màn hình: hình dạng bên trong của một kết quả tool là mặt
+            # trong của hệ thống.
+            only = shown[0]
+            return NextStepCompleted(
+                request_id=request.request_id,
+                kind="say",
+                text=f"Bạn có lớp {only['name']} với {only['student_count']} học sinh.",
+            )
         body = ", ".join(f"{key}: {value}" for key, value in sorted(harvested.tool_result.items()))
         return NextStepCompleted(
             request_id=request.request_id,
@@ -769,12 +785,16 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
     named = _CLASS_NAME.search(asked)
     usable = {tool.name for tool in request.catalog}
 
-    if named is not None and "find_class" in usable:
+    if named is not None and "list_class" in usable:
+        # `list_class` không nhận tham số: việc gỡ nhập nhằng đã rời khỏi tool và về chỗ
+        # của nó -- model đọc danh sách rồi hỏi giáo viên (ADR-23). Cái tên trong câu hỏi
+        # nay chỉ còn là **dấu hiệu** rằng giáo viên đang nói về một lớp, không còn là một
+        # giá trị gửi đi.
         return NextStepCompleted(
             request_id=request.request_id,
             kind="call_tool",
-            tool_name="find_class",
-            tool_args={"name": named.group(1).replace(" ", "")},
+            tool_name="list_class",
+            tool_args={},
         )
 
     if not usable:

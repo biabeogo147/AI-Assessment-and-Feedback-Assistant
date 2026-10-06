@@ -13,7 +13,7 @@ Các test ở đây gọi qua HTTP chứ không gọi hàm, vì chỗ cần ki�
 nhau: phân quyền của ADR-22, và bảng cạnh của ADR-01.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -33,7 +33,9 @@ from be.models import (
     DraftBrief,
     DraftItem,
     Method,
+    Publication,
     Question,
+    SchoolClass,
     Teacher,
     TeacherConversation,
     TeacherTurn,
@@ -382,25 +384,87 @@ async def test_unapproving_an_unapproved_assessment_is_refused(stack) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_published_assessment_cannot_be_unapproved(stack) -> None:
-    """Cùng bảng cạnh, ở ca mà hậu quả là thật.
+async def _published(maker, draft: str, *, opens_in_hours: float) -> str:
+    """Đẩy một đề sang `đã phát hành` kèm **một hàng `Publication` thật**.
 
-    Một đề đã phát hành mà bỏ duyệt được thì nội dung mở ra sửa trong khi học sinh đang
-    làm. `_ALLOWED[PUBLISHED]` để rỗng có chủ ý, và test này là chỗ chỗ-trống đó được
-    kiểm.
+    Gán thẳng `state = PUBLISHED` mà không có hàng nào là dựng một trạng thái chỉ tồn tại
+    trong test: thực tế `published` luôn kéo theo ít nhất một lớp đang giữ đề. Một fixture
+    như thế làm test đo một nhánh mà đường thật không đi qua.
     """
-    client, maker, _ = stack
-    draft = await _draft(maker, questions=1)
+    opens = datetime.now(UTC) + timedelta(hours=opens_in_hours)
     async with maker() as session:
         found = await session.get(Assessment, draft)
         assert found is not None
         found.state = AssessmentState.PUBLISHED
+        school_class = await session.scalar(select(SchoolClass))
+        assert school_class is not None
+        session.add(
+            Publication(
+                assessment_id=draft,
+                class_id=school_class.id,
+                opens_at=opens,
+                closes_at=opens + timedelta(hours=1),
+                phase1_minutes=15,
+                phase2_minutes_per_question=5,
+                remediation_deadline=opens + timedelta(hours=6),
+                published_at=datetime.now(UTC),
+            )
+        )
         await session.commit()
+        return school_class.id
+
+
+@pytest.mark.asyncio
+async def test_a_published_assessment_is_unapproved_by_taking_it_back_first(stack) -> None:
+    """Hoàn tác một đề **đã phát hành** làm trọn hai việc, không bắt giáo viên làm hai lần.
+
+    Trước 06/10/2026 đường này trả 409 với lý lẽ *"thu hồi trước đã"* — mà màn hình vẫn
+    vẽ nút `Hoàn tác`, và `Panel` nuốt mất câu 409, nên cú bấm không làm gì và không nói
+    gì. Đo được trên trình duyệt thật: bấm, im lặng, đề vẫn phát hành.
+
+    Nay nó thu hồi mọi lớp rồi hạ hai nấc. `_ALLOWED[PUBLISHED]` vẫn để **rỗng**: đường
+    duy nhất xuống từ `đã phát hành` vẫn là `withdraw`, thao tác có tên tự chở điều kiện
+    của nó. Luật không nới ra, chỉ có một caller nữa biết cách đi qua nó cho đúng.
+    """
+    client, maker, _ = stack
+    draft = await _draft(maker, questions=1)
+    class_id = await _published(maker, draft, opens_in_hours=2)
+
+    answer = await client.post(f"/api/teacher/assessments/{draft}/unapprove", headers=TEACHER)
+
+    assert answer.status_code == 200
+    assert await _state(maker, draft) is AssessmentState.HAS_QUESTIONS
+    # Và lớp không còn giữ đề: một đề `đang soạn` mà `publications` vẫn sống là đề học
+    # sinh thấy được trong lúc giáo viên đang sửa câu 4.
+    async with maker() as session:
+        row = await session.get(Publication, (draft, class_id))
+    assert row is not None and row.recalled_at is not None
+
+
+@pytest.mark.asyncio
+async def test_a_class_past_its_opening_hour_blocks_the_whole_undo(stack) -> None:
+    """Qua giờ mở thì không hoàn tác được, và câu từ chối **gọi tên lớp**.
+
+    Đây là nửa giữ nguyên của ADR-02: thứ làm một lần phát hành không đảo ngược được là
+    **học sinh đã có thể nhìn thấy đề**. Một đề mở ra sửa trong lúc có người đang làm là
+    đúng cái hại mà cả ADR-01 lẫn ADR-02 ngăn.
+
+    *"Một lớp nào đó đã qua giờ mở"* là một lời từ chối giáo viên không hành động theo
+    được, nên câu này nêu tên lớp.
+    """
+    client, maker, _ = stack
+    draft = await _draft(maker, questions=1)
+    class_id = await _published(maker, draft, opens_in_hours=-1)
 
     answer = await client.post(f"/api/teacher/assessments/{draft}/unapprove", headers=TEACHER)
 
     assert answer.status_code == 409
+    assert "12A" in answer.json()["detail"]
     assert await _state(maker, draft) is AssessmentState.PUBLISHED
+    # Hoặc tất cả, hoặc không gì cả: không hàng nào bị thu hồi dở dang.
+    async with maker() as session:
+        row = await session.get(Publication, (draft, class_id))
+    assert row is not None and row.recalled_at is None
 
 
 @pytest.mark.asyncio

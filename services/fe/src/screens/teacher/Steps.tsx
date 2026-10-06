@@ -71,7 +71,9 @@ export default function Steps({ steps, total }: { steps: Step[]; total?: number 
       {shown && (
         <div className="steps-list">
           {steps.map((one, index) => (
-            <div className="step" key={index}>
+            // Trạng thái lên **hàng**, không chỉ lên dấu và tiêu đề: dải sáng quét của
+            // bước đang chạy phủ cả hàng, nên hàng phải biết mình là hàng nào.
+            <div className={`step ${one.mark}`} key={index}>
               <span className={`step-mark ${one.mark}`} aria-hidden="true">
                 {one.mark === "done" ? "✓" : one.mark === "failed" ? "✕" : "○"}
               </span>

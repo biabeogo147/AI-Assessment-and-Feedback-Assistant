@@ -895,6 +895,66 @@
   border-radius: 6px;
 }
 
+/*
+ * Bước **đang chạy** mang một dải sáng quét qua. Chỉ bước ấy, không phải cả khối.
+ *
+ * Vì sao chỉ một bước: khối `Thinking` là **bằng chứng đọc lại được** — giáo viên mở nó ra
+ * sau khi mọi thứ đã xong để biết câu hỏi từ đâu ra (ADR-05). Cho cả khối động thì phần đã
+ * xong cũng trông như đang xảy ra, và chỗ thật sự đang chạy chìm vào đó. Một plan năm bước
+ * có đúng một chỗ đang động tại một lúc, nên đúng một hàng được sáng.
+ *
+ * Dải nền tĩnh đọc từ `Thinking / đang chạy` (`83:18`): ba chặng, `line/default` ở 0.9 rồi
+ * `surface/sunken` ở 0.5 tại 22%, rồi tắt hẳn ở 55%. Nó không chạy — nó nói *chỗ này đang
+ * động*. Phần chạy là `::after` ở dưới.
+ */
+.teacher .step.running {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    rgb(227 229 226 / 90%) 0%,
+    rgb(242 242 239 / 50%) 22%,
+    rgb(250 250 248 / 0%) 55%
+  );
+}
+
+/*
+ * Lớp quét, cùng quy ước với `.shimmer i` của `Assistant thinking` (`222:30`) — và dùng
+ * lại đúng `kriky-sweep`, không viết keyframe thứ hai: hai bản của một chuyển động là hai
+ * nhịp sẽ lệch nhau vào một ngày không ai để ý.
+ *
+ * `::after` chứ không thêm một thẻ vào JSX: nó không mang nghĩa gì để một trình đọc màn
+ * hình đọc, nên nó không nên tồn tại trong cây.
+ */
+.teacher .step.running::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0%),
+    rgb(255 255 255 / 62%),
+    rgb(255 255 255 / 0%)
+  );
+  animation: kriky-sweep 1.6s infinite;
+  pointer-events: none;
+}
+
+/*
+ * Ai tắt chuyển động thì tắt hẳn, không làm chậm lại.
+ *
+ * Một dải sáng lặp vô hạn là đúng loại hiệu ứng `prefers-reduced-motion` sinh ra để chặn:
+ * nó không bao giờ dừng, và nó nằm trong vùng nhìn trung tâm. Nền tĩnh ở trên vẫn còn, nên
+ * *bước nào đang chạy* vẫn đọc được — thông tin không mất, chỉ chuyển động mất.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .teacher .step.running::after {
+    animation: none;
+  }
+}
+
 .teacher .step-mark {
   flex: none;
   width: 10px;
@@ -927,7 +987,11 @@
 /*
  * Tiêu đề một bước **đã xong** là chữ mực nhạt: nó là lịch sử, không phải thứ đang xảy ra.
  * Bước đang chạy thì đậm lên và về màu mực đầy — artboard 4 dùng đúng hai màu ấy cho hai
- * loại bước, và đó là cách mắt tìm ra chỗ đang động mà không cần hiệu ứng nào.
+ * loại bước.
+ *
+ * Dòng này từng kết lại bằng *"và đó là cách mắt tìm ra chỗ đang động mà không cần hiệu
+ * ứng nào"*. Câu ấy nay sai: bước đang chạy **có** một dải sáng quét (xem `.step.running`).
+ * Màu chữ không mất việc — nó là thứ còn lại khi người dùng tắt chuyển động.
  */
 .teacher .step-said .title {
   color: var(--ink-muted);

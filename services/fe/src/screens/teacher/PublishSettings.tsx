@@ -5,7 +5,7 @@ import {
   moment,
   teacher,
   type ClassResult,
-  type ClassSchedule,
+  type Schedule,
   type PublishForm,
   type TimingRules,
   type PublishResult,
@@ -106,22 +106,26 @@ export default function PublishSettings({
     rate: perQuestion === "" ? "--" : perQuestion,
   });
 
-  /** Đúng object sẽ được gửi đi — xem trước và phát hành dùng chung nó. */
-  function schedules(): ClassSchedule[] {
-    return picked.map((class_id) => ({
-      class_id,
+  /**
+   * Đúng khung giờ sẽ được gửi đi — xem trước và phát hành dùng chung nó.
+   *
+   * **Một** khung giờ, không một bộ cho mỗi lớp. Biểu mẫu chỉ có một bộ ô nhập nên
+   * nó vẫn luôn gửi như thế; từ 06/10/2026 hợp đồng nói đúng điều đó.
+   */
+  function schedule(): Schedule {
+    return {
       opens_at: isoWithOffset(opensAt),
       closes_at: isoWithOffset(closesAt),
       phase1_minutes: Number(minutes),
       phase2_minutes_per_question: Number(perQuestion),
       remediation_deadline: isoWithOffset(deadline),
-    }));
+    };
   }
 
   async function ask() {
     setWorking(true);
     try {
-      setPreview(await teacher.publish(assessmentId, schedules(), true));
+      setPreview(await teacher.publish(assessmentId, schedule(), picked, true));
       setTrouble(null);
     } catch (cause) {
       setTrouble((cause as Error).message);
@@ -133,7 +137,12 @@ export default function PublishSettings({
   async function release() {
     setWorking(true);
     try {
-      const result = await teacher.publish(assessmentId, schedules(), false);
+      const result = await teacher.publish(
+        assessmentId,
+        schedule(),
+        picked,
+        false,
+      );
       setPreview(null);
       setDone(result.classes);
       // Lớp nào trượt thì **giữ nguyên tick**, để sửa giờ rồi gửi lại. Bỏ tick hộ là bắt
@@ -275,12 +284,21 @@ export default function PublishSettings({
 
       {done !== null && <Outcome classes={done} />}
 
+      {/* Hết cửa lùi thì nút **hiện nhưng khoá**, kèm câu của BE — cùng khuôn với cách
+          biểu mẫu chặn một cửa sổ thời gian vô lý trước cú bấm. Giấu nút đi thì giáo
+          viên đi tìm một đường lùi không còn tồn tại; để nó bấm được thì cú bấm nhận
+          409, mà `Panel` từng nuốt mất câu ấy nên màn hình im lặng hoàn toàn. */}
+      {form.undo_blocked !== "" && (
+        <div className="trouble" role="status">
+          {form.undo_blocked}
+        </div>
+      )}
       {/* Đường lùi đứng **trên** nút chính, không đứng cạnh: hai nút cạnh nhau đọc ra là
           hai lựa chọn ngang hàng, mà phát hành và bỏ duyệt thì không ngang hàng chút nào. */}
       <button
         className="quiet"
         type="button"
-        disabled={working || undoing}
+        disabled={working || undoing || form.undo_blocked !== ""}
         onClick={onUndo}
       >
         Hoàn tác
@@ -350,9 +368,14 @@ function Confirm({
   return (
     <Veil onClose={onCancel}>
         <h3>Phát hành đề kiểm tra?</h3>
+        {/* **Một** mốc thu hồi, không một mốc mỗi lớp. Câu này từng nói "cho tới giờ mở của
+            từng lớp" — và nó đứng ngay trên dòng luật của BE nói "cho tới hết giờ mở", cộng
+            dòng `Thu hồi` in đúng **một** giờ. Ba chỗ, hai câu chuyện: đo được trên trình
+            duyệt ngày 06/10/2026. Một lần phát hành có một khung giờ (ADR-02, sửa đổi cùng
+            ngày), nên "từng lớp" không còn thứ gì để chỉ tới. */}
         <p className="lead">
           Đề sẽ hiển thị cho {heads} học sinh của lớp {names}. Bạn còn thu hồi được cho tới giờ
-          mở của từng lớp.
+          mở.
         </p>
 
         <div className="recap">

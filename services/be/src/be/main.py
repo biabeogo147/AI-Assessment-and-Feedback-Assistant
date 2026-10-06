@@ -20,6 +20,40 @@ from be.teacher_routes import router as teacher_assessment_router
 logger = logging.getLogger(__name__)
 
 
+def _hear_our_own_loggers(level: str = "INFO") -> None:
+    """Cho log của `be.*` đi ra được màn hình.
+
+    **Trước đợt này BE không cấu hình logging gì cả.** uvicorn chỉ dựng logger của chính
+    nó, nên `logging.getLogger("be.drafting")` không có handler nào và mọi `logger.info`
+    của chúng ta rơi vào hư không.
+
+    Cái giá đo được ngày 06/10/2026: một đề 3 câu về 2 câu, và dòng nói **vì sao** --
+    *"đề trùng một câu đã có"* -- không tồn tại ở bất cứ đâu. Phải đọc bốn nhánh của
+    `harvest` rồi loại trừ mới đoán ra nguyên nhân. Một hệ thống ghi log mà không ai bật
+    thì không phải ghi log, nó là chú thích.
+
+    Cấu hình **đúng cây logger của mình**, không dùng `basicConfig`. Bản đầu dùng
+    `basicConfig` và nó sai một cách khó thấy: hàm ấy không làm gì khi root logger đã có
+    handler, nên nó im lặng thành một lời gọi rỗng ở bất cứ process nào dựng handler
+    trước -- pytest là một, và bất cứ ai thêm một dòng `dictConfig` cho uvicorn cũng vậy.
+    Một cấu hình chỉ đúng khi không ai khác chạm vào logging thì không phải cấu hình.
+
+    Logger của uvicorn không bị đụng tới, nên access log giữ nguyên hình dạng.
+
+    Args:
+        level: Mức log, lấy từ `Settings.log_level`.
+
+    Side effects:
+        Gắn một handler lên logger `be` nếu nó chưa có cái nào, và đặt mức cho nó.
+    """
+    ours = logging.getLogger("be")
+    if not ours.handlers:
+        writing = logging.StreamHandler()
+        writing.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        ours.addHandler(writing)
+    ours.setLevel(level)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Giữ mở một database engine và một Redis pool cho cả process.
@@ -40,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             dời cái lỗi tới chỗ khó đọc hơn.
     """
     settings = get_settings()
+    _hear_our_own_loggers(settings.log_level)
 
     engine = create_engine(settings)
     await prepare_schema(engine)

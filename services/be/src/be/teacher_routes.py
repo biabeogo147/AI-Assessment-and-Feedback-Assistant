@@ -221,6 +221,7 @@ async def _note(
     asking: Asking,
     assessment_id: str,
     *,
+    title: str,
     approved: bool,
     written: int,
 ) -> None:
@@ -241,6 +242,10 @@ async def _note(
         session: Session của database.
         asking: Ai đã quyết định.
         assessment_id: Đề nào.
+        title: Tên đề. Thẻ kết quả đọc nó -- `Đã duyệt đề` trần, không nói đề nào, là một
+            biên bản trả lời hụt đúng câu hỏi giáo viên sẽ hỏi lại sau một tuần. Trước
+            06/10/2026 field này không được ghi, nên thẻ duyệt im lặng về tên đề trong khi
+            giao diện đã tính sẵn chỗ để in nó.
         approved: True cho duyệt, False cho bỏ duyệt. Nó chọn tên bước và chọn cờ, nên
             `_subject` của `teacher_chat` liên kết được bước này với đề.
         written: Số câu hỏi lúc đó, để transcript đọc lại được mà không phải join.
@@ -267,6 +272,7 @@ async def _note(
                 tool_result={
                     verb + "d": True,
                     "assessment_id": assessment_id,
+                    "title": title,
                     "questions": written,
                 },
             ),
@@ -365,9 +371,51 @@ async def approve(
     await session.commit()
 
     standing = await _as_it_stands(session, assessment)
-    await _note(session, asking, assessment_id, approved=True, written=written)
+    await _note(
+        session, asking, assessment_id, title=assessment.title, approved=True, written=written
+    )
 
     return standing
+
+
+async def _take_back_every_class(
+    session: AsyncSession, asking: Asking, assessment: Assessment
+) -> None:
+    """Thu hồi đề khỏi **mọi** lớp còn giữ nó, rồi hạ state về `đã duyệt`.
+
+    Đây là nửa ADR-02 của một lần bỏ duyệt. `withdraw_from_class` làm việc này cho một
+    lớp; hàm này làm cho tất cả, và nó dùng lại đúng hai luật ấy chứ không viết luật mới:
+    `may_withdraw` canh giờ mở, và `withdraw` là cửa duy nhất hạ state từ `đã phát hành`.
+
+    **Hoặc tất cả, hoặc không gì cả.** Một lớp đã qua giờ mở thì cả thao tác dừng lại và
+    không lớp nào bị thu hồi -- để lại một đề nửa thu hồi nửa không là để lại đúng cái
+    trạng thái mà không màn hình nào đọc ra nổi, và giáo viên thì tin rằng mình đã hoàn
+    tác. Phép kiểm chạy hết một lượt **trước** khi ghi dòng nào.
+
+    Phép kiểm ấy là `_why_undo_is_shut`, dùng chung với biểu mẫu -- nên câu nút khoá hiện ra
+    **trước** cú bấm và câu 409 sau cú bấm không thể lệch nhau. Hai bản cài đặt của cùng một
+    luật là hai luật, và cái lệch đầu tiên sẽ là một nút bấm được cho một việc không làm được.
+
+    Args:
+        session: Session của database.
+        asking: Giáo viên đang hỏi. Dùng để tra tên lớp cho câu từ chối.
+        assessment: Đề đang ở `đã phát hành`.
+
+    Raises:
+        HTTPException: 409 khi một lớp đã qua giờ mở, kèm tên lớp -- *"một lớp nào đó"*
+            là một lời từ chối mà giáo viên không hành động theo được.
+
+    Side effects:
+        Đặt `recalled_at` cho mọi hàng còn sống và hạ `assessment.state`. Không commit.
+    """
+    shut = await _why_undo_is_shut(session, assessment.id, await _classes_of(session, asking))
+    if shut:
+        raise HTTPException(status_code=409, detail=shut)
+
+    now = _now()
+    for one in await _live_publications(session, assessment.id):
+        one.recalled_at = now
+    withdraw(assessment, still_held=0)
 
 
 @router.post("/teacher/assessments/{assessment_id}/unapprove", response_model=Approval)
@@ -396,14 +444,26 @@ async def unapprove(
 
     Raises:
         HTTPException: 404 khi đề không tồn tại hoặc thuộc về người khác (ADR-22); 409 khi
-            đề chưa duyệt, hoặc đã phát hành -- một đề đang phát hành thì phải thu hồi
-            trước, và thu hồi là cạnh của ADR-02 chứ không phải một lần bỏ duyệt.
+            đề chưa duyệt, hoặc khi một lớp đã qua giờ mở -- lúc ấy học sinh đã có thể
+            nhìn thấy đề, nên không lấy lại được nữa.
 
     Side effects:
-        Ghi state mới và ghi một bước vào hội thoại của giáo viên.
+        Thu hồi mọi lớp còn giữ đề, ghi state mới, và ghi một bước vào hội thoại của
+        giáo viên.
     """
     asking = Asking.of(teacher)
     assessment = await _owned(session, asking, assessment_id)
+
+    # Một đề **đã phát hành** cũng bỏ duyệt được, và nó phải thế. Trước đợt 06/10/2026
+    # endpoint này trả 409 cho state ấy, với lý lẽ *"thu hồi trước đã"* -- mà màn hình
+    # lại vẫn vẽ nút `Hoàn tác`, và `Panel` nuốt mất câu 409, nên cú bấm không làm gì và
+    # không nói gì. Đo được trên trình duyệt thật: bấm, im lặng, đề vẫn phát hành.
+    #
+    # Và cái lý lẽ ấy sai ở chỗ nó bắt giáo viên làm hai việc cho một ý định. Muốn sửa
+    # một đề đã phát hành thì đường duy nhất là hoàn tác; bắt họ thu hồi từng lớp trước
+    # là bắt họ tự dựng lại một thao tác mà hệ thống biết cách làm trọn.
+    if state_of(assessment) is AssessmentState.PUBLISHED:
+        await _take_back_every_class(session, asking, assessment)
 
     # Bảng cạnh không đủ ở đây, và đó là một bài học chứ không phải một ngoại lệ:
     # `_ALLOWED` biết *cạnh nào tồn tại*, không biết *ai đang xin đi*. Cạnh
@@ -423,7 +483,14 @@ async def unapprove(
     await session.commit()
 
     standing = await _as_it_stands(session, assessment)
-    await _note(session, asking, assessment_id, approved=False, written=standing.question_count)
+    await _note(
+        session,
+        asking,
+        assessment_id,
+        title=assessment.title,
+        approved=False,
+        written=standing.question_count,
+    )
 
     return standing
 
@@ -507,6 +574,14 @@ class PublishForm(BaseModel):
         reason: Vì sao không, khi `can_publish` là False.
         classes: Các lớp chọn được, kèm lớp nào đã giữ đề.
         rules: Lời văn của luật, cùng string mà hai payload kia trả về.
+        undo_blocked: Vì sao `Hoàn tác` không bấm được, hoặc rỗng khi còn lùi được.
+
+            **Biểu mẫu nói trước cú bấm**, cùng khuôn với cách nó chặn một cửa sổ thời
+            gian vô lý. Một nút bấm được rồi mới nhận 409 là một nút hứa một việc hệ
+            thống đã biết là không làm được — và đường ấy từng tệ hơn thế: `Panel` nuốt
+            mất câu 409, nên cú bấm không làm gì và **không nói gì**.
+
+            Câu này do BE viết, như mọi câu luật khác ở đây. FE chỉ hiện nó.
     """
 
     assessment_id: str
@@ -517,16 +592,23 @@ class PublishForm(BaseModel):
     reason: str = ""
     classes: tuple[ClassOption, ...] = ()
     rules: TimingRules = TimingRules()
+    undo_blocked: str = ""
 
 
-class ClassSchedule(BaseModel):
-    """Sáu tham số của ADR-02 cho **một** lớp.
+class Schedule(BaseModel):
+    """Năm tham số thời gian của ADR-02, dùng chung cho **mọi** lớp của một lần phát hành.
 
-    Tham số thứ nhất của ADR-02 là **lớp**, nên nó là `class_id` ở đây; năm cái còn lại là
-    những thứ giáo viên gõ cho lớp đó.
+    Tham số thứ nhất của ADR-02 là **lớp**, và nó rời khỏi đây: một lần phát hành có một
+    khung giờ, còn danh sách lớp là `class_ids` của `PublishRequest`.
+
+    **Đây là siết hợp đồng cho khớp thực tế, không đổi hành vi.** Biểu mẫu phát hành
+    (`PublishSettings.schedules()`) đã gửi cùng một bộ năm giá trị cho mọi lớp từ đầu --
+    trên màn hình chỉ có một bộ ô nhập. Hợp đồng cũ cho phép diễn tả một thứ giao diện
+    không dựng được, và cái giá là thật: màn hình phải in giờ *"của từng lớp"* cho một con
+    số chung, và câu an toàn trên thẻ hứa một mốc thu hồi mà giáo viên không đọc ra nổi là
+    mốc nào.
 
     Attributes:
-        class_id: Lớp nào.
         opens_at: Giờ mở. Phải ở tương lai và trước giờ đóng (ADR-02).
         closes_at: Hạn **vào**, không phải hạn nộp (ADR-03).
         phase1_minutes: Thời gian làm bài, tính từ lúc học sinh vào.
@@ -534,7 +616,6 @@ class ClassSchedule(BaseModel):
         remediation_deadline: Mốc tuyệt đối kết thúc pha 2, phải sau giờ đóng.
     """
 
-    class_id: str
     # `AwareDatetime`, không phải `datetime`: một giá trị naive thì BE không có cách nào
     # biết nó là giờ nào. Trước khi có ràng buộc này, `2026-10-01T08:00` được nhận và hiểu
     # là 08:00 UTC, tức 15:00 ở Việt Nam -- một giáo viên đặt tiết sáng nhận được tiết
@@ -550,25 +631,26 @@ class PublishRequest(BaseModel):
     """Phát hành một đề cho một hoặc nhiều lớp.
 
     Attributes:
-        schedules: Một bộ sáu tham số cho mỗi lớp. Không rỗng.
+        schedule: Một khung giờ cho cả lần phát hành này.
+        class_ids: Những lớp nhận đề. Không rỗng.
         preview: True thì tính toàn bộ rồi trả kết quả mà **không ghi gì**. Đây là thứ
             hộp xác nhận của ADR-02 đọc: nó phải đọc lại đúng giá trị vừa nhập, và cách
             duy nhất chắc chắn đúng là để cùng một đoạn code tính ra chúng. Một hộp xác
             nhận tự tính lại là một bản cài đặt thứ hai của cùng một luật.
     """
 
-    schedules: tuple[ClassSchedule, ...] = Field(min_length=1)
+    schedule: Schedule
+    class_ids: tuple[str, ...] = Field(min_length=1)
     preview: bool = False
 
     @model_validator(mode="after")
     def _each_class_at_most_once(self) -> "PublishRequest":
         """Từ chối một lớp xuất hiện hai lần trong cùng một yêu cầu.
 
-        Không có phép kiểm này thì cả hai dòng báo **thành công** với hai giờ mở khác
-        nhau, trong khi database chỉ giữ một -- cái sau thắng. Đo được: hai dòng
-        `published=True`, một hàng trong bảng. Và `preview` nói y như vậy, nên hộp xác
-        nhận của ADR-02 xác nhận một thứ không xảy ra: giáo viên tin 12A mở buổi sáng,
-        thực tế mở buổi chiều.
+        Một lớp hai lần nay **không** dựng ra hai giờ mở khác nhau được nữa -- khung giờ
+        là một -- nhưng nó vẫn là một yêu cầu nói dối: kết quả trả về hai dòng
+        `published=True` cho một hàng trong database, và hộp xác nhận của ADR-02 đọc lại
+        một danh sách dài hơn thứ thật sự xảy ra.
 
         Returns:
             Chính nó, khi không lớp nào trùng.
@@ -576,8 +658,7 @@ class PublishRequest(BaseModel):
         Raises:
             ValueError: Khi một `class_id` xuất hiện nhiều hơn một lần.
         """
-        seen = [one.class_id for one in self.schedules]
-        if len(set(seen)) != len(seen):
+        if len(set(self.class_ids)) != len(self.class_ids):
             raise ValueError("mỗi lớp chỉ được xuất hiện một lần trong một lần phát hành")
         return self
 
@@ -681,16 +762,19 @@ async def _live_publications(session: AsyncSession, assessment_id: str) -> list[
     )
 
 
-def _schedule_fault(wanted: ClassSchedule, now: datetime) -> str:
-    """Lý do một bộ sáu tham số không dùng được, hoặc chuỗi rỗng.
+def _schedule_fault(wanted: Schedule, now: datetime) -> str:
+    """Lý do một khung giờ không dùng được, hoặc chuỗi rỗng.
 
-    Trả về **lý do** chứ không raise, vì ADR-02 cho phép thất bại một phần: một lớp sai
-    giờ không được làm những lớp còn lại trượt theo. Một `HTTPException` ở đây sẽ biến
-    toàn bộ yêu cầu thành một lần từ chối, tức biến một điều khoản của ADR-02 thành
-    không biểu diễn được.
+    Trả về **lý do** chứ không raise, vì ADR-02 cho phép thất bại một phần: một lớp không
+    nhận được đề thì những lớp còn lại vẫn nhận. Một `HTTPException` ở đây sẽ biến toàn
+    bộ yêu cầu thành một lần từ chối, tức biến một điều khoản của ADR-02 thành không
+    biểu diễn được.
+
+    Khung giờ nay chung cho mọi lớp, nên một khung giờ sai làm **mọi** lớp trượt -- và đó
+    đúng là câu trả lời đúng: không còn chuyện lớp này đúng giờ còn lớp kia sai giờ.
 
     Args:
-        wanted: Sáu tham số cho một lớp.
+        wanted: Khung giờ của lần phát hành này.
         now: Bây giờ, tz-aware.
 
     Returns:
@@ -763,18 +847,20 @@ async def _already_running(session: AsyncSession, existing: Publication, now: da
 async def _publish_one(
     session: AsyncSession,
     assessment_id: str,
-    wanted: ClassSchedule,
+    class_id: str,
+    wanted: Schedule,
     *,
     owned: dict[str, Candidate],
     now: datetime,
     write: bool,
 ) -> ClassResult:
-    """Áp một bộ sáu tham số cho một lớp, hoặc nói vì sao không.
+    """Áp khung giờ chung cho một lớp, hoặc nói vì sao không.
 
     Args:
         session: Session của database.
         assessment_id: Đề nào.
-        wanted: Sáu tham số cho lớp này.
+        class_id: Lớp nào.
+        wanted: Khung giờ chung của lần phát hành này.
         owned: Các lớp của giáo viên, tra theo id. Lớp không có trong đây đọc lên y như
             một lớp không tồn tại (ADR-22).
         now: Bây giờ, tz-aware.
@@ -786,14 +872,14 @@ async def _publish_one(
     Side effects:
         Khi `write`, thêm hoặc thay thế một hàng `Publication`. Không commit.
     """
-    school_class = owned.get(wanted.class_id)
+    school_class = owned.get(class_id)
     if school_class is None:
-        return ClassResult(class_id=wanted.class_id, published=False, reason="không tìm thấy lớp")
+        return ClassResult(class_id=class_id, published=False, reason="không tìm thấy lớp")
 
     fault = _schedule_fault(wanted, now)
     if fault:
         return ClassResult(
-            class_id=wanted.class_id, class_name=school_class.name, published=False, reason=fault
+            class_id=class_id, class_name=school_class.name, published=False, reason=fault
         )
 
     # Chuẩn hoá về UTC **trước** mọi việc khác, và đây là ca duy nhất mà SQLite và
@@ -810,7 +896,7 @@ async def _publish_one(
     deadline = aware(wanted.remediation_deadline).astimezone(UTC)
 
     settled = ClassResult(
-        class_id=wanted.class_id,
+        class_id=class_id,
         class_name=school_class.name,
         published=True,
         opens_at=opens_at,
@@ -840,10 +926,10 @@ async def _publish_one(
     # Tìm ra bằng một lượt chạy thật **qua giao diện**: bấm xem trước, hộp hiện ra đầy
     # đủ hai câu luật, bấm phát hành và nhận lại một dòng từ chối. Không test nào thấy,
     # vì mọi test preview đều dùng lớp chưa phát hành bao giờ.
-    existing = await session.get(Publication, (assessment_id, wanted.class_id))
+    existing = await session.get(Publication, (assessment_id, class_id))
     if existing is not None and (running := await _already_running(session, existing, now)):
         return ClassResult(
-            class_id=wanted.class_id, class_name=school_class.name, published=False, reason=running
+            class_id=class_id, class_name=school_class.name, published=False, reason=running
         )
 
     if not write:
@@ -853,7 +939,7 @@ async def _publish_one(
         session.add(
             Publication(
                 assessment_id=assessment_id,
-                class_id=wanted.class_id,
+                class_id=class_id,
                 opens_at=opens_at,
                 closes_at=closes_at,
                 phase1_minutes=wanted.phase1_minutes,
@@ -923,6 +1009,39 @@ async def _note_publication(
         logger.exception("could not record the publication of %s", assessment_id)
 
 
+async def _why_undo_is_shut(
+    session: AsyncSession, assessment_id: str, owned: dict[str, Candidate]
+) -> str:
+    """Vì sao `Hoàn tác` không bấm được, hoặc chuỗi rỗng.
+
+    Cùng phép kiểm mà `_take_back_every_class` chạy, hỏi trước một nhịp. Hai chỗ dùng chung
+    `may_withdraw` nên chúng không lệch được: nếu hàm này nói còn lùi được mà cú bấm lại
+    nhận 409 thì biểu mẫu đang nói dối, và đó là lỗi tệ hơn một nút khoá nhầm.
+
+    Args:
+        session: Session của database.
+        assessment_id: Đề nào.
+        owned: Các lớp của giáo viên, tra theo id -- để câu từ chối gọi tên lớp.
+
+    Returns:
+        Một câu tiếng Việt, hoặc rỗng khi mọi lớp còn chưa tới giờ mở.
+    """
+    now = _now()
+    opened = [
+        one
+        for one in await _live_publications(session, assessment_id)
+        if not may_withdraw(aware(one.opens_at), now)
+    ]
+    if not opened:
+        return ""
+    which = ", ".join(
+        sorted(
+            owned[one.class_id].name if one.class_id in owned else one.class_id for one in opened
+        )
+    )
+    return f"Đã qua giờ mở của lớp {which} nên không hoàn tác được nữa. {RECALL_RULE}"
+
+
 @router.get("/teacher/assessments/{assessment_id}/publish-form", response_model=PublishForm)
 async def publish_form(
     assessment_id: str,
@@ -959,6 +1078,7 @@ async def publish_form(
             "mới phát hành được."
         )
 
+    owned = await _classes_of(session, asking)
     classes = tuple(
         ClassOption(
             class_id=row.class_id,
@@ -966,7 +1086,7 @@ async def publish_form(
             student_count=row.student_count,
             published=row.class_id in holding,
         )
-        for row in (await _classes_of(session, asking)).values()
+        for row in owned.values()
     )
 
     return PublishForm(
@@ -977,6 +1097,7 @@ async def publish_form(
         can_publish=not reason,
         reason=reason,
         classes=classes,
+        undo_blocked=await _why_undo_is_shut(session, assessment_id, owned),
     )
 
 
@@ -1001,7 +1122,7 @@ async def publish(
 
     Args:
         assessment_id: Đề nào.
-        wanted: Một bộ sáu tham số cho mỗi lớp, cùng cờ `preview`.
+        wanted: Một khung giờ, danh sách lớp, cùng cờ `preview`.
         teacher: Được resolve từ header actor (ADR-13).
         session: Session của database.
 
@@ -1035,11 +1156,12 @@ async def publish(
                 session,
                 assessment_id,
                 one,
+                wanted.schedule,
                 owned=owned,
                 now=now,
                 write=not wanted.preview,
             )
-            for one in wanted.schedules
+            for one in wanted.class_ids
         ]
     )
 
@@ -1348,8 +1470,9 @@ async def assessment_detail(
 
     **Đọc là một lần quan sát, và quan sát là lúc thu hoạch.** BE không có worker chạy nền
     (ADR-25), nên câu hỏi do AGENT viết chỉ vào đề khi có ai đó hỏi tới nó. Trước ADR-25 chỗ
-    làm việc ấy là tool `draft_progress`; nó đã thành tool chỉ-đọc để pha lên plan không ghi
-    gì, và món nợ ấy rơi đúng vào đây: không thu ở route này thì panel của giáo viên hiện
+    làm việc ấy là tool `draft_progress`; tool đó nay đã bỏ hẳn -- SSE kể tiến độ, nên một
+    tool chỉ để ngó là một tool không ai gọi -- và món nợ thu hoạch rơi đúng vào đây: `harvest`
+    chạy ở route này và ở chính `start_drafting`. Không thu ở đây thì panel của giáo viên hiện
     *0 câu* cho tới khi họ bấm Duyệt, dù mười câu đã nằm sẵn trong Redis. Đo thấy trên trình
     duyệt thật.
 

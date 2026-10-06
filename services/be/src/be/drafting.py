@@ -210,8 +210,46 @@ async def _bells_from(pubsub: object, channel: str, patience_seconds: float) -> 
         yield int(text)
 
 
-async def fire(session: AsyncSession, pool: object, settings: Settings, assessment_id: str) -> int:
-    """Đẩy vào queue một job cho mỗi câu hỏi mà brief còn thiếu.
+async def too_many(session: AsyncSession, assessment_id: str, wanted: int) -> str:
+    """Xin thêm `wanted` câu nữa thì tổng có vượt trần không, và nói ra bằng tiếng Việt.
+
+    Tồn tại vì `fire` không nói được. Nó canh **tổng** ở `start + wanted` nhưng chỉ
+    `logger.warning` rồi `return 0`, mà caller dịch `queued == 0` thành *"có thể đề chưa
+    có brief, hoặc hàng đợi đang hỏng"*. Nên một đề đã có 45 câu, xin thêm 10, nhận một
+    lời từ chối nêu một nguyên nhân **không có thật** -- và không chỗ nào nhắc tới con số
+    50. Trần của `fire` vẫn ở đó làm chốt cuối; hàm này là chỗ nó có tiếng nói.
+
+    Args:
+        session: Session của database.
+        assessment_id: Đề nháp nào.
+        wanted: Số câu xin thêm lần này.
+
+    Returns:
+        Câu từ chối, hoặc chuỗi rỗng khi tổng còn trong trần.
+    """
+    rows = await session.scalars(
+        select(func.max(DraftItem.ordinal)).where(DraftItem.assessment_id == assessment_id)
+    )
+    start = rows.one_or_none() or 0
+    total = start + wanted
+    if total <= _MOST_QUESTIONS:
+        return ""
+    if start:
+        return (
+            f"đề này đã có {start} câu, thêm {wanted} câu nữa là {total} -- "
+            f"một đề nhiều nhất {_MOST_QUESTIONS} câu"
+        )
+    return f"số câu phải từ 1 đến {_MOST_QUESTIONS}"
+
+
+async def fire(
+    session: AsyncSession,
+    pool: object,
+    settings: Settings,
+    assessment_id: str,
+    wanted: int,
+) -> int:
+    """Đẩy vào queue một job cho mỗi câu hỏi còn thiếu, cộng `wanted` câu mới.
 
     Một vị trí được đẩy vào queue khi nó chưa có row hoặc row của nó đang là
     `retry`. `pending`, `ready` và `failed` đều được để yên, nên gọi hàm này hai lần
@@ -223,6 +261,10 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
         pool: Pool của arq, hoặc None khi không với tới được queue.
         settings: Settings của process, cung cấp tên queue.
         assessment_id: Đề nháp nào.
+        wanted: Xin **thêm** bao nhiêu câu nữa. Số câu tới từ đây chứ không từ brief:
+            một đề trống chưa có số câu nào để khai, và soạn 3 câu rồi soạn thêm 2 là
+            chuyện thường. Mức trần được kiểm ở `start_drafting`, nơi giáo viên nói ra
+            con số; chỗ này chỉ chặn một lần nữa cho **tổng** sau khi cộng.
 
     Returns:
         Đã đẩy bao nhiêu job vào queue.
@@ -232,7 +274,9 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
 
     Side effects:
         Ghi các job lên queue và một row `DraftItem` cho mỗi job, commit sau từng
-        cái một.
+        cái một. **Và ghi `brief.question_count` thành tổng mới** — không phải một
+        chi tiết: `harvest` đọc đúng con số ấy để biết ô nào đã cũ so với vòng này,
+        nên một `fire` không cập nhật nó sẽ làm `harvest` xoá sai row.
     """
     brief = await session.get(DraftBrief, assessment_id)
     if brief is None:
@@ -250,26 +294,36 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
     # chính là thứ mà cái khoá đó sinh ra để chặn.
     assert_editable(assessment)
 
-    if not 1 <= brief.question_count <= _MOST_QUESTIONS:
-        logger.warning(
-            "nothing queued for %s: brief asks for %d, allowed 1..%d",
-            assessment_id,
-            brief.question_count,
-            _MOST_QUESTIONS,
-        )
-        return 0
-
     rows = {
         row.ordinal: row
         for row in await session.scalars(
             select(DraftItem).where(DraftItem.assessment_id == assessment_id)
         )
     }
+
+    # **Câu mới nối tiếp câu cũ, không ghi đè.** Ô cao nhất đang có cộng `wanted` là tổng
+    # mới; vòng lặp dưới đi từ 1 nên nó vẫn quét qua các ô cũ -- `ready` bị bỏ qua,
+    # `retry` được bắn lại, và chỉ các ô từ `start + 1` trở đi là mới.
+    start = max(rows, default=0)
+    total = start + wanted
+    if not 1 <= total <= _MOST_QUESTIONS:
+        logger.warning(
+            "nothing queued for %s: %d + %d would be %d, allowed 1..%d",
+            assessment_id,
+            start,
+            wanted,
+            total,
+            _MOST_QUESTIONS,
+        )
+        return 0
+
+    # Brief mang **tổng**, vì `harvest` dùng nó để biết ô nào đã cũ so với vòng này.
+    brief.question_count = total
     banned = tuple(await _stems(session, assessment_id))
     now = datetime.now(UTC)
     queued = 0
 
-    for ordinal in range(1, brief.question_count + 1):
+    for ordinal in range(1, total + 1):
         row = rows.get(ordinal)
         if row is not None and row.status not in _RETRYABLE:
             continue
@@ -281,7 +335,7 @@ async def fire(session: AsyncSession, pool: object, settings: Settings, assessme
             topic_scope=brief.topic_scope,
             difficulty=brief.difficulty,
             ordinal=ordinal,
-            of_total=brief.question_count,
+            of_total=total,
             banned_stems=banned,
             progress_channel=progress_channel(assessment_id),
         )
@@ -432,6 +486,7 @@ def _give_up_or_retry(row: DraftItem, why: str) -> None:
     Side effects:
         Ghi `row.status`.
     """
+    row.last_fault = why[:120]
     if row.attempts >= _MOST_ATTEMPTS:
         row.status = "failed"
         logger.warning(
@@ -571,7 +626,29 @@ async def harvest(
             # chứ không phải một phép gán.
             advance(assessment, AssessmentState.HAS_QUESTIONS)
 
+    # **Bắn lại ngay những ô vừa đánh `retry`.** Trước đợt này `fire` chỉ được gọi từ
+    # `start_drafting`, nên một ô `retry` nằm im cho tới khi giáo viên nhờ lần nữa — và
+    # cái tên `retry` nói ngược điều đó. Đo được ngày 06/10/2026: giáo viên xin 3 câu,
+    # hai job song song viết ra cùng một stem, ô thứ hai thành `retry`, và đề đứng ở 2/3
+    # vĩnh viễn.
+    #
+    # Bắn lại **ở đây** chứ không ở `fire` là có lý do: lúc này `seen` đã có câu vừa ghi,
+    # nên `banned` của lần hai chứa nó và model tránh được. Bắn lại ở `fire` thì nó vẫn
+    # cầm đúng danh sách rỗng đã gây ra trùng lặp.
+    again = [row for row in waiting if row.status in _RETRYABLE]
+
     try:
+        if again:
+            # Commit **trước** khi bắn lại, vì `_refire` đọc `banned` từ database: câu vừa
+            # ghi phải nằm ở đó rồi, không thì lần hai vẫn cầm đúng danh sách đã gây trùng.
+            #
+            # Và commit ấy nằm **trong** cùng một khối `try` với commit cuối, không ngoài.
+            # Nó ở ngoài một lần, và đó là một lỗ: khi có ít nhất một ô `retry` thì mọi
+            # thứ `harvest` vừa ghi được commit ở đây, ngoài lưới -- nên một tab thứ hai
+            # nhanh tay hơn làm cả lượt chat 500, đúng cái mà `except` dưới đây được viết
+            # ra để chặn. Đợt này còn làm nhánh `retry` thành đường hay đi nhất.
+            await session.commit()
+            await _refire(session, pool, settings, assessment_id, again)
         await session.commit()
     except IntegrityError:
         # Hai người thu cùng một lúc. Trước chuông tiến độ đây là một trùng hợp hiếm; nay
@@ -585,6 +662,72 @@ async def harvest(
         logger.info("another reader harvested %s first", assessment_id)
         return 0
     return landed
+
+
+async def _refire(
+    session: AsyncSession,
+    pool: object,
+    settings: Settings,
+    assessment_id: str,
+    rows: list[DraftItem],
+) -> None:
+    """Bắn lại job cho những ô vừa bị đánh `retry`, với `banned` đã cập nhật.
+
+    Tách khỏi `fire` vì nó trả lời một câu hỏi khác: `fire` hỏi *đề này còn thiếu ô nào*,
+    hàm này hỏi *ô này vừa hỏng, thử lại ngay được không*. Và nó đọc `banned` **lại từ
+    đầu**, sau khi `harvest` vừa ghi xong — đó là toàn bộ điểm của việc bắn lại ở đây:
+    lần hai biết câu nào vừa vào đề, nên nó tránh được.
+
+    Hết `attempts` thì `_give_up_or_retry` đã đánh `failed` rồi, nên danh sách tới đây chỉ
+    còn những ô thật sự đáng thử lại.
+
+    Args:
+        session: Session của database.
+        pool: Pool của arq, hoặc None khi queue không với tới được.
+        settings: Settings của process.
+        assessment_id: Đề nháp nào.
+        rows: Các ô đang ở `retry`.
+
+    Side effects:
+        Ghi job lên queue và đổi `job_id` cùng `status` của từng row.
+    """
+    brief = await session.get(DraftBrief, assessment_id)
+    assessment = await session.get(Assessment, assessment_id)
+    if brief is None or assessment is None:
+        return
+
+    banned = tuple(await _stems(session, assessment_id))
+    for row in rows:
+        asked = DraftQuestionRequested(
+            request_id=f"{assessment_id}:{row.ordinal}:{brief.version}:{row.attempts}",
+            subject=assessment.subject,
+            grade=assessment.grade,
+            topic_scope=brief.topic_scope,
+            difficulty=brief.difficulty,
+            ordinal=row.ordinal,
+            of_total=brief.question_count,
+            banned_stems=banned,
+            progress_channel=progress_channel(assessment_id),
+        )
+        job_id = await enqueue_task(
+            pool, settings, WRITE_DRAFT_QUESTION_TASK, asked.model_dump(mode="json")
+        )
+        if job_id is None:
+            # Queue đang chết. Để nguyên ở `retry` **và không tiêu một lượt thử**: lần
+            # `fire` sau vẫn nhặt được nó, và nó vẫn còn đủ `_MOST_ATTEMPTS` lần. Tăng
+            # `attempts` trước khi biết job có đi được hay không làm một ô đáng ba lượt
+            # chỉ còn hai -- Redis chết một nhịp lấy đi một lượt mà model chưa hề chạy.
+            continue
+        row.job_id = job_id
+        row.status = "pending"
+        row.attempts += 1
+        logger.info(
+            "position %d of %s asked again (attempt %d): %s",
+            row.ordinal,
+            assessment_id,
+            row.attempts,
+            row.last_fault,
+        )
 
 
 async def pending_count(session: AsyncSession, assessment_id: str) -> int:

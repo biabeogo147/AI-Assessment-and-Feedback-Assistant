@@ -124,7 +124,7 @@ async def test_every_job_is_told_where_to_ring(stack) -> None:
     draft = await _draft(maker)
 
     async with maker() as session:
-        queued = await fire(session, queue, get_settings(), draft)
+        queued = await fire(session, queue, get_settings(), draft, 2)
 
     assert queued == 2
     channels = {payload["progress_channel"] for _, payload in queue.jobs}
@@ -149,7 +149,7 @@ async def test_a_question_lands_even_when_nobody_listened(stack) -> None:
     draft = await _draft(maker)
 
     async with maker() as session:
-        await fire(session, queue, get_settings(), draft)
+        await fire(session, queue, get_settings(), draft, 2)
     # Hai job xong trong lúc tuyệt đối không có ai subscribe.
     queue.finish("job-0", "Tính ∫2x dx.")
     queue.finish("job-1", "Tính ∫3x² dx.")

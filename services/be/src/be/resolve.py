@@ -1,31 +1,34 @@
-"""Từ thứ giáo viên gõ ra, đến một row, hoặc đến một câu hỏi.
+"""Từ cái tên giáo viên gõ ra, về một dòng dữ liệu -- hoặc về một danh sách.
 
-`classes.name` không có unique constraint, nên tên lớp không phải một
-identifier: một giáo viên có thể dạy hai lớp cùng tên 12A ở hai năm khác nhau, và
-hai giáo viên mỗi người cũng có thể có một lớp như thế. Mọi tool làm việc với một
-lớp đều cần `class_id`, nên bước dịch này chính là chỗ mà toàn bộ bề mặt hướng về
-giáo viên hoặc là hỏi lại, hoặc là đoán.
+`classes.name` không có unique constraint, nên tên lớp không phải một identifier:
+một giáo viên có thể dạy hai lớp cùng tên 12A ở hai năm khác nhau, và hai giáo
+viên mỗi người cũng có thể có một lớp như thế. Mọi tool làm việc với một lớp đều
+cần `class_id`, nên bước dịch này chính là chỗ mà toàn bộ bề mặt hướng về giáo
+viên hoặc là hỏi lại, hoặc là đoán.
 
-Nó hỏi lại. Ba câu trả lời và không có câu thứ tư:
+Nó hỏi lại -- nhưng **không hỏi ở đây**. Module này từng chứa `resolve_class`, một
+hàm tự phân định một cái tên ra ba câu trả lời (`Resolved`, `Ambiguous`,
+`NotFound`) và tự dựng sẵn câu hỏi lại. Từ 06/10/2026 việc ấy thuộc về model:
+`list_class` liệt kê, model đọc rồi hỏi giáo viên (ADR-23). Một tool vừa tìm vừa
+hỏi lại là một tool có bốn hình dạng trả về, và model phải đoán lần này nhận hình
+nào. Ba kiểu kia đã xoá cùng hàm ấy; chúng chỉ còn test gọi tới, và một luật chỉ
+còn test tin là một luật đã chết.
 
-- `Resolved` -- đúng một lớp của giáo viên này khớp.
-- `Ambiguous` -- có nhiều lớp có thể là lớp được nói tới, và chúng được trả về
-  dưới dạng candidate để trợ lý hỏi lại. ADR-05 cấm đánh dấu một trong số chúng
-  là lớp nên chọn; module này trả chúng về theo một thứ tự ổn định và không nói
-  gì về việc lớp nào khả năng cao hơn.
-- `NotFound` -- không lớp nào của giáo viên này khớp, và câu trả lời mang theo
-  danh sách những lớp thực sự có, vì chỉ nói "không có lớp nào tên đó" thì giáo
-  viên không phân biệt được một lỗi gõ sai với chuyện dữ liệu đã mất.
+Còn lại ở đây ba thứ, mỗi thứ làm đúng một việc:
 
-Hai luật mà các câu trả lời đều tuân theo:
+- `normalise` -- rút "Lớp: 12A" và "lớp12A" về cùng một string để đem đi so.
+- `classes_with_counts` -- mọi lớp của **một** giáo viên, kèm số học sinh, một query.
+- `capped` -- cắt danh sách xuống mức một câu hỏi chở được, và nói ra đã bỏ bao nhiêu.
 
-**Một lớp của giáo viên khác được trả lời đúng y như một lớp không tồn tại**
-(ADR-22). Không phải một message khác, không phải một type khác -- cùng một
-`NotFound` mang theo cùng một danh sách. Hai lời từ chối phân biệt được với nhau
-sẽ là một cái dò: gõ thử các tên cho đến khi câu chữ đổi, thế là vẽ xong bản đồ
-cả trường.
+Hai luật mà cả ba đều tuân theo:
 
-**Mọi thứ trả về là giá trị, không phải row.** Cái vòng lặp gọi hàm này
+**Một lớp của giáo viên khác đọc ra đúng y như một lớp không tồn tại** (ADR-22).
+Không phải một message khác, không phải một type khác -- nó đơn giản không có
+trong danh sách. Hai lời từ chối phân biệt được với nhau sẽ là một cái dò: gõ thử
+các tên cho đến khi câu chữ đổi, thế là vẽ xong bản đồ cả trường. Cái filter
+`teacher_id` trong `classes_with_counts` là toàn bộ ADR-22 ở đây.
+
+**Mọi thứ trả về là giá trị, không phải row.** Cái vòng lặp gọi các hàm này
 rollback session của nó giữa các bước, và việc đó làm các object ORM hết hạn; một
 `SchoolClass` đưa lên trên sẽ nổ `MissingGreenlet` ở lần đọc attribute tiếp theo,
 ở một chỗ rất xa đây.
@@ -81,50 +84,6 @@ class Candidate:
     student_count: int
 
 
-@dataclass(frozen=True)
-class Resolved:
-    """Đúng một lớp khớp.
-
-    Attributes:
-        class_id: Cái id mà các tool nhận.
-        name: Theo đúng cách đã lưu.
-        student_count: Số học sinh trong lớp.
-    """
-
-    class_id: str
-    name: str
-    student_count: int
-
-
-@dataclass(frozen=True)
-class Ambiguous:
-    """Có nhiều lớp có thể là lớp được nói tới.
-
-    Attributes:
-        candidates: Từng lớp đã khớp, theo một thứ tự ổn định. Không field nào
-            nói nên ưu tiên lớp nào, vì ADR-05 để lựa chọn đó cho giáo viên.
-        more: Có bao nhiêu lớp khớp đã bị để ngoài `candidates`, để trợ lý nói
-            được rằng danh sách này chưa đủ thay vì ngụ ý nó là đủ.
-    """
-
-    candidates: tuple[Candidate, ...]
-    more: int = 0
-
-
-@dataclass(frozen=True)
-class NotFound:
-    """Không lớp nào của giáo viên này khớp.
-
-    Attributes:
-        available: Các lớp của giáo viên này, để lời từ chối trả lời luôn câu hỏi
-            hiển nhiên tiếp theo. Có giới hạn số lượng, và `more` đếm phần còn lại.
-        more: Có bao nhiêu lớp đã bị để ngoài.
-    """
-
-    available: tuple[Candidate, ...]
-    more: int = 0
-
-
 def normalise(name: str) -> str:
     """Rút một tên lớp được gõ vào về đúng cái nó có nghĩa.
 
@@ -173,72 +132,7 @@ async def classes_with_counts(session: AsyncSession, asking: Asking) -> list[Can
     ]
 
 
-def _capped(matches: list[Candidate]) -> tuple[tuple[Candidate, ...], int]:
+def capped(matches: list[Candidate]) -> tuple[tuple[Candidate, ...], int]:
     """Cắt ngắn một danh sách candidate và báo lại đã bỏ ra bao nhiêu."""
     kept = tuple(matches[:_MOST_CANDIDATES])
     return kept, max(0, len(matches) - len(kept))
-
-
-async def resolve_class(
-    session: AsyncSession, asking: Asking, typed: str
-) -> Resolved | Ambiguous | NotFound:
-    """Tìm ra một cái tên đang nói tới lớp nào trong các lớp của giáo viên này.
-
-    Khớp chính xác trước, rồi mới khớp chuỗi con. Đúng thứ tự đó là thứ làm cả hai
-    nửa đều an toàn: khớp chuỗi con là thứ cho "12" nghĩa là "một trong 12A và
-    12B", và cũng chính nó là thứ sẽ làm "12A" thành nhập nhằng ngay khi có một
-    lớp 12A1.
-
-    Args:
-        session: Session của database.
-        asking: Ai đang hỏi. Chỉ các lớp của người đó được xét tới, và một lớp của
-            người khác thì không phân biệt được với một lớp không có ở đó
-            (ADR-22).
-        typed: Cái tên theo đúng cách giáo viên viết.
-
-    Returns:
-        `Resolved` khi khớp một lớp, `Ambiguous` khi khớp nhiều lớp, `NotFound`
-        khi không khớp lớp nào. Không bao giờ là một phỏng đoán: không có nhánh
-        code nào chọn một lớp trong nhiều lớp.
-    """
-    owned = await classes_with_counts(session, asking)
-    wanted = normalise(typed)
-    if not wanted:
-        # Một tham số model bỏ trống thì đến đây dưới dạng "". Đem nó đi khớp
-        # chuỗi con thì sẽ khớp mọi lớp, và trợ lý sẽ resolve ra lớp nào đứng
-        # trước thì lấy lớp đó.
-        available, more = _capped(owned)
-        return NotFound(available=available, more=more)
-
-    # Cách viết đang lưu trước đã, trước khi có gì bị normalise mất đi. "12A" và
-    # "12 A" là hai row khác nhau nhưng normalise về cùng một string, nên nếu chỉ
-    # có phép so sánh trên bản normalise thì chúng nhập nhằng mãi mãi và không
-    # string nào giáo viên gõ được sẽ chọn ra nổi một trong hai. Bước này cho mỗi
-    # lớp một đường vào mà không làm yếu đi lời từ chối đoán: nó chỉ khớp khi giáo
-    # viên viết cái tên đúng y như nó đang được lưu.
-    literal = unicodedata.normalize("NFC", typed).strip()
-    verbatim = [
-        candidate for candidate in owned if unicodedata.normalize("NFC", candidate.name) == literal
-    ]
-    if len(verbatim) == 1:
-        only = verbatim[0]
-        return Resolved(class_id=only.class_id, name=only.name, student_count=only.student_count)
-
-    exact = [candidate for candidate in owned if normalise(candidate.name) == wanted]
-    if len(exact) == 1:
-        only = exact[0]
-        return Resolved(class_id=only.class_id, name=only.name, student_count=only.student_count)
-    if len(exact) > 1:
-        candidates, more = _capped(exact)
-        return Ambiguous(candidates=candidates, more=more)
-
-    partial = [candidate for candidate in owned if wanted in normalise(candidate.name)]
-    if len(partial) == 1:
-        only = partial[0]
-        return Resolved(class_id=only.class_id, name=only.name, student_count=only.student_count)
-    if len(partial) > 1:
-        candidates, more = _capped(partial)
-        return Ambiguous(candidates=candidates, more=more)
-
-    available, more = _capped(owned)
-    return NotFound(available=available, more=more)

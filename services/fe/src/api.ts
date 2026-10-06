@@ -299,11 +299,25 @@ export interface PublishForm {
   reason: string;
   classes: ClassOption[];
   rules: TimingRules;
+  /**
+   * Vì sao `Hoàn tác` không bấm được, hoặc rỗng khi còn lùi được.
+   *
+   * Câu do BE viết, và biểu mẫu hiện nó **trước** cú bấm — cùng khuôn với cách nó
+   * chặn một cửa sổ thời gian vô lý. Một nút bấm được rồi mới nhận 409 là một nút
+   * hứa một việc hệ thống đã biết là không làm được.
+   */
+  undo_blocked: string;
 }
 
-/** Sáu tham số cho **một** lớp. Mọi mốc phải mang offset — xem `isoWithOffset`. */
-export interface ClassSchedule {
-  class_id: string;
+/**
+ * Năm tham số thời gian, dùng chung cho **mọi** lớp của một lần phát hành.
+ *
+ * Không có `class_id`: một lần phát hành có một khung giờ, và danh sách lớp đi riêng.
+ * Biểu mẫu vốn chỉ có **một** bộ ô nhập và vẫn luôn gửi cùng một bộ giá trị cho mọi
+ * lớp; từ 06/10/2026 hợp đồng nói đúng điều đó thay vì cho phép diễn tả một thứ màn
+ * hình không dựng được. Mọi mốc phải mang offset — xem `isoWithOffset`.
+ */
+export interface Schedule {
   opens_at: string;
   closes_at: string;
   phase1_minutes: number;
@@ -381,8 +395,9 @@ export interface Approval {
  * Một dòng trong hội thoại của giáo viên.
  *
  * `kind` là `"teacher"`, `"assistant"`, `"tool_call"` hay `"tool_result"`. Luật render nằm ở
- * màn hình, không ở đây: `tool_call` không hiện gì (nó không mang kết quả), `tool_result` ra
- * một thẻ chọn theo `tool_name`.
+ * màn hình, không ở đây: `tool_call` không hiện gì (nó không mang kết quả), còn `tool_result`
+ * ra một thẻ chọn theo **nấc của đề** — `ActionCard.STATE_OF` dịch `tool_name` thành nấc, và
+ * đó là chỗ duy nhất phép dịch ấy xảy ra.
  */
 export interface Turn {
   kind: string;
@@ -776,7 +791,8 @@ export const teacher = {
   // xác nhận đọc lại đúng cái sắp xảy ra" là một tính chất của code, không phải một lời hứa.
   publish: (
     assessmentId: string,
-    schedules: ClassSchedule[],
+    schedule: Schedule,
+    classIds: string[],
     preview: boolean,
   ) =>
     call<PublishResult>(
@@ -784,7 +800,7 @@ export const teacher = {
       `/teacher/assessments/${assessmentId}/publications`,
       {
         method: "POST",
-        body: JSON.stringify({ schedules, preview }),
+        body: JSON.stringify({ schedule, class_ids: classIds, preview }),
       },
     ),
   withdraw: (assessmentId: string, classId: string) =>

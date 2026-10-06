@@ -67,11 +67,16 @@ rỗng không bao giờ thành thẻ, vì nó đã bị chính bước sau thay 
 
 | Tool | Hiện thành | Ghi chú |
 | --- | --- | --- |
-| `find_class` | một bước trong `Thinking` | Nhập nhằng thì lượt kết thúc bằng `Clarify request`, không phải thẻ |
+| `list_class` | một bước trong `Thinking` | Trả cả danh sách lớp, và danh sách ấy **chính là** bộ phương án: khoá `candidates` là thứ `_choices_from` dựng nút từ đó. Nhiều hơn một lớp thì lượt kết thúc bằng `Clarify request`, không phải thẻ |
+| `get_class` | một bước | Nhận `class_id`, không nhận tên. Việc gỡ nhập nhằng đã về `list_class` |
+| `list_assessment` | một bước | Đề **đã phát hành** cho một lớp. Đề nháp chưa phát hành không thuộc lớp nào, nên không nằm ở đây |
 | `class_assessment_summary` | một bước | Kết quả đi vào câu kết |
-| `create_draft` | một bước. **Thẻ** `tạo-đề-trống` **chỉ** khi không bước nào trong lượt đổ câu vào đề ấy | Có `start_drafting` phía sau thì trạng thái trống **không còn đứng vững** — chính bước sau đã thay nó, nên không thẻ nào. Thất bại → thẻ `tạo-thất-bại` |
-| `start_drafting` | một bước. **Thẻ** `thêm-câu-hỏi` **chỉ khi** bước ấy đã đợi hết câu và mang về `written`/`asked_for`/`still_drafting` | Chưa có ba con số ấy thì vẫn chỉ là một bước: một thẻ ở đó nói với giáo viên rằng một việc đã xong trong khi nó vừa bắt đầu. Cửa `POST` không đợi, nên ở đó không bao giờ có thẻ |
-| `draft_progress` | một bước; **thẻ** `thêm-câu-hỏi` khi các câu đã về đủ | Thẻ ghi số câu **thật đã có**, không ghi số chỗ đã đặt. Nó là tool của **pha 1**, nên một plan không gọi nó — đường này chỉ còn sống khi giáo viên hỏi riêng về tiến độ |
+| `create_draft` | một bước. **Thẻ** nấc `drafted`, variant `tạo-đề-trống`, **chỉ** khi không bước nào trong lượt đổ câu vào đề ấy | Có `start_drafting` phía sau thì trạng thái trống **không còn đứng vững** — chính bước sau đã thay nó, nên không thẻ nào. Thất bại → nấc `failed`, variant `tạo-thất-bại` |
+| `start_drafting` | một bước. **Thẻ** nấc `drafted`, variant `đã-tạo-đề`, **chỉ khi** bước ấy đã đợi hết câu và mang về `written`/`asked_for`/`still_drafting` | Chưa có ba con số ấy thì vẫn chỉ là một bước: một thẻ ở đó nói với giáo viên rằng một việc đã xong trong khi nó vừa bắt đầu. Cửa `POST` không đợi, nên ở đó không bao giờ có thẻ |
+
+`draft_progress` **đã bỏ**. SSE kể tiến độ ngay khi từng câu về, nên một tool chỉ để ngó là một tool
+không ai gọi — và nó là tool duy nhất của pha 1 từng phải `harvest`, tức từng phải ghi. Bỏ nó làm
+câu *"pha 1 không ghi gì"* (ADR-25) đúng ở mọi dòng thay vì đúng trừ một.
 
 Một tool mới phải có dòng trong bảng này **trước** khi nó có mặt trên màn hình. Không có dòng nào thì
 nó là một bước, không phải một thẻ — mặc định an toàn, vì một bước không hứa gì.
@@ -135,52 +140,90 @@ lời khẳng định sai về hệ thống. Dù vậy luật không đổi: cá
 - **Nút chính và nút phụ không được đọc ra giống nhau.** Nút chính: nền `--accent`, chữ trắng,
   không viền. Nút phụ: **không nền, không viền**, chữ `--ink-muted`. Trước đợt này nút phụ dùng
   đúng màu `--accent` mà nút chính dùng cho nền, cùng cỡ chữ, cùng cân nặng, cùng bo góc — hai
-  nút đọc ra là *hai viên xanh*, và giáo viên bấm nhầm. Figma vẽ sai y vậy ở tám trên chín
-  variant; variant `đã-duyệt` thì vẽ đúng từ đầu, nên đây là luật của nó mở rộng ra cả bộ.
+  nút đọc ra là *hai viên xanh*, và giáo viên bấm nhầm. Figma vẽ sai y vậy ở gần hết component
+  set; variant `đã-duyệt` thì vẽ đúng từ đầu, nên đây là luật của nó mở rộng ra cả bộ.
 
 **Khoảng trống đã đóng.** Tới hết đợt ADR-25, một lượt soạn đề **thành công** kết thúc không thẻ
 nào: `create_draft` bị loại khi có `start_drafting` phía sau, `start_drafting` bị loại vô điều kiện,
-và `draft_progress` là tool của pha 1 nên một plan không gọi nó. Ba lần loại trừ ấy giao nhau đúng ở
-đường đi hạnh phúc — mà panel đề **chỉ mở được từ một nút trên thẻ**, nên Kriky nói *"đã soạn xong"*
-và màn hình không có cửa nào vào xem. Nay bước soạn khi đóng lại đã biết số câu thật, và thẻ
-`thêm-câu-hỏi` mọc từ chính nó.
+và tool kiểm tiến độ là tool của pha 1 nên một plan không gọi nó. Ba lần loại trừ ấy giao nhau đúng
+ở đường đi hạnh phúc — mà panel đề **chỉ mở được từ một nút trên thẻ**, nên Kriky nói *"đã soạn
+xong"* và màn hình không có cửa nào vào xem. Nay bước soạn khi đóng lại đã biết số câu thật, và nó
+lên thẻ ở nấc `drafted`.
 
-| Variant | Head | Nút chính | Nút phụ |
+**Bốn đầu đề, và chỉ bốn.** Người dùng chốt ngày 06/10/2026: *"thẻ chỉ xuất hiện một lần trong một
+đợt xử lí, không được phép xuất hiện hai lần liên tiếp. Trên đó chỉ hiện ba trạng thái: đã tạo đề →
+đã duyệt đề → đã phát hành. Nếu chọn bỏ duyệt đề thì quay lại 'đã tạo đề'."* Cộng một nấc cho việc
+**không** xảy ra, là bốn.
+
+| Nấc | Head | Variant Figma | Nút chính |
 | --- | --- | --- | --- |
-| `tạo-đề-trống` | `Đã tạo đề "{tên}"` | `Thêm câu hỏi` (điền ô nhập) | — |
+| `drafted` | `Đã tạo đề "{tên}"` | `đã-tạo-đề` (`66:16`) | — |
+| `drafted`, đề còn rỗng | `Đã tạo đề "{tên}"` | `tạo-đề-trống` (`66:3`) | `Thêm câu hỏi` (điền ô nhập) |
+| `approved` | `Đã duyệt đề "{tên}"` | `đã-duyệt` (`66:29`) | — |
+| `published` | `Đã phát hành` | `đã-phát-hành` (`10:45`) | — |
+| `failed` | `Không tạo được đề` | `tạo-thất-bại` (`10:54`) | `Thử lại` (điền ô nhập) |
 
-**`tạo-đề-trống` chỉ mọc cho một lượt *chỉ* mở đề** — giáo viên nói *"mở cho tôi một đề trống"*. Khi
-họ nói *"tạo đề 10 câu"* thì plan có hai bước (ADR-25) và thẻ này **không được xuất hiện**: nó nói
-rằng việc được nhờ đã xong và cho ra một cái đề rỗng, trong khi việc ấy đang chạy. Một đề chưa đủ
-câu ở lại **trong khối bước**, và câu báo cáo cuối lượt nói nó đang tới đâu.
-| `thêm-câu-hỏi` | `Đã thêm {n} câu vào đề` | — | — |
-| `thiếu-câu` (`455:16`) | `Dừng ở {k}/{n} câu` | — | — |
-| `đang-soạn-dở` (`456:16`) | `Đã soạn {k}/{n} câu` | — | — |
+**Năm variant, bốn đầu đề.** `tạo-đề-trống` và `đã-tạo-đề` dùng chung đầu đề vì chúng là **cùng một
+nấc**: đề vừa mở còn rỗng thì có thêm một nút mời bước tiếp theo, và một cái nút không phải một
+trạng thái. `tạo-đề-trống` chỉ mọc cho một lượt *chỉ* mở đề — khi giáo viên nói *"tạo đề 10 câu"* thì
+plan có hai bước (ADR-25) và trạng thái "trống" không còn đứng vững, vì chính bước sau đã thay nó.
 
-**Điều kiện mời duyệt là `đã đủ câu`, và chỉ thế.** Không phải *"thiếu câu **và** không còn gì đang
-chạy"* — viết thế thì một đề 3/10 còn bảy câu đang chạy rơi vào nhánh còn lại, thẻ in `Đã thêm 3 câu
-vào đề` (giấu mất số 10) và mời duyệt. Đường ra ấy có thật: hết hạn im lặng thì vòng nghe chuông
-đóng lại với `still_drafting > 0`. Và nó cãi lại `reporting._progress` của AGENT, nơi lời kể trong
-cùng ca ấy chỉ được nói *"đang soạn"*.
+**Năm variant khác đã thành *(không dùng)*, và lý do nằm ở dữ liệu chứ không ở màn hình:**
 
-| `đã-duyệt` | `Đã duyệt đề "{tên}"` | — | — |
-| `bỏ-duyệt` | `Đã bỏ duyệt đề "{tên}"` | — | — |
-| `tạo-thất-bại` | `Không tạo được đề` | `Thử lại` (điền ô nhập) | — |
-| `đã-phát-hành` | `Đã phát hành cho {lớp}` | — | `Thu hồi` — **chưa dựng** |
-| `phát-hành-thất-bại` | `Phát hành chưa xong` | `Thử lại cho {lớp}` (điền ô nhập) | — |
-| `tạo-lớp` | `Đã tạo lớp {tên}` | — | — |
+| Variant | Vì sao không ai tới được |
+| --- | --- |
+| `bỏ-duyệt` (`76:10`) | Bỏ duyệt đưa đề **về** nấc một, nên nó không có thẻ riêng — thẻ quay lại kể *đã tạo đề* |
+| `thiếu-câu` (`455:16`) | Đầu đề chở con số, mà con số đã nằm ở khối `Thinking` ngay trên thẻ |
+| `đang-soạn-dở` (`456:16`) | Như trên |
+| `phát-hành-thất-bại` (`76:23`) | `_note_publication` **chỉ** ghi lượt khi phát hành thành công, nên một lần phát hành hỏng không bao giờ tới đây. Biểu mẫu phát hành phải tự hiện phần thất bại tại chỗ |
+| `tạo-lớp` (`10:34`) | Không tool nào tạo lớp |
+
+Giữ lại chứ không xoá khỏi Figma: chúng là bản ghi của những nấc đã thử và đã bỏ. Variant
+`thêm-câu-hỏi` thì **chưa bao giờ tồn tại** trong component set — nó là một cái tên đi lạc vào
+tài liệu từ thời `draft_progress`, và tool ấy đã bỏ vì SSE kể tiến độ.
+
+**Nơi thi hành là check thứ 12 của `tools/check_contract.py`.** Nó đếm ba thứ phải khớp nhau —
+union `CardState`, bảng `HEAD`, bảng `SAFETY` — và đỏ khi một trong ba mọc thêm dòng hoặc khi ba
+cái không cùng một bộ tên. Cộng hai chốt nữa trên **vùng vẽ thẻ** (từ bảng `HEAD` tới hết file):
+nhiều nhất **một** phép so `tool_name`, và **không** `switch`/`includes`/tra-bảng-tại-chỗ nào.
+
+Nó là một phép quét có khoanh vùng, **không** phải một bộ parse TypeScript — nên nó đo được số
+nấc chứ không đo được mọi cách viết. Bản đầu chỉ đếm `HEAD` bằng một regex neo đầu dòng, và một
+đợt review tìm ra ba khe trong một buổi: nấc thứ năm viết **chung dòng**, một `switch` thay cho
+phép so, và cả vùng phía trên `export default` không ai nhìn. Vì thế ba trong bốn phép kiểm ở
+đây sinh ra từ một đột biến đã chạy thật, không từ một mối lo đoán trước.
+
+Một phép so được phép, và nó có tên: `create_draft` phân biệt một đề vừa mở còn rỗng. Cái đó
+thêm một **nút**, không thêm một trạng thái — và nó có test riêng, vì không có test thì
+`const empty = false` xoá sạch nút ấy mà cả check lẫn bộ test đều xanh (đo được).
+
+Tất cả vì đó là cách bảy đầu đề mọc ra lần trước: giao diện được dựng bằng một dãy
+`if (turn.tool_name === …)`, nên **thêm một tool là thêm một trạng thái**. Không dòng code nào
+sai; cái sai là không chỗ nào đếm.
+
+**Luật *"đề thiếu câu thì không mời duyệt"* đổi chỗ hai lần, và chỗ cuối là chỗ chắc nhất.** Đầu
+tiên nó sống trong nhãn nút (`Xem đề` thay vì `Duyệt đề`); nút bỏ thì nó sang chữ đầu đề (`Dừng ở
+2/10 câu`); nay đầu đề chỉ còn bốn chuỗi cố định, nên nó sống ở chỗ nó đáng sống từ đầu — **thẻ
+không có cổng duyệt nào cả**. Cổng thật ở chân panel, nơi duy nhất đọc được trạng thái **hiện tại**
+của đề, chứ không phải một con số đóng băng trong một biên bản cũ.
 
 **Nút mời một việc làm bằng lời nói thì điền sẵn ô nhập.** `Thêm câu hỏi` và `Thử lại` không có
 endpoint nào để gọi — thêm câu hỏi là một câu nói với Kriky, không phải một nút trên REST. Hai nút ấy
 đặt con trỏ vào ô nhập và viết sẵn câu mở đầu; giáo viên sửa rồi gửi. Nút nào mời một việc **có** cổng
 thì đi thẳng tới cổng ấy — và với *"mở đề"* thì cổng ấy là **chính cái thẻ**.
 
-**Luật *"đề thiếu câu thì không mời duyệt"* nay sống ở chữ đầu đề.** Nó từng sống trong nhãn nút
-(`Xem đề` thay vì `Duyệt đề`); nút đã bỏ, nên `Dừng ở 2/10 câu` phải tự nói ra điều đó. Cổng duyệt
-thật thì nằm ở chân panel, nơi duy nhất đọc được trạng thái hiện tại của đề.
+**Một thẻ cho cả khối**, nên cú bấm cuối cùng thắng. Đó là nửa thứ hai của câu người dùng chốt:
+*"không được phép xuất hiện hai lần liên tiếp"*. `cardTurns` không đọc `entity_id`, nên duyệt đề A
+rồi phát hành đề B trong cùng một khối chỉ kể B — một giới hạn có thật, chưa có đường nào tới được
+nó (một khối bị cắt ở mỗi lượt `teacher`), và nó được ghi ra ở docstring của hàm chứ không giấu đi.
 
-**Thẻ của một việc giáo viên tự làm là biên bản, không phải bộ điều khiển.** `đã-duyệt` và `bỏ-duyệt`
-chỉ còn **một** nút `Xem`, và không còn dòng chi tiết nào. Hai lý do, cả hai đo được:
+**Tên lớp rời khỏi đầu đề:** `Đã phát hành`, không `Đã phát hành cho 12A và 12B`. Một đầu đề đổi
+chữ theo dữ liệu là một trạng thái thứ tư trá hình: hai lần phát hành cho hai bộ lớp đọc ra như hai
+nấc khác nhau của cùng một đề.
+
+**Thẻ của một việc giáo viên tự làm là biên bản, không phải bộ điều khiển.** Nấc `approved` không
+còn nút nào, và không còn dòng chi tiết nào — bấm vào **chính cái thẻ** là mở panel. Hai lý do, cả
+hai đo được:
 
 - Ba nút cũ (`Phát hành`, `Hoàn tác`, `Duyệt đề`) **không chạy**. Duyệt thì bấm từ trong panel, nên
   lúc thẻ hiện ra route đã là `#/teacher/chat/{đoạn}/de/{đề}` rồi — mà cả ba chỉ gán lại đúng hash
@@ -194,12 +237,14 @@ chỉ còn **một** nút `Xem`, và không còn dòng chi tiết nào. Hai lý 
 **bằng chứng model đã làm gì**, nên một dòng *Duyệt đề* trong đó nói rằng Kriky tự duyệt đề. Trước
 đợt này một cú bấm hiện **hai lần**: một dòng trong khối bước và một cái thẻ.
 
-`Thu hồi` **chưa dựng**: endpoint thu hồi có, nhưng FE chưa có đường gọi nó, nên thẻ chỉ mang
-`Xem`. Một nút mang nhãn của thiết kế mà không làm được việc của nhãn ấy còn tệ hơn một nút vắng mặt.
+`Thu hồi` **không nằm trên thẻ**, và đó là một quyết định chứ không phải một món nợ. Thẻ là biên
+bản; chỗ lùi một bước là **chân panel**, nơi duy nhất đọc được trạng thái hiện tại của đề — và từ
+06/10/2026 nút ở đó là `Hoàn tác`, nó thu hồi mọi lớp rồi hạ hai nấc trong một cú bấm (ADR-02).
+Figma `đã-phát-hành` (`10:45`) vẫn còn vẽ một `btn-recall`; **đó là món nợ Figma**, không phải món
+nợ code.
 
-`tạo-lớp` **chưa dựng được**: không tool nào tạo lớp. Nút `Phát hành` không bao giờ xuất hiện trên
-thẻ `thêm-câu-hỏi` — phát hành đi qua panel (ADR-05, ADR-10). Nút `Thu hồi` phải **biến mất** sau giờ
-mở (ADR-02); component set chưa có trục trạng thái đó và đã ghi nợ ngay trong mô tả component.
+Nút `Phát hành` không bao giờ xuất hiện trên một thẻ nào — phát hành đi qua biểu mẫu và hộp xác
+nhận (ADR-05, ADR-10).
 
 ## `Clarify request` — thẻ hỏi lại ở lại dòng chat
 

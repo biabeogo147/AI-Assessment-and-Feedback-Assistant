@@ -18,7 +18,12 @@ nào là thứ `AGENTS.md` cấm tạo: nó mô tả một hệ thống chưa ai
 hoặc ngày, nên trạng thái bài làm không sống được trong một chỗ có TTL một giờ. Postgres thuộc về BE
 và chỉ BE; AGENT không có credential nào và không bao giờ có.
 
-## Mười ba bảng, bốn nhóm
+## Các bảng, theo nhóm
+
+> **Con số trong tiêu đề cũ đã lệch.** `models.py` có **21** `__tablename__`; tài liệu này từng nói
+> mười ba. Đợt 06/10/2026 chỉ bổ sung hai bảng nháp bên dưới — những bảng còn thiếu
+> (`pregenerated_items`, `question_outcomes`, `documents`, …) là món nợ của một đợt rà soát riêng,
+> ghi ra đây để nó không nằm im.
 
 ### Nhóm 1 — người và lớp
 
@@ -39,7 +44,9 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 | `questions` | đề bài, thứ tự, mục tiêu học tập | `order_index` là số câu học sinh nhìn thấy |
 | `options` | nhãn, nội dung, `is_correct`, `error_label` | `error_label` là ánh xạ nhiễu→lỗi của ADR-18, `null` ở đúng một dòng mỗi câu |
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |
-| `publications` | sáu tham số phát hành | **một dòng mỗi (đề, lớp)** — khoá chính kép. Mỗi lớp một đồng hồ riêng: 12A học sáng thì mở sáng, 12B học chiều thì mở chiều |
+| `publications` | sáu tham số phát hành | **một dòng mỗi (đề, lớp)** — khoá chính kép, nên thu hồi được **từng lớp một**. Từ 06/10/2026 một lần phát hành chỉ có **một** khung giờ cho mọi lớp trong lần đó; muốn hai lớp hai đồng hồ thì phát hành hai lần, và bảng vẫn chở được (ADR-02, sửa đổi) |
+| `draft_briefs` | yêu cầu soạn của một đề: môn, khối, phạm vi, `question_count`, `version` | `question_count` là **tổng** đã xin, không phải con số khai lúc tạo đề — `fire()` ghi nó, `harvest()` đọc nó để biết ô nào đã cũ. `version` tăng mỗi lần đổi brief, nên một job của brief cũ về muộn thì nhận ra được |
+| `draft_items` | một ô cho mỗi câu đang soạn: `ordinal`, `job_id`, `status`, `attempts`, `last_fault` | `status` là `pending`/`ready`/`retry`/`failed`; `attempts` chặn vòng thử lại ở `_MOST_ATTEMPTS`. **`last_fault`** chở lý do một câu bị loại: một `retry` không nói vì sao là một dấu vết không dùng được, và nó chính là thứ từng biến một đề 2/3 câu thành "không ai truy được" |
 
 Khoá nội dung khi duyệt là một `state` trên `assessments`, không phải một cờ trên từng câu — vì nó là
 một thao tác trên cả đề.
@@ -97,9 +104,13 @@ Bảng `teacher_turns` giữ nhiều hơn chữ, vì một lượt của giáo v
 cho 12A1"* — và thứ đáng lưu là **đề nào**, không phải câu thông báo. `entity_kind` + `entity_id`
 chở chủ thể ấy, và là thứ sẽ cho giao diện chọn đúng variant `Action result card`.
 
-**Hiện chỉ một tool sinh ra chủ thể**: `find_class` trả `class_id`. Bảy variant của `Action result
-card` đều là hành động **ghi**, mà đợt này không có tool ghi nào — nên hai cột ấy là cấu trúc đã
-dựng, chưa phải dữ liệu đã có.
+**Chủ thể đọc ra từ các cờ của kết quả, không từ tên tool**: `found` cho một lần tra cứu
+(`get_class`), `created` cho một đề nháp mới, `started` cho một vòng sinh câu hỏi,
+`approved`/`unapproved`/`published` cho ba quyết định của giáo viên. Liệt kê các cờ thì hơn đi soi
+tên tool, vì cái tên không phải thứ mang theo id.
+
+`list_class` **không** sinh ra chủ thể, và đó là chủ ý: nó trả về một danh sách, mà một bước nói về
+nhiều lớp thì không nói về lớp nào cả. Chủ thể của nó là lựa chọn giáo viên sắp đưa ra.
 
 **`deleted_at` là xoá mềm, và đó là một quyết định** (ADR-24): giáo viên muốn một đoạn gõ nhầm
 biến khỏi mắt mình, còn ADR-24 đòi biên bản duyệt đề giữ được — mà biên bản ấy là một row

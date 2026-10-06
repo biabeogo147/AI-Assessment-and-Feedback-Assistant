@@ -63,21 +63,45 @@ một con số dựng sẵn.
   mình vừa chọn ai thì không có cổng nào cả.
 
 - `services/be/src/be/models.py` — `Publication` có khoá chính **kép** `(assessment_id, class_id)`,
-  nên một đề phát hành được cho nhiều lớp, mỗi lớp một bộ năm cài đặt riêng — tham số **thứ nhất**
-  trong sáu tham số ở mục trên là **lớp**, và ở bảng này nó là nửa còn lại của khoá chứ không phải một
-  cột cài đặt. Đây là thứ làm cho điều khoản
+  nên một đề phát hành được cho nhiều lớp và **thu hồi được từng lớp một**: `recalled_at` của 12B
+  không đụng tới 12A. Tham số **thứ nhất** trong sáu tham số ở mục trên là **lớp**, và ở bảng này
+  nó là nửa còn lại của khoá chứ không phải một cột cài đặt. Đây là thứ làm cho điều khoản
   *phát hành có thể thất bại một phần* ở mục **Quyết định** trở nên **biểu diễn được**: trước đó model
   chỉ giữ nổi một bộ hạn cho một đề, nên "một lớp nhận được, lớp khác không" không có chỗ để tồn tại.
+
+  **Sửa đổi 06/10/2026 — một lần phát hành, một khung giờ.** Bản đầu của ADR này cho mỗi lớp một
+  bộ năm cài đặt riêng, với lý lẽ *12A học tiết sáng, 12B học sau trưa*. Lý lẽ ấy chưa bao giờ
+  được dựng: biểu mẫu phát hành chỉ có **một** bộ ô nhập và vẫn luôn gửi cùng một bộ giá trị cho
+  mọi lớp. Hợp đồng cũ vì thế cho phép diễn tả một thứ không màn hình nào dựng được, và cái giá
+  là thật — hộp xác nhận phải hứa thu hồi được *"cho tới giờ mở của từng lớp"* cho một con số
+  chung, tức một mốc mà giáo viên không đọc ra nổi là mốc nào. `PublishRequest` nay là một
+  `Schedule` cộng `class_ids`. Muốn hai lớp hai đồng hồ thì phát hành hai lần — và bảng vẫn chở
+  được điều đó, vì khoá kép không đổi.
 - `services/be/src/be/teacher_routes.py` — `POST /api/teacher/assessments/{id}/publications` nhận
-  **một bộ sáu tham số cho mỗi lớp** và nhiều lớp một lần, nên điều khoản *phát hành có thể thất bại
-  một phần* là một hàng trong kết quả chứ không phải một ngoại lệ: một lớp sai giờ nhận lý do của
-  riêng nó và những lớp còn lại vẫn nhận được đề. Ba điều kiện giờ được kiểm riêng từng cái — giờ mở
-  ở tương lai, trước giờ đóng, và hạn pha 2 sau giờ đóng — vì một câu từ chối chung buộc giáo viên
-  đoán xem cái nào sai trong sáu con số họ vừa gõ.
+  **một khung giờ cùng một danh sách lớp**, nên điều khoản *phát hành có thể thất bại một phần* là
+  một hàng trong kết quả chứ không phải một ngoại lệ. Cái **cớ** để một lớp hỏng đã đổi cùng với
+  sửa đổi ở trên, còn luật thì không: một khung giờ sai làm **mọi** lớp trượt — đúng câu trả lời
+  đúng — nhưng một lớp của giáo viên khác (ADR-22), một lớp đã qua giờ mở, hay một lớp đang có
+  người làm bài thì vẫn hỏng riêng nó và những lớp còn lại vẫn nhận được đề. Ba điều kiện giờ được
+  kiểm riêng từng cái — giờ mở ở tương lai, trước giờ đóng, và hạn pha 2 sau giờ nộp cuối của pha 1
+  — vì một câu từ chối chung buộc giáo viên đoán xem cái nào sai trong những con số họ vừa gõ.
 - `services/be/src/be/teacher_routes.py` — `POST .../publications/{class_id}/withdraw` là nơi cửa sổ
   thu hồi được thi hành, qua `may_withdraw(opens_at, now)`. Thu hồi **mềm**: hàng ở lại với
   `recalled_at` đã đặt, vì `published_at`/`recalled_at` là sổ sách. Đề chỉ về **đã duyệt** khi không
   lớp nào còn giữ nó — thu hồi 12B trong lúc 12A đang làm thì đề vẫn đang phát hành.
+- `services/be/src/be/teacher_routes.py` — `_take_back_every_class` là đường lùi **trọn vẹn**, dùng
+  bởi `POST .../unapprove` khi đề đang ở `đã phát hành` (từ 06/10/2026). Nó thu hồi mọi lớp rồi hạ
+  state, và nó **hoặc tất cả hoặc không gì cả**: một lớp đã qua giờ mở thì cả thao tác dừng lại,
+  kèm một câu từ chối **gọi tên lớp** ấy. Để lại một đề nửa thu hồi nửa không là để lại đúng cái
+  trạng thái không màn hình nào đọc ra nổi, trong khi giáo viên tin rằng mình đã hoàn tác.
+
+  Trước đợt ấy đường này trả 409 với lý lẽ *"thu hồi trước đã"* — mà màn hình vẫn vẽ nút `Hoàn
+  tác`, và `Panel` nuốt mất câu 409, nên cú bấm không làm gì và **không nói gì**. Lý lẽ ấy cũng
+  bắt giáo viên làm hai việc cho một ý định: muốn sửa một đề đã phát hành thì đường duy nhất là
+  hoàn tác, nên bắt họ thu hồi từng lớp trước là bắt họ tự dựng lại một thao tác mà hệ thống biết
+  cách làm trọn. `_ALLOWED[PUBLISHED]` vẫn để **rỗng**: cửa duy nhất xuống từ `đã phát hành` vẫn
+  là `withdraw`, thao tác có tên tự chở điều kiện của nó. Luật không nới ra, chỉ có thêm một
+  caller biết cách đi qua nó cho đúng.
 - `services/be/src/be/assessment_state.py` — `_ALLOWED[PUBLISHED]` để **trống**, và `withdraw()` là
   thao tác có tên duy nhất đi vòng qua bảng cạnh. Lý do: cạnh `đã phát hành → đã duyệt` có **điều
   kiện**, nên để nó thành một hàng vô điều kiện sẽ cho bất kỳ caller tương lai nào quên kiểm giờ thu

@@ -180,9 +180,7 @@ async def test_a_turn_runs_a_tool_and_then_answers(stack) -> None:
     """
     client, _, monkeypatch = stack
     agent = ScriptedAgent(
-        NextStepCompleted(
-            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12A"}
-        ),
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
         NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 40 học sinh."),
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -201,7 +199,8 @@ async def test_a_turn_runs_a_tool_and_then_answers(stack) -> None:
 
     second_question = agent.asked[1]
     results = [turn for turn in second_question["history"] if turn["kind"] == "tool_result"]
-    assert results and results[0]["tool_result"]["name"] == "12A"
+    shown = results[0]["tool_result"]["candidates"]
+    assert [one["name"] for one in shown] == ["12A"]
 
 
 @pytest.mark.asyncio
@@ -215,7 +214,7 @@ async def test_the_loop_stops_at_its_ceiling_and_says_so(stack) -> None:
     forever = ScriptedAgent(
         *[
             NextStepCompleted(
-                request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12A"}
+                request_id="x", kind="call_tool", tool_name="list_class", tool_args={}
             )
             for _ in range(20)
         ]
@@ -266,9 +265,7 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
         await session.commit()
 
     agent = ScriptedAgent(
-        NextStepCompleted(
-            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
-        ),
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
         NextStepCompleted(
             request_id="x",
             kind="ask_clarify",
@@ -320,9 +317,7 @@ async def test_the_options_survive_a_reload(stack) -> None:
         await session.commit()
 
     agent = ScriptedAgent(
-        NextStepCompleted(
-            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
-        ),
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
         NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -359,9 +354,7 @@ async def test_an_answered_question_no_longer_offers_its_buttons(stack) -> None:
         await session.commit()
 
     agent = ScriptedAgent(
-        NextStepCompleted(
-            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
-        ),
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
         NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
         NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."),
     )
@@ -394,15 +387,14 @@ async def test_the_cut_count_survives_a_reload_too(stack) -> None:
     async with maker() as session:
         mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
         assert mine is not None
-        # Bảy lớp khớp "12", mà danh sách chỉ chở sáu.
+        # Bảy lớp tất cả, mà một danh sách chỉ chở sáu. `list_class` không khớp tên —
+        # nó liệt kê **mọi** lớp rồi `capped` cắt, nên bảy lớp là đủ để `more` khác 0.
         for name in ("12B", "12C", "12D", "12E", "12G", "12H"):
             session.add(SchoolClass(teacher_id=mine.id, name=name))
         await session.commit()
 
     agent = ScriptedAgent(
-        NextStepCompleted(
-            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
-        ),
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
         NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -440,9 +432,7 @@ async def test_a_plain_answer_carries_no_buttons_even_with_candidates_in_hand(st
         await session.commit()
 
     agent = ScriptedAgent(
-        NextStepCompleted(
-            request_id="x", kind="call_tool", tool_name="find_class", tool_args={"name": "12"}
-        ),
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
         NextStepCompleted(request_id="x", kind="say", text="Bạn có hai lớp 12: 12A và 12B."),
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -500,18 +490,26 @@ async def test_a_tool_cannot_reach_another_teachers_class(stack) -> None:
         theirs = await session.scalar(select(SchoolClass).where(SchoolClass.name == "11B"))
         assert theirs is not None
 
-        me = Asking.of(mine)
-        my_own = await execute(session, me, "find_class", {"name": "12A"})
-        by_name = await execute(session, me, "find_class", {"name": "11B"})
-        missing = await execute(session, me, "find_class", {"name": "lớp nào tên này"})
+        ours = await session.scalar(select(SchoolClass).where(SchoolClass.name == "12A"))
+        assert ours is not None
 
-    # Không có khẳng định đầu tiên này, test vẫn xanh với một `find_class` chẳng bao
+        me = Asking.of(mine)
+        my_own = await execute(session, me, "get_class", {"class_id": ours.id})
+        by_id = await execute(session, me, "get_class", {"class_id": theirs.id})
+        missing = await execute(session, me, "get_class", {"class_id": "lop-chua-bao-gio-co"})
+
+        # Danh sách cũng phải im về lớp ấy: `get_class` chặn một id đoán đúng, còn
+        # `list_class` là chỗ một cái tên lọt ra nếu filter `teacher_id` biến mất.
+        listed = await execute(session, me, "list_class", {})
+
+    # Không có khẳng định đầu tiên này, test vẫn xanh với một `get_class` chẳng bao
     # giờ tìm thấy gì: hai lời từ chối bên dưới là cùng một hằng số, nên đem chúng so
     # với nhau chỉ chứng minh được rằng một hằng số bằng chính nó.
     assert my_own["found"] is True
     assert my_own["name"] == "12A"
 
-    assert by_name == missing
+    assert by_id == missing
+    assert "11B" not in [one["name"] for one in listed["candidates"]]
 
 
 @pytest.mark.asyncio
@@ -534,11 +532,12 @@ def _plan(*steps: PlanStep, text: str = "Được, tôi bắt đầu nhé.") -> 
     return NextStepCompleted(request_id="x", kind="plan", text=text, steps=steps)
 
 
+# Ba mục, không bốn: `create_draft` thôi khai số câu. Một đề trống không có số câu nào
+# để khai -- con số ấy chỉ có nghĩa lúc `start_drafting` bắt đầu soạn.
 _BRIEF = {
     "subject": "Toán",
     "grade": "12",
     "topic_scope": "chương Hàm số",
-    "question_count": "3",
 }
 
 
@@ -555,7 +554,7 @@ async def test_a_plan_passes_the_id_from_one_step_into_the_next(stack) -> None:
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -622,23 +621,22 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
     http, maker, monkeypatch = stack
     agent = ScriptedAgent(
         _plan(
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             # Đủ tham số nên plan qua được `vet_plan`, nhưng `question_count` không đọc
             # được thành số: tool từ chối lúc chạy, không ghi gì. Đây là ca "hỏng lúc
             # chạy", khác hẳn ca "plan sai từ đầu" ở test ngay dưới.
             PlanStep(
-                tool_name="create_draft",
-                args={
-                    "subject": "Toán",
-                    "grade": "12",
-                    "topic_scope": "đạo hàm",
-                    "question_count": "rất nhiều",
-                },
-                title="Tạo đề trống",
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}", "question_count": "rất nhiều"},
+                title="Soạn câu hỏi",
             ),
+            # Bước này là toàn bộ phép đo: nó hợp lệ, nên thứ duy nhất giữ nó không chạy
+            # là luật "một bước đỏ thì dừng". Thiếu nó, test xanh với một vòng lặp chạy
+            # tiếp qua mọi lỗi.
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
-                title="Soạn câu hỏi",
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
+                title="Soạn thêm câu",
             ),
         )
     )
@@ -650,18 +648,19 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
 
     assert answer.status_code == 200
     kinds = [turn["kind"] for turn in answer.json()["turns"]]
-    # Đúng MỘT cặp tool_call/tool_result: bước hai không chạy.
-    assert kinds.count("tool_call") == 1
+    # Đúng HAI cặp tool_call/tool_result: bước ba không chạy.
+    assert kinds.count("tool_call") == 2
 
     outcomes = agent.reported[0]["outcomes"]
-    assert len(outcomes) == 1
-    assert outcomes[0]["ok"] is False
+    assert len(outcomes) == 2
+    assert outcomes[0]["ok"] is True
+    assert outcomes[1]["ok"] is False
 
-    # Lời kể nói bằng lời người, không chở chữ viết cho model. `reason` của `create_draft`
-    # là "chưa đủ thông tin để soạn đề; hãy hỏi giáo viên những mục còn thiếu" — một câu
-    # dặn model, và in nó ra là để giáo viên đọc trợ lý nói về mình ở ngôi thứ ba. Tên
-    # field thì càng không: `question_count` trên màn hình là mặt trong của hệ thống.
-    detail = outcomes[0]["detail"]
+    # Lời kể nói bằng lời người, không chở chữ viết cho model. `reason` của
+    # `start_drafting` là "question_count phải là một con số, ví dụ 10" — một câu dặn
+    # model, chở theo đúng cái tên field mà giáo viên không cần thấy: `question_count`
+    # trên màn hình là mặt trong của hệ thống.
+    detail = outcomes[1]["detail"]
     assert detail == "một mục trong yêu cầu chưa dùng được"
     assert "hãy hỏi giáo viên" not in detail
     assert "question_count" not in detail
@@ -677,7 +676,7 @@ async def test_a_plan_naming_a_tool_outside_the_working_catalog_runs_nothing(sta
     agent = ScriptedAgent(
         _plan(
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
-            PlanStep(tool_name="find_class", args={"name": "12A"}, title="Tra lớp"),
+            PlanStep(tool_name="list_class", args={"name": "12A"}, title="Tra lớp"),
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -757,7 +756,7 @@ async def test_the_turn_tells_what_is_happening_while_it_happens(stack) -> None:
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -882,10 +881,12 @@ async def test_the_planning_phase_sees_the_working_tools_without_being_able_to_c
     assert {"create_draft", "start_drafting"} <= plannable
     # Và chiều ngược lại: một tool tra cứu không được nằm trong danh sách "hẹn làm", nếu
     # không model sẽ nhét một bước đọc vào plan và BE phải từ chối nó.
-    assert "find_class" not in plannable
+    assert "list_class" not in plannable
 
     spec = next(one for one in asked["plannable"] if one["name"] == "create_draft")
-    assert set(spec["arguments"]) >= {"subject", "grade", "topic_scope", "question_count"}
+    assert set(spec["arguments"]) >= {"subject", "grade", "topic_scope"}
+    soan = next(one for one in asked["plannable"] if one["name"] == "start_drafting")
+    assert "question_count" in soan["arguments"]
 
 
 @pytest.mark.asyncio
@@ -907,7 +908,7 @@ async def test_a_reference_that_cannot_be_resolved_does_not_leak_field_names(sta
                 tool_name="start_drafting",
                 # Khuôn đúng và trỏ về phía sau, nên `vet_plan` cho qua: field không tồn tại
                 # là thứ chỉ biết được lúc chạy, vì `ToolSpec` không chở tên field trả về.
-                args={"assessment_id": "{1.khong_co_field_nay}"},
+                args={"assessment_id": "{1.khong_co_field_nay}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -989,7 +990,7 @@ async def test_the_stream_sends_each_event_as_it_happens(stack) -> None:
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -1139,7 +1140,7 @@ async def test_the_stream_waits_for_the_questions_and_opens_its_ears_first(stack
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -1202,7 +1203,7 @@ async def test_a_finished_drafting_step_carries_the_real_counts(stack) -> None:
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -1257,7 +1258,7 @@ async def test_the_post_door_adds_no_counts_it_did_not_wait_for(stack) -> None:
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -1392,7 +1393,7 @@ async def test_a_lost_last_bell_still_ends_with_every_question_in(stack) -> None
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )
@@ -1424,7 +1425,7 @@ async def test_a_draft_that_stops_short_says_it_stopped(stack) -> None:
             PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
             PlanStep(
                 tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}"},
+                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
                 title="Soạn câu hỏi",
             ),
         )

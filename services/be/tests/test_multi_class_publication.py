@@ -12,6 +12,13 @@ pin lại hai điều đi theo đó. Mỗi lớp đọc đúng các điều kho�
 `Attempt` ghi lại lớp mà nó được bắt đầu trong đó, vì nếu không, một học sinh chuyển
 lớp sẽ bị thay âm thầm các hạn chót của phần việc em đã làm bằng hạn chót của một
 lớp khác.
+
+**Từ 06/10/2026, hai cái đồng hồ không còn tới từ MỘT lần phát hành.** `PublishRequest`
+nay là một `Schedule` cộng `class_ids`, nên một lần gửi đặt một khung giờ cho mọi lớp
+trong lần đó -- biểu mẫu vốn chỉ có một bộ ô nhập và vẫn luôn gửi như thế. Bảng thì
+không đổi và vẫn chở được hai đồng hồ: muốn thế thì phát hành hai lần. Các test ở đây
+dựng thẳng hàng `Publication`, nên chúng vẫn đo đúng cái chúng vẫn đo -- luật của học
+sinh, không phải hình dạng của một request.
 """
 
 from datetime import UTC, datetime, timedelta

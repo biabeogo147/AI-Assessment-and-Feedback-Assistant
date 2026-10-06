@@ -78,8 +78,10 @@ gõ sai hay dữ liệu đã mất. Danh sách biến lời từ chối thành c
   tuỳ chọn. Và tên phải được chuẩn hoá về **NFC** trước khi so — macOS gửi dạng phân rã, nên "lớp"
   có thể tới dưới dạng `l` + `o` + U+031B + `p` và so khác với chính nó.
 - Chuẩn hoá xoá hết khoảng trắng, nên hai lớp tên `12A` và `12 A` trở thành cùng một chuỗi và sẽ
-  **mơ hồ vĩnh viễn**. Vì thế phải thử **đúng chính tả đã lưu trước**, trước khi chuẩn hoá: đó là
-  cửa duy nhất để chọn được một trong hai mà không phá luật không-đoán.
+  **mơ hồ vĩnh viễn**. Phép thử-đúng-chính-tả-trước từng là cửa duy nhất để chọn được một trong hai
+  mà không phá luật không-đoán; nó sống trong `resolve_class()`, hàm nay không còn ai gọi. Từ
+  06/10/2026 cửa ấy là **giáo viên**: `list_class` trả cả hai lớp kèm sĩ số, và sĩ số là thứ phân
+  biệt chúng. Đổi chỗ chứ không mất.
 - Trần `_MOST_CANDIDATES = 6` không phải "ba lựa chọn" như bong bóng hỏi lại của ADR-05 mô tả. Con
   số ba viết cho một quyết định sư phạm có ba hướng; phân định tên lớp thì số ứng viên do dữ liệu
   quyết định, và cắt xuống ba sẽ giấu mất lớp giáo viên đang cần. Ai đó dựng UI phải biết là có thể
@@ -87,19 +89,34 @@ gõ sai hay dữ liệu đã mất. Danh sách biến lời từ chối thành c
 
 ## Nơi luật này đang được thi hành
 
-- `services/be/src/be/resolve.py` — `resolve_class()` trả `Resolved | Ambiguous | NotFound`, không có
-  nhánh nào chọn một trong nhiều. `_MOST_CANDIDATES = 6` là trần; `order_by(name, id)` là thứ tự ổn
-  định; `normalise()` chuẩn hoá NFC rồi bóc chữ "lớp" — đủ mười bảy biến thể dấu của nguyên âm, kèm
-  dấu phân cách tuỳ chọn. Chưa phủ mọi cách gõ tưởng tượng được, nhưng phủ những cách đã thử.
-- `services/be/src/be/teacher_tools.py` — `_find_class` chuyển ba kết quả đó thành ba hình dạng dữ
-  liệu cho model đọc, gồm `candidates` và `your_classes`.
+- `services/be/src/be/resolve.py` — `classes_with_counts()` lọc theo `teacher_id` (ADR-22) và
+  `order_by(name, id)` cho thứ tự ổn định: các phương án không được tự đổi chỗ giữa hai lần hỏi.
+  `capped()` giữ trần `_MOST_CANDIDATES = 6`. `normalise()` chuẩn hoá NFC rồi bóc chữ "lớp" — đủ
+  mười bảy biến thể dấu của nguyên âm, kèm dấu phân cách tuỳ chọn; nó là bộ lọc `name` của
+  `list_class`.
+
+  **`resolve_class()` cùng `Resolved | Ambiguous | NotFound` không còn caller nào trong `src/`.**
+  Việc gỡ nhập nhằng đã rời khỏi hàm này về phía model (xem dưới), nên ba hình dạng ấy chỉ còn test
+  gọi tới. Giữ hay dọn là việc của một đợt sau; cho tới lúc đó đừng đọc chúng như nơi thi hành.
+- `services/be/src/be/teacher_tools.py` — `_list_class` trả **một** hình dạng: `candidates` kèm
+  `more`. Khoá `candidates` là hợp đồng, không phải một lựa chọn chữ nghĩa — `_choices_from` dựng
+  nút **chỉ** từ nó, nên đổi tên khoá là bỏ các nút đi và câu hỏi lại tụt về một bong bóng chữ.
+  `capped()` giữ trần sáu và nói ra đã bỏ lại bao nhiêu.
+  Trước đợt 06/10/2026, `_find_class` làm hai việc — tra theo tên **và** tự dựng câu hỏi lại — nên
+  nó có bốn hình dạng trả về và model phải đoán lần này nhận hình nào. Việc chọn giữa hai lớp trùng
+  tên nay về đúng chỗ của nó: model đọc danh sách rồi hỏi giáo viên.
 - `services/be/src/be/teacher_chat.py` — `_offered()` dựng danh sách lựa chọn từ `candidates` của
   kết quả tool, kèm sĩ số BE tự đếm; `choices` model trả về bị bỏ qua và chỉ được ghi log. Đây là
   chỗ luật *lựa chọn đến từ dữ liệu* được thi hành, chứ không phải trong prompt.
 - `AGENTS.md` bảng Invariants — hàng *"The options in a clarifying question are written by BE from
   rows it read"*, trỏ tới `test_the_options_are_written_by_be_not_by_the_model`.
-- `services/agent/src/agent/graphs/propose.py` — `_SYSTEM` bảo model dùng `ask_clarify` khi tool trả
-  `ambiguous`, đưa đúng các `candidates`, và không nói lớp nào có vẻ đúng hơn.
+- `services/agent/src/agent/graphs/propose.py` — `_SYSTEM` bảo model dùng `ask_clarify` khi
+  `list_class` trả **nhiều hơn một** `candidates` cho một câu hỏi về một lớp, không viết gì vào
+  `choices`, và không nói lớp nào có vẻ đúng hơn. Đây là nơi thi hành **duy nhất** của ADR-23 trên
+  đường model thật, và nó đã mất một lần: prompt dặn theo cờ `ambiguous`, cờ ấy chết cùng
+  `find_class`, mà mock thì đã sửa — nên test và demo vẫn xanh trong khi đường thật hỏng. Vì thế
+  `test_the_prompt_is_where_adr_23_reaches_the_real_model` đọc thẳng prompt và đỏ khi một cờ đã
+  chết quay lại.
 - `services/be/tests/test_resolve.py` — chín test, mỗi luật ở trên một test. Trong đó
   `test_another_teachers_class_is_answered_as_if_it_did_not_exist` giữ ADR-22, và
   `test_an_exact_name_wins_over_a_longer_one_containing_it` giữ thứ tự thử.

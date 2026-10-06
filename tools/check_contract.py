@@ -741,6 +741,196 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
     return None
 
 
+def _block_after(body: str, marker: str) -> str:
+    """Thân của khối `{...}` đầu tiên sau `marker`, hoặc chuỗi rỗng khi không có."""
+    opened = body.find(marker)
+    if opened == -1:
+        return ""
+    brace = body.find("{", opened)
+    if brace == -1:
+        return ""
+    depth = 0
+    for index in range(brace, len(body)):
+        if body[index] == "{":
+            depth += 1
+        elif body[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return body[brace + 1 : index]
+    return ""
+
+
+def _top_level_keys(table: str) -> list[str]:
+    """Các khoá ở **mức một** của một object literal TypeScript.
+
+    Quét ký tự chứ không neo đầu dòng, và đó là cả điểm của hàm này. Bản trước dùng
+    `re.findall(r"^\\s*(\\w+):", ..., re.MULTILINE)`, nên một khoá thứ năm viết **chung dòng**
+    với khoá thứ tư không được đếm -- đo được: thêm `recalled: () => "..."` ngay sau
+    `published` trên cùng một dòng thì check vẫn xanh với một bảng năm nấc. `dev.ps1 check`
+    không chạy prettier trên TS, nên không có gì bẻ lại dòng ấy.
+    """
+    without = _no_comments(table)
+    keys: list[str] = []
+    depth = 0
+    token: list[str] = []
+    for char in without:
+        if char in "{[(":
+            depth += 1
+            token = []
+        elif char in "}])":
+            depth -= 1
+            token = []
+        elif depth == 0 and char == ":":
+            name = "".join(token).strip().strip("\"'")
+            if name:
+                keys.append(name)
+            token = []
+        elif depth == 0 and char == ",":
+            token = []
+        else:
+            token.append(char)
+    return keys
+
+
+# Số nấc của thẻ: ba trạng thái của đề, cộng một cho việc KHÔNG xảy ra.
+_CARD_STATES = 4
+
+# Những cách dựng giao diện theo tên tool. `===` chỉ là cách viết hiển nhiên nhất; một
+# `switch`, một `==`, một `.includes` hay một phép tra bảng tại chỗ đều dựng lại đúng cái
+# dãy `if` mà luật này bỏ đi. Đo được: đổi phần vẽ sang `switch (turn.tool_name)` thì bản
+# trước của check vẫn xanh.
+# Một phép so bằng, và chỉ một: `create_draft` phân biệt một đề vừa mở còn rỗng.
+_ONE_COMPARISON = (
+    r"tool_name\s*===",
+    r"tool_name\s*==[^=]",
+    r"tool_name\s*!==",
+)
+
+# Những cách rẽ **nhiều** nhánh từ một tên tool. Ngân sách là **không**, vì mỗi cái đều chở
+# được cả bảy nhánh cũ trong một câu lệnh -- đo được: đổi phần vẽ sang `switch
+# (turn.tool_name)` thì một ngân sách "nhiều nhất một phép so" vẫn đếm ra 1 và vẫn xanh.
+_NEVER_DISPATCH = (
+    r"switch\s*\(\s*\w*\.?tool_name",
+    r"\.includes\(\s*\w*\.?tool_name",
+    r"tool_name\s*\.\s*(?:startsWith|endsWith|includes|match)",
+    # Một phép tra bảng tại chỗ, trừ đúng `STATE_OF[...]` -- bảng dịch tool -> nấc là thứ
+    # luật này dựng lên, không phải thứ nó cấm.
+    r"(?<!STATE_OF)\[\s*\w*\.?tool_name\s*\]",
+)
+
+
+def check_the_result_card_has_exactly_three_states() -> str | None:
+    """Thẻ kết quả là một máy trạng thái ba nấc, và số nấc phải đếm được.
+
+    Người dùng chốt ngày 06/10/2026: *"thẻ chỉ xuất hiện một lần trong một đợt xử lí, không được
+    phép xuất hiện hai lần liên tiếp. Trên đó chỉ hiện ba trạng thái: đã tạo đề -> đã duyệt đề ->
+    đã phát hành. Nếu chọn bỏ duyệt đề thì quay lại 'đã tạo đề'."* Cộng một nấc cho việc **không**
+    xảy ra, là bốn.
+
+    Luật này mất một lần rồi, và nó mất theo cách không ai thấy: `ActionCard` dựng giao diện bằng
+    một dãy `if (turn.tool_name === ...)`, nên **thêm một tool là thêm một trạng thái**. Đếm được
+    hôm 06/10/2026: bảy đầu đề cho một thiết kế ba nấc -- `Đã tạo đề "X"`, `Đã tạo đề`,
+    `Đã soạn k/n câu`, `Dừng ở k/n câu`, `Đã thêm N câu vào đề`, `Đã duyệt đề`, `Đã bỏ duyệt đề`,
+    `Đã phát hành cho 12A và 12B`. Không dòng code nào sai; cái sai là không chỗ nào đếm.
+
+    Nên nay các đầu đề sống trong **ba** chỗ phải khớp nhau -- union `CardState`, bảng `HEAD`,
+    bảng `SAFETY` -- và check đếm cả ba rồi so chúng với nhau. Bản đầu chỉ đếm `HEAD`, và một
+    đợt review tìm ra ngay cái khe ấy: thêm một nấc vào `CardState` cộng `SAFETY` mà viết dòng
+    `HEAD` thứ năm **chung dòng** với dòng thứ tư thì check vẫn xanh.
+
+    Nó cũng từ chối mọi cách dựng giao diện theo tên tool trong **vùng vẽ thẻ** -- từ bảng `HEAD`
+    tới hết file -- chứ không chỉ trong thân `ActionCard`. Bản đầu neo vào `export default function
+    ActionCard`, nên một helper có bảy nhánh đặt ngay phía trên component rồi gọi từ JSX là tái tạo
+    đúng cái bệnh cũ ở một chỗ check không nhìn tới. Trên vùng vẽ thì `switch`, `==` và `.includes`
+    cũng bị từ chối, không chỉ `===`.
+
+    Vùng ấy **không** gồm `outcome()` và `modelCardTurn()`: chúng nằm trên `HEAD` và chúng trả lời
+    hai câu khác -- *dòng kết quả của một bước trong khối `Thinking` nói con số gì*, và *lượt nào
+    trong khối được chọn làm thẻ*. Cả hai đều phải biết tool là gì, và không cái nào viết ra một
+    đầu đề.
+
+    Và một chốt nữa: thuộc tính `head` của component phải lấy từ chính bảng `HEAD`. Thiếu nó thì
+    bảng còn đúng bốn dòng trong khi JSX dựng chuỗi theo một đường khác, và check đếm một bảng
+    không ai đọc.
+
+    Ngân sách còn **một** phép so, và nó có tên: `create_draft` phân biệt một đề vừa mở còn rỗng
+    -- cùng nấc `drafted`, thêm một nút mời. Một cái nút không phải một trạng thái.
+
+    Returns:
+        None khi ba bảng còn khớp và đúng bốn nấc, ngược lại là một thông báo thất bại.
+    """
+    card = REPO_ROOT / "services" / "fe" / "src" / "screens" / "teacher" / "ActionCard.tsx"
+    if not card.exists():
+        return _fail("card-has-three-states", f"{card} is missing; the check cannot run")
+
+    body = card.read_text(encoding="utf-8")
+
+    heads = _top_level_keys(_block_after(body, "const HEAD"))
+    safeties = _top_level_keys(_block_after(body, "const SAFETY"))
+    declared = re.search(r"export type CardState\s*=\s*([^;]+);", body)
+    if not heads or not safeties or declared is None:
+        return _fail(
+            "card-has-three-states",
+            "ActionCard.tsx must declare the union `CardState` and the tables `HEAD` and "
+            "`SAFETY`. The card's heads live in tables so their number can be counted; a chain "
+            "of if-branches cannot be.",
+        )
+    states = re.findall(r'"(\w+)"', declared.group(1))
+
+    for name, found in (("CardState", states), ("HEAD", heads), ("SAFETY", safeties)):
+        if len(found) != _CARD_STATES:
+            return _fail(
+                "card-has-three-states",
+                f"ActionCard.tsx {name} has {len(found)} entries ({', '.join(found)}), expected "
+                f"{_CARD_STATES}: three states of a paper (drafted -> approved -> published) plus "
+                "one for the thing that did NOT happen. A fifth is a fourth state on the "
+                "teacher's screen.",
+            )
+    if not set(states) == set(heads) == set(safeties):
+        return _fail(
+            "card-has-three-states",
+            f"ActionCard.tsx CardState {sorted(states)}, HEAD {sorted(heads)} and SAFETY "
+            f"{sorted(safeties)} disagree. All three describe the same ladder, so a state named "
+            "in one and missing from another is a head or a safety line nobody can reach.",
+        )
+
+    drawing = _no_comments(body[body.index("const HEAD") :])
+
+    branching = [one for pattern in _NEVER_DISPATCH for one in re.findall(pattern, drawing)]
+    if branching:
+        return _fail(
+            "card-has-three-states",
+            f"ActionCard branches on tool_name through {branching[0].strip()}. A switch, a lookup "
+            "or an includes() carries all seven old branches inside one statement, so a budget of "
+            "'at most one comparison' does not see it. The card is built from a STATE.",
+        )
+
+    compared = [one for pattern in _ONE_COMPARISON for one in re.findall(pattern, drawing)]
+    if len(compared) > 1:
+        return _fail(
+            "card-has-three-states",
+            f"ActionCard.tsx dispatches on tool_name {len(compared)} times, at most 1 allowed. "
+            "The card must be built from a STATE, not from a tool name -- that is exactly how "
+            "seven heads grew out of a three-state design. The one allowed comparison tells an "
+            "empty new paper from a filled one; it adds a button, not a state.",
+        )
+
+    if not re.search(r"head=\{HEAD\[", drawing) or not re.search(r"SAFETY\[", drawing):
+        return _fail(
+            "card-has-three-states",
+            "ActionCard must read its head from HEAD[state] and its safety line from "
+            "SAFETY[state]. Building either string any other way leaves the tables correct and "
+            "unread, so counting their rows measures nothing.",
+        )
+    return None
+
+
+def _no_comments(source: str) -> str:
+    """Bỏ comment `//` và `/* */` của một file TypeScript, giữ nguyên độ dài dòng."""
+    without_block = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+    return re.sub(r"//.*", "", without_block)
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
@@ -753,6 +943,7 @@ CHECKS = (
     check_the_form_fills_the_slots_the_wording_declares,
     check_every_figure_matches_the_diagram_it_came_from,
     check_the_model_text_passes_through_the_escape_repair,
+    check_the_result_card_has_exactly_three_states,
 )
 
 

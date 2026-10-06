@@ -127,16 +127,28 @@ async def _approved(maker, teacher_code: str = "GV-001") -> str:
         return paper.id
 
 
-def _schedule(class_id: str, *, opens_in_hours: float = 2.0) -> dict:
-    """Sáu tham số của ADR-02 cho một lớp, mặc định hợp lệ."""
+def _window(*, opens_in_hours: float = 2.0) -> dict:
+    """Năm tham số thời gian của ADR-02, mặc định hợp lệ.
+
+    Không còn `class_id`: một lần phát hành có **một** khung giờ cho mọi lớp, và danh
+    sách lớp đi riêng trong `class_ids`.
+    """
     opens = datetime.now(UTC) + timedelta(hours=opens_in_hours)
     return {
-        "class_id": class_id,
         "opens_at": opens.isoformat(),
         "closes_at": (opens + timedelta(hours=1)).isoformat(),
         "phase1_minutes": 15,
         "phase2_minutes_per_question": 5,
         "remediation_deadline": (opens + timedelta(hours=6)).isoformat(),
+    }
+
+
+def _body(*class_ids: str, opens_in_hours: float = 2.0, preview: bool = False) -> dict:
+    """Trọn một yêu cầu phát hành: một khung giờ, một danh sách lớp."""
+    return {
+        "schedule": _window(opens_in_hours=opens_in_hours),
+        "class_ids": list(class_ids),
+        "preview": preview,
     }
 
 
@@ -148,13 +160,18 @@ async def _state(maker, assessment_id: str) -> AssessmentState:
 
 
 @pytest.mark.asyncio
-async def test_one_assessment_reaches_two_classes_with_two_different_clocks(stack) -> None:
-    """Toàn bộ lý do `Publication` có khoá kép.
+async def test_one_assessment_reaches_two_classes_on_one_clock(stack) -> None:
+    """Một lần phát hành, **một** khung giờ, nhiều lớp.
 
-    12A học tiết sáng nên mở buổi sáng, 12B học sau trưa nên mở sau trưa. Phiên bản đầu của
-    bảng khoá theo đề mà thôi, kèm một lập luận rằng hai bộ hạn cùng sống cho một đề là một
-    trạng thái không ai giải thích nổi cho học sinh — lập luận đó trộn *một đề* với *một
-    lớp*, và sai theo một cách có hậu quả thật.
+    Khoá kép của `Publication` vẫn đúng và vẫn cần: mỗi lớp một hàng, nên thu hồi được
+    từng lớp, và `recalled_at` của 12B không đụng tới 12A. Thứ **không** còn là hai cái
+    đồng hồ: từ 06/10/2026 giáo viên gõ một khung giờ cho cả lần phát hành.
+
+    Đây là siết hợp đồng cho khớp thực tế chứ không phải bớt tính năng. Biểu mẫu phát
+    hành chỉ có **một** bộ ô nhập và vẫn luôn gửi cùng một bộ giá trị cho mọi lớp; hợp
+    đồng cũ cho phép diễn tả một thứ không màn hình nào dựng được, và cái giá là thật —
+    màn hình phải in giờ *"của từng lớp"* cho một con số chung, còn câu an toàn trên thẻ
+    hứa một mốc thu hồi mà giáo viên không đọc ra nổi là mốc nào.
     """
     client, maker = stack
     paper = await _approved(maker)
@@ -163,12 +180,7 @@ async def test_one_assessment_reaches_two_classes_with_two_different_clocks(stac
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={
-            "schedules": [
-                _schedule(morning, opens_in_hours=2),
-                _schedule(afternoon, opens_in_hours=8),
-            ]
-        },
+        json=_body(morning, afternoon, opens_in_hours=2),
     )
 
     assert answer.status_code == 200
@@ -181,8 +193,12 @@ async def test_one_assessment_reaches_two_classes_with_two_different_clocks(stac
             await session.scalars(select(Publication).where(Publication.assessment_id == paper))
         )
     assert len(rows) == 2
-    # Hai cái đồng hồ, không phải một: đây là khẳng định mà trước Pha 1 không viết được.
-    assert len({row.opens_at for row in rows}) == 2
+    # **Một** cái đồng hồ, không hai. Thiếu khẳng định này thì một bản cài đặt vẫn đọc
+    # `schedule` riêng cho từng lớp ở đâu đó vẫn xanh, và màn hình lại có cớ in giờ của
+    # từng lớp.
+    assert len({row.opens_at for row in rows}) == 1
+    assert len({row.closes_at for row in rows}) == 1
+    assert len({row.remediation_deadline for row in rows}) == 1
 
 
 @pytest.mark.asyncio
@@ -204,7 +220,7 @@ async def test_an_unapproved_assessment_cannot_be_published_over_http(stack) -> 
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(await _class_id(maker, "12A"))]},
+        json=_body(await _class_id(maker, "12A")),
     )
 
     assert answer.status_code == 409
@@ -218,32 +234,32 @@ async def test_an_unapproved_assessment_cannot_be_published_over_http(stack) -> 
 
 @pytest.mark.asyncio
 async def test_publishing_can_fail_for_one_class_and_succeed_for_another(stack) -> None:
-    """ADR-02 cho phép thất bại một phần, và từ Pha 1 thì điều đó mới biểu diễn được.
+    """ADR-02 cho phép thất bại một phần, và điều đó phải còn biểu diễn được.
 
-    Đường dễ đi là raise ngay ở bộ tham số sai đầu tiên — và nó biến một điều khoản của
-    ADR-02 thành không thể xảy ra. Lớp sai giờ nhận lý do của riêng nó; lớp còn lại vẫn
-    nhận được đề.
+    Đường dễ đi là raise ngay ở lớp sai đầu tiên — và nó biến một điều khoản của ADR-02
+    thành không thể xảy ra. Lớp hỏng nhận lý do của riêng nó; lớp còn lại vẫn nhận đề.
+
+    **Cái cớ để một lớp hỏng đã đổi, và luật thì không.** Trước 06/10/2026 mỗi lớp có
+    khung giờ riêng, nên lớp này sai giờ còn lớp kia đúng giờ. Nay khung giờ là một, nên
+    một khung giờ sai làm **mọi** lớp trượt — và đó đúng là câu trả lời đúng. Thất bại
+    một phần vẫn còn, chỉ là vì những lý do thuộc về **lớp** chứ không thuộc về giờ: một
+    lớp của giáo viên khác (ADR-22), một lớp đã qua giờ mở, một lớp đang có người làm bài.
     """
     client, maker = stack
     paper = await _approved(maker)
-    morning, afternoon = await _class_id(maker, "12A"), await _class_id(maker, "12B")
+    morning = await _class_id(maker, "12A")
 
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={
-            "schedules": [
-                _schedule(morning),
-                _schedule(afternoon, opens_in_hours=-1),
-            ]
-        },
+        json=_body(morning, "lop-cua-nguoi-khac"),
     )
 
     assert answer.status_code == 200
     first, second = answer.json()["classes"]
     assert first["published"] is True
     assert second["published"] is False
-    assert second["reason"] == "giờ mở phải ở tương lai"
+    assert second["reason"] == "không tìm thấy lớp"
     # Và đề vẫn sang `đã phát hành`, vì **có** lớp nhận được.
     assert await _state(maker, paper) is AssessmentState.PUBLISHED
     async with maker() as session:
@@ -268,7 +284,7 @@ async def test_an_assessment_stays_approved_when_no_class_accepted_it(stack) -> 
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(await _class_id(maker, "12A"), opens_in_hours=-1)]},
+        json=_body(await _class_id(maker, "12A"), opens_in_hours=-1),
     )
 
     assert answer.status_code == 200
@@ -287,12 +303,12 @@ async def test_a_preview_computes_everything_and_writes_nothing(stack) -> None:
     client, maker = stack
     paper = await _approved(maker)
     morning = await _class_id(maker, "12A")
-    schedule = _schedule(morning)
+    body = _body(morning)
 
     preview = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [schedule], "preview": True},
+        json={**body, "preview": True},
     )
 
     assert preview.status_code == 200
@@ -305,7 +321,7 @@ async def test_a_preview_computes_everything_and_writes_nothing(stack) -> None:
     # ấy được gán từ cùng một biểu thức nên chúng không thể lệch, và một `assert` như thế
     # không canh gì.
     assert shown["classes"][0]["withdrawable_until"] == datetime.fromisoformat(
-        schedule["opens_at"]
+        body["schedule"]["opens_at"]
     ).astimezone(UTC).isoformat().replace("+00:00", "Z")
     # Không ghi gì, và đề không đổi state.
     assert shown["state"] == AssessmentState.APPROVED
@@ -320,7 +336,7 @@ async def test_a_preview_computes_everything_and_writes_nothing(stack) -> None:
     real = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [schedule]},
+        json=body,
     )
     assert real.status_code == 200
     promised = shown["classes"][0]
@@ -343,18 +359,18 @@ async def test_the_timing_rules_read_identically_in_every_payload(stack) -> None
     """
     client, maker = stack
     paper = await _approved(maker)
-    schedule = _schedule(await _class_id(maker, "12A"))
+    body = _body(await _class_id(maker, "12A"))
 
     form = await client.get(f"/api/teacher/assessments/{paper}/publish-form", headers=TEACHER)
     confirm = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [schedule], "preview": True},
+        json={**body, "preview": True},
     )
     record = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [schedule]},
+        json=body,
     )
 
     for answer in (form, confirm, record):
@@ -429,12 +445,15 @@ async def test_the_form_offers_no_default_times_and_says_which_classes_hold_it(s
         "reason",
         "classes",
         "rules",
+        "undo_blocked",
     }
+    # Chưa lớp nào mở thì còn lùi được, nên câu chặn rỗng.
+    assert before["undo_blocked"] == ""
 
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
 
     after = (
@@ -457,15 +476,15 @@ async def test_a_bad_schedule_is_named_rule_by_rule(stack) -> None:
     paper = await _approved(maker)
     morning = await _class_id(maker, "12A")
 
-    past = _schedule(morning, opens_in_hours=-1)
-    backwards = _schedule(morning)
+    past = _window(opens_in_hours=-1)
+    backwards = _window()
     backwards["closes_at"] = backwards["opens_at"]
-    short_phase_two = _schedule(morning)
+    short_phase_two = _window()
     short_phase_two["remediation_deadline"] = short_phase_two["closes_at"]
     # Ca thứ tư, và là ca mà bản đầu **nhận**: hạn pha 2 sau giờ đóng nhưng **trước** giờ
     # nộp cuối của pha 1. Hai câu luật trong cùng một payload lúc đó tự phủ định nhau —
     # pha 2 đóng trước khi người vào muộn nhất kịp nộp.
-    before_last_submission = _schedule(morning)
+    before_last_submission = _window()
     closes = datetime.fromisoformat(before_last_submission["closes_at"])
     before_last_submission["phase1_minutes"] = 60
     before_last_submission["remediation_deadline"] = (closes + timedelta(minutes=1)).isoformat()
@@ -475,7 +494,7 @@ async def test_a_bad_schedule_is_named_rule_by_rule(stack) -> None:
         answer = await client.post(
             f"/api/teacher/assessments/{paper}/publications",
             headers=TEACHER,
-            json={"schedules": [schedule], "preview": True},
+            json={"schedule": schedule, "class_ids": [morning], "preview": True},
         )
         assert answer.status_code == 200
         reasons.append(answer.json()["classes"][0]["reason"])
@@ -508,7 +527,7 @@ async def test_another_teachers_class_cannot_receive_my_assessment(stack) -> Non
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(theirs_id)]},
+        json=_body(theirs_id),
     )
 
     assert answer.status_code == 200
@@ -534,7 +553,7 @@ async def test_withdrawing_before_the_opening_hour_is_allowed(stack) -> None:
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
 
     answer = await client.post(
@@ -569,7 +588,7 @@ async def test_withdrawing_after_the_opening_hour_is_refused(stack) -> None:
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     # Lùi giờ mở về quá khứ: học sinh đã vào được.
     async with maker() as session:
@@ -604,9 +623,7 @@ async def test_withdrawing_one_of_two_classes_keeps_the_assessment_published(sta
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={
-            "schedules": [_schedule(morning), _schedule(afternoon, opens_in_hours=8)],
-        },
+        json=_body(morning, afternoon),
     )
 
     first = await client.post(
@@ -639,7 +656,7 @@ async def test_withdrawing_a_class_that_never_held_it_reads_as_absent(stack) -> 
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     await client.post(
         f"/api/teacher/assessments/{paper}/publications/{morning}/withdraw", headers=TEACHER
@@ -670,7 +687,7 @@ async def test_republishing_to_the_same_class_replaces_its_schedule(stack) -> No
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning, opens_in_hours=2)]},
+        json=_body(morning, opens_in_hours=2),
     )
     await client.post(
         f"/api/teacher/assessments/{paper}/publications/{morning}/withdraw", headers=TEACHER
@@ -679,7 +696,7 @@ async def test_republishing_to_the_same_class_replaces_its_schedule(stack) -> No
     again = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning, opens_in_hours=9)]},
+        json=_body(morning, opens_in_hours=9),
     )
 
     assert again.status_code == 200
@@ -708,7 +725,7 @@ async def test_publishing_leaves_the_class_names_in_the_transcript(stack) -> Non
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning), _schedule(afternoon, opens_in_hours=8)]},
+        json=_body(morning, afternoon, opens_in_hours=8),
     )
 
     async with maker() as session:
@@ -735,7 +752,7 @@ async def test_a_student_cannot_start_an_attempt_on_a_recalled_publication(stack
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     await client.post(
         f"/api/teacher/assessments/{paper}/publications/{morning}/withdraw", headers=TEACHER
@@ -765,24 +782,26 @@ async def test_the_filled_in_notes_match_the_sentence_adr_03_pinned_on_figma(sta
     paper = await _approved(maker)
     morning = await _class_id(maker, "12A")
     opens = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=3)
-    schedule = {
-        "class_id": morning,
-        "opens_at": opens.isoformat(),
-        "closes_at": (opens + timedelta(hours=2)).isoformat(),
-        "phase1_minutes": 15,
-        "phase2_minutes_per_question": 5,
-        "remediation_deadline": (opens + timedelta(hours=8)).isoformat(),
+    body = {
+        "schedule": {
+            "opens_at": opens.isoformat(),
+            "closes_at": (opens + timedelta(hours=2)).isoformat(),
+            "phase1_minutes": 15,
+            "phase2_minutes_per_question": 5,
+            "remediation_deadline": (opens + timedelta(hours=8)).isoformat(),
+        },
+        "class_ids": [morning],
     }
 
     confirm = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [schedule], "preview": True},
+        json={**body, "preview": True},
     )
     record = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [schedule]},
+        json=body,
     )
 
     closes = opens + timedelta(hours=2)
@@ -838,16 +857,14 @@ async def test_a_schedule_sent_with_a_local_offset_is_stored_as_utc(stack) -> No
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
         json={
-            "schedules": [
-                {
-                    "class_id": morning,
-                    "opens_at": opens.isoformat(),
-                    "closes_at": (opens + timedelta(hours=1)).isoformat(),
-                    "phase1_minutes": 15,
-                    "phase2_minutes_per_question": 5,
-                    "remediation_deadline": (opens + timedelta(hours=6)).isoformat(),
-                }
-            ]
+            "class_ids": [morning],
+            "schedule": {
+                "opens_at": opens.isoformat(),
+                "closes_at": (opens + timedelta(hours=1)).isoformat(),
+                "phase1_minutes": 15,
+                "phase2_minutes_per_question": 5,
+                "remediation_deadline": (opens + timedelta(hours=6)).isoformat(),
+            },
         },
     )
 
@@ -877,16 +894,14 @@ async def test_a_naive_schedule_is_refused_instead_of_guessed(stack) -> None:
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
         json={
-            "schedules": [
-                {
-                    "class_id": morning,
-                    "opens_at": naive.isoformat(),
-                    "closes_at": (naive + timedelta(hours=1)).isoformat(),
-                    "phase1_minutes": 15,
-                    "phase2_minutes_per_question": 5,
-                    "remediation_deadline": (naive + timedelta(hours=6)).isoformat(),
-                }
-            ]
+            "class_ids": [morning],
+            "schedule": {
+                "opens_at": naive.isoformat(),
+                "closes_at": (naive + timedelta(hours=1)).isoformat(),
+                "phase1_minutes": 15,
+                "phase2_minutes_per_question": 5,
+                "remediation_deadline": (naive + timedelta(hours=6)).isoformat(),
+            },
         },
     )
 
@@ -913,12 +928,7 @@ async def test_the_same_class_twice_in_one_request_is_refused(stack) -> None:
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={
-            "schedules": [
-                _schedule(morning, opens_in_hours=2),
-                _schedule(morning, opens_in_hours=9),
-            ]
-        },
+        json=_body(morning, morning, opens_in_hours=2),
     )
 
     assert answer.status_code == 422
@@ -945,14 +955,14 @@ async def test_a_class_can_be_added_after_the_assessment_is_already_published(st
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     assert await _state(maker, paper) is AssessmentState.PUBLISHED
 
     later = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(afternoon, opens_in_hours=9)]},
+        json=_body(afternoon, opens_in_hours=9),
     )
 
     assert later.status_code == 200
@@ -983,7 +993,7 @@ async def test_a_class_past_its_opening_hour_cannot_have_its_schedule_rewritten(
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     async with maker() as session:
         row = await session.get(Publication, (paper, morning))
@@ -995,12 +1005,7 @@ async def test_a_class_past_its_opening_hour_cannot_have_its_schedule_rewritten(
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={
-            "schedules": [
-                _schedule(morning, opens_in_hours=20),
-                _schedule(afternoon, opens_in_hours=9),
-            ]
-        },
+        json=_body(morning, afternoon, opens_in_hours=20),
     )
 
     assert answer.status_code == 200
@@ -1029,7 +1034,7 @@ async def test_a_class_with_a_started_attempt_cannot_have_its_schedule_rewritten
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     async with maker() as session:
         student = await session.scalar(select(Student).where(Student.class_id == morning))
@@ -1049,7 +1054,7 @@ async def test_a_class_with_a_started_attempt_cannot_have_its_schedule_rewritten
     answer = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning, opens_in_hours=20)]},
+        json=_body(morning, opens_in_hours=20),
     )
 
     assert answer.status_code == 200
@@ -1083,16 +1088,14 @@ async def test_the_note_is_written_in_the_timezone_the_teacher_typed(stack) -> N
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
         json={
-            "schedules": [
-                {
-                    "class_id": morning,
-                    "opens_at": opens.isoformat(),
-                    "closes_at": (opens + timedelta(minutes=45)).isoformat(),
-                    "phase1_minutes": 15,
-                    "phase2_minutes_per_question": 5,
-                    "remediation_deadline": opens.replace(hour=22).isoformat(),
-                }
-            ],
+            "class_ids": [morning],
+            "schedule": {
+                "opens_at": opens.isoformat(),
+                "closes_at": (opens + timedelta(minutes=45)).isoformat(),
+                "phase1_minutes": 15,
+                "phase2_minutes_per_question": 5,
+                "remediation_deadline": opens.replace(hour=22).isoformat(),
+            },
             "preview": True,
         },
     )
@@ -1127,7 +1130,7 @@ async def test_the_preview_refuses_exactly_where_the_real_publish_refuses(stack)
     await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": [_schedule(morning)]},
+        json=_body(morning),
     )
     async with maker() as session:
         row = await session.get(Publication, (paper, morning))
@@ -1135,14 +1138,14 @@ async def test_the_preview_refuses_exactly_where_the_real_publish_refuses(stack)
         row.opens_at = datetime.now(UTC) - timedelta(minutes=5)
         await session.commit()
 
-    asked = {"schedules": [_schedule(morning, opens_in_hours=20)], "preview": True}
+    asked = _body(morning, opens_in_hours=20, preview=True)
     shown = await client.post(
         f"/api/teacher/assessments/{paper}/publications", headers=TEACHER, json=asked
     )
     done = await client.post(
         f"/api/teacher/assessments/{paper}/publications",
         headers=TEACHER,
-        json={"schedules": asked["schedules"]},
+        json={**asked, "preview": False},
     )
 
     assert shown.status_code == 200
@@ -1209,3 +1212,47 @@ async def test_bieu_mau_cho_ba_loi_tu_choi_dung_day(stack) -> None:
         )
         == 3
     )
+
+
+@pytest.mark.asyncio
+async def test_the_form_says_the_undo_is_shut_before_the_teacher_presses_it(stack) -> None:
+    """Biểu mẫu nói trước cú bấm, cùng khuôn với cách nó chặn một cửa sổ thời gian vô lý.
+
+    Một nút bấm được rồi mới nhận 409 là một nút hứa một việc hệ thống **đã biết** là không
+    làm được. Và đường ấy từng tệ hơn thế: `Panel` nuốt mất câu 409, nên cú bấm không làm gì
+    và không nói gì — đo được trên trình duyệt thật ngày 06/10/2026.
+
+    Khẳng định đáng giá nhất ở đây là cái cuối: câu của biểu mẫu và câu của lời từ chối phải
+    **giống hệt nhau**, vì chúng là cùng một hàm. Hai bản cài đặt của một luật là hai luật, và
+    cái lệch đầu tiên sẽ là một nút bấm được cho một việc không làm được.
+    """
+    client, maker = stack
+    paper = await _approved(maker)
+    morning = await _class_id(maker, "12A")
+
+    await client.post(
+        f"/api/teacher/assessments/{paper}/publications",
+        headers=TEACHER,
+        json=_body(morning),
+    )
+
+    # Trước giờ mở: còn lùi được, biểu mẫu im lặng.
+    form = await client.get(f"/api/teacher/assessments/{paper}/publish-form", headers=TEACHER)
+    assert form.json()["undo_blocked"] == ""
+
+    # Đẩy giờ mở về quá khứ: học sinh đã có thể vào làm.
+    async with maker() as session:
+        row = await session.get(Publication, (paper, morning))
+        assert row is not None
+        row.opens_at = datetime.now(UTC) - timedelta(minutes=5)
+        await session.commit()
+
+    shut = await client.get(f"/api/teacher/assessments/{paper}/publish-form", headers=TEACHER)
+    said = shut.json()["undo_blocked"]
+    # Gọi tên lớp: "một lớp nào đó đã qua giờ mở" là lời từ chối không hành động theo được.
+    assert "12A" in said
+    assert RECALL_RULE in said
+
+    refused = await client.post(f"/api/teacher/assessments/{paper}/unapprove", headers=TEACHER)
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == said
