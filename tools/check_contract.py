@@ -925,6 +925,300 @@ def check_the_result_card_has_exactly_three_states() -> str | None:
     return None
 
 
+def check_rail_icons_do_not_sit_on_the_text_baseline() -> str | None:
+    """Trong rail, một `<svg>` không được đứng trên baseline của chữ.
+
+    Mặc định của một `<svg>` là `display: inline` cộng `vertical-align: baseline`, tức nó
+    ngồi trên đường baseline của phần tử bọc nó thay vì lấp cái hộp đã định cỡ sẵn. Hộp thì
+    căn giữa đúng, hình bên trong thì không -- và chênh lệch nhỏ tới mức không ai gọi tên
+    được, chỉ thấy "nhìn hơi lệch".
+
+    Đo được ngày 06/10/2026 trên `Rail destination`: hộp `.icon` ở y 122->134 (tâm 128), svg
+    bên trong ở y 124->136 (tâm 130), chữ title tâm 128,05 -- icon thấp hơn title đúng
+    **2px**. Trên Figma hai tâm trùng khít ở 3093, vì ở đó icon là một frame 12x12 và không
+    có baseline nào. Figma đúng, FE lệch.
+
+    **Vì sao là một check chứ không phải một test.** jsdom không dựng bố cục: nó trả 0 cho
+    mọi `getBoundingClientRect`, nên không một test FE nào đo được 2px này. Đó chính là lý
+    do lỗi sống sót qua từng ấy đợt review. Thứ kiểm được rẻ là *luật CSS có mặt hay không*,
+    và luật ấy phải đặt ở **mức rail** -- `.rail svg` -- chứ không ở từng icon: `.caret` và
+    icon tải lên đang đúng chỉ vì mỗi cái có một dòng riêng, nên icon thứ ba thêm vào mai
+    này sẽ lệch y như hôm nay. Một luật chữa cả lớp lỗi; ba luật chữa ba chỗ rồi quên chỗ
+    thứ tư.
+
+    Returns:
+        None khi `teacher.css` còn luật ấy, ngược lại là một thông báo thất bại.
+    """
+    sheet = REPO_ROOT / "services" / "fe" / "src" / "teacher.css"
+    if not sheet.exists():
+        return _fail("rail-icons-off-the-baseline", f"{sheet} is missing; the check cannot run")
+
+    body = sheet.read_text(encoding="utf-8")
+    block = re.search(r"\.rail\s+svg\s*\{([^}]*)\}", body)
+    if block is None:
+        return _fail(
+            "rail-icons-off-the-baseline",
+            "teacher.css must carry a `.rail svg` rule. Without it every icon in the rail "
+            "sits on the text baseline instead of filling its sized box, which put the "
+            "destination icons 2px below their titles -- measured in a real browser on "
+            "06/10/2026, and invisible to jsdom, which lays nothing out.",
+        )
+
+    declared = block.group(1)
+    # `in` trên hai chuỗi rời thì `display: inline-block` thoả **cả hai**, mà `inline-block`
+    # vẫn ngồi trên baseline -- đúng cái bug check này sinh ra để chặn.
+    if re.search(r"display\s*:\s*block\s*;", declared) is None:
+        return _fail(
+            "rail-icons-off-the-baseline",
+            "`.rail svg` must set `display: block` exactly -- `inline-block` still sits on "
+            "the text baseline. That is the one declaration that takes the icon off the "
+            "baseline; sizing it alone leaves the offset in place.",
+        )
+
+    # Và phần bù BASELINE, thêm 06/10/2026 sau hai lượt người dùng vẫn thấy lệch.
+    #
+    # `display: block` ở trên chữa phần hình học, và sau nó ba phép đo tâm đều nói icon đã
+    # cân: tâm icon, tâm hộp dòng và tâm thân chữ hoa đều 128, lệch 0,00. Mắt vẫn thấy xệ,
+    # và đường gây ra là một đường khác: icon cao **12** còn thân chữ hoa chỉ cao **10**,
+    # nên một icon căn giữa hộp dòng **thò xuống dưới baseline đúng 1px**. Baseline là
+    # đường mạnh nhất trong một hàng chữ; cái gì chúi xuống dưới nó đọc ra là xệ.
+    #
+    # Lượt đầu tôi nâng theo *trọng tâm mực* và chỉ nâng hai icon. Mô hình ấy sai: nó nói
+    # tập giấy và lưới ô đã cân, mà chính hai cái đó là hai cái người dùng chỉ ra lần thứ
+    # hai. Luật đúng không phụ thuộc hình dạng, nên nó nằm ở mức rail chứ không ở chỗ gọi.
+    #
+    # Bất biến mà luật này dựa vào -- mực mỗi icon chạm đáy khung 12 -- do `teacher.test.tsx`
+    # giữ, vì nó đọc được bằng toạ độ `viewBox` mà không cần bố cục.
+    # `findall` chứ không `search`: selector này có **hai** khối -- một khối định cỡ hộp
+    # 12x12 và một khối mang phần bù. `search` dừng ở khối đầu và báo thiếu một luật đang
+    # có thật.
+    blocks = re.findall(r"\.rail\s+\.destination\s+\.icon\s*\{([^}]*)\}", body)
+    # Đòi đúng một phép tịnh tiến **lên**: `transform: none`, `translateY(0)` hay
+    # `scale(1)` đều mang chuỗi `transform` mà không bù một pixel nào.
+    nudged = any(
+        re.search(r"transform\s*:\s*translateY\(\s*-\s*[0-9.]+px\s*\)", one) for one in blocks
+    )
+    if not nudged:
+        return _fail(
+            "rail-icons-off-the-baseline",
+            "`.rail .destination .icon` must carry the 1px baseline nudge "
+            "(`transform: translateY(-1px)`). Centring is not enough: the icon box is 12 "
+            "tall and the cap band only 10, so a centred icon hangs 1px BELOW the text "
+            "baseline -- measured 06/10/2026, and reported as 'icons look low' twice. "
+            "jsdom lays nothing out, so no test can measure this.",
+        )
+    return None
+
+
+def check_collapsed_panes_shrink_to_their_own_head() -> str | None:
+    """Một ngăn rail đã thu, và tấm trượt phát hành đã thu, phải co về thanh đầu của nó.
+
+    Hai nấc thu dựng ngày 06/10/2026 đều là **một class cộng một luật CSS**, và jsdom chỉ
+    thấy được nửa đầu: test FE đo được rằng `.pane.thu` có mặt và vùng cuộn đã rời khỏi cây,
+    nhưng không đo được rằng cái ngăn ấy **co lại**. Mà đúng chỗ đó có hai cái bẫy.
+
+    `.rail .pane.history` là `flex: 1`. Thu nó mà không nói gì thì nó vẫn chiếm hết chỗ còn
+    lại, và thanh đầu của nó trôi lên giữa một khoảng trắng cao 300px -- một ngăn "đã thu"
+    chiếm đúng bằng lúc chưa thu. Nên `.rail .pane.thu` phải đặt lại `flex`.
+
+    Và `.rail .pane` có `gap: 8px` giữa thanh đầu và vùng cuộn. Vùng cuộn đi rồi thì khoảng
+    cách ấy thành 8px đệm chân không ai đặt, nên con số đo được là 35 chứ không phải **27**
+    của Figma (`521:1767`). Nên luật ấy phải đặt lại `gap` nữa.
+
+    Tấm trượt phát hành cùng một chuyện: `.teacher .publish-settings` có `padding: 20px`,
+    còn variant `Trạng thái=thu` (`517:17`) đo 420x52 ở density Teacher, với padding 16/20.
+    Thiếu luật thu thì thanh đầu cao 59,5 thay vì 51,5 đo được trên trình duyệt.
+
+    Returns:
+        None khi `teacher.css` còn cả hai luật, ngược lại là một thông báo thất bại.
+    """
+    sheet = REPO_ROOT / "services" / "fe" / "src" / "teacher.css"
+    if not sheet.exists():
+        return _fail("collapsed-panes-shrink", f"{sheet} is missing; the check cannot run")
+
+    body = sheet.read_text(encoding="utf-8")
+
+    pane = re.search(r"\.rail\s+\.pane\.thu\s*\{([^}]*)\}", body)
+    if pane is None:
+        return _fail(
+            "collapsed-panes-shrink",
+            "teacher.css must carry a `.rail .pane.thu` rule. `.pane.history` is `flex: 1`, "
+            "so a collapsed pane keeps every pixel it had and its head floats in the middle "
+            "of the empty space it still owns.",
+        )
+    declared = pane.group(1)
+    for what, why in (
+        (
+            "flex",
+            "`.pane.history` is `flex: 1`, so without `flex: none` a collapsed pane "
+            "still fills the rail",
+        ),
+        (
+            "gap",
+            "`.rail .pane` has `gap: 8px` between the head and the scroller; with the "
+            "scroller gone that gap becomes 8px of footer nobody asked for, and the "
+            "pane measures 35 instead of the 27 Figma approved (`521:1767`)",
+        ),
+    ):
+        if what not in declared:
+            return _fail("collapsed-panes-shrink", f"`.rail .pane.thu` must set `{what}`: {why}.")
+
+    if re.search(r"\.pane\.history\.thu\s*~\s*\.pane\.documents", body) is None:
+        return _fail(
+            "collapsed-panes-shrink",
+            "teacher.css must give the still-open pane the leftover room in BOTH "
+            "directions: `.rail .pane.history.thu ~ .pane.documents:not(.thu)` must set "
+            "`flex: 1`. Collapsing the history pane otherwise leaves the documents pane "
+            "pinned at 225 with ~368px of dead space under it -- measured in a real "
+            "browser on 06/10/2026. The other direction is correct for free, because "
+            "`.pane.history` is already `flex: 1`, so the bug shows up in one direction "
+            "only and Figma drew the other one.",
+        )
+
+    if re.search(r"\.publish-settings\.thu\s*\{([^}]*)\}", body) is None:
+        return _fail(
+            "collapsed-panes-shrink",
+            "teacher.css must carry a `.publish-settings.thu` rule carrying the padding of "
+            "the approved `Trang thai=thu` variant (`517:17`, 420x52 at Teacher density, "
+            "padding 16/20). Without it the collapsed sheet keeps `padding: 20px` and stands "
+            "59,5 tall instead of the 51,5 measured in a real browser.",
+        )
+    return None
+
+
+def check_a_locked_control_looks_locked() -> str | None:
+    """Ô nhập và chip đã khoá phải **nhìn thấy được** là đã khoá.
+
+    Từ 06/10/2026 biểu mẫu phát hành khoá năm ô và các chip lớp khi mọi lớp đã giữ đề, và
+    khoá chip của riêng lớp đang giữ khi còn lớp khác chưa nhận. `disabled` là một sự thật
+    của DOM -- bàn phím bỏ qua, trình đọc màn hình đọc ra -- nhưng **mắt thì không thấy gì
+    cả**: một ô trông gõ được mà gõ không được là một ô nói dối, và nó nói dối đúng vào lúc
+    giáo viên đang tìm cách sửa giờ của một đề đã tới tay học sinh.
+
+    jsdom không dựng bố cục và không tính style, nên không test FE nào đo nổi "mờ đi".
+    Test chỉ khẳng định được `disabled === true`. Đây là cùng một khoảng mù đã sinh ra
+    check 13 và 14.
+
+    Luật tương ứng trên Figma: variant `Trạng thái=đã phát hành — khoá` của `Publish
+    settings` (`67:41`), 420x660 ở density Teacher, mọi ô và chip trỏ `surface/sunken` +
+    `ink/faint`.
+
+    Returns:
+        None khi `teacher.css` còn luật `:disabled`, ngược lại là một thông báo thất bại.
+    """
+    sheet = REPO_ROOT / "services" / "fe" / "src" / "teacher.css"
+    if not sheet.exists():
+        return _fail("locked-looks-locked", f"{sheet} is missing; the check cannot run")
+
+    body = sheet.read_text(encoding="utf-8")
+
+    rule = re.search(
+        r"\.publish-settings[^{]*:disabled[^{]*\{([^}]*)\}",
+        body,
+    )
+    if rule is None:
+        return _fail(
+            "locked-looks-locked",
+            "teacher.css must style the publish form's locked controls, e.g. "
+            "`.teacher .publish-settings input:disabled, .teacher .publish-settings "
+            "`.class-chip:disabled`. Without it a locked input is indistinguishable from a "
+            "live one, and the teacher types into a field that silently refuses them.",
+        )
+
+    declared = rule.group(1)
+    # Đòi đúng hai biến, không chỉ đòi hai tên thuộc tính: `background: transparent;
+    # color: inherit` thoả phép kiểm cũ mà không có gì mờ đi.
+    for what, token, why in (
+        (
+            "background",
+            "--sunken",
+            "the locked field must sink into the surface the way the approved variant does",
+        ),
+        (
+            "color",
+            "--ink-faint",
+            "the text of a locked field must go faint, otherwise it reads as editable",
+        ),
+    ):
+        if re.search(rf"{what}\s*:[^;]*var\(\s*{token}\s*\)", declared) is None:
+            return _fail(
+                "locked-looks-locked",
+                f"the `:disabled` rule of the publish form must set `{what}` to "
+                f"`var({token})`: {why}. Naming the property without the token lets "
+                "`transparent`/`inherit` pass while nothing actually dims.",
+            )
+
+    # Và chip lớp phải nằm trong cùng luật ấy: chip là tham số THỨ NHẤT của ADR-02, nên
+    # một chip khoá mà trông bấm được là chỗ tệ nhất để nói dối.
+    # Trong phạm vi `.publish-settings`, không phải ở bất kỳ đâu trong file: một khối rỗng
+    # `.class-chip:disabled {}` ở cuối `teacher.css` cũng qua được phép kiểm cũ.
+    if re.search(r"\.publish-settings\s+\.class-chip:disabled", body) is None:
+        return _fail(
+            "locked-looks-locked",
+            "the locked treatment must cover `.class-chip:disabled` too. The class is the "
+            "FIRST parameter of ADR-02 -- a chip that looks clickable but is not is the "
+            "worst place in this form to lie.",
+        )
+    return None
+
+
+def check_no_document_repeats_itself() -> str | None:
+    """Không tài liệu `docs/` nào được lặp lại chính nó.
+
+    Ngày 06/10/2026 một script sửa tài liệu cắt lát bằng hai `str.index()` mà **không** kiểm
+    số lần xuất hiện. Một trong hai mốc có mặt ở hai chỗ, `index` trả về cái đầu tiên, lát
+    cắt thành **rỗng** -- và `str.replace("", block)` chèn `block` vào giữa **mọi ký tự** của
+    file. `docs/kich-ban-thu-tay-giao-vien.md` thành **81 MB / 889.029 dòng**, với một khối
+    1.729 ký tự lặp 37.013 lần.
+
+    Cả `check`, `pytest`, `vitest` lẫn `typecheck` đều xanh suốt. Không cổng nào nhìn vào
+    `docs/`, nên cách duy nhất phát hiện là có người mở file ra đọc. Đó là một lớp lỗi, không
+    phải một lần sơ ý: mọi script sửa tài liệu trong repo này đều dùng `str.replace`, và một
+    `old` rỗng luôn cho ra cùng một thảm hoạ.
+
+    Phép kiểm rẻ nhất bắt được đúng hình dạng ấy: chia file thành các khối 400 ký tự và đếm
+    khối trùng. Một tài liệu viết tay có lặp -- mẫu câu, bảng, khối code -- nhưng không tài
+    liệu nào lặp **quá nửa** số khối của nó.
+
+    Kèm một trần kích thước, vì một file vài chục MB thì ngay cả phép đếm trên cũng đã chậm.
+
+    Returns:
+        None khi mọi tài liệu còn lành, ngược lại là một thông báo thất bại.
+    """
+    docs = REPO_ROOT / "docs"
+    if not docs.is_dir():
+        return _fail("documents-do-not-repeat", f"{docs} is missing; the check cannot run")
+
+    CEILING = 400_000
+    WINDOW = 400
+
+    for path in sorted(docs.rglob("*.md")):
+        size = path.stat().st_size
+        where = path.relative_to(REPO_ROOT).as_posix()
+        if size > CEILING:
+            return _fail(
+                "documents-do-not-repeat",
+                f"{where} is {size:,} bytes, over the {CEILING:,} ceiling. No hand-written "
+                "document in this repo is that long; a size like this means a script wrote "
+                "it in a loop.",
+            )
+
+        body = path.read_text(encoding="utf-8")
+        blocks = [body[at : at + WINDOW] for at in range(0, len(body), WINDOW)]
+        if len(blocks) < 8:
+            continue
+        unique = len(set(blocks))
+        if unique * 2 < len(blocks):
+            return _fail(
+                "documents-do-not-repeat",
+                f"{where} has only {unique} distinct {WINDOW}-character blocks out of "
+                f"{len(blocks)}: more than half of the file is a copy of itself. That is "
+                'the shape a `str.replace("", block)` leaves behind when a slice meant to '
+                "select the old text came out empty.",
+            )
+    return None
+
+
 def _no_comments(source: str) -> str:
     """Bỏ comment `//` và `/* */` của một file TypeScript, giữ nguyên độ dài dòng."""
     without_block = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
@@ -944,6 +1238,10 @@ CHECKS = (
     check_every_figure_matches_the_diagram_it_came_from,
     check_the_model_text_passes_through_the_escape_repair,
     check_the_result_card_has_exactly_three_states,
+    check_rail_icons_do_not_sit_on_the_text_baseline,
+    check_collapsed_panes_shrink_to_their_own_head,
+    check_a_locked_control_looks_locked,
+    check_no_document_repeats_itself,
 )
 
 

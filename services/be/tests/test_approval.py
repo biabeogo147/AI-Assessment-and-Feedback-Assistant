@@ -75,8 +75,8 @@ def _good(stem: str) -> GeneratedQuestion:
         stem=stem,
         options=(
             GeneratedOption(label="A", text="đúng", is_correct=True),
-            GeneratedOption(label="B", text="sai", is_correct=False, error_label="lỗi B"),
-            GeneratedOption(label="C", text="sai", is_correct=False, error_label="lỗi C"),
+            GeneratedOption(label="B", text="sai B", is_correct=False, error_label="lỗi B"),
+            GeneratedOption(label="C", text="sai C", is_correct=False, error_label="lỗi C"),
         ),
         methods=(
             SolutionMethod(title="Cách 1", body="..."),

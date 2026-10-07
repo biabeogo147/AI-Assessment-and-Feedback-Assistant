@@ -86,6 +86,34 @@ describe("MathText", () => {
     expect(drawn(container)).toBe(1);
   });
 
+  it("phần đệm trong cặp dấu vẫn là toán — `$ (1, 8) $`", () => {
+    // Nguyên văn trong database ngày 06/10/2026, cả bốn phương án của một câu:
+    // `"$ (1, 8) $"`, trong khi đề bài của **chính câu ấy** viết `$y = -2x^2 + 4x + 6$`
+    // không đệm. Luật pandoc nghiêm hơn cho ra 8 dấu đô la in nguyên văn trên màn hình
+    // giáo viên — đếm được trong `.panel-questions` trên trình duyệt thật.
+    const { container } = render(<MathText>{"$ (1, 8) $"}</MathText>);
+    expect(drawn(container)).toBe(1);
+    for (const one of container.querySelectorAll(".katex")) one.remove();
+    expect(container.textContent).toBe("");
+  });
+
+  it("cặp dấu RỖNG vẫn không phải là toán", () => {
+    // Nới phần đệm mà nới quá tay thì `$  $` thành một công thức trống: sau phần đệm phải
+    // còn một ký tự thật.
+    const { container } = render(<MathText>{"Giá trị $  $ ở đây"}</MathText>);
+    expect(drawn(container)).toBe(0);
+    expect(container.textContent).toBe("Giá trị $  $ ở đây");
+  });
+
+  it("đệm chỉ nhận dấu cách và tab, không nhận xuống dòng", () => {
+    // Một dấu `$` đứng cuối dòng rồi xuống dòng là dấu hiệu khá chắc rằng nó không mở một
+    // công thức. Giới hạn này giữ thiệt hại của việc nới luật nằm trong một dòng.
+    const { container } = render(
+      <MathText>{"Giá là 5 $\ncòn lại 7 $"}</MathText>,
+    );
+    expect(drawn(container)).toBe(0);
+  });
+
   it("công thức hỏng KHÔNG làm trắng màn hình", () => {
     // `throwOnError: false`: một câu hỏi xấu vẫn phải đọc được, và một exception ở đây sẽ
     // giết cả panel vì một dấu ngoặc thiếu.

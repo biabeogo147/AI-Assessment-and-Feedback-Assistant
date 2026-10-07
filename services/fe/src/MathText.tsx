@@ -39,13 +39,25 @@ import { Fragment } from "react";
  * - **Dấu mở không dính chữ số.** `Một quyển 20$, hai quyển 40$` có hai dấu `$`, số chẵn;
  *   không có luật này thì cả đoạn `, hai quyển 40` bị dựng thành công thức. Đề toán về giá
  *   tiền là ca thường gặp, không phải ca bịa.
- * - **Không khoảng trắng ngay sau dấu mở, cũng không ngay trước dấu đóng** — luật của
- *   pandoc, và nó loại hầu hết những cặp `$` tình cờ.
+ * - **Phần đệm trong cặp dấu được tha.** Luật của pandoc cấm khoảng trắng ngay sau dấu mở
+ *   và ngay trước dấu đóng; chỗ này nới đúng một bậc — `$ (1, 8) $` là toán. Lý do là dữ
+ *   liệu: ngày 06/10/2026, cả bốn phương án của một câu được model viết là `"$ (1, 8) $"`
+ *   trong khi đề bài của **chính câu ấy** viết `$y = -2x^2 + 4x + 6$` không đệm. Luật
+ *   nghiêm hơn cho ra 8 dấu đô la in nguyên văn trên màn hình giáo viên, đếm được trong
+ *   `.panel-questions`. Sửa prompt thì không có nơi thi hành — bốn prompt từng cấm LaTeX
+ *   và model vẫn viết; chỗ thi hành duy nhất là cái regex này.
+ *
+ *   **Giá phải trả, nói thẳng:** `Giá là 5 $ , còn lại 7 $` từ nay dựng phần giữa thành
+ *   công thức. Đệm chỉ nhận **dấu cách và tab**, không nhận xuống dòng, nên thiệt hại
+ *   dừng trong một dòng. Ca tiền tệ thường gặp — `Một quyển 20$, hai quyển 40$` — vẫn an
+ *   toàn nhờ luật chữ số ngay trên, và đây là app đề toán chứ không phải app hoá đơn.
+ * - **Vẫn không nhận cặp dấu rỗng**: sau phần đệm phải có một ký tự thật, nếu không
+ *   `$  $` sẽ thành một công thức trống.
  * - **Cho phép xuống dòng bên trong.** Bản đầu dùng `[^$\n]`, nên một công thức model ngắt
  *   dòng ở giữa hiện ra nguyên văn — đúng cái kết cục việc này đi sửa.
  */
 const MATH =
-  /(?<![0-9A-Za-z])\$\$(?![\s$])([\s\S]+?)(?<![\s$])\$\$(?![0-9])|(?<![0-9A-Za-z$])\$(?![\s$])([^$]+?)(?<![\s$])\$(?![0-9])|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)/g;
+  /(?<![0-9A-Za-z])\$\$[ \t]*(?![\s$])([\s\S]+?)(?<![\s$])[ \t]*\$\$(?![0-9])|(?<![0-9A-Za-z$])\$[ \t]*(?![\s$])([^$]+?)(?<![\s$])[ \t]*\$(?![0-9])|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)/g;
 
 /**
  * Dựng một cụm toán thành HTML.

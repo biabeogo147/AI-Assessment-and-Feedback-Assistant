@@ -321,21 +321,31 @@ vẽ qua portal, nên một menu đang mở vẽ đè lên hộp thoại. Ba b�
 của một khuôn chưa rút ra, không phải của ba lần quên. Hộp rộng dùng `.confirm.wide` (680, padding
 27 = 28 trừ một cho viền).
 
-## Chân panel đề — ba trạng thái, mỗi trạng thái một nút
+## Chân panel đề — MỘT trạng thái, một nút
 
 | Trạng thái | Dòng chữ | Nút |
 | --- | --- | --- |
 | chưa duyệt | *Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.* | `Duyệt đề` |
-| đã duyệt | *Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.* | `Phát hành đề` — mở lại màn cài đặt phát hành |
-| đã phát hành | *Đề đã tới học sinh. Muốn sửa thì thu hồi khỏi mọi lớp trước.* | `Phát hành thêm lớp` |
+
+**Đề đã khoá thì không có chân panel.** Cả `approved` lẫn `published` mở thẳng cài đặt phát hành,
+nên hai dòng còn lại của bảng này đã bị xoá — cùng với hai câu chữ của chúng, vốn không còn chỗ nào
+in ra được.
 
 **Duyệt xong là sang THẲNG cài đặt phát hành.** Luồng thiết kế là màn 6 → màn 7. Trước đó cú bấm
 `Duyệt đề` chỉ đổi chân panel thành hai nút rồi đứng im — một chặng dừng không có việc gì của riêng
-nó, và giáo viên phải bấm thêm một lần nữa để tới đúng chỗ họ đang đi tới. Chặng ấy (artboard
-`14 · Đã duyệt — chưa mở cài đặt phát hành`) đã bị xoá khỏi Figma.
+nó. Chặng ấy (artboard `14 · Đã duyệt — chưa mở cài đặt phát hành`) đã bị xoá khỏi Figma.
 
-Trạng thái *đã duyệt* vẫn **tới được** — mở lại một đề đã duyệt từ đoạn chat cũ, hoặc đóng màn 7 —
-nhưng khi ấy chân panel chỉ còn một việc: mở lại màn 7.
+**Và chặng ấy vẫn sống trong code thêm một thời gian nữa, vì nấc được đọc từ URL.** Panel dựng biểu
+mẫu khi `publishing && locked`, trong đó `publishing` tới từ hậu tố route `/phat-hanh` — còn thẻ kết
+quả trong đoạn chat thì luôn đi `/de/{id}`, **không bao giờ** kèm hậu tố. Nên mọi lần mở một đề đã
+duyệt từ thẻ đều rơi vào một màn hình không ai thiết kế: nội dung đề cộng một nút `Phát hành đề`,
+đúng cái artboard đã xoá. Đo trên trình duyệt ngày 06/10/2026: `.panel` có ba con — `panel-head`,
+`panel-questions`, `panel-foot` — và CTA đọc ra `Phát hành đề`.
+
+Từ 06/10/2026 nấc đọc từ `state`, và hậu tố `/phat-hanh` **thôi là một route**: vòng đời là luật của
+BE (ADR-01), nên một cái URL kể nấc là nguồn thứ hai cho cùng một sự thật, và hai nguồn thì lệch
+được. Link cũ vẫn mở được — regex nuốt hậu tố ấy — nó chỉ thôi mở ra một màn hình khác. `goInstead`
+trong `App.tsx` chết theo: nó sinh ra **chỉ** để thay mục lịch sử khi gỡ hậu tố sau lúc hoàn tác.
 
 **`Hoàn tác` sống ở màn cài đặt phát hành**, đứng trên nút chính. Một việc một chỗ: để đường lùi ở
 cả chân panel lẫn màn 7 là cùng một việc có hai chỗ bấm, và hai chỗ bấm thì sớm muộn lệch nhau.
@@ -344,18 +354,117 @@ duyệt không ngang hàng với phát hành. Nút chính ở đó mang nhãn `P
 đầu người: con số ấy đã nằm ngay trên biểu mẫu, và chỗ nó thật sự chịu lực là **hộp xác nhận cuối
 cùng** — nơi duy nhất không còn đường lùi nào sau đó.
 
-**Ba trạng thái, không hai.** Gộp `đã phát hành` vào `đã duyệt` làm đường bỏ duyệt hiện ra cho một
-đề đã tới tay học sinh — mà `POST .../unapprove` chỉ nhận đúng `APPROVED`, nên cú bấm ấy chắc chắn
-trả 409. Đường lùi của một đề đã phát hành là **thu hồi**, không phải bỏ duyệt. Và nhãn `Phát hành
-thêm lớp` nói đúng việc nút ấy làm: `_RELEASABLE` có cả `PUBLISHED`, nên bấm nó là thêm một lớp
-nữa, không phải phát hành lại từ đầu.
+**Và bảng này từng có ba dòng, mỗi dòng một câu chữ.** Lý do khi ấy đúng: `POST .../unapprove`
+chỉ nhận `APPROVED`, nên một nút `Hoàn tác` hiện ra cho đề đã phát hành là một chỉ dẫn chắc chắn
+trả 409 — đường lùi của nó là **thu hồi**. Hai thay đổi đã lấy cả ba dòng đi: endpoint ấy nay thu
+hồi mọi lớp rồi hạ hai nấc, nên đường lùi là **một** đường; và đề đã khoá thì không còn chân panel
+nào để in câu nào. Nhãn `Phát hành thêm lớp` cũng đã xoá — muốn đổi lớp thì hoàn tác trước.
 
 Bản trước để đúng **một** nút ở chân panel, và với đề đã duyệt thì nút ấy bị khoá với nhãn *Đã
 duyệt* — trong khi dòng chữ ngay trên bảo *"muốn sửa thì bỏ duyệt trước"*, một chỉ dẫn tới hành
 động **không có trên màn hình**. `teacher.unapprove` đã nằm trong `api.ts` từ lâu mà **chưa một
 dòng nào gọi**.
 
-## Biểu mẫu phát hành — hai bậc nhãn, và câu luật nói đúng số đang gõ
+## Biểu mẫu phát hành — một tấm trượt neo lề dưới
+
+**Biểu mẫu thu được, và lúc thu thì phần câu hỏi giãn ra lấp chỗ.** Đo trên trình duyệt ngày
+06/10/2026: panel cao 911, `panel-head` 139, `publish-settings` **661,5**, và `panel-questions` còn
+**111** — trong khi nội dung câu hỏi cần 569. Giáo viên nhìn thấy **19,5%** cái đề mình đang duyệt,
+ngay trong lúc quyết định có gửi nó cho 40 học sinh hay không.
+
+Thanh đầu `Cài đặt phát hành` là một `<button>` mang `aria-expanded`, có mặt ở **cả hai** nấc và là
+cùng một chỗ bấm: một chỗ bấm mở ra được thì phải đóng lại được ở đúng chỗ ấy. Mũi nhọn **quay**
+chứ không đổi sang một ký tự khác. Thu thì ruột biểu mẫu **rời khỏi cây DOM**, không nhận `hidden`:
+năm ô nhập còn trong cây thì tab vẫn tới được, và tab vào một thứ không thấy là một cái bẫy.
+
+Hình khối lấy từ variant `Trạng thái=thu` (`517:17`), ở **density Teacher**: 420×52 trên Figma,
+420×**51,5** đo trên trình duyệt. Con số ấy không nằm trong CSS ở đâu — nó là `16 + 19,5 + 16`.
+
+**Và chỗ này đã sai một lần, theo đúng cái bẫy mà tài liệu này đã cảnh báo.** Tôi lấy 53 từ một bản
+clone trên frame quyết định vẫn mang density của trang Components (chữ 14px/21). Bề mặt giáo viên
+định nghĩa lại `--type-label` thành **13px**, và artboard 7 với 8 đã đè chữ title theo đúng density
+ấy từ trước. Phép đo trên trình duyệt bắt được chênh lệch; Figma đã sửa theo, không phải ngược lại.
+Chênh 0,5 còn lại là Figma làm tròn hộp chữ 13px/150% thành 20 trong khi CSS tính 19,5.
+
+**Đo được ngày 06/10/2026** trên đề đã phát hành `d3f40a77`: bung thì vùng câu hỏi **94/911**
+(10,3%) và phải cuộn (`scrollHeight` 569 so `clientHeight` 94); thu thì **720,5/911** (79,1%) và
+`scrollHeight` = `clientHeight` = 721 — **không còn phải cuộn**. Tổng ba khối khít đúng 911.
+
+**Giãn ra, không nổi lên che.** Hai phương án vẽ cạnh nhau trên Figma (`519:1603`) và số đo chọn
+giúp: phương án giãn cho vùng câu hỏi **735/900**, phương án che cho **787/900** — hơn 52px, nhưng
+52px ấy nằm vĩnh viễn sau thanh đầu, nên muốn đọc được dòng cuối thì lại phải đệm đúng 52px và vòng
+về bằng đúng phương án giãn qua một đường dài hơn. Trong code, phương án giãn không tốn một dòng JS
+nào: `panel-questions` là `flex: 1`, tấm trượt là `flex: none`, cùng một cột flex. Phương án che cần
+một `position: absolute` cộng một `padding-bottom` bù tay.
+
+**Nấc thu sống qua F5** từ 06/10/2026, cùng khuôn với hai ngăn rail, khoá theo từng đề. Lời cũ ở
+đúng chỗ này nói ngược lại — *"nhớ nấc mà không nhớ giờ là nhớ nửa vời"* — và nó đúng chừng nào
+biểu mẫu còn quên giờ. Nay nó nhớ, nên lý do ấy hết. Mở màn là **bung** khi chưa ai thu nó: phát
+hành là việc giáo viên vừa bấm để tới đây.
+
+### Biểu mẫu nhớ cái giáo viên vừa gõ
+
+Cả sáu tham số sống qua F5, theo từng đề, trong `kriky.teacher.publish-draft.<id>`.
+
+**Và việc này KHÔNG chạm ADR-02.** Luật *"không gợi sẵn mốc giờ nào"* nói về thứ **hệ thống tự nghĩ
+ra**, vì một giá trị gợi sẵn là một giá trị người ta sẽ bấm qua. Khôi phục đúng chữ giáo viên vừa
+tự gõ không thêm thông tin nào vào biểu mẫu — nó chỉ thôi vứt đi thông tin đã có.
+
+Cái giá có thật: một bản nháp từ ba hôm trước mang một giờ mở đã quá khứ. Hàng rào đã có sẵn và là
+chữ của BE — `faultOf` so `opens <= Date.now()` và trả `rules.opens_in_the_past`, hằng
+`FAULT_OPENS_IN_THE_PAST` — nên biểu mẫu đỏ ngay khi bản nháp hết dùng được. Và màn hình **nói ra**
+rằng nó vừa khôi phục: một dòng *"Bản nháp bạn gõ 21:48 · 06/10."* kèm nút `Bỏ bản nháp`. Khôi phục
+im lặng là khôi phục không hỏi.
+
+Một biểu mẫu **chưa ai gõ** thì không ghi nháp nào — nếu không, lần mở sau hiện một dòng báo cho
+một bản nháp rỗng, và nó chôn mất nháp thật khi component mount lại trước lúc giáo viên kịp gõ.
+
+### Và khoá lại khi lớp đã nhận đề
+
+`publish-form` chỉ nói lớp nào **đang giữ** đề, không nói giữ với **giờ nào**. Câu trả lời nằm ở
+`GET /publications`, một endpoint đã có từ trước mà **không chỗ nào trong FE gọi** — `teacher.publications`
+là code chết trong `api.ts`. Nay biểu mẫu dựng từ nó một khối `ĐÃ PHÁT HÀNH`, một dòng đôi mỗi lớp.
+
+Khối ấy **gọn có chủ ý**: hai câu luật dài đã nằm sẵn ở khối `rules` bên dưới, nên chép chúng vào
+đây lần nữa cho mỗi lớp là đội tấm trượt lên quá chỗ panel có. Thứ không suy ra được từ chỗ khác
+chỉ có: lớp nào, mấy học sinh, khung giờ nào, thu hồi được tới lúc nào.
+
+Ba luật của cái khoá, variant `Trạng thái=đã phát hành — khoá` (`534:20`):
+
+- **Chip của lớp đang giữ đề thấy nhưng khoá.** Bỏ chip đi là giấu mất đúng thông tin giáo viên
+  cần. Cái giá, nói ra chứ không lặng lẽ: đổi khung giờ của một lớp đang giữ đề từ nay phải đi qua
+  `Hoàn tác` hoặc thu hồi lớp đó.
+- **Mọi lớp đã nhận đề ⇒ năm ô khoá, và KHÔNG có CTA.** Vắng mặt chứ không khoá-kèm-lời-giải-thích:
+  BE không có câu từ chối cho ca này, và ADR-03 giữ chỗ ấy cho BE. Không còn việc để mời thì không
+  mời — đó là cấu trúc, không phải một câu viết ở FE.
+- **Ô khoá MANG giá trị đã phát hành.** Một ô mờ mà rỗng chỉ nói rằng có một ô, và rằng bạn không
+  được chạm vào nó. Giá trị đi qua `localInput`, không qua `slice` chuỗi ISO: cắt chuỗi giữ nguyên
+  giờ UTC, nên một đề mở 15:00 giờ Việt Nam hiện ra là 08:00.
+
+**Và một ca mà chỉ phép đo trên trình duyệt tìm ra.** Hai lớp mở **lệch giờ** là hợp lệ — bảng
+`publications` khoá theo `(đề, lớp)` đúng để cho phép 12A học buổi sáng và 12B học buổi chiều — và
+khi ấy **không có khung chung để điền**. Đo ngày 06/10/2026 trên đề `d3f40a77` (12A 14:21, 12B
+15:26): năm ô hiện ra vừa khoá vừa **rỗng**, tấm trượt ăn **805,5 trên 911**, và vùng câu hỏi còn
+**24 pixel**. Ba trăm pixel để nói đúng một điều, *"có năm cái ô, và bạn không được chạm vào"*.
+
+Nên khi không điền được thì **không dựng**: năm ô, hai đường kẻ và hai câu luật cùng vắng mặt, khối
+`ĐÃ PHÁT HÀNH` ở trên đã nói đủ cho từng lớp. Sau khi sửa: tấm trượt **805,5 → 381**.
+
+**Con số nào phụ thuộc cửa sổ, con số nào không.** `panel` cao bằng **toàn bộ** chiều cao cửa sổ,
+và `panel-questions` là *phần còn lại* sau head và tấm trượt — nên mọi tỉ lệ `x/911` ở trên chỉ
+đúng cho một cửa sổ cao 911. Số ổn định là chiều cao của **chính tấm trượt**: nó do nội dung quyết,
+không do cửa sổ. Đo lại ở một cửa sổ cao 855 cho đúng **381**, và vùng câu hỏi khi ấy là 335 —
+cùng một tấm trượt, một con số khác, vì cửa sổ khác.
+Variant `Trạng thái=đã phát hành — lệch giờ` (`542:20`) vẽ đúng nấc ấy.
+
+Hai câu luật đi theo cùng lý do: chúng điền từ **chữ đang gõ**, mà ở đây không ai gõ gì, nên chúng
+in `--:--` ngay dưới một đề đang thật sự chạy.
+
+**Cái khoá phải nhìn thấy được.** `disabled` là một sự thật của DOM — bàn phím bỏ qua, trình đọc
+màn hình đọc ra — nhưng mắt thì không thấy gì. jsdom không dựng bố cục nên không test nào đo nổi
+"mờ đi", nên **check 15** của `tools/check_contract.py` canh luật CSS ấy.
+
+## Hai bậc nhãn, và câu luật nói đúng số đang gõ
 
 **Câu luật điền bằng khuôn, không dựng sẵn.** Bản trước in `rules.phase_one` — một câu BE dựng với
 `--:--` và FE tải **một lần lúc mở màn**. Nó đứng ngay dưới mấy ô nhập, trông như sắp đổi theo con
@@ -428,7 +537,52 @@ không dùng `border`: một `border` ăn mất một pixel của 420.
 ## Nút `Sửa` thôi là một nút chết
 
 Nó nằm trên mỗi thẻ câu hỏi từ lâu và **không có `onClick`**. Nay nó mở một ô soạn tại chỗ — bản
-dựng của component `Question card — đang sửa` (`468:2050`).
+dựng của component set `Question card — đang sửa · ba tầng` (`531:182`), và artboard
+**`14 · Sửa một câu trong panel`** (`532:1906`) vẽ nó trong ngữ cảnh.
+
+### Ba tầng, một lúc một tầng
+
+Bản đầu của ô soạn này là **một cột phẳng hai mươi khối**: ô đề bài, bốn phương án × ba khối, nút
+thêm, hai cách giải × hai khối, nút thêm, hàng nút — tất cả cùng một cấp thụt lề, `gap: 8px`, trong
+một cột 420px. Ba con số nói ra chỗ hỏng, và cả ba đo được:
+
+1. **Thẻ không vừa khung, ở bất kỳ đâu.** Component phẳng cao **774** ở density Teacher, trong một
+   vùng `questions` cao **682** (658 sau padding). Trên dữ liệu thật thì tệ hơn: đo ngày 06/10/2026
+   trên đề `668251b5`, bản phẳng sẽ cao **1106** trong một khung **694,5** — tràn **411,5**. Sửa
+   một câu là chắc chắn không bao giờ thấy hết cái thẻ đang gõ, kể cả khi đề chỉ có một câu.
+2. **Hai mươi ô nhập, KHÔNG nhãn nào trên màn.** Mọi ô chỉ mang `aria-label`. Trình đọc màn hình
+   biết ô nào là ô nào; mắt thì không.
+3. **Lồng nhau tàng hình.** `.edit-option` không viền, không nền, không thụt lề — chỉ `gap: 4px`.
+   Nên thứ **duy nhất** nói *"ba ô này thuộc cùng một phương án"* là chênh lệch **4px so với 8px**,
+   và không ai đọc một cột 420px bằng cách đếm pixel.
+
+Ba chỗ chữa, mỗi chỗ cho một con số:
+
+- **Ba tầng `ĐỀ BÀI` / `PHƯƠNG ÁN` / `CÁCH GIẢI`, mở một lúc một tầng.** Mở `Cách giải` thì
+  `Phương án` tự thu. Đó là **cả luật**, không phải một sở thích: chiều cao thẻ bị chặn trên bởi
+  tầng nặng nhất, nên cho mở cả ba là về lại đúng bản phẳng. Đo trên trình duyệt: **214,5 / 616,9 /
+  603,6** trong khung **694,5** — tầng nặng nhất dư 77,6. Thanh đầu mượn nguyên từ vựng của tấm
+  trượt phát hành: `<button>` mang `aria-expanded`, mũi nhọn **quay**. Vào màn thì `ĐỀ BÀI` mở, vì
+  bấm `Sửa` thường là vì đọc thấy một chữ sai trong đề bài.
+- **Mỗi phương án và mỗi cách giải có vỏ** — nền chìm cộng viền. Khoảng cách **giữa** hai khối (6)
+  vẫn lớn hơn khoảng cách **trong** một khối (4): viền nói nhóm, khoảng cách nói thứ bậc, và hai
+  thứ phải nói cùng một điều.
+- **Mọi ô có nhãn nhìn thấy được**, và không ô nào sống bằng `aria-label` trần. Ô nào đã có một chữ
+  gọi tên nó ngay trên — tên tầng, hay `Phương án B` ở hàng đầu của khối — thì mượn chữ ấy qua
+  `aria-labelledby` thay vì in thêm một nhãn thứ hai cùng nội dung.
+
+  Và chữ trên hàng đầu tách làm hai phần: chỉ `Phương án B` là **tên**, còn `· đáp án đúng` là
+  **trạng thái**. Gộp cả hai vào tên thì tên của một ô nhập đổi mỗi lần giáo viên bấm một radio ở
+  hàng khác — một ô không được đổi tên vì một thứ ngoài nó. Trạng thái đã có `aria-checked` của
+  chính nhóm radio.
+
+Nhãn lỗi **thụt vào** dưới chữ phương án, vì nó là chú thích của phương án ngay trên nó. Câu tóm
+trên thanh đầu (`· 4 · đúng: A`) đếm từ **bản đang gõ**, không từ câu gốc: một con số của một phút
+trước nằm ngay trên chỗ đang sửa thì tệ hơn hẳn không có con số nào.
+
+**Hai lời từ chối — dòng ADR-18 và câu của BE — nằm NGOÀI ba tầng**, cạnh hàng nút. Nút `Lưu` khoá
+theo chúng, nên để chúng trong một tầng là cho phép một trạng thái mà màn hình khoá và không nói vì
+sao.
 
 **Gửi cả câu, không gửi từng mảnh.** ADR-18 là một luật về *quan hệ giữa các mảnh*: đúng một
 phương án đúng, mọi phương án nhiễu có nhãn lỗi, hơn một lời giải. Nhận từng mảnh rời thì mỗi lần
@@ -578,6 +732,62 @@ một việc thì cửa nào cũng thành chỗ phải đoán. Đo trên artboar
 dải 820×33, cỡ chữ `--type-caption`. Nó **từng** in *"Đổi phạm vi"* — chữ ấy hứa
 một việc không xảy ra: thân request của một lượt chat đúng ba field (`text`, `conversation_id`,
 `start_new`), không có `document_id` nào.
+
+## Hai ngăn rail thu được bằng chính tiêu đề của chúng
+
+**Bấm tiêu đề khung để đóng cả khung.** Câu ấy là chữ của ghi chú `129:2` trên Figma, và nó nằm ở
+đó từ lâu: *"Thu gọn là thao tác **CHÍNH**, kéo là tinh chỉnh."* Bốn luật của ghi chú chưa có dòng
+code nào cho tới 06/10/2026, vì rail được sao chép theo artboard chứ không dựng thành component —
+nên không ai đọc lại chúng khi dựng FE. Cái mũi nhọn trong `pane-head` đã đứng đó từ đầu mà không
+bấm được: đo trên trình duyệt, `.pane-head` là một `DIV`, `cursor: auto`, không handler nào, và
+`.caret` có `transform: none`. Một hình hứa một việc rồi lặng lẽ không làm.
+
+Thanh đầu là một hàng chứa **hai nút ngang hàng**: nút thu (mũi nhọn cộng nhãn, chiếm hết chỗ còn
+lại) và nút tải lên của ngăn `TÀI LIỆU`. Không lồng nhau — một `<button>` trong một `<button>` thì
+trình duyệt tự gỡ lồng và cú bấm vào nút trong rơi vào nút ngoài, nên bấm *tải lên* sẽ thu ngăn
+lại. Hàng đoạn chat đã sập đúng cái bẫy này một lần, ở đó bấm *Xoá* mở đoạn chat.
+
+Ba nấc đo trên Figma (`521:1767`): mở cả hai **337 / 235**, thu `TÀI LIỆU` **545 / 27**, thu cả hai
+**27 / 27**. Một ngăn đã thu cao đúng 27 — bằng `pane-head` — nên luật CSS phải đặt lại **cả**
+`flex` (vì `.pane.history` là `flex: 1`, thu nó mà không nói gì thì nó vẫn chiếm hết chỗ) **và**
+`gap` (vì 8px giữa thanh đầu và vùng cuộn thành 8px đệm chân khi vùng cuộn đi mất, và 27 thành 35).
+Hai cái bẫy ấy jsdom không thấy, nên chúng là một check chứ không phải một test.
+
+**Thanh kéo biến mất khi một ngăn đã thu.** `SPLIT_MIN` 120 tồn tại để không ngăn nào biến mất; một
+ngăn đã thu thì con số ấy không còn gì để bảo vệ. Chiều cao đã nhớ **giữ nguyên** cho lúc bung lại.
+
+Nấc của **từng** ngăn sống qua F5, hai khoá riêng (`kriky.teacher.pane-open.history` /
+`.documents`). Một cờ dùng chung thì thu một ngăn là thu cả hai. Thiếu khoá thì bung — một rail mới
+mở ra phải cho thấy nó có gì.
+
+**Ghi chú `129:2` còn ba luật nữa mà code chưa có**, và chúng được ghi ra đây để không mất lần thứ
+hai: chiều cao chia hai ngăn phải nhớ theo **tỉ lệ** chứ không theo pixel (code đang lưu pixel trong
+`kriky.teacher.documents-height`), bấm đúp thanh kéo thì trả về 60/40, và thanh kéo phải đi tới được
+bằng bàn phím.
+
+## Icon rail đứng trên baseline của chữ
+
+`display: block` ở `.rail svg` chữa phần **hình học**: nó lấy icon ra khỏi baseline của chữ, và sau
+đó ba phép đo tâm đều trùng khít ở 128 — tâm icon, tâm hộp dòng, tâm thân chữ hoa, lệch **0,00**.
+
+Mắt vẫn thấy xệ, và đường gây ra là một đường khác hẳn: **icon cao 12 còn thân chữ hoa chỉ cao
+10**, nên một icon căn giữa hộp dòng *thò xuống dưới baseline đúng 1px*. Baseline là đường mạnh
+nhất trong một hàng chữ — cái gì chúi xuống dưới nó thì đọc ra là xệ, dù mọi phép đo tâm nói 0,00.
+
+Đo 06/10/2026, mép dưới của mực so với baseline: biểu đồ cột **+1**, tập giấy **+1**, lưới ô
+**+1**, ba chấm **0**. Và số 0 của ba chấm không phải vì nó đúng, mà vì hình của nó **hụt 1px ở
+đáy**. Nay ba chấm vẽ lại cho chạm đáy (`cy 10 + r 2 = 12`), nên cả bốn cùng +1 và cả bốn cùng
+nâng 1. Sau khi nâng: **0,00** cho cả bốn.
+
+**Một luật ở mức rail, không phải một cờ ở từng icon.** Lượt đầu tôi nâng theo *trọng tâm khối
+mực* và chỉ nâng hai hình — biểu đồ cột 7,38 và ba chấm 6,83 trên thang 12, trong khi tập giấy
+5,95 và lưới ô 6,00 thì "đã cân". Mô hình ấy **sai**, và nó sai một cách kiểm được: chính hai hình
+mà nó tuyên là cân lại là hai hình người dùng chỉ ra ở lượt sau. Luật đúng không phụ thuộc hình
+dạng, nên nó không được nằm ở chỗ gọi.
+
+Bất biến mà luật này dựa vào: **mực của mỗi icon chạm đáy khung 12**. Một icon vẽ hụt đáy sẽ đứng
+cao hơn baseline. `teacher.test.tsx` giữ bất biến ấy bằng toạ độ `viewBox` — thứ duy nhất ở đây
+jsdom đọc được — còn luật nâng là CSS thuần nên check 13 canh nó.
 
 ## Bề rộng, và chỗ duy nhất đọc được những con số này
 

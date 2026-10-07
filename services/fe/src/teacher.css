@@ -76,6 +76,28 @@
   overflow: hidden;
 }
 
+/*
+ * Mọi icon trong rail là một hình nằm trong một hộp đã định cỡ, nên không cái nào
+ * được đứng trên baseline của chữ.
+ *
+ * Một `<svg>` mặc định là `display: inline` + `vertical-align: baseline`, tức nó
+ * ngồi trên đường baseline của span bọc nó chứ không lấp hộp ấy. Đo được ngày
+ * 06/10/2026 trên `Rail destination`: hộp `.icon` ở y 122→134 (tâm 128), svg bên
+ * trong ở y 124→136 (tâm 130), còn chữ title tâm 128,05 — icon thấp hơn title đúng
+ * **2px**. Trên Figma hai tâm trùng khít ở 3093, vì ở đó icon là một frame 12×12 và
+ * không có baseline nào.
+ *
+ * Luật đặt ở **mức rail** chứ không ở từng chỗ: `.caret` đang đúng chỉ vì nó có một
+ * dòng riêng, nên một icon mới thêm vào mai này sẽ lệch y như hôm nay. Chữa một lớp
+ * lỗi, không chữa một chỗ. jsdom không dựng bố cục nên không test nào đo được 2px
+ * này — đó chính là lý do nó sống tới giờ; nơi thi hành là `check_contract.py`.
+ */
+.rail svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .rail .brand {
   display: flex;
   align-items: center;
@@ -159,6 +181,31 @@
   height: 12px;
   flex: none;
   color: var(--ink);
+}
+
+/*
+ * Nâng 1px: mép dưới của mực phải nằm trên **baseline** của chữ.
+ *
+ * `display: block` ở trên chữa phần hình học, và sau nó ba phép đo đều nói icon đã cân:
+ * tâm icon 128, tâm hộp dòng 128, tâm thân chữ hoa 128 — lệch 0,00. Mắt vẫn thấy xệ, và
+ * lý do là một đường khác: icon cao **12** còn thân chữ hoa chỉ cao **10**, nên một icon
+ * căn giữa hộp dòng sẽ **thò xuống dưới baseline đúng 1px**. Baseline là đường mạnh nhất
+ * trong một hàng chữ; cái gì chúi xuống dưới nó thì đọc ra là xệ, dù tâm có trùng khít.
+ *
+ * Đo 06/10/2026, mép mực so với baseline: biểu đồ cột +1, tập giấy +1, lưới ô +1, ba
+ * chấm 0 — và ba chấm bằng 0 chỉ vì hình của nó hụt 1px ở đáy, không phải vì nó đúng.
+ * Nay ba chấm vẽ lại cho chạm đáy, nên cả bốn cùng +1, và cả bốn cùng nâng 1.
+ *
+ * **Một luật ở mức rail, không phải một cờ ở từng icon.** Bản trước tôi nâng theo *trọng
+ * tâm mực* và chỉ nâng hai hình — mô hình ấy sai: nó nói tập giấy và lưới ô đã cân, trong
+ * khi chính hai cái đó là hai cái người dùng chỉ ra lần thứ hai. Luật đúng không phụ
+ * thuộc hình dạng, nên nó không được nằm ở chỗ gọi.
+ *
+ * Bất biến mà luật này dựa vào: **mực của mỗi icon chạm đáy khung 12**. Một icon mới vẽ
+ * hụt đáy sẽ đứng cao hơn baseline. `teacher.test.tsx` giữ bất biến ấy.
+ */
+.rail .destination .icon {
+  transform: translateY(-1px);
 }
 
 .rail .destination .label {
@@ -263,6 +310,33 @@
   flex: 0 0 225px;
 }
 
+/*
+ * Ngăn đã thu co về đúng chiều cao thanh đầu.
+ *
+ * `flex: none` cho **cả hai** ngăn, và `gap: 0`: ngăn đoạn chat vốn là `flex: 1`, nên thu
+ * nó mà không nói gì thì nó vẫn chiếm hết chỗ còn lại và thanh đầu của nó trôi lên giữa
+ * một khoảng trắng cao 300px. Còn `gap: 8` là khoảng cách giữa thanh đầu và vùng cuộn —
+ * vùng cuộn đi rồi thì khoảng cách ấy thành 8px đệm chân không ai đặt. Đo trên Figma
+ * (`521:1767`): một ngăn đã thu cao **27**, đúng chiều cao `pane-head`.
+ */
+.rail .pane.thu {
+  flex: none;
+  gap: 0;
+}
+
+/*
+ * Ngăn còn bung lấy hết chỗ trống, ở **cả hai** chiều.
+ *
+ * Chiều thu `TÀI LIỆU` vốn đã đúng miễn phí: `.pane.history` là `flex: 1`. Chiều kia thì
+ * không — `.pane.documents` là `flex: 0 0 225px`, nên thu `ĐOẠN CHAT` để ngăn tài liệu
+ * đứng yên ở 225 và bỏ lại một khoảng trắng cao ~368px dưới nó. Đo trên trình duyệt ngày
+ * 06/10/2026, và nó **chỉ** lộ ra ở một trong hai chiều: Figma vẽ chiều kia, nên không
+ * phép so hình nào thấy được.
+ */
+.rail .pane.history.thu ~ .pane.documents:not(.thu) {
+  flex: 1;
+}
+
 .rail .pane-head {
   display: flex;
   align-items: center;
@@ -324,8 +398,44 @@
  *
  * `overflow` nằm trên phần chữ chứ không trên hộp: để trên hộp thì menu bị cắt.
  */
-/* Nhãn chiếm hết chỗ còn lại để icon dán mép phải — đo trên Figma: icon 16×16 ở x=212
- * trong một `pane-head` rộng 228. */
+/*
+ * Nút thu chiếm hết chỗ còn lại, nên nút tải lên dán mép phải — đo trên Figma: icon 16×16
+ * ở x=212 trong một `pane-head` rộng 228.
+ *
+ * Và chỗ bấm là **cả dải chữ**, không chỉ cái mũi nhọn 8×6: một mục tiêu 8px là một mục
+ * tiêu không ai bấm trúng, nhất là bằng ngón tay. Mũi nhọn và nhãn nằm trong cùng một nút
+ * vì chúng là cùng một việc.
+ *
+ * `font: inherit` cộng `letter-spacing: inherit`: `pane-head` đặt `letter-spacing: 0.5px`
+ * cho chữ in hoa, mà `font` shorthand **đặt lại** `letter-spacing` về `normal` — nên thiếu
+ * dòng dưới thì bọc nhãn vào một nút làm chữ co lại, một thay đổi hình thức đi lậu cùng
+ * một thay đổi hành vi.
+ */
+.rail .pane-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Mũi nhọn chỉ xuống lúc bung, chỉ sang phải lúc thu — một hình xoay thì mắt theo được. */
+.rail .pane-toggle .caret {
+  transition: transform 160ms ease;
+}
+
+.rail .pane-toggle[aria-expanded="false"] .caret {
+  transform: rotate(-90deg);
+}
+
 .rail .pane-head .label {
   flex: 1;
   min-width: 0;
@@ -1676,11 +1786,129 @@
  * và hai ô lời giải phẳng, nên không có chỗ nào để thêm hay bớt — và cũng không có ô nào
  * cho nhãn lỗi, thứ mà một phương án nhiễu **bắt buộc** phải có.
  */
+/*
+ * Ba tầng, và một lúc chỉ một tầng mở.
+ *
+ * Thanh đầu mượn nguyên từ vựng của tấm trượt phát hành — `<button>` mang `aria-expanded`,
+ * mũi nhọn **quay** chứ không đổi sang một ký tự khác. Không dựng từ vựng thứ hai cho
+ * cùng một việc.
+ *
+ * Đo ngày 06/10/2026 ở density Teacher, trong khung `panel-questions` cao 658: bản phẳng
+ * **774** — tràn 116, tức sửa một câu là chắc chắn không thấy hết thẻ đang gõ. Ba tầng
+ * cho **226 / 647 / 363**. Con số chặn trên là 647 của tầng `PHƯƠNG ÁN`, và nó chỉ chặn
+ * được chừng nào **một lúc một tầng** còn đúng.
+ */
+.teacher .qcard .tang {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.teacher .qcard .tang-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teacher .qcard .tang-head .caret {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 6px;
+  color: var(--ink-muted);
+  transition: transform 160ms ease;
+}
+
+.teacher .qcard .tang-head[aria-expanded="false"] .caret {
+  transform: rotate(-90deg);
+}
+
+.teacher .qcard .tang-head .label {
+  /* Chữ hoa bằng CSS, không gõ hoa vào nội dung: nội dung là **tên trợ năng** của ô bên
+   * trong tầng (ô ấy mượn nó qua `aria-labelledby`), và một cái tên gõ hoa đọc lên khác
+   * hẳn một cái tên viết thường được trình bày hoa. */
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+/* Tầng đang mở đậm hơn: thanh đầu của nó thôi là một lối đi và thành một tiêu đề. */
+.teacher .qcard .tang-head[aria-expanded="true"] .label {
+  color: var(--ink);
+}
+
+/* Câu tóm đếm từ bản đang gõ, nên nó phải nhẹ hơn tên tầng — nó là số, không phải tên. */
+.teacher .qcard .tang-head .summary {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .qcard .tang-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/*
+ * Nhãn **nhìn thấy được** của một ô.
+ *
+ * Bản phẳng có hai mươi ô nhập và không nhãn nào trên màn — chúng chỉ mang `aria-label`.
+ * Trình đọc màn hình biết ô nào là ô nào; mắt thì không.
+ */
+.teacher .qcard .field-label {
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+}
+
+/*
+ * Vỏ của một phương án và của một cách giải.
+ *
+ * Đây là chỗ chữa lỗi đo được thứ ba của bản phẳng: ở bản ấy `.edit-option` không có
+ * viền, không nền, không thụt lề — chỉ `gap: 4px` trong một cột `gap: 8px`. Nên thứ
+ * **duy nhất** nói "ba ô này thuộc cùng một phương án" là chênh lệch **4px so với 8px**,
+ * và không ai đọc một cột 420px bằng cách đếm pixel.
+ *
+ * Khoảng cách GIỮA hai khối (`.tang-body` gap 6) vẫn lớn hơn khoảng cách TRONG một khối
+ * (gap 4). Thứ tự ấy phải giữ kể cả khi đã có viền: viền nói nhóm, khoảng cách nói thứ
+ * bậc, và hai thứ phải nói cùng một điều.
+ */
 .teacher .qcard .edit-option,
 .teacher .qcard .edit-method {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+}
+
+/* Ô nhập bên trong một vỏ chìm phải sáng lại, nếu không nó không còn đọc ra là ô nhập. */
+.teacher .qcard .edit-option .field,
+.teacher .qcard .edit-method .field {
+  background: var(--surface);
+}
+
+/* Nhãn lỗi thụt vào: nó là chú thích của phương án ngay trên nó, không phải một trường
+ * ngang hàng. Thụt lề nói đúng quan hệ ấy mà không tốn thêm một dòng nào. */
+.teacher .qcard .edit-fault {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
 }
 
 .teacher .qcard .edit-option-head,
@@ -1926,10 +2154,166 @@
   background: var(--surface);
 }
 
+/*
+ * Nấc thu: chỉ còn thanh đầu, đo được **51,5**.
+ *
+ * `16 + 19,5 + 16` — padding của variant `Trạng thái=thu` (`517:17`) cộng chiều cao ô chữ
+ * ở `--type-label`. Không hardcode một con số nào: nó là **kết quả** của ba số kia, nên sửa
+ * một trong ba thì nó tự đi theo, còn ghim 51,5 thì nó đứng yên trong khi ruột đổi.
+ *
+ * **Và `--type-label` ở đây là 13px, không phải 14.** Bề mặt giáo viên định nghĩa lại biến
+ * ấy (dòng 35), nên trang Components của Figma — chạy density khác — cho 16+21+16 = 53,
+ * còn artboard 7 và 8 đè chữ về 13px và cho 52. Tôi đã lấy 53 từ một bản clone trên frame
+ * quyết định vẫn mang density Components, và phép đo trên trình duyệt bắt được chênh lệch
+ * ấy. Figma đã sửa theo. Chênh 0,5 còn lại là Figma làm tròn hộp chữ 13px/150% thành 20
+ * trong khi CSS tính 19,5 — cùng một chuyện với ghi chú ở `.rail .pane-head`.
+ *
+ * Và phần câu hỏi lấy lại chỗ **mà không cần biết gì về tấm trượt**: `.panel-questions` đã
+ * là `flex: 1` còn `.publish-settings` là `flex: none` trong cùng một cột flex, nên tấm
+ * trượt co lại bao nhiêu thì phần câu hỏi giãn ra đúng bấy nhiêu. Đây là lý do phương án
+ * *giãn ra* không tốn một dòng JS nào, còn phương án *nổi lên che* sẽ cần một `position:
+ * absolute` cộng một `padding-bottom` bù đúng 51,5px ở hàng xóm.
+ */
+.teacher .publish-settings.thu {
+  padding: 16px 20px;
+}
+
+/*
+ * Thanh đầu bấm được.
+ *
+ * `font: inherit` chứ không để nguyên: một `<button>` mặc định lấy font của hệ điều hành,
+ * nên bọc cái tiêu đề vào nút mà không nói gì sẽ đổi mặt chữ của nó — một thay đổi hình
+ * thức đi kèm miễn phí với một thay đổi hành vi là thứ khó truy nhất về sau.
+ */
+.teacher .sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Mũi nhọn chỉ xuống lúc bung (bấm là đóng xuống), chỉ lên lúc thu (bấm là mở lên).
+ * `display: block` vì cùng một lý do `.rail svg` có nó: một svg `inline` đứng trên
+ * baseline của chữ và lệch xuống 2px so với cái nhãn cạnh nó. */
+.teacher .sheet-head .caret {
+  display: block;
+  width: 8px;
+  height: 6px;
+  flex: none;
+  color: var(--ink-muted);
+  transition: transform 160ms ease;
+}
+
+.teacher .sheet-head[aria-expanded="false"] .caret {
+  transform: rotate(180deg);
+}
+
 .teacher .settings-title {
   font-size: var(--type-label);
   font-weight: 600;
   line-height: 1.5;
+}
+
+/* Câu "đang mở biểu mẫu", hoặc lời từ chối lúc chưa tải được. Tên `note` dùng lại khuôn
+ * của chân panel, nhưng luật thì phải viết riêng: `.panel-foot .note` không với tới đây. */
+.teacher .publish-settings .note {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/*
+ * Dòng báo đã khôi phục bản nháp.
+ *
+ * Nền chìm chứ không viền: nó không phải một lời cảnh báo — không có gì sai cả — mà là
+ * một câu kể, nên nó phải đọc ra nhẹ hơn `.trouble` ngay dưới cùng biểu mẫu. Và nó đứng
+ * **trên** trường đầu tiên, vì thứ nó nói về là cả sáu ô bên dưới.
+ */
+.teacher .publish-settings .draft-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/*
+ * Khối `ĐÃ PHÁT HÀNH`: giờ đã đặt, một dòng đôi mỗi lớp.
+ *
+ * Nền chìm chứ không viền, cùng khuôn với `.draft-mark`: cả hai đều là **lời kể** chứ
+ * không phải chỗ thao tác, nên chúng phải đọc ra khác hẳn năm ô ngay dưới.
+ */
+.teacher .publish-settings .published-to {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.teacher .publish-settings .published-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+}
+
+/* `.lop` chứ không `.who`: `.teacher .who` đã có chủ từ lâu -- nó là hàng avatar của một
+ * lượt chat, `display: flex; height: 40px`. Tên trùng thì một dòng chữ 11px cao 40 thay vì
+ * 16,5, và vì tôi không đặt hai thuộc tính ấy nên không selector nào của tôi ghi đè được.
+ * Đo được trên trình duyệt 06/10/2026: hai dòng lớp ăn thừa 48px. */
+.teacher .publish-settings .published-row .lop {
+  color: var(--ink);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .publish-settings .published-row .when {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/*
+ * Cái khoá phải NHÌN THẤY ĐƯỢC.
+ *
+ * `disabled` là một sự thật của DOM — bàn phím và trình đọc màn hình biết nó — nhưng mắt
+ * thì không, và một ô trông gõ được mà gõ không được là một ô nói dối. jsdom không dựng
+ * bố cục nên không test nào đo nổi luật này; check 15 trong `tools/check_contract.py`
+ * canh nó, cùng lý do check 13 và 14 tồn tại.
+ */
+.teacher .publish-settings input:disabled,
+.teacher .publish-settings .class-chip:disabled {
+  background: var(--sunken);
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+.teacher .publish-settings .draft-mark .quiet {
+  margin-left: auto;
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  line-height: inherit;
+  color: var(--accent);
+  cursor: pointer;
 }
 
 /*

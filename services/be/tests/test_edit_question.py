@@ -299,6 +299,38 @@ async def test_a_question_someone_already_answered_cannot_be_rewritten(stack) ->
             {"options": [{"label": "A", "text": "$2x$", "is_correct": True}]},
             "more than one option",
         ),
+        # Hai phương án **cùng chữ**: nhãn khác nhau, cờ đúng đúng một cái, nên hai lưới
+        # trên không thấy gì. Với học sinh thì có hai đáp án đúng, và em chọn cái không
+        # được đánh dấu bị chấm sai cho đúng cái đáp án đúng. Đo được trên dữ liệu thật
+        # ngày 06/10/2026, trong một đề **đã phát hành cho học sinh**.
+        (
+            {
+                "options": [
+                    {"label": "A", "text": "$ (1, 8) $", "is_correct": False, "error_label": "lỗi"},
+                    {"label": "B", "text": "$ (1, 8) $", "is_correct": True},
+                    {"label": "C", "text": "$ (2, 2) $", "is_correct": False, "error_label": "lỗi"},
+                ]
+            },
+            "say the same thing",
+        ),
+        # Và thừa một khoảng trắng cũng không cứu được nó: lưới so sau khi **gộp** các
+        # khoảng trắng liền nhau, cùng khuôn `validate_retry` đã dùng. Nó không xoá hẳn
+        # khoảng trắng -- `$ (1,8) $` với `$(1,8)$` vẫn lọt -- và đó là chủ ý: xoá hẳn thì
+        # "có 3 nghiệm" và "có 3nghiệm" thành một, mà hai cái ấy là hai chữ khác nhau.
+        (
+            {
+                "options": [
+                    {"label": "A", "text": "$ (1, 8) $", "is_correct": True},
+                    {
+                        "label": "B",
+                        "text": "$  (1, 8)  $",
+                        "is_correct": False,
+                        "error_label": "lỗi",
+                    },
+                ]
+            },
+            "say the same thing",
+        ),
     ],
 )
 async def test_two_holes_the_old_net_let_through(stack, over, why) -> None:

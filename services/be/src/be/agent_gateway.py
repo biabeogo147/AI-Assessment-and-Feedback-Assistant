@@ -385,7 +385,8 @@ def validate_question(question: GeneratedQuestion) -> None:
 
     Raises:
         AgentError: Nếu câu hỏi có số phương án đúng khác đúng một, có một Distractor
-            không có error label, hoặc có ít hơn hai lời giải chi tiết.
+            không có error label, có hai phương án nói cùng một chữ, hoặc có ít hơn hai lời
+            giải chi tiết.
 
     Note:
         Dòng này từng kể thêm một ca thứ tư -- *"có công thức toán nằm ngoài cặp `$`"* --
@@ -405,6 +406,23 @@ def validate_question(question: GeneratedQuestion) -> None:
     labels = [option.label for option in question.options]
     if len(set(labels)) != len(labels):
         raise AgentError(f"duplicate option labels {labels}: {question.stem}")
+
+    # Hai phương án **cùng chữ** thì có đúng một phương án đúng theo cột `is_correct`, mà
+    # với học sinh thì có hai -- và em chọn cái không được đánh dấu sẽ bị chấm sai cho
+    # đúng cái đáp án đúng. Lưới trên không thấy: nhãn khác nhau, cờ đúng đúng một cái.
+    #
+    # Đo được trên dữ liệu thật ngày 06/10/2026, câu 3 của một đề đã **phát hành cho học
+    # sinh**: `A "$ (1, 8) $"` và `B "$ (1, 8) $"` giống nhau từng byte, `is_correct` chỉ
+    # bật ở B. `harvest()` chống trùng stem **giữa các câu**; không chỗ nào chống trùng
+    # phương án **trong một câu**.
+    #
+    # So sau khi **gộp** các khoảng trắng liền nhau, cùng khuôn `validate_retry` đã dùng.
+    # Không xoá hẳn khoảng trắng: `$ (1,8) $` và `$(1,8)$` dựng hình giống hệt nhau nên về
+    # lý vẫn lọt, nhưng xoá hẳn thì `có 3 nghiệm` và `có 3nghiệm` thành một -- và hai cái
+    # ấy là hai chữ khác nhau. Lưới này bắt ca đã xảy ra thật, không hứa bắt mọi ca.
+    bodies = [" ".join(option.text.split()) for option in question.options]
+    if len(set(bodies)) != len(bodies):
+        raise AgentError(f"two options say the same thing {bodies}: {question.stem}")
 
     # Một câu trắc nghiệm **một phương án** đi lọt trọn lưới cũ, vì "mọi distractor có nhãn
     # lỗi" đúng một cách rỗng khi không có distractor nào.

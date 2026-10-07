@@ -148,7 +148,23 @@ một con số dựng sẵn.
 - **Nửa chưa thi hành:** nút Thu hồi phải **mất đi khi đã qua giờ mở**, và `Action result card`
   (`10:63`) không có trục trạng thái *chưa mở* / *đã mở* nên nút luôn hiện. Đừng đọc thẻ đó như bằng
   chứng rằng thu hồi lúc nào cũng được. Xem `docs/plans/backlog.md`.
-- **Chưa có ở backend:** không đường nào **đọc lại** sáu tham số đã đặt cho một lớp, và
-  `ClassOption` của biểu mẫu chỉ nói lớp đó đã giữ đề hay chưa — không nói còn thu hồi được không.
-  Nên điều khoản *nút Thu hồi mất đi khi đã qua giờ mở* ở mục **Hệ quả** vẫn chưa làm được mà không
-  bắt FE tự so đồng hồ, tức tự cài lại `may_withdraw`. Xem `docs/plans/backlog.md`.
+- **Đọc lại được sáu tham số đã đặt, và từ 06/10/2026 thì màn hình thật sự đọc.**
+  `GET /teacher/assessments/{id}/publications` trả `PublishedTo` cho từng lớp — sáu tham số cộng
+  `withdrawable_until`, cộng hai câu luật đã điền số. Endpoint ấy có từ trước nhưng **không chỗ nào
+  trong FE gọi nó**: `teacher.publications` nằm trong `api.ts` như code chết, nên câu hỏi *"12A mở
+  lúc mấy giờ"* trước đó chỉ còn cách đi hỏi học sinh. Nay biểu mẫu phát hành dựng một khối
+  `ĐÃ PHÁT HÀNH` từ nó.
+- **Khôi phục chữ giáo viên tự gõ KHÔNG phải một giá trị gợi sẵn.** Luật *"không gợi sẵn mốc giờ
+  nào"* ở mục **Quyết định** nói về thứ **hệ thống tự nghĩ ra**, vì một giá trị gợi sẵn là một giá
+  trị người ta sẽ bấm qua. Một bản nháp đọc lại từ `localStorage` không thêm thông tin nào vào biểu
+  mẫu — nó chỉ thôi vứt đi thông tin đã có — nên nó nằm ngoài luật ấy. Hai điều kiện đi kèm, cả hai
+  đều đã thi hành: màn hình **nói ra** rằng nó vừa khôi phục, kèm mốc đã gõ và một nút bỏ; và một
+  bản nháp mang giờ mở đã quá khứ **đỏ ngay** bằng `FAULT_OPENS_IN_THE_PAST`, chữ của BE.
+- **Lớp đã giữ đề thì khoá.** Sau phát hành, chip của lớp ấy và năm ô thời gian `disabled`. Đổi
+  khung giờ của một lớp đang giữ đề phải đi qua `Hoàn tác` hoặc thu hồi lớp đó — bảng `publications`
+  vẫn cho phép thay thế điều kiện của một lớp, nhưng màn hình không còn là đường đi tới việc ấy.
+- **Chưa có ở backend:** `ClassOption` của biểu mẫu vẫn chỉ nói lớp đó đã giữ đề hay chưa — không
+  nói **còn thu hồi được không**. Nên điều khoản *nút Thu hồi mất đi khi đã qua giờ mở* ở mục
+  **Hệ quả** vẫn chưa làm được mà không bắt FE tự so đồng hồ, tức tự cài lại `may_withdraw`.
+  (`withdrawable_until` của `PublishedTo` là một **mốc**, không phải một lời phán; so nó với đồng hồ
+  vẫn là FE tự quyết.) Xem `docs/plans/backlog.md`.

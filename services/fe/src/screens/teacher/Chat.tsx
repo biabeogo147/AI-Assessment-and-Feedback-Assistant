@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { go, goInstead } from "../../App";
+import { go } from "../../App";
 import {
   teacher,
   type Answered,
@@ -13,6 +13,7 @@ import ActionCard, { byTheTeacher, cardTurns, stepFor } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
 import Rail from "./Rail";
+import { readNumber, writeNumber } from "./remember";
 import Split from "./Split";
 import Steps, { type Step } from "./Steps";
 import Veil from "./Veil";
@@ -82,12 +83,10 @@ export default function Chat({
   conversationId,
   fresh,
   openPaper,
-  publishing,
 }: {
   conversationId: string | null;
   fresh: boolean;
   openPaper: string | null;
-  publishing: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   // Lượt đang chạy, dựng từ các sự kiện SSE. Nó **không** phải nguồn của màn hình sau khi
@@ -581,24 +580,12 @@ export default function Chat({
       {openPaper !== null && (
         <Panel
           assessmentId={openPaper}
-          publishing={publishing}
           onClose={() =>
             go(here === null ? "/teacher" : `/teacher/chat/${here}`)
           }
-          onPublish={() =>
-            go(`/teacher/chat/${here ?? ""}/de/${openPaper}/phat-hanh`)
-          }
-          // Đường về, song sinh với `onPublish`. Trước đó chỉ có đường đi: `undo()` gọi
-          // `unapprove` rồi nạp lại đề, nhưng **không điều hướng**, nên hash vẫn là
-          // `/phat-hanh` trong khi màn hình đã quay về nội dung đề. Hậu quả đo được: bấm
-          // Back lần đầu không đổi gì nhìn thấy được — URL đổi, màn hình y nguyên — và
-          // phải bấm hai lần mới ra khỏi panel.
-          onUnpublish={() =>
-            goInstead(
-              `/teacher/chat/${here ?? ""}/de/${openPaper}`,
-              `/teacher/chat/${here ?? ""}/de/${openPaper}/phat-hanh`,
-            )
-          }
+          // Không còn `onPublish` lẫn `onUnpublish`. Cả hai là đường đi và đường về của
+          // một hậu tố route `/phat-hanh` đã bỏ: panel đọc nấc từ `state`, nên duyệt xong
+          // là biểu mẫu hiện ra và hoàn tác xong là nó biến mất, không cú điều hướng nào.
           onApproved={() => {
             // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
             // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
@@ -1023,14 +1010,7 @@ const PAPER: Column = {
  * @returns Bề rộng tính bằng pixel.
  */
 function readWidth(column: Column): number {
-  try {
-    const saved = Number(window.localStorage.getItem(column.key));
-    if (Number.isFinite(saved) && saved >= column.min && saved <= column.max)
-      return saved;
-  } catch {
-    /* ẩn danh hoặc storage bị chặn; mặc định vẫn dùng được */
-  }
-  return column.fallback;
+  return readNumber(column.key, column.fallback, column.min, column.max);
 }
 
 /**
@@ -1040,9 +1020,5 @@ function readWidth(column: Column): number {
  * @param width - Bề rộng lúc thả tay.
  */
 function keepWidth(column: Column, width: number): void {
-  try {
-    window.localStorage.setItem(column.key, String(width));
-  } catch {
-    /* như trên */
-  }
+  writeNumber(column.key, width);
 }

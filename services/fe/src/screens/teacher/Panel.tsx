@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   teacher,
@@ -6,6 +6,7 @@ import {
   type QuestionEdit,
   type TeacherQuestion,
 } from "../../api";
+import Editing from "./Editing";
 import { provenanceOf } from "./invented-not-from-be";
 import PublishSettings from "./PublishSettings";
 import Veil from "./Veil";
@@ -22,31 +23,27 @@ import MathText from "../../MathText";
  * Panel tự gọi dữ liệu của mình thay vì nhận qua prop, vì nó mở ra từ một route riêng và
  * một lần F5 trên route ấy phải dựng lại được — mà `turns` thì không mang nội dung đề.
  *
+ * **Đề đã khoá thì panel mở thẳng cài đặt phát hành.** Trước 06/10/2026 còn một chặng ở
+ * giữa — panel vẽ nội dung đề cộng một chân panel mời `Phát hành đề` — và chặng ấy thu
+ * đúng một cú bấm mà không trả lại gì: thẻ trong chat luôn đi tới `/de/{id}`, không bao
+ * giờ tới biểu mẫu, nên mọi lần mở một đề đã duyệt đều mất một nhịp. Nay nấc ấy đọc từ
+ * `state` chứ không từ route, và đó là chỗ nó thuộc về: vòng đời là luật của BE (ADR-01),
+ * nên một cái URL không được quyền kể một nấc khác với cái BE đang giữ.
+ *
  * @param assessmentId - Đề nào.
- * @param publishing - Đang ở màn cài đặt phát hành. Nó tới từ route, nên một lần F5 giữa lúc
- *   điền sáu tham số vẫn mở lại đúng biểu mẫu — còn những gì đã gõ thì mất, và đó là đúng:
- *   ADR-02 nói biểu mẫu **không gợi sẵn giờ nào**, kể cả giờ của chính người vừa gõ.
  * @param onClose - Đóng panel, quay về đoạn chat.
  * @param onApproved - Dòng lượt nói phải đọc lại. Gọi sau **cả ba** việc ghi của panel:
  *   duyệt, bỏ duyệt, và phát hành — cả ba đều để lại một biên bản trong đoạn chat.
- * @param onPublish - Mở biểu mẫu phát hành. Panel không tự mở được: `publishing` tới từ
- *   route, nên việc mở là một cú điều hướng của màn hình bao ngoài.
  *   `approve` ghi một bước vào hội thoại (ADR-01 đòi thế), và bước đó phải hiện ra.
  */
 export default function Panel({
   assessmentId,
-  publishing,
   onClose,
   onApproved,
-  onPublish,
-  onUnpublish,
 }: {
   assessmentId: string;
-  publishing: boolean;
   onClose: () => void;
   onApproved: () => void;
-  onPublish: () => void;
-  onUnpublish: () => void;
 }) {
   const [paper, setPaper] = useState<AssessmentDetail | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -70,10 +67,8 @@ export default function Panel({
       setPaper(await teacher.assessment(assessmentId));
       setTrouble(null);
       onApproved();
-      // Duyệt xong là **sang thẳng** cài đặt phát hành. Trước đó cú bấm này chỉ đổi chân
-      // panel thành hai nút rồi đứng im — một chặng dừng không có việc gì của riêng nó,
-      // và giáo viên phải bấm thêm một lần nữa để tới đúng chỗ họ đang đi tới.
-      onPublish();
+      // Duyệt xong là **sang thẳng** cài đặt phát hành, và nay việc ấy không cần một cú
+      // điều hướng nào: `state` vừa đổi sang `approved`, mà `locked` đọc từ `state`.
     } catch (cause) {
       setTrouble((cause as Error).message);
     } finally {
@@ -120,11 +115,9 @@ export default function Panel({
       setPaper(await teacher.assessment(assessmentId));
       setTrouble(null);
       onApproved();
-      // Và quay về route của nội dung đề. `approve` có `onPublish` để đi tới, nên bỏ
-      // duyệt phải có đường về tương ứng — nếu không, hash ở lại `/phat-hanh` trong khi
-      // màn hình đã là nội dung đề, và nút Back của trình duyệt mất một lần bấm vào một
-      // chỗ trông y hệt chỗ đang đứng.
-      onUnpublish();
+      // Không còn đường về nào để đi: `state` vừa xuống `has_questions`, nên `locked` tắt
+      // và panel tự quay về nội dung đề. Chỗ này từng phải gọi `onUnpublish()` để gỡ hậu
+      // tố `/phat-hanh` khỏi hash — một việc chỉ sinh ra vì màn hình đọc nấc từ route.
     } catch (cause) {
       setTrouble((cause as Error).message);
     } finally {
@@ -198,7 +191,13 @@ export default function Panel({
         ))}
       </div>
 
-      {publishing && locked ? (
+      {/* Đọc **một** thứ: đề đã khoá hay chưa. Điều kiện này từng là `publishing && locked`
+          — `publishing` tới từ hậu tố route `/phat-hanh` — và cái `&&` ấy dựng ra một màn
+          hình thứ ba không ai thiết kế: đề đã khoá, nhưng route chưa mang hậu tố, nên panel
+          vẽ nội dung đề cộng một nút `Phát hành đề`. Thẻ trong chat luôn đi `/de/{id}`,
+          không bao giờ kèm hậu tố, nên **mọi** lần mở một đề đã duyệt đều rơi vào đó. Một
+          cú bấm, không mua gì. */}
+      {locked ? (
         <>
           {/* Lỗi của `undo()` phải hiện ra **ở đây nữa**, không chỉ ở `panel-foot`.
               `trouble` vốn chỉ sống trong nhánh kia, nên mọi lỗi phát ra ở màn cài đặt
@@ -213,7 +212,13 @@ export default function Panel({
               {trouble}
             </div>
           )}
+          {/* `key` theo đề: biểu mẫu khôi phục nháp trong hàm khởi tạo của `useState`,
+              nên đổi `assessmentId` mà **không** dựng lại thì sáu ô giữ nguyên giá trị của
+              đề cũ — rồi effect ghi nháp (có `assessmentId` trong deps) ghi thẳng chúng
+              vào khoá của đề mới. `Panel` sống qua một lần đổi id, nên đường ấy đi được
+              thật: mở một đề khác trong khi panel đang mở. */}
           <PublishSettings
+            key={assessmentId}
             assessmentId={assessmentId}
             onPublished={onApproved}
             undoing={working}
@@ -223,16 +228,16 @@ export default function Panel({
       ) : (
         <div className="panel-foot">
           <div className="note">{trouble ?? _note(paper.state)}</div>
-          {/* Một nút, không hai. *Hoàn tác* sống ở màn cài đặt phát hành, vì duyệt xong
-            là sang thẳng màn ấy — để đường lùi ở cả hai chỗ là một việc có hai chỗ bấm.
-            Chân panel ở trạng thái đã duyệt chỉ còn một việc: mở lại màn 7. */}
+          {/* Nhánh này nay **chỉ** còn của đề chưa duyệt, nên cái nút thôi phải chọn giữa
+            hai nhãn: đề đã khoá thì nhánh trên đã nhận nó. *Hoàn tác* sống ở màn cài đặt
+            phát hành — để đường lùi ở cả hai chỗ là một việc có hai chỗ bấm. */}
           <button
             className="cta"
             type="button"
             disabled={working || paper.question_count === 0}
-            onClick={() => (locked ? onPublish() : void approve())}
+            onClick={() => void approve()}
           >
-            {locked ? "Phát hành đề" : "Duyệt đề"}
+            Duyệt đề
           </button>
         </div>
       )}
@@ -312,416 +317,19 @@ function Solution({
 /**
  * Câu dưới chân panel, một câu cho mỗi trạng thái.
  *
- * Ba, không hai. Một đề **đã phát hành** không nói được câu của một đề mới duyệt: nội dung
- * vẫn khoá, nhưng đường mở lại không còn là bỏ duyệt — nó là thu hồi, vì đề đã ra khỏi tay
- * giáo viên.
+ * **Một** nhánh sống, không ba. Chân panel nay chỉ còn của đề chưa duyệt: `approved` và
+ * `published` đều đi vào màn cài đặt phát hành, nên hai câu của chúng không có chỗ nào để
+ * in ra nữa. Hàm vẫn nhận `state` và vẫn trả chuỗi rỗng cho hai nấc ấy, để nếu một ngày
+ * nhánh kia quay lại thì nó không im lặng một cách tình cờ.
  *
  * @param state - Trạng thái đề, nguyên văn từ BE.
- * @returns Câu để in, hoặc câu của trạng thái chưa duyệt khi state lạ.
+ * @returns Câu để in. Chuỗi rỗng cho `approved` và `published` — đường không tới được.
  */
 function _note(state: string): string {
-  if (state === "published") {
-    // Một đường, không hai. Trước 06/10/2026 câu này bảo *thu hồi khỏi mọi lớp* vì
-    // `unapprove` chưa nhận đề đã phát hành — tức bảo giáo viên tự dựng lại một thao
-    // tác mà hệ thống nay làm trọn trong một cú bấm.
-    return "Đề đã tới học sinh. Muốn sửa thì hoàn tác trước.";
-  }
-  if (state === "approved") {
-    return "Nội dung đã khoá. Muốn sửa một câu thì hoàn tác trước.";
-  }
+  if (state === "approved" || state === "published") return "";
   return "Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.";
 }
 
-/**
- * Ký tự điều khiển **không bao giờ** có nghĩa trong chữ của một câu hỏi.
- *
- * Trừ đúng hai cái: `\n` (`0x0A`) và `\r` (`0x0D`) là xuống dòng thật, và lời giải nào
- * cũng có chúng. Gộp cả hai vào đây thì mọi ô lời giải mọc một cảnh báo, và một cảnh báo
- * luôn hiện là một cảnh báo không ai đọc.
- */
-const MANGLED = /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]/g;
-
-/**
- * In lại một chuỗi với ký tự điều khiển thay bằng ký hiệu nhìn thấy được.
- *
- * **Chuỗi trong ô nhập không được đổi.** Nếu đổi, ký hiệu sẽ theo nút Lưu xuống database
- * và một lỗi hiển thị thành một lỗi dữ liệu. Chỗ này chỉ dựng một bản để đọc.
- *
- * Khối *Control Pictures* của Unicode đặt ký hiệu của ký tự `c` tại `U+2400 + c`, trừ
- * `DEL` nằm riêng ở `U+2421`.
- *
- * @param text - Chuỗi gốc, nguyên byte.
- * @returns Bản để đọc: `0x0C` thành `␌`, `0x09` thành `␉`.
- */
-function visible(text: string): string {
-  return text.replace(MANGLED, (one) => {
-    const code = one.charCodeAt(0);
-    return String.fromCharCode(code === 0x7f ? 0x2421 : 0x2400 + code);
-  });
-}
-
-/**
- * Một ô soạn **tự giãn theo nội dung**.
- *
- * Một chiều cao cố định nhốt lời giải lại và mọc một thanh cuộn **bên trong ô** — đo được:
- * hai ô lời giải có `scrollHeight` 78 và 95 trong một ô cao 45, tức giáo viên phải cuộn
- * trong một ô để đọc thứ mình đang gõ. Đó là chỗ khó dùng nhất của cả màn này.
- *
- * Cao lại theo `scrollHeight` sau mỗi lần gõ, và một lần lúc gắn vào DOM — chữ có sẵn khi
- * mở ô ra cũng phải vừa.
- *
- * @param className - Lớp CSS, để ô đề bài có chiều cao tối thiểu riêng.
- * @param label - Nhãn cho trình đọc màn hình.
- * @param value - Chữ đang có.
- * @param onChange - Chữ vừa đổi.
- */
-function Field({
-  className,
-  label,
-  value,
-  onChange,
-}: {
-  className: string;
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const noteId = useId();
-  const fit = (node: HTMLTextAreaElement | null) => {
-    if (node === null) return;
-    node.style.height = "auto";
-    // Cộng phần viền. `box-sizing: border-box` tính chiều cao kể cả viền, còn
-    // `scrollHeight` thì không — đặt thẳng `scrollHeight` làm ô hụt đúng 2px, và dòng cuối
-    // mất phần chân chữ. Đo được: `scrollHeight` 78 trong một ô `clientHeight` 76.
-    const frame = node.offsetHeight - node.clientHeight;
-    node.style.height = `${node.scrollHeight + frame}px`;
-  };
-
-  const hidden = value.match(MANGLED)?.length ?? 0;
-
-  return (
-    // Fragment chứ không bọc `<div>`: `.edit-method-head .field.title` nhận `flex: 1` từ
-    // một selector nhắm thẳng vào `textarea`, nên một lớp bọc sẽ cướp mất chỗ flex item
-    // và ô tiêu đề thôi giãn. Dòng cảnh báo tự xuống hàng bằng `flex-basis: 100%`.
-    <>
-      <textarea
-        className={className}
-        aria-label={label}
-        aria-describedby={hidden > 0 ? noteId : undefined}
-        ref={fit}
-        rows={1}
-        value={value}
-        onChange={(event) => {
-          fit(event.currentTarget);
-          onChange(event.target.value);
-        }}
-      />
-      {hidden > 0 && (
-        <div className="mangled" id={noteId}>
-          {/* Không `role="status"`: vùng sống sẽ đọc lại cả dòng này sau **mỗi** phím gõ.
-              Buộc vào ô bằng `aria-describedby` thì nó được đọc đúng một lần, lúc vào ô. */}
-          <span className="mangled-head">
-            {hidden} ký tự hỏng, không nhìn thấy được trong ô:
-          </span>{" "}
-          <span className="mangled-body">{visible(value)}</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-/**
- * Thẻ câu hỏi lúc đang sửa — bản dựng của component `Question card — đang sửa` (`468:2050`).
- *
- * Mỗi ô là một `textarea` chứ không phải một ô nhập một dòng: đề bài và lời giải xuống
- * dòng được, và một ô một dòng biến một lời giải ba bước thành một dải chữ cuộn ngang.
- *
- * Chữ gõ ở đây là **LaTeX nguồn**, không phải công thức đã dựng hình. Sửa cái đã dựng hình
- * thì cần một trình soạn công thức, và đó là một việc khác hẳn; sửa nguồn thì giáo viên
- * thấy đúng thứ sẽ được lưu, và thứ ấy đúng là thứ `validate_question` sẽ kiểm.
- *
- * @param question - Câu hỏi gốc, để lấy số câu.
- * @param source - Chip nguồn câu hỏi. Nó **ở lại** lúc đang sửa: biết câu này lấy từ đâu là
- *   thứ cần nhất đúng lúc đang sửa nó, không phải thứ bỏ đi được.
- * @param draft - Bản đang gõ.
- * @param refused - Lời từ chối của BE, hoặc chuỗi rỗng.
- * @param saving - Đang gửi; hai nút phải khoá để không lưu hai lần.
- * @param onChange - Bản gõ vừa đổi.
- * @param onCancel - Bỏ, quay về thẻ chỉ đọc.
- * @param onSave - Gửi đi.
- */
-/**
- * Một phương án nhiễu mới, với nhãn chữ cái còn trống đầu tiên.
- *
- * Nhãn là **khoá** của phương án trong câu: cột có `UniqueConstraint(question_id, label)`,
- * nên trùng nhãn ra 500 chứ không ra một lời từ chối đọc được. Lấy chữ cái trống đầu tiên
- * chứ không lấy "chữ sau chữ lớn nhất": xoá B rồi thêm lại sẽ cho ra B, không cho ra E.
- *
- * @param draft - Bản đang gõ, để biết nhãn nào đã dùng.
- * @returns Phương án mới, chưa có chữ và chưa có nhãn lỗi.
- */
-function blankOption(draft: QuestionEdit): QuestionEdit["options"][number] {
-  const used = new Set(draft.options.map((one) => one.label));
-  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const free = [...letters].find((one) => !used.has(one)) ?? "?";
-  return { label: free, text: "", is_correct: false, error_label: "" };
-}
-
-function Editing({
-  question,
-  source,
-  draft,
-  refused,
-  saving,
-  onChange,
-  onCancel,
-  onSave,
-}: {
-  question: TeacherQuestion;
-  source: { tone: string; label: string };
-  draft: QuestionEdit;
-  refused: string;
-  saving: boolean;
-  onChange: (next: QuestionEdit) => void;
-  onCancel: () => void;
-  onSave: () => void;
-}) {
-  // Phương án nhiễu nào chưa có nhãn lỗi. Tính ở đây chứ không trong `onChange` của
-  // radio: nó là một tính chất của **cả bộ phương án** tại mỗi lúc, không phải hậu quả
-  // của riêng một cú bấm — thêm một phương án mới cũng rơi vào đúng trạng thái này.
-  const missing = draft.options
-    .filter((one) => !one.is_correct && (one.error_label ?? "").trim() === "")
-    .map((one) => one.label);
-
-  return (
-    <div className="qcard editing">
-      <div className="top">
-        <span className="num">Câu {question.order}</span>
-        <span className={`source-chip ${source.tone}`}>{source.label}</span>
-        <span className="spacer" />
-        <span className="edit-mark">Đang sửa</span>
-      </div>
-
-      <Field
-        className="field stem"
-        label="Đề bài"
-        value={draft.stem}
-        onChange={(next) => onChange({ ...draft, stem: next })}
-      />
-
-      {draft.options.map((one, index) => (
-        <div className="edit-option" key={one.label}>
-          <div className="edit-option-head">
-            {/* **Đổi được đáp án đúng.** Trước đợt này phương án đúng chỉ có một cái nhãn
-                và không control nào — nên thứ duy nhất hỏng ở một câu model soạn sai lại
-                là thứ duy nhất giáo viên không sửa được. Đo được: một câu có đáp án đúng
-                là 1/2, bốn phương án không chứa 1/2, và 1/3 đang đeo dấu đúng. Cổng người
-                thứ nhất của ADR-05 hở đúng chỗ ấy.
-
-                Radio chứ không phải nút *Đặt làm đáp án đúng*: nó là **một cú bấm** để
-                chuyển, và cả nhóm đọc ra như một lựa chọn duy nhất thay vì bốn nút rời.
-                Nhưng nó **không tự** giữ ADR-18 — `checked` đi từ state nên nhóm radio
-                của trình duyệt không quyết gì cả; thứ bỏ cờ cũ là `onChange` ngay dưới,
-                và một đột biến ở đó làm payload ra hai đáp án đúng. `name` theo
-                `question_id` để hai thẻ mở cùng lúc không nằm chung một nhóm. */}
-            <input
-              type="radio"
-              className="right-mark"
-              name={`correct-${question.question_id}`}
-              checked={one.is_correct}
-              disabled={saving}
-              aria-label={`Đặt phương án ${one.label} làm đáp án đúng`}
-              onChange={() =>
-                onChange({
-                  ...draft,
-                  // **Chỉ đổi cờ, không đụng tới chữ.** Bản đầu xoá `error_label` của
-                  // phương án vừa thành đúng, với lý lẽ "payload phải sạch". Lý lẽ sai:
-                  // `OptionEdit` ở BE nói thẳng rằng nhãn gửi kèm đáp án đúng **bị bỏ,
-                  // không bị từ chối**, và `models.py` tự đặt `null` ở đúng dòng ấy.
-                  //
-                  // Và cái xoá ấy không khôi phục được: A→B xoá nhãn của B, bấm nhầm rồi
-                  // bấm lại là mất **cả hai** nhãn giáo viên đã gõ tay, không có undo.
-                  // Giữ chữ lại thì một lần bấm nhầm chỉ tốn một lần bấm nữa.
-                  options: draft.options.map((other, at) => ({
-                    ...other,
-                    is_correct: at === index,
-                  })),
-                })
-              }
-            />
-            <span className={one.is_correct ? "tag right" : "tag"}>
-              {one.is_correct ? `${one.label} · đáp án đúng` : `Phương án ${one.label}`}
-            </span>
-            <span className="spacer" />
-            {/* Đáp án **đúng** không có nút xoá. Xoá nó là bỏ luật tính điểm của câu, và
-                việc ấy cần một quyết định riêng về những lượt đã làm — khác hẳn việc sửa
-                chữ. Và dưới hai phương án thì câu không còn là một câu trắc nghiệm, nên
-                nút biến mất ở đó luôn thay vì để bấm rồi nhận một lời từ chối. */}
-            {!one.is_correct && draft.options.length > 2 && (
-              <button
-                className="quiet"
-                type="button"
-                disabled={saving}
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    options: draft.options.filter((_, at) => at !== index),
-                  })
-                }
-              >
-                Xoá
-              </button>
-            )}
-          </div>
-
-          <Field
-            className="field"
-            label={`Phương án ${one.label}`}
-            value={one.text}
-            onChange={(next) =>
-              onChange({
-                ...draft,
-                options: draft.options.map((other, at) =>
-                  at === index ? { ...other, text: next } : other,
-                ),
-              })
-            }
-          />
-
-          {/* Nhãn lỗi là **bắt buộc** với mọi phương án nhiễu (ADR-18), nên nó phải có ô
-              để gõ. Bản trước không có, nên thêm một phương án là tạo ra một câu chắc
-              chắn bị từ chối: một nút dẫn thẳng tới một lần 422. */}
-          {!one.is_correct && (
-            <Field
-              className="field fault"
-              label={`Lỗi của phương án ${one.label}`}
-              value={one.error_label ?? ""}
-              onChange={(next) =>
-                onChange({
-                  ...draft,
-                  options: draft.options.map((other, at) =>
-                    at === index ? { ...other, error_label: next } : other,
-                  ),
-                })
-              }
-            />
-          )}
-        </div>
-      ))}
-
-      <button
-        className="add"
-        type="button"
-        disabled={saving}
-        onClick={() => onChange({ ...draft, options: [...draft.options, blankOption(draft)] })}
-      >
-        + Thêm phương án
-      </button>
-
-      {draft.methods.map((one, index) => (
-        <div className="edit-method" key={index}>
-          <div className="edit-method-head">
-            <Field
-              className="field title"
-              label={`Tên cách giải ${index + 1}`}
-              value={one.title}
-              onChange={(next) =>
-                onChange({
-                  ...draft,
-                  methods: draft.methods.map((other, at) =>
-                    at === index ? { ...other, title: next } : other,
-                  ),
-                })
-              }
-            />
-            {/* ADR-18 đòi **hơn một** lời giải: một câu một cách giải dạy được một lối
-                nghĩ, và cả việc này sinh ra là để dạy nhiều lối. */}
-            {draft.methods.length > 2 && (
-              <button
-                className="quiet"
-                type="button"
-                disabled={saving}
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    methods: draft.methods.filter((_, at) => at !== index),
-                  })
-                }
-              >
-                Xoá
-              </button>
-            )}
-          </div>
-
-          <Field
-            className="field"
-            label={`Lời giải ${index + 1}`}
-            value={one.body}
-            onChange={(next) =>
-              onChange({
-                ...draft,
-                methods: draft.methods.map((other, at) =>
-                  at === index ? { ...other, body: next } : other,
-                ),
-              })
-            }
-          />
-        </div>
-      ))}
-
-      <button
-        className="add"
-        type="button"
-        disabled={saving}
-        onClick={() =>
-          onChange({
-            ...draft,
-            methods: [...draft.methods, { title: "", body: "" }],
-          })
-        }
-      >
-        + Thêm cách giải
-      </button>
-
-      {/* **Nói bằng tiếng Việt, trước cú bấm.** ADR-18 bắt mọi phương án nhiễu có nhãn
-          lỗi, và đổi đáp án đúng biến phương án cũ thành một phương án nhiễu — mà nó
-          thường chưa có nhãn, vì BE ghi `null` ở đúng dòng đáp án đúng. Để nó đi tới BE
-          thì lời từ chối về là `distractors ['A'] carry no error label: <cả đề bài>`:
-          tiếng Anh, kèm `repr` của một list Python, kèm nguyên văn câu hỏi.
-          Đây là cùng một lý lẽ với hộp cảnh báo của biểu mẫu phát hành, và cùng một lý
-          lẽ với ô nhãn lỗi đã thêm ở đợt trước — một nút dẫn thẳng tới một lần 422 là
-          một nút nói dối. */}
-      {missing.length > 0 && (
-        <div className="refused">
-          {missing.length === 1
-            ? `Phương án ${missing[0]} chưa có nhãn lỗi. ADR-18 bắt mọi phương án nhiễu phải có.`
-            : `Các phương án ${missing.join(", ")} chưa có nhãn lỗi. ADR-18 bắt mọi phương án nhiễu phải có.`}
-        </div>
-      )}
-
-      {refused !== "" && <div className="refused">{refused}</div>}
-
-      <div className="edit-actions">
-        <button
-          className="quiet"
-          type="button"
-          disabled={saving}
-          onClick={onCancel}
-        >
-          Huỷ
-        </button>
-        <button
-          className="cta"
-          type="button"
-          disabled={saving || missing.length > 0}
-          onClick={onSave}
-        >
-          Lưu
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Dòng tổng kết nguồn câu hỏi, ngay dưới tên đề.

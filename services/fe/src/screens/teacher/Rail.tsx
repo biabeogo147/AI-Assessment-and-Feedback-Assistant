@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import { type TeacherConversation, type TeacherDocument } from "../../api";
 import { DASHBOARD_WAITING } from "./invented-not-from-be";
+import { readFlag, readNumber, writeFlag, writeNumber } from "./remember";
 
 /** Chiều cao ngăn tài liệu, nhớ lại giữa các lần mở. Thiết kế vẽ 225. */
 const SPLIT_KEY = "kriky.teacher.documents-height";
@@ -11,6 +12,18 @@ const SPLIT_DEFAULT = 225;
 // đề; trên 520 thì danh sách đoạn chat không còn chỗ cho một hàng nào.
 const SPLIT_MIN = 120;
 const SPLIT_MAX = 520;
+
+/**
+ * Nấc thu của **từng** ngăn, nhớ lại giữa các lần mở.
+ *
+ * Nhớ, khác với nấc của tấm trượt phát hành — và lý do là nội dung: một ngăn đã thu không
+ * mất gì khi thu tiếp, còn một biểu mẫu nhớ nấc mà không nhớ giờ là nhớ nửa vời. Rail là
+ * chỗ đứng yên của mọi màn hình, nên một người đã đóng ngăn `TÀI LIỆU` lại thì mỗi lần F5
+ * mở lại nó là bắt người ta đóng lại một lần nữa.
+ *
+ * Thiếu khoá thì **bung** — một rail mới mở ra phải cho thấy nó có gì.
+ */
+const PANE_KEY = (which: string) => `kriky.teacher.pane-open.${which}`;
 
 /**
  * Dải bên trái của mọi màn hình giáo viên.
@@ -66,6 +79,10 @@ export default function Rail({
   // một lúc* là một luật giữa các hàng.
   const [menuOn, setMenuOn] = useState<string | null>(null);
   const [documentsHeight, setDocumentsHeight] = useState(readSplit);
+  const [historyOpen, setHistoryOpen] = useState(() => readPaneOpen("history"));
+  const [documentsOpen, setDocumentsOpen] = useState(() =>
+    readPaneOpen("documents"),
+  );
   const dragging = useRef(false);
   // Chiều cao **đang kéo tới**, cập nhật ngay trong `pointermove`. State thì không đủ:
   // `pointermove` cuối và `pointerup` rơi vào cùng một task, React chưa render lại, nên
@@ -77,13 +94,24 @@ export default function Rail({
   // chỉ đóng bằng cách chọn một mục — tức bấm nhầm `⋯` là kẹt một menu trên màn hình.
   // `pointerdown` chứ không `click`: `click` của chính mục menu nổ sau, và bắt ở `click`
   // thì đóng menu trước khi mục kịp chạy.
+  //
+  // **Và chỗ miễn trừ phải kể cả `.row-menu`.** Nó từng chỉ kể `.conversation`, đúng vào
+  // lúc menu còn nằm trong hàng — rồi menu chuyển sang `createPortal(document.body)` để
+  // thoát `mask-image` của vùng cuộn, và từ đó `closest(".conversation")` trả `null` cho
+  // chính các mục của nó. Hậu quả: `pointerdown` tháo menu khỏi cây, `click` rơi vào một
+  // node đã tháo, nên **cả hai** mục chết — `Đổi tên` lẫn `Xoá`. Dựng lại bằng chuỗi sự
+  // kiện thật ngày 06/10/2026: sau `pointerdown` thì `menuStillThere: false`,
+  // `itemConnected: false`, và `input.rename` không bao giờ hiện ra.
+  //
+  // Không test nào bắt được vì không test nào bắn `pointerdown`: gọi `.click()` thẳng thì
+  // chuỗi sự kiện của chuột không xảy ra, và phép đo xanh trong khi ngón tay thật thì không.
   useEffect(() => {
     if (menuOn === null) return;
     const shut = (event: Event) => {
       if (event instanceof KeyboardEvent && event.key !== "Escape") return;
       if (event.type === "pointerdown") {
         const inside = (event.target as HTMLElement | null)?.closest(
-          ".conversation",
+          ".conversation, .row-menu",
         );
         if (inside) return;
       }
@@ -132,7 +160,15 @@ export default function Rail({
       </div>
 
       <div className="lists">
-        <Pane title="ĐOẠN CHAT" className="history">
+        <Pane
+          title="ĐOẠN CHAT"
+          className="history"
+          open={historyOpen}
+          onToggle={() => {
+            setHistoryOpen(!historyOpen);
+            writePaneOpen("history", !historyOpen);
+          }}
+        >
           {conversations.map((one, index) => (
             <Row
               key={one.conversation_id}
@@ -153,6 +189,12 @@ export default function Rail({
           ))}
         </Pane>
 
+        {/* Thanh kéo chỉ có mặt khi **cả hai** ngăn đang bung.
+            `SPLIT_MIN` 120 tồn tại để không ngăn nào biến mất; một ngăn đã thu thì con số
+            ấy không còn thứ gì để bảo vệ, và kéo một đường biên giữa một ngăn và một thanh
+            đầu cao 27 là kéo một thứ không có nghĩa. Chiều cao đã nhớ **giữ nguyên** trong
+            `documentsHeight` cho lúc bung lại — thanh kéo đi mất, con số thì không. */}
+        {historyOpen && documentsOpen && (
         <div
           className="split-handle"
           role="separator"
@@ -179,20 +221,28 @@ export default function Rail({
             // nhưng đọc state của render cũ. Một phép đo có `await` giữa `pointermove`
             // và `pointerup` làm cả hai bản *trông như* chạy được — chuột thật thì hai
             // sự kiện rơi vào cùng một task.
-            try {
-              window.localStorage.setItem(SPLIT_KEY, String(wanted.current));
-            } catch {
-              /* ẩn danh hoặc storage đầy; vị trí thanh kéo không đáng làm hỏng gì */
-            }
+            writeNumber(SPLIT_KEY, wanted.current);
           }}
         >
           <div className="grip" />
         </div>
+        )}
 
         <Pane
           title="TÀI LIỆU"
           className="documents"
-          height={documentsHeight}
+          // Chiều cao cố định **chỉ** khi cả hai ngăn đang bung — tức đúng lúc thanh kéo
+          // có mặt. Thu `ĐOẠN CHAT` mà vẫn ghim 225 ở đây thì ngăn tài liệu đứng yên và
+          // để lại một khoảng trắng cao ~368px dưới nó: đo trên trình duyệt ngày
+          // 06/10/2026. Chiều ngược lại vốn đã đúng vì `.pane.history` là `flex: 1`, nên
+          // lỗi này **chỉ** lộ ra ở một trong hai chiều — và Figma chỉ vẽ chiều kia.
+          // Con số đã nhớ không mất: nó còn trong `documentsHeight`.
+          height={historyOpen && documentsOpen ? documentsHeight : undefined}
+          open={documentsOpen}
+          onToggle={() => {
+            setDocumentsOpen(!documentsOpen);
+            writePaneOpen("documents", !documentsOpen);
+          }}
           action={
             <button
               className="upload"
@@ -240,14 +290,27 @@ export default function Rail({
  *   — tay người sửa, hoặc một phiên bản cũ — không được phép làm vỡ rail.
  */
 function readSplit(): number {
-  try {
-    const saved = Number(window.localStorage.getItem(SPLIT_KEY));
-    if (Number.isFinite(saved) && saved >= SPLIT_MIN && saved <= SPLIT_MAX)
-      return saved;
-  } catch {
-    /* không đọc được thì dùng con số của thiết kế */
-  }
-  return SPLIT_DEFAULT;
+  return readNumber(SPLIT_KEY, SPLIT_DEFAULT, SPLIT_MIN, SPLIT_MAX);
+}
+
+/**
+ * Ngăn này đang bung hay không, theo cái đã nhớ.
+ *
+ * @param which - Tên ngăn.
+ * @returns `true` khi bung. Thiếu khoá, hoặc không đọc được `localStorage`, thì bung.
+ */
+function readPaneOpen(which: string): boolean {
+  return readFlag(PANE_KEY(which));
+}
+
+/**
+ * Ghi lại nấc của một ngăn.
+ *
+ * @param which - Tên ngăn.
+ * @param open - Nấc mới.
+ */
+function writePaneOpen(which: string, open: boolean): void {
+  writeFlag(PANE_KEY(which), open);
 }
 
 /**
@@ -282,7 +345,13 @@ function weight(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
 }
 
-/** Một đích đến của dải điều hướng. Chưa đích nào có màn hình, nên chưa đích nào bấm được. */
+/**
+ * Một đích đến của dải điều hướng. Chưa đích nào có màn hình, nên chưa đích nào bấm được.
+ *
+ * @param icon - Hình 12×12.
+ * @param label - Chữ.
+ * @param badge - Con số chờ, nếu có.
+ */
 function Destination({
   icon,
   label,
@@ -302,36 +371,65 @@ function Destination({
 }
 
 /**
- * Một ngăn có tiêu đề và một vùng cuộn riêng.
+ * Một ngăn có tiêu đề và một vùng cuộn riêng, thu được.
  *
+ * **Thu gọn là thao tác chính, kéo là tinh chỉnh** — ghi chú `129:2` trên Figma nói đúng câu
+ * ấy từ lâu, và nó chỉ tồn tại ở đó: rail được sao chép theo artboard chứ không dựng thành
+ * component, nên bốn luật của ghi chú chưa có dòng code nào. Cái mũi nhọn trong thanh đầu đã
+ * đứng ở đây từ đầu mà không bấm được, tức nó hứa đúng việc này rồi lặng lẽ không làm.
+ *
+ * Thanh đầu là một **hàng chứa hai nút ngang hàng**, không phải một nút bọc mọi thứ: nút tải
+ * lên của ngăn `TÀI LIỆU` là một `<button>`, và một `<button>` trong một `<button>` thì
+ * trình duyệt tự gỡ lồng — cú bấm vào nút trong rơi vào nút ngoài, nên bấm *tải lên* sẽ thu
+ * ngăn lại. Đây là đúng cái bẫy mà hàng đoạn chat đã sập một lần (xem `Row`).
+ *
+ * @param title - Tên ngăn, in hoa.
+ * @param className - Tên riêng của ngăn, cho luật bố cục.
  * @param height - Chiều cao cố định, cho ngăn kéo được. Thiếu thì ngăn chiếm phần còn lại.
+ * @param action - Một việc của riêng ngăn này, đứng cạnh nút thu.
+ * @param open - Đang bung. Thu thì vùng cuộn **rời khỏi cây DOM**, không chỉ ẩn đi: một
+ *   danh sách còn trong cây vẫn tab tới được, và tab vào một thứ không thấy là một cái bẫy.
+ * @param onToggle - Xin đổi nấc.
  */
 function Pane({
   title,
   className,
   height,
   action,
+  open,
+  onToggle,
   children,
 }: {
   title: string;
   className: string;
   height?: number;
   action?: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
   children: React.ReactNode;
 }) {
   return (
     <section
-      className={`pane ${className}`}
-      style={height === undefined ? undefined : { flex: `0 0 ${height}px` }}
+      className={`pane ${className}${open ? "" : " thu"}`}
+      style={
+        height === undefined || !open ? undefined : { flex: `0 0 ${height}px` }
+      }
     >
       <div className="pane-head">
-        <svg className="caret" viewBox="0 0 8 6" aria-hidden="true">
-          <path d="M0 0h8L4 6z" fill="currentColor" />
-        </svg>
-        <span className="label">{title}</span>
+        <button
+          className="pane-toggle"
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          <svg className="caret" viewBox="0 0 8 6" aria-hidden="true">
+            <path d="M0 0h8L4 6z" fill="currentColor" />
+          </svg>
+          <span className="label">{title}</span>
+        </button>
         {action}
       </div>
-      <div className="scroll">{children}</div>
+      {open && <div className="scroll">{children}</div>}
     </section>
   );
 }
@@ -538,9 +636,13 @@ function Dashboard() {
 function Classes() {
   return (
     <svg viewBox="0 0 12 12" aria-hidden="true">
-      <circle cx="6" cy="2.5" r="2" fill="currentColor" />
-      <circle cx="2.5" cy="9" r="2" fill="currentColor" />
-      <circle cx="9.5" cy="9" r="2" fill="currentColor" />
+      {/* Mực chạm **đáy** khung 12, như ba icon kia: `cy 10 + r 2 = 12`. Bản trước
+          dừng ở 11, nên dưới luật nâng chung nó sẽ đứng cao hơn baseline đúng 1px. Luật
+          nâng là một luật của rail; bất biến *"mực chạm đáy"* là phần hình vẽ phải giữ để
+          luật ấy đúng với mọi icon. */}
+      <circle cx="6" cy="2" r="2" fill="currentColor" />
+      <circle cx="2.5" cy="10" r="2" fill="currentColor" />
+      <circle cx="9.5" cy="10" r="2" fill="currentColor" />
     </svg>
   );
 }

@@ -12,6 +12,19 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   server: {
+    /*
+     * `127.0.0.1` chứ không để mặc định.
+     *
+     * Mặc định của Vite là `localhost`, và trên Node 17+ chuỗi ấy được phân giải theo thứ
+     * tự DNS của hệ điều hành — ở máy này nó ra `[::1]` và server **chỉ** bind IPv6. Trình
+     * duyệt thì phân giải `localhost` ra `127.0.0.1` trước, nên nó nhận
+     * `ERR_CONNECTION_REFUSED` trong khi `curl` từ shell trả 200 ở đúng cái URL ấy. Mất
+     * bốn lượt thử ngày 06/10/2026 mới đọc ra, vì triệu chứng đọc như dev server đang chết.
+     *
+     * Không dùng `host: true`: nó bind mọi địa chỉ, tức mở dev server ra cả mạng LAN. Chỗ
+     * này chỉ cần loopback, và một IPv4 loopback thì mọi trình duyệt đều với tới được.
+     */
+    host: "127.0.0.1",
     port: 5173,
     proxy: {
       "/api": {

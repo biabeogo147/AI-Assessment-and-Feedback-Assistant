@@ -25,6 +25,12 @@ không có phần giải thích, nó hạ `confidence` xuống 0,55; và với m
 - **Số phương án không cố định.** Một câu có thể có ba, bốn, năm lựa chọn — bao nhiêu tuỳ câu — nhưng
   **đúng một** trong số đó là đáp án đúng. Mọi phương án còn lại là nhiễu, nên mọi phương án còn lại
   đều phải có lỗi gắn kèm.
+- **Và không hai phương án nào nói cùng một chữ** (bổ sung 06/10/2026). *Đúng một đáp án đúng* là
+  một luật về **cột `is_correct`**; hai phương án trùng chữ vẫn thoả nó, trong khi với học sinh thì
+  có hai đáp án đúng và em chọn cái không được đánh dấu sẽ bị chấm sai cho đúng cái đáp án đúng.
+  Đo được trên dữ liệu thật: câu 3 của một đề **đã phát hành cho học sinh** có `A "$ (1, 8) $"` và
+  `B "$ (1, 8) $"` giống nhau từng byte, `is_correct` chỉ bật ở `B`. So sau khi **gộp** các khoảng
+  trắng liền nhau — không xoá hẳn, vì *"có 3 nghiệm"* và *"có 3nghiệm"* là hai chữ khác nhau.
 - Trợ lí ở pha 2 **đi theo lời giải và ánh xạ đã có**. Nó không tự nghĩ ra cách làm mới và không tự
   đoán lỗi.
 - Lời giải và ánh xạ là **một phần của nội dung đề**, nên chúng bị khoá khi giáo viên duyệt, đúng như
@@ -98,6 +104,11 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
   biến trên khoảng nào, mà cả `(−∞; −1)` lẫn `(1; +∞)` đều đúng. Phương án D đổi thành `(−2; 0)` —
   khoảng chứa cả phần tăng lẫn phần giảm. Một bộ phương án có hai đáp án đúng thì ánh xạ nhiễu→lỗi
   **không viết được**, nên lỗi này lộ ra ở đúng chỗ nó phải lộ.
+- **Luật *không hai phương án nói cùng một chữ* sống trong `validate_question`** — một bản kiểm, nên
+  câu model viết và câu giáo viên sửa tay đi qua **cùng** cái lưới; hai bản kiểm của một luật là hai
+  thứ chờ lệch nhau, và bản lỏng hơn sẽ là bản người ta đi qua. Đo bằng
+  `test_two_holes_the_old_net_let_through`, hai ca mới. Lưới này bắt ngay sáu fixture trong chính bộ
+  test — mọi nhiễu ở đó đều mang chữ `"sai"` — nên luật nhìn thấy được thứ nó sinh ra để nhìn.
 - **Chưa có gì ghi nhận giáo viên đã đọc lời giải.** Đây là lỗ do chính ADR này tạo ra; xem
   `docs/plans/backlog.md`.
 - **Chưa có ở contract**: `packages/contracts` có `question_id` nhưng không có **model** câu hỏi, nên

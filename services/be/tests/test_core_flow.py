@@ -35,9 +35,9 @@ OTHER_STUDENT = {"X-Actor": "student:HS2026-1205"}
 _RETRY = GeneratedQuestion(
     stem="Đề của lượt làm lại",
     options=(
-        GeneratedOption(label="A", text="sai", is_correct=False, error_label="lỗi A"),
+        GeneratedOption(label="A", text="sai A", is_correct=False, error_label="lỗi A"),
         GeneratedOption(label="B", text="đúng", is_correct=True),
-        GeneratedOption(label="C", text="sai", is_correct=False, error_label="lỗi C"),
+        GeneratedOption(label="C", text="sai C", is_correct=False, error_label="lỗi C"),
     ),
     methods=(
         SolutionMethod(title="Cách 1", body="..."),
