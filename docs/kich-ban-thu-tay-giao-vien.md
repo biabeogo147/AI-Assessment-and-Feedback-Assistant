@@ -8,6 +8,18 @@ Chạy hết một lượt mất khoảng 25–30 phút và tốn **10 lượt g
 mang dấu `[1 lượt]`. (Thêm vài lượt ẩn: mỗi đoạn chat mới tốn một lượt để model đặt tên.) Mọi mục đánh dấu `[0]` không
 tốn lượt gọi nào — chúng chạy qua nút bấm, không qua chat.
 
+> **Mã trong file này KHÔNG phải mã chặng của pipeline.** `A1`, `D5`, `G4`… ở đây là số hiệu
+> **ca thử tay**, và chúng **trùng ký tự nhưng khác nghĩa** với hệ mã A–G của artifact theo dõi
+> pipeline. Ba chỗ dễ nhầm nhất: `D5` ở đây là *sửa chữ một câu* còn ở artifact là *phát hành*;
+> `E` ở đây là *phát hành và thu hồi* còn ở artifact là *học sinh làm bài*; `G` ở đây là *tài liệu*
+> còn ở artifact là *tín hiệu quay lại* — và tài liệu ở artifact là `C`. Hai hệ hoán đổi chữ cái
+> cho cùng một vật.
+>
+> Cách chữa đã đề xuất, **chưa làm vì cần người dùng chốt**: đặt tiền tố `KB-` cho toàn bộ mã của
+> file này (`A1` → `KB-A1`). Hệ mã này chỉ sống trong đúng file này, nên đó là một lượt find/replace
+> ~70 chỗ, không chạm code, và theo `AGENTS.md` nó là *"wording fix in docs"* nên không cần plan hay
+> ADR. Tiện thể nó giải luôn chỗ `F5` vừa là mã ca thử vừa là phím refresh.
+
 ---
 
 ## Trước khi bắt đầu
