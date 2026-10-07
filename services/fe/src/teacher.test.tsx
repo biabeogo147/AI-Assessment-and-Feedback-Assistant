@@ -20,7 +20,7 @@ import Chat, { grow } from "./screens/teacher/Chat";
 import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
 import Steps from "./screens/teacher/Steps";
-import { localInput, moment, type TurnEvent } from "./api";
+import { moment, teacher, type TurnEvent } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -1529,14 +1529,26 @@ describe("tải một tài liệu lên", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
-    expect(screen.getByText("Đã tải lên: de-cuong.pdf")).toBeTruthy();
+    await waitFor(() =>
+      expect(container.querySelector(".scope-strip")).toBeTruthy(),
+    );
+    // Dải chỉ nói **tên tệp**. Chữ "Đã tải lên" bị bỏ: rail đã đẩy tệp vừa lên đầu danh
+    // sách, nên câu ấy kể lại một việc màn hình vừa nói — và nó là nghĩa thứ hai nhét vào
+    // cùng một biến, thứ làm cho không luật dọn nào đúng được.
+    expect(container.querySelector(".scope-strip .what")?.textContent).toBe(
+      "de-cuong.pdf",
+    );
+    expect(screen.queryByText("Đã tải lên: de-cuong.pdf")).toBeNull();
     expect(screen.queryByText("Đổi phạm vi")).toBeNull();
-    // Tải lên có **một** cửa: cái icon cạnh nhãn TÀI LIỆU. Dải này chỉ nói tệp nào vừa
-    // lên, nó không phải một cửa thứ hai — hai cửa cho cùng một việc thì cửa nào cũng
-    // thành chỗ phải đoán.
+    // Tải lên có **một** cửa: cái icon cạnh nhãn TÀI LIỆU. Dải này không phải một cửa thứ
+    // hai — hai cửa cho cùng một việc thì cửa nào cũng thành chỗ phải đoán. Nút duy nhất
+    // trên dải là đường lùi, và nó mang đúng một chữ.
     expect(screen.queryByText("Tải tệp khác")).toBeNull();
-    expect(container.querySelectorAll(".scope-strip button").length).toBe(0);
+    expect(
+      [...container.querySelectorAll(".scope-strip button")].map(
+        (one) => one.textContent,
+      ),
+    ).toEqual(["Bỏ"]);
   });
 });
 
@@ -1993,10 +2005,113 @@ describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", ()
     expect(bar.className).toContain("dropping");
 
     fireEvent.drop(bar, { dataTransfer });
-    await waitFor(() => expect(screen.getByText("Đã tải lên: de-cuong.pdf")).toBeTruthy());
+    await waitFor(() =>
+      expect(container.querySelector(".scope-strip .what")?.textContent).toBe(
+        "de-cuong.pdf",
+      ),
+    );
     expect((container.querySelector(".composer-bar") as HTMLElement).className).not.toContain(
       "dropping",
     );
+  });
+
+  /**
+   * Thả một chip vào ô nhập, rồi trả về khung đang dựng.
+   *
+   * `DataTransfer` giả, vì jsdom không dựng sẵn cái thật.
+   */
+  async function attach(view: ReturnType<typeof render>) {
+    const chip = view.container.querySelector(
+      ".pane.documents .document",
+    ) as HTMLElement;
+    const held: Record<string, string> = {};
+    const dataTransfer = {
+      types: ["text/kriky-document"],
+      setData: (kind: string, value: string) => {
+        held[kind] = value;
+      },
+      getData: (kind: string) => held[kind] ?? "",
+      effectAllowed: "",
+      dropEffect: "",
+    };
+    fireEvent.dragStart(chip, { dataTransfer });
+    fireEvent.drop(
+      view.container.querySelector(".composer-bar") as HTMLElement,
+      { dataTransfer },
+    );
+    await waitFor(() =>
+      expect(view.container.querySelector(".scope-strip")).toBeTruthy(),
+    );
+  }
+
+  it("bấm Bỏ thì tệp đính rời khỏi câu đang gõ", async () => {
+    // Đính nhầm mà không gỡ ra được thì chỉ còn cách gõ lại cả câu.
+    serving();
+    const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+    await attach(view);
+
+    fireEvent.click(screen.getByText("Bỏ"));
+
+    expect(view.container.querySelector(".scope-strip")).toBeNull();
+    // Nhưng tệp vẫn ở trong thư viện: bỏ đính không phải xoá tài liệu (ADR-04).
+    expect(view.container.querySelector(".pane.documents .document")).toBeTruthy();
+  });
+
+  it("đổi sang đoạn chat khác thì tệp đính KHÔNG đi theo", async () => {
+    // Lỗi đo được ngày 07/10/2026, và nó là lỗi của **tuổi thọ**: `scope` có hai đường
+    // ghi và không đường xoá nào, còn `App.tsx` mount `<Chat>` ở ba chỗ mà không chỗ nào
+    // truyền `key` — nên React tái dùng đúng một instance qua mọi chuyển cảnh. Thả chip
+    // rồi bấm *Đoạn chat mới* cho ra một đoạn rỗng 0 lượt mà dải còn nguyên chữ cũ.
+    //
+    // Test này đổi prop **tại chỗ** chứ không `unmount()`: `unmount` dựng lại state và do
+    // đó đi vòng qua đúng cái lỗi — đó là đường mà test cũ đi, và vì thế nó xanh suốt.
+    serving();
+    const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+    await attach(view);
+
+    view.rerender(<Chat conversationId="c2" fresh={false} openPaper={null} />);
+
+    await waitFor(() =>
+      expect(view.container.querySelector(".scope-strip")).toBeNull(),
+    );
+  });
+
+  it("bấm Đoạn chat mới thì tệp đính cũng không đi theo", async () => {
+    // Đúng đường người dùng đã đi lúc phát hiện ra lỗi: route sang `/teacher/moi`, tức
+    // `conversationId` thành `null` và `fresh` thành `true`.
+    serving();
+    const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+    await attach(view);
+
+    view.rerender(<Chat conversationId={null} fresh openPaper={null} />);
+
+    await waitFor(() =>
+      expect(view.container.querySelector(".scope-strip")).toBeNull(),
+    );
+  });
+
+  it("gửi câu đi rồi thì tệp đính được dọn", async () => {
+    // Tệp thuộc về **câu vừa gửi**, nên nó chết cùng câu ấy. Giữ lại là để một câu sau
+    // thừa hưởng một phạm vi không ai chọn cho nó.
+    serving();
+    const sent = vi.spyOn(teacher, "stream").mockResolvedValue(undefined);
+    const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+    await attach(view);
+
+    fireEvent.change(screen.getByLabelText("Nhắn cho Kriky"), {
+      target: { value: "soạn cho tôi một đề" },
+    });
+    fireEvent.click(screen.getByText("Gửi"));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(view.container.querySelector(".scope-strip")).toBeNull(),
+    );
+    sent.mockRestore();
   });
 });
 
@@ -3757,7 +3872,16 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
   const CLOSES = "2026-10-07T02:30:00+00:00";
   const ENDS = "2026-10-08T15:00:00+00:00";
 
+  /**
+   * Gieo sẵn nấc **bung** rồi mở biểu mẫu.
+   *
+   * Từ 07/10/2026 một đề đã khoá mặc định **thu**. Các test ở đây hỏi *"tấm trượt nói gì"*,
+   * không hỏi *"nó mở hay thu"* — nên chúng cần một trạng thái xác định, và `"1"` đúng là
+   * trạng thái thật của một giáo viên đã từng tự bung. Chính cái mặc định có test riêng, và
+   * test ấy **không** dùng helper này.
+   */
   async function open() {
+    window.localStorage.setItem("kriky.teacher.publish-open.p1", "1");
     const view = render(
       <PublishSettings
         assessmentId="p1"
@@ -3774,22 +3898,34 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     return [...document.querySelectorAll(".publish-settings input")] as HTMLInputElement[];
   }
 
-  it("một lớp đang giữ đề thì hiện ra giờ của lớp đó", async () => {
+  it("một lớp đang giữ đề thì nói ĐỦ SÁU thông số của lớp đó", async () => {
     // `publish-form` chỉ nói lớp nào ĐANG giữ đề, không nói giữ với giờ nào. Giáo viên
     // muốn biết "12A mở lúc mấy giờ" trước đợt này chỉ còn cách đi hỏi học sinh —
     // endpoint trả lời câu ấy đã có từ lâu và **không chỗ nào trong FE gọi nó**.
+    //
+    // **Sáu, không ba.** Bản trước nói ba — giờ mở, giờ đóng, thu hồi tới — và biện minh
+    // rằng ba cái kia nằm trong năm ô nhập. Lời biện minh ấy sập đúng lúc năm ô không
+    // dựng, và nó đã sập mà **không test nào thấy**: đo 07/10/2026 trên đề `d3f40a77`,
+    // phút làm bài, phút mỗi câu và hạn chữa của một đề ĐANG CHẠY không xuất hiện ở đâu
+    // trên panel.
     serveForm({}, [heldBy("c1", "12A", OPENS, CLOSES, ENDS)]);
     const { container } = await open();
 
     await waitFor(() =>
       expect(container.querySelector(".published-to")).toBeTruthy(),
     );
-    const row = container.querySelector(".published-row");
-    expect(row?.textContent).toContain("12A");
-    expect(row?.textContent).toContain(moment(OPENS));
-    expect(row?.textContent).toContain(moment(CLOSES));
+    const said = container.querySelector(".published-row")?.textContent ?? "";
+    expect(said).toContain("12A");
+    // Tham số thô: giờ mở và phút làm bài. Hai câu luật của BE **không** nói hai thứ này
+    // (câu pha 1 nói giờ đóng và mốc nộp cuối), nên chúng phải được nêu riêng.
+    expect(said).toContain(`Mở ${moment(OPENS)} · làm bài 15 phút`);
+    // Hai câu LUẬT, nguyên văn của BE. Khớp nguyên chuỗi chứ không `toContain` một mẩu:
+    // một phép khớp chuỗi con ở đây sống sót được cả một cú đảo hai con số, vì "15 phút"
+    // là chuỗi con của "15 phút/câu".
+    expect(said).toContain("NOTE-MỘT-12A-TỪ-BE");
+    expect(said).toContain("NOTE-HAI-12A-TỪ-BE");
     // Thu hồi được tới **giờ mở**, và con số ấy do BE nêu riêng chứ không do FE suy ra.
-    expect(row?.textContent).toContain("thu hồi được tới");
+    expect(said).toContain(`Thu hồi được tới ${moment(OPENS)}`);
   });
 
   it("chip của lớp đang giữ đề thì THẤY nhưng KHOÁ", async () => {
@@ -3852,28 +3988,165 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     expect(screen.queryByText("Phát hành đề")).toBeNull();
   });
 
-  it("và ô khoá MANG giá trị đã phát hành, không rỗng", async () => {
-    // Một ô mờ mà rỗng chỉ nói rằng có một ô, và rằng bạn không được chạm vào nó.
-    // Giá trị đi qua `localInput`: cắt chuỗi ISO sẽ giữ nguyên giờ UTC, nên một đề mở
-    // 08:00 giờ Việt Nam hiện ra là 01:00.
+  it("đã khoá thì KHÔNG ô nào, kể cả khi mọi lớp TRÙNG khung giờ", async () => {
+    // Bản trước điền giá trị đã phát hành vào năm ô khoá, và nó chỉ đúng **tình cờ**:
+    // năm cái ô diễn tả được MỘT khung giờ, còn `publications` khoá theo `(đề, lớp)` và
+    // trả về một khung **mỗi lớp**. Ca trùng giờ là đúng cái ca mà sự tình cờ ấy xảy ra —
+    // và đó cũng đúng là đường mà test cũ đi, nên nó xanh suốt trong khi ca thường gặp
+    // hơn (hai lớp phát hành ở hai thời điểm, vì giờ mở mặc định là *ngay bây giờ*) thì
+    // giấu mất ba thông số.
     serveForm(
       {
-        classes: [{ class_id: "c1", name: "12A", student_count: 40, published: true }],
+        classes: [
+          { class_id: "c1", name: "12A", student_count: 40, published: true },
+          { class_id: "c2", name: "12B", student_count: 32, published: true },
+        ],
+      },
+      [
+        heldBy("c1", "12A", OPENS, CLOSES, ENDS),
+        heldBy("c2", "12B", OPENS, CLOSES, ENDS),
+      ],
+    );
+    const { container } = await open();
+
+    await waitFor(() =>
+      expect(container.querySelectorAll(".published-row").length).toBe(2),
+    );
+    expect(boxes().length).toBe(0);
+    expect(container.querySelector(".rules")).toBeNull();
+    // Và mọi con số vẫn còn — cho TỪNG lớp, chứ không một bộ cho cả hai. Hai câu luật
+    // mang tên lớp trong fixture, nên chúng cũng chứng minh "theo từng lớp".
+    for (const [at, row] of [...container.querySelectorAll(".published-row")].entries()) {
+      const lop = at === 0 ? "12A" : "12B";
+      expect(row.textContent).toContain(`làm bài 15 phút`);
+      expect(row.textContent).toContain(`NOTE-MỘT-${lop}-TỪ-BE`);
+      expect(row.textContent).toContain(`NOTE-HAI-${lop}-TỪ-BE`);
+    }
+  });
+
+  it("đề đã khoá thì tấm trượt mặc định THU", async () => {
+    // Một biểu mẫu không bấm được là một biên bản, không phải chỗ làm việc — nên nó không
+    // giữ chỗ của việc đang làm. Đo 07/10/2026, cửa sổ 854: đã khoá thì tấm trượt cao 455
+    // và vùng câu hỏi còn 260.
+    //
+    // Không dùng `open()` ở đây: helper ấy gieo sẵn nấc bung, tức đi vòng qua đúng cái
+    // đang được đo.
+    serveForm(
+      {
+        classes: [
+          { class_id: "c1", name: "12A", student_count: 40, published: true },
+          { class_id: "c2", name: "12B", student_count: 32, published: true },
+        ],
       },
       [heldBy("c1", "12A", OPENS, CLOSES, ENDS)],
     );
-    await open();
+    const { container } = render(
+      <PublishSettings
+        assessmentId="p1"
+        onPublished={() => undefined}
+        onUndo={() => undefined}
+        undoing={false}
+      />,
+    );
 
-    await waitFor(() => expect(boxes()[0].value).toBe("15"));
-    expect(boxes()[1].value).toBe(localInput(OPENS));
-    expect(boxes()[2].value).toBe(localInput(CLOSES));
-    expect(boxes()[3].value).toBe("5");
-    expect(boxes()[4].value).toBe(localInput(ENDS));
+    await waitFor(() =>
+      expect(container.querySelector(".publish-settings.thu")).toBeTruthy(),
+    );
+    expect(screen.queryByText("LỚP")).toBeNull();
+    // Thu là một **mặc định**, không phải một lựa chọn của ai — nên không ghi gì xuống.
+    // Ghi nó là bịa ra một quyết định rồi gán cho giáo viên.
+    expect(window.localStorage.getItem("kriky.teacher.publish-open.p1")).toBeNull();
   });
 
-  it("hai lớp lệch giờ thì năm ô KHÔNG dựng, chứ không dựng ra rồi để rỗng", async () => {
-    // Lỗi này chỉ phép đo trên trình duyệt thấy, và nó là hệ quả của chính luật ngay
-    // trên: không có khung chung thì không điền được, nên năm ô khoá hiện ra RỖNG.
+  it("nhưng giáo viên đã tự bung thì nó vẫn bung", async () => {
+    // Ranh giới của luật trên, và là lý do `knows()` tồn tại: `readFlag` cho `true` cho cả
+    // "đã ghi bật" lẫn "chưa ai ghi", nên nếu chỉ đọc cờ thì mỗi lần mở lại một đề đã khoá
+    // sẽ đóng sập đúng tấm trượt mà họ vừa bung ra, và không có cách nào bắt nó mở.
+    window.localStorage.setItem("kriky.teacher.publish-open.p1", "1");
+    serveForm(
+      {
+        classes: [
+          { class_id: "c1", name: "12A", student_count: 40, published: true },
+        ],
+      },
+      [heldBy("c1", "12A", OPENS, CLOSES, ENDS)],
+    );
+    const { container } = render(
+      <PublishSettings
+        assessmentId="p1"
+        onPublished={() => undefined}
+        onUndo={() => undefined}
+        undoing={false}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("LỚP")).toBeTruthy());
+    expect(container.querySelector(".publish-settings.thu")).toBeNull();
+  });
+
+  it("đề CHƯA khoá thì vẫn mở sẵn như cũ", async () => {
+    // Mặc định mới chỉ áp cho đề đã khoá. Một đề còn gõ được mà mở ra đã thu thì giáo viên
+    // phải bấm một lần nữa cho mỗi lần soạn.
+    serveForm();
+    const { container } = render(
+      <PublishSettings
+        assessmentId="p1"
+        onPublished={() => undefined}
+        onUndo={() => undefined}
+        undoing={false}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("LỚP")).toBeTruthy());
+    expect(container.querySelector(".publish-settings.thu")).toBeNull();
+  });
+
+  it("publications hỏng thì tấm trượt KHÔNG thu, vì lời báo nằm trong thân nó", async () => {
+    // Hai việc của đợt này triệt tiêu nhau nếu thiếu hàng rào thứ tư. Dòng "chưa đọc được
+    // giờ" nằm **trong** thân tấm trượt; mà mọi ca nó sinh ra để nói đều là ca đề đã có
+    // lớp giữ, và *mọi lớp đều giữ* — tức `locked`, tức mặc định **thu** — là ca thường
+    // gặp nhất trong số đó. Thu khi ấy cho ra đúng trạng thái mà dòng này vừa được thêm
+    // vào để chấm dứt. Một thông báo cần một cú bấm mới thấy thì không phải thông báo.
+    //
+    // Cố ý **không** gieo khoá: gieo là đi vòng qua đúng cái đang được đo.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) =>
+        String(path).endsWith("/publications")
+          ? new Response("boom", { status: 500 })
+          : new Response(
+              JSON.stringify({
+                ...FORM,
+                classes: [
+                  { class_id: "c1", name: "12A", student_count: 40, published: true },
+                ],
+              }),
+              { status: 200 },
+            ),
+      ),
+    );
+
+    const { container } = render(
+      <PublishSettings
+        assessmentId="p1"
+        onPublished={() => undefined}
+        onUndo={() => undefined}
+        undoing={false}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(
+        "Chưa đọc được giờ đã phát hành",
+      ),
+    );
+    expect(container.querySelector(".publish-settings.thu")).toBeNull();
+  });
+
+  it("hai lớp lệch giờ thì mỗi lớp một khối, mỗi khối đủ sáu", async () => {
+    // Ca thường gặp, và là ca đã lộ ra khuyết tật. Bản đầu dựng năm ô khoá RỖNG ở đây;
+    // bản thứ hai bỏ năm ô đi nhưng để khối `ĐÃ PHÁT HÀNH` chỉ nói ba thông số, nên ba
+    // thông số kia biến mất khỏi màn hình. Bản này: không ô nào, và mỗi lớp nói đủ sáu.
     //
     // Đo ngày 06/10/2026 trên đề `d3f40a77` đã phát hành cho 12A lúc 14:21 và 12B lúc
     // 15:26: tấm trượt ăn **805,5 trên 911** của panel, vùng câu hỏi còn **24 pixel**.
@@ -3906,27 +4179,16 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     expect(container.querySelector(".rules")).toBeNull();
     // Nhưng khối nói đủ thì vẫn còn, và chip vẫn cho thấy lớp nào đang giữ đề.
     expect(container.querySelectorAll(".class-chip").length).toBe(2);
-  });
-
-  it("chung một khung giờ thì năm ô VẪN dựng, vì khi ấy chúng nói được", async () => {
-    // Ranh giới của luật trên. Điền được thì điền, và chỗ ấy đáng chỗ nó chiếm.
-    serveForm(
-      {
-        classes: [
-          { class_id: "c1", name: "12A", student_count: 40, published: true },
-          { class_id: "c2", name: "12B", student_count: 32, published: true },
-        ],
-      },
-      [
-        heldBy("c1", "12A", OPENS, CLOSES, ENDS),
-        heldBy("c2", "12B", OPENS, CLOSES, ENDS),
-      ],
-    );
-    const { container } = await open();
-
-    await waitFor(() => expect(boxes().length).toBe(5));
-    expect(boxes()[1].value).toBe(localInput(OPENS));
-    expect(container.querySelector(".rules")).toBeTruthy();
+    // Hai khối mang HAI giờ mở khác nhau — đúng cái mà một bộ năm ô không diễn tả nổi.
+    const rows = [...container.querySelectorAll(".published-row")];
+    expect(rows[0].textContent).toContain(`Mở ${moment(OPENS)}`);
+    expect(rows[1].textContent).toContain(`Mở ${moment(late)}`);
+    for (const [at, row] of rows.entries()) {
+      const lop = at === 0 ? "12A" : "12B";
+      expect(row.textContent).toContain("làm bài 15 phút");
+      expect(row.textContent).toContain(`NOTE-MỘT-${lop}-TỪ-BE`);
+      expect(row.textContent).toContain(`NOTE-HAI-${lop}-TỪ-BE`);
+    }
   });
 
   it("một lời gọi publications hỏng KHÔNG được chặn biểu mẫu", async () => {
@@ -4176,7 +4438,16 @@ describe("bốn chỗ review tìm ra, mỗi chỗ một đường test cũ khôn
   const ENDS = "2026-10-08T15:00:00+00:00";
   const KEY = "kriky.teacher.publish-draft.p1";
 
+  /**
+   * Gieo sẵn nấc **bung** rồi mở biểu mẫu.
+   *
+   * Từ 07/10/2026 một đề đã khoá mặc định **thu**. Các test ở đây hỏi *"tấm trượt nói gì"*,
+   * không hỏi *"nó mở hay thu"* — nên chúng cần một trạng thái xác định, và `"1"` đúng là
+   * trạng thái thật của một giáo viên đã từng tự bung. Chính cái mặc định có test riêng, và
+   * test ấy **không** dùng helper này.
+   */
   function mount(id = "p1") {
+    window.localStorage.setItem(`kriky.teacher.publish-open.${id}`, "1");
     return render(
       <PublishSettings
         assessmentId={id}
@@ -4311,6 +4582,91 @@ describe("bốn chỗ review tìm ra, mỗi chỗ một đường test cũ khôn
     ).toBe(true);
   });
 
+  it("phát hành xong thì tấm trượt KHÔNG tự thu, vì thẻ kết quả nằm trong nó", async () => {
+    // Mặc định "đã khoá thì thu" đọc sai ca này nếu không có hàng rào thứ ba. Đường đi có
+    // thật: `publish` gọi `setDone(result.classes)` rồi `setReread(+1)`, `form` được đọc
+    // lại, `locked` bật **giữa tay người đang dùng** — và thu lúc ấy thì thẻ `Outcome`
+    // biến mất cùng khối `ĐÃ PHÁT HÀNH` mà giáo viên vừa tạo ra. Cú bấm quan trọng nhất
+    // của màn hình trả lời bằng cách đóng sập chính nó.
+    //
+    // Cố ý **không** dùng `mount()`: helper ấy gieo sẵn nấc bung, tức đi vòng qua đúng
+    // cái đang được đo. Đây là cách lỗi này lọt qua lần đầu.
+    let published = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string, init?: RequestInit) => {
+        const url = String(path);
+        if (init?.method === "POST") {
+          const body = JSON.parse(String(init.body));
+          if (!body.preview) published = true;
+          return new Response(
+            JSON.stringify({
+              assessment_id: "p1",
+              state: "published",
+              preview: Boolean(body.preview),
+              classes: [
+                {
+                  class_id: "c1",
+                  class_name: "12A",
+                  published: true,
+                  reason: "",
+                  opens_at: OPENS,
+                  closes_at: CLOSES,
+                  remediation_deadline: ENDS,
+                  withdrawable_until: OPENS,
+                  phase_one_note: "NOTE-MOT",
+                  phase_two_note: "NOTE-HAI",
+                },
+              ],
+              rules: FORM.rules,
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith("/publications")) {
+          return new Response(
+            JSON.stringify({
+              assessment_id: "p1",
+              classes: published ? [heldBy("c1", "12A", OPENS, CLOSES, ENDS)] : [],
+              rules: FORM.rules,
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            ...FORM,
+            classes: [{ class_id: "c1", name: "12A", student_count: 40, published }],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const { container } = render(
+      <PublishSettings
+        assessmentId="p1"
+        onPublished={() => undefined}
+        onUndo={() => undefined}
+        undoing={false}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("LỚP")).toBeTruthy());
+    fireEvent.click(screen.getByText("12A"));
+    fill();
+    fireEvent.click(screen.getByText("Phát hành đề"));
+    await waitFor(() => expect(screen.getByText("Phát hành đề kiểm tra?")).toBeTruthy());
+    fireEvent.click(screen.getByText(/Phát hành cho \d+ học sinh/));
+
+    // Khoá tới nơi…
+    await waitFor(() => expect(screen.queryByText("Phát hành đề")).toBeNull());
+    // …nhưng tấm trượt vẫn mở, và thứ giáo viên vừa làm vẫn còn trên màn hình.
+    expect(container.querySelector(".publish-settings.thu")).toBeNull();
+    await waitFor(() =>
+      expect(container.querySelector(".published-to")).toBeTruthy(),
+    );
+  });
+
   it("đổi sang đề khác thì nháp của đề cũ KHÔNG chảy sang", async () => {
     // Test cũ `unmount()` trước khi mở đề thứ hai, nên nó không chạm ca này. `Panel` sống
     // qua một lần đổi `assessmentId` — mở một đề khác trong khi panel đang mở là đường
@@ -4357,11 +4713,15 @@ describe("bốn chỗ review tìm ra, mỗi chỗ một đường test cũ khôn
     expect(window.localStorage.getItem("kriky.teacher.publish-draft.p2")).toBeNull();
   });
 
-  it("publications hỏng mà đề đã phát hành thì biểu mẫu VẪN còn thân", async () => {
-    // `silent` chỉ được bật khi **biết** là các lớp lệch giờ. Không biết gì — lời gọi
-    // hỏng, `live` rỗng — mà vẫn im thì cả năm ô lẫn khối ĐÃ PHÁT HÀNH cùng biến mất, còn
-    // lại đúng một hàng chip. Tức một lời gọi chỉ-thêm-thông-tin lại xoá sạch thân biểu
-    // mẫu, ngược hẳn lời hứa ghi ở effect đọc nó.
+  it("publications hỏng mà đề đã phát hành thì panel NÓI RA, bằng chữ của BE", async () => {
+    // Luật ở chỗ này đã đổi **hai lần**, và lần nào cũng vì thứ chở sự thật đã dời chỗ.
+    // Bản đầu: *"biểu mẫu vẫn còn thân"* — đúng khi năm ô còn kể được giờ. Bản hai: đã
+    // khoá thì không dựng ô nào, nên khối `ĐÃ PHÁT HÀNH` là nguồn **duy nhất** — mà nó
+    // dựng từ `live`, nên một lời gọi hỏng cho ra một panel **im lặng hoàn toàn** về một
+    // đề đang chạy. Bản này: hỏng thì nói ra.
+    //
+    // Chữ sau dấu chấm là `detail` của BE **nguyên văn** — `call()` ném nó, và BE không
+    // nói gì thì nó là `Lỗi {status}`. Không bịa một câu từ chối nào, đúng chỗ ADR-03 giữ.
     vi.stubGlobal(
       "fetch",
       vi.fn(async (path: string) =>
@@ -4382,8 +4742,21 @@ describe("bốn chỗ review tìm ra, mỗi chỗ một đường test cũ khôn
     const { container } = mount();
     await waitFor(() => expect(screen.getByText("LỚP")).toBeTruthy());
 
-    expect(boxes().length).toBe(5);
-    expect(boxes().every((one) => one.disabled)).toBe(true);
-    expect(container.querySelector(".rules")).toBeTruthy();
+    // Không khối nào, vì không biết gì để nói — nhưng màn hình **nói rằng** nó không biết.
+    expect(container.querySelector(".published-to")).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(
+        "Chưa đọc được giờ đã phát hành",
+      ),
+    );
+    // `boom` không phải JSON nên không có `detail`; `call()` lùi về mã trạng thái.
+    expect(screen.getByRole("status").textContent).toContain("Lỗi 500");
+    // Và không ô nào, vì đề đã khoá. Chip vẫn cho thấy lớp nào đang giữ đề, và `Hoàn tác`
+    // vẫn là đường lùi — hai thứ ấy không cần `publications` mới biết được.
+    expect(boxes().length).toBe(0);
+    expect(
+      (screen.getByRole("button", { name: /12A/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText("Hoàn tác")).toBeTruthy();
   });
 });

@@ -1,5 +1,11 @@
 # Bảy cải tiến từ một đợt dùng thật — tên đoạn chat, viền panel, hộp thoại lời giải, toán, sửa câu
 
+## Goal
+
+Bảy cải tiến tới từ một lượt dùng thật ngày 03/10/2026, cộng hai đợt nữa sinh ra từ chính
+lượt sửa ấy. Mục này **bù ngày 07/10/2026** lúc đóng plan, vì `AGENTS.md` đòi một plan có
+`Goal`; nội dung rút từ `Context` ngay dưới, không thêm ý nào mới.
+
 ## Context
 
 Giáo viên ngồi dùng một đợt thật và nêu bảy chỗ. Khảo sát cho thấy **năm trong bảy** có nguyên nhân
@@ -263,8 +269,12 @@ thành thật về chuyện này, và một test ghim khuôn-điền-tay phải 
 
 ## Status
 
-Bảy pha đã xong; `check` 8/8, pytest xanh, 79 test FE xanh, `tsc` sạch. Chưa commit — chờ người
-dùng review một lượt.
+Bảy pha đã xong; `check` 8/8, pytest xanh, 79 test FE xanh, `tsc` sạch.
+
+**Đã commit** — `git log --grep="Plan: 2026-10-03-bay-cai-tien-plan.md"` cho **14** commit.
+Câu cũ ở đây (*"Chưa commit — chờ người dùng review một lượt"*) viết trước lúc commit và
+không ai quay lại sửa; nó được chữa ngày **07/10/2026** lúc đóng plan. Chuyển sang
+`completed/` cùng ngày.
 
 ## Những gì review tìm ra, và đã sửa
 

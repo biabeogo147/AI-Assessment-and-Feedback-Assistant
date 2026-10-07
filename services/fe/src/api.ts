@@ -896,28 +896,6 @@ export function countdown(msLeft: number): string {
  * @param local - Giá trị thô của ô nhập, dạng `YYYY-MM-DDTHH:MM`.
  * @returns Cùng mốc đó kèm offset, ví dụ `2026-10-02T08:45:00+07:00`.
  */
-/**
- * Đường **ngược** của `isoWithOffset`: một mốc ISO thành giá trị của ô `datetime-local`.
- *
- * Tồn tại vì biểu mẫu phát hành đọc lại được giờ đã đặt, và `publications` trả ISO UTC
- * trong khi một ô `datetime-local` chỉ nhận đúng dạng `YYYY-MM-DDTHH:MM` **theo giờ địa
- * phương**. Cắt chuỗi ISO bằng `slice(0, 16)` là sai ở đây và sai trong im lặng: nó giữ
- * nguyên phần giờ UTC, nên một đề mở 15:00 giờ Việt Nam hiện ra là 08:00.
- *
- * Đi qua `Date` nên nó tự chịu trách nhiệm cả phần đổi múi giờ.
- *
- * @param iso - Mốc ISO, thường mang hậu tố `Z`.
- * @returns Chuỗi `YYYY-MM-DDTHH:MM` theo giờ địa phương.
- */
-export function localInput(iso: string): string {
-  const at = new Date(iso);
-  const two = (value: number) => String(value).padStart(2, "0");
-  return (
-    `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}` +
-    `T${two(at.getHours())}:${two(at.getMinutes())}`
-  );
-}
-
 export function isoWithOffset(local: string): string {
   const minutes = new Date(local).getTimezoneOffset();
   const sign = minutes <= 0 ? "+" : "-";

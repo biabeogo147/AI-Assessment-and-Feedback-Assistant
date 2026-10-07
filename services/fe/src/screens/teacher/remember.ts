@@ -110,6 +110,22 @@ export function writeFlag(key: string, on: boolean): void {
 }
 
 /**
+ * Khoá này **đã từng** được ghi chưa?
+ *
+ * `readFlag` không trả lời được câu ấy: nó cho `true` cho cả *"đã ghi bật"* lẫn *"chưa ai
+ * ghi"*, vì mặc định của nó là bật. Hai trạng thái ấy khác nhau ở đúng một chỗ — một mặc
+ * định **phụ thuộc ngữ cảnh**. Tấm trượt phát hành muốn mở sẵn ở đề thường và thu sẵn ở đề
+ * đã khoá; mà "thu sẵn" chỉ được phép áp khi giáo viên **chưa** tự quyết bao giờ, nếu không
+ * nó sẽ đóng sập một tấm trượt mà chính họ vừa bung ra.
+ *
+ * @param key - Khoá đầy đủ.
+ * @returns `true` khi khoá có mặt, kể cả khi giá trị của nó là `"0"`.
+ */
+export function knows(key: string): boolean {
+  return readRaw(key) !== null;
+}
+
+/**
  * Một object đã nhớ.
  *
  * `JSON.parse` ném trên chuỗi rác, và chuỗi rác có thật: một bản cũ của app đã ghi một

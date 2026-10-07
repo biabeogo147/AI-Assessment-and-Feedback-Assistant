@@ -142,6 +142,10 @@ export default function Chat({
     setHere(conversationId);
     setTurns([]);
     setAsked(null);
+    // Tệp đính thuộc về câu đang gõ, và câu đang gõ vừa bị xoá cùng màn hình. Đứng **sau**
+    // guard ở trên có chủ ý: guard bắt đúng một ca — route vừa gọi tên đoạn mà lượt đầu
+    // vừa tạo ra — và ở ca ấy `send` đã dọn rồi, nên dọn lần nữa chỉ là dọn một chỗ trống.
+    setScope(null);
     // Màn hình vừa bị xoá trắng, nên **không còn** đoạn nào đã tải. Thiếu dòng này thì
     // `loaded` nói dối ngay ở một đường đi thường ngày: đang đọc đoạn X, bấm *Đoạn chat
     // mới* (turns bị xoá, `loaded` vẫn là X), rồi bấm lại chính X trong lịch sử — guard
@@ -224,6 +228,10 @@ export default function Chat({
       );
 
       setHere(thread);
+      // Tệp đính thuộc về **câu vừa gửi**, nên nó chết ở đây. Không đặt trong `finally`:
+      // lượt hỏng thì chữ được trả lại ô nhập, và tệp phải trở về cùng chữ ấy — giữ lại
+      // một nửa của câu đang gõ là bắt người ta kéo thả lần nữa cho một việc họ đã làm.
+      setScope(null);
       // Lượt vừa chạy **là** nội dung của đoạn ấy, nên đánh dấu đã tải: route sắp đổi sang
       // tên nó, và effect phải bỏ qua lần đổi đó thay vì nháy rỗng rồi tải lại.
       loaded.current = thread;
@@ -481,16 +489,34 @@ export default function Chat({
           </div>
         )}
 
-        {/* Dải này **từng** nói "Đổi phạm vi", và chữ ấy hứa một việc không xảy ra: tệp vừa
-            tải lên đi vào thư viện của giáo viên và không rời khỏi màn hình này — thân
-            request gửi đi đúng ba field `{text, conversation_id, start_new}`, không có
-            `document_id` nào, và chưa đoạn code nào mở tệp ra đọc. Nên dải nói đúng việc đã
-            xảy ra, và nói thẳng việc chưa xảy ra. Đọc nội dung tài liệu vào đề là một món
-            riêng trong `docs/plans/backlog.md`. */}
+        {/* Tệp đính vào **câu đang gõ** — đúng một nghĩa, nên đúng một tuổi thọ: nó chết
+            lúc nhấn Gửi, và lúc đổi sang đoạn chat khác.
+
+            Bản trước chở **hai** nghĩa trong một biến: *"vừa tải lên"* (một việc đã xong,
+            thuộc về thư viện) và *"đính vào câu đang gõ"* (một ý định, thuộc về tin nhắn).
+            Hai nghĩa ấy muốn hai tuổi thọ khác nhau, nên không luật dọn nào đúng cho cả
+            hai — và đó chính là lý do chưa chỗ nào dọn nó. Đo ngày 07/10/2026: thả một
+            chip vào ô nhập rồi bấm *Đoạn chat mới* ⇒ đoạn chat rỗng **0 lượt** mà dải
+            **còn nguyên** chữ cũ. Nghĩa *"vừa tải lên"* bị bỏ hẳn: rail đã đẩy tệp vừa
+            tải lên **đầu** danh sách, nên câu ấy kể lại một việc màn hình vừa nói.
+
+            Nội dung tệp vẫn **chưa** đi vào prompt: thân request gửi đi đúng ba field
+            `{text, conversation_id, start_new}`, không có `document_id` nào, và chưa đoạn
+            code nào mở tệp ra đọc. Dải nói tệp nào đang được đính, không hứa gì hơn. Đọc
+            nội dung tài liệu vào đề là một món riêng trong `docs/plans/backlog.md`. */}
         {scope !== null && (
           <div className="scope-strip">
             <span className="kind">{scope.kind}</span>
-            <span className="what">Đã tải lên: {scope.filename}</span>
+            <span className="what">{scope.filename}</span>
+            {/* Đường lùi phải ở ngay trên dải: đính nhầm mà không gỡ ra được thì chỉ còn
+                cách gõ lại cả câu, hoặc gửi đi kèm một phạm vi sai. */}
+            <button
+              className="quiet"
+              type="button"
+              onClick={() => setScope(null)}
+            >
+              Bỏ
+            </button>
           </div>
         )}
         {/* Kéo một chip tài liệu từ rail thả vào đây để đính nó vào câu đang gõ. Nút tải

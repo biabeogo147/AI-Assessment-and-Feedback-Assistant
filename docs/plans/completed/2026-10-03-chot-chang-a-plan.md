@@ -1,5 +1,59 @@
 # Chốt chặng A — thẻ kết quả, `choices` sống qua F5, xoá/đổi tên đoạn chat, và A8
 
+> **Năm section bắt buộc được bù ngày 07/10/2026, lúc đóng plan.** File này viết trước khi
+> `AGENTS.md` đòi đủ `Goal` / `Files` / `Ordered Tasks` / `Validation Checks` / `Status`, và
+> chuyển nó sang `completed/` mà thiếu thì đóng băng vĩnh viễn khuyết tật ấy — `Status`
+> thiếu nghĩa là không câu nào trong file tuyên bố nó xong. Phần thân bên dưới **giữ nguyên
+> từng chữ**; chỉ năm mục này là mới, và chúng được dựng từ **bằng chứng**, không từ trí nhớ.
+
+## Goal
+
+Đóng chặng A bằng bốn việc: thẻ kết quả cho một lượt soạn đề, `choices` sống qua F5, xoá và
+đổi tên một đoạn chat, và A8 — một cái vỏ tải tài liệu không hứa sai.
+
+## Files
+
+| File | Việc |
+|---|---|
+| `services/be/src/be/models.py` | `deleted_at` (xoá mềm), `choices` + `more_choices` |
+| `services/be/src/be/teacher_chat.py` | bước soạn mang số câu thật; xoá/đổi tên đoạn |
+| `services/fe/src/screens/teacher/ActionCard.tsx` | `drafted()` — thẻ mọc từ bước soạn |
+| `services/fe/src/screens/teacher/Rail.tsx` | menu `⋯`, xoá và đổi tên |
+| `services/be/src/be/teacher_documents.py` | A8 — cái vỏ không hứa sai |
+| Figma `mOe2ZmrqOq1Uix45v6PNGD` | variant thẻ kết quả; artboard 13 |
+
+## Ordered Tasks
+
+Tick từ **bằng chứng trong code**, không từ theo dõi trực tiếp — plan này chạy xong trước
+khi mục này tồn tại, nên bốn ô dưới là kết luận của một lần kiểm ngày 07/10/2026.
+
+- [x] **Việc 1 — thẻ kết quả cho một lượt soạn đề.** `drafted()` ở
+      `services/fe/src/screens/teacher/ActionCard.tsx:112`.
+- [x] **Việc 2 — `choices` sống qua F5.** Hai cột ở `services/be/src/be/models.py:599-600`
+      (`choices`, `more_choices`).
+- [x] **Việc 3 — xoá và đổi tên một đoạn chat.** Xoá **mềm** bằng
+      `services/be/src/be/models.py:549` (`deleted_at`).
+- [x] **Việc 4 — A8, cái vỏ không hứa sai.** `services/be/src/be/teacher_documents.py`, với
+      docstring nói thẳng giới hạn của vòng ấy.
+
+## Validation Checks
+
+- `.\dev.ps1 check` · `test` · `typecheck` — xem mục `Verification` ở thân bài.
+- Review một lượt sau khi bốn việc xong; kết quả ở mục *"Những gì review tìm ra, và đã sửa"*.
+
+## Status
+
+**Xong, và đã commit** — commit `fd7a66b` *"feat(be,fe): chốt chặng A — thẻ kết quả mọc lại,
+và một đoạn chat xoá/đổi tên được"* mang đúng tên plan này trong tiêu đề.
+
+**Một khuyết điểm về hợp đồng, nói ra chứ không giấu:** `git log --grep="Plan: 2026-10-03-chot-chang-a-plan.md"`
+cho **0** commit. `AGENTS.md` đòi mỗi commit thuộc một plan mang trailer `Plan: <tên file>.md`,
+*"what makes the rule greppable rather than a promise"* — và với plan này nó grep ra rỗng.
+Không sửa lại được lịch sử; ghi ở đây để phép grep ấy không im lặng nói rằng plan này chưa
+từng có ai làm.
+
+Chuyển sang `completed/` ngày **07/10/2026**, sau khi kiểm rằng cả bốn việc có mặt trong code.
+
 ## Context
 
 ADR-25 đã thi hành xong (pha A→F). Nhưng một lượt soạn đề **thành công** hôm nay kết thúc mà

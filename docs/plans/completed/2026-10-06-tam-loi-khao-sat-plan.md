@@ -1,5 +1,11 @@
 # Tám lỗi từ đợt khảo sát 05/10/2026
 
+## Goal
+
+Tám lỗi khảo sát được trên một lượt dùng thật ngày 06/10/2026, chia làm ba pha. Mục này
+**bù ngày 07/10/2026** lúc đóng plan, vì `AGENTS.md` đòi một plan có `Goal`; nội dung rút
+từ `Context` ngay dưới, không thêm ý nào mới.
+
 ## Context
 
 Một lượt chạy tay trên trình duyệt — BE, FE và AGENT thật, data vừa seed — tìm được 16 lỗi.
@@ -135,7 +141,9 @@ cả hai hợp đồng KEPT. Một cổng báo đỏ khi mọi thứ đúng sẽ
 
 ## Status
 
-Cả ba pha **xong**. Pha 1 và pha 2 đã commit (6 commit); pha 3 chờ commit.
+Cả ba pha **xong**, và **cả ba đã commit** — `git log --grep="Plan: 2026-10-06-tam-loi-khao-sat-plan.md"`
+cho **9** commit. Câu cũ (*"pha 1 và pha 2 đã commit (6 commit); pha 3 chờ commit"*) đúng lúc
+viết và hết đúng khi pha 3 được commit; chữa ngày **07/10/2026** lúc đóng plan.
 
 Mỗi pha có một subagent review, và **cả ba lần review đều tìm được lỗi thật trong chính
 bản sửa** — không lần nào là nghi thức:

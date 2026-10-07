@@ -1263,6 +1263,20 @@
   text-overflow: ellipsis;
 }
 
+/* Đường lùi của dải đính, cùng khuôn với `.draft-mark .quiet`: cả hai đều là một nút chữ
+ * nằm cuối một dải kể chuyện, nên chúng phải đọc ra giống nhau. `flex: 0 0 auto` để tên
+ * tệp dài không đẩy nó ra khỏi dải — tên tệp co lại bằng `ellipsis`, nút thì không. */
+.teacher .scope-strip .quiet {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 
 /* Lời từ chối của BE, in nguyên văn ngay trên ô nhập. */
 .teacher .trouble {
@@ -2291,11 +2305,15 @@
  * Cái khoá phải NHÌN THẤY ĐƯỢC.
  *
  * `disabled` là một sự thật của DOM — bàn phím và trình đọc màn hình biết nó — nhưng mắt
- * thì không, và một ô trông gõ được mà gõ không được là một ô nói dối. jsdom không dựng
- * bố cục nên không test nào đo nổi luật này; check 15 trong `tools/check_contract.py`
- * canh nó, cùng lý do check 13 và 14 tồn tại.
+ * thì không, và một control trông bấm được mà bấm không được là một control nói dối.
+ * jsdom không dựng bố cục nên không test nào đo nổi luật này; check 15 trong
+ * `tools/check_contract.py` canh nó, cùng lý do check 13 và 14 tồn tại.
+ *
+ * Từ 07/10/2026 luật này chỉ còn **chip lớp**. Nó từng phủ cả `input:disabled`, vì biểu
+ * mẫu khoá năm ô khi mọi lớp đã giữ đề; nay đã khoá thì **không dựng ô nào** — năm cái ô
+ * diễn tả được một khung giờ, còn sự thật thì theo từng lớp — nên `input:disabled` không
+ * còn khớp với thứ gì. Một selector không khớp gì là một lời hứa đã hết hạn.
  */
-.teacher .publish-settings input:disabled,
 .teacher .publish-settings .class-chip:disabled {
   background: var(--sunken);
   color: var(--ink-faint);

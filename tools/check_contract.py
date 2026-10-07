@@ -1087,20 +1087,32 @@ def check_collapsed_panes_shrink_to_their_own_head() -> str | None:
 
 
 def check_a_locked_control_looks_locked() -> str | None:
-    """Ô nhập và chip đã khoá phải **nhìn thấy được** là đã khoá.
+    """Chip lớp đã khoá phải **nhìn thấy được** là đã khoá.
 
-    Từ 06/10/2026 biểu mẫu phát hành khoá năm ô và các chip lớp khi mọi lớp đã giữ đề, và
-    khoá chip của riêng lớp đang giữ khi còn lớp khác chưa nhận. `disabled` là một sự thật
-    của DOM -- bàn phím bỏ qua, trình đọc màn hình đọc ra -- nhưng **mắt thì không thấy gì
-    cả**: một ô trông gõ được mà gõ không được là một ô nói dối, và nó nói dối đúng vào lúc
-    giáo viên đang tìm cách sửa giờ của một đề đã tới tay học sinh.
+    Chip của một lớp đang giữ đề bị khoá, trong khi chip của lớp chưa nhận thì bấm được.
+    `disabled` là một sự thật của DOM -- bàn phím bỏ qua, trình đọc màn hình đọc ra --
+    nhưng **mắt thì không thấy gì cả**: một chip trông bấm được mà bấm không được là một
+    chip nói dối, và lớp là tham số THỨ NHẤT của ADR-02 nên đó là chỗ tệ nhất để nói dối.
 
     jsdom không dựng bố cục và không tính style, nên không test FE nào đo nổi "mờ đi".
     Test chỉ khẳng định được `disabled === true`. Đây là cùng một khoảng mù đã sinh ra
     check 13 và 14.
 
+    **Phạm vi hẹp lại ngày 07/10/2026.** Luật này từng phủ cả `input:disabled`, vì biểu
+    mẫu khoá năm ô khi mọi lớp đã giữ đề. Nay đã khoá thì **không dựng ô nào**: năm cái ô
+    diễn tả được một khung giờ, còn `publications` trả một khung **mỗi lớp**, nên việc
+    điền ô chỉ đúng tình cờ lúc các lớp trùng giờ. Sự thật nay nằm ở khối `ĐÃ PHÁT HÀNH`,
+    một khối mỗi lớp, đủ sáu thông số -- và `teacher.test.tsx` test được chỗ ấy vì nó là
+    chữ, không phải style.
+
+    Chip là control khoá duy nhất mà check **này** canh, không phải control khoá duy nhất
+    của biểu mẫu: `Hoàn tác` và CTA cũng `disabled` được, và chúng đã có luật riêng
+    (`.publish-settings .quiet:disabled`, `.publish-settings .cta:disabled`). Chúng không
+    gộp vào đây vì một nút mờ đọc ra khác một ô mờ -- nút nói *"chưa tới lúc"*, còn ô và
+    chip nói *"không phải chỗ của bạn"*.
+
     Luật tương ứng trên Figma: variant `Trạng thái=đã phát hành — khoá` của `Publish
-    settings` (`67:41`), 420x660 ở density Teacher, mọi ô và chip trỏ `surface/sunken` +
+    settings` (`67:41`), 420x456 ở density Teacher, chip trỏ `surface/sunken` +
     `ink/faint`.
 
     Returns:
@@ -1120,9 +1132,9 @@ def check_a_locked_control_looks_locked() -> str | None:
         return _fail(
             "locked-looks-locked",
             "teacher.css must style the publish form's locked controls, e.g. "
-            "`.teacher .publish-settings input:disabled, .teacher .publish-settings "
-            "`.class-chip:disabled`. Without it a locked input is indistinguishable from a "
-            "live one, and the teacher types into a field that silently refuses them.",
+            "`.teacher .publish-settings .class-chip:disabled`. Without it a locked chip "
+            "is indistinguishable from a live one, and the teacher clicks a class that "
+            "silently refuses them.",
         )
 
     declared = rule.group(1)
@@ -1132,12 +1144,12 @@ def check_a_locked_control_looks_locked() -> str | None:
         (
             "background",
             "--sunken",
-            "the locked field must sink into the surface the way the approved variant does",
+            "the locked chip must sink into the surface the way the approved variant does",
         ),
         (
             "color",
             "--ink-faint",
-            "the text of a locked field must go faint, otherwise it reads as editable",
+            "the text of a locked chip must go faint, otherwise it reads as clickable",
         ),
     ):
         if re.search(rf"{what}\s*:[^;]*var\(\s*{token}\s*\)", declared) is None:

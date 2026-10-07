@@ -160,9 +160,18 @@ một con số dựng sẵn.
   mẫu — nó chỉ thôi vứt đi thông tin đã có — nên nó nằm ngoài luật ấy. Hai điều kiện đi kèm, cả hai
   đều đã thi hành: màn hình **nói ra** rằng nó vừa khôi phục, kèm mốc đã gõ và một nút bỏ; và một
   bản nháp mang giờ mở đã quá khứ **đỏ ngay** bằng `FAULT_OPENS_IN_THE_PAST`, chữ của BE.
-- **Lớp đã giữ đề thì khoá.** Sau phát hành, chip của lớp ấy và năm ô thời gian `disabled`. Đổi
-  khung giờ của một lớp đang giữ đề phải đi qua `Hoàn tác` hoặc thu hồi lớp đó — bảng `publications`
-  vẫn cho phép thay thế điều kiện của một lớp, nhưng màn hình không còn là đường đi tới việc ấy.
+- **Lớp đã giữ đề thì khoá.** Sau phát hành, chip của lớp ấy `disabled`. Đổi khung giờ của một lớp
+  đang giữ đề phải đi qua `Hoàn tác` hoặc thu hồi lớp đó — bảng `publications` vẫn cho phép thay thế
+  điều kiện của một lớp, nhưng màn hình không còn là đường đi tới việc ấy.
+
+  Từ **07/10/2026** nơi thi hành đổi, và câu cũ (*"chip của lớp ấy **và năm ô thời gian**
+  `disabled`"*) không còn đúng: khi **mọi** lớp đã giữ đề thì biểu mẫu **không dựng ô nào**. Năm cái
+  ô chỉ diễn tả được một khung giờ, còn `publications` khoá theo `(đề, lớp)` và trả một khung cho
+  **mỗi lớp**, nên một ô khoá mang giá trị chỉ đúng tình cờ lúc các lớp trùng giờ. Sự thật nay nằm ở
+  khối `ĐÃ PHÁT HÀNH`, một khối năm dòng mỗi lớp, trong đó hai dòng luật là `phase_one_note` /
+  `phase_two_note` của BE **nguyên văn** — nơi thứ ba mà ADR-03 đòi. Nơi thi hành: `PublishSettings.tsx`,
+  `teacher.test.tsx` ("đã khoá thì KHÔNG ô nào", "nói ĐỦ SÁU thông số"), và check 15 của
+  `tools/check_contract.py` nay canh **chip** thay vì ô.
 - **Chưa có ở backend:** `ClassOption` của biểu mẫu vẫn chỉ nói lớp đó đã giữ đề hay chưa — không
   nói **còn thu hồi được không**. Nên điều khoản *nút Thu hồi mất đi khi đã qua giờ mở* ở mục
   **Hệ quả** vẫn chưa làm được mà không bắt FE tự so đồng hồ, tức tự cài lại `may_withdraw`.

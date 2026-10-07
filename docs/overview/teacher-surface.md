@@ -423,42 +423,86 @@ một bản nháp rỗng, và nó chôn mất nháp thật khi component mount l
 
 `publish-form` chỉ nói lớp nào **đang giữ** đề, không nói giữ với **giờ nào**. Câu trả lời nằm ở
 `GET /publications`, một endpoint đã có từ trước mà **không chỗ nào trong FE gọi** — `teacher.publications`
-là code chết trong `api.ts`. Nay biểu mẫu dựng từ nó một khối `ĐÃ PHÁT HÀNH`, một dòng đôi mỗi lớp.
+là code chết trong `api.ts`. Nay biểu mẫu dựng từ nó một khối `ĐÃ PHÁT HÀNH`, **một khối năm dòng
+cho mỗi lớp**.
 
-Khối ấy **gọn có chủ ý**: hai câu luật dài đã nằm sẵn ở khối `rules` bên dưới, nên chép chúng vào
-đây lần nữa cho mỗi lớp là đội tấm trượt lên quá chỗ panel có. Thứ không suy ra được từ chỗ khác
-chỉ có: lớp nào, mấy học sinh, khung giờ nào, thu hồi được tới lúc nào.
+**Đã khoá thì không dựng ô nhập nào.** Luật này thay cho luật cũ (*"năm ô khoá, mang giá trị đã
+phát hành"*), và lý do là **cấu trúc** chứ không phải hiển thị: năm cái ô chỉ diễn tả được **một**
+khung giờ, trong khi `publications` khoá theo `(đề, lớp)` và trả về **một khung cho mỗi lớp**. Nên
+việc điền ô chỉ đúng **tình cờ** — đúng vào lúc mọi lớp trùng giờ — mà hai lớp phát hành ở hai thời
+điểm là chuyện bình thường, vì giờ mở mặc định là *ngay bây giờ*.
 
-Ba luật của cái khoá, variant `Trạng thái=đã phát hành — khoá` (`534:20`):
+Đo ngày 07/10/2026 trên đề `d3f40a77` (12A mở 14:21, 12B mở 15:26): panel in **ba trên sáu** thông
+số. Phút làm bài, phút mỗi câu và hạn chữa của một đề **đang chạy** không xuất hiện ở đâu cả. Hai
+quyết định cũ đụng nhau để sinh ra nó: khối `ĐÃ PHÁT HÀNH` viết gọn vì *"ba thứ kia đã nằm trong
+năm ô"*, rồi năm ô bị bỏ đi ở ca lệch giờ — và tiền đề của câu gọn ấy im lặng thành sai.
+
+Một biểu mẫu không bấm được không còn là biểu mẫu; nó là một **biên bản**, và biên bản thì viết
+theo dòng chứ không theo ô. Năm dòng mỗi lớp:
+
+| Dòng | Chở gì | Nguồn chữ |
+|---|---|---|
+| `12A · 3 học sinh` | lớp, sĩ số | FE |
+| `Mở 14:21 · 06/10 · làm bài 15 phút` | **tham số** mà hai câu luật không nói | FE |
+| `Vào tham gia tới hết … - có thể nộp lúc …` | **luật** pha 1 | `phase_one_note` của BE |
+| `Chữa bài tới hết … - mỗi lượt … và … bị DỪNG.` | **luật** pha 2 | `phase_two_note` của BE |
+| `Thu hồi được tới 14:21 · 06/10` | cửa lùi | FE |
+
+**Hai dòng giữa là chữ của BE, nguyên văn.** ADR-03 đòi câu giải thích xuất hiện ở *"cả ba nơi: lúc
+đang chọn giờ, lúc xác nhận, và trong biên bản sau khi phát hành"*, và *"giống hệt nhau từng chữ —
+ba cách diễn đạt cho một luật là ba luật"*. Đây là nơi thứ ba. Bản đầu của khối này tự viết
+`Làm bài 14:21 → 17:25 · 15 phút`, và đó đúng là cách diễn đạt thứ hai: nó trình bày giờ đóng như
+mốc **kết thúc**, bỏ mất mốc nộp cuối mà ADR-03 dành cả tài liệu để bắt phải có, và bỏ luôn chữ
+**DỪNG** — phần duy nhất của câu pha 2 nói về một thứ học sinh sắp mất. `publications` đã chở sẵn
+hai câu ấy **theo từng lớp** từ `publication_wording`, và cho tới đợt này không chỗ nào đọc chúng.
+
+Dòng thứ hai nêu **tham số thô**, không nêu luật: giờ mở và phút làm bài là hai thứ hai câu kia
+không nói tới (câu pha 1 nói giờ **đóng** và mốc nộp cuối). Nêu một tham số không phải diễn đạt lại
+một luật.
+
+Hai luật còn lại của cái khoá, variant `Trạng thái=đã phát hành — khoá` (`534:20`):
 
 - **Chip của lớp đang giữ đề thấy nhưng khoá.** Bỏ chip đi là giấu mất đúng thông tin giáo viên
   cần. Cái giá, nói ra chứ không lặng lẽ: đổi khung giờ của một lớp đang giữ đề từ nay phải đi qua
   `Hoàn tác` hoặc thu hồi lớp đó.
-- **Mọi lớp đã nhận đề ⇒ năm ô khoá, và KHÔNG có CTA.** Vắng mặt chứ không khoá-kèm-lời-giải-thích:
-  BE không có câu từ chối cho ca này, và ADR-03 giữ chỗ ấy cho BE. Không còn việc để mời thì không
-  mời — đó là cấu trúc, không phải một câu viết ở FE.
-- **Ô khoá MANG giá trị đã phát hành.** Một ô mờ mà rỗng chỉ nói rằng có một ô, và rằng bạn không
-  được chạm vào nó. Giá trị đi qua `localInput`, không qua `slice` chuỗi ISO: cắt chuỗi giữ nguyên
-  giờ UTC, nên một đề mở 15:00 giờ Việt Nam hiện ra là 08:00.
+- **Mọi lớp đã nhận đề ⇒ KHÔNG có CTA.** Vắng mặt chứ không khoá-kèm-lời-giải-thích: BE không có
+  câu từ chối cho ca này, và ADR-03 giữ chỗ ấy cho BE. Không còn việc để mời thì không mời — đó là
+  cấu trúc, không phải một câu viết ở FE.
 
-**Và một ca mà chỉ phép đo trên trình duyệt tìm ra.** Hai lớp mở **lệch giờ** là hợp lệ — bảng
-`publications` khoá theo `(đề, lớp)` đúng để cho phép 12A học buổi sáng và 12B học buổi chiều — và
-khi ấy **không có khung chung để điền**. Đo ngày 06/10/2026 trên đề `d3f40a77` (12A 14:21, 12B
-15:26): năm ô hiện ra vừa khoá vừa **rỗng**, tấm trượt ăn **805,5 trên 911**, và vùng câu hỏi còn
-**24 pixel**. Ba trăm pixel để nói đúng một điều, *"có năm cái ô, và bạn không được chạm vào"*.
+**Đã khoá thì tấm trượt mặc định thu.** Đo ngày 07/10/2026, cửa sổ 855: mặc định cho tấm trượt
+**51,5** và vùng câu hỏi **664,5**; tự bung ra thì **455 / 261**. Thu trả lại **403 pixel** cho
+đúng thứ giáo viên đang duyệt. Bốn điều kiện gác nó, và mỗi điều kiện chống một ca khác:
 
-Nên khi không điền được thì **không dựng**: năm ô, hai đường kẻ và hai câu luật cùng vắng mặt, khối
-`ĐÃ PHÁT HÀNH` ở trên đã nói đủ cho từng lớp. Sau khi sửa: tấm trượt **805,5 → 381**.
+- `locked` — chỉ áp cho đề đã khoá.
+- `knows(OPEN_KEY)` — chỉ khi giáo viên **chưa từng** tự quyết. `readFlag` cho `true` cho cả
+  *"đã ghi bật"* lẫn *"chưa ai ghi"*, nên nó không đủ; thiếu hàng rào này thì mỗi lần mở lại một đề
+  đã khoá sẽ đóng sập đúng tấm trượt họ vừa bung, và không có cách nào bắt nó mở.
+- `done !== null` — **vừa phát hành trong phiên này**. `locked` bật giữa tay người đang dùng, và
+  thu lúc ấy làm thẻ `Outcome` biến mất cùng khối `ĐÃ PHÁT HÀNH` họ vừa tạo ra: cú bấm quan trọng
+  nhất của màn hình trả lời bằng cách đóng sập chính nó.
+- `liveFault !== null` — xem ngay dưới.
+
+Và **mặc định không ghi khoá xuống**: nó là một mặc định, không phải một lựa chọn của ai. Ghi nó là
+bịa ra một quyết định rồi gán cho giáo viên.
+
+**Khi không đọc được giờ.** `publications` là một lời gọi riêng và hỏng thì từng **im lặng** — đúng
+khi biểu mẫu còn thân, vì năm ô vẫn kể được giờ. Từ lúc đã khoá thì không dựng ô nào, khối
+`ĐÃ PHÁT HÀNH` là **nguồn duy nhất**, và nó dựng từ chính lời gọi ấy. Nên một lần 500 cho ra một
+panel không nói giờ nào về một đề đang chạy, và không gì nói rằng vừa có cái gì hỏng. Nay có một
+dòng `role="status"`: khung là chữ của FE (nó kể một việc của client, không phải một lời từ chối,
+nên không chạm chỗ ADR-03 giữ cho BE), phần sau là `detail` của BE nguyên văn. Và vì dòng ấy nằm
+**trong** thân tấm trượt, `liveFault` phải chặn cả mặc định thu — nếu không hai việc triệt tiêu
+nhau và lời báo chỉ tồn tại trên giấy.
 
 **Con số nào phụ thuộc cửa sổ, con số nào không.** `panel` cao bằng **toàn bộ** chiều cao cửa sổ,
 và `panel-questions` là *phần còn lại* sau head và tấm trượt — nên mọi tỉ lệ `x/911` ở trên chỉ
 đúng cho một cửa sổ cao 911. Số ổn định là chiều cao của **chính tấm trượt**: nó do nội dung quyết,
-không do cửa sổ. Đo lại ở một cửa sổ cao 855 cho đúng **381**, và vùng câu hỏi khi ấy là 335 —
-cùng một tấm trượt, một con số khác, vì cửa sổ khác.
-Variant `Trạng thái=đã phát hành — lệch giờ` (`542:20`) vẽ đúng nấc ấy.
+không do cửa sổ.
 
-Hai câu luật đi theo cùng lý do: chúng điền từ **chữ đang gõ**, mà ở đây không ai gõ gì, nên chúng
-in `--:--` ngay dưới một đề đang thật sự chạy.
+**Figma ↔ FE, bằng số.** Tấm trượt đã khoá: **456** trên Figma ở density Teacher, **455** trên
+trình duyệt. Mọi chênh lệch còn lại là Figma làm tròn chiều cao một dòng **16,5 → 17**. Variant
+`Trạng thái=đã phát hành — lệch giờ` (`542:20`) **đã bị xoá**: nó tồn tại vì lệch giờ là ca *không
+điền được ô*, và khi không còn ô nào thì lệch giờ thôi là một ca riêng.
 
 **Cái khoá phải nhìn thấy được.** `disabled` là một sự thật của DOM — bàn phím bỏ qua, trình đọc
 màn hình đọc ra — nhưng mắt thì không thấy gì. jsdom không dựng bố cục nên không test nào đo nổi

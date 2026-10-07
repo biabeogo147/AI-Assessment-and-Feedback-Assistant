@@ -5,14 +5,13 @@ import {
   moment,
   teacher,
   type ClassResult,
-  localInput,
   type Schedule,
   type PublishedTo,
   type PublishForm,
   type TimingRules,
   type PublishResult,
 } from "../../api";
-import { forget, readFlag, readJson, writeFlag, writeJson } from "./remember";
+import { forget, knows, readFlag, readJson, writeFlag, writeJson } from "./remember";
 import Veil from "./Veil";
 
 /** Bản nháp của một đề. Theo đề, vì sáu tham số là của một lần phát hành một đề. */
@@ -144,6 +143,11 @@ export default function PublishSettings({
   const [trouble, setTrouble] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [open, setOpen] = useState(() => readFlag(OPEN_KEY(assessmentId)));
+  // Vì sao `publications` không trả lời được, bằng chữ của BE khi BE có nói.
+  const [liveFault, setLiveFault] = useState<string | null>(null);
+  // Đã áp mặc định "thu khi đã khoá" cho đề này chưa. Một `ref` chứ không state: nó chỉ
+  // canh cho việc ấy xảy ra **một lần**, và nó không được phép kéo theo một lần render.
+  const settled = useRef(false);
 
   // `reread` nằm trong deps, không chỉ `assessmentId`.
   //
@@ -170,8 +174,18 @@ export default function PublishSettings({
       // Kiểm cả hình dạng, không chỉ bắt lỗi mạng. `.catch` chỉ bắt lời hứa bị từ chối;
       // một response 200 mang hình dạng khác đi thẳng vào `live` và nổ ở `live.length`
       // — tức làm **trắng** cả biểu mẫu vì một lời gọi vốn chỉ thêm thông tin.
-      .then((all) => setLive(Array.isArray(all.classes) ? all.classes : []))
-      .catch(() => setLive([]));
+      .then((all) => {
+        setLive(Array.isArray(all.classes) ? all.classes : []);
+        setLiveFault(null);
+      })
+      // Hỏng thì **nói ra**, chứ không im nữa. Im lặng đúng khi biểu mẫu còn thân: khi ấy
+      // năm ô vẫn kể được giờ. Từ lúc đã khoá thì không dựng ô nào, khối `ĐÃ PHÁT HÀNH`
+      // là **nguồn duy nhất**, và nó dựng từ `live` — nên một lời gọi hỏng cho ra một
+      // panel không nói giờ nào cả, và không gì nói rằng vừa có cái gì hỏng.
+      .catch((cause: Error) => {
+        setLive([]);
+        setLiveFault(cause.message);
+      });
   }, [assessmentId, reread]);
 
   // Ghi nháp mỗi khi sáu giá trị đổi.
@@ -262,6 +276,83 @@ export default function PublishSettings({
     </button>
   );
 
+  /**
+   * Mọi lớp của giáo viên này đã giữ đề.
+   *
+   * Khi ấy **không dựng ô nhập nào**, và **không có CTA**. Không còn lớp nào để phát hành
+   * thì không còn gì để gõ, nên một biểu mẫu ở đây thôi là biểu mẫu — nó là một **biên
+   * bản**, và biên bản thì viết theo dòng chứ không theo ô. Mọi sự thật về đề đang chạy
+   * nằm ở khối `ĐÃ PHÁT HÀNH` phía trên, một khối cho mỗi lớp.
+   *
+   * CTA vắng mặt chứ không khoá-kèm-lời-giải-thích — BE không có câu từ chối cho ca này,
+   * và ADR-03 giữ chỗ ấy cho BE. Không còn việc để mời thì không mời; đó là cấu trúc chứ
+   * không phải một câu tôi tự viết.
+   *
+   * **Vì sao không điền giá trị đã phát hành vào năm ô khoá** (bản trước làm thế): năm
+   * cái ô chỉ diễn tả được **một** khung giờ, trong khi `publications` khoá theo
+   * `(đề, lớp)` và trả về **một khung cho mỗi lớp**. Nên việc điền ô chỉ đúng **tình cờ**,
+   * đúng vào lúc mọi lớp trùng giờ — mà hai lớp phát hành ở hai thời điểm là chuyện bình
+   * thường, vì giờ mở mặc định là *ngay bây giờ*. Đo ngày 07/10/2026 trên đề `d3f40a77`:
+   * 12A mở 14:21, 12B mở 15:26, và khi ấy panel in **ba trên sáu** thông số — phút làm
+   * bài, phút mỗi câu và hạn chữa không xuất hiện ở đâu cả.
+   */
+  const locked =
+    form !== null && form.classes.length > 0 && form.classes.every((one) => one.published);
+
+  /**
+   * Đã khoá thì tấm trượt mặc định **thu**.
+   *
+   * Một biểu mẫu không bấm được là một biên bản, không phải chỗ làm việc — nên nó không
+   * được giữ chỗ của việc đang làm. Đo ngày 07/10/2026, cửa sổ 854: đã khoá thì tấm trượt
+   * cao **455** và vùng câu hỏi còn **260**. Con số ấy không còn là khủng hoảng như bản
+   * trước (779 / **24**), nhưng chiều của quyết định thì không đổi theo con số.
+   *
+   * **Bốn** điều kiện, và mỗi điều kiện chống một ca khác nhau:
+   *
+   * - `knows(...)` — chỉ áp khi giáo viên **chưa từng** tự quyết. Thiếu nó thì mỗi lần mở
+   *   lại một đề đã khoá sẽ đóng sập đúng tấm trượt mà họ vừa bung ra, và không có cách
+   *   nào bắt nó mở.
+   * - `settled` — đúng **một lần** cho mỗi lần dựng. `locked` bật trong lúc phiên đang
+   *   chạy (ngay sau cú phát hành cuối, nhờ `reread`), và nếu không canh thì mỗi lần
+   *   `form` được đọc lại sẽ là một lần thu nữa.
+   *
+   * - `done !== null` — vừa phát hành trong phiên này. Xem comment trong thân.
+   * - `liveFault !== null` — không đọc được giờ, và lời báo nằm **trong** thân tấm trượt.
+   *
+   * Không ghi khoá ở đây: đây là một **mặc định**, không phải một lựa chọn của ai. Ghi nó
+   * xuống là bịa ra một quyết định rồi gán cho giáo viên.
+   */
+  useEffect(() => {
+    // `done !== null` là hàng rào thứ ba, và nó chống một ca mà hai hàng rào kia không
+    // thấy: giáo viên vừa phát hành **trong phiên này**. Đường đi có thật — `publish` gọi
+    // `setDone(result.classes)` rồi `setReread(+1)`, `form` được đọc lại, `locked` bật
+    // **giữa tay người đang dùng** — và nếu thu lúc ấy thì thẻ `Outcome` ngay dưới biến
+    // mất cùng hai dòng `ĐÃ PHÁT HÀNH` mà họ vừa tạo ra. Tức cú bấm quan trọng nhất của
+    // màn hình này trả lời bằng cách đóng sập chính nó.
+    //
+    // Thu là một quyết định về **cách một đề đã khoá mở ra**, không phải một phản ứng với
+    // việc vừa bị khoá. Mở lại sau thì `done` là `null` và tấm trượt thu như thường.
+    // `liveFault` là hàng rào thứ tư, và thiếu nó thì hai việc của đợt này triệt tiêu
+    // nhau. Dòng báo "chưa đọc được giờ" nằm **trong** thân tấm trượt, nên thu lại là
+    // giấu nó đi — mà mọi ca nó sinh ra để nói đều là ca đề đã có lớp giữ, và *mọi lớp
+    // đều giữ* là ca thường gặp nhất trong số đó. Thu khi ấy cho ra đúng cái trạng thái
+    // mà dòng này vừa được thêm vào để chấm dứt: panel im lặng hoàn toàn về một đề đang
+    // chạy. Một thông báo cần một cú bấm mới thấy thì không phải một thông báo.
+    // Giáo viên đã tự quyết, hoặc vừa phát hành: không đụng vào nấc của họ.
+    if (done !== null || knows(OPEN_KEY(assessmentId))) return;
+    // Bung **lại** chứ không chỉ "đừng thu": `form` và `publications` là hai lời gọi
+    // riêng, nên lỗi có thể về **sau** khi tấm trượt đã thu. Một hàng rào chỉ chặn ở
+    // lượt đầu sẽ bỏ lọt đúng thứ tự ấy, và nó là thứ tự không ai điều khiển được.
+    if (liveFault !== null) {
+      setOpen(true);
+      return;
+    }
+    if (locked && !settled.current) {
+      settled.current = true;
+      setOpen(false);
+    }
+  }, [assessmentId, locked, done, liveFault]);
+
   // Thu thì chỉ còn thanh đầu, và nó đứng trước cả phép đọc `form`: một tấm trượt đã thu
   // không có gì để nói về một biểu mẫu chưa tải xong.
   if (!open) {
@@ -280,71 +371,7 @@ export default function PublishSettings({
   const chosen = form.classes.filter((one) => picked.includes(one.class_id));
   const heads = chosen.reduce((total, one) => total + one.student_count, 0);
 
-  /**
-   * Mọi lớp của giáo viên này đã giữ đề.
-   *
-   * Khi ấy không còn lớp nào để phát hành, nên năm ô thôi có việc: chúng khoá lại, và
-   * **không có CTA**. Vắng mặt chứ không khoá-kèm-lời-giải-thích — BE không có câu từ
-   * chối cho ca này, và ADR-03 giữ chỗ ấy cho BE. Không còn việc để mời thì không mời,
-   * đó là cấu trúc chứ không phải một câu tôi tự viết.
-   */
-  const locked = form.classes.length > 0 && form.classes.every((one) => one.published);
 
-  /**
-   * Khung giờ **chung** của mọi lớp đang giữ đề, nếu có một khung chung.
-   *
-   * Năm ô chỉ điền được khi có đúng một câu trả lời. Hai lớp mở lệch giờ là chuyện bình
-   * thường — bảng `publications` khoá theo `(đề, lớp)` đúng để cho phép nó — và khi ấy
-   * một bộ ô nhập không diễn tả nổi hai khung giờ. Điền bừa khung của lớp đầu tiên là
-   * đặt một con số sai lên màn hình với giọng bình thản; khối `ĐÃ PHÁT HÀNH` ngay trên
-   * mới là chỗ nói đủ.
-   */
-  const shared =
-    live.length > 0 &&
-    live.every(
-      (one) =>
-        one.opens_at === live[0].opens_at &&
-        one.closes_at === live[0].closes_at &&
-        one.phase1_minutes === live[0].phase1_minutes &&
-        one.phase2_minutes_per_question === live[0].phase2_minutes_per_question &&
-        one.remediation_deadline === live[0].remediation_deadline,
-    )
-      ? live[0]
-      : null;
-
-  // Ô khoá **mang** giá trị đã phát hành. Một ô mờ mà rỗng chỉ nói rằng có một ô, và
-  // rằng bạn không được chạm vào nó.
-  const show = {
-    minutes: locked && shared ? String(shared.phase1_minutes) : minutes,
-    opensAt: locked && shared ? localInput(shared.opens_at) : opensAt,
-    closesAt: locked && shared ? localInput(shared.closes_at) : closesAt,
-    perQuestion:
-      locked && shared ? String(shared.phase2_minutes_per_question) : perQuestion,
-    deadline: locked && shared ? localInput(shared.remediation_deadline) : deadline,
-  };
-
-  /**
-   * Năm ô không còn gì để nói, nên chúng **không dựng**.
-   *
-   * Đo trên trình duyệt ngày 06/10/2026, đề `d3f40a77` đã phát hành cho 12A lúc 14:21 và
-   * 12B lúc 15:26 — hai khung giờ khác nhau, nên không có khung chung để điền. Khi ấy
-   * năm ô vừa khoá vừa **rỗng**, và chúng ăn mất 805,5 trên 911 của panel: vùng câu hỏi
-   * còn **24 pixel**. Ba trăm pixel để nói đúng một điều — *"có năm cái ô, và bạn không
-   * được chạm vào"* — trong khi khối `ĐÃ PHÁT HÀNH` ngay trên đã nói đủ cho từng lớp.
-   *
-   * Đây đúng là thứ mà việc điền giá trị vào ô khoá sinh ra để chống; ca lệch giờ chỉ là
-   * ca không điền được. Không điền được thì không dựng, chứ không dựng một cái vỏ rỗng.
-   *
-   * Hai câu luật cũng đi theo: chúng điền từ **chữ đang gõ**, mà ở đây không ai gõ gì, nên
-   * chúng in `--:--` ngay dưới một đề đang thật sự chạy.
-   */
-  //
-  // `live.length > 0` là điều kiện thứ ba, và nó chống đúng một ca: lời gọi `publications`
-  // hỏng thì `live` rỗng, `shared` là `null`, và nếu chỉ xét hai điều kiện kia thì cả năm
-  // ô **lẫn** khối `ĐÃ PHÁT HÀNH` cùng biến mất — còn lại đúng một hàng chip. Tức một lời
-  // gọi vốn chỉ thêm thông tin lại xoá sạch thân biểu mẫu, ngược hẳn lời hứa ở effect đọc
-  // nó. Không biết gì thì giữ nguyên biểu mẫu, chỉ là nó khoá.
-  const silent = locked && live.length > 0 && shared === null;
   // `phaseOneMinutes` chứ không `minutes !== ""`: một `-15` **có** chữ trong ô nhưng
   // không phải một giá trị dùng được, và coi nó là "đã điền" thì `faultOf` trả chuỗi rỗng
   // — mà rỗng ở đó nghĩa là *dùng được*. Nút sáng lên trên một lời khẳng định sai, rồi BE
@@ -454,11 +481,15 @@ export default function PublishSettings({
         </div>
       )}
 
-      {/* Giờ đã đặt, một dòng mỗi lớp.
-          Gọn có chủ ý: hai câu luật dài đã nằm sẵn ở khối `rules` bên dưới, nên chép
-          chúng vào đây lần nữa cho MỖI lớp là đội tấm trượt lên quá chỗ panel có. Thứ
-          không suy ra được từ chỗ khác chỉ có: lớp nào, mấy học sinh, khung giờ nào, và
-          thu hồi được tới lúc nào. Giờ in bằng `moment()`, như mọi nơi khác. */}
+      {/* Biên bản của đề đang chạy: một khối mỗi lớp, và khối ấy nói **đủ sáu** thông số.
+          Bản trước chỉ nói ba — giờ mở, giờ đóng, thu hồi tới — vì ba thông số kia nằm
+          trong năm ô nhập. Lời biện minh ấy sập đúng lúc năm ô không dựng, và nó đã sập
+          mà không ai thấy: đo ngày 07/10/2026, phút làm bài, phút mỗi câu và hạn chữa của
+          một đề đang thật sự chạy không xuất hiện ở đâu trên panel.
+          Ba dòng dưới dùng lại **đúng từ vựng của chính biểu mẫu** — PHA 1 là "làm bài và
+          nộp", PHA 2 là "chữa bài", rồi đường lùi — nên biên bản đọc ra cùng một ngôn ngữ
+          với chỗ nhập, không phải một cách gọi thứ hai cho cùng mấy con số.
+          Giờ in bằng `moment()`, như mọi nơi khác. */}
       {live.length > 0 && (
         <div className="published-to">
           <span className="caps">ĐÃ PHÁT HÀNH</span>
@@ -468,11 +499,38 @@ export default function PublishSettings({
                 {one.class_name} · {one.student_count} học sinh
               </span>
               <span className="when">
-                {moment(one.opens_at)} → {moment(one.closes_at)} · thu hồi được tới{" "}
-                {moment(one.withdrawable_until)}
+                Mở {moment(one.opens_at)} · làm bài {one.phase1_minutes} phút
+              </span>
+              {/* Hai câu **luật**, nguyên văn của BE, theo từng lớp. ADR-03 đòi câu giải
+                  thích xuất hiện ở *"cả ba nơi: lúc đang chọn giờ, lúc xác nhận, và trong
+                  biên bản sau khi phát hành"*, và *"giống hệt nhau từng chữ — ba cách
+                  diễn đạt cho một luật là ba luật"*. Đây là nơi thứ ba.
+                  Bản trước tự viết `Làm bài 14:21 → 17:25 · 15 phút` / `Chữa bài tới …`,
+                  và đó đúng là cách diễn đạt thứ hai: nó trình bày giờ đóng như mốc KẾT
+                  THÚC, bỏ mất mốc nộp cuối mà ADR-03 dành cả tài liệu để bắt phải có, và
+                  bỏ luôn chữ **DỪNG** — phần duy nhất của câu pha 2 nói về một thứ học
+                  sinh sắp mất. `publications` đã chở sẵn hai câu ấy từ `publication_wording`
+                  và cho tới giờ không chỗ nào đọc chúng. */}
+              <span className="when">{one.phase_one_note}</span>
+              <span className="when">{one.phase_two_note}</span>
+              <span className="when">
+                Thu hồi được tới {moment(one.withdrawable_until)}
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Không đọc được giờ đã đặt, mà đề thì đang chạy.
+          Đứng đúng chỗ khối `ĐÃ PHÁT HÀNH` lẽ ra phải đứng, vì nó thay cho khối ấy. Điều
+          kiện là `form` **biết** có lớp đang giữ đề: không có lớp nào thì chẳng có giờ nào
+          để đọc, và một dòng lỗi khi ấy nói về một thứ không tồn tại.
+          Khung là chữ của FE — nó kể một việc của client, không phải một lời từ chối, nên
+          nó không chạm chỗ ADR-03 giữ cho BE. Phần sau là `detail` của BE **nguyên văn**,
+          thứ `call()` ném ra; BE không nói gì thì nó là `Lỗi {status}`. */}
+      {liveFault !== null && form.classes.some((one) => one.published) && (
+        <div className="trouble" role="status">
+          Chưa đọc được giờ đã phát hành. {liveFault}
         </div>
       )}
 
@@ -512,7 +570,7 @@ export default function PublishSettings({
         </div>
       </div>
 
-      {!silent && (
+      {!locked && (
         <>
       <div className="divider" />
 
@@ -524,8 +582,7 @@ export default function PublishSettings({
             <input
               type="number"
               min={1}
-              value={show.minutes}
-              disabled={locked}
+              value={minutes}
               onChange={(event) => setMinutes(event.target.value)}
               placeholder="phút"
             />
@@ -534,8 +591,7 @@ export default function PublishSettings({
             <span className="label">Mở lúc</span>
             <input
               type="datetime-local"
-              value={show.opensAt}
-              disabled={locked}
+              value={opensAt}
               onChange={(event) => setOpensAt(event.target.value)}
             />
           </label>
@@ -545,8 +601,7 @@ export default function PublishSettings({
             <span className="label">Đóng lúc</span>
             <input
               type="datetime-local"
-              value={show.closesAt}
-              disabled={locked}
+              value={closesAt}
               onChange={(event) => setClosesAt(event.target.value)}
             />
           </label>
@@ -563,8 +618,7 @@ export default function PublishSettings({
             <input
               type="number"
               min={1}
-              value={show.perQuestion}
-              disabled={locked}
+              value={perQuestion}
               onChange={(event) => setPerQuestion(event.target.value)}
               placeholder="phút / câu"
             />
@@ -573,8 +627,7 @@ export default function PublishSettings({
             <span className="label">Hạn chữa xong</span>
             <input
               type="datetime-local"
-              value={show.deadline}
-              disabled={locked}
+              value={deadline}
               onChange={(event) => setDeadline(event.target.value)}
             />
           </label>
