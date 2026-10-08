@@ -70,7 +70,7 @@ async def startup(ctx: dict) -> None:
     logger.info(
         "DOCUMENT worker ready: consuming=%s handing back to=%s redis=%s",
         _settings.document_queue_name,
-        _settings.be_queue_name,
+        _settings.ingest_queue_name,
         _settings.redis_url,
     )
 

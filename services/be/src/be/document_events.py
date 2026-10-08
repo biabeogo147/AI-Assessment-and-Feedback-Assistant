@@ -1,9 +1,13 @@
 """Một tiếng hích khi thư viện tài liệu của một giáo viên vừa đổi.
 
-Hai process của BE đứng hai đầu kênh này: `be/worker.py` **phát** sau khi ghi xong kết quả xử
-lý, còn route trong `be/teacher_documents.py` **nghe** và đẩy xuống trình duyệt qua SSE. Chúng
-nói với nhau qua pub/sub của Redis, đúng hình dạng mà chuông tiến độ của `be/drafting.py` đã
-chạy giữa AGENT và BE.
+**Đây là nửa nghe.** Nửa phát ở `ingest/events.py`: `services/ingest` hích sau khi ghi xong
+kết quả xử lý, còn route trong `be/teacher_documents.py` nghe và đẩy xuống trình duyệt qua SSE.
+Hai service nói với nhau qua pub/sub của Redis, đúng hình dạng mà chuông tiến độ của
+`be/drafting.py` đã chạy giữa AGENT và BE.
+
+Tên channel ở `contracts.documents_channel`, không ở đây: nó là thứ **duy nhất** hai bên phải
+nói giống nhau, nên nó thuộc chỗ hai bên cùng import được. Một bản sao ở mỗi bên là hai chuỗi
+f-string lệch nhau được, và lúc lệch thì không có lỗi nào — chỉ có một kênh im.
 
 **Hích không chở dữ liệu**, và đó là cả thiết kế. Bài học nằm nguyên trong `drafting.py`:
 *"Chuông không phải một bộ đếm... một tiếng chuông có thể mất"*, vì *"pub/sub của Redis không
@@ -22,46 +26,12 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from contracts import documents_channel
+
 logger = logging.getLogger(__name__)
 
 # Nghe mỗi nhịp bao lâu rồi nhả ra cho vòng lặp thở. Cùng con số với chuông tiến độ.
 _LISTEN_WAIT = 0.2
-
-
-def documents_channel(teacher_id: str) -> str:
-    """Tên channel chở tiếng hích của một giáo viên.
-
-    Args:
-        teacher_id: Giáo viên nào.
-
-    Returns:
-        Tên channel.
-    """
-    return f"documents:{teacher_id}"
-
-
-async def announce(pool: object, teacher_id: str) -> None:
-    """Nói với mọi màn hình đang mở rằng thư viện của giáo viên này vừa đổi.
-
-    Lỗi chỉ được **log**, không ném. Hàm này chạy sau khi hàng đã ghi xong: một kênh gãy không
-    được phép biến một job đã làm tròn việc thành một job arq đem thử lại, vì lần thử lại ấy sẽ
-    ghi đè đúng cái đã đúng.
-
-    Args:
-        pool: Pool Redis của worker, hoặc None khi không có.
-        teacher_id: Giáo viên cần báo.
-
-    Side effects:
-        Một message trên channel Redis. Không ai giữ nó lại: không màn hình nào đang mở thì
-        tiếng hích rơi vào phòng trống, và đó là chuyện bình thường.
-    """
-    if pool is None or not hasattr(pool, "publish"):
-        return
-    channel = documents_channel(teacher_id)
-    try:
-        await pool.publish(channel, "1")
-    except Exception:  # noqa: BLE001 -- xem docstring: không được ném ngược vào arq
-        logger.warning("could not ring %s", channel, exc_info=True)
 
 
 @asynccontextmanager

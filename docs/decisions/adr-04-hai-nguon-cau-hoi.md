@@ -69,7 +69,7 @@ chứ không phải một thiết kế. Ba đường bịt lỗ đang cân nhắ
 - **Ngoại lệ về câu luyện tập: chưa thi hành ở đâu cả.** `Source citation` (`84:35`) có ba variant và
   không variant nào dành cho một câu **sẽ không bao giờ được kiểm** — nhãn *chưa kiểm* ở đó nghĩa là
   *đang chờ giáo viên xem*, một nghĩa không đúng cho câu biến thể.
-- `services/be/src/be/models.py` — bảng `documents` gắn `teacher_id`, **không** gắn `assessment_id`:
+- `packages/schema/src/schema/models.py` — bảng `documents` gắn `teacher_id`, **không** gắn `assessment_id`:
   một cuốn sách dùng cho nhiều đề suốt học kỳ. `services/be/src/be/teacher_documents.py` tải lên và
   liệt kê.
 - **Frontend hiện *giả vờ* thi hành phần nguồn câu hỏi.** `Question` có năm cột và không cột nào nói

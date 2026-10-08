@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from be.config import get_settings
-from be.db import bind_sessions, check_schema, create_engine, prepare_schema
+from be.db import bind_sessions, create_engine
 from be.db import get_session as _session_dependency
 from be.queue import create_queue_pool
 from be.routes import router
@@ -17,6 +17,7 @@ from be.student_routes import router as student_router
 from be.teacher_chat import router as teacher_router
 from be.teacher_documents import router as teacher_document_router
 from be.teacher_routes import router as teacher_assessment_router
+from schema.ddl import check_schema, prepare_schema
 
 logger = logging.getLogger(__name__)
 

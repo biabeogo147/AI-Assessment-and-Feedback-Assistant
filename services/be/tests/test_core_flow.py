@@ -23,11 +23,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import agent_gateway, student_routes
 from be import db as db_module
-from be.db import bind_sessions, prepare_schema
-from be.models import Publication, QuestionOutcome, RemediationRound
+from be.db import bind_sessions
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
 from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionCompleted, SolutionMethod
+from schema.ddl import prepare_schema
+from schema.models import Publication, QuestionOutcome, RemediationRound
 
 STUDENT = {"X-Actor": "student:HS2026-1204"}
 OTHER_STUDENT = {"X-Actor": "student:HS2026-1205"}
@@ -878,7 +879,7 @@ def test_one_turn_per_position_is_the_database_s_job() -> None:
     cả dòng của bên thắng. Thứ test được là thứ làm cho sự bảo vệ đó khả thi, và đó đúng là
     thứ một lượt dọn dẹp về sau sẽ xoá đi mà không nhận ra.
     """
-    from be.models import ChatMessage
+    from schema.models import ChatMessage
 
     unique = {
         tuple(column.name for column in constraint.columns)

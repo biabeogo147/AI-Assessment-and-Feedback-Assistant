@@ -94,12 +94,12 @@ async def _hand_back(pool: ArqRedis, done: DocumentProbed) -> None:
         RuntimeError: Khi arq từ chối job, chuyện xảy ra khi đã có một job cùng id.
 
     Side effects:
-        Một job mới trên `be_queue_name`.
+        Một job mới trên `ingest_queue_name`.
     """
     job = await pool.enqueue_job(
         DOCUMENT_PROBED_TASK,
         done.model_dump(mode="json"),
-        _queue_name=get_settings().be_queue_name,
+        _queue_name=get_settings().ingest_queue_name,
     )
     if job is None:
         raise RuntimeError(f"arq refused to hand back document {done.document_id}")

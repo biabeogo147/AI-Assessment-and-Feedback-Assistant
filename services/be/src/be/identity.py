@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.config import get_settings
 from be.db import get_session
-from be.models import Student, Teacher
+from schema.models import Student, Teacher
 
 
 @dataclass(frozen=True)

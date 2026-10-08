@@ -677,3 +677,24 @@ kế**, không phải lỗi máy móc, nên chúng không được sửa vội t
 
 Không chặn gì đang chạy: `Kriky state` chưa artboard nào dùng, và `Question card` dùng được bình
 thường ở artboard 6 và 7 với variant duy nhất của nó.
+
+## Kênh SSE của thư viện tài liệu không tự nối lại
+
+Đo được ngày 2026-10-08, trong lúc chạy cổng sống của plan 2c. **Lỗi có từ plan 2b**, không phải
+do việc tách `services/ingest` sinh ra — 2c chỉ là lần đầu có người restart BE trong khi một tab
+đang mở, nên nó mới lộ ra.
+
+`teacher.watchDocuments` dùng `fetch` + reader thay vì `EventSource`, và lý do thì đúng:
+`EventSource` không gửi được header `X-Actor`, mà nhét danh tính vào query string là đưa nó vào
+mọi access log. Nhưng `EventSource` **tự nối lại** khi kết nối đứt, còn một vòng đọc `fetch` thì
+không — nó chỉ kết thúc.
+
+**Triệu chứng đo được:** một tab mở từ trước khi BE restart hiển thị **6 tài liệu trong khi API
+trả 13**, và không có một dấu hiệu nào trên màn hình. Giáo viên nhìn thấy một thư viện đúng-như-cũ,
+tức một màn hình nói dối theo đúng nghĩa ADR-27 dùng chữ ấy. Chỉ F5 mới chữa, mà không gì bảo họ
+phải F5.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Nối lại kênh sau khi nó đứt — một vòng lặp ngoài, có backoff, và dừng khi `AbortController` bị huỷ | Không chặn gì. Nó là một thay đổi **FE**, nên theo luật phải đi qua Figma trước nếu có gì hiện lên màn hình. Câu chưa trả lời: lúc kênh đứt thì màn hình có **nói ra** không, hay nối lại im lặng? Nói ra thì cần một trạng thái mới trên bản vẽ; im lặng thì rẻ hơn nhưng lặp lại đúng thói quen vừa bị bắt |
+| Trần số connection của `StreamingResponse` vẫn **chưa đo** | Nợ từ plan 2b. Một giáo viên mở năm tab là năm connection, và không có gì giới hạn. Một vòng nối lại làm con số này đáng đo hơn, không kém đi |

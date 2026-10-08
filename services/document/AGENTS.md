@@ -13,7 +13,7 @@ Adds to the root contract. Constraints only.
 - Use `asyncio.to_thread`, not `run_in_threadpool`. There is no web framework here on purpose.
 - Register tasks under the constants from `contracts`, never under a Python function name.
 - Never `import be` or `import agent`.
-- No HTTP server and no port. The reply to BE travels as a job on `be_queue_name`; a port nobody
+- No HTTP server and no port. The reply travels as a job on `ingest_queue_name`, which `services/ingest` consumes; a port nobody
   calls is a surface nobody guards.
 - Failing to read a file is a result, not an error: it becomes a `DocumentProbed` carrying
   `DocumentState.FAILED`, because a job that dies silently leaves a chip stuck at *processing*.

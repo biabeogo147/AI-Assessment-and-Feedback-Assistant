@@ -34,7 +34,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from be.models import Assessment, AssessmentState
+from schema.models import Assessment, AssessmentState
 
 # Re-export để một caller chỉ cần một import là hỏi được một câu về vòng đời.
 # Phần từ vựng thuộc về schema và nằm trong `models`; phần các cạnh thì thuộc về

@@ -1,6 +1,6 @@
 # Local Development
 
-Tài liệu này hướng dẫn dựng môi trường, chạy **năm process** của bốn service, demo đủ các nhánh kết quả chấm, và tự chẩn đoán khi có gì đó hỏng.
+Tài liệu này hướng dẫn dựng môi trường, chạy **năm process** của năm service, demo đủ các nhánh kết quả chấm, và tự chẩn đoán khi có gì đó hỏng.
 
 Mọi lệnh và mọi output trong tài liệu này đều đã được chạy thật trên Windows 11 với PowerShell. Nếu bạn thấy khác, phần [Chẩn đoán sự cố](#chẩn-đoán-sự-cố) ở cuối gần như chắc chắn có câu trả lời.
 
@@ -12,7 +12,7 @@ Kiến trúc và lý do đằng sau các ranh giới nằm trong [Architecture](
 | --- | --- | --- |
 | conda với env Python 3.12 | BE, AGENT và DOCUMENT dùng chung một env | Script mặc định trỏ tới `D:\Anaconda\envs\AI-Assessment-and-Feedback-Assistant` |
 | Node 22 và pnpm | FE chạy bằng Vite | |
-| Docker Desktop | Chạy Redis, Postgres và MinIO | Bốn service ứng dụng chạy native, không container hoá |
+| Docker Desktop | Chạy Redis, Postgres và MinIO | Năm service ứng dụng chạy native, không container hoá |
 
 Nếu conda env của bạn nằm chỗ khác, đặt biến môi trường `AIAFA_PYTHON` trỏ tới `python.exe` của env đó. Bạn cũng cần sửa ba dòng `entry` trong `.pre-commit-config.yaml`, vì chúng dùng đường dẫn tuyệt đối có chủ đích.
 
@@ -31,23 +31,26 @@ copy .env.example .env
 .\dev.ps1 install
 ```
 
-`install` chạy năm bước và in ra từng bước một:
+`install` chạy tám bước và in ra từng bước một:
 
 ```text
 ==> install contracts
+==> install schema
 ==> install be
 ==> install agent
+==> install document
+==> install ingest
 ==> install dev tooling
 ==> install frontend
 Done. Run '.\dev.ps1 check' to verify the import boundary.
 ```
 
-Thứ tự này quan trọng: `contracts` phải được cài trước, vì BE và AGENT khai nó là dependency tên `aiafa-contracts`. Cài sau thì pip sẽ đi tìm nó trên PyPI và không thấy.
+Thứ tự này quan trọng: hai package dùng chung phải được cài trước, vì các service khai chúng là dependency tên `aiafa-contracts` và `aiafa-schema`. Cài sau thì pip sẽ đi tìm chúng trên PyPI và không thấy. Và `schema` đi sau `contracts` vì nó khai `contracts` là dependency của chính nó.
 
-Xác minh ba package đã vào đúng env:
+Xác minh sáu package đã vào đúng env:
 
 ```powershell
-python -c "import be, agent, contracts; print('ok')"
+python -c "import be, agent, document, ingest, contracts, schema; print('ok')"
 ```
 
 Nếu lệnh này lỗi thì mọi bước phía sau đều sẽ hỏng, đừng đi tiếp.
@@ -72,13 +75,13 @@ Rồi mở **năm** terminal. Năm chứ không bốn, vì BE có hai process: m
 
 ```powershell
 .\dev.ps1 be         # terminal 1 - http://localhost:8000
-.\dev.ps1 be-worker  # terminal 2 - ghi kết quả xử lý tài liệu, không có cổng
+.\dev.ps1 ingest     # terminal 2 - ghi kết quả xử lý tài liệu, không có cổng
 .\dev.ps1 agent      # terminal 3 - worker, không có cổng
 .\dev.ps1 document   # terminal 4 - đọc tệp đã tải lên, không có cổng
 .\dev.ps1 fe         # terminal 5 - http://localhost:5173
 ```
 
-**Thiếu `be-worker` hoặc `document` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
+**Thiếu `ingest` hoặc `document` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
 tài liệu đứng ở *đang xử lý* rồi năm phút sau đổi sang *xử lý hỏng*. Không lỗi nào hiện ra,
 vì không có gì sai — chỉ là không có ai làm việc.
 
@@ -121,8 +124,8 @@ AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0
 Hai worker kia cũng in ra tên queue của chúng:
 
 ```text
-BE worker ready: queue=aiafa:be redis=redis://127.0.0.1:6379/0
-DOCUMENT worker ready: consuming=aiafa:document handing back to=aiafa:be redis=redis://127.0.0.1:6379/0
+INGEST ready: queue=aiafa:ingest redis=redis://127.0.0.1:6379/0
+DOCUMENT worker ready: consuming=aiafa:document handing back to=aiafa:ingest redis=redis://127.0.0.1:6379/0
 ```
 
 Những dòng ấy in ra tên queue có chủ đích. Nếu hai bên đọc hai tên queue khác nhau thì hệ
@@ -243,7 +246,7 @@ Kích thước đo bằng `seek`/`tell` trên phần thân đã nhận, không l
 
 **Tệp được mở ra đọc, nhưng không trong lời gọi `POST`.** Đường ấy cất byte rồi đẩy một job
 cho `services/document`; worker đó đọc tệp từ MinIO bằng PyMuPDF và đẩy kết quả về
-`aiafa:be`, nơi `be-worker` ghi nó vào database. Nên lời gọi `POST` trả về
+`aiafa:ingest`, nơi `services/ingest` ghi nó vào database. Nên lời gọi `POST` trả về
 `state: "processing"` và `page_count: null`, rồi vài giây sau danh sách nói khác:
 
 ```text
@@ -346,10 +349,10 @@ tự hay gặp:
 
 1. `.\dev.ps1 document` chưa chạy. Đây là ca gần như chắc chắn, vì nó là process mới nhất và dễ
    quên nhất trong năm cái.
-2. `.\dev.ps1 be-worker` chưa chạy. Lúc này `document` **đã** đọc xong và đã đẩy kết quả về, nhưng
+2. `.\dev.ps1 ingest` chưa chạy. Lúc này `document` **đã** đọc xong và đã đẩy kết quả về, nhưng
    không ai lấy nó ra khỏi queue. Phân biệt hai ca bằng log của `document`: có dòng
    `probed document=... state=ready` tức nó đã làm xong phần của nó.
-3. Tên queue lệch. So `DOCUMENT_QUEUE_NAME` và `BE_QUEUE_NAME` trong `.env` với hai dòng
+3. Tên queue lệch. So `DOCUMENT_QUEUE_NAME` và `INGEST_QUEUE_NAME` trong `.env` với hai dòng
    `... worker ready: queue=...` của hai worker. Lệch tên là lỗi im lặng: không bên nào báo gì.
 
 Trạng thái *xử lý hỏng* ở đây **không** được ghi vào database — cột vẫn là `processing`. Nó được

@@ -10,9 +10,11 @@ line-length = 100
 target-version = "py312"
 src = [
     "packages/contracts/src",
+    "packages/schema/src",
     "services/be/src",
     "services/agent/src",
     "services/document/src",
+    "services/ingest/src",
 ]
 
 [tool.ruff.lint]
@@ -39,9 +41,11 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = [
     "packages/contracts/tests",
+    "packages/schema/tests",
     "services/be/tests",
     "services/agent/tests",
     "services/document/tests",
+    "services/ingest/tests",
 ]
 
 # ---------------------------------------------------------------------------
@@ -53,17 +57,33 @@ testpaths = [
 # ---------------------------------------------------------------------------
 
 [tool.importlinter]
-root_packages = ["be", "agent", "contracts", "document"]
+root_packages = ["be", "agent", "contracts", "document", "ingest", "schema"]
 
 [[tool.importlinter.contracts]]
-# Ba service, một hợp đồng. "independence" cấm mọi chiều giữa mọi cặp, nên thêm
-# `document` vào đây canh được cả hai chiều mới mà không phải viết hợp đồng nào nữa.
-name = "BE, AGENT and DOCUMENT never import each other"
+# Bốn service, một hợp đồng. "independence" cấm mọi chiều giữa mọi cặp, nên thêm
+# một service vào danh sách này canh được mọi chiều mới mà không phải viết hợp
+# đồng nào nữa.
+#
+# `ingest` ở đây là cổng chính của plan 2c, và nó thay cho một danh sách module
+# nghiệp vụ mà `be` không được cho worker chạm: không có danh sách nào thì không
+# có danh sách nào lỗi thời được. Hai service dùng chung `schema` và `contracts`,
+# không dùng chung một dòng code nghiệp vụ nào.
+name = "BE, AGENT, DOCUMENT and INGEST never import each other"
 type = "independence"
-modules = ["be", "agent", "document"]
+modules = ["be", "agent", "document", "ingest"]
 
 [[tool.importlinter.contracts]]
 name = "contracts never depends on a service"
 type = "forbidden"
 source_modules = ["contracts"]
-forbidden_modules = ["be", "agent", "document"]
+forbidden_modules = ["be", "agent", "document", "ingest"]
+
+[[tool.importlinter.contracts]]
+# `schema` khai bang cho hai service cung ghi vao chung. No duoc noi tu vung cua
+# `contracts`, va khong duoc biet mot service nao ton tai -- mot package dung
+# chung ma import nguoc vao mot nguoi dung cua no thi hai nguoi dung con lai keo
+# theo ca service kia.
+name = "schema never depends on a service"
+type = "forbidden"
+source_modules = ["schema"]
+forbidden_modules = ["be", "agent", "document", "ingest"]

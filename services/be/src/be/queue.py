@@ -101,8 +101,8 @@ async def enqueue_probe(
     """Giao một tài liệu vừa cất cho `services/document` đọc.
 
     Khác `enqueue_grading` ở một điểm đáng nói: **không ai sẽ đọc kết quả của job này**.
-    Câu trả lời đi về bằng một job khác, trên queue của BE, và `be/worker.py` ghi nó vào
-    database. Đó là lý do hàm này trả job id nhưng không ai giữ nó -- nó vào log, để một
+    Câu trả lời đi về bằng một job khác, trên queue của `services/ingest`, và service ấy
+    ghi nó vào database. Đó là lý do hàm này trả job id nhưng không ai giữ nó -- nó vào log, để một
     lần truy vết còn nối được hai đầu.
 
     Args:

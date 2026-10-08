@@ -12,8 +12,8 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from be.db import SchemaDrifted, check_schema, prepare_schema, reset_schema
-from be.models import Base
+from schema.ddl import SchemaDrifted, check_schema, prepare_schema, reset_schema
+from schema.models import Base
 
 
 @pytest_asyncio.fixture

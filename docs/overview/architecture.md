@@ -10,30 +10,48 @@ Diagram liên quan:
 
 - [System Architecture Diagram](../diagrams/system-architecture.drawio)
 
-## Bốn service, năm process
+## Năm service, năm process
 
 | Service | Vai trò | Chạy bằng |
 | --- | --- | --- |
 | `fe` | Giao diện cho Teacher và Student. Chỉ nói chuyện với BE. | Vite dev server, cổng 5173 |
-| `be` | Business layer, system of record, nơi giữ mọi quyết định nghiệp vụ. | uvicorn cổng 8000, **cộng một arq worker** |
+| `be` | Business layer, system of record, nơi giữ mọi quyết định nghiệp vụ. | uvicorn cổng 8000 |
 | `agent` | Soạn nội dung bằng AI: đề, câu của lượt làm lại, lượt trả lời trong chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
 | `document` | Đọc tệp giáo viên tải lên: có chữ hay không, bao nhiêu trang. Báo lại, không sở hữu hàng nào. | arq worker, không có cổng |
+| `ingest` | Ghi lại thứ `document` báo về. Giữ credential database, sở hữu không quyết định nào. | arq worker, không có cổng |
 
-**BE có hai process từ 08/10/2026**, và **cả hai đều giữ credential của Postgres**.
-Nói thẳng ra vì luật cũ chỉ ghi *"`services/be` sở hữu mọi database"* rồi để người
-đọc tự suy ra process nào được cầm chìa khoá — và suy sai chiều ấy đã từng dẫn tới một
-lập luận sai: rằng một worker giữ credential thì phải thôi là BE. Không phải. Cái làm
-`agent` và `document` thành service riêng là chúng **không** giữ credential nào, chứ
-không phải việc chúng chạy trong process riêng.
+**`ingest` giữ credential database, và nó vẫn là một service riêng.** Hai điều ấy
+không mâu thuẫn, nhưng chúng đã từng bị đọc là mâu thuẫn, nên nói thẳng ra: cái làm
+`agent` và `document` thành service đọc-và-báo là chúng **không ghi vào bảng nào** —
+thứ chúng cần đi tới trong payload của job — chứ không phải việc chúng chạy process
+riêng. Một service ghi một hàng thì cần đường tới hàng ấy.
 
-Đây là thay đổi hình dạng đáng nói nhất của kiến trúc kể từ khi nó được viết. Cho tới ngày ấy BE chỉ **đẩy** job rồi chờ kết quả
-ngay trong request; `be/queue.py` không có một handler nào. Vòng xử lý tài liệu phá
-hình dạng ấy vì **không ai chờ nó**: giáo viên đã rời màn hình tải lên, và kết quả vẫn
-phải vào database. Một process đã rời đi thì không có ai để trả 503 cho.
+Cái **thật sự** giữ ranh giới giữa `be` và `ingest` là một thứ khác, và nó đo được:
+chúng không import nhau được. `lint-imports` cấm mọi chiều giữa bốn service, nên không
+một luật nghiệp vụ nào của BE với tới được `ingest`, và danh sách những module bị cấm
+thì **không tồn tại** — không có danh sách nào thì không có danh sách nào lỗi thời.
 
-`document` **không mở cổng nào**, dù quy ước dưới dành cho nó số 8100. Kết quả của nó
-đi về bằng một job trên queue của BE, không bằng một request, nên một cổng ở đó là một
-bề mặt không ai canh. Số 8100 vẫn ghi là đã dành, để không ai cấp lại nó.
+Hai service dùng chung đúng hai thứ, và cả hai là **khai báo**, không phải hành vi:
+`packages/contracts` cho dữ liệu đi qua queue, `packages/schema` cho định nghĩa bảng.
+Cái thứ hai là một cái giá đã nhận tường minh: hai service cùng ghi `documents` thì
+dùng chung một định nghĩa schema, tức đổi một cột là một breaking change cho cả hai
+cùng lúc. Đổi lại là một ranh giới `lint` được thay vì một ranh giới chỉ viết trong
+văn bản.
+
+Vì sao `ingest` phải rời khỏi `services/be`: từ 08/10/2026 tới plan 2c nó đúng là
+process thứ hai của BE, và **không chỗ nào nói được process nào được làm gì**. Đo được
+lúc ấy: `be/config.py` chở hai mươi trường cho một worker chạm năm; luật *API dựng
+schema, worker chỉ kiểm* sống trong một docstring; và hai bootstrap gần giống nhau khác
+đúng một dòng — trong đó một process đọc `LOG_LEVEL` còn process kia hardcode `INFO`.
+
+Vòng xử lý tài liệu là thứ phá hình dạng cũ, vì **không ai chờ nó**: giáo viên đã rời
+màn hình tải lên, và kết quả vẫn phải vào database. Một process đã rời đi thì không có
+ai để trả 503 cho. Cho tới ngày ấy BE chỉ **đẩy** job rồi chờ kết quả ngay trong
+request; `be/queue.py` không có một handler nào.
+
+`document` và `ingest` **không mở cổng nào**, dù quy ước dưới dành cho `document` số
+8100. Kết quả đi về bằng một job trên queue, không bằng một request, nên một cổng ở đó
+là một bề mặt không ai canh. Số 8100 vẫn ghi là đã dành, để không ai cấp lại nó.
 
 FE không biết AGENT tồn tại. Mọi thứ FE cần đều đi qua BE.
 
@@ -52,7 +70,10 @@ FE  --HTTP /api-->  BE  --aiafa:grading-->  Redis  -->  AGENT
                     │
                     ├--aiafa:document--> Redis -->  DOCUMENT
                     │                                   │
-                    └<---------- aiafa:be --------------─┘
+                    │        ┌--aiafa:ingest-- Redis <--┘
+                    │        ▼
+                    │     INGEST ──> Postgres, rồi một tiếng hích trên `documents:<id>`
+                    └<────────┘  BE nghe tiếng hích ấy và đẩy xuống FE qua SSE
                     │
                     ├── Postgres (trạng thái bài làm, trạng thái tài liệu)
                     └── MinIO    (byte của tài liệu)   <-- DOCUMENT đọc trực tiếp
@@ -114,9 +135,15 @@ dữ liệu mà mất đi là một chip sai vĩnh viễn, còn một tiếng h�
 sửa luôn. Hệ quả bắt buộc: trình duyệt vẫn phải đọc danh sách một lần lúc mở màn
 hình — kênh này không bao giờ là nguồn đầu tiên.
 
-Hai process đứng hai đầu: `be-worker` **phát** sau khi ghi xong kết quả xử lý, process
-API **nghe** và đẩy xuống. Một channel cho mỗi **giáo viên** (`documents:<id>`), vì
-rail vẽ cả thư viện chứ không vẽ từng tài liệu rời.
+**Hai service đứng hai đầu**, không hai process của một service: `ingest` **phát** sau
+khi ghi xong kết quả xử lý, `be` **nghe** và đẩy xuống. Một channel cho mỗi **giáo
+viên** (`documents:<id>`), vì rail vẽ cả thư viện chứ không vẽ từng tài liệu rời.
+
+Tên channel sống ở `contracts.documents_channel`, và đó là chỗ duy nhất nó được viết
+ra. Hai service ấy không import nhau được, nên cái string **là** ranh giới — đúng vai
+`GRADE_SUBMISSION_TASK` đã nhận. Đáng một check riêng vì lúc hai bản sao lệch nhau thì
+**không có lỗi nào**: `publish` vào một channel không ai nghe thành công y như một
+channel có người nghe, và triệu chứng duy nhất là chip thôi tự đổi mặt.
 
 **Chat dùng SSE.** `GET /api/attempts/{id}/chat/stream` trả `text/event-stream`, chữ hiện dần. Nó là
 **kênh tăng tốc cảm giác, không phải nguồn sự thật**: lượt trả lời được lưu xong mới phát, nên mất
@@ -224,7 +251,7 @@ Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiế
 
 **Class Diagram hoặc ERD** sẽ cần khi có Postgres. Hiện chưa có bảng nào, nên vẽ ra chỉ khiến team hiểu nhầm rằng data model đã chốt. `domain-context.drawio` chỉ mô tả boundary và tương tác với Teacher, Student; nó không mô tả object nội bộ hay schema.
 
-**Deployment Diagram** sẽ cần khi ba service được container hoá. Hiện chúng chạy native trên một máy và `system-architecture.drawio` đã thể hiện đủ ranh giới giữa tiến trình native và container hạ tầng.
+**Deployment Diagram** sẽ cần khi các service được container hoá. Hiện chúng chạy native trên một máy và `system-architecture.drawio` đã thể hiện đủ ranh giới giữa tiến trình native và container hạ tầng.
 
 ## Quy ước đặt tên service mới
 
@@ -236,6 +263,6 @@ Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiế
 | Tiền tố biến môi trường | UPPER_SNAKE | `REVIEW_QUEUE_DB_DSN` |
 | Cổng | BE 8000, service mới cộng thêm 100 | `8100`, `8200` |
 
-`be`, `agent` và `fe` là ngoại lệ của quy tắc đặt theo domain vì chúng là tầng chứ không phải domain. Service thứ tư trở đi đặt theo domain — `services/document` là cái đầu tiên, và nó theo đúng bảng trên ở mọi dòng trừ **cổng**: nó không mở cổng nào, nên 8100 chỉ là một số đã dành.
+`be`, `agent` và `fe` là ngoại lệ của quy tắc đặt theo domain vì chúng là tầng chứ không phải domain. Service thứ tư trở đi đặt theo domain — `services/document` là cái đầu tiên, `services/ingest` là cái thứ hai — và cả hai theo đúng bảng trên ở mọi dòng trừ **cổng**: chúng không mở cổng nào, nên 8100 chỉ là một số đã dành.
 
 Mỗi service giữ `pyproject.toml` riêng khai báo đúng dependency của mình, kể cả khi đang dùng chung môi trường. Nhờ vậy lúc tách service ra không phải viết lại gì, chỉ đổi cách cài đặt.

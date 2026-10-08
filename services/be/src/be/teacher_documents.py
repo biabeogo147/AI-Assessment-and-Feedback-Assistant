@@ -12,7 +12,7 @@ database, nên nó không với tới được một cột.
 
 Tệp **được mở ra đọc**, nhưng không ở đây và không trong lời gọi này: đường `POST` cất byte
 rồi đẩy một job cho `services/document`, và câu trả lời về sau bằng một job khác mà
-`be/worker.py` ghi vào database. Nên một tài liệu vừa tải lên mang trạng thái *đang xử lý*,
+`services/ingest` ghi vào database. Nên một tài liệu vừa tải lên mang trạng thái *đang xử lý*,
 và số trang của nó là `None` cho tới khi có người đếm thật.
 
 ADR-27 đòi bốn trạng thái, nhưng chỉ ba trong số đó được **ghi** vào cột. Trạng thái thứ tư --
@@ -39,7 +39,6 @@ from be.config import Settings, get_settings
 from be.db import get_session
 from be.document_events import open_changes
 from be.identity import current_teacher
-from be.models import Document, Teacher, aware, new_id
 from be.queue import enqueue_probe
 from be.storage import (
     ObjectStore,
@@ -49,6 +48,7 @@ from be.storage import (
     get_store,
 )
 from contracts import DocumentProbeRequested, DocumentState
+from schema.models import Document, Teacher, aware, new_id
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
     """Đổi một hàng thành thứ màn hình đọc, và suy ra trạng thái đáng tin.
 
     **Đây là nơi trạng thái thứ tư sinh ra.** Ba trạng thái kia được ghi vào cột bởi
-    `be/ingest.py`; *xử lý hỏng* vì job đã chết thì không ai ghi được -- nếu process bị giết
+    `services/ingest`; *xử lý hỏng* vì job đã chết thì không ai ghi được -- nếu process bị giết
     thì không có ai còn sống để ghi. Nên nó là một **phép so lúc đọc**: một hàng còn đứng ở
     `processing` lâu hơn mức cho phép thì đọc ra `failed`.
 
@@ -336,8 +336,8 @@ async def upload(
     logger.info("document uploaded teacher=%s bytes=%s key=%s", teacher.id, size, key)
 
     # Giao việc đọc tệp **sau** khi hàng đã commit. Ngược lại thì worker thắng được cuộc đua
-    # và đi ghi một hàng chưa tồn tại -- `be/ingest.py` sẽ ghi được không hàng nào rồi bỏ,
-    # và tài liệu đứng ở *đang xử lý* mãi mãi dù mọi thứ đều chạy đúng.
+    # và đi ghi một hàng chưa tồn tại -- `services/ingest` sẽ ghi được không hàng nào rồi bỏ
+    # đi, và tài liệu đứng ở *đang xử lý* mãi mãi dù mọi thứ đều chạy đúng.
     pool = getattr(request.app.state, "queue_pool", None)
     try:
         if pool is None:

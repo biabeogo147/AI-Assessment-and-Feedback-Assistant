@@ -101,7 +101,7 @@ async def test_a_readable_file_is_handed_back_to_the_be_queue() -> None:
     assert len(queue.jobs) == 1
     name, payload, where = queue.jobs[0]
     assert name == DOCUMENT_PROBED_TASK
-    assert where == get_settings().be_queue_name
+    assert where == get_settings().ingest_queue_name
     assert payload["state"] == DocumentState.READY
     assert payload["page_count"] == 1
     assert out["document_id"] == "doc-1"

@@ -20,12 +20,13 @@ from be import db as db_module
 from be import storage as storage_module
 from be import teacher_documents
 from be.config import get_settings
-from be.db import bind_sessions, prepare_schema
-from be.models import Document, Teacher
+from be.db import bind_sessions
 from be.seed import seed_if_empty
 from be.storage import MemoryObjectStore, StorageUnavailable, bind_store, get_store
 from be.teacher_documents import router as document_router
 from contracts import PROBE_DOCUMENT_TASK, DocumentState
+from schema.ddl import prepare_schema
+from schema.models import Document, Teacher
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 OTHER = {"X-Actor": "teacher:GV-002"}

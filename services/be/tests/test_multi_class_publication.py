@@ -32,10 +32,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import agent_gateway
 from be import db as db_module
-from be.db import bind_sessions, prepare_schema
-from be.models import Assessment, Attempt, Publication, SchoolClass, Student
+from be.db import bind_sessions
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
+from schema.ddl import prepare_schema
+from schema.models import Assessment, Attempt, Publication, SchoolClass, Student
 
 MORNING = {"X-Actor": "student:HS2026-1204"}
 AFTERNOON = {"X-Actor": "student:HS2026-9101"}

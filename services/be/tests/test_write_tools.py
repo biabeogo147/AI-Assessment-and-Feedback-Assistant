@@ -28,10 +28,9 @@ from be import db as db_module
 from be import drafting
 from be.assessment_state import AssessmentState
 from be.config import get_settings
-from be.db import bind_sessions, prepare_schema
+from be.db import bind_sessions
 from be.drafting import harvest
 from be.identity import Asking
-from be.models import Assessment, DraftBrief, DraftItem, Question, Teacher
 from be.seed import seed_if_empty
 from be.teacher_tools import (
     PHASE_PLAN,
@@ -43,6 +42,8 @@ from be.teacher_tools import (
     resolve_args,
 )
 from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
+from schema.ddl import prepare_schema
+from schema.models import Assessment, DraftBrief, DraftItem, Question, Teacher
 
 
 class FakeQueue:

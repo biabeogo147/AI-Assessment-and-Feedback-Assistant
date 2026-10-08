@@ -68,15 +68,6 @@ from be.config import Settings, get_settings
 from be.db import get_session, session_scope
 from be.drafting import harvest, open_bells, pending_count
 from be.identity import Asking, current_teacher
-from be.models import (
-    DraftBrief,
-    Question,
-    Teacher,
-    TeacherConversation,
-    TeacherTurn,
-    aware,
-    new_id,
-)
 from be.teacher_tools import (
     LOOKS_LIKE_REFERENCE,
     PHASE_PLAN,
@@ -102,6 +93,15 @@ from contracts import (
     StepOutcome,
     ToolSpec,
     TurnRecord,
+)
+from schema.models import (
+    DraftBrief,
+    Question,
+    Teacher,
+    TeacherConversation,
+    TeacherTurn,
+    aware,
+    new_id,
 )
 
 logger = logging.getLogger(__name__)

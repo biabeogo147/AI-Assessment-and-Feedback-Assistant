@@ -88,7 +88,7 @@ Figma `mOe2ZmrqOq1Uix45v6PNGD`:
 
 `docs/overview/project-overview.md` — mục glossary `Class`.
 
-**Ở backend.** `services/be/src/be/models.py` có `SchoolClass`, `Student` và `Teacher`. Luật *lớp thuộc
+**Ở backend.** `packages/schema/src/schema/models.py` có `SchoolClass`, `Student` và `Teacher`. Luật *lớp thuộc
 về giáo viên* được thi hành bằng `SchoolClass.teacher_id`, một khoá ngoại không nullable, cộng
 `seed_if_empty` gán lớp cho `GV-001` và
 `services/be/tests/test_assessment_lifecycle.py::test_every_class_and_assessment_has_an_owner`.

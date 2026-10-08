@@ -5,27 +5,33 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <mxCell id="title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;align=left;verticalAlign=middle;" value="Kiến trúc giai đoạn đầu Phase 2 — bốn service, năm tiến trình native, hạ tầng chạy trong Docker" vertex="1">
+        <mxCell id="title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;align=left;verticalAlign=middle;" value="Kiến trúc giai đoạn đầu Phase 2 — năm service, năm tiến trình native, hạ tầng chạy trong Docker" vertex="1">
           <mxGeometry height="30" width="900" x="60" y="60" as="geometry" />
         </mxCell>
 
         <mxCell id="host-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;verticalAlign=top;spacingTop=10;dashed=1;" value="Máy local — tiến trình native, không container hoá" vertex="1">
-          <mxGeometry height="375" width="1280" x="60" y="120" as="geometry" />
+          <mxGeometry height="375" width="1500" x="60" y="120" as="geometry" />
         </mxCell>
 
         <mxCell id="fe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;fontStyle=1;verticalAlign=top;spacingTop=8;" value="fe&#10;&#10;Vite + React, cổng 5173&#10;Không biết AGENT tồn tại" vertex="1">
           <mxGeometry height="105" width="240" x="110" y="185" as="geometry" />
         </mxCell>
 
-        <mxCell id="be" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;verticalAlign=top;spacingTop=8;" value="be&#10;&#10;FastAPI cổng 8000&#10;+ một arq worker&#10;Giữ mọi quyết định nghiệp vụ" vertex="1">
+        <mxCell id="be" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;verticalAlign=top;spacingTop=8;" value="be&#10;&#10;FastAPI cổng 8000&#10;Giữ mọi quyết định nghiệp vụ" vertex="1">
           <mxGeometry height="105" width="240" x="480" y="185" as="geometry" />
         </mxCell>
 
         <mxCell id="document" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f0ff;strokeColor=#7048e8;fontStyle=1;verticalAlign=top;spacingTop=8;" value="document&#10;&#10;arq worker, không có cổng&#10;Đọc tệp, không sở hữu hàng nào" vertex="1">
-          <mxGeometry height="105" width="240" x="710" y="330" as="geometry" />
+          <mxGeometry height="105" width="240" x="640" y="330" as="geometry" />
         </mxCell>
         <mxCell id="agent" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f0ff;strokeColor=#7048e8;fontStyle=1;verticalAlign=top;spacingTop=8;" value="agent&#10;&#10;arq worker, không có cổng&#10;Chỉ phát bằng chứng" vertex="1">
-          <mxGeometry height="105" width="240" x="1050" y="330" as="geometry" />
+          <mxGeometry height="105" width="240" x="1180" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="ingest" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f0ff;strokeColor=#7048e8;fontStyle=1;verticalAlign=top;spacingTop=8;" value="ingest&#10;&#10;arq worker, không có cổng&#10;Ghi lại thứ document báo về&#10;Giữ credential DB, quyết định: không" vertex="1">
+          <mxGeometry height="105" width="240" x="910" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="schema" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f3f5;strokeColor=#495057;fontStyle=1;verticalAlign=top;spacingTop=8;" value="packages/schema&#10;&#10;Khai báo bảng + ba câu lệnh schema&#10;Hai service cùng ghi, nên cùng một&#10;định nghĩa — cái giá đã nhận" vertex="1">
+          <mxGeometry height="110" width="340" x="110" y="710" as="geometry" />
         </mxCell>
 
         <mxCell id="docker-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#2f9e44;fontStyle=1;verticalAlign=top;spacingTop=10;dashed=1;" value="Docker — chỉ hạ tầng, không bind mount source" vertex="1">
@@ -71,7 +77,7 @@
         <mxCell id="e-be-redis-doc" parent="1" source="be" target="redis" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#1971c2;fontSize=11;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" edge="1" value="A. enqueue DocumentProbeRequested&#10;trên aiafa:document">
           <mxGeometry relative="1" x="-0.8" as="geometry" />
         </mxCell>
-        <mxCell id="e-redis-document" parent="1" source="redis" target="document" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048e8;fontSize=11;startArrow=classic;startFill=1;" edge="1" value="B. document nhận job&#10;C. trả DocumentProbed trên aiafa:be">
+        <mxCell id="e-redis-document" parent="1" source="redis" target="document" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048e8;fontSize=11;startArrow=classic;startFill=1;" edge="1" value="B. document nhận job&#10;C. trả DocumentProbed trên aiafa:ingest">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-document-minio" parent="1" source="document" target="minio" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2f9e44;fontSize=11;dashed=1;endArrow=open;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" value="đọc byte bằng storage_key">
@@ -84,7 +90,7 @@
           <mxGeometry height="150" width="620" x="620" y="960" as="geometry" />
         </mxCell>
 
-        <mxCell id="note-fence" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff5f5;strokeColor=#e03131;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;fontSize=12;" value="Cơ chế giữ ranh giới&#10;&#10;Ba service Python dùng chung một conda env, nên không có gì chặn import chéo lúc chạy.&#10;&#10;import-linter là cơ chế duy nhất còn lại, chạy tự động qua pre-commit. Nó cấm mọi chiều giữa mọi cặp trong be, agent, document. Cách duy nhất biết nó còn sống là thử phá: thêm import be vào document, xác nhận check fail, rồi hoàn tác." vertex="1">
+        <mxCell id="note-fence" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff5f5;strokeColor=#e03131;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;fontSize=12;" value="Cơ chế giữ ranh giới&#10;&#10;Bốn service Python dùng chung một conda env, nên không có gì chặn import chéo lúc chạy.&#10;&#10;import-linter là cơ chế duy nhất còn lại, chạy tự động qua pre-commit. Nó cấm mọi chiều giữa mọi cặp trong be, agent, document, ingest — và cấm cả hai package dùng chung import ngược vào một service. Cách duy nhất biết nó còn sống là thử phá: thêm import be vào ingest, xác nhận check fail, rồi hoàn tác." vertex="1">
           <mxGeometry height="150" width="440" x="110" y="960" as="geometry" />
         </mxCell>
 
@@ -116,6 +122,21 @@
           <mxGeometry height="22" width="240" x="1082" y="1222" as="geometry" />
         </mxCell>
 
+        <mxCell id="e-redis-ingest" parent="1" source="redis" target="ingest" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#7048e8;fontSize=11;exitX=0.85;exitY=0;exitDx=0;exitDy=0;entryX=0.6;entryY=1;entryDx=0;entryDy=0;" edge="1" value="D. ingest nhận DocumentProbed">
+          <mxGeometry relative="1" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ingest-postgres" parent="1" source="ingest" target="postgres" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2f9e44;fontSize=11;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" value="E. UPDATE documents,&#10;rồi hích trên documents:&amp;lt;id&amp;gt;">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="970" y="600" /><mxPoint x="1255" y="600" /><mxPoint x="1255" y="785" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e-contracts-ingest" parent="1" source="contracts" target="ingest" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#495057;endArrow=open;fontSize=11;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0.85;entryY=1;entryDx=0;entryDy=0;" edge="1" value="import">
+          <mxGeometry relative="1" x="0.6" as="geometry"><Array as="points"><mxPoint x="520" y="613" /><mxPoint x="520" y="535" /><mxPoint x="1114" y="535" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e-schema-be" parent="1" source="schema" target="be" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#495057;endArrow=open;fontSize=11;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" value="import">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="85" y="765" /><mxPoint x="85" y="258" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e-schema-ingest" parent="1" source="schema" target="ingest" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#495057;endArrow=open;fontSize=11;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0.15;entryY=1;entryDx=0;entryDy=0;" edge="1" value="import">
+          <mxGeometry relative="1" x="0.6" as="geometry"><Array as="points"><mxPoint x="570" y="743" /><mxPoint x="570" y="573" /><mxPoint x="946" y="573" /></Array></mxGeometry>
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
         document_queue_name: Queue service này tiêu thụ. Phải trùng giá trị BE đẩy vào, không
             thì worker ngồi không trong khi job dồn lại ở một chỗ khác -- một hình dạng thất bại
             trông y hệt một hệ thống đang rảnh, nên `on_startup` nói tên queue ra thành log.
-        be_queue_name: Queue kết quả đi về. BE tiêu thụ nó.
+        ingest_queue_name: Queue kết quả đi về. `services/ingest` tiêu thụ nó.
         minio_endpoint: Host và port của object storage, **không kèm scheme** -- SDK minio nhận
             scheme qua `minio_secure` chứ không qua chuỗi này.
         minio_access_key: Tên truy cập của object storage.
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://127.0.0.1:6379/0"
     document_queue_name: str = "aiafa:document"
-    be_queue_name: str = "aiafa:be"
+    ingest_queue_name: str = "aiafa:ingest"
     minio_endpoint: str = "127.0.0.1:9000"
     minio_access_key: str = "aiafa"
     minio_secret_key: str = "aiafa-local-dev"

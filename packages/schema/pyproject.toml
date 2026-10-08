@@ -1,0 +1,44 @@
+[build-system]
+# setuptools chứ không phải hatchling, cùng lý do đã ghi ở packages/contracts:
+# bản cài editable theo PEP 660 của hatchling đặt vào một MetaPathFinder, và
+# grimp -- engine đứng sau import-linter -- từng nhiều lần không liệt kê nổi
+# submodule trong trường hợp đó rồi âm thầm báo không có vi phạm nào.
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Tên distribution có tiền tố, package để import vẫn là `schema`. Cùng phòng xa
+# như `aiafa-contracts`: một cái tên `schema` trơ đã có người lấy trên PyPI, nên
+# một service khai nó như dependency có thể kéo package của người lạ về.
+name = "aiafa-schema"
+version = "0.1.0"
+description = "Postgres schema shared by the two services that write it: BE and INGEST. Declarations and DDL only, never a business rule."
+requires-python = ">=3.12"
+dependencies = [
+    # Từ vựng trạng thái tài liệu. `models.py` dùng `DocumentState`, vì
+    # `services/document` cũng nói nó và hai bên nói chung một enum thì không
+    # lệch nhau được.
+    "aiafa-contracts",
+    # `[asyncio]` chứ không phải `sqlalchemy` trần: `ddl.py` chạy `async with
+    # engine.begin()`, và đường async của SQLAlchemy 2 cần `greenlet`, thứ chỉ
+    # vào qua extra này. Khác hẳn với driver ở comment dưới -- driver là lựa
+    # chọn của process, còn greenlet thì chính file này cần để chạy nổi một
+    # dòng. Thiếu nó thì `aiafa-schema` cài một mình là một package import vào
+    # là nổ, và nó sẽ chỉ nổ ở máy nào chưa có package khác kéo greenlet về.
+    "sqlalchemy[asyncio]>=2.0",
+]
+
+# Không có driver database ở đây, dù `ddl.py` phát DDL thật. Driver là lựa chọn
+# của process: BE và INGEST mỗi bên tự khai `asyncpg`, còn test thì chạy
+# `aiosqlite`. Một package khai báo schema mà kéo theo một driver là buộc mọi
+# người dùng nó vào một database cụ thể.
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "aiosqlite>=0.20",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

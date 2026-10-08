@@ -42,7 +42,7 @@ _FALLBACK_CONTENT_TYPE = "application/octet-stream"
 
 _STORE: "ObjectStore | None" = None
 
-# Chuỗi lỗi mang theo lệnh sửa, cùng hình dạng với `SchemaDrifted` của `be/db.py`: một
+# Chuỗi lỗi mang theo lệnh sửa, cùng hình dạng với `SchemaDrifted` của `schema/ddl.py`: một
 # người đọc log lúc 11 giờ đêm không nên phải đi tra xem lệnh nào dựng lại hạ tầng.
 _HOW_TO_FIX = ".\\dev.ps1 infra-up"
 
@@ -223,7 +223,8 @@ class MemoryObjectStore:
     Nó sống trong module production chứ không trong `tests/` vì hai lý do: một Protocol
     chỉ có một implementor thì không ai biết hợp đồng có thật sự tách rời hay không, và
     `services/document` sẽ cần đúng bản này. Có tiền lệ — nhánh `else` sqlite trong
-    `db.reset_schema` cũng chỉ có test đi qua, và nó nằm trong `db.py`.
+    `reset_schema` cũng chỉ có test đi qua, và nó nằm trong `schema/ddl.py` chứ không
+    trong `tests/`.
     """
 
     def __init__(self) -> None:

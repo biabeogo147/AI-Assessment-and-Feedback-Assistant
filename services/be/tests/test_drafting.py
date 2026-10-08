@@ -26,10 +26,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import drafting
 from be.assessment_state import AssessmentState
 from be.config import get_settings
-from be.db import bind_sessions, prepare_schema
-from be.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question, Teacher
+from be.db import bind_sessions
 from be.seed import seed_if_empty
 from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
+from schema.ddl import prepare_schema
+from schema.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question, Teacher
 
 
 class FakeQueue:

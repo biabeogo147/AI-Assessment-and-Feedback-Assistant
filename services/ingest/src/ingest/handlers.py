@@ -1,24 +1,24 @@
 """Ghi lại những gì `services/document` đọc được từ một tài liệu.
 
-Đây là đường **duy nhất** mà kết quả xử lý tài liệu đi vào Postgres, và nó là đường đầu tiên
-trong repo mà BE **tiêu thụ** một job thay vì đẩy một job. Lý do nó không thể là một request:
-không ai đang chờ. Giáo viên đã rời màn hình tải lên từ lâu, và một process đã chết thì không
-có ai để trả 503 cho.
+Đây là đường **duy nhất** mà kết quả xử lý tài liệu đi vào Postgres, và nó là đường đầu
+tiên trong repo mà một job được **tiêu thụ** để ghi một hàng thay vì để đẩy một việc đi. Lý do
+nó không thể là một request: không ai đang chờ. Giáo viên đã rời màn hình tải lên từ lâu, và
+một process đã chết thì không có ai để trả 503 cho.
 
-Vì sao không poll kết quả bằng result store của arq, cách `read_job` đang làm: `worker.py` của
-AGENT đặt `keep_result = job_result_ttl_seconds`, nên **kết quả job hết hạn**. Một tài liệu xử
-lý xong trong mười giây mà không ai đọc trong một giờ là một kết quả bốc hơi -- đúng cái bẫy
-`drafting.py` đã ghi lại. Một job tự mang dữ liệu đi thì không có hạn sống nào.
+Vì sao không poll kết quả bằng result store của arq, cách `be/queue.py:read_job` đang làm:
+`worker.py` của AGENT đặt `keep_result = job_result_ttl_seconds`, nên **kết quả job hết hạn**.
+Một tài liệu xử lý xong trong mười giây mà không ai đọc trong một giờ là một kết quả bốc hơi --
+đúng cái bẫy `drafting.py` đã ghi lại. Một job tự mang dữ liệu đi thì không có hạn sống nào.
 """
 
 import logging
 
 from sqlalchemy import update
 
-from be.db import session_scope
-from be.document_events import announce
-from be.models import Document
 from contracts import DocumentProbed
+from ingest.db import session_scope
+from ingest.events import announce
+from schema.models import Document
 
 logger = logging.getLogger(__name__)
 

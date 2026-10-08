@@ -9,6 +9,10 @@ description = "Business layer and the only service the frontend talks to."
 requires-python = ">=3.12"
 dependencies = [
     "aiafa-contracts",
+    # Khai báo bảng và ba câu lệnh schema. Ở một package riêng vì `services/ingest`
+    # cũng ghi vào chính database này, và một định nghĩa schema sống trong một
+    # service thì service kia không với tới được.
+    "aiafa-schema",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "arq>=0.26",

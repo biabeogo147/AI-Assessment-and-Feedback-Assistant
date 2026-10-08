@@ -59,18 +59,6 @@ from be.config import Settings, get_settings
 from be.db import get_session
 from be.drafting import harvest, pending_count
 from be.identity import Asking, current_teacher
-from be.models import (
-    Answer,
-    AnswerOption,
-    Assessment,
-    Attempt,
-    DraftBrief,
-    Method,
-    Publication,
-    Question,
-    Teacher,
-    aware,
-)
 from be.publication_wording import (
     FAULT_CLOSES_BEFORE_OPENS,
     FAULT_OPENS_IN_THE_PAST,
@@ -84,6 +72,18 @@ from be.publication_wording import (
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
+from schema.models import (
+    Answer,
+    AnswerOption,
+    Assessment,
+    Attempt,
+    DraftBrief,
+    Method,
+    Publication,
+    Question,
+    Teacher,
+    aware,
+)
 
 logger = logging.getLogger(__name__)
 

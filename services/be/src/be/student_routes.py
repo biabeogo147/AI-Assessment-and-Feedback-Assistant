@@ -39,22 +39,6 @@ from be.agent_gateway import (
 from be.config import get_settings
 from be.db import get_session
 from be.identity import current_student
-from be.models import (
-    Answer,
-    AnswerOption,
-    Assessment,
-    Attempt,
-    ChatMessage,
-    PregeneratedItem,
-    Publication,
-    Question,
-    QuestionOutcome,
-    RemediationRound,
-    Report,
-    RoundItem,
-    Student,
-    aware,
-)
 from be.remediation import round_budget_minutes, round_ends_at, will_be_cut
 from be.scoring import (
     MAX_ROUNDS_PER_QUESTION,
@@ -74,6 +58,22 @@ from contracts import (
     RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
+)
+from schema.models import (
+    Answer,
+    AnswerOption,
+    Assessment,
+    Attempt,
+    ChatMessage,
+    PregeneratedItem,
+    Publication,
+    Question,
+    QuestionOutcome,
+    RemediationRound,
+    Report,
+    RoundItem,
+    Student,
+    aware,
 )
 
 logger = logging.getLogger(__name__)

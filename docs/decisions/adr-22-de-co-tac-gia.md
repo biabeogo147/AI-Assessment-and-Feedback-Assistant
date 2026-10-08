@@ -59,7 +59,7 @@ ra thành lời một cách nhiệt tình.
 
 ## Nơi luật này đang được thi hành
 
-- `services/be/src/be/models.py` — `SchoolClass.teacher_id` và `Assessment.teacher_id`, cả hai là
+- `packages/schema/src/schema/models.py` — `SchoolClass.teacher_id` và `Assessment.teacher_id`, cả hai là
   `ForeignKey("teachers.id")` không nullable, cộng `Teacher.classes` và `Teacher.assessments`.
 - `services/be/src/be/seed.py` — `seed_if_empty` gán cả lớp và đề cho `GV-001`.
 - `services/be/tests/test_assessment_lifecycle.py::test_every_class_and_assessment_has_an_owner` —

@@ -1,13 +1,17 @@
-"""Kênh hích của thư viện tài liệu.
+"""Nửa **nghe** của kênh hích thư viện tài liệu.
 
 Hai luật đáng canh ở đây, và cả hai đều là bài học `drafting.py` đã trả giá để biết: subscribe
 phải xảy ra **lúc vào khối** chứ không phải lúc lặp lần đầu, và một Redis gãy giữa chừng không
 được phép ném ngược ra ngoài.
+
+Nửa phát -- `announce` -- và tên channel được canh ở `services/ingest/tests/test_events.py`,
+vì chúng sống ở bên ấy. Một test ở lại đây sẽ là một test `be` không chạy nổi nếu `ingest` hỏng,
+tức đúng thứ ranh giới này tồn tại để không có.
 """
 
 import pytest
 
-from be.document_events import announce, documents_channel, open_changes
+from be.document_events import open_changes
 
 
 class _PubSub:
@@ -37,28 +41,14 @@ class _PubSub:
 
 
 class _Pool:
-    """Một pool Redis giả, chỉ biết mở pubsub và publish."""
+    """Một pool Redis giả, chỉ biết mở pubsub. Nửa nghe không publish bao giờ."""
 
     def __init__(self, pubsub: _PubSub | None = None) -> None:
         self._pubsub = pubsub
-        self.rang: list[tuple[str, str]] = []
 
     def pubsub(self) -> _PubSub:
         assert self._pubsub is not None
         return self._pubsub
-
-    async def publish(self, channel: str, message: str) -> None:
-        self.rang.append((channel, message))
-
-
-def test_the_channel_is_named_after_the_teacher_not_the_document() -> None:
-    """Một channel cho mỗi giáo viên.
-
-    Rail vẽ **cả thư viện**, nên một màn hình đang mở là một subscription. Một channel cho mỗi
-    tài liệu bắt trình duyệt đăng ký N kênh và huỷ từng cái khi chúng xong — N lần phức tạp cho
-    đúng một thông tin.
-    """
-    assert documents_channel("gv-1") == "documents:gv-1"
 
 
 @pytest.mark.asyncio
@@ -117,13 +107,3 @@ async def test_no_queue_means_a_quiet_channel_not_a_broken_one() -> None:
     """
     async with open_changes(None, "gv-1") as changes:
         assert [one async for one in changes] == []
-
-
-@pytest.mark.asyncio
-async def test_announce_never_raises_even_when_nobody_can_hear() -> None:
-    """`announce` chạy sau khi hàng đã ghi, nên nó không được phép làm job đỏ."""
-    await announce(None, "gv-1")
-
-    pool = _Pool()
-    await announce(pool, "gv-1")
-    assert pool.rang == [("documents:gv-1", "1")]

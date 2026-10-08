@@ -62,7 +62,7 @@ một con số dựng sẵn.
   *"12A, button"* y hệt dù đã chọn hay chưa. Một luật về *ai* nhận đề mà người dùng không biết
   mình vừa chọn ai thì không có cổng nào cả.
 
-- `services/be/src/be/models.py` — `Publication` có khoá chính **kép** `(assessment_id, class_id)`,
+- `packages/schema/src/schema/models.py` — `Publication` có khoá chính **kép** `(assessment_id, class_id)`,
   nên một đề phát hành được cho nhiều lớp và **thu hồi được từng lớp một**: `recalled_at` của 12B
   không đụng tới 12A. Tham số **thứ nhất** trong sáu tham số ở mục trên là **lớp**, và ở bảng này
   nó là nửa còn lại của khoá chứ không phải một cột cài đặt. Đây là thứ làm cho điều khoản
@@ -123,7 +123,7 @@ một con số dựng sẵn.
   trị thật vì `preview` đi qua **đúng** đoạn code mà lần ghi thật đi qua.
 - `services/be/tests/test_publishing.py` — hai mươi ba test, tất cả qua HTTP. Bảy call site được kiểm
   bằng cách phá từng cái rồi xem test nào đỏ.
-- `services/be/src/be/models.py` — `Attempt.class_id` ghi lớp lúc bắt đầu làm bài, vì "hạn của đề
+- `packages/schema/src/schema/models.py` — `Attempt.class_id` ghi lớp lúc bắt đầu làm bài, vì "hạn của đề
   này" nay là một câu hỏi có nhiều câu trả lời và bài làm phải nói nó theo bộ nào.
 - `services/be/tests/test_multi_class_publication.py` — năm test: một đề giữ hai bộ hạn; mỗi lớp đọc
   đồng hồ của mình và nhận `status` khác nhau ở cùng một thời điểm; bài làm nhớ lớp đã bắt đầu;

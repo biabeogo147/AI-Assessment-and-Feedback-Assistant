@@ -32,8 +32,8 @@ ghi lại thành một plan riêng thay vì chữa vội.
 |---|---|---|---|
 | 1 | [`2026-10-08-document-bytes-to-minio-plan.md`](2026-10-08-document-bytes-to-minio-plan.md) | tải một PDF lên rồi đọc lại từ MinIO, **khớp từng byte** | không |
 | 2a | [`2026-10-08-document-service-text-layer-gate-plan.md`](2026-10-08-document-service-text-layer-gate-plan.md) | `GET /api/teacher/documents` trả `state` đi từ `processing` sang `ready` hoặc `no_text_layer`, và `page_count` khớp số trang thật | không |
-| 2b | chip bốn trạng thái — *chưa viết* | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
-| 2c | ranh giới giữa hai process của BE — *chưa viết* | mỗi process có một **lưới nói ra nó được làm gì**: một check đỏ khi process worker chạm một luật nghiệp vụ, và một check đỏ khi `prepare_schema` bị gọi ngoài chỗ sở hữu schema | không |
+| 2b | [`2026-10-08-document-chip-four-states-plan.md`](2026-10-08-document-chip-four-states-plan.md) | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
+| 2c | [`2026-10-08-ingest-service-split-plan.md`](2026-10-08-ingest-service-split-plan.md) | `services/ingest` **không import nổi một dòng nào** của `be` — `lint-imports` đỏ nếu thử — và một check đỏ khi schema bị dựng ngoài chỗ sở hữu nó | không |
 | 3 | Mục lục, chương, chunk, Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
 | 4 | Jev và skill — *chưa viết* | một đoạn bài tập được gán đúng nhãn | **có** |
 | 5 | Nội dung vào prompt — *chưa viết* | **không payload nào rời BE mang chunk nhãn bài tập** | có |
@@ -258,46 +258,44 @@ làm sau khi cơ chế đã chứng minh được.
 theo `(ordinal, of_total)` sẽ **xáo lại chunk của mọi ô đã xong**. Và `fire` **bắn lại** ô đang
 `retry`, nên một chunk tính lại cho lần thử hai làm `last_fault` mất giá trị chẩn đoán.
 
-### Decision: ranh giới giữa hai process của BE — **hình dạng còn để ngỏ**, dọn ở plan 2c
+### Decision: worker rời `services/be` thành `services/ingest`
 
 **options considered:**
 
-- (a) Tách worker thành một service riêng (`services/ingest`).
+- (a) **Tách worker thành một service riêng (`services/ingest`).**
 - (b) Giữ một service, viết ranh giới thành luật và cắm lưới.
 - (c) Để nguyên, ghi backlog.
 
-**selected option:** **chưa chốt giữa (a) và (b)** — người dùng chốt ngày 08/10/2026 là *đưa vào
-plan 2c, làm sau*. (c) bị bác: plan 3 thêm một handler nữa (chunk writer) vào **đúng chỗ đang
-mờ**, nên để càng lâu càng đắt.
+**selected option:** (a). Người dùng chốt ngày 08/10/2026.
 
-**reason:** vấn đề thì đã chốt, cách chữa thì chưa. Vấn đề là **không chỗ nào nói process nào
-được làm gì** — bốn chỗ đo được ở dưới.
+**reason:** vấn đề đã chốt từ trước — **không chỗ nào nói process nào được làm gì**, bốn chỗ đo
+được ở dưới. Cách chữa thì để ngỏ tới khi người dùng chọn (a).
 
 **Một lập luận đã bị rút, ghi lại để đừng ai viện lại nó.** Bản đầu của record này chống (a)
 bằng câu *"một service thứ hai giữ credential Postgres sẽ giết dòng `AGENTS.md` — `services/be`
 sở hữu mọi database"*. Người dùng bác ngày 08/10/2026: **một worker giữ credential database là
-hợp lệ.** Luật ấy nay viết thẳng ra — `services/be/AGENTS.md` ghi *"BE owns every database, in
-both of its processes"* — và cái làm `agent` với `document` thành service riêng là chúng **không
-giữ credential nào**, chứ không phải việc chúng chạy process riêng.
+hợp lệ.** Cái làm `agent` với `document` thành service đọc-và-báo là chúng **không ghi vào bảng
+nào**, chứ không phải việc chúng chạy process riêng.
 
-**Cái còn lại chống (a), và nó chưa bị bác:** hai service cùng ghi một bảng thì `models.py` phải
-nhân đôi hoặc tách ra một package dùng chung — mà `packages/contracts` khai là *chỉ dữ liệu đi
-qua queue*, SQLAlchemy model không phải thứ đó. Hai service dùng chung một định nghĩa schema và
-cùng ghi một bảng là **distributed monolith**; chúng không độc lập, chúng là một service nằm
-trong hai thư mục. Plan 2c phải trả lời đúng câu đó trước khi chọn (a).
+**Cái giá của (a), nhận tường minh:** hai service cùng ghi `documents` thì dùng chung một định
+nghĩa schema — `packages/schema`, 743 dòng, 22 bảng cho một service cần **một**. Đó là hình dạng
+distributed monolith: đổi một cột của `attempts` là một breaking change cho một service không
+biết `attempts` là gì. Người dùng chọn trả giá ấy, ngày 08/10/2026, để lấy một ranh giới **lint
+được** thay vì một ranh giới chỉ viết trong văn bản.
 
-Và một đường (a) **không** đi được, vì nó đã bị loại ở một record khác của chính đợt này: worker
+**Thứ mua được, và nó mạnh hơn cổng đã hẹn.** Cổng của 2c từng viết là *"một check đỏ khi
+process worker chạm một luật nghiệp vụ"* — tức một danh sách module bị cấm. Tách service biến nó
+thành `independence` của import-linter: `ingest` không import nổi **một dòng nào** của `be`, nên
+không cần danh sách nào, và một danh sách không tồn tại thì không lỗi thời được.
+
+**Và một đường (a) không đi được**, vì nó đã bị loại ở một record khác của chính đợt này: worker
 gọi HTTP sang API để ghi — đó là mũi HTTP đầu tiên giữa hai service, cần xác thực
 service-to-service chưa tồn tại, và phi lý về nghiệp vụ (một worker tiêu thụ queue chỉ để gọi
 HTTP ghi một hàng).
 
-**Luật của (b), nếu chọn nó, một câu:** process API sở hữu quyết định; process worker không sở
-hữu quyết định nào — nó chỉ ghi lại thứ service khác đã báo về. Không luật nghiệp vụ, không gọi
-model. Cùng hình dạng với *"AGENT decides nothing"*, và grep được.
-
 **Bốn chỗ đo được ngày 08/10/2026, để plan 2c không phải đo lại:**
 
-1. `be/config.py` có **20 trường**; worker đọc `redis_url`, `be_queue_name`, `database_url` (gián tiếp qua `create_engine`) và `log_level` — **bốn**. Mở file ra không biết được điều đó.
+1. `be/config.py` có **20 trường**; worker chạm **năm**, mà hai trong năm chỉ vì nó import `be/queue.py` cho một hàm nó không gọi — nhu cầu thật là **ba**. Mở file ra không biết được điều đó. (Bản đầu của dòng này viết worker đọc `log_level`. **Nó không**: `be/worker.py` hardcode `logging.basicConfig(level=INFO)`, nên `LOG_LEVEL` chỉ có tác dụng ở một trong hai process và không chỗ nào nói ra. Plan 2c sửa, và cắm một test đọc cây cú pháp để canh.)
 2. Luật *API dựng schema, worker chỉ kiểm* chỉ nằm trong docstring của `be/worker.py`. Thêm `prepare_schema` vào worker thì không lưới nào kêu.
 3. `main.py` lifespan và `worker.py` startup có hai bootstrap gần giống nhau — `create_engine` + `check_schema` + `bind_sessions` — khác đúng một dòng. Trùng lặp kèm một khác biệt tinh vi là hình dạng sẽ mục.
 4. `be/queue.py` trộn hai chiều: `enqueue_*` là việc của API, `redis_settings` là việc của worker.
@@ -309,9 +307,9 @@ model. Cùng hình dạng với *"AGENT decides nothing"*, và grep được.
 ## Ordered Tasks
 
 - [x] **Plan 1 — byte sang MinIO** (mã **C9**)
-- [ ] **Plan 2a — `services/document` và cổng text layer** (mã **C2**, **C11**, một nửa **C10**)
-- [ ] **Plan 2b — chip bốn trạng thái** (Figma trước, rồi FE)
-- [ ] **Plan 2c — ranh giới giữa hai process của BE** (không mã pipeline; dọn nợ của 2a)
+- [x] **Plan 2a — `services/document` và cổng text layer** (mã **C2**, **C11**, một nửa **C10**)
+- [x] **Plan 2b — chip bốn trạng thái** (Figma trước, rồi FE)
+- [x] **Plan 2c — `services/ingest`, service thứ năm** (không mã pipeline; dọn nợ của 2a)
 - [ ] **Plan 3 — mục lục, chương, chunk, Mongo** (mã **C3**, **C10**)
 - [ ] **Plan 4 — Jev và skill** (mã **C4**)
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)

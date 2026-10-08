@@ -42,7 +42,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.identity import Asking
-from be.models import SchoolClass, Student
+from schema.models import SchoolClass, Student
 
 # Một lời từ chối hay một câu hỏi lại sẽ nêu tên bao nhiêu lớp. Giáo viên có ba
 # mươi lớp thì nhận được một câu hỏi họ trả lời được, không phải một danh sách họ

@@ -47,7 +47,9 @@ from be.assessment_state import AssessmentState
 from be.config import Settings, get_settings
 from be.drafting import _MOST_QUESTIONS, fire, harvest, pending_count, rebrief, too_many
 from be.identity import Asking
-from be.models import (
+from be.resolve import Candidate, capped, classes_with_counts, normalise
+from contracts import ToolSpec
+from schema.models import (
     Assessment,
     Attempt,
     Publication,
@@ -56,8 +58,6 @@ from be.models import (
     SchoolClass,
     Student,
 )
-from be.resolve import Candidate, capped, classes_with_counts, normalise
-from contracts import ToolSpec
 
 logger = logging.getLogger(__name__)
 

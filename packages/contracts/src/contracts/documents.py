@@ -23,6 +23,27 @@ PROBE_DOCUMENT_TASK = "probe_document"
 DOCUMENT_PROBED_TASK = "document_probed"
 
 
+def documents_channel(teacher_id: str) -> str:
+    """Tên channel pub/sub chở tiếng hích "thư viện của giáo viên này vừa đổi".
+
+    Ở đây vì **hai service phải nói cùng một string**: `services/ingest` phát sau khi ghi
+    xong một hàng, `services/be` nghe và đẩy xuống trình duyệt qua SSE. Không bên nào import
+    bên nào, nên cái string là ranh giới -- đúng vai mà `GRADE_SUBMISSION_TASK` đã nhận.
+
+    Một hàm chứ không phải một hằng, vì channel mang `teacher_id`: rail vẽ **cả thư viện** của
+    một giáo viên, nên một màn hình đang mở là một subscription. Một channel cho mỗi tài liệu
+    bắt trình duyệt đăng ký N kênh rồi huỷ từng cái khi chúng xong -- N lần phức tạp cho đúng
+    một thông tin.
+
+    Args:
+        teacher_id: Giáo viên nào.
+
+    Returns:
+        Tên channel.
+    """
+    return f"documents:{teacher_id}"
+
+
 class DocumentState(StrEnum):
     """Một tài liệu đang ở đâu trong vòng xử lý.
 

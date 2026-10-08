@@ -85,7 +85,7 @@ nên một cái tên model đặt sai là một đoạn chat mất tích — gi�
 - `services/be/src/be/teacher_chat.py` — `_conversation(start_new=...)` là đường duy nhất mở luồng
   mới; `conversation_of` trả lời *"đề này sinh ra từ đoạn nào"*; `_latest_conversation` sắp theo
   `COALESCE(lần nói cuối, started_at)`; `_name_the_thread` đặt tên sau lượt đầu và nuốt mọi lỗi.
-- `services/be/src/be/models.py` — `TeacherConversation` **không còn** `UniqueConstraint`, và có hai
+- `packages/schema/src/schema/models.py` — `TeacherConversation` **không còn** `UniqueConstraint`, và có hai
   cột `title`, `deleted_at`.
 - `services/be/src/be/teacher_chat.py` — `_owned_conversation` canh **cả hai** cửa của một đoạn đã
   xoá (đọc lại ra 404, và câu mới không rơi vào đó) bằng một mệnh đề; `_latest_conversation`,

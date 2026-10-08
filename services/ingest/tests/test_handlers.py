@@ -1,8 +1,8 @@
 """Đường duy nhất mà kết quả xử lý tài liệu đi vào Postgres.
 
-Handler này chạy trong process worker của BE, không trong một request, nên mấy test dưới gọi nó
-thẳng. Chúng canh ba chỗ nó có thể nói dối: ghi thiếu một cột, ghi vào hàng không còn tồn tại,
-và ném ra ngoài một thứ mà arq sẽ thử lại mãi không xong.
+Handler này chạy trong process worker của INGEST, không trong một request, nên mấy test
+dưới gọi nó thẳng. Chúng canh ba chỗ nó có thể nói dối: ghi thiếu một cột, ghi vào hàng không
+còn tồn tại, và ném ra ngoài một thứ mà arq sẽ thử lại mãi không xong.
 """
 
 from datetime import UTC, datetime
@@ -12,11 +12,12 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from be import db as db_module
-from be.db import bind_sessions, prepare_schema
-from be.ingest import document_probed
-from be.models import Document, Teacher
 from contracts import DocumentProbed, DocumentState
+from ingest import db as db_module
+from ingest.db import bind_sessions
+from ingest.handlers import document_probed
+from schema.ddl import prepare_schema
+from schema.models import Document, Teacher
 
 
 @pytest_asyncio.fixture

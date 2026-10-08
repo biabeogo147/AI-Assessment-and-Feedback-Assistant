@@ -55,7 +55,7 @@ chiều thì giáo viên gặp hai cổng nặng liên tiếp, và sẽ học c�
 - Chuỗi trên thẻ `đã-duyệt`: *"10 câu · nội dung đã khoá, muốn sửa thì bỏ duyệt trước"*.
 - Figma `Question card` (`267:30`) — thuộc tính boolean **Sửa được**, tắt trên artboard 7 (đã duyệt)
   và bật trên artboard 6. Nút Sửa **biến mất** chứ không mờ đi, đúng như mục *Hệ quả* đòi.
-- `services/be/src/be/models.py` — `AssessmentState` mang đúng bốn giá trị, và cột `Assessment.state`
+- `packages/schema/src/schema/models.py` — `AssessmentState` mang đúng bốn giá trị, và cột `Assessment.state`
   là một `Enum` có check constraint, nên một trạng thái ngoài ADR này không vào được bảng kể cả qua
   đường bỏ qua `advance`.
 - `services/be/src/be/assessment_state.py` — `_ALLOWED` là bốn trạng thái ấy cùng các cạnh giữa

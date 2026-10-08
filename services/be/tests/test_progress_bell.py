@@ -16,9 +16,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import drafting
 from be.config import get_settings
-from be.db import prepare_schema
 from be.drafting import fire, harvest, open_bells, progress_channel
-from be.models import (
+from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
+from schema.ddl import prepare_schema
+from schema.models import (
     Assessment,
     AssessmentState,
     DraftBrief,
@@ -26,7 +27,6 @@ from be.models import (
     Question,
     Teacher,
 )
-from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
 
 
 class FakeQueue:

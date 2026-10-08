@@ -27,9 +27,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
 from be.assessment_state import AssessmentState, advance, assert_editable
-from be.db import bind_sessions, prepare_schema
-from be.models import Assessment, SchoolClass, Teacher
+from be.db import bind_sessions
 from be.seed import seed_if_empty
+from schema.ddl import prepare_schema
+from schema.models import Assessment, SchoolClass, Teacher
 
 
 @pytest_asyncio.fixture

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiafa-ingest"
+version = "0.1.0"
+description = "Worker that writes what DOCUMENT reports. Holds a database credential and owns no decision."
+requires-python = ">=3.12"
+dependencies = [
+    "aiafa-contracts",
+    # Khai báo bảng và phép đối chiếu schema. Service này **ghi** vào database của
+    # BE, nên nó phải nói đúng một định nghĩa bảng với BE -- đó là cả lý do
+    # `packages/schema` tồn tại.
+    "aiafa-schema",
+    "arq>=0.26",
+    "pydantic-settings>=2.3",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+]
+
+# Không có fastapi, không có uvicorn, không có minio ở đây. Service này không mở
+# cổng nào và không chạm byte nào: nó nhận một kết quả đã đọc xong rồi ghi một
+# hàng. Kéo một framework web về để lấy một hàm bọc thread là trả giá cho một
+# thứ không dùng -- cùng lập luận đã ghi ở `services/document/pyproject.toml`.
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "aiosqlite>=0.20",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

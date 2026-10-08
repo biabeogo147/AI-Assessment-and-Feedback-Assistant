@@ -25,9 +25,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
 from be import teacher_chat
-from be.db import bind_sessions, prepare_schema
+from be.db import bind_sessions
 from be.identity import Asking
-from be.models import SchoolClass, Student, Teacher, TeacherConversation, TeacherTurn
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
 from contracts import (
@@ -36,6 +35,8 @@ from contracts import (
     NextStepCompleted,
     TurnRecord,
 )
+from schema.ddl import prepare_schema
+from schema.models import SchoolClass, Student, Teacher, TeacherConversation, TeacherTurn
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 

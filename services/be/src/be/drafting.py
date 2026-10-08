@@ -35,13 +35,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.agent_gateway import collect_result, enqueue_task, validate_question
 from be.assessment_state import AssessmentState, advance, assert_editable, editable
 from be.config import Settings
-from be.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question
 from contracts import (
     WRITE_DRAFT_QUESTION_TASK,
     DraftQuestionCompleted,
     DraftQuestionRequested,
     GeneratedQuestion,
 )
+from schema.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question
 
 logger = logging.getLogger(__name__)
 

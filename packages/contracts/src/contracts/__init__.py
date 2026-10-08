@@ -38,6 +38,7 @@ from contracts.documents import (
     DocumentProbed,
     DocumentProbeRequested,
     DocumentState,
+    documents_channel,
 )
 from contracts.enums import ReviewReason
 from contracts.messages import (
@@ -99,4 +100,5 @@ __all__ = [
     "SolutionMethod",
     "ToolSpec",
     "TurnRecord",
+    "documents_channel",
 ]

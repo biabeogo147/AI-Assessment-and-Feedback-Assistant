@@ -25,8 +25,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import db as db_module
 from be import drafting
 from be.config import get_settings
-from be.db import bind_sessions, prepare_schema
-from be.models import (
+from be.db import bind_sessions
+from be.seed import seed_if_empty
+from be.teacher_chat import router as chat_router
+from be.teacher_routes import router as assessment_router
+from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
+from schema.ddl import prepare_schema
+from schema.models import (
     AnswerOption,
     Assessment,
     AssessmentState,
@@ -40,10 +45,6 @@ from be.models import (
     TeacherConversation,
     TeacherTurn,
 )
-from be.seed import seed_if_empty
-from be.teacher_chat import router as chat_router
-from be.teacher_routes import router as assessment_router
-from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 STRANGER = {"X-Actor": "teacher:GV-002"}

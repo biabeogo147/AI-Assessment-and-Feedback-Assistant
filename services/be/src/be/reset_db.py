@@ -15,9 +15,10 @@ import asyncio
 import logging
 
 from be.config import get_settings
-from be.db import bind_sessions, create_engine, get_session, reset_schema
+from be.db import bind_sessions, create_engine, get_session
 from be.seed import seed_if_empty
 from be.storage import create_store
+from schema.ddl import reset_schema
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)

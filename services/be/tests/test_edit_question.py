@@ -16,8 +16,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
-from be.db import bind_sessions, prepare_schema
-from be.models import (
+from be.db import bind_sessions
+from be.seed import seed_if_empty
+from be.teacher_routes import router as teacher_router
+from schema.ddl import prepare_schema
+from schema.models import (
     Answer,
     AnswerOption,
     Assessment,
@@ -28,8 +31,6 @@ from be.models import (
     Student,
     Teacher,
 )
-from be.seed import seed_if_empty
-from be.teacher_routes import router as teacher_router
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 STRANGER = {"X-Actor": "teacher:GV-002"}

@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from be.models import (
+from schema.models import (
     AnswerOption,
     Assessment,
     AssessmentState,

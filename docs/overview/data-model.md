@@ -6,7 +6,9 @@ Tài liệu này mô tả **hình dạng dữ liệu BE lưu**: có những bả
 vụ nào, và vì sao ranh giới giữa chúng nằm ở đó. Nó không mô tả API — API thuộc về
 [Architecture](architecture.md) — và không mô tả luật — luật thuộc về `docs/decisions/`.
 
-Nguồn sự thật của schema là `services/be/src/be/models.py`. Tài liệu này giải thích nó; khi hai bên
+Nguồn sự thật của schema là `packages/schema/src/schema/models.py` — một **package dùng
+chung**, không một service, vì `services/be` và `services/ingest` cùng ghi vào database này
+và một định nghĩa bảng sống trong một service thì service kia không với tới được. Tài liệu này giải thích nó; khi hai bên
 lệch nhau, code đúng và tài liệu phải sửa.
 
 Được viết **sau** khi schema chạy thật, không phải trước. Một tài liệu schema viết trước khi có bảng

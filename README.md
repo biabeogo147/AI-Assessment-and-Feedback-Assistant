@@ -39,8 +39,11 @@ Nếu có bước nào không chạy như mô tả, [Local Development](docs/loc
 | --- | --- |
 | `services/be` | Business layer, là service duy nhất FE biết tới |
 | `services/agent` | Worker chấm bài, chỉ phát bằng chứng, không quyết định gì |
+| `services/document` | Worker đọc tệp tải lên, báo lại có chữ hay không và bao nhiêu trang |
+| `services/ingest` | Worker ghi lại thứ `document` báo về. Giữ credential database, không quyết định gì |
 | `services/fe` | Vite + React, gọi BE qua proxy `/api` |
 | `packages/contracts` | Message contract dùng chung. Chỉ có dữ liệu, không có logic |
+| `packages/schema` | Schema Postgres, dùng chung bởi hai service cùng ghi vào nó |
 | `tools/` | Check ở tầng repo mà không service nào tự kiểm được cho mình |
 | `docs/` | Tài liệu nghiệp vụ, kiến trúc và vận hành |
 

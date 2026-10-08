@@ -92,7 +92,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # còn nghĩa khi mỗi dòng mới phải trả giá bằng một lần sửa hằng số kèm một decision record --
 # nâng rộng ra cho thoải mái là tự cho mình mấy dòng chưa có lý do. Decision record nằm ở
 # 2026-10-08-document-service-text-layer-gate-plan.md.
-AGENTS_MD_MAX_LINES = 182
+# Nâng 182 -> 186 ngày 08/10/2026, tiêu đúng bốn dòng, và từng dòng nói nó mua gì: hai hàng
+# ownership (`services/ingest`, `packages/schema` -- service thứ năm và package dùng chung thứ
+# hai) và hai hàng invariant, cho hai check mà plan 2c vừa dựng. Hai hàng invariant ấy không
+# phải trang trí: bảng Invariants là **chỉ mục** của những chỗ thi hành, nên một check tồn tại
+# mà không có hàng ở đó là một cái lưới không ai biết để trông. Decision record nằm ở
+# 2026-10-08-ingest-service-split-plan.md.
+AGENTS_MD_MAX_LINES = 186
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -101,6 +107,8 @@ CHILD_AGENTS_FILES = (
     "services/document/AGENTS.md",
     "services/fe/AGENTS.md",
     "packages/contracts/AGENTS.md",
+    "packages/schema/AGENTS.md",
+    "services/ingest/AGENTS.md",
 )
 
 # Bất cứ thứ gì cho AGENT chạm trực tiếp tới một database. Redis không nằm trong
@@ -163,15 +171,20 @@ def check_env_example_has_no_orphans() -> str | None:
     from agent.config import Settings as AgentSettings
     from be.config import Settings as BeSettings
     from document.config import Settings as DocumentSettings
+    from ingest.config import Settings as IngestSettings
 
     declared = {
         match.group(1)
         for line in (REPO_ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
         if (match := ENV_LINE.match(line.strip()))
     }
+    # Cả **bốn** service. Thiếu một cái thì check này xanh bằng sự tình cờ: lúc
+    # `services/ingest` ra đời, `INGEST_QUEUE_NAME` đi qua được chỉ vì `document` cũng
+    # đọc đúng tên trường ấy để biết đẩy kết quả về đâu -- và ngày `document` thôi cần
+    # nó, biến ấy thành mồ côi thật mà cổng vẫn im.
     readable = {
         name.upper()
-        for settings in (BeSettings, AgentSettings, DocumentSettings)
+        for settings in (BeSettings, AgentSettings, DocumentSettings, IngestSettings)
         for name in settings.model_fields
     }
 
@@ -1365,6 +1378,172 @@ def _no_comments(source: str) -> str:
     return re.sub(r"//.*", "", without_block)
 
 
+def _service_sources() -> list[Path]:
+    """Mọi file Python **của chúng ta** dưới `services/` và `packages/`.
+
+    Lọc `node_modules` chứ không tin rằng nó không có Python: `services/fe/node_modules` có
+    năm file `.py` của katex, và chúng đã từng lọt vào vùng quét của hai check dưới. Lúc ấy
+    không ai thấy gì vì năm file kia tokenize được — nhưng một `npm install` kéo về một
+    package kèm script py2 hay một file không phải utf-8 là `dev.ps1 check` **chết bằng stack
+    trace**, không phải bằng một dòng FAIL, và người đọc sẽ tưởng `check_contract.py` hỏng.
+
+    Chỉ lấy dưới `src/`, nên `tests/` nằm ngoài vùng quét của mọi luật dùng hàm này.
+
+    Returns:
+        Đường dẫn tuyệt đối, đã sắp xếp.
+    """
+    roots = (REPO_ROOT / "services", REPO_ROOT / "packages")
+    return sorted(
+        path
+        for root in roots
+        for path in root.rglob("src/**/*.py")
+        if "node_modules" not in path.parts and "__pycache__" not in path.parts
+    )
+
+
+def check_one_process_builds_the_schema_and_the_rest_only_check_it() -> str | None:
+    """Dựng schema, và xoá nó, mỗi việc có đúng những chỗ được phép.
+
+    Luật này mới cần tới một cái lưới từ plan 2c, và nó cần vì một lý do cụ thể: trước đó
+    `prepare_schema` nằm trong `be/db.py`, một module mà chỉ `services/be` import được, nên
+    "ai được dựng schema" là một câu hỏi ranh giới service đã trả lời hộ. Nay nó ở
+    `packages/schema`, dùng chung — và `services/ingest` import được nó như BE.
+
+    Vì sao chỉ một process dựng: `create_all` không bao giờ `ALTER`, nên hai process cùng dựng
+    là hai process cùng tin mình đúng về một schema chỉ một bên nhìn đủ. Và worker khởi động
+    được **trước** API, nên nó sẽ dựng theo bản metadata nó đang có. Process nào cũng gọi
+    `check_schema` rồi chết ngay nếu lệch; nửa ấy được canh bằng test, không bằng check này.
+
+    **Canh ba thứ, không một.** Bản đầu chỉ canh cái tên `prepare_schema`, và một lượt review
+    đã chỉ ra hai đường vòng đi qua được mà hậu quả thì nặng hơn hẳn:
+
+    - `await reset_schema(engine)` — nó gọi `prepare_schema` hộ, **và `DROP SCHEMA public
+      CASCADE` trước đó**. Một worker gọi nhầm hàm ấy là một database bị xoá sạch, im lặng.
+    - `Base.metadata.create_all` viết tay — đúng *chính xác* thứ `prepare_schema` làm, chỉ là
+      không mang cái tên ấy. Canh một cái tên thì không canh được một hành vi.
+
+    Vùng quét **không gồm `tests/`** (chỉ `src/`), và đó không phải lỗ hổng: một test dựng một
+    sqlite trong bộ nhớ của riêng nó, và cái database ấy không phải schema của ai. Mười sáu
+    file test làm đúng thế, trong đó có cả `services/ingest/tests/` — tức chính service bị cấm
+    dựng schema. Miễn trừ ấy là chỗ đắt nhất của luật này, nên nó được bù bằng một test riêng
+    ở `services/ingest/tests/test_worker.py`: `ingest.worker` chỉ được lấy `check_schema` từ
+    `schema.ddl` và không được lấy gì khác, kể cả dưới một cái tên khác.
+
+    Returns:
+        None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
+    """
+    ddl = Path("packages") / "schema" / "src" / "schema" / "ddl.py"
+    seams = (
+        # (tên luật, cái cần tìm, những chỗ được phép)
+        (
+            "prepare_schema",
+            re.compile(r"\bprepare_schema\s*\("),
+            (Path("services") / "be" / "src" / "be" / "main.py", ddl),
+        ),
+        (
+            "reset_schema",
+            re.compile(r"\breset_schema\s*\("),
+            (Path("services") / "be" / "src" / "be" / "reset_db.py", ddl),
+        ),
+        (
+            "metadata.create_all / metadata.drop_all",
+            re.compile(r"\bmetadata\.(create_all|drop_all)\b"),
+            (ddl,),
+        ),
+    )
+
+    problems = []
+    for path in _service_sources():
+        relative = path.relative_to(REPO_ROOT)
+        try:
+            lines = _code_only(path.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, tokenize.TokenError, SyntaxError) as unreadable:
+            # Một dòng FAIL, không một traceback: cái hỏng là một file, không phải check này.
+            problems.append(f"{relative}: cannot be read as Python ({unreadable})")
+            continue
+        for name, pattern, allowed in seams:
+            if relative in allowed:
+                continue
+            for number, line in enumerate(lines, 1):
+                if pattern.search(line):
+                    problems.append(f"{relative}:{number} uses {name}")
+
+    if problems:
+        return _fail(
+            "one-schema-builder",
+            "\n      ".join(problems)
+            + "\n      The API process builds the schema; every other process calls "
+            "check_schema and dies on drift.",
+        )
+    return None
+
+
+def check_both_sides_of_the_document_channel_read_its_name_from_contracts() -> str | None:
+    """Tên channel pub/sub sống ở `contracts`, và hai bên **gọi** nó chứ không viết lại.
+
+    `services/ingest` phát, `services/be` nghe, và hai service ấy **không import nhau được**.
+    Nên cái string là ranh giới — đúng vai `GRADE_SUBMISSION_TASK` đã nhận, và
+    `packages/contracts/AGENTS.md` ghi thẳng: *"that constant is the boundary, not a
+    convenience."*
+
+    Vì sao đáng một cái lưới riêng thay vì tin vào review: một bản sao ở mỗi bên là hai chuỗi
+    lệch nhau được, và **lúc lệch thì không có lỗi nào** — `publish` vào một channel không ai
+    nghe thành công y như một channel có người nghe. Triệu chứng duy nhất là chip thôi tự đổi
+    mặt, tức một màn hình trông như đang chạy đúng, và đó là loại hỏng đắt nhất để truy.
+
+    **Hai nửa, vì một nửa thì thủng.** Nửa đầu cấm viết chuỗi `documents:` ra ngoài
+    `contracts`. Một lượt review đã chỉ ra nó chỉ bắt đúng một hình dạng: tách dấu hai chấm ra
+    khỏi chữ — một hằng số tiền tố rồi nối, một phép `+`, một `":".join(...)` — là đi qua hết,
+    và cách đầu tiên là cách một người **sẽ** viết nếu họ muốn cho gọn. Nên nửa sau canh chiều
+    ngược lại: hai module chạm kênh phải **còn gọi** `documents_channel`. Mọi cách viết tay
+    đều phải bỏ lời gọi ấy đi, nên nửa sau bắt được cả bảy cách mà nửa đầu bỏ sót.
+
+    **Hệ quả phải biết trước:** tên channel không được viết ra trong `services/` hay
+    `packages/` kể cả **trong một comment hay docstring**. Check này đọc dòng thô, vì
+    `_code_only` xoá trắng string literal — tức xoá đúng thứ cần tìm. Muốn nhắc tới kênh trong
+    một lời giải thích thì gọi tên hàm `documents_channel`, đừng chép giá trị của nó.
+
+    Vùng quét **không gồm `tests/`**: một test khẳng định `documents_channel` trả ra đúng chuỗi
+    nào thì **phải** viết chuỗi ấy ra, nếu không nó chỉ so một hàm với chính nó.
+
+    Returns:
+        None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
+    """
+    home = Path("packages") / "contracts" / "src" / "contracts" / "documents.py"
+    written = re.compile(r"""["']documents:""")
+    # Hai module chạm kênh, mỗi bên một đầu. Thêm một bên thứ ba thì thêm một dòng ở đây.
+    touching = (
+        Path("services") / "ingest" / "src" / "ingest" / "events.py",
+        Path("services") / "be" / "src" / "be" / "document_events.py",
+    )
+
+    problems = []
+    for path in _service_sources():
+        relative = path.relative_to(REPO_ROOT)
+        if relative == home:
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if written.search(line):
+                problems.append(f"{relative}:{number} writes the channel name out")
+
+    for relative in touching:
+        path = REPO_ROOT / relative
+        if not path.is_file():
+            problems.append(f"{relative} is gone; this check names the modules that touch it")
+            continue
+        if "documents_channel(" not in path.read_text(encoding="utf-8"):
+            problems.append(f"{relative} no longer calls documents_channel")
+
+    if problems:
+        return _fail(
+            "one-channel-name",
+            "\n      ".join(problems)
+            + f"\n      Call contracts.documents_channel, defined in {home}; a second copy of "
+            "the string is a channel that goes quiet without an error.",
+        )
+    return None
+
+
 def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
     """Hai SDK sync, mỗi cái đúng một module được import nó.
 
@@ -1431,6 +1610,8 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_and_document_hold_no_database_credentials,
+    check_one_process_builds_the_schema_and_the_rest_only_check_it,
+    check_both_sides_of_the_document_channel_read_its_name_from_contracts,
     check_only_one_module_per_service_talks_to_a_sync_sdk,
     check_model_call_fits_inside_the_job_waiting_for_it,
     check_contract_files_stay_short,
