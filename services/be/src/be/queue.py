@@ -11,7 +11,12 @@ from arq.connections import ArqRedis, RedisSettings
 from arq.jobs import Job, JobStatus
 
 from be.config import Settings
-from contracts import GRADE_SUBMISSION_TASK, GradingRequested
+from contracts import (
+    GRADE_SUBMISSION_TASK,
+    PROBE_DOCUMENT_TASK,
+    DocumentProbeRequested,
+    GradingRequested,
+)
 
 # arq mặc định timeout kết nối một giây, và mức đó quá chặt với Docker Desktop
 # trên Windows: port proxy của nó cần vài giây sau khi container báo healthy mới
@@ -85,6 +90,43 @@ async def enqueue_grading(
     )
     if job is None:
         raise RuntimeError(f"arq refused to enqueue submission {request.submission_id}")
+    return job.job_id
+
+
+async def enqueue_probe(
+    pool: ArqRedis,
+    settings: Settings,
+    request: DocumentProbeRequested,
+) -> str:
+    """Giao một tài liệu vừa cất cho `services/document` đọc.
+
+    Khác `enqueue_grading` ở một điểm đáng nói: **không ai sẽ đọc kết quả của job này**.
+    Câu trả lời đi về bằng một job khác, trên queue của BE, và `be/worker.py` ghi nó vào
+    database. Đó là lý do hàm này trả job id nhưng không ai giữ nó -- nó vào log, để một
+    lần truy vết còn nối được hai đầu.
+
+    Args:
+        pool: Pool arq đã kết nối.
+        settings: Settings của process, nơi cung cấp tên queue.
+        request: Khoá của object và tên tệp. Không chở byte: trần một tệp là 100 MB, và
+            Redis không phải chỗ để chuyên chở một cuốn sách.
+
+    Returns:
+        job id của arq.
+
+    Raises:
+        RuntimeError: Nếu arq từ chối job.
+
+    Side effects:
+        Ghi một job lên queue Redis mà `services/document` tiêu thụ.
+    """
+    job = await pool.enqueue_job(
+        PROBE_DOCUMENT_TASK,
+        request.model_dump(mode="json"),
+        _queue_name=settings.document_queue_name,
+    )
+    if job is None:
+        raise RuntimeError(f"arq refused to enqueue document {request.document_id}")
     return job.job_id
 
 

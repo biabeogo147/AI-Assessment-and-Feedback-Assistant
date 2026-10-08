@@ -1,6 +1,6 @@
 # Local Development
 
-Tài liệu này hướng dẫn dựng môi trường, chạy ba service, demo đủ các nhánh kết quả chấm, và tự chẩn đoán khi có gì đó hỏng.
+Tài liệu này hướng dẫn dựng môi trường, chạy **năm process** của bốn service, demo đủ các nhánh kết quả chấm, và tự chẩn đoán khi có gì đó hỏng.
 
 Mọi lệnh và mọi output trong tài liệu này đều đã được chạy thật trên Windows 11 với PowerShell. Nếu bạn thấy khác, phần [Chẩn đoán sự cố](#chẩn-đoán-sự-cố) ở cuối gần như chắc chắn có câu trả lời.
 
@@ -10,9 +10,9 @@ Kiến trúc và lý do đằng sau các ranh giới nằm trong [Architecture](
 
 | Thứ | Vì sao cần | Ghi chú |
 | --- | --- | --- |
-| conda với env Python 3.12 | BE và AGENT dùng chung một env | Script mặc định trỏ tới `D:\Anaconda\envs\AI-Assessment-and-Feedback-Assistant` |
+| conda với env Python 3.12 | BE, AGENT và DOCUMENT dùng chung một env | Script mặc định trỏ tới `D:\Anaconda\envs\AI-Assessment-and-Feedback-Assistant` |
 | Node 22 và pnpm | FE chạy bằng Vite | |
-| Docker Desktop | Chạy Redis, Postgres và MinIO | Ba service ứng dụng chạy native, không container hoá |
+| Docker Desktop | Chạy Redis, Postgres và MinIO | Bốn service ứng dụng chạy native, không container hoá |
 
 Nếu conda env của bạn nằm chỗ khác, đặt biến môi trường `AIAFA_PYTHON` trỏ tới `python.exe` của env đó. Bạn cũng cần sửa ba dòng `entry` trong `.pre-commit-config.yaml`, vì chúng dùng đường dẫn tuyệt đối có chủ đích.
 
@@ -68,13 +68,23 @@ docker compose -f docker-compose.infra.yml ps
 MinIO không có healthcheck nên nó chỉ ghi `Up`: ảnh không mang theo `curl` lẫn `mc`, và phép thử
 thật nằm ở chỗ khác — BE gọi `ensure_ready()` lúc khởi động và chết ngay nếu không với tới được.
 
-Rồi mở ba terminal, mỗi terminal một service:
+Rồi mở **năm** terminal. Năm chứ không bốn, vì BE có hai process: một API và một worker.
 
 ```powershell
-.\dev.ps1 be       # terminal 1 - http://localhost:8000
-.\dev.ps1 agent    # terminal 2 - worker, không có cổng
-.\dev.ps1 fe       # terminal 3 - http://localhost:5173
+.\dev.ps1 be         # terminal 1 - http://localhost:8000
+.\dev.ps1 be-worker  # terminal 2 - ghi kết quả xử lý tài liệu, không có cổng
+.\dev.ps1 agent      # terminal 3 - worker, không có cổng
+.\dev.ps1 document   # terminal 4 - đọc tệp đã tải lên, không có cổng
+.\dev.ps1 fe         # terminal 5 - http://localhost:5173
 ```
+
+**Thiếu `be-worker` hoặc `document` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
+tài liệu đứng ở *đang xử lý* rồi năm phút sau đổi sang *xử lý hỏng*. Không lỗi nào hiện ra,
+vì không có gì sai — chỉ là không có ai làm việc.
+
+Ba process còn lại (`be`, `agent`, `fe`) đủ cho mọi thứ **trừ** việc xử lý tài liệu.
+`services/document` không có cổng nào, và đó là chủ ý: kết quả của nó đi về bằng một job
+trên queue của BE, không bằng một request, nên một cổng ở đó là một bề mặt không ai canh.
 
 | Cổng | Của ai |
 | --- | --- |
@@ -84,6 +94,10 @@ Rồi mở ba terminal, mỗi terminal một service:
 | 5432 | Postgres, trong Docker |
 | 9000 | MinIO, API S3, trong Docker |
 | 9001 | MinIO, giao diện console, trong Docker |
+
+Cổng **8100** đã dành cho `services/document` theo quy ước *BE + 100* trong
+[Architecture](overview/architecture.md), nhưng service ấy chưa mở cổng nào và có thể sẽ
+không bao giờ. Ghi ra đây để không ai cấp lại số ấy cho một service khác.
 
 ## Xác minh từng thành phần
 
@@ -96,14 +110,25 @@ curl http://localhost:8000/health               # {"status":"ok"}
 curl -o NUL -w "%{http_code}" http://localhost:5173/   # 200
 ```
 
-Với AGENT, không có endpoint nào để gọi, nên bằng chứng nó sống là dòng log lúc khởi động:
+Với ba worker, không có endpoint nào để gọi, nên bằng chứng chúng sống là dòng log lúc khởi
+động:
 
 ```text
 Starting worker for 5 functions: write_draft_question, generate_retry_question, explain_turn, propose_next_step, grade_submission
 AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0
 ```
 
-Dòng thứ hai in ra tên queue có chủ đích. Nếu BE và AGENT đọc hai tên queue khác nhau thì hệ thống trông y hệt lúc bình thường: BE nhận bài, không báo lỗi gì, và không có gì được chấm.
+Hai worker kia cũng in ra tên queue của chúng:
+
+```text
+BE worker ready: queue=aiafa:be redis=redis://127.0.0.1:6379/0
+DOCUMENT worker ready: consuming=aiafa:document handing back to=aiafa:be redis=redis://127.0.0.1:6379/0
+```
+
+Những dòng ấy in ra tên queue có chủ đích. Nếu hai bên đọc hai tên queue khác nhau thì hệ
+thống trông y hệt lúc bình thường: job được đẩy vào, không báo lỗi gì, và không có gì chạy.
+Dòng của DOCUMENT in **cả hai** tên vì nó vừa tiêu thụ một queue vừa đẩy vào một queue khác,
+nên nó có hai cách để lệch.
 
 ## Demo
 
@@ -216,8 +241,22 @@ Kích thước đo bằng `seek`/`tell` trên phần thân đã nhận, không l
 **MinIO**, không vào database: `documents.storage_key` là khoá, và object nằm ở
 `documents/<giáo viên>/<tài liệu>.pdf`. Xem nó bằng console ở <http://127.0.0.1:9001>.
 
-Không có số trang và không có cờ *"đọc được chữ"*: chưa có gì mở file ra đọc, nên nội dung tài liệu
-**chưa** đi vào prompt của AGENT — đây mới là cái vỏ.
+**Tệp được mở ra đọc, nhưng không trong lời gọi `POST`.** Đường ấy cất byte rồi đẩy một job
+cho `services/document`; worker đó đọc tệp từ MinIO bằng PyMuPDF và đẩy kết quả về
+`aiafa:be`, nơi `be-worker` ghi nó vào database. Nên lời gọi `POST` trả về
+`state: "processing"` và `page_count: null`, rồi vài giây sau danh sách nói khác:
+
+```text
+state = ready           đọc được chữ, page_count là số trang thật
+state = no_text_layer   bản scan, hoặc PDF không có trang nào; fault nói cái nào
+state = failed          job đã chết, hoặc không giao được việc; thử tải lại
+```
+
+Tệp `.txt` và `.md` mang `page_count: null` **vĩnh viễn**: chúng không có trang, và một số
+`0` ở đó thì màn hình sẽ in "0 trang" và giáo viên sẽ tin.
+
+Nội dung tài liệu **vẫn chưa** đi vào prompt của AGENT. Vòng này chỉ đếm chữ và đếm trang;
+việc cắt chương và nhồi ngữ cảnh là các plan sau của cùng đợt việc.
 
 ### Mở giao diện giáo viên
 
@@ -301,6 +340,22 @@ Cách duy nhất biết hàng rào còn sống là thử phá: thêm `import be`
 3. `REDIS_URL` trong `.env` đang dùng `localhost`. **Phải dùng `127.0.0.1`.** Trên Windows, `localhost` phân giải ra `::1` trước, và cổng IPv6 mà Docker Desktop publish không nhận kết nối, nên client đợi hết timeout rồi service chết. `Test-NetConnection` của PowerShell che mất lỗi này vì nó tự fallback sang IPv4, nên đừng dùng nó để kết luận.
 
 **Nộp bài xong mà kết quả không bao giờ về.** AGENT không nhận được job. Xem dòng `AGENT worker ready: queue=...` trong log của worker và so với `AGENT_QUEUE_NAME` trong `.env`. Lệch tên queue là lỗi im lặng: không bên nào báo gì cả.
+
+**Chip tài liệu đứng mãi ở *đang xử lý*, rồi đổi sang *xử lý hỏng*.** Không ai đọc tệp. Theo thứ
+tự hay gặp:
+
+1. `.\dev.ps1 document` chưa chạy. Đây là ca gần như chắc chắn, vì nó là process mới nhất và dễ
+   quên nhất trong năm cái.
+2. `.\dev.ps1 be-worker` chưa chạy. Lúc này `document` **đã** đọc xong và đã đẩy kết quả về, nhưng
+   không ai lấy nó ra khỏi queue. Phân biệt hai ca bằng log của `document`: có dòng
+   `probed document=... state=ready` tức nó đã làm xong phần của nó.
+3. Tên queue lệch. So `DOCUMENT_QUEUE_NAME` và `BE_QUEUE_NAME` trong `.env` với hai dòng
+   `... worker ready: queue=...` của hai worker. Lệch tên là lỗi im lặng: không bên nào báo gì.
+
+Trạng thái *xử lý hỏng* ở đây **không** được ghi vào database — cột vẫn là `processing`. Nó được
+suy ra lúc đọc, khi hàng đứng lâu hơn `DOCUMENT_STALE_AFTER_SECONDS`, vì một process bị giết thì
+không còn ai sống để ghi một giá trị khác. Hệ quả hợp ý: bật `document` lên muộn thì tài liệu cũ
+vẫn được xử lý, và lần đọc sau nói đúng.
 
 **FE báo lỗi mạng khi bấm nộp bài.** BE chưa chạy. FE gọi đường tương đối `/api` và Vite proxy sang `http://localhost:8000`; không có BE thì proxy trả lỗi. Không thêm CORS vào BE để chữa — dùng proxy là có chủ đích, để trình duyệt chỉ làm việc với một origin.
 

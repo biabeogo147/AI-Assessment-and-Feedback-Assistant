@@ -14,6 +14,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | --- | --- |
 | `services/be` | Enforces business rules at runtime, all databases, the only service FE calls |
 | `services/agent` | AI grading. Emits evidence, decides nothing |
+| `services/document` | Reads an uploaded file. Reports what it found, owns no row |
 | `services/fe` | User interface. Talks only to BE |
 | `packages/contracts` | Messages crossing the queue. Data only |
 | `tools/` | Repo-level checks no single service can make about itself |
@@ -44,7 +45,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | Low confidence is flagged for Teacher review | automatic: `test_low_confidence_routes_to_teacher` |
 | A correct answer does not exempt a submission from review | automatic: `test_correct_answer_does_not_exempt_a_submission_from_review` |
 | `ReviewReason` covers all four Workflow 4 conditions | automatic: `test_review_reason_covers_all_four_workflow_4_conditions` |
-| AGENT holds no database credentials | automatic: `tools/check_contract.py` |
+| AGENT and `document` hold no database credentials | automatic: `tools/check_contract.py` |
 | Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |
 | A whole AGENT job times out before the job waiting on it does | automatic: `tools/check_contract.py` |
 | Teacher approves an assessment before release | automatic: `test_an_unapproved_assessment_cannot_be_published_over_http` |
@@ -161,7 +162,7 @@ MetaPathFinder can leave `grimp` reporting zero violations. A check that cannot 
 ## Amending This Contract
 
 Changing this file always needs a plan and a decision record; it is never exempt. Changing a rule
-here means sweeping the four child `AGENTS.md` files and `CLAUDE.md` in the same change set, because
+here means sweeping the five child `AGENTS.md` files and `CLAUDE.md` in the same change set, because
 a contradiction between them is worse than either version alone.
 
 Child files carry constraints only, never current state: "this module is currently a placeholder" is

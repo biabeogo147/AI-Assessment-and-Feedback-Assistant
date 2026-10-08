@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'agent', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'be-worker', 'agent', 'document', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'help')]
     [string]$Task = 'help'
 )
 
@@ -66,6 +66,7 @@ switch ($Task) {
         Invoke-Step 'install contracts' { & $Python -m pip install -e "$RepoRoot\packages\contracts" }
         Invoke-Step 'install be' { & $Python -m pip install -e "$RepoRoot\services\be[test]" }
         Invoke-Step 'install agent' { & $Python -m pip install -e "$RepoRoot\services\agent[test]" }
+        Invoke-Step 'install document' { & $Python -m pip install -e "$RepoRoot\services\document[test]" }
         Invoke-Step 'install dev tooling' { & $Python -m pip install ruff import-linter pre-commit }
         Invoke-Step 'install frontend' { pnpm install }
         Write-Host "Done. Run '.\dev.ps1 check' to verify the import boundary." -ForegroundColor Green
@@ -90,8 +91,20 @@ switch ($Task) {
         & $Python -m uvicorn be.main:app --reload --host 127.0.0.1 --port 8000
     }
 
+    'be-worker' {
+        # Process thứ hai của BE. Nó tiêu thụ kết quả xử lý tài liệu và ghi chúng vào
+        # Postgres -- việc mà không ai đang chờ, nên nó không sống được trong một
+        # request. Tách khỏi `be` chứ không nhúng vào lifespan của uvicorn: `be` chạy
+        # với --reload, nên mỗi lần sửa một file Python là một lần cắt ngang job.
+        & "$Scripts\arq.exe" be.worker.WorkerSettings
+    }
+
     'agent' {
         & "$Scripts\arq.exe" agent.worker.WorkerSettings
+    }
+
+    'document' {
+        & "$Scripts\arq.exe" document.worker.WorkerSettings
     }
 
     'fe' {
@@ -154,7 +167,9 @@ Usage: .\dev.ps1 <task>
   infra-down   Stop them
   db-reset     Wipe the database and rebuild it from the models, then seed (BE must be off)
   be           Run the BE API on http://localhost:8000
+  be-worker    Run the BE worker that writes what DOCUMENT reports
   agent        Run the AGENT worker
+  document     Run the DOCUMENT worker that reads uploaded files
   fe           Run the FE dev server on http://localhost:5173
   test         Run pytest and vitest
   typecheck    Run tsc over the frontend without building

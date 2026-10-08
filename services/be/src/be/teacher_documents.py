@@ -10,10 +10,14 @@ Byte **không** nằm trong database nữa: chúng ở MinIO, và `documents.sto
 Lần chuyển ấy xảy ra vì `services/document` -- service sẽ đọc tệp -- không có credential
 database, nên nó không với tới được một cột.
 
-Hệ quả thẳng của giới hạn ấy: **không có số trang, không có cờ "đọc được chữ"**. Hai thứ đó
-đòi mở file ra đọc. Thiết kế cũ in *"184 trang · đọc được chữ"* trên mỗi chip, và artboard 1
-với 2 đã được sửa trong cùng đợt này để in **kích thước** -- con số duy nhất biết được mà
-không cần parse. Một con số trang bịa ra thì tệ hơn hẳn việc không có nó: giáo viên sẽ tin.
+Tệp **được mở ra đọc**, nhưng không ở đây và không trong lời gọi này: đường `POST` cất byte
+rồi đẩy một job cho `services/document`, và câu trả lời về sau bằng một job khác mà
+`be/worker.py` ghi vào database. Nên một tài liệu vừa tải lên mang trạng thái *đang xử lý*,
+và số trang của nó là `None` cho tới khi có người đếm thật.
+
+ADR-27 đòi bốn trạng thái, nhưng chỉ ba trong số đó được **ghi** vào cột. Trạng thái thứ tư --
+*xử lý hỏng* vì job đã chết -- được **suy ra lúc đọc**, vì nếu process bị giết thì không ai
+còn sống để ghi nó. Xem `_as_read`.
 
 Quyền sở hữu như mọi thứ khác (ADR-22): danh sách tìm qua `teacher_id`, nên không có id nào
 một caller truyền vào để với tới tài liệu của người khác.
@@ -23,14 +27,16 @@ import logging
 import os
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from be.config import Settings, get_settings
 from be.db import get_session
 from be.identity import current_teacher
 from be.models import Document, Teacher, aware, new_id
+from be.queue import enqueue_probe
 from be.storage import (
     ObjectStore,
     StorageUnavailable,
@@ -38,6 +44,7 @@ from be.storage import (
     document_key,
     get_store,
 )
+from contracts import DocumentProbeRequested, DocumentState
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +79,14 @@ class DocumentRead(BaseModel):
         kind: Đuôi file viết hoa (`PDF`, `DOCX`), thứ nhãn vuông bên trái chip in ra.
         byte_size: Kích thước. Màn hình tự đổi sang KB/MB -- định dạng là việc của màn
             hình, còn con số thì không được làm tròn ở đây rồi không ai lấy lại được.
+        state: Một trong bốn giá trị của `DocumentState`. Đây là giá trị **đã suy ra**, không
+            nhất thiết là giá trị trong cột -- xem `_as_read`.
+        page_count: Số trang, hoặc `None` khi con số **không tồn tại** (tệp văn bản thuần)
+            hoặc **chưa đo được** (đang xử lý, hoặc xử lý hỏng). Không bao giờ là `0` cho
+            một tệp không có khái niệm trang: màn hình sẽ in "0 trang", và giáo viên sẽ tin.
+        fault: Vì sao không dùng được, bằng một câu tiếng Việt. Rỗng khi không có gì sai.
+            Trạng thái nói *chuyện gì*, câu này nói *vì sao* -- và hai lý do khác nhau cùng
+            dẫn tới *không đọc được chữ*: một bản scan, và một PDF không có trang nào.
         uploaded_at: Lúc tải lên, UTC.
     """
 
@@ -79,6 +94,9 @@ class DocumentRead(BaseModel):
     filename: str
     kind: str
     byte_size: int
+    state: str
+    page_count: int | None
+    fault: str
     uploaded_at: datetime
 
 
@@ -95,20 +113,44 @@ def _kind(filename: str) -> str:
     return tail.upper() if tail and tail != filename else ""
 
 
-def _as_read(row: Document) -> DocumentRead:
-    """Đổi một hàng thành thứ màn hình đọc.
+def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
+    """Đổi một hàng thành thứ màn hình đọc, và suy ra trạng thái đáng tin.
+
+    **Đây là nơi trạng thái thứ tư sinh ra.** Ba trạng thái kia được ghi vào cột bởi
+    `be/ingest.py`; *xử lý hỏng* vì job đã chết thì không ai ghi được -- nếu process bị giết
+    thì không có ai còn sống để ghi. Nên nó là một **phép so lúc đọc**: một hàng còn đứng ở
+    `processing` lâu hơn mức cho phép thì đọc ra `failed`.
+
+    Một phép so thì không chết được, khác một process đi canh những process đã chết. Và cột
+    vẫn giữ `processing` -- đó không phải nói dối, vì cột ghi *đã nghe được gì* còn đường đọc
+    trả lời *nên tin gì*. Repo này đã có đúng hình dạng ấy cho một luật khác:
+    *"Ngưỡng được áp lúc đọc kết quả chứ không lưu kèm"* (`architecture.md`). Hệ quả hợp ý:
+    một job về muộn vẫn **thắng**, vì lần đọc sau thấy một giá trị thật trong cột.
 
     Args:
         row: Hàng trong `documents`.
+        stale_after_seconds: Một hàng được đứng ở `processing` bao lâu trước khi bị coi là
+            một job đã chết.
 
     Returns:
         Bản đọc, không mang theo byte nào.
     """
+    state = row.state
+    fault = row.fault
+    if state == DocumentState.PROCESSING:
+        waited = (datetime.now(UTC) - aware(row.uploaded_at)).total_seconds()
+        if waited > stale_after_seconds:
+            state = DocumentState.FAILED.value
+            fault = "Xử lý tài liệu này đã dừng giữa đường. Thử tải lại."
+
     return DocumentRead(
         document_id=row.id,
         filename=row.filename,
         kind=_kind(row.filename),
         byte_size=row.byte_size,
+        state=state,
+        page_count=row.page_count,
+        fault=fault,
         uploaded_at=aware(row.uploaded_at),
     )
 
@@ -117,6 +159,7 @@ def _as_read(row: Document) -> DocumentRead:
 async def library(
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> list[DocumentRead]:
     """Thư viện tài liệu của giáo viên đang gọi.
 
@@ -126,6 +169,7 @@ async def library(
     Args:
         teacher: Được resolve từ header actor (ADR-13).
         session: Session của database.
+        settings: Nơi cung cấp mức *đứng quá lâu*.
 
     Returns:
         Mọi tài liệu của giáo viên này, không kèm nội dung.
@@ -135,15 +179,17 @@ async def library(
         .where(Document.teacher_id == teacher.id)
         .order_by(Document.uploaded_at.desc(), Document.id)
     )
-    return [_as_read(row) for row in rows]
+    return [_as_read(row, settings.document_stale_after_seconds) for row in rows]
 
 
 @router.post("/teacher/documents", response_model=DocumentRead, status_code=201)
 async def upload(
+    request: Request,
     file: UploadFile = File(...),
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
     store: ObjectStore = Depends(get_store),
+    settings: Settings = Depends(get_settings),
 ) -> DocumentRead:
     """Nhận một file và cất nó vào thư viện của giáo viên.
 
@@ -152,20 +198,25 @@ async def upload(
     hiện trên chip, nên một lời khai sai sẽ nằm lại trên màn hình.
 
     Args:
+        request: Nơi lấy pool arq ra. Đọc qua `getattr` vì test dựng một app rỗng không có
+            lifespan, và một queue chết không được phép làm việc cất tệp hỏng theo.
         file: File tải lên.
         teacher: Được resolve từ header actor (ADR-13).
         session: Session của database.
         store: Nơi byte thật sự nằm.
+        settings: Nơi cung cấp tên queue và mức *đứng quá lâu*.
 
     Returns:
-        Tài liệu vừa cất, đúng hình dạng mà danh sách trả về.
+        Tài liệu vừa cất, mang trạng thái *đang xử lý* -- hoặc *xử lý hỏng* nếu ngay cả việc
+        giao job cũng không xong.
 
     Raises:
         HTTPException: 400 khi file rỗng hoặc đuôi không nhận; 413 khi quá lớn; 503 khi
             không cất được vào object storage.
 
     Side effects:
-        Một object mới trong MinIO và một hàng mới trong `documents`, **theo đúng thứ tự ấy**.
+        Một object mới trong MinIO và một hàng mới trong `documents`, **theo đúng thứ tự ấy**,
+        rồi một job trên queue của `services/document`.
     """
     filename = (file.filename or "").strip()
     if _kind(filename) == "" or not filename.lower().endswith(_ALLOWED):
@@ -228,4 +279,26 @@ async def upload(
         logger.exception("insert failed after storing %s; removed the orphan", key)
         raise
     logger.info("document uploaded teacher=%s bytes=%s key=%s", teacher.id, size, key)
-    return _as_read(row)
+
+    # Giao việc đọc tệp **sau** khi hàng đã commit. Ngược lại thì worker thắng được cuộc đua
+    # và đi ghi một hàng chưa tồn tại -- `be/ingest.py` sẽ ghi được không hàng nào rồi bỏ,
+    # và tài liệu đứng ở *đang xử lý* mãi mãi dù mọi thứ đều chạy đúng.
+    pool = getattr(request.app.state, "queue_pool", None)
+    try:
+        if pool is None:
+            raise OSError("queue pool is not open")
+        await enqueue_probe(
+            pool,
+            settings,
+            DocumentProbeRequested(document_id=row.id, storage_key=key, filename=filename),
+        )
+    except (OSError, RuntimeError) as unreachable:
+        # Tệp **vẫn ở lại**: nó đã cất xong, và một lần thử lại về sau cần nó. Thứ đổi là
+        # hàng nói thật ngay -- `processing` ở đây là một chip nói dối không bao giờ được sửa,
+        # vì không có job nào để mà về muộn.
+        logger.error("could not hand %s to the document service: %s", row.id, unreachable)
+        row.state = DocumentState.FAILED.value
+        row.fault = "Chưa giao được việc xử lý tài liệu. Thử tải lại."
+        await session.commit()
+
+    return _as_read(row, settings.document_stale_after_seconds)

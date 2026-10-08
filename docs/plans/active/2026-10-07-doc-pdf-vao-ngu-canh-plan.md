@@ -11,15 +11,21 @@ mang mã **B10** trong artifact theo dõi pipeline.
 chung** mà nhiều plan con cùng dựa vào, và danh sách các plan con cùng cổng của chúng. Mỗi plan
 con có file riêng với `Ordered Tasks` và `Status` của nó.
 
-Đợt này chia **năm plan** vì một plan không chở nổi: nó đẻ ra một service, một process mới cho
+Đợt này chia **sáu plan** vì một plan không chở nổi: nó đẻ ra một service, một process mới cho
 BE, hai kho lưu mới, và một bộ định tuyến. Thứ tự **bị ép bởi phụ thuộc**, không bởi sở thích.
 
-## Năm plan, và cổng giữa chúng
+Năm thành sáu ngày 08/10/2026: plan 2 tách làm **2a** và **2b**. Nó đếm ra khoảng ba mươi file,
+nặng hơn plan 1 một nửa, và đường rạch giữa *vòng việc chạy được* và *chip nói ra được* thì
+rất sạch — nửa sau còn kéo theo một lượt Figma, vì chip phải đổi trên bản vẽ trước khi đổi
+trong code. Mỗi plan một cổng; một plan mang hai cổng là một plan không biết nó xong khi nào.
+
+## Sáu plan, và cổng giữa chúng
 
 | # | Plan | Cổng mở sang plan sau | Model? |
 |---|---|---|---|
 | 1 | [`2026-10-08-document-bytes-to-minio-plan.md`](2026-10-08-document-bytes-to-minio-plan.md) | tải một PDF lên rồi đọc lại từ MinIO, **khớp từng byte** | không |
-| 2 | `services/document` ra đời, cổng text layer — *chưa viết* | một PDF scan làm chip đứng ở *không đọc được chữ*; một PDF chữ cho `page_count` đúng | không |
+| 2a | [`2026-10-08-document-service-text-layer-gate-plan.md`](2026-10-08-document-service-text-layer-gate-plan.md) | `GET /api/teacher/documents` trả `state` đi từ `processing` sang `ready` hoặc `no_text_layer`, và `page_count` khớp số trang thật | không |
+| 2b | chip bốn trạng thái — *chưa viết* | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
 | 3 | Mục lục, chương, chunk, Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
 | 4 | Jev và skill — *chưa viết* | một đoạn bài tập được gán đúng nhãn | **có** |
 | 5 | Nội dung vào prompt — *chưa viết* | **không payload nào rời BE mang chunk nhãn bài tập** | có |
@@ -27,7 +33,7 @@ BE, hai kho lưu mới, và một bộ định tuyến. Thứ tự **bị ép b�
 Bốn plan sau **cố ý chưa có file**: `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading, và thiết
 kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
 
-**Plan 1 và 2 không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
+**Plan 1, 2a và 2b không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
 là nửa chứa mọi giả định nguy hiểm — nếu có gì sụp, nó sụp ở đó, trước khi ta xây gì lên trên.
 
 ## Decision Records
@@ -250,8 +256,9 @@ theo `(ordinal, of_total)` sẽ **xáo lại chunk của mọi ô đã xong**. V
 
 ## Ordered Tasks
 
-- [ ] **Plan 1 — byte sang MinIO** (mã **C9**)
-- [ ] **Plan 2 — `services/document` và cổng text layer** (mã **C2**, **C11**, một nửa **C10**)
+- [x] **Plan 1 — byte sang MinIO** (mã **C9**)
+- [ ] **Plan 2a — `services/document` và cổng text layer** (mã **C2**, **C11**, một nửa **C10**)
+- [ ] **Plan 2b — chip bốn trạng thái** (Figma trước, rồi FE)
 - [ ] **Plan 3 — mục lục, chương, chunk, Mongo** (mã **C3**, **C10**)
 - [ ] **Plan 4 — Jev và skill** (mã **C4**)
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)
@@ -270,8 +277,8 @@ test của nó dưới một đột biến một dòng.
 
 ## Status
 
-**Plan 1 đang làm.** ADR-27 đã viết và đã sửa ngày 08/10/2026 (cổng text layer thành bất đồng
-bộ). Bốn plan sau chưa có file.
+**Plan 1 xong** (`a1d481f`, 08/10/2026) và đã về `completed/`. **Plan 2a đang làm.** ADR-27 đã
+viết và đã sửa ngày 08/10/2026 (cổng text layer thành bất đồng bộ). Bốn plan sau chưa có file.
 
 Ba Decision Record trong file này đã bị **viết lại** ngày 08/10/2026, vì bản đầu nói ngược với
 thiết kế đã chốt: Jev chuyển từ BE sang `services/document`; lý do service thứ tư đổi từ ngân

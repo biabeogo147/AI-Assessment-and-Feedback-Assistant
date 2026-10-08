@@ -11,7 +11,7 @@ Three pointers, and nothing else:
 - How to run, demo and troubleshoot the system: `docs/local-development.md`. `README.md` carries only
   the quickstart and links onward.
 - Why the system is shaped this way, and how to name a new service: `docs/overview/architecture.md`.
-- Rules for a specific directory: the `AGENTS.md` inside it. Four exist, one per service plus
+- Rules for a specific directory: the `AGENTS.md` inside it. Five exist, one per service plus
   `packages/contracts`. They add to the root contract and never contradict it.
 
 Run `.\dev.ps1 check` before claiming a change is done. It is the only thing standing between this

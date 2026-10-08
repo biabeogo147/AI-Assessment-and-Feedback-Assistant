@@ -24,6 +24,16 @@ class Settings(BaseSettings):
         redis_url: Connection string tới Redis instance mà arq dùng chung với AGENT.
         agent_queue_name: Queue mà cả hai bên thống nhất. Phải khớp với giá trị
             của AGENT, nếu không job bị đẩy vào nơi không ai nghe.
+        document_queue_name: Queue BE đẩy việc đọc tài liệu vào. `services/document`
+            tiêu thụ nó. Đặt tên theo **bên tiêu thụ** chứ không theo công việc, vì
+            `aiafa:grading` đã mục ruỗng đúng theo cách kia: tên nói về chấm bài và
+            nay chở bảy task, sáu cái không phải chấm bài.
+        be_queue_name: Queue process worker của BE tiêu thụ. Kết quả xử lý tài liệu
+            đi về đây.
+        document_stale_after_seconds: Một tài liệu đứng ở `processing` bao lâu thì
+            coi là job đã chết. Áp **lúc đọc**, không ghi gì -- một process đi canh
+            những process đã chết thì cũng chết được y như vậy. Cùng hình dạng với
+            `review_confidence_threshold`, thứ cũng chỉ sống ở đường đọc.
         job_result_ttl_seconds: arq giữ kết quả còn đọc được bao lâu sau khi job
             xong.
         review_confidence_threshold: Mức Confidence mà ở đó hoặc dưới đó, một bài
@@ -74,6 +84,9 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://127.0.0.1:6379/0"
     agent_queue_name: str = "aiafa:grading"
+    document_queue_name: str = "aiafa:document"
+    be_queue_name: str = "aiafa:be"
+    document_stale_after_seconds: int = 300
     job_result_ttl_seconds: int = 3600
     review_confidence_threshold: float = 0.7
     database_url: str = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa"

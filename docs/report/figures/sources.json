@@ -13,7 +13,7 @@
   },
   "system-architecture.pdf": {
     "source": "docs/diagrams/system-architecture.drawio",
-    "sha256": "46d0c3b35f2d6c9a5621b114a12f0623e66c636b9d7fe62df6e3e4d930a0f4c0"
+    "sha256": "bf6dedcee8ca53921dbaf6fafdeda72623ee3ac73d4cc4153940d9412cd6a26a"
   },
   "use-case.pdf": {
     "source": "docs/diagrams/use-case.drawio",

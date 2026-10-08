@@ -10,13 +10,24 @@ Diagram liên quan:
 
 - [System Architecture Diagram](../diagrams/system-architecture.drawio)
 
-## Ba service
+## Bốn service, năm process
 
 | Service | Vai trò | Chạy bằng |
 | --- | --- | --- |
 | `fe` | Giao diện cho Teacher và Student. Chỉ nói chuyện với BE. | Vite dev server, cổng 5173 |
-| `be` | Business layer, system of record, nơi giữ mọi quyết định nghiệp vụ. | uvicorn, cổng 8000 |
+| `be` | Business layer, system of record, nơi giữ mọi quyết định nghiệp vụ. | uvicorn cổng 8000, **cộng một arq worker** |
 | `agent` | Soạn nội dung bằng AI: đề, câu của lượt làm lại, lượt trả lời trong chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
+| `document` | Đọc tệp giáo viên tải lên: có chữ hay không, bao nhiêu trang. Báo lại, không sở hữu hàng nào. | arq worker, không có cổng |
+
+**BE có hai process từ 08/10/2026**, và đó là thay đổi hình dạng đáng nói nhất của
+kiến trúc kể từ khi nó được viết. Cho tới ngày ấy BE chỉ **đẩy** job rồi chờ kết quả
+ngay trong request; `be/queue.py` không có một handler nào. Vòng xử lý tài liệu phá
+hình dạng ấy vì **không ai chờ nó**: giáo viên đã rời màn hình tải lên, và kết quả vẫn
+phải vào database. Một process đã rời đi thì không có ai để trả 503 cho.
+
+`document` **không mở cổng nào**, dù quy ước dưới dành cho nó số 8100. Kết quả của nó
+đi về bằng một job trên queue của BE, không bằng một request, nên một cổng ở đó là một
+bề mặt không ai canh. Số 8100 vẫn ghi là đã dành, để không ai cấp lại nó.
 
 FE không biết AGENT tồn tại. Mọi thứ FE cần đều đi qua BE.
 
@@ -29,19 +40,40 @@ mọi property bản này không nhắc tới thì vẫn do bản kia quyết.
 ## Đường giao tiếp
 
 ```text
-FE  --HTTP /api-->  BE  --queue-->  Redis  --queue-->  AGENT
-                    │ ▲                                  │
-                    │ └────────── arq result store ──────┘
-                    ├── Postgres (trạng thái bài làm)
-                    └── MinIO    (byte của tài liệu)
+FE  --HTTP /api-->  BE  --aiafa:grading-->  Redis  -->  AGENT
+                    │ ▲                                   │
+                    │ └────────── arq result store ───────┘
+                    │
+                    ├--aiafa:document--> Redis -->  DOCUMENT
+                    │                                   │
+                    └<---------- aiafa:be --------------─┘
+                    │
+                    ├── Postgres (trạng thái bài làm, trạng thái tài liệu)
+                    └── MinIO    (byte của tài liệu)   <-- DOCUMENT đọc trực tiếp
 ```
+
+Hai mũi dưới là **hai queue khác nhau**, không phải một đường hai chiều, và tên chúng
+đặt theo **bên tiêu thụ** chứ không theo công việc. Lý do nằm ngay ở dòng trên:
+`aiafa:grading` đặt tên theo công việc, rồi nhận thêm sáu task không phải chấm bài, và
+nay tên ấy nói dối. Một queue thì chỉ có một worker đứng sau, nên tên nói về bên tiêu
+thụ không hết đúng được.
+
+**`DOCUMENT` đọc MinIO trực tiếp, và không đọc Postgres.** Đó là cả lý do byte tài liệu
+phải rời khỏi một cột `LargeBinary` ngày 08/10/2026: ba đường thay thế đều phá một luật
+đang có. Nó cũng là lý do `DocumentProbeRequested` chở `storage_key` chứ không chở một
+hàng id — một service không có credential database thì không tra được hàng nào.
+
+Vì sao `DOCUMENT` không trả kết quả qua arq result store, cách `agent_gateway` đang
+làm: `worker.py` đặt `keep_result = JOB_RESULT_TTL_SECONDS`, nên **kết quả job hết
+hạn**. Một tài liệu xử lý xong trong mười giây mà không ai đọc trong một giờ là một kết
+quả bốc hơi. Một job tự mang dữ liệu đi thì không có hạn sống nào.
 
 **Chấm bài không đi qua hàng đợi.** Nó là một phép so giữa phương án đã chọn và đáp án đúng trong
 database của BE, nên nó chạy ngay trong request nộp bài
 ([ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md)). Hệ quả nhìn thấy được: giữa màn làm
 bài và màn kết quả không có trạng thái *đang chấm* nào.
 
-**Hàng đợi dành cho bốn việc thật sự cần model**, và cả bốn đều bất đồng bộ vì một lần gọi LLM đủ
+**Hàng đợi `aiafa:grading` dành cho bốn việc thật sự cần model**, và cả bốn đều bất đồng bộ vì một lần gọi LLM đủ
 lâu để giữ kết nối HTTP mở là không hợp lý:
 
 | Task | Khi nào | BE làm gì với kết quả |
@@ -97,21 +129,39 @@ viên đặt, tính bằng giờ hoặc ngày, nên trạng thái bài làm khô
 giờ. `JOB_RESULT_TTL_SECONDS` vẫn còn và vẫn đúng — nó nói về kết quả một job của arq, không nói về
 bài làm của học sinh.
 
-MinIO thuộc về BE theo đúng nghĩa ấy, và nó là **kho duy nhất không phải database**. Byte của
-tài liệu giáo viên nằm ở đó; `documents.storage_key` trong Postgres là khoá, còn bảng thì không
-giữ một byte nào. Chúng rời khỏi một cột `LargeBinary` ngày 08/10/2026 vì `services/document` —
-service sẽ đọc tệp — không có credential database, nên nó không với tới được một cột; ba đường
-thay thế đều phá một luật đang có.
+MinIO là **kho duy nhất không phải database**, và nó là kho duy nhất **hai** service chạm
+tới. Byte của tài liệu giáo viên nằm ở đó; `documents.storage_key` trong Postgres là khoá,
+còn bảng thì không giữ một byte nào. Chúng rời khỏi một cột `LargeBinary` ngày 08/10/2026 vì
+`services/document` — service đọc tệp — không có credential database, nên nó không với tới
+được một cột; ba đường thay thế đều phá một luật đang có.
 
-Trong BE, `storage.py` là module **duy nhất** được import `minio`, và `tools/check_contract.py`
-canh đúng điều đó. Lý do không phải gọn gàng: SDK là sync còn BE là async, nên mỗi lời gọi phải đi
-qua `run_in_threadpool`, và một chỗ quên không ném gì cả — nó chỉ chặn event loop suốt thời gian
-đẩy một cuốn sách lên. Gom vào một module biến luật *"nhớ bọc threadpool"* thành luật *"nhớ đừng
-import"*, và luật thứ hai thì grep được.
+**BE ghi, `document` đọc, và không có chiều ngược lại.** `document/storage.py` không có `put`,
+và sự thiếu vắng ấy là thiết kế chứ không phải việc chưa làm: một `put` thứ hai là một đường
+thứ hai để byte vào bucket, và hai đường thì sớm muộn khác nhau ở một chỗ — content type, sơ
+đồ khoá, hay thứ tự với hàng trong database.
 
-AGENT không nhận credential của bất kỳ database nào, nên **một job phải tự chứa**: `explain_turn`
-mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn, chứ không mang id để tra. `tools/check_contract.py`
-canh điều này bằng cách quét mọi file Python của AGENT tìm dấu vết truy cập database.
+Việc `document` giữ khoá của MinIO **không** phá dòng *"BE sở hữu mọi database"*, và lý do
+đáng nói ra chứ không nên để người đọc tự suy: object storage là nơi **byte** nằm, không phải
+nơi **sự thật** nằm. Một tài liệu đã xử lý xong hay chưa thì chỉ `documents.state` trong
+Postgres biết, và không service nào ngoài BE đọc được cột ấy. `document` đọc một tệp rồi báo
+lại; nó không bao giờ biết câu trả lời của nó đã được ghi hay chưa.
+
+Trong mỗi service, **đúng một module** được import `minio` — `be/storage.py` và
+`document/storage.py` — và `tools/check_contract.py` canh cả hai bằng một hàm. Lý do không
+phải gọn gàng: SDK là sync còn cả hai bên đều async, nên mỗi lời gọi phải đi qua một thread,
+và một chỗ quên không ném gì cả — nó chỉ chặn event loop suốt thời gian một cuốn sách đi qua.
+Gom vào một module biến luật *"nhớ bọc thread"* thành luật *"nhớ đừng import"*, và luật thứ
+hai thì grep được.
+
+Cùng hàm ấy canh `pymupdf`, và ở `services/document` nó gắt hơn: arq chạy tới `max_jobs` job
+đồng thời trên một event loop, nên một lời gọi quên `asyncio.to_thread` giữ cả chín job kia
+đứng chờ một cuốn sách được quét xong. Nhà của nó là `document/probe.py`.
+
+AGENT và `document` không nhận credential của bất kỳ database nào, nên **một job phải tự
+chứa**: `explain_turn` mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn chứ không mang
+id để tra, và `DocumentProbeRequested` mang `storage_key` chứ không mang một hàng.
+`tools/check_contract.py` canh điều này bằng cách quét mọi file Python của **cả hai** service
+tìm dấu vết truy cập database.
 
 Bảng được tạo từ metadata của model lúc khởi động, chưa có công cụ migration. Đó là một món nợ có
 chủ đích: schema hiện có một người dùng và chưa có dữ liệu thật nào. Ngày có dữ liệu thật, đánh đổi
@@ -161,6 +211,6 @@ Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiế
 | Tiền tố biến môi trường | UPPER_SNAKE | `REVIEW_QUEUE_DB_DSN` |
 | Cổng | BE 8000, service mới cộng thêm 100 | `8100`, `8200` |
 
-`be`, `agent` và `fe` là ngoại lệ của quy tắc đặt theo domain vì chúng là tầng chứ không phải domain. Service thứ tư trở đi đặt theo domain.
+`be`, `agent` và `fe` là ngoại lệ của quy tắc đặt theo domain vì chúng là tầng chứ không phải domain. Service thứ tư trở đi đặt theo domain — `services/document` là cái đầu tiên, và nó theo đúng bảng trên ở mọi dòng trừ **cổng**: nó không mở cổng nào, nên 8100 chỉ là một số đã dành.
 
 Mỗi service giữ `pyproject.toml` riêng khai báo đúng dependency của mình, kể cả khi đang dùng chung môi trường. Nhờ vậy lúc tách service ra không phải viết lại gì, chỉ đổi cách cài đặt.

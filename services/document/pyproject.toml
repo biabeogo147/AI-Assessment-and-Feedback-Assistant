@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiafa-document"
+version = "0.1.0"
+description = "Worker that reads an uploaded document and reports what it found. Holds no database credential."
+requires-python = ">=3.12"
+dependencies = [
+    "aiafa-contracts",
+    "arq>=0.26",
+    "pydantic-settings>=2.3",
+    # Đọc PDF. Khai ở đây là lần đầu tiên nó được khai ở bất cứ đâu: nó đã có
+    # trong conda environment từ trước mà không pyproject.toml nào nói tới, tức
+    # một dependency ma -- cài sạch một môi trường mới thì service này không
+    # chạy, và không có dòng nào nói vì sao.
+    "pymupdf>=1.28",
+    # SDK của object storage. Sync, nên mọi lời gọi phải đi qua một thread --
+    # xem storage.py.
+    "minio>=7.2",
+]
+
+# Không có starlette ở đây, dù `be/storage.py` bọc thread bằng `run_in_threadpool`
+# của nó. BE có hàm ấy sẵn vì FastAPI đã mang nó vào; service này không mở cổng
+# nào nên kéo cả một framework web về chỉ để lấy một hàm bọc thread là trả giá
+# cho một thứ không dùng. `asyncio.to_thread` của thư viện chuẩn làm đúng việc đó.
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

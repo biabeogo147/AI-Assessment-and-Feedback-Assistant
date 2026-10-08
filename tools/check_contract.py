@@ -87,12 +87,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # của những chỗ thi hành -- một luật không được nêu ở đó thì không ai biết để trông. Dòng
 # Validation của `.drawio` thì được **sửa** chứ không thêm, nên nó không tốn gì. Decision
 # record nằm ở 2026-10-04-bao-cao-latex-plan.md.
-AGENTS_MD_MAX_LINES = 181
+# Nâng 181 -> 182 ngày 08/10/2026, tiêu đúng một dòng: hàng `services/document` trong bảng
+# ownership. Cap là phép đo gián tiếp duy nhất cho luật *đừng kể lại file gốc*, nên nó chỉ
+# còn nghĩa khi mỗi dòng mới phải trả giá bằng một lần sửa hằng số kèm một decision record --
+# nâng rộng ra cho thoải mái là tự cho mình mấy dòng chưa có lý do. Decision record nằm ở
+# 2026-10-08-document-service-text-layer-gate-plan.md.
+AGENTS_MD_MAX_LINES = 182
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
     "services/be/AGENTS.md",
     "services/agent/AGENTS.md",
+    "services/document/AGENTS.md",
     "services/fe/AGENTS.md",
     "packages/contracts/AGENTS.md",
 )
@@ -112,6 +118,11 @@ ENV_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=")
 # cuốn sách lên -- thứ không bao giờ hiện ra dưới dạng exception, chỉ dưới dạng "sao hôm
 # nay chậm thế".
 MINIO_IMPORT = re.compile(r"^\s*(?:from|import)\s+minio\b", re.MULTILINE)
+
+# Cùng hình dạng, và ở `services/document` còn gắt hơn: arq chạy tới `max_jobs` job đồng thời
+# trên một event loop, nên một lời gọi PyMuPDF quên `asyncio.to_thread` chặn cả những job kia
+# -- và nó không ném gì cả, chỉ làm mọi thứ chậm đi trong lúc ai đó tải một cuốn sách lên.
+PYMUPDF_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymupdf|fitz)\b", re.MULTILINE)
 
 # Hai hàm đưa một đề đi qua vòng đời của ADR-01, cộng hai đường đi vòng qua
 # chúng. Một tool của giáo viên mà nhắc tên một trong hai hàm đó là đang với tay
@@ -151,6 +162,7 @@ def check_env_example_has_no_orphans() -> str | None:
     """
     from agent.config import Settings as AgentSettings
     from be.config import Settings as BeSettings
+    from document.config import Settings as DocumentSettings
 
     declared = {
         match.group(1)
@@ -158,7 +170,9 @@ def check_env_example_has_no_orphans() -> str | None:
         if (match := ENV_LINE.match(line.strip()))
     }
     readable = {
-        name.upper() for settings in (BeSettings, AgentSettings) for name in settings.model_fields
+        name.upper()
+        for settings in (BeSettings, AgentSettings, DocumentSettings)
+        for name in settings.model_fields
     }
 
     if not declared:
@@ -173,14 +187,25 @@ def check_env_example_has_no_orphans() -> str | None:
     return None
 
 
-def check_agent_holds_no_database_credentials() -> str | None:
-    """AGENT phải không có đường tới database, để một job tự chở theo thứ nó cần.
+def check_agent_and_document_hold_no_database_credentials() -> str | None:
+    """Hai service đọc-và-báo phải không có đường tới database nào.
+
+    AGENT chấm một bài, `document` đọc một tệp, và cả hai đều **báo lại** chứ không quyết
+    định gì -- nên mọi thứ chúng cần phải đi tới trong payload của job. Đó là lý do
+    `GradingRequested` chở lời giải thích thay vì một id, và `DocumentProbeRequested` chở
+    `storage_key` thay vì một hàng.
+
+    Khoá của object storage **không** tính, và `services/document` có nó: object storage là
+    nơi byte nằm, không phải nơi sự thật nằm. Một tài liệu đã xử lý xong hay chưa thì chỉ
+    Postgres biết, và Postgres ở phía bên kia tường. Đó cũng là lý do khoá ấy phải tên
+    `MINIO_SECRET_KEY`: pattern dưới khớp chữ `PASSWORD` không phân biệt hoa thường.
 
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
     """
     offenders = []
-    for path in (REPO_ROOT / "services" / "agent").rglob("*.py"):
+    roots = (REPO_ROOT / "services" / "agent", REPO_ROOT / "services" / "document")
+    for path in (one for root in roots for one in root.rglob("*.py")):
         if "__pycache__" in path.parts:
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -192,8 +217,8 @@ def check_agent_holds_no_database_credentials() -> str | None:
     if offenders:
         return _fail(
             "agent-no-db",
-            f"database access appears in AGENT: {offenders}. "
-            "AGENT reports evidence; data it needs travels in the job payload.",
+            f"database access appears in a reporting service: {offenders}. "
+            "They report; the data they need travels in the job payload.",
         )
     return None
 
@@ -1243,8 +1268,8 @@ def _no_comments(source: str) -> str:
     return re.sub(r"//.*", "", without_block)
 
 
-def check_only_the_storage_module_talks_to_minio() -> str | None:
-    """Chỉ `be/storage.py` được import `minio`.
+def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
+    """Hai SDK sync, mỗi cái đúng một module được import nó.
 
     SDK của MinIO là **sync**, còn BE là async, nên mỗi lời gọi phải đi qua
     `run_in_threadpool`. Một lời gọi quên bọc không ném gì cả: nó chặn event loop suốt
@@ -1252,33 +1277,64 @@ def check_only_the_storage_module_talks_to_minio() -> str | None:
     một người nào đó tải sách. Không có lưới nào khác bắt được hình dạng ấy -- test chạy
     trên bản in-memory thì không có gì để chặn.
 
-    Gom mọi lời gọi vào một module biến luật "nhớ bọc threadpool" thành luật "nhớ đừng
-    import", và luật thứ hai thì grep được.
+    Gom mọi lời gọi vào một module biến luật "nhớ bọc thread" thành luật "nhớ đừng import",
+    và luật thứ hai thì grep được.
+
+    PyMuPDF cùng hình dạng và gắt hơn một chút: nó **sync và CPU-bound**, còn arq chạy tới
+    `max_jobs` job đồng thời, nên một lần quên là chín job kia đứng chờ một cuốn sách được
+    quét xong.
+
+    Vùng quét **không gồm `tests/`**, và đó không phải một lỗ hổng: luật này nói về việc chặn
+    một event loop lúc chạy, mà một test thì sync và không có event loop nào để chặn. Nó cũng
+    không phải một lựa chọn cho tiện tay -- `test_probe.py` **phải** import `pymupdf`, vì nó
+    dựng cả PDF chữ lẫn PDF scan ngay lúc chạy thay vì cất hai file nhị phân vào git.
 
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
     """
-    allowed = REPO_ROOT / "services" / "be" / "src" / "be" / "storage.py"
-    offenders = []
-    for path in (REPO_ROOT / "services" / "be").rglob("*.py"):
-        if "__pycache__" in path.parts or path == allowed:
-            continue
-        if MINIO_IMPORT.search(path.read_text(encoding="utf-8")):
-            offenders.append(str(path.relative_to(REPO_ROOT)))
+    seams = (
+        (
+            "minio",
+            MINIO_IMPORT,
+            (
+                REPO_ROOT / "services" / "be" / "src" / "be" / "storage.py",
+                REPO_ROOT / "services" / "document" / "src" / "document" / "storage.py",
+            ),
+            ("be", "document"),
+        ),
+        (
+            "pymupdf",
+            PYMUPDF_IMPORT,
+            (REPO_ROOT / "services" / "document" / "src" / "document" / "probe.py",),
+            ("document",),
+        ),
+    )
 
-    if offenders:
+    problems = []
+    for sdk, pattern, allowed, services in seams:
+        offenders = []
+        for service in services:
+            for path in (REPO_ROOT / "services" / service).rglob("*.py"):
+                if "__pycache__" in path.parts or "tests" in path.parts or path in allowed:
+                    continue
+                if pattern.search(path.read_text(encoding="utf-8")):
+                    offenders.append(str(path.relative_to(REPO_ROOT)))
+        if offenders:
+            homes = ", ".join(str(one.relative_to(REPO_ROOT)) for one in allowed)
+            problems.append(f"{sdk} is imported outside {homes}: {sorted(offenders)}")
+
+    if problems:
         return _fail(
-            "storage-seam",
-            f"minio is imported outside be/storage.py: {sorted(offenders)}. "
-            "Go through the ObjectStore seam; the SDK is sync and must stay in one place.",
+            "sync-sdk-seam",
+            f"{'; '.join(problems)}. Go through the seam; a sync SDK must stay in one place.",
         )
     return None
 
 
 CHECKS = (
     check_env_example_has_no_orphans,
-    check_agent_holds_no_database_credentials,
-    check_only_the_storage_module_talks_to_minio,
+    check_agent_and_document_hold_no_database_credentials,
+    check_only_one_module_per_service_talks_to_a_sync_sdk,
     check_model_call_fits_inside_the_job_waiting_for_it,
     check_contract_files_stay_short,
     check_named_dev_tasks_exist,

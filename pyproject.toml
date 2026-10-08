@@ -12,6 +12,7 @@ src = [
     "packages/contracts/src",
     "services/be/src",
     "services/agent/src",
+    "services/document/src",
 ]
 
 [tool.ruff.lint]
@@ -40,26 +41,29 @@ testpaths = [
     "packages/contracts/tests",
     "services/be/tests",
     "services/agent/tests",
+    "services/document/tests",
 ]
 
 # ---------------------------------------------------------------------------
 # Thi hành ranh giới giữa các service.
 #
-# BE và AGENT dùng chung một conda environment, nên không gì chặn một lần import
+# Ba service dùng chung một conda environment, nên không gì chặn một lần import
 # chéo lúc chạy. Mấy contract này là cơ chế duy nhất giữ cho ranh giới còn sống,
 # nên chúng chạy từ một hook của pre-commit thay vì chạy khi nhớ ra.
 # ---------------------------------------------------------------------------
 
 [tool.importlinter]
-root_packages = ["be", "agent", "contracts"]
+root_packages = ["be", "agent", "contracts", "document"]
 
 [[tool.importlinter.contracts]]
-name = "BE and AGENT never import each other"
+# Ba service, một hợp đồng. "independence" cấm mọi chiều giữa mọi cặp, nên thêm
+# `document` vào đây canh được cả hai chiều mới mà không phải viết hợp đồng nào nữa.
+name = "BE, AGENT and DOCUMENT never import each other"
 type = "independence"
-modules = ["be", "agent"]
+modules = ["be", "agent", "document"]
 
 [[tool.importlinter.contracts]]
 name = "contracts never depends on a service"
 type = "forbidden"
 source_modules = ["contracts"]
-forbidden_modules = ["be", "agent"]
+forbidden_modules = ["be", "agent", "document"]

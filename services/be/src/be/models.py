@@ -36,6 +36,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# Từ vựng của bốn trạng thái tài liệu sống ở `contracts` chứ không ở đây:
+# `services/document` cũng nói nó, và hai bên nói chung một enum thì không lệch nhau được.
+from contracts import DocumentState
+
 
 def new_id() -> str:
     """Đúc một identifier.
@@ -703,9 +707,26 @@ class Document(Base):
     `byte_size` ở lại dù byte đã đi, vì chip trên rail in nó và một lời gọi mạng chỉ để biết
     một con số đã biết sẵn là một lời gọi thừa.
 
-    Không có `page_count`, và không có cờ "đọc được chữ". Chúng đòi mở file ra đọc, mà đọc
-    PDF là phần lớn hơn hẳn và nằm ngoài vòng này. Một con số trang bịa ra thì tệ hơn hẳn
-    việc không có nó: giáo viên sẽ tin.
+    `state` là **nguồn sự thật duy nhất** về việc tài liệu này đã xử lý xong chưa, và ADR-27
+    chốt bốn giá trị cho nó: *đang xử lý*, *sẵn sàng*, *không đọc được chữ*, *xử lý hỏng*.
+    Từ vựng ấy sống trong `contracts.DocumentState`, không ở đây: `services/document` cũng
+    nói nó, và hai bên nói chung một enum thì không lệch nhau được.
+
+    **Không có trạng thái thứ năm cho "job đã chết".** Một hàng đứng mãi ở *đang xử lý* vì
+    process bị giết cũng là một chip nói dối, nhưng không ai còn sống để ghi một giá trị
+    khác -- nên BE **suy ra** *xử lý hỏng* lúc đọc, khi hàng đứng lâu hơn
+    `document_stale_after_seconds`. Cột vẫn giữ `processing`, và đó không phải nói dối: cột
+    ghi *đã nghe được gì*, còn đường đọc trả lời *nên tin gì*. Cùng hình dạng với
+    `review_confidence_threshold`, thứ cũng chỉ sống ở đường đọc.
+
+    `page_count` **nullable**, và `None` nghĩa là con số **không tồn tại** chứ không phải
+    chưa biết: `.txt` và `.md` không có trang. Một số `0` hợp lệ về kiểu và sai về nghĩa --
+    chip sẽ in "0 trang", và bản trước của docstring này đã ghi đúng lý do: *một con số
+    trang bịa ra thì tệ hơn hẳn việc không có nó: giáo viên sẽ tin.* Lời ấy vẫn đúng; thứ
+    đổi là nay có một con số **đo được** để in.
+
+    `fault` là một câu **tiếng Việt cho giáo viên đọc**, không phải một mã lỗi, vì nó đi
+    thẳng lên chip. Rỗng nghĩa là chưa lần nào hỏng.
     """
 
     __tablename__ = "documents"
@@ -716,4 +737,7 @@ class Document(Base):
     content_type: Mapped[str] = mapped_column(String(128), default="")
     byte_size: Mapped[int] = mapped_column(Integer)
     storage_key: Mapped[str] = mapped_column(String(255))
+    state: Mapped[str] = mapped_column(String(16), default=DocumentState.PROCESSING.value)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fault: Mapped[str] = mapped_column(String(120), default="")
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
