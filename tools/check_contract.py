@@ -107,6 +107,12 @@ DB_CREDENTIAL_PATTERN = re.compile(
 
 ENV_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=")
 
+# Một lời gọi SDK của MinIO là **sync**. BE thì async, nên mỗi lời gọi phải đi qua
+# `run_in_threadpool`, và một chỗ quên là một event loop bị chặn suốt thời gian đẩy một
+# cuốn sách lên -- thứ không bao giờ hiện ra dưới dạng exception, chỉ dưới dạng "sao hôm
+# nay chậm thế".
+MINIO_IMPORT = re.compile(r"^\s*(?:from|import)\s+minio\b", re.MULTILINE)
+
 # Hai hàm đưa một đề đi qua vòng đời của ADR-01, cộng hai đường đi vòng qua
 # chúng. Một tool của giáo viên mà nhắc tên một trong hai hàm đó là đang với tay
 # qua đúng cái cổng nó phải đứng sau -- còn `assessment.state = ...` là cùng cái
@@ -1237,9 +1243,42 @@ def _no_comments(source: str) -> str:
     return re.sub(r"//.*", "", without_block)
 
 
+def check_only_the_storage_module_talks_to_minio() -> str | None:
+    """Chỉ `be/storage.py` được import `minio`.
+
+    SDK của MinIO là **sync**, còn BE là async, nên mỗi lời gọi phải đi qua
+    `run_in_threadpool`. Một lời gọi quên bọc không ném gì cả: nó chặn event loop suốt
+    thời gian đẩy một file lên, và triệu chứng duy nhất là cả process chậm đi trong lúc
+    một người nào đó tải sách. Không có lưới nào khác bắt được hình dạng ấy -- test chạy
+    trên bản in-memory thì không có gì để chặn.
+
+    Gom mọi lời gọi vào một module biến luật "nhớ bọc threadpool" thành luật "nhớ đừng
+    import", và luật thứ hai thì grep được.
+
+    Returns:
+        None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
+    """
+    allowed = REPO_ROOT / "services" / "be" / "src" / "be" / "storage.py"
+    offenders = []
+    for path in (REPO_ROOT / "services" / "be").rglob("*.py"):
+        if "__pycache__" in path.parts or path == allowed:
+            continue
+        if MINIO_IMPORT.search(path.read_text(encoding="utf-8")):
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+
+    if offenders:
+        return _fail(
+            "storage-seam",
+            f"minio is imported outside be/storage.py: {sorted(offenders)}. "
+            "Go through the ObjectStore seam; the SDK is sync and must stay in one place.",
+        )
+    return None
+
+
 CHECKS = (
     check_env_example_has_no_orphans,
     check_agent_holds_no_database_credentials,
+    check_only_the_storage_module_talks_to_minio,
     check_model_call_fits_inside_the_job_waiting_for_it,
     check_contract_files_stay_short,
     check_named_dev_tasks_exist,

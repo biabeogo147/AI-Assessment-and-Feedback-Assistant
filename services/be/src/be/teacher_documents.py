@@ -6,6 +6,10 @@ thật sự giới hạn phạm vi ra đề: nội dung nó chưa đi vào promp
 PDF, cắt đoạn, nhồi ngữ cảnh là một phần lớn hơn hẳn, và nó nằm ngoài vòng này. Nên đây mới
 là cái vỏ, và `docs/plans/backlog.md` giữ món nợ đó.
 
+Byte **không** nằm trong database nữa: chúng ở MinIO, và `documents.storage_key` là khoá.
+Lần chuyển ấy xảy ra vì `services/document` -- service sẽ đọc tệp -- không có credential
+database, nên nó không với tới được một cột.
+
 Hệ quả thẳng của giới hạn ấy: **không có số trang, không có cờ "đọc được chữ"**. Hai thứ đó
 đòi mở file ra đọc. Thiết kế cũ in *"184 trang · đọc được chữ"* trên mỗi chip, và artboard 1
 với 2 đã được sửa trong cùng đợt này để in **kích thước** -- con số duy nhất biết được mà
@@ -16,6 +20,7 @@ một caller truyền vào để với tới tài liệu của người khác.
 """
 
 import logging
+import os
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -25,22 +30,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.db import get_session
 from be.identity import current_teacher
-from be.models import Document, Teacher, aware
+from be.models import Document, Teacher, aware, new_id
+from be.storage import (
+    ObjectStore,
+    StorageUnavailable,
+    content_type_for,
+    document_key,
+    get_store,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["teacher-documents"])
 
-# Mười megabyte. Byte nằm trong database ở vòng này (xem `models.Document`), nên một file
-# lớn không chỉ tốn đĩa mà còn đi qua một INSERT và một lần đọc nguyên khối. Một sách giáo
-# khoa PDF thường dưới mức này; thứ trên mức này gần như luôn là một lần chọn nhầm file.
-_MAX_BYTES = 10 * 1024 * 1024
+# Một trăm megabyte. Con số cũ là mười, và lý do của nó -- "byte nằm trong database, nên một
+# file lớn đi qua một INSERT và một lần đọc nguyên khối" -- tan khi byte sang MinIO. Vẫn giữ
+# **một** trần, vì một 413 nói ra con số thì tốt hơn một upload treo không hồi kết.
+#
+# Một trăm là con số **chưa đo**: chưa ai cân một bản SGK scan thật. Nó là một phỏng đoán có
+# chủ đích, rộng gấp mười cái cũ.
+_MAX_BYTES = 100 * 1024 * 1024
 
 # Những đuôi file mà "tài liệu để ra đề" có nghĩa. Lọc theo **đuôi tên** chứ không theo
 # content-type trình duyệt gửi lên: content-type do client khai, còn đuôi thì nằm trong cái
 # tên mà chính giáo viên nhìn thấy trên rail -- hai thứ lệch nhau thì thứ người ta đọc được
 # là thứ đáng tin hơn.
-_ALLOWED = (".pdf", ".docx", ".doc", ".txt", ".md")
+#
+# `.doc` và `.docx` bị gỡ ngày 08/10/2026: PyMuPDF không đọc được cả hai, nên giữ chúng là
+# hứa một thứ mà bước xử lý chắc chắn phải từ chối -- và từ chối lúc ấy là từ chối một tệp
+# giáo viên tưởng đã cất xong, đúng cái ADR-27 gọi là tệ nhất. `.txt` và `.md` ở lại vì
+# chúng không có bài toán text layer: chữ là toàn bộ file.
+_ALLOWED = (".pdf", ".txt", ".md")
 
 
 class DocumentRead(BaseModel):
@@ -123,6 +143,7 @@ async def upload(
     file: UploadFile = File(...),
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
+    store: ObjectStore = Depends(get_store),
 ) -> DocumentRead:
     """Nhận một file và cất nó vào thư viện của giáo viên.
 
@@ -134,38 +155,77 @@ async def upload(
         file: File tải lên.
         teacher: Được resolve từ header actor (ADR-13).
         session: Session của database.
+        store: Nơi byte thật sự nằm.
 
     Returns:
         Tài liệu vừa cất, đúng hình dạng mà danh sách trả về.
 
     Raises:
-        HTTPException: 400 khi file rỗng hoặc đuôi không nhận; 413 khi quá lớn.
+        HTTPException: 400 khi file rỗng hoặc đuôi không nhận; 413 khi quá lớn; 503 khi
+            không cất được vào object storage.
+
+    Side effects:
+        Một object mới trong MinIO và một hàng mới trong `documents`, **theo đúng thứ tự ấy**.
     """
     filename = (file.filename or "").strip()
     if _kind(filename) == "" or not filename.lower().endswith(_ALLOWED):
         raise HTTPException(
             status_code=400,
-            detail="Chỉ nhận tài liệu PDF, Word, hoặc văn bản thuần.",
+            detail="Chỉ nhận tài liệu PDF hoặc văn bản thuần.",
         )
 
-    content = await file.read()
-    if len(content) == 0:
+    # Đo bằng `seek`/`tell` chứ không bằng `await file.read()`. Starlette đã đổ phần thân vào
+    # một `SpooledTemporaryFile` tràn ra đĩa sau 1 MB, nên đọc hết vào bộ nhớ là tự nạp 100 MB
+    # vào RAM cho một việc chỉ cần biết độ dài.
+    #
+    # Ba dòng này gọi **thẳng**, không qua threadpool: chúng là `lseek`, tốn micro giây, và đẩy
+    # chúng vào thread thì mất đúng cái thứ tự đang cần -- mọi lớp kiểm phải xong **trước khi**
+    # chạm tới object storage, nếu không một lần từ chối vẫn để lại rác.
+    stream = file.file
+    stream.seek(0, os.SEEK_END)
+    size = stream.tell()
+    stream.seek(0)
+
+    if size == 0:
         raise HTTPException(status_code=400, detail="File này rỗng.")
-    if len(content) > _MAX_BYTES:
+    if size > _MAX_BYTES:
         raise HTTPException(
             status_code=413,
             detail=f"File lớn hơn {_MAX_BYTES // (1024 * 1024)} MB.",
         )
 
+    # Object trước, hàng sau. Hai kho không commit cùng nhau nên phải chọn hình dạng hỏng nào
+    # rẻ hơn: ngược lại thì còn một hàng trỏ vào hư không -- chip hiện trên rail, giáo viên tin
+    # là có. Thế này thì còn một object mồ côi: rác, không ai thấy, dọn được.
+    document_id = new_id()
+    key = document_key(teacher.id, document_id, filename)
+    try:
+        await store.put(key, stream, size, content_type_for(filename))
+    except StorageUnavailable as broken:
+        logger.error("could not store document for teacher=%s: %s", teacher.id, broken)
+        raise HTTPException(
+            status_code=503,
+            detail="Chưa cất được tài liệu. Thử lại sau một lát.",
+        ) from broken
+
     row = Document(
+        id=document_id,
         teacher_id=teacher.id,
         filename=filename,
         content_type=file.content_type or "",
-        byte_size=len(content),
-        content=content,
+        byte_size=size,
+        storage_key=key,
         uploaded_at=datetime.now(UTC),
     )
-    session.add(row)
-    await session.commit()
-    logger.info("document uploaded teacher=%s bytes=%s", teacher.id, len(content))
+    try:
+        session.add(row)
+        await session.commit()
+    except Exception:
+        # Ca phổ biến của "hỏng giữa hai kho" là INSERT đỏ, và nó không đáng phải trả giá bằng
+        # rác. Dọn chủ động ở đây để rác chỉ còn là ca process bị giết -- đúng đánh đổi đã
+        # chọn, và khoá được log nên nó grep được.
+        await store.remove(key)
+        logger.exception("insert failed after storing %s; removed the orphan", key)
+        raise
+    logger.info("document uploaded teacher=%s bytes=%s key=%s", teacher.id, size, key)
     return _as_read(row)

@@ -12,7 +12,7 @@ Kiến trúc và lý do đằng sau các ranh giới nằm trong [Architecture](
 | --- | --- | --- |
 | conda với env Python 3.12 | BE và AGENT dùng chung một env | Script mặc định trỏ tới `D:\Anaconda\envs\AI-Assessment-and-Feedback-Assistant` |
 | Node 22 và pnpm | FE chạy bằng Vite | |
-| Docker Desktop | Chỉ để chạy Redis | Ba service ứng dụng chạy native, không container hoá |
+| Docker Desktop | Chạy Redis, Postgres và MinIO | Ba service ứng dụng chạy native, không container hoá |
 
 Nếu conda env của bạn nằm chỗ khác, đặt biến môi trường `AIAFA_PYTHON` trỏ tới `python.exe` của env đó. Bạn cũng cần sửa ba dòng `entry` trong `.pre-commit-config.yaml`, vì chúng dùng đường dẫn tuyệt đối có chủ đích.
 
@@ -54,8 +54,10 @@ Nếu lệnh này lỗi thì mọi bước phía sau đều sẽ hỏng, đừng
 
 ## Chạy hệ thống
 
-Redis và Postgres lên trước. BE và AGENT đều chết lúc khởi động nếu không kết nối được Redis; BE
-cũng chết nếu không có Postgres, vì trạng thái bài làm sống ở đó (ADR-21):
+Hạ tầng lên trước. BE và AGENT đều chết lúc khởi động nếu không kết nối được Redis; BE cũng chết
+nếu không có Postgres, vì trạng thái bài làm sống ở đó (ADR-21), **và** nếu không có MinIO, vì byte
+tài liệu sống ở đó. Cái chết thứ ba là cố ý: một BE nhận tài liệu mà không có chỗ cất thì nói dối ở
+mỗi lần tải lên, và nói dối muộn — sau khi giáo viên đã đẩy xong cả trăm megabyte.
 
 ```powershell
 .\dev.ps1 infra-up
@@ -63,6 +65,8 @@ docker compose -f docker-compose.infra.yml ps
 ```
 
 Đợi tới khi cột `STATUS` ghi `Up ... (healthy)`, đừng đi tiếp khi nó còn `health: starting`.
+MinIO không có healthcheck nên nó chỉ ghi `Up`: ảnh không mang theo `curl` lẫn `mc`, và phép thử
+thật nằm ở chỗ khác — BE gọi `ensure_ready()` lúc khởi động và chết ngay nếu không với tới được.
 
 Rồi mở ba terminal, mỗi terminal một service:
 
@@ -78,6 +82,8 @@ Rồi mở ba terminal, mỗi terminal một service:
 | 8000 | BE, FastAPI |
 | 6379 | Redis, trong Docker |
 | 5432 | Postgres, trong Docker |
+| 9000 | MinIO, API S3, trong Docker |
+| 9001 | MinIO, giao diện console, trong Docker |
 
 ## Xác minh từng thành phần
 
@@ -85,6 +91,7 @@ Bốn lệnh dưới đây phân biệt được "cả hệ thống hỏng" vớ
 
 ```powershell
 docker exec aiafa-redis redis-cli ping          # PONG
+curl -o NUL -w "%{http_code}" http://127.0.0.1:9000/minio/health/live   # 200, MinIO
 curl http://localhost:8000/health               # {"status":"ok"}
 curl -o NUL -w "%{http_code}" http://localhost:5173/   # 200
 ```
@@ -202,9 +209,15 @@ Invoke-RestMethod -Method Post "http://localhost:8000/api/teacher/documents" -He
 Invoke-RestMethod "http://localhost:8000/api/teacher/documents" -Headers $f
 ```
 
-Nhận PDF, Word và văn bản thuần, tối đa 10 MB. Kích thước đo **sau khi đọc** chứ không lấy từ
-`content-length`. Không có số trang và không có cờ *"đọc được chữ"*: chưa có gì mở file ra đọc, nên
-nội dung tài liệu **chưa** đi vào prompt của AGENT — đây mới là cái vỏ.
+Nhận PDF và văn bản thuần (`.pdf`, `.txt`, `.md`), tối đa 100 MB. `.doc` và `.docx` **không** còn
+được nhận: PyMuPDF không đọc được chúng, nên nhận là hứa một thứ bước xử lý chắc chắn phải từ chối.
+
+Kích thước đo bằng `seek`/`tell` trên phần thân đã nhận, không lấy từ `content-length`. Byte đi vào
+**MinIO**, không vào database: `documents.storage_key` là khoá, và object nằm ở
+`documents/<giáo viên>/<tài liệu>.pdf`. Xem nó bằng console ở <http://127.0.0.1:9001>.
+
+Không có số trang và không có cờ *"đọc được chữ"*: chưa có gì mở file ra đọc, nên nội dung tài liệu
+**chưa** đi vào prompt của AGENT — đây mới là cái vỏ.
 
 ### Mở giao diện giáo viên
 
@@ -306,8 +319,22 @@ docker compose -f docker-compose.infra.yml down -v   # -v xoá cả volume, tứ
 .\dev.ps1 infra-up
 ```
 
+`-v` nay xoá **hai** volume, không phải một: `aiafa-pgdata` và `aiafa-miniodata`. Tức là mọi tài
+liệu đã tải lên cũng đi theo. Muốn giữ tài liệu thì dùng `.\dev.ps1 db-reset` — nó dựng lại schema
+và seed, **và** dọn sạch bucket, nên hai kho không bao giờ lệch nhau; cái nó không làm là xoá
+volume.
+
 BE tạo lại bảng và seed lại dữ liệu mẫu ở lần khởi động sau. Mất dữ liệu dev là có chủ ý ở đây; nếu
 một ngày dữ liệu dev đáng giữ thì lúc đó mới cần alembic, và đó là một quyết định có ADR chứ không
 phải một lần chữa cháy.
+
+**BE chết lúc khởi động với `StorageUnavailable`.** Không tới được MinIO. Cùng ba khả năng như
+Redis ở trên, cộng một cái riêng: `MINIO_ENDPOINT` phải là `host:port` **không kèm scheme** —
+`http://127.0.0.1:9000` là sai, `127.0.0.1:9000` mới đúng. SDK nhận scheme qua `MINIO_SECURE`.
+Kiểm nhanh bằng `curl -o NUL -w "%{http_code}" http://127.0.0.1:9000/minio/health/live`.
+
+**Tải tài liệu lên trả 503.** BE chạy được nhưng MinIO đã chết **sau** lúc khởi động. Câu trả lời
+cố ý là 503 chứ không 500: đây là hạ tầng chưa sẵn sàng, không phải lỗi lập trình, và thử lại là
+việc đáng làm. Không có hàng nào được ghi, nên thư viện không hiện một chip trỏ vào hư không.
 
 **Port đã bị chiếm.** Kiểm bằng `Get-NetTCPConnection -LocalPort 8000 -State Listen`. Thường là một tiến trình `uvicorn` cũ chưa tắt hẳn từ phiên trước.

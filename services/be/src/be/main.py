@@ -12,6 +12,7 @@ from be.db import get_session as _session_dependency
 from be.queue import create_queue_pool
 from be.routes import router
 from be.seed import seed_if_empty
+from be.storage import bind_store, create_store
 from be.student_routes import router as student_router
 from be.teacher_chat import router as teacher_router
 from be.teacher_documents import router as teacher_document_router
@@ -65,13 +66,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app: Ứng dụng mà state của nó chở cả hai pool.
 
     Side effects:
-        Mở một database engine và một Redis pool, tạo những bảng còn thiếu, và
-        seed dữ liệu demo vào một database rỗng. Đóng cả hai khi shutdown.
+        Mở một database engine, một object store và một Redis pool, tạo những bảng
+        còn thiếu, dựng bucket nếu chưa có, và seed dữ liệu demo vào một database
+        rỗng. Đóng engine và pool khi shutdown.
 
     Raises:
         SchemaDrifted: Khi database đang có thiếu cột so với model. Startup dừng ở đây,
             kèm tên cột và lệnh dựng lại — một process chạy tiếp trên schema lệch chỉ
             dời cái lỗi tới chỗ khó đọc hơn.
+        StorageUnavailable: Khi không tới được object storage. Cùng lý do: một BE
+            nhận tài liệu mà không có chỗ cất là một BE nói dối ở mỗi lần upload.
     """
     settings = get_settings()
     _hear_our_own_loggers(settings.log_level)
@@ -85,6 +89,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await check_schema(engine)
     bind_sessions(engine)
     app.state.db_engine = engine
+
+    # Chết ngay nếu không tới được object storage, khác hẳn khối queue ở dưới. Queue chỉ
+    # đỡ những thứ cần model, và ADR-20 gọi pha 1 là một cái sàn đứng được mà không cần
+    # AGENT. Object storage thì **là** nơi ở duy nhất của tài liệu: một route mà việc duy
+    # nhất của nó là cất byte thì không có phiên bản suy giảm nào. Dựng được client cũng
+    # không chứng minh gì -- `Minio(...)` không chạm mạng -- nên `ensure_ready` là phép
+    # thử thật, và nó phải chạy ở đây chứ không phải ở lần upload đầu tiên.
+    store = create_store(settings)
+    await store.ensure_ready()
+    bind_store(store)
+    app.state.object_store = store
 
     async for session in _session_dependency():
         if await seed_if_empty(session):

@@ -29,7 +29,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -690,11 +689,19 @@ class Document(Base):
     viên, không thuộc về từng đề. Một cuốn sách dùng cho nhiều đề suốt học kỳ."* Một khoá
     ngoại tới `assessments` ở đây sẽ buộc tải lên lại cùng một cuốn sách cho mỗi đề mới.
 
-    Byte nằm **trong database**, và đó là một lựa chọn có thời hạn. Một thư mục trên đĩa cần
-    một đường dẫn cấu hình, một luật dọn rác và một câu trả lời cho "chạy hai bản thì file
-    nằm ở đâu"; một bucket cần credential. Cả hai đều đắt hơn thứ mà vòng này cần, mà vòng
-    này thì chưa có ai **đọc** nội dung cả. Khi nội dung thật sự đi vào prompt của AGENT thì
-    cột này đổi thành một khoá tới nơi lưu thật -- một cột, một lần chuyển.
+    Byte **không** nằm ở đây. `storage_key` trỏ tới một object trong MinIO, và đó là lần
+    chuyển mà bản trước của chính docstring này đã hẹn: *"khi nội dung thật sự đi vào prompt
+    của AGENT thì cột này đổi thành một khoá tới nơi lưu thật -- một cột, một lần chuyển."*
+    Hẹn tới hạn ngày 08/10/2026, và nó tới vì một lý do cụ thể chứ không vì gọn gàng:
+    `services/document` -- service đọc tệp -- **không có credential database**, nên nó không
+    với tới được một cột.
+
+    Khoá là một **cột tường minh**, không phải thứ suy ra từ `id`. Suy ra thì rẻ hơn một cột
+    nhưng khoá sơ đồ đặt tên vào code vĩnh viễn: đổi tiền tố là làm mọi hàng cũ nói dối, và
+    không cách nào biết hàng nào theo sơ đồ nào. Một cột thì đổi tiền tố là một `UPDATE`.
+
+    `byte_size` ở lại dù byte đã đi, vì chip trên rail in nó và một lời gọi mạng chỉ để biết
+    một con số đã biết sẵn là một lời gọi thừa.
 
     Không có `page_count`, và không có cờ "đọc được chữ". Chúng đòi mở file ra đọc, mà đọc
     PDF là phần lớn hơn hẳn và nằm ngoài vòng này. Một con số trang bịa ra thì tệ hơn hẳn
@@ -708,5 +715,5 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(128), default="")
     byte_size: Mapped[int] = mapped_column(Integer)
-    content: Mapped[bytes] = mapped_column(LargeBinary)
+    storage_key: Mapped[str] = mapped_column(String(255))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

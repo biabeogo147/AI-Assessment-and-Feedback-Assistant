@@ -32,7 +32,8 @@ mọi property bản này không nhắc tới thì vẫn do bản kia quyết.
 FE  --HTTP /api-->  BE  --queue-->  Redis  --queue-->  AGENT
                     │ ▲                                  │
                     │ └────────── arq result store ──────┘
-                    └── Postgres (trạng thái bài làm)
+                    ├── Postgres (trạng thái bài làm)
+                    └── MinIO    (byte của tài liệu)
 ```
 
 **Chấm bài không đi qua hàng đợi.** Nó là một phép so giữa phương án đã chọn và đáp án đúng trong
@@ -95,6 +96,18 @@ từng lượt làm lại kèm đề đã sinh ra, đoạn chat và các báo c�
 viên đặt, tính bằng giờ hoặc ngày, nên trạng thái bài làm không thể sống trong một chỗ có TTL một
 giờ. `JOB_RESULT_TTL_SECONDS` vẫn còn và vẫn đúng — nó nói về kết quả một job của arq, không nói về
 bài làm của học sinh.
+
+MinIO thuộc về BE theo đúng nghĩa ấy, và nó là **kho duy nhất không phải database**. Byte của
+tài liệu giáo viên nằm ở đó; `documents.storage_key` trong Postgres là khoá, còn bảng thì không
+giữ một byte nào. Chúng rời khỏi một cột `LargeBinary` ngày 08/10/2026 vì `services/document` —
+service sẽ đọc tệp — không có credential database, nên nó không với tới được một cột; ba đường
+thay thế đều phá một luật đang có.
+
+Trong BE, `storage.py` là module **duy nhất** được import `minio`, và `tools/check_contract.py`
+canh đúng điều đó. Lý do không phải gọn gàng: SDK là sync còn BE là async, nên mỗi lời gọi phải đi
+qua `run_in_threadpool`, và một chỗ quên không ném gì cả — nó chỉ chặn event loop suốt thời gian
+đẩy một cuốn sách lên. Gom vào một module biến luật *"nhớ bọc threadpool"* thành luật *"nhớ đừng
+import"*, và luật thứ hai thì grep được.
 
 AGENT không nhận credential của bất kỳ database nào, nên **một job phải tự chứa**: `explain_turn`
 mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn, chứ không mang id để tra. `tools/check_contract.py`

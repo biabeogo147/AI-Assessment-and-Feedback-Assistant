@@ -22,8 +22,8 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 
 > **Con số trong tiêu đề cũ đã lệch.** `models.py` có **21** `__tablename__`; tài liệu này từng nói
 > mười ba. Đợt 06/10/2026 chỉ bổ sung hai bảng nháp bên dưới — những bảng còn thiếu
-> (`pregenerated_items`, `question_outcomes`, `documents`, …) là món nợ của một đợt rà soát riêng,
-> ghi ra đây để nó không nằm im.
+> (`pregenerated_items`, `question_outcomes`, …) là món nợ của một đợt rà soát riêng, ghi ra đây
+> để nó không nằm im. `documents` đã được trả ngày 08/10/2026, vì đợt ấy đổi hình dạng của nó.
 
 ### Nhóm 1 — người và lớp
 
@@ -46,6 +46,7 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |
 | `publications` | sáu tham số phát hành | **một dòng mỗi (đề, lớp)** — khoá chính kép, nên thu hồi được **từng lớp một**. Từ 06/10/2026 một lần phát hành chỉ có **một** khung giờ cho mọi lớp trong lần đó; muốn hai lớp hai đồng hồ thì phát hành hai lần, và bảng vẫn chở được (ADR-02, sửa đổi) |
 | `draft_briefs` | yêu cầu soạn của một đề: môn, khối, phạm vi, `question_count`, `version` | `question_count` là **tổng** đã xin, không phải con số khai lúc tạo đề — `fire()` ghi nó, `harvest()` đọc nó để biết ô nào đã cũ. `version` tăng mỗi lần đổi brief, nên một job của brief cũ về muộn thì nhận ra được |
+| `documents` | tài liệu giáo viên tải lên: `teacher_id`, `filename`, `content_type`, `byte_size`, `storage_key`, `uploaded_at` | **Không giữ byte nào.** `storage_key` trỏ tới một object trong MinIO, dạng `documents/<giáo viên>/<tài liệu><đuôi>`. Byte rời cột `LargeBinary` ngày 08/10/2026 vì `services/document` không có credential database. `byte_size` ở lại dù byte đã đi: chip trên rail in nó, và một lời gọi mạng chỉ để biết một con số đã biết sẵn là một lời gọi thừa. Thuộc về **giáo viên**, không thuộc về đề (ADR-04) |
 | `draft_items` | một ô cho mỗi câu đang soạn: `ordinal`, `job_id`, `status`, `attempts`, `last_fault` | `status` là `pending`/`ready`/`retry`/`failed`; `attempts` chặn vòng thử lại ở `_MOST_ATTEMPTS`. **`last_fault`** chở lý do một câu bị loại: một `retry` không nói vì sao là một dấu vết không dùng được, và nó chính là thứ từng biến một đề 2/3 câu thành "không ai truy được" |
 
 Khoá nội dung khi duyệt là một `state` trên `assessments`, không phải một cờ trên từng câu — vì nó là

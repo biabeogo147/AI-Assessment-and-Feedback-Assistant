@@ -16,6 +16,10 @@ dependencies = [
     "python-multipart>=0.0.9",
     "sqlalchemy[asyncio]>=2.0",
     "asyncpg>=0.29",
+    # Object storage cho byte tài liệu. Ở `dependencies` chứ không ở `[test]`:
+    # `be/storage.py` import nó ở top-level, và cả `be.main` lẫn test tài liệu đều
+    # kéo module ấy vào -- kể cả khi test chỉ chạy trên bản in-memory.
+    "minio>=7.2",
 ]
 
 [project.optional-dependencies]

@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã chốt, chưa thi hành
 - **Ngày:** 2026-10-07
+- **Sửa:** 2026-10-08 — cổng text layer thành **bất đồng bộ**, vì việc đọc tệp chuyển sang
+  `services/document`. Luật không đổi ý; chỗ nó được thi hành thì đổi.
 
 ## Bối cảnh
 
@@ -17,9 +19,10 @@ phân định, và một phạm vi đã chốt có được đổi giữa vòng 
 
 ## Quyết định
 
-- **Một tệp không đọc được chữ thì không vào thư viện.** Kriky từ chối **ngay lúc tải lên** và nói ra
-  lý do bằng lời giáo viên hiểu. Ảnh scan là một thứ sẽ làm sau, không phải một thứ nhận bừa rồi
-  bỏ đó.
+- **Một tệp không đọc được chữ thì không bao giờ dùng được.** Phép kiểm chạy ngay sau khi nhận
+  tệp, nhưng nó nằm trong service xử lý tài liệu chứ không trong đường `POST`, nên nó **bất đồng
+  bộ**: chip đi từ *đang xử lý* sang *không đọc được chữ* trong vài giây, và lý do nói bằng lời
+  giáo viên hiểu. Ảnh scan là một thứ sẽ làm sau, không phải một thứ nhận bừa rồi bỏ đó.
 - **Tải lên xong không có nghĩa là dùng được ngay.** Tài liệu đi qua một bước xử lý, và màn hình nói
   rõ nó đang ở đâu trong **bốn** trạng thái: **đang xử lý** · **sẵn sàng** · **không đọc được chữ** ·
   **xử lý hỏng**. Một chip trông dùng được mà chưa dùng được là một chip nói dối — và một chip đứng
@@ -47,13 +50,19 @@ phân định, và một phạm vi đã chốt có được đổi giữa vòng 
 
 ## Vì sao
 
-**Từ chối lúc tải lên, không lúc dùng**, vì một tệp nằm trong thư viện là một lời hứa. Giáo viên tải
-một cuốn sách lên rồi ba tuần sau mới kéo nó vào ô chat; nghe *"tệp này không đọc được chữ"* ở thời
-điểm ấy là nhận một lời từ chối cho một việc họ tưởng đã xong từ lâu.
+**Biết trong vài giây, không phải lúc đem ra dùng**, vì một tệp nằm trong thư viện là một lời hứa.
+Giáo viên tải một cuốn sách lên rồi ba tuần sau mới kéo nó vào ô chat; nghe *"tệp này không đọc được
+chữ"* ở thời điểm ấy là nhận một lời từ chối cho một việc họ tưởng đã xong từ lâu.
 
-**Ba trạng thái chứ không hai**, vì xử lý một cuốn sách vài trăm trang không tức thì. Không có trạng
-thái *đang xử lý* thì giáo viên kéo một chip chưa sẵn sàng vào ô chat và nhận một câu từ chối khó
-hiểu — màn hình đã có đủ thông tin để nói trước, chỉ là không nói.
+Bản đầu của ADR này đòi từ chối **ngay trong lời gọi tải lên**, tức đồng bộ. Nó tự mâu thuẫn với
+chính luật kế bên: nếu tệp bị chặn ở cửa thì **không có hàng nào** để mang trạng thái *không đọc được
+chữ*, mà trạng thái ấy lại là một trong bốn trạng thái ADR này bắt màn hình phải nói được. Chỗ đọc
+tệp nay là `services/document`, nên phép kiểm là bất đồng bộ, và cái giữ đúng lời hứa không còn là
+*thời điểm từ chối* mà là **vài giây** giữa lúc tải xong và lúc chip đổi mặt.
+
+**Bốn trạng thái chứ không hai**, vì xử lý một cuốn sách vài trăm trang không tức thì. Không có
+trạng thái *đang xử lý* thì giáo viên kéo một chip chưa sẵn sàng vào ô chat và nhận một câu từ chối
+khó hiểu — màn hình đã có đủ thông tin để nói trước, chỉ là không nói.
 
 **Lọc bài tập bằng cấu trúc, không bằng lời dặn**, vì repo này đã đo và ghi lại rằng lời dặn không
 giữ được model: `teacher_tools.py` phải cắt `create_draft` từ sáu tham số xuống ba sau năm lần đo với
@@ -114,13 +123,15 @@ Nơi nó **sẽ** được thi hành, để lần sau đọc lại còn biết �
 
 | Luật | Sẽ sống ở |
 |---|---|
-| Từ chối tệp không có text layer | `services/be/src/be/teacher_documents.py`, đường `POST /teacher/documents` |
-| Ba trạng thái của chip | `models.Document` (một cột trạng thái), `Rail.tsx`, Figma artboard 1 và 2 |
+| Từ chối tệp không có text layer | `services/document` — nó đọc tệp từ MinIO và trả kết quả về cho BE ghi |
+| Bốn trạng thái của chip | `models.Document` (một cột trạng thái), `Rail.tsx`, Figma artboard 1 và 2 |
 | Bài tập không vào prompt | `services/be/src/be/drafting.py` chỗ dựng `DraftQuestionRequested`, và đường sinh câu luyện tập pha 2; cộng một repo check trong `tools/check_contract.py` |
 | Hỏi bằng tên chương | prompt pha 1 của AGENT, và skill `tim-trong-tai-lieu.md` |
 | Đề xuất cách chia | cùng skill ấy |
 | Đóng băng phạm vi | **đã có**: `DraftBrief.topic_scope` + `version` (`models.py`). Còn thiếu: con trỏ chunk trên `DraftItem`, ghi trước khi `fire` đẩy job nào |
 
-Quyết định **kỹ thuật** đi kèm — chọn PyMuPDF, ba tool đọc thay cho một tool tìm, Jev làm bộ định
-tuyến, skill viết bằng Markdown, và agent xử lý thành service thứ tư — **không nằm ở đây**: theo
-`docs/decisions/README.md`, chúng thuộc mục `## Decision Records` của plan thi hành ADR này.
+Quyết định **kỹ thuật** đi kèm — PyMuPDF, ba tool đọc thay cho một tool tìm, Jev làm bộ định tuyến
+gọi từ `services/document`, skill viết bằng Markdown, byte tài liệu sang MinIO, chunk sang MongoDB,
+và `services/document` thành service thứ tư — **không nằm ở đây**: theo `docs/decisions/README.md`,
+chúng thuộc mục `## Decision Records` của các plan thi hành ADR này. Đợt thi hành chia thành **năm
+plan**, vì một plan không chở nổi chừng ấy việc.

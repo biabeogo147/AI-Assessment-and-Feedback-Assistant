@@ -583,7 +583,7 @@ export default function Chat({
           ref={picker}
           type="file"
           hidden
-          accept=".pdf,.docx,.doc,.txt,.md"
+          accept=".pdf,.txt,.md"
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";

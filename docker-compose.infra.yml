@@ -33,5 +33,33 @@ services:
       timeout: 3s
       retries: 5
 
+  # Byte của tài liệu giáo viên. Chúng từng nằm trong một cột LargeBinary của
+  # Postgres; chúng rời đi vì services/document -- service đọc tệp -- không có
+  # credential database, nên nó không với tới được một cột.
+  #
+  # MINIO_ROOT_USER/PASSWORD là tên do image quy định, không đổi được, nên chúng
+  # không khớp tên biến trong .env.example (MINIO_ACCESS_KEY/MINIO_SECRET_KEY).
+  # Hai bên phải khớp **giá trị** bằng tay, y như POSTGRES_PASSWORD với
+  # DATABASE_URL đang khớp bằng tay ở trên.
+  minio:
+    # chainguard/minio chứ không phải minio/minio: ảnh chính chủ đã rời Docker Hub
+    # và quay.io của họ nay đòi đăng nhập, nên `docker pull minio/minio` trả về
+    # "repository does not exist" trên một máy sạch. Ảnh này vẫn là MinIO, cùng
+    # binary và cùng cờ dòng lệnh; nó chạy bằng uid 65532 nên volume phải thuộc về
+    # uid ấy.
+    image: chainguard/minio:latest
+    container_name: aiafa-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    user: "65532:65532"
+    environment:
+      MINIO_ROOT_USER: aiafa
+      MINIO_ROOT_PASSWORD: aiafa-local-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - aiafa-miniodata:/data
+
 volumes:
   aiafa-pgdata:
+  aiafa-miniodata:

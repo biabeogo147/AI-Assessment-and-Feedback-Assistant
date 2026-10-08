@@ -28,6 +28,16 @@ class Settings(BaseSettings):
             xong.
         review_confidence_threshold: Mức Confidence mà ở đó hoặc dưới đó, một bài
             đã chấm bị đưa vào Teacher Review Queue. BE sở hữu ngưỡng này.
+        minio_endpoint: Host và port của object storage, **không kèm scheme** --
+            SDK minio nhận scheme qua `minio_secure` chứ không qua chuỗi này.
+        minio_access_key: Tên truy cập của object storage.
+        minio_secret_key: Khoá bí mật của object storage. Cố ý **không** đặt tên có
+            chữ `password`: `check_agent_holds_no_database_credentials` khớp chữ ấy
+            không phân biệt hoa thường, và một ngày nào đó module này bị đọc từ một
+            service khác thì cái tên là thứ duy nhất đứng giữa.
+        minio_bucket: Bucket giữ byte tài liệu. Phải hợp lệ với DNS -- chữ thường,
+            3-63 ký tự, không gạch dưới -- nếu không `make_bucket` ném.
+        minio_secure: Có nói HTTPS với object storage không. Local thì không.
         database_url: URL SQLAlchemy async của kho giữ state của Attempt. ADR-21
             làm state đó bền, nên đây không phải tuỳ chọn trong bất kỳ môi trường
             nào mà học sinh có thể quay lại ngày mai.
@@ -67,6 +77,11 @@ class Settings(BaseSettings):
     job_result_ttl_seconds: int = 3600
     review_confidence_threshold: float = 0.7
     database_url: str = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa"
+    minio_endpoint: str = "127.0.0.1:9000"
+    minio_access_key: str = "aiafa"
+    minio_secret_key: str = "aiafa-local-dev"
+    minio_bucket: str = "aiafa-documents"
+    minio_secure: bool = False
     dev_identity_header: str = "X-Actor"
     dev_identity_enabled: bool = True
     agent_job_timeout_seconds: int = 70

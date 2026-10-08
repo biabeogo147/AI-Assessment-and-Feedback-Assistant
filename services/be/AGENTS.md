@@ -6,6 +6,11 @@ Adds to the root contract. Constraints only.
   here and nowhere else.
 - BE owns every database. AGENT receives no credentials, so anything AGENT needs travels in the job
   payload.
+- Document bytes live in MinIO, not in a column. `documents.storage_key` is the key, and the bytes
+  are written before the row so a failure leaves collectable garbage, never a row pointing at
+  nothing.
+- `storage.py` is the only module allowed to import `minio`. The SDK is synchronous; every call goes
+  through `run_in_threadpool` there, and one forgotten wrapper blocks the event loop silently.
 - The Teacher Review threshold and routing live in `review_policy.py`. `decide_review` is the only
   function allowed to produce `needs_teacher_review` or a `ReviewReason`.
 - Apply the review policy when reading a result, not when storing one, so changing

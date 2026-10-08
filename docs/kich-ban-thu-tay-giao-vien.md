@@ -466,7 +466,9 @@ xoá đoạn chat không xoá đề.
 | G1 | Icon tải lên cạnh nhãn `TÀI LIỆU` → chọn một PDF nhỏ | Chip lên rail với **kích thước**, không phải số trang |
 | G2 | Dải dưới ô nhập | Đúng một dòng `Đã tải lên: {tên tệp}`. **Không** nút nào trong dải: tải lên chỉ có một cửa |
 | G3 | Thử một file `.png` | Bị từ chối |
-| G4 | Thử một file **trên 10 MB** | Bị từ chối, và câu từ chối **nói ra con số** 10 MB |
+| G4 | Thử một file **trên 100 MB** | Bị từ chối, và câu từ chối **nói ra con số** 100 MB |
+| G5 | Thử một file `.docx` | Bị từ chối. Từ 08/10/2026 chỉ còn `.pdf`, `.txt`, `.md` — PyMuPDF không đọc được Word, nên nhận là hứa một thứ sẽ phải từ chối muộn hơn |
+| G6 | Sau G1, mở console MinIO ở <http://127.0.0.1:9001> | Object nằm ở `documents/<giáo viên>/<tài liệu>.pdf`. Byte **không** nằm trong Postgres |
 
 **Sai nếu:** dải dưới ô nhập nói *"phạm vi"* hay gợi ý rằng tài liệu sẽ giới hạn đề. Nội dung tài
 liệu **chưa** đi vào việc soạn đề, và màn hình không được hứa ngược lại.
