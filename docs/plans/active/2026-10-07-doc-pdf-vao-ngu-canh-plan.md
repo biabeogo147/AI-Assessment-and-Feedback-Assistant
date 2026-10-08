@@ -11,7 +11,7 @@ mang mã **B10** trong artifact theo dõi pipeline.
 chung** mà nhiều plan con cùng dựa vào, và danh sách các plan con cùng cổng của chúng. Mỗi plan
 con có file riêng với `Ordered Tasks` và `Status` của nó.
 
-Đợt này chia **sáu plan** vì một plan không chở nổi: nó đẻ ra một service, một process mới cho
+Đợt này chia **bảy plan** vì một plan không chở nổi: nó đẻ ra một service, một process mới cho
 BE, hai kho lưu mới, và một bộ định tuyến. Thứ tự **bị ép bởi phụ thuộc**, không bởi sở thích.
 
 Năm thành sáu ngày 08/10/2026: plan 2 tách làm **2a** và **2b**. Nó đếm ra khoảng ba mươi file,
@@ -19,21 +19,29 @@ nặng hơn plan 1 một nửa, và đường rạch giữa *vòng việc chạy
 rất sạch — nửa sau còn kéo theo một lượt Figma, vì chip phải đổi trên bản vẽ trước khi đổi
 trong code. Mỗi plan một cổng; một plan mang hai cổng là một plan không biết nó xong khi nào.
 
-## Sáu plan, và cổng giữa chúng
+Bảy thành từ sáu ngày 08/10/2026: plan **2c** sinh ra sau khi plan 2a cho BE một process
+thứ hai mà **không chỗ nào nói process nào được làm gì**. Đo được ngay sau khi 2a xong:
+`be/config.py` có 20 trường, worker đọc đúng **bốn**; luật *API dựng schema, worker chỉ
+kiểm* chỉ sống trong một docstring; `main.py` và `worker.py` có hai bootstrap gần giống
+nhau khác đúng một dòng; `be/queue.py` trộn chiều đẩy với chiều tiêu thụ. Người dùng chốt
+ghi lại thành một plan riêng thay vì chữa vội.
+
+## Bảy plan, và cổng giữa chúng
 
 | # | Plan | Cổng mở sang plan sau | Model? |
 |---|---|---|---|
 | 1 | [`2026-10-08-document-bytes-to-minio-plan.md`](2026-10-08-document-bytes-to-minio-plan.md) | tải một PDF lên rồi đọc lại từ MinIO, **khớp từng byte** | không |
 | 2a | [`2026-10-08-document-service-text-layer-gate-plan.md`](2026-10-08-document-service-text-layer-gate-plan.md) | `GET /api/teacher/documents` trả `state` đi từ `processing` sang `ready` hoặc `no_text_layer`, và `page_count` khớp số trang thật | không |
 | 2b | chip bốn trạng thái — *chưa viết* | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
+| 2c | ranh giới giữa hai process của BE — *chưa viết* | mỗi process có một **lưới nói ra nó được làm gì**: một check đỏ khi process worker chạm một luật nghiệp vụ, và một check đỏ khi `prepare_schema` bị gọi ngoài chỗ sở hữu schema | không |
 | 3 | Mục lục, chương, chunk, Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
 | 4 | Jev và skill — *chưa viết* | một đoạn bài tập được gán đúng nhãn | **có** |
 | 5 | Nội dung vào prompt — *chưa viết* | **không payload nào rời BE mang chunk nhãn bài tập** | có |
 
-Bốn plan sau **cố ý chưa có file**: `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading, và thiết
+Năm plan sau **cố ý chưa có file**: `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading, và thiết
 kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
 
-**Plan 1, 2a và 2b không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
+**Plan 1, 2a, 2b và 2c không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
 là nửa chứa mọi giả định nguy hiểm — nếu có gì sụp, nó sụp ở đó, trước khi ta xây gì lên trên.
 
 ## Decision Records
@@ -250,6 +258,50 @@ làm sau khi cơ chế đã chứng minh được.
 theo `(ordinal, of_total)` sẽ **xáo lại chunk của mọi ô đã xong**. Và `fire` **bắn lại** ô đang
 `retry`, nên một chunk tính lại cho lần thử hai làm `last_fault` mất giá trị chẩn đoán.
 
+### Decision: ranh giới giữa hai process của BE — **hình dạng còn để ngỏ**, dọn ở plan 2c
+
+**options considered:**
+
+- (a) Tách worker thành một service riêng (`services/ingest`).
+- (b) Giữ một service, viết ranh giới thành luật và cắm lưới.
+- (c) Để nguyên, ghi backlog.
+
+**selected option:** **chưa chốt giữa (a) và (b)** — người dùng chốt ngày 08/10/2026 là *đưa vào
+plan 2c, làm sau*. (c) bị bác: plan 3 thêm một handler nữa (chunk writer) vào **đúng chỗ đang
+mờ**, nên để càng lâu càng đắt.
+
+**reason:** vấn đề thì đã chốt, cách chữa thì chưa. Vấn đề là **không chỗ nào nói process nào
+được làm gì** — bốn chỗ đo được ở dưới.
+
+**Một lập luận đã bị rút, ghi lại để đừng ai viện lại nó.** Bản đầu của record này chống (a)
+bằng câu *"một service thứ hai giữ credential Postgres sẽ giết dòng `AGENTS.md` — `services/be`
+sở hữu mọi database"*. Người dùng bác ngày 08/10/2026: **một worker giữ credential database là
+hợp lệ.** Luật ấy nay viết thẳng ra — `services/be/AGENTS.md` ghi *"BE owns every database, in
+both of its processes"* — và cái làm `agent` với `document` thành service riêng là chúng **không
+giữ credential nào**, chứ không phải việc chúng chạy process riêng.
+
+**Cái còn lại chống (a), và nó chưa bị bác:** hai service cùng ghi một bảng thì `models.py` phải
+nhân đôi hoặc tách ra một package dùng chung — mà `packages/contracts` khai là *chỉ dữ liệu đi
+qua queue*, SQLAlchemy model không phải thứ đó. Hai service dùng chung một định nghĩa schema và
+cùng ghi một bảng là **distributed monolith**; chúng không độc lập, chúng là một service nằm
+trong hai thư mục. Plan 2c phải trả lời đúng câu đó trước khi chọn (a).
+
+Và một đường (a) **không** đi được, vì nó đã bị loại ở một record khác của chính đợt này: worker
+gọi HTTP sang API để ghi — đó là mũi HTTP đầu tiên giữa hai service, cần xác thực
+service-to-service chưa tồn tại, và phi lý về nghiệp vụ (một worker tiêu thụ queue chỉ để gọi
+HTTP ghi một hàng).
+
+**Luật của (b), nếu chọn nó, một câu:** process API sở hữu quyết định; process worker không sở
+hữu quyết định nào — nó chỉ ghi lại thứ service khác đã báo về. Không luật nghiệp vụ, không gọi
+model. Cùng hình dạng với *"AGENT decides nothing"*, và grep được.
+
+**Bốn chỗ đo được ngày 08/10/2026, để plan 2c không phải đo lại:**
+
+1. `be/config.py` có **20 trường**; worker đọc `redis_url`, `be_queue_name`, `database_url` (gián tiếp qua `create_engine`) và `log_level` — **bốn**. Mở file ra không biết được điều đó.
+2. Luật *API dựng schema, worker chỉ kiểm* chỉ nằm trong docstring của `be/worker.py`. Thêm `prepare_schema` vào worker thì không lưới nào kêu.
+3. `main.py` lifespan và `worker.py` startup có hai bootstrap gần giống nhau — `create_engine` + `check_schema` + `bind_sessions` — khác đúng một dòng. Trùng lặp kèm một khác biệt tinh vi là hình dạng sẽ mục.
+4. `be/queue.py` trộn hai chiều: `enqueue_*` là việc của API, `redis_settings` là việc của worker.
+
 ## Files
 
 Đợt này không tự sửa file nào. Mỗi plan con mang bảng `Files` của nó.
@@ -259,6 +311,7 @@ theo `(ordinal, of_total)` sẽ **xáo lại chunk của mọi ô đã xong**. V
 - [x] **Plan 1 — byte sang MinIO** (mã **C9**)
 - [ ] **Plan 2a — `services/document` và cổng text layer** (mã **C2**, **C11**, một nửa **C10**)
 - [ ] **Plan 2b — chip bốn trạng thái** (Figma trước, rồi FE)
+- [ ] **Plan 2c — ranh giới giữa hai process của BE** (không mã pipeline; dọn nợ của 2a)
 - [ ] **Plan 3 — mục lục, chương, chunk, Mongo** (mã **C3**, **C10**)
 - [ ] **Plan 4 — Jev và skill** (mã **C4**)
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)

@@ -469,18 +469,20 @@ xoá đoạn chat không xoá đề.
 | G4 | Thử một file **trên 100 MB** | Bị từ chối, và câu từ chối **nói ra con số** 100 MB |
 | G5 | Thử một file `.docx` | Bị từ chối. Từ 08/10/2026 chỉ còn `.pdf`, `.txt`, `.md` — PyMuPDF không đọc được Word, nên nhận là hứa một thứ sẽ phải từ chối muộn hơn |
 | G6 | Sau G1, mở console MinIO ở <http://127.0.0.1:9001> | Object nằm ở `documents/<giáo viên>/<tài liệu>.pdf`. Byte **không** nằm trong Postgres |
-| G7 | Sau G1, gọi `GET /api/teacher/documents` | `state` là `ready` và `page_count` **khớp số trang thật** của tệp. Mở tệp ra đếm tay để so — một con số sai ở đây thì không màn hình nào nói ra |
-| G8 | Tải lên một PDF **chụp lại** (scan, không có lớp chữ) | `state` là `no_text_layer`, và `fault` là một câu tiếng Việt nói *ảnh scan*. Chip **không** được trông như dùng được: ADR-27 gọi đó là một chip nói dối |
-| G9 | Tắt `.\dev.ps1 document`, tải một tệp lên, hạ `DOCUMENT_STALE_AFTER_SECONDS` xuống vài giây rồi đợi | `state` đọc ra `failed`, **nhưng cột trong Postgres vẫn là `processing`**. Đó là bằng chứng trạng thái thứ tư được suy ra lúc đọc chứ không ghi gì — xem
-`psql -c "select state from documents"`. Bật `document` lại thì tài liệu ấy **vẫn** được xử lý, và lần đọc sau nói `ready` |
-| G10 | Tải một `.txt` có chữ lên | `state` là `ready`, `page_count` là `null`. Không bao giờ `0`: một tệp văn bản thuần không có trang, và màn hình in "0 trang" thì giáo viên sẽ tin |
+| G7 | Sau G1, **nhìn chip** trên rail | Dòng meta in `kích thước · số trang`, và số trang **khớp số trang thật** của tệp. Mở tệp ra đếm tay để so — một con số sai ở đây thì không màn hình nào nói ra |
+| G8 | Tải lên một PDF **chụp lại** (scan, không có lớp chữ) | Chip đi từ *Đang xử lý…* sang **Không đọc được chữ** màu hổ phách, **không cần F5**. Rê chuột lên chip: `title` nói lý do cụ thể. Thử kéo nó vào ô nhập — **nó không đi** |
+| G9 | Tắt `.\dev.ps1 document`, tải một tệp lên, hạ `DOCUMENT_STALE_AFTER_SECONDS` xuống vài giây rồi đợi | Chip đọc ra **Xử lí lỗi. Hãy tải lại**, **nhưng cột trong Postgres vẫn là `processing`** — xem `psql -c "select state from documents"`. Đó là bằng chứng trạng thái thứ tư được suy ra lúc đọc chứ không ghi gì. Bật `document` lại thì tài liệu ấy **vẫn** được xử lý |
+| G10 | Tải một `.txt` có chữ lên | Dòng meta chỉ có **kích thước**, không có số trang. Không bao giờ in `0 trang`: một tệp văn bản thuần không có trang, và giáo viên sẽ tin con số ấy |
+| G11 | Mở hai tab cùng lúc, tải một tệp ở tab này | Chip trên **cả hai** tab cùng đổi mặt. Kênh SSE theo giáo viên, không theo tab |
+| G12 | Chọn một tệp **trên 100 MB** | Trình duyệt từ chối **ngay**, không request nào rời đi. Mở tab Network mà xem: không có `POST /api/teacher/documents` |
 
 **Sai nếu:** dải dưới ô nhập nói *"phạm vi"* hay gợi ý rằng tài liệu sẽ giới hạn đề. Nội dung tài
 liệu **chưa** đi vào việc soạn đề, và màn hình không được hứa ngược lại.
 
-**Chưa thấy được trên màn hình, và đó là chủ ý.** G7 tới G10 đọc bằng API chứ không bằng mắt,
-vì chip hiện mới có **một** hình dạng. Bốn trạng thái lên chip là plan 2b của cùng đợt việc,
-và nó bắt đầu ở Figma. Chip hôm nay không nói trạng thái — nó chưa nói, chứ không nói sai.
+**Bốn trạng thái, ba màu.** `Đang xử lý…` xanh mòng két, hai trạng thái xấu cùng màu hổ phách.
+Chúng dùng chung màu có chủ ý: Foundations của Figma ghi *"ba màu cùng trọng lượng, cố ý không
+xếp hạng nghiêm trọng"*, và cái phân biệt hai trạng thái xấu là **chữ**, không phải màu. Chip
+*sẵn sàng* không có dòng trạng thái nào — số trang đã là bằng chứng đã đọc được chữ.
 
 ---
 

@@ -16,6 +16,7 @@ import logging
 from sqlalchemy import update
 
 from be.db import session_scope
+from be.document_events import announce
 from be.models import Document
 from contracts import DocumentProbed
 
@@ -35,8 +36,9 @@ async def document_probed(ctx: dict, payload: dict) -> dict:
         chỗ duy nhất đọc lại được một job đã chạy.
 
     Side effects:
-        Một `UPDATE` trên `documents`. Không `INSERT` bao giờ: hàng đã có từ lúc tải lên, và
-        một job tạo hàng mới là một đường thứ hai để tài liệu xuất hiện trong thư viện.
+        Một `UPDATE` trên `documents`, rồi một tiếng hích lên channel của giáo viên sở hữu nó.
+        Không `INSERT` bao giờ: hàng đã có từ lúc tải lên, và một job tạo hàng mới là một
+        đường thứ hai để tài liệu xuất hiện trong thư viện.
     """
     done = DocumentProbed.model_validate(payload)
 
@@ -45,15 +47,24 @@ async def document_probed(ctx: dict, payload: dict) -> dict:
             update(Document)
             .where(Document.id == done.document_id)
             .values(state=done.state.value, page_count=done.page_count, fault=done.fault)
+            # Lấy luôn chủ sở hữu từ chính câu `UPDATE`. Một `SELECT` thứ hai cũng ra đúng
+            # con số ấy, nhưng nó là một vòng nữa tới database cho một thứ hàng vừa trả về --
+            # và nó mở một khe cho hàng bị xoá giữa hai câu lệnh.
+            .returning(Document.teacher_id)
         )
+        owner = written.scalar_one_or_none()
         await session.commit()
 
-    if written.rowcount == 0:
+    if owner is None:
         # Hàng không còn: giáo viên đã xoá tài liệu trong lúc nó đang được đọc, hoặc database đã
         # bị dựng lại. Không phải lỗi, và **không được ném**: arq sẽ thử lại một job không bao
         # giờ thành công được, rồi lặp lại đúng chừng ấy lần.
         logger.warning("nothing to write for document=%s; the row is gone", done.document_id)
         return {"document_id": done.document_id, "written": False}
+
+    # Hích **sau** khi commit. Ngược lại thì màn hình nghe tin rồi đọc lại và thấy giá trị cũ,
+    # một ca hiếm nhưng tự tạo ra -- và nó không tự sửa, vì sẽ không có tiếng hích thứ hai.
+    await announce(ctx.get("redis"), owner)
 
     logger.info(
         "document=%s is now %s (pages=%s)",

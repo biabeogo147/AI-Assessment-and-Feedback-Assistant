@@ -179,6 +179,21 @@ export default function Chat({
       .catch((cause: Error) => setTrouble(cause.message));
   }, []);
 
+  // Thư viện đổi **sau** lúc tải lên: một tài liệu đi từ `đang xử lý` sang `sẵn sàng` hay
+  // `không đọc được chữ` vài giây sau, và không lời gọi nào của màn hình này gây ra việc ấy.
+  // Thiếu kênh thì chip đứng ở `đang xử lý` cho tới khi F5 — một chip nói dối, đúng thứ
+  // ADR-27 cấm.
+  //
+  // Kênh chỉ **hích**; mỗi tiếng hích là một lần đọc lại danh sách. Đọc lại thay vì nghe dữ
+  // liệu là thứ làm nó tự lành: một tiếng hích mất đi thì tiếng sau sửa luôn.
+  useEffect(() => {
+    const stop = new AbortController();
+    void teacher.watchDocuments(() => {
+      teacher.documents().then(setDocuments).catch(() => undefined);
+    }, stop.signal);
+    return () => stop.abort();
+  }, []);
+
   // Lượt mới đẩy dòng xuống đáy. Chỉ khi có lượt mới, không phải ở mọi render: cuộn lên đọc
   // lại một câu cũ mà bị giật xuống đáy là cách chắc chắn nhất để không ai đọc lại được gì.
   useEffect(() => {
@@ -322,6 +337,13 @@ export default function Chat({
   }
 
   async function take(file: File) {
+    // Trình duyệt biết cỡ tệp ngay từ `file.size`, nên đẩy hết một tệp 200 MB lên rồi mới
+    // nhận 413 là bắt giáo viên chờ hàng chục giây để nghe một câu từ chối đã biết trước.
+    // Con số phải khớp `_MAX_BYTES` của BE; BE vẫn là chỗ thi hành, đây chỉ là chỗ nói sớm.
+    if (file.size > MOST_BYTES) {
+      setTrouble(`File lớn hơn ${MOST_BYTES / (1024 * 1024)} MB.`);
+      return;
+    }
     try {
       const saved = await teacher.upload(file);
       setDocuments((before) => [saved, ...before]);
@@ -1003,6 +1025,15 @@ function Clarify({
  * Biên là thật chứ không phải cho đẹp. Không có `min` thì kéo quá tay làm cột biến mất và
  * không còn gì để kéo trở lại; không có `max` thì một cột nuốt hết chỗ của cột kia.
  */
+/**
+ * Trần kích thước một tài liệu, phải khớp `_MAX_BYTES` của `be/teacher_documents.py`.
+ *
+ * Hai nơi giữ cùng một con số, và đó là đánh đổi có chủ ý: BE là chỗ **thi hành** — nó vẫn
+ * trả 413 cho một client bỏ qua chỗ này — còn đây chỉ là chỗ **nói sớm**, để một lần chọn
+ * nhầm chết trong trình duyệt thay vì sau tám mươi giây đẩy dữ liệu.
+ */
+const MOST_BYTES = 100 * 1024 * 1024;
+
 interface Column {
   key: string;
   fallback: number;

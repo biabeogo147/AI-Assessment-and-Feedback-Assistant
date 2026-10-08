@@ -12,7 +12,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 
 | Path | Owns |
 | --- | --- |
-| `services/be` | Enforces business rules at runtime, all databases, the only service FE calls |
+| `services/be` | Business rules at runtime; all databases, in both its processes; the only service FE calls |
 | `services/agent` | AI grading. Emits evidence, decides nothing |
 | `services/document` | Reads an uploaded file. Reports what it found, owns no row |
 | `services/fe` | User interface. Talks only to BE |

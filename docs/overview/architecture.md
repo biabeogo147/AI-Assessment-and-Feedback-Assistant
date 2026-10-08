@@ -19,8 +19,14 @@ Diagram liên quan:
 | `agent` | Soạn nội dung bằng AI: đề, câu của lượt làm lại, lượt trả lời trong chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
 | `document` | Đọc tệp giáo viên tải lên: có chữ hay không, bao nhiêu trang. Báo lại, không sở hữu hàng nào. | arq worker, không có cổng |
 
-**BE có hai process từ 08/10/2026**, và đó là thay đổi hình dạng đáng nói nhất của
-kiến trúc kể từ khi nó được viết. Cho tới ngày ấy BE chỉ **đẩy** job rồi chờ kết quả
+**BE có hai process từ 08/10/2026**, và **cả hai đều giữ credential của Postgres**.
+Nói thẳng ra vì luật cũ chỉ ghi *"`services/be` sở hữu mọi database"* rồi để người
+đọc tự suy ra process nào được cầm chìa khoá — và suy sai chiều ấy đã từng dẫn tới một
+lập luận sai: rằng một worker giữ credential thì phải thôi là BE. Không phải. Cái làm
+`agent` và `document` thành service riêng là chúng **không** giữ credential nào, chứ
+không phải việc chúng chạy trong process riêng.
+
+Đây là thay đổi hình dạng đáng nói nhất của kiến trúc kể từ khi nó được viết. Cho tới ngày ấy BE chỉ **đẩy** job rồi chờ kết quả
 ngay trong request; `be/queue.py` không có một handler nào. Vòng xử lý tài liệu phá
 hình dạng ấy vì **không ai chờ nó**: giáo viên đã rời màn hình tải lên, và kết quả vẫn
 phải vào database. Một process đã rời đi thì không có ai để trả 503 cho.
@@ -95,6 +101,23 @@ BE chờ job xong ngay trong request (`agent_gateway.run_task`) thay vì trả `
 gọi ấy đều nằm trong một thao tác người dùng đang nhìn, nên thêm một giao thức poll thứ hai chồng
 lên arq không mua được gì.
 
+**Thư viện tài liệu cũng dùng SSE, và đó là kênh đẩy đầu tiên của giáo viên.**
+`GET /api/teacher/documents/stream` mở một `text/event-stream` sống suốt thời gian
+màn hình mở. Nó tồn tại vì thư viện đổi **sau** lúc tải lên và không lời gọi nào của
+màn hình gây ra việc ấy: một tài liệu đi từ *đang xử lý* sang *sẵn sàng* vài giây
+sau, hoặc vài phút sau khi queue đang dồn.
+
+**Kênh chỉ hích, không chở dữ liệu.** Mỗi khung chỉ nói *có gì đó đổi*; trình duyệt
+nghe xong thì gọi lại `GET /api/teacher/documents`. Lý do là một bài học đã trả giá
+một lần ở chuông tiến độ: pub/sub của Redis **không giữ lịch sử**, nên một khung chở
+dữ liệu mà mất đi là một chip sai vĩnh viễn, còn một tiếng hích mất đi thì tiếng sau
+sửa luôn. Hệ quả bắt buộc: trình duyệt vẫn phải đọc danh sách một lần lúc mở màn
+hình — kênh này không bao giờ là nguồn đầu tiên.
+
+Hai process đứng hai đầu: `be-worker` **phát** sau khi ghi xong kết quả xử lý, process
+API **nghe** và đẩy xuống. Một channel cho mỗi **giáo viên** (`documents:<id>`), vì
+rail vẽ cả thư viện chứ không vẽ từng tài liệu rời.
+
 **Chat dùng SSE.** `GET /api/attempts/{id}/chat/stream` trả `text/event-stream`, chữ hiện dần. Nó là
 **kênh tăng tốc cảm giác, không phải nguồn sự thật**: lượt trả lời được lưu xong mới phát, nên mất
 kết nối chỉ mất phần hoạt hình. Client đọc lại lịch sử bằng REST sau mỗi lần stream.
@@ -122,7 +145,9 @@ Ngưỡng được áp lúc đọc kết quả chứ không lưu kèm, nên đ�
 
 ## Ranh giới dữ liệu
 
-Postgres thuộc về BE và chỉ BE. Nó giữ lớp, học sinh, đề, lần làm bài, sổ điểm ba mức, bộ đếm vòng,
+Postgres thuộc về BE và chỉ BE — **cả hai process của nó**, API lẫn worker, cùng cầm
+một credential và cùng đọc một `models.py`. Ranh giới ở đây là ranh giới **sở hữu**,
+không phải ranh giới process. Nó giữ lớp, học sinh, đề, lần làm bài, sổ điểm ba mức, bộ đếm vòng,
 từng lượt làm lại kèm đề đã sinh ra, đoạn chat và các báo cáo.
 [ADR-21](../decisions/adr-21-trang-thai-bai-lam-la-ben.md) là lý do nó tồn tại: hạn pha 2 do giáo
 viên đặt, tính bằng giờ hoặc ngày, nên trạng thái bài làm không thể sống trong một chỗ có TTL một

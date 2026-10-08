@@ -255,13 +255,18 @@ export default function Rail({
           }
         >
           {documents.map((one) => (
-            // Kéo được: thả vào ô nhập là cách đính một tài liệu vào một câu chat. Chip
-            // mang `document_id` chứ không mang tên tệp — tên tệp trùng nhau được, id thì
-            // không.
+            // Kéo được **chỉ khi sẵn sàng**: ADR-27 nói màn hình đã có đủ thông tin để nói
+            // trước, nên thả một tài liệu chưa đọc xong vào ô chat rồi nhận một câu từ chối
+            // khó hiểu là một lần im lặng có chủ ý. Chip mang `document_id` chứ không mang
+            // tên tệp — tên tệp trùng nhau được, id thì không.
+            //
+            // `title` chở `fault` đầy đủ: chip in một nhãn ngắn, còn lý do cụ thể —
+            // *ảnh scan* hay *không có trang nào* — nằm ở đây cho người cần chẩn đoán.
             <div
-              className="document"
+              className={`document ${CHIP[one.state].tone}`}
               key={one.document_id}
-              draggable
+              title={one.fault || undefined}
+              draggable={one.state === "ready"}
               onDragStart={(event) => {
                 event.dataTransfer.setData(
                   "text/kriky-document",
@@ -273,7 +278,10 @@ export default function Rail({
               <span className="kind">{one.kind}</span>
               <span className="about">
                 <span className="name">{one.filename}</span>
-                <span className="meta">{weight(one.byte_size)}</span>
+                <span className="meta">{measure(one)}</span>
+                {CHIP[one.state].say !== "" && (
+                  <span className="status">{CHIP[one.state].say}</span>
+                )}
               </span>
             </div>
           ))}
@@ -282,6 +290,44 @@ export default function Rail({
     </nav>
   );
 }
+
+/**
+ * Bốn trạng thái của một tài liệu, đúng bằng `DocumentState` bên `packages/contracts`.
+ *
+ * `tools/check_contract.py` so hai danh sách ấy với nhau — hai ngôn ngữ, một bảng từ vựng —
+ * nên một trạng thái thứ năm ở BE mà chip không vẽ sẽ làm build đỏ, và đổi tên một nấc ở đây
+ * cũng vậy.
+ */
+export type ChipState = "processing" | "ready" | "no_text_layer" | "failed";
+
+/**
+ * Chip nói gì ở mỗi trạng thái.
+ *
+ * Nhãn là **cố định theo trạng thái**, không phải `fault` từ API. `fault` có sáu giá trị và
+ * chúng là chẩn đoán — *"Tệp PDF này không có trang nào"*, *"Không mở được tệp PDF này"* — chứ
+ * không phải nhãn; in thẳng lên một cột rộng 165px thì chúng xuống dòng và chip phình lên.
+ * `fault` không mất: nó đi vào `title` của chip.
+ *
+ * `ready` không có dòng nào, và đó là chủ ý: **số trang trên dòng meta chính là bằng chứng đã
+ * đọc được chữ** — nó chỉ xuất hiện sau khi đọc xong. Một thư viện bình thường toàn chip sẵn
+ * sàng, nên một dòng xanh lặp lại hai mươi lần là nhiễu.
+ *
+ * Hai trạng thái xấu dùng **chung** một màu. Foundations của Figma cố ý chỉ có ba màu trạng
+ * thái và ghi thẳng *"ba màu cùng trọng lượng, cố ý không xếp hạng nghiêm trọng"*; cái phân
+ * biệt chúng là chữ, không phải màu.
+ */
+/** Chip nói gì, và tô màu nào. Một kiểu có tên, để bảng `CHIP` dưới đây đếm được. */
+interface ChipLook {
+  say: string;
+  tone: string;
+}
+
+const CHIP: Record<ChipState, ChipLook> = {
+  processing: { say: "Đang xử lý…", tone: "processing" },
+  ready: { say: "", tone: "settled" },
+  no_text_layer: { say: "Không đọc được chữ", tone: "needs-human" },
+  failed: { say: "Xử lí lỗi. Hãy tải lại", tone: "needs-human" },
+};
 
 /**
  * Chiều cao ngăn tài liệu đã lưu, hoặc con số của thiết kế.
@@ -339,6 +385,21 @@ function bucket(iso: string): string {
  * @param bytes - Kích thước thật.
  * @returns Ví dụ `1,2 MB` — dấu phẩy thập phân, vì đây là bản tiếng Việt.
  */
+/**
+ * Dòng meta của một chip: kích thước, cộng số trang khi con số ấy tồn tại.
+ *
+ * `page_count` là `null` ở hai ca khác nhau — tệp văn bản thuần **không có** trang, và một
+ * tài liệu chưa đọc xong thì **chưa đo được** — nhưng cả hai cho ra cùng một dòng, vì màn
+ * hình không có gì thật để nói thêm. In `0 trang` cho ca thứ nhất là bịa, và giáo viên sẽ tin.
+ *
+ * @param one - Tài liệu.
+ * @returns `2,4 MB · 184 trang`, hoặc `2,4 MB`.
+ */
+function measure(one: TeacherDocument): string {
+  const size = weight(one.byte_size);
+  return one.page_count === null ? size : `${size} · ${one.page_count} trang`;
+}
+
 function weight(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;

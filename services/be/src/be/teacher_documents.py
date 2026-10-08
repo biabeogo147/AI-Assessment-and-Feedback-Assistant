@@ -23,17 +23,21 @@ Quyền sở hữu như mọi thứ khác (ADR-22): danh sách tìm qua `teacher
 một caller truyền vào để với tới tài liệu của người khác.
 """
 
+import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.config import Settings, get_settings
 from be.db import get_session
+from be.document_events import open_changes
 from be.identity import current_teacher
 from be.models import Document, Teacher, aware, new_id
 from be.queue import enqueue_probe
@@ -68,6 +72,11 @@ _MAX_BYTES = 100 * 1024 * 1024
 # giáo viên tưởng đã cất xong, đúng cái ADR-27 gọi là tệ nhất. `.txt` và `.md` ở lại vì
 # chúng không có bài toán text layer: chữ là toàn bộ file.
 _ALLOWED = (".pdf", ".txt", ".md")
+
+# Im lặng bao lâu thì phát một nhịp tim. Một kênh SSE không nói gì suốt mấy phút là thứ mà
+# proxy và load balancer cắt không báo trước; một dòng comment rỗng giữ nó sống mà không
+# giả vờ có tin. Mười lăm giây đủ dưới mọi mức idle timeout mặc định tôi biết.
+_HEARTBEAT_SECONDS = 15.0
 
 
 class DocumentRead(BaseModel):
@@ -180,6 +189,52 @@ async def library(
         .order_by(Document.uploaded_at.desc(), Document.id)
     )
     return [_as_read(row, settings.document_stale_after_seconds) for row in rows]
+
+
+@router.get("/teacher/documents/stream")
+async def watch(
+    request: Request,
+    teacher: Teacher = Depends(current_teacher),
+) -> StreamingResponse:
+    """Phát một dòng mỗi lần thư viện của giáo viên này đổi.
+
+    **Kênh chỉ hích, không chở dữ liệu.** Mỗi khung chỉ nói *có gì đó đổi*; trình duyệt nghe
+    xong thì gọi lại `GET /api/teacher/documents`. Lý do nằm ở `be/document_events.py`: pub/sub
+    của Redis không giữ lịch sử, nên một event chở dữ liệu mà mất đi là một chip sai vĩnh viễn,
+    còn một tiếng hích mất đi thì tiếng sau sửa luôn.
+
+    Hệ quả: trình duyệt **vẫn phải** đọc danh sách một lần lúc mở màn hình. Kênh này không bao
+    giờ là nguồn đầu tiên.
+
+    Args:
+        request: Nơi lấy pool Redis. Đọc qua `getattr` vì test dựng một app rỗng không có
+            lifespan, và không có queue thì kênh im lặng chứ không hỏng.
+        teacher: Được resolve từ header actor (ADR-13). Nó cũng là **phạm vi** của kênh: một
+            giáo viên chỉ nghe được channel của chính mình, nên không có id nào một caller
+            truyền vào để nghe trộm thư viện người khác.
+
+    Returns:
+        Một `text/event-stream` gồm các khung `data: 1` và những dòng nhịp tim.
+    """
+    pool = getattr(request.app.state, "queue_pool", None)
+
+    async def frames() -> AsyncIterator[str]:
+        async with open_changes(pool, teacher.id) as changes:
+            quiet_since = asyncio.get_running_loop().time()
+            async for changed in changes:
+                if await request.is_disconnected():
+                    return
+                if changed:
+                    quiet_since = asyncio.get_running_loop().time()
+                    yield "data: 1\n\n"
+                elif asyncio.get_running_loop().time() - quiet_since > _HEARTBEAT_SECONDS:
+                    quiet_since = asyncio.get_running_loop().time()
+                    # Dòng bắt đầu bằng `:` là comment của SSE: client bỏ qua, proxy thấy có
+                    # chữ chạy qua. Nó **không** phải một tiếng hích, nên nó không làm trình
+                    # duyệt gọi lại danh sách.
+                    yield ": vẫn đang nghe\n\n"
+
+    return StreamingResponse(frames(), media_type="text/event-stream")
 
 
 @router.post("/teacher/documents", response_model=DocumentRead, status_code=201)

@@ -381,6 +381,24 @@ export interface TeacherDocument {
   /** Đuôi file viết hoa, thứ nhãn vuông bên trái chip in ra. */
   kind: string;
   byte_size: number;
+  /**
+   * Một trong bốn giá trị của `DocumentState` bên BE. Rail vẽ bốn hình dạng theo nó, và
+   * `tools/check_contract.py` so danh sách này với bảng từ vựng trong `packages/contracts`.
+   */
+  state: "processing" | "ready" | "no_text_layer" | "failed";
+  /**
+   * Số trang, hoặc `null` khi con số **không tồn tại** (`.txt`, `.md`) hoặc **chưa đo được**.
+   * Không bao giờ là `0` cho một tệp không có khái niệm trang.
+   */
+  page_count: number | null;
+  /**
+   * Vì sao không dùng được, bằng một câu tiếng Việt. Rỗng khi không có gì sai.
+   *
+   * Chip **không** in chuỗi này — nó in một nhãn cố định theo `state`, vì `fault` có sáu giá
+   * trị và chúng là chẩn đoán chứ không phải nhãn. `fault` đi vào `title`, nên rê chuột vẫn
+   * phân biệt được *ảnh scan* với *không có trang nào*.
+   */
+  fault: string;
   uploaded_at: string;
 }
 
@@ -652,6 +670,49 @@ export interface TurnEvent {
  * @param onEvent - Gọi cho **mỗi** sự kiện, theo đúng thứ tự tới.
  * @param signal - Để màn hình cắt được một lượt treo.
  */
+/**
+ * Đọc một `text/event-stream` và nhả ra từng khung một.
+ *
+ * Tồn tại vì vòng lặp này từng có **hai** bản sao trong file, và bản thứ ba là lúc phải rút
+ * nó ra. Hai bản ấy không giống hệt nhau — một bản chỉ đọc `data:`, bản kia đọc cả `event:`
+ * và nối nhiều dòng `data:` — nên thứ dùng chung được là *khung*, không phải cách hiểu khung.
+ * Người gọi tự quyết định làm gì với `name` và `data`.
+ *
+ * Khung chỉ có comment (dòng mở đầu bằng `:`) bị **bỏ qua** tại đây, đúng như đặc tả SSE nói.
+ * Nhịp tim của kênh tài liệu đi theo đường ấy, nên nó không bao giờ tới tay người gọi.
+ *
+ * @param body - Thân response đang stream.
+ * @returns Một async iterator các khung đã tách.
+ */
+async function* sseFrames(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<{ name?: string; data: string }> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let rest = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    rest += decoder.decode(value, { stream: true });
+
+    const frames = rest.split("\n\n");
+    rest = frames.pop() ?? "";
+    for (const frame of frames) {
+      const lines = frame.split("\n");
+      const name = lines
+        .find((part) => part.startsWith("event: "))
+        ?.slice("event: ".length);
+      // Mọi dòng `data:`, nối lại bằng ký tự xuống dòng — đúng như định dạng quy định cho
+      // một field lặp lại. Chỉ đọc dòng đầu tiên thì mọi nội dung có dấu xuống dòng đều bị
+      // cắt ngắn mà không báo gì.
+      const carrying = lines.filter((part) => part.startsWith("data: "));
+      if (carrying.length === 0 && name === undefined) continue;
+      yield { name, data: carrying.map((part) => part.slice("data: ".length)).join("\n") };
+    }
+  }
+}
+
 async function streamTurn(
   text: string,
   into: { conversationId?: string; startNew?: boolean },
@@ -672,26 +733,49 @@ async function streamTurn(
     throw new Error(`Lỗi ${response.status}`);
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let rest = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    rest += decoder.decode(value, { stream: true });
-    const frames = rest.split("\n\n");
-    rest = frames.pop() ?? "";
-    for (const frame of frames) {
-      const line = frame.split("\n").find((one) => one.startsWith("data: "));
-      if (line === undefined) continue;
-      onEvent(JSON.parse(line.slice(6)) as TurnEvent);
-    }
+  for await (const frame of sseFrames(response.body)) {
+    onEvent(JSON.parse(frame.data) as TurnEvent);
   }
 }
 
 export const teacher = {
   me: () => call<TeacherMe>("teacher", "/teacher/me"),
   documents: () => call<TeacherDocument[]>("teacher", "/teacher/documents"),
+  /**
+   * Nghe kênh thư viện và gọi `onChange` mỗi lần có gì đó đổi.
+   *
+   * **Kênh chỉ hích, không chở dữ liệu**: mỗi khung chỉ nói *có gì đó đổi*, nên `onChange`
+   * phải tự gọi lại `documents()`. Nghe có vẻ vòng vo, nhưng nó là thứ làm kênh tự lành —
+   * pub/sub của Redis không giữ lịch sử, nên một khung chở dữ liệu mà mất đi là một chip sai
+   * vĩnh viễn, còn một tiếng hích mất đi thì tiếng sau sửa luôn.
+   *
+   * Dùng `fetch` chứ không `EventSource`: `EventSource` không gửi được header tuỳ ý, mà cả
+   * ứng dụng này xưng danh bằng `X-Actor`. Đẩy danh tính vào query string là đẩy nó vào mọi
+   * access log.
+   *
+   * Không ném khi kênh gãy. Mất kênh chỉ là mất việc tự mới lại; thư viện đọc lúc mở màn hình
+   * vẫn còn đó, và một lần F5 vẫn ra đúng.
+   *
+   * @param onChange - Gọi một lần cho mỗi tiếng hích.
+   * @param signal - Đóng kênh khi màn hình rời đi.
+   * @returns Một promise kết thúc khi kênh đóng.
+   */
+  watchDocuments: async (
+    onChange: () => void,
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    try {
+      const response = await fetch("/api/teacher/documents/stream", {
+        headers: headers("teacher"),
+        signal,
+      });
+      if (!response.ok || !response.body) return;
+      for await (const _ of sseFrames(response.body)) onChange();
+    } catch {
+      // Huỷ bỏ lúc rời màn hình cũng rơi vào đây, và nó không phải một lỗi.
+      return;
+    }
+  },
   upload: (file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -835,36 +919,11 @@ export async function streamReply(
     throw new Error("Trợ lý chưa trả lời được.");
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-    for (const event of events) {
-      const lines = event.split("\n");
-      const name = lines
-        .find((part) => part.startsWith("event: "))
-        ?.slice("event: ".length);
-      // Mọi dòng `data:`, nối lại bằng ký tự xuống dòng — đúng như định dạng
-      // quy định cho một field lặp lại. Chỉ đọc dòng đầu tiên thì mọi câu trả
-      // lời có dấu xuống dòng đều bị cắt ngắn mà không báo gì.
-      const data = lines
-        .filter((part) => part.startsWith("data: "))
-        .map((part) => part.slice("data: ".length))
-        .join("\n");
-
-      if (name === "chunk") onChunk(data);
-      // Stream bắt đầu trước khi BE biết model có trả lời được hay không, nên
-      // thất bại về tới đây chứ không về dưới dạng một status code.
-      if (name === "error")
-        throw new Error(data || "Trợ lý chưa trả lời được.");
-    }
+  for await (const { name, data } of sseFrames(response.body)) {
+    if (name === "chunk") onChunk(data);
+    // Stream bắt đầu trước khi BE biết model có trả lời được hay không, nên
+    // thất bại về tới đây chứ không về dưới dạng một status code.
+    if (name === "error") throw new Error(data || "Trợ lý chưa trả lời được.");
   }
 }
 

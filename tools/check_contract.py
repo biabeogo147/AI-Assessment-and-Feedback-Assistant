@@ -850,6 +850,103 @@ _NEVER_DISPATCH = (
 )
 
 
+# Những cách rẽ nhánh theo trạng thái tài liệu trong vùng vẽ chip. Phép tra bảng
+# `CHIP[one.state]` **không** nằm ở đây: nó chính là thứ luật này dựng lên. Ngoại lệ duy nhất
+# là `state === "ready"` — cổng kéo thả, và kéo được không phải một hình dạng thứ năm.
+_CHIP_NEVER_DISPATCH = (
+    r"switch\s*\(\s*\w*\.?state\b",
+    r"\.state\s*===\s*\"(?!ready\")",
+    r"\.state\s*!==\s*\"",
+    r"\.state\s*==[^=]",
+)
+
+
+def _block_after_class(source: str, marker: str) -> str:
+    """Thân của một class Python sau `marker`, tới chỗ thụt lề quay về mức không.
+
+    Args:
+        source: Toàn bộ file.
+        marker: Dòng mở đầu class, ví dụ `class DocumentState`.
+
+    Returns:
+        Phần thân, hoặc chuỗi rỗng khi không tìm thấy.
+    """
+    opened = source.find(marker)
+    if opened == -1:
+        return ""
+    rest = source[opened:].splitlines()
+    kept = [rest[0]]
+    for line in rest[1:]:
+        if line and not line.startswith((" ", "\t")):
+            break
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def check_the_document_chip_draws_every_state_the_backend_can_send() -> str | None:
+    """Chip tài liệu phải vẽ **đúng** tập trạng thái mà BE gửi được — không thừa, không thiếu.
+
+    Đây là phép so **hai ngôn ngữ**: `ChipState` trong `Rail.tsx` là TypeScript, `DocumentState`
+    trong `packages/contracts` là Python, và không service nào tự kiểm được rằng hai bảng từ
+    vựng ấy còn khớp. Đó chính là loại luật mà `tools/` tồn tại để canh.
+
+    Hình dạng thất bại nó bắt, và nó im lặng cả hai chiều: BE thêm một trạng thái thứ năm thì
+    chip rơi vào `CHIP[one.state]` không có khoá và vẽ ra `undefined`; FE đổi tên một nấc thì
+    đúng nấc ấy không bao giờ hiện ra nữa. Cả hai đều chạy, đều không ném, và đều chỉ lộ ra khi
+    một giáo viên nhìn vào một chip trống.
+
+    Cộng một luật về hình dạng, lấy từ `check_the_result_card_has_exactly_three_states`: vùng
+    vẽ chip không được rẽ nhánh bằng một dãy `if` trên `state`. Một dãy `if` thì thêm một nấc
+    là thêm một dòng, và không chỗ nào đếm được. Chip được dựng từ một **bảng**.
+
+    Returns:
+        None khi hai bảng từ vựng còn khớp, ngược lại là một thông báo thất bại.
+    """
+    rail = REPO_ROOT / "services" / "fe" / "src" / "screens" / "teacher" / "Rail.tsx"
+    spoken = REPO_ROOT / "packages" / "contracts" / "src" / "contracts" / "documents.py"
+    for path in (rail, spoken):
+        if not path.is_file():
+            return _fail("chip-states", f"{path} is missing; the check cannot run")
+
+    body = rail.read_text(encoding="utf-8")
+    declared = re.search(r"export type ChipState\s*=\s*([^;]+);", body)
+    table = _top_level_keys(_block_after(body, "const CHIP"))
+    if declared is None or not table:
+        return _fail(
+            "chip-states",
+            "Rail.tsx must declare the union `ChipState` and the table `CHIP`. The chip's "
+            "words live in a table so their number can be counted; a chain of if-branches "
+            "cannot be.",
+        )
+    drawn = re.findall(r'"([a-z_]+)"', declared.group(1))
+
+    # Ben Python: cac thanh vien cua StrEnum DocumentState.
+    enum = _block_after_class(spoken.read_text(encoding="utf-8"), "class DocumentState")
+    sent = re.findall(r'^\s{4}[A-Z_]+ = "([a-z_]+)"', enum, re.MULTILINE)
+    if not sent:
+        return _fail("chip-states", "could not read DocumentState from contracts/documents.py")
+
+    if not set(drawn) == set(table) == set(sent):
+        return _fail(
+            "chip-states",
+            f"the document chip and the backend disagree: ChipState {sorted(drawn)}, CHIP "
+            f"{sorted(table)}, DocumentState {sorted(sent)}. Every state the backend can store "
+            "must have a shape on the rail, and a shape nobody can reach is dead paint.",
+        )
+
+    drawing = _no_comments(body[body.index("const CHIP") :])
+    branching = [one for pattern in _CHIP_NEVER_DISPATCH for one in re.findall(pattern, drawing)]
+    if branching:
+        return _fail(
+            "chip-states",
+            f"Rail.tsx branches on a document state through {branching[0].strip()}. The chip is "
+            "built from the CHIP table; the one comparison allowed is the drag gate "
+            '(`state === "ready"`), because being draggable is not a fourth shape.',
+        )
+
+    return None
+
+
 def check_the_result_card_has_exactly_three_states() -> str | None:
     """Thẻ kết quả là một máy trạng thái ba nấc, và số nấc phải đếm được.
 
@@ -1345,6 +1442,7 @@ CHECKS = (
     check_every_figure_matches_the_diagram_it_came_from,
     check_the_model_text_passes_through_the_escape_repair,
     check_the_result_card_has_exactly_three_states,
+    check_the_document_chip_draws_every_state_the_backend_can_send,
     check_rail_icons_do_not_sit_on_the_text_baseline,
     check_collapsed_panes_shrink_to_their_own_head,
     check_a_locked_control_looks_locked,

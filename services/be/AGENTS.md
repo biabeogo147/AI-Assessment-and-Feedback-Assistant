@@ -4,8 +4,8 @@ Adds to the root contract. Constraints only.
 
 - BE owns every business decision. If code decides something rather than reporting it, it belongs
   here and nowhere else.
-- BE owns every database. AGENT receives no credentials, so anything AGENT needs travels in the job
-  payload.
+- BE owns every database, in **both** of its processes: the API and the queue worker each hold the
+  credential. AGENT and DOCUMENT hold none, so what they need travels in the job payload.
 - Document bytes live in MinIO, not in a column. `documents.storage_key` is the key, and the bytes
   are written before the row so a failure leaves collectable garbage, never a row pointing at
   nothing.

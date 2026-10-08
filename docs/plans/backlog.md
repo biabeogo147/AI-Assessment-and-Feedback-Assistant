@@ -664,3 +664,16 @@ phẩm, không phải về code. Tác hại hiện tại chỉ là rác trong b�
 (`propose.py` → `_Proposal.text` → `MathText`) đi **cùng một ống JSON** với đề bài, và trước đợt này
 không chỗ nào sửa. Check `escape-repair-is-wired-in` nay tự tìm mọi chỗ gọi `with_structured_output`
 trong `graphs/`, nên một graph mới quên nối dây sẽ làm build đỏ thay vì im lặng.
+
+## Hai component Figma chưa vẽ xong
+
+Ghi ngày 2026-10-08, lúc xếp lại page `Components` cho plan 2b. Cả hai là **quyết định thiết
+kế**, không phải lỗi máy móc, nên chúng không được sửa vội trong một plan đang làm việc khác.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| `Kriky state` (`234:1180`) có năm variant — `nghỉ`, `đang đọc`, `đang hỏi`, `đang làm`, `đã xong` — mỗi cái là một hộp **40×40 rỗng không** | Cần vẽ năm tư thế của linh vật Dế Mèn. Tài sản nằm ở page `Assets — Dế Mèn`; việc còn lại là chọn tư thế nào cho trạng thái nào, và đó là một quyết định về nhân vật chứ không phải về code |
+| `Question card` (`267:30`) là COMPONENT_SET nhưng chỉ có **một** variant `Lời giải=thu gọn` | Một trục variant một giá trị thì không phải một trục. Tên trục ngụ ý phải có `Lời giải=mở`, nhưng chưa ai vẽ thẻ lời giải mở. Hai đường: vẽ variant thứ hai, hoặc bỏ trục và để nó là một component thường — thuộc tính boolean `Sửa được` thì thật và đang được ADR-01 nhắc tới, nên nó ở lại dù chọn đường nào |
+
+Không chặn gì đang chạy: `Kriky state` chưa artboard nào dùng, và `Question card` dùng được bình
+thường ở artboard 6 và 7 với variant duy nhất của nó.

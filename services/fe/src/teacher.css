@@ -583,11 +583,43 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  height: 56px;
+  /* `min-height`, không phải `height`. Ba trong bốn trạng thái có một dòng thứ ba, và Figma
+   * đo chúng ở 78px so với 58px của `sẵn sàng`. Ghim chiều cao thì dòng ấy bị cắt mất.
+   * Chip co lại một nhịp lúc tài liệu đọc xong — đó là phản hồi, không phải nhiễu. */
+  min-height: 56px;
   padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+/* Chưa sẵn sàng thì không kéo được (Rail.tsx đặt `draggable`), nên con trỏ phải nói ra điều
+ * đó trước khi người ta thử. */
+.rail .document:not(.settled) {
+  cursor: default;
+}
+
+/* Dòng thứ ba: vì sao tài liệu này chưa dùng được.
+ *
+ * Ba màu trạng thái, bốn trạng thái — hai cái xấu dùng chung `needs-human`. Foundations của
+ * Figma cố ý chỉ có ba và ghi thẳng "ba màu cùng trọng lượng, cố ý không xếp hạng nghiêm
+ * trọng"; cái phân biệt hai trạng thái xấu là chữ, không phải màu. `accent` bị cấm dùng cho
+ * trạng thái, nên nó không có mặt ở đây. */
+.rail .document .status {
+  /* Cùng `--type-caption` và cùng line-height với `.meta` ngay trên nó — Figma vẽ cả ba dòng
+   * trong cột này ở một cỡ. Thiếu hai dòng này thì `.status` ăn cỡ chữ mặc định và render
+   * 14px cạnh hai dòng 11px; đo trên trình duyệt ngày 08/10/2026 mới thấy. */
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.rail .document.processing .status {
+  color: var(--state-processing);
+}
+
+.rail .document.needs-human .status {
+  color: var(--state-needs-human);
 }
 
 .rail .document .kind {

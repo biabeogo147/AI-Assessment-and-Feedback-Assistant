@@ -142,3 +142,86 @@ async def test_the_handler_never_inserts_a_row(library) -> None:
 
     async with maker() as session:
         assert len((await session.scalars(select(Document))).all()) == 1
+
+
+class _Redis:
+    """Một pool Redis chỉ ghi lại, hoặc chết nếu test bảo nó chết."""
+
+    def __init__(self, broken: bool = False) -> None:
+        self.rang: list[tuple[str, str]] = []
+        self._broken = broken
+
+    async def publish(self, channel: str, message: str) -> None:
+        """Ghi lại một tiếng hích.
+
+        Args:
+            channel: Channel đích.
+            message: Nội dung. Không ai đọc nó.
+
+        Raises:
+            OSError: Khi test dựng pool này ở trạng thái gãy.
+        """
+        if self._broken:
+            raise OSError("redis is gone")
+        self.rang.append((channel, message))
+
+
+@pytest.mark.asyncio
+async def test_the_owner_is_told_on_the_channel_that_belongs_to_them(library) -> None:
+    """Ghi xong thì hích, và hích đúng channel của chủ sở hữu.
+
+    Channel mang `teacher_id`, không mang `document_id`: rail vẽ **cả thư viện**, nên một màn
+    hình đang mở là một subscription. Lấy chủ sở hữu bằng `returning` ngay trong câu `UPDATE`,
+    nên không có một `SELECT` thứ hai và không có khe nào cho hàng biến mất giữa hai câu lệnh.
+    """
+    maker, document_id = library
+    async with maker() as session:
+        owner = (await session.scalar(select(Document))).teacher_id
+
+    redis = _Redis()
+    await document_probed(
+        {"redis": redis},
+        DocumentProbed(
+            document_id=document_id, state=DocumentState.READY, page_count=184
+        ).model_dump(mode="json"),
+    )
+
+    assert redis.rang == [(f"documents:{owner}", "1")]
+
+
+@pytest.mark.asyncio
+async def test_a_dead_channel_does_not_fail_a_job_that_already_did_its_work(library) -> None:
+    """Kênh gãy thì job vẫn **xong**, vì hàng đã ghi rồi.
+
+    Ném ra ngoài ở đây là để arq đem job đi thử lại — và lần thử lại ấy ghi đè đúng cái vừa
+    ghi đúng. Thứ duy nhất mất đi khi kênh gãy là việc màn hình tự mới lại.
+    """
+    maker, document_id = library
+
+    written = await document_probed(
+        {"redis": _Redis(broken=True)},
+        DocumentProbed(
+            document_id=document_id, state=DocumentState.READY, page_count=184
+        ).model_dump(mode="json"),
+    )
+
+    assert written["written"] is True
+    async with maker() as session:
+        assert (await session.scalar(select(Document))).state == DocumentState.READY
+
+
+@pytest.mark.asyncio
+async def test_a_row_that_is_gone_rings_nobody(library) -> None:
+    """Không ghi được hàng nào thì không hích ai cả.
+
+    Một tiếng hích cho một hàng không tồn tại làm mọi màn hình đang mở đọc lại danh sách mà
+    không có gì đổi — rẻ, nhưng là một lời nói dối nhỏ về việc *vừa có gì đó xảy ra*.
+    """
+    redis = _Redis()
+    await document_probed(
+        {"redis": redis},
+        DocumentProbed(document_id="khong-ton-tai", state=DocumentState.READY).model_dump(
+            mode="json"
+        ),
+    )
+    assert redis.rang == []

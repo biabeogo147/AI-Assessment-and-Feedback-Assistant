@@ -1495,6 +1495,9 @@ describe("tải một tài liệu lên", () => {
       filename: "de-cuong.pdf",
       kind: "PDF",
       byte_size: 2048,
+      state: "ready",
+      page_count: 12,
+      fault: "",
       uploaded_at: "2026-10-03T00:00:00+00:00",
     };
     Element.prototype.scrollIntoView = vi.fn();
@@ -1942,6 +1945,9 @@ describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", ()
       filename: "de-cuong.pdf",
       kind: "PDF",
       byte_size: 2048,
+      state: "ready",
+      page_count: 12,
+      fault: "",
       uploaded_at: "2026-10-03T00:00:00+00:00",
     },
   ];
@@ -4758,5 +4764,191 @@ describe("bốn chỗ review tìm ra, mỗi chỗ một đường test cũ khôn
       (screen.getByRole("button", { name: /12A/ }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(screen.getByText("Hoàn tác")).toBeTruthy();
+  });
+});
+
+/**
+ * Chip tài liệu: bốn trạng thái, và một kênh nói khi chúng đổi.
+ *
+ * ADR-27 gọi tên thứ mấy test này canh: *"Một chip trông dùng được mà chưa dùng được là một
+ * chip nói dối."* Không test nào ở đây kiểm chip trông có đẹp không — việc ấy đo với Figma.
+ * Chúng kiểm bốn điều khoản: mỗi trạng thái nói đúng câu của nó, số trang không bị bịa ra,
+ * chỉ tài liệu sẵn sàng mới kéo được, và kênh chỉ **hích** chứ không chở dữ liệu.
+ */
+describe("rail: chip tài liệu bốn trạng thái", () => {
+  const SIZE = 2_411_724;
+
+  function paper(
+    state: string,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      document_id: "d1",
+      filename: "SGK Giải tích 12.pdf",
+      kind: "PDF",
+      byte_size: SIZE,
+      state,
+      page_count: 184,
+      fault: "",
+      uploaded_at: "2026-10-08T00:00:00+00:00",
+      ...extra,
+    };
+  }
+
+  /**
+   * Dựng `fetch` giả cho rail, có thể đẩy một tiếng hích vào kênh bất cứ lúc nào.
+   *
+   * @param library - Danh sách tài liệu; mỗi lần gọi lại trả phần tử kế tiếp, phần tử cuối
+   *   lặp lại mãi. Nhờ vậy một test đo được *đọc lại sau khi nghe hích* mà không cần mock.
+   * @param channel - `null` thì kênh gãy ngay, ngược lại là một stream điều khiển được.
+   */
+  function rail(
+    library: Record<string, unknown>[][],
+    channel: "open" | "broken" = "broken",
+  ) {
+    const reads: string[] = [];
+    let nudge: (() => void) | null = null;
+    let round = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.startsWith("/api/teacher/documents/stream")) {
+          if (channel === "broken") return Promise.resolve({ ok: false });
+          const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+              nudge = () => controller.enqueue(new TextEncoder().encode("data: 1\n\n"));
+            },
+          });
+          return Promise.resolve({ ok: true, body });
+        }
+        let out: unknown = [];
+        if (url.startsWith("/api/teacher/documents")) {
+          reads.push(url);
+          out = library[Math.min(round++, library.length - 1)];
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(out),
+          text: () => Promise.resolve(""),
+        });
+      }),
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+    return { reads, push: () => nudge?.() };
+  }
+
+  function show() {
+    render(<Chat conversationId={null} fresh={true} openPaper={null} />);
+  }
+
+  it("mỗi trạng thái nói đúng câu của nó, và sẵn sàng thì không nói gì", async () => {
+    for (const [state, say] of [
+      ["processing", "Đang xử lý…"],
+      ["no_text_layer", "Không đọc được chữ"],
+      ["failed", "Xử lí lỗi. Hãy tải lại"],
+    ] as const) {
+      rail([[paper(state)]]);
+      const screenOne = render(
+        <Chat conversationId={null} fresh={true} openPaper={null} />,
+      );
+      await waitFor(() => expect(screen.getByText(say)).toBeTruthy());
+      screenOne.unmount();
+      vi.unstubAllGlobals();
+    }
+
+    rail([[paper("ready")]]);
+    show();
+    await waitFor(() =>
+      expect(screen.getByText("SGK Giải tích 12.pdf")).toBeTruthy(),
+    );
+    // Không câu nào trong ba câu kia được xuất hiện: số trang trên dòng meta đã là bằng
+    // chứng đã đọc được chữ, nên một dòng "Sẵn sàng" chỉ là nhiễu lặp lại.
+    expect(screen.queryByText("Đang xử lý…")).toBeNull();
+    expect(screen.queryByText("Không đọc được chữ")).toBeNull();
+  });
+
+  it("lý do cụ thể nằm trong title, không nằm trên chip", async () => {
+    rail([
+      [paper("no_text_layer", { fault: "Tệp PDF này không có trang nào." })],
+    ]);
+    show();
+    await waitFor(() =>
+      expect(screen.getByText("Không đọc được chữ")).toBeTruthy(),
+    );
+
+    // Chip in nhãn; `fault` — sáu giá trị chẩn đoán khác nhau — đi vào title. Mất chỗ này
+    // là mất khả năng phân biệt "ảnh scan" với "không có trang nào".
+    const chip = document.querySelector(".rail .document") as HTMLElement;
+    expect(chip.title).toBe("Tệp PDF này không có trang nào.");
+  });
+
+  it("không có số trang thì không in ra, và không bao giờ in 0 trang", async () => {
+    rail([[paper("ready", { page_count: null, filename: "ghi-chú.txt", kind: "TXT" })]]);
+    show();
+    await waitFor(() => expect(screen.getByText("ghi-chú.txt")).toBeTruthy());
+
+    const meta = document.querySelector(".rail .document .meta") as HTMLElement;
+    expect(meta.textContent).toBe("2,3 MB");
+    expect(meta.textContent).not.toContain("trang");
+  });
+
+  it("chỉ tài liệu sẵn sàng mới kéo được", async () => {
+    rail([[paper("ready"), paper("processing", { document_id: "d2" })]]);
+    show();
+    await waitFor(() =>
+      expect(document.querySelectorAll(".rail .document")).toHaveLength(2),
+    );
+
+    const chips = document.querySelectorAll(".rail .document");
+    expect(chips[0].getAttribute("draggable")).toBe("true");
+    // ADR-27: màn hình đã có đủ thông tin để nói trước, nên thả một tài liệu chưa đọc xong
+    // vào ô chat rồi nhận một câu từ chối khó hiểu là một lần im lặng có chủ ý.
+    expect(chips[1].getAttribute("draggable")).toBe("false");
+  });
+
+  it("nghe một tiếng hích thì đọc lại danh sách", async () => {
+    const { reads, push } = rail(
+      [[paper("processing")], [paper("ready")]],
+      "open",
+    );
+    show();
+    await waitFor(() => expect(screen.getByText("Đang xử lý…")).toBeTruthy());
+    expect(reads).toHaveLength(1);
+
+    push();
+
+    // Kênh **chỉ hích**: khung không chở hàng nào, nên màn hình phải tự đọc lại. Đó là thứ
+    // làm nó tự lành — pub/sub của Redis không giữ lịch sử, nên một khung chở dữ liệu mà
+    // mất đi là một chip sai vĩnh viễn.
+    await waitFor(() => expect(reads.length).toBeGreaterThan(1));
+    await waitFor(() => expect(screen.queryByText("Đang xử lý…")).toBeNull());
+  });
+
+  it("tệp quá trần thì không request nào rời trình duyệt", async () => {
+    const { reads } = rail([[]]);
+    show();
+    await waitFor(() => expect(reads).toHaveLength(1));
+
+    // Trình duyệt biết cỡ tệp ngay từ `file.size`. Đẩy hết 200 MB lên rồi mới nhận 413 là
+    // bắt giáo viên chờ hàng chục giây để nghe một câu từ chối đã biết trước.
+    const huge = new File(["x"], "to.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 101 * 1024 * 1024 });
+    const picker = document.querySelector("input[type=file]") as HTMLInputElement;
+    Object.defineProperty(picker, "files", { value: [huge] });
+    fireEvent.change(picker);
+
+    await waitFor(() => expect(screen.getByText(/lớn hơn 100 MB/)).toBeTruthy());
+    expect(reads).toHaveLength(1);
+  });
+
+  it("kênh gãy thì rail vẫn vẽ thư viện đã đọc lúc mở", async () => {
+    rail([[paper("ready")]], "broken");
+    show();
+    // Mất kênh chỉ là mất việc tự mới lại. Một lần F5 vẫn ra đúng, nên màn hình không được
+    // phép trống hay báo lỗi vì chuyện ấy.
+    await waitFor(() =>
+      expect(screen.getByText("SGK Giải tích 12.pdf")).toBeTruthy(),
+    );
   });
 });
