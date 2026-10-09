@@ -24,53 +24,11 @@ UC-07 & Student & Báo cáo chỗ trợ lí giải thích chưa rõ \\
 
 UC-06 không có actor trực tiếp: đó là hành vi hệ thống, được \texttt{<<include>>} từ UC-04.
 
-\section{Quy ước đọc sơ đồ}
-
-Hình~\ref{fig:use-case} dùng bốn quan hệ và bốn màu. Hai bộ quy ước này độc lập với nhau, và đó là
-điều dễ nhầm nhất khi đọc hình.
-
-\begin{table}[htbp]
-\centering
-\caption{Bốn quan hệ dùng trong Use Case Diagram}
-\label{tab:quan-he}
-\begin{tabular}{@{}lL{8.2cm}@{}}
-\toprule
-\textbf{Quan hệ} & \textbf{Ý nghĩa} \\
-\midrule
-Association & Actor trực tiếp tương tác với use case. \\
-\texttt{<<include>>} & Hành vi \emph{bắt buộc} xảy ra như một phần của use case chính. \\
-\texttt{<<extend>>} & Hành vi chỉ xảy ra khi có một điều kiện nghiệp vụ cụ thể. \\
-Generalization & Use case chuyên biệt kế thừa mục tiêu chung từ use case tổng quát. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\vspace{0.4cm}
-
-\begin{table}[htbp]
-\centering
-\caption{Bốn màu dùng trong Use Case Diagram}
-\label{tab:mau}
-\begin{tabular}{@{}lL{8.2cm}@{}}
-\toprule
-\textbf{Màu} & \textbf{Ý nghĩa} \\
-\midrule
-Xanh dương & Mục tiêu chính của Teacher. \\
-Xanh lá & Mục tiêu chính của Student. \\
-Cam & Hành vi hệ thống bắt buộc, thường đi với \texttt{<<include>>}. \\
-Hồng & Hành vi điều kiện, ngoại lệ hoặc review, thường đi với \texttt{<<extend>>}. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Màu nói việc đó thuộc về ai, không nói kiểu quan hệ.} Ví dụ \emph{Báo cáo giải thích chưa
-rõ} là mục tiêu của Student nên tô xanh lá, kể cả khi nó nối bằng \texttt{<<extend>>}.
-
 \begin{landscape}
 \begin{figure}[p]
   \centering
   \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{use-case.pdf}
-  \caption[Use Case Diagram]{Use Case Diagram --- bảy use case, hai actor, và ranh giới hệ thống}
+  \caption[Use Case Diagram]{Use Case Diagram}
   \label{fig:use-case}
 \end{figure}
 \end{landscape}

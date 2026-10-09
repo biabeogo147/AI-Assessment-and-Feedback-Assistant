@@ -1,26 +1,26 @@
 {
   "activity-overview.pdf": {
     "source": "docs/diagrams/activity-overview.drawio",
-    "sha256": "844ac60378a06fa9616815d5ce03397625ddcd357e486828ac4cfa96ebfd5f77"
+    "sha256": "de304ae44ec28dc6ec154ac3e3a68d2230488d593949518bfe15521a0ecc93ef"
   },
   "business-workflows.pdf": {
     "source": "docs/diagrams/business-workflows.drawio",
-    "sha256": "1c77bcdf7c2037fdc7749864cf8621b192b68e8aaaf8882a5c55ea3fc6c5940a"
+    "sha256": "e6217fb9f132de83b6094ae94921e2d5dabed91aba551de590171047000e889c"
   },
   "domain-context.pdf": {
     "source": "docs/diagrams/domain-context.drawio",
-    "sha256": "b710e117eecb4f15cf2d67a206e8cfbb82b9ab395b5f010f7273110e6d4daf53"
+    "sha256": "354855c7d2ce1db4f589bb940c73902dc32a2abab2eab3d322ec4da983a4ea51"
   },
   "system-architecture.pdf": {
     "source": "docs/diagrams/system-architecture.drawio",
-    "sha256": "4962edc638d962a9e9e3c912c47c4e25f572c3a3ba238650c14c5989a4fa5821"
+    "sha256": "b29b83960d98814a95073022fe19658a0de78ef3393ce2a0ebffa99384c87efa"
   },
   "use-case.pdf": {
     "source": "docs/diagrams/use-case.drawio",
-    "sha256": "0556ffc943d4b59d8789507c1349e202975a066641a94f64312328251ed5ff85"
+    "sha256": "602826c93f5f20753f07ebd5b00ae0ed44d213b9c34010e4f0c566168bbdfbd8"
   },
   "vong-hoc.pdf": {
     "source": "docs/diagrams/vong-hoc.drawio",
-    "sha256": "2094484c4229bf0fc41ac8de7f66eda515ff1017e4889c5817146c8e3faaa5ea"
+    "sha256": "d851e6b06032f33fa36f7ed75cbbe7637e0b797d9e2698ce54359e8f7df8a8a3"
   }
 }

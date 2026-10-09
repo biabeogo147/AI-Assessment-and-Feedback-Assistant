@@ -39,7 +39,21 @@
 \usepackage{array}
 \usepackage{longtable}          % bảng 13 bảng dữ liệu ở chương 7 vắt qua trang
 \usepackage{enumitem}
+\usepackage{float}
 \setlist{nosep,leftmargin=*}
+
+% Không thụt đầu dòng; một đoạn mới nhận ra bằng khoảng trắng dọc.
+%
+% Vì sao là package này chứ không phải một dòng \setlength{\parindent}{0pt}: thụt đầu dòng là
+% tín hiệu **duy nhất** đánh dấu một đoạn mới trong lối chữ chạy liền, nên bỏ nó mà không trả
+% lại gì thì hai đoạn liền nhau dính thành một khối không có đường biên. parskip đổi cả
+% \parindent lẫn \parskip cùng lúc, và nó vá thêm khoảng cách của list -- thứ một \parskip lớn
+% đặt bằng tay sẽ làm giãn ra.
+%
+% Nạp **sau** enumitem, và thứ tự là cả lý do: \setlist{nosep} ở trên ghim khoảng cách trong
+% list về 0, và nạp sau giữ nguyên điều đó. Đảo lại thì vá của parskip chạy trước rồi bị
+% enumitem ghi đè.
+\usepackage{parskip}
 
 \usepackage[unicode,hidelinks]{hyperref}
 \hypersetup{

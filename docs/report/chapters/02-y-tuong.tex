@@ -1,9 +1,6 @@
 \chapter{Ý tưởng sản phẩm}
 \label{ch:y-tuong}
 
-Dùng AI để sinh đề là chuyện đã có nhiều người làm. Chương này nói về những chỗ Kriky quyết khác, và
-lý do đằng sau mỗi quyết định.
-
 \section{Luồng tổng thể}
 \label{sec:vong-hoc}
 
@@ -12,22 +9,19 @@ lý do đằng sau mỗi quyết định.
 \begin{enumerate}
   \item Giáo viên tạo và duyệt đề.
   \item Học sinh làm bài.
-  \item Hệ thống đánh giá đáp án và cách tư duy.
-  \item Hệ thống xác định lỗi sai hoặc hiểu nhầm khái niệm.
+  \item Hệ thống chấm điểm.
+  \item Hệ thống xác định lỗi sai của học sinh.
   \item Hệ thống giải thích lỗi, học sinh hỏi lại đến khi hiểu.
-  \item Hệ thống tạo câu biến thể của chính câu vừa sai.
-  \item Học sinh làm lại, tối đa ba vòng cho mỗi câu.
+  \item Hệ thống tạo câu biến thể của câu sai.
+  \item Học sinh làm lại.
   \item Mỗi câu chốt ở một trong ba mức điểm, và bài kết thúc.
 \end{enumerate}
-
-Hình~\ref{fig:vong-hoc} vẽ tám bước ấy kèm chỗ vòng lặp quay lại, và nó là bản đồ của cả chương
-này.
 
 \begin{landscape}
 \begin{figure}[p]
   \centering
   \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{vong-hoc.pdf}
-  \caption[Vòng học khép kín]{Vòng học khép kín --- tám bước, và chỗ vòng lặp quay lại}
+  \caption[Tổng thể một vòng]{Tổng thể một vòng}
   \label{fig:vong-hoc}
 \end{figure}
 \end{landscape}
