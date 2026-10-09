@@ -25,11 +25,9 @@ from agent.handlers import (
     ring_bell,
     write_draft_question,
 )
-from agent.legacy_grading import grade_submission
 from contracts import (
     EXPLAIN_TURN_TASK,
     GENERATE_RETRY_QUESTION_TASK,
-    GRADE_SUBMISSION_TASK,
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
     REPORT_PLAN_TASK,
@@ -99,9 +97,6 @@ class WorkerSettings:
         # của task trên: đầu vào của nó là kết quả cả plan, không phải một catalog
         # (ADR-25). Nhờ vậy một job vẫn là một lần gọi model.
         func(report_plan, name=REPORT_PLAN_TASK),
-        # Đường cũ, đã bị ADR-20 thay thế. Vẫn đăng ký để một client cũ không treo
-        # mãi trên một task không ai tiêu thụ.
-        func(grade_submission, name=GRADE_SUBMISSION_TASK),
     ]
     queue_name = _settings.agent_queue_name
     redis_settings = _redis_settings()

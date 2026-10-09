@@ -43,10 +43,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | --- | --- |
 | BE and AGENT never import each other | automatic: `lint-imports`, also a pre-commit hook |
 | `contracts` never imports a service | automatic: `lint-imports` |
-| AGENT emits no routing decision | automatic: `test_agent_emits_no_routing_decision` |
-| Low confidence is flagged for Teacher review | automatic: `test_low_confidence_routes_to_teacher` |
-| A correct answer does not exempt a submission from review | automatic: `test_correct_answer_does_not_exempt_a_submission_from_review` |
-| `ReviewReason` covers all four Workflow 4 conditions | automatic: `test_review_reason_covers_all_four_workflow_4_conditions` |
+| AGENT emits no routing decision | automatic: `tests/test_no_routing_decision.py` |
 | AGENT and `document` hold no database credentials | automatic: `tools/check_contract.py` |
 | One process builds the schema; the rest only check it | automatic: `tools/check_contract.py` |
 | Both ends of the document channel read its name from `contracts` | automatic: `tools/check_contract.py` |
@@ -61,10 +58,8 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | A deleted conversation reads as absent, takes no new turn, and keeps the turns it holds | automatic: `test_a_deleted_conversation_is_not_the_running_one`, `test_a_deleted_conversation_keeps_its_turns` |
 | Only a question back carries buttons | automatic: `test_a_plain_answer_carries_no_buttons_even_with_candidates_in_hand` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
-| FE never applies its own confidence threshold | review: `confidence` may be displayed, never compared |
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |
-| A low-confidence result is not shown to the Student before a Teacher handles it | not yet enforced; needs a test when UC-05 is built |
-| A retry question is a variant of the same question, not merely the same objective | not yet enforced; needs a test when UC-06 is built (ADR-17) |
+| A retry question is a variant of the same question, not merely the same objective | not yet enforced; needs a test when the retry-question flow is built (ADR-17) |
 
 Never let the unenforced group grow past three rows. When you implement one of those use cases, the
 plan for it must convert its row to an automatic check.
@@ -85,7 +80,7 @@ If interrupted or validation fails, leave the plan in `active/` with honest chec
 `services/` or `packages/`; any field or enum in `packages/contracts`; a new dependency, a new
 `.env.example` variable, or new infrastructure; `AGENTS.md`, `CLAUDE.md`, `dev.ps1`, or the
 `import-linter` and pre-commit configuration; an endpoint or a queue task name; behaviour in
-`be/review_policy.py` or any business threshold. A change that produces a decision record always
+`be/scoring.py` or any business threshold. A change that produces a decision record always
 needs a plan.
 
 **Exempt**, with a clear commit message instead: typo and wording fixes in docs; ticking plan
@@ -125,7 +120,7 @@ never becomes a second diagram source. Every overview document links the diagram
 prose that describes it in the same change set.
 
 Documentation under `docs/`, plus every comment and docstring, is Vietnamese with English technical
-and domain terms (`Assessment`, `Distractor`, `Confidence`, `Teacher Review Queue`). Identifiers,
+and domain terms (`Assessment`, `Distractor`, `Misconception`). Identifiers,
 logs and check-matched strings stay English, as does every `AGENTS.md`, `CLAUDE.md` and `README.md`.
 
 ## Source Code Rules
@@ -141,8 +136,8 @@ services share an environment; naming rules for a new service live in `architect
 Add a function comment for any new public, non-trivial, business-logic, side-effecting or async
 function, and for complex helpers; skip it for obvious private helpers and one-line transformations.
 Cover the relevant parts of purpose, inputs and their constraints, outputs, side effects and errors,
-in the language's native style — Python docstrings, JSDoc for TypeScript. `decide_review` in
-`services/be/src/be/review_policy.py` is the reference example.
+in the language's native style — Python docstrings, JSDoc for TypeScript. `mark_after_round` in
+`services/be/src/be/scoring.py` is the reference example.
 
 ## Validation Before Completion
 

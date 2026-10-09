@@ -117,7 +117,7 @@ Với ba worker, không có endpoint nào để gọi, nên bằng chứng chún
 động:
 
 ```text
-Starting worker for 5 functions: write_draft_question, generate_retry_question, explain_turn, propose_next_step, grade_submission
+Starting worker for 6 functions: write_draft_question, generate_retry_question, explain_turn, name_conversation, propose_next_step, report_plan
 AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0
 ```
 
@@ -300,9 +300,9 @@ ALTER TABLE teacher_conversations DROP CONSTRAINT teacher_conversations_teacher_
 ALTER TABLE teacher_conversations ADD COLUMN title VARCHAR(120) NOT NULL DEFAULT '';
 ```
 
-Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) vẫn còn cho tới khi hàng đợi
-review của giáo viên được thiết kế. Nó **không** nằm trong luồng lõi nữa; đừng đọc nó như cách hệ
-thống chấm bài.
+Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) **đã bị gỡ** ngày
+09/10/2026, cùng với hàng đợi review của giáo viên -- thứ chưa bao giờ được dựng. Việc chấm chạy
+thẳng trong request nộp bài; xem ADR-20.
 
 OpenAPI đầy đủ có sẵn tại `http://localhost:8000/docs`, sinh tự động, không có bản viết tay nào cần
 đồng bộ.

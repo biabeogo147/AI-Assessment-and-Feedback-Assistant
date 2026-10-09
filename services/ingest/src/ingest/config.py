@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         ingest_queue_name: Queue service này tiêu thụ. `services/document` đẩy kết quả
             đọc tệp vào đây. Đặt tên theo **bên tiêu thụ** chứ không theo công việc, vì
             `aiafa:grading` đã mục ruỗng đúng theo cách kia: tên nói về chấm bài và nay
-            chở bảy task, sáu cái không phải chấm bài. Tên cũ của biến này là
+            chở sáu task và không task nào chấm bài. Tên cũ của biến này là
             `BE_QUEUE_NAME`, và nó sai đúng theo luật ấy ngay khi worker rời `services/be`.
         database_url: URL SQLAlchemy async của kho giữ state. Service này **giữ
             credential database**, khác `agent` và `document` — và đó là hợp lệ: nó ghi

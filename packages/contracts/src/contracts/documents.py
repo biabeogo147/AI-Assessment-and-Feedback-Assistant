@@ -2,8 +2,8 @@
 
 Vòng việc đi hai chiều và vì thế có hai message: BE giao một tệp cho `services/document` đọc,
 rồi `services/document` giao kết quả về cho BE ghi. Không bên nào gọi HTTP sang bên nào, và
-không bên nào đọc database của bên nào -- payload chở đủ mọi thứ, đúng như `GradingRequested`
-đã làm cho AGENT.
+không bên nào đọc database của bên nào -- payload chở đủ mọi thứ, đúng như
+`DraftQuestionRequested` làm cho AGENT.
 
 Module này chỉ là dữ liệu. Ngưỡng quyết định một tệp có đọc được chữ hay không **không** ở đây:
 nó thuộc `services/document`, nơi duy nhất mở tệp ra đếm. Đặt nó ở đây là làm hai service cùng
@@ -14,10 +14,12 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
-from contracts.messages import SCHEMA_VERSION
+# Số phiên bản của họ message này. Mỗi họ tự khai số của chính nó, như `authoring` và
+# `teacher_chat` -- một họ đổi hình dạng thì chỉ số của nó nhích, không kéo theo họ khác.
+SCHEMA_VERSION = 1
 
-# Tên task của arq, mỗi cái cho một chiều. Chúng ở đây vì cùng một lý do như
-# GRADE_SUBMISSION_TASK: hai bên thống nhất trên một string, nên không bên nào phải import
+# Tên task của arq, mỗi cái cho một chiều. Chúng ở đây vì hai bên thống nhất trên một
+# string, nên không bên nào phải import
 # package của bên kia.
 PROBE_DOCUMENT_TASK = "probe_document"
 DOCUMENT_PROBED_TASK = "document_probed"
@@ -28,7 +30,7 @@ def documents_channel(teacher_id: str) -> str:
 
     Ở đây vì **hai service phải nói cùng một string**: `services/ingest` phát sau khi ghi
     xong một hàng, `services/be` nghe và đẩy xuống trình duyệt qua SSE. Không bên nào import
-    bên nào, nên cái string là ranh giới -- đúng vai mà `GRADE_SUBMISSION_TASK` đã nhận.
+    bên nào, nên cái string là ranh giới chứ không phải một tiện nghi.
 
     Một hàm chứ không phải một hằng, vì channel mang `teacher_id`: rail vẽ **cả thư viện** của
     một giáo viên, nên một màn hình đang mở là một subscription. Một channel cho mỗi tài liệu

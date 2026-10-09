@@ -81,8 +81,8 @@ FE  --HTTP /api-->  BE  --aiafa:grading-->  Redis  -->  AGENT
 
 Hai mũi dưới là **hai queue khác nhau**, không phải một đường hai chiều, và tên chúng
 đặt theo **bên tiêu thụ** chứ không theo công việc. Lý do nằm ngay ở dòng trên:
-`aiafa:grading` đặt tên theo công việc, rồi nhận thêm sáu task không phải chấm bài, và
-nay tên ấy nói dối. Một queue thì chỉ có một worker đứng sau, nên tên nói về bên tiêu
+`aiafa:grading` đặt tên theo công việc, rồi nhận thêm task khác, và nay chở sáu task mà
+không task nào chấm bài -- tên ấy nói dối. Một queue thì chỉ có một worker đứng sau, nên tên nói về bên tiêu
 thụ không hết đúng được.
 
 **`DOCUMENT` đọc MinIO trực tiếp, và không đọc Postgres.** Đó là cả lý do byte tài liệu
@@ -100,8 +100,8 @@ database của BE, nên nó chạy ngay trong request nộp bài
 ([ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md)). Hệ quả nhìn thấy được: giữa màn làm
 bài và màn kết quả không có trạng thái *đang chấm* nào.
 
-**Hàng đợi `aiafa:grading` dành cho bốn việc thật sự cần model**, và cả bốn đều bất đồng bộ vì một lần gọi LLM đủ
-lâu để giữ kết nối HTTP mở là không hợp lý:
+**Hàng đợi `aiafa:grading` dành cho sáu việc thật sự cần model**, và cả sáu đều bất đồng bộ vì
+một lần gọi LLM đủ lâu để giữ kết nối HTTP mở là không hợp lý:
 
 | Task | Khi nào | BE làm gì với kết quả |
 | --- | --- | --- |
@@ -109,14 +109,13 @@ lâu để giữ kết nối HTTP mở là không hợp lý:
 | `generate_retry_question` | học sinh mở một lượt làm lại | kiểm rồi lưu kèm đáp án đúng, để BE tự chấm lượt |
 | `explain_turn` | mỗi lượt trả lời trong chat pha 2 | lưu vào lịch sử **trước** khi phát ra SSE |
 | `propose_next_step` | mỗi bước của một lượt chat giáo viên | chạy tool đã đề xuất, hoặc từ chối nó |
+| `report_plan` | sau khi cả một plan của lượt chat đã chạy | lưu lời kể vào lịch sử đoạn chat |
+| `name_conversation` | lượt đầu của một đoạn chat giáo viên | đặt tên đoạn chat |
 
 `write_draft_question` viết **một** câu một job, không phải cả bộ. Đó không phải khẩu vị mà là số
 học: `tools/check_contract.py` so `LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` với độ kiên nhẫn của BE
 cho **một** job, nên một job soạn 50 câu là 50 lần ngân sách mà check đang kiểm. Task cũ
 `draft_assessment` làm đúng thế, và check nói dối về nó suốt thời gian nó tồn tại.
-
-Ngoài bốn task trên, worker còn đăng ký `grade_submission` — legacy của ADR-20, giữ để client cũ
-không treo, và không gọi model.
 
 BE chờ job xong ngay trong request (`agent_gateway.run_task`) thay vì trả `job_id` cho FE: mọi lời
 gọi ấy đều nằm trong một thao tác người dùng đang nhìn, nên thêm một giao thức poll thứ hai chồng
@@ -140,8 +139,8 @@ khi ghi xong kết quả xử lý, `be` **nghe** và đẩy xuống. Một chann
 viên** (`documents:<id>`), vì rail vẽ cả thư viện chứ không vẽ từng tài liệu rời.
 
 Tên channel sống ở `contracts.documents_channel`, và đó là chỗ duy nhất nó được viết
-ra. Hai service ấy không import nhau được, nên cái string **là** ranh giới — đúng vai
-`GRADE_SUBMISSION_TASK` đã nhận. Đáng một check riêng vì lúc hai bản sao lệch nhau thì
+ra. Hai service ấy không import nhau được, nên cái string **là** ranh giới, đúng như mọi tên task
+trong `contracts`. Đáng một check riêng vì lúc hai bản sao lệch nhau thì
 **không có lỗi nào**: `publish` vào một channel không ai nghe thành công y như một
 channel có người nghe, và triệu chứng duy nhất là chip thôi tự đổi mặt.
 
@@ -155,20 +154,22 @@ FE gọi đường tương đối `/api` và Vite proxy sang BE, nên trình duy
 
 Đây là ràng buộc nghiệp vụ quan trọng nhất trong kiến trúc.
 
-`business-workflows.md` tách bước hệ thống tạo kết quả khỏi bước hệ thống quyết định đưa kết quả vào `Teacher Review Queue`. Kiến trúc tôn trọng sự tách đó:
+Luật chỉ có một câu: **AGENT nộp nội dung, BE quyết định nội dung ấy có được dùng hay không.**
 
-- AGENT trả về `GradingCompleted` chỉ chứa **bằng chứng**: `score`, `confidence`, `misconception_code`, và hai cờ cho biết đáp án có mâu thuẫn với cách làm hay không và có đủ căn cứ hay không.
-- BE, trong `be/review_policy.py`, so ngưỡng và sinh `needs_teacher_review` cùng `review_reason`.
+- AGENT trả về một **đề xuất**: câu hỏi, các phương án, ánh xạ từ mỗi nhiễu sang một lỗi, lời giải.
+- BE **kiểm lại từng câu trước khi ghi** — đúng một đáp án đúng, mọi nhiễu gắn một lỗi, ít nhất hai
+  cách giải (`agent_gateway.py`, gọi trước mọi đường ghi) — và một đề chỉ rời trạng thái nháp khi
+  giáo viên bấm duyệt. Một luật nghiệp vụ chỉ được nhắc trong prompt là một luật không được thi hành.
 
-Nếu để AGENT tự quyết định, cổng teacher-in-the-loop sẽ nằm bên trong AI service, trái nguyên tắc trong [Project Overview](project-overview.md).
+Việc chấm đi xa thêm một bước: **AGENT không bao giờ trả về điểm**. Đáp án đúng nằm trong Postgres,
+mà AGENT thì không giữ chìa khoá của kho ấy, nên nó không phán được đúng sai kể cả khi muốn.
 
-Cùng lằn ranh ấy áp cho nội dung AGENT sinh ra: BE **kiểm lại** mọi câu hỏi trước khi lưu — đúng một
-đáp án đúng, mọi nhiễu gắn một lỗi, ít nhất hai cách giải. Một luật nghiệp vụ chỉ được nhắc trong
-prompt là một luật không được thi hành.
+Nếu để AGENT tự quyết định, cổng teacher-in-the-loop sẽ nằm bên trong AI service, trái nguyên tắc
+trong [Project Overview](project-overview.md).
 
-`ReviewReason` có bốn giá trị, khớp bốn điểm kiểm soát trong Workflow 4. Giá trị `ANOMALY` chưa sinh ra được vì cần lịch sử học tập của học sinh; nó có mặt sẵn để lúc thêm không phải đổi contract.
-
-Ngưỡng được áp lúc đọc kết quả chứ không lưu kèm, nên đổi `REVIEW_CONFIDENCE_THRESHOLD` có hiệu lực ngay mà không phải chấm lại.
+Luật này có lưới canh: `services/agent/tests/test_no_routing_decision.py` gọi **mọi task đã đăng ký**
+trong `WorkerSettings.functions` rồi soi kết quả, và đỏ nếu một trường mang tên phán xử xuất hiện ở
+bất kỳ độ sâu nào.
 
 ## Ranh giới dữ liệu
 

@@ -10,6 +10,32 @@ File này khác `docs/decisions/`: ở đó là luật nghiệp vụ đã chốt
 Nó cũng khác mục *Còn thiếu* trong `docs/decisions/README.md`, vốn liệt kê những **luật** chưa được ghi
 thành ADR, không phải những **tính năng** chưa dựng.
 
+## Tài liệu quyết định nói về code không còn
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Ba ADR mô tả đường chấm bài cũ như thể nó còn chạy | Không bị chặn. Cố ý hoãn: sửa một ADR là sửa lịch sử |
+
+Ngày 09/10/2026, đường chấm bài cũ (`POST /api/submissions` → task `grade_submission` →
+`decide_review`) bị xoá khỏi code, cùng `ReviewReason`, `GradingRequested`, `GradingCompleted` và
+`REVIEW_CONFIDENCE_THRESHOLD`. Báo cáo, `AGENTS.md`, `architecture.md` và `local-development.md` đã
+dọn theo. Ba ADR thì chưa:
+
+- [ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) và
+  [ADR-08](../decisions/adr-08-bon-loai-nghi-ngo.md) — mục *Nơi thi hành* của cả hai nay trỏ **100%
+  vào hư không** -- mục *Nơi luật này đang được thi hành* -- kèm số dòng chính xác: `review_policy.py:53-69`, `routes.py:123`,
+  `test_review_policy.py:37`, `contracts/enums.py`. Một người đọc theo số dòng sẽ đi tìm và không
+  thấy gì.
+- [ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md) — chính ADR đã thay thế đường ấy. Phần
+  *Hệ quả* của nó dặn gỡ hai message *"ngay khi UC-05 chốt hình dạng"*; hai message nay đã gỡ, dù
+  vì một lý do khác -- UC-05 chưa bao giờ được thiết kế -- nên điều kiện ADR nêu chưa từng được
+  thoả. ADR không biết cả hai chuyện. Nó cũng tự ghi trạng thái *"đã chốt, chưa thi hành"* trong khi code đã thi hành.
+
+**Vì sao hoãn chứ không làm luôn:** một ADR là bản ghi của một quyết định tại một thời điểm, nên
+sửa nó cho khớp hiện tại là xoá mất chính thứ nó tồn tại để giữ. Cách đúng là một dòng **hậu ký** có
+ngày, và viết hậu ký cho ba ADR là một lượt có chủ ý — không phải một dòng tiện tay kẹp vào lượt dọn
+code.
+
 ## Bề mặt giáo viên — năm món nợ còn lại
 
 | Việc | Cái gì đang chặn |
@@ -63,8 +89,9 @@ không ai phát hiện được.
 của dự án (ADR-10), chứ không phải bằng chứng rằng dữ liệu đã có. Chừng nào kết quả còn sống một giờ,
 mọi con số trên đó vẫn là dữ liệu mẫu.
 
-Ba mục này vì thế nằm cùng nhóm với `ReviewReason.ANOMALY`
-([ADR-08](../decisions/adr-08-bon-loai-nghi-ngo.md)) và toàn bộ tính năng mastery: **cùng bị chặn bởi
+Ba mục này vì thế nằm cùng nhóm với loại nghi ngờ thứ tư của
+[ADR-08](../decisions/adr-08-bon-loai-nghi-ngo.md) -- *bất thường so với lịch sử học tập* -- và
+toàn bộ tính năng mastery: **cùng bị chặn bởi
 đúng một thứ**, và cùng mở khoá khi có cơ sở dữ liệu thật. Đó là lý do nên làm chúng một đợt chứ không
 rải rác.
 
@@ -91,9 +118,11 @@ không — đặc biệt là độ dài tên lớp và cách đặt tên.
 
 ### Vì sao "cần xem lại" bị gỡ khỏi bảng điểm
 
-Khái niệm này **có thật và đang chạy**: `needs_teacher_review` nằm trong contract, do
-`services/be/src/be/review_policy.py` quyết định, và [ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md)
-ghi đủ bốn luật chọn nó. Nó không phải thứ bịa ra.
+Khái niệm này **không phải thứ bịa ra**:
+[ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) ghi đủ bốn luật chọn nó. Nhưng
+phần code từng tính nó -- `needs_teacher_review` trong contract và `be/review_policy.py` -- **đã bị
+xoá ngày 09/10/2026**, vì chưa bao giờ có màn hình nào tiêu thụ nó. Hôm nay nó là một quyết định
+nghiệp vụ đã chốt mà chưa có một dòng code nào.
 
 Nhưng trên **bảng điểm của một lớp** nó không dẫn tới đâu: không hành động, không đích đến, không cách
 nào xử lý. Một nhãn cảnh báo không có lối đi là nhiễu chứ không phải thông tin — và tệ hơn, nó dạy giáo
@@ -171,8 +200,8 @@ sống **một giờ** trong Redis, trong khi hạn kết thúc pha 2 có thể 
 Học sinh chữa dở, đi ăn cơm, quay lại — hệ thống không còn biết em đã làm hai vòng hay chưa vòng nào.
 Luật *tối đa ba vòng* không tồn tại được nếu chưa có cơ sở dữ liệu.
 
-Đây cùng nhóm với `ReviewReason.ANOMALY` và thống kê điểm: **cùng bị chặn bởi một thứ**, cùng mở khoá
-khi có cơ sở dữ liệu thật. Khác biệt là ở quy mô — hai mục kia là tính năng phụ, còn đây là **toàn bộ
+Đây cùng nhóm với loại nghi ngờ thứ tư của ADR-08 và thống kê điểm: **cùng bị chặn bởi một
+thứ**, cùng mở khoá khi có cơ sở dữ liệu thật. Khác biệt là ở quy mô — hai mục kia là tính năng phụ, còn đây là **toàn bộ
 nửa sau của sản phẩm**.
 
 ### Câu luyện tập chưa qua cổng duyệt nào
@@ -206,9 +235,9 @@ lời giải thích, nên điều kiện đó đúng với **mọi câu của m�
 sinh ra 400 mục chờ giáo viên, và pha 2 không khởi động cho ai.
 
 Đường thứ hai độc lập với ngưỡng: nếu pha 1 gửi **chuỗi rỗng** thay vì `None`, cùng file trả
-`confidence = 0.30` **và** `has_sufficient_evidence = False`, và `services/be/src/be/review_policy.py`
-đẩy kết quả vào hàng đợi qua `INSUFFICIENT_EVIDENCE` mà không hề so ngưỡng. Gỡ mỗi điều kiện ngưỡng là
-chưa đủ.
+`confidence = 0.30` **và** `has_sufficient_evidence = False`, và luật *thiếu căn cứ* của ADR-07 đẩy
+kết quả vào hàng đợi mà không hề so ngưỡng. Gỡ mỗi điều kiện ngưỡng là chưa đủ. (Phần code của cả
+hai đường đã bị xoá 09/10/2026; ràng buộc trên là ràng buộc của **thiết kế**, còn nguyên.)
 
 Việc cần làm trước khi bật lại không phải chỉnh ngưỡng, mà là **định nghĩa lại confidence đo cái gì**
 khi phần chấm đã xác định — rồi mới tới việc pha 1 gửi `None` hay chuỗi rỗng.
@@ -258,16 +287,13 @@ lần đăng nhập đầu, nhưng đợt thiết kế học sinh cố ý bỏ q
 `Chi tiết lớp` — phân biệt *chưa đăng nhập lần nào* với *đang hoạt động* — hiện là dấu vết duy nhất
 trong sản phẩm cho thấy lần đăng nhập đầu có ý nghĩa riêng.
 
-### Hai chỗ contract nói không còn đúng
+### Lý do được 0,5 vẫn chưa có nguồn dữ liệu
 
-`packages/contracts/src/contracts/messages.py` — docstring của `GradingRequested` nói Adaptive Practice
-cần `learning_objective` để sinh *"a variant of the same objective"*. Theo
-[ADR-17](../decisions/adr-17-ba-vong-moi-cau.md), biến thể nay giữ **cùng câu hỏi**, chặt hơn hẳn cùng
-learning objective.
-
-Cùng file, `GradingCompleted` nhận được `score = 0.5` vì trường đã là `ge=0.0, le=1.0`. Nhưng không
-trường nào mang *vòng thứ mấy*, *câu gốc nào* hay *lỗi nào đã được chữa* — nên lời hứa giao diện của
-[ADR-16](../decisions/adr-16-thang-diem-ba-muc.md) là hiện lý do được 0,5 hiện **chưa có nguồn dữ
+Món nợ này từng được ghi ở hai docstring của `contracts/messages.py`; tệp ấy **đã bị xoá
+09/10/2026** cùng đường chấm bài cũ, nên hai chỗ nói sai kia tự hết. Phần còn lại thì không hết:
+không message nào trên đường đang sống mang *vòng thứ mấy*, *câu gốc nào* hay *lỗi nào đã được
+chữa*, nên lời hứa giao diện của
+[ADR-16](../decisions/adr-16-thang-diem-ba-muc.md) -- hiện lý do được 0,5 -- vẫn **chưa có nguồn dữ
 liệu**.
 
 ## Diagram
@@ -281,9 +307,8 @@ toàn dưới mép** và mất khi export. Thêm một giao cắt cạnh ở vù
 lệch lưới 10.
 
 Nội dung thì **không** bị mô hình hai pha làm sai: hình chỉ vẽ `fe`/`be`/`agent`/`redis`/`contracts`,
-không nói gì tới pha, điểm, vòng lặp hay đồng hồ. Nhãn *"đọc kết quả rồi áp ngưỡng"* vẫn đúng, vì
-[ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) ghi rõ việc gỡ ngưỡng khỏi luồng
-học sinh **chưa thi hành ở đâu** — `review_policy.py` vẫn áp cho mọi kết quả.
+không nói gì tới pha, điểm, vòng lặp hay đồng hồ. Nhãn *"đọc kết quả rồi áp ngưỡng"* thì **nay sai**:
+phép áp ngưỡng đã bị xoá 09/10/2026 cùng cả đường chấm bài cũ.
 
 ## Duyệt lời giải
 
@@ -338,9 +363,8 @@ mô tả từng component. Ai chụp màn gửi ra ngoài thì phải tự nói 
 | Màn đăng nhập, và chỗ bắt đổi mật khẩu lần đầu | Không bị chặn. Quyết định phạm vi — lỗ ADR-13 **vẫn nguyên** |
 | Học sinh trên điện thoại | Không bị chặn. Quyết định phạm vi |
 
-Câu chữ của từng lượt là món nợ **mới và dễ bị bỏ sót nhất**: `GradingCompleted` hôm nay chỉ mang
-điểm, nên nếu backend sinh câu biến thể rồi vứt đi, màn kết quả sẽ có một khung để in đề mà không có
-đề để in. Câu biến thể phải được **lưu lại cùng lượt**, không phải sinh xong dùng một lần.
+Câu chữ của từng lượt là món nợ **mới và dễ bị bỏ sót nhất**: nếu backend sinh câu biến thể rồi
+vứt đi, màn kết quả sẽ có một khung để in đề mà không có đề để in. Câu biến thể phải được **lưu lại cùng lượt**, không phải sinh xong dùng một lần.
 
 Ba dòng cuối là những thứ **đợt dựng này không làm cho tốt lên**. Đặc biệt: mười hai màn mới đều mang khối
 danh tính và nút Đăng xuất trên `Student top bar`, nhưng điều đó **không lấp** được lỗ
@@ -564,17 +588,22 @@ hai ô này **thật sự chưa làm**, nên chúng sang đây thay vì đi theo
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | ~~Vòng đời đề ở BE: nháp → duyệt → phát hành, kèm cổng *chỉ giáo viên phát hành*~~ | **Xong** ở Pha 4 và 5 |
-| Chuyển hai dòng invariant của UC-05 sang nhóm tự động | **Bị chặn bởi UC-05** — chưa thiết kế |
+| ~~Chuyển hai dòng invariant của UC-05 sang nhóm tự động~~ | **Hết lý do** — xem dưới |
 
 Việc đầu **đã xong** ở `2026-09-30-teacher-write-path-plan.md`: `teacher_routes.py` có cả năm
 endpoint — duyệt, bỏ duyệt, mở biểu mẫu, phát hành nhiều lớp, thu hồi một lớp — và chúng đi qua
 `advance()`/`withdraw()`. Nó gộp luôn hai mục backlog ở trên như đã đoán; mục thứ ba
 (`entity_kind`/`entity_id`) còn đúng một variant.
 
-Việc thứ hai là hai dòng *"A low-confidence result is not shown to the Student before a Teacher
-handles it"* và *"A retry question is a variant of the same question"* trong bảng Invariants của
-`AGENTS.md`. Cả hai thuộc UC-05, chưa có thiết kế, nên vẫn ở nhóm chưa-enforce — đúng chỗ, và nhóm
-đó hiện còn hai dòng, dưới trần ba.
+Việc thứ hai **hết lý do tồn tại ngày 09/10/2026**. Nó nói về hai dòng trong nhóm chưa-enforce
+của `AGENTS.md`. Dòng *"A low-confidence result is not shown to the Student before a Teacher handles
+it"* đã bị **xoá** cùng cả đường chấm bài cũ — không còn gì để chuyển. Dòng còn lại, *"A retry
+question is a variant of the same question"*, thuộc [ADR-17](../decisions/adr-17-ba-vong-moi-cau.md)
+chứ không thuộc UC-05, và nó vẫn ở nhóm chưa-enforce — đúng chỗ. Nhóm ấy nay còn **một** dòng, dưới
+trần ba.
+
+(Số hiệu *UC-05* ở đây là theo cách đánh số **cũ** của báo cáo, nơi UC-05 là *Xử lý bài cần review*.
+Sau lượt 09/10/2026 thì UC-05 là *Hệ thống tạo câu biến thể*.)
 
 ## Trộn đề: bộ câu hỏi lớn, mỗi học sinh một lát
 

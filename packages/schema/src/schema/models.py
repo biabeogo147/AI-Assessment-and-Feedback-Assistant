@@ -716,8 +716,7 @@ class Document(Base):
     process bị giết cũng là một chip nói dối, nhưng không ai còn sống để ghi một giá trị
     khác -- nên BE **suy ra** *xử lý hỏng* lúc đọc, khi hàng đứng lâu hơn
     `document_stale_after_seconds`. Cột vẫn giữ `processing`, và đó không phải nói dối: cột
-    ghi *đã nghe được gì*, còn đường đọc trả lời *nên tin gì*. Cùng hình dạng với
-    `review_confidence_threshold`, thứ cũng chỉ sống ở đường đọc.
+    ghi *đã nghe được gì*, còn đường đọc trả lời *nên tin gì*.
 
     `page_count` **nullable**, và `None` nghĩa là con số **không tồn tại** chứ không phải
     chưa biết: `.txt` và `.md` không có trang. Một số `0` hợp lệ về kiểu và sai về nghĩa --

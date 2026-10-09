@@ -98,7 +98,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # phải trang trí: bảng Invariants là **chỉ mục** của những chỗ thi hành, nên một check tồn tại
 # mà không có hàng ở đó là một cái lưới không ai biết để trông. Decision record nằm ở
 # 2026-10-08-ingest-service-split-plan.md.
-AGENTS_MD_MAX_LINES = 186
+# Hạ 186 -> 181 ngày 09/10/2026. Đây là chiều ngược lại của cùng một luật: đường chấm bài cũ
+# bị xoá khỏi code, nên ba hàng invariant canh nó và hai hàng nói về confidence không còn gì
+# để canh. Cap phải đi xuống theo, nếu không nó để lại năm dòng tín dụng mà không ai trả giá
+# -- và lần sau sẽ có người tiêu chúng mà không cần một decision record nào.
+AGENTS_MD_MAX_LINES = 181
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
@@ -203,9 +207,9 @@ def check_env_example_has_no_orphans() -> str | None:
 def check_agent_and_document_hold_no_database_credentials() -> str | None:
     """Hai service đọc-và-báo phải không có đường tới database nào.
 
-    AGENT chấm một bài, `document` đọc một tệp, và cả hai đều **báo lại** chứ không quyết
+    AGENT soạn nội dung, `document` đọc một tệp, và cả hai đều **báo lại** chứ không quyết
     định gì -- nên mọi thứ chúng cần phải đi tới trong payload của job. Đó là lý do
-    `GradingRequested` chở lời giải thích thay vì một id, và `DocumentProbeRequested` chở
+    `ExplainTurnRequested` chở sẵn lời giải thay vì một id, và `DocumentProbeRequested` chở
     `storage_key` thay vì một hàng.
 
     Khoá của object storage **không** tính, và `services/document` có nó: object storage là
@@ -1482,9 +1486,8 @@ def check_both_sides_of_the_document_channel_read_its_name_from_contracts() -> s
     """Tên channel pub/sub sống ở `contracts`, và hai bên **gọi** nó chứ không viết lại.
 
     `services/ingest` phát, `services/be` nghe, và hai service ấy **không import nhau được**.
-    Nên cái string là ranh giới — đúng vai `GRADE_SUBMISSION_TASK` đã nhận, và
-    `packages/contracts/AGENTS.md` ghi thẳng: *"that constant is the boundary, not a
-    convenience."*
+    Nên cái string là ranh giới, và `packages/contracts/AGENTS.md` ghi thẳng:
+    *"that constant is the boundary, not a convenience."*
 
     Vì sao đáng một cái lưới riêng thay vì tin vào review: một bản sao ở mỗi bên là hai chuỗi
     lệch nhau được, và **lúc lệch thì không có lỗi nào** — `publish` vào một channel không ai

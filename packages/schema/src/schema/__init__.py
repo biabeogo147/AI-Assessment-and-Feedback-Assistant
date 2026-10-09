@@ -1,7 +1,7 @@
 """Schema Postgres, dùng chung bởi hai service cùng ghi vào nó.
 
 Package này **không re-export gì cả**, khác `contracts`. Lý do: `contracts` là một bảng từ
-vựng phẳng — một người gọi cần `GradingRequested` thì không quan tâm nó ở file nào. Còn ở đây
+vựng phẳng — một người gọi cần `DocumentProbed` thì không quan tâm nó ở file nào. Còn ở đây
 có đúng hai mặt, và chúng không thay nhau được:
 
 - `schema.models` — khai báo bảng. Thứ mọi truy vấn cần.

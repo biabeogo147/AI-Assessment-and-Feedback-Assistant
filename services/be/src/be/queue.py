@@ -8,14 +8,11 @@ trên code.
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
-from arq.jobs import Job, JobStatus
 
 from be.config import Settings
 from contracts import (
-    GRADE_SUBMISSION_TASK,
     PROBE_DOCUMENT_TASK,
     DocumentProbeRequested,
-    GradingRequested,
 )
 
 # arq mặc định timeout kết nối một giây, và mức đó quá chặt với Docker Desktop
@@ -60,39 +57,6 @@ async def create_queue_pool(settings: Settings) -> ArqRedis:
         raise OSError(f"Redis unreachable at {settings.redis_url}: {exc}") from exc
 
 
-async def enqueue_grading(
-    pool: ArqRedis,
-    settings: Settings,
-    request: GradingRequested,
-) -> str:
-    """Giao một bài nộp cho AGENT để chấm.
-
-    Args:
-        pool: Pool arq đã kết nối.
-        settings: Settings của process, nơi cung cấp tên queue.
-        request: Phần việc cần làm. Được serialise thành dict thuần, nhờ vậy payload
-            trên đường truyền không phụ thuộc vào phiên bản pydantic mà mỗi bên chạy.
-
-    Returns:
-        job id của arq, thứ mà client poll để lấy kết quả.
-
-    Raises:
-        RuntimeError: Nếu arq từ chối job, chuyện xảy ra khi đã tồn tại một job cùng
-            id.
-
-    Side effects:
-        Ghi một job lên queue Redis dùng chung.
-    """
-    job = await pool.enqueue_job(
-        GRADE_SUBMISSION_TASK,
-        request.model_dump(mode="json"),
-        _queue_name=settings.agent_queue_name,
-    )
-    if job is None:
-        raise RuntimeError(f"arq refused to enqueue submission {request.submission_id}")
-    return job.job_id
-
-
 async def enqueue_probe(
     pool: ArqRedis,
     settings: Settings,
@@ -100,7 +64,8 @@ async def enqueue_probe(
 ) -> str:
     """Giao một tài liệu vừa cất cho `services/document` đọc.
 
-    Khác `enqueue_grading` ở một điểm đáng nói: **không ai sẽ đọc kết quả của job này**.
+    Khác mọi lời gọi qua `agent_gateway` ở một điểm đáng nói: **không ai sẽ đọc kết quả
+    của job này**.
     Câu trả lời đi về bằng một job khác, trên queue của `services/ingest`, và service ấy
     ghi nó vào database. Đó là lý do hàm này trả job id nhưng không ai giữ nó -- nó vào log, để một
     lần truy vết còn nối được hai đầu.
@@ -128,21 +93,3 @@ async def enqueue_probe(
     if job is None:
         raise RuntimeError(f"arq refused to enqueue document {request.document_id}")
     return job.job_id
-
-
-async def read_job(pool: ArqRedis, settings: Settings, job_id: str) -> tuple[JobStatus, object]:
-    """Đọc status hiện tại và kết quả của một job đã được đẩy vào queue trước đó.
-
-    Args:
-        pool: Pool arq đã kết nối.
-        settings: Settings của process, nơi cung cấp tên queue.
-        job_id: Identifier do enqueue_grading trả về.
-
-    Returns:
-        Một tuple gồm status của job và kết quả thô của nó. Kết quả là None cho tới
-        khi job xong, và sau đó là đúng thứ AGENT đã trả về.
-    """
-    job = Job(job_id, redis=pool, _queue_name=settings.agent_queue_name)
-    status = await job.status()
-    info = await job.result_info()
-    return status, (info.result if info is not None else None)

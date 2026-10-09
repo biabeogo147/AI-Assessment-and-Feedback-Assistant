@@ -5,7 +5,8 @@ tiên trong repo mà một job được **tiêu thụ** để ghi một hàng th
 nó không thể là một request: không ai đang chờ. Giáo viên đã rời màn hình tải lên từ lâu, và
 một process đã chết thì không có ai để trả 503 cho.
 
-Vì sao không poll kết quả bằng result store của arq, cách `be/queue.py:read_job` đang làm:
+Vì sao không poll kết quả bằng result store của arq, cách `be/agent_gateway.py` vẫn làm
+với job của AGENT:
 `worker.py` của AGENT đặt `keep_result = job_result_ttl_seconds`, nên **kết quả job hết hạn**.
 Một tài liệu xử lý xong trong mười giây mà không ai đọc trong một giờ là một kết quả bốc hơi --
 đúng cái bẫy `drafting.py` đã ghi lại. Một job tự mang dữ liệu đi thì không có hạn sống nào.
