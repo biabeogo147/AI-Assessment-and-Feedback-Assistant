@@ -1,186 +1,114 @@
 \chapter{Kiến trúc và mô hình dữ liệu}
 \label{ch:kien-truc-va-du-lieu}
 
-Chương này mô tả hệ thống được chia thành những phần nào, mỗi phần được phép quyết định gì, và
-dữ liệu nằm ở đâu. Ranh giới đáng chú ý ở đây không phải ranh giới kỹ thuật mà là ranh giới
-\textbf{quyền quyết định}: phần nào được phép kết luận, và phần nào chỉ được phép báo lại.
-
-\section{Năm thành phần, và cái gì làm nên một thành phần}
-
-Hệ thống chia làm năm thành phần, nhưng con số năm không phải điều đáng nói. Điều đáng nói là
-\emph{luật} sinh ra nó --- vì cùng một luật ấy sẽ trả lời câu hỏi thành phần thứ sáu nên trông
-như thế nào, còn một danh sách năm cái tên thì không.
-
-Một phần việc tách ra thành một thành phần riêng khi nó khác ở \textbf{một trong ba trục}:
-
-\begin{enumerate}
-  \item \textbf{Quyền quyết định} --- nó được \emph{kết luận}, hay chỉ được \emph{báo lại}?
-  \item \textbf{Tầm với} --- nó cầm chìa khoá của kho nào? Quyết định điều này là quyết định
-        nó \emph{có thể} làm hỏng những gì.
-  \item \textbf{Có ai đang chờ không} --- có người đứng đợi kết quả không? Có người chờ thì việc
-        ấy là một lời gọi và phải trả lời ngay. Không ai chờ thì nó \emph{không thể} là một lời
-        gọi: giáo viên đã rời màn hình từ lâu, nên không còn màn hình nào để báo lỗi về.
-\end{enumerate}
-
-Năm thành phần rơi ra từ ba trục đó, chứ không phải từ việc chia theo danh từ nghiệp vụ.
+\section{Các thành phần trong hệ thống}
 
 \begin{table}[htbp]
 \centering
-\caption{Năm thành phần, đọc theo ba trục}
+\caption{Năm thành phần của hệ thống}
 \label{tab:nam-service}
 \begin{tabular}{@{}lL{4.9cm}L{2.4cm}L{3.3cm}@{}}
 \toprule
-\textbf{Thành phần} & \textbf{Vai trò} & \textbf{Quyết định} & \textbf{Chìa khoá} \\
+\textbf{Thành phần} & \textbf{Vai trò} & \textbf{Quyết định nghiệp vụ} & \textbf{Credentials} \\
 \midrule
-\texttt{fe} & Giao diện cho giáo viên và học sinh. Chỉ nói chuyện với \texttt{be} & Không & Không có \\
+\texttt{frontend} & \texttt{frontend} cho giáo viên và học sinh. Chỉ nói chuyện với \texttt{backend} & Không & Không có \\
 \addlinespace
-\texttt{be} & Nơi giữ mọi quyết định nghiệp vụ, và là cửa vào duy nhất của hệ thống & \textbf{Mọi quyết định} & Kho dữ liệu chính, kho tệp \\
+\texttt{backend} & Nơi giữ mọi quyết định nghiệp vụ, và là cửa vào duy nhất của hệ thống & \textbf{Mọi quyết định} & postgres / redis / minio \\
 \addlinespace
-\texttt{agent} & Soạn nội dung bằng AI: câu hỏi của đề, câu biến thể, lượt trả lời trong hội thoại. Nộp nội dung và bằng chứng & Không & \textbf{Không có cái nào} \\
+\texttt{agent} & Kết nối với Model Provider. Thực hiện yêu cầu của giáo viên và giải đáp học sinh thông qua các cuộc trò chuyện & Không & Không có \\
 \addlinespace
-\texttt{document} & Đọc tài liệu giáo viên tải lên: có chữ hay không, bao nhiêu trang. Báo lại, không sở hữu dữ liệu nào & Không & Kho tệp, và chỉ đọc \\
+\texttt{document} & Đọc/Xử lí tài liệu giáo viên tải lên phục vụ \texttt{agent} sau này. & Không & minio (chỉ đọc) \\
 \addlinespace
-\texttt{ingest} & Ghi lại thứ \texttt{document} báo về & Không & Kho dữ liệu chính, để ghi \\
+\texttt{ingest} & Đẩy dữ liệu từ \texttt(document) vào database --- nơi \texttt{agent} truy vấn thông qua \texttt{backend}  & Không & postgres (chỉ ghi) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Ba thành phần cuối bảng không có ai chờ chúng, nên cả ba \textbf{không mở một bề mặt nào cho ai
-gọi vào}: việc chỉ tới được chúng qua hàng đợi. Đó là một tính chất của thiết kế, không phải một
-chi tiết cài đặt --- nó là thứ khiến một lần xử lý chậm không giữ một kết nối nào treo suốt
-thời gian chờ.
-
-Hình~\ref{fig:system-architecture} vẽ năm thành phần ấy cùng ba kho và hai package dùng chung,
-sắp theo đúng ba trục trên.
+\texttt{frontend} không biết \texttt{agent} tồn tại. Mọi thứ nó cần đều đi qua \texttt{backend}, nên hệ thống
+chỉ có \textbf{một cửa ra vào}.
 
 \begin{landscape}
 \begin{figure}[p]
   \centering
   \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{system-architecture.pdf}
-  \caption[System Architecture]{System Architecture --- năm thành phần đọc theo quyền quyết
-  định và chìa khoá, ba kho, hai package dùng chung}
+  \caption[System Architecture]{System Architecture}
   \label{fig:system-architecture}
 \end{figure}
 \end{landscape}
 
-Giao diện không biết \texttt{agent} tồn tại. Mọi thứ nó cần đều đi qua \texttt{be}, nên hệ thống
-chỉ có \textbf{một cửa ra vào}. Thêm một cửa thứ hai là thêm một chỗ phải tự kiểm lại mọi luật
-nghiệp vụ, và hai chỗ kiểm thì sớm muộn khác nhau ở một luật.
+\section{Frontend không nhìn thấy bên trong hệ thống}
 
-\section{Ranh giới quyền quyết định}
+Hình~\ref{fig:system-architecture} chia hệ thống làm hai vùng, và đặt \texttt{frontend} ở ngoài cả
+hai. Trong VPC, \texttt{backend} nằm ở \emph{public subnet}; \texttt{agent}, \texttt{document},
+\texttt{ingest} và ba kho nằm ở \emph{private subnet} --- chỉ những gì ở public subnet mới nhận
+được kết nối từ bên ngoài.
+
+\texttt{frontend} không bao giờ biết bên trong có mấy thành phần, hay chúng tên gì.
+
+\section{Backend quyết định mọi thứ}
 
 Đây là ràng buộc quan trọng nhất của kiến trúc, và nó là một ràng buộc \emph{nghiệp vụ} chứ không
-phải một lựa chọn kỹ thuật. Luật chỉ có một câu: \textbf{\texttt{agent} nộp nội dung,
-\texttt{be} quyết định nội dung ấy có được dùng hay không.} Không có chỗ nào trong hệ thống để
-một mô hình tự đưa thứ gì vào đề, vào điểm, hay vào bài của một học sinh.
+phải một lựa chọn kỹ thuật. Luật chỉ có một câu: \textbf{\texttt{agent} nộp nội dung / đề xuất hành động,
+\texttt{backend} quyết định làm gì.}
+
+\texttt{agent} trả về \texttt{backend} hai thứ:
+
+\begin{itemize}
+  \item \textbf{Nội dung} --- câu hỏi và lời giải, một lượt trả lời cho giáo viên hay học
+        sinh, một bản phân tích đọc từ dữ liệu mà \texttt{backend} cấp cho nó.
+  \item \textbf{Đề xuất hành động} --- tool nào nên chạy, với tham số nào.
+\end{itemize}
+
+Hiệu lực do \texttt{backend} quyết định. Với nội dung: kiểm trước khi ghi.
+Với hành động: chỉ chạy những tool chính nó cấp cho mô hình, và từ chối một đề xuất gọi tool
+ngoài danh sách ấy hay thiếu tham số.
 
 Chỗ thấy rõ nhất là việc soạn đề:
 
 \begin{itemize}
   \item \texttt{agent} trả về một \textbf{đề xuất}: câu hỏi, các phương án, ánh xạ từ mỗi phương
         án nhiễu sang một lỗi cụ thể, và lời giải.
-  \item \texttt{be} \textbf{kiểm lại từng câu trước khi ghi} --- đúng một đáp án đúng, mọi phương
+  \item \texttt{backend} \textbf{kiểm lại từng câu trước khi ghi} --- đúng một đáp án đúng, mọi phương
         án nhiễu đều gắn một lỗi, ít nhất hai cách giải --- rồi mới lưu. Và một đề chỉ rời trạng
         thái nháp khi giáo viên bấm duyệt.
 \end{itemize}
 
-Ba luật ấy là luật nghiệp vụ, không phải chi tiết kỹ thuật; chỗ đáng nói ở đây là \emph{nơi}
-chúng được canh.
-Một luật chỉ nằm trong lời dặn gửi cho mô hình là một luật không ai canh: mô hình bỏ qua một câu
-dặn được, còn một phép kiểm trước khi ghi thì không.
+\section{Thành phần nào kết nối tới kho nào?}
 
-Việc chấm đi theo đúng ranh giới ấy, và đi xa thêm một bước: \texttt{agent} \textbf{không bao giờ}
-trả về điểm. Đáp án đúng nằm trong kho dữ liệu chính, mà \texttt{agent} thì không giữ chìa khoá
-của kho ấy --- nên nó không phán được đúng sai kể cả khi muốn. Workflow 3 ở chương~\ref{ch:luong-nghiep-vu} nói vì sao chỗ đặt ấy là cố ý.
+Hệ thống có ba kho --- kho dữ liệu chính (postgres), hàng đợi việc (redis), và kho tệp (minio).
 
-Nếu để \texttt{agent} tự quyết, cổng giáo viên sẽ nằm \emph{bên trong} phần AI --- và một cổng
-nằm trong thứ nó phải canh thì không còn là cổng.
-
-\section{Ranh giới chìa khoá: ai chạm được kho nào}
-
-Hệ thống có ba kho --- kho dữ liệu chính, hàng đợi việc, và kho tệp --- và với mỗi kho, câu
-đáng hỏi là ai được giữ chìa khoá.
-
-\paragraph{Kho dữ liệu chính thuộc về \texttt{be} và \texttt{ingest}.} Nó giữ lớp, học sinh, đề,
+\paragraph{Kho dữ liệu chính thuộc về \texttt{backend} và \texttt{ingest}.} Nó giữ lớp, học sinh, đề,
 lần làm bài, sổ điểm ba mức, bộ đếm vòng, từng lượt làm lại kèm đề đã sinh ra, các đoạn hội
-thoại, và các báo cáo. Lý do nó tồn tại là một luật nghiệp vụ: hạn giai đoạn 2 do giáo viên đặt,
-tính bằng giờ hoặc ngày, nên trạng thái bài làm không sống được ở một chỗ chỉ giữ dữ liệu trong
-một giờ.
-
-\paragraph{\texttt{agent} và \texttt{document} không có chìa khoá của kho dữ liệu chính.}
-Hệ quả trực tiếp là \textbf{mỗi việc giao cho chúng phải tự chứa đủ thông tin}: việc giải thích
-một lượt mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn, chứ không mang một mã số để
-đi tra. Ràng buộc này nghe như thêm việc, nhưng nó đổi lại được một thứ đáng giá: hai thành
-phần ấy không thể vô tình đọc hay sửa thứ không thuộc phần việc của mình. Chúng không có
-đường nào để đi tới đó.
-
-\texttt{ingest} thì \emph{có} chìa khoá, và đó không phải một ngoại lệ cho tiện. Điều làm
-\texttt{agent} với \texttt{document} thành hai thành phần chỉ-đọc-và-báo là chúng \textbf{không
-ghi vào dữ liệu nào}, chứ không phải việc chúng chạy riêng. \texttt{ingest} có đúng một việc là
-ghi lại kết quả đọc tài liệu, nên nó cần đường tới chỗ ghi --- và nó không quyết định gì cả.
+thoại, và các báo cáo. 
 
 \paragraph{Kho tệp giữ \textbf{byte} của tài liệu, tức nội dung thô của tệp.} Đây là kho
 duy nhất không phải cơ sở dữ liệu, và là kho duy nhất mà một thành phần chỉ đọc chứ không
-bao giờ ghi: \texttt{be} ghi vào, \texttt{document} đọc ra, và không có chiều ngược lại. Trong
-bảng dữ liệu chỉ có một khoá trỏ tới tệp, không có một chữ nào của nội dung.
+bao giờ ghi: \texttt{backend} ghi vào, \texttt{document} đọc ra, và không có chiều ngược lại.
 
-Việc \texttt{document} giữ chìa khoá kho tệp không phá ranh giới ở trên, và lý do đáng nói ra
-chứ không nên để người đọc tự suy: kho tệp là nơi \textbf{byte} nằm, không phải nơi \textbf{sự
-thật} nằm. Một tài liệu đã xử lý xong hay chưa thì chỉ bảng dữ liệu biết, và \texttt{document}
-không đọc được bảng đó. Nó đọc một tệp rồi báo lại; nó không bao giờ biết câu trả lời của mình
-đã được ghi hay chưa.
+\texttt{agent} và \texttt{document} không có credential của kho dữ liệu chính.
 
 \section{Các thành phần nói chuyện với nhau thế nào}
 \label{sec:noi-chuyen}
 
 Có \textbf{hai} cơ chế chở việc, và một tín hiệu rất ngắn không chở gì.
 
-\paragraph{Một lời gọi, khi có người đang chờ.} Giao diện gọi \texttt{be}. Đó là đường duy nhất
-đi vào hệ thống từ bên ngoài, và cũng là lời gọi duy nhất giữa hai thành phần.
+\paragraph{Một lời gọi, khi có người đang chờ.} \texttt{frontend} gọi \texttt{backend}. Đó là đường duy nhất
+đi vào hệ thống từ bên ngoài, và cũng là lời gọi api duy nhất giữa hai thành phần.
 
 \paragraph{Một việc trên hàng đợi, khi không ai chờ.} Mọi trao đổi còn lại đi đường này. Bên gửi
-đặt một việc lên hàng đợi kèm \textbf{tên của việc} --- một chuỗi ký tự --- rồi đi tiếp. Bên nhận
+đặt một việc lên hàng đợi \texttt(redis) kèm \textbf{tên của việc} --- một chuỗi ký tự --- rồi đi tiếp. Bên nhận
 lấy việc xuống và làm.
 
-Chỗ đáng nói là \emph{cái chuỗi ấy chính là ranh giới}. Hai thành phần thống nhất với nhau trên
-một chuỗi, nên \textbf{không bên nào phải biết bên kia tồn tại dưới dạng mã nguồn}. Nếu thay vì
-vậy bên gửi gọi thẳng một hàm của bên nhận, thì hai thành phần dính vào nhau: đổi một cái là phải
-đổi cái kia, và cái gọi là ranh giới chỉ còn là một thư mục khác tên.
-
-Hệ quả thứ hai của việc không ai import ai: \textbf{payload phải tự chứa đủ}. Bên nhận không tra
-cứu được gì --- nó không có chìa khoá --- nên mọi thứ nó cần phải nằm sẵn trong việc được giao.
-Đây chính là ràng buộc ở mục trên, nhìn từ phía đường truyền.
-
-\paragraph{Và một tín hiệu rất ngắn, khi có thứ vừa đổi.} Thư viện tài liệu của giáo viên đổi
-\emph{sau} lúc tải lên, mà không lời gọi nào của màn hình gây ra việc ấy. Nên khi \texttt{ingest}
-ghi xong một kết quả, nó phát một tín hiệu; \texttt{be} nghe được thì đẩy xuống màn hình. Tín
-hiệu ấy không chở nội dung, và mục~\ref{sec:hang-doi} nói vì sao nó cố ý nghèo như vậy.
-
-\section{Thứ dùng chung, và cái giá đã nhận}
-
-Không thành phần nào dùng mã nguồn của thành phần khác. Nhưng có hai thứ \emph{phải} dùng chung,
-và cả hai đều là \textbf{khai báo}, không phải hành vi.
-
-\paragraph{Bảng từ vựng của những việc đi qua hàng đợi.} Tên của từng loại việc, hình dạng của
-từng thông điệp, và các tập giá trị hợp lệ. Nó phải dùng chung vì hai bên đọc cùng một việc; nếu
-mỗi bên tự khai một bản, hai bản sẽ lệch nhau vào một ngày không ai để ý. Nó chứa \emph{chỉ} dữ
-liệu --- không một luật nghiệp vụ nào, vì một luật đặt ở đây sẽ thành luật mà không thành phần
-nào chịu trách nhiệm.
-
-\paragraph{Khai báo các bảng dữ liệu.} \texttt{be} và \texttt{ingest} cùng ghi vào kho dữ liệu
-chính, nên hai thành phần ấy phải nói đúng một định nghĩa bảng.
-
-Cái giá của việc này nên nói thẳng chứ không nên giấu: hai thành phần dùng chung một định nghĩa
-schema thì \textbf{đổi một cột là một thay đổi phá vỡ cho cả hai cùng lúc}, kể cả khi cột ấy nằm
-trong một bảng mà một bên không bao giờ đụng tới. Đổi lại là một ranh giới \emph{kiểm được bằng
-máy} thay vì một ranh giới chỉ viết trong tài liệu --- xem mục~\ref{sec:giu-ranh-gioi}. Đây là
-một đánh đổi đã cân nhắc, không phải một chỗ sơ ý.
+\paragraph{Và một tín hiệu rất ngắn, khi có trạng thái thay đổi.} Khi giáo viên tải lên một tài liệu, tài liệu hiển thị trạng thái
+``đang xử lí'' trên \texttt{frontend}, lúc này \texttt{backend} đẩy
+việc xử lí tài liệu lên hàng đợi \texttt{redis}, \texttt{document} làm xong thì đẩy tiếp một việc
+nữa, và \texttt{ingest} lấy việc đó để ghi vào kho dữ liệu chính. Khi \texttt{ingest}
+ghi xong một kết quả, nó đẩy một tín hiệu vào hàng đợi \texttt{redis}; \texttt{backend} nghe được thì đẩy xuống \texttt{frontend} hiển thị ``đã xong''.
 
 \section{Việc gì đi qua hàng đợi, việc gì không}
 \label{sec:hang-doi}
 
-Mọi việc cần gọi mô hình đều chạy qua một hàng đợi, không chờ ngay trong lúc người dùng còn
-đứng đó. Một lần gọi mô hình lâu tới mức giữ một kết nối mở suốt thời gian chờ là không hợp lý.
+Mọi việc cần gọi mô hình đều chạy qua một hàng đợi vì một lần gọi mô hình lâu tới mức giữ một kết nối mở suốt thời gian chờ là không hợp lý.
 
 \begin{table}[htbp]
 \centering
@@ -201,39 +129,24 @@ Trả lời một lượt hội thoại & Mỗi lượt học sinh hỏi lại �
 \end{tabular}
 \end{table}
 
-Việc viết câu hỏi tách thành \emph{một câu một việc} là một quyết định có con số đứng sau,
-không phải chuyện thích hay không thích. Hệ thống có một hạn chờ cho \emph{một} việc. Gộp cả bộ
-đề vào một việc thì một đề năm mươi câu tiêu gấp năm mươi lần cái hạn ấy, mà phép kiểm hạn chờ
-vẫn báo xanh suốt thời gian đó --- vì nó đang kiểm sai thứ.
-
 \paragraph{Chấm bài không đi qua hàng đợi.} Với trắc nghiệm, chấm là một phép so giữa phương án
-đã chọn và đáp án đúng đã lưu sẵn, nên nó chạy ngay trong lúc học sinh nộp bài. Hệ quả nhìn thấy
+đã chọn và đáp án đúng đã lưu sẵn, nên nó chạy ngay trong lúc học sinh nộp bài. Kết quả nhìn thấy
 được trên màn hình: giữa lúc nộp và lúc xem kết quả \textbf{không có trạng thái đang chấm nào}.
 
-\paragraph{Màn hình được báo, thay vì phải hỏi lại.} Có những chỗ dữ liệu hiện ra dần, hoặc đổi
-sau khi người dùng đã rời đi. Ở những chỗ ấy hệ thống tự đẩy xuống. Có ba chỗ như vậy:
+\paragraph{Màn hình được báo, thay vì phải hỏi lại.} Có những chỗ dữ liệu hiện ra dần:
 
 \begin{itemize}
-  \item \textbf{Hội thoại ở giai đoạn 2} hiện chữ dần cho học sinh.
+  \item \textbf{Hội thoại của học sinh} hiện chữ dần cho học sinh.
   \item \textbf{Hội thoại của giáo viên} đẩy từng bước của một lượt ngay khi bước đó xảy ra.
-  \item \textbf{Thư viện tài liệu của giáo viên} đổi \emph{sau} lúc tải lên --- một tài liệu đi
-        từ \emph{đang xử lý} sang \emph{sẵn sàng} vài giây sau, đôi khi lâu hơn.
+  \item \textbf{Thư viện tài liệu của giáo viên} lúc vừa tải lên hiển thị ``đang xử lí'', sau đó hiển thị ``đã xong'' mà không cần refresh màn hình.
 \end{itemize}
 
-Hai kênh đầu là \emph{kênh tăng tốc cảm giác, không phải nguồn sự thật}. Nội dung được lưu xong
-rồi mới phát ra, nên mất kết nối chỉ mất phần hoạt hình.
-
-Kênh thứ ba thì khác, và khác có chủ đích: nó chỉ báo \emph{có gì đó vừa đổi}, rồi màn hình tự
-đọc lại danh sách. Một thông báo chở sẵn nội dung mà bị mất giữa đường sẽ để lại một màn hình sai
-vĩnh viễn. Một thông báo chỉ nói có gì đó đổi thì lần báo sau sửa luôn lần trước.
-
-\section{Thành phần nào ngừng thì mất gì}
+\section{Nếu một thành phần ngừng thì mất gì?}
 
 Một kiến trúc chia nhiều phần chỉ đáng giá nếu một phần hỏng không kéo cả hệ thống theo. Bảng
-dưới nói rõ từng trường hợp, và vài dòng trong đó là \emph{lựa chọn} chứ không phải hệ quả tự
-nhiên.
+\ref{tab:suy-giam} nói rõ từng trường hợp.
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering
 \caption{Mỗi thành phần ngừng thì mất gì, còn gì}
 \label{tab:suy-giam}
@@ -241,102 +154,20 @@ nhiên.
 \toprule
 \textbf{Ngừng} & \textbf{Mất} & \textbf{Còn} \\
 \midrule
-Hàng đợi & Mọi việc cần gọi mô hình. Tải tài liệu lên vẫn cất được tệp nhưng \textbf{hỏng ngay}, và hàng nói ra điều đó & Làm bài, nộp bài, xem điểm giai đoạn 1 \\
+\texttt{redis} & Mọi việc cần gọi mô hình và tải lên tài liệu & Phát hành đề, làm bài, nộp bài, xem điểm giai đoạn 1 \\
 \addlinespace
-Kho tệp & \texttt{be} \textbf{không khởi động} --- cố ý & --- \\
+\texttt{minio} & \texttt{backend} không khởi động & --- \\
 \addlinespace
-Kho dữ liệu chính & \texttt{be} không khởi động & --- \\
+\texttt{postgres} & \texttt{backend} không khởi động & --- \\
 \addlinespace
 \texttt{agent} & Soạn đề, hội thoại & Mọi thứ còn lại \\
 \addlinespace
-\texttt{document} & Tài liệu mới đứng ở \emph{đang xử lý}, rồi đọc ra \emph{xử lý hỏng} & Thư viện vẫn mở, tài liệu cũ vẫn dùng được \\
+\texttt{document} & Tài liệu mới không tải lên được & Thư viện vẫn mở, tài liệu cũ vẫn dùng được \\
 \addlinespace
-\texttt{ingest} & Kết quả đọc tệp không vào được kho. Trên màn hình nhìn \emph{giống hệt} dòng trên & Nhưng việc \textbf{không mất}: nó nằm lại trên hàng đợi, bật lại thì chạy tiếp \\
+\texttt{ingest} & Tài liệu mới không tải lên được & Việc \textbf{không mất}: nó nằm lại trên hàng đợi, bật lại thì chạy tiếp \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-Hai dòng đầu tương phản nhau, và sự tương phản ấy là có chủ ý. Hàng đợi chết thì \texttt{be} vẫn
-khởi động và chỉ những đường cần mô hình mới báo lỗi --- vì làm bài, nộp bài và xem điểm giai
-đoạn 1 không cần tới mô hình, nên không có lý do gì để chúng chết theo. Kho tệp chết thì
-\texttt{be} \emph{dừng ngay lúc khởi động}, và đó không phải một thiếu sót: một đường mà việc duy
-nhất của nó là cất tệp thì không có phiên bản suy giảm nào --- nó hoặc cất được, hoặc nói dối.
-
-Hai dòng cuối cần đọc kỹ, vì chúng \emph{trông} giống nhau trên màn hình mà khác nhau ở chỗ
-quan trọng nhất. Hệ thống không ghi trạng thái \emph{xử lý hỏng} vào đâu cả --- nó \textbf{suy
-ra lúc đọc}, khi một tài liệu nằm ở \emph{đang xử lý} lâu hơn ngưỡng cho phép. Nên dù
-\texttt{document} chết hay \texttt{ingest} chết, quá ngưỡng ấy là giáo viên đọc ra cùng một
-câu. Cái khác nằm bên dưới: \texttt{document} chết thì chưa ai đọc tệp, còn \texttt{ingest}
-chết thì tệp đã đọc xong và câu trả lời đang \textbf{nằm chờ} trên hàng đợi.
-
-Dòng \texttt{ingest} là dòng duy nhất \emph{đã} được kiểm bằng tay --- năm dòng kia suy từ mã
-nguồn. Phép kiểm: tắt thành phần ấy rồi tải một tài liệu lên, tài liệu đứng ở \emph{đang xử lý};
-bật lại, việc vẫn được làm nốt và tài liệu chuyển sang \emph{sẵn sàng}. Đó là bằng chứng việc đã
-nằm an toàn trên hàng đợi chứ không biến mất cùng thành phần đọc nó.
-
-\section{Cách giữ cho ranh giới không mục}
-\label{sec:giu-ranh-gioi}
-
-Mọi ranh giới trong chương này đều là một câu văn, và một câu văn thì không tự giữ được. Người
-viết mã sau sáu tháng không đọc lại báo cáo; họ đọc mã. Nên mỗi ranh giới đáng giữ đều được gắn
-một phép kiểm tự động, chạy mỗi lần mã nguồn thay đổi.
-
-\begin{table}[htbp]
-\centering
-\caption{Ranh giới, và thứ bắt được khi nó bị phá}
-\label{tab:giu-ranh-gioi}
-\begin{tabular}{@{}L{7.4cm}L{6.4cm}@{}}
-\toprule
-\textbf{Ranh giới} & \textbf{Bắt được bằng} \\
-\midrule
-Không thành phần nào dùng mã nguồn của thành phần khác & Kiểm quan hệ phụ thuộc, chạy trước mỗi lần ghi nhận thay đổi \\
-\addlinespace
-Hai package dùng chung không được biết thành phần nào tồn tại & Cùng phép kiểm trên \\
-\addlinespace
-\texttt{agent} và \texttt{document} không giữ chìa khoá kho dữ liệu & Phép kiểm ở tầng dự án \\
-\addlinespace
-Chỉ một chỗ được phép dựng bảng; mọi chỗ khác chỉ được đối chiếu & Phép kiểm ở tầng dự án \\
-\addlinespace
-Hai đầu của tín hiệu đọc cùng một tên kênh từ bảng từ vựng chung & Phép kiểm ở tầng dự án \\
-\addlinespace
-\texttt{agent} không phát ra quyết định định tuyến & Kiểm thử tự động \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Hiện có hai mươi phép kiểm ở tầng dự án cùng ba hợp đồng phụ thuộc. Cách duy nhất biết một phép
-kiểm còn sống là \emph{thử phá}: cố tình viết sai một dòng, xác nhận phép kiểm báo đỏ, rồi hoàn
-tác. Một phép kiểm chưa bao giờ đỏ là một phép kiểm chưa ai chứng minh là có tác dụng.
-
-\section{Kiến trúc không nói nơi chạy}
-
-Chương này không nói thành phần nào chạy ở đâu, và đó là một lựa chọn. Nơi chạy sẽ đổi --- từ
-một máy cá nhân sang một máy chủ, rồi có thể sang một cụm điều phối --- còn ranh giới quyền
-quyết định thì không. Một sơ đồ trộn hai thứ ấy vào nhau sẽ sai mỗi lần hạ tầng đổi, mà phần
-sai lại là phần không đáng vẽ.
-
-\paragraph{Thiết kế hiện tại mang đi được, vì ba tính chất.} Không thành phần nào viết cứng
-cấu hình vào mã nguồn: mọi giá trị đều đọc được từ biến môi trường, và một tệp cấu hình ở gốc dự
-án chỉ đóng vai trò giá trị mặc định cho máy phát triển. Không thành phần nào giữ trạng thái của riêng nó
-trên đĩa --- dữ liệu ở kho dữ liệu, tệp ở kho tệp. Và mọi trao đổi đều qua hai cơ chế ở
-mục~\ref{sec:noi-chuyen}, không qua bộ nhớ chung. Hệ quả: thêm một bản sao của một thành phần đọc
-hàng đợi chỉ là thêm một người tiêu thụ, không cần ai phối hợp với ai. Tín hiệu báo thư viện đổi
-cũng phát theo kiểu quảng bá, nên nhiều bản sao của \texttt{be} đều nghe được --- một giáo viên
-nối vào bản sao nào cũng được báo.
-
-\paragraph{Ba chỗ chưa sẵn sàng, nói thẳng ra.} Thứ nhất, việc dựng bảng dữ liệu hiện nằm trong
-lúc \texttt{be} khởi động. Một bản sao thì đúng; nhiều bản sao khởi động cùng lúc là nhiều tiến
-trình cùng dựng một schema, và cùng gieo dữ liệu mẫu. Việc ấy sẽ phải tách ra chạy trước, một
-lần, chứ không nằm trong đường khởi động của một thành phần phục vụ. Thứ hai, hệ thống có một
-đường để hỏi \emph{tiến trình này còn sống không} nhưng chưa có đường hỏi \emph{nó đã sẵn sàng
-nhận việc chưa}. Đường đang có cố ý \emph{không} thăm dò các kho --- nhờ vậy nó phân biệt được
-một tiến trình chết với một kho chết --- và đó là một quyết định nên giữ, nhưng nó không thay
-được đường thứ hai. Thứ ba, hai cửa sổ trình duyệt cùng chạy một lượt trò chuyện của giáo viên
-thì không có khoá nào ngăn; một bản sao đã vậy, nhiều bản sao thì nặng hơn.
-
-Ba chỗ này đều là việc của bước triển khai, không phải lỗi của thiết kế hiện tại. Nêu ra ở đây
-để chúng là những việc đã biết tên, chứ không phải những thứ phát hiện ra vào ngày đẩy lên máy
-chủ.
 
 \section{Mô hình dữ liệu}
 
@@ -363,72 +194,56 @@ nghiệp vụ, và phần ghi chú dưới đây nói vì sao ranh giới giữa
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 1 --- người và lớp}} \\
 \addlinespace
 \texttt{classes} & Một lớp giáo viên tạo. Lớp thuộc về giáo viên, không thuộc về nhà trường. Tên lớp \emph{không} phải định danh \\
+\cmidrule{1-2}
 \texttt{students} & Họ tên, mã học sinh, thuộc lớp nào. Mã học sinh là khoá con người dùng \\
+\cmidrule{1-2}
 \texttt{teachers} & Họ tên và mã giáo viên \\
 \addlinespace
 
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 2 --- nội dung đề}} \\
 \addlinespace
 \texttt{assessments} & Tác giả, tiêu đề, môn, khối, và \emph{trạng thái} --- bốn giá trị của vòng đời một đề: rỗng, có câu hỏi, đã duyệt, đã phát hành \\
+\cmidrule{1-2}
 \texttt{questions} & Đề bài, thứ tự câu học sinh nhìn thấy, mục tiêu học tập \\
+\cmidrule{1-2}
 \texttt{options} & Nhãn, nội dung, dấu đáp án đúng, và \emph{lỗi mà phương án này đại diện}. Ô lỗi để trống ở đúng một dòng mỗi câu, và dòng đó chính là đáp án đúng \\
+\cmidrule{1-2}
 \texttt{methods} & Các cách giải của một câu. Bắt buộc nhiều hơn một \\
+\cmidrule{1-2}
 \texttt{publications} & Sáu tham số phát hành, một dòng cho mỗi cặp đề và lớp, nên thu hồi được từng lớp một \\
+\cmidrule{1-2}
 \texttt{documents} & Tài liệu giáo viên tải lên: tên tệp, kích thước, khoá trỏ tới kho tệp, trạng thái xử lý, số trang, lý do hỏng. \textbf{Không giữ byte nào}. Thuộc về giáo viên, không thuộc về đề \\
+\cmidrule{1-2}
 \texttt{draft\_briefs} & Yêu cầu soạn của một đề: môn, khối, phạm vi, tổng số câu đã xin \\
+\cmidrule{1-2}
 \texttt{draft\_items} & Một ô cho mỗi câu đang soạn, kèm trạng thái, số lần đã thử, và \emph{lý do} lần gần nhất bị loại \\
 \addlinespace
 
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 3 --- bài làm và điểm}} \\
 \addlinespace
 \texttt{attempts} & Một học sinh làm một đề: lớp lúc bắt đầu, giờ bắt đầu, giờ phải xong, giờ đã nộp \\
+\cmidrule{1-2}
 \texttt{answers} & Lựa chọn ở giai đoạn 1, ghi mỗi lần bấm chứ không gom tới lúc nộp \\
+\cmidrule{1-2}
 \texttt{question\_outcomes} & \textbf{Sổ điểm}: mức điểm cuối, lý do, số vòng đã dùng, đã chốt hay chưa \\
 \addlinespace
 
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 4 --- giai đoạn 2}} \\
 \addlinespace
 \texttt{rounds} & Một lượt làm lại và giờ kết thúc của nó, đã cắt xuống hạn giai đoạn 2 nếu vượt \\
+\cmidrule{1-2}
 \texttt{round\_items} & Câu sinh cho lượt đó, kèm phương án và lời giải --- giữ cả đáp án đúng ở đây là thứ cho phép hệ thống tự chấm lượt \\
+\cmidrule{1-2}
 \texttt{pregenerated\_items} & Câu viết \emph{trước} khi học sinh bấm nút, trong lúc em còn đang đọc giải thích \\
+\cmidrule{1-2}
 \texttt{chat\_messages} & Từng lượt hội thoại, lưu \emph{trước} khi phát ra màn hình \\
+\cmidrule{1-2}
 \texttt{reports} & Báo cáo \emph{giải thích chưa rõ}, gắn với cả bài chứ không với một tin nhắn \\
 \addlinespace
 
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 5 --- hội thoại của giáo viên}} \\
 \addlinespace
 \texttt{teacher\_conversations} & Một mạch hội thoại của một giáo viên. Tiêu đề do trợ lí đặt sau lượt đầu, giáo viên sửa được; xoá là \emph{xoá mềm} \\
+\cmidrule{1-2}
 \texttt{teacher\_turns} & Từng \emph{bước} của một lượt: lời nói, hoặc công cụ đã chạy, kèm chủ thể mà bước đó nói về \\
 \end{longtable}
-
-\subsection{Ba chỗ đáng giải thích}
-
-\paragraph{Sổ điểm tách khỏi câu trả lời.} Một câu có một câu trả lời ở giai đoạn 1 và nhiều lượt
-ở giai đoạn 2, nhưng chỉ có \textbf{một} kết luận. Gộp điểm vào bảng câu trả lời sẽ buộc phải trả
-lời câu hỏi \emph{câu trả lời nào mang điểm}, mà câu hỏi ấy không có đáp án đúng. Mức điểm trong
-sổ chỉ đi lên, không bao giờ đi xuống --- đó là cách luật \emph{giai đoạn 2 chỉ cộng} ở
-mục~\ref{sec:thang-diem} được bảo đảm bằng dữ liệu chứ không bằng lời hứa.
-
-\paragraph{Câu của một lượt không nằm chung với câu của đề.} Một câu biến thể thuộc về đúng một
-lượt và không bao giờ bị tìm kiếm xuyên qua các lượt khác. Đưa nó vào bảng câu hỏi của đề
-thì mọi chỗ đọc đề đã duyệt đều phải nhớ bỏ qua loại câu hỏi thứ hai này. Chỉ cần một chỗ
-quên là đề của giáo viên có thêm những câu họ chưa từng duyệt.
-
-\paragraph{Khoá nội dung là một trạng thái của đề, không phải một cờ trên từng câu.} Duyệt là
-thao tác trên cả đề, nên thứ ghi lại nó cũng phải nằm ở cấp đề. Một cờ trên từng câu sẽ cho phép
-một đề nửa khoá nửa mở, mà trạng thái đó không có nghĩa nghiệp vụ nào.
-
-\section{Vì sao chưa vẽ sơ đồ lớp hay sơ đồ thực thể}
-
-Báo cáo này mô tả dữ liệu bằng bảng chứ không bằng sơ đồ thực thể, và đó là một lựa chọn chứ
-không phải thiếu sót.
-
-Một sơ đồ thực thể nói về \emph{quan hệ} giữa các bảng. Mà quan hệ ở đây gần như toàn là
-quan hệ cha con hiển nhiên: lớp có học sinh, đề có câu hỏi, câu hỏi có phương án. Một sơ đồ
-như vậy tốn một trang để nói lại thứ bảng đã nói.
-
-Thứ \emph{thật sự} khó hiểu trong mô hình này không phải quan hệ, mà là ba chỗ vừa giải thích ở
-trên. Vì sao điểm tách khỏi câu trả lời, vì sao câu của một lượt nằm riêng, và vì sao khoá nội
-dung là trạng thái của đề. Cả ba đều là lý do, và một sơ đồ thì không vẽ được lý do.
-
-Sơ đồ ấy sẽ đáng vẽ khi mô hình có một quan hệ mà người đọc không đoán ra được từ tên bảng.
