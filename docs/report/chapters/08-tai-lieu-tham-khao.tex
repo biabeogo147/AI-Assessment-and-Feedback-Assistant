@@ -1,0 +1,37 @@
+\chapter*{Tài liệu tham khảo}
+\addcontentsline{toc}{chapter}{Tài liệu tham khảo}
+\label{ch:tham-khao}
+
+Báo cáo này mô tả một hệ thống đang chạy được, nên nguồn của nó là chính mã nguồn và các bản ghi
+quyết định đi kèm, chứ không phải tài liệu bên ngoài. Mọi con số và mọi luật nêu trong báo cáo
+đều có một chỗ tương ứng trong kho dưới đây.
+
+\begin{description}[itemsep=1.1em,parsep=0.35em,leftmargin=0pt]
+
+  \item[Mã nguồn và tài liệu kỹ thuật của dự án]\mbox{}\\
+  \url{\linkrepo}
+  \medskip
+
+  Kho chứa năm thành phần đã mô tả ở chương~\ref{ch:kien-truc-va-du-lieu}, cùng ba nhóm tài liệu
+  mà báo cáo này rút gọn từ đó:
+
+  \begin{itemize}
+    \item \texttt{docs/decisions/} --- các bản ghi quyết định nghiệp vụ. Chương~\ref{ch:quyet-dinh}
+          là bản rút gọn của nhóm này; mỗi quyết định ở đó ghi thêm phần \emph{đã cân nhắc những
+          gì} và \emph{nơi nào thi hành nó}, hai phần mà báo cáo không đủ chỗ chở.
+    \item \texttt{docs/overview/} --- mô tả nghiệp vụ, kiến trúc và mô hình dữ liệu. Nguồn của
+          chương~\ref{ch:luong-nghiep-vu}, \ref{ch:use-case} và~\ref{ch:kien-truc-va-du-lieu}.
+    \item \texttt{docs/diagrams/} --- tệp gốc của mọi sơ đồ trong báo cáo. Các hình ở đây được
+          \emph{xuất ra} từ chúng chứ không vẽ lại, và một phép kiểm tự động trong kho sẽ báo đỏ
+          nếu một sơ đồ đổi mà hình chưa xuất lại.
+  \end{itemize}
+
+  \item[Các luật được canh bằng máy]\mbox{}\\
+  \texttt{tools/check\_contract.py} và \texttt{AGENTS.md} trong kho trên.
+  \medskip
+
+  Mục~\ref{sec:giu-ranh-gioi} nói rằng mỗi ranh giới đáng giữ đều có một phép kiểm tự động đứng
+  sau. Hai tệp này là nơi những phép kiểm ấy sống, và là chỗ kiểm chứng được các con số nêu ở
+  mục đó.
+
+\end{description}

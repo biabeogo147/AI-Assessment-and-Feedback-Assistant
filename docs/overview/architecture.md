@@ -251,7 +251,7 @@ Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiế
 
 **Class Diagram hoặc ERD** sẽ cần khi có Postgres. Hiện chưa có bảng nào, nên vẽ ra chỉ khiến team hiểu nhầm rằng data model đã chốt. `domain-context.drawio` chỉ mô tả boundary và tương tác với Teacher, Student; nó không mô tả object nội bộ hay schema.
 
-**Deployment Diagram** sẽ cần khi các service được container hoá. Hiện chúng chạy native trên một máy và `system-architecture.drawio` đã thể hiện đủ ranh giới giữa tiến trình native và container hạ tầng.
+**Deployment Diagram** sẽ cần khi các service được container hoá, và lúc ấy nó là chỗ **duy nhất** nói về nơi chạy. `system-architecture.drawio` cố ý **không** nói: nó vẽ ranh giới quyền quyết định và chìa khoá — những thứ không đổi khi hạ tầng đổi — nên một ranh giới native/container nằm trên đó sẽ sai vào đúng ngày đầu tiên đẩy lên máy chủ. Mục "Năm service, năm process" ở đầu file này và `docs/local-development.md` mới là nơi nói tiến trình nào chạy bằng gì trên máy local.
 
 ## Quy ước đặt tên service mới
 

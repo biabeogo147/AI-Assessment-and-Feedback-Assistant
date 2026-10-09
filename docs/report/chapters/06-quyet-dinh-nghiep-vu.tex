@@ -1,3 +1,237 @@
-% Chương này được viết ở một task sau. Hiện chỉ có tiêu đề để khung build được.
 \chapter{Những quyết định nghiệp vụ đáng chú ý}
 \label{ch:quyet-dinh}
+
+Những chương trước mô tả hệ thống làm gì. Chương này nói về sáu quyết định mà chọn một đường
+là bỏ một đường khác. Cái giá của mỗi lựa chọn đều đã biết trước, chứ không phát hiện ra lúc
+dùng.
+
+Mỗi quyết định có ba phần: bối cảnh, quyết định đã chốt, và cái giá đi kèm. Phần thứ ba đáng
+đọc nhất, vì một quyết định không mất gì thường là quyết định chưa gặp tình huống khó.
+
+Riêng mục~\ref{sec:hai-luat-nghich} không theo khuôn ấy. Nó không phải quyết định thứ bảy mà là
+chỗ hai quyết định trước gặp nhau, và nhìn qua thì chúng mâu thuẫn.
+
+\section{Duyệt khoá nội dung, nhưng bỏ duyệt được}
+
+\paragraph{Bối cảnh.} Mô tả nghiệp vụ ban đầu coi duyệt và phát hành là một bước, nên một đề chỉ
+có hai trạng thái: chưa duyệt và đã phát hành. Thiết kế thực tế tách chúng ra, và cần thêm một
+trạng thái mà mô hình cũ không có chỗ chứa: đề vừa tạo ra thì chưa có câu nào.
+
+\paragraph{Quyết định.} Một đề đi qua bốn trạng thái: \emph{trống}, \emph{có câu hỏi},
+\emph{đã duyệt}, \emph{đã phát hành}. Duyệt \textbf{khoá nội dung} --- ở trạng thái đã duyệt,
+không thêm và không sửa câu hỏi được. Nội dung bị khoá gồm cả lời giải và ánh xạ từ phương án
+nhiễu sang lỗi, không chỉ câu hỏi và đáp án. Bỏ duyệt đưa đề về lại nháp, và được phép chừng nào
+đề chưa phát hành; cài đặt phát hành đã nhập thì giữ nguyên.
+
+Lý do khoá thì dễ thấy: duyệt là lúc giáo viên nhận trách nhiệm về nội dung. Nếu nội dung còn sửa
+được sau khi duyệt thì việc duyệt không có nghĩa gì.
+
+Lý do \emph{đảo ngược được} mới là phần đáng nói. Đây không phải cổng cuối cùng --- phát hành
+mới là. Nếu cả hai cổng đều một chiều thì giáo viên gặp hai cửa nặng liên tiếp, và sẽ học cách
+bấm qua cả hai cho nhanh. Làm nặng cổng duyệt như vậy là làm hỏng đúng cái cổng thật sự cần sức
+nặng.
+
+\paragraph{Cái giá.} Giao diện không được mời giáo viên sửa nữa, khi đề đã duyệt. Nút sửa trên từng
+câu phải \textbf{biến mất}, không phải mờ đi: một nút mờ vẫn là một lời mời, và chừng nào nó còn
+đó thì câu \emph{nội dung đã khoá} chỉ là lời nói suông. Trạng thái trống cũng phải có một màn
+hình rỗng riêng và phải chặn phát hành, nên nó là một trạng thái thật chứ không phải một phép
+đếm câu hỏi.
+
+\section{Giờ đóng chặn việc vào, không chặn việc nộp}
+
+\paragraph{Bối cảnh.} Mục~\ref{sec:ba-con-so} đã nói luật này và ví dụ đi kèm. Chỗ đáng bàn ở
+đây là vì sao nó được chọn, khi mà nó đi ngược với cách hầu hết người đọc hiểu chữ \emph{đóng}.
+
+\paragraph{Quyết định.} Giờ đóng là hạn \textbf{vào tham gia}, không phải hạn nộp. Mốc này bao
+gồm chứ không loại trừ: vào tới hết giờ đóng vẫn được. Ai đã vào rồi thì không bị dừng giữa
+chừng.
+
+Mốc chọn kiểu bao gồm, vì một học sinh bấm vào đúng giây cuối không nên bị từ chối bởi một ranh
+giới em không nhìn thấy. Còn người đã vào thì không bị dừng, vì ở giai đoạn 1 thời gian làm bài
+là thứ hệ thống \emph{cấp cho riêng mỗi em}, đo từ lúc em vào. Cắt ngang là lấy lại một thứ đã
+hứa.
+
+\paragraph{Cái giá.} Hệ thống nhận lấy nghĩa vụ giải thích. Vì hiểu nhầm ở đây gây hại theo
+chiều ngược với dự đoán, câu giải thích phải xuất hiện ở cả ba nơi --- lúc đang chọn giờ, lúc xác
+nhận, và trong biên bản sau khi phát hành --- và phải giống hệt nhau từng chữ. Ba cách diễn đạt
+cho một luật sẽ được hiểu thành ba luật.
+
+Kéo theo một ràng buộc nữa: mốc nộp cuối trong câu đó --- 18:15 ở ví dụ
+mục~\ref{sec:ba-con-so} --- phải được tính từ giờ đóng cộng thời gian làm bài, chứ không viết
+sẵn. Viết cứng thì nó sai ngay lần đầu có người đổi thời gian làm bài, và sai một cách im lặng.
+
+\section{Ba cổng, và ranh giới cứng của cổng đầu vào}
+
+\paragraph{Bối cảnh.} Mục~\ref{sec:ba-cong} đã nêu ba điểm giáo viên bắt buộc tham gia. Hai
+trong ba nằm ở đầu ra, tức sau khi trợ lí đã làm xong việc. Cổng còn lại nằm ở đầu vào, và nó là
+cổng dễ bị lạm dụng nhất.
+
+\paragraph{Quyết định.} Cổng đầu vào --- trợ lí hỏi lại khi chưa đủ thông tin --- có một ranh giới
+cứng:
+
+\begin{itemize}
+  \item Chỉ dùng để hỏi thông tin \textbf{trước khi làm một việc đảo ngược được}.
+  \item \textbf{Không bao giờ} dùng để xin phép một việc không thu hồi được. Câu hỏi
+        \emph{phát hành cho lớp nào} phải đi qua biểu mẫu phát hành và hộp xác nhận.
+  \item Trợ lí không đánh dấu lựa chọn nào là nên chọn, khi đó là một quyết định sư phạm. Mỗi
+        lựa chọn tự nói ra cái giá của nó.
+  \item Luôn giữ lối thoát trả lời tự do. Ba lựa chọn không bao giờ phủ hết.
+\end{itemize}
+
+Ranh giới cứng còn quan trọng hơn bản thân việc có cổng. Nếu một bộ ba lựa chọn được phép xin
+phép một việc không thu hồi được, thì cổng duyệt bị đi vòng bằng một cú bấm --- và nó \emph{sẽ}
+bị đi vòng, vì ba cái nút nhẹ hơn hẳn một biểu mẫu sáu trường.
+
+Không đánh dấu nên chọn, vì chọn nguồn câu hỏi hay mức độ khó là quyết định sư phạm. Trợ lí biết
+kho câu hỏi còn gì ở mức nào; quyền chọn thì thuộc về giáo viên. Đưa thông tin là đủ, còn nghiêng
+người đọc về một phương án là làm thay việc của họ.
+
+\paragraph{Một cái bẫy đã gặp.} Gợi ý ngầm còn tệ hơn gợi ý công khai. Bộ ba lựa chọn soạn lần
+đầu có một phương án duy nhất không kèm mệnh đề nhượng bộ, nên nó nghe nhẹ nhất trong ba phương
+án, mà người đọc không nhận ra mình đang được hướng về đó. Vì vậy mọi lựa chọn phải nêu cái giá
+bằng cùng một ngữ pháp.
+
+\paragraph{Cái giá.} Cổng đầu vào làm trợ lí chậm lại: nó phải nhận ra mình chưa đủ thông tin
+thay vì chọn một mặc định hợp lý. Đổi lại, mỗi lần đoán sai đều tốn một vòng sửa ở đầu ra, nơi
+đắt hơn.
+
+Và có một lỗ đã biết, ghi ra đây thay vì để nó âm thầm: \textbf{câu biến thể ở giai đoạn 2 không
+đi qua cổng nào}. Đây là ngoại lệ của cổng thứ nhất, tức cổng duyệt. Câu biến thể sinh ra lúc học
+sinh đang ngồi làm bài, nên không có khoảng trống nào để chờ một thao tác của giáo viên.
+
+Đó là lý do cơ học chứ không phải lý do nguyên tắc: cổng vẫn đúng, chỉ là chưa có cách giữ nó mà
+không bắt cả lớp dừng lại. Vì vậy câu \emph{ba cổng} không còn đọc được như một lời hứa tuyệt
+đối, và chỗ nào nhắc tới nó cũng phải trả lời được một câu: thế còn câu biến thể?
+
+\section{Hai đồng hồ ở giai đoạn 2, và chỉ một cái chạy khi học sinh đang học}
+
+\paragraph{Bối cảnh.} Giai đoạn 2 cần thời gian, nhưng thời gian của nó không giống giai đoạn 1 ở
+bất cứ điểm nào. Số câu phải làm thay đổi theo từng lượt, phần học sinh đọc lời giải thì không
+nên bị hối, và cả giai đoạn có thể kéo dài tới cuối ngày.
+
+\paragraph{Quyết định.} Mục~\ref{sec:hai-dong-ho} đã mô tả cơ chế: số phút mỗi câu là một tỉ lệ
+chứ không phải một khoảng, thời lượng một lượt là một quỹ chung, phần giải thích không tính giờ,
+và đồng hồ chỉ chạy khi học sinh tự bấm nút làm bài mới.
+
+Ba lý do đứng sau ba lựa chọn ấy. Tỉ lệ thay vì khoảng cố định, vì số câu phải chữa giảm dần qua
+từng lượt, và một khoảng cố định sẽ quá rộng ở lượt cuối, quá chật ở lượt đầu. Phần giải thích
+không tính giờ, vì đó là lúc học sinh đang học chứ không phải lúc em đang chứng minh; đặt đồng hồ
+lên một cuộc giải thích chỉ dạy em gật cho xong rồi bấm tiếp. Ranh giới đặt ở nút làm bài mới, vì
+đó là hành động do chính em chọn.
+
+\paragraph{Cái giá.} Ba thứ. Hai thứ đổ lên giáo viên, một thứ làm hệ thống mất khả năng đo.
+
+Giáo viên phải đặt một con số mà họ chưa từng phải nghĩ tới. Không có kinh nghiệm dạy học nào
+giúp đoán mấy phút là đủ cho một câu chữa, và đặt sai thì hoặc lớp không kịp, hoặc bài kiểm tra
+kéo lê.
+
+Số phút mỗi câu là một con số cho cả đề, nên một câu dài và một câu ngắn được cấp thời gian như
+nhau. Muốn phân biệt câu dài câu ngắn thì phải thêm một khái niệm khác, chứ không phải tăng con
+số này lên.
+
+Và tổng thời gian một học sinh thực sự bỏ ra \textbf{không dự đoán được}, vì phần giải thích
+không có giới hạn. Mọi báo cáo sau này muốn nói em học bao lâu đều phải đo, không suy ra được từ
+cài đặt phát hành.
+
+\section{Hai luật nghịch nhau, và vì sao đó là chủ ý}
+\label{sec:hai-luat-nghich}
+
+Ở giai đoạn 1, học sinh đã vào thì không bị dừng giữa chừng. Ở giai đoạn 2, hết hạn là dừng, kể
+cả khi em đang làm dở một lượt, và câu chưa xong nhận 0 điểm. Hai luật này nghịch nhau, và đó là
+chỗ dễ bị một người đọc kỹ coi là thiếu nhất quán rồi đi sửa một trong hai.
+
+Chúng không mâu thuẫn, vì thời gian ở hai giai đoạn là hai thứ khác nhau.
+
+Ở giai đoạn 1, thời gian làm bài là một lượng \textbf{hệ thống cấp cho từng người}, bắt đầu đếm
+từ lúc em vào. Cắt ngang một người đang làm là lấy lại một thứ đã hứa với riêng em, và em không
+có cách nào biết trước mình sẽ bị lấy mất bao nhiêu.
+
+Ở giai đoạn 2 thì ngược hẳn. Thời lượng một lượt do \textbf{học sinh tự chọn lúc nào bắt đầu},
+còn hạn kết thúc là một mốc chung cho cả lớp mà em nhìn thấy suốt cả ngày. Không cắt thì hạn ấy
+không tồn tại: ai cũng có thể mở một lượt dài lúc chỉ còn một phút, và kéo bài kiểm tra qua đêm.
+
+Cái giá của việc cắt được trả bằng một nghĩa vụ trên giao diện: màn hình phải \textbf{nói trước}
+rằng lượt này có thể bị dừng, ngay tại nút làm bài mới, kèm số phút còn lại thật. Một học sinh bị
+dừng giữa chừng mà không được báo trước sẽ tin là hệ thống hỏng.
+
+\section{Lời giải nhiều cách, và mỗi phương án nhiễu gắn một lỗi}
+
+\paragraph{Bối cảnh.} Giai đoạn 2 đòi trợ lí giải thích lỗi rồi dạy lại. Muốn làm được, nó phải
+biết hai thứ: học sinh sai vì cái gì, và cách làm đúng là gì. Với một hệ thống chỉ có đáp án
+đúng trong tay thì nó không biết cả hai, và chỉ còn đường đoán. Mục~\ref{sec:nhan-loi} đã nói vì
+sao đoán sai rồi đi giải thích một lỗi học sinh không mắc thì tệ hơn im lặng.
+
+\paragraph{Quyết định.} Mỗi câu hỏi mang theo lời giải có \textbf{nhiều hơn một cách làm}. Mỗi
+phương án nhiễu mang theo \textbf{lỗi mà nó đại diện}, soạn cùng câu hỏi chứ không suy ra lúc
+chấm. Và trong một câu, không được có hai phương án viết giống nhau từng chữ.
+
+Luật cuối nghe như một chi tiết nhưng không phải. \emph{Đúng một đáp án đúng} là một luật về cái
+nhãn đánh dấu đáp án, nên hai phương án trùng chữ vẫn thoả nó. Nhưng với học sinh thì câu đó có
+hai đáp án đúng. Em chọn phương án không được đánh dấu sẽ bị chấm là sai, dù em đã chọn đúng.
+
+Giá trị thật của quyết định này là nó biến chẩn đoán từ \textbf{suy đoán} thành \textbf{tra
+cứu}, và làm việc đó ở đúng chỗ: lúc soạn đề, nơi có một người biết môn học đang ngồi. Lời giải
+nhiều cách thì cần cho một lý do khác --- một cuộc giải thích chỉ có một cách sẽ không đi đâu
+được khi học sinh nói em vẫn chưa hiểu, và lặp lại to hơn không phải là dạy.
+
+\paragraph{Cái giá.} Đây là chỗ hệ thống trả giá đắt nhất trong cả báo cáo, và cái giá nằm
+đúng vào một nguyên tắc lõi.
+
+Ánh xạ soạn sẵn gắn mỗi phương án nhiễu với đúng một lỗi: chọn nhiễu B thì hệ thống nói ngay là
+lỗi B, nói chắc nịch, kể cả khi em chọn B vì một lý do khác hẳn. Đổi lấy sự chắc chắn ấy, sản
+phẩm \textbf{mất khả năng nói ra rằng nó không chắc} đúng ở chỗ nó đang nói chuyện với học sinh.
+
+Đánh đổi này được nhận vì phương án còn lại tệ hơn theo cách đo được. Giữ chẩn đoán bằng suy đoán
+nghĩa là mọi câu của mọi em đều rơi vào hàng đợi chờ giáo viên, và giai đoạn 2 không khởi động
+được cho ai. Một chẩn đoán do người soạn đề viết ra sai ít hơn một chẩn đoán do máy
+đoán --- nhưng nó không phải là không sai.
+
+Ba hệ quả đi kèm, và cả ba đều đã biết trước:
+
+\begin{itemize}
+  \item \textbf{Cổng duyệt nặng hơn hẳn.} Duyệt một đề nay là duyệt cả lời giải và ánh xạ nhiễu.
+        Mà lời giải khó duyệt hơn câu hỏi: một câu hỏi sai thì đọc là thấy, còn một lời giải sai
+        tinh vi thì phải làm thử mới thấy.
+  \item \textbf{Lời giải sai bị khuếch đại.} Một câu hỏi sai làm hỏng một câu. Một lời giải sai
+        được dạy lại cho mọi em sai câu đó, cùng lúc. Sai sót trong nội dung không còn tỉ lệ với
+        số người gặp nó.
+  \item \textbf{Câu đúng ở giai đoạn 1 không bao giờ kiểm được lời giải của nó}, vì nó không vào
+        giai đoạn 2. Một lời giải sai chỉ lộ ra qua chính những em bị dạy lại bằng nó.
+\end{itemize}
+
+\section{Đề có tác giả, và câu từ chối phải giống hệt câu không tìm thấy}
+
+\paragraph{Bối cảnh.} Luật \emph{lớp thuộc về giáo viên} đã được phát biểu từ sớm, nhưng chưa
+từng có chỗ để sống: dữ liệu không có trường nào ghi ai là tác giả. Không có chỗ ghi thì không
+câu truy vấn nào áp được luật, và không phép kiểm nào hỏi được là luật có đúng hay không.
+
+Chuyện này chưa gây hại khi hệ thống chỉ có màn hình của học sinh, vì ở đó phạm vi dữ liệu đã bị
+cắt sẵn theo bài làm của chính em. Màn hình của giáo viên phá vỡ điều đó: mọi thứ bắt đầu từ một
+cuộc hội thoại, nên trợ lí phải tự chọn dữ liệu để đọc. Câu \emph{trợ lí chỉ đọc được dữ liệu của giáo viên đang đăng
+nhập} phải thành một điều kiện trong truy vấn, không phải một dòng trong lời dặn gửi cho mô hình.
+
+\paragraph{Quyết định.} Mỗi lớp và mỗi đề có đúng một tác giả, và trường đó bắt buộc có. Giáo
+viên chỉ đọc và chỉ sửa được lớp và đề của mình.
+
+Và phần đáng bàn: \textbf{lớp không tồn tại và lớp của giáo viên khác nhận cùng một câu trả
+lời}. Không có mã lỗi riêng, không có câu từ chối riêng, không có chênh lệch nào để so.
+
+Nếu hai câu trả lời ấy khác nhau thì chúng là một kênh dò: gõ tên lớp cho tới khi thông báo đổi
+giọng là biết được lớp nào có thật ở trường. Với một trợ lí trò chuyện bằng tiếng Việt thì việc
+dò ấy rẻ nhất: người dò không phải đọc mã lỗi, chỉ cần nhận ra hai câu trả lời nghe khác nhau. Mà
+sự khác nhau đó thì chính trợ lí sẽ nói ra, rất nhiệt tình.
+
+Đây cũng là lý do luật này là luật nghiệp vụ chứ không phải một chi tiết kỹ thuật: nó nói hệ
+thống được phép để lộ điều gì về những người không phải người đang hỏi.
+
+\paragraph{Cái giá.} Câu từ chối mất đi phần hữu ích nhất của nó. Nó \textbf{không được} nói
+\emph{đề này không phải của bạn}, vì chính câu đó đã tiết lộ rằng đề tồn tại. Một giáo viên gõ
+nhầm tên lớp sẽ nhận một câu trả lời không giúp họ nhận ra mình gõ sai, và đó là cái giá đã biết.
+
+Một tác giả chứ không phải nhiều, cũng là một lựa chọn có giá: đồng sở hữu một đề là chuyện chưa
+ai yêu cầu, và nó làm mọi phép kiểm \emph{đề này của ai} nặng thêm một bậc. Thêm vào sau thì
+được; bỏ đi thì không.
+
+\paragraph{Và tên lớp không phải định danh.} Hai lớp cùng tên được phép tồn tại, nên khi giáo
+viên nhắc tới một cái tên mà có nhiều lớp mang tên đó, trợ lí phải hỏi lại chứ không được tự
+chọn. Đó chính là cổng đầu vào ở mục~\ref{sec:ba-cong} làm việc đúng chỗ của nó.
