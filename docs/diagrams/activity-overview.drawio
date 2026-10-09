@@ -46,7 +46,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="grade" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontSize=15;fontFamily=Times New Roman;" value="System/AI chấm bài" vertex="1">
+        <mxCell id="grade" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f3f5;strokeColor=#495057;fontSize=15;fontFamily=Times New Roman;" value="Hệ thống chấm bài" vertex="1">
           <mxGeometry height="100" width="260" x="1365" y="433" as="geometry" />
         </mxCell>
         <mxCell id="p2-has-wrong" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#343a40;fontSize=15;fontFamily=Times New Roman;" value="Còn câu sai chưa chốt?" vertex="1">

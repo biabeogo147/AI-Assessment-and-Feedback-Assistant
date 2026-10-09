@@ -54,14 +54,9 @@ Hệ thống hướng tới bốn mục tiêu nghiệp vụ:
 \begin{enumerate}
   \item Hỗ trợ giáo viên tạo đề từ một yêu cầu bằng ngôn ngữ tự nhiên. Một đề có hai nguồn câu
         hỏi: nội dung sinh mới, và kho câu hỏi đã dùng qua.
-  \item Hỗ trợ chấm bài và sinh nhận xét có căn cứ. Mỗi nhận xét phải dẫn được về một bằng
-        chứng, thay vì là một lời khuyên chung chung.
-  \item Phân tích lỗi sai hoặc hiểu nhầm khái niệm của học sinh.
-  \item Bắt buộc học sinh chữa lại những câu đã sai, ngay trong cùng bài kiểm tra.
+  \item Phân tích lỗi sai hoặc hiểu nhầm khái niệm của học sinh thông qua cuộc trò chuyện thay vì một câu nhận xét.
+  \item Tạo các câu hỏi mới từ các câu mà học sinh làm sai ngay trong cùng bài kiểm tra.
 \end{enumerate}
-
-Mục tiêu thứ tư là thứ phân biệt hệ thống này với một công cụ sinh đề thông thường.
-Chương~\ref{ch:y-tuong} dành phần lớn dung lượng cho nó.
 
 \section{Phạm vi}
 
@@ -70,10 +65,7 @@ Hệ thống dựng trọn một vòng nghiệp vụ, thay vì dựng sâu một
 \begin{itemize}
   \item Giáo viên tạo, xem lại và phát hành đề. Việc duyệt bao gồm cả lời giải và ánh xạ từ
         phương án nhiễu sang lỗi, không chỉ câu hỏi và đáp án.
-  \item Giai đoạn 2: Học sinh làm bài và nộp bài.
-  \item Hệ thống chấm bài và tra lỗi sai từ phương án nhiễu mà học sinh đã chọn.
-  \item Kết quả có độ tin cậy thấp, hoặc có dấu hiệu bất thường, đi vào hàng đợi chờ giáo viên
-        xem lại.
-  \item Giai đoạn 2: hệ thống giải thích lỗi và sinh câu biến thể, học sinh làm lại cho tới khi điểm
-        của từng câu được chốt.
+  \item Giai đoạn 1: Học sinh làm bài, nộp bài, và hệ thống chấm bài để biết học sinh đang thiếu kiến thức ở phần nào.
+  \item Giai đoạn 2: Học sinh trò chuyện với trợ lí Kriky để hiểu cách làm bài và tạo sao lại sai. 
+        Sau đó hệ thống và tạo câu hỏi mới, học sinh làm lại cho tới khi hiểu được cách làm của dạng bài.
 \end{itemize}

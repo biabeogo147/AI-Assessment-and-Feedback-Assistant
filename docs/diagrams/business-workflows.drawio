@@ -34,7 +34,7 @@
         <mxCell id="st-submit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;fontSize=21;fontFamily=Times New Roman;" value="Giai đoạn 1: làm + nộp bài" vertex="1">
           <mxGeometry height="70" width="330" x="1240" y="393" as="geometry" />
         </mxCell>
-        <mxCell id="s-grade" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontSize=21;fontFamily=Times New Roman;" value="Chấm bài" vertex="1">
+        <mxCell id="s-grade" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f3f5;strokeColor=#495057;fontSize=21;fontFamily=Times New Roman;" value="Chấm bài" vertex="1">
           <mxGeometry height="70" width="420" x="630" y="476" as="geometry" />
         </mxCell>
         <mxCell id="DFtGJU2p6Pe-Mplc0iU9-10" edge="1" parent="1" source="s-haswrong" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Times New Roman;fontSize=21;" target="s-end">

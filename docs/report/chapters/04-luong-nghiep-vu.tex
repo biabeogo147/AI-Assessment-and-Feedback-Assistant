@@ -1,7 +1,7 @@
 \chapter{Các luồng nghiệp vụ}
 \label{ch:luong-nghiep-vu}
 
-Nghiệp vụ của hệ thống gồm năm luồng. 
+Nghiệp vụ của hệ thống gồm bốn luồng. 
 Hình~\ref{fig:activity-overview} và hình~\ref{fig:vong-hoc} mô tả cùng một luồng, nhưng ở hai mức chi tiết khác nhau. 
 
 \begin{landscape}
@@ -58,55 +58,31 @@ Luật là: giờ đóng chặn việc \emph{vào làm}, không chặn việc n�
 được. Ai đã vào rồi thì không bị dừng giữa chừng, và được đủ thời gian làm bài kể cả khi tràn qua giờ đóng.
 Ví dụ, đóng lúc 18:00 với thời gian làm bài 15 phút thì bài cuối có thể nộp lúc 18:15.
 
-\section{Workflow 3 --- Chấm bài và sinh nhận xét}
+\section{Workflow 3 --- Chấm bài}
 
-\paragraph{Mục tiêu.} Đánh giá bài làm, xác định lỗi sai hoặc hiểu nhầm, và đưa nhận xét phù hợp.
+\paragraph{Mục tiêu.} Biết được những câu mà học sinh làm sai, từ đó trả lời các thắc mắc của học sinh thông qua cuộc trò chuyện và 
+tạo ra các câu hỏi biến thể để kiểm tra độ hiểu bài.
 
 \paragraph{Luồng chính.}
 \begin{enumerate}
-  \item \texttt{System/AI} nhận submission.
-  \item So sánh với đáp án chuẩn và lời giải chuẩn.
-  \item Hệ thống \textbf{tra} lỗi sai từ phương án nhiễu đã chọn --- mỗi nhiễu được soạn kèm một lỗi cụ thể.
-  \item Tạo kết quả gồm điểm, nhận xét, lỗi sai, mã hiểu nhầm và độ tin cậy.
-  \item Hệ thống quyết định kết quả có cần giáo viên xem lại hay không.
+  \item Học sinh nộp bài.
+  \item Hệ thống \textbf{so} phương án đã chọn với đáp án đúng của câu hỏi đã duyệt. Đây là một
+        phép so, không phải một phán đoán --- nên không có gì để mà không chắc.
+  \item Điểm giai đoạn 1 chốt ngay và học sinh thấy ngay.
 \end{enumerate}
 
-\paragraph{Nguyên tắc đánh giá.}
+\paragraph{Hai điều kiện phải có sẵn từ lúc duyệt đề.}
 \begin{itemize}
-  \item Đáp án đúng nhưng cách làm sai \emph{không} nên mặc định là đã hiểu.
-  \item Đáp án sai nhưng một phần cách làm đúng cần được ghi nhận.
-  \item Mỗi phương án nhiễu phải đại diện cho một lỗi cụ thể, soạn cùng câu hỏi. Đây là điều kiện
-        để giai đoạn 2 giải thích được.
-  \item Nhận xét nên giúp học sinh hiểu lỗi và biết bước tiếp theo.
+  \item Mỗi phương án nhiễu phải đại diện cho một lỗi cụ thể, soạn cùng lúc với câu hỏi. Phương án nhiều mà không
+        không đại hiện cho một lỗi cụ thể thì không giúp học sinh tiến bộ.
+  \item Mỗi câu hỏi phải kèm lời giải. Việc chấm không dùng tới nó, nhưng phương án nhiễu phải được tạo dựa trên lời giải thì mới có ý nghĩa
+        và trợ lí phải dựa vào lời giải để giải thích cho học sinh chứ không tự nghĩ ra cách giải mới. Chính vì thế
+        lời giải phải tồn tại từ lúc duyệt đề chứ không sinh ra lúc học sinh hỏi.
 \end{itemize}
 
-\section{Workflow 4 --- Hàng đợi review}
+\section{Workflow 4 --- Chữa bài (giai đoạn 2)}
 
-\paragraph{Mục tiêu.} Đưa các kết quả có độ tin cậy thấp hoặc có dấu hiệu bất thường cho giáo
-viên xem xét.
-
-\paragraph{Luồng chính.}
-\begin{enumerate}
-  \item \texttt{System/AI} hoàn thành đánh giá và tính độ tin cậy ở mức nghiệp vụ.
-  \item Độ tin cậy đủ cao thì kết quả đi thẳng sang giai đoạn 2.
-  \item Độ tin cậy thấp thì kết quả đi vào Teacher Review Queue.
-  \item Teacher xem câu hỏi, đáp án chuẩn, bài làm, nhận xét của trợ lí, và lý do cần xem lại.
-  \item Teacher xác nhận hoặc chỉnh sửa điểm, lỗi sai, hiểu nhầm và nhận xét.
-  \item Hệ thống lưu kết quả cuối cùng.
-\end{enumerate}
-
-\paragraph{Nhánh này không chặn giai đoạn 2.} Đây là điểm đáng chú ý: một kết quả đi vào hàng đợi
-\emph{không} giữ học sinh lại. Teacher chốt xong thì luồng hợp lại, còn học sinh vẫn chữa bài
-bình thường trong lúc chờ.
-
-\paragraph{Teacher bắt buộc xem lại khi:} độ tin cậy thấp; bài làm có mâu thuẫn, ví dụ đáp án
-đúng nhưng cách làm sai; hệ thống không đủ căn cứ để xác định lỗi; hoặc có trường hợp bất thường cần
-người có chuyên môn xem lại.
-
-\section{Workflow 5 --- Chữa bài (giai đoạn 2)}
-
-\paragraph{Mục tiêu.} Học sinh sửa được lỗi vừa mắc, và bài kiểm tra chỉ kết thúc khi việc đó đã
-diễn ra.
+\paragraph{Mục tiêu.} Bài kiểm tra chỉ kết thúc khi học sinh hiểu bài và sửa được lỗi họ mắc phải.
 
 \paragraph{Luồng chính.}
 \begin{enumerate}
@@ -138,8 +114,9 @@ của giai đoạn 1, chẳng hạn là cuối ngày.
 Hết hạn thì dừng, kể cả khi học sinh đang làm dở một lượt, và câu chưa xong nhận 0 điểm. 
 
 Đây là chỗ giai đoạn 2 làm ngược với giai đoạn 1. Ở giai đoạn 1, học sinh đã vào thì không bị dừng
-giữa chừng; ở giai đoạn 2, hết hạn là dừng. Hai luật nghịch nhau một cách có chủ ý, và
-chương~\ref{ch:quyet-dinh} giải thích vì sao.
+giữa chừng; ở giai đoạn 2, hết hạn là dừng. Hai luật nghịch nhau một cách có chủ ý: thời gian
+ở giai đoạn 1 là một lượng hệ thống cấp cho từng người kể từ lúc em vào, còn hạn của giai đoạn 2 là
+một mốc chung cả lớp nhìn thấy suốt ngày --- không cắt thì mốc ấy không tồn tại.
 
 \subsection{Giáo viên làm gì?}
 
@@ -151,9 +128,9 @@ báo cáo này và giải thích để đưa vào bài dạy trên lớp.
 Hình~\ref{fig:activity-overview} cho thấy luồng tổng quan;
 hình~\ref{fig:business-workflows} cho thấy trách nhiệm của từng vị trí.
 
-\begin{figure}[p]
+\begin{figure}[htbp]
   \centering
   \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{business-workflows.pdf}
-  \caption[Business Workflows]{Business Workflows --- cùng vòng ấy, tách theo lane}
+  \caption[Business Workflows]{Business Workflows}
   \label{fig:business-workflows}
 \end{figure}

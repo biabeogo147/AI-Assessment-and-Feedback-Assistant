@@ -16,10 +16,10 @@
         <mxCell id="student" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontFamily=Times New Roman;fontSize=15;" value="Student" vertex="1">
           <mxGeometry height="130" width="80" x="1460" y="290" as="geometry" />
         </mxCell>
-        <mxCell id="teacher-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;fontFamily=Times New Roman;fontSize=15;" value="Tạo yêu cầu, duyệt đề và lời giải, phát hành, review kết quả cần kiểm" vertex="1">
+        <mxCell id="teacher-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;fontFamily=Times New Roman;fontSize=15;" value="Tạo yêu cầu, duyệt đề và lời giải, phát hành" vertex="1">
           <mxGeometry height="90" width="280" x="200" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="teacher-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;fontFamily=Times New Roman;fontSize=15;" value="Đề nháp, kết quả cần review, báo cáo tiến độ, báo cáo giải thích chưa rõ" vertex="1">
+        <mxCell id="teacher-out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f5ff;strokeColor=#1971c2;fontFamily=Times New Roman;fontSize=15;" value="Đề nháp, báo cáo tiến độ, báo cáo giải thích chưa rõ" vertex="1">
           <mxGeometry height="90" width="280" x="200" y="410" as="geometry" />
         </mxCell>
         <mxCell id="student-in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;fontFamily=Times New Roman;fontSize=15;" value="Pha 1: làm bài, nộp. Pha 2 bắt buộc: hỏi lại, làm câu biến thể, báo cáo chỗ chưa rõ" vertex="1">
