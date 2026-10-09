@@ -49,10 +49,11 @@ hưởng trực tiếp đến việc đánh giá học sinh, nên trợ lí khô
   \item Hệ thống ghi nhận submission để đánh giá.
 \end{enumerate}
 
-\paragraph{Ba mốc thời gian}
+\paragraph{Ba tham số thời gian.}
 \label{sec:ba-con-so}
 
-Giai đoạn 1 có ba tham số thời gian độc lập: thời gian làm bài, giờ mở và giờ đóng.
+Giai đoạn 1 có ba tham số thời gian độc lập: thời gian làm bài (\texttt{phase1\_minutes}), giờ mở
+(\texttt{opens\_at}) và giờ đóng (\texttt{closes\_at}).
 
 Luật là: giờ đóng chặn việc \emph{vào làm}, không chặn việc nộp. Học sinh vào tới hết giờ đóng vẫn
 được. Ai đã vào rồi thì không bị dừng giữa chừng, và được đủ thời gian làm bài kể cả khi tràn qua giờ đóng.
@@ -73,8 +74,8 @@ tạo ra các câu hỏi biến thể để kiểm tra độ hiểu bài.
 
 \paragraph{Hai điều kiện phải có sẵn từ lúc duyệt đề.}
 \begin{itemize}
-  \item Mỗi phương án nhiễu phải đại diện cho một lỗi cụ thể, soạn cùng lúc với câu hỏi. Phương án nhiều mà không
-        không đại hiện cho một lỗi cụ thể thì không giúp học sinh tiến bộ.
+  \item Mỗi phương án nhiễu phải đại diện cho một lỗi cụ thể, soạn cùng lúc với câu hỏi. Phương án
+        nhiễu mà không đại diện cho một lỗi cụ thể thì không giúp học sinh tiến bộ.
   \item Mỗi câu hỏi phải kèm lời giải. Việc chấm không dùng tới nó, nhưng phương án nhiễu phải được tạo dựa trên lời giải thì mới có ý nghĩa
         và trợ lí phải dựa vào lời giải để giải thích cho học sinh chứ không tự nghĩ ra cách giải mới. Chính vì thế
         lời giải phải tồn tại từ lúc duyệt đề chứ không sinh ra lúc học sinh hỏi.
@@ -99,7 +100,8 @@ tạo ra các câu hỏi biến thể để kiểm tra độ hiểu bài.
 \subsection{Giai đoạn 2 đếm giờ như thế nào?}
 \label{sec:hai-dong-ho}
 
-Giai đoạn 2 nhận hai tham số: số phút mỗi câu, và hạn kết thúc giai đoạn 2.
+Giai đoạn 2 nhận hai tham số: số phút mỗi câu (\texttt{phase2\_minutes\_per\_question}), và hạn
+kết thúc giai đoạn 2 (\texttt{remediation\_deadline}).
 
 Thời lượng của một lượt bằng số phút mỗi câu nhân với số câu còn sai trong lượt đó, nên sai hai câu với 
 thời lượng làm lại 5 phút mỗi câu thì lượt ấy dài 10 phút.

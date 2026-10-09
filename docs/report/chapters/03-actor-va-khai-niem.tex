@@ -31,13 +31,18 @@ Student là người nhận đề, làm bài và luyện tập. Student có th�
 \end{itemize}
 
 \section{Từ điển khái niệm}
+\label{sec:tu-dien}
 
 \begin{itemize}
   \item \textbf{Assessment}: Bài kiểm tra, hay bộ câu hỏi được giao cho học sinh.
   \item \textbf{Question}: Câu hỏi trong một assessment.
   \item \textbf{Distractor}: Phương án sai \emph{có chủ đích}, đại diện cho một lỗi hoặc một hiểu nhầm cụ
         thể. Không phải đáp án nhiễu ngẫu nhiên.
-  \item \textbf{Submission}: Bài làm, hay câu trả lời của học sinh.
+  \item \textbf{Submission}: Việc nộp bài, và là mốc kết thúc \emph{giai đoạn 1} --- không phải
+        mốc kết thúc bài kiểm tra.
+  \item \textbf{Attempt}: Cả một lần làm bài của một học sinh trên một đề, trải qua \textbf{cả hai giai
+        đoạn}. Mỗi học sinh có \emph{nhiều nhất} một Attempt cho mỗi đề --- em chưa vào làm thì
+        không có Attempt nào. Nó xong khi mọi câu sai đã chốt, hoặc khi hạn giai đoạn 2 đi qua.
   \item \textbf{Feedback}: Phản hồi / nhận xét của trợ lí cho những thắc mắc của học sinh.
   \item \textbf{Misconception}: Hiểu nhầm khái niệm, hoặc lỗi sai có tính lặp lại.
   \item \textbf{Mastery}: Mức độ thành thạo của học sinh với một mục tiêu học tập. Khái niệm này vẫn còn
@@ -48,9 +53,49 @@ Student là người nhận đề, làm bài và luyện tập. Student có th�
   \item \textbf{Lượt}: Một lượt cho phép học sinh làm lại các câu sai của giai đoạn trước / lượt trước.
   \item \textbf{Câu biến thể}: Câu sinh từ \emph{câu học sinh làm sai ở giai đoạn 1}: giữ cấu trúc và lỗi cần
         kiểm, chỉ đổi dữ kiện.
-  \item \textbf{Lời giải}: Cách làm đi kèm mỗi câu hỏi, bắt buộc có nhiều hơn một cách. Trợ lí kriky sẽ dựa vào lời giải để giải thích cho học sinh.
-  \item \textbf{Class}: Lớp học có sẵn danh sách học sinh. Giáo viên tạo lớp. Phát hành đề phải chọn một lớp đã tạo từ trước.
-  \item \textbf{Question Bank}: Ngân hàng đề.
-  \item \textbf{Document}: Tài liệu PDF của giáo viên, nằm trong kho lưu trữ riêng của từng tài khoản. Cung cấp kiến thức và giới hạn phạm vi ra đề.
+  \item \textbf{Lời giải}: Cách làm đi kèm mỗi câu hỏi, bắt buộc có nhiều hơn một cách. Trợ lí
+        dựa vào lời giải để giải thích cho học sinh.
+  \item \textbf{Class}: Lớp học có sẵn danh sách học sinh. Giáo viên tạo lớp. Phát hành đề phải
+        chọn một lớp đã tạo từ trước.
+  \item \textbf{Question Bank}: Kho câu hỏi đã dùng qua, một trong hai nguồn câu hỏi của một đề
+        --- nguồn kia là nội dung sinh mới.
+  \item \textbf{Document}: Tài liệu PDF của giáo viên, nằm trong kho lưu trữ riêng của từng tài
+        khoản. Cung cấp kiến thức và giới hạn phạm vi ra đề.
   \item \textbf{Scope}: Phạm vi ra đề, chương và khoảng trang trong một \emph{Document}.
+  \item \textbf{Service}: Một đơn vị chạy độc lập trong hệ thống. Có năm: \texttt{frontend},
+        \texttt{backend}, \texttt{agent}, \texttt{document}, \texttt{ingest}.
+  \item \textbf{Job} và \textbf{Task}: Hai thứ khác nhau. Một \emph{task} là \emph{tên} của một loại
+        việc. Một \emph{job} là một lần chạy của task ấy, có id riêng và có thể thất bại riêng.
+  \item \textbf{Queue}: Nơi một service đẩy job vào và một service khác lấy ra làm. Job nằm lại
+        trên queue đến khi có ai lấy, nên tắt máy giữa chừng không mất việc.
+  \item \textbf{Worker}: Tiến trình ngồi nghe một queue, lấy job xuống và chạy. Nó không nhận lời
+        gọi từ ngoài; thứ duy nhất nó đọc là queue.
+  \item \textbf{Pub/sub}: Phát một tiếng lên một \emph{channel}: ai đang nghe thì nhận, ai không
+        nghe thì mất. Khác queue ở chỗ nó \textbf{không giữ lịch sử} và không chở nội dung --- nó
+        chỉ nói \emph{có cái gì vừa đổi}, còn muốn biết đổi gì thì phải đi hỏi lại.
+  \item \textbf{SSE} và \textbf{Polling}: Hai cách để màn hình biết có thứ mới. Với \emph{SSE},
+        \texttt{backend} giữ một kết nối mở và \emph{hích} xuống mỗi khi có gì đổi. Với \emph{polling},
+        màn hình tự hỏi lại theo một chu kì. Hệ thống dùng \emph{SSE}; \emph{polling} là phương án
+        nó \textbf{không} dùng, và có trong từ điển để gọi tên thứ đã bị bỏ.
+  \item \textbf{Gateway}: Cửa duy nhất đi vào một vùng. \texttt{backend} là gateway của cả hệ thống:
+        không màn hình nào gọi thẳng \texttt{agent}, \texttt{document} hay \texttt{ingest}.
+  \item \textbf{Store}: Ba kho của hệ thống là ba loại khác nhau, không nên gọi chung một chữ:
+        \emph{database} giữ dữ liệu có cấu trúc, \emph{object store} (một \emph{bucket}) giữ byte
+        của tệp, và \emph{queue} giữ job đang chờ.
+  \item \textbf{Draft}: Đề đang soạn, chưa duyệt. Câu hỏi ở trạng thái này sửa và xoá được tự do.
+  \item \textbf{Approve}: Chốt rằng đề đã dùng được. Đây là một \emph{trạng thái}, không phải một
+        thao tác: nó có cả cạnh ngược (\emph{unapprove}), và chỉ đề đã approve mới phát hành được.
+  \item \textbf{Publish} và \textbf{Publication}: \emph{Publish} là phát hành một đề cho một lớp. Một
+        \emph{Publication} là bản ghi sinh ra từ việc đó: một lớp đã chọn, cộng năm thứ giáo viên
+        đặt cho lớp đó.
+        Cùng một đề phát hành cho hai lớp là hai \emph{Publication}.
+  \item \textbf{Mark} và \textbf{Score}: \emph{Mark} là điểm của \emph{một câu}; \emph{score} là điểm
+        của \emph{cả bài}. Tiếng Việt gọi cả hai là ``điểm'', nên báo cáo giữ hai chữ tiếng Anh ở
+        những chỗ cần phân biệt.
+  \item \textbf{opens\_at} / \textbf{closes\_at} / \textbf{remediation\_deadline}: Ba mốc thời
+        gian của một \emph{Publication}. Hai mốc đầu mở và đóng giai đoạn 1; mốc thứ ba là hạn
+        của giai đoạn 2. Chữ ``hạn'' một mình không nói rõ là hạn nào.
+  \item \textbf{Tool}: Một việc có tên mà \texttt{agent} được phép \emph{đề xuất} chạy, kèm tham
+        số. Danh sách tool là một \textbf{ràng buộc}, không phải một tiện ích: duyệt đề và phát
+        hành đề cố ý không có tool nào, nên \texttt{agent} không có đường nào để đề xuất chúng.
 \end{itemize}
