@@ -395,7 +395,7 @@ chạy `startup`**, chúng đọc cây cú pháp.
 
 ## Status
 
-**Xong cả bốn pha, chưa commit.** `check` **20/20** · `lint-imports` 3 contract, 0 broken ·
+**Xong cả bốn pha**, commit `2c72e9d` (09/10/2026). `check` **20/20** · `lint-imports` 3 contract, 0 broken ·
 `pytest` **466** · `ruff` sạch.
 
 **Hai mươi mốt lỗi do review tìm ra, không cổng nào trong số trên bắt được chúng** — bốn ở pha A,

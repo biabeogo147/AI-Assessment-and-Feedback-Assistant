@@ -246,7 +246,7 @@ Test phải có:
 
 ## Status
 
-**Xong cả mười việc, chưa commit.** Cổng: `check` **18/18** · `pytest` **461** ·
+**Xong cả mười việc**, commit `2f41904` (08/10/2026). Cổng lúc đóng: `check` **18/18** · `pytest` **461** ·
 `vitest` **185** · `tsc` sạch.
 
 ### Bốn variant Figma, và số đo FE phải khớp

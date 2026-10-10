@@ -296,20 +296,6 @@ chữa*, nên lời hứa giao diện của
 [ADR-16](../decisions/adr-16-thang-diem-ba-muc.md) -- hiện lý do được 0,5 -- vẫn **chưa có nguồn dữ
 liệu**.
 
-## Diagram
-
-| Việc | Cái gì đang chặn |
-| --- | --- |
-| `system-architecture.drawio` — legend tràn dưới mép trang | Không bị chặn. Ngoài phạm vi đợt sửa diagram |
-
-Legend của file này đặt ở `y=770` cao `120` trong khi trang cao `850`, nên hai dòng cuối **nằm hoàn
-toàn dưới mép** và mất khi export. Thêm một giao cắt cạnh ở vùng `be`–`redis`–`agent`, và chín node
-lệch lưới 10.
-
-Nội dung thì **không** bị mô hình hai pha làm sai: hình chỉ vẽ `fe`/`be`/`agent`/`redis`/`contracts`,
-không nói gì tới pha, điểm, vòng lặp hay đồng hồ. Nhãn *"đọc kết quả rồi áp ngưỡng"* thì **nay sai**:
-phép áp ngưỡng đã bị xoá 09/10/2026 cùng cả đường chấm bài cũ.
-
 ## Duyệt lời giải
 
 | Việc | Cái gì đang chặn |
@@ -727,3 +713,17 @@ phải F5.
 | --- | --- |
 | Nối lại kênh sau khi nó đứt — một vòng lặp ngoài, có backoff, và dừng khi `AbortController` bị huỷ | Không chặn gì. Nó là một thay đổi **FE**, nên theo luật phải đi qua Figma trước nếu có gì hiện lên màn hình. Câu chưa trả lời: lúc kênh đứt thì màn hình có **nói ra** không, hay nối lại im lặng? Nói ra thì cần một trạng thái mới trên bản vẽ; im lặng thì rẻ hơn nhưng lặp lại đúng thói quen vừa bị bắt |
 | Trần số connection của `StreamingResponse` vẫn **chưa đo** | Nợ từ plan 2b. Một giáo viên mở năm tab là năm connection, và không có gì giới hạn. Một vòng nối lại làm con số này đáng đo hơn, không kém đi |
+
+## Ba món nợ còn lại của plan 2a
+
+Chép từ mục *Còn nợ* của `completed/2026-10-08-document-service-text-layer-gate-plan.md` ngày
+10/10/2026, lúc plan ấy về `completed/`. Hai món khác của cùng danh sách **không** chép xuống: trần
+connection SSE đã nằm ở mục *Kênh SSE của thư viện tài liệu không tự nối lại*, và nhãn
+`HTTP /api, qua Vite proxy` đè hai hộp thì **hết đúng** — sơ đồ `system-architecture` đã được vẽ lại
+ngày 09–10/10/2026 và nhãn ấy nay chỉ còn là `HTTP /api`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| `aiafa:grading` vẫn mang cái tên sai | Không bị chặn. Nó chở bảy task và sáu cái không chấm bài. Đổi tên là một refactor riêng: nó chạm `.env.example`, `be/config.py`, `agent/config.py`, và một queue đang có job thì không đổi tên nóng được |
+| Không có lưới cho chiều *"`config.py` đọc một biến mà `.env.example` không khai"* | Chưa quyết hình dạng lưới. `dev_identity_header` đã sống như vậy từ lâu, và nay `document/config.py` cùng `ingest/config.py` mang đúng rủi ro ấy. Lưới hiện có chỉ đi một chiều: nó bắt biến khai trong `.env.example` mà không ai đọc |
+| Một job `probe` bị arq thử lại không có trần riêng | Không bị chặn. Cần một phép đo trước một quyết định: `max_tries` mặc định của arq nhân với giãn cách của nó có thể vượt `DOCUMENT_STALE_AFTER_SECONDS`, và lúc ấy API suy ra `failed` trong khi job vẫn còn sống — đúng ca mà plan 2a đã chứng minh là *"một job về muộn vẫn thắng"*, nhưng chưa ai đo xem nó muộn tới đâu |

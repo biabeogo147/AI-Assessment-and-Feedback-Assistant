@@ -328,8 +328,12 @@ test của nó dưới một đột biến một dòng.
 
 ## Status
 
-**Plan 1 xong** (`a1d481f`, 08/10/2026) và đã về `completed/`. **Plan 2a đang làm.** ADR-27 đã
-viết và đã sửa ngày 08/10/2026 (cổng text layer thành bất đồng bộ). Bốn plan sau chưa có file.
+**Bốn plan đầu đã xong và đã về `completed/`**: plan 1 (`a1d481f`), plan 2a (`55275eb`),
+plan 2b (`2f41904`), plan 2c (`2c72e9d`) — cái cuối ngày 09/10/2026. ADR-27 đã viết và đã sửa
+ngày 08/10/2026 (cổng text layer thành bất đồng bộ).
+
+**Ba plan còn lại chưa có file**: plan 3 (mã C3, C10), plan 4 (C4), plan 5 (đóng B10). Đợt này
+là lý do duy nhất file này còn nằm trong `active/`.
 
 Ba Decision Record trong file này đã bị **viết lại** ngày 08/10/2026, vì bản đầu nói ngược với
 thiết kế đã chốt: Jev chuyển từ BE sang `services/document`; lý do service thứ tư đổi từ ngân

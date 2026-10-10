@@ -367,7 +367,7 @@ tăng lên ở đây sẽ là dấu hiệu luật thứ hai được viết thà
 
 ## Status
 
-**Xong cả mười ba việc, chưa commit.** Cổng: `check` **17/17** · `pytest` **452** ·
+**Xong cả mười ba việc**, commit `55275eb` (08/10/2026). Cổng lúc đóng: `check` **17/17** · `pytest` **452** ·
 `vitest` **178** · `tsc` sạch.
 
 ### Đo trên hệ thật, năm process cùng chạy
