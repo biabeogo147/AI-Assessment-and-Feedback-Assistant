@@ -298,7 +298,29 @@ Review Pha C bổ sung bốn món nợ, tất cả đáo hạn ở Pha D/E:
 - **Không có cờ "lượt này đã báo cáo chưa".** ADR nói đóng tab giữa lúc soạn thì câu kết viết ở lần
   quan sát kế tiếp; `_report` hôm nay chạy đúng một lần và lượt được ghi `kind="assistant"` ngay sau
   đó. Task 8 phải phân biệt được hai trạng thái ấy trong `teacher_turns` — hiện không có chỗ.
-- **Lời gọi báo cáo không nằm trong ngân sách nào.** Nó là lời gọi model thứ hai (thứ ba nếu tính
-  đặt tên) trong cùng một request POST, **sau** `turn_budget_seconds = 90` của pha 1, chỉ bị chặn bởi
-  job timeout. Vô hại khi Pha E mở SSE; chừng nào `POST` còn rút cạn generator thì p99 của endpoint
-  là `90s + report + naming`.
+- ~~**Lời gọi báo cáo không nằm trong ngân sách nào.**~~ Đã quyết 10/10/2026: **không cấp ngân
+  sách**, vì bước báo cáo cứng ở cuối lượt sẽ tan vào quy trình của skill (plan 4 — Jev và skill).
+  Phép đo p99 và thứ tự phải đi khi gỡ nó — ADR-25 trước, rồi check, rồi code — ghi ở `backlog.md`,
+  mục *Lời gọi báo cáo cuối lượt*.
+
+## Status
+
+Đóng ngày 10/10/2026. Sáu pha A–F đã chạy và commit; ba món nợ cuối đã được xử lý hết, mỗi món một
+đường khác nhau.
+
+**Hai tab cùng một đoạn chat** — đã làm, trong plan
+`2026-10-10-one-turn-per-conversation-plan.md`. Người dùng chốt *từ chối lượt thứ hai*: một cột
+`teacher_conversations.running_since`, giành bằng một câu `UPDATE ... WHERE` rồi đọc `rowcount`,
+nhả trong `finally` có `shield` và có fencing. Đo trên Postgres thật, không chỉ trong `pytest`.
+
+**Cờ "lượt này đã báo cáo chưa"** — **bỏ**, không hoãn. Người dùng chốt cùng ngày: skill mô tả quy
+trình, trợ lí tự quyết có kể lại hay không, nên một cờ cứng ở `teacher_turns` sẽ canh một luật
+không còn tồn tại. ADR-25 ghi việc bỏ ấy ngay dưới đoạn nó từng đòi.
+
+**Ngân sách cho lời gọi báo cáo** — **không cấp**. Cùng lý do: bước báo cáo cứng ở cuối lượt sẽ tan
+vào quy trình của skill. Phép đo p99 và thứ tự phải đi khi gỡ nó (ADR-25 → check → code) ghi ở
+`docs/plans/backlog.md`, mục *Lời gọi báo cáo cuối lượt*.
+
+Hai món nợ khác của Pha C/D vẫn còn hiệu lực và không thuộc plan này: luật *"đang soạn"* còn nằm
+trong prompt thay vì trong dữ liệu, và `StepOutcome` chưa có field cho con số thật. Cả hai đã ở
+`backlog.md` trước khi file này rời `active/`.

@@ -54,12 +54,13 @@ import time
 import unicodedata
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,6 +106,10 @@ from schema.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Câu giáo viên đọc khi đoạn chat của họ đang chạy một lượt khác. Nói ra **việc** đang
+# chặn chứ không nói một mã lỗi: hai tab là chuyện bình thường, không phải một sự cố.
+_ALREADY_RUNNING = "Đoạn chat này đang chạy một việc. Hãy đợi nó xong rồi gửi tiếp."
 
 # Trần số bước của một plan. Pha 1 có `max_tool_steps`; pha 2 phải có trần của riêng nó,
 # vì mỗi bước ở đây là một tool **ghi**: một plan năm mươi bước `create_draft` lọt qua sẽ để
@@ -1275,12 +1280,180 @@ async def _wait_for_questions(
         yield TurnEvent(kind="progress", index=written, total=asked_for, conversation_id=thread)
 
 
+async def _thread_for(session: AsyncSession, asking: Asking, said: "Said") -> str:
+    """Tìm ra đoạn chat mà lượt này thuộc về, hoặc mở một đoạn mới.
+
+    Tách khỏi thân lượt vì khoá phải đặt **trước** khi bất cứ thứ gì được ghi, và muốn
+    khoá thì phải biết khoá cái gì.
+
+    Args:
+        session: Session của database.
+        asking: Ai đang hỏi.
+        said: Thứ giáo viên vừa gõ, mang theo `conversation_id` nếu có.
+
+    Returns:
+        Id của đoạn chat.
+
+    Raises:
+        HTTPException: 404 khi id ấy không phải của giáo viên này (ADR-22).
+    """
+    if said.conversation_id is not None:
+        thread = await _owned_conversation(session, asking, said.conversation_id)
+        # Một đoạn chat không tồn tại và một đoạn của người khác nhận cùng một câu trả lời
+        # (ADR-22). `404` chứ không phải mở hộ một đoạn mới: gõ nhầm id rồi được nói vào
+        # một nơi khác là mất câu vừa gõ ở một chỗ không ai đi tìm.
+        if thread is None:
+            raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
+        return thread
+    return await _conversation(session, asking, start_new=said.start_new)
+
+
+async def _hold_the_thread(
+    session: AsyncSession, thread: str, stale_seconds: int
+) -> datetime | None:
+    """Nhận khoá "đoạn chat này đang chạy một lượt", nếu nó đang rảnh.
+
+    **Một câu lệnh, không hai.** Đọc rồi ghi là đúng cuộc đua đang đi sửa: hai tab đọc cùng
+    một `None` rồi cùng ghi, và cả hai cùng tin mình giữ khoá. Một `UPDATE ... WHERE` để
+    database phân xử, và `rowcount` nói ai thắng.
+
+    Điều kiện quá hạn nằm trong cùng câu lệnh ấy chứ không phải một đường dọn riêng: một
+    process chết giữa một lượt không chạy `finally` nào, nên nếu chỉ hỏi `IS NULL` thì đoạn
+    chat đó bị chặn vĩnh viễn và không có lệnh nào để gỡ.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat nào.
+        stale_seconds: Một khoá cũ hơn mức này coi như đã rơi.
+
+    Returns:
+        Mốc vừa ghi -- **thẻ** của khoá này -- hoặc `None` khi đoạn chat đang chạy một lượt
+        khác. Thẻ ấy là thứ `_let_go_of_the_thread` cần để nhả đúng khoá của mình.
+
+    Side effects:
+        Ghi `running_since` và commit.
+    """
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(seconds=stale_seconds)
+    taken = await session.execute(
+        update(TeacherConversation)
+        .where(
+            TeacherConversation.id == thread,
+            or_(
+                TeacherConversation.running_since.is_(None),
+                TeacherConversation.running_since < cutoff,
+            ),
+        )
+        .values(running_since=now)
+    )
+    await session.commit()
+    return now if taken.rowcount else None
+
+
+async def _let_go_of_the_thread(session: AsyncSession, thread: str, mine: datetime) -> None:
+    """Nhả khoá của một đoạn chat, kể cả khi lượt vừa rồi hỏng hoặc bị cắt.
+
+    **`shield=True` là phần chịu lực, không phải một sự cẩn thận thừa.** Cửa SSE chạy trong
+    một cancel scope của anyio, và cancel scope của anyio là *level-triggered*: sau khi scope
+    đã bị cancel, **mọi** `await` mới bên trong nó raise `CancelledError` ngay. Giáo viên đóng
+    tab giữa lượt là đúng ca đó, và lượt nằm trong một `await` gần như suốt thời gian sống của
+    nó. Không có shield thì câu `await session.rollback()` ngay dưới đây chết ngay, câu `UPDATE`
+    không bao giờ chạy, `except Exception` **không** bắt được (`CancelledError` là
+    `BaseException` từ 3.8), và đoạn chat ấy bị chặn suốt `turn_lock_stale_seconds` -- mười
+    phút im lặng cho một việc giáo viên làm hàng ngày. Đo được ngày 10/10/2026.
+
+    **Nhả có fencing.** `WHERE running_since = :mine` chứ không chỉ `WHERE id = :thread`: một
+    lượt sống lâu hơn cửa sổ quá hạn sẽ thấy khoá của mình đã bị một lượt khác giành đi, và
+    một câu nhả vô điều kiện khi đó xoá khoá của người đang giữ -- trả lại đúng hai plan cài
+    răng lược mà cả luật này tồn tại để diệt.
+
+    `rollback` trước đã: lượt có thể đã chết giữa một câu lệnh, và một session đang lỗi thì
+    không nhận thêm câu nào. Không mất gì khi làm vậy -- mọi bước của một lượt đều đã commit
+    xong từ trước: `_record`, `harvest`, `rebrief` và `drafting.start` tự commit cả bốn.
+
+    Nuốt lỗi còn lại là có chủ đích, và nó an toàn vì có đường thứ hai: không nhả được thì
+    cửa sổ quá hạn nhả hộ. Ném ra sẽ thay một lượt **đã xong** bằng một lỗi 500.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat nào.
+        mine: Thẻ `_hold_the_thread` trả về, tức mốc chính lượt này đã ghi.
+
+    Side effects:
+        Rollback, rồi ghi `running_since = NULL` và commit -- trong một scope không bị cancel.
+    """
+    with anyio.CancelScope(shield=True):
+        try:
+            await session.rollback()
+            await session.execute(
+                update(TeacherConversation)
+                .where(
+                    TeacherConversation.id == thread,
+                    TeacherConversation.running_since == mine,
+                )
+                .values(running_since=None)
+            )
+            await session.commit()
+        except Exception:  # noqa: BLE001 -- xem docstring
+            logger.exception("could not release the turn lock on %s", thread)
+
+
 async def run_turn(
     said: "Said",
     request: Request,
     teacher: Teacher,
     session: AsyncSession,
     settings: Settings,
+    watching: bool = False,
+) -> AsyncIterator[TurnEvent]:
+    """Đi một lượt, sau khi đã giữ được đoạn chat cho riêng lượt ấy.
+
+    **Một đoạn chat chạy nhiều nhất một lượt** (ADR-25). Hai tab cùng một đoạn là chuyện
+    bình thường, và không có khoá thì chúng chen vào nhau: dãy bước của hai plan trộn lẫn
+    theo thời gian chứ không theo lượt, và `create_draft` -- thứ không idempotent -- để lại
+    hai đề nháp trống, một cái không bao giờ được soạn.
+
+    Khoá đặt **trước** khi câu giáo viên vừa gõ được ghi xuống. Ngược lại thì một lượt bị từ
+    chối vẫn để lại một hàng `kind="teacher"` mồ côi, và một lần F5 dựng nó lại thành một câu
+    hỏi không có câu trả lời nào.
+
+    Args:
+        said: Thứ giáo viên vừa gõ.
+        request: Mang theo pool của queue.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database mà mọi tool chạy trên đó.
+        settings: Cung cấp ngân sách của pha 1 và cửa sổ quá hạn của khoá.
+        watching: Có ai đang xem không -- xem `_go`.
+
+    Yields:
+        Từng `TurnEvent` theo thứ tự xảy ra. Sự kiện cuối luôn là `done`.
+
+    Raises:
+        HTTPException: 404 khi đoạn chat không phải của giáo viên này (ADR-22), 409 khi đoạn
+            ấy đang chạy một lượt khác, 503 khi không với tới được AGENT chút nào.
+
+    Side effects:
+        Giữ rồi nhả khoá của đoạn chat; mọi thứ khác xem `_go`.
+    """
+    asking = Asking.of(teacher)
+    thread = await _thread_for(session, asking, said)
+    mine = await _hold_the_thread(session, thread, settings.turn_lock_stale_seconds)
+    if mine is None:
+        raise HTTPException(status_code=409, detail=_ALREADY_RUNNING)
+    try:
+        async for event in _go(said, request, session, settings, thread, asking, watching):
+            yield event
+    finally:
+        await _let_go_of_the_thread(session, thread, mine)
+
+
+async def _go(
+    said: "Said",
+    request: Request,
+    session: AsyncSession,
+    settings: Settings,
+    thread: str,
+    asking: Asking,
     watching: bool = False,
 ) -> AsyncIterator[TurnEvent]:
     """Đi một lượt của giáo viên, phát ra từng việc ngay khi nó xảy ra.
@@ -1301,9 +1474,10 @@ async def run_turn(
     Args:
         said: Thứ giáo viên vừa gõ.
         request: Mang theo pool của queue.
-        teacher: Được resolve từ header actor (ADR-13).
         session: Session của database mà mọi tool chạy trên đó.
         settings: Cung cấp `max_tool_steps` và ngân sách thời gian của pha 1.
+        thread: Đoạn chat đã tìm ra và đã giữ khoá -- xem `run_turn`.
+        asking: Ai đang hỏi.
         watching: Có ai đang xem không. True thì lượt **đợi** các câu hỏi về trước khi để
             model kể lại, và phát `progress` mỗi lần có thêm câu. Cửa `POST` để False: nó
             rút cạn generator trong một request, và một request đứng chờ hàng phút sẽ bị
@@ -1313,25 +1487,13 @@ async def run_turn(
         Từng `TurnEvent` theo thứ tự xảy ra. Sự kiện cuối luôn là `done`.
 
     Raises:
-        HTTPException: 404 khi đoạn chat không phải của giáo viên này (ADR-22), 503 khi
-            không với tới được AGENT chút nào.
+        HTTPException: 503 khi không với tới được AGENT chút nào.
 
     Side effects:
         Ghi mọi bước của lượt vào hội thoại và commit từng bước; chạy các tool.
     """
-    asking = Asking.of(teacher)
     planning = catalog_for(asking, PHASE_PLAN)
     working = catalog_for(asking, PHASE_WORK)
-
-    if said.conversation_id is not None:
-        thread = await _owned_conversation(session, asking, said.conversation_id)
-        # Một đoạn chat không tồn tại và một đoạn của người khác nhận cùng một câu trả lời
-        # (ADR-22). `404` chứ không phải mở hộ một đoạn mới: gõ nhầm id rồi được nói vào
-        # một nơi khác là mất câu vừa gõ ở một chỗ không ai đi tìm.
-        if thread is None:
-            raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
-    else:
-        thread = await _conversation(session, asking, start_new=said.start_new)
 
     stored = await _stored_turns(session, thread)
     # Vị trí kế tiếp đọc từ **số thứ tự lớn nhất**, không từ số dòng. Hai con số ấy chỉ bằng
@@ -1745,8 +1907,8 @@ async def say_something(
         Lượt đó kết thúc kiểu gì, kèm các bước của **chính lượt này** đọc lại từ bảng.
 
     Raises:
-        HTTPException: 404 cho một đoạn chat không phải của mình, 503 khi không với tới
-            được AGENT.
+        HTTPException: 404 cho một đoạn chat không phải của mình, 409 khi đoạn chat đang
+            chạy một lượt khác, 503 khi không với tới được AGENT.
     """
     last: TurnEvent | None = None
     async for event in run_turn(said, request, teacher, session, settings):
@@ -1828,7 +1990,9 @@ async def say_something_streaming(
                 ):
                     yield _as_sse(event)
             except HTTPException as refused:
-                # 404/503 không còn gửi được bằng status code: header đã đi rồi. Gửi nó
+                # 404/409/503 không còn gửi được bằng status code: header đã đi rồi, và
+                # 409 -- *đoạn chat đang chạy một lượt khác* -- là ca thường gặp nhất ở đây,
+                # vì hai tab cùng một đoạn là chuyện bình thường. Gửi nó
                 # thành một sự kiện để màn hình nói ra được, thay vì đứng im tới timeout.
                 yield _as_sse(TurnEvent(kind="done", text=str(refused.detail), ended_as="error"))
             except Exception:

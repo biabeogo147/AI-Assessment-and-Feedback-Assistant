@@ -102,7 +102,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # bị xoá khỏi code, nên ba hàng invariant canh nó và hai hàng nói về confidence không còn gì
 # để canh. Cap phải đi xuống theo, nếu không nó để lại năm dòng tín dụng mà không ai trả giá
 # -- và lần sau sẽ có người tiêu chúng mà không cần một decision record nào.
-AGENTS_MD_MAX_LINES = 181
+# Nâng 181 -> 182 ngày 10/10/2026, tiêu đúng một dòng: hàng invariant *một đoạn chat chạy nhiều
+# nhất một lượt*. Cùng luật như hai lần trên — bảng Invariants là chỉ mục của những chỗ thi hành,
+# nên một khoá vừa dựng mà không có hàng ở đó là một cái lưới không ai biết để trông. Decision
+# record nằm ở 2026-10-10-one-turn-per-conversation-plan.md.
+AGENTS_MD_MAX_LINES = 182
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (

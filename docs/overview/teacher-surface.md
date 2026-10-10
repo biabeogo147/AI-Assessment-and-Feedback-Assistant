@@ -860,6 +860,13 @@ artboard 2 có `Assistant thinking` — nên đây là mâu thuẫn thật, khô
 BE không nhận câu thứ hai là một lời mời gõ vào chỗ không ai đọc. Composer của artboard 2 đã được đổi
 sang `disabled` cho khớp.
 
+**Và tab thứ hai.** Composer khoá được ô nhập của **một** tab; hai tab mở cùng một đoạn chat thì
+tab kia không biết gì. BE từ chối lượt thứ hai (ADR-25, mục *một đoạn chat chạy nhiều nhất một
+lượt*), và câu từ chối đi đúng đường mọi lỗi của một lượt đã đi: dòng `.trouble` dưới composer, kèm
+**chữ vừa gõ trả về ô nhập**. Nửa sau mới là nửa dễ mất — mất nó là lấy đi câu giáo viên vừa viết
+cho một lượt họ không gây ra. Không có trạng thái mới nào trên Figma: đây đúng là `.trouble` mà màn
+hình đã có.
+
 ## Những chỗ FE được phép có mà Figma không vẽ
 
 Thiết kế không vẽ trạng thái rỗng và trạng thái đang tải cho mọi khối; FE vẫn phải có chúng. Hai luật

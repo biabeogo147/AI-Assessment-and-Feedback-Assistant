@@ -293,11 +293,13 @@ docker exec aiafa-postgres psql -U aiafa -d postgres -c "CREATE DATABASE aiafa_f
 $env:DATABASE_URL = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa_fe"
 ```
 
-Muốn giữ dữ liệu đang có thì hai câu dưới đây là phần mà đợt *nhiều đoạn chat* cần:
+Muốn giữ dữ liệu đang có thì ba câu dưới đây là phần mà đợt *nhiều đoạn chat* và khoá
+một-lượt-một-đoạn cần:
 
 ```sql
 ALTER TABLE teacher_conversations DROP CONSTRAINT teacher_conversations_teacher_id_key;
 ALTER TABLE teacher_conversations ADD COLUMN title VARCHAR(120) NOT NULL DEFAULT '';
+ALTER TABLE teacher_conversations ADD COLUMN running_since TIMESTAMPTZ;
 ```
 
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) **đã bị gỡ** ngày

@@ -57,6 +57,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | An empty assessment is never approved | automatic: `test_an_empty_assessment_cannot_be_approved` |
 | A deleted conversation reads as absent, takes no new turn, and keeps the turns it holds | automatic: `test_a_deleted_conversation_is_not_the_running_one`, `test_a_deleted_conversation_keeps_its_turns` |
 | Only a question back carries buttons | automatic: `test_a_plain_answer_carries_no_buttons_even_with_candidates_in_hand` |
+| A conversation runs at most one turn at a time | automatic: `test_a_second_turn_in_the_same_thread_is_refused_while_the_first_runs` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |
 | A retry question is a variant of the same question, not merely the same objective | not yet enforced; needs a test when the retry-question flow is built (ADR-17) |

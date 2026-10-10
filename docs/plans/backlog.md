@@ -727,3 +727,91 @@ ngày 09–10/10/2026 và nhãn ấy nay chỉ còn là `HTTP /api`.
 | `aiafa:grading` vẫn mang cái tên sai | Không bị chặn. Nó chở bảy task và sáu cái không chấm bài. Đổi tên là một refactor riêng: nó chạm `.env.example`, `be/config.py`, `agent/config.py`, và một queue đang có job thì không đổi tên nóng được |
 | Không có lưới cho chiều *"`config.py` đọc một biến mà `.env.example` không khai"* | Chưa quyết hình dạng lưới. `dev_identity_header` đã sống như vậy từ lâu, và nay `document/config.py` cùng `ingest/config.py` mang đúng rủi ro ấy. Lưới hiện có chỉ đi một chiều: nó bắt biến khai trong `.env.example` mà không ai đọc |
 | Một job `probe` bị arq thử lại không có trần riêng | Không bị chặn. Cần một phép đo trước một quyết định: `max_tries` mặc định của arq nhân với giãn cách của nó có thể vượt `DOCUMENT_STALE_AFTER_SECONDS`, và lúc ấy API suy ra `failed` trong khi job vẫn còn sống — đúng ca mà plan 2a đã chứng minh là *"một job về muộn vẫn thắng"*, nhưng chưa ai đo xem nó muộn tới đâu |
+
+## Lời gọi báo cáo cuối lượt — không cấp ngân sách, vì nó sẽ không ở lại
+
+Quyết định ngày 10/10/2026: **không** đi thêm `deadline` vào `_report` và `_name_the_thread`.
+Lý do không phải là chưa kịp, mà là chỗ chữa nằm ở tầng khác — **bước báo cáo cứng ở cuối lượt
+sẽ tan vào quy trình của skill**. Một trợ lí được nói cho biết việc của nó thì tự biết khi nào
+phải kể lại; một dòng code buộc mọi lượt phải gọi model lần nữa thì không biết gì cả, nó chỉ
+tuân lệnh. Skill là chỗ quy trình ấy sống (ADR-27: Markdown có frontmatter `name` + `description`,
+Jev chọn), nên việc này **đi cùng plan 4 — Jev và skill** của đợt *Đọc PDF vào ngữ cảnh ra đề*.
+
+Phép đo đã có, để người làm sau không phải đo lại. Hai mức chặn hiện hành chỉ canh pha 1:
+`max_tool_steps = 8` và `turn_budget_seconds = 90` (`services/be/src/be/config.py:93-96`), và mức
+thời gian được kiểm **ở đầu** mỗi vòng lặp pha 1 (`services/be/src/be/teacher_chat.py:1350-1355`),
+không chỗ nào khác trong `run_turn`. Từ đó, p99 xấu nhất của cửa `POST`:
+
+| Đoạn | Trần thật |
+| --- | --- |
+| Pha 1 | 90s, nhưng một job đã bắt đầu vẫn chạy hết → tới 90 + 70 |
+| Pha 2 | `POST` không đợi câu hỏi (`watching=False`), chỉ là thời gian đẩy job |
+| Báo cáo | `run_task` → `agent_job_timeout_seconds` = 70s (`be/agent_gateway.py:76`), không hỏi `deadline` |
+| Đặt tên đoạn chat | thêm một `run_task` nữa ở lượt đầu → 70s |
+
+Khoảng **300 giây**, trong khi con số duy nhất được thiết kế để giáo viên cảm thấy là 90. Nghịch lý
+nằm ở chỗ `turn_budget_seconds` sinh ra **chính vì** một trần số bước không phải một lời hứa về thời
+gian — rồi hai lời gọi model cuối cùng đứng ngoài nó.
+
+Chưa đau hôm nay: FE dùng cửa SSE, nơi không request nào phải đứng chờ, và nó có
+`stream_silence_timeout_seconds = 25` canh sự im lặng. Cửa `POST` còn sống cho sáu test cũ và cho
+một client không stream.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Bỏ bước báo cáo cứng, đưa việc kể lại vào quy trình của skill | Chờ plan 4 (Jev và skill). Không phải một lượt sửa `teacher_chat.py`: nó gỡ một luật của ADR-25 |
+| Cờ *"lượt này đã báo cáo chưa"* trong `teacher_turns` | **Đã bỏ**, không phải đang chờ (người dùng, 10/10/2026). Cái cờ chỉ có nghĩa khi còn một bước báo cáo cứng để đếm xem lượt nào còn nợ một câu kết; bỏ bước ấy thì không còn gì để đếm. Nó cũng đòi đẩy pha 2 sang một job arq, tức một đường chạy nền thứ hai trong BE mà ADR-25 cố ý tránh. ADR-25 đã ghi lại ở khối *Sửa ngày 10/10/2026* |
+| Cấp ngân sách cho `_report` và `_name_the_thread` như một đường vá tạm | **Cố ý không làm.** Đường lùi đã có — `_report` nuốt mọi exception và trả câu do BE viết (`teacher_chat.py:594-596`) — nên hết ngân sách không phải một lượt chết. Vá nó là làm chắc một bước sắp bị bỏ |
+
+**Người làm sau cần biết thứ tự.** Bước báo cáo không chỉ là code: ADR-25 chốt nó thành luật
+(*"Pha 2 xong thì model báo cáo... trong một lời gọi riêng"*), và `check_the_report_is_a_job_of_its_own`
+trong `tools/check_contract.py` canh đúng luật ấy ở ba chỗ chịu lực — task riêng trong
+`agent/worker.py`, `PlanReportRequested` không có field nào chở tool, và graph kể lại không chạm
+`ToolSpec`. Nên đường đi là **sửa ADR-25 trước**, rồi mới tới check, rồi mới tới code
+(`agent/graphs/reporting.py`, `REPORT_PLAN_TASK`, `PlanReportRequested`, `PlanReportCompleted`).
+Gỡ check trước là gỡ nơi thi hành của một luật vẫn còn hiệu lực.
+
+## Hai món review khoá lượt để lại (10/10/2026)
+
+Review pha A của `2026-10-10-one-turn-per-conversation-plan.md` tìm ra sáu lớp lỗi. Bốn đã vá trong
+chính plan ấy; hai món dưới đây cố ý để lại, vì cả hai chỉ đau trong một hình thế mà hệ chưa có.
+
+**Nhả khoá muộn trên một session đã đóng.** `_let_go_of_the_thread` nhận chính `session` của request,
+và nó chạy trong `finally` của một generator. Khi lượt đi hết đường bình thường thì session còn sống,
+nên đường nhả chạy ngay. Ca xấu là khi generator **không** được đóng ở đây mà bị bỏ lại cho bộ dọn
+async-generator của event loop: lúc ấy câu `UPDATE` nhả khoá chạy trên một session có thể đã bị
+`close()`, và cú nhả thất bại — `logger.exception` ghi lại, rồi cửa sổ quá hạn nhả hộ sau mười phút.
+*Cái gì đang chặn:* chưa đo được ca ấy xảy ra trên cửa SSE thật. Phép đo ngày 10/10/2026 (ngắt kết
+nối giữa lượt, ba lần) cho thấy khoá nhả trong 0,06s, tức đường `finally` **có** chạy với session còn
+sống. Sửa đúng cách là mở một session riêng cho đường nhả, và việc ấy chỉ đáng làm khi có một phép đo
+cho thấy nó cần.
+
+**Đồng hồ của process, không phải của database.** `_hold_the_thread` ghi `datetime.now(UTC)` lấy từ
+process BE, rồi so chính nó với `cutoff` cũng lấy từ process BE. Một BE thứ hai có đồng hồ lệch vài
+phút sẽ coi một khoá còn sống là đã quá hạn, hoặc ngược lại — và fencing (`WHERE running_since =
+:mine`) chỉ chặn hậu quả tệ nhất chứ không chữa cái lệch. *Cái gì đang chặn:* chỉ có một BE. Sửa bằng
+`func.now()` cho cả mốc ghi và `cutoff` thì để Postgres làm đồng hồ duy nhất — nhưng bộ test chạy
+trên `sqlite+aiosqlite://`, nơi `func.now()` có kiểu trả về khác, nên việc này kéo theo một lượt đổi
+nền của test. Đáng làm cùng lúc với BE thứ hai, không trước.
+
+**Và một thứ bộ test không canh được.** Tính atomic của `_hold_the_thread` — một câu `UPDATE ... WHERE`
+rồi đọc `rowcount` — không có lưới trong `pytest`, vì sqlite không tái hiện được cách Postgres phân xử
+hai câu `UPDATE` cùng giành một hàng. Nó đã được đo bằng tay trên Postgres thật (40 lượt × 4 session,
+đúng một người thắng mỗi lượt; bản đọc-rồi-ghi đối chứng cho `[1, 4]`), và phép đo ấy ghi trong Status
+của plan. Nhưng một phép đo bằng tay không chạy lại ở mỗi `check`: hồi quy ở đây sẽ đi qua cổng mà
+không ai thấy. Dựng một lưới thật đòi cho bộ test chạy trên Postgres, cùng một việc với món đồng hồ ở
+trên.
+
+## Hai món nợ còn hiệu lực của plan hai pha
+
+Chép từ mục *Rủi ro đã biết* của `completed/2026-10-02-hai-pha-mot-luot-chat-plan.md` ngày
+10/10/2026, lúc plan ấy về `completed/`. Hai món khác của cùng danh sách **không** chép xuống, vì
+chúng đã được xử hẳn và Status của plan ấy ghi rõ: cờ *"lượt này đã báo cáo chưa"* đã **bỏ**, và
+ngân sách cho lời gọi báo cáo đã **không cấp** (mục *Lời gọi báo cáo cuối lượt* ở trên giữ phép đo).
+Món thứ năm — hai tab cùng một đoạn chat — đã làm xong trong
+`completed/2026-10-10-one-turn-per-conversation-plan.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Luật *"nói đang soạn, chứ không nói đã soạn xong"* còn là một câu trong prompt (`agent/graphs/reporting.py`, `_SYSTEM`) chứ chưa là dữ liệu | Không bị chặn, nhưng **đang đúng vì ăn may**: nó đúng chỉ vì báo cáo hôm nay chạy ngay sau bước cuối, lúc arq còn đang soạn. Ngày nào pha 2 xong trước lúc báo cáo thì chính dòng ấy thành máy sinh lời nói sai chiều ngược lại. Chỗ chữa là đưa *còn bao nhiêu câu đang soạn* vào `PlanReportRequested` rồi xoá dòng prompt. Việc này nay vướng quyết định lớn hơn: bước báo cáo cứng ở cuối lượt sẽ tan vào skill, nên sửa prompt trước là sửa một chỗ sắp biến mất |
+| `StepOutcome` không có field nào chở con số thật | Không bị chặn, và đây là món **đắt dần**: `detail` của `start_drafting` mãi là *"10 câu bắt đầu soạn"*, còn câu kết mà artboard 5 đã vẽ — *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* — không có đường nào đi qua hợp đồng. Thêm field sau khi hợp đồng deploy là một lần bump `SCHEMA_VERSION`; hôm nay thì chưa |

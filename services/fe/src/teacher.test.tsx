@@ -4952,3 +4952,71 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
     );
   });
 });
+
+/**
+ * Một đoạn chat chạy nhiều nhất một lượt (ADR-25).
+ *
+ * BE từ chối lượt thứ hai bằng 409, nhưng trên cửa SSE thì header đã gửi đi rồi, nên lời từ
+ * chối về dưới dạng một khung `done` mang `ended_as="error"`. Test này canh nửa còn lại của
+ * luật ấy: câu từ chối phải **hiện ra**, và chữ vừa gõ phải **còn nguyên** trong ô nhập.
+ * Mất nửa sau là mất câu giáo viên vừa viết cho một lỗi không phải của họ.
+ */
+describe("hai tab một đoạn chat: lời từ chối phải nói ra", () => {
+  const REFUSED = "Đoạn chat này đang chạy một việc. Hãy đợi nó xong rồi gửi tiếp.";
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("câu từ chối hiện ra, và chữ vừa gõ còn nguyên", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.startsWith("/api/teacher/chat/messages/stream")) {
+          const frame =
+            `event: done\ndata: ${JSON.stringify({
+              kind: "done",
+              text: REFUSED,
+              ended_as: "error",
+              conversation_id: "c1",
+            })}\n\n`;
+          return Promise.resolve({
+            ok: true,
+            body: new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(frame));
+                controller.close();
+              },
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              url.startsWith("/api/teacher/chat")
+                ? { kind: "say", text: "", turns: [], conversation_id: "c1" }
+                : [],
+            ),
+          text: () => Promise.resolve(""),
+        });
+      }),
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+
+    const box = (await screen.findByLabelText(
+      "Nhắn cho Kriky",
+    )) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "tạo đề 10 câu tích phân" } });
+    fireEvent.click(screen.getByText("Gửi"));
+
+    await waitFor(() =>
+      expect(document.querySelector(".trouble")?.textContent).toBe(REFUSED),
+    );
+    // Và đây là nửa dễ mất: `setText(trimmed)` trong nhánh `catch`. Không có nó thì giáo
+    // viên mất câu vừa viết vì một lượt họ không gây ra.
+    expect(
+      (screen.getByLabelText("Nhắn cho Kriky") as HTMLInputElement).value,
+    ).toBe("tạo đề 10 câu tích phân");
+  });
+});

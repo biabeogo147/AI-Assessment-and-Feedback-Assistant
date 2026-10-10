@@ -550,6 +550,16 @@ class TeacherConversation(Base):
     # đoạn đã xoá đọc ra **y như một đoạn không tồn tại** — 404, rời rail — còn các lượt
     # của nó thì vẫn nằm nguyên trong bảng.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Đoạn này đang chạy một lượt từ lúc nào; `None` nghĩa là đang rảnh. Ở đây chứ không
+    # trong Redis vì màn hình được dựng lại từ các hàng của chính đoạn này, nên câu "đang
+    # chạy" đứng cạnh chúng là một nguồn, còn đứng trong Redis là nguồn thứ hai cho một
+    # câu mà màn hình rồi sẽ cần tới.
+    #
+    # Một mốc thời gian chứ không phải một cờ `bool`, và đó là cả cơ chế nhả khoá: process
+    # chết giữa một lượt thì không còn ai dọn, nên một cờ bật sẽ chặn đoạn chat ấy vĩnh
+    # viễn. Một mốc thời gian đọc ra được là *khoá này đã quá hạn* mà không cần ai còn
+    # sống để nói hộ.
+    running_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     turns: Mapped[list[TeacherTurn]] = relationship(
         back_populates="conversation", order_by="TeacherTurn.sequence"

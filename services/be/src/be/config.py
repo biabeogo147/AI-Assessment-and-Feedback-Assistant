@@ -70,6 +70,13 @@ class Settings(BaseSettings):
             mức job timeout là hơn chín phút, và một proxy hay một browser sẽ ngắt
             kết nối từ lâu trước đó trong khi BE vẫn log thành công. Đây là giới
             hạn mà giáo viên thật sự cảm thấy.
+        turn_lock_stale_seconds: Một khoá "đoạn chat này đang chạy một lượt" được coi
+            là quá hạn sau bao lâu. Đường nhả khoá bình thường nằm trong `finally` và có
+            `shield` nên nó sống qua cả một lần ngắt kết nối; mức này là lưới cuối cho ca
+            process bị tắt hẳn giữa một lượt. Phải rộng hơn lượt dài nhất có thể, nếu
+            không một tab thứ hai chen được vào giữa một lượt đang chạy -- đo được 480s là
+            mức client tự cắt (`Chat.tsx`), nên 600 là mức này. Con số ấy là của **một**
+            client, không phải một bất biến của BE: đó là lý do đường nhả có fencing.
         log_level: Mức log của cây logger `be.*`. `INFO` là mặc định vì đúng những
             dòng cần nhất khi truy một đề thiếu câu -- *vì sao* một câu bị loại --
             nằm ở mức đó. Hạ xuống `WARNING` là tự bịt mắt mình.
@@ -94,6 +101,7 @@ class Settings(BaseSettings):
     stream_silence_timeout_seconds: float = 25.0
     max_tool_steps: int = 8
     turn_budget_seconds: float = 90.0
+    turn_lock_stale_seconds: int = 600
     log_level: str = "INFO"
 
 

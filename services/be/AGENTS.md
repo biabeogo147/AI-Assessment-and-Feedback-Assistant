@@ -18,6 +18,7 @@ Adds to the root contract. Constraints only.
   every path that writes a question calls `assert_editable` first.
 - A class and an assessment each name their owner. Scope every teacher query by `teacher_id`, and
   answer "not yours" exactly as "does not exist" (ADR-22).
+- A turn locks its conversation: `_hold_the_thread` before any write, released in `finally`.
 - Enqueue by the task-name constants from `contracts`. Never `import agent`.
 - BE is the only service the frontend calls. Do not add a second public entry point.
 - `main.py` holds one Redis pool for the process lifetime; clients poll once per second, so opening a

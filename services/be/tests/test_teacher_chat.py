@@ -16,14 +16,15 @@ worker sẽ là vết nứt đầu tiên trên bức tường giữa các servic
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import anyio
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
@@ -1521,3 +1522,279 @@ async def test_a_plan_missing_an_argument_is_refused_before_anything_runs(stack)
         made = list(await session.scalars(select(Assessment)))
     # Chỉ còn đề của seed; không đề rỗng nào mới sinh ra.
     assert all(one.title != "Hàm số" for one in made)
+
+
+async def _the_thread(maker) -> str:
+    """Id của đoạn chat duy nhất đang có. Dùng sau một lượt đã chạy."""
+    async with maker() as session:
+        threads = list(await session.scalars(select(TeacherConversation)))
+    assert len(threads) == 1, f"cần đúng một đoạn chat, thấy {len(threads)}"
+    return threads[0].id
+
+
+@pytest.mark.asyncio
+async def test_a_second_turn_in_the_same_thread_is_refused_while_the_first_runs(stack) -> None:
+    """Hai tab cùng một đoạn chat: tab sau bị từ chối, không chen vào.
+
+    Không có khoá thì hai plan chạy xen kẽ trong một đoạn: dãy bước trộn lẫn theo thời gian
+    chứ không theo lượt, và `create_draft` -- thứ không idempotent -- để lại hai đề nháp
+    trống, một cái không bao giờ được soạn.
+
+    Khoá được giữ bằng tay chứ không bằng cách chạy hai lượt song song thật: cuộc đua thật
+    phụ thuộc vào thời điểm, và một test phụ thuộc thời điểm là một test sẽ đỏ vào một ngày
+    không liên quan gì tới luật nó canh.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 40 học sinh."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    first = await http.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER
+    )
+    assert first.status_code == 200
+    thread = await _the_thread(maker)
+
+    async with maker() as session:
+        assert await teacher_chat._hold_the_thread(session, thread, 600) is not None
+
+    refused = await http.post(
+        "/api/teacher/chat/messages",
+        json={"text": "tạo cho tôi một đề", "conversation_id": thread},
+        headers=TEACHER,
+    )
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == teacher_chat._ALREADY_RUNNING
+
+
+@pytest.mark.asyncio
+async def test_a_refused_turn_leaves_nothing_behind(stack) -> None:
+    """Lời từ chối **không** ghi câu giáo viên vừa gõ.
+
+    Khoá đặt trước `_record` chính vì ca này: ghi trước rồi từ chối sau để lại một hàng
+    `kind="teacher"` mồ côi, và một lần F5 dựng nó lại thành một câu hỏi không có câu trả
+    lời nào -- đúng cái màn hình nói dối mà cả ADR-25 được viết để tránh.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 40 học sinh."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    await http.post("/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER)
+    thread = await _the_thread(maker)
+    async with maker() as session:
+        before = list(await session.scalars(select(TeacherTurn)))
+        assert await teacher_chat._hold_the_thread(session, thread, 600) is not None
+
+    await http.post(
+        "/api/teacher/chat/messages",
+        json={"text": "câu này không được ghi", "conversation_id": thread},
+        headers=TEACHER,
+    )
+
+    async with maker() as session:
+        after = list(await session.scalars(select(TeacherTurn)))
+    assert len(after) == len(before)
+    assert all("không được ghi" not in one.text for one in after)
+
+
+@pytest.mark.asyncio
+async def test_a_lock_left_by_a_dead_process_stops_blocking(stack) -> None:
+    """Một process chết giữa lượt không chạy `finally` nào, nên cửa sổ quá hạn là đường duy nhất.
+
+    Không có nó thì đoạn chat ấy bị chặn vĩnh viễn và không có lệnh nào để gỡ -- một giáo
+    viên mất hẳn một đoạn chat vì một lần BE restart.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 40 học sinh."),
+        NextStepCompleted(request_id="x", kind="say", text="Vẫn trả lời được."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    await http.post("/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER)
+    thread = await _the_thread(maker)
+
+    # Một khoá của mười một phút trước, tức quá `TURN_LOCK_STALE_SECONDS=600`.
+    async with maker() as session:
+        await session.execute(
+            update(TeacherConversation)
+            .where(TeacherConversation.id == thread)
+            .values(running_since=datetime.now(UTC) - timedelta(seconds=660))
+        )
+        await session.commit()
+
+    again = await http.post(
+        "/api/teacher/chat/messages",
+        json={"text": "lớp 12A thế nào", "conversation_id": thread},
+        headers=TEACHER,
+    )
+
+    assert again.status_code == 200
+    assert again.json()["text"] == "Vẫn trả lời được."
+    # Và lượt vừa chạy đã nhả khoá lúc nó xong, nên đoạn chat lại rảnh.
+    async with maker() as session:
+        free = await session.scalar(
+            select(TeacherConversation.running_since).where(TeacherConversation.id == thread)
+        )
+    assert free is None
+
+
+@pytest.mark.asyncio
+async def test_a_turn_cut_mid_way_still_lets_go_of_the_thread(stack) -> None:
+    """Giáo viên đóng tab giữa lượt không được để lại một đoạn chat bị khoá.
+
+    Đây là ca ngược của khoá, và một lưới chặn tốt mà không nhả thì tệ hơn không có lưới: đoạn
+    chat ấy sẽ từ chối mọi câu suốt `TURN_LOCK_STALE_SECONDS`, tức mười phút im lặng cho một
+    việc giáo viên làm hàng ngày.
+
+    **Cancel phải theo kiểu anyio, không phải `task.cancel()`.** Cửa SSE chạy trong một cancel
+    scope của anyio, và scope ấy *level-triggered*: sau khi cancel, mọi `await` mới bên trong
+    raise `CancelledError` ngay. Một bản `asyncio.Task.cancel()` trần thì **xanh cả khi code
+    sai** -- ở đó `CancelledError` được giao đúng một lần, nên các `await` trong `finally` vẫn
+    chạy xong. Bản đầu của test này đã viết như vậy, và nó bỏ lọt đúng lỗi mà review tìm ra
+    ngày 10/10/2026.
+    """
+    import asyncio
+
+    _, maker, monkeypatch = stack
+    started = asyncio.Event()
+
+    async def never_answers(*args, **kwargs):
+        started.set()
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(teacher_chat, "run_task", never_answers)
+    teacher = await _teacher(maker, "GV-001")
+    asked = teacher_chat.Said(text="tạo đề 10 câu tích phân")
+
+    async def consume():
+        async with maker() as session:
+            async for _ in teacher_chat.run_turn(
+                asked, _request(), teacher, session, get_settings()
+            ):
+                pass
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(consume)
+        await asyncio.wait_for(started.wait(), timeout=5)
+        async with maker() as session:
+            while_running = await session.scalar(select(TeacherConversation.running_since))
+        assert while_running is not None, "khoá phải đang được giữ trong lúc lượt chạy"
+        tg.cancel_scope.cancel()
+
+    async with maker() as session:
+        after = await session.scalar(select(TeacherConversation.running_since))
+    assert after is None
+
+
+@pytest.mark.asyncio
+async def test_a_turn_that_breaks_still_lets_go_of_the_thread(stack) -> None:
+    """Lượt hỏng cũng phải nhả khoá, và đó là lý do `_let_go_of_the_thread` rollback trước.
+
+    Một `AgentError` ở pha 1 thành 503 và lượt chết giữa một session đang lỗi. Không rollback
+    thì câu `UPDATE` nhả khoá không chạy nổi, và một lần AGENT ngã làm giáo viên mất đoạn chat
+    trong mười phút.
+    """
+
+    async def agent_is_down(*args, **kwargs):
+        raise teacher_chat.AgentError("hàng đợi chưa sẵn sàng")
+
+    http, maker, monkeypatch = stack
+    monkeypatch.setattr(teacher_chat, "run_task", agent_is_down)
+    await _teacher(maker, "GV-001")
+
+    broke = await http.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER
+    )
+
+    assert broke.status_code == 503
+    async with maker() as session:
+        after = await session.scalar(select(TeacherConversation.running_since))
+    assert after is None
+
+
+@pytest.mark.asyncio
+async def test_the_stream_says_the_refusal_instead_of_a_status_code(stack) -> None:
+    """Cửa SSE không còn status code nào để từ chối bằng, nên nó phải **nói** ra.
+
+    Header đã gửi đi trước khi lượt bắt đầu, nên 409 về dưới dạng một khung `done` mang
+    `ended_as="error"`. Chữ phải là nguyên văn câu của BE: màn hình in thẳng thứ nó nhận được
+    (`Chat.tsx`), nên một câu rỗng ở đây là một ô nhập khoá lại mà không nói vì sao.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 40 học sinh."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+
+    await http.post("/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER)
+    thread = await _the_thread(maker)
+    async with maker() as session:
+        assert await teacher_chat._hold_the_thread(session, thread, 600) is not None
+
+    async with http.stream(
+        "POST",
+        "/api/teacher/chat/messages/stream",
+        json={"text": "tạo cho tôi một đề", "conversation_id": thread},
+        headers=TEACHER,
+    ) as answer:
+        assert answer.status_code == 200
+        frames = [line async for line in answer.aiter_lines()]
+
+    said = [json.loads(one[len("data: ") :]) for one in frames if one.startswith("data: ")]
+    assert [one["kind"] for one in said] == ["done"]
+    assert said[0]["ended_as"] == "error"
+    assert said[0]["text"] == teacher_chat._ALREADY_RUNNING
+
+
+@pytest.mark.asyncio
+async def test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones(stack) -> None:
+    """Nhả khoá phải có thẻ, nếu không một lượt đã quá hạn xoá khoá của người đang giữ.
+
+    Kịch bản đo được bằng ba câu lệnh dưới đây: lượt A giữ khoá lúc t0 rồi sống lâu hơn cửa sổ
+    quá hạn; tab B thấy khoá đã quá hạn nên giành được, ghi t1; A xong và nhả. Một câu
+    `UPDATE ... WHERE id = :thread` vô điều kiện khi ấy xoá **khoá của B**, và tab C gửi ngay
+    sau đó sẽ được đi -- trả lại đúng hai plan cài răng lược mà cả luật này tồn tại để diệt.
+
+    Đây là ca mà ba test kia không chạm tới: gỡ hai dòng fencing khỏi `_let_go_of_the_thread`
+    thì cả bộ test vẫn xanh. Đo ngày 10/10/2026.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 40 học sinh."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    await _teacher(maker, "GV-001")
+    await http.post("/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER)
+    thread = await _the_thread(maker)
+
+    async with maker() as session:
+        # Lượt A giữ khoá.
+        a = await teacher_chat._hold_the_thread(session, thread, 600)
+        assert a is not None
+
+        # Rồi A sống lâu hơn cửa sổ, nên B giành được: khoá nay là của B.
+        b = datetime.now(UTC)
+        await session.execute(
+            update(TeacherConversation)
+            .where(TeacherConversation.id == thread)
+            .values(running_since=b)
+        )
+        await session.commit()
+
+        # A xong và nhả khoá của **chính nó**.
+        await teacher_chat._let_go_of_the_thread(session, thread, a)
+
+        still = await session.scalar(
+            select(TeacherConversation.running_since).where(TeacherConversation.id == thread)
+        )
+
+    assert still is not None, "khoá của B đã bị lượt A xoá mất"

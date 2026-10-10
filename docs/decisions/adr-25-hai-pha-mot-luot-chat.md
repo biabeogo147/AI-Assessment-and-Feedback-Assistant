@@ -62,6 +62,31 @@ trả lời ấy là câu kết trên màn hình. Báo cáo chạy cả khi plan
 trước khi soạn xong thì báo cáo được viết ở **lần quan sát kế tiếp** — lượt chat sau, hoặc lần mở lại
 đoạn chat — chứ không mất.
 
+> **Sửa ngày 10/10/2026 — việc kể lại thôi là một bước cứng.** Hai câu trên mô tả một quy trình nằm
+> trong code: mọi lượt, sau bước cuối, gọi model lần nữa. Quy trình ấy chuyển về **skill** — một
+> skill mô tả việc của trợ lí, và trợ lí tự quyết có kể lại hay không. Một dòng code buộc kể lại thì
+> không biết lúc nào nên kể; nó chỉ tuân lệnh.
+>
+> Hệ quả trực tiếp: cờ *"lượt này đã báo cáo chưa"* trong `teacher_turns` **bị bỏ**, không phải hoãn.
+> Nó chỉ có nghĩa khi còn một bước báo cáo cứng để đếm xem lượt nào còn nợ một câu kết. Cùng với nó,
+> nửa sau của câu *"báo cáo viết ở lần quan sát kế tiếp"* thôi là một lời hứa.
+>
+> Code **chưa** đổi: lời gọi vẫn chạy và vẫn là một job riêng, và
+> `check_the_report_is_a_job_of_its_own` vẫn canh nó. Đường gỡ đi cùng plan 4 (Jev và skill), và thứ
+> tự phải đi — ADR trước, rồi check, rồi code — ghi ở `docs/plans/backlog.md`, mục *Lời gọi báo cáo
+> cuối lượt*.
+
+**Một đoạn chat chạy nhiều nhất một lượt.** (Thêm ngày 10/10/2026.) Lượt thứ hai trong cùng một
+đoạn bị **từ chối**: không xếp hàng, không chạy song song. Hai tab cùng mở một đoạn chat là chuyện
+bình thường, nên lời từ chối nói ra **việc** đang chặn chứ không nói một mã lỗi, và chữ giáo viên vừa
+gõ ở lại ô nhập. Không có luật này thì hai plan cài răng lược trong một đoạn: dãy bước trộn lẫn theo
+thời gian chứ không theo lượt, và `create_draft` — thứ không idempotent — để lại hai đề nháp trống,
+một cái không bao giờ được soạn.
+
+Khoá đặt **trước** khi câu giáo viên vừa gõ được ghi xuống. Ngược lại thì một lượt bị từ chối vẫn để
+lại một hàng mồ côi, và một lần F5 dựng nó lại thành một câu hỏi không có câu trả lời nào — đúng loại
+màn hình nói dối mà ADR này được viết để tránh.
+
 **Tiến độ là một cái chuông, không phải một đường dữ liệu.** AGENT phát một tin lên Redis mỗi khi
 viết xong một câu. BE **subscribe trước khi đẩy job**, đúng khuôn của `agent_gateway`, và mỗi tiếng
 chuông thì thu hoạch rồi đẩy xuống FE. Câu hỏi vẫn đọc từ result store của arq. **Không ai nghe thì
@@ -167,8 +192,9 @@ cú pháp tham chiếu và một ranh giới pha; cả hai đo được bằng t
 ## Nơi luật này đang được thi hành
 
 ADR viết **trước** khi code, có chủ đích, vì nó đổi ranh giới giữa hai service và đổi hợp đồng giữa BE
-với AGENT. Nay nó đã chạy. Plan thi hành:
-`docs/plans/active/2026-10-02-hai-pha-mot-luot-chat-plan.md`.
+với AGENT. Nay nó đã chạy. Hai plan thi hành:
+`docs/plans/completed/2026-10-02-hai-pha-mot-luot-chat-plan.md` cho sáu pha đầu, và
+`docs/plans/completed/2026-10-10-one-turn-per-conversation-plan.md` cho luật một-lượt-một-đoạn.
 
 - `packages/contracts/src/contracts/teacher_chat.py` — kiểu của một plan, task báo cáo, và ba con số
   tiến độ mà lời kể đọc.
@@ -183,19 +209,22 @@ với AGENT. Nay nó đã chạy. Plan thi hành:
 - `services/fe/src/screens/teacher/Chat.tsx` — vẽ theo thứ tự nhận được, khối bằng chứng sống.
 - `services/be/src/be/teacher_routes.py` — đọc một đề cũng thu hoạch; đó là "lần quan sát kế tiếp"
   mà ADR nói tới, và là chỗ thứ ba (cùng `start_drafting` và cổng duyệt) đưa câu vào đề.
+- `services/be/src/be/teacher_chat.py` — `_hold_the_thread` và `_let_go_of_the_thread`: khoá
+  một-lượt-một-đoạn, giữ trước khi ghi và nhả trong `finally`, cộng cửa sổ quá hạn
+  `TURN_LOCK_STALE_SECONDS` cho ca process chết giữa lượt. Cột là
+  `teacher_conversations.running_since`. Ba test là nơi thi hành:
+  `test_a_second_turn_in_the_same_thread_is_refused_while_the_first_runs`,
+  `test_a_refused_turn_leaves_nothing_behind`, `test_a_lock_left_by_a_dead_process_stops_blocking`.
 - `tools/check_contract.py` — check thứ tám: *báo cáo là một job riêng, và nó không cầm catalog*.
 - `docs/overview/teacher-surface.md` — luật hiển thị của hai pha.
 
-**Ba thứ chưa có nơi thi hành**, và vì thế vẫn là ý định chứ chưa phải luật:
+**Một thứ chưa có nơi thi hành**, và vì thế vẫn là ý định chứ chưa phải luật. Hai thứ từng đứng
+cạnh nó đã rời danh sách này ngày 10/10/2026: *"hai tab cùng chạy một plan"* nay có khoá và ba test
+kể trên, còn *"báo cáo viết ở lần quan sát kế tiếp"* thì **bị bỏ** — xem khối *Sửa ngày 10/10/2026* ở
+mục Quyết định. Nửa đầu của câu ấy, *"đóng tab giữa pha 2 thì lượt vẫn ghi đủ"*, vẫn đúng và vẫn
+không có lưới: Starlette huỷ generator khi client ngắt kết nối, nên các bước đã ghi còn đó (mỗi bước
+commit riêng) nhưng lượt không có câu kết, và nếu là lượt đầu thì đoạn chat cũng chưa có tên.
 
-1. *"Đóng tab giữa pha 2 thì lượt vẫn ghi đủ"* và *"báo cáo viết ở lần quan sát kế tiếp"*. Starlette
-   huỷ generator khi client ngắt kết nối, nên lượt **bị cắt** ngay chỗ nó đang đợi: các bước đã ghi
-   còn đó (mỗi bước commit riêng), nhưng không có câu kết, và nếu là lượt đầu thì đoạn chat cũng
-   chưa có tên. Làm được thì phải đẩy pha 2 sang một job arq, cộng một cờ *"lượt này đã báo cáo
-   chưa"* trong `teacher_turns` — hiện không có chỗ nào để ghi cờ ấy.
-2. *"Hai tab cùng chạy một plan trong một đoạn chat"*. Không khoá nào. Cái duy nhất đã làm là
-   `harvest` không còn nổ khi hai người thu cùng lúc; hai plan song song thì vẫn song song, và hai
-   dãy bước cài răng lược trong một đoạn chat.
-3. *"Pha 2 xong khi plan chạy hết **và** không còn câu nào đang soạn"* chỉ đúng ở **cửa SSE**. Cửa
+1. *"Pha 2 xong khi plan chạy hết **và** không còn câu nào đang soạn"* chỉ đúng ở **cửa SSE**. Cửa
    `POST` vẫn mở và không đợi — nó rút cạn lượt trong một request, và một request đứng chờ hàng phút
    sẽ bị cắt. Lời kể ở cửa ấy vì thế nói về một đề vừa bắt đầu soạn.
