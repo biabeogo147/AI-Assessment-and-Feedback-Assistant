@@ -140,6 +140,20 @@ MINIO_IMPORT = re.compile(r"^\s*(?:from|import)\s+minio\b", re.MULTILINE)
 # -- và nó không ném gì cả, chỉ làm mọi thứ chậm đi trong lúc ai đó tải một cuốn sách lên.
 PYMUPDF_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymupdf|fitz)\b", re.MULTILINE)
 
+# Client của kho nội dung (MongoDB). Async thuần nên không chặn event loop như hai SDK trên, nhưng
+# luật "một module, một cửa" vẫn áp: một chỗ ghi Mongo thì một chỗ phải hỏi *"có ghi đúng thứ tự
+# nội dung trước, `state` sau không"*.
+PYMONGO_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymongo|motor)\b", re.MULTILINE)
+
+# Bản nới của `DB_CREDENTIAL_PATTERN` cho `services/document`: bỏ Mongo ra. Người dùng chốt ngày
+# 11/10/2026 (plan 3b, D1) rằng **Mongo là kho nội dung, như MinIO** -- nơi thứ đọc được từ tệp
+# nằm, không phải nơi sự thật về tệp nằm. Mọi thứ còn lại -- Postgres, `DATABASE_URL`, mật khẩu,
+# `sqlalchemy` -- vẫn bị cấm y như cũ.
+DB_CREDENTIAL_PATTERN_CONTENT_STORE_ALLOWED = re.compile(
+    r"POSTGRES|DATABASE_URL|\bDSN\b|PASSWORD|psycopg|sqlalchemy",
+    re.IGNORECASE,
+)
+
 # Hai hàm đưa một đề đi qua vòng đời của ADR-01, cộng hai đường đi vòng qua
 # chúng. Một tool của giáo viên mà nhắc tên một trong hai hàm đó là đang với tay
 # qua đúng cái cổng nó phải đứng sau -- còn `assessment.state = ...` là cùng cái
@@ -221,18 +235,29 @@ def check_agent_and_document_hold_no_database_credentials() -> str | None:
     Postgres biết, và Postgres ở phía bên kia tường. Đó cũng là lý do khoá ấy phải tên
     `MINIO_SECRET_KEY`: pattern dưới khớp chữ `PASSWORD` không phân biệt hoa thường.
 
+    **Mongo cũng không tính, nhưng chỉ ở `services/document`.** Người dùng chốt ngày 11/10/2026
+    (plan 3b, D1): Mongo là **kho nội dung, như MinIO** -- bản thô đọc ra từ tệp nằm ở đó, còn sự
+    thật vẫn chỉ ở Postgres. `services/document` ghi bản thô, nên với nó Mongo được phép, qua đúng
+    một module (`content_store.py`, canh bởi
+    `check_only_one_module_per_service_talks_to_a_sync_sdk`).
+    AGENT **chưa** được: *document agent* đọc Mongo là việc của plan 3c, và mở cửa ấy là quyết định
+    của plan ấy -- không phải một thứ mở sẵn cho tiện.
+
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
     """
     offenders = []
-    roots = (REPO_ROOT / "services" / "agent", REPO_ROOT / "services" / "document")
-    for path in (one for root in roots for one in root.rglob("*.py")):
+    roots = (
+        (REPO_ROOT / "services" / "agent", DB_CREDENTIAL_PATTERN),
+        (REPO_ROOT / "services" / "document", DB_CREDENTIAL_PATTERN_CONTENT_STORE_ALLOWED),
+    )
+    for path, pattern in ((one, rule) for root, rule in roots for one in root.rglob("*.py")):
         if "__pycache__" in path.parts:
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("#"):
                 continue
-            if DB_CREDENTIAL_PATTERN.search(line):
+            if pattern.search(line):
                 offenders.append(f"{path.relative_to(REPO_ROOT)}:{number}")
 
     if offenders:
@@ -1572,6 +1597,15 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
     không phải một lựa chọn cho tiện tay -- `test_probe.py` **phải** import `pymupdf`, vì nó
     dựng cả PDF chữ lẫn PDF scan ngay lúc chạy thay vì cất hai file nhị phân vào git.
 
+    Chủ của seam pymupdf đổi ngày 10/10/2026: từ `probe.py` sang `pdf.py`. Đường OCR cần dựng ảnh
+    một trang, và việc ấy không thuộc một module chính sách. Danh sách vẫn **đúng một** file --
+    nới nó thành hai là đổi một luật grep được thành một luật phải nhớ.
+
+    `pymongo` vào danh sách ngày 11/10/2026 (plan 3b, D2), dù client async của nó **không** chặn
+    event loop: tên của check này hẹp hơn luật nó canh. Luật thật là *một SDK chạm kho, một module*
+    -- và với kho nội dung, module ấy là nơi duy nhất phải trả lời câu *"nội dung có được ghi trước
+    khi `state` đổi không"*.
+
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
     """
@@ -1588,8 +1622,17 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
         (
             "pymupdf",
             PYMUPDF_IMPORT,
-            (REPO_ROOT / "services" / "document" / "src" / "document" / "probe.py",),
+            (REPO_ROOT / "services" / "document" / "src" / "document" / "pdf.py",),
             ("document",),
+        ),
+        (
+            "pymongo",
+            PYMONGO_IMPORT,
+            (REPO_ROOT / "services" / "document" / "src" / "document" / "content_store.py",),
+            # Quét **cả bốn** service, không chỉ `document`: BE và `ingest` không giữ khoá Mongo
+            # (plan 3b, D1), và review Task 1 chỉ ra không gì canh điều đó -- `agent-no-db` chỉ
+            # quét AGENT và `document`. Plan 3c mở thêm một cửa cho document agent ở đây.
+            ("be", "agent", "document", "ingest"),
         ),
     )
 

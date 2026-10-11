@@ -19,6 +19,51 @@ dependencies = [
     # SDK của object storage. Sync, nên mọi lời gọi phải đi qua một thread --
     # xem storage.py.
     "minio>=7.2",
+    # Kho nội dung (MongoDB): bản thô của mọi tài liệu. `>=4.13` vì đó là bản có
+    # `AsyncMongoClient` -- client async thuần, không phải bọc thread như MinIO.
+    # Chỉ `content_store.py` được import nó (plan 3b, D2).
+    "pymongo>=4.13",
+    # Đọc chữ từ ảnh scan (công thức thì không: từ 11/10/2026 nó được đọc lúc
+    # ra đề bằng gpt-4.1-mini, xem plan 3a). Các dòng dưới là **~2 GB**, và cái giá ấy
+    # được nhận tường minh trong plan 3a: cả 14 cuốn SGK trong `data/` là ảnh
+    # scan thuần, 0 ký tự, nên không có OCR thì không có gì để phân đoạn.
+    #
+    # Ghim **đúng một phiên bản** thay vì `>=`, khác lệ của các dependency trên.
+    # Lý do: đây là model, không phải thư viện. Một phiên bản khác đọc ra chữ
+    # khác, nên bảng số của bộ đo chỉ có nghĩa khi nó đi kèm con số phiên bản --
+    # một `>=` ở đây biến phép đo thành một giai thoại.
+    "paddlepaddle==3.3.1",
+    "paddleocr==3.7.0",
+    # `[ocr]` không bỏ được: thiếu nó thì `PPStructureV3` ném `DependencyError`
+    # ngay lời gọi đầu tiên, đo ngày 10/10/2026.
+    "paddlex[ocr]==3.7.2",
+    # Chữ tiếng Việt. PaddleOCR thủng **từ điển ký tự** -- nó không bao giờ phát
+    # ra tổ hợp hai dấu (ế ố ộ ớ ứ ợ) -- nên phần nhận dạng chữ phải do một model
+    # huấn luyện riêng cho tiếng Việt làm. Xem Decision Record của plan 3a.
+    "vietocr==0.3.13",
+    # Bộ nhận dạng mặc định, đứng **cạnh** VietOCR chứ không thay nó. Benchmark
+    # 11/10/2026, 50 trang, 4 luồng: bằng hoặc hơn VietOCR ở mọi thước (thiếu
+    # từ 9,3% cả hai; CER 11,9% so với 15,7%; lỗi dấu 9,8% so với 12,9%), cùng
+    # tốc độ. VietOCR lạc rồi lặp trên toán nằm trong dòng (`ƯCLN(24, 60)`);
+    # EasyOCR là CTC nên về cấu trúc không lặp được. Chọn bằng tham số
+    # `reader` của `PageReader`.
+    "easyocr==1.7.2",
+    # `vietocr` **không** tự khai torch, nên nó phải đứng đây. Bản CPU: server
+    # không có GPU. `torchvision` cũng vậy: `vietocr/model/backbone/vgg.py`
+    # import nó ở dòng đầu mà không gói nào khai.
+    "torch==2.14.1",
+    "torchvision==0.29.1",
+    # `vietocr` ghim `gdown==4.4.0`, và gdown ấy `import pkg_resources` -- thứ
+    # setuptools đã bỏ ở bản 81. Không có dòng này thì `from vietocr.tool.config
+    # import Cfg` chết ngay, trên một môi trường cài sạch, với một thông báo
+    # không nói gì về vietocr.
+    "setuptools<81",
+    # Hai dependency ma, đúng loại mà comment về pymupdf ở trên than phiền: cả
+    # hai được import trong `ocr/` và cả hai đang đi nhờ paddle với torch. Một
+    # ngày nào đó paddle bỏ numpy khỏi danh sách của nó thì service này chết mà
+    # không dòng nào nói vì sao.
+    "numpy>=1.26",
+    "pillow>=10",
 ]
 
 # Không có starlette ở đây, dù `be/storage.py` bọc thread bằng `run_in_threadpool`

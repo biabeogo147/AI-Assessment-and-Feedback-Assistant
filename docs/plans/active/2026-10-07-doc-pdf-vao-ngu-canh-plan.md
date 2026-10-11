@@ -11,7 +11,7 @@ mang mã **B10** trong artifact theo dõi pipeline.
 chung** mà nhiều plan con cùng dựa vào, và danh sách các plan con cùng cổng của chúng. Mỗi plan
 con có file riêng với `Ordered Tasks` và `Status` của nó.
 
-Đợt này chia **bảy plan** vì một plan không chở nổi: nó đẻ ra một service, một process mới cho
+Đợt này chia **mười plan** vì một plan không chở nổi: nó đẻ ra một service, một process mới cho
 BE, hai kho lưu mới, và một bộ định tuyến. Thứ tự **bị ép bởi phụ thuộc**, không bởi sở thích.
 
 Năm thành sáu ngày 08/10/2026: plan 2 tách làm **2a** và **2b**. Nó đếm ra khoảng ba mươi file,
@@ -26,7 +26,19 @@ kiểm* chỉ sống trong một docstring; `main.py` và `worker.py` có hai bo
 nhau khác đúng một dòng; `be/queue.py` trộn chiều đẩy với chiều tiêu thụ. Người dùng chốt
 ghi lại thành một plan riêng thay vì chữa vội.
 
-## Bảy plan, và cổng giữa chúng
+Bảy thành chín ngày 10/10/2026: plan 3 vỡ làm **3a**, **3b** và **3c**. Lý do là một phép đo, không
+phải một sở thích — **cả 14 cuốn SGK trong `data/` là ảnh scan thuần**: mỗi trang đúng một ảnh toàn
+trang, 0 ký tự, `drawings=0`, ~1190×1667 px trên A4 ≈ 144 DPI. Nên OCR thành một bước bắt buộc đứng
+trước mọi thứ, và nó mang cổng riêng của nó: một con số, không phải một cái chip. Phần dựng cây thì
+ở lại với Jev, và phần kiểm công thức bằng sympy tách ra vì nó có một luật nghiệp vụ riêng — chỉ
+đẳng thức đã được chứng minh trước mới được kiểm.
+
+Chín thành mười ngày 11/10/2026: 3b cũ (*Jev dựng hierarchy, chunk, Mongo*) quá rộng -- vừa dựng
+một kho mới vừa thiết kế Jev -- nên người dùng chia nó: **3b** chỉ dựng Mongo và lưu bản thô của mọi
+tài liệu ngay sau khi đọc; **3c** là *document agent* đọc bản thô ấy, dựng cây bằng Jev, ghi ngược
+lại; sympy lùi thành **3d**.
+
+## Mười plan, và cổng giữa chúng
 
 | # | Plan | Cổng mở sang plan sau | Model? |
 |---|---|---|---|
@@ -34,14 +46,17 @@ ghi lại thành một plan riêng thay vì chữa vội.
 | 2a | [`2026-10-08-document-service-text-layer-gate-plan.md`](2026-10-08-document-service-text-layer-gate-plan.md) | `GET /api/teacher/documents` trả `state` đi từ `processing` sang `ready` hoặc `no_text_layer`, và `page_count` khớp số trang thật | không |
 | 2b | [`2026-10-08-document-chip-four-states-plan.md`](2026-10-08-document-chip-four-states-plan.md) | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
 | 2c | [`2026-10-08-ingest-service-split-plan.md`](2026-10-08-ingest-service-split-plan.md) | `services/ingest` **không import nổi một dòng nào** của `be` — `lint-imports` đỏ nếu thử — và một check đỏ khi schema bị dựng ngoài chỗ sở hữu nó | không |
-| 3 | Mục lục, chương, chunk, Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
+| 3a | [`2026-10-10-document-ocr-text-and-latex-plan.md`](../completed/2026-10-10-document-ocr-text-and-latex-plan.md) — **đóng 11/10/2026** | 50 trang SGK có nhãn vàng, và bộ đo nói chất lượng chữ Việt bằng **số**. Đổi hướng giữa chừng: upload **chỉ đọc chữ**; công thức đọc bằng VLM lúc ra đề (ba lựa chọn đã chốt, chưa viết code — xem `backlog.md`) | không |
+| 3b | [`2026-10-11-mongo-content-store-plan.md`](../completed/2026-10-11-mongo-content-store-plan.md) — MongoDB làm kho nội dung, bản thô vào Mongo — **đóng 11/10/2026 sau Task 2**: Mongo + bản thô của PDF có chữ và `.txt`/`.md`; OCR theo lô cho PDF scan chuyển xuống `backlog.md` | một cuốn SGK scan tải lên qua màn hình giáo viên ra đủ trang trong Mongo, chip về *sẵn sàng* không qua *xử lý hỏng* | không |
+| 3c | *Document agent* dùng Jev: đọc bản thô từ Mongo, dựng cây mục lục + chunk, ghi ngược lại Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
+| 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết* | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
 | 4 | Jev và skill — *chưa viết* | một đoạn bài tập được gán đúng nhãn | **có** |
 | 5 | Nội dung vào prompt — *chưa viết* | **không payload nào rời BE mang chunk nhãn bài tập** | có |
 
-Năm plan sau **cố ý chưa có file**: `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading, và thiết
+Bốn plan sau **cố ý chưa có file**: `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading, và thiết
 kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
 
-**Plan 1, 2a, 2b và 2c không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
+**Plan 1, 2a, 2b, 2c, 3a và 3b không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
 là nửa chứa mọi giả định nguy hiểm — nếu có gì sụp, nó sụp ở đó, trước khi ta xây gì lên trên.
 
 ## Decision Records
@@ -129,8 +144,15 @@ Postgres cho RAG — không liên quan.
 1. **`packages/contracts` giữ hình dạng của một chunk.** Mongo là *nơi lưu*, không phải *nơi
    định nghĩa*. Thiếu điều này, ranh giới `document` → BE đang có kiểu sẽ âm thầm thành không
    kiểu — thứ duy nhất ở đây thật sự gây đau.
-2. **BE là service duy nhất ghi Mongo**, nên dòng `AGENTS.md:15` *"all databases"* vẫn đúng
-   từng chữ, không phải nới.
+2. ~~**BE là service duy nhất ghi Mongo**, nên dòng `AGENTS.md:15` *"all databases"* vẫn đúng
+   từng chữ, không phải nới.~~ **Thay thế ngày 11/10/2026**, người dùng chốt khi mở plan 3b:
+   **Mongo là kho nội dung, như MinIO** -- `services/document` ghi bản thô, và *document agent* ở
+   plan 3c đọc bản thô rồi ghi cây/chunk ngược lại, cả hai bằng khoá Mongo của chính mình. Lý do
+   là đúng lập luận đã cho MinIO đứng ngoài luật credential: *nơi nội dung nằm*, không phải *nơi
+   sự thật nằm*. Sự thật -- `documents.state` -- vẫn chỉ ở Postgres và vẫn chỉ `ingest` ghi, nên
+   *"BE sở hữu mọi database"* đọc đúng thành *"BE sở hữu mọi kho sự thật"*. Điều kiện 1 ở trên
+   **giữ nguyên**: hình dạng của thứ nằm trong Mongo sống ở `packages/contracts`. Xem
+   `2026-10-11-mongo-content-store-plan.md`.
 
 ### Decision: `document` đẩy job cho BE qua arq, trên một queue riêng
 
@@ -310,7 +332,12 @@ HTTP ghi một hàng).
 - [x] **Plan 2a — `services/document` và cổng text layer** (mã **C2**, **C11**, một nửa **C10**)
 - [x] **Plan 2b — chip bốn trạng thái** (Figma trước, rồi FE)
 - [x] **Plan 2c — `services/ingest`, service thứ năm** (không mã pipeline; dọn nợ của 2a)
-- [ ] **Plan 3 — mục lục, chương, chunk, Mongo** (mã **C3**, **C10**)
+- [x] **Plan 3a — OCR ra chữ** (không mã pipeline; nó là bước SGK scan bắt buộc phải có). Đóng
+      11/10/2026; LaTeX chuyển sang VLM lúc ra đề, phần chưa làm nằm ở `backlog.md`
+- [x] **Plan 3b — Mongo làm kho nội dung, OCR vào luồng upload** (không mã pipeline; nền của 3c).
+      Đóng 11/10/2026 sau Task 2 theo lời người dùng; OCR theo lô cho PDF scan nằm ở `backlog.md`
+- [ ] **Plan 3c — document agent: Jev dựng hierarchy, chunk** (mã **C3**, **C10**)
+- [ ] **Plan 3d — sympy kiểm công thức** (không mã pipeline)
 - [ ] **Plan 4 — Jev và skill** (mã **C4**)
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)
 
@@ -332,8 +359,20 @@ test của nó dưới một đột biến một dòng.
 plan 2b (`2f41904`), plan 2c (`2c72e9d`) — cái cuối ngày 09/10/2026. ADR-27 đã viết và đã sửa
 ngày 08/10/2026 (cổng text layer thành bất đồng bộ).
 
-**Ba plan còn lại chưa có file**: plan 3 (mã C3, C10), plan 4 (C4), plan 5 (đóng B10). Đợt này
-là lý do duy nhất file này còn nằm trong `active/`.
+**Plan 3a đã có file** từ 10/10/2026: `2026-10-10-document-ocr-text-and-latex-plan.md`. **Bốn
+plan còn lại chưa có file**: plan 3c (mã C3, C10), plan 3d, plan 4 (C4), plan 5 (đóng B10).
+Plan 3a và plan 3b đóng 11/10/2026, cùng một commit, và cả hai đã về `completed/`. **PDF scan vẫn
+dừng ở `NO_TEXT_LAYER`** cho tới khi mục *OCR theo lô* trong `backlog.md` được làm -- 3c đọc bản thô
+từ Mongo nên cần nó trước khi chạy được trên SGK. Đợt này là lý do duy nhất file này còn nằm trong
+`active/`.
+
+**Phép đo đổi hình cả nửa sau của đợt, ngày 10/10/2026.** Decision Record *PyMuPDF, và từ chối tệp
+không có text layer* vẫn đúng từng chữ về **cổng**, nhưng nó đã đo trên một PDF do LaTeX sinh, và nó
+tự cảnh báo rằng *"sách giáo khoa thật có thể khác"*. Sách thật khác hẳn: **không cuốn nào có text
+layer**, nên `probe.py` xếp cả 14 cuốn vào `NO_TEXT_LAYER` và mọi tín hiệu font — cỡ chữ, in đậm,
+font Computer Modern — không tồn tại. Hierarchy vì thế phải dựng từ hình học + nhãn layout + số thứ
+tự, và `get_toc()` thì không dùng được: bốn cuốn báo `toc == page_count` vì máy quét ghi một bookmark
+mỗi trang. Chi tiết của hai plan chưa viết nằm ở `backlog.md`, hai mục cuối.
 
 Ba Decision Record trong file này đã bị **viết lại** ngày 08/10/2026, vì bản đầu nói ngược với
 thiết kế đã chốt: Jev chuyển từ BE sang `services/document`; lý do service thứ tư đổi từ ngân

@@ -15,6 +15,9 @@ src = [
     "services/agent/src",
     "services/document/src",
     "services/ingest/src",
+    # `tools/` không phải một service và không được cài vào env, nhưng bộ đo OCR sống ở đó và
+    # nó vẫn phải theo cùng một luật lint với phần còn lại của repo.
+    "tools",
 ]
 
 [tool.ruff.lint]
@@ -37,6 +40,11 @@ extend-immutable-calls = [
 # đụng nhau, việc mà mode prepend mặc định không làm được nếu không có file
 # __init__.py.
 addopts = "-q --import-mode=importlib"
+# `tools/` không phải một distribution và không được cài vào env -- `check_contract.py` xưa nay
+# chạy như một script, bằng đường dẫn đầy đủ. Một dòng ở đây rẻ hơn hẳn một `conftest.py` chỉ để
+# chọc `sys.path`: pytest giải nó tương đối với rootdir, nên nó đúng cả khi chạy từ thư mục con,
+# và nó không để lại một phép sửa trạng thái toàn cục của interpreter.
+pythonpath = ["tools"]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = [
@@ -46,6 +54,9 @@ testpaths = [
     "services/agent/tests",
     "services/document/tests",
     "services/ingest/tests",
+    # Lưới của thước đo OCR. Chúng dựng dữ liệu của riêng mình, nên chúng chạy được trên một máy
+    # chưa từng có `data/` -- khác hẳn chính bộ đo, thứ `check` không gọi tới.
+    "tools/tests",
 ]
 
 # ---------------------------------------------------------------------------

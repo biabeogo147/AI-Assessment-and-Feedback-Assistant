@@ -44,7 +44,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | BE and AGENT never import each other | automatic: `lint-imports`, also a pre-commit hook |
 | `contracts` never imports a service | automatic: `lint-imports` |
 | AGENT emits no routing decision | automatic: `tests/test_no_routing_decision.py` |
-| AGENT and `document` hold no database credentials | automatic: `tools/check_contract.py` |
+| AGENT and `document` hold no database credentials (`document` may hold the MongoDB content store) | automatic: `tools/check_contract.py` |
 | One process builds the schema; the rest only check it | automatic: `tools/check_contract.py` |
 | Both ends of the document channel read its name from `contracts` | automatic: `tools/check_contract.py` |
 | Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |

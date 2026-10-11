@@ -41,6 +41,17 @@ class Settings(BaseSettings):
             vừa bắt bản đầu của docstring này ngày 08/10/2026.
         minio_bucket: Bucket giữ byte tài liệu. Cùng một bucket BE ghi vào.
         minio_secure: Có nói HTTPS với object storage không. Local thì không.
+        mongo_url: Chuỗi kết nối tới kho nội dung (MongoDB), nơi bản thô của mọi tài liệu nằm.
+            Được phép ở service này vì cùng lý do với khoá object storage: Mongo giữ **nội dung**
+            đọc ra từ tệp, không giữ **sự thật** về tệp -- `documents.state` vẫn chỉ ở kho của BE
+            (plan 3b, D1). Chỉ `content_store.py` được dùng nó.
+        mongo_database: Tên database trong Mongo.
+        ocr_pages_per_job: Số trang một job OCR đọc trước khi nhường chỗ cho job kế. 4,5 s/trang
+            đo ở plan 3a nhân 10 là ~45 s, dưới trần `job_timeout` 120 s với chỗ dư cho trang
+            dày chữ.
+        ocr_reader: Bộ nhận dạng chữ của đường OCR, `easyocr` hoặc `vietocr`. Mặc định
+            `easyocr`: bằng hoặc hơn VietOCR ở mọi thước trên 50 trang (plan 3a).
+        ocr_threads: Số luồng CPU cho OCR. Đặt bằng số vCPU của máy chạy worker.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -53,6 +64,11 @@ class Settings(BaseSettings):
     minio_secret_key: str = "aiafa-local-dev"
     minio_bucket: str = "aiafa-documents"
     minio_secure: bool = False
+    mongo_url: str = "mongodb://127.0.0.1:27017"
+    mongo_database: str = "aiafa_content"
+    ocr_pages_per_job: int = 10
+    ocr_reader: str = "easyocr"
+    ocr_threads: int = 4
 
 
 @lru_cache

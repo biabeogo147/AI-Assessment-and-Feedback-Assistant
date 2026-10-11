@@ -77,6 +77,8 @@ FE  --HTTP /api-->  BE  --aiafa:grading-->  Redis  -->  AGENT
                     │
                     ├── Postgres (trạng thái bài làm, trạng thái tài liệu)
                     └── MinIO    (byte của tài liệu)   <-- DOCUMENT đọc trực tiếp
+
+                        MongoDB  (bản thô: chữ đọc từ tài liệu)  <-- DOCUMENT ghi, BE không chạm
 ```
 
 Hai mũi dưới là **hai queue khác nhau**, không phải một đường hai chiều, và tên chúng
@@ -205,6 +207,17 @@ phải gọn gàng: SDK là sync còn cả hai bên đều async, nên mỗi l�
 và một chỗ quên không ném gì cả — nó chỉ chặn event loop suốt thời gian một cuốn sách đi qua.
 Gom vào một module biến luật *"nhớ bọc thread"* thành luật *"nhớ đừng import"*, và luật thứ
 hai thì grep được.
+
+**MongoDB là kho nội dung, cùng lập luận với MinIO** (plan 3b, 11/10/2026). Sau khi đọc một tệp,
+`document` ghi **bản thô** của nó -- chữ chia trang và khối, có hộp, có nhãn layout khi qua OCR --
+vào database `aiafa_content`, **trước** khi báo `READY` (*"chunk trước, `state` sau"*). Mongo giữ
+**thứ đọc được từ tệp**, không giữ **sự thật về tệp**: tài liệu xong hay chưa vẫn chỉ
+`documents.state` trong Postgres trả lời. Nên `document` được giữ khoá Mongo mà luật *"không giữ
+credential database"* không đổi -- `tools/check_contract.py` dùng một mẫu nới riêng cho
+`services/document` (cho `MONGO_*`, vẫn cấm Postgres), AGENT vẫn mẫu chặt. Hình dạng dữ liệu khai ở
+`contracts.content`, không ở Mongo; `document/content_store.py` là module duy nhất import
+`pymongo`, và cùng hàm seam bên dưới canh nó trên cả bốn service. Bản thô là bất biến: chỉ đường đọc
+tệp ghi `pages`; *document agent* của plan 3c sẽ ghi cây và chunk vào collection của riêng nó.
 
 Cùng hàm ấy canh `pymupdf`, và ở `services/document` nó gắt hơn: arq chạy tới `max_jobs` job
 đồng thời trên một event loop, nên một lời gọi quên `asyncio.to_thread` giữ cả chín job kia

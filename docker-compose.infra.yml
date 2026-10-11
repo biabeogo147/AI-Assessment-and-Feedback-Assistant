@@ -60,6 +60,24 @@ services:
     volumes:
       - aiafa-miniodata:/data
 
+  # Kho nội dung: bản thô đọc ra từ mọi tài liệu (plan 3b). Không thay Postgres --
+  # trạng thái một tài liệu vẫn chỉ ở Postgres -- mà đứng cạnh MinIO: MinIO giữ byte
+  # của tệp, Mongo giữ thứ đọc được từ byte ấy. Local không bật xác thực, y như
+  # Redis; lên máy thật thì bật và đưa khoá vào MONGO_URL.
+  mongo:
+    image: mongo:7
+    container_name: aiafa-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - aiafa-mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   aiafa-pgdata:
   aiafa-miniodata:
+  aiafa-mongodata:

@@ -1,22 +1,25 @@
 """Mở một tệp ra xem có đọc được chữ không, và đếm số trang.
 
-Module **duy nhất** được import `pymupdf`, và `tools/check_contract.py` canh đúng điều đó. Lý do
-không phải gọn gàng: PyMuPDF là sync và CPU-bound, còn arq chạy tới `max_jobs` job đồng thời
-trên một event loop, nên một lời gọi quên `asyncio.to_thread` chặn cả những job kia -- và nó
-không ném gì cả, chỉ làm mọi thứ chậm đi trong lúc ai đó tải một cuốn sách lên. Gom vào một
-module biến luật *"nhớ bọc thread"* thành luật *"nhớ đừng import"*, và luật thứ hai thì grep
-được.
+Đây là **luật**, không phải cách chạm tệp: hai ngưỡng dưới đây và phép suy từ chúng ra một
+`DocumentState`. Việc gọi PyMuPDF thì ở `pdf.py`, module duy nhất được import nó -- xem docstring
+của module ấy để biết vì sao ranh giới này tồn tại, và vì sao `probe.py` từng đứng ở cả hai phía
+của nó tới ngày 10/10/2026.
+
+Từ plan 3b, module này còn dựng **bản thô** của một tệp có chữ (`raw_pages`) -- chữ đi vào kho
+nội dung y như nó nằm trong tệp, chia trang và khối. Vẫn là luật chứ không là cách chạm tệp: *chữ
+của một trang là gì, chia khối ra sao, chuẩn hoá thế nào*.
 
 Không có lời gọi model nào ở đây và sẽ không bao giờ có. Đây là phép đếm, không phải phép đọc
 hiểu: việc cắt chương và phân loại đoạn thuộc plan sau.
 """
 
 import logging
+import unicodedata
+from datetime import datetime
 from typing import NamedTuple
 
-import pymupdf
-
-from contracts import DocumentState
+from contracts import DocumentState, RawBlock, RawPage, RawSource
+from document.pdf import PdfUnreadable, open_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,9 @@ _MIN_READABLE_PAGE_RATIO = 0.10
 
 # Chữ là toàn bộ tệp, nên không có bài toán text layer và cũng không có khái niệm trang.
 _PLAIN_TEXT_SUFFIXES = (".txt", ".md")
+
+# Nhãn khối khi không ai gán nhãn: text layer và tệp thuần. Đường OCR dùng nhãn của PP-DocLayout.
+_UNLABELLED = "text"
 
 
 class Finding(NamedTuple):
@@ -101,19 +107,54 @@ def probe(raw: bytes, filename: str) -> Finding:
 def _probe_plain_text(raw: bytes) -> Finding:
     """Một tệp văn bản thuần: chữ **là** toàn bộ tệp.
 
-    Giải mã với `errors="replace"` thay vì đoán bảng mã. Một tệp không phải UTF-8 vẫn ra chữ --
-    sai dấu, nhưng đủ để biết nó **có** chữ, và đó là câu hỏi duy nhất ở vòng này. Đoán bảng mã
-    là việc của bước cắt đoạn, nơi nội dung thật sự được dùng.
+    Trước plan 3b, hàm này giải mã với `errors="replace"` và để việc đoán bảng mã cho bước cắt
+    đoạn. Từ 3b thì không còn bước nào sau đó đọc lại byte: chữ đi thẳng vào kho nội dung, và bản
+    thô là bất biến (D6). Nên một tệp không đọc đúng được thì **từ chối ở đây**, bằng một câu
+    giáo viên sửa được, thay vì đóng băng rác vào kho (người dùng chốt 11/10/2026).
 
     Args:
         raw: Toàn bộ byte của tệp.
 
     Returns:
-        `READY` khi có ký tự không-trắng, `page_count` luôn là `None`.
+        `READY` khi có ký tự không-trắng; `NO_TEXT_LAYER` khi không; `FAILED` khi bảng mã không
+        đọc được. `page_count` luôn là `None`.
     """
-    if not raw.decode("utf-8", errors="replace").strip():
+    text = _decode_plain_text(raw)
+    if text is None:
+        return Finding(
+            DocumentState.FAILED,
+            None,
+            "Tệp không lưu ở dạng UTF-8. Lưu lại dưới dạng UTF-8 rồi tải lên lần nữa.",
+        )
+    if not text.strip():
         return Finding(DocumentState.NO_TEXT_LAYER, None, "Tệp này không có chữ nào.")
     return Finding(DocumentState.READY, None, "")
+
+
+def _decode_plain_text(raw: bytes) -> str | None:
+    """Giải mã một tệp văn bản thuần, hoặc nói rằng không giải mã đúng được.
+
+    Nhận UTF-8 (có hoặc không BOM -- BOM bị bỏ, `strip()` không bỏ nó) và UTF-16 **có BOM** (thứ
+    Notepad gọi là *"Unicode"*). Mọi thứ khác bị từ chối chứ không đoán: cp1252 hay TCVN3 đoán
+    sai thì ra chữ trông như chữ mà sai dấu, và bên đọc không có cách nào biết.
+
+    Args:
+        raw: Toàn bộ byte của tệp.
+
+    Returns:
+        Chữ đã giải mã, hoặc `None` khi tệp không phải hai dạng trên. Một ký tự NUL cũng là
+        `None`: UTF-16 **không BOM** của chữ ASCII là UTF-8 hợp lệ, xen NUL giữa từng ký tự.
+    """
+    try:
+        if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+            text = raw.decode("utf-16")
+        else:
+            text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return None
+    if "\x00" in text:
+        return None
+    return text
 
 
 def _probe_pdf(raw: bytes) -> Finding:
@@ -127,17 +168,17 @@ def _probe_pdf(raw: bytes) -> Finding:
         `FAILED` khi không mở được tệp.
     """
     try:
-        with pymupdf.open(stream=raw, filetype="pdf") as book:
-            pages = book.page_count
-            with_text = sum(
-                1 for page in book if len(page.get_text().strip()) >= _MIN_CHARS_PER_PAGE
-            )
-    except Exception:
-        # `pymupdf` ném nhiều loại khác nhau cho một tệp hỏng, và không loại nào đáng đoán trước.
-        # Bắt rộng rồi dịch sang một phán quyết là đúng việc ở đây, vì mọi nhánh phải trả về một
-        # thứ gửi đi được. Stack trace vào log để còn chẩn đoán được.
-        logger.exception("could not open a pdf of %s bytes", len(raw))
+        with open_pdf(raw) as pages_of:
+            lengths = pages_of.text_lengths()
+    except PdfUnreadable:
+        # Một tệp hỏng là một **phán quyết**, không phải một lỗi của hệ thống: mọi nhánh phải trả
+        # về một thứ gửi đi được, nếu không chip đứng mãi ở *đang xử lý*. `pdf.py` đã ghi stack
+        # trace và đã dịch mọi loại exception của `pymupdf` thành một lỗi có kiểu, nên ở đây chỉ
+        # còn việc chọn câu nói với giáo viên.
         return Finding(DocumentState.FAILED, None, "Không mở được tệp PDF này.")
+
+    pages = len(lengths)
+    with_text = sum(1 for chars in lengths if chars >= _MIN_CHARS_PER_PAGE)
 
     if pages == 0:
         # Một phán quyết, không phải một lần hỏng: tải lại đúng tệp ấy cho đúng kết quả ấy.
@@ -151,3 +192,98 @@ def _probe_pdf(raw: bytes) -> Finding:
         )
 
     return Finding(DocumentState.READY, pages, "")
+
+
+def raw_pages(raw: bytes, filename: str, document_id: str, at: datetime) -> list[RawPage]:
+    """Dựng bản thô của một tệp **có chữ**: một `RawPage` mỗi trang, theo thứ tự trang.
+
+    Chỉ gọi khi `probe` đã trả `READY`: một PDF scan không có chữ để dựng, bản thô của nó đi
+    đường OCR. Hàm **thuần** và **sync** như `probe`, người gọi đặt nó vào một thread.
+
+    Mọi chữ được chuẩn hoá NFC: text layer của PDF tiếng Việt hay mang dấu tách rời (NFD), và bên
+    đọc ở plan 3c so khớp chữ -- `"ệ"` hai dạng là hai chuỗi khác nhau.
+
+    Args:
+        raw: Toàn bộ byte của tệp.
+        filename: Tên tệp. Phần mở rộng quyết định đường đọc, cùng luật với `probe`.
+        document_id: Id tài liệu.
+        at: Lúc đọc, có múi giờ.
+
+    Returns:
+        Các trang. Tệp văn bản thuần cho đúng một trang, một khối, không hộp. Trang PDF không có
+        khối chữ nào vẫn có mặt, rỗng -- số trang trong kho phải khớp `page_count`.
+
+    Raises:
+        PdfUnreadable: Khi PDF không đọc nổi. `probe` vừa mở được nó nên chuyện này gần như không
+            xảy ra, nhưng người gọi vẫn phải xử như một tệp hỏng.
+        ValueError: Khi tệp không phải loại có chữ mà hàm biết dựng, hoặc là tệp thuần mà bảng
+            mã không đọc được -- cả hai đều là ca `probe` không trả `READY`.
+    """
+    lowered = filename.lower()
+    if lowered.endswith(_PLAIN_TEXT_SUFFIXES):
+        decoded = _decode_plain_text(raw)
+        if decoded is None:
+            raise ValueError(f"{filename} is not utf-8; probe should not have said ready")
+        text = _clean(decoded)
+        return [
+            RawPage(
+                document_id=document_id,
+                page=1,
+                source=RawSource.PLAIN,
+                blocks=(RawBlock(kind=_UNLABELLED, text=text),),
+                text=text,
+                read_at=at,
+            )
+        ]
+    if lowered.endswith(".pdf"):
+        return _raw_pdf_pages(raw, document_id, at)
+    raise ValueError(f"no raw reader for {filename}")
+
+
+def _raw_pdf_pages(raw: bytes, document_id: str, at: datetime) -> list[RawPage]:
+    """Bản thô của một PDF có text layer.
+
+    Args:
+        raw: Toàn bộ byte của tệp.
+        document_id: Id tài liệu.
+        at: Lúc đọc.
+
+    Returns:
+        Một trang mỗi trang của tệp. Khối không còn chữ sau khi chuẩn hoá bị bỏ.
+
+    Raises:
+        PdfUnreadable: Khi tệp không đọc nổi.
+    """
+    out: list[RawPage] = []
+    with open_pdf(raw) as pages_of:
+        for index in range(len(pages_of)):
+            found = pages_of.page_text(index)
+            cleaned = ((block.box, _clean(block.text)) for block in found.blocks)
+            blocks = tuple(
+                RawBlock(kind=_UNLABELLED, box=box, text=text) for box, text in cleaned if text
+            )
+            out.append(
+                RawPage(
+                    document_id=document_id,
+                    page=index + 1,
+                    source=RawSource.TEXT_LAYER,
+                    width=found.width,
+                    height=found.height,
+                    blocks=blocks,
+                    text="\n".join(block.text for block in blocks),
+                    read_at=at,
+                )
+            )
+    return out
+
+
+def _clean(text: str) -> str:
+    """NFC và bỏ khoảng trắng hai đầu. Xuống dòng bên trong khối được giữ: nó là ranh giới dòng.
+
+    Args:
+        text: Chữ thô.
+
+    Returns:
+        Chữ đã chuẩn hoá.
+    """
+    return unicodedata.normalize("NFC", text).strip()

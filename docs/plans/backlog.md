@@ -815,3 +815,168 @@ Món thứ năm — hai tab cùng một đoạn chat — đã làm xong trong
 | --- | --- |
 | Luật *"nói đang soạn, chứ không nói đã soạn xong"* còn là một câu trong prompt (`agent/graphs/reporting.py`, `_SYSTEM`) chứ chưa là dữ liệu | Không bị chặn, nhưng **đang đúng vì ăn may**: nó đúng chỉ vì báo cáo hôm nay chạy ngay sau bước cuối, lúc arq còn đang soạn. Ngày nào pha 2 xong trước lúc báo cáo thì chính dòng ấy thành máy sinh lời nói sai chiều ngược lại. Chỗ chữa là đưa *còn bao nhiêu câu đang soạn* vào `PlanReportRequested` rồi xoá dòng prompt. Việc này nay vướng quyết định lớn hơn: bước báo cáo cứng ở cuối lượt sẽ tan vào skill, nên sửa prompt trước là sửa một chỗ sắp biến mất |
 | `StepOutcome` không có field nào chở con số thật | Không bị chặn, và đây là món **đắt dần**: `detail` của `start_drafting` mãi là *"10 câu bắt đầu soạn"*, còn câu kết mà artboard 5 đã vẽ — *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* — không có đường nào đi qua hợp đồng. Thêm field sau khi hợp đồng deploy là một lần bump `SCHEMA_VERSION`; hôm nay thì chưa |
+
+## Jev dựng hierarchy cho một cuốn sách đã OCR — plan 3c (document agent) của đợt đọc PDF
+
+Ghi ngày 10/10/2026, lúc plan 3 của `active/2026-10-07-doc-pdf-vao-ngu-canh-plan.md` vỡ làm ba.
+Thiết kế do người dùng đề ra cùng ngày; hình dạng đã chốt, file plan thì chưa viết.
+
+Ý chính, và nó là chỗ toàn bộ đợt này đứng hay sụp: **không tin mục lục của tài liệu.** Thay vì đọc
+`get_toc()`, mỗi khối mà OCR trả về đi qua Jev với hai câu hỏi đóng, chạy song song trên một `state`:
+
+- **Loại khối** — heading, đoạn văn, chú thích hình, bảng, header/footer.
+- **Quan hệ cấu trúc** với heading liền trước — cấp cao hơn, cùng cấp, cấp con, hoặc không phải một
+  heading.
+
+Cộng một câu thứ ba cho công thức, để mục nợ dưới đây có đầu vào: **công thức được dùng / đề bài /
+bước giải**.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Dựng cây mục lục bằng Jev từ nhãn khối + hình học + số thứ tự | Chờ plan 3a. Không có chữ thì không có gì để hỏi |
+| ~~Quyết OCR cả bộ một lần rồi cache, hay OCR theo yêu cầu từng chương~~ | **Đã quyết 11/10/2026**: OCR lúc upload, theo lô trang, bản thô vào Mongo -- plan 3b. Số của 3a: 4,5 s/trang, 1 561 trang ≈ 2 giờ trên 4 luồng |
+| ~~Mongo vào `docker-compose.infra.yml`~~; chunk xuống Mongo | Mongo và bản thô: **plan 3b**. Chunk: vẫn ở đây (3c), và 3c ghi bằng khoá Mongo của chính document agent -- người dùng chốt 11/10/2026 *"Mongo là kho nội dung, như MinIO"*, nên không còn phải đi qua `services/ingest`. 3c **không sửa** collection `pages` (bất biến, D6 của plan 3b) |
+
+**Bốn phép đo phải giữ, để người làm 3c không phải đo lại:**
+
+- **`get_toc()` không dùng được trên dữ liệu thật.** Bốn cuốn báo `toc == page_count` vì máy quét ghi
+  **một bookmark mỗi trang**: `[1, 'TOÁN 11 - KNTT - TẬP 01_Page_001', 1]`. Một mục lục giả tệ hơn
+  không có mục lục, vì code tin nó.
+- **Mọi tín hiệu font đã chết.** Cả 14 cuốn trong `data/` là ảnh scan thuần — mỗi trang đúng một ảnh
+  toàn trang, **0 ký tự**, `drawings=0`, ~1190×1667 px trên A4 ≈ 144 DPI. Cỡ chữ, in đậm, font
+  Computer Modern cho công thức: không cái nào tồn tại. Hierarchy phải dựng từ **hình học + nhãn
+  layout + số thứ tự**, và đó chính là lý do thiết kế Jev ở trên thành trung tâm chứ không phải một
+  lớp phụ trợ.
+- **Heuristic heading ngây thơ sai thảm.** Đo trên `docs/report/report.pdf` — một PDF **có** text
+  layer, tức điều kiện dễ hơn SGK: **252 ứng viên cho 45 heading thật**, recall 87%, precision ~15%,
+  và phần lớn rác đến từ chính trang mục lục in trong tài liệu. Đó là phép đo biện hộ cho module
+  `toc_boilerplate` của PageIndex Flash **và** cho bộ lọc Jev.
+- **PP-DocLayout đã cho sẵn tín hiệu.** Nó trả `doc_title`, `paragraph_title`, `text`, `formula`,
+  `image`, `number` kèm bbox và thứ tự đọc — `number` chính là số trang in, mảnh để nối trang PDF với
+  trang in trong sách. Nên câu gửi Jev không phải *"đây là gì"* mà là *"xác nhận, và xếp cấp"*, rẻ hơn
+  hẳn một câu mở.
+
+## sympy kiểm công thức, và vòng sửa phải có trần kép — plan 3d của đợt đọc PDF
+
+Ghi ngày 10/10/2026, cùng lượt trên.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Kiểm một công thức vừa OCR, sai thì gọi LLM sửa, lặp tới khi đúng | Chờ đường đọc công thức bằng VLM (mục dưới) và 3c (nhãn phân loại công thức, việc của Jev) |
+
+**Đầu vào đổi ngày 11/10/2026.** Công thức không còn đến từ PP-FormulaNet lúc upload, mà từ **VLM
+lúc ra đề** (`gpt-4.1-mini` / `gpt-5.6-luna` / `gpt-6-luna`, xem mục *Đọc công thức bằng VLM lúc ra
+đề* dưới). Nên sympy kiểm **kết quả VLM**, và "bước LLM tự dựng lại" là vòng sửa của chính mục này.
+Người dùng kỳ vọng hai bước ấy kéo cả ba model lên. Hai lỗi đo được mà vòng này phải bắt: VLM đọc `⋮`
+(chia hết) thành `:` (chia) -- đổi nghĩa mà vẫn là một biểu thức hợp lệ, nên **sympy không kêu**,
+giống hệt ca `P(x)=P(x)-C(x)` dưới -- và mất `\underbrace{…}_{n \text{ thừa số}}`.
+
+Phạm vi được người dùng thu hẹp ngày 10/10/2026, và chính cái thu hẹp ấy làm việc này khả thi: công
+thức ở đây **không phải một đề bài cần chứng minh**, mà là **đẳng thức đã được chứng minh trước mà
+học sinh được dùng lại không cần chứng minh**. sympy quyết được **tính đúng đắn cú pháp** của mọi
+công thức, nhưng quyết được **tính đúng về toán** chỉ cho đúng lớp hẹp ấy — nên Jev là thứ phải phân
+biệt hai lớp trước khi sympy được gọi.
+
+**Hai ràng buộc phải mang vào thiết kế, cả hai từ phép đo chứ không từ suy đoán:**
+
+- **Vòng sửa cần trần kép, không chỉ một điều kiện dừng.** Qua được sympy là **chưa đủ**: một LLM có
+  thể sửa một công thức bị OCR sai thành một đẳng thức **khác** vẫn đúng — và lúc ấy nó đã viết lại
+  nội dung sách giáo khoa, im lặng, với một lưới báo xanh. Nên bản sửa phải bị ràng thêm bằng
+  **khoảng cách sửa so với chuỗi OCR gốc**, cộng một trần số vòng.
+- **Có một ca sympy không bắt được, và nó đã xảy ra thật.** PP-FormulaNet đọc `P(x)=R(x)-C(x)` thành
+  `P(x)=P(x)-C(x)`. Đó là một **định nghĩa**, không phải một đẳng thức đúng, nên không phép kiểm toán
+  học nào kêu lên được. Lưới cho hình dạng ấy phải so với **ảnh của khối**, không so với **toán** —
+  tức nó là một việc khác hẳn, và gộp nó vào vòng sympy là tự lừa mình.
+
+## Đọc công thức bằng VLM lúc ra đề — việc còn lại của plan 3a
+
+Ghi ngày 11/10/2026, khi plan 3a đóng. Chi tiết, số đo và lý do nằm ở `Status` của
+`completed/2026-10-10-document-ocr-text-and-latex-plan.md`.
+
+Đường upload giờ **chỉ đọc chữ**. Công thức được đọc lúc ra đề, chỉ ở phần tài liệu được tham chiếu,
+bằng VLM của OpenAI trên **cả ảnh trang**. Người dùng chốt ba lựa chọn: `gpt-4.1-mini` (mặc định,
+nhanh nhất), `gpt-5.6-luna` (chính xác nhất trên mẫu 19 công thức, chậm 2,6 lần), `gpt-6-luna` (rẻ
+nhất). Chưa dòng code nào của đường này được viết.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| `agent/vision.py` + `vision_provider`/`vision_model` trong `agent/config.py` + `vision_model()` trong `llm.py`; structured output; đi qua bước sửa thoát ký tự; test không gọi mạng | không gì -- hướng đã chốt ở plan duyệt 11/10/2026 |
+| Prompt cho `⋮` (`\vdots`, không phải `:`) và `\underbrace`, đo lại 5 trang của `data/run-5` | không gì; dưới 1 cent |
+| Thước công thức chuẩn hoá mạnh + ghép phủ-đủ vào `tools/ocr_bench/score.py`, có test | không gì -- hiện chỉ ở script khảo sát ngoài repo |
+| Benchmark 50 trang cho ba lựa chọn (≈ $0,13) | người dùng cho phép (lệ đặt 11/10/2026: chi phí báo trước, benchmark sau) |
+| Nối vào lúc ra đề: chunk → dải trang, message mới, byte ảnh đi `document` → AGENT, cache theo trang | plan 3c (chưa có chunk) |
+
+**Ba cái bẫy đã đo, phải mang vào thiết kế:**
+
+- **JSON nuốt dấu `\` của LaTeX.** `gpt-4.1-nano` trả `\text` không thoát, nên `\t` thành tab; cùng
+  bẫy biến `\frac`, `\neq` thành ký tự điều khiển. Repo đã có bước sửa cho chữ model trả về và một check
+  canh nó (`check_the_model_text_passes_through_the_escape_repair`).
+- **`gpt-4o-mini` -- model chat đang dùng -- không hợp cho ảnh**: 36 890 token cho một trang, gấp ~15
+  lần các model khác, và đọc sai `ƯCLN`. Đường vision phải có model riêng, không mượn `LLM_MODEL`.
+- **Gửi ảnh trang SGK ra OpenAI** là điều người dùng đã chấp nhận khi chọn GPT vision; ghi ra để plan
+  nối đường không phải hỏi lại, nhưng cũng không quên nó.
+
+## Paddle chưa có seam, và lỗ đã rộng ba file
+
+Ghi ngày 10/10/2026, từ review Task 4 của plan 3a.
+
+`services/document/AGENTS.md` nói hai SDK sync mỗi cái đúng một module được import, và
+`check_only_one_module_per_service_talks_to_a_sync_sdk` canh đúng hai cái: `minio` và `pymupdf`.
+Docstring của chính check ấy viết *"PyMuPDF cùng hình dạng và **gắt hơn một chút**: nó sync và
+CPU-bound, còn arq chạy tới `max_jobs` job đồng thời"*.
+
+**Paddle khớp từng chữ với mô tả đó, và nặng hơn nhiều.** `pymupdf` dựng một trang mất mili giây;
+`LayoutReader.read` đo được **3,6–5,3 giây một trang**, và đường OCR đầy đủ mất hơn trăm giây. Hiện
+`paddleocr` được import ở **ba** module (`ocr/layout.py`, `ocr/textline.py`, `ocr/formula.py`), và
+trong cả `services/document/src/document/ocr/` **không có một `asyncio.to_thread` nào**.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Mở seam thứ ba cho `paddle`/`paddleocr`, hoặc dựng một `ocr/engine.py` làm cửa duy nhất | Chưa quyết hình dạng. Danh sách ba file giữ được luật grep được nhưng phá câu *"đúng một module"*; một cửa duy nhất giữ câu ấy nhưng thêm một lớp gián tiếp cho ba model không liên quan nhau |
+| Bọc đường OCR trong `asyncio.to_thread` | **Chờ OCR theo lô** (mục *việc còn lại của plan 3b* cuối file). Plan 3a cố ý chưa nối đường job nào, nên hôm nay chưa có event loop nào để chặn. Việc này sinh ra cùng lúc với job per-trang |
+
+Chưa đau hôm nay vì bộ đo chạy đồng bộ trong một script. Nó đau đúng vào ngày đầu tiên có một
+worker gọi nó.
+
+## PP-DocLayout mù với trang mục lục, và không gì báo động
+
+Ghi ngày 10/10/2026, từ review Task 4. Đây là **tin xấu nhất cho plan 3c** (dựng cây; trước 11/10/2026 gọi là 3b), không phải cho 3a.
+
+Trên trang mục lục của *Kết nối tri thức Lớp 6 tập 1* -- sáu khung màu, khoảng sáu mươi mục --
+PP-DocLayout trả về **đúng một hộp**: số trang. Không phải lỗi ngưỡng; đó là đầu ra thô. Cùng kiểu
+mất mát ở vài chỗ khác: hai khung vở ở trang 46, ngôi nhà hồng ở trang 40, và trang 2 chỉ ra ba hộp.
+
+Đúng trang mà bước dựng mục lục cần nhất thì lại là trang model đọc tệ nhất.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Một tín hiệu *"trang này gần như rỗng mà nó không trắng"* | Chưa quyết đo bằng gì. Đếm khối thì một trang bìa thật cũng ít khối; đo lượng mực trên ảnh thì cần một phép đo mới. Hôm nay `logger.info` in `found 1 boxes, kept 1` rồi đi tiếp, và bộ đo sẽ chấm trang ấy gần 0 điểm mà không ai biết đó là lỗi **recall của layout** chứ không phải lỗi đọc chữ |
+| Một đường đọc mục lục không qua PP-DocLayout | Chờ số của bộ đo. Nếu mục lục in là thứ duy nhất model mù, nó có thể được xử riêng -- nhưng ADR-27 đã chốt là **không tin mục lục của tài liệu**, nên giá trị của việc ấy chưa rõ |
+
+Hai điều này không chặn plan 3a: cổng của 3a là *đọc đúng tới đâu*, và một trang model không thấy
+gì vẫn là một con số thật trong bảng. Chúng chặn 3c, nơi cây mục lục được dựng.
+
+## OCR theo lô cho PDF scan — việc còn lại của plan 3b
+
+Ghi ngày 11/10/2026, khi plan 3b (`2026-10-11-mongo-content-store-plan.md`) đóng sau Task 2 theo lời
+người dùng. Plan ấy đã dựng Mongo, `ContentStore`, bản thô cho PDF có chữ và `.txt`/`.md`, và cơ chế
+`arq.Retry`. **PDF scan vẫn dừng ở `NO_TEXT_LAYER`**: OCR chưa nối vào luồng upload. Thiết kế đã
+duyệt nằm ở D3–D5 và mục *Luồng mới* của plan ấy; tóm tắt để người làm không phải lục:
+
+| Việc | Ghi chú |
+| --- | --- |
+| Contracts: `OCR_PAGES_TASK`, `DocumentPagesRequested(document_id, storage_key, filename, first, page_count)`, `DOCUMENT_PROGRESS_TASK`, `DocumentProgress(document_id, pages_read, page_count)` | D3, D4 |
+| `document.ocr_pages`: mỗi job đọc `ocr_pages_per_job` (10) trang ≈ 45 s, dưới `job_timeout` 120 s; ghi từng trang; báo tiến độ; tự enqueue lô kế. **Nối đuôi, không song song** -- OCR ăn hết 4 vCPU | `PageReader` nạp một lần ở `on_startup` (5–6 s); gọi qua `asyncio.to_thread`. Lô cuối: `ContentStore.characters > 0` → `READY`, không thì `NO_TEXT_LAYER` |
+| Nhánh *PDF scan → `NO_TEXT_LAYER`* trong `probe_document` thành nhánh mở OCR; nhánh cũ comment bằng `# [CODE CHẾT ...]` | Luật người dùng: code chết comment bằng `#`, không xoá |
+| Ingest `document_progress`: `UPDATE documents SET pages_read, progress_at`; hai cột mới trong `schema` | Không migration: `.\dev.ps1 db-reset` (BE phải tắt) |
+| BE `_as_read` đo *đứng quá lâu* từ `max(uploaded_at, progress_at)` | Không có nó, một cuốn 200 trang (~15 phút) bị coi là chết sau 300 s |
+| Hiển thị *"đang đọc 37/200 trang"* trên chip | Cần Figma trước (luật người dùng) |
+
+Nợ phát hiện trong review Task 2 của plan 3b:
+
+| Việc | Ghi chú |
+| --- | --- |
+| **PDF lai qua cổng 10%** (vd. 40/400 trang có lớp chữ mỏng) ra `READY` / `text_layer` với 360 trang rỗng, không bao giờ đi OCR | 3c sẽ dựng cây trên bản thô thủng. Hướng: trang dưới `_MIN_CHARS_PER_PAGE` đi OCR -- cần một bản scan có lớp OCR mỏng thật để đo |
+| **Xoá bản thô khi giáo viên xoá tài liệu**; và bản thô mồ côi khi kho ghi xong mà `_hand_back` hỏng hết lượt thử | BE không giữ khoá Mongo (D1). Có thể là một task `document` nhận lệnh xoá |
+| Mỗi trang một `replace_one` | 2 000 trang ≈ 1 s với Mongo local; Mongo ở xa (RTT ~20 ms) ≈ 40 s, vẫn dưới 120 s. `bulk_write` khi cần |
+| Lần thử cuối của `Retry` hết lượt thì job hỏng im, chip chờ 300 s | Có thể gửi `FAILED` ở lần thử cuối khi Redis còn sống |

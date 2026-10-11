@@ -6,11 +6,17 @@
 không phụ thuộc vào một tệp mà người sau có thể thay mà không ai biết.
 """
 
+import unicodedata
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
+
 import pymupdf
 import pytest
 
-from contracts import DocumentState
-from document.probe import probe
+from contracts import DocumentState, RawSource
+from document.pdf import PageText, TextBlock
+from document.probe import probe, raw_pages
 
 # Chữ đủ dài để vượt ngưỡng 100 ký tự mỗi trang mà không phải đếm bằng tay.
 _PARAGRAPH = (
@@ -141,16 +147,36 @@ def test_a_text_file_of_only_whitespace_has_no_text() -> None:
     assert probe(b"   \n\t\r\n  ", "trong.txt").state is DocumentState.NO_TEXT_LAYER
 
 
-def test_a_text_file_that_is_not_utf8_still_counts_as_having_text() -> None:
-    """Sai bảng mã vẫn là **có chữ**, và đó là câu hỏi duy nhất ở vòng này.
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # cp1252: `\xe8` một mình không hợp lệ trong UTF-8.
+        "Tập hợp café".encode("cp1252", errors="replace"),
+        # UTF-16 **không BOM**: chữ ASCII của nó là UTF-8 hợp lệ, xen NUL giữa từng ký tự.
+        "Tap hop A".encode("utf-16-le"),
+    ],
+    ids=["cp1252", "utf16-no-bom"],
+)
+def test_a_text_file_that_is_not_utf8_is_refused_with_a_fixable_reason(raw: bytes) -> None:
+    """Sai bảng mã thì **từ chối**, không đoán (người dùng chốt 11/10/2026, review Task 2).
 
-    Đoán bảng mã thuộc bước cắt đoạn, nơi nội dung thật sự được dùng. Từ chối ở đây là từ chối
-    một tài liệu vì một lý do mà vòng này không có quyền phán.
+    Trước plan 3b, ca này ra `READY` vì bước cắt đoạn sẽ đọc lại byte. Từ 3b chữ đi thẳng vào kho
+    nội dung và bất biến, nên `READY` ở đây là đóng băng `\\ufffd` và NUL vào bản thô.
     """
-    # cp1252, không phải UTF-8: `\xe8` một mình là một byte không hợp lệ trong UTF-8, nên
-    # `errors="replace"` biến nó thành một ký tự thay thế và phần còn lại vẫn là chữ.
-    found = probe(b"Chuong mot, bai tap v\xe8 nha cho ca lop muoi hai A", "cu.txt")
-    assert found.state is DocumentState.READY
+    found = probe(raw, "cu.txt")
+    assert found.state is DocumentState.FAILED
+    assert "UTF-8" in found.fault
+
+
+def test_utf16_with_a_bom_and_utf8_with_a_bom_are_read_and_the_bom_is_dropped() -> None:
+    """Notepad *"Unicode"* là UTF-16 có BOM; Notepad *"UTF-8 with BOM"* để `\\ufeff` ở đầu --
+    thứ `strip()` không bỏ, nên một tệp chỉ có BOM từng ra `READY` với chữ `"\\ufeff"`.
+    """
+    for raw in ("Mệnh đề".encode("utf-16"), "Mệnh đề".encode("utf-8-sig")):
+        assert probe(raw, "bai.txt").state is DocumentState.READY
+        [page] = raw_pages(raw, "bai.txt", "doc-1", _AT)
+        assert page.text == "Mệnh đề"
+    assert probe(b"\xef\xbb\xbf  \n", "bom.md").state is DocumentState.NO_TEXT_LAYER
 
 
 def test_an_extension_nobody_reads_fails_loudly_in_the_result() -> None:
@@ -198,3 +224,106 @@ def test_a_scan_with_only_page_numbers_on_every_page_is_not_readable() -> None:
     found = probe(_pdf_with_a_running_header(20), "scan-co-so-trang.pdf")
     assert found.state is DocumentState.NO_TEXT_LAYER
     assert found.page_count == 20
+
+
+def test_a_pdf_whose_page_tree_lies_is_a_verdict_not_an_exception() -> None:
+    """Hợp đồng *"không bao giờ ném"* phải đứng vững cả với tệp hỏng ở page tree.
+
+    Lưới cho một hồi quy ngày 10/10/2026: lượt tách `pdf.py` ra khỏi module này làm `probe()`
+    ném `RuntimeError` thô cho đúng tệp dưới đây. `handlers.py` không bắt, không `DocumentProbed`
+    nào được gửi, và chip đứng mãi ở *đang xử lý*.
+
+    Tệp này mở được và chỉ hỏng lúc ai đó hỏi số trang -- `Count 5` trong khi `Kids` rỗng, đúng
+    hình dạng một dây chuyền máy quét để lại, cùng loại máy đã sinh ra 14 cuốn trong `data/`.
+    """
+    lying = (
+        b"%PDF-1.4\n"
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        b"2 0 obj<</Type/Pages/Kids[]/Count 5>>endobj\n"
+        b"trailer<</Root 1 0 R>>\n"
+    )
+    found = probe(lying, "lech-count.pdf")
+    assert found.state is DocumentState.FAILED
+    assert found.page_count is None
+
+
+_AT = datetime(2026, 10, 11, 9, 0, tzinfo=UTC)
+
+
+def test_raw_pages_of_a_pdf_has_one_page_per_page_even_the_blank_ones() -> None:
+    """Số trang trong kho phải khớp `page_count`: trang trắng vẫn có mặt, chỉ rỗng.
+
+    Bỏ trang trắng đi thì `page` thứ 3 trong kho không còn là trang 3 của tệp, và mọi trích dẫn
+    *"trang 3"* của plan 3c trỏ sai chỗ.
+    """
+    pages = raw_pages(_pdf_with_text(pages=3, text_on=2), "sach.pdf", "doc-1", _AT)
+
+    assert [page.page for page in pages] == [1, 2, 3]
+    assert all(page.source is RawSource.TEXT_LAYER for page in pages)
+    assert pages[0].text and pages[0].blocks[0].box is not None
+    assert pages[2].text == ""
+    assert pages[2].blocks == ()
+    assert pages[0].read_at == _AT
+
+
+def test_raw_pages_of_a_text_file_is_one_page_in_nfc() -> None:
+    """Tệp thuần: một trang, một khối, không hộp -- và chữ ở dạng NFC dù tệp ghi NFD.
+
+    NFD là dạng mà macOS và nhiều PDF xuất ra; bên đọc ở plan 3c so khớp chữ, và `"ệ"` hai dạng
+    là hai chuỗi khác nhau.
+    """
+    written = unicodedata.normalize("NFD", "Mệnh đề\n\nTập hợp\n")
+    [page] = raw_pages(written.encode(), "bai.txt", "doc-1", _AT)
+
+    assert page.page == 1
+    assert page.source is RawSource.PLAIN
+    assert page.text == "Mệnh đề\n\nTập hợp"
+    assert unicodedata.is_normalized("NFC", page.text)
+    assert page.blocks[0].text == page.text
+    assert page.blocks[0].box is None
+    assert page.width is None and page.height is None
+
+
+def test_raw_pages_of_a_pdf_cleans_every_block_and_joins_them_by_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Text layer thật mang dấu tách rời và khoảng trắng hai đầu: đo trên `docs/report/report.pdf`
+    (review Task 2, 11/10/2026), 11/396 khối không NFC, 396/396 khối có khoảng trắng hai đầu.
+
+    Font mặc định của `pymupdf` không dựng nổi chữ có dấu, nên test thay `open_pdf` bằng một tệp
+    giả trả đúng hình dạng `PageText` -- thứ đang được canh là **luật** chuẩn hoá, không phải
+    PyMuPDF.
+    """
+
+    class _Pages:
+        def __len__(self) -> int:
+            return 1
+
+        def page_text(self, index: int) -> PageText:
+            return PageText(
+                595,
+                842,
+                [
+                    TextBlock((1, 2, 3, 4), unicodedata.normalize("NFD", "  Mệnh đề\n")),
+                    TextBlock((1, 5, 3, 6), " \n "),
+                    TextBlock((1, 7, 3, 8), "Tập hợp \n"),
+                ],
+            )
+
+    @contextmanager
+    def _open(raw: bytes) -> Iterator[_Pages]:
+        yield _Pages()
+
+    monkeypatch.setattr("document.probe.open_pdf", _open)
+    [page] = raw_pages(b"%PDF", "sach.pdf", "doc-1", _AT)
+
+    assert page.text == "Mệnh đề\nTập hợp"
+    assert unicodedata.is_normalized("NFC", page.text)
+    assert [block.text for block in page.blocks] == ["Mệnh đề", "Tập hợp"]
+    assert [block.box for block in page.blocks] == [(1, 2, 3, 4), (1, 7, 3, 8)]
+
+
+def test_raw_pages_refuses_a_kind_it_cannot_build() -> None:
+    """Gọi cho một tệp không có đường đọc là lỗi của người gọi -- `probe` đã không trả `READY`."""
+    with pytest.raises(ValueError, match="no raw reader"):
+        raw_pages(b"x", "anh.png", "doc-1", _AT)

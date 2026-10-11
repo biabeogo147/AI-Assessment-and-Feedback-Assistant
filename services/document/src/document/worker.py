@@ -20,6 +20,7 @@ from arq.worker import func
 
 from contracts import PROBE_DOCUMENT_TASK
 from document.config import get_settings
+from document.content_store import ContentStore
 from document.handlers import probe_document
 from document.storage import create_reader
 
@@ -60,19 +61,41 @@ async def startup(ctx: dict) -> None:
     `create_reader` không chạm mạng, nên MinIO chưa lên cũng không làm worker chết ở đây. Lần đọc
     đầu tiên mới là lúc biết, và lúc ấy một job hỏng là một kết quả gửi về cho BE.
 
+    Kho nội dung thì **ngược lại**, có chủ ý: `prepare` chạm Mongo ngay, và Mongo chưa lên thì
+    worker chết ở đây. Một tệp không đọc được là kết quả nói được với giáo viên; còn một kho không
+    ghi được thì mọi tệp có chữ đều phải ném rồi chờ arq thử lại -- tốt hơn là không nhận job nào.
+
     Args:
-        ctx: Context worker của arq. Nhận thêm khoá `reader`.
+        ctx: Context worker của arq. Nhận thêm khoá `reader` và `store`.
+
+    Raises:
+        Exception: Khi Mongo không với tới được.
 
     Side effects:
-        Ghi một dòng log, và đặt `reader` vào ctx.
+        Ghi một dòng log, đặt `reader` và `store` vào ctx, tạo index của kho nội dung.
     """
     ctx["reader"] = create_reader(_settings)
+    store = ContentStore(_settings.mongo_url, _settings.mongo_database)
+    await store.prepare()
+    ctx["store"] = store
     logger.info(
-        "DOCUMENT worker ready: consuming=%s handing back to=%s redis=%s",
+        "DOCUMENT worker ready: consuming=%s handing back to=%s redis=%s content=%s",
         _settings.document_queue_name,
         _settings.ingest_queue_name,
         _settings.redis_url,
+        _settings.mongo_database,
     )
+
+
+async def shutdown(ctx: dict) -> None:
+    """Đóng pool kết nối của kho nội dung.
+
+    Args:
+        ctx: Context worker của arq.
+    """
+    store = ctx.get("store")
+    if store is not None:
+        await store.close()
 
 
 class WorkerSettings:
@@ -86,8 +109,12 @@ class WorkerSettings:
     queue_name = _settings.document_queue_name
     redis_settings = _redis_settings()
     job_timeout = _JOB_TIMEOUT_SECONDS
+    # Đúng mặc định của arq, viết ra vì `handlers._RETRY_STEP_SECONDS` tính tổng thời gian chờ từ
+    # con số này: đổi nó thì xem lại tổng ấy so với ngưỡng *đứng quá lâu* 300 s của BE.
+    max_tries = 5
     # Không giữ kết quả. Khác AGENT, ở đây **không ai đọc** kết quả một job: câu trả lời đi về
     # bằng một job khác trên queue của BE. Giữ lại chỉ là rác trong Redis, và tệ hơn, nó mời
     # người đọc sau tưởng rằng có một đường poll -- đúng cái bẫy mà `drafting.py` đã ghi lại.
     keep_result = 0
     on_startup = startup
+    on_shutdown = shutdown

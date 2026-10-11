@@ -76,11 +76,11 @@ switch ($Task) {
     }
 
     'infra-up' {
-        Invoke-Step 'start redis, postgres and minio' { docker compose -f "$RepoRoot\docker-compose.infra.yml" up -d }
+        Invoke-Step 'start redis, postgres, minio and mongo' { docker compose -f "$RepoRoot\docker-compose.infra.yml" up -d }
     }
 
     'infra-down' {
-        Invoke-Step 'stop redis, postgres and minio' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
+        Invoke-Step 'stop redis, postgres, minio and mongo' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
     }
 
     'db-reset' {
@@ -88,6 +88,10 @@ switch ($Task) {
         # đường duy nhất đưa một database cũ về khớp với code — và ở local thì dữ liệu là
         # thứ seed lại được. BE phải TẮT lúc chạy lệnh này.
         Invoke-Step 'reset database' { & $Python -m be.reset_db }
+        # Bản thô trong kho nội dung trỏ về `documents.id` của database vừa xoá, nên giữ nó lại
+        # là giữ trang mồ côi. Xoá qua `docker exec` chứ không qua `be.reset_db`: BE không giữ
+        # khoá Mongo (plan 3b, D1). Tên database là mặc định của MONGO_DATABASE.
+        Invoke-Step 'reset content store' { docker exec aiafa-mongo mongosh --quiet aiafa_content --eval 'db.dropDatabase()' }
     }
 
     'be' {
@@ -167,9 +171,9 @@ switch ($Task) {
 Usage: .\dev.ps1 <task>
 
   install      Install Python packages editable and frontend dependencies
-  infra-up     Start Redis, Postgres and MinIO in Docker
+  infra-up     Start Redis, Postgres, MinIO and MongoDB in Docker
   infra-down   Stop them
-  db-reset     Wipe the database and rebuild it from the models, then seed (BE must be off)
+  db-reset     Wipe the database and the content store, rebuild from the models, seed (BE off)
   be           Run the BE API on http://localhost:8000
   ingest       Run INGEST, the worker that writes what DOCUMENT reports
   agent        Run the AGENT worker

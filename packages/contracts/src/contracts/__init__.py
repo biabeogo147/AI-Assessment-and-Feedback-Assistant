@@ -10,6 +10,10 @@ thứ giữ quyền hạn cùng cổng phát hành của ADR-05 ở đúng phía
 `documents` chở vòng xử lý tài liệu, và nó là họ duy nhất **không** đi tới một model: BE giao
 một tệp cho `services/document` mở ra đọc, rồi nhận lại một phán quyết cùng số trang. Hai chiều,
 hai task, và không mũi HTTP nào giữa hai service.
+
+`content` không phải một họ message mà là hình dạng của **bản thô** trong kho nội dung (MongoDB):
+`services/document` ghi nó, *document agent* của plan 3c đọc nó. Hai bên không gặp nhau qua queue mà
+qua Mongo, nên hình dạng ấy phải được khai ở đây y như một message.
 """
 
 from contracts.authoring import (
@@ -27,6 +31,7 @@ from contracts.authoring import (
     RetryQuestionRequested,
     SolutionMethod,
 )
+from contracts.content import RawBlock, RawDocument, RawPage, RawSource, page_key
 from contracts.documents import (
     DOCUMENT_PROBED_TASK,
     PROBE_DOCUMENT_TASK,
@@ -52,6 +57,11 @@ from contracts.teacher_chat import (
 )
 
 __all__ = [
+    "RawBlock",
+    "RawDocument",
+    "RawPage",
+    "RawSource",
+    "page_key",
     "DOCUMENT_PROBED_TASK",
     "EXPLAIN_TURN_TASK",
     "GENERATE_RETRY_QUESTION_TASK",

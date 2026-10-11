@@ -74,3 +74,12 @@ temp/
 *.toc
 *.xdv
 docs/report/*.log
+
+# Sách giáo khoa dùng để đo, và nhãn vàng của bộ đo OCR.
+#
+# Mười bốn cuốn SGK không phải của repo này, và chúng là 1 561 trang ảnh scan.
+# Nhãn vàng ở data/gold/ thì **vô dụng khi không có chúng**, nên nó cũng ở ngoài
+# git: một bộ nhãn trong repo chỉ là chữ nguyên văn SGK mà không ai chạy lại được
+# bằng nó. Thứ commit được là mã benchmark, thước đo, test của thước đo, và bảng
+# số trong plan.
+data/

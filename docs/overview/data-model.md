@@ -38,6 +38,19 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 Chưa có bảng nào cho mật khẩu hay phiên đăng nhập: đợt này dùng header `X-Actor` thay cho đăng nhập,
 và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 
+### Ngoài Postgres — kho nội dung (MongoDB, `aiafa_content`)
+
+Không phải bảng của `schema`, và BE không đọc nó. `services/document` ghi; hình dạng khai ở
+`packages/contracts/src/contracts/content.py` (plan 3b, 11/10/2026).
+
+| Collection | Giữ gì | Ghi chú |
+| --- | --- | --- |
+| `documents` | đầu mục bản thô: `_id` = id tài liệu, `source` (`ocr` / `text_layer` / `plain`), `page_count`, `reader`, `pipeline`, `started_at`, `finished_at` | **Không** mang trạng thái *xong chưa* -- câu ấy chỉ `documents.state` của Postgres trả lời. `finished_at` chỉ nói đường đọc đã ghi xong trang cuối |
+| `pages` | một trang: `_id` = `<document_id>:<page>`, `page` từ 1, `blocks` (`kind`, `box`, `text`) theo thứ tự đọc, `text` nối sẵn, `width`/`height` của hệ toạ độ hộp, `read_at` | Index duy nhất `(document_id, page)`. Bất biến: chỉ đường đọc tệp ghi, upsert theo `_id`; đọc lại một tài liệu là xoá rồi ghi lại. Trang trắng vẫn có mặt, rỗng, để số trang khớp `page_count`. Chữ là NFC |
+
+Xoá tài liệu ở Postgres **chưa** xoá bản thô ở đây (BE không giữ khoá Mongo) -- nợ trong
+`backlog.md`. `.\dev.ps1 db-reset` xoá cả hai.
+
 ### Nhóm 2 — nội dung đề
 
 | Bảng | Giữ gì | Ghi chú |
