@@ -76,11 +76,11 @@ switch ($Task) {
     }
 
     'infra-up' {
-        Invoke-Step 'start redis, postgres, minio and mongo' { docker compose -f "$RepoRoot\docker-compose.infra.yml" up -d }
+        Invoke-Step 'start redis, postgres, minio, mongo and their admin UIs' { docker compose -f "$RepoRoot\docker-compose.infra.yml" up -d }
     }
 
     'infra-down' {
-        Invoke-Step 'stop redis, postgres, minio and mongo' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
+        Invoke-Step 'stop redis, postgres, minio, mongo and their admin UIs' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
     }
 
     'db-reset' {
@@ -178,7 +178,7 @@ switch ($Task) {
 Usage: .\dev.ps1 <task>
 
   install      Install Python packages editable and frontend dependencies
-  infra-up     Start Redis, Postgres, MinIO and MongoDB in Docker
+  infra-up     Start Redis, Postgres, MinIO, MongoDB and their admin UIs in Docker
   infra-down   Stop them
   db-reset     Wipe the database and the content store, rebuild from the models, seed (BE off)
   be           Run the BE API on http://localhost:8000

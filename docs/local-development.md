@@ -68,8 +68,9 @@ docker compose -f docker-compose.infra.yml ps
 ```
 
 Đợi tới khi cột `STATUS` ghi `Up ... (healthy)`, đừng đi tiếp khi nó còn `health: starting`.
-MinIO không có healthcheck nên nó chỉ ghi `Up`: ảnh không mang theo `curl` lẫn `mc`, và phép thử
-thật nằm ở chỗ khác — BE gọi `ensure_ready()` lúc khởi động và chết ngay nếu không với tới được.
+MinIO, pgweb và mongo-express không có healthcheck nên chỉ ghi `Up`. Với MinIO, ảnh không mang theo
+`curl` lẫn `mc`, và phép thử thật nằm ở chỗ khác — BE gọi `ensure_ready()` lúc khởi động và chết
+ngay nếu không với tới được.
 
 Rồi mở **sáu** terminal. `services/document` có hai process: một worker đọc tệp (OCR chạy một
 job một lúc) và một worker dựng cây mục lục (plan 3c, chờ mạng chứ không chờ CPU).
@@ -99,10 +100,75 @@ trên queue của BE, không bằng một request, nên một cổng ở đó l�
 | 5432 | Postgres, trong Docker |
 | 9000 | MinIO, API S3, trong Docker |
 | 9001 | MinIO, giao diện console, trong Docker |
+| 27017 | MongoDB, kho nội dung, trong Docker |
+| 8081 | pgweb, xem Postgres, trong Docker |
+| 8082 | redis-commander, xem Redis, trong Docker |
+| 8083 | mongo-express, xem Mongo, trong Docker |
 
 Cổng **8100** đã dành cho `services/document` theo quy ước *BE + 100* trong
 [Architecture](overview/architecture.md), nhưng service ấy chưa mở cổng nào và có thể sẽ
 không bao giờ. Ghi ra đây để không ai cấp lại số ấy cho một service khác.
+
+### Debug cả luồng trong PyCharm
+
+Sáu terminal ở trên không gắn được debugger. `.run/` ở gốc repo mang sáu run configuration cùng tên
+(`be`, `ingest`, `agent`, `document`, `index`, `fe`) và một compound **Toàn hệ thống** gom cả sáu.
+PyCharm tự đọc thư mục ấy. Hạ tầng vẫn bật riêng bằng `.\dev.ps1 infra-up`: compound không biết
+chờ Docker *healthy*.
+
+**Tắt mọi terminal `dev.ps1` trước khi bấm Debug.** Một `.\dev.ps1 document` còn chạy là hai
+consumer trên cùng một queue arq: job có thể rơi vào process không có debugger, và breakpoint im
+lặng không dừng, không lỗi nào hiện ra. Chỉ BE lộ ra, vì cổng 8000 đã bị chiếm.
+
+Bấm **Debug** trên *Toàn hệ thống*, rồi tải tệp ở <http://127.0.0.1:5173/#/teacher>. Breakpoint
+theo thứ tự một tệp đi qua:
+
+| Chỗ | Việc |
+| --- | --- |
+| `services/be/src/be/teacher_documents.py:285` | BE nhận tệp |
+| `services/be/src/be/teacher_documents.py:354` | BE giao job cho `document` |
+| `services/document/src/document/ocr_handlers.py:123` | `probe_document` đọc tệp, ghi bản thô |
+| `services/document/src/document/index_handlers.py:57` | `index_document` bắt đầu dựng cây |
+| `services/document/src/document/index/graph.py:388` | cây vào Mongo, ngay trước khi báo *sẵn sàng* |
+| `services/ingest/src/ingest/handlers.py:45` | `document_probed` ghi phán quyết vào Postgres |
+| `services/be/src/be/teacher_documents.py:238` | BE nghe tiếng hích rồi báo FE tải lại danh sách |
+
+Bốn điều khác với `dev.ps1`:
+
+- **BE không có `--reload`.** Reloader chạy app trong một process con, nên sửa code thì bấm *Rerun*.
+- **Worker chạy bằng `python -m arq`**, không bằng `arq.exe`: debugger chỉ gắn được vào chính
+  interpreter.
+- **FE chạy bằng `npm run dev`** trong `services/fe` (cấu hình npm, cần PyCharm Professional), không
+  bằng `pnpm --filter fe dev`. Debugger gắn vào process Node của Vite chứ không vào code React:
+  `.tsx` debug bằng DevTools của trình duyệt.
+- **Dừng lâu ở breakpoint là làm hỏng tài liệu.** arq giết một job chạm `job_timeout` mà không chạy
+  lại: 120 s cho `probe_document` và mỗi lô OCR, 300 s (mặc định của arq) cho job của `ingest`, 600 s
+  cho job dựng cây, và job dựng cây tự cắt ở 540 s. BE đổi tài liệu
+  sang *xử lý hỏng* khi không nghe tiến độ trong 300 s (`DOCUMENT_STALE_AFTER_SECONDS`). Đứng quá các
+  mốc ấy thì tải lại tệp, không phải code hỏng.
+
+Thử nhanh bằng một tệp `.md` có vài tiêu đề `#`: đi trọn đường trong vài giây. PDF scan đi đường OCR
+và mất nhiều phút; chạy nó bằng **Run** chứ không Debug, vì debugger làm chậm các thread OCR và một
+lô 10 trang (~45 s) có thể chạm trần 120 s.
+
+Xem dữ liệu bằng giao diện, cả ba lên cùng `infra-up`, không hỏi mật khẩu và chỉ nghe ở 127.0.0.1:
+
+| Giao diện | Xem gì |
+| --- | --- |
+| <http://127.0.0.1:8081> (pgweb) | Postgres: hàng `documents` với `state`, `page_count`, `pages_read`, `progress_at` |
+| <http://127.0.0.1:8082> (redis-commander) | Redis: queue arq (`aiafa:document`, `aiafa:document-index`, `aiafa:ingest`) và job đang chờ |
+| <http://127.0.0.1:8083> (mongo-express) | Mongo: database `aiafa_content`, sáu collection bản thô và cây |
+
+Job arq trong Redis được pickle nên giá trị hiện ra là byte; tên khoá và độ dài queue mới là thứ
+đọc được. Hoặc xem Mongo bằng lệnh. Cây ghi `nodes`, `chunks`, `block_labels` trước và `indexes`
+**sau cùng** -- đầu mục là dấu đã ghi xong -- nên dừng ở `graph.py:388` mà thấy `indexes` bằng 0 là
+đúng:
+
+```powershell
+docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "db.documents.find().sort({started_at:-1}).limit(1)"
+docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "['pages','nodes','chunks','block_labels','indexes'].forEach(c => print(c, db[c].countDocuments({document_id:'<id>'})))"
+docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "db.nodes.find({document_id:'<id>'},{level:1,numbering:1,title:1,summary:1}).sort({ordinal:1})"
+```
 
 ## Xác minh từng thành phần
 

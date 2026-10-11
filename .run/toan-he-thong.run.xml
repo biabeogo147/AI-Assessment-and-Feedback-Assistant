@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Toàn hệ thống" type="CompoundRunConfigurationType">
+    <toRun name="be" type="PythonConfigurationType" />
+    <toRun name="ingest" type="PythonConfigurationType" />
+    <toRun name="agent" type="PythonConfigurationType" />
+    <toRun name="document" type="PythonConfigurationType" />
+    <toRun name="index" type="PythonConfigurationType" />
+    <toRun name="fe" type="js.build_tools.npm" />
+    <method v="2" />
+  </configuration>
+</component>

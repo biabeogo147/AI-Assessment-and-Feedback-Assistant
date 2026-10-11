@@ -77,6 +77,47 @@ services:
       timeout: 5s
       retries: 10
 
+  # Ba giao diện xem dữ liệu, mỗi kho một cái, để soi từng bước của luồng tài liệu mà không
+  # gõ lệnh. Không cái nào hỏi mật khẩu, nên cả ba chỉ bind 127.0.0.1: máy khác trong mạng
+  # LAN không với tới được. Chỉ dùng ở local -- đừng mang lên máy thật.
+  pgweb:
+    image: sosedoff/pgweb:0.16.2
+    container_name: aiafa-pgweb
+    # Nối thẳng bằng URL nên mở trang là thấy bảng, không qua màn đăng nhập. Giá trị phải
+    # khớp bằng tay với POSTGRES_* ở trên, y như DATABASE_URL.
+    command: ["pgweb", "--bind=0.0.0.0", "--listen=8081",
+              "--url=postgres://aiafa:aiafa@postgres:5432/aiafa?sslmode=disable"]
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: aiafa-redis-commander
+    environment:
+      REDIS_HOSTS: "local:redis:6379:0"
+    ports:
+      - "127.0.0.1:8082:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: aiafa-mongo-express
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017
+      # Mặc định của image bật basic auth với admin/pass; tắt đi cho khớp với Mongo local,
+      # vốn cũng không bật xác thực.
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "127.0.0.1:8083:8081"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
 volumes:
   aiafa-pgdata:
   aiafa-miniodata:
