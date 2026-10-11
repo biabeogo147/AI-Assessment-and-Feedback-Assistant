@@ -32,6 +32,8 @@ class Settings(BaseSettings):
             thì worker ngồi không trong khi job dồn lại ở một chỗ khác -- một hình dạng thất bại
             trông y hệt một hệ thống đang rảnh, nên `on_startup` nói tên queue ra thành log.
         ingest_queue_name: Queue kết quả đi về. `services/ingest` tiêu thụ nó.
+        document_index_queue_name: Queue của job dựng cây (plan 3c, D4). Worker OCR đẩy vào,
+            `document.index_worker` tiêu thụ -- cùng service, khác process.
         minio_endpoint: Host và port của object storage, **không kèm scheme** -- SDK minio nhận
             scheme qua `minio_secure` chứ không qua chuỗi này.
         minio_access_key: Tên truy cập của object storage.
@@ -53,6 +55,25 @@ class Settings(BaseSettings):
         ocr_reader: Bộ nhận dạng chữ của đường OCR, `easyocr` hoặc `vietocr`. Mặc định
             `easyocr`: bằng hoặc hơn VietOCR ở mọi thước trên 50 trang (plan 3a).
         ocr_threads: Số luồng CPU cho OCR. Đặt bằng số vCPU của máy chạy worker.
+        jev_api_key: Khoá của Jev (TypeSafe AI), đọc từ `JEV_API_KEY` rồi **truyền vào** client --
+            SDK tự tìm `TYPESAFE_API_KEY`, nhưng `.env` của repo này không bao giờ tới
+            `os.environ` (cùng bài học với `agent/llm.py`). Rỗng thì cây đi đường luật.
+        jev_model: Phiên bản Jev **ghim**: một phiên bản khác trả xác suất khác, nên ngưỡng
+            `jev_min_confidence` chỉ có nghĩa đi kèm con số này.
+        jev_concurrency: Số lời gọi Jev bay cùng lúc trong một job.
+        jev_timeout_seconds: Trần giây cho một lời gọi Jev (TypeSafe báo 70--500 ms).
+        jev_min_confidence: Dưới ngưỡng này luật quyết thay Jev (D5). Chọn bằng bộ đo trên cây
+            vàng (plan 3c, Task 3, `data/run-6/hierarchy-jev-1.13.0/`): Jev thuần trên Lớp 6 tập 1
+            dựng 138 nút cho 91 nút vàng (F1 cấp 3: 69%), chủ yếu vì xếp tiêu đề con không đánh số
+            vào cấp 3 với `confidence` thấp. Ở 0,8 Jev chỉ còn thắng luật đúng một ca, và ca ấy sai
+            -- cây gần như là cây của luật, cho tới khi câu hỏi Jev được làm lại (plan 3c, Status).
+        openai_api_key: Khoá OpenAI cho tóm tắt và đọc banner -- cùng khoá AGENT dùng, đọc từ cùng
+            `OPENAI_API_KEY`, truyền vào client như ở `agent/llm.py`. Rỗng thì cây không có tóm
+            tắt và chương chỉ có nhãn số.
+        summary_model: Model tóm tắt nút cây (người dùng chốt `gpt-4o-mini`, 11/10/2026).
+        banner_model: Model đọc tên chương trên ảnh banner (D9; người dùng chọn `gpt-5.6-luna`).
+        llm_timeout_seconds: Trần giây cho một lời gọi OpenAI.
+        llm_concurrency: Số lời gọi OpenAI bay cùng lúc trong một job.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -60,6 +81,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     document_queue_name: str = "aiafa:document"
     ingest_queue_name: str = "aiafa:ingest"
+    document_index_queue_name: str = "aiafa:document-index"
     minio_endpoint: str = "127.0.0.1:9000"
     minio_access_key: str = "aiafa"
     minio_secret_key: str = "aiafa-local-dev"
@@ -70,6 +92,16 @@ class Settings(BaseSettings):
     ocr_pages_per_job: int = Field(default=10, ge=1)
     ocr_reader: str = "easyocr"
     ocr_threads: int = 4
+    jev_api_key: str = ""
+    jev_model: str = "jev-1.13.0"
+    jev_concurrency: int = Field(default=16, ge=1)
+    jev_timeout_seconds: float = Field(default=20, gt=0)
+    jev_min_confidence: float = Field(default=0.8, ge=0, le=1)
+    openai_api_key: str = ""
+    summary_model: str = "gpt-4o-mini"
+    banner_model: str = "gpt-5.6-luna"
+    llm_timeout_seconds: float = Field(default=60, gt=0)
+    llm_concurrency: int = Field(default=8, ge=1)
 
 
 @lru_cache

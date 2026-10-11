@@ -4,21 +4,22 @@ Adds to the root contract. Constraints only.
 
 - This service decides nothing about a document's lifecycle. It reports what it read: a state, a
   page count, and a sentence a teacher can understand. BE owns the row.
-- It holds no credential for any store of record. Everything needed to read a file arrives in the
-  job payload, which is why `DocumentProbeRequested` carries `storage_key` rather than a row id.
-  `tools/check_contract.py` fails the build if such access appears here.
-- `pdf.py` is the only module allowed to `import pymupdf`, and `storage.py` the only one allowed
-  to `import minio`. Both SDKs are sync; a call outside a thread blocks every other job on the
-  worker's loop and raises nothing. `probe.py` holds the thresholds, never the SDK.
-- MongoDB is the content store, not a store of record; only `content_store.py` may `import
-  pymongo`. Raw content is written **before** `READY` leaves, and only by the file-reading path.
-- Use `asyncio.to_thread`, not `run_in_threadpool`. There is no web framework here on purpose.
-- Register tasks under the constants from `contracts`, never under a Python function name.
-- Never `import be` or `import agent`.
-- No HTTP server and no port. The reply travels as a job on `ingest_queue_name`, which `services/ingest` consumes; a port nobody
-  calls is a surface nobody guards.
-- Failing to read a file is a result, not an error: it becomes a `DocumentProbed` carrying
-  `DocumentState.FAILED`, because a job that dies silently leaves a chip stuck at *processing*.
-  Failing to store or hand back raises `arq.Retry`: arq retries nothing else.
+- No credential for any store of record. Everything needed arrives in the job payload, which is
+  why the payloads carry `storage_key`, not a row id. `tools/check_contract.py` enforces it.
+- One SDK, one module: `pdf.py` imports `pymupdf`, `storage.py` imports `minio`,
+  `content_store.py` imports `pymongo`, `index/jev.py` imports `typesafe_sdk`,
+  `index/llm.py` imports `langchain` (and passes the API key in). Sync SDKs go through
+  `asyncio.to_thread`, never `run_in_threadpool`. `probe.py` and `index/rules.py` hold the
+  thresholds, never an SDK.
+- MongoDB is the content store, not a store of record. Raw pages are written only by the
+  file-reading path; the tree only by `index_handlers`. `READY` leaves **only** from
+  `index_handlers`, after `put_index` (plan 3c): content first, `state` second.
+- Two processes: `document.ocr_worker` (OCR, one job at a time) and `document.index_worker` (the
+  document agent, waits on the network). Register tasks under the constants from `contracts`.
+- Never `import be` or `import agent`. No HTTP server and no port: replies travel as jobs on
+  `ingest_queue_name`; a port nobody calls is a surface nobody guards.
+- A job never dies silently: an unreadable file, or an index that cannot be built, becomes a
+  `DocumentProbed` carrying `FAILED`. Failing to store or hand back raises `arq.Retry`: arq
+  retries nothing else. Jev or OpenAI being down is not a failure: the tree falls back to rules.
 - On Windows, arq cannot install signal handlers, so shutdown is not graceful. Do not rely on
   cleanup running after Ctrl+C.

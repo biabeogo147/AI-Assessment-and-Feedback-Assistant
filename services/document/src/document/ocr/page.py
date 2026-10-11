@@ -40,10 +40,22 @@ from document.pdf import open_pdf
 
 logger = logging.getLogger(__name__)
 
-# Khối thuộc những loại này không mang chữ, nên không chặng đọc nào chạy trên chúng. Bỏ qua
-# chúng không phải để nhanh hơn: VietOCR **không bao giờ** trả về chuỗi rỗng, nên cho nó một
-# crop hình là bảo nó bịa ra chữ không có trên trang.
-_WITHOUT_TEXT = frozenset({BlockKind.IMAGE, BlockKind.TABLE})
+# Khối thuộc những loại này để chữ rỗng: `_fill` không gán dòng nào vào chúng.
+# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — plan 3c, D2
+# _WITHOUT_TEXT = frozenset({BlockKind.IMAGE, BlockKind.TABLE})
+#
+# Từ plan 3c (D2), khối **hình** giữ chữ của những dòng detector đã tìm thấy bên trong nó. Không
+# một crop nào được đưa cho bộ nhận dạng -- dòng đã được detect và đọc từ trước, `_fill` chỉ thôi
+# vứt chúng -- nên không tốn thêm giây nào. Lý do: banner mở chương của SGK là **một khối hình**, và
+# chữ *"CHƯƠNG"* trong nó là tín hiệu duy nhất OCR có cho *"trang này mở một chương"* (đo trên 5/5
+# chương của Lớp 6 tập 1). Tên chương thì không đọc nổi -- chữ trang trí -- nên `gpt-5.6-luna` đọc
+# nó, chỉ ở trang qua cổng ấy (D9). Phần lớn chữ trong hình còn lại là rác nhãn hình (`'a) b)'`,
+# `'4v 12'`), nên `probe.raw_ocr_page` không nối nó vào chữ của trang.
+#
+# Bảng thì vẫn rỗng như ở plan 3a: plan 3c không cần chữ của bảng, nên không đổi thứ bộ đo đã đo
+# mà không có lý do. Lưu ý: hộp layout có thể chồng nhau, nên một dòng có thể nằm trong cả khối
+# hình lẫn một khối chữ -- bên dựng cây không bao giờ lấy khối hình làm ứng viên heading.
+_WITHOUT_TEXT = frozenset({BlockKind.TABLE})
 
 
 class PageReader:
@@ -167,7 +179,8 @@ def _fill(block: PageBlock, lines: list, texts: list[str]) -> PageBlock:
         texts: Chữ của từng dòng, khớp vị trí với `lines`.
 
     Returns:
-        Khối đã có chữ. Hình và bảng giữ nguyên chữ rỗng.
+        Khối đã có chữ. Bảng giữ nguyên chữ rỗng; hình mang chữ của các dòng nằm trong nó (D2 của
+        plan 3c).
     """
     if block.kind in _WITHOUT_TEXT:
         return block

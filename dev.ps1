@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'help')]
     [string]$Task = 'help'
 )
 
@@ -112,7 +112,14 @@ switch ($Task) {
     }
 
     'document' {
-        & "$Scripts\arq.exe" document.worker.WorkerSettings
+        & "$Scripts\arq.exe" document.ocr_worker.WorkerSettings
+    }
+
+    'index' {
+        # Process thứ hai của `services/document`: document agent dựng cây mục lục rồi mới báo
+        # tài liệu 'sẵn sàng' (plan 3c). Không chạy nó thì mọi tệp đứng ở 'đang xử lý' rồi
+        # thành 'xử lý hỏng' sau 300 s -- bản thô đã có, nhưng không ai dựng cây.
+        & "$Scripts\arq.exe" document.index_worker.WorkerSettings
     }
 
     'fe' {
@@ -178,6 +185,7 @@ Usage: .\dev.ps1 <task>
   ingest       Run INGEST, the worker that writes what DOCUMENT reports
   agent        Run the AGENT worker
   document     Run the DOCUMENT worker that reads uploaded files
+  index        Run the DOCUMENT INDEX worker that builds each document's tree
   fe           Run the FE dev server on http://localhost:5173
   test         Run pytest and vitest
   typecheck    Run tsc over the frontend without building

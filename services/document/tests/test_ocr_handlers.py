@@ -20,6 +20,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from contracts import (
     DOCUMENT_PROBED_TASK,
     DOCUMENT_PROGRESS_TASK,
+    INDEX_DOCUMENT_TASK,
     OCR_PAGES_TASK,
     DocumentPagesRequested,
     DocumentProbeRequested,
@@ -30,7 +31,7 @@ from contracts import (
 )
 from document.config import get_settings
 from document.content_store import ContentStoreUnavailable
-from document.handlers import MAX_TRIES, ocr_pages, probe_document
+from document.ocr_handlers import MAX_TRIES, ocr_pages, probe_document
 from document.pdf import PdfUnreadable
 from document.probe import Finding
 from document.storage import StorageUnavailable
@@ -173,6 +174,8 @@ class _Queue:
             self._log.append(f"hand back {payload['state']}")
         elif name == OCR_PAGES_TASK:
             self._log.append(f"queue batch {payload['first']}")
+        elif name == INDEX_DOCUMENT_TASK:
+            self._log.append("queue index")
         else:
             self._log.append(f"progress {payload['pages_read']}")
         return object()
@@ -277,23 +280,41 @@ def _asked(filename: str = "sach.pdf") -> dict:
 
 
 @pytest.mark.asyncio
-async def test_a_readable_file_is_handed_back_to_the_be_queue() -> None:
-    """Đường thường: đọc xong thì kết quả đi về **queue của BE**, không về result store.
+async def test_a_readable_file_goes_to_the_index_queue_not_back_to_the_be() -> None:
+    """Đọc xong một tệp có chữ thì tài liệu **chưa** sẵn sàng: nó còn chờ cây (plan 3c, D3).
 
     Queue đích là nửa dễ sai nhất và nó không ném gì cả khi sai: job rơi vào một chỗ không ai
-    nghe, và hệ thống trông y hệt một hệ thống đang rảnh.
+    nghe, và hệ thống trông y hệt một hệ thống đang rảnh. Không gì về BE lúc này.
     """
     queue = _Queue()
     ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
     out = await probe_document(ctx, _asked())
 
+    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # assert len(queue.jobs) == 1
+    # name, payload, where = queue.jobs[0]
+    # assert name == DOCUMENT_PROBED_TASK
+    # assert where == get_settings().ingest_queue_name
+    # assert payload["state"] == DocumentState.READY
+    # assert payload["page_count"] == 1
     assert len(queue.jobs) == 1
     name, payload, where = queue.jobs[0]
-    assert name == DOCUMENT_PROBED_TASK
-    assert where == get_settings().ingest_queue_name
-    assert payload["state"] == DocumentState.READY
+    assert name == INDEX_DOCUMENT_TASK
+    assert where == get_settings().document_index_queue_name
+    assert (payload["document_id"], payload["storage_key"]) == ("doc-1", "documents/gv/doc-1")
     assert payload["page_count"] == 1
+    assert queue.sent(DOCUMENT_PROBED_TASK) == []
     assert out["document_id"] == "doc-1"
+
+
+@pytest.mark.asyncio
+async def test_a_retried_probe_does_not_queue_the_index_twice() -> None:
+    """Id cố định: hai job dựng cùng một cây là trả tiền Jev hai lần cho một kết quả."""
+    queue = _Queue()
+    ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
+    await probe_document(ctx, _asked())
+    await probe_document(ctx, _asked())
+    assert len(queue.sent(INDEX_DOCUMENT_TASK)) == 1
 
 
 @pytest.mark.asyncio
@@ -324,8 +345,13 @@ async def test_a_result_that_cannot_be_handed_back_asks_arq_to_retry(queue: _Que
     arq chỉ chạy lại khi gặp `Retry`; mọi exception khác đánh job hỏng ngay (review Task 2, plan
     3b). Chạy lại an toàn: bản thô đã ghi được ghi đè chứ không chồng lên. Hết lượt thử thì phép
     suy *đứng quá lâu* của BE là lưới cuối.
+
+    Từ plan 3c chỉ phán quyết **không phải** `READY` còn đi thẳng về BE, nên ca này dùng một tệp
+    không đọc được: với job dựng cây, *bị từ chối* nghĩa là *đã xếp hàng rồi*, không phải hỏng.
     """
-    ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
+    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
+    ctx = {"reader": _Reader(None), "redis": queue, "store": _Store([])}
     with pytest.raises(Retry):
         await probe_document(ctx, _asked())
 
@@ -342,7 +368,9 @@ async def test_a_pdf_with_text_is_kept_page_by_page_before_ready_leaves() -> Non
     ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": _Queue(log=log), "store": store}
     await probe_document(ctx, _asked())
 
-    assert log == ["begin", "page 1", "finish", "hand back ready"]
+    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # assert log == ["begin", "page 1", "finish", "hand back ready"]
+    assert log == ["begin", "page 1", "finish", "queue index"]
     assert store.header is not None
     assert store.header.source is RawSource.TEXT_LAYER
     assert store.header.page_count == 1
@@ -393,7 +421,7 @@ async def test_a_scanned_pdf_goes_to_ocr_instead_of_back_to_the_be() -> None:
     assert store.header.source is RawSource.OCR
     assert store.header.page_count == 2
     assert store.header.reader == get_settings().ocr_reader
-    assert store.header.pipeline == "text1"
+    assert store.header.pipeline == "text2"
     [(name, payload, where)] = queue.jobs
     assert name == OCR_PAGES_TASK
     assert where == get_settings().document_queue_name
@@ -420,7 +448,7 @@ async def test_a_pdf_with_no_pages_is_still_a_verdict_not_an_ocr_job(
     trang nào để dựng tệp thật.
     """
     monkeypatch.setattr(
-        "document.handlers.probe",
+        "document.ocr_handlers.probe",
         lambda *_: Finding(DocumentState.NO_TEXT_LAYER, 0, "Tệp PDF này không có trang nào."),
     )
     queue = _Queue()
@@ -518,8 +546,8 @@ async def test_the_pages_of_a_batch_are_kept_as_ocr_pages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_last_batch_finishes_and_hands_back_ready() -> None:
-    """Lô cuối: đọc phần còn lại, đánh dấu xong, rồi **mới** gửi `READY` kèm số trang về BE."""
+async def test_the_last_batch_finishes_and_queues_the_index() -> None:
+    """Lô cuối: đọc phần còn lại, đánh dấu xong, rồi **mới** giao job dựng cây kèm số trang."""
     per_job = get_settings().ocr_pages_per_job
     log: list[str] = []
     queue = _Queue(log=log)
@@ -528,8 +556,12 @@ async def test_the_last_batch_finishes_and_hands_back_ready() -> None:
     await ocr_pages(_ocr_ctx(log, queue, store), _batch(per_job + 1, per_job + 3))
 
     assert [page.page for page in store.pages] == [per_job + 1, per_job + 2, per_job + 3]
-    assert log[-2:] == ["finish", "hand back ready"]
-    [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # assert log[-2:] == ["finish", "hand back ready"]
+    # [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert log[-2:] == ["finish", "queue index"]
+    assert queue.sent(DOCUMENT_PROBED_TASK) == []
+    [done] = queue.sent(INDEX_DOCUMENT_TASK)
     assert done["page_count"] == per_job + 3
     assert queue.sent(OCR_PAGES_TASK) == []
     assert queue.sent(DOCUMENT_PROGRESS_TASK) == []
@@ -608,7 +640,7 @@ async def test_a_slow_batch_stops_at_its_budget_and_hands_the_rest_on(
     đã ghi -- không bỏ trang, không đọc lại trang. arq không chạy lại một job chạm `job_timeout`,
     nên đây là thứ giữ một cuốn dày chữ khỏi chết im.
     """
-    monkeypatch.setattr("document.handlers._BATCH_BUDGET_SECONDS", -1)
+    monkeypatch.setattr("document.ocr_handlers._BATCH_BUDGET_SECONDS", -1)
     queue = _Queue()
     store = _Store([])
 
@@ -699,7 +731,7 @@ async def test_a_pdf_that_breaks_on_the_second_read_fails_and_leaves_the_store_a
     def _broken(*_: object) -> list[RawPage]:
         raise PdfUnreadable("Could not read the text of page 0")
 
-    monkeypatch.setattr("document.handlers.raw_pages", _broken)
+    monkeypatch.setattr("document.ocr_handlers.raw_pages", _broken)
     queue = _Queue()
     store = _Store([])
     await probe_document(

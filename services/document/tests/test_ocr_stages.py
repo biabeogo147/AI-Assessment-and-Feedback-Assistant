@@ -241,8 +241,26 @@ def test_a_formula_block_now_carries_the_ocr_text() -> None:
     assert _fill(block, [_line(100, 130)], ["a : b = c"]).text == "a : b = c"
 
 
-def test_pictures_and_tables_stay_empty() -> None:
-    """Nhận dạng chữ **không bao giờ** trả về rỗng, nên một hình mà nhận chữ là chữ bịa."""
-    lines, texts = [_line(100, 130)], ["chữ của một dòng nằm đè lên hình"]
-    for kind in (BlockKind.IMAGE, BlockKind.TABLE):
-        assert _fill(_block(kind, BBox(0, 0, 1000, 1000)), lines, texts).text == ""
+# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — plan 3c, D2
+# def test_pictures_and_tables_stay_empty() -> None:
+#     """Nhận dạng chữ **không bao giờ** trả về rỗng, nên một hình mà nhận chữ là chữ bịa."""
+#     lines, texts = [_line(100, 130)], ["chữ của một dòng nằm đè lên hình"]
+#     for kind in (BlockKind.IMAGE, BlockKind.TABLE):
+#         assert _fill(_block(kind, BBox(0, 0, 1000, 1000)), lines, texts).text == ""
+
+
+def test_tables_stay_empty() -> None:
+    """Nhận dạng chữ **không bao giờ** trả về rỗng, nên một bảng mà nhận chữ là chữ bịa."""
+    lines, texts = [_line(100, 130)], ["chữ của một dòng nằm đè lên bảng"]
+    assert _fill(_block(BlockKind.TABLE, BBox(0, 0, 1000, 1000)), lines, texts).text == ""
+
+
+def test_a_picture_keeps_the_lines_found_inside_it() -> None:
+    """Banner mở chương là một khối hình, và chữ *CHƯƠNG* trong nó là cổng của D9 (plan 3c).
+
+    Không crop nào được đưa cho bộ nhận dạng: dòng đã được detect và đọc từ trước, `_fill` chỉ thôi
+    vứt nó. Dòng nằm ngoài hình vẫn không lọt vào.
+    """
+    picture = _block(BlockKind.IMAGE, BBox(0, 0, 1000, 500))
+    lines, texts = [_line(100, 130), _line(800, 830)], ["CHƯƠNG", "dòng ở đoạn dưới"]
+    assert _fill(picture, lines, texts).text == "CHƯƠNG"

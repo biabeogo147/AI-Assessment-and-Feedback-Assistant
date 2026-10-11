@@ -1,6 +1,6 @@
 """Process worker arq của `services/document`.
 
-Chạy bằng:  arq document.worker.WorkerSettings
+Chạy bằng:  arq document.ocr_worker.WorkerSettings
 
 Không có server HTTP và không có cổng. `architecture.md` dành cổng **8100** cho service thứ tư,
 nhưng một cổng chỉ đáng mở khi có ai gọi vào -- mà kết quả đi về BE bằng một job trên queue của
@@ -22,7 +22,7 @@ from arq.worker import func
 from contracts import OCR_PAGES_TASK, PROBE_DOCUMENT_TASK
 from document.config import Settings, get_settings
 from document.content_store import ContentStore
-from document.handlers import MAX_TRIES, ocr_pages, probe_document
+from document.ocr_handlers import MAX_TRIES, ocr_pages, probe_document
 from document.storage import create_reader
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -149,7 +149,7 @@ class WorkerSettings:
     # chờ chừng ấy. Chấp nhận cho một giáo viên ở local; nợ ghi ở `backlog.md`.
     max_jobs = 1
     # Đúng mặc định của arq. Lấy từ `handlers` vì `ocr_pages` cần biết lần thử nào là lần cuối, và
-    # `handlers._RETRY_STEP_SECONDS` tính tổng thời gian chờ từ con số này.
+    # `ocr_handlers._RETRY_STEP_SECONDS` tính tổng thời gian chờ từ con số này.
     max_tries = MAX_TRIES
     # Không giữ kết quả. Khác AGENT, ở đây **không ai đọc** kết quả một job: câu trả lời đi về
     # bằng một job khác trên queue của BE. Giữ lại chỉ là rác trong Redis, và tệ hơn, nó mời

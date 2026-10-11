@@ -25,6 +25,10 @@ chữ* cho một PDF scan nữa: nó mở đầu mục bản thô, rồi giao l�
 queue này. Mỗi lô đọc vài trang, ghi chúng vào kho, báo tiến độ về `services/ingest`, rồi tự giao lô
 kế. Lô cuối mới gửi kết quả: `READY` khi cả cuốn có chữ, `NO_TEXT_LAYER` khi OCR xong mà không trang
 nào ra chữ -- lúc ấy câu *không đọc được chữ* mới là một phán quyết thật.
+
+**Từ plan 3c, `READY` không rời service này.** Bản thô xong thì tài liệu còn chờ cây: `_settle`
+giao một job `index_document` cho `document.index_worker`, và chỉ job ấy gửi `READY` -- sau khi
+cây đã nằm trong kho nội dung (D3). Mọi phán quyết khác vẫn đi thẳng về BE như trước.
 """
 
 import asyncio
@@ -40,7 +44,9 @@ from redis.exceptions import RedisError
 from contracts import (
     DOCUMENT_PROBED_TASK,
     DOCUMENT_PROGRESS_TASK,
+    INDEX_DOCUMENT_TASK,
     OCR_PAGES_TASK,
+    DocumentIndexRequested,
     DocumentPagesRequested,
     DocumentProbed,
     DocumentProbeRequested,
@@ -66,7 +72,7 @@ logger = logging.getLogger(__name__)
 # hạ tầng đang ốm thật, không phải một nhịp chập chờn.
 _RETRY_STEP_SECONDS = 5
 
-# Số lần arq chạy một job, kể cả lần đầu. Đúng mặc định của arq; `worker.py` đặt nó vào
+# Số lần arq chạy một job, kể cả lần đầu. Đúng mặc định của arq; `ocr_worker.py` đặt nó vào
 # `WorkerSettings`, và `ocr_pages` cần biết nó để nhận ra lần thử cuối.
 MAX_TRIES = 5
 
@@ -78,9 +84,10 @@ MAX_TRIES = 5
 _BATCH_BUDGET_SECONDS = 90
 
 # Phiên bản đường OCR, ghi vào đầu mục bản thô. Cùng nghĩa với `_PIPELINE` của
-# `tools/ocr_bench/run.py`: `text1` là *chỉ chữ, công thức không đọc lúc upload* (11/10/2026). Đổi
-# đường đọc thì đổi số này, để bên đọc ở plan 3c biết bản thô nào cần đọc lại.
-_OCR_PIPELINE = "text1"
+# `tools/ocr_bench/run.py`: `text1` là *chỉ chữ, công thức không đọc lúc upload* (11/10/2026);
+# `text2` thêm *khối hình giữ chữ của các dòng trong nó* (plan 3c, D2). Đổi đường đọc thì đổi số
+# này, để bên đọc ở plan 3c biết bản thô nào cần đọc lại.
+_OCR_PIPELINE = "text2"
 
 
 class HandBackFailed(RuntimeError):
@@ -108,9 +115,10 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
             về BE, hay lô OCR đầu. arq chạy lại job sau vài giây.
 
     Side effects:
-        Với tệp có chữ: bản thô của nó trong kho nội dung, ghi đè bản cũ, rồi một job mới trên
-        queue của BE. Với PDF scan: đầu mục bản thô, rồi lô OCR đầu trên queue của chính service
-        này -- **không** có gì về BE lúc này. Không ghi gì vào object storage.
+        Với tệp có chữ: bản thô của nó trong kho nội dung, ghi đè bản cũ, rồi một job dựng cây
+        trên queue của `document.index_worker` (plan 3c). Tệp hỏng: một job mới trên queue của
+        BE. Với PDF scan: đầu mục bản thô, rồi lô OCR đầu trên queue của chính service này --
+        **không** có gì về BE lúc này. Không ghi gì vào object storage.
     """
     asked = DocumentProbeRequested.model_validate(payload)
 
@@ -132,7 +140,9 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
         except (ContentStoreUnavailable, HandBackFailed) as exc:
             raise _retry(ctx, exc) from exc
 
-    return await _conclude(ctx, asked.document_id, found)
+    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # return await _conclude(ctx, asked.document_id, found)
+    return await _settle(ctx, asked, found)
 
 
 async def ocr_pages(ctx: dict, payload: dict) -> dict:
@@ -224,7 +234,9 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
             batch.page_count,
             "Đã đọc hết các trang nhưng không thấy chữ nào.",
         )
-    return await _conclude(ctx, batch.document_id, found)
+    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # return await _conclude(ctx, batch.document_id, found)
+    return await _settle(ctx, batch, found)
 
 
 def _scan_pages(found: Finding) -> int | None:
@@ -283,6 +295,67 @@ async def _start_ocr(ctx: dict, asked: DocumentProbeRequested, page_count: int) 
     logger.info(
         "document=%s is a scan of %s pages; reading it by ocr", asked.document_id, page_count
     )
+
+
+async def _settle(
+    ctx: dict, asked: DocumentProbeRequested | DocumentPagesRequested, found: Finding
+) -> dict:
+    """Kết thúc đường đọc: phán quyết đi về BE, **trừ** `READY` -- nó còn chờ cây (plan 3c, D3).
+
+    Bản thô đã nằm trong kho thì tài liệu chưa *sẵn sàng*: ba tool đọc ở plan sau cần cây, và một
+    chip *sẵn sàng* mà tool không có gì để lần xuống là một chip nói dối. Nên `READY` thành một job
+    trên queue dựng cây, và chỉ job ấy gửi `READY` -- sau khi cây đã vào Mongo.
+
+    Args:
+        ctx: Context worker của arq.
+        asked: Job dò tệp hoặc lô OCR cuối -- cả hai chở khoá object storage và tên tệp.
+        found: Phán quyết.
+
+    Returns:
+        Kết quả cho log của job.
+
+    Raises:
+        Retry: Khi không đẩy được job tiếp theo.
+    """
+    if found.state is not DocumentState.READY:
+        return await _conclude(ctx, asked.document_id, found)
+    request = DocumentIndexRequested(
+        document_id=asked.document_id,
+        storage_key=asked.storage_key,
+        filename=asked.filename,
+        page_count=found.page_count,
+    )
+    try:
+        await _queue_index(ctx["redis"], request)
+    except HandBackFailed as exc:
+        raise _retry(ctx, exc) from exc
+    logger.info("document=%s has its raw content; queued for indexing", asked.document_id)
+    return {"document_id": asked.document_id, "indexing": True}
+
+
+async def _queue_index(pool: ArqRedis, request: DocumentIndexRequested) -> None:
+    """Giao job dựng cây cho `document.index_worker`.
+
+    Id cố định theo tài liệu, cùng lý do `_queue_batch`: lô OCR cuối chạy lại sau khi đã giao thì
+    lần giao thứ hai bị từ chối, thay vì hai job dựng cùng một cây và trả tiền Jev hai lần.
+
+    Args:
+        pool: Pool arq của worker.
+        request: Job cần giao.
+
+    Raises:
+        HandBackFailed: Khi Redis không với tới được.
+    """
+    job = await _send(
+        pool,
+        INDEX_DOCUMENT_TASK,
+        request,
+        get_settings().document_index_queue_name,
+        request.document_id,
+        job_id=f"index:{request.document_id}",
+    )
+    if job is None:
+        logger.info("indexing of %s is already queued", request.document_id)
 
 
 async def _conclude(ctx: dict, document_id: str, found: Finding) -> dict:

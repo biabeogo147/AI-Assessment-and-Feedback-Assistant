@@ -43,7 +43,7 @@ _settings = get_settings()
 # arq mặc định timeout kết nối một giây, và mức đó quá chặt với Docker Desktop trên Windows:
 # port proxy của nó cần vài giây sau khi container báo healthy mới chịu nhận kết nối, nên
 # process chết ngay lúc startup thay vì chờ. Con số này nay có **bốn** bản trong repo --
-# `be/queue.py`, `agent/worker.py`, `document/worker.py`, và đây -- và nhân bản là có chủ đích:
+# `be/queue.py`, `agent/worker.py`, `document/ocr_worker.py`, và đây -- và nhân bản là có chủ đích:
 # bốn service không import nhau được, và năm giây không phải một hợp đồng giữa chúng, nó là một
 # phép đo về cái máy đang chạy mà cả bốn cùng đứng trên. Lệch nhau thì hậu quả là một process
 # chờ lâu hơn, không phải hai bên hiểu sai nhau.

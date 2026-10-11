@@ -10,8 +10,10 @@ from pydantic import ValidationError
 from contracts import (
     DOCUMENT_PROBED_TASK,
     DOCUMENT_PROGRESS_TASK,
+    INDEX_DOCUMENT_TASK,
     OCR_PAGES_TASK,
     PROBE_DOCUMENT_TASK,
+    DocumentIndexRequested,
     DocumentPagesRequested,
     DocumentProbed,
     DocumentProbeRequested,
@@ -105,12 +107,18 @@ def test_the_two_task_names_are_not_the_same() -> None:
     assert PROBE_DOCUMENT_TASK != DOCUMENT_PROBED_TASK
 
 
-def test_all_four_task_names_differ() -> None:
+def test_all_five_task_names_differ() -> None:
     """Từ plan 3b có bốn task trên ba queue, và hai cái trong số ấy cùng nằm trên queue của
     `services/document`. Trùng tên là một lô OCR bị đọc như một lần dò tệp -- payload sai hình dạng,
-    và job chết ở `model_validate` thay vì đọc trang nào.
+    và job chết ở `model_validate` thay vì đọc trang nào. Plan 3c thêm cái thứ năm, dựng cây.
     """
-    names = [PROBE_DOCUMENT_TASK, DOCUMENT_PROBED_TASK, OCR_PAGES_TASK, DOCUMENT_PROGRESS_TASK]
+    names = [
+        PROBE_DOCUMENT_TASK,
+        DOCUMENT_PROBED_TASK,
+        OCR_PAGES_TASK,
+        DOCUMENT_PROGRESS_TASK,
+        INDEX_DOCUMENT_TASK,
+    ]
     assert len(set(names)) == len(names)
 
 
@@ -158,3 +166,14 @@ def test_a_batch_that_would_read_nothing_is_refused(first: int, page_count: int)
             first=first,
             page_count=page_count,
         )
+
+
+def test_an_index_job_carries_a_key_and_may_have_no_page_count() -> None:
+    """Job dựng cây đọc bản thô từ Mongo và ảnh banner từ object storage, không chở byte; tệp văn
+    bản thuần không có số trang, đúng như `DocumentProbed`.
+    """
+    asked = DocumentIndexRequested(document_id="d", storage_key="k", filename="a.txt")
+    assert asked.page_count is None
+    assert "content" not in DocumentIndexRequested.model_fields
+    with pytest.raises(ValidationError):
+        DocumentIndexRequested(document_id="d", storage_key="k", filename="a.pdf", page_count=0)

@@ -32,6 +32,7 @@ import sys
 import time
 from pathlib import Path
 
+from document.ocr.model import BlockKind
 from ocr_bench.gold import GoldInvalid, GoldPage, load_book
 from ocr_bench.score import (
     cer,
@@ -54,7 +55,9 @@ _RUNS = Path("data")
 _RUN_NAME = re.compile(r"^run-(\d+)$")
 # Phiên bản đường đọc, nằm trong tên cache. Đổi chặng nào của `PageReader` thì tăng số này.
 # `text1`: chỉ chữ, công thức không đọc lúc upload (11/10/2026).
-_PIPELINE = "text1"
+# `text2`: khối hình giữ chữ của các dòng nằm trong nó (plan 3c, D2). Nhãn vàng để khối hình rỗng,
+# nên `_score_page` bỏ chữ ấy ra trước khi chấm -- bảng số của hai đường vẫn so được với nhau.
+_PIPELINE = "text2"
 
 _MISSING = f"""Không có dữ liệu để đo.
 
@@ -332,7 +335,9 @@ def _score_page(one: GoldPage, read: dict) -> dict:
         Một hàng của bảng.
     """
     gold_texts = [block.text for block in one.blocks]
-    read_texts = [block["text"] for block in read["blocks"]]
+    read_texts = [
+        "" if block["kind"] == BlockKind.IMAGE.value else block["text"] for block in read["blocks"]
+    ]
     whole_gold = " ".join(text for text in gold_texts if text)
     whole_read = " ".join(text for text in read_texts if text)
 

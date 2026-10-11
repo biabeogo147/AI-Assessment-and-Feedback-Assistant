@@ -19,6 +19,7 @@ của chính nó.
 """
 
 import logging
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import NamedTuple
@@ -26,6 +27,9 @@ from typing import NamedTuple
 import pymupdf
 
 logger = logging.getLogger(__name__)
+
+# Một khoá cho mọi lần dựng ảnh trong process -- xem `PdfPages.render`.
+_RENDER_LOCK = threading.Lock()
 
 # Một điểm (point) của PDF là 1/72 inch. Hằng số này sống ở đây vì nó là đơn vị của **tệp**,
 # không phải một lựa chọn của ta: `dpi` mà người gọi xin được đổi sang hệ số phóng bằng nó.
@@ -167,8 +171,8 @@ class PdfPages:
         ]
         return PageText(width, height, blocks)
 
-    def render(self, index: int, dpi: int) -> bytes:
-        """Dựng một trang thành ảnh PNG.
+    def render(self, index: int, dpi: int, top: float = 1.0) -> bytes:
+        """Dựng một trang thành ảnh PNG -- cả trang, hoặc chỉ phần trên của nó.
 
         Đây là đầu vào duy nhất của đường OCR: 14 cuốn sách giáo khoa trong `data/` không có một
         ký tự nào, nên `text_lengths` trả toàn số 0 và chữ chỉ còn một đường để ra -- qua điểm
@@ -178,6 +182,8 @@ class PdfPages:
             index: Số thứ tự trang, đếm từ 0.
             dpi: Số điểm ảnh mỗi inch. Bản scan trong `data/` ở khoảng 144 DPI, nên xin cao hơn
                 mức ấy chỉ phóng to điểm ảnh có sẵn chứ không thêm chi tiết nào.
+            top: Phần trên của trang cần dựng, 0..1 theo chiều cao (plan 3c, D9: banner mở chương
+                cho `gpt-5.6-luna` -- ảnh nhỏ hơn là ít token ảnh hơn). 1 là cả trang.
 
         Returns:
             Byte của một tệp PNG.
@@ -197,12 +203,21 @@ class PdfPages:
         """
         if dpi <= 0:
             raise ValueError(f"dpi must be positive, got {dpi}")
+        if not 0 < top <= 1:
+            raise ValueError(f"top must be in (0, 1], got {top}")
         pages = len(self)
         if not 0 <= index < pages:
             raise IndexError(f"page {index} is outside a pdf of {pages} pages")
         try:
-            shot = self._book[index].get_pixmap(dpi=dpi)
-            return shot.tobytes("png")
+            # PyMuPDF không thread-safe, và từ plan 3c có hai đường gọi vào đây qua
+            # `asyncio.to_thread`: lô OCR, và tối đa `max_jobs` job dựng cây dựng ảnh banner
+            # (review Task 4). Một khoá cho cả process; dựng ảnh nhanh, nên tranh khoá là rẻ.
+            with _RENDER_LOCK:
+                page = self._book[index]
+                area = page.rect
+                clip = pymupdf.Rect(area.x0, area.y0, area.x1, area.y0 + area.height * top)
+                shot = page.get_pixmap(dpi=dpi, clip=clip if top < 1 else None)
+                return shot.tobytes("png")
         except Exception as exc:
             logger.exception("could not render page %s at %s dpi", index, dpi)
             raise PdfUnreadable(f"Could not render page {index}: {exc}") from exc

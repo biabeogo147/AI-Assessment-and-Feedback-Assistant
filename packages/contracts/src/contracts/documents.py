@@ -27,6 +27,9 @@ DOCUMENT_PROBED_TASK = "document_probed"
 # `services/document`, và sau mỗi lô có một tiếng báo tiến độ đi về `services/ingest`.
 OCR_PAGES_TASK = "ocr_pages"
 DOCUMENT_PROGRESS_TASK = "document_progress"
+# Từ plan 3c: bản thô đã nằm trong kho nội dung thì tài liệu chưa *sẵn sàng* -- nó còn chờ cây. Job
+# dựng cây chạy trên queue **riêng** của `services/document` (D4), và chỉ nó gửi `READY`.
+INDEX_DOCUMENT_TASK = "index_document"
 
 
 def documents_channel(teacher_id: str) -> str:
@@ -151,6 +154,9 @@ class DocumentPagesRequested(BaseModel):
 class DocumentProgress(BaseModel):
     """Tiếng báo của `services/document` sau mỗi lô OCR: *đã đọc được ngần này trang*.
 
+    Từ plan 3c nó cũng là **nhịp tim** của job dựng cây: gửi ở mỗi chặng với
+    `pages_read = page_count`, chỉ để dời `progress_at`.
+
     Nó tồn tại vì **phép suy *đứng quá lâu*** của BE: một hàng đứng ở `processing` quá 300 s bị đọc
     ra `failed`, và một cuốn sách scan thì đứng ở đó mười lăm phút một cách hợp lệ. Mỗi tiếng báo
     dời mốc đo của phép suy ấy (`documents.progress_at`), nên chỉ một chuỗi lô **ngừng tiến** mới
@@ -170,3 +176,30 @@ class DocumentProgress(BaseModel):
     document_id: str
     pages_read: int = Field(ge=0)
     page_count: int = Field(ge=1)
+
+
+class DocumentIndexRequested(BaseModel):
+    """Một tài liệu đã có bản thô trong kho nội dung, cần dựng cây rồi mới được báo *sẵn sàng*.
+
+    Như `DocumentPagesRequested`, đây là việc `services/document` tự giao cho chính nó -- nhưng cho
+    **một worker khác** (`document.index_worker`), trên queue riêng: dựng cây là việc chờ mạng (Jev,
+    `gpt-4o-mini`), còn worker OCR chạy một job một lúc vì OCR ăn hết CPU (plan 3c, D4).
+
+    Không chở chữ: bản thô nằm trong Mongo, và job đọc nó từ đó. Chở `storage_key` vì tên chương
+    nằm trong **ảnh** banner, và `gpt-5.6-luna` cần ảnh ấy (D9).
+
+    Attributes:
+        document_id: Tài liệu.
+        storage_key: Khoá byte của tệp trong object storage.
+        filename: Tên tệp, cho dòng log.
+        page_count: Số trang như `DocumentProbed.page_count` -- `None` với tệp văn bản thuần. Job
+            gửi lại đúng con số này trong `DocumentProbed(READY)`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    document_id: str
+    storage_key: str
+    filename: str
+    page_count: int | None = Field(default=None, ge=1)

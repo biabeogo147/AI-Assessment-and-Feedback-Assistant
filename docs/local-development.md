@@ -71,17 +71,19 @@ docker compose -f docker-compose.infra.yml ps
 MinIO không có healthcheck nên nó chỉ ghi `Up`: ảnh không mang theo `curl` lẫn `mc`, và phép thử
 thật nằm ở chỗ khác — BE gọi `ensure_ready()` lúc khởi động và chết ngay nếu không với tới được.
 
-Rồi mở **năm** terminal. Năm chứ không bốn, vì BE có hai process: một API và một worker.
+Rồi mở **sáu** terminal. `services/document` có hai process: một worker đọc tệp (OCR chạy một
+job một lúc) và một worker dựng cây mục lục (plan 3c, chờ mạng chứ không chờ CPU).
 
 ```powershell
 .\dev.ps1 be         # terminal 1 - http://localhost:8000
 .\dev.ps1 ingest     # terminal 2 - ghi kết quả xử lý tài liệu, không có cổng
 .\dev.ps1 agent      # terminal 3 - worker, không có cổng
 .\dev.ps1 document   # terminal 4 - đọc tệp đã tải lên, không có cổng
-.\dev.ps1 fe         # terminal 5 - http://localhost:5173
+.\dev.ps1 index      # terminal 5 - dựng cây mục lục rồi mới báo 'sẵn sàng', không có cổng
+.\dev.ps1 fe         # terminal 6 - http://localhost:5173
 ```
 
-**Thiếu `ingest` hoặc `document` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
+**Thiếu `ingest`, `document` hoặc `index` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
 tài liệu đứng ở *đang xử lý* rồi năm phút sau đổi sang *xử lý hỏng*. Không lỗi nào hiện ra,
 vì không có gì sai — chỉ là không có ai làm việc.
 
@@ -126,7 +128,12 @@ Hai worker kia cũng in ra tên queue của chúng:
 ```text
 INGEST ready: queue=aiafa:ingest redis=redis://127.0.0.1:6379/0
 DOCUMENT worker ready: consuming=aiafa:document handing back to=aiafa:ingest redis=redis://127.0.0.1:6379/0
+DOCUMENT INDEX worker ready: consuming=aiafa:document-index handing back to=aiafa:ingest jev=jev-1.13.0 summary=gpt-4o-mini banner=gpt-5.6-luna
 ```
+
+Worker `index` in ra model nó sẽ gọi. `jev=off (rules only)` nghĩa là `.env` không có
+`JEV_API_KEY`: cây vẫn dựng được, bằng luật. `summary=off` nghĩa là không có `OPENAI_API_KEY`: cây
+không có tóm tắt, và tên chương chỉ là nhãn số.
 
 Những dòng ấy in ra tên queue có chủ đích. Nếu hai bên đọc hai tên queue khác nhau thì hệ
 thống trông y hệt lúc bình thường: job được đẩy vào, không báo lỗi gì, và không có gì chạy.
@@ -245,23 +252,32 @@ Kích thước đo bằng `seek`/`tell` trên phần thân đã nhận, không l
 `documents/<giáo viên>/<tài liệu>.pdf`. Xem nó bằng console ở <http://127.0.0.1:9001>.
 
 **Tệp được mở ra đọc, nhưng không trong lời gọi `POST`.** Đường ấy cất byte rồi đẩy một job
-cho `services/document`; worker đó đọc tệp từ MinIO bằng PyMuPDF và đẩy kết quả về
+cho `services/document`; worker đó đọc tệp từ MinIO bằng PyMuPDF, ghi bản thô vào Mongo, rồi
+giao một job cho worker `index` trên `aiafa:document-index`. Worker ấy dựng cây mục lục (Jev,
+`gpt-4o-mini`, `gpt-5.6-luna` -- plan 3c), ghi cây vào Mongo, rồi **mới** đẩy kết quả về
 `aiafa:ingest`, nơi `services/ingest` ghi nó vào database. Nên lời gọi `POST` trả về
-`state: "processing"` và `page_count: null`, rồi vài giây sau danh sách nói khác:
+`state: "processing"` và `page_count: null`, rồi vài chục giây sau danh sách nói khác:
 
 ```text
-state = ready           đọc được chữ, page_count là số trang thật
+state = ready           đọc được chữ **và** đã có cây mục lục, page_count là số trang thật
 state = no_text_layer   PDF không có trang nào, tệp thuần rỗng, hoặc OCR đọc hết mà không ra chữ
 state = failed          job đã chết, hoặc không giao được việc; thử tải lại
 ```
 
 **PDF scan mất nhiều phút, không phải vài giây.** Nó đi đường OCR theo lô 10 trang, khoảng 4 s một
-trang trên CPU, nên một cuốn SGK 125 trang đứng ở `processing` chừng mười phút. Xem nó tiến bằng log
+trang trên CPU, rồi thêm chừng 40 s dựng cây, nên một cuốn SGK 125 trang đứng ở `processing` chừng
+mười phút (đo 11/10/2026: 9 phút 33 giây). Xem nó tiến bằng log
 của `document` (`ocr document=... pages 11-20 of 125`), cột `pages_read` trong Postgres, hoặc đếm
 trang trong Mongo:
 
 ```powershell
 docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "db.pages.countDocuments({document_id:'<id>'})"
+```
+
+Cây của một tài liệu nằm ở `indexes` (đầu mục), `nodes`, `chunks` và `block_labels`:
+
+```powershell
+docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "db.nodes.find({document_id:'<id>'},{level:1,numbering:1,title:1,page_start:1}).sort({ordinal:1})"
 ```
 
 Worker `document` chạy một job một lúc, nên một tệp có chữ tải lên giữa chừng chờ sau lô OCR đang
@@ -361,17 +377,25 @@ Cách duy nhất biết hàng rào còn sống là thử phá: thêm `import be`
 **Chip tài liệu đứng mãi ở *đang xử lý*, rồi đổi sang *xử lý hỏng*.** Không ai đọc tệp. Theo thứ
 tự hay gặp:
 
-1. `.\dev.ps1 document` chưa chạy. Đây là ca gần như chắc chắn, vì nó là process mới nhất và dễ
-   quên nhất trong năm cái.
+1. `.\dev.ps1 document` hoặc `.\dev.ps1 index` chưa chạy. Phân biệt bằng log của `document`:
+   có dòng `has its raw content; queued for indexing` mà log của `index` không có
+   `indexed document=...` tức là thiếu `index` -- bản thô đã có, chỉ chưa ai dựng cây.
 2. `.\dev.ps1 ingest` chưa chạy. Lúc này `document` **đã** đọc xong và đã đẩy kết quả về, nhưng
    không ai lấy nó ra khỏi queue. Phân biệt hai ca bằng log của `document`: có dòng
    `probed document=... state=ready` tức nó đã làm xong phần của nó.
-3. Tên queue lệch. So `DOCUMENT_QUEUE_NAME` và `INGEST_QUEUE_NAME` trong `.env` với hai dòng
-   `... worker ready: queue=...` của hai worker. Lệch tên là lỗi im lặng: không bên nào báo gì.
+3. Tên queue lệch. So `DOCUMENT_QUEUE_NAME`, `DOCUMENT_INDEX_QUEUE_NAME` và `INGEST_QUEUE_NAME`
+   trong `.env` với các dòng `... worker ready: ...` của ba worker. Lệch tên là lỗi im lặng: không
+   bên nào báo gì.
+
+Chip ra *xử lý hỏng* kèm câu *"Đã đọc được chữ nhưng chưa dựng được mục lục"* thì `index` đã chạy
+mà hỏng -- lỗi lạ hoặc quá 540 s. Lý do nằm trong log của `index` (`could not build the index of`).
+Jev hay OpenAI hỏng thì **không** ra câu ấy: cây đi đường luật, hoặc thiếu tóm tắt, và tài liệu vẫn
+*sẵn sàng*.
 
 Trạng thái *xử lý hỏng* ở đây **không** được ghi vào database — cột vẫn là `processing`. Nó được
 suy ra lúc đọc, khi hàng đứng lâu hơn `DOCUMENT_STALE_AFTER_SECONDS` tính từ **lần cuối nghe được
-tin** -- lúc tải lên, hoặc tiếng báo tiến độ gần nhất của một lô OCR -- vì một process bị giết thì
+tin** -- lúc tải lên, hoặc tiếng báo tiến độ gần nhất của một lô OCR hay của job dựng cây -- vì
+một process bị giết thì
 không còn ai sống để ghi một giá trị khác. Hệ quả hợp ý: bật `document` lên muộn thì tài liệu cũ
 vẫn được xử lý, và lần đọc sau nói đúng.
 

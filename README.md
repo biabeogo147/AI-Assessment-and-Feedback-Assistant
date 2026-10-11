@@ -29,6 +29,9 @@ Rồi mở ba terminal:
 .\dev.ps1 fe       # http://localhost:5173
 ```
 
+Tải tài liệu lên cần thêm ba worker -- `.\dev.ps1 ingest`, `.\dev.ps1 document`, `.\dev.ps1 index` --
+xem [Local Development](docs/local-development.md).
+
 Mở `http://localhost:5173` và nộp thử một bài. Để trống phần giải thích để thấy trường hợp cần giáo viên xem lại.
 
 Nếu có bước nào không chạy như mô tả, [Local Development](docs/local-development.md) có mục chẩn đoán sự cố.
@@ -39,7 +42,7 @@ Nếu có bước nào không chạy như mô tả, [Local Development](docs/loc
 | --- | --- |
 | `services/be` | Business layer, là service duy nhất FE biết tới |
 | `services/agent` | Worker chấm bài, chỉ phát bằng chứng, không quyết định gì |
-| `services/document` | Worker đọc tệp tải lên, báo lại có chữ hay không và bao nhiêu trang |
+| `services/document` | Hai worker: đọc tệp tải lên (OCR khi cần), rồi dựng cây mục lục ba cấp (Jev, OpenAI) trước khi báo *sẵn sàng* |
 | `services/ingest` | Worker ghi lại thứ `document` báo về. Giữ credential database, không quyết định gì |
 | `services/fe` | Vite + React, gọi BE qua proxy `/api` |
 | `packages/contracts` | Message contract dùng chung. Chỉ có dữ liệu, không có logic |

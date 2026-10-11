@@ -741,9 +741,9 @@ class Document(Base):
     đọc theo lô trang, và sau mỗi lô `services/ingest` ghi số trang đã đọc cùng lúc nghe được.
     `progress_at` là lý do chúng tồn tại: phép suy *đứng quá lâu* đo từ mốc muộn hơn giữa
     `uploaded_at` và nó, nên một cuốn sách đọc mười lăm phút mà vẫn tiến không bị gọi là chết.
-    Cả hai `None` với tài liệu không qua OCR -- không có lô nào để báo. Lô cuối không báo tiến độ
-    mà gửi kết quả, nên sau `ready` cột `pages_read` dừng ở lô áp chót: số trang thật là
-    `page_count`, không phải nó.
+    Từ plan 3c, job dựng cây cũng gửi tiến độ ở mỗi chặng, với `pages_read` bằng số trang -- chỉ
+    để dời `progress_at`. Nên sau `ready` cả hai cột thường có giá trị, kể cả với tài liệu không
+    qua OCR; số trang thật vẫn là `page_count`, không phải `pages_read`.
     """
 
     __tablename__ = "documents"

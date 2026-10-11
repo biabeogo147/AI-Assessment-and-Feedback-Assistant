@@ -2,7 +2,7 @@
 
 import pytest
 
-from document import worker
+from document import ocr_worker as worker
 
 
 class _Store:
@@ -58,3 +58,28 @@ def test_the_worker_runs_both_tasks_one_at_a_time() -> None:
     names = {function.name for function in worker.WorkerSettings.functions}
     assert names == {"probe_document", "ocr_pages"}
     assert worker.WorkerSettings.max_jobs == 1
+
+
+@pytest.mark.asyncio
+async def test_the_index_worker_loads_no_ocr_model_and_reads_its_own_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Document agent (plan 3c, D4): queue riêng, vài job song song, **không** nạp model OCR --
+    dựng cây chờ mạng, không chờ CPU."""
+    from document import index_worker
+
+    _Store.made.clear()
+    monkeypatch.setattr(index_worker, "ContentStore", _Store)
+    ctx: dict = {}
+    await index_worker.startup(ctx)
+    [store] = _Store.made
+    assert ctx["store"] is store and store.prepared
+    assert "ocr" not in ctx
+    await index_worker.shutdown(ctx)
+    assert store.closed
+
+    settings = index_worker.WorkerSettings
+    assert {function.name for function in settings.functions} == {"index_document"}
+    assert settings.queue_name == index_worker.get_settings().document_index_queue_name
+    assert settings.queue_name != worker.WorkerSettings.queue_name
+    assert settings.max_jobs > 1

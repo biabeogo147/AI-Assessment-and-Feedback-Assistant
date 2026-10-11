@@ -282,6 +282,11 @@ def _raw_pdf_pages(raw: bytes, document_id: str, at: datetime) -> list[RawPage]:
     return out
 
 
+# Nhãn khối hình như nó nằm trong bản thô. Một chuỗi chứ không `BlockKind.IMAGE`: `document.ocr`
+# chỉ được nhìn thấy dưới `TYPE_CHECKING` ở module chính sách này.
+_IMAGE = "image"
+
+
 def raw_ocr_page(read: "PageRead", document_id: str, at: datetime) -> RawPage:
     """Bản thô của một trang đọc bằng OCR.
 
@@ -291,6 +296,10 @@ def raw_ocr_page(read: "PageRead", document_id: str, at: datetime) -> RawPage:
 
     Khối không có chữ (hình, bảng) **vẫn ở lại**, với chữ rỗng: một hình giữa hai đoạn là tín hiệu
     bố cục, và bỏ nó là bỏ thông tin mà không ai yêu cầu bỏ. Chỉ `text` của trang bỏ qua chúng.
+
+    Từ plan 3c (D2), khối **hình** mang chữ của các dòng nằm trong nó -- để bên dựng cây thấy chữ
+    *"CHƯƠNG"* trên banner. `text` của trang vẫn bỏ qua khối hình: phần lớn chữ ấy là rác nhãn hình,
+    và `text` là thứ đi vào ngữ cảnh của LLM.
 
     Args:
         read: Trang `PageReader.read_page` trả về.
@@ -311,7 +320,7 @@ def raw_ocr_page(read: "PageRead", document_id: str, at: datetime) -> RawPage:
         width=read.width,
         height=read.height,
         blocks=blocks,
-        text="\n".join(block.text for block in blocks if block.text),
+        text="\n".join(block.text for block in blocks if block.text and block.kind != _IMAGE),
         seconds=dict(read.seconds),
         read_at=at,
     )

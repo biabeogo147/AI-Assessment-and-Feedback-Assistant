@@ -27,7 +27,8 @@ class BlockKind(StrEnum):
         TEXT: Đoạn văn. Toán **nội dòng** nằm trong đây, không tách ra.
         FORMULA: Công thức đứng riêng, không nằm trong một câu văn.
         FIGURE_TITLE: Chú thích của một hình.
-        IMAGE: Hình minh hoạ. Không mang chữ.
+        IMAGE: Hình minh hoạ. Mang chữ của các dòng nằm trong nó (plan 3c, D2) -- với banner mở
+            chương là chữ *CHƯƠNG*, còn lại phần lớn là rác nhãn hình.
         TABLE: Một bảng.
         TABLE_TITLE: Tiêu đề của một bảng.
         NUMBER: Số trang **in trong sách**. Khác số thứ tự trang của tệp PDF, và chính chỗ lệch

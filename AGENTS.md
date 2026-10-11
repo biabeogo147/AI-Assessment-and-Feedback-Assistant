@@ -14,7 +14,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | --- | --- |
 | `services/be` | Business rules at runtime; the databases it reads; the only service FE calls |
 | `services/agent` | AI grading. Emits evidence, decides nothing |
-| `services/document` | Reads an uploaded file. Reports what it found, owns no row |
+| `services/document` | Reads an uploaded file and builds its contents tree (Jev, OpenAI). Reports what it found, owns no row |
 | `services/ingest` | Writes down what DOCUMENT reported. Holds a credential, owns no decision |
 | `services/fe` | User interface. Talks only to BE |
 | `packages/contracts` | Messages crossing the queue. Data only |

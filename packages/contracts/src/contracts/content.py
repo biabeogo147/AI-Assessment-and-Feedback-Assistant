@@ -20,7 +20,13 @@ from pydantic import BaseModel, ConfigDict
 
 # Phiên bản của họ này, như mọi họ khác của `contracts` tự khai số của mình. Nhích khi một trường
 # đổi nghĩa hoặc bị bỏ, để bên đọc biết bản nào cũ.
-SCHEMA_VERSION = 1
+#
+# 2 (plan 3c, D2): `RawBlock.text` của khối **hình** thôi luôn rỗng -- nó mang chữ của các dòng OCR
+# nằm trong hình. Bên đọc canh nó là bên dựng cây (`document/index/`): chữ ấy chỉ được dùng làm
+# cổng *"trang này mở một chương"* (D9), và một bản thô số 1 thì không có cổng nào mở -- cây vẫn
+# dựng được, chỉ không có tên chương đọc từ banner. `RawPage.text` không đổi nghĩa: nó vẫn bỏ khối
+# hình.
+SCHEMA_VERSION = 2
 
 
 class RawSource(StrEnum):
@@ -45,7 +51,8 @@ class RawBlock(BaseModel):
             `text`: không có ai gán nhãn.
         box: Hộp bao `[trái, trên, phải, dưới]` theo điểm ảnh của ảnh đã dựng (OCR) hoặc theo điểm
             của trang PDF (text layer). `None` với tệp văn bản thuần.
-        text: Chữ của khối, NFC. Rỗng với hình và bảng.
+        text: Chữ của khối, NFC. Rỗng với bảng. Với hình (từ `SCHEMA_VERSION` 2) là chữ của các
+            dòng OCR nằm trong nó -- phần lớn là rác nhãn hình, chỉ dùng làm tín hiệu.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -65,7 +72,8 @@ class RawPage(BaseModel):
         width: Bề rộng hệ toạ độ của `box`. `None` khi không có hộp.
         height: Bề cao hệ toạ độ của `box`.
         blocks: Các khối theo thứ tự đọc.
-        text: Chữ của mọi khối nối lại, để bên đọc không phải tự nối.
+        text: Chữ của mọi khối nối lại, để bên đọc không phải tự nối -- **trừ khối hình**: chữ của
+            nó không vào ngữ cảnh LLM.
         seconds: Thời gian từng chặng OCR, khoá là tên chặng. `None` khi không qua OCR.
         read_at: Lúc trang được đọc.
         schema_version: Phiên bản hình dạng.

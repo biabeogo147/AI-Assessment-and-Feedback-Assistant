@@ -828,6 +828,11 @@ Thiết kế do người dùng đề ra cùng ngày; hình dạng đã chốt, f
 - **Quan hệ cấu trúc** với heading liền trước — cấp cao hơn, cùng cấp, cấp con, hoặc không phải một
   heading.
 
+**Đổi ngày 11/10/2026, khi plan 3c được viết** (`completed/2026-10-11-document-agent-hierarchy-plan.md`,
+D1): người dùng ghim cây **đúng ba cấp**, bậc sâu hơn gộp vào cha, nên câu thứ hai thành **cấp tuyệt
+đối** (`level_1` / `level_2` / `level_3` / `deeper`) -- câu tương đối thì một lần sai kéo sai cả chuỗi.
+Câu thứ ba (công thức) chuyển hẳn sang 3d. Phần dưới giữ làm lịch sử của thiết kế.
+
 Cộng một câu thứ ba cho công thức, để mục nợ dưới đây có đầu vào: **công thức được dùng / đề bài /
 bước giải**.
 
@@ -975,3 +980,26 @@ và về `ready`. Còn lại là nợ.
 | Mỗi trang một `replace_one` | 2 000 trang ≈ 1 s với Mongo local; Mongo ở xa (RTT ~20 ms) ≈ 40 s, vẫn dưới 120 s. `bulk_write` khi cần |
 | Lần thử cuối của `Retry` hết lượt thì job hỏng im, chip chờ 300 s | Có thể gửi `FAILED` ở lần thử cuối khi Redis còn sống (lô OCR đã làm vậy cho ca object storage hụt) |
 | Một trang đơn lẻ OCR quá 120 s vẫn chạm `job_timeout` | Ngân sách 90 s của lô chỉ kiểm giữa hai trang. Chưa gặp: trang chậm nhất đo được ~12 s |
+
+## Nợ của plan 3c — document agent, Jev và cây ba cấp
+
+Ghi ngày 11/10/2026, cùng lượt viết plan 3c (`completed/2026-10-11-document-agent-hierarchy-plan.md`).
+Số đo nằm ở `Status` của plan ấy và ở `data/run-6/hierarchy-jev-1.13.0/`.
+
+| Việc | Ghi chú |
+| --- | --- |
+| **Jev chưa hơn luật trên SGK.** Ở `jev_min_confidence = 0,8` Jev thắng luật đúng một ca, và ca ấy sai; cây hiện nay gần như là cây của luật | Lượt Jev thứ hai chờ người dùng duyệt (plan hứa báo số thật trước lượt ấy, $0,026 mỗi lượt). Thiết kế đề xuất: bỏ số khỏi `state` (`page`, `numbering` thành lời), thêm `letter_case`, `level_3` chỉ nhận một số đơn **và** viết hoa toàn bộ, rút gọn `criteria` để hạ ~1 270 token mỗi lời gọi |
+| **Cây vàng chỉ có một cuốn**, và luật lẫn ngưỡng đều chỉnh trên chính cuốn ấy | Cần cây vàng của một cuốn khác (một tập khác của bộ KNTT, và một tài liệu không phải SGK) để so Jev với luật cho công bằng |
+| D1 hứa *"dùng luật khi số thứ tự đi lùi"* -- chưa làm; `Numbering.value` chưa ai đọc | Một bước trong `assemble`: tiêu đề cùng cấp mà số nhỏ hơn số trước nó thì hỏi lại luật |
+| Thứ OCR không đọc ra thì không cây nào có: tên Bài 10 (trang 39), hai mục Bài 21 (trang 100–101), *Hoạt động thực hành trải nghiệm* (banner không có chữ CHƯƠNG) | Một cổng thứ hai cho luna: trang mở bài (có hộp *KHÁI NIỆM, THUẬT NGỮ*) mà không có `doc_title` -- đọc tên bài trên ảnh. Dải mục màu đỏ (*"1. HÌNH CÓ TRỤC ĐỐI XỨNG..."*) thì PP-DocLayout không thấy khối nào |
+| Mẫu riêng cho bộ KNTT trong luật: watermark *"KẾT NỐI TRI THỨC"*, nhãn hoạt động, `[IL1]` cho lỗi OCR | Overfit có chủ ý cho bộ sách đang dùng; một bộ sách khác cần đo lại |
+| Ba tool đọc (`list_chapters` / `get_chapter` / `get_chunk`) chưa có | Plan 5 hoặc một plan riêng. Cây và chunk đã nằm trong Mongo, có `summary` |
+| Hiển thị *"đang dựng mục lục"* trên chip | Cần Figma trước. Hôm nay chip đứng ở *đang xử lý* thêm vài chục giây sau khi OCR xong |
+| Job dựng cây hỏng vì một lỗi lập trình (không phải `Retry`) thì chip chờ 300 s rồi ra *xử lý hỏng* | Có thể gửi `FAILED` khi graph ném lỗi không lường trước |
+| `LLM_TIMEOUT_SECONDS` dùng chung với AGENT | Tách một biến riêng nếu luna hay tóm tắt cần trần khác |
+| *"1.1"* là bài tập chỉ khi tài liệu đi qua OCR -- một SGK **có** text layer thì *"1.1. Cho hai tập hợp"* thành mục cấp 2 | Phân biệt theo hình dạng (*"1.1."* có chấm cuối, theo sau là câu chữ thường) thay vì theo nguồn đọc |
+| Một khe hẹp: lô OCR cuối của một lần đọc mới giao job dựng cây **trong lúc** job cũ còn chạy thì bị id cố định từ chối, và job cũ bỏ vì bản thô đang đọc dở | Không ai dựng cây; chip ra *xử lý hỏng* sau 300 s. Hướng: id theo `raw.started_at` thay vì theo tài liệu |
+| `summary_tokens` cộng cả token của luna, hai model khác giá | Tách `banner_tokens` khi cần tính tiền theo model |
+| Một đơn vị đọc dài hơn 1 500 ký tự không bị cắt, nên chunk vượt trần | Khối text layer lớn; cắt theo câu khi cần |
+| `except Exception` ở bước banner và tóm tắt che cả lỗi lập trình (chỉ còn `logger.exception`) | Đếm số lần hỏng vào `IndexHeader` để thấy được từ dữ liệu |
+| Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật | Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/hierarchy_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |

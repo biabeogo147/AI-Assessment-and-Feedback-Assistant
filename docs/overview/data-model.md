@@ -41,12 +41,17 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 ### Ngoài Postgres — kho nội dung (MongoDB, `aiafa_content`)
 
 Không phải bảng của `schema`, và BE không đọc nó. `services/document` ghi; hình dạng khai ở
-`packages/contracts/src/contracts/content.py` (plan 3b, 11/10/2026).
+`packages/contracts/src/contracts/content.py` (bản thô, plan 3b) và `contracts/index.py` (cây mục
+lục, plan 3c), cả hai 11/10/2026.
 
 | Collection | Giữ gì | Ghi chú |
 | --- | --- | --- |
 | `documents` | đầu mục bản thô: `_id` = id tài liệu, `source` (`ocr` / `text_layer` / `plain`), `page_count`, `reader`, `pipeline`, `started_at`, `finished_at` | **Không** mang trạng thái *xong chưa* -- câu ấy chỉ `documents.state` của Postgres trả lời. `finished_at` chỉ nói đường đọc đã ghi xong trang cuối |
-| `pages` | một trang: `_id` = `<document_id>:<page>`, `page` từ 1, `blocks` (`kind`, `box`, `text`) theo thứ tự đọc, `text` nối sẵn, `width`/`height` của hệ toạ độ hộp, `read_at` | Index duy nhất `(document_id, page)`. Bất biến: chỉ đường đọc tệp ghi, upsert theo `_id`; đọc lại một tài liệu là xoá rồi ghi lại. Trang trắng vẫn có mặt, rỗng, để số trang khớp `page_count`. Chữ là NFC |
+| `pages` | một trang: `_id` = `<document_id>:<page>`, `page` từ 1, `blocks` (`kind`, `box`, `text`) theo thứ tự đọc -- khối hình mang chữ OCR nằm trong nó từ pipeline `text2` --, `text` nối sẵn **không gồm khối hình**, `width`/`height` của hệ toạ độ hộp, `read_at` | Index duy nhất `(document_id, page)`. Bất biến: chỉ đường đọc tệp ghi, upsert theo `_id`; đọc lại một tài liệu là xoá rồi ghi lại. Trang trắng vẫn có mặt, rỗng, để số trang khớp `page_count`. Chữ là NFC |
+| `indexes` | đầu mục cây của một tài liệu (plan 3c): `_id` = id tài liệu, `raw_started_at` (mốc của bản thô đã dùng), `method` (`jev` / `rules`), model, số nút, số chunk, `page_offset`, token | Ghi **cuối cùng**, xoá **đầu tiên**: có nó là cây đã ghi trọn. `ContentStore.put_index` từ chối ghi khi bản thô đã bị đọc lại trong lúc dựng |
+| `nodes` | một nút cây ba cấp: `_id` = `<document_id>:n<ordinal>`, `ordinal` preorder, `parent_ordinal`, `level` 1–3, `numbering`, `title`, `title_source`, `anchor`, trang tệp và trang in, `summary` | Index duy nhất `(document_id, ordinal)`. Bậc sâu hơn cấp 3 không thành nút. Đọc lại tài liệu là xoá cả cây |
+| `chunks` | một đoạn nội dung: `_id` = `<document_id>:c<ordinal>`, `node_ordinal`, `blocks` (`page`, `block`, `line`), `text`, trang | Index duy nhất `(document_id, ordinal)`. `text` là bản sao có chủ ý của bản thô, để tool trả chữ mà không phải nối lại |
+| `block_labels` | quyết định về một ứng viên tiêu đề: vai trò, cấp, phân phối xác suất của Jev, `decided_by` | Chỉ để gỡ lỗi và đo; không ai dựng gì từ nó |
 
 Xoá tài liệu ở Postgres **chưa** xoá bản thô ở đây (BE không giữ khoá Mongo) -- nợ trong
 `backlog.md`. `.\dev.ps1 db-reset` xoá cả hai.

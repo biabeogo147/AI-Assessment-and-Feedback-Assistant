@@ -217,16 +217,33 @@ credential database"* không đổi -- `tools/check_contract.py` dùng một m�
 `services/document` (cho `MONGO_*`, vẫn cấm Postgres), AGENT vẫn mẫu chặt. Hình dạng dữ liệu khai ở
 `contracts.content`, không ở Mongo; `document/content_store.py` là module duy nhất import
 `pymongo`, và cùng hàm seam bên dưới canh nó trên cả bốn service. Bản thô là bất biến: chỉ đường đọc
-tệp ghi `pages`; *document agent* của plan 3c sẽ ghi cây và chunk vào collection của riêng nó.
+tệp ghi `pages`; *document agent* của plan 3c ghi cây và chunk vào collection của riêng nó
+(`indexes`, `nodes`, `chunks`, `block_labels`, hình dạng ở `contracts.index`), và đọc lại tài liệu là
+xoá cây cũ.
 
 **PDF scan đi đường OCR theo lô trang** (plan 3b, Task 3). Lần dò tệp thấy một PDF có trang mà
 không có chữ thì không báo *không đọc được chữ* nữa: nó mở đầu mục bản thô rồi giao lô đầu
 (`ocr_pages`, mặc định 10 trang ≈ 45 s) cho **chính queue của `document`**. Mỗi lô ghi trang của nó
 vào Mongo, gửi `DocumentProgress` về `ingest` (cột `pages_read`, `progress_at`), rồi tự giao lô kế;
-lô cuối gửi `DocumentProbed` -- `READY`, hoặc `NO_TEXT_LAYER` khi cả cuốn không ra chữ nào. Phép suy
+lô cuối gửi `NO_TEXT_LAYER` khi cả cuốn không ra chữ nào, còn có chữ thì giao job dựng cây (đoạn
+dưới). Phép suy
 *đứng quá lâu* của BE đo từ `max(uploaded_at, progress_at)`, nên một cuốn đọc mười lăm phút mà vẫn
 tiến không bị gọi là chết, còn một chuỗi lô ngừng tiến thì vẫn bị. Worker `document` chạy **một
 job một lúc** (`max_jobs = 1`): OCR dùng hết luồng CPU, hai lô song song chỉ tranh nhau.
+
+**`READY` chờ cây** (plan 3c, 11/10/2026). Bản thô xong thì tài liệu **chưa** sẵn sàng: `document`
+giao một job `index_document` cho **process thứ hai** của chính service ấy, `document.index_worker`,
+trên queue riêng `aiafa:document-index`. Hai process vì hai việc khác nhau đúng ở chỗ cấu hình worker
+quyết: OCR ăn hết CPU nên chạy một job một lúc và nạp ba model; dựng cây thì **chờ mạng** -- Jev xếp
+cấp từng tiêu đề, `gpt-5.6-luna` đọc tên chương trên ảnh banner, `gpt-4o-mini` tóm tắt từng nút --
+nên chạy vài job song song và không nạp model nào. Job ghi cây vào Mongo **rồi mới** gửi `READY`
+(*"chunk trước, `state` sau"*), gửi `DocumentProgress` ở mỗi chặng để phép suy *đứng quá lâu* không
+cắt nó, và gửi `FAILED` kèm lý do khi hỏng theo cách arq không chạy lại. Jev hay OpenAI không với
+tới được thì **không** hỏng: cây đi đường luật, hoặc thiếu tóm tắt, và `IndexHeader` nói kém ở đâu.
+Đây là agent riêng của `document`, không phải Kriky -- khác queue, khác prompt, khác model -- và nó
+làm `document` thành service thứ hai gọi model provider. Hai seam mới canh việc ấy: `typesafe_sdk`
+chỉ ở `document/index/jev.py`, `langchain` trong `document` chỉ ở `document/index/llm.py`
+(nơi duy nhất truyền khoá vào client), và BE cùng `ingest` không import SDK model nào.
 
 Cùng hàm ấy canh `pymupdf`. Ở `services/document` một job chạy một lúc, nhưng event loop vẫn phải
 rảnh trong lúc OCR một trang -- kết nối Redis và Mongo của worker sống trên đó -- nên lời gọi sync

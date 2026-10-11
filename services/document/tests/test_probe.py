@@ -230,8 +230,8 @@ def test_a_pdf_whose_page_tree_lies_is_a_verdict_not_an_exception() -> None:
     """Hợp đồng *"không bao giờ ném"* phải đứng vững cả với tệp hỏng ở page tree.
 
     Lưới cho một hồi quy ngày 10/10/2026: lượt tách `pdf.py` ra khỏi module này làm `probe()`
-    ném `RuntimeError` thô cho đúng tệp dưới đây. `handlers.py` không bắt, không `DocumentProbed`
-    nào được gửi, và chip đứng mãi ở *đang xử lý*.
+    ném `RuntimeError` thô cho đúng tệp dưới đây. `ocr_handlers.py` không bắt, không
+    `DocumentProbed` nào được gửi, và chip đứng mãi ở *đang xử lý*.
 
     Tệp này mở được và chỉ hỏng lúc ai đó hỏi số trang -- `Count 5` trong khi `Kids` rỗng, đúng
     hình dạng một dây chuyền máy quét để lại, cùng loại máy đã sinh ra 14 cuốn trong `data/`.
@@ -333,8 +333,8 @@ def test_an_ocr_page_keeps_real_labels_boxes_and_seconds() -> None:
     """Trang OCR vào bản thô bằng đúng kiểu thật mà `PageReader` trả: nhãn layout thật, hộp theo
     điểm ảnh, số giây từng chặng -- và chữ NFC.
 
-    Khối hình ở lại với chữ rỗng (nó là tín hiệu bố cục), nhưng `text` của trang bỏ qua nó: một
-    dòng trống giữa hai đoạn là một ranh giới giả mà bên đọc phải tự gỡ.
+    Khối hình ở lại (nó là tín hiệu bố cục) và từ plan 3c mang chữ của các dòng trong nó, nhưng
+    `text` của trang bỏ qua nó: chữ ấy phần lớn là rác nhãn hình, và `text` đi vào ngữ cảnh LLM.
     """
     from document.ocr.model import BBox, BlockKind, PageBlock, PageRead
     from document.probe import raw_ocr_page
@@ -346,7 +346,7 @@ def test_an_ocr_page_keeps_real_labels_boxes_and_seconds() -> None:
         height=2339,
         blocks=(
             PageBlock(BlockKind.PARAGRAPH_TITLE, BBox(10, 20, 300, 60), f" {decomposed} "),
-            PageBlock(BlockKind.IMAGE, BBox(10, 80, 300, 400), ""),
+            PageBlock(BlockKind.IMAGE, BBox(10, 80, 300, 400), "CHƯƠNG 4v 12"),
             PageBlock(BlockKind.NUMBER, BBox(800, 2300, 830, 2330), "8"),
         ),
         seconds={"render": 0.2, "layout": 1.1},
@@ -360,5 +360,6 @@ def test_an_ocr_page_keeps_real_labels_boxes_and_seconds() -> None:
     assert [block.kind for block in page.blocks] == ["paragraph_title", "image", "number"]
     assert page.blocks[0].box == (10, 20, 300, 60)
     assert page.blocks[0].text == "Mệnh đề"
+    assert page.blocks[1].text == "CHƯƠNG 4v 12"
     assert page.text == "Mệnh đề\n8"
     assert page.seconds == {"render": 0.2, "layout": 1.1}

@@ -35,3 +35,29 @@ def test_each_reader_gets_its_own_folder() -> None:
     assert model_tag("easyocr", "vgg_seq2seq") == "easyocr"
     assert model_tag("vietocr", "vgg_seq2seq") == "vietocr-vgg_seq2seq"
     assert model_tag("vietocr", "vgg_transformer") == "vietocr-vgg_transformer"
+
+
+def test_text_inside_a_picture_is_not_scored() -> None:
+    """Từ đường `text2` (plan 3c, D2), khối hình mang chữ OCR nằm trong nó, còn nhãn vàng để khối
+    hình rỗng. Chấm chữ ấy thì CER của đường mới tăng âm thầm, và bảng số không còn so được với các
+    lượt trước."""
+    from document.ocr.model import BlockKind
+    from ocr_bench.gold import GoldBlock, GoldPage
+    from ocr_bench.run import _score_page
+
+    gold = GoldPage(
+        "L6T1",
+        6,
+        (
+            GoldBlock(BlockKind.IMAGE, "", None),
+            GoldBlock(BlockKind.TEXT, "Khi tính toán", None),
+        ),
+    )
+    read = {
+        "blocks": [
+            {"kind": "image", "text": "CHƯƠNG sấ HỌc 4v 12"},
+            {"kind": "text", "text": "Khi tính toán"},
+        ],
+        "seconds": {"layout": 1.0},
+    }
+    assert _score_page(gold, read)["cer"] == 0

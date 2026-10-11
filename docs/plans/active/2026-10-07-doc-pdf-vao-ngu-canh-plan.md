@@ -48,13 +48,13 @@ lại; sympy lùi thành **3d**.
 | 2c | [`2026-10-08-ingest-service-split-plan.md`](2026-10-08-ingest-service-split-plan.md) | `services/ingest` **không import nổi một dòng nào** của `be` — `lint-imports` đỏ nếu thử — và một check đỏ khi schema bị dựng ngoài chỗ sở hữu nó | không |
 | 3a | [`2026-10-10-document-ocr-text-and-latex-plan.md`](../completed/2026-10-10-document-ocr-text-and-latex-plan.md) — **đóng 11/10/2026** | 50 trang SGK có nhãn vàng, và bộ đo nói chất lượng chữ Việt bằng **số**. Đổi hướng giữa chừng: upload **chỉ đọc chữ**; công thức đọc bằng VLM lúc ra đề (ba lựa chọn đã chốt, chưa viết code — xem `backlog.md`) | không |
 | 3b | [`2026-10-11-mongo-content-store-plan.md`](../completed/2026-10-11-mongo-content-store-plan.md) — MongoDB làm kho nội dung, bản thô vào Mongo — **đóng 11/10/2026**, mở lại cùng ngày để làm nốt Task 3: Mongo + bản thô của mọi tài liệu; PDF scan đi OCR theo lô (cuốn Lớp 6 tập 1, 125 trang, về *sẵn sàng* sau 9 phút) | một cuốn SGK scan tải lên qua màn hình giáo viên ra đủ trang trong Mongo, chip về *sẵn sàng* không qua *xử lý hỏng* | không |
-| 3c | *Document agent* dùng Jev: đọc bản thô từ Mongo, dựng cây mục lục + chunk, ghi ngược lại Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
+| 3c | [`2026-10-11-document-agent-hierarchy-plan.md`](../completed/2026-10-11-document-agent-hierarchy-plan.md) — *document agent* trong `services/document`: Jev xếp cấp, cây **ba cấp**, `gpt-4o-mini` tóm tắt, chip *sẵn sàng* chờ cây — **đóng 11/10/2026**: SGK Lớp 6 tập 1 ra 87 nút, P ≥ 97% mọi cấp; trên cuốn này luật gánh phần chính, Jev chưa hơn luật | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
 | 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết* | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
 | 4 | Jev và skill — *chưa viết* | một đoạn bài tập được gán đúng nhãn | **có** |
 | 5 | Nội dung vào prompt — *chưa viết* | **không payload nào rời BE mang chunk nhãn bài tập** | có |
 
-Bốn plan sau **cố ý chưa có file**: `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading, và thiết
-kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
+Ba plan sau **cố ý chưa có file** (3d, 4, 5): `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading,
+và thiết kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
 
 **Plan 1, 2a, 2b, 2c, 3a và 3b không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
 là nửa chứa mọi giả định nguy hiểm — nếu có gì sụp, nó sụp ở đó, trước khi ta xây gì lên trên.
@@ -337,7 +337,9 @@ HTTP ghi một hàng).
 - [x] **Plan 3b — Mongo làm kho nội dung, OCR vào luồng upload** (không mã pipeline; nền của 3c).
       Đóng 11/10/2026 sau Task 2, rồi mở lại cùng ngày theo lời người dùng và làm nốt Task 3: PDF
       scan đi OCR theo lô vào Mongo. Nợ còn lại ở `backlog.md`, mục *Nợ của plan 3b*
-- [ ] **Plan 3c — document agent: Jev dựng hierarchy, chunk** (mã **C3**, **C10**)
+- [x] **Plan 3c — document agent: Jev dựng hierarchy, chunk** (mã **C3**, **C10**). Đóng
+      11/10/2026; cổng đạt một nửa -- đủ chương, còn `get_chapter` thuộc plan 5. Nợ ở `backlog.md`,
+      mục *Nợ của plan 3c*
 - [ ] **Plan 3d — sympy kiểm công thức** (không mã pipeline)
 - [ ] **Plan 4 — Jev và skill** (mã **C4**)
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)
@@ -360,12 +362,16 @@ test của nó dưới một đột biến một dòng.
 plan 2b (`2f41904`), plan 2c (`2c72e9d`) — cái cuối ngày 09/10/2026. ADR-27 đã viết và đã sửa
 ngày 08/10/2026 (cổng text layer thành bất đồng bộ).
 
-**Plan 3a đã có file** từ 10/10/2026: `2026-10-10-document-ocr-text-and-latex-plan.md`. **Bốn
-plan còn lại chưa có file**: plan 3c (mã C3, C10), plan 3d, plan 4 (C4), plan 5 (đóng B10).
+**Plan 3a đã có file** từ 10/10/2026: `2026-10-10-document-ocr-text-and-latex-plan.md`. **Ba
+plan còn lại chưa có file**: plan 3d, plan 4 (C4), plan 5 (đóng B10). Plan 3c (mã C3, C10) có
+file từ 11/10/2026: `2026-10-11-document-agent-hierarchy-plan.md`, đóng cùng ngày và đã về `completed/`.
 Plan 3a và plan 3b đóng 11/10/2026 và cả hai đã về `completed/`. Plan 3b đóng sớm sau Task 2 (commit
 `0ccf7ee`, chung với 3a), rồi được mở lại cùng ngày và làm nốt Task 3: **PDF scan giờ đi OCR theo lô
 vào Mongo** và về *sẵn sàng* -- cổng của 3b đạt trên cuốn Lớp 6 tập 1 (125 trang, 9 phút). 3c đọc bản
-thô ấy. Bốn plan còn lại là lý do duy nhất file này còn nằm trong `active/`.
+thô ấy. Ba plan chưa viết là lý do duy nhất file này còn nằm trong `active/`.
+
+**Thứ tự đổi 11/10/2026** (người dùng): sau 3c là **nối cây vào BE** -- phần ba tool đọc của plan
+5 -- trước 3d. 3d và 4 chưa làm vội.
 
 **Phép đo đổi hình cả nửa sau của đợt, ngày 10/10/2026.** Decision Record *PyMuPDF, và từ chối tệp
 không có text layer* vẫn đúng từng chữ về **cổng**, nhưng nó đã đo trên một PDF do LaTeX sinh, và nó

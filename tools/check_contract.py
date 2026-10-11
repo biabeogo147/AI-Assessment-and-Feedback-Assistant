@@ -145,6 +145,17 @@ PYMUPDF_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymupdf|fitz)\b", re.MULT
 # nội dung trước, `state` sau không"*.
 PYMONGO_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymongo|motor)\b", re.MULTILINE)
 
+# Hai SDK model của document agent (plan 3c), và mọi SDK model nói chung cho BE và `ingest`.
+TYPESAFE_IMPORT = re.compile(r"^\s*(?:from|import)\s+typesafe_sdk\b", re.MULTILINE)
+LANGCHAIN_IMPORT = re.compile(r"^\s*(?:from|import)\s+langchain\w*\b", re.MULTILINE)
+MODEL_SDK_IMPORT = re.compile(
+    r"^\s*(?:from|import)\s+"
+    r"(?:langchain\w*|langgraph|openai|anthropic|google\.genai|google\.generativeai|typesafe_sdk"
+    r"|google\s+import\s+genai)\b",
+    re.MULTILINE,
+)
+_INDEX = REPO_ROOT / "services" / "document" / "src" / "document" / "index"
+
 # Bản nới của `DB_CREDENTIAL_PATTERN` cho `services/document`: bỏ Mongo ra. Người dùng chốt ngày
 # 11/10/2026 (plan 3b, D1) rằng **Mongo là kho nội dung, như MinIO** -- nơi thứ đọc được từ tệp
 # nằm, không phải nơi sự thật về tệp nằm. Mọi thứ còn lại -- Postgres, `DATABASE_URL`, mật khẩu,
@@ -1606,6 +1617,11 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
     -- và với kho nội dung, module ấy là nơi duy nhất phải trả lời câu *"nội dung có được ghi trước
     khi `state` đổi không"*.
 
+    Plan 3c thêm ba cửa nữa theo cùng luật: `typesafe_sdk` (Jev) chỉ ở `index/jev.py`,
+    `langchain` trong `document` chỉ ở `index/llm.py` -- nơi duy nhất truyền khoá vào client --
+    và BE cùng `ingest` **không** import SDK model nào: chỉ `agent` và `document` gọi model
+    provider.
+
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
     """
@@ -1634,6 +1650,30 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
             # quét AGENT và `document`. Plan 3c mở thêm một cửa cho document agent ở đây.
             ("be", "agent", "document", "ingest"),
         ),
+        (
+            # Jev (plan 3c, D1): một module hỏi Jev, nên một chỗ giữ thứ tự lựa chọn và tiêu chí
+            # -- thứ bộ đo đã hiệu chỉnh ngưỡng trên đó.
+            "typesafe_sdk",
+            TYPESAFE_IMPORT,
+            (_INDEX / "jev.py",),
+            ("be", "agent", "document", "ingest"),
+        ),
+        (
+            # Model sinh chữ của document agent (D6, D9): một module truyền khoá vào client, đúng
+            # bài học của `agent/llm.py`. Chỉ quét `document`: AGENT có seam của riêng nó.
+            "langchain",
+            LANGCHAIN_IMPORT,
+            (_INDEX / "llm.py",),
+            ("document",),
+        ),
+        (
+            # BE và `ingest` không gọi model nào -- *"chỉ `agent` và `document` gọi model
+            # provider"*, Decision Record Jev của plan ô. Không có nhà nào được phép.
+            "a model SDK",
+            MODEL_SDK_IMPORT,
+            (),
+            ("be", "ingest"),
+        ),
     )
 
     problems = []
@@ -1645,14 +1685,17 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
                     continue
                 if pattern.search(path.read_text(encoding="utf-8")):
                     offenders.append(str(path.relative_to(REPO_ROOT)))
-        if offenders:
+        if offenders and not allowed:
+            problems.append(f"{sdk} is imported in {', '.join(services)}: {sorted(offenders)}")
+        elif offenders:
             homes = ", ".join(str(one.relative_to(REPO_ROOT)) for one in allowed)
             problems.append(f"{sdk} is imported outside {homes}: {sorted(offenders)}")
 
     if problems:
         return _fail(
             "sync-sdk-seam",
-            f"{'; '.join(problems)}. Go through the seam; a sync SDK must stay in one place.",
+            f"{'; '.join(problems)}. Go through the seam: one SDK, one module -- and no model SDK"
+            " in BE or ingest.",
         )
     return None
 
