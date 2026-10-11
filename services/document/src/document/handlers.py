@@ -19,40 +19,75 @@ lần trước chứ không chồng lên.
 khi worker bị cắt giữa job); mọi exception khác đánh job *hỏng* ngay, không lượt nào nữa. Trước
 review Task 2 của plan 3b (11/10/2026, đọc `arq/worker.py` 0.28), docstring này nói *"ném để arq
 thử lại"* -- và không có lần thử lại nào cả.
+
+**PDF scan đi đường OCR theo lô** (plan 3b, Task 3). `probe_document` không trả *không đọc được
+chữ* cho một PDF scan nữa: nó mở đầu mục bản thô, rồi giao lô trang đầu cho `ocr_pages` trên chính
+queue này. Mỗi lô đọc vài trang, ghi chúng vào kho, báo tiến độ về `services/ingest`, rồi tự giao lô
+kế. Lô cuối mới gửi kết quả: `READY` khi cả cuốn có chữ, `NO_TEXT_LAYER` khi OCR xong mà không trang
+nào ra chữ -- lúc ấy câu *không đọc được chữ* mới là một phán quyết thật.
 """
 
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 
 from arq.connections import ArqRedis
 from arq.worker import Retry
+from pydantic import BaseModel
 from redis.exceptions import RedisError
 
 from contracts import (
     DOCUMENT_PROBED_TASK,
+    DOCUMENT_PROGRESS_TASK,
+    OCR_PAGES_TASK,
+    DocumentPagesRequested,
     DocumentProbed,
     DocumentProbeRequested,
+    DocumentProgress,
     DocumentState,
     RawDocument,
     RawPage,
+    RawSource,
 )
 from document.config import get_settings
 from document.content_store import ContentStore, ContentStoreUnavailable
 from document.pdf import PdfUnreadable
-from document.probe import Finding, probe, raw_pages
+from document.probe import Finding, probe, raw_ocr_page, raw_pages
 from document.storage import StorageUnavailable
 
 logger = logging.getLogger(__name__)
 
-# Lần thử thứ `n` chờ `n` lần bấy nhiêu giây. Với `max_tries = 5` của worker, bốn lần chờ cộng lại
-# là 5 + 10 + 15 + 20 = 50 s -- đủ cho Mongo hay Redis khởi động lại, và còn xa ngưỡng 300 s mà BE
-# coi một tài liệu là chết.
+# Lần thử thứ `n` chờ `n` lần bấy nhiêu giây. Với `MAX_TRIES = 5`, bốn lần chờ cộng lại là
+# 5 + 10 + 15 + 20 = 50 s -- đủ cho Mongo hay Redis khởi động lại. Với lần dò tệp, chừng ấy còn xa
+# ngưỡng 300 s mà BE coi một tài liệu là chết. Với một lô OCR thì **không** xa: mỗi lần chạy lại đọc
+# lại cả lô (tới `_BATCH_BUDGET_SECONDS`), nên năm lần thử liền nhau của cùng một lô có thể chạm
+# ngưỡng ấy và chip ra *xử lý hỏng* dù lần thử cuối thành công. Chấp nhận: năm lần hỏng liền là một
+# hạ tầng đang ốm thật, không phải một nhịp chập chờn.
 _RETRY_STEP_SECONDS = 5
+
+# Số lần arq chạy một job, kể cả lần đầu. Đúng mặc định của arq; `worker.py` đặt nó vào
+# `WorkerSettings`, và `ocr_pages` cần biết nó để nhận ra lần thử cuối.
+MAX_TRIES = 5
+
+# Một lô dừng đọc khi đã chạy chừng này giây, dù chưa đủ `ocr_pages_per_job` trang, và giao phần còn
+# lại cho lô kế. Lý do: arq **không** chạy lại một job chạm `job_timeout` (120 s) -- nó đánh hỏng
+# hẳn, và chuỗi lô chết im. Một cuốn có trang dày chữ (8-12 s/trang) làm mười trang vượt trần ấy;
+# ngân sách này giữ mỗi lô dưới trần bất kể trang dày tới đâu, chỉ trừ một trang đơn lẻ dài hơn
+# 30 s.
+_BATCH_BUDGET_SECONDS = 90
+
+# Phiên bản đường OCR, ghi vào đầu mục bản thô. Cùng nghĩa với `_PIPELINE` của
+# `tools/ocr_bench/run.py`: `text1` là *chỉ chữ, công thức không đọc lúc upload* (11/10/2026). Đổi
+# đường đọc thì đổi số này, để bên đọc ở plan 3c biết bản thô nào cần đọc lại.
+_OCR_PIPELINE = "text1"
 
 
 class HandBackFailed(RuntimeError):
-    """Không đẩy được kết quả sang queue của BE. Tách thành một kiểu để chỉ ca này xin chạy lại."""
+    """Không đẩy được một job sang queue -- kết quả về BE, tiến độ, hay lô OCR kế tiếp.
+
+    Tách thành một kiểu để chỉ ca này xin chạy lại.
+    """
 
 
 async def probe_document(ctx: dict, payload: dict) -> dict:
@@ -69,12 +104,13 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
         vào log của job, và đó là chỗ duy nhất đọc lại được một job đã chạy.
 
     Raises:
-        Retry: Khi không ghi được bản thô vào kho nội dung, hoặc không đẩy được kết quả về queue
-            của BE. arq chạy lại job sau vài giây.
+        Retry: Khi không ghi được vào kho nội dung, hoặc không đẩy được job tiếp theo -- kết quả
+            về BE, hay lô OCR đầu. arq chạy lại job sau vài giây.
 
     Side effects:
-        Với tệp có chữ: bản thô của nó trong kho nội dung, ghi đè bản cũ. Rồi một job mới trên
-        queue của BE. Không ghi gì vào object storage.
+        Với tệp có chữ: bản thô của nó trong kho nội dung, ghi đè bản cũ, rồi một job mới trên
+        queue của BE. Với PDF scan: đầu mục bản thô, rồi lô OCR đầu trên queue của chính service
+        này -- **không** có gì về BE lúc này. Không ghi gì vào object storage.
     """
     asked = DocumentProbeRequested.model_validate(payload)
 
@@ -87,14 +123,185 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
         # `probe` là sync và CPU-bound. Thiếu `to_thread` thì nó chặn mọi job khác trên worker
         # này suốt thời gian quét một cuốn sách, và không có exception nào nói ra điều đó.
         found = await asyncio.to_thread(probe, raw, asked.filename)
-        if found.state is DocumentState.READY:
-            try:
+        try:
+            if found.state is DocumentState.READY:
                 found = await _keep_raw(ctx["store"], asked, raw, found)
-            except ContentStoreUnavailable as exc:
-                raise _retry(ctx, exc) from exc
+            elif (pages := _scan_pages(found)) is not None:
+                await _start_ocr(ctx, asked, pages)
+                return {"document_id": asked.document_id, "ocr_pages": pages}
+        except (ContentStoreUnavailable, HandBackFailed) as exc:
+            raise _retry(ctx, exc) from exc
 
+    return await _conclude(ctx, asked.document_id, found)
+
+
+async def ocr_pages(ctx: dict, payload: dict) -> dict:
+    """Đọc một lô trang của một PDF scan bằng OCR, ghi chúng vào kho, rồi giao lô kế.
+
+    Lô cuối không giao lô nào: nó đánh dấu bản thô đã xong, đếm chữ của cả cuốn, rồi gửi kết quả
+    về BE -- `READY` khi có chữ, `NO_TEXT_LAYER` khi cả cuốn không ra chữ nào.
+
+    Mỗi lô **đọc lại tệp** từ object storage thay vì nhận byte qua Redis: cùng lý do
+    `DocumentProbeRequested` chở khoá chứ không chở tệp.
+
+    Args:
+        ctx: Context worker của arq. Mang `reader`, `store` và `ocr` (một `PageReader` đã nạp
+            model) do `on_startup` dựng, `redis` do arq dựng.
+        payload: `DocumentPagesRequested` đã serialise.
+
+    Returns:
+        Lô vừa đọc, hoặc kết quả đã gửi khi đây là lô cuối, dưới dạng dict cho log của job.
+
+    Raises:
+        Retry: Khi kho nội dung không ghi được, không đẩy được job tiếp theo, hoặc object storage
+            chập chờn (trừ lần thử cuối). arq chạy lại **cả lô**: trang ghi theo `_id`, nên đọc lại
+            một trang là ghi đè chứ không chồng.
+
+    Side effects:
+        Mỗi trang của lô trong kho nội dung. Rồi hoặc một tiếng báo tiến độ trên queue của
+        `services/ingest` cùng lô kế trên queue này, hoặc kết quả cuối trên queue của BE.
+    """
+    batch = DocumentPagesRequested.model_validate(payload)
+    planned = min(batch.first + get_settings().ocr_pages_per_job - 1, batch.page_count)
+
+    try:
+        raw = await ctx["reader"].read(batch.storage_key)
+    except StorageUnavailable as missing:
+        # Khác lần dò tệp: tệp **đã** đọc được lúc dò, nên giữa chuỗi lô một lần hụt là MinIO chập
+        # chờn chứ không phải tệp mất -- và đánh hỏng ngay là bắt giáo viên tải lại rồi chờ mười
+        # lăm phút nữa. Chỉ lần thử cuối mới thành phán quyết.
+        if ctx.get("job_try", 1) < MAX_TRIES:
+            raise _retry(ctx, missing) from missing
+        logger.error("could not read %s: %s", batch.storage_key, missing)
+        return await _conclude(ctx, batch.document_id, _unreadable())
+
+    started = time.monotonic()
+    last = batch.first - 1
+    try:
+        for page in range(batch.first, planned + 1):
+            # CPU-bound và dài (vài giây một trang), nên vào thread như `probe`. `read_page` đếm
+            # trang từ 0, kho đếm từ 1.
+            read = await asyncio.to_thread(ctx["ocr"].read_page, raw, page - 1)
+            await ctx["store"].put_page(raw_ocr_page(read, batch.document_id, datetime.now(UTC)))
+            last = page
+            if time.monotonic() - started > _BATCH_BUDGET_SECONDS:
+                break
+    except ContentStoreUnavailable as exc:
+        raise _retry(ctx, exc) from exc
+    except Exception:  # noqa: BLE001 -- xem chú thích: mọi lỗi đọc trang phải thành một câu trả lời
+        # `probe` vừa mở được tệp, nên một trang không đọc nổi -- PyMuPDF không dựng được ảnh
+        # (`PdfUnreadable`), hay model OCR ném một lỗi của torch / paddle -- là một phán quyết về
+        # đúng trang ấy. Để nó thoát ra thì arq đánh job hỏng **không thử lại**, không gì về BE, và
+        # chip chờ 300 s mới ra *xử lý hỏng*: đúng cái chip nói dối mà service này cấm.
+        logger.exception("could not ocr page %s of document=%s", last + 1, batch.document_id)
+        failed = Finding(
+            DocumentState.FAILED, None, f"Không đọc được trang {last + 1} của tệp PDF này."
+        )
+        return await _conclude(ctx, batch.document_id, failed)
+
+    logger.info(
+        "ocr document=%s pages %s-%s of %s",
+        batch.document_id,
+        batch.first,
+        last,
+        batch.page_count,
+    )
+    try:
+        if last < batch.page_count:
+            await _tell_progress(ctx["redis"], batch, last)
+            await _queue_batch(ctx["redis"], batch.model_copy(update={"first": last + 1}))
+            return {"document_id": batch.document_id, "pages_read": last}
+        await ctx["store"].finish(batch.document_id, datetime.now(UTC))
+        characters = await ctx["store"].characters(batch.document_id)
+    except (ContentStoreUnavailable, HandBackFailed) as exc:
+        raise _retry(ctx, exc) from exc
+
+    if characters > 0:
+        found = Finding(DocumentState.READY, batch.page_count, "")
+    else:
+        found = Finding(
+            DocumentState.NO_TEXT_LAYER,
+            batch.page_count,
+            "Đã đọc hết các trang nhưng không thấy chữ nào.",
+        )
+    return await _conclude(ctx, batch.document_id, found)
+
+
+def _scan_pages(found: Finding) -> int | None:
+    """Số trang cần OCR, khi `probe` nói *không có chữ* về một PDF **có trang** -- một bản scan.
+
+    Hai ca `NO_TEXT_LAYER` khác vẫn là phán quyết cuối: tệp văn bản thuần rỗng (`page_count` là
+    `None`) và PDF không trang nào (`0`). OCR không có gì để đọc ở cả hai.
+
+    Args:
+        found: Phán quyết của `probe`.
+
+    Returns:
+        Số trang khi tệp phải đi đường OCR, `None` khi không.
+    """
+    if found.state is DocumentState.NO_TEXT_LAYER and found.page_count:
+        return found.page_count
+    return None
+
+
+async def _start_ocr(ctx: dict, asked: DocumentProbeRequested, page_count: int) -> None:
+    """Mở bản thô của một PDF scan, rồi giao lô đầu.
+
+    Đầu mục đi **trước** lô đầu: `begin` xoá trang cũ của tài liệu, nên mở nó sau khi lô đầu đã
+    ghi là xoá chính những trang vừa đọc.
+
+    Args:
+        ctx: Context worker của arq.
+        asked: Job dò tệp đang chạy.
+        page_count: Số trang `probe` đếm được.
+
+    Raises:
+        ContentStoreUnavailable: Khi kho nội dung không ghi được.
+        HandBackFailed: Khi không đẩy được lô đầu.
+    """
+    settings = get_settings()
+    await ctx["store"].begin(
+        RawDocument(
+            document_id=asked.document_id,
+            source=RawSource.OCR,
+            page_count=page_count,
+            reader=settings.ocr_reader,
+            pipeline=_OCR_PIPELINE,
+            started_at=datetime.now(UTC),
+        )
+    )
+    await _queue_batch(
+        ctx["redis"],
+        DocumentPagesRequested(
+            document_id=asked.document_id,
+            storage_key=asked.storage_key,
+            filename=asked.filename,
+            first=1,
+            page_count=page_count,
+        ),
+    )
+    logger.info(
+        "document=%s is a scan of %s pages; reading it by ocr", asked.document_id, page_count
+    )
+
+
+async def _conclude(ctx: dict, document_id: str, found: Finding) -> dict:
+    """Gửi kết quả cuối về BE.
+
+    Args:
+        ctx: Context worker của arq.
+        document_id: Tài liệu.
+        found: Phán quyết.
+
+    Returns:
+        Kết quả đã gửi, dưới dạng dict. Không ai đọc nó -- `keep_result = 0` -- nhưng arq ghi nó
+        vào log của job.
+
+    Raises:
+        Retry: Khi không đẩy được kết quả về queue của BE.
+    """
     done = DocumentProbed(
-        document_id=asked.document_id,
+        document_id=document_id,
         state=found.state,
         page_count=found.page_count,
         fault=found.fault,
@@ -200,13 +407,99 @@ async def _hand_back(pool: ArqRedis, done: DocumentProbed) -> None:
     Side effects:
         Một job mới trên `ingest_queue_name`.
     """
-    try:
-        job = await pool.enqueue_job(
-            DOCUMENT_PROBED_TASK,
-            done.model_dump(mode="json"),
-            _queue_name=get_settings().ingest_queue_name,
-        )
-    except (RedisError, OSError) as exc:
-        raise HandBackFailed(f"Could not hand back document {done.document_id}: {exc}") from exc
+    job = await _send(
+        pool, DOCUMENT_PROBED_TASK, done, get_settings().ingest_queue_name, done.document_id
+    )
     if job is None:
         raise HandBackFailed(f"arq refused to hand back document {done.document_id}")
+
+
+async def _tell_progress(pool: ArqRedis, batch: DocumentPagesRequested, pages_read: int) -> None:
+    """Báo `services/ingest` rằng chuỗi lô vẫn đang tiến.
+
+    Args:
+        pool: Pool arq của worker.
+        batch: Lô vừa đọc xong.
+        pages_read: Số trang đã nằm trong kho.
+
+    Raises:
+        HandBackFailed: Khi Redis không với tới được.
+
+    Side effects:
+        Một job mới trên `ingest_queue_name`.
+    """
+    told = DocumentProgress(
+        document_id=batch.document_id, pages_read=pages_read, page_count=batch.page_count
+    )
+    await _send(
+        pool, DOCUMENT_PROGRESS_TASK, told, get_settings().ingest_queue_name, batch.document_id
+    )
+
+
+async def _queue_batch(pool: ArqRedis, batch: DocumentPagesRequested) -> None:
+    """Giao một lô OCR cho queue của chính service này.
+
+    Job mang **id cố định** theo tài liệu và trang đầu. Một lô bị arq chạy lại sau khi đã giao lô kế
+    thì lần giao thứ hai bị từ chối thay vì đẻ ra một chuỗi lô thứ hai đọc song song cùng cuốn sách
+    -- hai chuỗi tranh CPU, và mỗi chuỗi lại đẻ thêm. Từ chối ở đây vì thế là *đã có rồi*, không
+    phải hỏng. arq xoá khoá của job khi nó xong, nên đọc lại tài liệu ấy về sau vẫn giao được.
+
+    Giới hạn: id chỉ chặn trùng **trong lúc** lô kế còn nằm trong queue hay đang chạy. Với một
+    process worker -- đúng hình dạng hiện tại, `max_jobs = 1` -- một lô chỉ chạy lại khi lô kế chưa
+    được giao, nên điều ấy đủ. Chạy hai process `document` thì không đủ nữa.
+
+    Args:
+        pool: Pool arq của worker.
+        batch: Lô cần giao.
+
+    Raises:
+        HandBackFailed: Khi Redis không với tới được.
+
+    Side effects:
+        Một job mới trên `document_queue_name`, trừ khi lô ấy đã nằm sẵn trong queue.
+    """
+    job = await _send(
+        pool,
+        OCR_PAGES_TASK,
+        batch,
+        get_settings().document_queue_name,
+        batch.document_id,
+        job_id=f"ocr:{batch.document_id}:{batch.first}",
+    )
+    if job is None:
+        logger.info(
+            "ocr batch from page %s of %s is already queued", batch.first, batch.document_id
+        )
+
+
+async def _send(
+    pool: ArqRedis,
+    task: str,
+    message: BaseModel,
+    queue: str,
+    document_id: str,
+    job_id: str | None = None,
+) -> object | None:
+    """Đẩy một message thành một job arq, dịch lỗi Redis thành `HandBackFailed`.
+
+    Args:
+        pool: Pool arq của worker.
+        task: Tên task trên queue đích.
+        message: Payload, serialise thành JSON.
+        queue: Queue đích.
+        document_id: Tài liệu, cho câu lỗi.
+        job_id: Id cố định của job, hoặc `None` để arq tự sinh.
+
+    Returns:
+        Job arq trả về, hoặc `None` khi arq từ chối vì đã có một job cùng id -- người gọi quyết
+        nghĩa của lời từ chối ấy.
+
+    Raises:
+        HandBackFailed: Khi Redis không với tới được.
+    """
+    try:
+        return await pool.enqueue_job(
+            task, message.model_dump(mode="json"), _queue_name=queue, _job_id=job_id
+        )
+    except (RedisError, OSError) as exc:
+        raise HandBackFailed(f"Could not send {task} for document {document_id}: {exc}") from exc

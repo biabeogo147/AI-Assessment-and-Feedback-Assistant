@@ -5,7 +5,12 @@ một **kết quả** gửi về cho BE, còn không giao nổi kết quả thì
 
 Từ plan 3b còn một điều thứ ba: tệp có chữ để lại bản thô trong kho nội dung **trước** khi
 `READY` đi về BE. Kho và queue giả ghi chung một nhật ký, nên thứ tự ấy kiểm được.
+
+Và một điều thứ tư (Task 3): PDF scan không về BE ngay mà đi đường OCR theo lô, mỗi lô tự giao lô
+kế, lô cuối mới gửi kết quả. Model OCR thật không nạp ở đây -- `_Ocr` đứng thay nó.
 """
+
+from types import SimpleNamespace
 
 import pymupdf
 import pytest
@@ -14,6 +19,9 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 
 from contracts import (
     DOCUMENT_PROBED_TASK,
+    DOCUMENT_PROGRESS_TASK,
+    OCR_PAGES_TASK,
+    DocumentPagesRequested,
     DocumentProbeRequested,
     DocumentState,
     RawDocument,
@@ -22,20 +30,29 @@ from contracts import (
 )
 from document.config import get_settings
 from document.content_store import ContentStoreUnavailable
-from document.handlers import probe_document
+from document.handlers import MAX_TRIES, ocr_pages, probe_document
 from document.pdf import PdfUnreadable
+from document.probe import Finding
 from document.storage import StorageUnavailable
 
 
 class _Store:
     """Một kho nội dung ghi lại thay vì ghi Mongo, hoặc chết nếu được bảo vậy."""
 
-    def __init__(self, log: list[str], broken: bool = False) -> None:
+    def __init__(
+        self,
+        log: list[str],
+        broken: bool = False,
+        broken_pages: bool = False,
+        broken_finish: bool = False,
+    ) -> None:
         self.header: RawDocument | None = None
         self.pages: list[RawPage] = []
         self.finished = False
         self._log = log
         self._broken = broken
+        self._broken_pages = broken_pages
+        self._broken_finish = broken_finish
 
     async def begin(self, header: RawDocument) -> None:
         """Mở bản thô, hoặc chết như một Mongo không với tới được.
@@ -53,23 +70,44 @@ class _Store:
         self.pages = []
 
     async def put_page(self, page: RawPage) -> None:
-        """Ghi một trang.
+        """Ghi một trang, hoặc chết nếu được dựng với `broken_pages=True`.
 
         Args:
             page: Trang.
+
+        Raises:
+            ContentStoreUnavailable: Khi kho được dựng với `broken_pages=True`.
         """
+        if self._broken_pages:
+            raise ContentStoreUnavailable("mongo is down")
         self.pages.append(page)
         self._log.append(f"page {page.page}")
 
     async def finish(self, document_id: str, at: object) -> None:
-        """Đánh dấu xong.
+        """Đánh dấu xong, hoặc chết nếu được dựng với `broken_finish=True`.
 
         Args:
             document_id: Id tài liệu.
             at: Lúc xong.
+
+        Raises:
+            ContentStoreUnavailable: Khi kho được dựng với `broken_finish=True`.
         """
+        if self._broken_finish:
+            raise ContentStoreUnavailable("mongo is down")
         self.finished = True
         self._log.append("finish")
+
+    async def characters(self, document_id: str) -> int:
+        """Tổng ký tự của mọi trang đã ghi.
+
+        Args:
+            document_id: Id tài liệu.
+
+        Returns:
+            Tổng số ký tự.
+        """
+        return sum(len(page.text) for page in self.pages)
 
 
 class _Reader:
@@ -102,17 +140,21 @@ class _Queue:
         self, refuse: bool = False, log: list[str] | None = None, down: bool = False
     ) -> None:
         self.jobs: list[tuple[str, dict, str]] = []
+        self.ids: set[str] = set()
         self._refuse = refuse
         self._down = down
         self._log = log if log is not None else []
 
-    async def enqueue_job(self, name: str, payload: dict, _queue_name: str = "") -> object | None:
+    async def enqueue_job(
+        self, name: str, payload: dict, _queue_name: str = "", _job_id: str | None = None
+    ) -> object | None:
         """Ghi lại một job, hoặc từ chối nó.
 
         Args:
             name: Tên task.
             payload: Payload đã serialise.
             _queue_name: Queue đích.
+            _job_id: Id cố định. Một id đã thấy bị từ chối, như arq làm khi job còn nằm đó.
 
         Returns:
             Một object giả, hoặc `None` khi từ chối — đúng cách arq diễn đạt một job trùng id.
@@ -122,11 +164,73 @@ class _Queue:
         """
         if self._down:
             raise RedisConnectionError("redis is down")
-        if self._refuse:
+        if self._refuse or (_job_id is not None and _job_id in self.ids):
             return None
+        if _job_id is not None:
+            self.ids.add(_job_id)
         self.jobs.append((name, payload, _queue_name))
-        self._log.append(f"hand back {payload['state']}")
+        if name == DOCUMENT_PROBED_TASK:
+            self._log.append(f"hand back {payload['state']}")
+        elif name == OCR_PAGES_TASK:
+            self._log.append(f"queue batch {payload['first']}")
+        else:
+            self._log.append(f"progress {payload['pages_read']}")
         return object()
+
+    def sent(self, name: str) -> list[dict]:
+        """Payload của mọi job mang tên này, theo thứ tự đẩy.
+
+        Args:
+            name: Tên task.
+
+        Returns:
+            Các payload.
+        """
+        return [payload for task, payload, _ in self.jobs if task == name]
+
+
+class _Ocr:
+    """Một `PageReader` không nạp model nào: mỗi trang ra một khối chữ, trừ khi được dặn khác.
+
+    `read_page` đếm trang từ 0 như bản thật; nhật ký ghi số trang đếm từ 1 như kho.
+    """
+
+    def __init__(
+        self,
+        log: list[str] | None = None,
+        blank: bool = False,
+        broken_at: int | None = None,
+        error: type[Exception] = PdfUnreadable,
+    ) -> None:
+        self._log = log if log is not None else []
+        self._blank = blank
+        self._broken_at = broken_at
+        self._error = error
+
+    def read_page(self, raw: bytes, index: int) -> SimpleNamespace:
+        """Trả một trang đã "đọc", hoặc chết như PyMuPDF không dựng nổi trang ấy.
+
+        Args:
+            raw: Byte của tệp. Không dùng.
+            index: Số trang, đếm từ 0.
+
+        Returns:
+            Một trang cùng hình dạng `PageRead`.
+
+        Raises:
+            Exception: Lỗi kiểu `error` ở trang `broken_at`, đếm từ 1.
+        """
+        if index + 1 == self._broken_at:
+            raise self._error(f"Could not read page {index}")
+        self._log.append(f"ocr {index + 1}")
+        found = SimpleNamespace(kind="paragraph_title", box=(1, 2, 3, 4), text=f"Trang {index + 1}")
+        return SimpleNamespace(
+            page=index + 1,
+            width=800,
+            height=1100,
+            blocks=() if self._blank else (found,),
+            seconds={"render": 0.1},
+        )
 
 
 def _a_pdf_with_text() -> bytes:
@@ -271,20 +375,295 @@ async def test_a_plain_text_file_is_kept_as_one_page() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_scanned_pdf_leaves_nothing_in_the_store_yet() -> None:
-    """Một PDF scan không có chữ để dựng bản thô ở bước này: bản thô của nó đi đường OCR (Task 3).
+async def test_a_scanned_pdf_goes_to_ocr_instead_of_back_to_the_be() -> None:
+    """Một PDF scan không còn về BE với *không đọc được chữ*: nó mở đầu mục OCR, rồi giao lô đầu.
 
-    Ghi một bản thô rỗng ở đây là để plan 3c thấy một tài liệu *đã đọc xong, không chữ* trong
-    khi nó chưa được đọc.
+    Đầu mục đi **trước** lô đầu -- `begin` xoá trang cũ, nên mở nó sau là xoá trang vừa đọc. Và
+    không gì về BE lúc này: tài liệu vẫn *đang xử lý*, đúng là thứ nó đang làm.
     """
-    queue = _Queue()
-    store = _Store([])
+    log: list[str] = []
+    queue = _Queue(log=log)
+    store = _Store(log)
     await probe_document(
         {"reader": _Reader(_a_scanned_pdf()), "redis": queue, "store": store}, _asked()
     )
 
+    assert log == ["begin", "queue batch 1"]
+    assert store.header is not None
+    assert store.header.source is RawSource.OCR
+    assert store.header.page_count == 2
+    assert store.header.reader == get_settings().ocr_reader
+    assert store.header.pipeline == "text1"
+    [(name, payload, where)] = queue.jobs
+    assert name == OCR_PAGES_TASK
+    assert where == get_settings().document_queue_name
+    assert payload["first"] == 1
+    assert payload["page_count"] == 2
+    assert payload["storage_key"] == "documents/gv/doc-1"
+
+
+@pytest.mark.asyncio
+async def test_a_scan_whose_first_batch_cannot_be_queued_asks_for_a_retry() -> None:
+    """Redis tắt đúng lúc giao lô đầu: xin chạy lại, không thì chuỗi lô không bao giờ bắt đầu."""
+    ctx = {"reader": _Reader(_a_scanned_pdf()), "redis": _Queue(down=True), "store": _Store([])}
+    with pytest.raises(Retry):
+        await probe_document(ctx, _asked())
+
+
+@pytest.mark.asyncio
+async def test_a_pdf_with_no_pages_is_still_a_verdict_not_an_ocr_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PDF không trang nào thì OCR không có gì để đọc: phán quyết về BE ngay, như trước.
+
+    `probe` được thay bằng phán quyết của nó cho ca ấy, vì PyMuPDF không ghi ra nổi một PDF không
+    trang nào để dựng tệp thật.
+    """
+    monkeypatch.setattr(
+        "document.handlers.probe",
+        lambda *_: Finding(DocumentState.NO_TEXT_LAYER, 0, "Tệp PDF này không có trang nào."),
+    )
+    queue = _Queue()
+    store = _Store([])
+    await probe_document({"reader": _Reader(b"%PDF"), "redis": queue, "store": store}, _asked())
+
+    [(name, payload, _)] = queue.jobs
+    assert name == DOCUMENT_PROBED_TASK
+    assert payload["state"] == DocumentState.NO_TEXT_LAYER
     assert store.header is None
-    assert queue.jobs[0][1]["state"] == DocumentState.NO_TEXT_LAYER
+
+
+def _batch(first: int, page_count: int) -> dict:
+    """Payload của một lô OCR, đã serialise.
+
+    Args:
+        first: Trang đầu, đếm từ 1.
+        page_count: Tổng số trang.
+
+    Returns:
+        Dict đúng hình dạng arq chở.
+    """
+    return DocumentPagesRequested(
+        document_id="doc-1",
+        storage_key="documents/gv/doc-1",
+        filename="sach.pdf",
+        first=first,
+        page_count=page_count,
+    ).model_dump(mode="json")
+
+
+def _ocr_ctx(log: list[str], queue: _Queue, store: _Store, ocr: "_Ocr | None" = None) -> dict:
+    """Context của một lô OCR.
+
+    Args:
+        log: Nhật ký chung.
+        queue: Pool arq giả.
+        store: Kho giả.
+        ocr: Bộ đọc giả, mặc định ghi vào `log`.
+
+    Returns:
+        Context đủ khoá `ocr_pages` cần.
+    """
+    return {
+        "reader": _Reader(b"%PDF"),
+        "redis": queue,
+        "store": store,
+        "ocr": ocr if ocr is not None else _Ocr(log),
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_middle_batch_reads_its_pages_reports_progress_then_queues_the_next() -> None:
+    """Lô giữa: đọc đúng `ocr_pages_per_job` trang, ghi chúng, báo tiến độ, giao lô kế -- theo
+    đúng thứ tự ấy, và **không** gửi kết quả nào về BE.
+
+    Tiến độ đi trước lô kế: nó là thứ giữ tài liệu khỏi bị BE đọc ra *xử lý hỏng*, nên nó không
+    chờ sau một việc có thể hỏng.
+    """
+    per_job = get_settings().ocr_pages_per_job
+    log: list[str] = []
+    queue = _Queue(log=log)
+    store = _Store(log)
+
+    await ocr_pages(_ocr_ctx(log, queue, store), _batch(1, per_job * 2 + 5))
+
+    assert [line for line in log if line.startswith("ocr")] == [
+        f"ocr {n}" for n in range(1, per_job + 1)
+    ]
+    assert [page.page for page in store.pages] == list(range(1, per_job + 1))
+    assert log[-2:] == [f"progress {per_job}", f"queue batch {per_job + 1}"]
+    assert queue.sent(DOCUMENT_PROBED_TASK) == []
+    [progress] = queue.sent(DOCUMENT_PROGRESS_TASK)
+    assert progress["page_count"] == per_job * 2 + 5
+    where = {name: queue_name for name, _, queue_name in queue.jobs}
+    assert where[OCR_PAGES_TASK] == get_settings().document_queue_name
+    assert where[DOCUMENT_PROGRESS_TASK] == get_settings().ingest_queue_name
+    assert not store.finished
+
+
+@pytest.mark.asyncio
+async def test_the_pages_of_a_batch_are_kept_as_ocr_pages() -> None:
+    """Trang OCR vào kho với nhãn thật, hộp, số giây -- thứ plan 3c dựng cây từ đó."""
+    store = _Store([])
+    await ocr_pages(_ocr_ctx([], _Queue(), store), _batch(1, 2))
+
+    first, second = store.pages
+    assert (first.page, second.page) == (1, 2)
+    assert first.source is RawSource.OCR
+    assert first.blocks[0].kind == "paragraph_title"
+    assert first.blocks[0].box == (1, 2, 3, 4)
+    assert first.text == "Trang 1"
+    assert first.seconds == {"render": 0.1}
+    assert (first.width, first.height) == (800, 1100)
+
+
+@pytest.mark.asyncio
+async def test_the_last_batch_finishes_and_hands_back_ready() -> None:
+    """Lô cuối: đọc phần còn lại, đánh dấu xong, rồi **mới** gửi `READY` kèm số trang về BE."""
+    per_job = get_settings().ocr_pages_per_job
+    log: list[str] = []
+    queue = _Queue(log=log)
+    store = _Store(log)
+
+    await ocr_pages(_ocr_ctx(log, queue, store), _batch(per_job + 1, per_job + 3))
+
+    assert [page.page for page in store.pages] == [per_job + 1, per_job + 2, per_job + 3]
+    assert log[-2:] == ["finish", "hand back ready"]
+    [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert done["page_count"] == per_job + 3
+    assert queue.sent(OCR_PAGES_TASK) == []
+    assert queue.sent(DOCUMENT_PROGRESS_TASK) == []
+
+
+@pytest.mark.asyncio
+async def test_a_book_where_ocr_finds_no_text_is_a_verdict() -> None:
+    """OCR đọc hết mà cả cuốn không ra chữ nào: giờ *không đọc được chữ* mới là phán quyết thật."""
+    queue = _Queue()
+    await ocr_pages(_ocr_ctx([], queue, _Store([]), _Ocr(blank=True)), _batch(1, 3))
+
+    [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert done["state"] == DocumentState.NO_TEXT_LAYER
+    assert done["page_count"] == 3
+    assert done["fault"] != ""
+
+
+@pytest.mark.asyncio
+async def test_a_batch_run_again_does_not_start_a_second_chain() -> None:
+    """arq chạy lại một lô đã giao lô kế: lần giao thứ hai bị từ chối, và đó **không** phải lỗi.
+
+    Coi nó là lỗi thì lô xin chạy lại mãi; cho nó qua bằng một id mới thì hai chuỗi lô cùng đọc
+    một cuốn sách, tranh CPU, và mỗi chuỗi lại đẻ thêm.
+    """
+    queue = _Queue()
+    total = get_settings().ocr_pages_per_job + 1
+
+    for _ in range(2):
+        await ocr_pages(_ocr_ctx([], queue, _Store([])), _batch(1, total))
+
+    assert len(queue.sent(OCR_PAGES_TASK)) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_store_that_breaks_mid_batch_asks_for_a_retry() -> None:
+    """Kho chết giữa lô thì xin arq chạy lại cả lô, và không tiến độ hay lô kế nào đi trước."""
+    queue = _Queue()
+    with pytest.raises(Retry):
+        await ocr_pages(_ocr_ctx([], queue, _Store([], broken_pages=True)), _batch(1, 30))
+    assert queue.jobs == []
+
+
+@pytest.mark.asyncio
+async def test_a_page_that_cannot_be_rendered_fails_the_document_by_page_number() -> None:
+    """Một trang hỏng giữa cuốn là một tệp xấu ở đúng trang ấy: `FAILED`, câu nói ra số trang."""
+    queue = _Queue()
+    await ocr_pages(_ocr_ctx([], queue, _Store([]), _Ocr(broken_at=3)), _batch(1, 30))
+
+    [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert done["state"] == DocumentState.FAILED
+    assert "trang 3 " in done["fault"]
+    assert queue.sent(OCR_PAGES_TASK) == []
+
+
+@pytest.mark.asyncio
+async def test_an_ocr_error_of_any_kind_fails_the_document_instead_of_killing_the_chain() -> None:
+    """Model OCR ném một lỗi thường (torch, paddle, PIL): vẫn phải thành `FAILED` về BE.
+
+    Để nó thoát ra thì arq đánh job hỏng **không thử lại**, không gì về BE, và chip chờ 300 s mới
+    ra *xử lý hỏng* -- review Task 3 của plan 3b.
+    """
+    queue = _Queue()
+    ocr = _Ocr(broken_at=2, error=RuntimeError)
+    await ocr_pages(_ocr_ctx([], queue, _Store([]), ocr), _batch(1, 30))
+
+    [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert done["state"] == DocumentState.FAILED
+    assert "trang 2 " in done["fault"]
+
+
+@pytest.mark.asyncio
+async def test_a_slow_batch_stops_at_its_budget_and_hands_the_rest_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hết ngân sách giờ thì lô dừng giữa chừng và lô kế bắt đầu **đúng** ở trang sau trang cuối
+    đã ghi -- không bỏ trang, không đọc lại trang. arq không chạy lại một job chạm `job_timeout`,
+    nên đây là thứ giữ một cuốn dày chữ khỏi chết im.
+    """
+    monkeypatch.setattr("document.handlers._BATCH_BUDGET_SECONDS", -1)
+    queue = _Queue()
+    store = _Store([])
+
+    await ocr_pages(_ocr_ctx([], queue, store), _batch(5, 30))
+
+    assert [page.page for page in store.pages] == [5]
+    [progress] = queue.sent(DOCUMENT_PROGRESS_TASK)
+    assert progress["pages_read"] == 5
+    [following] = queue.sent(OCR_PAGES_TASK)
+    assert following["first"] == 6
+
+
+@pytest.mark.asyncio
+async def test_a_storage_blip_mid_chain_asks_for_a_retry() -> None:
+    """Tệp đã đọc được lúc dò, nên giữa chuỗi lô một lần hụt là MinIO chập chờn: thử lại, chứ
+    không bắt giáo viên tải lại rồi chờ mười lăm phút nữa.
+    """
+    queue = _Queue()
+    ctx = _ocr_ctx([], queue, _Store([]))
+    ctx["reader"] = _Reader(None)
+
+    with pytest.raises(Retry):
+        await ocr_pages(ctx, _batch(11, 30))
+    assert queue.jobs == []
+
+
+@pytest.mark.asyncio
+async def test_a_file_still_gone_on_the_last_try_fails_the_document() -> None:
+    """Lần thử cuối mà tệp vẫn không đọc được thì mới là phán quyết: `FAILED` về BE."""
+    queue = _Queue()
+    ctx = _ocr_ctx([], queue, _Store([]))
+    ctx["reader"] = _Reader(None)
+    ctx["job_try"] = MAX_TRIES
+
+    await ocr_pages(ctx, _batch(11, 30))
+
+    [done] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert done["state"] == DocumentState.FAILED
+
+
+@pytest.mark.asyncio
+async def test_a_middle_batch_that_cannot_reach_redis_asks_for_a_retry() -> None:
+    """Redis tắt lúc báo tiến độ hay giao lô kế: xin chạy lại, không thì chuỗi lô dừng im."""
+    store = _Store([])
+    with pytest.raises(Retry):
+        await ocr_pages(_ocr_ctx([], _Queue(down=True), store), _batch(1, 30))
+
+
+@pytest.mark.asyncio
+async def test_a_last_batch_that_cannot_finish_asks_for_a_retry_and_ready_never_leaves() -> None:
+    """Kho chết lúc đánh dấu xong: xin chạy lại, và không có `READY` nào đi trước khi kho xong."""
+    queue = _Queue()
+    with pytest.raises(Retry):
+        await ocr_pages(_ocr_ctx([], queue, _Store([], broken_finish=True)), _batch(1, 3))
+    assert queue.sent(DOCUMENT_PROBED_TASK) == []
 
 
 @pytest.mark.asyncio

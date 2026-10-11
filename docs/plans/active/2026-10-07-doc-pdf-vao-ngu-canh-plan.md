@@ -47,7 +47,7 @@ lại; sympy lùi thành **3d**.
 | 2b | [`2026-10-08-document-chip-four-states-plan.md`](2026-10-08-document-chip-four-states-plan.md) | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
 | 2c | [`2026-10-08-ingest-service-split-plan.md`](2026-10-08-ingest-service-split-plan.md) | `services/ingest` **không import nổi một dòng nào** của `be` — `lint-imports` đỏ nếu thử — và một check đỏ khi schema bị dựng ngoài chỗ sở hữu nó | không |
 | 3a | [`2026-10-10-document-ocr-text-and-latex-plan.md`](../completed/2026-10-10-document-ocr-text-and-latex-plan.md) — **đóng 11/10/2026** | 50 trang SGK có nhãn vàng, và bộ đo nói chất lượng chữ Việt bằng **số**. Đổi hướng giữa chừng: upload **chỉ đọc chữ**; công thức đọc bằng VLM lúc ra đề (ba lựa chọn đã chốt, chưa viết code — xem `backlog.md`) | không |
-| 3b | [`2026-10-11-mongo-content-store-plan.md`](../completed/2026-10-11-mongo-content-store-plan.md) — MongoDB làm kho nội dung, bản thô vào Mongo — **đóng 11/10/2026 sau Task 2**: Mongo + bản thô của PDF có chữ và `.txt`/`.md`; OCR theo lô cho PDF scan chuyển xuống `backlog.md` | một cuốn SGK scan tải lên qua màn hình giáo viên ra đủ trang trong Mongo, chip về *sẵn sàng* không qua *xử lý hỏng* | không |
+| 3b | [`2026-10-11-mongo-content-store-plan.md`](../completed/2026-10-11-mongo-content-store-plan.md) — MongoDB làm kho nội dung, bản thô vào Mongo — **đóng 11/10/2026**, mở lại cùng ngày để làm nốt Task 3: Mongo + bản thô của mọi tài liệu; PDF scan đi OCR theo lô (cuốn Lớp 6 tập 1, 125 trang, về *sẵn sàng* sau 9 phút) | một cuốn SGK scan tải lên qua màn hình giáo viên ra đủ trang trong Mongo, chip về *sẵn sàng* không qua *xử lý hỏng* | không |
 | 3c | *Document agent* dùng Jev: đọc bản thô từ Mongo, dựng cây mục lục + chunk, ghi ngược lại Mongo — *chưa viết* | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
 | 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết* | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
 | 4 | Jev và skill — *chưa viết* | một đoạn bài tập được gán đúng nhãn | **có** |
@@ -335,7 +335,8 @@ HTTP ghi một hàng).
 - [x] **Plan 3a — OCR ra chữ** (không mã pipeline; nó là bước SGK scan bắt buộc phải có). Đóng
       11/10/2026; LaTeX chuyển sang VLM lúc ra đề, phần chưa làm nằm ở `backlog.md`
 - [x] **Plan 3b — Mongo làm kho nội dung, OCR vào luồng upload** (không mã pipeline; nền của 3c).
-      Đóng 11/10/2026 sau Task 2 theo lời người dùng; OCR theo lô cho PDF scan nằm ở `backlog.md`
+      Đóng 11/10/2026 sau Task 2, rồi mở lại cùng ngày theo lời người dùng và làm nốt Task 3: PDF
+      scan đi OCR theo lô vào Mongo. Nợ còn lại ở `backlog.md`, mục *Nợ của plan 3b*
 - [ ] **Plan 3c — document agent: Jev dựng hierarchy, chunk** (mã **C3**, **C10**)
 - [ ] **Plan 3d — sympy kiểm công thức** (không mã pipeline)
 - [ ] **Plan 4 — Jev và skill** (mã **C4**)
@@ -361,10 +362,10 @@ ngày 08/10/2026 (cổng text layer thành bất đồng bộ).
 
 **Plan 3a đã có file** từ 10/10/2026: `2026-10-10-document-ocr-text-and-latex-plan.md`. **Bốn
 plan còn lại chưa có file**: plan 3c (mã C3, C10), plan 3d, plan 4 (C4), plan 5 (đóng B10).
-Plan 3a và plan 3b đóng 11/10/2026, cùng một commit, và cả hai đã về `completed/`. **PDF scan vẫn
-dừng ở `NO_TEXT_LAYER`** cho tới khi mục *OCR theo lô* trong `backlog.md` được làm -- 3c đọc bản thô
-từ Mongo nên cần nó trước khi chạy được trên SGK. Đợt này là lý do duy nhất file này còn nằm trong
-`active/`.
+Plan 3a và plan 3b đóng 11/10/2026 và cả hai đã về `completed/`. Plan 3b đóng sớm sau Task 2 (commit
+`0ccf7ee`, chung với 3a), rồi được mở lại cùng ngày và làm nốt Task 3: **PDF scan giờ đi OCR theo lô
+vào Mongo** và về *sẵn sàng* -- cổng của 3b đạt trên cuốn Lớp 6 tập 1 (125 trang, 9 phút). 3c đọc bản
+thô ấy. Bốn plan còn lại là lý do duy nhất file này còn nằm trong `active/`.
 
 **Phép đo đổi hình cả nửa sau của đợt, ngày 10/10/2026.** Decision Record *PyMuPDF, và từ chối tệp
 không có text layer* vẫn đúng từng chữ về **cổng**, nhưng nó đã đo trên một PDF do LaTeX sinh, và nó

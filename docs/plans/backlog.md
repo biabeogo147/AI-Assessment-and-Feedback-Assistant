@@ -956,27 +956,22 @@ mất mát ở vài chỗ khác: hai khung vở ở trang 46, ngôi nhà hồng 
 Hai điều này không chặn plan 3a: cổng của 3a là *đọc đúng tới đâu*, và một trang model không thấy
 gì vẫn là một con số thật trong bảng. Chúng chặn 3c, nơi cây mục lục được dựng.
 
-## OCR theo lô cho PDF scan — việc còn lại của plan 3b
+## Nợ của plan 3b — kho nội dung và OCR theo lô
 
-Ghi ngày 11/10/2026, khi plan 3b (`2026-10-11-mongo-content-store-plan.md`) đóng sau Task 2 theo lời
-người dùng. Plan ấy đã dựng Mongo, `ContentStore`, bản thô cho PDF có chữ và `.txt`/`.md`, và cơ chế
-`arq.Retry`. **PDF scan vẫn dừng ở `NO_TEXT_LAYER`**: OCR chưa nối vào luồng upload. Thiết kế đã
-duyệt nằm ở D3–D5 và mục *Luồng mới* của plan ấy; tóm tắt để người làm không phải lục:
-
-| Việc | Ghi chú |
-| --- | --- |
-| Contracts: `OCR_PAGES_TASK`, `DocumentPagesRequested(document_id, storage_key, filename, first, page_count)`, `DOCUMENT_PROGRESS_TASK`, `DocumentProgress(document_id, pages_read, page_count)` | D3, D4 |
-| `document.ocr_pages`: mỗi job đọc `ocr_pages_per_job` (10) trang ≈ 45 s, dưới `job_timeout` 120 s; ghi từng trang; báo tiến độ; tự enqueue lô kế. **Nối đuôi, không song song** -- OCR ăn hết 4 vCPU | `PageReader` nạp một lần ở `on_startup` (5–6 s); gọi qua `asyncio.to_thread`. Lô cuối: `ContentStore.characters > 0` → `READY`, không thì `NO_TEXT_LAYER` |
-| Nhánh *PDF scan → `NO_TEXT_LAYER`* trong `probe_document` thành nhánh mở OCR; nhánh cũ comment bằng `# [CODE CHẾT ...]` | Luật người dùng: code chết comment bằng `#`, không xoá |
-| Ingest `document_progress`: `UPDATE documents SET pages_read, progress_at`; hai cột mới trong `schema` | Không migration: `.\dev.ps1 db-reset` (BE phải tắt) |
-| BE `_as_read` đo *đứng quá lâu* từ `max(uploaded_at, progress_at)` | Không có nó, một cuốn 200 trang (~15 phút) bị coi là chết sau 300 s |
-| Hiển thị *"đang đọc 37/200 trang"* trên chip | Cần Figma trước (luật người dùng) |
-
-Nợ phát hiện trong review Task 2 của plan 3b:
+Ghi ngày 11/10/2026. Mục này từng mang tên *"OCR theo lô cho PDF scan — việc còn lại của plan 3b"*,
+khi plan ấy đóng sớm sau Task 2. Plan được **mở lại** cùng ngày và Task 3 đã làm xong
+(`completed/2026-10-11-mongo-content-store-plan.md`): PDF scan giờ đi đường OCR theo lô, có tiến độ,
+và về `ready`. Còn lại là nợ.
 
 | Việc | Ghi chú |
 | --- | --- |
+| **Nhiều cuốn scan cùng lúc bị đọc ra *xử lý hỏng* cùng lúc.** Worker `document` chạy `max_jobs = 1`, lô kế của mỗi cuốn xếp cuối queue, nên `k` cuốn đọc xen nhau và khoảng giữa hai tiếng báo tiến độ của một cuốn là chừng `k` × 45 s | Vượt ngưỡng 300 s từ `k` ≈ 7 (≈ 4 với trang dày chữ). Một lần dò tệp có chữ cũng chờ chừng ấy. Hướng: đo *đứng quá lâu* theo nhịp sống của worker chứ không theo tiến độ từng cuốn, hoặc cho chuỗi lô đầu tiên chạy hết trước (FIFO theo cuốn) và báo tiến độ `0` lúc xếp hàng. Phát hiện ở review Task 3 |
+| Hiển thị *"đang đọc 37/200 trang"* trên chip | Cột `pages_read` đã có. Cần Figma trước (luật người dùng) |
+| Chạy lại một lô OCR đọc lại **cả lô** | Năm lần thử liền của một lô ≈ 5 × 45 s + 50 s chờ, sát ngưỡng 300 s. Hướng: bỏ qua trang đã có trong kho khi chạy lại |
+| Id cố định của lô (`ocr:<doc>:<first>`) chỉ chặn chuỗi trùng với **một** process `document` | Chạy hai process thì một lần chạy lại có thể đẻ chuỗi thứ hai và `begin` xoá trang của chuỗi kia |
+| `pages_read` dừng ở lô áp chót sau `ready` (lô cuối gửi kết quả, không gửi tiến độ); tiến độ về sai thứ tự có thể làm nó lùi | Vô hại tới khi FE vẽ tiến độ |
 | **PDF lai qua cổng 10%** (vd. 40/400 trang có lớp chữ mỏng) ra `READY` / `text_layer` với 360 trang rỗng, không bao giờ đi OCR | 3c sẽ dựng cây trên bản thô thủng. Hướng: trang dưới `_MIN_CHARS_PER_PAGE` đi OCR -- cần một bản scan có lớp OCR mỏng thật để đo |
 | **Xoá bản thô khi giáo viên xoá tài liệu**; và bản thô mồ côi khi kho ghi xong mà `_hand_back` hỏng hết lượt thử | BE không giữ khoá Mongo (D1). Có thể là một task `document` nhận lệnh xoá |
 | Mỗi trang một `replace_one` | 2 000 trang ≈ 1 s với Mongo local; Mongo ở xa (RTT ~20 ms) ≈ 40 s, vẫn dưới 120 s. `bulk_write` khi cần |
-| Lần thử cuối của `Retry` hết lượt thì job hỏng im, chip chờ 300 s | Có thể gửi `FAILED` ở lần thử cuối khi Redis còn sống |
+| Lần thử cuối của `Retry` hết lượt thì job hỏng im, chip chờ 300 s | Có thể gửi `FAILED` ở lần thử cuối khi Redis còn sống (lô OCR đã làm vậy cho ca object storage hụt) |
+| Một trang đơn lẻ OCR quá 120 s vẫn chạm `job_timeout` | Ngân sách 90 s của lô chỉ kiểm giữa hai trang. Chưa gặp: trang chậm nhất đo được ~12 s |

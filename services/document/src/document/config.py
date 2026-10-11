@@ -13,6 +13,7 @@ kho của BE biết, và kho ấy ở phía bên kia tường.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Neo vào gốc repo thay vì để tương đối theo thư mục làm việc. Để tương đối thì nó âm thầm trỏ
@@ -66,7 +67,7 @@ class Settings(BaseSettings):
     minio_secure: bool = False
     mongo_url: str = "mongodb://127.0.0.1:27017"
     mongo_database: str = "aiafa_content"
-    ocr_pages_per_job: int = 10
+    ocr_pages_per_job: int = Field(default=10, ge=1)
     ocr_reader: str = "easyocr"
     ocr_threads: int = 4
 

@@ -736,6 +736,14 @@ class Document(Base):
 
     `fault` là một câu **tiếng Việt cho giáo viên đọc**, không phải một mã lỗi, vì nó đi
     thẳng lên chip. Rỗng nghĩa là chưa lần nào hỏng.
+
+    `pages_read` và `progress_at` (plan 3b, D4) là **tiến độ của đường OCR**: một PDF scan được
+    đọc theo lô trang, và sau mỗi lô `services/ingest` ghi số trang đã đọc cùng lúc nghe được.
+    `progress_at` là lý do chúng tồn tại: phép suy *đứng quá lâu* đo từ mốc muộn hơn giữa
+    `uploaded_at` và nó, nên một cuốn sách đọc mười lăm phút mà vẫn tiến không bị gọi là chết.
+    Cả hai `None` với tài liệu không qua OCR -- không có lô nào để báo. Lô cuối không báo tiến độ
+    mà gửi kết quả, nên sau `ready` cột `pages_read` dừng ở lô áp chót: số trang thật là
+    `page_count`, không phải nó.
     """
 
     __tablename__ = "documents"
@@ -750,3 +758,5 @@ class Document(Base):
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fault: Mapped[str] = mapped_column(String(120), default="")
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    pages_read: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

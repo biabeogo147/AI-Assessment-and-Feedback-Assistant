@@ -219,9 +219,18 @@ credential database"* không đổi -- `tools/check_contract.py` dùng một m�
 `pymongo`, và cùng hàm seam bên dưới canh nó trên cả bốn service. Bản thô là bất biến: chỉ đường đọc
 tệp ghi `pages`; *document agent* của plan 3c sẽ ghi cây và chunk vào collection của riêng nó.
 
-Cùng hàm ấy canh `pymupdf`, và ở `services/document` nó gắt hơn: arq chạy tới `max_jobs` job
-đồng thời trên một event loop, nên một lời gọi quên `asyncio.to_thread` giữ cả chín job kia
-đứng chờ một cuốn sách được quét xong. Nhà của nó là `document/probe.py`.
+**PDF scan đi đường OCR theo lô trang** (plan 3b, Task 3). Lần dò tệp thấy một PDF có trang mà
+không có chữ thì không báo *không đọc được chữ* nữa: nó mở đầu mục bản thô rồi giao lô đầu
+(`ocr_pages`, mặc định 10 trang ≈ 45 s) cho **chính queue của `document`**. Mỗi lô ghi trang của nó
+vào Mongo, gửi `DocumentProgress` về `ingest` (cột `pages_read`, `progress_at`), rồi tự giao lô kế;
+lô cuối gửi `DocumentProbed` -- `READY`, hoặc `NO_TEXT_LAYER` khi cả cuốn không ra chữ nào. Phép suy
+*đứng quá lâu* của BE đo từ `max(uploaded_at, progress_at)`, nên một cuốn đọc mười lăm phút mà vẫn
+tiến không bị gọi là chết, còn một chuỗi lô ngừng tiến thì vẫn bị. Worker `document` chạy **một
+job một lúc** (`max_jobs = 1`): OCR dùng hết luồng CPU, hai lô song song chỉ tranh nhau.
+
+Cùng hàm ấy canh `pymupdf`. Ở `services/document` một job chạy một lúc, nhưng event loop vẫn phải
+rảnh trong lúc OCR một trang -- kết nối Redis và Mongo của worker sống trên đó -- nên lời gọi sync
+vẫn đi qua `asyncio.to_thread`. Nhà của nó là `document/probe.py`.
 
 AGENT và `document` không nhận credential của bất kỳ database nào, nên **một job phải tự
 chứa**: `explain_turn` mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn chứ không mang

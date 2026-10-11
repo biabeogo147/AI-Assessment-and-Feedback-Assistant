@@ -12,10 +12,10 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from contracts import DocumentProbed, DocumentState
+from contracts import DocumentProbed, DocumentProgress, DocumentState
 from ingest import db as db_module
 from ingest.db import bind_sessions
-from ingest.handlers import document_probed
+from ingest.handlers import document_probed, document_progress
 from schema.ddl import prepare_schema
 from schema.models import Document, Teacher
 
@@ -226,3 +226,66 @@ async def test_a_row_that_is_gone_rings_nobody(library) -> None:
         ),
     )
     assert redis.rang == []
+
+
+def _progress(document_id: str, pages_read: int = 20) -> dict:
+    """Một tiếng báo tiến độ, đã serialise.
+
+    Args:
+        document_id: Tài liệu.
+        pages_read: Số trang đã đọc.
+
+    Returns:
+        Dict đúng hình dạng arq chở.
+    """
+    return DocumentProgress(
+        document_id=document_id, pages_read=pages_read, page_count=184
+    ).model_dump(mode="json")
+
+
+@pytest.mark.asyncio
+async def test_progress_moves_the_clock_and_leaves_the_state_alone(library) -> None:
+    """Tiến độ ghi số trang và **mốc giờ** -- mốc ấy là thứ giữ một cuốn scan khỏi bị đọc ra
+    *xử lý hỏng* giữa đường. Và trạng thái vẫn `processing`: tiến độ không phải phán quyết.
+    """
+    maker, document_id = library
+    before = datetime.now(UTC)
+
+    written = await document_progress({}, _progress(document_id))
+
+    assert written["written"] is True
+    async with maker() as session:
+        row = await session.scalar(select(Document))
+        assert row is not None
+        assert row.pages_read == 20
+        assert row.progress_at is not None
+        assert row.progress_at.replace(tzinfo=UTC) >= before.replace(microsecond=0)
+        assert row.state == DocumentState.PROCESSING
+
+
+@pytest.mark.asyncio
+async def test_progress_that_arrives_after_the_verdict_writes_nothing(library) -> None:
+    """Kết quả cuối đã về thì một tiếng báo đến muộn không được đụng vào hàng."""
+    maker, document_id = library
+    await document_probed(
+        {},
+        DocumentProbed(
+            document_id=document_id, state=DocumentState.READY, page_count=184
+        ).model_dump(mode="json"),
+    )
+
+    written = await document_progress({}, _progress(document_id))
+
+    assert written["written"] is False
+    async with maker() as session:
+        row = await session.scalar(select(Document))
+        assert row is not None
+        assert row.pages_read is None
+        assert row.progress_at is None
+
+
+@pytest.mark.asyncio
+async def test_progress_for_a_row_that_is_gone_is_dropped_not_raised(library) -> None:
+    """Giáo viên xoá tài liệu giữa lúc OCR: bỏ tiếng báo, không ném cho arq thử lại vô ích."""
+    written = await document_progress({}, _progress("khong-ton-tai"))
+    assert written["written"] is False

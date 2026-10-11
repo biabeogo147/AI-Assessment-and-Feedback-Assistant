@@ -126,7 +126,7 @@ document.ocr_pages(lô k)
 | `services/document/src/document/content_store.py` | **mới.** Module duy nhất import `pymongo`: `ContentStore.begin(header: RawDocument)`, `.put_page(...)`, `.finish(...)`, `.characters(document_id)`, tạo index |
 | `services/document/src/document/pdf.py` | `PdfPages.page_text(index)` (text layer có hộp) — vẫn là module duy nhất chạm pymupdf |
 | `services/document/src/document/probe.py` | giữ chính sách; thêm hàm thuần dựng bản thô cho `.txt/.md` và PDF có chữ |
-| `services/document/src/document/handlers.py` | `probe_document` rẽ ba nhánh như sơ đồ; `ocr_pages` mới. Nhánh cũ *PDF scan → `NO_TEXT_LAYER`* comment bằng `# [CODE CHẾT 2026-10-xx]` theo luật người dùng |
+| `services/document/src/document/handlers.py` | `probe_document` rẽ ba nhánh như sơ đồ; `ocr_pages` mới. *(Khi làm: nhánh cũ *PDF scan → `NO_TEXT_LAYER`* không phải một khối code riêng -- nó là đường gửi chung của mọi phán quyết -- nên không có gì để comment `# [CODE CHẾT]`; `probe_document` chỉ rẽ phán quyết ấy sang OCR.)* |
 | `services/document/src/document/worker.py` | đăng ký `ocr_pages`; `on_startup` nạp `PageReader` và mở `ContentStore` |
 | `packages/contracts/src/contracts/documents.py` | `OCR_PAGES_TASK`, `DocumentPagesRequested(document_id, storage_key, filename, first, page_count)`; `DOCUMENT_PROGRESS_TASK`, `DocumentProgress(document_id, pages_read, page_count)` |
 | `services/ingest/src/ingest/handlers.py` + `worker.py` | `document_progress`: `UPDATE documents SET pages_read, progress_at`; không announce (FE không vẽ tiến độ) |
@@ -149,12 +149,11 @@ document.ocr_pages(lô k)
 2. [x] **Bản thô cho tài liệu có chữ.** `pdf.page_text`, nhánh `.txt/.md` + PDF có chữ trong
    `probe_document`. Thử tay: tải `docs/report/report.pdf` (có text layer) qua BE → `pages` đủ số
    trang. → subagent review.
-3. [ ] **OCR theo lô cho PDF scan + tiến độ.** *Chuyển xuống `backlog.md` khi đóng plan.* contracts, `ocr_pages`, `DocumentProgress`, ingest,
+3. [x] **OCR theo lô cho PDF scan + tiến độ.** contracts, `ocr_pages`, `DocumentProgress`, ingest,
    hai cột schema, BE stale. Test: chuỗi lô (lô cuối, lô giữa, cả cuốn không chữ → `NO_TEXT_LAYER`),
    stale đo từ `progress_at`. Thử tay: tải một cuốn SGK scan, xem `pages` lớn dần, chip đi
    `processing` → `ready`, không bị `failed` giữa đường. → subagent review.
-4. [x] **Tài liệu + đóng plan.** *Phần tài liệu cho những gì đã làm; số đo OCR trong worker đi
-   cùng Task 3.* architecture/data-model/AGENTS, Status có số đo thật (giây/trang trong
+4. [x] **Tài liệu + đóng plan.** architecture/data-model/AGENTS, Status có số đo thật (giây/trang trong
    worker, tổng thời gian một cuốn), nợ.
 
 ## Verification
@@ -240,3 +239,64 @@ bốn món nợ của review Task 2 nằm ở mục *OCR theo lô cho PDF scan �
 
 Kiểm cuối: `.\dev.ps1 check` 20/20; pytest của `document`, `packages`, `tools` xanh; ruff sạch;
 không file CRLF; 15 đột biến của Task 2 đều đỏ.
+
+**Mở lại 11/10/2026** theo lời người dùng (*"mở lại rồi làm toàn bộ task 3b đi"*): đóng sau Task 2
+là dừng sớm -- cổng của plan cần Task 3. File về lại `active/`; mục nợ trong `backlog.md` đổi thành
+*Nợ của plan 3b*.
+
+**Task 3** 11/10/2026: xong code + review + thử tay.
+
+- `contracts`: `OCR_PAGES_TASK` / `DocumentPagesRequested` (`first`, `page_count` ≥ 1),
+  `DOCUMENT_PROGRESS_TASK` / `DocumentProgress` (không mang `state`).
+- `probe_document`: phán quyết `NO_TEXT_LAYER` cho một PDF **có trang** rẽ sang OCR -- `begin` đầu
+  mục (`source=ocr`, `reader`, `pipeline=text1`) **rồi** giao lô 1 trên chính queue `document`;
+  không gì về BE. PDF 0 trang và tệp thuần rỗng vẫn là phán quyết cuối. Không có khối code nào để
+  comment `# [CODE CHẾT]`: nhánh cũ là đường gửi chung của mọi phán quyết.
+- `ocr_pages`: đọc tới `ocr_pages_per_job` trang (dừng sớm khi quá ngân sách 90 s), ghi từng trang,
+  báo tiến độ, giao lô kế với id cố định `ocr:<doc>:<first>`; lô cuối `finish` → `characters` →
+  `READY` / `NO_TEXT_LAYER`. Lỗi đọc trang **bất kỳ** → `FAILED` nói số trang; kho / Redis chập
+  chờn → `Retry`; object storage hụt giữa chuỗi → `Retry`, chỉ lần thử cuối mới `FAILED`.
+- Worker: `PageReader` nạp ở `startup` (≈ 8 s cả import), `max_jobs = 1`, `max_tries = MAX_TRIES`.
+- `ingest.document_progress`: ghi `pages_read`, `progress_at` (giờ của ingest), chỉ khi hàng còn
+  `processing`; không hích màn hình. `schema`: hai cột mới -- cần `.\dev.ps1 db-reset`.
+- BE `_as_read`: *đứng quá lâu* đo từ `max(uploaded_at, progress_at)`.
+
+**Thử tay đầu-cuối** (máy này, Windows, 4 luồng, Mongo/Redis/Postgres/MinIO trong Docker; BE,
+ingest, document chạy thật; tải qua `POST /api/teacher/documents`):
+
+| Tệp | Trang | Tải lên → `ready` | OCR / trang (trung bình, chậm nhất) | Ký tự | Trang rỗng |
+| --- | --- | --- | --- | --- | --- |
+| SGK Kết nối tri thức Lớp 6 tập 1 (scan thuần) | 125 | **9 phút 1 s** | 4,26 s, 5,8 s | 153 740 | 0 |
+| 25 trang đầu Lớp 7 tập 1, code sau review | 25 | 1 phút 51 s | -- | -- | -- |
+
+Chip đi `processing` → `ready`, **không qua `failed`** dù cuốn 125 trang đứng `processing` gần gấp
+đôi ngưỡng 300 s: `progress_at` nhích mỗi ~41-45 s (13 lô, mỗi lô 10 trang ≈ 41 s, dưới trần 120 s).
+Mongo đếm **125/125** trang khớp `page_count`; 3 309 khối mang nhãn layout thật (`text` 1 760,
+`image` 486, `paragraph_title` 465, `formula` 256, `number` 122, ...). Cuốn 125 trang chạy trên
+worker bản trước review; worker được khởi động lại rồi chạy bản 25 trang trên code cuối.
+**Không thử trên trình duyệt**: hai Chrome cùng nối vào, công cụ đòi hỏi người dùng chọn một, và
+người dùng đã dặn không dừng giữa chừng. Màn hình không đổi gì trong plan này (D5); trạng thái mà
+nó vẽ đã kiểm qua chính API nó gọi.
+
+Đột biến (16, đều đỏ): bỏ `progress_at` khỏi phép suy stale; bỏ giao lô kế; bỏ báo tiến độ; bỏ id
+cố định; `characters > 0` thành luôn đúng; bỏ điều kiện *PDF có trang*; bỏ lọc `processing` ở
+ingest; `max_jobs` 10; bỏ nạp `PageReader`; nối cả khối rỗng vào `text`; bỏ `HandBackFailed` khỏi
+lô cuối; `except Exception` thành `PdfUnreadable`; bỏ ngân sách giờ; điều kiện lần thử cuối luôn
+sai / luôn đúng; bỏ `last = page`.
+
+Review Task 3 (subagent, 11/10/2026) không thấy lỗi trong chuỗi lô (khoảng trang, thứ tự `begin` →
+lô 1, tiến độ → lô kế, `finish` → kết quả, id cố định với `keep_result = 0`). Đã sửa theo nó: lỗi
+OCR không phải `PdfUnreadable` và lô chạm `job_timeout` từng giết chuỗi lô **im** (arq không chạy
+lại cả hai) -- thêm `except Exception` và ngân sách 90 s; object storage hụt giữa chuỗi từng đánh hỏng
+cả cuốn -- giờ `Retry`; hai nhánh `Retry` của `ocr_pages` thiếu test; chú thích tổng thời gian thử
+lại sai với lô OCR; `ocr_pages_per_job = 0` hay `first = 0` làm chuỗi dừng im -- `ge=1`. Không sửa,
+ghi nợ: **nhiều cuốn scan cùng lúc** (`max_jobs = 1` cho khoảng tiến độ `k` × 45 s, vượt 300 s từ
+`k` ≈ 7); chạy lại đọc lại cả lô; id cố định chỉ đủ với một process; `pages_read` dừng ở lô áp chót.
+
+**Task 4** 11/10/2026: `architecture.md` (đường OCR theo lô, `max_jobs = 1`, đoạn `to_thread` cũ nói
+*"chín job kia"* đã sai), `data-model.md` (hai cột), `local-development.md` (scan mất nhiều phút,
+cách xem tiến độ, stale đo từ tin cuối), `backlog.md`. `services/document/AGENTS.md` không đổi --
+24/25 dòng, và luật của nó (`Retry`, `to_thread`, thất bại đọc tệp là kết quả) phủ đường mới.
+
+**Đóng 11/10/2026.** Cổng đạt: một cuốn SGK scan tải lên qua BE ra đủ trang trong Mongo, chip về
+*sẵn sàng* không qua *xử lý hỏng*.

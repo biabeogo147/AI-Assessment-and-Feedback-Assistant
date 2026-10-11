@@ -13,15 +13,16 @@ Chấp nhận được ở đây hơn ở AGENT: một job bị cắt ngang đ�
 BE suy ra *xử lý hỏng* khi nó đứng quá lâu.
 """
 
+import asyncio
 import logging
 
 from arq.connections import RedisSettings
 from arq.worker import func
 
-from contracts import PROBE_DOCUMENT_TASK
-from document.config import get_settings
+from contracts import OCR_PAGES_TASK, PROBE_DOCUMENT_TASK
+from document.config import Settings, get_settings
 from document.content_store import ContentStore
-from document.handlers import probe_document
+from document.handlers import MAX_TRIES, ocr_pages, probe_document
 from document.storage import create_reader
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -37,6 +38,9 @@ _CONNECT_TIMEOUT_SECONDS = 5
 # Trần thời gian cho một job. Đo được: quét 29 trang mất 31 ms, ngoại suy 400 trang khoảng 0,4
 # giây. Hai phút là rộng gấp hàng trăm lần, và nó không phải để chờ việc -- nó để một tệp bệnh
 # hoạn làm `pymupdf` quay vòng vẫn có chỗ dừng, thay vì giữ một slot của worker vĩnh viễn.
+#
+# Từ plan 3b nó cũng là trần của **một lô OCR**: `ocr_pages_per_job` trang × 4,5 s/trang (đo ở plan
+# 3a) = ~45 s với mặc định 10. Tăng số trang mỗi lô thì xem lại con số này trước.
 _JOB_TIMEOUT_SECONDS = 120
 
 
@@ -49,6 +53,24 @@ def _redis_settings() -> RedisSettings:
     parsed = RedisSettings.from_dsn(_settings.redis_url)
     parsed.conn_timeout = _CONNECT_TIMEOUT_SECONDS
     return parsed
+
+
+def _page_reader(settings: Settings) -> object:
+    """Nạp ba model OCR. Sync và chậm (5-6 s đo ở plan 3a), người gọi đặt nó vào một thread.
+
+    Import **ở trong hàm**, không ở đầu module: `document.ocr` nạp torch và paddle, vài giây và
+    vài trăm MB. Đặt ở đầu thì mọi test chạm `worker` -- kể cả test vòng đời không cần model nào
+    -- trả cái giá ấy, và không thay được hàm này bằng một bản giả.
+
+    Args:
+        settings: Setting của worker.
+
+    Returns:
+        Một `PageReader` đã nạp model.
+    """
+    from document.ocr.page import PageReader
+
+    return PageReader(reader=settings.ocr_reader, threads=settings.ocr_threads)
 
 
 async def startup(ctx: dict) -> None:
@@ -65,19 +87,23 @@ async def startup(ctx: dict) -> None:
     worker chết ở đây. Một tệp không đọc được là kết quả nói được với giáo viên; còn một kho không
     ghi được thì mọi tệp có chữ đều phải ném rồi chờ arq thử lại -- tốt hơn là không nhận job nào.
 
+    Model OCR nạp **một lần ở đây**, không ở lô đầu: nạp mất vài giây, và trả cái giá ấy cho mỗi
+    lô là trả nó hai mươi lần cho một cuốn sách.
+
     Args:
-        ctx: Context worker của arq. Nhận thêm khoá `reader` và `store`.
+        ctx: Context worker của arq. Nhận thêm khoá `reader`, `store` và `ocr`.
 
     Raises:
-        Exception: Khi Mongo không với tới được.
+        Exception: Khi Mongo không với tới được, hoặc model OCR không nạp được.
 
     Side effects:
-        Ghi một dòng log, đặt `reader` và `store` vào ctx, tạo index của kho nội dung.
+        Ghi một dòng log, đặt `reader`, `store` và `ocr` vào ctx, tạo index của kho nội dung.
     """
     ctx["reader"] = create_reader(_settings)
     store = ContentStore(_settings.mongo_url, _settings.mongo_database)
     await store.prepare()
     ctx["store"] = store
+    ctx["ocr"] = await asyncio.to_thread(_page_reader, _settings)
     logger.info(
         "DOCUMENT worker ready: consuming=%s handing back to=%s redis=%s content=%s",
         _settings.document_queue_name,
@@ -105,13 +131,26 @@ class WorkerSettings:
     tên hàm không thể âm thầm làm hỏng lời gọi enqueue của BE.
     """
 
-    functions = [func(probe_document, name=PROBE_DOCUMENT_TASK)]
+    functions = [
+        func(probe_document, name=PROBE_DOCUMENT_TASK),
+        func(ocr_pages, name=OCR_PAGES_TASK),
+    ]
     queue_name = _settings.document_queue_name
     redis_settings = _redis_settings()
     job_timeout = _JOB_TIMEOUT_SECONDS
-    # Đúng mặc định của arq, viết ra vì `handlers._RETRY_STEP_SECONDS` tính tổng thời gian chờ từ
-    # con số này: đổi nó thì xem lại tổng ấy so với ngưỡng *đứng quá lâu* 300 s của BE.
-    max_tries = 5
+    # **Một job một lúc** (plan 3b, D3). OCR dùng hết `ocr_threads` luồng CPU, nên hai lô chạy
+    # cùng lúc chỉ tranh nhau rồi cùng chậm -- và một lô chậm gấp đôi là một lô chạm trần
+    # `job_timeout`. Mặc định của arq là 10.
+    #
+    # Cái giá, và nó lớn dần theo số cuốn scan đang đọc cùng lúc (`k`): lô kế của mỗi cuốn xếp
+    # cuối queue, nên các cuốn đọc **xen nhau**, và khoảng giữa hai tiếng báo tiến độ của một cuốn
+    # là chừng `k` × 45 s. Từ khoảng `k` = 7 (hoặc 4 với trang dày chữ), khoảng ấy vượt ngưỡng
+    # 300 s và BE đọc **mọi** cuốn đang đọc ra *xử lý hỏng* cùng lúc. Một lần dò tệp có chữ cũng
+    # chờ chừng ấy. Chấp nhận cho một giáo viên ở local; nợ ghi ở `backlog.md`.
+    max_jobs = 1
+    # Đúng mặc định của arq. Lấy từ `handlers` vì `ocr_pages` cần biết lần thử nào là lần cuối, và
+    # `handlers._RETRY_STEP_SECONDS` tính tổng thời gian chờ từ con số này.
+    max_tries = MAX_TRIES
     # Không giữ kết quả. Khác AGENT, ở đây **không ai đọc** kết quả một job: câu trả lời đi về
     # bằng một job khác trên queue của BE. Giữ lại chỉ là rác trong Redis, và tệ hơn, nó mời
     # người đọc sau tưởng rằng có một đường poll -- đúng cái bẫy mà `drafting.py` đã ghi lại.

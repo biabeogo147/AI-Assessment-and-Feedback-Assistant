@@ -12,7 +12,7 @@ sở hữu một luật mà không service nào chịu trách nhiệm.
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # Số phiên bản của họ message này. Mỗi họ tự khai số của chính nó, như `authoring` và
 # `teacher_chat` -- một họ đổi hình dạng thì chỉ số của nó nhích, không kéo theo họ khác.
@@ -23,6 +23,10 @@ SCHEMA_VERSION = 1
 # package của bên kia.
 PROBE_DOCUMENT_TASK = "probe_document"
 DOCUMENT_PROBED_TASK = "document_probed"
+# Từ plan 3b: một PDF scan được đọc bằng OCR theo **lô trang**, mỗi lô một job trên chính queue của
+# `services/document`, và sau mỗi lô có một tiếng báo tiến độ đi về `services/ingest`.
+OCR_PAGES_TASK = "ocr_pages"
+DOCUMENT_PROGRESS_TASK = "document_progress"
 
 
 def documents_channel(teacher_id: str) -> str:
@@ -111,3 +115,58 @@ class DocumentProbed(BaseModel):
     state: DocumentState
     page_count: int | None = None
     fault: str = ""
+
+
+class DocumentPagesRequested(BaseModel):
+    """Một lô trang của một PDF scan cần OCR -- việc `services/document` tự giao cho chính nó.
+
+    Không phải message giữa hai service: bên đẩy và bên nhận đều là `services/document`. Nó ở đây
+    vì đây là chỗ mọi payload của arq được khai, và một payload không khai là một dict mà lần đổi
+    tên trường sau làm vỡ âm thầm -- job của lô kế đã nằm trong Redis từ trước lần deploy.
+
+    Vì sao theo lô chứ không cả cuốn trong một job: một cuốn 200 trang ở 4,5 s/trang là ~15 phút,
+    gấp bảy lần trần một job. Mỗi lô đọc vài trang, ghi chúng vào kho nội dung, rồi tự đẩy lô kế
+    (plan 3b, D3). Nối đuôi chứ không song song: OCR ăn hết CPU, nên hai lô cùng lúc chỉ tranh
+    luồng.
+
+    Attributes:
+        document_id: Tài liệu đang đọc.
+        storage_key: Khoá byte của tệp trong object storage -- mỗi lô đọc lại tệp, không chở byte.
+        filename: Tên tệp, cho dòng log và cho câu nói với giáo viên.
+        first: Trang đầu của lô, **đếm từ 1** như `RawPage.page`.
+        page_count: Tổng số trang của tệp, để lô biết nó có phải lô cuối không mà không phải hỏi
+            ai.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    document_id: str
+    storage_key: str
+    filename: str
+    first: int = Field(ge=1)
+    page_count: int = Field(ge=1)
+
+
+class DocumentProgress(BaseModel):
+    """Tiếng báo của `services/document` sau mỗi lô OCR: *đã đọc được ngần này trang*.
+
+    Nó tồn tại vì **phép suy *đứng quá lâu*** của BE: một hàng đứng ở `processing` quá 300 s bị đọc
+    ra `failed`, và một cuốn sách scan thì đứng ở đó mười lăm phút một cách hợp lệ. Mỗi tiếng báo
+    dời mốc đo của phép suy ấy (`documents.progress_at`), nên chỉ một chuỗi lô **ngừng tiến** mới
+    bị coi là chết -- lưới cũ còn nguyên cho đúng ca nó sinh ra để bắt (plan 3b, D4).
+
+    Không mang `state`: tiến độ không phải một phán quyết, và tài liệu vẫn `processing`.
+
+    Attributes:
+        document_id: Tài liệu đang đọc.
+        pages_read: Số trang đã đọc xong và đã nằm trong kho nội dung.
+        page_count: Tổng số trang.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    document_id: str
+    pages_read: int = Field(ge=0)
+    page_count: int = Field(ge=1)

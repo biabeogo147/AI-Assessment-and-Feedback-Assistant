@@ -429,6 +429,49 @@ async def test_a_document_stuck_in_processing_reads_as_failed_without_being_writ
 
 
 @pytest.mark.asyncio
+async def test_a_scan_that_keeps_reporting_progress_is_not_called_failed(stack) -> None:
+    """Một cuốn scan tải lên từ lâu nhưng **vừa báo tiến độ** thì vẫn *đang xử lý*.
+
+    OCR một cuốn sách mất mười lăm phút, gấp ba ngưỡng. Đo từ `uploaded_at` thì cuốn nào cũng ra
+    *xử lý hỏng* giữa đường trong khi đang đọc tốt (plan 3b, D4).
+    """
+    client, maker, _ = stack
+    await client.post("/api/teacher/documents", headers=TEACHER, files=_file())
+    long_ago = datetime.now(UTC) - timedelta(
+        seconds=get_settings().document_stale_after_seconds + 600
+    )
+
+    async with maker() as session:
+        row = await session.scalar(select(Document))
+        assert row is not None
+        row.uploaded_at = long_ago
+        row.progress_at = datetime.now(UTC)
+        row.pages_read = 120
+        await session.commit()
+
+    listed = await client.get("/api/teacher/documents", headers=TEACHER)
+    assert listed.json()[0]["state"] == DocumentState.PROCESSING
+
+
+@pytest.mark.asyncio
+async def test_a_scan_whose_progress_stopped_reads_as_failed(stack) -> None:
+    """Và chuỗi lô **ngừng tiến** thì lưới cũ vẫn bắt: tiếng báo cuối đã quá ngưỡng."""
+    client, maker, _ = stack
+    await client.post("/api/teacher/documents", headers=TEACHER, files=_file())
+    stale = get_settings().document_stale_after_seconds
+
+    async with maker() as session:
+        row = await session.scalar(select(Document))
+        assert row is not None
+        row.uploaded_at = datetime.now(UTC) - timedelta(seconds=stale + 600)
+        row.progress_at = datetime.now(UTC) - timedelta(seconds=stale + 60)
+        await session.commit()
+
+    listed = await client.get("/api/teacher/documents", headers=TEACHER)
+    assert listed.json()[0]["state"] == DocumentState.FAILED
+
+
+@pytest.mark.asyncio
 async def test_a_document_still_being_read_is_not_called_failed(stack) -> None:
     """Và chiều ngược lại: vừa tải lên thì **chưa** quá hạn.
 

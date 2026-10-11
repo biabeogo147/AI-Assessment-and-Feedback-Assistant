@@ -136,6 +136,12 @@ def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
     *"Ngưỡng được áp lúc đọc kết quả chứ không lưu kèm"* (`architecture.md`). Hệ quả hợp ý:
     một job về muộn vẫn **thắng**, vì lần đọc sau thấy một giá trị thật trong cột.
 
+    **Đo từ lần cuối nghe được tin, không từ lúc tải lên** (plan 3b, D4). Một PDF scan được OCR
+    theo lô, mười lăm phút cho một cuốn, và mỗi lô báo tiến độ vào `progress_at`. Đo từ
+    `uploaded_at` thì mọi cuốn scan đều ra *xử lý hỏng* ở giây thứ 301 trong khi đang đọc tốt. Đo
+    từ mốc muộn hơn thì lưới vẫn bắt đúng ca nó sinh ra để bắt: chuỗi lô chết thật thì sau 300 s
+    không tiếng báo nào, và chip ra *xử lý hỏng* như cũ.
+
     Args:
         row: Hàng trong `documents`.
         stale_after_seconds: Một hàng được đứng ở `processing` bao lâu trước khi bị coi là
@@ -147,7 +153,10 @@ def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
     state = row.state
     fault = row.fault
     if state == DocumentState.PROCESSING:
-        waited = (datetime.now(UTC) - aware(row.uploaded_at)).total_seconds()
+        heard = aware(row.uploaded_at)
+        if row.progress_at is not None:
+            heard = max(heard, aware(row.progress_at))
+        waited = (datetime.now(UTC) - heard).total_seconds()
         if waited > stale_after_seconds:
             state = DocumentState.FAILED.value
             fault = "Xử lý tài liệu này đã dừng giữa đường. Thử tải lại."

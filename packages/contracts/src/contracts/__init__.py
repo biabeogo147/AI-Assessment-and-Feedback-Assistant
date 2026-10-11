@@ -34,9 +34,13 @@ from contracts.authoring import (
 from contracts.content import RawBlock, RawDocument, RawPage, RawSource, page_key
 from contracts.documents import (
     DOCUMENT_PROBED_TASK,
+    DOCUMENT_PROGRESS_TASK,
+    OCR_PAGES_TASK,
     PROBE_DOCUMENT_TASK,
+    DocumentPagesRequested,
     DocumentProbed,
     DocumentProbeRequested,
+    DocumentProgress,
     DocumentState,
     documents_channel,
 )
@@ -63,6 +67,8 @@ __all__ = [
     "RawSource",
     "page_key",
     "DOCUMENT_PROBED_TASK",
+    "DOCUMENT_PROGRESS_TASK",
+    "OCR_PAGES_TASK",
     "EXPLAIN_TURN_TASK",
     "GENERATE_RETRY_QUESTION_TASK",
     "NAME_CONVERSATION_TASK",
@@ -72,8 +78,10 @@ __all__ = [
     "ChatTurn",
     "ConversationNameCompleted",
     "ConversationNameRequested",
+    "DocumentPagesRequested",
     "DocumentProbeRequested",
     "DocumentProbed",
+    "DocumentProgress",
     "DocumentState",
     "DraftQuestionCompleted",
     "DraftQuestionRequested",

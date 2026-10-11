@@ -327,3 +327,38 @@ def test_raw_pages_refuses_a_kind_it_cannot_build() -> None:
     """Gọi cho một tệp không có đường đọc là lỗi của người gọi -- `probe` đã không trả `READY`."""
     with pytest.raises(ValueError, match="no raw reader"):
         raw_pages(b"x", "anh.png", "doc-1", _AT)
+
+
+def test_an_ocr_page_keeps_real_labels_boxes_and_seconds() -> None:
+    """Trang OCR vào bản thô bằng đúng kiểu thật mà `PageReader` trả: nhãn layout thật, hộp theo
+    điểm ảnh, số giây từng chặng -- và chữ NFC.
+
+    Khối hình ở lại với chữ rỗng (nó là tín hiệu bố cục), nhưng `text` của trang bỏ qua nó: một
+    dòng trống giữa hai đoạn là một ranh giới giả mà bên đọc phải tự gỡ.
+    """
+    from document.ocr.model import BBox, BlockKind, PageBlock, PageRead
+    from document.probe import raw_ocr_page
+
+    decomposed = unicodedata.normalize("NFD", "Mệnh đề")
+    read = PageRead(
+        page=7,
+        width=1654,
+        height=2339,
+        blocks=(
+            PageBlock(BlockKind.PARAGRAPH_TITLE, BBox(10, 20, 300, 60), f" {decomposed} "),
+            PageBlock(BlockKind.IMAGE, BBox(10, 80, 300, 400), ""),
+            PageBlock(BlockKind.NUMBER, BBox(800, 2300, 830, 2330), "8"),
+        ),
+        seconds={"render": 0.2, "layout": 1.1},
+    )
+
+    page = raw_ocr_page(read, "doc-1", datetime(2026, 10, 11, tzinfo=UTC))
+
+    assert page.page == 7
+    assert page.source is RawSource.OCR
+    assert (page.width, page.height) == (1654, 2339)
+    assert [block.kind for block in page.blocks] == ["paragraph_title", "image", "number"]
+    assert page.blocks[0].box == (10, 20, 300, 60)
+    assert page.blocks[0].text == "Mệnh đề"
+    assert page.text == "Mệnh đề\n8"
+    assert page.seconds == {"render": 0.2, "layout": 1.1}

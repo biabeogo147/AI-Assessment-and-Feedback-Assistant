@@ -30,10 +30,10 @@ import logging
 from arq.connections import RedisSettings
 from arq.worker import func
 
-from contracts import DOCUMENT_PROBED_TASK
+from contracts import DOCUMENT_PROBED_TASK, DOCUMENT_PROGRESS_TASK
 from ingest.config import get_settings
 from ingest.db import bind_sessions, create_engine
-from ingest.handlers import document_probed
+from ingest.handlers import document_probed, document_progress
 from schema.ddl import check_schema
 
 logger = logging.getLogger(__name__)
@@ -139,7 +139,10 @@ class WorkerSettings:
     enqueue của `services/document`.
     """
 
-    functions = [func(document_probed, name=DOCUMENT_PROBED_TASK)]
+    functions = [
+        func(document_probed, name=DOCUMENT_PROBED_TASK),
+        func(document_progress, name=DOCUMENT_PROGRESS_TASK),
+    ]
     queue_name = _settings.ingest_queue_name
     redis_settings = _redis_settings()
     # Không giữ kết quả: không ai đọc chúng. Kết quả của một job ghi database là chính cái hàng

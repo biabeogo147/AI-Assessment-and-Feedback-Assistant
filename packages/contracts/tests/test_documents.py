@@ -9,9 +9,13 @@ from pydantic import ValidationError
 
 from contracts import (
     DOCUMENT_PROBED_TASK,
+    DOCUMENT_PROGRESS_TASK,
+    OCR_PAGES_TASK,
     PROBE_DOCUMENT_TASK,
+    DocumentPagesRequested,
     DocumentProbed,
     DocumentProbeRequested,
+    DocumentProgress,
     DocumentState,
 )
 
@@ -99,3 +103,58 @@ def test_the_two_task_names_are_not_the_same() -> None:
     chứng là một vòng lặp vô hạn chứ không phải một lỗi.
     """
     assert PROBE_DOCUMENT_TASK != DOCUMENT_PROBED_TASK
+
+
+def test_all_four_task_names_differ() -> None:
+    """Từ plan 3b có bốn task trên ba queue, và hai cái trong số ấy cùng nằm trên queue của
+    `services/document`. Trùng tên là một lô OCR bị đọc như một lần dò tệp -- payload sai hình dạng,
+    và job chết ở `model_validate` thay vì đọc trang nào.
+    """
+    names = [PROBE_DOCUMENT_TASK, DOCUMENT_PROBED_TASK, OCR_PAGES_TASK, DOCUMENT_PROGRESS_TASK]
+    assert len(set(names)) == len(names)
+
+
+def test_a_page_batch_carries_a_key_not_the_bytes() -> None:
+    """Mỗi lô đọc lại tệp từ object storage, cùng lý do với `DocumentProbeRequested`."""
+    batch = DocumentPagesRequested(
+        document_id="doc-1",
+        storage_key="documents/gv/doc-1.pdf",
+        filename="sách.pdf",
+        first=11,
+        page_count=184,
+    )
+    assert set(batch.model_dump()) == {
+        "schema_version",
+        "document_id",
+        "storage_key",
+        "filename",
+        "first",
+        "page_count",
+    }
+    assert DocumentPagesRequested.model_validate_json(batch.model_dump_json()) == batch
+
+
+def test_progress_is_not_a_verdict() -> None:
+    """Tiến độ không mang `state`: tài liệu vẫn *đang xử lý*, và chỉ `DocumentProbed` đổi điều ấy.
+
+    Một tiếng báo tiến độ mang trạng thái là một đường thứ hai để chip đổi màu, và hai đường thì
+    về sai thứ tự được.
+    """
+    told = DocumentProgress(document_id="doc-1", pages_read=20, page_count=184)
+    assert "state" not in told.model_dump()
+    assert DocumentProgress.model_validate_json(told.model_dump_json()) == told
+
+
+@pytest.mark.parametrize("first, page_count", [(0, 10), (1, 0)])
+def test_a_batch_that_would_read_nothing_is_refused(first: int, page_count: int) -> None:
+    """Một lô không trang nào phải chết ở biên. Lọt qua thì nó tự giao lại chính nó với cùng id, bị
+    arq từ chối vì job vẫn đang chạy, và chuỗi lô dừng im -- review Task 3 của plan 3b.
+    """
+    with pytest.raises(ValidationError):
+        DocumentPagesRequested(
+            document_id="doc-1",
+            storage_key="documents/gv/doc-1.pdf",
+            filename="sach.pdf",
+            first=first,
+            page_count=page_count,
+        )

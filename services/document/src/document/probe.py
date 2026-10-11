@@ -16,10 +16,15 @@ hiểu: việc cắt chương và phân loại đoạn thuộc plan sau.
 import logging
 import unicodedata
 from datetime import datetime
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from contracts import DocumentState, RawBlock, RawPage, RawSource
 from document.pdf import PdfUnreadable, open_pdf
+
+if TYPE_CHECKING:
+    # Chỉ để khai kiểu. Import thật kéo theo `document.ocr`, mà `__init__` của nó nạp torch -- vài
+    # giây và vài trăm MB cho mỗi process chỉ muốn đếm chữ của một tệp `.md`.
+    from document.ocr.model import PageRead
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +280,41 @@ def _raw_pdf_pages(raw: bytes, document_id: str, at: datetime) -> list[RawPage]:
                 )
             )
     return out
+
+
+def raw_ocr_page(read: "PageRead", document_id: str, at: datetime) -> RawPage:
+    """Bản thô của một trang đọc bằng OCR.
+
+    Khác text layer ở hai chỗ, và cả hai là thứ plan 3c cần: nhãn khối là nhãn **thật** của
+    PP-DocLayout (`paragraph_title`, `formula`, `number`, ...) chứ không phải `text`, và mỗi trang
+    mang số giây từng chặng -- số đo của đường OCR trong worker thật nằm ở đây, không ở bộ đo.
+
+    Khối không có chữ (hình, bảng) **vẫn ở lại**, với chữ rỗng: một hình giữa hai đoạn là tín hiệu
+    bố cục, và bỏ nó là bỏ thông tin mà không ai yêu cầu bỏ. Chỉ `text` của trang bỏ qua chúng.
+
+    Args:
+        read: Trang `PageReader.read_page` trả về.
+        document_id: Id tài liệu.
+        at: Lúc đọc, có múi giờ.
+
+    Returns:
+        Trang, `source` là `OCR`, hộp theo điểm ảnh của ảnh đã dựng.
+    """
+    blocks = tuple(
+        RawBlock(kind=str(block.kind), box=tuple(block.box), text=_clean(block.text))
+        for block in read.blocks
+    )
+    return RawPage(
+        document_id=document_id,
+        page=read.page,
+        source=RawSource.OCR,
+        width=read.width,
+        height=read.height,
+        blocks=blocks,
+        text="\n".join(block.text for block in blocks if block.text),
+        seconds=dict(read.seconds),
+        read_at=at,
+    )
 
 
 def _clean(text: str) -> str:

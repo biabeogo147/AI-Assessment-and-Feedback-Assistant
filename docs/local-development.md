@@ -251,9 +251,21 @@ cho `services/document`; worker đó đọc tệp từ MinIO bằng PyMuPDF và 
 
 ```text
 state = ready           đọc được chữ, page_count là số trang thật
-state = no_text_layer   bản scan, hoặc PDF không có trang nào; fault nói cái nào
+state = no_text_layer   PDF không có trang nào, tệp thuần rỗng, hoặc OCR đọc hết mà không ra chữ
 state = failed          job đã chết, hoặc không giao được việc; thử tải lại
 ```
+
+**PDF scan mất nhiều phút, không phải vài giây.** Nó đi đường OCR theo lô 10 trang, khoảng 4 s một
+trang trên CPU, nên một cuốn SGK 125 trang đứng ở `processing` chừng mười phút. Xem nó tiến bằng log
+của `document` (`ocr document=... pages 11-20 of 125`), cột `pages_read` trong Postgres, hoặc đếm
+trang trong Mongo:
+
+```powershell
+docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "db.pages.countDocuments({document_id:'<id>'})"
+```
+
+Worker `document` chạy một job một lúc, nên một tệp có chữ tải lên giữa chừng chờ sau lô OCR đang
+chạy, tối đa chừng một phút.
 
 Tệp `.txt` và `.md` mang `page_count: null` **vĩnh viễn**: chúng không có trang, và một số
 `0` ở đó thì màn hình sẽ in "0 trang" và giáo viên sẽ tin.
@@ -358,7 +370,8 @@ tự hay gặp:
    `... worker ready: queue=...` của hai worker. Lệch tên là lỗi im lặng: không bên nào báo gì.
 
 Trạng thái *xử lý hỏng* ở đây **không** được ghi vào database — cột vẫn là `processing`. Nó được
-suy ra lúc đọc, khi hàng đứng lâu hơn `DOCUMENT_STALE_AFTER_SECONDS`, vì một process bị giết thì
+suy ra lúc đọc, khi hàng đứng lâu hơn `DOCUMENT_STALE_AFTER_SECONDS` tính từ **lần cuối nghe được
+tin** -- lúc tải lên, hoặc tiếng báo tiến độ gần nhất của một lô OCR -- vì một process bị giết thì
 không còn ai sống để ghi một giá trị khác. Hệ quả hợp ý: bật `document` lên muộn thì tài liệu cũ
 vẫn được xử lý, và lần đọc sau nói đúng.
 
