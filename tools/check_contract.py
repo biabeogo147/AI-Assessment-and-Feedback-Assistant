@@ -311,13 +311,18 @@ def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
     from be.config import Settings as BeSettings
 
     agent = AgentSettings()
-    worst_case = agent.llm_timeout_seconds * agent.llm_max_attempts
+    # Lần thứ ba một lời gọi mới xuất hiện trước model (plan 4a): Jev chọn skill trước mỗi lần
+    # propose, có trần riêng, nên trường hợp xấu nhất cộng thêm trần ấy.
+    worst_case = (
+        agent.skill_router_timeout_seconds + agent.llm_timeout_seconds * agent.llm_max_attempts
+    )
     job_patience = BeSettings().agent_job_timeout_seconds
 
     if worst_case >= job_patience:
         return _fail(
             "timeout-order",
-            f"a job may take LLM_TIMEOUT_SECONDS={agent.llm_timeout_seconds} x "
+            f"a job may take SKILL_ROUTER_TIMEOUT_SECONDS={agent.skill_router_timeout_seconds} + "
+            f"LLM_TIMEOUT_SECONDS={agent.llm_timeout_seconds} x "
             f"LLM_MAX_ATTEMPTS={agent.llm_max_attempts} = {worst_case}s, which is not under "
             f"AGENT_JOB_TIMEOUT_SECONDS={job_patience}; a slow model would look "
             "like a dead one to BE while the worker is still busy",
@@ -1652,10 +1657,14 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
         ),
         (
             # Jev (plan 3c, D1): một module hỏi Jev, nên một chỗ giữ thứ tự lựa chọn và tiêu chí
-            # -- thứ bộ đo đã hiệu chỉnh ngưỡng trên đó.
+            # -- thứ bộ đo đã hiệu chỉnh ngưỡng trên đó. Plan 4a mở cửa thứ hai, cùng luật: một
+            # module **mỗi service** -- AGENT hỏi Jev chọn skill cho Kriky ở `skill_router.py`.
             "typesafe_sdk",
             TYPESAFE_IMPORT,
-            (_INDEX / "jev.py",),
+            (
+                _INDEX / "jev.py",
+                REPO_ROOT / "services" / "agent" / "src" / "agent" / "skill_router.py",
+            ),
             ("be", "agent", "document", "ingest"),
         ),
         (

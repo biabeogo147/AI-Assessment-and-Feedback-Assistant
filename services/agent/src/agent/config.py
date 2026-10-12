@@ -7,6 +7,7 @@ lưu trữ nào, nên một bài nộp phải tới kèm theo mọi thứ cần 
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Neo vào gốc repo thay vì để tương đối theo thư mục làm việc. Nếu để tương đối,
@@ -41,6 +42,14 @@ class Settings(BaseSettings):
             nằm ở đây chứ không nằm cạnh cái loop nó điều khiển, vì mức kiên nhẫn
             của BE với một job phải phủ hết số lần đó, và `tools/check_contract.py`
             chỉ check được điều ấy nếu nó đọc được con số.
+        jev_api_key: Khoá Jev (TypeSafe AI) để chọn skill cho Kriky (plan 4a), cùng biến
+            `JEV_API_KEY` với document agent. Rỗng thì mọi lượt nạp cả ba skill -- đúng bằng
+            prompt trước plan 4a.
+        jev_model: Phiên bản Jev ghim. `skill_min_yes` chỉ có nghĩa đi kèm con số này.
+        skill_min_yes: Một skill được nạp khi Jev cho xác suất "yes" từ ngưỡng này. Thấp có chủ ý:
+            nạp thừa một skill chỉ là prompt hôm nay, thiếu `soan-de` là một plan bị BE từ chối.
+        skill_router_timeout_seconds: Trần **cả** lời chọn skill, cộng vào ngân sách một job
+            propose -- `timeout-order` trong `tools/check_contract.py` cộng nó.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -58,6 +67,11 @@ class Settings(BaseSettings):
     llm_fallback_model: str = ""
     llm_timeout_seconds: int = 20
     llm_max_attempts: int = 3
+
+    jev_api_key: str = ""
+    jev_model: str = "jev-1.13.0"
+    skill_min_yes: float = Field(default=0.3, ge=0, le=1)
+    skill_router_timeout_seconds: float = Field(default=3, gt=0)
 
 
 @lru_cache

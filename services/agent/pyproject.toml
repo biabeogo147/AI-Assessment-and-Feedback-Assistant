@@ -16,6 +16,9 @@ dependencies = [
     # here would be the second place that has to change to add a provider.
     "langchain[openai,google-genai]>=1.0",
     "langgraph>=1.0",
+    # Jev chọn skill cho Kriky (plan 4a). Ghim đúng bản document agent dùng: hai service cùng một
+    # SDK thì cùng một phiên bản.
+    "typesafe-sdk==0.7.4",
 ]
 
 [project.optional-dependencies]
@@ -26,3 +29,7 @@ test = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Skill là file Markdown nằm cạnh code (`agent/skills/*.md`), nên chúng phải đi theo gói.
+[tool.setuptools.package-data]
+agent = ["skills/*.md"]

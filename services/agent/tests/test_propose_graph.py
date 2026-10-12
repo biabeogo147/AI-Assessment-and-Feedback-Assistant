@@ -302,6 +302,71 @@ def test_the_schema_the_model_sees_is_one_openai_accepts() -> None:
     assert "model_tokens" not in asked_for
 
 
+def test_the_model_writes_down_what_it_knows_before_it_chooses() -> None:
+    """`known` là field **đầu tiên**, trước `kind`.
+
+    Model sinh JSON từ trái sang phải, nên thứ tự field là thứ tự quyết định. Với `kind` đứng đầu,
+    *"Tạo đề … chương Hàm số cho lớp 12A, 10 câu"* hỏi lại 8/8 lần trên gpt-4o-mini; ghi ra thứ đã
+    biết trước thì 4/6 nêu plan (plan 4a, 12/10/2026). Đảo thứ tự lại thì test này đỏ.
+    """
+    order = list(_Proposal.model_json_schema()["properties"])
+
+    assert order.index("known") < order.index("kind")
+    assert order[0] == "known"
+
+
+@pytest.mark.asyncio
+async def test_what_the_model_knows_never_leaves_agent(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """`known` là ghi chú của model, không phải hợp đồng: BE không bao giờ thấy nó."""
+    model = Scripted([_Proposal(known="môn Toán, khối 12", kind="say", text="vâng")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("chào"))
+
+    assert "known" not in step.model_dump()
+    assert "môn Toán" not in step.model_dump_json()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["say", "ask_clarify"])
+async def test_an_empty_bubble_is_asked_again_not_shown(
+    monkeypatch: pytest.MonkeyPatch, on: None, kind: str
+) -> None:
+    """Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng.
+
+    Một bong bóng rỗng không được tới màn hình: `propose` hỏi lại model một lần.
+    """
+    empty = _Proposal(known="Thiếu số câu. Bạn muốn soạn bao nhiêu câu?", kind=kind, text="  ")
+    model = Scripted([empty, _Proposal(kind="ask_clarify", text="Bạn muốn bao nhiêu câu?")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("ra đề Toán lớp 10 về mệnh đề"))
+
+    assert (step.kind, step.text) == ("ask_clarify", "Bạn muốn bao nhiêu câu?")
+    assert len(model.prompts) == 2
+
+
+@pytest.mark.asyncio
+async def test_two_empty_bubbles_end_in_a_neutral_ask_not_the_mock(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Hai lần trống thì nhờ nói lại -- không lùi về mock của `handlers.next_step`.
+
+    Mock đoán việc bằng từ khoá, và với đúng câu này nó hỏi *"bạn muốn xem lớp nào?"* (review A1):
+    một câu hỏi sai việc trông như hợp lệ.
+    """
+    model = Scripted([_Proposal(kind="ask_clarify", text=""), _Proposal(kind="say", text=" ")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("ra đề Toán lớp 10 về mệnh đề"))
+
+    assert step.kind == "say"
+    assert step.text and "lớp nào" not in step.text
+    assert step.request_id == "r1"
+
+
 @pytest.mark.asyncio
 async def test_a_plan_keeps_its_steps_in_order_and_its_references_intact(
     monkeypatch: pytest.MonkeyPatch, on: None
@@ -426,14 +491,14 @@ async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
     # cho một câu đã nói phạm vi. Luật phải nói tuyệt đối — "đủ thì nêu plan NGAY" — chứ
     # không liệt kê từng mục không được hỏi.
     assert "NÊU PLAN NGAY" in prompt
-    # Ba mục, không bốn: `create_draft` thôi nhận `question_count`, nên một prompt còn đòi
-    # bốn mục sẽ bắt giáo viên khai số câu cho một việc không dùng tới nó. Và con số ấy
-    # phải được gọi tên ở đúng chỗ của nó, không thì model gửi nó vào `create_draft` và
-    # `vet_plan` từ chối trọn gói cả plan.
-    assert "ĐỦ BA mục" in prompt
-    assert "start_drafting" in prompt and "question_count" in prompt
-    assert "bốn mục" not in prompt and "BỐN MỤC" not in prompt
-    assert "KHÔNG bắt buộc" in prompt
+    # `question_count` thuộc `start_drafting`, không thuộc `create_draft`: gửi nó vào bước mở đề
+    # là `vet_plan` từ chối trọn gói cả plan. Từ ngày 12/10/2026 skill `soan-de` viết thành quy
+    # trình (người dùng chốt), nên luật ấy là **danh sách param của từng bước**, không còn là câu
+    # *"ĐỦ BA mục"* -- và chính danh sách ấy là thứ test này canh.
+    assert "create_draft — subject, grade, topic_scope" in prompt
+    assert "start_drafting — assessment_id = {1.assessment_id}, question_count" in prompt
+    # Mục tuỳ chọn không được hỏi: đo ba lần trên trình duyệt, model hỏi tên đề, rồi độ khó.
+    assert "không cần gì nữa: độ khó, tên đề" in prompt
     # Và luật đi kèm: chỉ trỏ về phía sau. `vet_plan` từ chối một plan trỏ về phía trước,
     # nên không nói ra là để model tự tìm ra bằng cách bị từ chối.
     assert "ĐỨNG TRƯỚC" in prompt

@@ -13,7 +13,7 @@ ai.
 import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 
-from agent import llm
+from agent import llm, skill_router
 
 
 @pytest.fixture(autouse=True)
@@ -35,3 +35,17 @@ def no_real_model(monkeypatch: pytest.MonkeyPatch) -> GenericFakeChatModel:
     llm.chat_models.cache_clear()
     monkeypatch.setattr(llm, "chat_models", lambda: (fake,))
     return fake
+
+
+@pytest.fixture(autouse=True)
+def no_real_jev(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Đóng chỗ nối thứ hai: bộ chọn skill không có client Jev, nên mọi lượt nạp cả ba skill.
+
+    `.env` của máy dev có `JEV_API_KEY` cho document agent, và AGENT đọc cùng biến ấy -- nên thiếu
+    fixture này thì mỗi test propose là một lời gọi Jev thật. Test nào cần Jev thì tự cài một fake.
+
+    Args:
+        monkeypatch: Bộ patch của pytest, phạm vi một test.
+    """
+    skill_router._chosen.clear()
+    monkeypatch.setattr(skill_router, "_client", lambda: None)

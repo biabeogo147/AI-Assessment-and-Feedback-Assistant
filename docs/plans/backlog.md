@@ -1026,3 +1026,17 @@ một nhịp thì khoá của B **trùng** thẻ của A, fencing `WHERE running
 | --- | --- |
 | Cho B một mốc chắc chắn khác A, ví dụ `b = a + timedelta(seconds=1)` | Không chặn gì. Một dòng trong test, chưa làm vì nằm ngoài lượt sửa kênh SSE |
 | Cùng nguyên nhân ở code thật: hai lượt giành khoá trong cùng một nhịp 15,6 ms thì mang cùng thẻ | Chỉ xảy ra khi lượt trước đã quá hạn **và** lượt sau giành đúng nhịp ấy. Thẻ thật nên là một giá trị duy nhất (uuid, hay một bộ đếm) thay vì giờ -- đổi cột, nên đi cùng món *đồng hồ của process* ở mục khoá lượt bên trên |
+
+## BE kẹt khi `--reload` nạp lại lúc một tab đang mở
+
+Đo ngày 12/10/2026, trong plan 4a: `.\dev.ps1 be` chạy uvicorn `--reload` không `--reload-dir`, nên nó theo dõi thư mục đang đứng -- **cả repo** khi
+chạy từ gốc như mọi lần. Sửa
+một file bất kỳ -- kể cả một test của AGENT -- làm uvicorn tắt process cũ, rồi **kẹt** ở *"Waiting
+for connections to close"*: kênh SSE `/api/teacher/documents/stream` của mỗi tab không bao giờ tự
+đóng. BE không trả lời gì cho tới khi khởi động lại tay; màn hình giáo viên đứng ở *"Đang đọc yêu
+cầu…"*. Gặp hai lần trong một buổi.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Cho uvicorn đóng kênh khi tắt (`timeout_graceful_shutdown`), hoặc stream tự kết thúc khi app tắt | Không chặn gì. Ngoài phạm vi plan 4a. Chạy BE bằng compound PyCharm (không `--reload`) thì không gặp |
+

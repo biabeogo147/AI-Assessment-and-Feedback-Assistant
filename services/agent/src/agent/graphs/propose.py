@@ -24,6 +24,10 @@ System prompt mang ba luật không phải chuyện văn phong. AGENT không đ�
 chọn phương án nào khi lựa chọn đó là một quyết định sư phạm, vì giáo viên giữ thẩm
 quyền ấy. Và nó hỏi lại chứ không đoán khi một cái tên có thể mang nhiều nghĩa, đó là
 cổng kiểm đầu vào của ADR-05.
+
+Từ plan 4a, prompt là **lõi + skill**. `_CORE` mang những luật không lượt nào được thiếu; lời dặn
+chỉ một loại việc cần -- tra lớp, soạn đề -- nằm trong `agent/skills/*.md`, và `skill_router` (Jev)
+chọn skill nào được nạp trước khi graph chạy.
 """
 
 import json
@@ -32,16 +36,16 @@ from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from agent import llm
+from agent import llm, skill_router, skills
 from agent.latex_escapes import restore_latex_escapes
 from contracts import NextStepCompleted, NextStepRequested, PlanStep, ToolSpec, TurnRecord
 
 logger = logging.getLogger(__name__)
 
 
-_SYSTEM = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
+_CORE = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
 
 Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
 danh sách những việc sẽ làm. Hệ thống chạy plan ấy ở pha sau, rồi hỏi bạn kể lại kết quả.
@@ -59,9 +63,8 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong bốn việc:
   câu bạn nói với giáo viên trước khi bắt tay, ví dụ "Được, mình soạn đề ngay."
 
 Về plan:
-- Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: giáo viên nhờ "tạo
-  đề 10 câu" nghĩa là đề phải CÓ CÂU HỎI khi xong, nên plan gồm cả bước mở đề lẫn bước soạn câu.
-  Một plan chỉ mở đề trống là một plan làm sai việc được nhờ.
+- Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: khi xong, việc
+  giáo viên nhờ phải XONG trọn, không dừng ở nửa đường.
 - title của mỗi bước là câu tiếng Việt giáo viên đọc trên màn hình: "Tạo đề trống", "Soạn 10 câu
   hỏi". Nói VIỆC, đừng nói tên tool.
 - Một tham số lấy giá trị từ kết quả của bước trước thì viết là {k.ten_field}, với k là số thứ tự
@@ -84,55 +87,6 @@ Bốn điều không thương lượng:
 - Không đoán khi một cái tên có thể trỏ tới nhiều thứ. Hỏi lại, và chỉ đưa những lựa chọn có trong
   dữ liệu bạn được cấp. Không bịa tên lớp, tên đề hay con số nào.
 
-Khi "list_class" trả về NHIỀU HƠN MỘT lớp trong "candidates" và câu hỏi của giáo viên chỉ nói về
-một lớp, đó là lúc dùng ask_clarify. Bạn chỉ cần viết CÂU HỎI; hệ thống tự dựng danh sách lựa chọn
-từ candidates, nên đừng tự liệt kê tên lớp hay sĩ số trong câu hỏi và đừng điền gì vào choices —
-điền cũng bị bỏ. Và đừng nói lớp nào có vẻ đúng hơn. Hai lớp cùng một tên thì càng không được tự
-chọn: số học sinh là thứ phân biệt chúng, và chỉ giáo viên biết mình muốn lớp nào.
-
-Đúng MỘT lớp trong "candidates" thì không có gì để hỏi — dùng luôn "class_id" của nó.
-
-Nếu kết quả có "more" lớn hơn 0, danh sách đã bị cắt. Gọi lại "list_class" với "name" là một phần
-tên lớp để thu hẹp, ĐỪNG hỏi giáo viên gõ lại. Chỉ khi thu hẹp rồi vẫn còn "more" lớn hơn 0 thì mới
-nói ra rằng danh sách chưa đầy đủ và còn bấy nhiêu lớp nữa.
-
-Các tool khác nhận "class_id", KHÔNG nhận tên lớp. Nên đường đi luôn là: "list_class" trước, rồi
-lấy "class_id" từ đó. "get_class" cũng cần id, nên đừng gọi nó với một id bạn tự đoán.
-
-Khi một tool trả "found": false, nghĩa là id ấy không có trong danh sách của giáo viên này. Hãy nói
-là không tìm thấy và gọi "list_class" để lấy danh sách thật — đừng thử lại cùng một id, và đừng
-nhắc tên lớp nào không nằm trong kết quả tool.
-
-Về soạn đề:
-- Để mở một đề nháp cần ĐỦ BA mục: môn, khối, phạm vi kiến thức. SỐ CÂU không thuộc về bước mở
-  đề — một đề trống chưa có câu nào — nó là tham số của "start_drafting". Thiếu mục nào thì
-  ask_clarify hỏi đúng những mục đó trong MỘT lượt, và chưa nêu plan. TUYỆT ĐỐI không tự điền thay
-  giáo viên: cả bộ đề được sinh từ một brief duy nhất, nên một mục đoán sai làm sai toàn bộ bộ đề,
-  không chỉ một câu.
-- Nhưng ĐỌC KỸ câu họ vừa gõ trước khi hỏi. Hỏi lại một mục họ VỪA NÓI là bắt người ta gõ lại chữ
-  của chính mình. Các mục thường nằm sẵn trong một câu: "10 câu" là số câu; "môn Toán" là môn;
-  "về tích phân", "chương Hàm số" là phạm vi; và TÊN LỚP ĐÃ NÓI RA KHỐI — "lớp 12A" nghĩa là khối
-  12, "10B" nghĩa là khối 10. Chỉ hỏi những mục thật sự không có trong câu.
-- ĐỦ BA MỤC CỘNG SỐ CÂU THÌ NÊU PLAN NGAY. Không hỏi thêm một câu nào nữa, về bất cứ thứ gì. Mức
-  độ khó, tên
-  đề, dạng câu hỏi, thời lượng, lớp áp dụng — tất cả đều KHÔNG bắt buộc: thiếu thì cứ làm, hệ thống
-  tự lo. Mỗi câu hỏi về một mục không bắt buộc là một lượt nữa giáo viên phải gõ, cho một thứ họ
-  không cần quyết.
-- Ví dụ: "Tạo đề kiểm tra 15 phút chương Hàm số cho lớp 12A, 10 câu trắc nghiệm" là ĐỦ — môn Toán
-  (đọc từ "Hàm số"), khối 12 (đọc từ "lớp 12A"), phạm vi "chương Hàm số", 10 câu. Nêu plan ngay.
-  Không hỏi về độ khó, không hỏi tên đề.
-- Một đề KHÔNG thuộc về lớp nào cả. `create_draft` không nhận lớp, và việc phát hành cho lớp nào đi
-  qua biểu mẫu phát hành chứ không qua khung chat. Nên đừng hỏi "đề này cho lớp nào" — kể cả khi
-  giáo viên chưa nói lớp, bạn vẫn mở đề được.
-- Và đừng XÁC NHẬN LẠI thứ bạn vừa đọc được. "Bạn xác nhận khối là 12 và phạm vi là chương Lượng
-  giác chứ?" cũng là một lượt nữa giáo viên phải gõ, cho một thứ họ đã viết ra. Đọc được thì dùng.
-- Plan có hai bước: "create_draft" nhận ba mục kia, rồi "start_drafting" nhận "assessment_id" của
-  đề vừa mở CỘNG "question_count". Gửi "question_count" vào "create_draft" là gửi một tham số tool
-  đó không nhận, và cả plan bị từ chối.
-- Một đề nhiều nhất 50 câu, và mức ấy tính trên TỔNG: gọi "start_drafting" lần nữa là soạn thêm,
-  nên một đề đã có 45 câu chỉ xin thêm được 5.
-- Việc soạn câu chạy ngầm và câu hỏi hiện dần ở panel, nên đừng nói là đã soạn xong.
-
 Hai việc bạn KHÔNG làm được, và không có tool nào cho chúng: duyệt đề, và phát hành đề. Giáo viên tự
 làm ở panel bên phải. Nếu họ nhờ bạn duyệt hay phát hành, hãy nói rằng chỗ làm việc đó là panel và
 biểu mẫu phát hành — đừng hứa, và đừng nói là đã làm.
@@ -143,6 +97,17 @@ Cách viết:
 - Toán viết trong cặp `$`: `$y = x^3 - 3x$`, `$\int_0^1 (3x^2 - 2x + 1)\,dx$`, `$\frac{1}{3}$`.
   Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
   cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`."""
+
+
+class _NothingToSay(ValueError):
+    """Model chọn `say` hay `ask_clarify` mà để `text` rỗng."""
+
+
+# Câu nói khi model hai lần liền để trống lời. Trung tính có chủ ý: **không** lùi về mock của
+# `handlers.next_step`, vì mock đoán việc bằng từ khoá và đoán sai đúng ca đo được -- *"ra đề Toán
+# lớp 10 về mệnh đề"* thành câu hỏi *"bạn muốn xem lớp nào?"* (review A1). Một câu hỏi sai việc
+# trông như hợp lệ và kéo cả đoạn chat lạc hướng; một câu nhờ nói lại thì không.
+_UNCLEAR = "Mình chưa rõ ý bạn lắm. Bạn nói lại giúp mình nhé?"
 
 
 class _Argument(BaseModel):
@@ -230,8 +195,26 @@ class _Proposal(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # **Đứng trước `kind`, có chủ ý** (plan 4a, 12/10/2026). Model sinh JSON từ trái sang phải, nên
+    # field đầu tiên là quyết định đầu tiên. Khi `kind` đứng đầu, gpt-4o-mini chọn hỏi lại trước khi
+    # kịp đọc ra các mục đã có -- *"Tạo đề … chương Hàm số cho lớp 12A, 10 câu"* hỏi lại 8/8 lần
+    # dù prompt dặn nêu plan ngay, và đổi chữ ở lõi, skill, mô tả tool đều 0/6. Bắt nó ghi ra thứ đã
+    # biết trước thì 4/6. Không rời AGENT: `completed` bỏ nó đi, chỉ log giữ lại.
+    known: str = Field(
+        default="",
+        description=(
+            "Ghi chú cho chính bạn, giáo viên KHÔNG đọc: những gì đã biết từ lời giáo viên và kết "
+            "quả tool, và còn thiếu gì cho việc họ nhờ. Không viết câu hỏi hay câu trả lời ở đây."
+        ),
+    )
     kind: Literal["say", "call_tool", "ask_clarify", "plan"]
-    text: str = ""
+    text: str = Field(
+        default="",
+        description=(
+            "Câu giáo viên đọc trên màn hình. Với ask_clarify, đây là câu hỏi. Không được rỗng với "
+            "say và ask_clarify."
+        ),
+    )
     tool_name: str = ""
     tool_args: tuple[_Argument, ...] = ()
     steps: tuple[_Step, ...] = ()
@@ -279,11 +262,13 @@ class ProposeState(TypedDict):
 
     Attributes:
         request: Cuộc hội thoại và danh mục tool.
+        skills: Tên các skill nạp cho lượt này, do `skill_router` chọn trước khi graph chạy.
         messages: Những gì model thấy, do `compose` điền.
         step: Đề nghị, do `choose` điền.
     """
 
     request: NextStepRequested
+    skills: tuple[str, ...]
     messages: Annotated[list[BaseMessage], lambda old, new: new]
     step: NextStepCompleted | None
 
@@ -337,7 +322,12 @@ def _compose(state: ProposeState) -> dict:
     """
     request = state["request"]
 
-    opening = [_SYSTEM]
+    # Lõi trước, rồi skill, rồi tên giáo viên: phần đứng đầu càng ít đổi giữa hai lượt thì prompt
+    # cache của provider càng dùng lại được nhiều. Skill nằm **sau** lõi, nên không skill nào nói
+    # trước được một luật an toàn.
+    opening = [_CORE]
+    for skill in skills.named(state["skills"]):
+        opening.append(skill.body)
     if request.teacher_name:
         opening.append(f"Bạn đang nói với {request.teacher_name}.")
     if request.catalog:
@@ -432,6 +422,12 @@ async def _choose(state: ProposeState) -> dict:
     else:
         proposal, spent = answered, 0
 
+    logger.info("known before choosing %s: %s", proposal.kind, proposal.known)
+    if proposal.kind in {"say", "ask_clarify"} and not proposal.text.strip():
+        # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
+        # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần.
+        raise _NothingToSay(f"model chose {proposal.kind} with nothing to say")
+
     # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
     return {"step": _unmangled(proposal).completed(request_id="", model_tokens=spent)}
@@ -470,7 +466,18 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
         Exception: Bất cứ thứ gì provider raise. Handler ở tầng trên quyết định lùi
             về cái gì, vì chỉ nó biết liệu đã có thứ gì tới tay giáo viên hay chưa.
     """
-    final = await _GRAPH.ainvoke({"request": request, "messages": [], "step": None})
+    chosen = await skill_router.choose(request.history)
+    state = {"request": request, "skills": chosen, "messages": [], "step": None}
+    try:
+        final = await _GRAPH.ainvoke(state)
+    except _NothingToSay:
+        # Một lần nữa, không hơn: lần trống thứ hai là model đang kẹt, không phải xui.
+        logger.warning("empty answer for %s, asking once more", request.request_id)
+        try:
+            final = await _GRAPH.ainvoke(state)
+        except _NothingToSay:
+            logger.warning("empty answer twice for %s", request.request_id)
+            return NextStepCompleted(request_id=request.request_id, kind="say", text=_UNCLEAR)
     step: NextStepCompleted = final["step"]
     logger.info("proposed %s for %s", step.kind, request.request_id)
     return step.model_copy(update={"request_id": request.request_id})
