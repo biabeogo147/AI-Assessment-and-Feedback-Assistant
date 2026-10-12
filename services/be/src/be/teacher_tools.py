@@ -965,7 +965,9 @@ async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["P
 
 _TOOLS: tuple[Tool, ...] = (
     # Ba tool đọc tài liệu (plan 4b). Mô tả chỉ nói **làm gì và nhận gì**; dùng lúc nào, theo thứ
-    # tự nào là việc của skill `soan-de` -- một nguồn cho mỗi điều, không lặp ở hai chỗ.
+    # tự nào là việc của quy trình -- skill `soan-de` mở thư viện khi giáo viên nhắc sách, còn
+    # đọc mục lục nằm ở `propose._BOOK_PROCEDURE` bên AGENT, chỉ chèn ở lượt có sách (plan 4c).
+    # Một nguồn cho mỗi điều, không lặp ở hai chỗ.
     Tool(
         spec=ToolSpec(
             name="list_documents",
@@ -994,13 +996,11 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="list_class",
             description=(
-                "Liet ke cac lop cua giao vien, kem so hoc sinh. Goi tool nay truoc khi hoi ve "
-                "mot lop, vi cac tool khac can class_id chu khong nhan ten lop. Hai lop trung "
-                "ten thi KHONG duoc tu chon: hay hoi giao vien, va so hoc sinh la thu phan biet "
-                "chung. Danh sach nhieu nhat 6 lop; neu more lon hon 0 thi goi lai tool nay voi "
-                "name la mot phan ten lop de thu hep."
+                "Liệt kê các lớp của giáo viên kèm sĩ số, nhiều nhất 6 lớp; more là số lớp còn "
+                "lại chưa hiện. Trả về candidates, mỗi lớp có class_id."
             ),
-            arguments={"name": "tuy chon: mot phan ten lop de thu hep, vi du 12 hoac 12A"},
+            arguments={"name": "tùy chọn: một phần tên lớp, chép từ lời giáo viên, để thu hẹp"},
+            optional=("name",),
         ),
         run=_list_class,
     ),
@@ -1050,15 +1050,8 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="create_draft",
             description=(
-                "Mo mot de nhap trong. Can DUNG BA muc: subject (mon), grade (khoi) va "
-                "topic_scope (pham vi kien thuc, theo loi giao vien). Du ba muc do "
-                "thi LAM NGAY, dung hoi them gi nua -- he thong tu dat ten de va tu lo do kho. "
-                "KHONG hoi so cau o buoc nay: mot de trong chua co so cau nao, con so do thuoc "
-                "ve start_drafting. "
-                "Thieu muc nao thi KHONG duoc nham buoc nay vao plan: hay HOI giao vien nhung muc "
-                "do truoc da, vi mot buoc thieu tham so se lam dung ca plan va de lai mot de rong. "
-                "Tool nay KHONG sinh cau hoi, nen mot plan chi co buoc nay se de lai mot de rong: "
-                "hay dat start_drafting ngay sau no."
+                "Mở một đề nháp trống. Tool này không sinh câu hỏi và không nhận số câu: câu "
+                "hỏi do start_drafting sinh, ngay sau nó."
             ),
             # Ba mục, không sáu. `difficulty` và `title` vẫn **nhận được** ở thân tool, nhưng
             # không còn được mô tả cho model -- và đó là một phép sửa cấu trúc, không phải một
@@ -1067,9 +1060,9 @@ _TOOLS: tuple[Tool, ...] = (
             # hỏi thừa tiêu trọn một lượt của giáo viên. Thứ không nhìn thấy thì không hỏi
             # được -- cùng cách ADR-25 bỏ tool ghi khỏi catalog pha 1 thay vì dặn đừng gọi.
             arguments={
-                "subject": "mon hoc, vi du Toan",
-                "grade": "khoi, vi du 12",
-                "topic_scope": "pham vi kien thuc theo loi giao vien",
+                "subject": "môn học",
+                "grade": "khối, chỉ con số",
+                "topic_scope": "phạm vi kiến thức, chép đúng lời giáo viên",
             },
         ),
         run=_create_draft,
@@ -1079,15 +1072,12 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="start_drafting",
             description=(
-                "Bat dau sinh cau hoi cho mot de nhap. Can assessment_id VA question_count. "
-                "Moi cau mot job chay nen, nen tool tra ve ngay va cau hoi hien dan. "
-                "Tu choi neu de dang soan do hoac da duyet. "
-                "Trong mot plan, hay dat buoc nay ngay sau create_draft va lay assessment_id bang "
-                "cach tro ve buoc do."
+                "Sinh câu hỏi cho một đề nháp; câu hỏi hiện dần. Từ chối khi đề đang soạn dở "
+                "hoặc đã duyệt."
             ),
             arguments={
-                "assessment_id": "id de nhap, lay tu create_draft",
-                "question_count": "so cau can soan lan nay, 1 den 50",
+                "assessment_id": "id đề nháp, lấy từ create_draft",
+                "question_count": "số câu soạn lần này, 1 đến 50",
             },
         ),
         run=_start_drafting,
@@ -1107,12 +1097,16 @@ PHASE_WORK = 2
 # được -- `document_id` hiện cho một lượt không có sách là mời model hỏi *"dùng tài liệu nào?"*.
 _DOCUMENT_TOOLS = frozenset({"list_chapters", "get_chapter"})
 _DOCUMENT_ARGUMENTS = {
-    "document_id": "id tai lieu cua pham vi: tai lieu dinh kem, hoac lay tu list_documents",
+    "document_id": "id tài liệu của phạm vi: tài liệu đính kèm, hoặc lấy từ list_documents",
     "nodes": (
-        "cac so node cua pham vi, cach nhau bang dau phay, lay tu list_chapters/get_chapter; "
-        "bat buoc khi co document_id"
+        "các số node của phạm vi, cách nhau bằng dấu phẩy, lấy từ list_chapters/get_chapter; "
+        "bắt buộc khi có document_id"
     ),
 }
+# `topic_scope` **không** đổi mô tả ở lượt có sách, dù mô tả chung (*"chép đúng lời giáo viên"*)
+# cãi `_BOOK_PROCEDURE` (*"tên các mục đã chọn"*) -- review T2 thử một mô tả riêng nói cả hai
+# nguồn, và `tai-lieu-khop-chuong` tụt 18/24 → 9/24: model hỏi *"cả chương hay một phần?"*. Khi
+# model bỏ `nodes`, `bind_book` chỉ đỡ được nếu `topic_scope` trùng tên mục.
 
 
 def _with_document(spec: ToolSpec, bound: bool) -> ToolSpec:
