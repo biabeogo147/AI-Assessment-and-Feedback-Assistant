@@ -1,0 +1,38 @@
+{
+  "propose": [
+    {"id": "du-pt-bac-hai-9", "history": [["teacher", "Ra 12 câu trắc nghiệm về phương trình bậc hai cho lớp 9"]], "expect": {"kind": "plan", "grade": "9", "count": "12", "scope_has": ["bậc hai"]}},
+    {"id": "du-hinh-khong-gian-11", "history": [["teacher", "Soạn đề 8 câu hình học không gian lớp 11"]], "expect": {"kind": "plan", "grade": "11", "count": "8", "scope_has": ["không gian"]}},
+    {"id": "du-xac-suat-10", "history": [["teacher", "Cho mình đề 15 câu xác suất thống kê khối 10"]], "expect": {"kind": "plan", "grade": "10", "count": "15", "scope_has": ["xác suất"]}},
+    {"id": "du-phan-so-lop-la", "history": [["teacher", "Tạo 6 câu về phân số cho lớp 6/3"]], "expect": {"kind": "plan", "grade": "6", "count": "6", "scope_has": ["phân số"]}},
+    {"id": "du-luong-giac-chuyen", "history": [["teacher", "Đề kiểm tra 20 câu phần lượng giác cho lớp 11 Chuyên Toán"]], "expect": {"kind": "plan", "grade": "11", "count": "20", "scope_has": ["lượng giác"]}},
+    {"id": "du-ti-le-thuc-7", "history": [["teacher", "Soạn 7 câu tỉ lệ thức cho lớp 7A3"]], "expect": {"kind": "plan", "grade": "7", "count": "7", "scope_has": ["tỉ lệ thức"]}},
+    {"id": "du-vecto-10", "history": [["teacher", "Viết 9 câu về vectơ trong mặt phẳng cho học sinh lớp 10"]], "expect": {"kind": "plan", "grade": "10", "count": "9", "scope_has": ["vectơ"]}},
+    {"id": "du-so-nguyen-to-6", "history": [["teacher", "Làm đề 5 câu về số nguyên tố, lớp 6"]], "expect": {"kind": "plan", "grade": "6", "count": "5", "scope_has": ["nguyên tố"]}},
+    {"id": "dap-so-cau-sau-hoi", "history": [["teacher", "Soạn đề về thể tích khối chóp cho lớp 12"], ["assistant", "Bạn muốn đề có bao nhiêu câu?"], ["teacher", "14 câu"]], "expect": {"kind": "plan", "grade": "12", "count": "14", "scope_has": ["khối chóp"]}},
+    {"id": "thieu-khoi-va-so-cau", "history": [["teacher", "Ra đề về hệ hai phương trình bậc nhất hai ẩn"]], "expect": {"kind": "ask_clarify", "text_lacks": ["tài liệu"]}},
+    {"id": "thieu-pham-vi", "history": [["teacher", "Soạn 10 câu cho lớp 8"]], "expect": {"kind": "ask_clarify", "text_lacks": ["tài liệu"]}},
+    {"id": "thieu-het", "history": [["teacher", "Mình cần một đề kiểm tra"]], "expect": {"kind": "ask_clarify", "text_lacks": ["tài liệu"]}},
+    {"id": "tra-lop-ket-qua", "history": [["teacher", "Lớp 9A2 làm bài kiểm tra vừa rồi thế nào?"]], "expect": {"kind": "call_tool", "tool": "list_class", "args": {"name": ["9A2", "lớp 9A2"]}}},
+    {"id": "tra-si-so", "history": [["teacher", "Sĩ số lớp 10 Chuyên Toán là bao nhiêu?"]], "expect": {"kind": "call_tool", "tool": "list_class", "args": {"name": ["10 Chuyên Toán", "lớp 10 Chuyên Toán", "Chuyên Toán", "10"]}}},
+    {"id": "chung-ki-hieu", "history": [["teacher", "Viết phân số ba phần tư trong đề thế nào?"]], "expect": {"kind": "say", "text_lacks": ["tài liệu"]}},
+    {"id": "chung-khai-niem", "history": [["teacher", "Đường trung tuyến của tam giác là gì?"]], "expect": {"kind": "say", "text_lacks": ["tài liệu"]}},
+    {"id": "tai-lieu-khong-dinh", "history": [["teacher", "Soạn 10 câu chương 2 trong cuốn sách mình đã tải lên hôm qua"]], "expect": {"kind": "call_tool", "tool": "list_documents"}},
+    {"id": "tai-lieu-chua-doc", "attached": {"document_id": "doc8", "filename": "Toán 8 tập 1.pdf"}, "history": [["teacher", "Soạn 10 câu chương 2 cho lớp 8 từ sách này"]], "expect": {"kind": "call_tool", "tool": "list_chapters", "args": {"document_id": "doc8"}}},
+    {"id": "tai-lieu-khop-chuong", "attached": {"document_id": "doc8", "filename": "Toán 8 tập 1.pdf"}, "history": [["teacher", "Soạn 10 câu chương hằng đẳng thức từ sách này"], ["tool_call", "list_chapters", {"document_id": "doc8"}], ["tool_result", "list_chapters", {"found": true, "more": 0, "candidates": [{"node": 0, "label": "Chương I. ĐA THỨC (tr. 5–30)", "level": 1, "children": 4, "summary": ""}, {"node": 7, "label": "Chương II. HẰNG ĐẲNG THỨC ĐÁNG NHỚ VÀ ỨNG DỤNG (tr. 31–50)", "level": 1, "children": 3, "summary": ""}, {"node": 15, "label": "Chương III. TỨ GIÁC (tr. 51–80)", "level": 1, "children": 5, "summary": ""}]}]], "expect": {"any_of": [{"kind": "plan", "grade": "8", "count": "10", "nodes": "7", "document_id": "doc8"}, {"kind": "call_tool", "tool": "get_chapter", "args": {"document_id": "doc8", "node": "7"}}]}},
+    {"id": "tai-lieu-khong-khop", "attached": {"document_id": "doc8", "filename": "Toán 8 tập 1.pdf"}, "history": [["teacher", "Soạn 10 câu chương số phức từ sách này"], ["tool_call", "list_chapters", {"document_id": "doc8"}], ["tool_result", "list_chapters", {"found": true, "more": 0, "candidates": [{"node": 0, "label": "Chương I. ĐA THỨC (tr. 5–30)", "level": 1, "children": 4, "summary": ""}, {"node": 7, "label": "Chương II. HẰNG ĐẲNG THỨC ĐÁNG NHỚ VÀ ỨNG DỤNG (tr. 31–50)", "level": 1, "children": 3, "summary": ""}, {"node": 15, "label": "Chương III. TỨ GIÁC (tr. 51–80)", "level": 1, "children": 5, "summary": ""}]}]], "expect": {"kind": "ask_clarify"}}
+  ],
+  "author": [
+    {"id": "pt-bac-hai", "grade": "9", "scope": "phương trình bậc hai một ẩn"},
+    {"id": "song-song-kg", "grade": "11", "scope": "quan hệ song song trong không gian"},
+    {"id": "trung-vi", "grade": "10", "scope": "số trung bình, trung vị và mốt của mẫu số liệu"},
+    {"id": "phan-so", "grade": "6", "scope": "phép cộng và phép trừ phân số"},
+    {"id": "ti-le-thuc", "grade": "7", "scope": "tỉ lệ thức và dãy tỉ số bằng nhau"},
+    {"id": "nguyen-ham", "grade": "12", "scope": "nguyên hàm của hàm số lượng giác"}
+  ],
+  "name": [
+    {"id": "ten-soan", "text": "Ra 12 câu trắc nghiệm về phương trình bậc hai cho lớp 9"},
+    {"id": "ten-tra-lop", "text": "Lớp 9A2 làm bài kiểm tra vừa rồi thế nào?"},
+    {"id": "ten-chao", "text": "Xin chào Kriky"},
+    {"id": "ten-hoi", "text": "Đường trung tuyến của tam giác là gì?"}
+  ]
+}
