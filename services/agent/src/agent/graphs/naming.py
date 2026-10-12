@@ -56,10 +56,10 @@ Luật:
 - Tiếng Việt, viết thường trừ tên riêng và tên lớp.
 - Chỉ trả về tiêu đề. Không dấu ngoặc kép, không dấu chấm cuối, không giải thích.
 
-Vài cặp "câu giáo viên gõ" → "tiêu đề":
-- Soạn giúp mình 10 câu về đạo hàm cho 12A1 → Soạn đề đạo hàm 12A1
-- Lớp 11B làm bài vừa rồi thế nào → Kết quả lớp 11B
-- Chào buổi sáng nhé → Chào buổi sáng"""
+Vài khuôn "câu giáo viên gõ" → "tiêu đề"; chữ trong <> là phần lấy từ chính câu ấy:
+- nhờ soạn <số> câu về <nội dung> cho <lớp> → Soạn đề <nội dung> <lớp>
+- <lớp> làm bài <bài nào đó> thế nào → Kết quả <lớp>
+- <một lời chào> → <chính lời chào ấy, rút gọn>"""
 
 
 class NamingState(TypedDict):

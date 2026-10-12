@@ -50,7 +50,8 @@ Luật:
 - Hai tới ba câu. Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi
   giáo viên là "bạn".
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
-- Toán viết trong cặp `$`: `$y = x^3 - 3x$`, `$\int_0^1 (3x^2 - 2x + 1)\,dx$`, `$\frac{1}{3}$`.
+- Toán viết trong cặp `$`, mỗi biểu thức một cặp: `$\frac{a}{b}$`, `$x^{2}$`,
+  `$\sqrt{x}$`, `$a \le b$`.
   Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
   cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`."""
 

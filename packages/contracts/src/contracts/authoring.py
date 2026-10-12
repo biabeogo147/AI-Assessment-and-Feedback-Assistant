@@ -43,7 +43,7 @@ class SolutionMethod(BaseModel):
     """Một cách giải một câu hỏi.
 
     Attributes:
-        title: Tên ngắn của cách làm, ví dụ "xét dấu đạo hàm".
+        title: Tên ngắn của cách làm.
         body: Các bước giải.
     """
 
