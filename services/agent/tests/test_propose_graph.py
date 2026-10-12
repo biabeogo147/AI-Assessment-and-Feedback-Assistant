@@ -65,7 +65,7 @@ def _wants(tool: str, **args: str) -> _Proposal:
     return _Proposal(
         kind="call_tool",
         tool_name=tool,
-        tool_args=tuple(_Argument(name=key, value=value) for key, value in args.items()),
+        tool_args=tuple(_Argument(param=key, value=value) for key, value in args.items()),
     )
 
 
@@ -386,14 +386,14 @@ async def test_a_plan_keeps_its_steps_in_order_and_its_references_intact(
                     _Step(
                         tool_name="create_draft",
                         args=(
-                            _Argument(name="subject", value="Toán"),
-                            _Argument(name="question_count", value="10"),
+                            _Argument(param="subject", value="Toán"),
+                            _Argument(param="question_count", value="10"),
                         ),
                         title="Tạo đề trống",
                     ),
                     _Step(
                         tool_name="start_drafting",
-                        args=(_Argument(name="assessment_id", value="{1.assessment_id}"),),
+                        args=(_Argument(param="assessment_id", value="{1.assessment_id}"),),
                         title="Soạn 10 câu hỏi",
                     ),
                 ),
@@ -484,7 +484,9 @@ async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
     # Và luật chống hỏi lại thứ vừa nghe: đo trên trình duyệt thật, model hỏi "phạm vi kiến
     # thức và số câu" cho một câu đã nói cả hai. Khối đọc được từ tên lớp, và nói ra điều ấy
     # là chỗ rẻ nhất để một lượt không chết vì một câu hỏi thừa.
-    assert "lớp 12A" in prompt and "khối" in prompt
+    # Nguyên cụm, không hai chữ rời: "tên lớp" một mình luôn có nhờ câu *"không bịa tên lớp"* của
+    # lõi, nên test cũ xanh cả khi luật này mất (review T2).
+    assert "con số đứng đầu tên lớp là khối" in prompt
     # Và luật "chỉ hỏi những mục bắt buộc": đo trên trình duyệt thật, model hỏi giáo viên có
     # muốn đặt tên cho đề không — một câu hỏi về một mục tuỳ chọn, tốn trọn một lượt.
     # Đo ba lần trên trình duyệt thật: model hỏi tên đề, rồi hỏi độ khó, rồi hỏi phạm vi

@@ -18,7 +18,7 @@ from typesafe_sdk import TypeSafeError
 
 from agent import llm, skill_router, skills
 from agent.config import get_settings
-from agent.graphs.propose import _CORE, _Proposal, propose
+from agent.graphs.propose import _BOOK_PROCEDURE, _CORE, _Proposal, propose
 from contracts import NextStepRequested, TurnRecord
 
 
@@ -136,18 +136,18 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         "Hẹp rồi mà vẫn more > 0 → say",
         "list_class không có name mà vẫn rỗng → say",
         "found: false",
-        '"lớp 12A" là 12',
+        "con số đứng đầu tên lớp là khối",
         "Đề không thuộc lớp nào",
         "không hỏi để xác nhận",
         "Tổng số câu của một đề không quá 50",
         "đừng nói là đã soạn xong",
         "average_total_marks trên average_out_of câu",
-        # Plan 4b: tài liệu đọc TRƯỚC khi đủ bốn mục cho phép nêu plan (review B5), và phép rải số
-        # câu phải được nói ra (hậu ký ADR-27).
-        "Có tài liệu thì làm bước này TRƯỚC",
-        "call_tool list_chapters — document_id",
-        "có tài liệu thì đã có nodes",
-        "rải đều theo độ dài các mục",
+        # Plan 4c: môn suy từ phạm vi (người dùng chốt), và câu hỏi của đề không viết ra trong lời
+        # nói. Một dòng dặn *"không ghi tên phân môn"* từng đứng đây: lượt hỏi lại môn ở 8 ca soạn
+        # đề đủ mục tăng từ 3 (run-13) lên 10--18 (run-14..19), mà subject vẫn ra "xác suất thống
+        # kê" -- bỏ ở run-20.
+        "hoặc suy từ phạm vi",
+        "không tự viết câu hỏi ra trong lời nói",
     ],
 )
 def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> None:
@@ -157,6 +157,34 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
     chạy với mọi skill nạp, và chỉ kiểm một số cụm.
     """
     assert rule in _CORE or any(rule in skill.body for skill in skills.every())
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        # Plan 4b: tài liệu đọc TRƯỚC khi nêu plan (review B5), và phép rải số câu phải được nói ra
+        # (hậu ký ADR-27). Từ plan 4c thủ tục này nằm ở `_BOOK_PROCEDURE`, chỉ chèn ở lượt có sách.
+        "TRƯỚC khi nêu plan",
+        "call_tool list_chapters — document_id",
+        "rải đều theo độ dài các mục",
+        "create_draft thêm document_id và nodes",
+    ],
+)
+def test_the_book_procedure_keeps_the_rules_of_plan_4b(rule: str) -> None:
+    assert rule in _BOOK_PROCEDURE
+
+
+def test_no_skill_carries_the_book_procedure() -> None:
+    """Plan 4c: lượt không có sách thì thủ tục sách không tới model.
+
+    Skill `soan-de` từng mang thủ tục sách, kèm dòng dặn *"không hỏi giáo viên có tài liệu hay
+    không"*; model vẫn hỏi đúng câu ấy ~7/108 lượt (run-13), và 0/108 khi thủ tục rời skill
+    (run-14). Skill chỉ còn một dòng mở thư viện, kích bởi lời giáo viên. Mô tả skill thì được
+    nhắc -- Jev đọc nó, model soạn đề không đọc.
+    """
+    for skill in skills.every():
+        assert "tài liệu" not in skill.body.casefold()
+        assert "list_chapters" not in skill.body
 
 
 @pytest.mark.asyncio

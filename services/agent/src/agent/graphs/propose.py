@@ -65,8 +65,8 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong bốn việc:
 Về plan:
 - Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: khi xong, việc
   giáo viên nhờ phải XONG trọn, không dừng ở nửa đường.
-- title của mỗi bước là câu tiếng Việt giáo viên đọc trên màn hình: "Tạo đề trống", "Soạn 10 câu
-  hỏi". Nói VIỆC, đừng nói tên tool.
+- title của mỗi bước là câu tiếng Việt giáo viên đọc trên màn hình, nói VIỆC chứ không
+  nói tên tool: "Tạo đề trống", "Soạn <số câu> câu hỏi".
 - Một tham số lấy giá trị từ kết quả của bước trước thì viết là {k.ten_field}, với k là số thứ tự
   bước, đếm từ 1. Ví dụ bước 2 cần id của đề mà bước 1 vừa mở: assessment_id = {1.assessment_id}.
   Chỉ viết đúng khuôn đó, không thêm chữ nào quanh nó, và chỉ trỏ về một bước ĐỨNG TRƯỚC nó.
@@ -94,9 +94,68 @@ biểu mẫu phát hành — đừng hứa, và đừng nói là đã làm.
 Cách viết:
 - Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi giáo viên là "bạn".
 - KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
-- Toán viết trong cặp `$`: `$y = x^3 - 3x$`, `$\int_0^1 (3x^2 - 2x + 1)\,dx$`, `$\frac{1}{3}$`.
+- Toán viết trong cặp `$`, mỗi biểu thức một cặp: `$\frac{a}{b}$`, `$x^{2}$`,
+  `$\sqrt{x}$`, `$a \le b$`.
   Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
   cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`."""
+
+
+# Thủ tục soạn theo sách, chỉ chèn ở lượt **có** sách (plan 4c). Nằm trong skill `soan-de` thì mọi
+# lượt soạn đề đều đọc thấy chữ "tài liệu", và gpt-4o-mini hỏi lại "bạn có tài liệu nào không" ở
+# khoảng 7/108 lượt không có sách (run-13) -- dù skill có dòng dặn đừng hỏi. Thứ không nhìn thấy
+# thì không hỏi được, cùng cách `catalog_for` giấu `list_chapters` khi lượt không có sách.
+#
+# Câu chữ là bản đã đo ở run-15. Review T2 thử hai chỗ, cả hai làm `tai-lieu-khop-chuong` tụt từ 5/6
+# xuống 0–1/6 (run-16, run-17) -- model hỏi *"cả chương hay một phần?"* cho một chương khớp đúng:
+# nói thẳng *"đủ bốn mục vẫn CHƯA nêu plan"* (để thắng câu *"nêu plan ngay"* của skill), rồi chỉ
+# đổi đầu thành *"Mở đề mới…"* kèm luật nối mục bằng `;`. Mô tả `topic_scope` riêng cho lượt có sách
+# cũng thử rồi bỏ (comment trên `teacher_tools._with_document`), nên luật nối mục bằng `;` không còn
+# nằm trong chữ nào model đọc: model bỏ `nodes` thì `bind_book` chỉ đỡ được khi `topic_scope` trùng
+# đúng một tên mục, hay các tên mục nối bằng `;`.
+_BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệu, nên TRƯỚC khi nêu plan:
+1. call_tool list_chapters — document_id. Cần bài hay mục bên trong một chương thì
+   call_tool get_chapter — document_id, node. Kết quả list_documents có nhiều tài liệu cùng hợp
+   → ask_clarify hỏi tài liệu nào.
+2. Khớp phạm vi giáo viên nói với các node vừa đọc. Không khớp, hay khớp nhiều cách →
+   ask_clarify, chỉ viết câu hỏi; hệ thống tự dựng lựa chọn là tên chương, bài. Giáo viên muốn
+   cả cuốn thì chọn mọi chương.
+3. Môn và khối suy được từ tên tài liệu thì dùng luôn. topic_scope là tên các mục đã chọn.
+4. Plan như quy trình soạn đề, create_draft thêm document_id và nodes (các số node đã chọn).
+   Lời nêu plan nói rõ số câu được rải đều theo độ dài các mục, mỗi câu một mục khác nhau."""
+
+# Tool đọc tài liệu; kết quả của một trong số chúng trong lịch sử là *đoạn chat đang chọn sách*.
+# Cùng bộ với `teacher_chat._DOCUMENT_READS` bên BE.
+_DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter"})
+
+
+def _book_in_view(request: NextStepRequested) -> bool:
+    """Lượt này có một cuốn sách để soạn theo không -- tức `_BOOK_PROCEDURE` có được chèn không.
+
+    Đọc **sự kiện**, không đọc catalog (review T2). BE mở tool mục lục cho mọi lượt sau khi đoạn
+    chat từng đọc tài liệu (`teacher_chat._read_documents_before`), nên *"`list_chapters` có trong
+    catalog"* đúng cả ở một lượt soạn đề không dính gì tới sách -- và thủ tục sẽ bắt model đọc mục
+    lục, hay bịa `document_id`.
+
+    Có sách khi: chip sẵn sàng; hoặc, không có chip, lịch sử có kết quả của một tool đọc tài liệu
+    mà **chưa** có plan nào nêu sau nó -- việc chọn sách còn dở (hỏi lại chương nào, giáo viên trả
+    lời ở lượt sau). Plan đã nêu thì việc ấy đã xong; một đề mới không nhắc sách là đề không sách,
+    còn giáo viên nhắc sách thì skill `soan-de` mở thư viện lại. Chip chưa sẵn sàng thì không: chưa
+    có mục lục, và dòng báo chip đã dặn đừng soạn.
+
+    Args:
+        request: Lượt đang hỏi.
+
+    Returns:
+        True khi thủ tục sách áp dụng cho lượt này.
+    """
+    if request.attached_document is not None:
+        return request.attached_document.state == "ready"
+    for turn in reversed(request.history):
+        if turn.kind == "plan":
+            return False
+        if turn.kind == "tool_result" and turn.tool_name in _DOCUMENT_READS:
+            return True
+    return False
 
 
 class _NothingToSay(ValueError):
@@ -121,8 +180,8 @@ class _Argument(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str
-    value: str
+    param: str = Field(description="Tên tham số, viết đúng như trong danh sách tool.")
+    value: str = Field(description="Giá trị của tham số.")
 
 
 class _Step(BaseModel):
@@ -242,11 +301,11 @@ class _Proposal(BaseModel):
             kind=self.kind,
             text=self.text,
             tool_name=self.tool_name,
-            tool_args={argument.name: argument.value for argument in self.tool_args},
+            tool_args={argument.param: argument.value for argument in self.tool_args},
             steps=tuple(
                 PlanStep(
                     tool_name=step.tool_name,
-                    args={argument.name: argument.value for argument in step.args},
+                    args={argument.param: argument.value for argument in step.args},
                     title=step.title,
                 )
                 for step in self.steps
@@ -356,6 +415,8 @@ def _compose(state: ProposeState) -> dict:
                 "Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng tài liệu này không dùng "
                 "được và nhờ họ đính tài liệu khác; đừng soạn đề không tài liệu thay cho nó."
             )
+    if _book_in_view(request):
+        opening.append(_BOOK_PROCEDURE)
     if request.catalog:
         catalog = "\n".join(_describe_tool(tool) for tool in request.catalog)
         opening.append(f"Tool dùng ngay (call_tool) lượt này:\n{catalog}")

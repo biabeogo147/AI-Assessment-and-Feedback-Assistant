@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableLambda
 
 from agent import llm
 from agent.graphs.authoring import draft_brief
-from agent.graphs.propose import _describe_tool, _Proposal, propose
+from agent.graphs.propose import _BOOK_PROCEDURE, _describe_tool, _Proposal, propose
 from contracts import (
     AttachedDocument,
     DraftQuestionRequested,
@@ -94,6 +94,64 @@ async def test_kriky_is_told_the_attached_document_and_its_id(monkeypatch) -> No
     )
 
     assert "Tài liệu giáo viên đính kèm: SGK Toán 6.pdf (document_id = book)." in prompts[0]
+    assert _BOOK_PROCEDURE in prompts[0]
+
+
+_TEACHER = TurnRecord(kind="teacher", text="soạn 10 câu")
+_READ = (
+    TurnRecord(kind="tool_call", tool_name="list_documents"),
+    TurnRecord(kind="tool_result", tool_name="list_documents", tool_result={"candidates": []}),
+)
+_PLANNED = TurnRecord(kind="plan", tool_result={"steps": ["Tạo đề trống"], "total": 1})
+_PROCESSING = AttachedDocument(document_id="new", filename="Mới.pdf", state="processing")
+_READY = AttachedDocument(document_id="book", filename="Sách.pdf")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("attached", "history", "told"),
+    [
+        # Không chip, chưa mở thư viện: không chữ nào về thủ tục sách (plan 4c, run-13).
+        (None, (_TEACHER,), False),
+        (_READY, (_TEACHER,), True),
+        # Chip còn đang xử lý: chưa đọc được mục lục -- kể cả khi đoạn chat từng mở thư viện, để
+        # prompt không vừa bảo *đừng soạn* vừa bảo *đọc mục lục* (review T2).
+        (_PROCESSING, (_TEACHER,), False),
+        (_PROCESSING, (*_READ, _TEACHER), False),
+        # Model vừa mở thư viện, hay lượt trước mở rồi hỏi lại chương nào: việc chọn sách còn dở.
+        (None, (_TEACHER, *_READ), True),
+        (None, (*_READ, TurnRecord(kind="assistant", text="chương nào?"), _TEACHER), True),
+        # Một plan đã nêu sau lần đọc: việc chọn sách xong rồi. BE vẫn để `list_chapters` trong
+        # catalog cả đoạn chat, nên catalog **không** được là thứ quyết định (review T2).
+        (None, (*_READ, _PLANNED, _TEACHER), False),
+    ],
+)
+async def test_the_book_procedure_comes_only_with_a_book(
+    monkeypatch, attached, history, told
+) -> None:
+    prompts: list[str] = []
+
+    class Recording:
+        def with_structured_output(self, schema, **kwargs):
+            def answer(messages):
+                prompts.append("\n".join(message.text for message in messages))
+                return _Proposal(kind="say", text="vâng")
+
+            return RunnableLambda(answer)
+
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(llm, "chat_models", lambda: (Recording(),))
+
+    await propose(
+        NextStepRequested(
+            request_id="r1",
+            history=history,
+            attached_document=attached,
+            catalog=(ToolSpec(name="list_chapters", description="tra cứu", arguments={}),),
+        )
+    )
+
+    assert (_BOOK_PROCEDURE in prompts[0]) is told
 
 
 def test_a_unit_with_no_text_is_briefed_without_an_empty_frame() -> None:
