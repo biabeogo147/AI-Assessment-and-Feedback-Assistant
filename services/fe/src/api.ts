@@ -679,21 +679,30 @@ export interface TurnEvent {
  * Người gọi tự quyết định làm gì với `name` và `data`.
  *
  * Khung chỉ có comment (dòng mở đầu bằng `:`) bị **bỏ qua** tại đây, đúng như đặc tả SSE nói.
- * Nhịp tim của kênh tài liệu đi theo đường ấy, nên nó không bao giờ tới tay người gọi.
+ * Nhịp tim của kênh tài liệu đi theo đường ấy, nên nó không bao giờ tới tay người gọi -- muốn
+ * biết kênh còn sống thì nghe `onBytes`.
  *
  * @param body - Thân response đang stream.
+ * @param onBytes - Gọi mỗi lần có byte tới, kể cả byte chỉ mang nhịp tim.
+ * @param stop - Huỷ thì nhả reader, để một kênh câm cũng kết thúc được vòng lặp.
  * @returns Một async iterator các khung đã tách.
  */
 async function* sseFrames(
   body: ReadableStream<Uint8Array>,
+  onBytes?: () => void,
+  stop?: AbortSignal,
 ): AsyncGenerator<{ name?: string; data: string }> {
   const reader = body.getReader();
+  stop?.addEventListener("abort", () => void reader.cancel().catch(() => undefined), {
+    once: true,
+  });
   const decoder = new TextDecoder();
   let rest = "";
 
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    onBytes?.();
     rest += decoder.decode(value, { stream: true });
 
     const frames = rest.split("\n\n");
@@ -753,27 +762,80 @@ export const teacher = {
    * ứng dụng này xưng danh bằng `X-Actor`. Đẩy danh tính vào query string là đẩy nó vào mọi
    * access log.
    *
-   * Không ném khi kênh gãy. Mất kênh chỉ là mất việc tự mới lại; thư viện đọc lúc mở màn hình
-   * vẫn còn đó, và một lần F5 vẫn ra đúng.
+   * Không ném khi kênh gãy, mà **nối lại**, mãi tới khi `signal` huỷ. Byte **đầu tiên** của mỗi
+   * lần nối -- BE gửi khung `: mở` ngay sau khi đã subscribe -- làm `onChange` chạy một lần: tiếng
+   * hích bắn ra lúc kênh gãy, hay trước lúc BE kịp subscribe, không ai nghe, và một chip đứng ở
+   * *đang xử lý* cho tới khi giáo viên tự F5 là đúng thứ ADR-27 cấm (gặp ngày 12/10/2026, khi tab
+   * mở đúng lúc BE đứng).
    *
-   * @param onChange - Gọi một lần cho mỗi tiếng hích.
+   * Kênh **câm** quá `silenceMs` cũng bị coi là gãy. BE phát nhịp tim mỗi 15 s; khi BE chết, proxy
+   * của Vite ghi `ECONNRESET` nhưng không đóng phía trình duyệt, nên không im lặng nào kết thúc
+   * cả -- một lần *Rerun* BE trong PyCharm là đủ để mọi tab mất kênh mãi.
+   *
+   * Lần chờ giữa hai lần nối gấp đôi sau mỗi lần hỏng, tới trần 30 s, và chỉ về lại `retryMs`
+   * khi một lần nối sống qua được một nhịp tim. Không có Redis thì BE mở kênh rồi đóng ngay;
+   * nối lại đều đặn mỗi 3 s là hai request mỗi 3 s từ mỗi tab, mãi mãi.
+   *
+   * @param onChange - Gọi một lần cho mỗi tiếng hích, và một lần ở byte đầu của mỗi lần nối.
    * @param signal - Đóng kênh khi màn hình rời đi.
-   * @returns Một promise kết thúc khi kênh đóng.
+   * @param retryMs - Lần chờ ngắn nhất giữa hai lần nối.
+   * @param silenceMs - Không byte nào trong chừng ấy thì cắt kênh; hơn hai nhịp tim của BE.
+   * @returns Một promise kết thúc khi `signal` huỷ.
    */
   watchDocuments: async (
     onChange: () => void,
     signal?: AbortSignal,
+    retryMs = 3_000,
+    silenceMs = 40_000,
   ): Promise<void> => {
-    try {
-      const response = await fetch("/api/teacher/documents/stream", {
-        headers: headers("teacher"),
-        signal,
+    let failures = 0;
+    while (!signal?.aborted) {
+      // Một controller cho mỗi lần nối: bộ canh im lặng cắt đúng lần nối này, còn `signal`
+      // của màn hình thì cắt cả vòng.
+      const dial = new AbortController();
+      const cut = () => dial.abort();
+      signal?.addEventListener("abort", cut, { once: true });
+      let silence = setTimeout(cut, silenceMs);
+      let heard = false;
+      const alive = () => {
+        clearTimeout(silence);
+        silence = setTimeout(cut, silenceMs);
+        if (!heard && !dial.signal.aborted) onChange();
+        heard = true;
+      };
+      const opened = Date.now();
+      try {
+        const response = await fetch("/api/teacher/documents/stream", {
+          headers: headers("teacher"),
+          signal: dial.signal,
+        });
+        if (response.ok && response.body) {
+          for await (const _ of sseFrames(response.body, alive, dial.signal)) {
+            if (dial.signal.aborted) break;
+            onChange();
+          }
+        }
+      } catch {
+        // Huỷ bỏ lúc rời màn hình, hay bộ canh im lặng cắt, cũng rơi vào đây; không phải lỗi.
+      } finally {
+        clearTimeout(silence);
+        signal?.removeEventListener("abort", cut);
+      }
+      if (signal?.aborted) return;
+      // Sống qua một nhịp tim của BE (15 s) mới tính là một lần nối lành.
+      failures = heard && Date.now() - opened >= 15_000 ? 0 : failures + 1;
+      const wait = Math.min(retryMs * 2 ** Math.max(failures - 1, 0), 30_000);
+      await new Promise<void>((resolve) => {
+        const stop = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          signal?.removeEventListener("abort", stop);
+          resolve();
+        }, wait);
+        signal?.addEventListener("abort", stop, { once: true });
       });
-      if (!response.ok || !response.body) return;
-      for await (const _ of sseFrames(response.body)) onChange();
-    } catch {
-      // Huỷ bỏ lúc rời màn hình cũng rơi vào đây, và nó không phải một lỗi.
-      return;
     }
   },
   upload: (file: File) => {

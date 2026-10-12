@@ -204,6 +204,7 @@ async def library(
 async def watch(
     request: Request,
     teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     """Phát một dòng mỗi lần thư viện của giáo viên này đổi.
 
@@ -221,14 +222,27 @@ async def watch(
         teacher: Được resolve từ header actor (ADR-13). Nó cũng là **phạm vi** của kênh: một
             giáo viên chỉ nghe được channel của chính mình, nên không có id nào một caller
             truyền vào để nghe trộm thư viện người khác.
+        session: **Cùng** session mà `current_teacher` vừa đọc -- FastAPI dùng lại một dependency
+            trong một request -- và chỉ có mặt để được đóng ngay dưới đây.
 
     Returns:
         Một `text/event-stream` gồm các khung `data: 1` và những dòng nhịp tim.
     """
     pool = getattr(request.app.state, "queue_pool", None)
+    teacher_id = teacher.id
+    # Đóng trước khi stream. Lần đọc giáo viên đã mở một transaction, và `get_session` chỉ đóng nó
+    # khi request kết thúc -- với kênh này là khi tab đóng. Trong lúc ấy session đứng *idle in
+    # transaction* và giữ khoá đọc trên `teachers`: một `DROP`/`ALTER` (như `db-reset`) chờ khoá
+    # ấy, rồi mọi request mới của BE xếp hàng sau lệnh chờ -- cả BE đứng (gặp ngày 12/10/2026).
+    await session.close()
 
     async def frames() -> AsyncIterator[str]:
-        async with open_changes(pool, teacher.id) as changes:
+        async with open_changes(pool, teacher_id) as changes:
+            # Một comment ngay khi đã subscribe: trình duyệt đọc lại danh sách ở byte đầu này, nên
+            # tiếng hích nào bắn ra trước lúc subscribe -- lúc kênh gãy, hay giữa lần đọc lúc mở
+            # màn hình và lúc kênh lên -- vẫn được bù. Header về sớm hơn lúc subscribe, nên đọc
+            # lại ở header là đọc lại quá sớm.
+            yield ": mở\n\n"
             quiet_since = asyncio.get_running_loop().time()
             async for changed in changes:
                 if await request.is_disconnected():

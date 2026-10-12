@@ -483,3 +483,51 @@ async def test_a_document_still_being_read_is_not_called_failed(stack) -> None:
 
     listed = await client.get("/api/teacher/documents", headers=TEACHER)
     assert listed.json()[0]["state"] == DocumentState.PROCESSING
+
+
+@pytest.mark.asyncio
+async def test_the_change_channel_lets_go_of_its_database_session_before_streaming(stack) -> None:
+    """Kênh hích sống bằng cả phút; transaction đọc giáo viên của nó thì không được sống theo.
+
+    Gặp thật ngày 12/10/2026: một tab giáo viên đang mở giữ session ở *idle in transaction*,
+    `DROP SCHEMA` của `db-reset` chờ khoá của nó, và mọi request mới của BE xếp hàng sau lệnh
+    `DROP` -- cả BE đứng, kể cả lần tải tệp kế tiếp.
+    """
+    _, maker, _ = stack
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert teacher is not None
+        assert session.in_transaction()
+
+        class _App:
+            state = type("state", (), {"queue_pool": None})()
+
+        request = type("request", (), {"app": _App()})()
+        await teacher_documents.watch(request, teacher, session)
+
+        assert not session.in_transaction()
+
+
+@pytest.mark.asyncio
+async def test_the_change_channel_speaks_first_once_it_is_listening(stack) -> None:
+    """Khung đầu tiên là một comment, gửi **sau** lúc subscribe.
+
+    Trình duyệt đọc lại danh sách ở byte đầu này. Header thì về trước lúc subscribe, nên một
+    tiếng hích bắn ra giữa lúc đọc bù và lúc kênh thật sự nghe sẽ lỡ mất, và chip đứng ở
+    *đang xử lý* -- trừ khi có một byte đánh dấu đúng thời điểm đã nghe.
+    """
+    _, maker, _ = stack
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert teacher is not None
+
+        class _App:
+            state = type("state", (), {"queue_pool": None})()
+
+        request = type("request", (), {"app": _App()})()
+        response = await teacher_documents.watch(request, teacher, session)
+        frames = response.body_iterator
+        first = await anext(frames)
+        await frames.aclose()
+
+        assert first == ": mở\n\n"

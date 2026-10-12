@@ -125,13 +125,13 @@ theo thứ tự một tệp đi qua:
 
 | Chỗ | Việc |
 | --- | --- |
-| `services/be/src/be/teacher_documents.py:285` | BE nhận tệp |
-| `services/be/src/be/teacher_documents.py:354` | BE giao job cho `document` |
+| `services/be/src/be/teacher_documents.py:299` | BE nhận tệp |
+| `services/be/src/be/teacher_documents.py:368` | BE giao job cho `document` |
 | `services/document/src/document/ocr_handlers.py:123` | `probe_document` đọc tệp, ghi bản thô |
 | `services/document/src/document/index_handlers.py:57` | `index_document` bắt đầu dựng cây |
 | `services/document/src/document/index/graph.py:388` | cây vào Mongo, ngay trước khi báo *sẵn sàng* |
 | `services/ingest/src/ingest/handlers.py:45` | `document_probed` ghi phán quyết vào Postgres |
-| `services/be/src/be/teacher_documents.py:238` | BE nghe tiếng hích rồi báo FE tải lại danh sách |
+| `services/be/src/be/teacher_documents.py:252` | BE nghe tiếng hích rồi báo FE tải lại danh sách |
 
 Bốn điều khác với `dev.ps1`:
 

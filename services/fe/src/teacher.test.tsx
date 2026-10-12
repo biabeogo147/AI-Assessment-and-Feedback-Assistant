@@ -4800,23 +4800,35 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
    *
    * @param library - Danh sách tài liệu; mỗi lần gọi lại trả phần tử kế tiếp, phần tử cuối
    *   lặp lại mãi. Nhờ vậy một test đo được *đọc lại sau khi nghe hích* mà không cần mock.
-   * @param channel - `null` thì kênh gãy ngay, ngược lại là một stream điều khiển được.
+   * @param channel - `broken` thì kênh gãy mãi, `open` là một stream điều khiển được, `flaky`
+   *   thì lần nối đầu gãy và các lần sau mở, `mute` thì lần nối đầu mở nhưng câm mãi,
+   *   `closing` thì mọi lần nối mở rồi đóng ngay (BE không có Redis). Kênh mở thì gửi ngay khung
+   *   `: mở`, y như BE gửi sau khi đã subscribe.
    */
   function rail(
     library: Record<string, unknown>[][],
-    channel: "open" | "broken" = "broken",
+    channel: "open" | "broken" | "flaky" | "mute" | "closing" = "broken",
   ) {
     const reads: string[] = [];
     let nudge: (() => void) | null = null;
     let round = 0;
+    let dials = 0;
 
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
         if (url.startsWith("/api/teacher/documents/stream")) {
-          if (channel === "broken") return Promise.resolve({ ok: false });
+          dials += 1;
+          if (channel === "broken" || (channel === "flaky" && dials === 1)) {
+            return Promise.resolve({ ok: false });
+          }
+          if (channel === "mute" && dials === 1) {
+            return Promise.resolve({ ok: true, body: new ReadableStream<Uint8Array>() });
+          }
           const body = new ReadableStream<Uint8Array>({
             start(controller) {
+              controller.enqueue(new TextEncoder().encode(": mở\n\n"));
+              if (channel === "closing") controller.close();
               nudge = () => controller.enqueue(new TextEncoder().encode("data: 1\n\n"));
             },
           });
@@ -4835,7 +4847,7 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
       }),
     );
     Element.prototype.scrollIntoView = vi.fn();
-    return { reads, push: () => nudge?.() };
+    return { reads, push: () => nudge?.(), dials: () => dials };
   }
 
   function show() {
@@ -4914,7 +4926,9 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
     );
     show();
     await waitFor(() => expect(screen.getByText("Đang xử lý…")).toBeTruthy());
-    expect(reads).toHaveLength(1);
+    // Một lần lúc mở màn hình, một lần ở byte đầu của kênh -- lần sau bù cho tiếng hích bắn ra
+    // trước lúc BE kịp subscribe. Phần đọc thứ hai vẫn trả `processing` (xem `library`).
+    await waitFor(() => expect(reads).toHaveLength(2));
 
     push();
 
@@ -4940,6 +4954,85 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
 
     await waitFor(() => expect(screen.getByText(/lớn hơn 100 MB/)).toBeTruthy());
     expect(reads).toHaveLength(1);
+  });
+
+  it("kênh gãy thì tự nối lại, và đọc lại danh sách một lần cho mọi tiếng hích đã lỡ", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { reads, dials } = rail([[paper("processing")], [paper("ready")]], "flaky");
+      show();
+      await waitFor(() => expect(screen.getByText("Đang xử lý…")).toBeTruthy());
+      expect(dials()).toBe(1);
+
+      // Gặp thật ngày 12/10/2026: tab mở đúng lúc BE đứng, kênh nhận một lỗi rồi im mãi, và
+      // tài liệu đã *sẵn sàng* từ lâu vẫn hiện *đang xử lý* cho tới khi giáo viên bấm F5.
+      // Tiếng hích lúc kênh gãy không ai nghe, nên nối lại xong phải tự đọc một lần.
+      await vi.advanceTimersByTimeAsync(3_100);
+      await waitFor(() => expect(dials()).toBe(2));
+      await waitFor(() => expect(reads.length).toBeGreaterThan(1));
+      await waitFor(() => expect(screen.queryByText("Đang xử lý…")).toBeNull());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("kênh câm quá hai nhịp tim thì bị coi là chết, cắt đi và nối lại", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { reads, dials } = rail([[paper("processing")], [paper("ready")]], "mute");
+      show();
+      await waitFor(() => expect(screen.getByText("Đang xử lý…")).toBeTruthy());
+      expect(dials()).toBe(1);
+
+      // Gặp thật ngày 12/10/2026: BE chết (một lần *Rerun* trong PyCharm là đủ), proxy của Vite
+      // ghi `ECONNRESET` nhưng **không** đóng phía trình duyệt. Kênh không gãy, chỉ câm --
+      // và một kênh câm thì không lần nối lại nào được gọi tới. BE phát nhịp tim mỗi 15 s,
+      // nên 40 s không một byte nghĩa là đầu bên kia đã đi.
+      await vi.advanceTimersByTimeAsync(39_000);
+      expect(dials()).toBe(1);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await waitFor(() => expect(dials()).toBe(2));
+      await waitFor(() => expect(reads.length).toBeGreaterThan(1));
+      await waitFor(() => expect(screen.queryByText("Đang xử lý…")).toBeNull());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("kênh mở rồi đóng ngay thì lần chờ giãn dần, không thăm dò đều mỗi 3 s", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { dials } = rail([[paper("ready")]], "closing");
+      show();
+      await waitFor(() => expect(dials()).toBe(1));
+
+      // BE dậy khi Redis chết thì kênh trả 200 rồi đóng tức thì. Nối lại đều mỗi 3 s là hai
+      // request mỗi 3 s từ mỗi tab, mãi mãi -- nên lần chờ gấp đôi: 3 s, 6 s, 12 s...
+      await vi.advanceTimersByTimeAsync(3_100);
+      await waitFor(() => expect(dials()).toBe(2));
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(dials()).toBe(2);
+      await vi.advanceTimersByTimeAsync(1_100);
+      await waitFor(() => expect(dials()).toBe(3));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rời màn hình thì vòng nối lại dừng hẳn", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { dials } = rail([[paper("ready")]], "broken");
+      const { unmount } = render(
+        <Chat conversationId={null} fresh={true} openPaper={null} />,
+      );
+      await waitFor(() => expect(dials()).toBe(1));
+      unmount();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(dials()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("kênh gãy thì rail vẫn vẽ thư viện đã đọc lúc mở", async () => {

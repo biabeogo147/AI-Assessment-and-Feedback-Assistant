@@ -714,6 +714,12 @@ phải F5.
 | Nối lại kênh sau khi nó đứt — một vòng lặp ngoài, có backoff, và dừng khi `AbortController` bị huỷ | Không chặn gì. Nó là một thay đổi **FE**, nên theo luật phải đi qua Figma trước nếu có gì hiện lên màn hình. Câu chưa trả lời: lúc kênh đứt thì màn hình có **nói ra** không, hay nối lại im lặng? Nói ra thì cần một trạng thái mới trên bản vẽ; im lặng thì rẻ hơn nhưng lặp lại đúng thói quen vừa bị bắt |
 | Trần số connection của `StreamingResponse` vẫn **chưa đo** | Nợ từ plan 2b. Một giáo viên mở năm tab là năm connection, và không có gì giới hạn. Một vòng nối lại làm con số này đáng đo hơn, không kém đi |
 
+**Dòng đầu đã trả ngày 12/10/2026** (`completed/2026-10-12-document-channel-reconnect-plan.md`):
+FE nay tự nối lại, giãn 3 s → 30 s, coi kênh câm quá 40 s là chết, và đọc lại danh sách ngay khi
+kênh nghe được. Câu hỏi *nói ra hay im lặng* được trả bằng **im lặng**: không có gì mới trên màn
+hình, nên không qua Figma. Còn lại: các lần `GET` danh sách chạy song song có thể về lệch thứ tự,
+và bản cũ hơn có thể đè bản mới (`Chat.tsx`, gọi `listDocuments` không có thẻ thứ tự).
+
 ## Ba món nợ còn lại của plan 2a
 
 Chép từ mục *Còn nợ* của `completed/2026-10-08-document-service-text-layer-gate-plan.md` ngày
@@ -1003,3 +1009,20 @@ Số đo nằm ở `Status` của plan ấy và ở `data/run-6/hierarchy-jev-1.
 | Một đơn vị đọc dài hơn 1 500 ký tự không bị cắt, nên chunk vượt trần | Khối text layer lớn; cắt theo câu khi cần |
 | `except Exception` ở bước banner và tóm tắt che cả lỗi lập trình (chỉ còn `logger.exception`) | Đếm số lần hỏng vào `IndexHeader` để thấy được từ dữ liệu |
 | Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật | Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/hierarchy_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |
+
+## Test khoá lượt hỏng trên Windows vì đồng hồ 15,6 ms
+
+Ghi ngày 12/10/2026. `test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones`
+(`services/be/tests/test_teacher_chat.py`) hỏng 4 trong 5 lần chạy cả bộ, và đôi khi qua khi chạy
+riêng. **Không phải lỗi của luật khoá** -- lỗi của cách test dựng kịch bản.
+
+Test lấy thẻ của lượt A từ `_hold_the_thread` (`datetime.now(UTC)`), rồi gọi `datetime.now(UTC)` lần
+nữa để làm khoá của B. Trên Windows, Python 3.12 đọc giờ bằng `GetSystemTimeAsFileTime()`, độ phân
+giải **0,015625 s**: 1 000 cặp `now()` liền nhau ra 1 000 cặp bằng nhau. Hai lần gọi rơi vào cùng
+một nhịp thì khoá của B **trùng** thẻ của A, fencing `WHERE running_since = :mine` khớp, và A nhả
+đúng như luật cho phép -- assert báo *"khoá của B đã bị lượt A xoá mất"*.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Cho B một mốc chắc chắn khác A, ví dụ `b = a + timedelta(seconds=1)` | Không chặn gì. Một dòng trong test, chưa làm vì nằm ngoài lượt sửa kênh SSE |
+| Cùng nguyên nhân ở code thật: hai lượt giành khoá trong cùng một nhịp 15,6 ms thì mang cùng thẻ | Chỉ xảy ra khi lượt trước đã quá hạn **và** lượt sau giành đúng nhịp ấy. Thẻ thật nên là một giá trị duy nhất (uuid, hay một bộ đếm) thay vì giờ -- đổi cột, nên đi cùng món *đồng hồ của process* ở mục khoá lượt bên trên |
