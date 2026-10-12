@@ -29,6 +29,9 @@ dependencies = [
     # `be/storage.py` import nó ở top-level, và cả `be.main` lẫn test tài liệu đều
     # kéo module ấy vào -- kể cả khi test chỉ chạy trên bản in-memory.
     "minio>=7.2",
+    # Kho nội dung, **chỉ đọc**: mục lục và đoạn của tài liệu cho soạn đề (plan 4b). Cùng cận dưới
+    # với `services/document`, nơi ghi kho này.
+    "pymongo>=4.13",
 ]
 
 [project.optional-dependencies]

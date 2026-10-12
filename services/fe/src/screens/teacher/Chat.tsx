@@ -222,9 +222,11 @@ export default function Chat({
     let thread = here;
     try {
       // Một trong hai, không bao giờ cả hai: BE trả 422 cho một request tự mâu thuẫn.
+      // Chip đi cùng câu (plan 4b): trước bản này nó chỉ hiện trên dải, BE không bao giờ thấy.
+      const documentId = scope?.document_id;
       await teacher.stream(
         trimmed,
-        here === null ? { startNew: true } : { conversationId: here },
+        here === null ? { startNew: true, documentId } : { conversationId: here, documentId },
         (event) => {
           // Lượt gãy sau khi header đã gửi đi thì không còn status code nào để nói, nên BE
           // nói bằng một khung `done` mang `ended_as="error"`. Ném ở đây để nó đi đúng
@@ -522,10 +524,8 @@ export default function Chat({
             **còn nguyên** chữ cũ. Nghĩa *"vừa tải lên"* bị bỏ hẳn: rail đã đẩy tệp vừa
             tải lên **đầu** danh sách, nên câu ấy kể lại một việc màn hình vừa nói.
 
-            Nội dung tệp vẫn **chưa** đi vào prompt: thân request gửi đi đúng ba field
-            `{text, conversation_id, start_new}`, không có `document_id` nào, và chưa đoạn
-            code nào mở tệp ra đọc. Dải nói tệp nào đang được đính, không hứa gì hơn. Đọc
-            nội dung tài liệu vào đề là một món riêng trong `docs/plans/backlog.md`. */}
+            Từ plan 4b, chip đi cùng câu (`document_id` trong thân request), BE lưu nó cùng
+            câu ấy, và Kriky soạn đề theo mục lục của tài liệu -- mỗi câu một mục. */}
         {scope !== null && (
           <div className="scope-strip">
             <span className="kind">{scope.kind}</span>

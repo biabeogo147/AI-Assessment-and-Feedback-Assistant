@@ -381,7 +381,9 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
         # Hợp đồng là **cả** catalog, nên hợp hai pha lại: một tool thứ bảy lọt vào pha nào
         # cũng phải tự biện hộ cho mình.
         offered = {
-            tool.name for phase in (PHASE_PLAN, PHASE_WORK) for tool in catalog_for(asking, phase)
+            tool.name
+            for phase in (PHASE_PLAN, PHASE_WORK)
+            for tool in catalog_for(asking, phase, documents=True)
         }
 
     # Nửa bền vững: không tên nào ở đây đẩy việc tới học sinh, dù sau này có thêm
@@ -392,11 +394,16 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
         for word in ("approve", "publish", "release", "withdraw", "duyet", "phat_hanh")
     )
     # Và dây bẫy: một tool thứ bảy sẽ làm dòng này đỏ và phải tự biện hộ cho mình.
+    # Plan 4b thêm ba tool **đọc** tài liệu: chúng chỉ đọc thư viện và mục lục của chính giáo viên,
+    # không đẩy gì tới học sinh, và mọi lần chạy đều kiểm sở hữu + *sẵn sàng*.
     assert offered == {
         "list_class",
         "get_class",
         "list_assessment",
         "class_assessment_summary",
+        "list_documents",
+        "list_chapters",
+        "get_chapter",
         "create_draft",
         "start_drafting",
     }
@@ -636,9 +643,15 @@ async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
         "get_class",
         "list_assessment",
         "class_assessment_summary",
+        "list_documents",
     }
     assert working == {"create_draft", "start_drafting"}
     assert planning & working == set()
+
+    # Có tài liệu thì hai tool đọc mục lục hiện thêm -- vẫn chỉ ở pha lên plan (plan 4b).
+    with_book = {spec.name for spec in catalog_for(asking, PHASE_PLAN, documents=True)}
+    assert with_book - planning == {"list_chapters", "get_chapter"}
+    assert {spec.name for spec in catalog_for(asking, PHASE_WORK, documents=True)} == working
 
 
 @pytest.mark.asyncio
@@ -743,6 +756,14 @@ def test_the_model_never_sees_the_optional_fields_of_a_draft() -> None:
     spec = next(one for one in catalog_for(asking, PHASE_WORK) if one.name == "create_draft")
 
     assert set(spec.arguments) == {"subject", "grade", "topic_scope"}
+
+    # Plan 4b: hai tham số tài liệu chỉ hiện khi lượt có tài liệu, và **tuỳ chọn** -- hiện chúng cho
+    # một lượt không sách là mời model hỏi *"dùng tài liệu nào?"*, đúng loại câu hỏi thừa ở trên.
+    booked = next(
+        one for one in catalog_for(asking, PHASE_WORK, documents=True) if one.name == "create_draft"
+    )
+    assert set(booked.arguments) - set(spec.arguments) == {"document_id", "nodes"}
+    assert set(booked.optional) == {"document_id", "nodes"}
 
     # Và `question_count` không nằm trong số đó: nó rời khỏi `create_draft` cùng lúc rời
     # khỏi brief. Một đề trống chưa có số câu nào, nên hỏi trước con số ấy là buộc giáo

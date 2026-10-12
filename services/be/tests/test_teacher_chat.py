@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import db as db_module
 from be import drafting, teacher_chat
 from be.config import get_settings
+from be.content_reader import MemoryContentReader, bind_reader
 from be.db import bind_sessions
 from be.identity import Asking
 from be.seed import seed_if_empty
@@ -38,19 +39,27 @@ from be.teacher_tools import UnknownTool, execute
 from contracts import (
     NAME_CONVERSATION_TASK,
     REPORT_PLAN_TASK,
+    BlockRef,
     ConversationNameCompleted,
+    DocumentState,
     DraftQuestionCompleted,
     GeneratedOption,
     GeneratedQuestion,
+    IndexHeader,
+    IndexMethod,
+    IndexNode,
     NextStepCompleted,
     PlanReportCompleted,
     PlanStep,
     SolutionMethod,
+    TitleSource,
 )
 from schema.ddl import prepare_schema
 from schema.models import (
     Assessment,
     AssessmentState,
+    Document,
+    DraftBrief,
     SchoolClass,
     Student,
     Teacher,
@@ -1798,3 +1807,457 @@ async def test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones(stack) 
         )
 
     assert still is not None, "khoá của B đã bị lượt A xoá mất"
+
+
+async def _a_book(maker, teacher_code: str, document_id: str) -> None:
+    """Một tài liệu đã sẵn sàng trong thư viện của giáo viên này."""
+    async with maker() as session:
+        owner = await session.scalar(select(Teacher).where(Teacher.teacher_code == teacher_code))
+        session.add(
+            Document(
+                id=document_id,
+                teacher_id=owner.id,
+                filename="SGK Toán 6.pdf",
+                byte_size=10,
+                storage_key=f"k/{document_id}",
+                state=DocumentState.READY.value,
+                uploaded_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_the_chip_on_the_message_reaches_the_assistant(stack) -> None:
+    """Plan 4b: chip đang đính đi tới AGENT, và mở ra hai tool đọc mục lục."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    agent = ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 10 câu chương 1", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    assert reply.status_code == 200
+    asked = agent.asked[0]
+    assert asked["attached_document"] == {
+        "document_id": "book",
+        "filename": "SGK Toán 6.pdf",
+        "state": "ready",
+    }
+    offered = {spec["name"] for spec in asked["catalog"]}
+    assert {"list_chapters", "get_chapter"} <= offered
+
+
+@pytest.mark.asyncio
+async def test_someone_elses_chip_is_as_if_nothing_was_attached(stack) -> None:
+    """Chip trỏ tới sách của người khác: AGENT không nghe gì về nó, và không thấy tool mục lục."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-002", "theirs")
+    agent = ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 10 câu chương 1", "document_id": "theirs"},
+        headers=TEACHER,
+    )
+
+    asked = agent.asked[0]
+    assert asked["attached_document"] is None
+    assert not {"list_chapters", "get_chapter"} & {spec["name"] for spec in asked["catalog"]}
+    create = next(spec for spec in asked["plannable"] if spec["name"] == "create_draft")
+    assert "document_id" not in create["arguments"]
+
+
+def _bound_book() -> MemoryContentReader:
+    """Một cây hai chương cho tài liệu `book`, đặt vào reader của process."""
+    built = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
+    nodes = [
+        IndexNode(
+            document_id="book",
+            ordinal=ordinal,
+            level=1,
+            numbering=numbering,
+            title=title,
+            title_source=TitleSource.TEXT,
+            anchor=BlockRef(page=ordinal + 1, block=0),
+            page_start=ordinal + 1,
+            page_end=ordinal + 2,
+        )
+        for ordinal, numbering, title in (
+            (0, "Chương I", "SỐ TỰ NHIÊN"),
+            (1, "Chương II", "SỐ NGUYÊN"),
+        )
+    ]
+    reader = MemoryContentReader()
+    reader.trees["book"] = (
+        IndexHeader(
+            document_id="book",
+            raw_started_at=built,
+            method=IndexMethod.RULES,
+            node_count=2,
+            chunk_count=0,
+            built_at=built,
+        ),
+        nodes,
+    )
+    bind_reader(reader)
+    return reader
+
+
+@pytest.mark.asyncio
+async def test_the_book_survives_the_chip_leaving_the_composer(stack) -> None:
+    """Review B3: lượt 1 có chip và hỏi lại bằng tên chương; lượt 2 -- giáo viên bấm nút, **không**
+    còn chip -- vẫn mở đề với tài liệu. Trước bản sửa, pha 2 cắt `document_id` và đề mở ra trơn."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="call_tool",
+            tool_name="list_chapters",
+            tool_args={"document_id": "book"},
+        ),
+        NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn chương nào?"),
+        NextStepCompleted(
+            request_id="x",
+            kind="plan",
+            text="Được, mình soạn đề ngay.",
+            steps=(
+                PlanStep(
+                    tool_name="create_draft",
+                    args={
+                        "subject": "Toán",
+                        "grade": "6",
+                        "topic_scope": "Chương I",
+                        "document_id": "book",
+                        "nodes": "0",
+                    },
+                    title="Tạo đề trống",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    first = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn đề từ sách này", "document_id": "book"},
+        headers=TEACHER,
+    )
+    assert first.json()["choices"] == [
+        "Chương I. SỐ TỰ NHIÊN (tr. 1–2)",
+        "Chương II. SỐ NGUYÊN (tr. 2–3)",
+    ]
+    second = await client.post(
+        "/api/teacher/chat/messages",
+        json={
+            "text": "Chương I. SỐ TỰ NHIÊN (tr. 1–2)",
+            "conversation_id": first.json()["conversation_id"],
+        },
+        headers=TEACHER,
+    )
+
+    assert second.status_code == 200
+    # Lượt 2 thấy tham số tài liệu dù không có chip ...
+    create = next(spec for spec in agent.asked[-1]["plannable"] if spec["name"] == "create_draft")
+    assert "document_id" in create["arguments"]
+    # ... và đề mở ra **mang** tài liệu.
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+    assert (brief.document_id, brief.scope_nodes) == ("book", [0])
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_opening_the_library_mid_turn_brings_the_chapters_into_view(stack) -> None:
+    """Không chip, model gọi `list_documents`: bước kế tiếp mới thấy `list_chapters`."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="call_tool", tool_name="list_documents", tool_args={}
+        ),
+        NextStepCompleted(request_id="x", kind="say", text="Bạn có một cuốn sách."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn từ sách của mình"}, headers=TEACHER
+    )
+
+    before, after = ({spec["name"] for spec in one["catalog"]} for one in agent.asked[:2])
+    assert "list_chapters" not in before
+    assert {"list_chapters", "get_chapter"} <= after
+
+
+@pytest.mark.asyncio
+async def test_the_book_survives_a_turn_that_never_opened_it(stack) -> None:
+    """Review B4: lượt 1 có chip nhưng Kriky hỏi lại ngay, không gọi tool đọc nào; lượt 2 không còn
+    chip vẫn biết cuốn sách -- chip được lưu cùng câu của giáo viên, không chỉ sống một lượt."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="ask_clarify", text="Đề cho khối mấy?"),
+        NextStepCompleted(
+            request_id="x",
+            kind="plan",
+            text="Được, mình soạn đề ngay.",
+            steps=(
+                PlanStep(
+                    tool_name="create_draft",
+                    args={
+                        "subject": "Toán",
+                        "grade": "6",
+                        "topic_scope": "cả sách",
+                        "document_id": "book",
+                        "nodes": "0,1",
+                    },
+                    title="Tạo đề trống",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    first = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 10 câu từ sách này", "document_id": "book"},
+        headers=TEACHER,
+    )
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "lớp 6", "conversation_id": first.json()["conversation_id"]},
+        headers=TEACHER,
+    )
+
+    assert agent.asked[-1]["attached_document"]["document_id"] == "book"
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+    assert brief.document_id == "book"
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_a_new_chip_that_cannot_be_used_does_not_fall_back_to_the_old_one(stack) -> None:
+    """Review B5: chip mới trỏ tới sách chưa sẵn sàng thì lượt này **không** có sách -- không lặng
+    lẽ soạn từ chip cũ trong khi giáo viên vừa chỉ một cuốn khác."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "old")
+    await _a_book(maker, "GV-001", "new")
+    async with maker() as session:
+        newer = await session.get(Document, "new")
+        newer.state = DocumentState.PROCESSING.value
+        await session.commit()
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."),
+        NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    first = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "dùng sách này", "document_id": "old"},
+        headers=TEACHER,
+    )
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={
+            "text": "đổi sang sách kia",
+            "document_id": "new",
+            "conversation_id": first.json()["conversation_id"],
+        },
+        headers=TEACHER,
+    )
+
+    assert agent.asked[0]["attached_document"]["document_id"] == "old"
+    # Review B6: chip chưa sẵn sàng vẫn tới AGENT, **đánh dấu** chưa sẵn sàng -- không bị bỏ lặng
+    # lẽ, và không lùi về sách cũ. Không có mục lục nào để đọc nên tool mục lục không hiện.
+    assert agent.asked[-1]["attached_document"] == {
+        "document_id": "new",
+        "filename": "SGK Toán 6.pdf",
+        "state": "processing",
+    }
+    assert "list_chapters" not in {spec["name"] for spec in agent.asked[-1]["catalog"]}
+
+
+@pytest.mark.asyncio
+async def test_a_conversation_bound_to_a_book_cannot_open_a_bookless_draft(stack) -> None:
+    """Review B6: chip sẵn sàng thì `document_id` của `create_draft` là **bắt buộc** -- model bỏ nó
+    là `vet_plan` từ chối, chứ không lặng lẽ mở một đề không sách trong đoạn chat về sách."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="plan",
+            text="Được, mình soạn đề ngay.",
+            steps=(
+                PlanStep(
+                    tool_name="create_draft",
+                    args={"subject": "Toán", "grade": "6", "topic_scope": "chương 1"},
+                    title="Tạo đề trống",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 10 câu chương 1", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    create = next(spec for spec in agent.asked[0]["plannable"] if spec["name"] == "create_draft")
+    assert create["optional"] == []
+    async with maker() as session:
+        assert (
+            await session.scalar(select(Assessment).where(Assessment.title == "Đề chương 1"))
+            is None
+        )
+
+
+@pytest.mark.asyncio
+async def test_reading_the_contents_mid_turn_keeps_the_book_required(stack) -> None:
+    """Review B7: đúng luồng skill dặn -- `list_chapters` trước, plan sau -- tham số tài liệu vẫn
+    **bắt buộc** ở bước plan; trước bản sửa, tính lại catalog giữa lượt làm chúng tuỳ chọn lại."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="call_tool",
+            tool_name="list_chapters",
+            tool_args={"document_id": "book"},
+        ),
+        NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 10 câu chương 1", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    create = next(spec for spec in agent.asked[-1]["plannable"] if spec["name"] == "create_draft")
+    assert create["optional"] == []
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_a_unit_read_from_another_book_is_not_pinned_on_the_attached_one(stack) -> None:
+    """Review B7: chip là `book`, model đọc mục lục của `other` rồi gửi `nodes` mà quên
+    `document_id`. Điền `book` vào là mở đề trên một mục của sách khác -- nay không điền, và lời từ
+    chối nói lý do thay cho câu chung."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    await _a_book(maker, "GV-001", "other")
+    reader = _bound_book()
+    reader.trees["other"] = reader.trees["book"]
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="call_tool",
+            tool_name="list_chapters",
+            tool_args={"document_id": "other"},
+        ),
+        NextStepCompleted(
+            request_id="x",
+            kind="plan",
+            text="Được.",
+            steps=(
+                PlanStep(
+                    tool_name="create_draft",
+                    args={
+                        "subject": "Toán",
+                        "grade": "6",
+                        "topic_scope": "Chương II",
+                        "nodes": "1",
+                    },
+                    title="Tạo đề trống",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn từ cuốn kia", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None
+    assert "cần biết chương hay bài nào" in reply.json()["text"]
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_a_chip_whose_job_died_is_read_as_failed_like_the_library(stack) -> None:
+    """Review B7: cột còn `processing` mãi khi job chết; thư viện đọc ra *xử lý hỏng*, khung chat
+    phải đọc y vậy -- không bảo giáo viên chờ một thứ không bao giờ tới."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "dead")
+    async with maker() as session:
+        row = await session.get(Document, "dead")
+        row.state = DocumentState.PROCESSING.value
+        row.uploaded_at = datetime.now(UTC) - timedelta(hours=2)
+        await session.commit()
+    agent = ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn đề từ file này", "document_id": "dead"},
+        headers=TEACHER,
+    )
+
+    assert agent.asked[0]["attached_document"]["state"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_a_chip_not_yet_usable_takes_draft_opening_off_the_table(stack) -> None:
+    """Review B7: chip chưa dùng được mà model vẫn mở đề không sách -- lời dặn không giữ được nó,
+    nên `create_draft` rời catalog lượt ấy; nêu nó thì lời từ chối gọi đúng tên tài liệu."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "busy")
+    async with maker() as session:
+        row = await session.get(Document, "busy")
+        row.state = DocumentState.PROCESSING.value
+        await session.commit()
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="plan",
+            text="Được.",
+            steps=(
+                PlanStep(
+                    tool_name="create_draft",
+                    args={"subject": "Toán", "grade": "6", "topic_scope": "chương 1"},
+                    title="Tạo đề trống",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn đề từ file này", "document_id": "busy"},
+        headers=TEACHER,
+    )
+
+    assert "create_draft" not in {spec["name"] for spec in agent.asked[0]["plannable"]}
+    assert "chưa dùng được" in reply.json()["text"]
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None

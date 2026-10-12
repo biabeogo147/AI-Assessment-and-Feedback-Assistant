@@ -142,6 +142,12 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         "Tổng số câu của một đề không quá 50",
         "đừng nói là đã soạn xong",
         "average_total_marks trên average_out_of câu",
+        # Plan 4b: tài liệu đọc TRƯỚC khi đủ bốn mục cho phép nêu plan (review B5), và phép rải số
+        # câu phải được nói ra (hậu ký ADR-27).
+        "Có tài liệu thì làm bước này TRƯỚC",
+        "call_tool list_chapters — document_id",
+        "có tài liệu thì đã có nodes",
+        "rải đều theo độ dài các mục",
     ],
 )
 def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> None:

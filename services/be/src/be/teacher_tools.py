@@ -45,13 +45,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.assessment_state import AssessmentState
 from be.config import Settings, get_settings
-from be.drafting import _MOST_QUESTIONS, fire, harvest, pending_count, rebrief, too_many
+from be.content_reader import ContentUnavailable, get_reader
+from be.coverage import heading
+from be.drafting import (
+    _MOST_QUESTIONS,
+    BookUnavailable,
+    fire,
+    harvest,
+    pending_count,
+    rebrief,
+    too_many,
+)
 from be.identity import Asking
 from be.resolve import Candidate, capped, classes_with_counts, normalise
-from contracts import ToolSpec
+from contracts import DocumentState, IndexNode, PlanStep, ToolSpec
 from schema.models import (
     Assessment,
     Attempt,
+    Document,
     Publication,
     Question,
     QuestionOutcome,
@@ -482,6 +493,10 @@ async def _create_draft(running: Running, args: dict) -> dict:
             ),
         }
 
+    document_id, scope_nodes, built_at, refused = await _document_scope(running, args)
+    if refused is not None:
+        return refused
+
     scope = str(args["topic_scope"]).strip()
     draft = Assessment(
         teacher_id=asking.teacher_id,
@@ -505,6 +520,9 @@ async def _create_draft(running: Running, args: dict) -> dict:
         topic_scope=scope,
         question_count=0,
         difficulty=str(args.get("difficulty") or "").strip(),
+        document_id=document_id,
+        scope_nodes=scope_nodes,
+        index_built_at=built_at,
     )
 
     logger.info("teacher %s opened draft %s", asking.teacher_code, draft.id)
@@ -587,6 +605,11 @@ async def _start_drafting(running: Running, args: dict) -> dict:
 
     try:
         queued = await fire(session, running.pool, running.settings, assessment_id, wanted)
+    except BookUnavailable as gone:
+        # Phạm vi tài liệu không đọc được nữa (plan 4b): nói đúng nguyên nhân, không để
+        # lời từ chối chung *"hàng đợi đang hỏng"* bên dưới nói thay.
+        await session.rollback()
+        return {"started": False, "reason": gone.reason}
     except HTTPException:
         # `fire` gọi `assert_editable`, nên một đề đã duyệt sẽ rơi vào đây. ADR-01 khoá
         # nội dung ở lúc duyệt, và chính cái khoá đó là lý do việc duyệt có nghĩa.
@@ -619,7 +642,354 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     }
 
 
+# ------------------------------------------------------------------ tài liệu (plan 4b)
+
+# Một câu hỏi lại vẽ được bao nhiêu nút. Một cuốn SGK có 4--8 chương; một chương có tới ~10 bài.
+_MOST_NODES = 12
+# Tóm tắt một nút cắt ở đây: đủ để model khớp *"chương Hàm số"* với một tên chương, không đủ để
+# thành nội dung -- nội dung đi tới job soạn câu, không tới khung chat.
+_SUMMARY_CHARS = 200
+_NO_SUCH_DOCUMENT = {
+    "found": False,
+    "reason": "không có tài liệu sẵn sàng nào như vậy trong thư viện của bạn",
+}
+_CONTENT_DOWN = {"found": False, "reason": "kho nội dung tài liệu tạm thời không đọc được"}
+
+
+async def owned_document(
+    session: AsyncSession, asking: Asking, document_id: str
+) -> Document | None:
+    """Tài liệu này khi nó thuộc giáo viên đang hỏi, ở **bất kỳ** trạng thái nào.
+
+    Chip của một tệp vừa tải lên còn đang xử lý vẫn là chip của giáo viên: BE lưu nó cùng câu, để
+    lượt sau dùng được khi tài liệu đã sẵn sàng (review B6). Của người khác thì như không có
+    (ADR-22).
+
+    Args:
+        session: Session của database.
+        asking: Ai đang hỏi.
+        document_id: Id tài liệu.
+
+    Returns:
+        Hàng tài liệu, hoặc `None`.
+    """
+    if not document_id:
+        return None
+    return await session.scalar(
+        select(Document).where(Document.id == document_id, Document.teacher_id == asking.teacher_id)
+    )
+
+
+async def ready_document(
+    session: AsyncSession, asking: Asking, document_id: str
+) -> Document | None:
+    """Tài liệu này, khi nó thuộc giáo viên đang hỏi **và** đã *sẵn sàng*.
+
+    Hai điều kiện là một: tài liệu của người khác và tài liệu chưa có cây đọc lên y như nhau
+    (ADR-22), và câu *"đã sẵn sàng chưa"* chỉ Postgres trả lời -- kho nội dung không bao giờ được
+    hỏi nó (`be/content_reader.py`).
+
+    Args:
+        session: Session của database.
+        asking: Ai đang hỏi.
+        document_id: Id tài liệu.
+
+    Returns:
+        Hàng tài liệu, hoặc `None`.
+    """
+    if not document_id:
+        return None
+    return await session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.teacher_id == asking.teacher_id,
+            Document.state == DocumentState.READY.value,
+        )
+    )
+
+
+def _pages(node: IndexNode) -> str:
+    """Khoảng trang giáo viên nhận ra: trang **in** khi biết, không thì trang tệp."""
+    start = node.printed_start if node.printed_start is not None else node.page_start
+    end = node.printed_end if node.printed_end is not None else node.page_end
+    return f"tr. {start}" if start == end else f"tr. {start}–{end}"
+
+
+def node_label(node: IndexNode) -> str:
+    """Tên một nút như giáo viên đọc trên nút bấm: *"Bài 3. Phép cộng phân số (tr. 12–15)"*.
+
+    Args:
+        node: Nút cây.
+
+    Returns:
+        Nhãn số, tên, khoảng trang.
+    """
+    return f"{heading(node)} ({_pages(node)})"
+
+
+def _shown_node(node: IndexNode, children: int) -> dict:
+    return {
+        "node": node.ordinal,
+        "label": node_label(node),
+        "level": node.level,
+        "children": children,
+        "summary": (node.summary or "")[:_SUMMARY_CHARS],
+    }
+
+
+def _listed(nodes: list[IndexNode], every: list[IndexNode]) -> dict:
+    """`candidates` + `more` cho một danh sách nút -- cùng hợp đồng với `list_class` (ADR-23)."""
+    counts: dict[int, int] = {}
+    for one in every:
+        if one.parent_ordinal is not None:
+            counts[one.parent_ordinal] = counts.get(one.parent_ordinal, 0) + 1
+    kept = nodes[:_MOST_NODES]
+    return {
+        "found": True,
+        "candidates": [_shown_node(node, counts.get(node.ordinal, 0)) for node in kept],
+        "more": max(0, len(nodes) - len(kept)),
+    }
+
+
+async def _tree_of(running: Running, args: dict) -> tuple[list[IndexNode], dict | None]:
+    """Cây của tài liệu trong `args`, hoặc một lời từ chối đọc được."""
+    owned = await ready_document(
+        running.session, running.asking, str(args.get("document_id") or "").strip()
+    )
+    if owned is None:
+        return [], dict(_NO_SUCH_DOCUMENT)
+    try:
+        found = await get_reader().tree(owned.id)
+    except ContentUnavailable:
+        return [], dict(_CONTENT_DOWN)
+    if found is None:
+        return [], {"found": False, "reason": "tài liệu này chưa có mục lục"}
+    return found[1], None
+
+
+async def _list_documents(running: Running, args: dict) -> dict:
+    """Những tài liệu *sẵn sàng* trong thư viện của giáo viên, mới nhất trước.
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: Không có.
+
+    Returns:
+        `candidates` (mỗi tài liệu `document_id`, `label` là tên tệp) và `more`. `label` là thứ
+        `teacher_chat._offered` vẽ thành nút khi model hỏi lại *"tài liệu nào"*.
+    """
+    rows = list(
+        await running.session.scalars(
+            select(Document)
+            .where(
+                Document.teacher_id == running.asking.teacher_id,
+                Document.state == DocumentState.READY.value,
+            )
+            .order_by(Document.uploaded_at.desc(), Document.id)
+        )
+    )
+    kept = rows[:_MOST_NODES]
+    return {
+        "candidates": [{"document_id": one.id, "label": one.filename} for one in kept],
+        "more": max(0, len(rows) - len(kept)),
+    }
+
+
+async def _list_chapters(running: Running, args: dict) -> dict:
+    """Các chương (nút gốc) của một tài liệu.
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: `document_id`.
+
+    Returns:
+        `candidates` (mỗi nút `node`, `label`, `level`, `children`, `summary`) và `more`; hoặc
+        `found: False` kèm `reason`.
+    """
+    every, refused = await _tree_of(running, args)
+    if refused is not None:
+        return refused
+    return _listed([node for node in every if node.parent_ordinal is None], every)
+
+
+async def _get_chapter(running: Running, args: dict) -> dict:
+    """Các nút con trực tiếp của một nút: bài của một chương, mục của một bài.
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: `document_id`, `node` (số `node` lấy từ `list_chapters` hay `get_chapter`).
+
+    Returns:
+        Cùng hình dạng với `list_chapters`; `found: False` khi nút không có.
+    """
+    every, refused = await _tree_of(running, args)
+    if refused is not None:
+        return refused
+    try:
+        wanted = int(str(args.get("node") or "").strip())
+    except ValueError:
+        return {"found": False, "reason": "node phải là một số lấy từ list_chapters"}
+    if not any(node.ordinal == wanted for node in every):
+        return {"found": False, "reason": "tài liệu không có mục nào như vậy"}
+    return _listed([node for node in every if node.parent_ordinal == wanted], every)
+
+
+def _refusal(reason: str) -> dict:
+    return {"created": False, "missing": [], "reason": reason}
+
+
+async def _document_scope(
+    running: Running, args: dict
+) -> tuple[str, list[int], datetime | None, dict | None]:
+    """Phạm vi tài liệu `create_draft` nhận: tài liệu, các nút, phiên bản cây -- hoặc từ chối.
+
+    Không có `document_id` là một đề không tài liệu, như trước plan 4b. Có tài liệu thì `nodes`
+    bắt buộc -- thiếu nó là từ chối, không phải *cả cuốn* (review B5).
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: `document_id`, `nodes` (các số `node` cách nhau bằng dấu phẩy).
+
+    Returns:
+        `(document_id, nodes, built_at, None)`, hoặc `("", [], None, lời từ chối)`.
+    """
+    document_id = str(args.get("document_id") or "").strip()
+    if not document_id:
+        return "", [], None, None
+    owned = await ready_document(running.session, running.asking, document_id)
+    if owned is None:
+        return "", [], None, _refusal(_NO_SUCH_DOCUMENT["reason"])
+    try:
+        found = await get_reader().tree(owned.id)
+    except ContentUnavailable:
+        return "", [], None, _refusal(_CONTENT_DOWN["reason"])
+    if found is None:
+        return "", [], None, _refusal("tài liệu này chưa có mục lục")
+    header, every = found
+    raw = str(args.get("nodes") or "").replace(" ", "")
+    try:
+        nodes = sorted({int(one) for one in raw.split(",") if one}) if raw else []
+    except ValueError:
+        return "", [], None, _refusal("nodes là các số node cách nhau bằng dấu phẩy")
+    if not nodes:
+        # **Không** tự hiểu là cả cuốn (review B5): một model nêu plan ngay mà bỏ qua mục lục sẽ
+        # gửi `topic_scope="chương 1"` không kèm `nodes`, và đề rải câu khắp sách. Cả cuốn là
+        # một lựa chọn phải nói ra -- mọi chương -- chứ không phải giá trị mặc định.
+        return (
+            "",
+            [],
+            None,
+            _refusal(
+                "thiếu nodes: gọi list_chapters rồi gửi số node phạm vi (cả cuốn thì mọi chương)"
+            ),
+        )
+    known = {node.ordinal for node in every}
+    unknown = [one for one in nodes if one not in known]
+    if unknown:
+        return "", [], None, _refusal(f"tài liệu không có mục {unknown}; gọi list_chapters")
+    # `built_at` **của cây đọc từ Mongo**, không phải giờ hiện tại: `fire` so đúng giá trị này để
+    # biết cây có bị dựng lại giữa chừng không (review B2).
+    return owned.id, nodes, header.built_at, None
+
+
+_PAGES_TAIL = re.compile(r"\s*\(tr\.[^)]*\)\s*$")
+
+
+def _plain(text: str) -> str:
+    """Chữ để so một nhãn: bỏ khoảng trang ở đuôi, gộp khoảng trắng, không phân biệt hoa thường."""
+    return " ".join(_PAGES_TAIL.sub("", text).split()).casefold()
+
+
+async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["PlanStep", ...]:
+    """Điền tham số tài liệu mà model bỏ quên ở `create_draft`, khi đoạn chat gắn với **một** cuốn.
+
+    Đo ngày 12/10/2026 trên gpt-4o-mini: cùng một lượt, khoảng một lần trong bốn--năm model nêu
+    `create_draft` không kèm `document_id` và `nodes`, dù spec ghi chúng bắt buộc và skill dặn thêm
+    -- lời dặn không giữ được model. Hai thứ ấy BE **biết** mà không phải đoán:
+
+    - `document_id`: đoạn chat gắn với đúng một cuốn sẵn sàng (chip gần nhất).
+    - `nodes`: `topic_scope` của model thường **là** nhãn BE đã dựng cho một mục (nút của câu hỏi
+      lại, ADR-23) -- *"Chương I. TẬP HỢP CÁC SỐ TỰ NHIÊN"*. Khớp đúng nhãn (bỏ khoảng trang, không
+      phân biệt hoa thường) thì đó là mục ấy. Không khớp thì để trống, và `vet_plan` từ chối như cũ.
+
+    Args:
+        steps: Các bước model nêu.
+        document_id: Cuốn sách đoạn chat đang gắn với.
+
+    Returns:
+        Các bước, `create_draft` đã được điền những gì điền được.
+    """
+    if not any(one.tool_name == "create_draft" for one in steps):
+        return steps
+    try:
+        found = await get_reader().tree(document_id)
+    except ContentUnavailable:
+        found = None
+    # Mỗi khoá → **mọi** nút mang nó. Khoá trỏ tới hai nút thì không dùng (review B7): SGK có hai
+    # mục *"LUYỆN TẬP CHUNG"*, và chọn cái đầu là đoán. Nhãn đầy đủ giữ khoảng trang -- thứ duy
+    # nhất phân biệt hai mục trùng tên -- nên chép đúng nút bấm vẫn ra đúng một mục.
+    keyed: dict[str, set[int]] = {}
+    for node in found[1] if found else []:
+        head = heading(node)
+        full = " ".join(node_label(node).split()).casefold()
+        for key in {full, _plain(head), _plain(node.title)}:
+            keyed.setdefault(key, set()).add(node.ordinal)
+    labels = {key: next(iter(ordinals)) for key, ordinals in keyed.items() if len(ordinals) == 1}
+
+    out = []
+    for one in steps:
+        if one.tool_name != "create_draft":
+            out.append(one)
+            continue
+        args = dict(one.args)
+        chosen = str(args.get("document_id") or "").strip()
+        if chosen and chosen != document_id:
+            # Model chọn cuốn khác (qua `list_documents`): cây đang có là của cuốn kia, khớp
+            # nhãn trên nó là gắn nhầm sách (review B7). Để nguyên cho `_document_scope` xét.
+            out.append(one)
+            continue
+        # Trống **hoặc** rỗng: `""` qua được `vet_plan` (chỉ kiểm có mặt) rồi thành đề không
+        # sách -- cùng lỗi review B6 định chặn, đi đường khác (review B7).
+        args["document_id"] = document_id
+        if not str(args.get("nodes") or "").strip():
+            wanted = [part for part in str(args.get("topic_scope") or "").split(";")]
+            matched = [
+                labels.get(" ".join(part.split()).casefold(), labels.get(_plain(part)))
+                for part in wanted
+            ]
+            if matched and all(hit is not None for hit in matched):
+                args["nodes"] = ",".join(str(ordinal) for ordinal in matched)
+        out.append(one.model_copy(update={"args": args}))
+    return tuple(out)
+
+
 _TOOLS: tuple[Tool, ...] = (
+    # Ba tool đọc tài liệu (plan 4b). Mô tả chỉ nói **làm gì và nhận gì**; dùng lúc nào, theo thứ
+    # tự nào là việc của skill `soan-de` -- một nguồn cho mỗi điều, không lặp ở hai chỗ.
+    Tool(
+        spec=ToolSpec(
+            name="list_documents",
+            description="Liệt kê tài liệu đã sẵn sàng trong thư viện của giáo viên.",
+            arguments={},
+        ),
+        run=_list_documents,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="list_chapters",
+            description="Các chương của một tài liệu: node, tên, trang, tóm tắt.",
+            arguments={"document_id": "id tài liệu"},
+        ),
+        run=_list_chapters,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="get_chapter",
+            description="Các mục con của một node: bài của một chương, mục của một bài.",
+            arguments={"document_id": "id tài liệu", "node": "số node, lấy từ list_chapters"},
+        ),
+        run=_get_chapter,
+    ),
     Tool(
         spec=ToolSpec(
             name="list_class",
@@ -732,7 +1102,39 @@ PHASE_PLAN = 1
 PHASE_WORK = 2
 
 
-def catalog_for(asking: Asking, phase: int) -> tuple[ToolSpec, ...]:
+# Tool và tham số chỉ hiện khi lượt chat **có tài liệu** (plan 4b). Cùng phép sửa với
+# `test_the_model_never_sees_the_optional_fields_of_a_draft`: thứ không nhìn thấy thì không hỏi
+# được -- `document_id` hiện cho một lượt không có sách là mời model hỏi *"dùng tài liệu nào?"*.
+_DOCUMENT_TOOLS = frozenset({"list_chapters", "get_chapter"})
+_DOCUMENT_ARGUMENTS = {
+    "document_id": "id tai lieu cua pham vi: tai lieu dinh kem, hoac lay tu list_documents",
+    "nodes": (
+        "cac so node cua pham vi, cach nhau bang dau phay, lay tu list_chapters/get_chapter; "
+        "bat buoc khi co document_id"
+    ),
+}
+
+
+def _with_document(spec: ToolSpec, bound: bool) -> ToolSpec:
+    """`create_draft` kèm hai tham số tài liệu.
+
+    Tuỳ chọn khi lượt chỉ *từng* mở thư viện -- đề không sách vẫn mở được. **Bắt buộc** khi đoạn
+    chat đang gắn với một cuốn sách sẵn sàng (`bound`): bỏ `document_id` là mở một đề không sách
+    trong một đoạn chat về sách, lặng lẽ (review B6) -- `vet_plan` từ chối nó trước khi có gì ghi.
+    """
+    if spec.name != "create_draft":
+        return spec
+    return spec.model_copy(
+        update={
+            "arguments": {**spec.arguments, **_DOCUMENT_ARGUMENTS},
+            "optional": () if bound else tuple(_DOCUMENT_ARGUMENTS),
+        }
+    )
+
+
+def catalog_for(
+    asking: Asking, phase: int, documents: bool = False, bound: bool = False
+) -> tuple[ToolSpec, ...]:
     """Mô tả những tool giáo viên này được dùng ở pha này.
 
     Mọi tool đều đã giới hạn theo chủ sở hữu, nên cả danh sách được đưa cho mọi giáo
@@ -750,12 +1152,21 @@ def catalog_for(asking: Asking, phase: int) -> tuple[ToolSpec, ...]:
         phase: `PHASE_PLAN` khi đang lên plan, `PHASE_WORK` khi đang chạy plan. Không có
             giá trị mặc định: một caller chưa nói mình đang ở pha nào là một caller chưa
             quyết định xem nó được phép ghi hay chưa, và chỗ để quyết là chỗ gọi.
+        documents: Lượt này có tài liệu -- chip đính kèm, hoặc model vừa gọi
+            `list_documents`. False thì tool đọc mục lục và tham số tài liệu của
+            `create_draft` không được mô tả (plan 4b).
+        bound: Đoạn chat đang gắn với một cuốn sách sẵn sàng -- tham số tài liệu của
+            `create_draft` thành bắt buộc.
 
     Returns:
         Các spec mà model được chọn trong đó.
     """
     wanted = phase == PHASE_WORK
-    return tuple(tool.spec for tool in _TOOLS if tool.writes is wanted)
+    return tuple(
+        _with_document(tool.spec, bound) if documents else tool.spec
+        for tool in _TOOLS
+        if tool.writes is wanted and (documents or tool.spec.name not in _DOCUMENT_TOOLS)
+    )
 
 
 class Unresolvable(Exception):
@@ -863,7 +1274,10 @@ async def execute(
         UnknownTool: Nếu không có tool nào mang tên đó dành cho giáo viên này.
     """
     tool = _BY_NAME.get(name)
-    if tool is None or tool.spec not in catalog_for(asking, phase):
+    # So theo **tên** trong catalog rộng nhất của pha: spec của `create_draft` đổi theo lượt
+    # có tài liệu hay không, còn quyền thì không đổi -- pha nào ghi được vẫn là pha ấy.
+    allowed = {spec.name for spec in catalog_for(asking, phase, documents=True)}
+    if tool is None or name not in allowed:
         raise UnknownTool(name)
 
     logger.info("teacher %s runs %s", asking.teacher_code, name)

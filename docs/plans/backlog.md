@@ -1040,3 +1040,13 @@ cầu…"*. Gặp hai lần trong một buổi.
 | --- | --- |
 | Cho uvicorn đóng kênh khi tắt (`timeout_graceful_shutdown`), hoặc stream tự kết thúc khi app tắt | Không chặn gì. Ngoài phạm vi plan 4a. Chạy BE bằng compound PyCharm (không `--reload`) thì không gặp |
 
+## Bày nhiều cách chia số câu khi giáo viên không thu hẹp phạm vi
+
+Ghi ngày 12/10/2026, hậu ký ADR-27. ADR-27 đòi: giáo viên không thu hẹp phạm vi thì Kriky đưa
+**nhiều** cách chia, mỗi cách tự nêu cái giá, không cách nào được đánh dấu là nên chọn, phương án do BE
+dựng. Plan 4b chỉ hỏi lại bằng tên chương/bài; số câu BE tự rải theo độ dài nội dung, mỗi câu một mục.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| BE dựng 2--3 cách chia (rải đều mọi bài · dồn vào bài dài · chỉ một bài) làm phương án `ask_clarify` | Chưa cần: cần đo trước xem giáo viên có thật sự không thu hẹp không, khi Kriky đã hỏi bằng tên chương |
+

@@ -40,7 +40,8 @@ và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
 
 ### Ngoài Postgres — kho nội dung (MongoDB, `aiafa_content`)
 
-Không phải bảng của `schema`, và BE không đọc nó. `services/document` ghi; hình dạng khai ở
+Không phải bảng của `schema`. `services/document` ghi; BE **chỉ đọc** cây mục lục và đoạn để soạn đề
+(plan 4b, `be/content_reader.py`, `check_the_content_reader_only_reads` canh); hình dạng khai ở
 `packages/contracts/src/contracts/content.py` (bản thô, plan 3b) và `contracts/index.py` (cây mục
 lục, plan 3c), cả hai 11/10/2026.
 
@@ -65,9 +66,9 @@ Xoá tài liệu ở Postgres **chưa** xoá bản thô ở đây (BE không gi�
 | `options` | nhãn, nội dung, `is_correct`, `error_label` | `error_label` là ánh xạ nhiễu→lỗi của ADR-18, `null` ở đúng một dòng mỗi câu |
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |
 | `publications` | sáu tham số phát hành | **một dòng mỗi (đề, lớp)** — khoá chính kép, nên thu hồi được **từng lớp một**. Từ 06/10/2026 một lần phát hành chỉ có **một** khung giờ cho mọi lớp trong lần đó; muốn hai lớp hai đồng hồ thì phát hành hai lần, và bảng vẫn chở được (ADR-02, sửa đổi) |
-| `draft_briefs` | yêu cầu soạn của một đề: môn, khối, phạm vi, `question_count`, `version` | `question_count` là **tổng** đã xin, không phải con số khai lúc tạo đề — `fire()` ghi nó, `harvest()` đọc nó để biết ô nào đã cũ. `version` tăng mỗi lần đổi brief, nên một job của brief cũ về muộn thì nhận ra được |
+| `draft_briefs` | yêu cầu soạn của một đề: môn, khối, phạm vi, `question_count`, `version`; phạm vi tài liệu `document_id`, `scope_nodes`, `index_built_at` (plan 4b) | `question_count` là **tổng** đã xin, không phải con số khai lúc tạo đề — `fire()` ghi nó, `harvest()` đọc nó để biết ô nào đã cũ. `version` tăng mỗi lần đổi brief, nên một job của brief cũ về muộn thì nhận ra được. `index_built_at` là phiên bản cây lúc chọn phạm vi: đọc lại tài liệu đánh số lại nút, nên `scope_nodes` chỉ có nghĩa đi kèm nó. Rỗng khi đề không có tài liệu |
 | `documents` | tài liệu giáo viên tải lên: `teacher_id`, `filename`, `content_type`, `byte_size`, `storage_key`, `state`, `page_count`, `fault`, `uploaded_at`, `pages_read`, `progress_at` | **Không giữ byte nào.** `storage_key` trỏ tới một object trong MinIO, dạng `documents/<giáo viên>/<tài liệu><đuôi>`. Byte rời cột `LargeBinary` ngày 08/10/2026 vì `services/document` không có credential database. `byte_size` ở lại dù byte đã đi: chip trên rail in nó, và một lời gọi mạng chỉ để biết một con số đã biết sẵn là một lời gọi thừa. `state` là **nguồn sự thật duy nhất** về việc tài liệu đã xử lý xong chưa, từ vựng lấy ở `contracts.DocumentState`; `page_count` **nullable**, và `None` nghĩa là con số không tồn tại (`.txt`, `.md`) hoặc chưa đo được, không bao giờ là `0`; `fault` là một câu tiếng Việt đi thẳng lên chip. `pages_read` / `progress_at` là tiến độ của đường OCR theo lô (plan 3b), `None` với tài liệu không qua OCR; BE đo *đứng quá lâu* từ mốc muộn hơn giữa `uploaded_at` và `progress_at`. Thuộc về **giáo viên**, không thuộc về đề (ADR-04) |
-| `draft_items` | một ô cho mỗi câu đang soạn: `ordinal`, `job_id`, `status`, `attempts`, `last_fault` | `status` là `pending`/`ready`/`retry`/`failed`; `attempts` chặn vòng thử lại ở `_MOST_ATTEMPTS`. **`last_fault`** chở lý do một câu bị loại: một `retry` không nói vì sao là một dấu vết không dùng được, và nó chính là thứ từng biến một đề 2/3 câu thành "không ai truy được" |
+| `draft_items` | một ô cho mỗi câu đang soạn: `ordinal`, `job_id`, `status`, `attempts`, `last_fault`; mục kiến thức `node_ordinal`, `chunk_ordinals` (plan 4b) | Mục được gán **một lần**, trước job đầu tiên: bắn lại `retry` hay soạn thêm không xáo mục của câu đã xong (hậu ký ADR-27). `status` là `pending`/`ready`/`retry`/`failed`; `attempts` chặn vòng thử lại ở `_MOST_ATTEMPTS`. **`last_fault`** chở lý do một câu bị loại: một `retry` không nói vì sao là một dấu vết không dùng được, và nó chính là thứ từng biến một đề 2/3 câu thành "không ai truy được" |
 
 Khoá nội dung khi duyệt là một `state` trên `assessments`, không phải một cờ trên từng câu — vì nó là
 một thao tác trên cả đề.
@@ -115,7 +116,7 @@ một câu có một câu trả lời ở pha 1 và nhiều lượt ở pha 2, n
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
 | `teacher_conversations` | một mạch hội thoại của một giáo viên | một bảng riêng chứ không phải một id trần, để sau này mở mạch mới mà lượt cũ không đi theo. `title` do model đặt sau lượt đầu, giáo viên sửa được; `deleted_at` là **xoá mềm** |
-| `teacher_turns` | từng **bước** một lượt: lời nói, hoặc tool đã chạy | `UniqueConstraint(conversation_id, sequence)`; commit theo từng bước. `choices` + `more_choices` giữ các phương án của một câu hỏi lại |
+| `teacher_turns` | từng **bước** một lượt: lời nói, hoặc tool đã chạy; `document_id` là chip tài liệu đính kèm câu của giáo viên (plan 4b) -- lượt không chip dùng chip gần nhất của đoạn chat | `UniqueConstraint(conversation_id, sequence)`; commit theo từng bước. `choices` + `more_choices` giữ các phương án của một câu hỏi lại |
 
 Hai bảng này **không** dùng lại `chat_messages`, và lý do là cơ học chứ không phải khẩu vị:
 `chat_messages.attempt_id` là khoá ngoại tới `attempts`, mà hội thoại của giáo viên không có bài làm

@@ -4,6 +4,8 @@
 - **Ngày:** 2026-10-07
 - **Sửa:** 2026-10-08 — cổng text layer thành **bất đồng bộ**, vì việc đọc tệp chuyển sang
   `services/document`. Luật không đổi ý; chỗ nó được thi hành thì đổi.
+- **Sửa:** 2026-10-12 — **rút luật lọc bài tập**; *"nhiều cách chia"* hoãn. Xem *Hậu ký 12/10/2026*
+  ở cuối. Phần trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -135,3 +137,41 @@ gọi từ `services/document`, skill viết bằng Markdown, byte tài liệu s
 và `services/document` thành service thứ tư — **không nằm ở đây**: theo `docs/decisions/README.md`,
 chúng thuộc mục `## Decision Records` của các plan thi hành ADR này. Đợt thi hành chia thành **năm
 plan**, vì một plan không chở nổi chừng ấy việc.
+
+## Hậu ký 12/10/2026
+
+Viết khi mở plan 4b (`2026-10-12-draft-from-document-plan.md`), lúc nội dung tài liệu lần đầu thật sự
+đi vào job soạn câu. Một luật hẹp lại, một luật hoãn, một luật mới; ba luật còn lại giữ nguyên.
+
+**Hẹp lại: luật lọc bài tập -- rút cho prompt soạn đề, giữ cho pha 2.** Với đề giáo viên soạn, tài
+liệu đi vào prompt để **cung cấp kiến thức**, và luật lọc giả định một nhãn *bài tập / lý thuyết* trên
+từng đoạn mà đơn vị nội dung không có: đo trên cây plan 3c, một chunk là một dải chữ liên tiếp dưới
+một mục, gom cả định nghĩa, ví dụ giải sẵn lẫn *"Luyện tập"* và *"1.1. Cho hai tập hợp…"*. Dựng nhãn
+ấy là một bộ phân loại mới mà mỗi lần sai là **im lặng** -- đúng cái giá mục *Hệ quả* đã cảnh báo --
+trong khi phần nằm giữa các bài tập (định nghĩa, ví dụ) là thứ một câu hỏi tốt cần nhất. Job soạn câu
+được dặn viết câu **mới** trên kiến thức của đoạn, không chép một câu có sẵn. Lời dặn yếu hơn cấu
+trúc -- chính ADR này viện bài học *"thứ không nhìn thấy thì không hỏi được"* -- và lưới còn lại là
+cổng **duyệt** của ADR-05: một đề soạn ra không tới học sinh khi giáo viên chưa duyệt.
+
+Cổng ấy **không** che pha 2: câu luyện tập đi thẳng tới học sinh và mãi mãi *chưa kiểm* (ADR-04,
+ADR-17). Nên với pha 2 luật **không đổi** -- prompt sinh câu luyện tập không nhận nội dung tài liệu
+nào, cho tới khi có một quyết định riêng trả lời được câu *"lọc bằng gì"*.
+
+**Mới: mỗi câu một mục kiến thức.** Phạm vi đã chốt (các chương/bài) được chia thành các mục lá của
+cây; mỗi câu của một đề được gán **một mục**, và khi số câu nhiều hơn số mục thì một nhóm đoạn khác
+nhau trong mục -- gán xong ghi lại trước khi câu được soạn. Vì sao: các job soạn câu chạy song song
+và không thấy nhau (lý do `DraftBrief` tồn tại), nên không có phép gán thì hai câu dễ hỏi cùng một
+kiến thức mà không ai đọc từng câu nhận ra; và gán một lần là để soạn thêm câu không xáo câu đã xong.
+
+**Hoãn: *"Khi giáo viên không thu hẹp, Kriky đưa ra NHIỀU cách chia …"*.** Plan 4b hỏi lại bằng **tên
+chương và bài** (phương án do BE dựng từ cây, ADR-23); khi phạm vi đã rõ, số câu được rải theo độ dài
+nội dung từng mục. Phép rải ấy **là** một lựa chọn sư phạm ngầm -- loại ADR-05 gọi là tệ hơn gợi ý
+công khai -- và hoãn nó có hai lý do: hỏi bằng tên chương thì giáo viên đã thu hẹp trước khi có gì
+để chia, nên ca *"không thu hẹp"* có thể hiếm hơn ADR này giả định; và rải theo độ dài là phép duy
+nhất không ưu tiên mục nào theo phán đoán của hệ thống. Kriky phải **nói ra** phép rải trong lời nêu
+plan, để nó không còn ngầm. Việc bày nhiều cách chia nằm ở `docs/plans/backlog.md`.
+
+**Nơi thi hành từ plan 4b:** phạm vi hỏi bằng tên chương/bài -- `_offered` trong `teacher_chat.py`
+dựng phương án từ nút cây; phạm vi đóng băng -- `DraftBrief` mang tài liệu, các nút phạm vi và phiên
+bản cây, cùng `version`; mỗi câu một mục -- `DraftItem` ghi mục được gán trước khi job chạy; pha 2
+không nhận tài liệu -- không payload pha 2 nào có trường nội dung tài liệu.

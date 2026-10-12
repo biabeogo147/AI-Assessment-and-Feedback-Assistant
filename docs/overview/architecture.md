@@ -78,7 +78,7 @@ FE  --HTTP /api-->  BE  --aiafa:grading-->  Redis  -->  AGENT
                     ├── Postgres (trạng thái bài làm, trạng thái tài liệu)
                     └── MinIO    (byte của tài liệu)   <-- DOCUMENT đọc trực tiếp
 
-                        MongoDB  (bản thô: chữ đọc từ tài liệu)  <-- DOCUMENT ghi, BE không chạm
+                        MongoDB  (bản thô, cây mục lục)  <-- DOCUMENT ghi; BE chỉ đọc cây và đoạn
 ```
 
 Hai mũi dưới là **hai queue khác nhau**, không phải một đường hai chiều, và tên chúng

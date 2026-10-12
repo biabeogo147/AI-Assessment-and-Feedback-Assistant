@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from be.config import get_settings
+from be.content_reader import bind_reader, create_reader
 from be.db import bind_sessions, create_engine
 from be.db import get_session as _session_dependency
 from be.queue import create_queue_pool
@@ -102,6 +103,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     bind_store(store)
     app.state.object_store = store
 
+    # Kho nội dung thì **không** chặn startup, khác object storage: soạn đề không có tài liệu vẫn
+    # đứng được, và một tool đọc mục lục tự báo *"không với tới được"* khi Mongo vắng. Client nối
+    # lười, nên dựng ở đây không chạm mạng (plan 4b).
+    reader = create_reader(settings)
+    bind_reader(reader)
+
     async for session in _session_dependency():
         if await seed_if_empty(session):
             logger.info("seeded the demo class, roster and published assessment")
@@ -122,6 +129,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         if app.state.queue_pool is not None:
             await app.state.queue_pool.aclose()
+        bind_reader(None)
+        await reader.close()
         await engine.dispose()
 
 

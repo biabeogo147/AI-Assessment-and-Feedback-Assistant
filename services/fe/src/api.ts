@@ -724,7 +724,7 @@ async function* sseFrames(
 
 async function streamTurn(
   text: string,
-  into: { conversationId?: string; startNew?: boolean },
+  into: { conversationId?: string; startNew?: boolean; documentId?: string },
   onEvent: (event: TurnEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -735,6 +735,9 @@ async function streamTurn(
       text,
       conversation_id: into.conversationId ?? null,
       start_new: into.startNew ?? false,
+      // Chip đang đính (plan 4b). BE chỉ dùng nó khi tài liệu thuộc giáo viên và đã sẵn sàng, và
+      // lưu nó cùng câu này -- nên câu sau, khi chip đã rời ô nhập, vẫn nói về cùng cuốn sách.
+      document_id: into.documentId ?? null,
     }),
     signal,
   });
@@ -913,7 +916,7 @@ export const teacher = {
   // lượt gửi bằng POST và mang một body, mà `EventSource` chỉ biết GET.
   stream: (
     text: string,
-    into: { conversationId?: string; startNew?: boolean } = {},
+    into: { conversationId?: string; startNew?: boolean; documentId?: string } = {},
     onEvent: (event: TurnEvent) => void,
     signal?: AbortSignal,
   ) => streamTurn(text, into, onEvent, signal),

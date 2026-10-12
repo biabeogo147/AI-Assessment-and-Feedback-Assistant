@@ -11,6 +11,8 @@
   {"id": "de-dap-gop", "expect": ["soan-de"], "history": [["teacher", "mình cần một đề"], ["assistant", "Bạn cho mình biết môn, khối, phạm vi kiến thức và số câu nhé."], ["teacher", "Toán 12, logarit, 8 câu"]]},
   {"id": "de-english", "expect": ["soan-de"], "history": [["teacher", "tạo quiz 10 câu về hàm số mũ"]]},
   {"id": "de-de-thi", "expect": ["soan-de"], "history": [["teacher", "soạn đề thi giữa kì 1 Toán 11, 30 câu"]]},
+  {"id": "de-tai-lieu", "expect": ["soan-de"], "history": [["teacher", "soạn 10 câu chương 1 trong sách này"]]},
+  {"id": "de-dap-chuong", "expect": ["soan-de"], "history": [["teacher", "ra đề 10 câu từ cuốn sách mình vừa tải"], ["assistant", "Bạn muốn soạn đề cho chương nào trong sách?"], ["teacher", "Chương I. TẬP HỢP CÁC SỐ TỰ NHIÊN (tr. 5–28)"]]},
   {"id": "de-tu-luan", "expect": ["soan-de"], "history": [["teacher", "viết cho mình 3 câu tự luận về phương trình bậc hai lớp 9"]]},
   {"id": "lop-si-so", "expect": ["lop-va-ket-qua"], "history": [["teacher", "lớp 12A có bao nhiêu học sinh?"]]},
   {"id": "lop-ket-qua", "expect": ["lop-va-ket-qua"], "history": [["teacher", "lớp 12A làm bài 15 phút hôm qua thế nào"]]},

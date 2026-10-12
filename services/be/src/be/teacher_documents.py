@@ -122,6 +122,28 @@ def _kind(filename: str) -> str:
     return tail.upper() if tail and tail != filename else ""
 
 
+def believed_state(row: Document, stale_after_seconds: int) -> str:
+    """Trạng thái nên tin của một tài liệu: cột, trừ khi `processing` đã im quá lâu thì `failed`.
+
+    Tách khỏi `_as_read` để khung chat đọc **cùng** một sự thật với thư viện (review B7): chip của
+    một job đã chết mà Kriky vẫn bảo *"chờ tài liệu sẵn sàng"* là hai màn hình nói hai điều.
+
+    Args:
+        row: Hàng trong `documents`.
+        stale_after_seconds: Một hàng được đứng ở `processing` bao lâu.
+
+    Returns:
+        Giá trị của `DocumentState`.
+    """
+    if row.state != DocumentState.PROCESSING:
+        return row.state
+    heard = aware(row.uploaded_at)
+    if row.progress_at is not None:
+        heard = max(heard, aware(row.progress_at))
+    waited = (datetime.now(UTC) - heard).total_seconds()
+    return DocumentState.FAILED.value if waited > stale_after_seconds else row.state
+
+
 def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
     """Đổi một hàng thành thứ màn hình đọc, và suy ra trạng thái đáng tin.
 
@@ -150,16 +172,10 @@ def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
     Returns:
         Bản đọc, không mang theo byte nào.
     """
-    state = row.state
+    state = believed_state(row, stale_after_seconds)
     fault = row.fault
-    if state == DocumentState.PROCESSING:
-        heard = aware(row.uploaded_at)
-        if row.progress_at is not None:
-            heard = max(heard, aware(row.progress_at))
-        waited = (datetime.now(UTC) - heard).total_seconds()
-        if waited > stale_after_seconds:
-            state = DocumentState.FAILED.value
-            fault = "Xử lý tài liệu này đã dừng giữa đường. Thử tải lại."
+    if state != row.state:
+        fault = "Xử lý tài liệu này đã dừng giữa đường. Thử tải lại."
 
     return DocumentRead(
         document_id=row.id,

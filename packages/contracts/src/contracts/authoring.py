@@ -110,6 +110,13 @@ class DraftQuestionRequested(BaseModel):
             nghe thì lời nói mất luôn. Nếu chuông chở nội dung thì một người đóng tab đúng lúc
             sẽ làm mất hẳn một câu đã soạn xong. Chở một con số thì mất một tiếng chuông chỉ là
             mất một lần cập nhật màn hình, và lần quan sát sau vẫn đưa đủ câu vào đề.
+        focus_title: Mục kiến thức câu này được gán (plan 4b), đường dẫn tiêu đề trong mục lục --
+            *"Chương I › Bài 2 › 1. Tập hợp N và N*"*. Rỗng khi đề không có tài liệu: soạn như cũ,
+            chỉ theo `topic_scope`.
+        focus_text: Chữ của các đoạn thuộc mục ấy, có trần. Là **kiến thức** để viết câu mới, không
+            phải kho câu để chép (hậu ký ADR-27).
+        other_foci: Tiêu đề mục của các câu khác cùng đề -- những gì câu này **không** được hỏi
+            sang, vì các job chạy song song và không thấy nhau.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -124,6 +131,9 @@ class DraftQuestionRequested(BaseModel):
     of_total: int = Field(ge=1, le=50)
     banned_stems: tuple[str, ...] = ()
     progress_channel: str = ""
+    focus_title: str = ""
+    focus_text: str = ""
+    other_foci: tuple[str, ...] = ()
 
 
 class DraftQuestionCompleted(BaseModel):

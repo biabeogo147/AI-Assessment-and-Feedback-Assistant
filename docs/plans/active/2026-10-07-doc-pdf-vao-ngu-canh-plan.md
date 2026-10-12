@@ -51,10 +51,10 @@ lại; sympy lùi thành **3d**.
 | 3c | [`2026-10-11-document-agent-hierarchy-plan.md`](../completed/2026-10-11-document-agent-hierarchy-plan.md) — *document agent* trong `services/document`: Jev xếp cấp, cây **ba cấp**, `gpt-4o-mini` tóm tắt, chip *sẵn sàng* chờ cây — **đóng 11/10/2026**: SGK Lớp 6 tập 1 ra 87 nút, P ≥ 97% mọi cấp; trên cuốn này luật gánh phần chính, Jev chưa hơn luật | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
 | 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết* | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
 | 4a | [`2026-10-12-kriky-skill-routing-plan.md`](../completed/2026-10-12-kriky-skill-routing-plan.md) — Jev **trong AGENT** chọn skill cho Kriky; prompt gốc thành lõi + ba skill quy trình, `known` trước `kind` — **đóng 12/10/2026** | recall của skill `soan-de` và `lop-va-ket-qua` bằng 100% trên bộ nhãn, và Kriky không kém hôm nay trên trình duyệt | **có** |
-| 4b | Soạn đề theo tài liệu — *chưa viết*: chip đi kèm tin nhắn, tool đọc cây, `ask_clarify` bằng tên chương/bài, mỗi câu một ô kiến thức | mười câu của một đề đứng trên mười ô kiến thức khác nhau của tài liệu | **có** |
-| 5 | Nội dung vào prompt — *chưa viết* | **không payload nào rời BE mang chunk nhãn bài tập** | có |
+| 4b | [`2026-10-12-draft-from-document-plan.md`](../completed/2026-10-12-draft-from-document-plan.md) — **đóng 12/10/2026** — soạn đề theo tài liệu: chip đi kèm tin nhắn, tool đọc cây, `ask_clarify` bằng tên chương/bài, mỗi câu một ô kiến thức | mười câu của một đề đứng trên mười ô kiến thức khác nhau của tài liệu | **có** |
+| 5 | Nội dung vào prompt — *chưa viết*. Từ 12/10/2026 4b nhận ba tool đọc và nội dung vào prompt **soạn đề**; plan 5 còn lại: Kriky trả lời câu hỏi về nội dung tài liệu trong chat (`get_chunk`), và quyết định riêng cho pha 2 (hậu ký ADR-27) | ~~không payload nào rời BE mang chunk nhãn bài tập~~ (rút 12/10/2026); cổng viết khi tới lượt | có |
 
-Ba plan sau **cố ý chưa có file** (3d, 4b, 5): `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading,
+Hai plan sau **cố ý chưa có file** (3d, 5): `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading,
 và thiết kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
 
 **Plan 1, 2a, 2b, 2c, 3a và 3b không có một lời gọi model nào.** Đó là nửa đợt việc đo được bằng test thường, và
@@ -357,17 +357,18 @@ HTTP ghi một hàng).
 - [ ] **Plan 3d — sympy kiểm công thức** (không mã pipeline)
 - [x] **Plan 4a — Jev chọn skill cho Kriky, prompt thành lõi + skill** (mã **C4**). Đóng
       12/10/2026; soạn đề đủ mục nêu plan ~4/6 lần (trước 0/8), nợ ở Status của plan
-- [ ] **Plan 4b — soạn đề theo tài liệu** (đóng **B10** cùng plan 5)
+- [x] **Plan 4b — soạn đề theo tài liệu** (đóng **B10** cùng plan 5). Đóng 12/10/2026: SGK Lớp 6, mười
+      câu trên mười mục khác nhau; giới hạn và nợ ở Status của plan
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)
 
 ## Validation Checks
 
 Cổng của từng plan nằm ở bảng đầu file và trong `Validation Checks` của plan ấy. Cổng của **cả
-đợt** là luật nặng nhất của ADR-27, và nó phải có một lưới chạy được, không phải một câu hứa:
+đợt** từng là luật nặng nhất của ADR-27:
 
-> **Không payload nào rời BE mang một chunk nhãn *bài tập*.** Một repo check trong
-> `tools/check_contract.py`. Đây là nơi thi hành ADR-04 — một luật không có chỗ canh là một ý
-> tưởng.
+> ~~**Không payload nào rời BE mang một chunk nhãn *bài tập*.**~~ **Rút ngày 12/10/2026** -- hậu ký
+> ADR-27: tài liệu là nguồn kiến thức, chunk không mang nhãn bài tập. Cổng của cả đợt nay là cổng
+> của plan 4b: mười câu của một đề đứng trên mười mục kiến thức khác nhau của tài liệu.
 
 Cộng: `.\dev.ps1 check` · `test` · `typecheck` xanh sau mỗi plan, và mỗi luật mới đỏ **đúng**
 test của nó dưới một đột biến một dòng.
@@ -379,8 +380,8 @@ plan 2b (`2f41904`), plan 2c (`2c72e9d`) — cái cuối ngày 09/10/2026. ADR-2
 ngày 08/10/2026 (cổng text layer thành bất đồng bộ).
 
 **Plan 3a đã có file** từ 10/10/2026: `2026-10-10-document-ocr-text-and-latex-plan.md`. **Ba
-plan còn lại chưa có file**: plan 3d, plan 4b, plan 5 (đóng B10); plan 4a (C4) có file và đã đóng
-12/10/2026. Plan 3c (mã C3, C10) có
+plan còn lại chưa có file**: plan 3d, plan 5 (đóng B10); plan 4a (C4) đã đóng 12/10/2026, plan 4b
+đóng cùng ngày. Plan 3c (mã C3, C10) có
 file từ 11/10/2026: `2026-10-11-document-agent-hierarchy-plan.md`, đóng cùng ngày và đã về `completed/`.
 Plan 3a và plan 3b đóng 11/10/2026 và cả hai đã về `completed/`. Plan 3b đóng sớm sau Task 2 (commit
 `0ccf7ee`, chung với 3a), rồi được mở lại cùng ngày và làm nốt Task 3: **PDF scan giờ đi OCR theo lô
@@ -390,7 +391,7 @@ thô ấy. Ba plan chưa viết là lý do duy nhất file này còn nằm trong
 **Thứ tự đổi 12/10/2026** (người dùng): plan 4 làm trước 3d và 5, và chia đôi -- 4a (skill + Jev
 trong AGENT) rồi 4b (soạn đề theo tài liệu). Người dùng chốt cùng ngày: tài liệu đi vào prompt là
 **nguồn kiến thức**, không phân biệt bài tập; luật lọc bài tập của ADR-27 và cổng *"không payload
-nào mang chunk nhãn bài tập"* sẽ được rút bằng một hậu ký của ADR-27 trong plan 4b.
+nào mang chunk nhãn bài tập"* đã rút bằng hậu ký ADR-27 ngày 12/10/2026.
 
 **Thứ tự đổi 11/10/2026** (người dùng): sau 3c là **nối cây vào BE** -- phần ba tool đọc của plan
 5 -- trước 3d. 3d và 4 chưa làm vội.

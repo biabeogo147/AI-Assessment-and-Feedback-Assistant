@@ -285,7 +285,8 @@ def _describe_tool(tool: ToolSpec) -> str:
     """
     lines = [f"- {tool.name}: {tool.description}"]
     for argument, meaning in tool.arguments.items():
-        lines.append(f"    {argument}: {meaning}")
+        mark = " (tùy chọn)" if argument in tool.optional else ""
+        lines.append(f"    {argument}{mark}: {meaning}")
     return "\n".join(lines)
 
 
@@ -330,6 +331,31 @@ def _compose(state: ProposeState) -> dict:
         opening.append(skill.body)
     if request.teacher_name:
         opening.append(f"Bạn đang nói với {request.teacher_name}.")
+    if request.attached_document is not None:
+        # Plan 4b: tài liệu của đoạn chat -- chip của câu này, hoặc chip gần nhất. Id viết ra
+        # nguyên văn vì model gửi lại nó làm tham số `document_id`.
+        document = request.attached_document
+        if document.state == "ready":
+            opening.append(
+                f"Tài liệu giáo viên đính kèm: {document.filename} "
+                f"(document_id = {document.document_id})."
+            )
+        elif document.state == "processing":
+            # Tệp vừa tải lên, còn đang xử lý (review B6): chưa có mục lục để đọc. Nói ra, thay
+            # vì soạn như thể không có chip -- giáo viên đang nghĩ đề sẽ theo sách này.
+            opening.append(
+                f"Tài liệu giáo viên đính kèm: {document.filename} -- đang xử lý, chưa đọc "
+                "được. Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng cần chờ tài liệu "
+                "sẵn sàng rồi gửi lại; đừng soạn đề không tài liệu thay cho nó."
+            )
+        else:
+            # Hỏng, hay không đọc được chữ (review B7): chờ cũng không ra gì -- bảo chờ là kẹt
+            # đoạn chat ở một lời hứa không ai giữ.
+            opening.append(
+                f"Tài liệu giáo viên đính kèm: {document.filename} -- KHÔNG đọc được nội dung. "
+                "Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng tài liệu này không dùng "
+                "được và nhờ họ đính tài liệu khác; đừng soạn đề không tài liệu thay cho nó."
+            )
     if request.catalog:
         catalog = "\n".join(_describe_tool(tool) for tool in request.catalog)
         opening.append(f"Tool dùng ngay (call_tool) lượt này:\n{catalog}")

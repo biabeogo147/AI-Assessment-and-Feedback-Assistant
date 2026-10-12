@@ -2119,6 +2119,41 @@ describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", ()
     );
     sent.mockRestore();
   });
+
+  it("tệp đính đi cùng câu tới BE, không chỉ nằm trên dải", async () => {
+    // Plan 4b: trước bản này chip chỉ là hình trên màn hình — `streamTurn` không gửi nó, nên
+    // Kriky soạn đề như thể giáo viên chưa đính gì.
+    serving();
+    const sent = vi.spyOn(teacher, "stream").mockResolvedValue(undefined);
+    const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+    await attach(view);
+
+    fireEvent.change(screen.getByLabelText("Nhắn cho Kriky"), {
+      target: { value: "soạn 10 câu chương 1" },
+    });
+    fireEvent.click(screen.getByText("Gửi"));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    expect(sent.mock.calls[0][1]).toMatchObject({ conversationId: "c1", documentId: "d1" });
+    sent.mockRestore();
+  });
+
+  it("câu không đính tệp thì không mang tài liệu nào", async () => {
+    serving();
+    const sent = vi.spyOn(teacher, "stream").mockResolvedValue(undefined);
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("de-cuong.pdf")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("Nhắn cho Kriky"), {
+      target: { value: "chào Kriky" },
+    });
+    fireEvent.click(screen.getByText("Gửi"));
+
+    await waitFor(() => expect(sent).toHaveBeenCalled());
+    expect(sent.mock.calls[0][1]?.documentId).toBeUndefined();
+    sent.mockRestore();
+  });
 });
 
 
@@ -5111,5 +5146,29 @@ describe("hai tab một đoạn chat: lời từ chối phải nói ra", () => {
     expect(
       (screen.getByLabelText("Nhắn cho Kriky") as HTMLInputElement).value,
     ).toBe("tạo đề 10 câu tích phân");
+  });
+});
+
+describe("api: chip tài liệu trong body của một lượt", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("`document_id` đi trong body khi có chip, `null` khi không", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)));
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
+        });
+      }),
+    );
+
+    await teacher.stream("soạn đề", { conversationId: "c1", documentId: "d1" }, () => undefined);
+    await teacher.stream("chào", { conversationId: "c1" }, () => undefined);
+
+    expect(bodies[0]).toMatchObject({ conversation_id: "c1", document_id: "d1" });
+    expect(bodies[1].document_id).toBeNull();
   });
 });

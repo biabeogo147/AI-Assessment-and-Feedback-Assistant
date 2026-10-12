@@ -69,6 +69,7 @@ from be.config import Settings, get_settings
 from be.db import get_session, session_scope
 from be.drafting import harvest, open_bells, pending_count
 from be.identity import Asking, current_teacher
+from be.teacher_documents import believed_state
 from be.teacher_tools import (
     LOOKS_LIKE_REFERENCE,
     PHASE_PLAN,
@@ -76,16 +77,20 @@ from be.teacher_tools import (
     REFERENCE,
     UnknownTool,
     Unresolvable,
+    bind_book,
     catalog_for,
     execute,
+    owned_document,
     resolve_args,
 )
 from contracts import (
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
     REPORT_PLAN_TASK,
+    AttachedDocument,
     ConversationNameCompleted,
     ConversationNameRequested,
+    DocumentState,
     NextStepCompleted,
     NextStepRequested,
     PlanReportCompleted,
@@ -145,11 +150,14 @@ class Said(BaseModel):
         conversation_id: Nói vào đoạn chat nào. Thiếu thì vào đoạn đang chạy, y như
             trước khi giáo viên có nhiều đoạn.
         start_new: Mở một đoạn mới. Đây là đường **duy nhất** mở đoạn thứ hai.
+        document_id: Chip tài liệu đang đính trong ô nhập (plan 4b). BE chỉ chuyển nó cho
+            AGENT khi tài liệu thuộc giáo viên và đã *sẵn sàng*.
     """
 
     text: str = Field(min_length=1, max_length=2000)
     conversation_id: str | None = None
     start_new: bool = False
+    document_id: str | None = Field(default=None, max_length=36)
 
     @model_validator(mode="after")
     def _one_or_the_other(self) -> "Said":
@@ -227,6 +235,7 @@ async def _ask_agent(
     catalog: tuple[ToolSpec, ...],
     plannable: tuple[ToolSpec, ...],
     history: list[TurnRecord],
+    attached: AttachedDocument | None = None,
 ) -> NextStepCompleted:
     """Hỏi AGENT một đề xuất.
 
@@ -245,6 +254,7 @@ async def _ask_agent(
             Pha 1 phải biết chúng tồn tại và nhận tham số nào, nếu không nó đoán -- và một
             plan đoán sai tên tham số bị `vet_plan` từ chối trọn gói (ADR-25).
         history: Mọi thứ đã có tới lúc này, cũ nhất trước.
+        attached: Tài liệu đính kèm tin nhắn này, đã kiểm sở hữu và *sẵn sàng*.
 
     Returns:
         Đề xuất đó.
@@ -258,6 +268,7 @@ async def _ask_agent(
         history=tuple(history),
         catalog=catalog,
         plannable=plannable,
+        attached_document=attached,
     )
     answer = await run_task(
         getattr(request.app.state, "queue_pool", None),
@@ -266,6 +277,97 @@ async def _ask_agent(
         asked.model_dump(mode="json"),
     )
     return NextStepCompleted.model_validate(answer)
+
+
+# Tool đọc tài liệu (plan 4b). Một lần gọi bất kỳ cái nào trong đoạn chat là đoạn chat **đang nói
+# về một tài liệu**, kể cả ở lượt sau khi chip đã rời ô nhập.
+_DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter"})
+
+
+async def _last_chip(session: AsyncSession, thread: str) -> str:
+    """Chip tài liệu gần nhất giáo viên đã đính trong đoạn chat này, rỗng khi chưa từng có.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat.
+
+    Returns:
+        `document_id` của câu giáo viên gần nhất có chip.
+    """
+    found = await session.scalar(
+        select(TeacherTurn.document_id)
+        .where(TeacherTurn.conversation_id == thread, TeacherTurn.document_id != "")
+        .order_by(TeacherTurn.sequence.desc())
+        .limit(1)
+    )
+    return found or ""
+
+
+async def _read_documents_before(session: AsyncSession, thread: str) -> bool:
+    """Đoạn chat này đã từng gọi một tool đọc tài liệu chưa -- đọc từ database, cả đoạn chat.
+
+    FE xoá chip ngay khi gửi, và một đoạn chat chọn sách qua `list_documents` thì không có chip
+    nào. Đọc từ database chứ không từ cửa sổ `_HISTORY_STEPS`: một đoạn chat dài không được quên
+    rằng nó đang nói về một cuốn sách (review B3, B5).
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat.
+
+    Returns:
+        True khi có một bước `tool_call` của `list_documents`, `list_chapters` hay `get_chapter`.
+    """
+    found = await session.scalar(
+        select(TeacherTurn.id)
+        .where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.kind == "tool_call",
+            TeacherTurn.tool_name.in_(_DOCUMENT_READS),
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
+def _read_other_books(history: list[TurnRecord], attached: AttachedDocument) -> bool:
+    """Lượt này đã đọc mục lục của một cuốn **khác** cuốn đang gắn chưa.
+
+    Khi đã đọc, một `nodes` model gửi có thể là số của cuốn kia; điền `document_id` của cuốn đang
+    gắn vào đó là mở đề trên một mục khác hẳn của một sách khác (review B7). Không điền gì -- để
+    `vet_plan` từ chối nếu model quên.
+
+    Args:
+        history: Các bản ghi đã gửi AGENT.
+        attached: Cuốn đang gắn.
+
+    Returns:
+        True khi có một lần `list_chapters`/`get_chapter` với `document_id` khác.
+    """
+    return any(
+        turn.kind == "tool_call"
+        and turn.tool_name in {"list_chapters", "get_chapter"}
+        and str(turn.tool_args.get("document_id") or "") not in {"", attached.document_id}
+        for turn in history
+    )
+
+
+def _option(entry: dict) -> str:
+    """Một nút bấm từ một candidate: lớp kèm sĩ số, hoặc `label` BE đã dựng (plan 4b).
+
+    `label` là của **BE** -- `node_label` hay tên tệp trong `teacher_tools` -- nên luật ADR-23 vẫn
+    nguyên: không chuỗi nào trên nút đi qua tay model.
+
+    Args:
+        entry: Một dòng trong `candidates`.
+
+    Returns:
+        Chữ trên nút, rỗng khi dòng không có hình dạng nào trong hai.
+    """
+    name, count = entry.get("name"), entry.get("student_count")
+    if isinstance(name, str) and isinstance(count, int):
+        return f"{name} ({count} học sinh)"
+    label = entry.get("label")
+    return label if isinstance(label, str) else ""
 
 
 def _offered(result: dict) -> tuple[list[str], int]:
@@ -292,13 +394,8 @@ def _offered(result: dict) -> tuple[list[str], int]:
     if not isinstance(listed, list):
         return [], 0
 
-    options = [
-        f"{entry['name']} ({entry['student_count']} học sinh)"
-        for entry in listed
-        if isinstance(entry, dict)
-        and isinstance(entry.get("name"), str)
-        and isinstance(entry.get("student_count"), int)
-    ]
+    options = [_option(entry) for entry in listed if isinstance(entry, dict)]
+    options = [one for one in options if one]
     more = result.get("more")
     return options, more if isinstance(more, int) and more > 0 else 0
 
@@ -484,6 +581,15 @@ async def _name_the_thread(
 # Câu BE nói khi một plan không dùng được. Nó nói **cái gì** sai chứ không nói "có lỗi":
 # giáo viên không sửa được một plan họ chưa bao giờ thấy, nên câu này là lời xin lỗi kèm
 # một đề nghị gõ lại, không phải một mã lỗi.
+_BOOK_SCOPE_MISSING = (
+    "Đoạn chat này đang soạn theo tài liệu {filename}, nên mình cần biết chương hay bài nào trong "
+    "đó. Bạn nói tên chương, bài giúp mình nhé. Muốn soạn đề không theo tài liệu thì mở một đoạn "
+    "chat mới."
+)
+_BOOK_NOT_READY = (
+    "Tài liệu {filename} chưa dùng được để soạn đề -- nó còn đang xử lý, hoặc xử lý không thành. "
+    "Bạn chờ tài liệu sẵn sàng rồi gửi lại, hoặc đính một tài liệu khác nhé."
+)
 _PLAN_REFUSED = "Mình chưa dựng được các bước cho việc này. Bạn nói lại giúp mình một lần nữa nhé."
 
 
@@ -519,10 +625,11 @@ def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str 
         spec = by_name.get(step.tool_name)
         if spec is None:
             return f"bước {index} gọi {step.tool_name}, không có trong catalog pha thực hiện"
-        missing = set(spec.arguments) - set(step.args)
+        missing = set(spec.arguments) - set(step.args) - set(spec.optional)
         if missing:
-            # Mọi tham số được mô tả cho model đều là tham số **bắt buộc**: catalog chỉ nêu
-            # những thứ tool thật sự cần. Thiếu một cái là một bước sẽ chạy với tay không --
+            # Mọi tham số được mô tả cho model đều là tham số **bắt buộc**, trừ những cái spec
+            # khai tường minh ở `optional` (plan 4b): catalog chỉ nêu những thứ tool thật sự
+            # cần. Thiếu một cái là một bước sẽ chạy với tay không --
             # đo trên trình duyệt thật, model nêu `start_drafting` không kèm `assessment_id`,
             # bước ấy hỏng, và lượt để lại một đề rỗng mang tên giáo viên. Từ chối trọn gói ở
             # đây là cách duy nhất không có gì kịp ghi.
@@ -835,6 +942,7 @@ async def _record(
     model_tokens: int = 0,
     choices: list[str] | None = None,
     more_choices: int = 0,
+    document_id: str = "",
 ) -> int:
     """Ghi thêm một bước vào hội thoại rồi commit nó.
 
@@ -861,6 +969,7 @@ async def _record(
             đây chứ không vào `record` vì `TurnRecord` là payload sang AGENT và model
             không dùng được chúng — y như `duration_ms` ngay trên.
         more_choices: Bao nhiêu phương án nữa đã bị cắt.
+        document_id: Chip tài liệu của câu giáo viên này, đã kiểm sở hữu (plan 4b).
 
     Returns:
         Vị trí sau bước này, thứ caller dùng cho bước tiếp theo.
@@ -888,6 +997,7 @@ async def _record(
                 entity_id=entity_id,
                 choices=list(choices or []),
                 more_choices=more_choices,
+                document_id=document_id,
                 duration_ms=duration_ms,
                 model_tokens=model_tokens,
                 created_at=datetime.now(UTC),
@@ -1505,7 +1615,40 @@ async def _go(
 
     history = _as_records(stored)
     history.append(TurnRecord(kind="teacher", text=said.text))
-    position = await _record(session, thread, position, history[-1])
+    # Chip đang đính, khi nó thuộc giáo viên và đã sẵn sàng; không thì như chưa đính (plan 4b).
+    # Chip của câu này, khi nó là của giáo viên -- **kể cả** khi tài liệu còn đang xử lý: lưu nó
+    # cùng câu thì lượt sau dùng được khi sách đã sẵn sàng (review B6).
+    owned = await owned_document(session, asking, said.document_id or "")
+    position = await _record(
+        session, thread, position, history[-1], document_id=owned.id if owned else ""
+    )
+    if owned is None and not said.document_id:
+        # Không có chip ở câu này: đoạn chat vẫn nói về chip **gần nhất** của nó, đọc từ
+        # database chứ không từ cửa sổ `_HISTORY_STEPS` -- một đoạn chat dài không được
+        # quên cuốn sách giữa chừng (review B4).
+        # Có chip mà chip không dùng được (chưa sẵn sàng, không phải của mình) thì **không** lùi về
+        # chip cũ: giáo viên vừa chỉ một cuốn khác, soạn từ cuốn trước là soạn sai sách.
+        owned = await owned_document(session, asking, await _last_chip(session, thread))
+    attached = (
+        AttachedDocument(
+            document_id=owned.id,
+            filename=owned.filename,
+            state=believed_state(owned, settings.document_stale_after_seconds),
+        )
+        if owned
+        else None
+    )
+    # Gắn với một cuốn sách **sẵn sàng**: tool mục lục hiện ra và `document_id` thành bắt buộc.
+    # Chưa sẵn sàng thì không -- chưa có mục lục nào để đọc, AGENT được báo để nói ra điều ấy.
+    bound = attached is not None and attached.state == DocumentState.READY.value
+    if bound or await _read_documents_before(session, thread):
+        planning = catalog_for(asking, PHASE_PLAN, documents=True, bound=bound)
+        working = catalog_for(asking, PHASE_WORK, documents=True, bound=bound)
+    if attached is not None and not bound:
+        # Chip có mà chưa dùng được (đang xử lý, hỏng): lời dặn *đừng soạn không sách* không
+        # giữ được model, nên `create_draft` **không có mặt** lượt này -- thứ không nhìn thấy
+        # thì không nêu được (review B7). Soạn thêm câu cho đề đã có vẫn được.
+        working = tuple(spec for spec in working if spec.name != "create_draft")
 
     offered: list[str] = []
     offered_more = 0
@@ -1524,7 +1667,9 @@ async def _go(
 
         started = time.monotonic()
         try:
-            step = await _ask_agent(request, settings, asking.full_name, planning, working, history)
+            step = await _ask_agent(
+                request, settings, asking.full_name, planning, working, history, attached
+            )
         except AgentError as unreachable:
             logger.warning("agent unreachable for %s: %s", asking.teacher_code, unreachable)
             raise HTTPException(status_code=503, detail=_AGENT_UNAVAILABLE) from unreachable
@@ -1581,6 +1726,11 @@ async def _go(
             return
 
         if step.kind == "plan":
+            if bound and attached is not None and not _read_other_books(history, attached):
+                # Tham số tài liệu BE biết mà không phải đoán -- điền trước khi kiểm (plan 4b).
+                step = step.model_copy(
+                    update={"steps": await bind_book(step.steps, attached.document_id)}
+                )
             wrong = vet_plan(step.steps, working)
             if wrong is None:
                 plan = step.steps
@@ -1621,14 +1771,22 @@ async def _go(
             # Plan hỏng thì **không bước nào chạy**, và giáo viên nhận một câu nói chứ
             # không phải một bước đỏ: với họ, chưa có gì xảy ra cả.
             logger.warning("refused a plan for %s: %s", asking.teacher_code, wrong)
-            history.append(TurnRecord(kind="assistant", text=_PLAN_REFUSED))
+            refusal = _PLAN_REFUSED
+            if bound and attached is not None and "create_draft" in wrong:
+                # Đoạn chat gắn sách mà plan thiếu mục của sách (review B7): câu chung *"nói lại"*
+                # thì nói lại bao nhiêu lần cũng không qua. Nói lý do, và đường ra.
+                refusal = _BOOK_SCOPE_MISSING.format(filename=attached.filename)
+            elif attached is not None and not bound and "create_draft" in wrong:
+                # Chip chưa dùng được, và `create_draft` đã rời catalog lượt này (review B7).
+                refusal = _BOOK_NOT_READY.format(filename=attached.filename)
+            history.append(TurnRecord(kind="assistant", text=refusal))
             position = await _record(session, thread, position, history[-1])
-            yield TurnEvent(kind="say", text=_PLAN_REFUSED, conversation_id=thread)
+            yield TurnEvent(kind="say", text=refusal, conversation_id=thread)
             if began == 0:
                 await _name_the_thread(session, request, settings, thread, said.text)
             yield TurnEvent(
                 kind="done",
-                text=_PLAN_REFUSED,
+                text=refusal,
                 conversation_id=thread,
                 ended_as="say",
                 began=began,
@@ -1692,6 +1850,13 @@ async def _go(
         # về chuyện khác đến nơi mà vẫn còn dính chúng.
         offered, offered_more = _offered(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
+        if step.tool_name in _DOCUMENT_READS:
+            # Không có chip mà model vừa mở thư viện: từ bước sau, tool đọc mục lục và tham số tài
+            # liệu của `create_draft` mới hiện ra (plan 4b) -- trước đó chúng chỉ mời hỏi thừa.
+            # `bound` đi theo: đọc mục lục giữa lượt -- đúng luồng skill dặn -- không được làm
+            # tham số tài liệu thành tuỳ chọn trở lại (review B7).
+            planning = catalog_for(asking, PHASE_PLAN, documents=True, bound=bound)
+            working = catalog_for(asking, PHASE_WORK, documents=True, bound=bound)
         position = await _record(session, thread, position, history[-1])
 
     if not plan:

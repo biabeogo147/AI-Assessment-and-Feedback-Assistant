@@ -43,6 +43,9 @@ class Settings(BaseSettings):
         minio_bucket: Bucket giữ byte tài liệu. Phải hợp lệ với DNS -- chữ thường,
             3-63 ký tự, không gạch dưới -- nếu không `make_bucket` ném.
         minio_secure: Có nói HTTPS với object storage không. Local thì không.
+        mongo_url: Kho nội dung (MongoDB), cùng biến `MONGO_URL` với `services/document`. BE chỉ
+            **đọc** cây mục lục và đoạn nội dung từ đây (plan 4b), qua `be/content_reader.py`.
+        mongo_database: Tên database của kho nội dung.
         database_url: URL SQLAlchemy async của kho giữ state của Attempt. ADR-21
             làm state đó bền, nên đây không phải tuỳ chọn trong bất kỳ môi trường
             nào mà học sinh có thể quay lại ngày mai.
@@ -95,6 +98,8 @@ class Settings(BaseSettings):
     minio_secret_key: str = "aiafa-local-dev"
     minio_bucket: str = "aiafa-documents"
     minio_secure: bool = False
+    mongo_url: str = "mongodb://127.0.0.1:27017"
+    mongo_database: str = "aiafa_content"
     dev_identity_header: str = "X-Actor"
     dev_identity_enabled: bool = True
     agent_job_timeout_seconds: int = 70

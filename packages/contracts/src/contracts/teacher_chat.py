@@ -39,6 +39,9 @@ class ToolSpec(BaseModel):
             *không* nên dùng nó.
         arguments: Mô tả tham số theo hình dạng JSON schema, dưới dạng một mapping thuần. Không phải
             một model pydantic, vì catalog được lắp lúc chạy và hình dạng khác nhau theo từng tool.
+        optional: Tham số **không** bắt buộc trong một bước plan (plan 4b: `create_draft` nhận
+            tài liệu khi có). Mặc định rỗng -- mọi tham số đều bắt buộc, như luật của `vet_plan`;
+            một tham số chỉ tuỳ chọn khi được khai ở đây, không bao giờ do đoán.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -46,6 +49,7 @@ class ToolSpec(BaseModel):
     name: str
     description: str
     arguments: dict[str, object] = Field(default_factory=dict)
+    optional: tuple[str, ...] = ()
 
 
 class PlanStep(BaseModel):
@@ -102,6 +106,28 @@ class TurnRecord(BaseModel):
     tool_result: dict[str, object] = Field(default_factory=dict)
 
 
+class AttachedDocument(BaseModel):
+    """Tài liệu giáo viên đính vào tin nhắn này (plan 4b): chip đang nằm trong ô nhập.
+
+    BE chỉ gửi nó khi tài liệu thuộc giáo viên; AGENT dùng `document_id` làm tham số cho tool đọc
+    mục lục khi `state` là `ready`, `filename` để gọi tên tài liệu với giáo viên.
+
+    Attributes:
+        document_id: Id tài liệu.
+        filename: Tên tệp như giáo viên thấy trên chip.
+        state: Trạng thái tài liệu, giá trị của `DocumentState`. Khác `ready` thì chưa có mục lục
+            nào để đọc: *đang xử lý* thì AGENT bảo chờ, *hỏng* hay *không đọc được chữ* thì
+            AGENT nói tài liệu này không dùng được -- không soạn như thể không có chip (review
+            B6, B7).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str
+    filename: str
+    state: str = "ready"
+
+
 class NextStepRequested(BaseModel):
     """Hỏi AGENT xem bước tiếp theo của cuộc hội thoại này nên là gì.
 
@@ -120,6 +146,8 @@ class NextStepRequested(BaseModel):
             đoán -- mà BE kiểm tên tham số theo spec và sẽ từ chối cả plan. Hai danh sách chứ không
             một, vì "được gọi ngay" và "được hẹn làm" là hai quyền khác nhau và trộn chúng lại là
             mở đúng cánh cửa ADR-25 đóng: ghi trước khi hỏi.
+        attached_document: Tài liệu đính kèm tin nhắn mới nhất, `None` khi không có chip (plan
+            4b). Tuỳ chọn, nên payload trước plan 4b vẫn hợp lệ.
 
     Ở đây **không có** `stream_channel`, khác với `ExplainTurnRequested`. Một lượt của cuộc hội
     thoại này là một vòng lặp gồm vài lời gọi model và chỉ lời gọi cuối cùng sinh ra chữ, nên một
@@ -136,6 +164,7 @@ class NextStepRequested(BaseModel):
     history: tuple[TurnRecord, ...] = ()
     catalog: tuple[ToolSpec, ...] = ()
     plannable: tuple[ToolSpec, ...] = ()
+    attached_document: AttachedDocument | None = None
 
 
 class NextStepCompleted(BaseModel):

@@ -1649,10 +1649,15 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
         (
             "pymongo",
             PYMONGO_IMPORT,
-            (REPO_ROOT / "services" / "document" / "src" / "document" / "content_store.py",),
-            # Quét **cả bốn** service, không chỉ `document`: BE và `ingest` không giữ khoá Mongo
+            (
+                REPO_ROOT / "services" / "document" / "src" / "document" / "content_store.py",
+                REPO_ROOT / "services" / "be" / "src" / "be" / "content_reader.py",
+            ),
+            # Quét **cả bốn** service, không chỉ `document`: `ingest` và AGENT không giữ khoá Mongo
             # (plan 3b, D1), và review Task 1 chỉ ra không gì canh điều đó -- `agent-no-db` chỉ
-            # quét AGENT và `document`. Plan 3c mở thêm một cửa cho document agent ở đây.
+            # quét AGENT và `document`. Plan 3c mở thêm một cửa cho document agent ở đây; plan 4b
+            # mở cửa **chỉ đọc** cho BE (`content_reader.py`), và
+            # `check_the_content_reader_only_reads` giữ chữ *chỉ đọc*.
             ("be", "agent", "document", "ingest"),
         ),
         (
@@ -1709,7 +1714,48 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
     return None
 
 
+# Mọi phương thức ghi của collection `pymongo`. Module đọc kho nội dung của BE không được gọi cái
+# nào.
+_MONGO_WRITE = re.compile(
+    r"\.(?:insert_one|insert_many|update_one|update_many|replace_one|delete_one|delete_many"
+    r"|find_one_and_\w+|bulk_write|drop|drop_collection|drop_database|create_index|create_indexes"
+    r"|drop_index|rename|command)\s*\("
+    # `aggregate` đọc được, trừ khi pipeline của nó ghi ra một collection (review B2).
+    r"|[\"']\$(?:out|merge)[\"']"
+)
+
+
+def check_the_content_reader_only_reads() -> str | None:
+    """BE đọc kho nội dung, không bao giờ ghi (plan 4b).
+
+    Kho nội dung do `services/document` ghi; sự thật về tài liệu ở Postgres, do `ingest` ghi. Plan
+    4b cho BE **đọc** mục lục và đoạn để soạn đề, qua đúng một module (`sync-sdk-seam` giữ chữ *một
+    module*). Check này giữ chữ *đọc*: một lời gọi ghi trong module ấy làm BE thành người ghi thứ
+    hai của một kho mà nó không sở hữu, và cây mục lục sẽ có hai tác giả không biết nhau.
+
+    Returns:
+        None khi check đạt, ngược lại là một thông báo thất bại.
+    """
+    reader = REPO_ROOT / "services" / "be" / "src" / "be" / "content_reader.py"
+    if not reader.exists():
+        return _fail("content-reader", f"{reader.relative_to(REPO_ROOT)} is missing")
+    found = sorted(
+        {
+            match.group(0).strip(".( ")
+            for match in _MONGO_WRITE.finditer(reader.read_text(encoding="utf-8"))
+        }
+    )
+    if found:
+        return _fail(
+            "content-reader",
+            f"be/content_reader.py calls {found}: BE only reads the content store,"
+            " services/document writes it",
+        )
+    return None
+
+
 CHECKS = (
+    check_the_content_reader_only_reads,
     check_env_example_has_no_orphans,
     check_agent_and_document_hold_no_database_credentials,
     check_one_process_builds_the_schema_and_the_rest_only_check_it,

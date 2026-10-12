@@ -611,6 +611,10 @@ class TeacherTurn(Base):
     # không dùng được chúng — cùng lý do `Turn` tách khỏi `TurnRecord`.
     choices: Mapped[list] = mapped_column(JSON, default=list)
     more_choices: Mapped[int] = mapped_column(Integer, default=0)
+    # Chip tài liệu đính kèm **câu của giáo viên** này (plan 4b). FE xoá chip ngay khi gửi, nên
+    # lượt sau -- giáo viên trả lời một câu hỏi lại -- không còn chip; BE đọc chip gần nhất của
+    # đoạn chat từ cột này để đoạn chat vẫn nói về cùng cuốn sách. Rỗng ở mọi bước khác.
+    document_id: Mapped[str] = mapped_column(String(36), default="")
     model_tokens: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -647,6 +651,13 @@ class DraftBrief(Base):
     # duy nhất về chủ đề chỉ là một niềm hy vọng, không phải một cơ chế.
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # **Phạm vi tài liệu**, đóng băng cùng `version` (ADR-27, plan 4b). Rỗng khi đề không có
+    # tài liệu: soạn như trước, chỉ theo `topic_scope`. `scope_nodes` là các `ordinal` nút giáo
+    # viên chọn; `index_built_at` là phiên bản cây lúc chọn -- đọc lại tài liệu xoá cây cũ và đánh
+    # số lại, nên một `ordinal` không kèm phiên bản sẽ trỏ sang nội dung khác.
+    document_id: Mapped[str] = mapped_column(String(36), default="")
+    scope_nodes: Mapped[list[int]] = mapped_column(JSON, default=list)
+    index_built_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DraftItem(Base):
@@ -694,6 +705,11 @@ class DraftItem(Base):
     # loại trừ mới đoán ra nguyên nhân. Rỗng nghĩa là chưa lần nào hỏng.
     last_fault: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # **Mục kiến thức** của câu này, gán một lần trước khi job đầu tiên chạy (plan 4b): bắn lại một
+    # ô `retry` hay soạn thêm câu không được xáo mục của câu đã xong. `None` / rỗng khi đề không có
+    # tài liệu. `chunk_ordinals` là nhóm đoạn trong mục, khi số câu nhiều hơn số mục.
+    node_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_ordinals: Mapped[list[int]] = mapped_column(JSON, default=list)
 
 
 class Document(Base):
