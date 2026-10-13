@@ -355,7 +355,7 @@ Mỗi task: xong → subagent review → sửa → task kế. Đo trên model th
       phí), docstring `jev_min_confidence` (`document/config.py`) và hai dòng backlog còn ghi *"thắng
       đúng một ca"*, comment `jev.py`. Ghi chú không sửa: `_TOPICS` là danh sách chặn -- một ví dụ
       chương khác (*"Cho tam giác ABC"*) sẽ lọt; quét thêm ~26 từ chủ đề trên text model đọc ra 0.
-- [ ] T5. Thử tay trên trình duyệt với câu **không** có trong prompt; đóng plan.
+- [x] T5. Thử tay trên trình duyệt với câu **không** có trong prompt; đóng plan.
       **Thử tay** (13/10/2026, gpt-4o-mini, Chrome, sáu service; agent khởi động lại trước mỗi lượt;
       Mongo reset nên hai cuốn được tải lại ở T4). Câu không có trong prompt hay bộ đo; lỗi lộ ra
       được dựng thành ca, đo 24 lần (tệp ca tạm, wrapper `t5_bench*.py` ở scratchpad; bản
@@ -525,3 +525,19 @@ Mỗi task: xong → subagent review → sửa → task kế. Đo trên model th
 ## Status
 
 Viết 12/10/2026. 4b đã commit (`b5b6d98`). Người dùng chốt hướng *≥ 3 lựa chọn* cùng ngày.
+
+**Đóng 13/10/2026.** T1--T7 xong, mỗi task qua review của subagent và đã sửa theo review. Text model
+đọc không còn ví dụ nội dung gắn một chương Toán (Kriky lẫn document agent); Kriky không hỏi thừa
+khi đủ bốn mục; câu hỏi lại có ít nhất ba lựa chọn, lối "Khác" là ô để giáo viên ghi rõ; luồng soạn
+đề theo tài liệu không chip đọc mục lục trước khi mở đề (luật thứ tự đọc bằng code). Đo chốt
+(gpt-4o-mini): `propose_bench` cả bộ 127/132 (baseline 41/108 trên 18 ca chung, T1); năm ca thử tay
+× 24 118/120; soạn câu 12/12, đặt tên 8/8; cây Lớp 6 tập 1 ở ngưỡng thật không tụt. Bộ đo đổi tên
+thành `pageindex_bench`, kết quả đo nằm ở `data/results/`, tên bền không mang mã task (luật mới của
+`AGENTS.md`). Commit: `5b80c2b`..`8d68e21`.
+
+**Chuyển sang backlog** (`docs/plans/backlog.md`): mục *"Soạn đề: lỗi lộ ra khi thử tay plan 4c
+T5"* -- lời đáp ngắn làm model quên lượt trước, phạm vi là một bài thì đề rải cả chương, nút gợi môn
+khác Toán, *"Chương 1/2/3"* khi không có sách, ca cuốn không có trong thư viện, cây Lớp 10 tập 1; và
+mục *"Còn treo khi đóng plan 4c"* -- BE tự kiểm *"đã đọc mục lục"*, đọc mục lục luôn khi chỉ một tài
+liệu hợp, luật đặt tên cho comment, tên cache `_t4` của `ocr_bench`, bản nháp ô nhập chính bị xoá
+khi gửi từ thẻ hỏi lại, hai chỗ Figma lệch code có từ trước.
