@@ -63,10 +63,12 @@ class Settings(BaseSettings):
         jev_concurrency: Số lời gọi Jev bay cùng lúc trong một job.
         jev_timeout_seconds: Trần giây cho một lời gọi Jev (TypeSafe báo 70--500 ms).
         jev_min_confidence: Dưới ngưỡng này luật quyết thay Jev (D5). Chọn bằng bộ đo trên cây
-            vàng (plan 3c, Task 3, `data/run-6/hierarchy-jev-1.13.0/`): Jev thuần trên Lớp 6 tập 1
-            dựng 138 nút cho 91 nút vàng (F1 cấp 3: 69%), chủ yếu vì xếp tiêu đề con không đánh số
-            vào cấp 3 với `confidence` thấp. Ở 0,8 Jev chỉ còn thắng luật đúng một ca, và ca ấy sai
-            -- cây gần như là cây của luật, cho tới khi câu hỏi Jev được làm lại (plan 3c, Status).
+            vàng (plan 3c, Task 3, `data/results/run-6/hierarchy-jev-1.13.0/`): Jev thuần trên
+            Lớp 6 tập 1 dựng 138 nút cho 91 nút vàng (F1 cấp 3: 69%), chủ yếu vì xếp tiêu đề con
+            không đánh số vào cấp 3 với `confidence` thấp. Ở 0,8 Jev chỉ còn thắng luật đúng một ca,
+            và ca ấy sai. Sau khi tiêu chí bỏ ví dụ chương (plan 4c T4, `data/results/run-67/`): Jev
+            thuần 120 nút (F1 cấp 3: 75,9%), và ở 0,8 Jev thắng luật **không** ca nào -- cây trên
+            cuốn này là đúng cây của luật, cho tới khi câu hỏi Jev được làm lại (plan 3c, Status).
         openai_api_key: Khoá OpenAI cho tóm tắt và đọc banner -- cùng khoá AGENT dùng, đọc từ cùng
             `OPENAI_API_KEY`, truyền vào client như ở `agent/llm.py`. Rỗng thì cây không có tóm
             tắt và chương chỉ có nhãn số.

@@ -53,18 +53,23 @@ _ROLE_CRITERIA = {
         "'Tranh luận', 'EM CÓ BIẾT?', 'KHÁI NIỆM, THUẬT NGỮ', 'KIẾN THỨC, KĨ NĂNG', 'BÀI TẬP', "
         "'MỤC TIÊU', 'Chuẩn bị'."
     ),
+    # Plan 4c T4: ví dụ là khuôn -- số bài tập rồi một động từ yêu cầu -- không phải câu của một
+    # chương. Bản trước chép *"Cho hai tập hợp"* nguyên văn từ SGK Toán 6.
     NUMBERED_EXERCISE: (
         "The start of a numbered exercise or problem that asks the reader to do something, e.g. "
-        "'1.1. Cho hai tập hợp ...', '2.15 Tính ...'."
+        "'1.1. Cho ...', '2.15 Tính ...', '3.4 Tìm ...'."
     ),
     RUNNING_HEADER: (
         "A running header or footer, a page number, the book or series name, a publisher line, or "
         "front or back matter such as 'LỜI NÓI ĐẦU', 'MỤC LỤC', 'BẢNG TRA CỨU THUẬT NGỮ'."
     ),
+    # Plan 4c T4: mục trong bài là chỗ trống `<...>`; bản trước dùng *"1. HỆ THẬP PHÂN"* của SGK
+    # Toán 6 tập 1.
     BOOK_SECTION: (
         "The title of a part of the book's table of contents: a chapter or part, a lesson "
         "('Bài 3 ...' or an unnumbered lesson title in capitals), a review lesson ('LUYỆN TẬP "
-        "CHUNG', 'BÀI TẬP CUỐI CHƯƠNG'), or a numbered section inside a lesson ('1. HỆ THẬP PHÂN')."
+        "CHUNG', 'BÀI TẬP CUỐI CHƯƠNG'), or a numbered section inside a lesson ('1. <TITLE IN "
+        "CAPITALS>')."
     ),
 }
 
@@ -74,14 +79,19 @@ _LEVEL_INSTRUCTIONS = (
 )
 _LEVELS = {"deeper": DEEPER, "level_3": 3, "level_2": 2, "level_1": 1}
 _LEVEL_CRITERIA = {
+    # Plan 4c T4: ví dụ chỉ tả định dạng -- tên mục là chỗ trống `<...>`, tiêu đề con là một câu
+    # mô tả kiểu chữ -- không phải tên mục của một chương Toán. Bản trước dùng *"1. HỆ THẬP PHÂN"*,
+    # *"2. SỐ LA MÃ"* (hai mục) và tiêu đề con *"Cách ghi số tự nhiên trong hệ thập phân"*, đều của
+    # SGK Toán 6 tập 1, cuốn cây vàng duy nhất của `hierarchy_bench` -- và Jev bám nguyên văn: gỡ ví
+    # dụ ấy thì chính tiêu đề con ấy lật từ `deeper` sang `level_3` ở `jev@0` (plan 4c, T4).
     "deeper": (
         "A smaller subheading inside a numbered section, or anything numbered deeper than three "
-        "levels: e.g. 'Cách ghi số tự nhiên trong hệ thập phân', 'Hoạt động 1', 'a) ...', "
-        "'I.1.1.1'."
+        "levels: e.g. an unnumbered heading in sentence case under a numbered section, "
+        "'Hoạt động 1', 'a) ...', 'I.1.1.1'."
     ),
     "level_3": (
-        "A numbered section inside a lesson: '1. HỆ THẬP PHÂN', '2. SỐ LA MÃ', or numbering like "
-        "'I.1.1' or 'A.I.1'."
+        "A numbered section inside a lesson: '1. <TITLE IN CAPITALS>', '2. <TITLE IN "
+        "CAPITALS>', or numbering like 'I.1.1' or 'A.I.1'."
     ),
     "level_2": (
         "A unit directly under a chapter: a lesson ('Bài 3 ...' or a capitalised lesson title), "

@@ -247,7 +247,6 @@ def test_kriky_text_names_no_math_topic(topic: str) -> None:
     assert not [text[:80] for text in _model_text(document=False) if topic in text]
 
 
-@pytest.mark.xfail(strict=True, reason="plan 4c T4: tiêu chí Jev và prompt của document agent")
 def test_document_agent_text_names_no_math_topic() -> None:
     """Plan 4c T4: tiêu chí Jev và hai prompt dựng cây cũng không gọi tên chủ đề Toán nào."""
     assert not [topic for topic in _TOPICS if any(topic in text for text in _model_text())]
