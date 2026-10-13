@@ -13,22 +13,26 @@ Ba phần, cùng lệ với `skill_bench`: không chạy trong `.\\dev.ps1 check
 - `name`: đặt tên đoạn chat; ghi những chữ của tiêu đề **không** có trong câu giáo viên -- dấu hiệu
   model chép chữ từ ví dụ (`agent/graphs/naming.py`) -- và dấu `<>` của khuôn ví dụ bị chép theo.
 
-Mỗi lượt ghi vào `data/run-<n>/model-text-<nhãn>/`: `report.txt` và `answers.jsonl`.
+Mỗi lượt ghi vào `data/results/run-<n>/model-text-<nhãn>/`: `report.txt` và `answers.jsonl`.
 
 Dùng:
     python -m propose_bench.run --label baseline --runs 6
+    python -m propose_bench.run --label du --runs 24 --parts propose --only du-
 """
 
 import argparse
 import asyncio
 import json
+import logging
 import re
 import sys
 import time
 from pathlib import Path
 
 _CASES = Path(__file__).resolve().parent / "cases.json"
-_RUNS = Path("data")
+# Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
+# người dùng chốt 13/10/2026.
+_RUNS = Path("data") / "results"
 
 
 def _create_args(steps: list[dict]) -> dict:
@@ -124,6 +128,55 @@ def foreign_words(said: str, title: str) -> list[str]:
     return [word for word in re.findall(r"\w+", title.casefold()) if word not in seen]
 
 
+# Tên các mục của một đề -- nút mang đúng chữ này là nút kể mục, không phải câu trả lời (review T3:
+# 15/30 lượt `thieu-het`). Chỉ là thước của bộ đo; AGENT bỏ những nút ấy bằng `_answers`.
+_ITEM_NAMES = frozenset(
+    {
+        "môn",
+        "môn học",
+        "khối",
+        "khối lớp",
+        "phạm vi",
+        "phạm vi kiến thức",
+        "phạm vi nội dung",
+        "nội dung",
+        "nội dung kiểm tra",
+        "số câu",
+        "số câu hỏi",
+        "số lượng câu hỏi",
+        "chủ đề",
+    }
+)
+
+
+def _names_an_item(buttons: list[str]) -> bool:
+    return any(" ".join(one.casefold().split()) in _ITEM_NAMES for one in buttons)
+
+
+def be_buttons(step: dict, history: tuple) -> list[str]:
+    """Các nút BE bày cho một câu hỏi lại, qua đúng `teacher_chat._choices` (plan 4c T3).
+
+    Câu hỏi về một dòng thì BE chỉ giữ chữ model viết khớp đúng một tên trong `candidates` của
+    tool gần nhất; không đủ thì bày mọi nhãn BE. Ghi lại nút thật để đọc được BE giữ hay thay.
+
+    Args:
+        step: `NextStepCompleted` đã dump.
+        history: Lịch sử lượt ấy.
+
+    Returns:
+        Chữ trên các nút (không "Khác" -- FE tự vẽ lối ấy); rỗng khi bước không phải
+        `ask_clarify`.
+    """
+    from be.teacher_chat import _choices, _named, _offered
+
+    if step.get("kind") != "ask_clarify":
+        return []
+    last = next((turn for turn in reversed(history) if turn.kind == "tool_result"), None)
+    result = last.tool_result if last is not None else {}
+    offered, _ = _offered(result)
+    return _choices(tuple(step.get("choices") or ()), offered, _named(result))
+
+
 def be_refuses(step: dict, plannable: tuple) -> str:
     """Lời `vet_plan` của BE cho một plan, rỗng khi BE nhận nó.
 
@@ -160,32 +213,59 @@ def _history(raw: list) -> tuple:
     return tuple(out)
 
 
+class _Known(logging.Handler):
+    """Giữ `known` của lần `propose` gần nhất -- `completed` bỏ nó đi, chỉ dòng log còn giữ."""
+
+    last = ""
+    # Lần `propose` gần nhất có phải hỏi model lần hai không: cái giá của lưới hỏi lại (review
+    # T2b) -- một lượt đạt nhờ hỏi lại tốn gấp đôi thời gian và token.
+    asked_again = False
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.msg.startswith("known before choosing"):
+            self.last = str(record.args[1])
+        elif record.msg.endswith("asking once more"):
+            self.asked_again = True
+
+
 async def _propose(cases: list[dict], runs: int) -> list[dict]:
     from agent import skill_router
     from agent.graphs.propose import propose
     from be.identity import Asking
+    from be.teacher_chat import _DOCUMENT_READS
     from be.teacher_tools import PHASE_PLAN, PHASE_WORK, catalog_for
     from contracts import AttachedDocument, NextStepRequested
 
     asking = Asking(teacher_id="bench", teacher_code="GV-BENCH", full_name="Cô Hà")
+    # `known` không rời AGENT, nhưng một lần hỏi thừa chỉ đọc ra được từ nó: model chép tên mục
+    # hay đọc ra giá trị (plan 4c T2b).
+    known = _Known()
+    watched = logging.getLogger("agent.graphs.propose")
+    watched.addHandler(known)
+    watched.setLevel(logging.INFO)
     rows = []
     for case in cases:
         attached = case.get("attached")
         document = AttachedDocument(**attached) if attached else None
+        # Như BE (`teacher_chat._read_documents_before`): đoạn chat đã gọi một tool đọc tài liệu
+        # thì tool mục lục hiện ra, có chip hay không -- ca không chip sau `list_documents` (4c T5).
+        documents = bool(document) or any(
+            row[0] == "tool_call" and row[1] in _DOCUMENT_READS for row in case["history"]
+        )
         request = NextStepRequested(
             request_id=case["id"],
             teacher_name=asking.full_name,
             history=_history(case["history"]),
-            catalog=catalog_for(asking, PHASE_PLAN, documents=bool(document), bound=bool(document)),
-            plannable=catalog_for(
-                asking, PHASE_WORK, documents=bool(document), bound=bool(document)
-            ),
+            catalog=catalog_for(asking, PHASE_PLAN, documents=documents, bound=bool(document)),
+            plannable=catalog_for(asking, PHASE_WORK, documents=documents, bound=bool(document)),
             attached_document=document,
         )
         # Skill Jev chọn được ghi kèm, để một lần trượt nói được là lỗi định tuyến hay lỗi prompt.
         # Jev nhớ lựa chọn theo state trong process, nên sáu lần của một ca dùng **một** lựa chọn.
         chosen = list(await skill_router.choose(request.history))
         for _ in range(runs):
+            known.last, known.asked_again = "", False
+            buttons: list[str] = []
             try:
                 step = (await propose(request)).model_dump(mode="json")
                 ok, why = score_propose(case["expect"], step)
@@ -193,6 +273,15 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
                 refused = be_refuses(step, request.plannable) if planned else ""
                 if refused:
                     ok, why = False, f"BE từ chối: {refused}"
+                buttons = be_buttons(step, request.history)
+                # Từ 13/10/2026 BE không còn nối "Khác" (FE tự vẽ lối ấy) -- trừ cứng một nút là
+                # đếm thiếu một lựa chọn thật ở mọi câu hỏi (run-91, run-92 chấm sai vì vậy).
+                real = len([one for one in buttons if one.strip().casefold() != "khác"])
+                wanted = case["expect"].get("min_choices", 0)
+                if ok and step.get("kind") == "ask_clarify" and real < wanted:
+                    # Chấm trên nút BE thật bày, trừ "Khác" (review T3): `choices` thô đếm cả
+                    # "Khác" model tự viết, và `thieu-het` ra 30/30 khi một nửa nút là tên mục.
+                    ok, why = False, f"{real} nút thật < {wanted}"
             except Exception as exc:  # noqa: BLE001 -- một lần hỏng là một lần trượt, không dừng bộ đo
                 step, ok, why = {}, False, f"lỗi {exc!r}"[:200]
             rows.append(
@@ -202,6 +291,9 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
                     "ok": ok,
                     "why": why,
                     "skills": chosen,
+                    "known": known.last,
+                    "asked_again": known.asked_again,
+                    "buttons": buttons,
                     "step": step,
                 }
             )
@@ -275,7 +367,13 @@ def _report(rows: list[dict], seconds: float) -> str:
         if not mine:
             continue
         passed = sum(row["ok"] for row in mine)
-        lines.append(f"{part}: {passed}/{len(mine)}")
+        again = sum(bool(row.get("asked_again")) for row in mine)
+        named = sum(_names_an_item(row.get("buttons") or []) for row in mine)
+        lines.append(
+            f"{part}: {passed}/{len(mine)}"
+            + (f"  (hỏi lại model: {again})" if again else "")
+            + (f"  (câu hỏi có nút là tên mục: {named})" if named else "")
+        )
         for case in dict.fromkeys(row["id"] for row in mine):
             these = [row for row in mine if row["id"] == case]
             whys = sorted({row["why"] for row in these if not row["ok"]})
@@ -294,11 +392,20 @@ def main() -> None:
     parser.add_argument("--label", required=True)
     parser.add_argument("--runs", type=int, default=6)
     parser.add_argument("--parts", default="propose,author,name")
+    # Đo lặp một nhóm ca cho rẻ: dao động ở 6 lần lớn hơn ±3/6 (review T2), nên ca nghi phải
+    # đo lại 24 lần -- không đáng đo lại cả bộ.
+    parser.add_argument("--only", default="", help="tiền tố id ca, cách nhau bằng dấu phẩy")
     parsed = parser.parse_args()
 
     from ocr_bench.run import next_run
 
     cases = json.loads(_CASES.read_text(encoding="utf-8"))
+    if parsed.only:
+        wanted = tuple(parsed.only.split(","))
+        cases = {
+            part: [one for one in listed if one["id"].startswith(wanted)]
+            for part, listed in cases.items()
+        }
     started = time.monotonic()
     parts = parsed.parts.split(",")
 

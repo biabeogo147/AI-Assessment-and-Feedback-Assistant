@@ -112,6 +112,7 @@ def _model_text(document: bool = True) -> list[str]:
     texts = [
         propose._CORE,
         propose._BOOK_PROCEDURE,
+        propose._LIBRARY,
         authoring._SYSTEM,
         explain._SYSTEM,
         reporting._SYSTEM,
@@ -248,6 +249,7 @@ def test_kriky_text_names_no_math_topic(topic: str) -> None:
 
 @pytest.mark.xfail(strict=True, reason="plan 4c T4: tiêu chí Jev và prompt của document agent")
 def test_document_agent_text_names_no_math_topic() -> None:
+    """Plan 4c T4: tiêu chí Jev và hai prompt dựng cây cũng không gọi tên chủ đề Toán nào."""
     assert not [topic for topic in _TOPICS if any(topic in text for text in _model_text())]
 
 
@@ -263,3 +265,22 @@ def test_agent_and_be_agree_on_which_tools_read_documents() -> None:
     from be.teacher_chat import _DOCUMENT_READS as be_reads
 
     assert agent_reads == be_reads
+
+
+def test_agent_be_and_fe_agree_on_the_other_choice() -> None:
+    """Chữ của lối "Khác" là một (plan 4c T3; từ 13/10/2026 là lối gõ FE tự vẽ).
+
+    FE vẽ "Khác…" và lọc chữ "Khác" khỏi nút đã lưu của đoạn chat cũ; BE loại "Khác" model tự
+    viết khỏi nút, và đọc nút cũ (`_rows_in_play`); AGENT không đếm nó là một lựa chọn. Lệch một
+    chữ thì đoạn chat cũ hiện hai nút "Khác", một trong hai gửi đi đúng chữ "Khác".
+    """
+    from agent.graphs.propose import _OTHER
+    from be.teacher_chat import OTHER_CHOICE
+
+    chat = (
+        _TOOLS.parent / "services" / "fe" / "src" / "screens" / "teacher" / "Chat.tsx"
+    ).read_text(encoding="utf-8")
+    fe = re.search(r'^const OTHER = "([^"]*)";$', chat, re.MULTILINE)
+
+    assert fe is not None
+    assert _OTHER == OTHER_CHOICE == fe.group(1)
