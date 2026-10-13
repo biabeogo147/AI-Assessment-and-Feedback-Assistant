@@ -52,6 +52,7 @@ lại; sympy lùi thành **3d**.
 | 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết* | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
 | 4a | [`2026-10-12-kriky-skill-routing-plan.md`](../completed/2026-10-12-kriky-skill-routing-plan.md) — Jev **trong AGENT** chọn skill cho Kriky; prompt gốc thành lõi + ba skill quy trình, `known` trước `kind` — **đóng 12/10/2026** | recall của skill `soan-de` và `lop-va-ket-qua` bằng 100% trên bộ nhãn, và Kriky không kém hôm nay trên trình duyệt | **có** |
 | 4b | [`2026-10-12-draft-from-document-plan.md`](../completed/2026-10-12-draft-from-document-plan.md) — **đóng 12/10/2026** — soạn đề theo tài liệu: chip đi kèm tin nhắn, tool đọc cây, `ask_clarify` bằng tên chương/bài, mỗi câu một ô kiến thức | mười câu của một đề đứng trên mười ô kiến thức khác nhau của tài liệu | **có** |
+| 4c | [`2026-10-12-unbiased-model-text-plan.md`](../completed/2026-10-12-unbiased-model-text-plan.md) — **đóng 13/10/2026** — text model đọc không bám một chương Toán (Kriky lẫn document agent); Kriky không hỏi thừa khi đủ bốn mục; câu hỏi lại có ít nhất ba lựa chọn, lối "Khác" là ô ghi rõ; soạn đề theo tài liệu không chip đọc mục lục trước khi mở đề | `propose_bench` cả bộ không tụt so với baseline (127/132), không text model đọc gọi tên chủ đề Toán nào; cây Lớp 6 tập 1 không tụt | **có** |
 | 5 | Nội dung vào prompt — *chưa viết*. Từ 12/10/2026 4b nhận ba tool đọc và nội dung vào prompt **soạn đề**; plan 5 còn lại: Kriky trả lời câu hỏi về nội dung tài liệu trong chat (`get_chunk`), và quyết định riêng cho pha 2 (hậu ký ADR-27) | ~~không payload nào rời BE mang chunk nhãn bài tập~~ (rút 12/10/2026); cổng viết khi tới lượt | có |
 
 Hai plan sau **cố ý chưa có file** (3d, 5): `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading,
@@ -359,6 +360,9 @@ HTTP ghi một hàng).
       12/10/2026; soạn đề đủ mục nêu plan ~4/6 lần (trước 0/8), nợ ở Status của plan
 - [x] **Plan 4b — soạn đề theo tài liệu** (đóng **B10** cùng plan 5). Đóng 12/10/2026: SGK Lớp 6, mười
       câu trên mười mục khác nhau; giới hạn và nợ ở Status của plan
+- [x] **Plan 4c — text model đọc không bám một chương Toán** (thêm 12/10/2026, sau 4b). Đóng
+      13/10/2026: `propose_bench` 127/132, năm ca thử tay × 24 118/120; việc treo ở `backlog.md`,
+      mục *Còn treo khi đóng plan 4c*
 - [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)
 
 ## Validation Checks
@@ -381,7 +385,7 @@ ngày 08/10/2026 (cổng text layer thành bất đồng bộ).
 
 **Plan 3a đã có file** từ 10/10/2026: `2026-10-10-document-ocr-text-and-latex-plan.md`. **Ba
 plan còn lại chưa có file**: plan 3d, plan 5 (đóng B10); plan 4a (C4) đã đóng 12/10/2026, plan 4b
-đóng cùng ngày. Plan 3c (mã C3, C10) có
+đóng cùng ngày; plan 4c (thêm sau 4b, không mã pipeline) đóng 13/10/2026. Plan 3c (mã C3, C10) có
 file từ 11/10/2026: `2026-10-11-document-agent-hierarchy-plan.md`, đóng cùng ngày và đã về `completed/`.
 Plan 3a và plan 3b đóng 11/10/2026 và cả hai đã về `completed/`. Plan 3b đóng sớm sau Task 2 (commit
 `0ccf7ee`, chung với 3a), rồi được mở lại cùng ngày và làm nốt Task 3: **PDF scan giờ đi OCR theo lô
