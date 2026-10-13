@@ -266,6 +266,44 @@ class Method(Base):
     question: Mapped[Question] = relationship(back_populates="methods")
 
 
+class BankQuestion(Base):
+    """Một câu trong ngân hàng câu hỏi của một giáo viên (ADR-28).
+
+    Một **bản chép**, không phải tham chiếu: câu vào đây lúc đề chứa nó được duyệt -- duyệt là
+    giáo viên đã kiểm mọi câu -- và sống tiếp khi câu trong đề đổi hay mất. Đề và ngân hàng có
+    hai vòng đời: đề đã khoá thì nội dung đứng yên, còn bản ở đây là thứ sau này phải sửa được.
+
+    `question_id` là câu trong đề mà dòng này chép từ, và là khoá để **duyệt lại ghi đè**: mỗi
+    câu trong đề có nhiều nhất một bản ở đây. Câu bị xoá khỏi đề thì cột về `NULL` và dòng ở lại
+    -- xoá trong đề không xoá ngân hàng. `ondelete="SET NULL"` là lưới của database cho đúng luật
+    ấy; đường xoá vẫn gọi `question_bank.release` trước, vì SQLite của phần lớn test không bật
+    khoá ngoại.
+
+    Môn và khối đọc qua `assessment_id`, không chép sang: một sự thật nằm ở hai nơi là hai sự
+    thật. Đề không bao giờ bị xoá, nên con trỏ ấy không mồ côi. `options` và `methods` là JSON
+    cùng hình dạng với `RoundItem`, vì dòng này không bao giờ bị trả lời -- không `Answer` nào
+    trỏ vào một phương án của nó.
+    """
+
+    __tablename__ = "bank_questions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    # Có index: đường đọc sau này luôn lọc theo chủ ngân hàng.
+    teacher_id: Mapped[str] = mapped_column(ForeignKey("teachers.id"), index=True)
+    question_id: Mapped[str | None] = mapped_column(
+        ForeignKey("questions.id", ondelete="SET NULL"), nullable=True, unique=True
+    )
+    assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"))
+    stem: Mapped[str] = mapped_column(Text)
+    learning_objective: Mapped[str] = mapped_column(String(160))
+    # `error_label` là `None` ở phương án đúng, như cột `AnswerOption.error_label`.
+    options: Mapped[list[dict]] = mapped_column(JSON)
+    methods: Mapped[list[dict]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Lần duyệt gần nhất đã ghi dòng này. Bằng `created_at` cho tới lần duyệt lại đầu tiên.
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Publication(Base):
     """Điều kiện phát hành một đề cho một lớp.
 

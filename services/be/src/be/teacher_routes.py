@@ -69,6 +69,7 @@ from be.publication_wording import (
     phase_one_note,
     phase_two_note,
 )
+from be.question_bank import file_approved
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
@@ -313,8 +314,8 @@ async def approve(
             nào từ state hiện tại sang `đã duyệt`.
 
     Side effects:
-        Thu hoạch mọi job đã xong vào đề, ghi state mới, và ghi một bước vào hội thoại
-        của giáo viên.
+        Thu hoạch mọi job đã xong vào đề, ghi state mới, chép mọi câu vào ngân hàng của giáo
+        viên (ADR-28), và ghi một bước vào hội thoại của giáo viên.
     """
     asking = Asking.of(teacher)
     assessment = await _owned(session, asking, assessment_id)
@@ -368,7 +369,12 @@ async def approve(
         )
 
     advance(assessment, AssessmentState.APPROVED)
+    # Duyệt là giáo viên đã kiểm mọi câu, nên chính lần duyệt chép chúng vào ngân hàng (ADR-28).
+    # Cùng một commit với state: một đề đã duyệt mà ngân hàng thiếu câu của nó là một sự thật
+    # nửa vời, và lần thử lại duy nhất là bỏ duyệt rồi duyệt lại.
+    filed = await file_approved(session, assessment)
     await session.commit()
+    logger.info("filed %d question(s) of %s into the bank", filed, assessment_id)
 
     standing = await _as_it_stands(session, assessment)
     await _note(

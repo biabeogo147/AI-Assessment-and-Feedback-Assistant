@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from be.question_bank import file_approved
 from schema.models import (
     AnswerOption,
     Assessment,
@@ -206,6 +207,10 @@ async def seed_if_empty(session: AsyncSession) -> bool:
             published_at=now - timedelta(hours=2),
         )
     )
+    # Đề này đã phát hành, tức đã qua duyệt -- dù không qua route duyệt. Nên câu của nó cũng
+    # có bản trong ngân hàng (ADR-28): seed không được dựng một trạng thái mà đường thật không
+    # bao giờ để lại.
+    await file_approved(session, assessment)
 
     await session.commit()
     return True

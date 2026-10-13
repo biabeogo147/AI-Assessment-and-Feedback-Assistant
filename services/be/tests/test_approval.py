@@ -35,6 +35,7 @@ from schema.models import (
     AnswerOption,
     Assessment,
     AssessmentState,
+    BankQuestion,
     DraftBrief,
     DraftItem,
     Method,
@@ -44,6 +45,7 @@ from schema.models import (
     Teacher,
     TeacherConversation,
     TeacherTurn,
+    aware,
 )
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
@@ -272,6 +274,12 @@ async def test_approving_harvests_the_jobs_that_already_finished(stack) -> None:
             await session.scalars(select(Question.stem).where(Question.assessment_id == draft))
         )
     assert stems == ["Đạo hàm của y = x² là gì?"]
+    # Câu vừa thu hoạch **trong chính request duyệt** cũng vào ngân hàng, đủ phương án và lời
+    # giải: `harvest` ghi nó vào cùng session, nên đây là đường dễ đọc nhầm bản trong bộ nhớ.
+    [filed] = [row for row in await _bank(maker) if row.assessment_id == draft]
+    assert filed.stem == "Đạo hàm của y = x² là gì?"
+    assert [one["label"] for one in filed.options] == ["A", "B", "C"]
+    assert [one["title"] for one in filed.methods] == ["Cách 1", "Cách 2"]
 
 
 @pytest.mark.asyncio
@@ -740,3 +748,178 @@ async def test_reading_a_draft_harvests_what_the_jobs_already_wrote(stack) -> No
     assert [one["stem"] for one in body["questions"]] == ["Tích phân của y = 2x là gì?"]
     # Và nó **ghi** chứ không chỉ trả về: lần đọc sau, kể cả từ một đường khác, thấy câu ấy.
     assert await _state(maker, draft) is AssessmentState.HAS_QUESTIONS
+
+
+# ------------------------------------------------------------------ ngân hàng câu hỏi (ADR-28)
+
+
+async def _bank(maker, teacher_code: str = "GV-001") -> list[BankQuestion]:
+    """Ngân hàng của một giáo viên, sắp theo stem cho dễ so."""
+    teacher_id = await _teacher_id(maker, teacher_code)
+    async with maker() as session:
+        rows = await session.scalars(
+            select(BankQuestion).where(BankQuestion.teacher_id == teacher_id)
+        )
+        return sorted(rows, key=lambda row: row.stem)
+
+
+async def _seeded_bank_size(maker) -> int:
+    """Số câu mà đề seed đã để sẵn trong ngân hàng của GV-001."""
+    return len(await _bank(maker))
+
+
+@pytest.mark.asyncio
+async def test_approving_files_every_question_into_the_teachers_bank(stack) -> None:
+    """Duyệt là giáo viên đã kiểm mọi câu, nên chính lần duyệt chép chúng vào ngân hàng.
+
+    Kiểm cả nội dung chứ không chỉ số dòng: ngân hàng là bản **chép**, và một bản chép thiếu
+    phương án hay lời giải là một câu mà đường đọc sau này không dùng được (ADR-18).
+    """
+    client, maker, _ = stack
+    before = await _seeded_bank_size(maker)
+    draft = await _draft(maker, questions=3)
+
+    answer = await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+
+    assert answer.status_code == 200
+    filed = [row for row in await _bank(maker) if row.assessment_id == draft]
+    assert len(await _bank(maker)) == before + 3
+    assert [row.stem for row in filed] == ["Câu 1?", "Câu 2?", "Câu 3?"]
+    async with maker() as session:
+        ids = set(await session.scalars(select(Question.id).where(Question.assessment_id == draft)))
+    assert {row.question_id for row in filed} == ids
+    assert filed[0].options == [
+        {"label": "A", "text": "đúng", "is_correct": True, "error_label": None}
+    ]
+    assert filed[0].methods == [{"title": "Cách 1", "body": "..."}]
+
+
+@pytest.mark.asyncio
+async def test_approving_again_overwrites_the_bank_copy_of_the_same_question(stack) -> None:
+    """Bỏ duyệt, sửa, duyệt lại: bản trong ngân hàng là bản của lần duyệt gần nhất.
+
+    Không thêm dòng: giữ bản cũ cạnh bản đã sửa là giữ chỗ sai trong kho, gần giống bản đúng
+    tới mức đường đọc sau này không phân biệt được. Sửa **mọi** phần của câu, vì một lần ghi
+    đè quên một cột vẫn qua được một test chỉ sửa đề bài.
+    """
+    client, maker, _ = stack
+    draft = await _draft(maker, questions=2)
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+    ).status_code == 200
+    first = {row.question_id: row for row in await _bank(maker) if row.assessment_id == draft}
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/unapprove", headers=TEACHER)
+    ).status_code == 200
+    # Bỏ duyệt không đụng ngân hàng.
+    assert len([row for row in await _bank(maker) if row.assessment_id == draft]) == 2
+
+    # Lùi mốc thời gian của bản cũ một giờ: đồng hồ của Windows chỉ nhích 15,6 ms một lần, nên
+    # hai lần duyệt liền nhau thường ra cùng một giá trị, và `>=` thì không khẳng định gì.
+    an_hour_ago = datetime.now(UTC) - timedelta(hours=1)
+    async with maker() as session:
+        for row in await session.scalars(
+            select(BankQuestion).where(BankQuestion.assessment_id == draft)
+        ):
+            row.created_at = an_hour_ago
+            row.approved_at = an_hour_ago
+        question = await session.scalar(
+            select(Question).where(Question.assessment_id == draft, Question.order_index == 1)
+        )
+        assert question is not None
+        question.stem = "Câu 1 đã sửa?"
+        question.learning_objective = "đạo hàm hàm hợp"
+        edited_id = question.id
+        option = await session.scalar(
+            select(AnswerOption).where(AnswerOption.question_id == edited_id)
+        )
+        method = await session.scalar(select(Method).where(Method.question_id == edited_id))
+        assert option is not None and method is not None
+        option.text = "đúng, đã sửa"
+        method.body = "lời giải đã sửa"
+        await session.commit()
+
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+    ).status_code == 200
+
+    again = {row.question_id: row for row in await _bank(maker) if row.assessment_id == draft}
+    assert set(again) == set(first)
+    edited = again[edited_id]
+    assert edited.id == first[edited_id].id
+    assert edited.stem == "Câu 1 đã sửa?"
+    assert edited.learning_objective == "đạo hàm hàm hợp"
+    assert [one["text"] for one in edited.options] == ["đúng, đã sửa"]
+    assert [one["body"] for one in edited.methods] == ["lời giải đã sửa"]
+    assert aware(edited.approved_at) > an_hour_ago + timedelta(minutes=30)
+    # Lần vào ngân hàng đầu tiên thì không đổi: ghi đè là ghi đè nội dung, không phải tạo lại.
+    assert abs(aware(edited.created_at) - an_hour_ago) < timedelta(seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_each_teacher_files_into_their_own_bank(stack) -> None:
+    """Ngân hàng riêng từng giáo viên (ADR-28): câu của người này không vào kho người kia."""
+    client, maker, _ = stack
+    before = await _seeded_bank_size(maker)
+    mine = await _draft(maker, questions=1)
+    theirs = await _draft(maker, "GV-002", questions=2)
+
+    assert (
+        await client.post(f"/api/teacher/assessments/{mine}/approve", headers=TEACHER)
+    ).status_code == 200
+    assert (
+        await client.post(f"/api/teacher/assessments/{theirs}/approve", headers=STRANGER)
+    ).status_code == 200
+
+    assert len(await _bank(maker)) == before + 1
+    assert {row.assessment_id for row in await _bank(maker, "GV-002")} == {theirs}
+    assert len(await _bank(maker, "GV-002")) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_refused_approval_files_nothing(stack) -> None:
+    """Ngân hàng đi cùng commit với state: một lần duyệt bị từ chối không để lại bản nào."""
+    client, maker, _ = stack
+    before = await _seeded_bank_size(maker)
+    draft = await _draft(maker, questions=1, asked=2)
+    async with maker() as session:
+        session.add(
+            DraftItem(
+                assessment_id=draft,
+                ordinal=2,
+                job_id="job-still",
+                status="pending",
+                brief_version=1,
+                attempts=1,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+    answer = await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+
+    assert answer.status_code == 409
+    assert len(await _bank(maker)) == before
+
+
+@pytest.mark.asyncio
+async def test_the_seeded_published_paper_is_already_in_the_bank(stack) -> None:
+    """Đề seed đã phát hành, tức đã qua duyệt -- dù không qua route duyệt.
+
+    Seed không được dựng một trạng thái mà đường thật không bao giờ để lại: một đề đã phát
+    hành mà ngân hàng không có câu nào của nó.
+    """
+    _, maker, _ = stack
+    async with maker() as session:
+        published = await session.scalar(
+            select(Assessment).where(Assessment.state == AssessmentState.PUBLISHED)
+        )
+        assert published is not None
+        ids = set(
+            await session.scalars(select(Question.id).where(Question.assessment_id == published.id))
+        )
+
+    filed = await _bank(maker)
+    assert ids
+    assert {row.question_id for row in filed} == ids
+    assert {row.assessment_id for row in filed} == {published.id}
