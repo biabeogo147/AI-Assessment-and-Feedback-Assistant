@@ -374,11 +374,12 @@ def _report(rows: list[dict], seconds: float) -> str:
             + (f"  (hỏi lại model: {again})" if again else "")
             + (f"  (câu hỏi có nút là tên mục: {named})" if named else "")
         )
+        width = max((len(row["id"]) for row in mine), default=24)
         for case in dict.fromkeys(row["id"] for row in mine):
             these = [row for row in mine if row["id"] == case]
             whys = sorted({row["why"] for row in these if not row["ok"]})
             lines.append(
-                f"  {case:24} {sum(row['ok'] for row in these)}/{len(these)}"
+                f"  {case:{width}} {sum(row['ok'] for row in these)}/{len(these)}"
                 + (f"  · {' | '.join(whys)[:160]}" if whys else "")
             )
         lines.append("")
@@ -397,7 +398,11 @@ def main() -> None:
     parser.add_argument("--only", default="", help="tiền tố id ca, cách nhau bằng dấu phẩy")
     parsed = parser.parse_args()
 
-    from ocr_bench.run import next_run
+    from ocr_bench.run import next_run, task_code_in
+
+    # Nhãn thành tên thư mục kết quả, sống lâu hơn plan: không mang mã task (luật `AGENTS.md`).
+    if code := task_code_in(parsed.label):
+        raise SystemExit(f"--label {parsed.label!r} mang mã task {code!r}: đặt theo việc nó đo")
 
     cases = json.loads(_CASES.read_text(encoding="utf-8"))
     if parsed.only:

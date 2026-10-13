@@ -173,6 +173,30 @@ def next_run(names: list[str]) -> int:
     return max(taken, default=0) + 1
 
 
+# Một đoạn tên là mã task của plan: một chữ cái, các chữ số, có thể thêm một chữ cái -- `t5`,
+# `T2b`, `a1`, `b2`. `L6T1` (Lớp 6 tập 1) không phải: hai cụm số. Tên model `o3`, `o4-mini` là
+# tên thật nên được tha; `v1`, `v2` thì không -- cũng là một mã người ngoài không giải được.
+_TASK_CODE = re.compile(r"^(?!o\d+$)[a-z]\d+[a-z]?$", re.IGNORECASE)
+
+
+def task_code_in(name: str) -> str:
+    """Đoạn mã task của plan nằm trong một cái tên bền, hay chuỗi rỗng. Hàm thuần.
+
+    Luật `AGENTS.md` (người dùng chốt 13/10/2026): id ca đo, nhãn lượt đo, thư mục kết quả sống
+    lâu hơn plan đặt ra chúng, và người không đọc plan không giải được *"t5"*. Tên được tách theo
+    mọi ký tự không phải chữ hay số (`-`, `_`, `.`, `,`, ngoặc, khoảng trắng); một đoạn khớp
+    `_TASK_CODE` là vi phạm.
+
+    Args:
+        name: Tên cần soi.
+
+    Returns:
+        Đoạn đầu tiên trông như mã task, hay `""` khi không có.
+    """
+    parts = re.split(r"[^0-9a-zA-Z]+", name)
+    return next((part for part in parts if _TASK_CODE.match(part)), "")
+
+
 def _parse(argv: list[str] | None) -> argparse.Namespace:
     """Đọc tham số dòng lệnh.
 

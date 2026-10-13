@@ -283,3 +283,22 @@ def test_agent_be_and_fe_agree_on_the_other_choice() -> None:
 
     assert fe is not None
     assert _OTHER == OTHER_CHOICE == fe.group(1)
+
+
+@pytest.mark.parametrize("label", ["t5-sau-thu-vien", "sau-T2b", "(t3)"])
+def test_a_label_with_a_task_code_is_refused_before_any_model_call(
+    monkeypatch: pytest.MonkeyPatch, label: str
+) -> None:
+    """Luật đặt tên của `AGENTS.md`: nhãn thành tên thư mục kết quả, sống lâu hơn plan."""
+    import sys
+
+    from propose_bench import run
+
+    def no_model(*_: object, **__: object) -> None:
+        raise AssertionError("bộ đo gọi model trước khi kiểm nhãn")
+
+    monkeypatch.setattr(run.asyncio, "run", no_model)
+    monkeypatch.setattr(sys, "argv", ["propose_bench", "--label", label, "--parts", "propose"])
+
+    with pytest.raises(SystemExit, match="mã task"):
+        run.main()

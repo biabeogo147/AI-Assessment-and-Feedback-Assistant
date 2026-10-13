@@ -106,7 +106,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # nhất một lượt*. Cùng luật như hai lần trên — bảng Invariants là chỉ mục của những chỗ thi hành,
 # nên một khoá vừa dựng mà không có hàng ở đó là một cái lưới không ai biết để trông. Decision
 # record nằm ở 2026-10-10-one-turn-per-conversation-plan.md.
-AGENTS_MD_MAX_LINES = 182
+# Nâng 182 -> 184 ngày 13/10/2026, tiêu đúng hai dòng cho luật *tên bền không mang mã task
+# của plan* (người dùng chốt): một Repo-Specific Trap, và hàng invariant chỉ tới chỗ thi hành
+# (`task_code_in`, test quét id ca đo, `propose_bench` từ chối `--label`). Một id ca đo hay nhãn
+# lượt đo như *"t5-…"* sống lâu hơn plan, và khi plan đã đóng thì không ai giải được nó. Decision
+# record nằm ở 2026-10-12-unbiased-model-text-plan.md.
+AGENTS_MD_MAX_LINES = 184
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (
