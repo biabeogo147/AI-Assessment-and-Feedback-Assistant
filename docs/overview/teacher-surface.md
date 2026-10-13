@@ -250,6 +250,24 @@ nhận (ADR-05, ADR-10).
 
 - Thẻ có **đoạn ngữ cảnh** nói vì sao phải hỏi, rồi tới các phương án. Mỗi phương án **hai dòng**:
   nhãn, và một câu nói cái giá của lựa chọn đó.
+- **Hàng cuối "Khác…" không phải một phương án** (người dùng chốt 13/10/2026, hậu ký ADR-23). Nó
+  cùng khuôn với phương án nhưng chữ `--ink-muted`, và FE tự vẽ nó — BE không gửi "Khác" trong
+  `choices`. Bấm nó **không gửi gì**: hàng ấy thành một ô gõ ngay trong thẻ — variant `ghi khác
+  — trống` (`588:20`: chữ mờ *"Ghi rõ lựa chọn khác…"*, `Gửi` tắt) rồi `ghi khác` (`585:23`) khi đã
+  có chữ, artboard `3b · Kriky hỏi lại — giáo viên ghi lựa chọn khác` (`585:3061`) — cùng khuôn
+  với `Composer`: padding 12/12/12/16, khoảng 12, bo 8, viền `--accent` khi đang gõ, nút `Gửi` tắt
+  thật khi ô trống. Câu giáo viên ghi mới là câu trả lời; Esc đóng ô. Bản trước gửi đúng chữ "Khác"
+  đi, và Kriky tốn một lượt chỉ để hỏi lại *"khác là gì?"*. Dòng *"Không lựa chọn nào đúng ý? Trả
+  lời bằng câu của bạn ở ô nhập bên dưới."* bị bỏ khỏi variant `chờ trả lời`: lối ấy nay là hàng
+  "Khác…".
+- **Số đo, đối chiếu sau khi dựng** (13/10/2026, artboard `3` và `3b`, mode `Teacher`): thẻ 820 rộng,
+  padding 16, khoảng 12, bo 10; phương án và hàng "Khác…" 788×45, padding 12/16, bo 8, chữ 14/600;
+  ô gõ 788×57, chữ 14/400; nút `Gửi` cao 33, padding 8/14, bo 4, chữ 11/600 — trình duyệt và Figma
+  khớp từng số; riêng bề rộng nút `Gửi` 46,4 so với 48 là chênh đo chữ của font, không phải style.
+  Hàng ô gõ trên Figma từng cao 59 vì khung mới tạo tính viền vào layout
+  (`strokesIncludedInLayout`); `Composer` thì không — đã tắt cho khớp.
+- **Lệch còn lại, có từ trước:** ô nhập chính ở artboard `3` ghi *"Hoặc trả lời bằng câu của bạn…"*,
+  code ghi *"Nhắn cho Kriky…"*.
 - Chọn xong, thẻ **không biến mất**. Nó đổi sang variant `đã chọn` (`64:22`): câu hỏi + `✓` + phương
   án đã chọn, ở lại như một bản ghi.
 - **Nợ hợp đồng BE:** `Answered.choices` hiện là `list[str]`, không chở nổi dòng thứ hai. Dựng đủ thẻ

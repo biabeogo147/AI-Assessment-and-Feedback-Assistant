@@ -8,7 +8,7 @@
  * như lời model, và một câu vừa gửi không được hiện hai lần.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ActionCard, {
@@ -1229,6 +1229,76 @@ describe("câu hỏi lại sau một lần tải lại", () => {
     // Câu hỏi là tiêu đề của thẻ, và nó cũng là một lượt trong `turns`. Vẽ cả hai thì cùng
     // một câu hiện hai lần cách nhau 12px.
     expect(screen.getAllByText("Bạn muốn xem lớp nào?")).toHaveLength(1);
+  });
+});
+
+describe("thẻ hỏi lại: lối Khác là để ghi, không phải một lựa chọn", () => {
+  // Người dùng chốt 13/10/2026: bấm "Khác" mà gửi đi chữ "Khác" là bắt Kriky tốn một lượt chỉ
+  // để hỏi lại "khác là gì?". Bấm nó mở ô ngay trong thẻ; câu giáo viên ghi mới là câu trả lời.
+  const ASKED = {
+    kind: "say",
+    text: "",
+    conversation_id: "c1",
+    choices: ["10 câu", "15 câu", "20 câu"],
+    more_choices: 0,
+    turns: [
+      blank({ kind: "teacher", text: "soạn đề góc nội tiếp lớp 9" }),
+      blank({
+        kind: "assistant",
+        text: "Bạn muốn bao nhiêu câu?",
+        choices: ["10 câu", "15 câu", "20 câu"],
+      }),
+    ],
+  };
+
+  function sent(calls: { url: string; method: string; body: string }[]) {
+    return calls
+      .filter((one) => one.url === "/api/teacher/chat/messages/stream")
+      .map((one) => JSON.parse(one.body).text);
+  }
+
+  it("bấm Khác… không gửi gì, mở ô; ô trống thì không gửi được; gửi đúng câu đã ghi", async () => {
+    const calls = routes(ASKED);
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("Khác…")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Khác…"));
+
+    expect(sent(calls)).toEqual([]);
+    const field = screen.getByLabelText("Lựa chọn khác");
+    expect(document.activeElement).toBe(field);
+    const field_ = document.querySelector(".other-field") as HTMLElement;
+    const send = within(field_).getByText("Gửi");
+    expect((send as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(field, { target: { value: "  12 câu  " } });
+    expect((send as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(send);
+
+    await waitFor(() => expect(sent(calls)).toEqual(["12 câu"]));
+  });
+
+  it("Esc đóng ô, trả lại hàng Khác…", async () => {
+    routes(ASKED);
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("Khác…")).toBeTruthy());
+    fireEvent.click(screen.getByText("Khác…"));
+
+    fireEvent.keyDown(screen.getByLabelText("Lựa chọn khác"), { key: "Escape" });
+
+    expect(screen.queryByLabelText("Lựa chọn khác")).toBeNull();
+    expect(screen.getByText("Khác…")).toBeTruthy();
+  });
+
+  it("chữ Khác cũ BE từng thêm vào dữ liệu không thành một nút gửi đi chữ Khác", async () => {
+    // Đoạn chat lưu trước 13/10/2026: "Khác" nằm cuối `choices`.
+    routes({ ...ASKED, choices: [...ASKED.choices, "Khác"] });
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("Khác…")).toBeTruthy());
+
+    const card = document.querySelector(".clarify") as HTMLElement;
+    expect(within(card).queryByText("Khác")).toBeNull();
+    expect(card.querySelectorAll(".choice")).toHaveLength(4);
   });
 });
 

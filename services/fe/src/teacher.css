@@ -1376,11 +1376,74 @@
   text-align: left;
 }
 
+/*
+ * Hàng cuối "Khác…" không phải một phương án: chữ màu muted để không đọc như một câu trả lời
+ * nữa. Bấm nó mở `.other-field` ngay tại chỗ (người dùng chốt 13/10/2026; variant `ghi khác`).
+ */
+.teacher .clarify .choice.other {
+  color: var(--ink-muted);
+}
+
+/*
+ * Ô ghi lựa chọn khác: cùng khuôn với `.composer-bar` — padding 12/12/12/16 tính cả viền, nút
+ * Gửi tắt khi trống, viền `--accent` khi đang gõ — vì đó cũng là một ô gửi một câu cho Kriky.
+ */
+.teacher .clarify .other-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 11px 11px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher .clarify .other-field:focus-within {
+  border-color: var(--accent);
+}
+
+.teacher .clarify .other-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+.teacher .clarify .other-field input::placeholder {
+  color: var(--ink-faint);
+}
+
+.teacher .clarify .other-field .send {
+  height: 33px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+  color: var(--ink-faint);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .clarify .other-field .send:enabled {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+/* [CODE CHẾT 2026-10-13] Dòng gợi ý "trả lời ở ô nhập bên dưới" đã thay bằng hàng "Khác…".
 .teacher .clarify .fallback {
   color: var(--ink-muted);
   font-size: var(--type-caption);
   line-height: 1.5;
 }
+*/
 
 /* ------------------------------------------------------- thẻ kết quả hành động */
 

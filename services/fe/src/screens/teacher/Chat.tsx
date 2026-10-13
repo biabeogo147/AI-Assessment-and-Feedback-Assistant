@@ -33,6 +33,12 @@ interface Question {
 }
 
 /**
+ * Chữ của lối "Khác" trên thẻ hỏi lại. Cùng chữ với `teacher_chat.OTHER_CHOICE` (BE) và `_OTHER`
+ * (AGENT): ba nơi không import nhau, một test ở `tools/tests` giữ chúng khớp.
+ */
+const OTHER = "Khác";
+
+/**
  * Câu hỏi lại đang mở, dựng từ một lần đọc đoạn chat.
  *
  * Các phương án lấy thẳng từ `answered.choices` — **không** tự đi tìm trong `turns`. Luật
@@ -40,15 +46,22 @@ interface Question {
  * hai của cùng một luật, tức bản sẽ lệch. FE chỉ còn lấy **câu hỏi** từ bước cuối, vì một
  * lần đọc không phải một lượt nên `answered.text` rỗng.
  *
+ * Chữ "Khác" bị lọc ra: đoạn chat lưu trước 13/10/2026 còn nó cuối danh sách, do BE thêm. Nay
+ * thẻ tự vẽ lối ấy (`Clarify`), và một nút "Khác" trong danh sách sẽ gửi đi chữ "Khác" — đúng
+ * thứ người dùng chốt là không được xảy ra.
+ *
  * @param answered - Kết quả một lần đọc đoạn chat.
- * @returns Câu hỏi đang chờ, hoặc `null` khi không có phương án nào.
+ * @returns Câu hỏi đang chờ, hoặc `null` khi không có phương án thật nào.
  */
 function questionIn(answered: Answered): Question | null {
-  if (answered.choices.length === 0) return null;
+  const choices = answered.choices.filter(
+    (one) => one.trim().toLowerCase() !== OTHER.toLowerCase(),
+  );
+  if (choices.length === 0) return null;
   const last = answered.turns[answered.turns.length - 1];
   return {
     text: last === undefined ? "" : last.text,
-    choices: answered.choices,
+    choices,
     more_choices: answered.more_choices,
   };
 }
@@ -436,7 +449,13 @@ export default function Chat({
               ),
             )}
             {asked !== null && pending === null && (
-              <Clarify asked={asked} onPick={(one) => void send(one)} />
+              <Clarify
+                // Câu hỏi mới thì thẻ mới: một ô "Khác" đang mở của câu trước không được sống
+                // sang câu sau.
+                key={`${asked.text}\n${asked.choices.join("\n")}`}
+                asked={asked}
+                onPick={(one) => void send(one)}
+              />
             )}
             {pending !== null && (
               <div className="exchange said">
@@ -976,14 +995,20 @@ function Thinking({ slow }: { slow: boolean }) {
 }
 
 /**
- * Thẻ câu hỏi lại.
+ * Thẻ câu hỏi lại: `Clarify request` (`64:23`), variant `chờ trả lời`, `ghi khác — trống` và
+ * `ghi khác` — artboard `3` và `3b`.
  *
- * Mỗi phương án là **một chuỗi do BE viết**, và bấm vào nghĩa là gửi lại đúng chuỗi đó như
- * một câu của giáo viên. Không có id nào đi kèm, và đó là chủ ý của ADR-23: model viết câu
- * hỏi, BE viết các câu trả lời, nên không còn văn bản tự do nào để ai đó phải đi soi.
+ * Mỗi phương án là **một chuỗi BE gửi**, và bấm vào nghĩa là gửi lại đúng chuỗi đó như một
+ * câu của giáo viên. Không có id nào đi kèm, và đó là chủ ý của ADR-23. Câu hỏi về một lớp,
+ * tài liệu hay mục thì chuỗi là nhãn BE viết từ dữ liệu; câu hỏi về một tham số thì là chữ
+ * model đề xuất (hậu ký plan 4c T3).
+ *
+ * Hàng cuối "Khác…" **không** phải một phương án (người dùng chốt 13/10/2026): bấm nó không
+ * gửi gì, mà mở một ô ngay trong thẻ để giáo viên ghi rõ "khác" là gì — câu họ ghi mới là câu
+ * trả lời. Ô trống thì nút Gửi tắt thật (`disabled`), Esc đóng ô lại.
  *
  * @param asked - Câu hỏi và các phương án của nó.
- * @param onPick - Được gọi với đúng chuỗi của phương án vừa bấm.
+ * @param onPick - Được gọi với đúng chuỗi của phương án vừa bấm, hay câu vừa ghi ở ô "Khác".
  */
 function Clarify({
   asked,
@@ -992,6 +1017,9 @@ function Clarify({
   asked: Question;
   onPick: (choice: string) => void;
 }) {
+  const [writing, setWriting] = useState(false);
+  const [draft, setDraft] = useState("");
+  const said = draft.trim();
   return (
     <div className="clarify">
       <h3>{asked.text}</h3>
@@ -1011,10 +1039,47 @@ function Clarify({
             {one}
           </button>
         ))}
+        {writing ? (
+          <form
+            className="other-field"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (said !== "") onPick(said);
+            }}
+          >
+            <input
+              // Mở ô là để gõ: con trỏ phải nằm sẵn trong đó, không bắt bấm thêm lần nữa.
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setWriting(false);
+                  setDraft("");
+                }
+              }}
+              placeholder="Ghi rõ lựa chọn khác…"
+              aria-label="Lựa chọn khác"
+            />
+            <button className="send" type="submit" disabled={said === ""}>
+              Gửi
+            </button>
+          </form>
+        ) : (
+          <button
+            className="choice other"
+            type="button"
+            onClick={() => setWriting(true)}
+          >
+            {OTHER}…
+          </button>
+        )}
       </div>
+      {/* [CODE CHẾT 2026-10-13] Lối tự ghi nay là hàng "Khác…" ngay trong thẻ (người dùng chốt).
       <div className="fallback">
         Không lựa chọn nào đúng ý? Trả lời bằng câu của bạn ở ô nhập bên dưới.
       </div>
+      */}
     </div>
   );
 }

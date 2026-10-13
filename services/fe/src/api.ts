@@ -424,7 +424,11 @@ export interface Turn {
   tool_result: Record<string, unknown>;
   entity_kind: string;
   entity_id: string;
-  /** Các phương án bày ra cùng bước này, nếu nó là một câu hỏi lại. BE viết chúng (ADR-23). */
+  /**
+   * Các phương án bày ra cùng bước này, nếu nó là một câu hỏi lại. BE dựng chúng (ADR-23, hậu ký
+   * plan 4c T3). Lối "Khác" không nằm ở đây -- thẻ hỏi lại tự vẽ nó; các đoạn chat cũ còn chữ
+   * "Khác" cuối danh sách, và `questionIn` lọc nó ra.
+   */
   choices: string[];
   more_choices: number;
   model_tokens: number;
