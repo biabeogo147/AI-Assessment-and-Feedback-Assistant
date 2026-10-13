@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã mở rộng bởi ADR-02 và ADR-18
 - **Ngày:** 2026-09-06
+- **Sửa:** 2026-10-13 — **xoá câu hỏi** có từ [ADR-28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md), và không
+  mở cạnh `có câu hỏi → trống`. Xem *Hậu ký 13/10/2026* ở cuối. Phần trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -92,3 +94,18 @@ chiều thì giáo viên gặp hai cổng nặng liên tiếp, và sẽ học c�
   chứng — bốn lần, bốn test, đúng cái test dự định.
 - **Chưa có ở backend: cạnh từ `có câu hỏi` về `trống`.** Nó chỉ cần khi có đường xoá câu hỏi, mà
   đường đó chưa dựng.
+
+## Hậu ký 13/10/2026
+
+Viết khi mở plan `2026-10-13-question-bank-write-path-plan.md`, lúc đường xoá câu hỏi lần đầu được
+dựng. Gạch *"Chưa có ở backend: cạnh từ `có câu hỏi` về `trống`"* ở trên hứa rằng cạnh ấy sẽ mở khi
+có đường xoá; [ADR-28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) quyết **ngược lại**.
+
+- Ở trạng thái nháp, giáo viên **thêm, sửa và xoá** được câu hỏi. Đã duyệt thì cả ba đều khoá.
+- Xoá **không bao giờ đổi trạng thái** của đề: câu cuối cùng không xoá được, nên một đề *có câu hỏi*
+  không quay về *trống* bằng đường xoá. Bỏ duyệt vẫn là thao tác duy nhất hạ một trạng thái xuống.
+- Cạnh `có câu hỏi → trống` vì thế **không** còn chờ một đường xoá; nó không có đường nào cần tới.
+
+**Nơi thi hành:** `teacher_routes.delete_question` gọi `assert_editable` trước và sau lần thu hoạch, và
+từ chối câu cuối; test `test_the_last_question_cannot_be_deleted` và
+`test_an_approved_paper_refuses_a_delete` trong `services/be/tests/test_delete_question.py`.

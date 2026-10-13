@@ -2,6 +2,9 @@
 
 - **Trạng thái:** đã chốt (ngoại lệ về câu luyện tập: chưa thi hành)
 - **Ngày:** 2026-09-06
+- **Sửa:** 2026-10-13 — **duyệt đề là đã kiểm mọi câu**; trạng thái kiểm riêng từng câu bị bỏ. Xem
+  *Hậu ký 13/10/2026* ở cuối và [ADR-28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md). Phần trên giữ nguyên
+  làm lịch sử.
 
 ## Bối cảnh
 
@@ -81,3 +84,26 @@ chứ không phải một thiết kế. Ba đường bịt lỗ đang cân nhắ
   nhưng chưa có gì mở file ra đọc, nên tài liệu chưa thật sự giới hạn phạm vi ra đề. Vì thế chip
   tài liệu in **kích thước** chứ không in số trang.
 - **Chưa có ở backend**: không có model QuestionBank nào.
+
+## Hậu ký 13/10/2026
+
+Viết khi mở plan `2026-10-13-question-bank-write-path-plan.md`, lúc ngân hàng câu hỏi lần đầu có một
+đường ghi. Một luật đổi, một luật giữ, một món nợ còn nguyên.
+
+**Đổi: duyệt đề là đã kiểm mọi câu.** Câu Kriky soạn không còn trạng thái kiểm riêng do giáo viên
+chuyển bằng tay; trạng thái kiểm của nó đọc từ trạng thái của đề, và chính lần duyệt chép nó vào ngân
+hàng của giáo viên. Luật đầy đủ và lý do nằm ở [ADR-28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md).
+Hệ quả *"duyệt một đề mười câu có thể tốn mười thao tác nữa"* ở trên vì thế hết hiệu lực; dòng tổng
+*"x câu thêm mới đã kiểm · y câu chưa kiểm"* dưới tên đề được gỡ khỏi panel và khỏi Figma trong cùng
+plan.
+
+**Giữ: hai nguồn, ba màu.** Câu hỏi vẫn chỉ đến từ ngân hàng hoặc Kriky soạn mới; tài liệu vẫn là phạm
+vi. Ba variant của `Source citation` (`84:35`) giữ nguyên.
+
+**Nợ còn nguyên: chip trên từng câu vẫn là chữ bịa.** Panel vẫn in một trong ba chip theo hash id
+(`invented-not-from-be.ts`), vì đợt này chỉ làm đường ghi và giao diện khác giữ nguyên. Sau luật mới,
+chip ấy sai theo một cách rõ hơn: trước khi duyệt, đúng ra mọi câu đều *chưa kiểm*, còn chip vẫn có thể
+in *"Thêm mới · đã kiểm"* hay *"Lấy từ ngân hàng câu hỏi"*. `docs/plans/backlog.md` giữ món nợ này.
+
+**Nơi thi hành:** xem mục cùng tên của ADR-28. Dòng *"Chưa có ở backend: không có model QuestionBank
+nào"* ở trên đã hết đúng từ 13/10/2026: bảng `bank_questions` có mặt.

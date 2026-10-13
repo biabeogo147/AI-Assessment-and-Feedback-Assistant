@@ -92,8 +92,9 @@ Teacher
 
 1. Teacher xem từng câu hỏi trong đề nháp.
 2. Teacher xem đáp án đúng, lời giải và phương án sai.
-3. Teacher chỉnh sửa câu hỏi, đáp án, lời giải hoặc metadata nếu cần.
-4. Teacher duyệt đề.
+3. Teacher chỉnh sửa câu hỏi, đáp án, lời giải hoặc metadata, hoặc xoá một câu khỏi đề, nếu cần.
+4. Teacher duyệt đề. Duyệt là đã kiểm mọi câu, và các câu trong đề được chép vào ngân hàng câu hỏi của
+   Teacher. Xem ADR-28.
 5. Teacher phát hành đề cho Student. Phát hành cần sáu tham số: lớp, thời gian làm bài, giờ mở, giờ đóng, số phút mỗi câu ở pha 2 và hạn kết thúc pha 2. Xem ADR-02 và ADR-15.
 
 ### Quan hệ diagram

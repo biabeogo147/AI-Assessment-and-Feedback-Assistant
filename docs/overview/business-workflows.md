@@ -54,8 +54,8 @@ Giúp giáo viên tạo được đề kiểm tra phù hợp với mục tiêu h
 3. System/AI phân tích yêu cầu.
 4. System/AI tạo đề nháp gồm câu hỏi, phương án trả lời, đáp án đúng, lời giải và metadata cơ bản.
 5. Teacher xem đề nháp.
-6. Teacher chỉnh sửa thủ công hoặc yêu cầu System/AI tạo lại một phần.
-7. Teacher duyệt đề.
+6. Teacher chỉnh sửa thủ công, xoá một câu khỏi đề, hoặc yêu cầu System/AI tạo lại một phần.
+7. Teacher duyệt đề. Duyệt là đã kiểm mọi câu; các câu trong đề được chép vào ngân hàng câu hỏi của Teacher (ADR-28).
 8. Teacher phát hành đề cho Student. Phát hành cần sáu tham số: lớp, thời gian làm bài, giờ mở, giờ đóng, số phút mỗi câu ở pha 2, và hạn kết thúc pha 2. Xem ADR-02 và ADR-15.
 
 ### Điểm kiểm soát của Teacher

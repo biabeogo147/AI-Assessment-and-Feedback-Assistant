@@ -147,7 +147,8 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 - `Class`: lớp học có sẵn danh sách học sinh. Giáo viên tạo lớp; tài khoản học sinh được sinh
   hàng loạt từ file CSV danh sách lớp, khoá theo mã học sinh. Phát hành đề phải chọn lớp đã tạo
   từ trước. Xem ADR-13.
-- `Question Bank`: kho câu hỏi đã dùng qua, một trong hai nguồn câu hỏi của một đề.
+- `Question Bank`: kho câu hỏi riêng của từng giáo viên, một trong hai nguồn câu hỏi của một đề.
+  Một câu vào kho khi giáo viên duyệt đề chứa nó — duyệt đề là đã kiểm mọi câu. Xem ADR-28.
 - `Document`: tài liệu PDF của giáo viên, nằm trong kho lưu trữ riêng của từng tài khoản. Nhiều
   đoạn chat cùng tham chiếu được một tài liệu. Cung cấp kiến thức và giới hạn phạm vi ra đề,
   không chứa câu hỏi.
