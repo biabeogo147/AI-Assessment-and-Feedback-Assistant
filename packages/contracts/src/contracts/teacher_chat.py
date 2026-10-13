@@ -174,8 +174,9 @@ class NextStepCompleted(BaseModel):
 
     - `say`: trả lời bằng lời; `text` chở lời đó và lượt kết thúc.
     - `call_tool`: BE nên chạy `tool_name` với `tool_args`, rồi hỏi lại.
-    - `ask_clarify`: chưa đủ thông tin để hành động; `text` là câu hỏi và `choices` là các lựa chọn,
-      mà chúng phải đến từ dữ liệu BE cấp chứ không phải từ tưởng tượng của model.
+    - `ask_clarify`: chưa đủ thông tin để hành động; `text` là câu hỏi và `choices` là các lựa chọn
+      model đề xuất. BE mới dựng nút: hỏi về một dòng thì chỉ chữ khớp đúng một dòng BE đã đọc
+      được giữ (ADR-23, hậu ký plan 4c T3). Lối "Khác" -- giáo viên tự ghi -- do FE vẽ.
     - `plan`: đã đủ thông tin để làm; `steps` là các bước ghi, theo thứ tự, và `text` là câu nói
       trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
 

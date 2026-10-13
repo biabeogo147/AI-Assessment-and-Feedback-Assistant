@@ -298,11 +298,76 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
     body = reply.json()
     assert body["kind"] == "ask_clarify"
     # Đúng hai dòng khớp với "12", kèm số học sinh do BE đếm — không phải con số 45
-    # model khai, và không có hai lớp nó bịa ra.
+    # model khai, và không có hai lớp nó bịa ra. Không phương án model viết nào khớp đúng một
+    # tên, nên nút là nhãn BE (plan 4c T3). Không có "Khác": FE tự vẽ lối ấy (13/10/2026).
     assert body["choices"] == ["12A (3 học sinh)", "12B (1 học sinh)"]
     assert body["more_choices"] == 0
     # Câu hỏi thì vẫn là lời của model. Nó viết câu hỏi; BE viết các câu trả lời.
     assert body["text"] == "Bạn muốn xem lớp nào?"
+
+
+@pytest.mark.asyncio
+async def test_a_made_up_class_never_becomes_a_button_on_the_next_turn(stack) -> None:
+    """Review T3 (chặn): câu hỏi về lớp kéo sang lượt sau.
+
+    Lượt 1 tra lớp rồi hỏi lại. Lượt 2 giáo viên ghi một câu không phải nhãn nào (lối "Khác" của
+    thẻ), model hỏi tiếp **không** gọi tool,
+    kèm ba chuỗi ADR-23 đã đo là rò. Xét riêng lượt 2 thì không có `candidates`, câu hỏi bị coi là
+    về tham số và ba chuỗi ấy thành nút -- bản đầu của T3 làm đúng như vậy.
+    """
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        assert mine is not None
+        session.add(SchoolClass(teacher_id=mine.id, name="12B"))
+        await session.commit()
+
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
+        NextStepCompleted(request_id="x", kind="ask_clarify", text="Bạn muốn xem lớp nào?"),
+        NextStepCompleted(
+            request_id="x",
+            kind="ask_clarify",
+            text="Bạn nói rõ hơn lớp nào nhé?",
+            choices=("12A (45 học sinh)", "12A-1", "11C"),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    first = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+    second = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp chuyên Toán"}, headers=TEACHER
+    )
+
+    assert second.json()["choices"] == first.json()["choices"]
+    assert not {"12A (45 học sinh)", "12A-1", "11C"} & set(second.json()["choices"])
+
+
+@pytest.mark.asyncio
+async def test_a_question_about_a_number_offers_the_models_options(stack) -> None:
+    """Plan 4c T3: hỏi về một **tham số** thì không có dòng nào để dựng nút -- trước T3 câu hỏi ấy
+    không có nút nào và giáo viên phải gõ lại cả câu. Nay nút là chữ model đề xuất (FE vẽ "Khác"),
+    và chúng sống qua F5 như nút của câu hỏi về lớp."""
+    client, _, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="ask_clarify",
+            text="Bạn muốn đề có bao nhiêu câu?",
+            choices=("10 câu", "15 câu", "20 câu"),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    live = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn đề góc nội tiếp lớp 9"}, headers=TEACHER
+    )
+
+    assert live.json()["choices"] == ["10 câu", "15 câu", "20 câu"]
+    again = await client.get("/api/teacher/chat", headers=TEACHER)
+    assert again.json()["choices"] == ["10 câu", "15 câu", "20 câu"]
 
 
 @pytest.mark.asyncio
@@ -414,6 +479,7 @@ async def test_the_cut_count_survives_a_reload_too(stack) -> None:
         "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
     )
     assert live.status_code == 200
+    # Sáu lớp; "Khác" do FE vẽ, không nằm trong nút.
     assert len(live.json()["choices"]) == 6
     assert live.json()["more_choices"] == 1
 
@@ -830,6 +896,8 @@ async def test_a_question_back_is_reported_as_a_question_even_without_choices(st
 
     assert [one.kind for one in seen] == ["clarify", "done"]
     assert seen[-1].ended_as == "clarify"
+    # Không row nào, model không đề xuất gì: không nút nào, và FE không vẽ thẻ (review T3). Vẫn
+    # là một câu hỏi: `ended_as` ở trên.
     assert seen[-1].choices == ()
 
 

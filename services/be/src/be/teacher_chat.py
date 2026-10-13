@@ -206,13 +206,12 @@ class Answered(BaseModel):
     Attributes:
         kind: Lượt đó kết thúc kiểu gì: `say` hay `ask_clarify`.
         text: Phần chữ để hiện ra. Do model viết.
-        choices: Các phương án cho `ask_clarify`, do **BE** viết từ chính các row mà một
-            tool trả về (ADR-23). Thứ model tự điền vào `choices` của nó thì bị bỏ qua:
-            BE là bên giữ các row, nên một danh sách do model viết thì tốt nhất cũng chỉ
-            là một bản sao của chúng, còn tệ nhất là một tên lớp bịa ra đến trước mặt
-            giáo viên với cả uy tín của hệ thống đứng sau. Rỗng khi trong lượt này không
-            tool nào cho ra candidate, và điều đó làm câu hỏi thành một câu hỏi mở chứ
-            không phải một danh sách hỏng.
+        choices: Các phương án cho `ask_clarify`, do `_choices` dựng (ADR-23, hậu ký plan 4c
+            T3). Câu hỏi về một row -- lớp, tài liệu, mục -- thì là mọi nhãn BE viết từ chính
+            các row ấy; chữ model viết chỉ đổi thứ tự khi khớp đúng một tên, vì một tên lớp
+            bịa ra đến trước mặt giáo viên với cả uy tín của hệ thống đứng sau. Câu hỏi về
+            một tham số thì là chữ model đề xuất. Không có "Khác" -- FE tự vẽ lối gõ ấy;
+            rỗng với `say`.
         more_choices: Có bao nhiêu candidate nữa đã bị cắt khỏi `choices`, để giao diện
             nói được rằng danh sách này chưa đủ. Một giáo viên có ba mươi lớp mà chỉ được
             cho xem sáu lớp và không được nói gì thêm thì đọc ra là dữ liệu đã mất.
@@ -398,6 +397,135 @@ def _offered(result: dict) -> tuple[list[str], int]:
     options = [one for one in options if one]
     more = result.get("more")
     return options, more if isinstance(more, int) and more > 0 else 0
+
+
+# Chữ của lối *"Khác"*. Từ 13/10/2026 (người dùng chốt) nó **không** còn là một nút BE gửi: FE tự
+# vẽ "Khác…" dưới mọi thẻ có lựa chọn, bấm vào là mở ô để giáo viên ghi rõ, và câu họ ghi mới là
+# câu trả lời. BE giữ chữ này để loại "Khác" model tự viết khỏi nút (`_choices`), và để đọc nút đã
+# lưu của các đoạn chat cũ -- ở đó "Khác" còn nằm cuối (`_rows_in_play`).
+OTHER_CHOICE = "Khác"
+
+# Trần cho phương án model viết ở câu hỏi về **tham số** -- cùng trần sáu với danh sách lớp
+# (`resolve._MOST_CANDIDATES`): một câu hỏi trả lời được, không phải một danh sách phải đọc.
+_MOST_CHOICES = 6
+
+
+def _spaced(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _named(result: dict) -> dict[str, str]:
+    """Chữ model có thể viết để chọn một phương án BE đã dựng, trỏ về đúng phương án ấy.
+
+    Một phương án nhận hai tên: chính chữ trên nút, và `name` của dòng -- tên lớp không kèm sĩ số,
+    thứ model đọc được trong `candidates`. Một tên trỏ tới **hai** phương án -- hai lớp trùng tên
+    -- thì bị bỏ: chỉ giáo viên phân biệt được chúng, bằng sĩ số (ADR-23).
+
+    Args:
+        result: Giá trị trả về của một tool.
+
+    Returns:
+        Tên (đã gộp khoảng trắng) → chữ trên nút; rỗng khi kết quả không có `candidates`.
+    """
+    listed = result.get("candidates")
+    if not isinstance(listed, list):
+        return {}
+    keyed: dict[str, set[str]] = {}
+    for entry in listed:
+        if not isinstance(entry, dict):
+            continue
+        option = _option(entry)
+        if not option:
+            continue
+        for key in {option, entry.get("name")}:
+            if isinstance(key, str) and key.strip():
+                keyed.setdefault(_spaced(key), set()).add(option)
+    return {key: next(iter(options)) for key, options in keyed.items() if len(options) == 1}
+
+
+def _choices(proposed: tuple[str, ...], offered: list[str], named: dict[str, str]) -> list[str]:
+    """Các nút của một câu hỏi lại: ít nhất ba khi dữ liệu cho phép.
+
+    Hai loại câu hỏi, hai nguồn (plan 4c T3, người dùng chốt 12/10/2026):
+
+    - Hỏi về một **dòng** -- lớp, tài liệu, mục -- tức có `candidates` đang được hỏi (`offered`).
+      Nút là **mọi** nhãn BE dựng, như ADR-23: *"trả về tất cả"*, một dòng bị giấu là lớp giáo viên
+      đang cần. Phương án model viết chỉ được làm một việc: khớp **đúng** một tên trong `named` thì
+      dòng ấy đứng lên đầu (review T3 -- bản đầu bày đúng tập con model chọn, và giấu dòng thật mà
+      không báo). Không khớp mờ: bản lọc đầu của ADR-23 rò hai chiều (*"12A-1"* lọt nhờ *"12A"*).
+    - Hỏi về một **tham số** -- số câu, khối, phạm vi -- không có dòng nào để dựng nút. Trước T3
+      câu hỏi ấy không có nút nào và giáo viên phải gõ lại cả câu; nay nút là chữ model đề xuất,
+      gộp trùng (không phân biệt hoa thường), có trần.
+
+    Args:
+        proposed: `choices` model trả về.
+        offered: Nhãn BE dựng từ `candidates` đang được hỏi, có thể rỗng.
+        named: `_named` của cùng kết quả ấy.
+
+    Returns:
+        Chữ trên các nút, theo thứ tự bày; rỗng khi không có lựa chọn thật nào. Không có "Khác":
+        FE tự vẽ lối ấy (xem `OTHER_CHOICE`).
+    """
+    if offered:
+        picked: list[str] = []
+        for one in proposed:
+            option = named.get(_spaced(one))
+            if option is not None and option not in picked:
+                picked.append(option)
+        chosen = [*picked, *(one for one in offered if one not in picked)]
+    else:
+        chosen = []
+        seen = {OTHER_CHOICE.casefold()}
+        for one in proposed:
+            text = _spaced(one)
+            if text and text.casefold() not in seen:
+                seen.add(text.casefold())
+                chosen.append(text)
+        chosen = chosen[:_MOST_CHOICES]
+    # Không lựa chọn thật nào -- model chỉ đưa tên mục -- thì không nút nào, và FE không vẽ thẻ.
+    # [CODE CHẾT 2026-10-13] "Khác" thôi là một nút BE gửi -- FE tự vẽ lối gõ (người dùng chốt).
+    # return [*chosen, OTHER_CHOICE] if chosen else []
+    return chosen
+
+
+def _rows_in_play(stored: list[TeacherTurn], said: str) -> dict:
+    """Kết quả tool mà một câu hỏi về dòng của lượt trước còn đang hỏi, hay `{}`.
+
+    Review T3: câu hỏi về một lớp không xong trong một lượt -- giáo viên ghi ở lối "Khác", hay gõ
+    một tên khác, và model hỏi lại mà **không** gọi tool. Xét theo riêng lượt này thì không có
+    `candidates` nào, câu hỏi bị coi là về tham số, và chữ model viết thành nút: *"12A-1"*,
+    *"12A (45 học sinh)"* -- đúng chuỗi ADR-23 đo là rò. Nên câu hỏi còn **mở** khi câu hỏi lại
+    gần nhất bày đúng nhãn BE dựng từ một kết quả có `candidates` đứng trước nó, và câu giáo viên
+    vừa gõ không phải một trong các nhãn ấy -- bấm một nhãn là đã trả lời xong.
+
+    Args:
+        stored: Các bước đã lưu của đoạn chat, cũ nhất trước, **chưa** gồm câu giáo viên vừa gõ.
+        said: Câu giáo viên vừa gõ.
+
+    Returns:
+        Kết quả tool để dựng lại nút, hay `{}` khi không câu hỏi về dòng nào còn mở.
+    """
+    asked = next((turn for turn in reversed(stored) if turn.kind == "assistant"), None)
+    shown = [one for one in (asked.choices if asked is not None else None) or [] if one]
+    rows = [one for one in shown if one != OTHER_CHOICE]
+    if not rows:
+        return {}
+    before = stored[: stored.index(asked)]
+    result = next(
+        (
+            turn.tool_result
+            for turn in reversed(before)
+            if turn.kind == "tool_result"
+            and isinstance((turn.tool_result or {}).get("candidates"), list)
+        ),
+        None,
+    )
+    if result is None:
+        return {}
+    labels, _ = _offered(result)
+    if not set(rows) <= set(labels) or _spaced(said) in labels:
+        return {}
+    return result
 
 
 # Bao nhiêu bước trong quá khứ được gửi sang model. Toàn bộ bản ghi hội thoại được gửi
@@ -1135,7 +1263,7 @@ class TurnEvent(BaseModel):
         kind: `say`, `clarify`, `plan`, `step_started`, `step_done`, `step_failed`, `report`
             hay `done`.
         text: Lời, cho `say`, `clarify`, `report` và `done`.
-        choices: Phương án của một câu hỏi lại, do BE dựng từ dữ liệu (ADR-23).
+        choices: Phương án của một câu hỏi lại, do `_choices` dựng (ADR-23, T3), không "Khác".
         more_choices: Bao nhiêu candidate đã bị cắt khỏi `choices`.
         conversation_id: Lượt này nằm trong đoạn chat nào.
         ended_as: Lượt kết thúc bằng nhánh nào -- `say`, `clarify` hay `report`. Chỉ có ở sự kiện
@@ -1650,8 +1778,11 @@ async def _go(
         # thì không nêu được (review B7). Soạn thêm câu cho đề đã có vẫn được.
         working = tuple(spec for spec in working if spec.name != "create_draft")
 
-    offered: list[str] = []
-    offered_more = 0
+    # Câu hỏi về một dòng mà lượt trước để ngỏ vẫn là câu hỏi về dòng ấy (review T3): chữ model
+    # viết không bao giờ thành nút chỉ vì lượt này chưa gọi tool nào.
+    in_play = _rows_in_play(stored, said.text)
+    offered, offered_more = _offered(in_play)
+    offered_named: dict[str, str] = _named(in_play)
     deadline = asyncio.get_running_loop().time() + settings.turn_budget_seconds
     plan: tuple[PlanStep, ...] = ()
 
@@ -1685,7 +1816,9 @@ async def _go(
             # như vậy từ trước; từ khi có cột trong database thì nó còn sống qua cả F5 — nên
             # chỗ chặn phải là đây, nơi duy nhất biết `step.kind`.
             asking_back = step.kind == "ask_clarify"
-            bare: list[str] = []
+            # Plan 4c T3: câu hỏi về một dòng giữ nhãn BE, câu hỏi về tham số lấy chữ model đề
+            # xuất -- xem `_choices`. "Khác" do FE vẽ, không nằm trong nút.
+            buttons = _choices(step.choices, offered, offered_named) if asking_back else []
             history.append(TurnRecord(kind="assistant", text=step.text))
             position = await _record(
                 session,
@@ -1694,21 +1827,32 @@ async def _go(
                 history[-1],
                 duration_ms=spent_ms,
                 model_tokens=step.model_tokens,
-                choices=offered if asking_back else bare,
+                choices=buttons,
                 more_choices=offered_more if asking_back else 0,
             )
-            if step.choices:
-                # Bỏ qua, không phải lọc lại. BE là bên giữ các row; thứ model viết ra ở
-                # đây tốt nhất cũng chỉ là một bản sao, còn tệ nhất là một thứ bịa ra.
+            # [CODE CHẾT 2026-10-13] Trước plan 4c T3, `choices` model viết bị bỏ qua hết (ADR-23
+            # bản đầu); nay `_choices` dùng chúng, nên không còn gì để báo là đã bỏ.
+            # if step.choices:
+            #     # Bỏ qua, không phải lọc lại. BE là bên giữ các row; thứ model viết ra ở
+            #     # đây tốt nhất cũng chỉ là một bản sao, còn tệ nhất là một thứ bịa ra.
+            #     logger.info(
+            #         "ignored %d model-written choice(s) for %s",
+            #         len(step.choices),
+            #         asking.teacher_code,
+            #     )
+            if asking_back and offered and step.choices:
+                # Câu hỏi về một dòng: bao nhiêu chữ model viết khớp đúng một dòng, tức được đưa
+                # lên đầu; phần còn lại bị bỏ, nút vẫn là mọi nhãn BE.
                 logger.info(
-                    "ignored %d model-written choice(s) for %s",
+                    "%d of %d model-written choice(s) named a row for %s",
+                    sum(_spaced(one) in offered_named for one in step.choices),
                     len(step.choices),
                     asking.teacher_code,
                 )
             yield TurnEvent(
                 kind="clarify" if asking_back else "say",
                 text=step.text,
-                choices=tuple(offered) if asking_back else (),
+                choices=tuple(buttons),
                 more_choices=offered_more if asking_back else 0,
                 conversation_id=thread,
             )
@@ -1717,7 +1861,7 @@ async def _go(
             yield TurnEvent(
                 kind="done",
                 text=step.text,
-                choices=tuple(offered) if asking_back else (),
+                choices=tuple(buttons),
                 more_choices=offered_more if asking_back else 0,
                 conversation_id=thread,
                 ended_as="clarify" if asking_back else "say",
@@ -1849,6 +1993,7 @@ async def _go(
         # Thay hẳn, không gộp vào. Giữ lại candidate của tool trước nghĩa là một câu hỏi
         # về chuyện khác đến nơi mà vẫn còn dính chúng.
         offered, offered_more = _offered(result)
+        offered_named = _named(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
         if step.tool_name in _DOCUMENT_READS:
             # Không có chip mà model vừa mở thư viện: từ bước sau, tool đọc mục lục và tham số tài
