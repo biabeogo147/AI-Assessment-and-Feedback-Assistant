@@ -22,7 +22,7 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 
 ## Các bảng, theo nhóm
 
-> **Con số trong tiêu đề cũ đã lệch.** `models.py` có **21** `__tablename__`; tài liệu này từng nói
+> **Con số trong tiêu đề cũ đã lệch.** `models.py` có **22** `__tablename__` (13/10/2026, thêm `bank_questions`); tài liệu này từng nói
 > mười ba. Đợt 06/10/2026 chỉ bổ sung hai bảng nháp bên dưới — những bảng còn thiếu
 > (`pregenerated_items`, `question_outcomes`, …) là món nợ của một đợt rà soát riêng, ghi ra đây
 > để nó không nằm im. `documents` đã được trả ngày 08/10/2026, vì đợt ấy đổi hình dạng của nó.
@@ -62,11 +62,12 @@ Xoá tài liệu ở Postgres **chưa** xoá bản thô ở đây (BE không gi�
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
 | `assessments` | `teacher_id`, tiêu đề, môn, khối, `state` | `state` là vòng đời ADR-01 với **bốn** giá trị: `empty` → `has_questions` → `approved` → `published`. `teacher_id` là tác giả (ADR-22) |
-| `questions` | đề bài, thứ tự, mục tiêu học tập | `order_index` là số câu học sinh nhìn thấy |
+| `questions` | đề bài, thứ tự, mục tiêu học tập | `order_index` là số câu học sinh nhìn thấy. Xoá một câu (chỉ khi đề còn sửa được) dồn số các câu sau **cùng** `draft_items.ordinal` của chúng, để lần soạn thêm không mở ra sau một lỗ (ADR-28) |
 | `options` | nhãn, nội dung, `is_correct`, `error_label` | `error_label` là ánh xạ nhiễu→lỗi của ADR-18, `null` ở đúng một dòng mỗi câu |
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |
+| `bank_questions` | ngân hàng câu hỏi của giáo viên: `teacher_id`, `question_id`, `assessment_id`, đề bài, mục tiêu, `options` và `methods` (JSON, hình dạng của `round_items`), `created_at`, `approved_at` | Bản **chép**, không phải tham chiếu: câu vào lúc đề chứa nó được **duyệt**, cùng commit với `state` (ADR-28). `question_id` unique là khoá để duyệt lại **ghi đè** bản cũ; câu bị xoá khỏi đề thì cột về `NULL` (`ondelete="SET NULL"`, và route xoá tự thả trước) và dòng ở lại. Môn, khối đọc qua `assessment_id`, không chép sang. Riêng từng giáo viên, có index trên `teacher_id`. Chưa có đường **đọc** nào |
 | `publications` | sáu tham số phát hành | **một dòng mỗi (đề, lớp)** — khoá chính kép, nên thu hồi được **từng lớp một**. Từ 06/10/2026 một lần phát hành chỉ có **một** khung giờ cho mọi lớp trong lần đó; muốn hai lớp hai đồng hồ thì phát hành hai lần, và bảng vẫn chở được (ADR-02, sửa đổi) |
-| `draft_briefs` | yêu cầu soạn của một đề: môn, khối, phạm vi, `question_count`, `version`; phạm vi tài liệu `document_id`, `scope_nodes`, `index_built_at` (plan 4b) | `question_count` là **tổng** đã xin, không phải con số khai lúc tạo đề — `fire()` ghi nó, `harvest()` đọc nó để biết ô nào đã cũ. `version` tăng mỗi lần đổi brief, nên một job của brief cũ về muộn thì nhận ra được. `index_built_at` là phiên bản cây lúc chọn phạm vi: đọc lại tài liệu đánh số lại nút, nên `scope_nodes` chỉ có nghĩa đi kèm nó. Rỗng khi đề không có tài liệu |
+| `draft_briefs` | yêu cầu soạn của một đề: môn, khối, phạm vi, `question_count`, `version`; phạm vi tài liệu `document_id`, `scope_nodes`, `index_built_at` (plan 4b) | `question_count` là **tổng** đã xin, không phải con số khai lúc tạo đề — `fire()` ghi nó, `harvest()` đọc nó để biết ô nào đã cũ, và route xoá câu trừ đi một khi gỡ một ô (ADR-28). `version` tăng mỗi lần đổi brief, nên một job của brief cũ về muộn thì nhận ra được. `index_built_at` là phiên bản cây lúc chọn phạm vi: đọc lại tài liệu đánh số lại nút, nên `scope_nodes` chỉ có nghĩa đi kèm nó. Rỗng khi đề không có tài liệu |
 | `documents` | tài liệu giáo viên tải lên: `teacher_id`, `filename`, `content_type`, `byte_size`, `storage_key`, `state`, `page_count`, `fault`, `uploaded_at`, `pages_read`, `progress_at` | **Không giữ byte nào.** `storage_key` trỏ tới một object trong MinIO, dạng `documents/<giáo viên>/<tài liệu><đuôi>`. Byte rời cột `LargeBinary` ngày 08/10/2026 vì `services/document` không có credential database. `byte_size` ở lại dù byte đã đi: chip trên rail in nó, và một lời gọi mạng chỉ để biết một con số đã biết sẵn là một lời gọi thừa. `state` là **nguồn sự thật duy nhất** về việc tài liệu đã xử lý xong chưa, từ vựng lấy ở `contracts.DocumentState`; `page_count` **nullable**, và `None` nghĩa là con số không tồn tại (`.txt`, `.md`) hoặc chưa đo được, không bao giờ là `0`; `fault` là một câu tiếng Việt đi thẳng lên chip. `pages_read` / `progress_at` là tiến độ của đường OCR theo lô (plan 3b), `None` với tài liệu không qua OCR; BE đo *đứng quá lâu* từ mốc muộn hơn giữa `uploaded_at` và `progress_at`. Thuộc về **giáo viên**, không thuộc về đề (ADR-04) |
 | `draft_items` | một ô cho mỗi câu đang soạn: `ordinal`, `job_id`, `status`, `attempts`, `last_fault`; mục kiến thức `node_ordinal`, `chunk_ordinals` (plan 4b) | Mục được gán **một lần**, trước job đầu tiên: bắn lại `retry` hay soạn thêm không xáo mục của câu đã xong (hậu ký ADR-27). `status` là `pending`/`ready`/`retry`/`failed`; `attempts` chặn vòng thử lại ở `_MOST_ATTEMPTS`. **`last_fault`** chở lý do một câu bị loại: một `retry` không nói vì sao là một dấu vết không dùng được, và nó chính là thứ từng biến một đề 2/3 câu thành "không ai truy được" |
 
@@ -177,4 +178,7 @@ không có gì xảy ra và cũng không có lỗi nào. Trong lúc chưa có mi
 ## Dữ liệu mẫu
 
 `be/seed.py` tạo lớp 12A, ba học sinh, và bài *Kiểm tra 15 phút — Hàm số* sáu câu đã phát hành — đúng
-câu chuyện mà mười hai artboard trong Figma kể. Nó chỉ chạy khi database chưa có lớp nào.
+câu chuyện mà mười hai artboard trong Figma kể. Nó chỉ chạy khi database chưa có lớp nào. Từ
+13/10/2026 nó cũng chép sáu câu ấy vào ngân hàng câu hỏi của `GV-001`, vì đề đã phát hành tức đã qua
+duyệt (ADR-28); database dựng trước ngày ấy thì không có, và đề seed đã qua giờ mở nên không bỏ duyệt
+để chép lại được.

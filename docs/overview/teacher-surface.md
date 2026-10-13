@@ -110,7 +110,7 @@ chạy** (*"— đã soạn 4/10 câu"*), không bao giờ gộp vào `k/n`: m�
 cả hai. Artboard 4 đã có sẵn chỗ cho dòng ấy, nên không cần thêm hàng mới.
 
 **Chữ mẫu trong Figma không phải dữ liệu.** Các bước mẫu nay chụp đúng một plan hai bước thật (*"Tạo
-đề trống"*, *"Soạn 10 câu hỏi"*); bản trước mô tả một ngân hàng câu hỏi mà BE **chưa có**
+đề trống"*, *"Soạn 10 câu hỏi"*); bản trước mô tả việc rút câu từ một ngân hàng câu hỏi mà BE **chưa có đường đọc**
 (`docs/plans/backlog.md`), và một thiết kế mô tả tính năng chưa tồn tại sẽ được chép vào code như một
 lời khẳng định sai về hệ thống. Dù vậy luật không đổi: các bước phải dựng từ `tool_call` /
 `tool_result` thật, đúng loại lỗi mà `services/fe/src/screens/teacher/invented-not-from-be.ts` sinh ra
@@ -685,6 +685,39 @@ Lời từ chối hiện **ngay dưới ô gõ**, không đẩy lên dòng chung
 và không nói nó nói về câu nào, mà panel có thể đang hiện mười thẻ. Chữ gõ ở ô là **LaTeX nguồn**,
 không phải công thức đã dựng hình — giáo viên thấy đúng thứ sẽ được lưu, và đúng thứ phép kiểm sẽ
 đọc.
+
+## Đầu panel thôi đếm *đã kiểm*, và thẻ câu có nút `Xoá`
+
+[ADR-28](../decisions/adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) chốt **duyệt đề là đã kiểm mọi
+câu**, nên dòng tổng *"N câu ngân hàng · x câu thêm mới đã kiểm · y câu chưa kiểm"* dưới tên đề bị gỡ:
+sau luật ấy nó không còn đếm điều gì. Đầu panel còn hai hàng -- tên đề và dòng meta -- cao **86**.
+Chip nguồn trên **từng câu** thì ở lại, vẫn là chữ bịa theo hash id (`invented-not-from-be.ts`), vì
+người dùng dặn giữ nguyên mọi phần giao diện khác; món nợ ấy ở `docs/plans/backlog.md`. Hàm
+`Provenance` và CSS `.provenance` được comment lại, không xoá.
+
+Nút **`Xoá`** đứng ngay sau `Sửa`, cùng kiểu chữ (`.qcard .edit`), cùng điều kiện hiện: đề đã duyệt
+thì cả hai biến mất (thuộc tính `Sửa được` của `Question card`, `267:30`). Thẻ đang sửa không có nó.
+Bấm `Xoá` **không xoá gì**: nó mở hộp `Consequence dialog — xoá câu khỏi đề` (`592:3180`), artboard
+**`15 · Xoá một câu khỏi đề — đề từng duyệt rồi bỏ duyệt`** (`594:2550`).
+
+- **Hai lời dẫn, theo `in_bank` của BE.** Câu đã có bản trong ngân hàng thì hộp nói bản ấy **ở lại**
+  -- đây là điều trái trực giác, và là lý do hộp tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Cả
+  hai nói các câu sau dồn số lên. `in_bank` **không** phải nguồn *"Lấy từ ngân hàng câu hỏi"*: câu ấy
+  rút từ kho ra, còn đây là câu đã chép vào kho -- nên hộp đọc `in_bank`, không đọc chip.
+- **Lời từ chối của BE ở trong hộp** (`.confirm .refused`), và hộp không đóng: còn câu đang soạn,
+  câu cuối của đề, đề đã có lượt làm bài, đề vừa bị duyệt ở nơi khác. Đóng hộp là giấu lý do; đang xoá thì hộp cũng không đóng
+  được (`Esc`, bấm ra ngoài, `Giữ lại` đều khoá). Bị từ chối thì panel vẫn đọc lại đề, vì BE thu
+  hoạch trước khi kiểm.
+- **Xoá xong thì đọc lại cả đề**, không tự bỏ một thẻ: BE dồn số các câu sau, nên mọi số trên panel
+  đổi.
+
+**Đo trên trình duyệt ngày 13/10/2026**, so với artboard 15 (density Teacher): đầu panel cao **85,5**
+(Figma 86 -- dòng meta 16,5 so với 17 làm tròn); `Xoá` 11/600 màu `accent`, cách `Sửa` **8**; hộp rộng
+**460**, padding 23 + 1 viền, khoảng cách **12**, bo **14**; tiêu đề 18, lời dẫn 14, giãn dòng 150%;
+nút `Giữ lại` 72,6 × 40 và `Xoá câu` 85,5 × 40 (Figma 73 và 86), cách nhau **16**, căn phải; hộp
+*"đã lưu"* cao **202**, đúng bằng Figma; lời từ chối 11px màu `answer/incorrect` (140, 58, 58), cách
+lời dẫn và hàng nút 12; lớp phủ 45%. Lệch còn lại có từ trước, ở mọi hộp thoại: Figma có bóng đổ, code
+không.
 
 ## Hàng đoạn chat — một hộp, hai việc
 

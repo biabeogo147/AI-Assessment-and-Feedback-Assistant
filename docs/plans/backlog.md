@@ -40,7 +40,7 @@ code.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Nguồn câu hỏi và trạng thái kiểm là **chữ bịa** | `Question` không có cột nào nói nguồn hay việc đã kiểm, và `drafting._write` không nối `DraftItem` với `Question` — nên ngay cả *"do model viết"* cũng không truy được. Cần hai cột và một đường ghi chúng |
+| Nguồn câu hỏi và trạng thái kiểm là **chữ bịa** | `Question` không có cột nào nói nguồn hay việc đã kiểm, và `drafting._write` không nối `DraftItem` với `Question` — nên ngay cả *"do model viết"* cũng không truy được. Cần **một** cột nguồn và một đường ghi nó; *đã kiểm* không còn là một cột mà đọc từ trạng thái của đề (ADR-28: duyệt là đã kiểm mọi câu). Dòng tổng *"x câu thêm mới đã kiểm · y câu chưa kiểm"* gỡ ở plan `2026-10-13-question-bank-write-path-plan.md`; chip trên từng câu vẫn bịa |
 | Nội dung tài liệu **chưa** đi vào prompt của AGENT | Cần đọc PDF, cắt đoạn, nhồi ngữ cảnh — một phần lớn hơn hẳn việc tải lên, và nó đổi cả thứ AGENT nhận, nên nó xứng một ADR riêng. Việc **tải lên** thì đã trả xong, và màn hình nay nói thẳng rằng nội dung chưa được dùng |
 | Bốn đích đến trên rail trơ | Bốn artboard kia chưa dựng |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
@@ -212,8 +212,9 @@ khi phát hành cho học sinh*; câu `x'` là ngoại lệ, và ADR-05 đã ghi
 
 Cái giá, để lần bàn sau khỏi phải dựng lại lập luận: `x'` **được dùng để dạy lại** và **quyết định câu
 gốc được 0,5 hay 0 điểm**. Nó không phải một gợi ý trôi qua như bong bóng chat. Thêm nữa,
-[ADR-04](../decisions/adr-04-hai-nguon-cau-hoi.md) chốt câu Kriky soạn có hai trạng thái kiểm và giáo
-viên là người chuyển — `x'` thì vĩnh viễn ở trạng thái *chưa kiểm*.
+câu Kriky soạn thành *đã kiểm* khi đề chứa nó được duyệt
+([ADR-28](../decisions/adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md), sửa ADR-04) — `x'` không thuộc đề
+nào được duyệt, nên vĩnh viễn ở trạng thái *chưa kiểm*.
 
 Ba đường đã nêu và chưa chọn:
 
@@ -300,7 +301,7 @@ liệu**.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Ghi nhận giáo viên đã đọc lời giải của từng câu | **Chưa quyết định nghiệp vụ** — xem dưới |
+| Ghi nhận giáo viên đã đọc lời giải của từng câu | **Đã quyết ở cấp đề** (ADR-28, 13/10/2026): duyệt là đã kiểm cả lời giải. Dấu kiểm riêng từng lời giải vẫn là đường còn mở — xem dưới |
 
 [ADR-18](../decisions/adr-18-cau-hoi-phai-kem-loi-giai.md) bắt mỗi câu hỏi kèm lời giải, và tự cảnh báo
 rằng **lời giải khó duyệt hơn câu hỏi** — một câu hỏi sai thì đọc là thấy, một lời giải sai tinh vi thì
@@ -314,6 +315,13 @@ Hai đường đã cân nhắc và loại ở đợt dựng `Question card`:
   chứng gì, là **làm yếu** cổng chứ không phải ghi lại điều vốn đúng.
 - **Thêm một dấu kiểm thứ hai** riêng cho lời giải. Loại ở đợt này vì nó tạo hai thứ phải nhớ tick,
   tức thêm một chỗ để bỏ sót — nhưng đây là đường còn mở khi nào có người quyết.
+
+**Ngày 13/10/2026, đường thứ nhất được chọn**, với chính cái giá đã nêu ở trên:
+[ADR-28](../decisions/adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) chốt *duyệt đề là đã kiểm mọi câu* --
+gồm cả lời giải và ánh xạ nhiễu, đúng phần duyệt khoá lại (ADR-01, ADR-18) -- và mục *Hệ quả* của nó
+ghi rằng *"đã kiểm"* yếu đi một bậc. Việc *ghi nhận* nay là chính lần duyệt, ở cấp đề chứ không ở cấp
+câu. Nếu một ngày cần bằng chứng mạnh hơn, đường còn mở là dấu kiểm thứ hai riêng cho lời giải ở
+trên.
 
 ## Nút Thu hồi chưa biết lúc nào phải biến mất
 
@@ -673,7 +681,7 @@ phẩm, không phải về code. Tác hại hiện tại chỉ là rác trong b�
 | `start_drafting` gọi thẳng không qua plan, bị ADR-25 từ chối, mất một lượt model | Cùng hợp đồng trên |
 | Model đánh dấu sai đáp án đúng, và đáp án đúng không nằm trong bốn phương án | Chất lượng model sinh ra; đường sửa đi qua prompt |
 | Model viết *"định thức"* cho một bài tích phân, và `\bigint` — một lệnh không có thật | Cùng trên |
-| Chip nguồn câu hỏi vẫn là chữ bịa (`invented-not-from-be.ts`) | Chờ BE có cột nguồn; nợ đã khai báo, có check giữ nó ở một file |
+| Chip nguồn câu hỏi vẫn là chữ bịa (`invented-not-from-be.ts`) | Chờ BE có cột nguồn; nợ đã khai báo, có check giữ nó ở một file. Từ ADR-28 phần *đã kiểm / chưa kiểm* của chip suy được từ trạng thái đề, nhưng plan ngân hàng giữ nguyên giao diện nên chip chưa đổi |
 
 Đã làm trong đợt này nhưng đáng ghi lại vì nó mở rộng phạm vi ADR-26: chữ Kriky nói trong khung chat
 (`propose.py` → `_Proposal.text` → `MathText`) đi **cùng một ống JSON** với đề bài, và trước đợt này
@@ -1076,3 +1084,24 @@ quyết, không phải lỗi đã biết cách sửa.
 | **Tên cache của `ocr_bench`**: `L6T1_p001_200_easyocr_t4.json` -- `t4` là số luồng (`--threads`), không phải mã task, nhưng người ngoài đọc dễ nhầm và `task_code_in` sẽ báo. 50 tệp ấy là cache mồ côi (code nay nối `_text2` vào tên) | Đổi khuôn tên trong code (`_threads4`) không mất gì; người dùng dặn giữ nguyên `data/cache/` |
 | **Gửi từ thẻ hỏi lại xoá bản nháp ở ô nhập chính**: `Chat.tsx` `send` gọi `setText("")` -- đúng cả cho nút lựa chọn từ trước lẫn ô "Khác" mới; lượt hỏng thì câu đã ghi về ô nhập chính chứ không về thẻ | Chưa đo có giáo viên nào gặp; sửa là đổi `send` nhận nguồn câu |
 | **Figma lệch code, có từ trước**: ô nhập chính ở artboard `3` ghi *"Hoặc trả lời bằng câu của bạn…"*, code ghi *"Nhắn cho Kriky…"*; master `Clarify request` / `chờ trả lời` còn tiêu đề 16 không gắn biến và phương án hai dòng (instance trên artboard ghi đè nên artboard khớp code) | Người dùng quyết bên nào đúng |
+
+## Lộ ra khi làm plan ngân hàng câu hỏi
+
+Ghi ngày 13/10/2026, trong `2026-10-13-question-bank-write-path-plan.md`. Một lỗi có từ trước, một lỗi lộ ra cùng route xoá câu (gốc của nó -- `fire` không khoá hàng đề -- cũng có từ trước); cả hai nằm ngoài
+phạm vi plan ấy, chờ người dùng quyết có sửa không.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Lần `_owned` thứ hai của route duyệt -- và của route xoá câu, cùng khuôn -- không đọc lại state** (`teacher_routes.py`, ngay sau `harvest`); lần `assert_editable` thứ hai của route xoá vì thế kiểm trên state cũ. Comment nói *"đọc lại cũng là đọc lại sự thật"*, nhưng session để `expire_on_commit=False` và câu `SELECT … FOR UPDATE` không có `populate_existing`: hàng bị khoá, còn object trả về vẫn là bản trong identity map. Review đo được bằng probe: phiên khác đổi state rồi commit, lần đọc lại vẫn thấy state cũ. Khe chỉ mở trong lúc `harvest` vừa commit: hai lần duyệt chạy đua ghi hai bước biên bản; duyệt và phát hành chen nhau có thể kéo `PUBLISHED → APPROVED` đi vòng qua `withdraw`. `question_bank.file_approved` đã tự đọc lại câu bằng `populate_existing` nên ngân hàng không chép bản cũ | Sửa là một dòng (`populate_existing` trong `_owned` khi `lock=True`), chữa cả hai route -- chờ người dùng duyệt vì đụng mọi route dùng `_owned` |
+| **Xoá câu đua với *"soạn thêm"* từ chat.** `drafting.fire` không khoá hàng đề (`FOR UPDATE`). Nếu `fire` chèn một ô mới sau khi route xoá đã chọn các ô cần dồn, đề có một lỗ số; tệ hơn, route xoá trừ `brief.question_count` từ con số `fire` vừa ghi, rồi `harvest` coi ô mới là cũ và xoá nó. Khe rất hẹp: giáo viên phải bấm Xoá trên panel đúng lúc một lượt chat đang mở job | Cho `fire` khoá hàng đề như các route ghi; chờ người dùng duyệt vì đụng đường soạn đề |
+
+**Hoãn có chủ ý** (người dùng chốt phạm vi *chỉ đường ghi*):
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Đường đọc ngân hàng**: tool để Kriky rút câu từ ngân hàng khi soạn đề, và câu kết *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* của artboard 5 | Một plan riêng. Cần quyết cách chọn câu (theo môn, khối, mục tiêu, phạm vi) và cách hỏi lại giáo viên về nguồn (ADR-05: không đánh dấu lựa chọn nào là nên chọn) |
+| **Câu lấy từ ngân hàng sang đề mới không được sinh bản trùng khi duyệt** (ADR-28, Hệ quả). `file_approved` hôm nay chép **mọi** câu của đề, khoá theo `question_id`; một câu chép từ ngân hàng sang là một `Question` mới, nên sẽ thành một dòng mới | Cần một cột nguồn trên `Question` (trỏ về `BankQuestion`) -- cùng cột mà chip nguồn thật cần. Làm cùng đường đọc |
+| **Mục kiến thức và tài liệu chưa vào ngân hàng.** `drafting._write` không nối `DraftItem` với `Question`, nên lúc duyệt không có `node_ordinal` nào để chép; đường đọc theo phạm vi sách sẽ cần nó | Nối `DraftItem` ↔ `Question` lúc thu hoạch, rồi chép tiêu đề mục (bền qua lần dựng lại cây) vào `BankQuestion` |
+| **Chip nguồn thật trên từng câu.** Từ ADR-28 phần *đã kiểm / chưa kiểm* suy được từ trạng thái đề; phần *ngân hàng / Kriky soạn* cần cột nguồn ở dòng trên. Hôm nay chip bịa có thể in *"Lấy từ ngân hàng câu hỏi"* trên đúng câu mà hộp xoá nói *"chưa có trong ngân hàng câu hỏi"* | Người dùng dặn giữ nguyên giao diện ở plan ngân hàng; chờ quyết |
+| **Sửa bản trong ngân hàng** (vòng ADR-19) và câu hỏi đi kèm: lần duyệt lại đề gốc sẽ ghi đè bản đã sửa ấy | Chưa có màn ngân hàng; quyết lúc dựng đường sửa (ADR-28, Hệ quả) |
+| **`docs/decisions/README.md` (*Nguồn thiết kế*) đã cũ, từ trước plan này**: ghi trang `Screen — Chat` *"mười hai artboard"*, trong khi trang nay tên `Screen — Teacher` (`12:2`) và có 16 artboard đánh số (1--15 và `3b`); số `13`--`15` bên giáo viên trùng số bên học sinh (*"13…24"*). Cùng chữ cũ ở `adr-10-pham-vi-dot-dau.md` và *"mười hai artboard"* ở `data-model.md` (*Dữ liệu mẫu*) | Sửa chữ, miễn plan; chưa làm vì ngoài phạm vi plan ngân hàng |
