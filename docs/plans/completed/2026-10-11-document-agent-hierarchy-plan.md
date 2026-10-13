@@ -200,7 +200,7 @@ Mongo là nơi lưu, không phải nơi định nghĩa.
 | `services/document/src/document/config.py`, `pyproject.toml` | khoá Jev / OpenAI, model tóm tắt, `banner_model = "gpt-5.6-luna"`, độ song song, ngưỡng, tên queue; `typesafe-sdk`, `langgraph`, `langchain[openai]` |
 | `.env.example`, `dev.ps1` | khoá mới; lệnh `index` |
 | `tools/check_contract.py` | seam `typesafe_sdk` → `jev.py`; seam `langchain` trong `document` → `llm.py` |
-| bộ đo cây (`services/document/scripts/`) | so với cây vàng, ghi `data/run-<n>/hierarchy-<model>/` |
+| bộ đo cây (`services/document/scripts/`) | so với cây vàng, ghi `data/results/run-<n>/hierarchy-<model>/` |
 | `docs/overview/architecture.md`, `data-model.md`, `docs/local-development.md`, `services/document/AGENTS.md`, plan ô, `backlog.md` | |
 
 ## Ordered Tasks
@@ -291,7 +291,7 @@ chặn; đã sửa (1) cây tự mâu thuẫn thành `ValueError` trước khi c
 `assemble.py`, `jev.py`, `llm.py` (luna đọc banner, kéo lên từ Task 4 vì bộ đo cần nó),
 `pdf.render(top=)`, bộ đo `tools/hierarchy_bench/` (`score`, `run`, `banners`), test. Luna đọc lại
 banner với prompt mới qua đúng `llm.py`: **5/5 chương và 5/5 tên bài đầu chương** đúng, 9 723 token.
-Bộ đo (`data/run-6/hierarchy-jev-1.13.0/`, 492 ứng viên, 91 nút vàng):
+Bộ đo (`data/results/run-6/hierarchy-jev-1.13.0/`, 492 ứng viên, 91 nút vàng):
 
 | Đường | Nút | Cấp 1 P / R | Cấp 2 P / R | Cấp 3 P / R |
 |---|---|---|---|---|

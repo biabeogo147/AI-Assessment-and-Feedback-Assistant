@@ -3,7 +3,8 @@
 # Cả module này đã chết, và được giữ lại dưới dạng comment thay vì xoá để sau này không ai đi tìm
 # lại nó, hay dựng lại nó, mà không biết vì sao nó bị bỏ.
 #
-# Vì sao bỏ: benchmark 50 trang Lớp 6 tập 1 (`data/run-1`, 11/10/2026), 58 công thức nhãn vàng.
+# Vì sao bỏ: benchmark 50 trang Lớp 6 tập 1 (`data/results/run-1`, 11/10/2026), 58 công thức
+# nhãn vàng.
 # PP-FormulaNet `plus-S` chỉ đúng 9; layout làm hỏng 24 (15 công thức không có khối nào, 9 khung
 # cắt thiếu hoặc gộp), model hỏng 21 -- kể cả **mọi** công thức có chữ Việt (`ƯCLN`, "với",
 # "người"), vì từ điển của nó không có chữ Việt. `plus-M` chính xác hơn chút (13 so với 9 trên 40

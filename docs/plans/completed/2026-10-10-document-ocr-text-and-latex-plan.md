@@ -574,7 +574,7 @@ Nợ mới: (9) một dòng thuộc hai khối lồng nhau -- review phát hiệ
 chưa mang tên model layout / detector / công thức hay `mkldnn`, nên đổi một model sau này sẽ âm
 thầm đọc lại cache cũ.
 
-### Quy ước: mỗi lượt benchmark để lại bản ghi ở `data/run-<n>/<model>/`
+### Quy ước: mỗi lượt benchmark để lại bản ghi ở `data/results/run-<n>/<model>/`
 
 Người dùng chốt 11/10/2026. `run.py` ghi `report.txt` (đúng bảng in ra), `config.json` (tham số,
 và **trang nào đọc mới, trang nào lấy từ cache** -- trang từ cache mang số giây của lượt cũ), và
@@ -586,7 +586,7 @@ nên ngoài git như sách và nhãn.
 `run-1` là hai lượt ngay dưới đây, ghi lại từ cache vài phút sau khi chạy -- `config.json` của nó
 báo cả 50 trang *từ cache*, và đúng là vậy.
 
-### Bảng số 50 trang, hai lựa chọn (`data/run-1`, 11/10/2026)
+### Bảng số 50 trang, hai lựa chọn (`data/results/run-1`, 11/10/2026)
 
 Chạy liền nhau trên máy rảnh, 4 luồng, 200 DPI, cùng layout / detector / công thức. Trung vị theo
 trang (p90 trong ngoặc):
@@ -631,7 +631,7 @@ model. Cần làm rõ trước khi plan 3c dựa vào LaTeX.
 
 ### Chẩn đoán công thức: lỗi của ai (11/10/2026)
 
-Nợ (11) được chẩn đoán bằng một trang review dựng từ kết quả 50 trang (`data/run-1/formulas/`,
+Nợ (11) được chẩn đoán bằng một trang review dựng từ kết quả 50 trang (`data/results/run-1/formulas/`,
 ngoài git vì là ảnh SGK), sau hai lượt subagent đọc ảnh chụp. 58 công thức nhãn vàng:
 
 | Kết luận | Số | Lỗi của ai |
@@ -699,7 +699,7 @@ khi nào được cho phép mới benchmark trên phương trình / công thức
 lần. Họ `gpt-5.x`/`6`/`-luna` tính cả token suy luận vào token ra. Token ra ước thấp (ảnh thử chỉ 6
 công thức).
 
-### Khảo sát 6 model trên 5 trang (`data/run-5`, 11/10/2026)
+### Khảo sát 6 model trên 5 trang (`data/results/run-5`, 11/10/2026)
 
 Người dùng cho phép khảo sát từ `gpt-6-luna` tới `gpt-4.1-mini` trong bảng giá, trên *"một vài công
 thức"*. Năm trang gom đủ kiểu đã làm PP-FormulaNet hỏng: 8 (tập hợp, `\mathbb{N}`, chữ Việt), 17
@@ -747,7 +747,7 @@ thức, nên thứ tự giữa ba lựa chọn chưa phải kết luận; sympy 
 
 Người dùng: *"Trước mắt, plan này đã xong."* Thứ đã giao: đường upload đọc **chữ** (EasyOCR mặc
 định, VietOCR là lựa chọn), 4,5 s/trang, thiếu từ 9,3% trên 50 trang; bộ đo có nhãn vàng và bản ghi
-`data/run-<n>/<model>/`; chẩn đoán vì sao công thức không đọc được trên CPU; báo cáo chi phí và khảo
+`data/results/run-<n>/<model>/`; chẩn đoán vì sao công thức không đọc được trên CPU; báo cáo chi phí và khảo
 sát VLM; quyết định ba model vision.
 
 **Thứ chưa làm, và nó là việc của plan sau** -- đã chuyển sang `backlog.md`:

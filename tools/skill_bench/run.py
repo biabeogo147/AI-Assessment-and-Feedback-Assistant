@@ -7,7 +7,7 @@ Jev được hỏi **một lần** mỗi ca; mọi ngưỡng tính lại trên c
 không nhân tiền lên. Cổng của plan 4a: recall của `soan-de` và `lop-va-ket-qua` bằng 100% -- thiếu
 một skill chuyên biệt đắt hơn thừa nó.
 
-Mỗi lượt ghi vào `data/run-<n>/skill-routing-<jev_model>/`: `report.txt` và `answers.jsonl`.
+Mỗi lượt ghi vào `data/results/run-<n>/skill-routing-<jev_model>/`: `report.txt` và `answers.jsonl`.
 
 Dùng:
     python -m skill_bench.run
@@ -28,7 +28,9 @@ from contracts import TurnRecord
 from ocr_bench.run import next_run
 
 _CASES = Path(__file__).resolve().parent / "cases.json"
-_RUNS = Path("data")
+# Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
+# người dùng chốt 13/10/2026.
+_RUNS = Path("data") / "results"
 # $ / triệu token vào của Jev; token ra miễn phí (plan 3c, Khảo sát Jev).
 _JEV_PRICE = 0.042
 _THRESHOLDS = (0.1, 0.2, 0.3, 0.4, 0.5)

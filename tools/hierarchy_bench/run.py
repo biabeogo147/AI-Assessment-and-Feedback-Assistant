@@ -14,8 +14,8 @@ một lượt quét ngưỡng không nhân tiền Jev lên.
 Banner (D9) không gọi luna ở đây: `--banners` trỏ tới một tệp JSON đã đọc sẵn, để mọi đường cùng
 dùng một bộ tên chương và phép so chỉ đo **phần phân loại**.
 
-Mỗi lượt ghi vào `data/run-<n>/hierarchy-<jev_model>/`: `report.txt` (bảng in ra), `config.json`,
-`labels.jsonl` (câu trả lời của Jev từng ứng viên), `tree-<đường>.json`.
+Mỗi lượt ghi vào `data/results/run-<n>/hierarchy-<jev_model>/`: `report.txt` (bảng in ra),
+`config.json`, `labels.jsonl` (câu trả lời của Jev từng ứng viên), `tree-<đường>.json`.
 
 Dùng:
     python -m hierarchy_bench.run --document <id> --banners <banners.json>
@@ -43,7 +43,9 @@ from hierarchy_bench.score import LevelScore, TreeNode, score
 from ocr_bench.run import next_run
 
 _GOLD = Path("data") / "gold" / "tree" / "L6T1.json"
-_RUNS = Path("data")
+# Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
+# người dùng chốt 13/10/2026.
+_RUNS = Path("data") / "results"
 # $ / triệu token vào của Jev; token ra miễn phí (plan 3c, Khảo sát Jev).
 _JEV_PRICE = 0.042
 _THRESHOLDS = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9)
@@ -202,7 +204,8 @@ async def main() -> None:
     if args.no_save:
         return
 
-    number = args.run or next_run([path.name for path in _RUNS.iterdir()])
+    names = [path.name for path in _RUNS.iterdir()] if _RUNS.exists() else []
+    number = args.run or next_run(names)
     folder = _RUNS / f"run-{number}" / f"hierarchy-{jev_model or 'rules'}"
     folder.mkdir(parents=True, exist_ok=False)
     (folder / "report.txt").write_text(report + "\n", encoding="utf-8")

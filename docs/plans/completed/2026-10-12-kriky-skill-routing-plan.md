@@ -119,7 +119,7 @@ canh từ nay; bộ đo hỏng cả lượt khi một ca timeout -- nay client r
 đúng ngưỡng (`>=`), lõi đứng trước skill, lịch sử chưa có câu giáo viên. Hai đột biến (`>` thay
 `>=`; gỡ câu trùng tên lớp) đều đỏ.
 
-**Bộ đo** (`data/run-7/skill-routing-jev-1.13.0/`): 38/38 ca, 25 185 token, ~$0,0011, trung vị
+**Bộ đo** (`data/results/run-7/skill-routing-jev-1.13.0/`): 38/38 ca, 25 185 token, ~$0,0011, trung vị
 0,24 s / lời gọi. Recall 100% cho cả hai skill ở **mọi** ngưỡng 0,1--0,5; ở 0,3 precision
 `lop-va-ket-qua` 100%, `soan-de` 88% -- hai ca thừa là *"duyệt đề"* (0,35) và *"phát hành đề"*
 (0,57), vô hại vì luật của chúng ở lõi. `soan-de` thấp nhất khi cần 0,78, `lop-va-ket-qua` 0,54. Giữ

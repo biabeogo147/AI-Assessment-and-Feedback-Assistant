@@ -8,7 +8,7 @@ Kết quả engine thô được cache xuống `data/cache/`. Một lượt đ�
 một lượt tính điểm lại trên cache mất vài giây. Không có cache thì mỗi lần sửa một công thức
 trong `score.py` là một buổi chiều.
 
-**Mỗi lượt chạy để lại một bản ghi** ở `data/run-<n>/<model>/` (người dùng chốt 11/10/2026):
+**Mỗi lượt chạy để lại một bản ghi** ở `data/results/run-<n>/<model>/` (người dùng chốt 11/10/2026):
 `report.txt` là đúng bảng in ra màn hình, `config.json` là tham số của lượt ấy, `pages/` là kết quả
 engine từng trang. `<model>` là bộ nhận dạng -- `easyocr`, `vietocr-vgg_seq2seq` -- nên hai lựa
 chọn chạy cùng một lượt thì nằm cạnh nhau dưới cùng một `run-<n>`. Không ghi đè: thư mục đã có
@@ -51,7 +51,9 @@ _BOOK = "L6T1"
 _PDF = Path("data") / "Kết nối tri thức Lớp 6 tập 1.pdf"
 _GOLD = Path("data") / "gold"
 _CACHE = Path("data") / "cache"
-_RUNS = Path("data")
+# Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
+# người dùng chốt 13/10/2026.
+_RUNS = Path("data") / "results"
 _RUN_NAME = re.compile(r"^run-(\d+)$")
 # Phiên bản đường đọc, nằm trong tên cache. Đổi chặng nào của `PageReader` thì tăng số này.
 # `text1`: chỉ chữ, công thức không đọc lúc upload (11/10/2026).
@@ -91,7 +93,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     model = model_tag(options.reader, options.model)
-    number = options.run or next_run([one.name for one in _RUNS.iterdir() if one.is_dir()])
+    names = [one.name for one in _RUNS.iterdir() if one.is_dir()] if _RUNS.exists() else []
+    number = options.run or next_run(names)
     folder = _RUNS / f"run-{number}" / model
     # Kiểm **trước** khi đọc trang nào: phát hiện ra sau nửa giờ đọc là trả giá nửa giờ.
     if folder.exists():
@@ -161,7 +164,7 @@ def next_run(names: list[str]) -> int:
     Một số đã từng dùng rồi bị xoá vẫn có thể đang được nhắc tới trong plan.
 
     Args:
-        names: Tên các thư mục con của `data/`.
+        names: Tên các thư mục con của `data/results/` (thư mục `_RUNS`).
 
     Returns:
         Số lượt chạy mới, bắt đầu từ 1.
@@ -191,7 +194,10 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--threads", type=int, default=4, help="Số luồng CPU, như một VPS.")
     parser.add_argument(
-        "--run", type=int, default=None, help="Ghi vào data/run-<n>; bỏ trống để lấy số mới."
+        "--run",
+        type=int,
+        default=None,
+        help="Ghi vào data/results/run-<n>; bỏ trống để lấy số mới.",
     )
     return parser.parse_args(argv)
 

@@ -5,8 +5,8 @@ PaddleOCR phát ra ă ũ ồ ư ê ô ơ đ nhưng **không bao giờ** phát ra
 nên `Kết nối tri thức với cuộc sống` ra `Kt ni tri thc vi cuc sng`. Đó là lỗ **từ điển ký tự**,
 không phải lỗ phần nhìn, nên không ngưỡng nào và không ảnh rõ hơn nào chữa được.
 
-Hai lựa chọn, benchmark 11/10/2026 trên 50 trang Lớp 6 tập 1 qua chính đường này (`data/run-1`),
-4 luồng, trung vị theo trang:
+Hai lựa chọn, benchmark 11/10/2026 trên 50 trang Lớp 6 tập 1 qua chính đường này
+(`data/results/run-1`), 4 luồng, trung vị theo trang:
 
 | `reader`               | thiếu từ (p90) | CER (p90)     | lỗi dấu | s/trang cả đường |
 |------------------------|----------------|---------------|---------|------------------|

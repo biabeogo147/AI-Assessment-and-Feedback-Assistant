@@ -1,4 +1,4 @@
-"""Bản ghi mỗi lượt benchmark: `data/run-<n>/<model>/`.
+"""Bản ghi mỗi lượt benchmark: `data/results/run-<n>/<model>/`.
 
 Chỉ hai luật thuần được canh ở đây -- đánh số và đặt tên. Phần ghi file không có test vì
 `tmp_path` không dùng được trên máy dev này (thư mục tạm của pytest bị khoá), và một test chạm
