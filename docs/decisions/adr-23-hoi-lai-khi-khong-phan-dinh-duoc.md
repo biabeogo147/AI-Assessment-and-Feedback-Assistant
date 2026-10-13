@@ -107,12 +107,14 @@ gõ sai hay dữ liệu đã mất. Danh sách biến lời từ chối thành c
   tên nay về đúng chỗ của nó: model đọc danh sách rồi hỏi giáo viên.
 - `services/be/src/be/teacher_chat.py` — `_offered()` dựng danh sách lựa chọn từ `candidates` của
   kết quả tool, kèm sĩ số BE tự đếm; `choices` model trả về bị bỏ qua và chỉ được ghi log. Đây là
-  chỗ luật *lựa chọn đến từ dữ liệu* được thi hành, chứ không phải trong prompt.
+  chỗ luật *lựa chọn đến từ dữ liệu* được thi hành, chứ không phải trong prompt. (Từ hậu ký
+  13/10/2026: `_choices` dùng chữ model theo luật ở cuối trang.)
 - `AGENTS.md` bảng Invariants — hàng *"The options in a clarifying question are written by BE from
   rows it read"*, trỏ tới `test_the_options_are_written_by_be_not_by_the_model`.
 - `services/agent/src/agent/graphs/propose.py` — `_SYSTEM` bảo model dùng `ask_clarify` khi
   `list_class` trả **nhiều hơn một** `candidates` cho một câu hỏi về một lớp, không viết gì vào
-  `choices`, và không nói lớp nào có vẻ đúng hơn. Đây là nơi thi hành **duy nhất** của ADR-23 trên
+  `choices` (từ hậu ký 13/10/2026: chép đúng `name` vào `choices`), và không nói lớp nào có vẻ
+  đúng hơn. Đây là nơi thi hành **duy nhất** của ADR-23 trên
   đường model thật, và nó đã mất một lần: prompt dặn theo cờ `ambiguous`, cờ ấy chết cùng
   `find_class`, mà mock thì đã sửa — nên test và demo vẫn xanh trong khi đường thật hỏng. Vì thế
   `test_the_prompt_is_where_adr_23_reaches_the_real_model` đọc thẳng prompt và đỏ khi một cờ đã
@@ -126,3 +128,49 @@ gõ sai hay dữ liệu đã mất. Danh sách biến lời từ chối thành c
 - **Chưa thi hành:** chưa có bề mặt nào hiện các lựa chọn ấy, và endpoint chat **chưa lưu hội thoại**
   nên câu trả lời của giáo viên tới mà không mang theo câu hỏi. Cổng đã dựng, nửa sau của nó nằm ở
   bảng hội thoại bền.
+
+## Hậu ký 13/10/2026 — ít nhất ba lựa chọn, cộng "Khác" (plan 4c T3)
+
+Người dùng chốt ngày 12/10/2026: mỗi câu hỏi lại có **ít nhất ba lựa chọn do model đề xuất**, cộng
+lối **"Khác"** ở cuối -- từ 13/10/2026 là lối để giáo viên tự ghi, không phải một nút (bullet dưới). Luật *"`choices` model trả về bị bỏ qua"* ở mục Quyết định không còn
+đúng nguyên văn; phần đo được là đúng của nó thì giữ:
+
+- **Hỏi về một dòng** — lớp, tài liệu, mục sách, tức có `candidates` đang được hỏi. Nút vẫn là
+  **mọi** nhãn BE dựng từ chính các dòng đã đọc, kèm sĩ số: *"trả về tất cả"* ở mục Quyết định giữ
+  nguyên. Chữ model viết chỉ làm được một việc: khớp **đúng** một tên của dòng (`label`, hoặc `name`
+  của lớp) thì dòng ấy đứng lên đầu; một tên trỏ tới hai dòng — hai lớp trùng tên — không chọn được
+  gì. Không khớp mờ: đó là bản lọc đầu, đã đo là rò hai chiều. (Bản đầu của hậu ký này bày đúng
+  tập con model chọn; review T3 chỉ ra nó giấu lớp thật mà `more_choices` không báo, trái bullet
+  *"cắt xuống ba sẽ giấu mất lớp giáo viên đang cần"* ở Hệ quả — nên đổi thành chỉ đổi thứ tự.)
+- **Câu hỏi về dòng kéo sang lượt sau** vẫn là câu hỏi về dòng (`_rows_in_play`): câu hỏi lại gần
+  nhất bày đúng nhãn BE, và câu giáo viên vừa gõ không phải một nhãn ấy — ghi một tên khác ở
+  lối "Khác", hay gõ ở ô nhập. Xét riêng lượt mới thì không có `candidates` nào, và bản đầu coi đó là câu hỏi về tham số:
+  *"12A (45 học sinh)"*, *"12A-1"*, *"11C"* thành nút — đúng ba chuỗi mục Vì sao đo là rò.
+- **Hỏi về một tham số** — số câu, khối, phạm vi — không có dòng nào để dựng nút. Trước hậu ký này
+  câu hỏi ấy không có nút nào và giáo viên phải gõ lại cả câu; nay nút là chữ model đề xuất, gộp
+  trùng, trần sáu.
+- **"Khác" là lối để giáo viên tự ghi, không phải một lựa chọn** (người dùng chốt 13/10/2026).
+  Thẻ hỏi lại tự vẽ hàng **"Khác…"** dưới mọi câu hỏi có lựa chọn thật; bấm nó **không gửi gì**,
+  mà mở một ô ngay trong thẻ để giáo viên ghi rõ "khác" là gì — câu họ ghi mới là câu trả lời, ô
+  trống thì không gửi được. BE không còn nối "Khác" vào `choices`; nó chỉ loại chữ "Khác" model tự
+  viết, và các đoạn chat lưu trước ngày ấy còn "Khác" cuối danh sách thì FE lọc ra. Bản trước (T3,
+  T5) để "Khác" là một nút gửi đúng chữ "Khác" đi: Kriky tốn nguyên một lượt chỉ để hỏi lại *"khác
+  là gì?"*, và lời dặn *"hỏi lại bằng câu mở"* không giữ được — model bày *"Chương 1/2/3"* cho một
+  đề không có sách (thử tay T5). Không lựa chọn thật nào thì không nút nào và không thẻ. Dữ liệu ít
+  hơn ba dòng thì câu hỏi có ít hơn ba lựa chọn thật — BE không bịa dòng cho đủ số, và AGENT không
+  đòi ba ở lượt ấy.
+- **Cấm đánh dấu phương án nên chọn** áp nguyên như cũ.
+- **Chưa giải quyết:** câu hỏi về một tham số đến **sau** một tool trả `candidates` trong cùng câu
+  hỏi đang mở thì nút vẫn là nhãn dòng (*"bao nhiêu câu?"* với nút *"12A (3 học sinh)"*) — có từ
+  trước hậu ký, không rò, nhưng sai việc. BE không biết câu hỏi hỏi gì; phân biệt cần model nói ra.
+
+Nơi thi hành: `teacher_chat._choices` / `_named` / `_rows_in_play` (BE), `propose._FewChoices` /
+`_choices_wanted` / `_answers` (AGENT hỏi lại model một lần khi thiếu, không đếm câu hỏi, tên mục
+hay "Khác"), `Clarify` / `questionIn` trong `services/fe/src/screens/teacher/Chat.tsx` (lối
+"Khác" mở ô gõ, lọc "Khác" cũ), Figma `Clarify request` (`64:23`) variant `chờ trả lời` và
+`ghi khác`, artboard `3b`, `services/be/tests/test_clarify_choices.py`,
+`test_a_made_up_class_never_becomes_a_button_on_the_next_turn`, `teacher.test.tsx` *"thẻ hỏi lại:
+lối Khác là để ghi"*, `test_agent_be_and_fe_agree_on_the_other_choice`. `propose._after_other`
+(câu mở sau chữ "Khác", T5) là code chết từ ngày ấy.
+`test_the_options_are_written_by_be_not_by_the_model` vẫn đúng: ba lớp model bịa không lớp nào khớp
+đúng một tên, nên nút là nhãn BE.

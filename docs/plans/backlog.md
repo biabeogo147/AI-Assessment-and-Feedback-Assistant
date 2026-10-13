@@ -912,7 +912,7 @@ nhất). Chưa dòng code nào của đường này được viết.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | `agent/vision.py` + `vision_provider`/`vision_model` trong `agent/config.py` + `vision_model()` trong `llm.py`; structured output; đi qua bước sửa thoát ký tự; test không gọi mạng | không gì -- hướng đã chốt ở plan duyệt 11/10/2026 |
-| Prompt cho `⋮` (`\vdots`, không phải `:`) và `\underbrace`, đo lại 5 trang của `data/run-5` | không gì; dưới 1 cent |
+| Prompt cho `⋮` (`\vdots`, không phải `:`) và `\underbrace`, đo lại 5 trang của `data/results/run-5` | không gì; dưới 1 cent |
 | Thước công thức chuẩn hoá mạnh + ghép phủ-đủ vào `tools/ocr_bench/score.py`, có test | không gì -- hiện chỉ ở script khảo sát ngoài repo |
 | Benchmark 50 trang cho ba lựa chọn (≈ $0,13) | người dùng cho phép (lệ đặt 11/10/2026: chi phí báo trước, benchmark sau) |
 | Nối vào lúc ra đề: chunk → dải trang, message mới, byte ảnh đi `document` → AGENT, cache theo trang | plan 3c (chưa có chunk) |
@@ -990,11 +990,11 @@ và về `ready`. Còn lại là nợ.
 ## Nợ của plan 3c — document agent, Jev và cây ba cấp
 
 Ghi ngày 11/10/2026, cùng lượt viết plan 3c (`completed/2026-10-11-document-agent-hierarchy-plan.md`).
-Số đo nằm ở `Status` của plan ấy và ở `data/run-6/hierarchy-jev-1.13.0/`.
+Số đo nằm ở `Status` của plan ấy và ở `data/results/run-6/hierarchy-jev-1.13.0/`.
 
 | Việc | Ghi chú |
 | --- | --- |
-| **Jev chưa hơn luật trên SGK.** Ở `jev_min_confidence = 0,8` Jev thắng luật đúng một ca, và ca ấy sai; cây hiện nay gần như là cây của luật | Lượt Jev thứ hai chờ người dùng duyệt (plan hứa báo số thật trước lượt ấy, $0,026 mỗi lượt). Thiết kế đề xuất: bỏ số khỏi `state` (`page`, `numbering` thành lời), thêm `letter_case`, `level_3` chỉ nhận một số đơn **và** viết hoa toàn bộ, rút gọn `criteria` để hạ ~1 270 token mỗi lời gọi |
+| **Jev chưa hơn luật trên SGK.** Ở `jev_min_confidence = 0,8` Jev thắng luật đúng một ca, và ca ấy sai; cây hiện nay gần như là cây của luật. *Sau plan 4c T4 (tiêu chí bỏ ví dụ chương, `data/results/run-67`): không ca nào -- cây Lớp 6 tập 1 là đúng cây của luật; trên Lớp 10 tập 1 Jev chắc hơn hẳn ở mục cấp 3 thật nhưng vẫn dưới 0,8 phần lớn. `usage` của Jev bằng nhau trước và sau khi đổi tiêu chí (626 495 token), tức nó chỉ đếm `state` -- con số ~1 270 token của criteria bên phải chưa kiểm được* | Lượt Jev thứ hai chờ người dùng duyệt (plan hứa báo số thật trước lượt ấy, $0,026 mỗi lượt). Thiết kế đề xuất: bỏ số khỏi `state` (`page`, `numbering` thành lời), thêm `letter_case`, `level_3` chỉ nhận một số đơn **và** viết hoa toàn bộ, rút gọn `criteria` để hạ ~1 270 token mỗi lời gọi |
 | **Cây vàng chỉ có một cuốn**, và luật lẫn ngưỡng đều chỉnh trên chính cuốn ấy | Cần cây vàng của một cuốn khác (một tập khác của bộ KNTT, và một tài liệu không phải SGK) để so Jev với luật cho công bằng |
 | D1 hứa *"dùng luật khi số thứ tự đi lùi"* -- chưa làm; `Numbering.value` chưa ai đọc | Một bước trong `assemble`: tiêu đề cùng cấp mà số nhỏ hơn số trước nó thì hỏi lại luật |
 | Thứ OCR không đọc ra thì không cây nào có: tên Bài 10 (trang 39), hai mục Bài 21 (trang 100–101), *Hoạt động thực hành trải nghiệm* (banner không có chữ CHƯƠNG) | Một cổng thứ hai cho luna: trang mở bài (có hộp *KHÁI NIỆM, THUẬT NGỮ*) mà không có `doc_title` -- đọc tên bài trên ảnh. Dải mục màu đỏ (*"1. HÌNH CÓ TRỤC ĐỐI XỨNG..."*) thì PP-DocLayout không thấy khối nào |
@@ -1008,7 +1008,7 @@ Số đo nằm ở `Status` của plan ấy và ở `data/run-6/hierarchy-jev-1.
 | `summary_tokens` cộng cả token của luna, hai model khác giá | Tách `banner_tokens` khi cần tính tiền theo model |
 | Một đơn vị đọc dài hơn 1 500 ký tự không bị cắt, nên chunk vượt trần | Khối text layer lớn; cắt theo câu khi cần |
 | `except Exception` ở bước banner và tóm tắt che cả lỗi lập trình (chỉ còn `logger.exception`) | Đếm số lần hỏng vào `IndexHeader` để thấy được từ dữ liệu |
-| Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật | Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/hierarchy_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |
+| Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật. *Plan 4c T4 đổi tiêu chí (bỏ ví dụ chương): Jev thuần 120 nút, thắng luật 0 lần ở 0,8; cuốn thứ hai (Lớp 10 tập 1, chưa có cây vàng) lộ `"a. Mệnh đề"` OCR thành `"2. Mệnh để"` bị Jev xếp cấp 3 -- ứng viên cho `letter_case`* | Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/hierarchy_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |
 
 ## Test khoá lượt hỏng trên Windows vì đồng hồ 15,6 ms
 
@@ -1050,3 +1050,15 @@ dựng. Plan 4b chỉ hỏi lại bằng tên chương/bài; số câu BE tự r
 | --- | --- |
 | BE dựng 2--3 cách chia (rải đều mọi bài · dồn vào bài dài · chỉ một bài) làm phương án `ask_clarify` | Chưa cần: cần đo trước xem giáo viên có thật sự không thu hẹp không, khi Kriky đã hỏi bằng tên chương |
 
+## Soạn đề: lỗi lộ ra khi thử tay plan 4c T5
+
+Ghi ngày 13/10/2026, gpt-4o-mini. Ca nào có số A/B thì đo 24 lần với bản đã commit `8b02fd7` (bản ghi
+`data/results/ab-8b02fd7/`) và bản hiện tại (`data/results/run-*`); mục nào không có số thì nói ra.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Lời đáp ngắn sau câu hỏi lại làm model quên lượt trước** -- có từ trước. *"Mình muốn kiểm tra nhanh phần logarit"* → hỏi khối → *"Khối 11"*: `known` chỉ còn `grade=11`, hỏi lại môn và phạm vi. Đạt: bản cũ ~1/24 (chấm theo chữ -- bản cũ không qua được `min_choices`, vì trước T3 lựa chọn model bị bỏ hết), nay 1--5/24. Nút *"Lớp 11"*: Jev nạp thêm `lop-va-ket-qua`, model gọi `list_class` rồi nói *"không tìm thấy lớp 11"* -- gọi `list_class` ở bản cũ 22/24 (ab run-11), nay 15 và 8/24 (run-71, run-80). Lỗi cũ, nhưng từ T3 nó chỉ cách giáo viên **một cú bấm**: chính nút *"Lớp 11"* là lựa chọn model đề xuất. Cùng câu mở đầu mà đáp *"lớp 11, 10 câu"* thì 21/24 | Cần thiết kế: đổi chữ đã thua ở chính chỗ này nhiều lần (plan 4c). Hướng có thể: dựng lời đáp ngắn thành cặp *câu hỏi -- câu trả lời* trong message gửi model, hay để BE ghép giá trị nút vào mục nó trả lời |
+| **Phạm vi là một bài trong chương thì đề rải khắp chương** -- có từ trước, nay nặng hơn. Chip Lớp 6 tập 1, *"Ra 6 câu về ước chung lớn nhất trong sách này"*: model khớp vào **tóm tắt** chương II rồi nêu plan `nodes=[20]`, không gọi `get_chapter`. Gọi `get_chapter` đúng chương: bản cũ 3/24, nay 0/24 (run-72, ab run-12; tệp ca tạm từng chấm `"node": 20` kiểu số nên báo nhầm bản cũ 0/24). Trên trình duyệt 6 câu rải sáu mục của chương, 2/6 về ƯCLN dù cây có bài *"Ước chung. Ước chung lớn nhất"* | Cần quyết: ép đọc `get_chapter` khi lời giáo viên không trùng label chương nào, hay đưa nhãn bài vào kết quả `list_chapters` |
+| **Câu hỏi lại bày *"Chương 1/2/3"* khi không có sách**, và môn khác Toán (*"Ngữ văn"*, *"Vật lý"*) khi chưa có phạm vi (18/50, plan 4c T3) -- **hệ quả của T3**, không phải lỗi cũ: trước T3 lựa chọn model viết bị bỏ hết, nên không thành nút. Chưa đo riêng *"Chương N"* | Môn khác: chờ người dùng quyết hệ thống có hứa soạn môn khác không. *"Chương N"*: chưa đo |
+| **Ngay sau `list_documents` (không chip), model hỏi lại thay vì đọc mục lục** -- hồi quy của T2b/T3, **đã chặn bằng code** trong plan 4c. Gọi `list_chapters` đúng cuốn: bản cũ 17 rồi 10/24 (ab run-14, run-15; nhiễu lớn), bản stage 4/24 (ab-staged run-3), trước luật 1--4/24 (run-83, run-87); sau `_misfiled_read` (model nêu `ask_clarify` mà điền `list_chapters` của một tài liệu trong danh sách -- 16/24 ở run-88) 17/24 (run-90) và 22/24 (run-97, ca `t5-sau-list-documents` trong `cases.json`). Câu hỏi còn lại hỏi *"Bạn soạn theo tài liệu nào?"* cho khớp nút (`_which_book`, chỉ ngay sau danh sách); bấm tên cuốn thì code đọc mục lục (`_picked_book_first`, 24/24); đề theo tài liệu chưa đọc mục lục thì đọc trước (`_toc_first`). Còn lại: giáo viên nhắc một cuốn **không có** trong thư viện thì câu của model (*"chưa có sách lớp 11…"*) bị thay bằng câu hỏi tài liệu, nút là các cuốn khác -- chưa đo; gõ một câu không trùng tên tài liệu nào thì model có thể soạn đề không sách | Hướng (i) của review T5 -- chỉ một tài liệu hợp thì đọc mục lục luôn -- là chọn hộ, chờ người dùng duyệt. Ca *cuốn không có trong thư viện* cần đo trước khi quyết `_which_book` |
+| **Cây Lớp 10 tập 1** (đường thật, không có số A/B): trang mục lục thành ba chương cấp 1, *"Chương IV VECTƠ"* phủ tr. 5--23 nuốt Chương I; tiêu đề OCR rác ở mở đầu chương; 2/5 cổng banner; Bài 6 lên cấp 1; số trang in đọc nhầm (*"tr. 74--722"*). **Hậu quả thấy được**, thử tay T5: *"Lấy cuốn Toán 10 mình mới tải lên, ra 8 câu phần vectơ"* → model chọn đúng nút *"Chương IV. VECTƠ"*, nhưng nút ấy là nội dung Chương I -- cả 8 câu bám mục *mệnh đề, tập hợp* (node 8--16) | Gốc ở OCR chữ trang trí và cổng banner (plan 3c); cần cây vàng thứ hai để đo |

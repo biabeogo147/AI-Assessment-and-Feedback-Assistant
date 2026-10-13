@@ -175,3 +175,8 @@ plan, để nó không còn ngầm. Việc bày nhiều cách chia nằm ở `do
 dựng phương án từ nút cây; phạm vi đóng băng -- `DraftBrief` mang tài liệu, các nút phạm vi và phiên
 bản cây, cùng `version`; mỗi câu một mục -- `DraftItem` ghi mục được gán trước khi job chạy; pha 2
 không nhận tài liệu -- không payload pha 2 nào có trường nội dung tài liệu.
+
+**Thêm từ plan 4c T5 (13/10/2026):** đoạn chat không chip chỉ mở đề theo một tài liệu **sau khi**
+đọc mục lục của nó -- không thì `nodes` là số model bịa, BE nhận, và đề soạn trên mục sai mà không ai
+biết. Thi hành ở AGENT: `propose._toc_first` (plan tạo đề theo tài liệu chưa đọc mục lục → đọc trước)
+và `_picked_book_first` (giáo viên chọn một tài liệu trong danh sách → đọc mục lục của nó).

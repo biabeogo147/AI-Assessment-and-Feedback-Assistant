@@ -50,7 +50,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | Every `.env.example` variable is read by a service | automatic: `tools/check_contract.py` |
 | A whole AGENT job times out before the job waiting on it does | automatic: `tools/check_contract.py` |
 | Teacher approves an assessment before release | automatic: `test_an_unapproved_assessment_cannot_be_published_over_http` |
-| The options in a clarifying question are written by BE from rows it read | automatic: `test_the_options_are_written_by_be_not_by_the_model` |
+| The options in a clarifying question about a row (class, document, section) are BE labels from rows it read; a model-written option survives only by naming one row exactly | automatic: `test_the_options_are_written_by_be_not_by_the_model`, `test_a_class_the_model_made_up_never_reaches_a_button` |
 | Every report figure was exported from the current `.drawio` | automatic: `tools/check_contract.py` |
 | No agent tool changes an assessment's state | automatic: `tools/check_contract.py` |
 | Invented screen data stays in its one self-accusing module | automatic: `tools/check_contract.py` |
