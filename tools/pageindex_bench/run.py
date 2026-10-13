@@ -1,7 +1,7 @@
 """Dựng cây cho một tài liệu đã có bản thô trong Mongo, theo nhiều đường, và chấm từng đường.
 
 Cùng lệ với `ocr_bench`: không chạy trong `.\\dev.ps1 check`, không chạy được trên máy không có
-`data/`. Thứ `check` canh là **test của thước đo** (`tools/tests/test_hierarchy_score.py`).
+`data/`. Thứ `check` canh là **test của thước đo** (`tools/tests/test_pageindex_score.py`).
 
 Các đường:
 
@@ -14,11 +14,11 @@ một lượt quét ngưỡng không nhân tiền Jev lên.
 Banner (D9) không gọi luna ở đây: `--banners` trỏ tới một tệp JSON đã đọc sẵn, để mọi đường cùng
 dùng một bộ tên chương và phép so chỉ đo **phần phân loại**.
 
-Mỗi lượt ghi vào `data/results/run-<n>/hierarchy-<jev_model>/`: `report.txt` (bảng in ra),
+Mỗi lượt ghi vào `data/results/run-<n>/pageindex-<jev_model>/`: `report.txt` (bảng in ra),
 `config.json`, `labels.jsonl` (câu trả lời của Jev từng ứng viên), `tree-<đường>.json`.
 
 Dùng:
-    python -m hierarchy_bench.run --document <id> --banners <banners.json>
+    python -m pageindex_bench.run --document <id> --banners <banners.json>
 """
 
 import argparse
@@ -39,8 +39,8 @@ from document.index.features import (
 )
 from document.index.jev import JevClassifier, open_paths, state_of
 from document.index.rules import combine, decide
-from hierarchy_bench.score import LevelScore, TreeNode, score
 from ocr_bench.run import next_run
+from pageindex_bench.score import LevelScore, TreeNode, score
 
 _GOLD = Path("data") / "gold" / "tree" / "L6T1.json"
 # Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
@@ -206,7 +206,7 @@ async def main() -> None:
 
     names = [path.name for path in _RUNS.iterdir()] if _RUNS.exists() else []
     number = args.run or next_run(names)
-    folder = _RUNS / f"run-{number}" / f"hierarchy-{jev_model or 'rules'}"
+    folder = _RUNS / f"run-{number}" / f"pageindex-{jev_model or 'rules'}"
     folder.mkdir(parents=True, exist_ok=False)
     (folder / "report.txt").write_text(report + "\n", encoding="utf-8")
     config = {

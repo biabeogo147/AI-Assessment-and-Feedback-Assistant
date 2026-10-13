@@ -1,10 +1,10 @@
 """Đọc banner mở chương của một tài liệu bằng `gpt-5.6-luna`, qua đúng đường mà worker dùng.
 
-Ghi ra một tệp JSON cho `hierarchy_bench.run --banners`, để mọi đường phân loại được so trên cùng
+Ghi ra một tệp JSON cho `pageindex_bench.run --banners`, để mọi đường phân loại được so trên cùng
 một bộ tên chương. Ảnh lấy từ PDF trong `data/` chứ không từ MinIO: bộ đo chạy trên máy dev.
 
 Dùng:
-    python -m hierarchy_bench.banners --document <id> --pdf <tệp.pdf> --out <banners.json>
+    python -m pageindex_bench.banners --document <id> --pdf <tệp.pdf> --out <banners.json>
 """
 
 import argparse

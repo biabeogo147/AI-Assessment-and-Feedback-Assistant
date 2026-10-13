@@ -82,7 +82,7 @@ _LEVEL_CRITERIA = {
     # Plan 4c T4: ví dụ chỉ tả định dạng -- tên mục là chỗ trống `<...>`, tiêu đề con là một câu
     # mô tả kiểu chữ -- không phải tên mục của một chương Toán. Bản trước dùng *"1. HỆ THẬP PHÂN"*,
     # *"2. SỐ LA MÃ"* (hai mục) và tiêu đề con *"Cách ghi số tự nhiên trong hệ thập phân"*, đều của
-    # SGK Toán 6 tập 1, cuốn cây vàng duy nhất của `hierarchy_bench` -- và Jev bám nguyên văn: gỡ ví
+    # SGK Toán 6 tập 1, cuốn cây vàng duy nhất của `pageindex_bench` -- và Jev bám nguyên văn: gỡ ví
     # dụ ấy thì chính tiêu đề con ấy lật từ `deeper` sang `level_3` ở `jev@0` (plan 4c, T4).
     "deeper": (
         "A smaller subheading inside a numbered section, or anything numbered deeper than three "

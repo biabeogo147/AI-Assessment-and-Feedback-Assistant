@@ -1,6 +1,6 @@
 """Thước đo cây mục lục: test của **thước**, thứ duy nhất `check` canh được mà không cần `data/`."""
 
-from hierarchy_bench.score import TreeNode, score
+from pageindex_bench.score import TreeNode, score
 
 
 def _row(rows, level):

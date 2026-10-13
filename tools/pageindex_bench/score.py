@@ -1,4 +1,4 @@
-"""Chấm một cây so với cây vàng. Hàm thuần, có test ở `tools/tests/test_hierarchy_score.py`.
+"""Chấm một cây so với cây vàng. Hàm thuần, có test ở `tools/tests/test_pageindex_score.py`.
 
 **Một nút dự đoán khớp một nút vàng** khi cùng cấp, trang đầu lệch không quá `PAGE_SLACK`, và tên
 đủ giống sau khi gấp (bỏ dấu, viết hoa) -- OCR đọc *"PHÉP CÔNG"* cho *"PHÉP CỘNG"*, và một phép so

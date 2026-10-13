@@ -1,6 +1,6 @@
 """Đo bộ chọn skill của Kriky (plan 4a) trên bộ nhãn `cases.json`, và quét ngưỡng `SKILL_MIN_YES`.
 
-Cùng lệ với `hierarchy_bench`: không chạy trong `.\\dev.ps1 check` vì nó gọi Jev thật. Thứ `check`
+Cùng lệ với `pageindex_bench`: không chạy trong `.\\dev.ps1 check` vì nó gọi Jev thật. Thứ `check`
 canh là **test của thước đo** (`tools/tests/test_skill_bench.py`).
 
 Jev được hỏi **một lần** mỗi ca; mọi ngưỡng tính lại trên cùng những xác suất ấy, nên quét ngưỡng
