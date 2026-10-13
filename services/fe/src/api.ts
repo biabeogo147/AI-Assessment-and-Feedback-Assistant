@@ -217,6 +217,12 @@ export interface TeacherQuestion {
   learning_objective: string;
   options: TeacherOption[];
   methods: Method[];
+  /**
+   * Câu đã có bản trong ngân hàng câu hỏi -- đề từng được duyệt khi có câu này (ADR-28).
+   * Hộp xoá câu đọc nó để nói đúng điều sắp xảy ra. **Không** phải nguồn *"Lấy từ ngân
+   * hàng câu hỏi"*: câu ấy rút từ kho ra, còn đây là câu đã được chép vào kho.
+   */
+  in_bank: boolean;
 }
 
 /** Chữ của một câu, như giáo viên vừa sửa. Đủ bộ, không từng mảnh. */
@@ -862,6 +868,14 @@ export const teacher = {
       "teacher",
       `/teacher/assessments/${assessmentId}/questions/${questionId}`,
       { method: "PATCH", body: JSON.stringify(question) },
+    ),
+  // Xoá một câu khỏi đề còn mở. Bản trong ngân hàng câu hỏi, nếu có, ở lại (ADR-28); các câu
+  // sau dồn số lên, nên nơi gọi đọc lại cả đề chứ không tự bỏ một thẻ.
+  deleteQuestion: (assessmentId: string, questionId: string) =>
+    silent(
+      "teacher",
+      `/teacher/assessments/${assessmentId}/questions/${questionId}`,
+      { method: "DELETE" },
     ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),

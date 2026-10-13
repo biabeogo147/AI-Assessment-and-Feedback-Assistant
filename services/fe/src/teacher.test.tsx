@@ -1654,6 +1654,7 @@ function paper(state: string) {
           },
         ],
         methods: [{ title: "Cách 1", body: "Đạo hàm từng hạng tử." }],
+        in_bank: false,
       },
     ],
   };
@@ -2223,6 +2224,241 @@ describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", ()
     await waitFor(() => expect(sent).toHaveBeenCalled());
     expect(sent.mock.calls[0][1]?.documentId).toBeUndefined();
     sent.mockRestore();
+  });
+});
+
+
+describe("xoá một câu khỏi đề (ADR-28)", () => {
+  /** Đề hai câu; sau một lần DELETE thành công, BE đã dồn số nên chỉ còn câu kia, mang số 1. */
+  function twoQuestions(state: string, inBank: boolean) {
+    const body = paper(state);
+    const first = { ...body.questions[0], in_bank: inBank };
+    const second = {
+      ...first,
+      question_id: "q2",
+      order: 2,
+      stem: "Đạo hàm của y = 3x là gì?",
+    };
+    return { ...body, question_count: 2, questions: [first, second] };
+  }
+
+  function afterDelete(state: string) {
+    const body = twoQuestions(state, true);
+    return {
+      ...body,
+      question_count: 1,
+      questions: [{ ...body.questions[1], order: 1 }],
+    };
+  }
+
+  /**
+   * Stub `fetch`. `deletes` là các câu trả lời lần lượt cho mỗi DELETE: `"ok"`, một lời từ
+   * chối, hoặc một promise do test tự giải. `rereadFails` làm lần GET đề **sau** DELETE hỏng.
+   */
+  function serving(
+    state: string,
+    inBank: boolean,
+    deletes: (string | Promise<unknown>)[] = ["ok"],
+    rereadFails = false,
+  ) {
+    const calls: { url: string; method: string }[] = [];
+    let deleted = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method });
+        if (method === "DELETE") {
+          const next = deletes.shift() ?? "ok";
+          if (typeof next !== "string") return next;
+          if (next === "ok") {
+            deleted = true;
+            return Promise.resolve({
+              ok: true,
+              status: 204,
+              json: () => Promise.reject(new Error("204")),
+            });
+          }
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ detail: next }),
+          });
+        }
+        if (url.includes("/publish-form")) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve(FORM) });
+        }
+        if (deleted && rereadFails) {
+          return Promise.resolve({
+            ok: false,
+            status: 500,
+            json: () => Promise.resolve({ detail: "Không đọc lại được đề." }),
+          });
+        }
+        const body = deleted ? afterDelete(state) : twoQuestions(state, inBank);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    return calls;
+  }
+
+  function mount() {
+    return render(
+      <Panel
+        assessmentId="p1"
+        onClose={() => undefined}
+        onApproved={() => undefined}
+      />,
+    );
+  }
+
+  /** Mở hộp xoá của câu thứ `nth` (đếm từ 1). */
+  async function openErase(nth: number) {
+    await waitFor(() => expect(screen.getAllByText("Xoá")).toHaveLength(2));
+    fireEvent.click(screen.getAllByText("Xoá")[nth - 1]);
+  }
+
+  it("dòng tổng đã kiểm / chưa kiểm không còn dưới tên đề", async () => {
+    // Duyệt đề là đã kiểm mọi câu, nên dòng ấy không còn đếm điều gì. Chip trên từng câu thì
+    // **ở lại**: người dùng dặn giữ nguyên mọi phần giao diện khác.
+    serving("has_questions", false);
+    mount();
+    await openErase(1);
+    fireEvent.click(screen.getByText("Giữ lại"));
+
+    expect(document.querySelector(".panel-head .provenance")).toBeNull();
+    expect(screen.queryByText(/câu thêm mới đã kiểm/)).toBeNull();
+    expect(screen.queryByText(/câu chưa kiểm/)).toBeNull();
+    expect(document.querySelector(".qcard .source-chip")).not.toBeNull();
+  });
+
+  it("Xoá đứng ngay sau Sửa, cùng kiểu, và biến mất cùng Sửa khi đề đã duyệt", async () => {
+    serving("has_questions", false);
+    const { unmount } = mount();
+    await waitFor(() => expect(screen.getAllByText("Xoá")).toHaveLength(2));
+    const top = document.querySelector(".qcard .top") as HTMLElement;
+    expect([...top.querySelectorAll(".edit")].map((one) => one.textContent)).toEqual([
+      "Sửa",
+      "Xoá",
+    ]);
+    unmount();
+
+    serving("approved", true);
+    mount();
+    await waitFor(() => expect(screen.getByText("Phát hành đề")).toBeTruthy());
+    expect(screen.queryByText("Xoá")).toBeNull();
+  });
+
+  it("bấm Xoá chỉ mở hộp của đúng câu ấy; Giữ lại thì không gửi gì", async () => {
+    const calls = serving("has_questions", false);
+    mount();
+
+    await openErase(2);
+
+    expect(screen.getByText("Xoá câu 2 khỏi đề?")).toBeTruthy();
+    // Câu chưa từng được duyệt: xoá là mất hẳn.
+    expect(screen.getByText(/chưa có trong ngân hàng câu hỏi/)).toBeTruthy();
+    fireEvent.click(screen.getByText("Giữ lại"));
+    expect(screen.queryByText("Xoá câu 2 khỏi đề?")).toBeNull();
+    expect(calls.some((one) => one.method === "DELETE")).toBe(false);
+  });
+
+  it("câu đã có bản trong ngân hàng thì hộp nói bản ấy ở lại", async () => {
+    serving("has_questions", true);
+    mount();
+
+    await openErase(1);
+
+    expect(screen.getByText(/bản trong ngân hàng vẫn giữ nguyên/)).toBeTruthy();
+    expect(screen.queryByText(/chưa có trong ngân hàng câu hỏi/)).toBeNull();
+  });
+
+  it("xác nhận thì gửi DELETE đúng câu, đóng hộp, và vẽ lại đề đã dồn số", async () => {
+    // Đọc lại chứ không tự bỏ một thẻ: BE dồn số các câu sau, nên câu 2 cũ giờ là câu 1.
+    const calls = serving("has_questions", false);
+    mount();
+    await openErase(1);
+
+    fireEvent.click(screen.getByText("Xoá câu"));
+
+    await waitFor(() => expect(screen.getByText("Đạo hàm của y = 3x là gì?")).toBeTruthy());
+    expect(screen.queryByText("Xoá câu 1 khỏi đề?")).toBeNull();
+    expect(calls.find((one) => one.method === "DELETE")?.url).toBe(
+      "/api/teacher/assessments/p1/questions/q1",
+    );
+    const cards = document.querySelectorAll(".qcard");
+    expect(cards).toHaveLength(1);
+    expect(cards[0].querySelector(".num")?.textContent).toBe("Câu 1");
+  });
+
+  it("đang xoá thì không đóng được hộp và không bấm lại được; bị từ chối thì mở lại", async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    const held = new Promise((resolve) => (answer = resolve));
+    serving("has_questions", true, [held]);
+    mount();
+    await openErase(1);
+
+    fireEvent.click(screen.getByText("Xoá câu"));
+
+    await waitFor(() =>
+      expect((screen.getByText("Xoá câu") as HTMLButtonElement).disabled).toBe(true),
+    );
+    expect((screen.getByText("Giữ lại") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByText("Xoá câu 1 khỏi đề?")).toBeTruthy();
+
+    answer({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ detail: "Còn 2 câu đang soạn. Đợi soạn xong rồi xoá." }),
+    });
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/đang soạn/));
+    // Từ chối không đóng hộp, và cả hai nút mở lại.
+    expect(screen.getByText("Xoá câu 1 khỏi đề?")).toBeTruthy();
+    expect((screen.getByText("Xoá câu") as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByText("Giữ lại") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("lời từ chối cũ không đứng chờ lần bấm lại, cũng không theo sang hộp kế", async () => {
+    // Cùng một câu từ chối lặp lại thì `role="alert"` không đổi nội dung, và trình đọc màn
+    // hình không đọc lại -- nên lời cũ phải rời đi ngay khi bấm lại.
+    const refusal = {
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ detail: "Đây là câu cuối cùng của đề nên không xoá được." }),
+    };
+    let answer: (value: unknown) => void = () => undefined;
+    const held = new Promise((resolve) => (answer = resolve));
+    serving("has_questions", true, [Promise.resolve(refusal), held]);
+    mount();
+    await openErase(1);
+    fireEvent.click(screen.getByText("Xoá câu"));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Xoá câu"));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    answer(refusal);
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/câu cuối/));
+
+    fireEvent.click(screen.getByText("Giữ lại"));
+    await openErase(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("xoá xong mà đọc lại hỏng thì lỗi hiện ở chân panel, không mất trong hộp đã đóng", async () => {
+    serving("has_questions", false, ["ok"], true);
+    mount();
+    await openErase(1);
+
+    fireEvent.click(screen.getByText("Xoá câu"));
+
+    await waitFor(() =>
+      expect(document.querySelector(".panel-foot .note")?.textContent).toBe(
+        "Không đọc lại được đề.",
+      ),
+    );
+    expect(screen.queryByText("Xoá câu 1 khỏi đề?")).toBeNull();
   });
 });
 

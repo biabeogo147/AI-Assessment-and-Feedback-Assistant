@@ -1657,6 +1657,7 @@
   line-height: 1.5;
 }
 
+/* [CODE CHẾT 2026-10-13] Dòng tổng nguồn câu hỏi dưới tên đề, gỡ theo ADR-28.
 .teacher .panel-head .provenance {
   display: flex;
   align-items: center;
@@ -1668,6 +1669,7 @@
 .teacher .panel-head .provenance .lead {
   color: var(--ink-muted);
 }
+*/
 
 /*
  * Chip nguồn. Bo tròn hẳn (999) để nó không bị đọc nhầm thành một nút.
@@ -2833,6 +2835,15 @@
 
 .teacher .recap-row .is {
   color: var(--ink);
+}
+
+/* Lời từ chối của BE trong một hộp xác nhận (hộp xoá câu): ngay dưới lời dẫn, hộp không
+ * đóng. Cùng màu và cỡ với lời từ chối của thẻ đang sửa (`.qcard .refused`). */
+.teacher .confirm .refused {
+  margin: 0;
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
 }
 
 .teacher .confirm .rule {

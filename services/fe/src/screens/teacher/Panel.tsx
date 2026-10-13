@@ -51,9 +51,18 @@ export default function Panel({
   // Câu đang mở lời giải. Ở đây chứ không trong từng thẻ: hộp thoại là thứ **một lúc chỉ
   // một cái**, và đó là một luật giữa các thẻ, không phải việc riêng của một thẻ.
   const [solving, setSolving] = useState<TeacherQuestion | null>(null);
+  // Câu đang chờ xác nhận xoá, và lời từ chối của BE cho lần xoá ấy. Ở đây vì cùng lý do với
+  // `solving`: hộp thoại là thứ một lúc chỉ một cái.
+  const [erasing, setErasing] = useState<TeacherQuestion | null>(null);
+  const [eraseRefused, setEraseRefused] = useState("");
+  const [eraseBusy, setEraseBusy] = useState(false);
 
   useEffect(() => {
     setPaper(null);
+    // Hộp xoá của đề trước không được mọc lại trên đề này: xác nhận lúc ấy là gửi id câu của
+    // đề cũ lên đường của đề mới.
+    setErasing(null);
+    setEraseRefused("");
     teacher
       .assessment(assessmentId)
       .then(setPaper)
@@ -97,6 +106,41 @@ export default function Panel({
       return "";
     } catch (cause) {
       return (cause as Error).message;
+    }
+  }
+
+  /**
+   * Xoá câu đang chờ xác nhận, rồi đọc lại cả đề.
+   *
+   * Đọc lại chứ không tự bỏ một thẻ: các câu sau **dồn số lên** ở BE (ADR-28), nên mọi số câu
+   * trên panel đều đổi. Hộp **không** đóng khi bị từ chối -- lời của BE (còn câu đang soạn,
+   * câu cuối của đề) hiện ngay trong hộp; đóng là giấu lý do.
+   *
+   * @param question - Câu sắp xoá.
+   */
+  async function erase(question: TeacherQuestion) {
+    // Xoá lời từ chối của lần trước: cùng một câu từ chối lặp lại thì `role="alert"` không đổi
+    // nội dung, và trình đọc màn hình không đọc lại -- lần bấm thứ hai trông như không có gì.
+    setEraseRefused("");
+    setEraseBusy(true);
+    try {
+      await teacher.deleteQuestion(assessmentId, question.question_id);
+    } catch (cause) {
+      setEraseRefused((cause as Error).message);
+      setEraseBusy(false);
+      // BE thu hoạch trước khi từ chối, và đề có thể vừa bị duyệt ở chỗ khác: đọc lại để panel
+      // nói đúng trạng thái, hộp vẫn mở. Hỏng ở đây thì thôi -- lời từ chối đã hiện.
+      teacher.assessment(assessmentId).then(setPaper, () => undefined);
+      return;
+    }
+    // Hai bước, hai chỗ báo lỗi: xoá **đã xong** thì hộp đóng, và một lần đọc lại hỏng phải nói
+    // ở chân panel -- ghi nó vào hộp vừa đóng là để nó biến mất.
+    setErasing(null);
+    setEraseBusy(false);
+    try {
+      setPaper(await teacher.assessment(assessmentId));
+    } catch (cause) {
+      setTrouble((cause as Error).message);
     }
   }
 
@@ -163,7 +207,10 @@ export default function Panel({
           {paper.question_count} câu · {paper.subject} {paper.grade}
           {paper.topic_scope !== "" && ` · ${paper.topic_scope}`}
         </div>
+        {/* [CODE CHẾT 2026-10-13] Dòng tổng nguồn câu hỏi dưới tên đề -- ADR-28: duyệt đề là đã
+            kiểm mọi câu, nên "x câu thêm mới đã kiểm · y câu chưa kiểm" không còn đếm điều gì.
         <Provenance questions={paper.questions} />
+        */}
       </div>
 
       <div className="panel-questions">
@@ -187,6 +234,10 @@ export default function Panel({
             editable={!locked}
             onSolve={() => setSolving(one)}
             onSave={(edited) => save(one.question_id, edited)}
+            onErase={() => {
+              setEraseRefused("");
+              setErasing(one);
+            }}
           />
         ))}
       </div>
@@ -244,6 +295,45 @@ export default function Panel({
 
       {solving !== null && (
         <Solution question={solving} onClose={() => setSolving(null)} />
+      )}
+
+      {erasing !== null && (
+        // Đang xoá thì không đóng được, bằng bất cứ đường nào (`Esc`, bấm ra ngoài, `Giữ lại`):
+        // đóng giữa chừng thì lời từ chối mất, hoặc thẻ biến mất ngay sau cú bấm huỷ. Cùng luật
+        // với thẻ đang sửa, nơi `Huỷ` khoá khi đang lưu.
+        <Veil
+          onClose={() => {
+            if (!eraseBusy) setErasing(null);
+          }}
+        >
+          <h3>Xoá câu {erasing.order} khỏi đề?</h3>
+          <p className="lead">
+            {erasing.in_bank ? _ERASE_SAVED : _ERASE_FRESH}
+          </p>
+          {eraseRefused !== "" && (
+            <p className="refused" role="alert">
+              {eraseRefused}
+            </p>
+          )}
+          <div className="confirm-actions">
+            <button
+              className="btn"
+              type="button"
+              disabled={eraseBusy}
+              onClick={() => setErasing(null)}
+            >
+              Giữ lại
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={eraseBusy}
+              onClick={() => void erase(erasing)}
+            >
+              Xoá câu
+            </button>
+          </div>
+        </Veil>
       )}
     </aside>
   );
@@ -332,37 +422,53 @@ function _note(state: string): string {
 
 
 /**
- * Dòng tổng kết nguồn câu hỏi, ngay dưới tên đề.
+ * Lời dẫn của hộp xoá câu, hai nhánh theo `in_bank` (ADR-28, Figma `592:3180`).
  *
- * Mọi con số ở đây đếm từ các chip của từng câu, nên dòng này và các thẻ bên dưới không
- * bao giờ nói hai điều khác nhau — kể cả khi cả hai cùng bịa.
+ * Câu đã có bản trong ngân hàng thì nói bản ấy **ở lại** -- điều trái trực giác, và là lý do
+ * hộp này tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Cả hai nói chuyện dồn số, vì số câu
+ * là thứ giáo viên dùng để gọi tên câu.
  */
-function Provenance({ questions }: { questions: TeacherQuestion[] }) {
-  const tally = { bank: 0, checked: 0, unchecked: 0 };
-  for (const one of questions) {
-    const tone = provenanceOf(one.question_id).tone;
-    if (tone === "checked") tally.checked += 1;
-    else if (tone === "unchecked") tally.unchecked += 1;
-    else tally.bank += 1;
-  }
-  return (
-    <div className="provenance">
-      {tally.bank > 0 && (
-        <span className="lead">{tally.bank} câu ngân hàng ·</span>
-      )}
-      {tally.checked > 0 && (
-        <span className="source-chip checked">
-          {tally.checked} câu thêm mới đã kiểm
-        </span>
-      )}
-      {tally.unchecked > 0 && (
-        <span className="source-chip unchecked">
-          {tally.unchecked} câu chưa kiểm
-        </span>
-      )}
-    </div>
-  );
-}
+const _ERASE_SAVED =
+  "Câu này đã lưu vào ngân hàng câu hỏi từ lần duyệt trước. Xoá ở đây chỉ gỡ nó khỏi đề này — bản trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.";
+const _ERASE_FRESH =
+  "Câu này chưa có trong ngân hàng câu hỏi, nên xoá rồi thì không lấy lại được. Các câu sau dồn số lên.";
+
+// [CODE CHẾT 2026-10-13] Dòng tổng nguồn câu hỏi dưới tên đề. ADR-28: duyệt đề là đã kiểm mọi
+// câu, nên "x câu thêm mới đã kiểm · y câu chưa kiểm" không còn đếm điều gì. Chip trên từng câu
+// (`provenanceOf`) vẫn ở lại, giữ nguyên giao diện theo lời người dùng.
+//
+// /**
+//  * Dòng tổng kết nguồn câu hỏi, ngay dưới tên đề.
+//  *
+//  * Mọi con số ở đây đếm từ các chip của từng câu, nên dòng này và các thẻ bên dưới không
+//  * bao giờ nói hai điều khác nhau — kể cả khi cả hai cùng bịa.
+//  */
+// function Provenance({ questions }: { questions: TeacherQuestion[] }) {
+//   const tally = { bank: 0, checked: 0, unchecked: 0 };
+//   for (const one of questions) {
+//     const tone = provenanceOf(one.question_id).tone;
+//     if (tone === "checked") tally.checked += 1;
+//     else if (tone === "unchecked") tally.unchecked += 1;
+//     else tally.bank += 1;
+//   }
+//   return (
+//     <div className="provenance">
+//       {tally.bank > 0 && (
+//         <span className="lead">{tally.bank} câu ngân hàng ·</span>
+//       )}
+//       {tally.checked > 0 && (
+//         <span className="source-chip checked">
+//           {tally.checked} câu thêm mới đã kiểm
+//         </span>
+//       )}
+//       {tally.unchecked > 0 && (
+//         <span className="source-chip unchecked">
+//           {tally.unchecked} câu chưa kiểm
+//         </span>
+//       )}
+//     </div>
+//   );
+// }
 
 /**
  * Một câu hỏi trong panel.
@@ -378,17 +484,20 @@ function Provenance({ questions }: { questions: TeacherQuestion[] }) {
  * @param onSave - Gửi bản vừa sửa đi. Trả về chuỗi rỗng khi BE nhận, hoặc lời từ chối để
  *   thẻ hiện ngay tại chỗ — ô nhập **không** đóng lại khi bị từ chối, vì đóng là mất chữ
  *   giáo viên vừa gõ.
+ * @param onErase - Xin xoá câu này. Chỉ **mở hộp xác nhận**; không có cú bấm nào xoá ngay.
  */
 function QuestionCard({
   question,
   editable,
   onSolve,
   onSave,
+  onErase,
 }: {
   question: TeacherQuestion;
   editable: boolean;
   onSolve: () => void;
   onSave: (edited: QuestionEdit) => Promise<string>;
+  onErase: () => void;
 }) {
   const source = provenanceOf(question.question_id);
   const [editing, setEditing] = useState<QuestionEdit | null>(null);
@@ -425,21 +534,28 @@ function QuestionCard({
         <span className="num">Câu {question.order}</span>
         <span className={`source-chip ${source.tone}`}>{source.label}</span>
         <span className="spacer" />
+        {/* *Sửa* và *Xoá* sống chung một điều kiện: đề đã duyệt thì cả hai biến mất (ADR-01).
+            Thẻ đang sửa (`Editing`) không có *Xoá*, như Figma vẽ. */}
         {editable && (
-          <button
-            className="edit"
-            type="button"
-            onClick={() =>
-              setEditing({
-                stem: question.stem,
-                learning_objective: question.learning_objective,
-                options: question.options.map((one) => ({ ...one })),
-                methods: question.methods.map((one) => ({ ...one })),
-              })
-            }
-          >
-            Sửa
-          </button>
+          <>
+            <button
+              className="edit"
+              type="button"
+              onClick={() =>
+                setEditing({
+                  stem: question.stem,
+                  learning_objective: question.learning_objective,
+                  options: question.options.map((one) => ({ ...one })),
+                  methods: question.methods.map((one) => ({ ...one })),
+                })
+              }
+            >
+              Sửa
+            </button>
+            <button className="edit" type="button" onClick={onErase}>
+              Xoá
+            </button>
+          </>
         )}
       </div>
 
