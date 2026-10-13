@@ -1,5 +1,8 @@
 """Hai quyết định mà giáo viên tự bấm: duyệt, và bỏ duyệt.
 
+Cùng file là hai đường ghi **nội dung** mà cổng duyệt canh: sửa một câu, và xoá một câu (ADR-28)
+-- cả hai chỉ đi được khi đề còn sửa được.
+
 Đây là chỗ `advance` có caller đầu tiên **trên một đường HTTP**. `drafting` đã gọi nó từ
 Pha 2, nhưng chỉ cho một cạnh mà máy tự đi: câu hỏi đầu tiên thu được đưa đề ra khỏi
 `EMPTY`. Hai cạnh trong file này thì khác về bản chất -- chúng là lúc một con người nhận
@@ -49,6 +52,7 @@ from be.agent_gateway import AgentError, validate_question
 from be.assessment_state import (
     AssessmentState,
     advance,
+    assert_editable,
     editable,
     may_withdraw,
     readable,
@@ -69,7 +73,7 @@ from be.publication_wording import (
     phase_one_note,
     phase_two_note,
 )
-from be.question_bank import file_approved
+from be.question_bank import file_approved, in_bank, release
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
@@ -79,6 +83,7 @@ from schema.models import (
     Assessment,
     Attempt,
     DraftBrief,
+    DraftItem,
     Method,
     Publication,
     Question,
@@ -1348,6 +1353,10 @@ class QuestionRead(BaseModel):
         learning_objective: Câu hỏi kiểm cái gì.
         options: Các phương án, đã sắp theo nhãn.
         methods: Các lời giải, đã sắp theo thứ tự.
+        in_bank: Câu đã có bản trong ngân hàng câu hỏi của giáo viên -- tức đề từng được duyệt
+            khi có câu này (ADR-28). Hộp xoá câu đọc nó để nói đúng điều sắp xảy ra. **Không**
+            phải nguồn *"Lấy từ ngân hàng câu hỏi"*: câu ấy là câu rút từ kho ra, còn đây là
+            câu đã được chép vào kho.
     """
 
     question_id: str
@@ -1356,6 +1365,9 @@ class QuestionRead(BaseModel):
     learning_objective: str
     options: tuple[OptionRead, ...] = ()
     methods: tuple[MethodRead, ...] = ()
+    # Không mặc định: một chỗ dựng quên điền thì hộp xoá câu sẽ nói *"mất hẳn"* về một câu
+    # đang nằm trong ngân hàng -- thà validation đỏ còn hơn.
+    in_bank: bool
 
 
 class AssessmentDetail(BaseModel):
@@ -1504,16 +1516,20 @@ async def assessment_detail(
     if landed:
         logger.info("harvested %d question(s) of %s on a read", landed, assessment_id)
 
-    rows = await session.scalars(
-        select(Question)
-        .where(Question.assessment_id == assessment_id)
-        .order_by(Question.order_index)
-        .options(selectinload(Question.options), selectinload(Question.methods))
+    rows = list(
+        await session.scalars(
+            select(Question)
+            .where(Question.assessment_id == assessment_id)
+            .order_by(Question.order_index)
+            .options(selectinload(Question.options), selectinload(Question.methods))
+        )
     )
+    banked = await in_bank(session, assessment.teacher_id, [row.id for row in rows])
     questions = tuple(
         QuestionRead(
             question_id=row.id,
             order=row.order_index,
+            in_bank=row.id in banked,
             stem=row.stem,
             learning_objective=row.learning_objective,
             options=tuple(
@@ -1740,6 +1756,7 @@ async def edit_question(
     return QuestionRead(
         question_id=fresh.id,
         order=fresh.order_index,
+        in_bank=bool(await in_bank(session, assessment.teacher_id, [fresh.id])),
         stem=fresh.stem,
         learning_objective=fresh.learning_objective,
         options=tuple(
@@ -1756,6 +1773,174 @@ async def edit_question(
             for one in sorted(fresh.methods, key=lambda one: one.order_index)
         ),
     )
+
+
+async def _close_the_gap(session: AsyncSession, assessment_id: str, gone: int) -> None:
+    """Dồn số mọi câu và mọi ô soạn đứng sau vị trí vừa xoá lên một bậc (ADR-28).
+
+    **Hai sổ dồn cùng nhau.** `fire` lấy ô cao nhất của `DraftItem` làm điểm bắt đầu cho lần
+    soạn thêm, còn `harvest` ghi câu về đúng `order_index = ordinal` của ô -- dồn một sổ mà để
+    sổ kia đứng yên thì lần soạn thêm kế tiếp mở ra sau một cái lỗ.
+
+    Đi tăng dần và **flush từng dòng**: hai bảng đều có ràng buộc duy nhất trên vị trí. Gom các
+    lần đổi vào một flush thì SQLAlchemy xếp các câu `UPDATE` theo **khoá chính** -- UUID4, tức
+    ngẫu nhiên -- chứ không theo vòng lặp, và một câu dời 5 về 4 trước khi 4 về 3 thì đụng ràng
+    buộc. Một câu `UPDATE` dồn cả loạt cũng không cứu: Postgres kiểm ràng buộc ấy theo từng dòng,
+    theo thứ tự nó tự chọn.
+
+    Args:
+        session: Session của database. Không commit ở đây.
+        assessment_id: Đề nào.
+        gone: Vị trí vừa trống.
+
+    Side effects:
+        Giảm `Question.order_index` và `DraftItem.ordinal` của các dòng sau `gone`.
+    """
+    later = list(
+        await session.scalars(
+            select(Question)
+            .where(Question.assessment_id == assessment_id, Question.order_index > gone)
+            .order_by(Question.order_index)
+        )
+    )
+    for one in later:
+        one.order_index -= 1
+        await session.flush()
+
+    slots = list(
+        await session.scalars(
+            select(DraftItem)
+            .where(DraftItem.assessment_id == assessment_id, DraftItem.ordinal > gone)
+            .order_by(DraftItem.ordinal)
+        )
+    )
+    for one in slots:
+        one.ordinal -= 1
+        await session.flush()
+
+
+@router.delete("/teacher/assessments/{assessment_id}/questions/{question_id}", status_code=204)
+async def delete_question(
+    assessment_id: str,
+    question_id: str,
+    request: Request,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Xoá một câu khỏi một đề còn mở. Bản trong ngân hàng câu hỏi, nếu có, ở lại (ADR-28).
+
+    **Xoá trong đề không xoá ngân hàng**, vì hệ thống không phân biệt được giáo viên bỏ câu vì
+    nó sai hay chỉ vì đề quá dài; câu ấy đã được kiểm một lần, nên giữ lại là phía không mất
+    gì. Hộp xác nhận trên panel nói ra điều đó trước cú bấm -- đọc `QuestionRead.in_bank`.
+
+    **Xoá không đổi trạng thái của đề**, nên câu cuối cùng không xoá được: ADR-01 chỉ riêng
+    bỏ duyệt ra là thao tác hạ trạng thái, và một đề *có câu hỏi* không được quay về *trống*
+    bằng đường này (hậu ký ADR-01).
+
+    Thu hoạch trước rồi mới đếm, đúng khuôn của `approve`: một job vừa xong mà chưa ai thu thì
+    vẫn đếm là *đang soạn*, và giáo viên bị từ chối vì một câu đã viết xong.
+
+    Args:
+        assessment_id: Đề nào.
+        question_id: Câu nào.
+        request: Mang theo pool của queue, thứ `harvest` cần.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+        settings: Cung cấp tên queue cho lần thu hoạch.
+
+    Raises:
+        HTTPException: 404 khi đề hoặc câu không tồn tại, hoặc thuộc về người khác (ADR-22);
+            409 khi đề đã khoá nội dung, khi còn câu đang soạn, khi đây là câu cuối của đề,
+            hoặc khi đề đã có lượt làm bài.
+
+    Side effects:
+        Thả bản ngân hàng của câu, xoá câu cùng phương án và lời giải, xoá ô soạn của nó, dồn
+        số các câu và các ô sau, giữ `brief.question_count` khớp số ô, rồi commit.
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id)
+    # Cửa của luật *duyệt khoá nội dung* (`services/be/AGENTS.md`): mọi đường ghi câu đi qua nó.
+    # Chặn trước khi thu hoạch, vì `harvest` tự commit.
+    assert_editable(assessment)
+
+    landed = await harvest(session, request.app.state.queue_pool, settings, assessment_id)
+    if landed:
+        logger.info("harvested %d question(s) of %s on the way to a delete", landed, assessment_id)
+    # `harvest` tự commit và nhả khoá hàng; lấy lại khoá, rồi **kiểm lại** như `approve`: một lần
+    # duyệt chen vào khe ấy không được để lần xoá này gỡ câu khỏi một đề đã khoá.
+    assessment = await _owned(session, asking, assessment_id)
+    assert_editable(assessment)
+
+    # Nạp sẵn phương án và lời giải: xoá một `Question` thì SQLAlchemy phải biết các dòng con
+    # của nó, và trong session async một lần nạp lười giữa lúc flush là một lỗi chứ không phải
+    # một câu SELECT.
+    question = await session.scalar(
+        select(Question)
+        .where(Question.id == question_id, Question.assessment_id == assessment_id)
+        .options(selectinload(Question.options), selectinload(Question.methods))
+    )
+    if question is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy câu này trong đề.")
+
+    still_drafting = await pending_count(session, assessment_id)
+    if still_drafting:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Còn {still_drafting} câu đang soạn. Đợi soạn xong rồi xoá, "
+                "để các câu sau dồn số đúng chỗ."
+            ),
+        )
+    if await _question_count(session, assessment_id) <= 1:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Đây là câu cuối cùng của đề nên không xoá được. "
+                "Muốn làm lại cả đề thì nhờ Kriky soạn câu mới trước."
+            ),
+        )
+    # Phòng thủ, và chặn theo **lượt làm bài**, không theo lượt trả lời: nộp pha 1 ghi một
+    # `QuestionOutcome` cho mọi câu, kể cả câu bỏ trắng, nên một bài nộp trắng có dòng trỏ khoá
+    # ngoại về câu mà không có `Answer` nào. Bốn bảng ấy đều treo dưới một `Attempt`. Hôm nay
+    # chưa tới được -- đề còn sửa được thì chưa ai làm (ADR-02 chỉ cho thu hồi trước giờ mở).
+    sat = (
+        await session.scalar(
+            select(func.count()).select_from(Attempt).where(Attempt.assessment_id == assessment_id)
+        )
+        or 0
+    )
+    if sat:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Đề đã có {sat} lượt làm bài nên không xoá câu được. "
+                "Xoá một câu đã có người làm sẽ làm hỏng bài của họ."
+            ),
+        )
+
+    gone = question.order_index
+    await release(session, assessment.teacher_id, question_id)
+    for row in [*question.options, *question.methods]:
+        await session.delete(row)
+    await session.flush()
+    await session.delete(question)
+    slot = await session.scalar(
+        select(DraftItem).where(DraftItem.assessment_id == assessment_id, DraftItem.ordinal == gone)
+    )
+    if slot is not None:
+        await session.delete(slot)
+    await session.flush()
+
+    await _close_the_gap(session, assessment_id, gone)
+
+    # Một ô ít đi thì brief cũng ít đi một ô: `harvest` dùng con số này để biết ô nào đã cũ.
+    brief = await session.get(DraftBrief, assessment_id)
+    if brief is not None and slot is not None and brief.question_count > 1:
+        brief.question_count -= 1
+
+    await session.commit()
+    logger.info("deleted question %d of %s; the bank keeps its copy if any", gone, assessment_id)
 
 
 @router.get("/teacher/assessments/{assessment_id}/publications", response_model=Publications)
