@@ -32,6 +32,8 @@ chọn skill nào được nạp trước khi graph chạy.
 
 import json
 import logging
+import re
+import unicodedata
 from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -44,7 +46,12 @@ from contracts import NextStepCompleted, NextStepRequested, PlanStep, ToolSpec, 
 
 logger = logging.getLogger(__name__)
 
-
+# Câu *"Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở"* ở dưới không còn bao giờ bắn: từ
+# 13/10/2026 lối "Khác" mở ô cho giáo viên ghi, và câu họ ghi -- không phải chữ "Khác" -- tới đây.
+# Nó **được giữ nguyên văn** vì đo ra prompt nhạy theo đúng chỗ ấy (plan 4c, sau T5): bỏ nó thì
+# *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* tụt 23 → 6/24 (run-93, run-92), thay bằng một
+# câu đúng với hành vi mới (*"Giáo viên ghi câu trả lời của riêng họ thì dùng đúng câu ấy"*) thì
+# 0/24 (run-94). Đổi câu này phải đo lại ca ấy.
 _CORE = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
 
 Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
@@ -58,7 +65,8 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong bốn việc:
   hoặc khi câu vừa rồi có thể hiểu theo nhiều cách. Một câu hỏi dạng CÓ/KHÔNG — "bạn có muốn…",
   "bạn có cần…", "mình đặt tên nhé?" — KHÔNG BAO GIỜ là ask_clarify: nó không lấp một chỗ trống
   nào, nó chỉ bắt giáo viên gõ thêm một lượt. Nếu bạn định hỏi một câu mà câu trả lời "tuỳ bạn"
-  cũng xong việc, thì đừng hỏi, cứ làm.
+  cũng xong việc, thì đừng hỏi, cứ làm. Hỏi thì kèm ít nhất 3 lựa chọn trong choices; hệ thống tự
+  thêm "Khác". Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở.
 - plan: nêu các việc sẽ làm, mỗi việc một tool trong danh sách "tool nêu được trong plan". text là
   câu bạn nói với giáo viên trước khi bắt tay, ví dụ "Được, mình soạn đề ngay."
 
@@ -84,8 +92,9 @@ Bốn điều không thương lượng:
   lớp nào?" cũng vậy: đừng đưa lựa chọn, hãy nói rằng việc phát hành làm ở biểu mẫu phát hành.
 - Khi việc phải chọn là quyết định sư phạm — chọn nguồn câu hỏi, chọn độ khó — bạn đưa thông tin và
   KHÔNG đánh dấu phương án nào là nên chọn. Giáo viên có thẩm quyền đó.
-- Không đoán khi một cái tên có thể trỏ tới nhiều thứ. Hỏi lại, và chỉ đưa những lựa chọn có trong
-  dữ liệu bạn được cấp. Không bịa tên lớp, tên đề hay con số nào.
+- Không đoán khi một cái tên có thể trỏ tới nhiều thứ. Hỏi lại; hỏi về một tên -- lớp, tài liệu,
+  mục -- thì chỉ đưa những lựa chọn có trong dữ liệu bạn được cấp. Không bịa tên lớp, tên đề hay
+  con số nào về dữ liệu.
 
 Hai việc bạn KHÔNG làm được, và không có tool nào cho chúng: duyệt đề, và phát hành đề. Giáo viên tự
 làm ở panel bên phải. Nếu họ nhờ bạn duyệt hay phát hành, hãy nói rằng chỗ làm việc đó là panel và
@@ -114,14 +123,72 @@ Cách viết:
 # đúng một tên mục, hay các tên mục nối bằng `;`.
 _BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệu, nên TRƯỚC khi nêu plan:
 1. call_tool list_chapters — document_id. Cần bài hay mục bên trong một chương thì
-   call_tool get_chapter — document_id, node. Kết quả list_documents có nhiều tài liệu cùng hợp
-   → ask_clarify hỏi tài liệu nào.
+   call_tool get_chapter — document_id, node. document_id đã có ở dòng tài liệu đính kèm thì
+   không gọi list_documents. Kết quả list_documents có nhiều tài liệu cùng hợp → ask_clarify
+   hỏi tài liệu nào.
 2. Khớp phạm vi giáo viên nói với các node vừa đọc. Không khớp, hay khớp nhiều cách →
-   ask_clarify, chỉ viết câu hỏi; hệ thống tự dựng lựa chọn là tên chương, bài. Giáo viên muốn
+   ask_clarify, choices chép đúng label của các mục có thể hợp. Giáo viên muốn
    cả cuốn thì chọn mọi chương.
-3. Môn và khối suy được từ tên tài liệu thì dùng luôn. topic_scope là tên các mục đã chọn.
+3. Môn và khối suy được từ tên tài liệu thì dùng luôn -- trong known, chữ trích của chúng là
+   tên tài liệu. topic_scope là label của mục nói về đúng điều giáo viên nói --
+   mục KHỚP lời giáo viên, không phải một mục khác thay vào; không label nào trong kết quả tool
+   nói về điều ấy thì topic_scope=?.
 4. Plan như quy trình soạn đề, create_draft thêm document_id và nodes (các số node đã chọn).
    Lời nêu plan nói rõ số câu được rải đều theo độ dài các mục, mỗi câu một mục khác nhau."""
+
+# Mở thư viện khi giáo viên nhắc sách mà **không** đính kèm (plan 4c T2b). Chỉ đúng ở lượt không có
+# sách, mà chỉ có tác dụng khi đứng **giữa** các nhánh quyết định của `soan-de` -- nên skill để một
+# chỗ trống, `_compose` điền hay xoá theo lượt. Đo:
+# - dòng cố định trong skill: nó thắng cả lượt **có** chip -- `tai-lieu-chua-doc` 24 lần, bản đã
+#   commit 22/24, bản có `known` 10/24: model gọi `list_documents` dù `document_id` ở ngay dòng
+#   đính kèm;
+# - một đoạn riêng sau skill: lượt có chip 6/6, nhưng `tai-lieu-khong-dinh` (nhắc sách, không chip)
+#   0/6 -- model ghi khối bịa vào `known` rồi nêu plan, như thể không đọc thấy đoạn ấy;
+# - sau nhánh *còn ? → hỏi lại* (T3): khi model thôi bịa khối thì nhánh hỏi lại thắng --
+#   `tai-lieu-khong-dinh` 11--14/24, hỏi khối rồi soạn đề không sách. Đứng **trước** nhánh ấy thì
+#   nó thắng, nhưng đứng đầu ở mọi lượt soạn đề thì model gọi `list_documents` cả khi giáo viên
+#   không nhắc sách (run-26: 0/6 ở mọi ca đủ mục). Nên dòng này chỉ được điền khi chính câu của
+#   giáo viên nhắc tới sách hay tệp (`_BOOK_WORDS`). Từ T5, chữ không còn quyết một mình: lượt có
+#   dòng này mà model hỏi lại hay soạn đề không sách thì `_library_first` gọi `list_documents`.
+_LIBRARY_SLOT = re.compile(r"^([ \t]*)\{thư viện\}[ \t]*\n?", re.MULTILINE)
+_LIBRARY = (
+    "- giáo viên nhắc tới một cuốn sách hay tệp đã tải lên để soạn theo mà không đính kèm → "
+    "call_tool list_documents TRƯỚC, kể cả khi còn ? -- khối, môn có thể đọc ra từ tên tài liệu;"
+)
+# Chữ cho biết giáo viên đang nói về một tài liệu. *"Danh sách"* bị bỏ trước khi tìm: *"danh sách
+# lớp"* không phải một cuốn sách.
+_BOOK_WORDS = re.compile(
+    r"\b(sách|tài liệu|tệp|file|giáo trình|giáo án|đề cương|bài giảng|cuốn|quyển|pdf|docx|"
+    r"slide|sgk)\b",
+    re.IGNORECASE,
+)
+_NOT_A_BOOK = re.compile(r"danh\s+sách", re.IGNORECASE)
+
+
+def _mentions_book(request: NextStepRequested) -> bool:
+    """Giáo viên có nhắc tới một tài liệu, kể từ plan gần nhất, không.
+
+    Mọi câu của giáo viên từ plan gần nhất, không chỉ câu cuối (review T3): nhắc sách ở lượt này
+    rồi trả lời *"lớp 8"* ở lượt sau thì việc soạn đề vẫn là việc soạn theo sách. Plan đã nêu thì
+    việc ấy xong -- một đề mới không nhắc sách là đề không sách.
+
+    Args:
+        request: Lượt đang hỏi.
+
+    Returns:
+        True khi một câu ấy có một chữ trong `_BOOK_WORDS`, không tính *"danh sách"*.
+    """
+    for turn in reversed(request.history):
+        if turn.kind == "plan":
+            return False
+        if turn.kind != "teacher":
+            continue
+        # NFC trước khi tìm: macOS gửi chữ có dấu dạng phân rã, "sách" phân rã không khớp (ADR-23).
+        said = _NOT_A_BOOK.sub(" ", unicodedata.normalize("NFC", turn.text))
+        if _BOOK_WORDS.search(said):
+            return True
+    return False
+
 
 # Tool đọc tài liệu; kết quả của một trong số chúng trong lịch sử là *đoạn chat đang chọn sách*.
 # Cùng bộ với `teacher_chat._DOCUMENT_READS` bên BE.
@@ -158,8 +225,499 @@ def _book_in_view(request: NextStepRequested) -> bool:
     return False
 
 
-class _NothingToSay(ValueError):
+def _opens_library(request: NextStepRequested, chosen: tuple[str, ...]) -> bool:
+    """Lượt này có dòng mở thư viện (`_LIBRARY`) không. Hàm thuần.
+
+    Không chip, chưa đọc sách: lượt duy nhất mà mở thư viện là một bước có nghĩa. Chip chưa sẵn
+    sàng thì không -- dòng báo chip đã dặn đừng soạn. Và chỉ khi một skill được chọn có chỗ trống
+    cho dòng ấy, tức đang soạn đề.
+
+    Args:
+        request: Lượt đang hỏi.
+        chosen: Tên các skill Jev chọn cho lượt này.
+
+    Returns:
+        True khi `_compose` điền `_LIBRARY` vào chỗ trống.
+    """
+    return (
+        request.attached_document is None
+        and not _book_in_view(request)
+        and any(tool.name == "list_documents" for tool in request.catalog)
+        and _mentions_book(request)
+        and any(_LIBRARY_SLOT.search(skill.body) for skill in skills.named(chosen))
+    )
+
+
+def _library_first(
+    step: NextStepCompleted, request: NextStepRequested, chosen: tuple[str, ...]
+) -> NextStepCompleted:
+    """Ở lượt có dòng mở thư viện, một câu hỏi lại hay một đề mở không tài liệu thành lời gọi
+    `list_documents`. Hàm thuần.
+
+    Dòng ấy dặn đúng điều này, và chữ không giữ được nó (plan 4c T5): nhánh *"còn ? → hỏi lại"*
+    thắng mỗi khi model suy được thêm một mục -- *"cụm suy ra môn vẫn là phạm vi"* chữa
+    *"kiểm tra nhanh phần logarit"* (5 → 24/24) mà kéo `tai-lieu-khong-dinh` 24 → 16/24, model hỏi
+    khối thay vì mở thư viện nơi khối nằm sẵn trong tên tài liệu.
+
+    Chỉ hai hình dạng ấy (review T5): `_BOOK_WORDS` có lúc báo nhầm -- *"soạn thêm 5 câu, bám sát
+    sách giáo khoa"* là plan `start_drafting` hợp lệ, *"xuất file Word"* không nhờ soạn theo sách --
+    nên lời nói (`say`), plan không mở đề mới, và mọi lời gọi tool (`list_class`…) để nguyên.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+        chosen: Tên các skill Jev chọn cho lượt này.
+
+    Returns:
+        `call_tool list_documents` khi lượt mở thư viện mà `step` là `ask_clarify`, hay plan có
+        `create_draft` không `document_id`; không thì `step`.
+    """
+    unbooked = step.kind == "plan" and any(
+        one.tool_name == "create_draft" and not str(one.args.get("document_id") or "").strip()
+        for one in step.steps
+    )
+    if not (step.kind == "ask_clarify" or unbooked) or not _opens_library(request, chosen):
+        return step
+    logger.info("model chose %s on a turn that opens the library -- listing first", step.kind)
+    return NextStepCompleted(
+        request_id=step.request_id,
+        kind="call_tool",
+        tool_name="list_documents",
+        model_tokens=step.model_tokens,
+    )
+
+
+class _AskAgain(ValueError):
+    """Một đề nghị hỏng theo kiểu hỏi lại model một lần thường là sửa được."""
+
+
+class _NothingToSay(_AskAgain):
     """Model chọn `say` hay `ask_clarify` mà để `text` rỗng."""
+
+
+class _Flawed(_AskAgain):
+    """Một đề nghị dùng được nhưng thiếu một thứ: mang nó theo, để lần hỏi lại hỏng thì còn nó.
+
+    Lưới hỏi lại không bao giờ được làm kết quả tệ hơn khi chưa có nó (review T2b): lần hai hỏng
+    kiểu khác -- im lặng, provider lỗi -- thì giữ đề nghị lần đầu. Lần hai cũng thiếu thì giữ
+    lần hai cho plan, vì cả hai đều tới BE và BE tự xét; với câu hỏi thì giữ lần có nhiều lựa
+    chọn hơn (review T3: lần hai có thể còn ít hơn lần đầu).
+    """
+
+    def __init__(self, flaw: str, step: NextStepCompleted) -> None:
+        super().__init__(flaw)
+        self.step = step
+
+
+class _IncompletePlan(_Flawed):
+    """Model nêu plan mà một bước thiếu tham số bắt buộc của tool ấy.
+
+    Đo được khi `soan-de` bắt ghi giá trị bốn mục vào `known` (plan 4c T2b): hỏi thừa giảm từ
+    80/192 xuống 1/192, nhưng ~11/192 plan nêu `create_draft` không kèm tham số nào -- giá trị đã
+    nằm ở `known`, model không chép sang. BE `vet_plan` từ chối đúng những plan ấy, và giáo viên
+    nhận một lời từ chối cho một câu đã đủ ý. Hỏi lại ở đây rẻ hơn.
+    """
+
+
+class _FewChoices(_Flawed):
+    """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (plan 4c T3: ít nhất 3)."""
+
+
+def _answers(choices: tuple[str, ...], question: str) -> tuple[str, ...]:
+    """Những lựa chọn thật sự là một câu trả lời để bấm, gộp trùng.
+
+    Ba thứ trông như lựa chọn mà không phải, đều đo được ở ca thiếu cả bốn mục (plan 4c T3):
+
+    - kết bằng "?" -- một câu hỏi (*"Môn học là gì?"*, run-41);
+    - không chữ số nào và nằm nguyên trong chính câu hỏi -- tên một mục mà câu hỏi vừa kể
+      (*"Môn học"*, *"Khối lớp"* cho câu *"cho mình biết môn học, khối lớp…"*: 15/30 lượt, run-52 và
+      run-53). Có chữ số thì giữ: *"12A"*, *"15 câu"* là giá trị, dù câu hỏi có nhắc tới chúng;
+    - "Khác" -- hệ thống tự có lối ấy (FE vẽ "Khác…" để giáo viên tự ghi), nên model viết nó không
+      làm đủ ba (review T3: 58/158 câu hỏi có nó).
+
+    Args:
+        choices: `choices` model trả về.
+        question: `text` của câu hỏi.
+
+    Returns:
+        Các lựa chọn còn lại, theo thứ tự, không trùng.
+    """
+    asked = " ".join(question.casefold().split())
+    kept: dict[str, str] = {}
+    for one in choices:
+        text = one.strip()
+        folded = " ".join(text.casefold().split())
+        if not text or text.endswith("?") or folded == _OTHER.casefold():
+            continue
+        if not any(char.isdigit() for char in text) and folded in asked:
+            continue
+        kept.setdefault(folded, text)
+    return tuple(kept.values())
+
+
+# [CODE CHẾT 2026-10-13] "Khác" thôi là một nút gửi đi chữ "Khác": FE mở ô để giáo viên ghi rõ, và
+# câu họ ghi mới tới AGENT (người dùng chốt). Lối ấy không còn gửi chữ "Khác"; giáo viên tự gõ đúng
+# chữ ấy thì chỉ tốn một lần hỏi lại model (`_FewChoices`).
+# def _after_other(request: NextStepRequested) -> bool:
+#     """Câu mới nhất của giáo viên là nút "Khác". Hàm thuần.
+#
+#     Args:
+#         request: Lượt đang hỏi.
+#
+#     Returns:
+#         True khi giáo viên vừa nói không lựa chọn nào đúng.
+#     """
+#     said = next((turn.text for turn in reversed(request.history) if turn.kind == "teacher"), "")
+#     return said.strip().casefold() == _OTHER.casefold()
+
+
+def _choices_wanted(request: NextStepRequested) -> int:
+    """Một câu hỏi lại lượt này cần ít nhất bao nhiêu lựa chọn.
+
+    Ba, theo luật người dùng chốt -- trừ khi số ba không đúng:
+
+    - Kết quả tool gần nhất có `candidates` ít hơn ba dòng: câu hỏi về một dòng thì chỉ có bấy
+      nhiêu lựa chọn **thật**, và đòi ba là mời model bịa dòng thứ ba. Gần nhất tính từ plan gần
+      nhất, **qua** các câu của giáo viên (review T3): câu hỏi về hai lớp kéo sang lượt sau khi giáo
+      viên gõ một tên khác, và lượt ấy không gọi lại tool -- đòi ba ở đó là ép model bịa lớp.
+
+    Args:
+        request: Lượt đang hỏi.
+
+    Returns:
+        Số lựa chọn tối thiểu, có thể là 0.
+    """
+    # [CODE CHẾT 2026-10-13] Lối "Khác" không còn gửi chữ "Khác" (xem `_after_other`).
+    # if _after_other(request):
+    #     return 0
+    for turn in reversed(request.history):
+        if turn.kind == "plan":
+            break
+        if turn.kind == "tool_result":
+            listed = turn.tool_result.get("candidates")
+            if isinstance(listed, list):
+                return min(3, len(listed))
+    return 3
+
+
+def _nfc(text: str) -> str:
+    return unicodedata.normalize("NFC", text)
+
+
+# Ký tự điều khiển, trừ tab và xuống dòng. Tham số plan không đi qua `_unmangled` -- chúng là giá
+# trị, không phải chữ để dựng toán -- nên một ký tự như vậy là chữ hỏng, không phải LaTeX bị nuốt.
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _reads_first(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Plan mở đầu bằng một tool chỉ gọi được ngay -- không nêu được trong plan -- là lời gọi tool
+    ấy, chưa phải plan. Hàm thuần.
+
+    Đo ở plan 4c T5: giáo viên nhắc sách mà không đính kèm và nói đủ bốn mục (*"Lấy cuốn Toán 10
+    mình mới tải lên, ra 8 câu phần mệnh đề"*) thì nhánh *"không còn ? → nêu plan ngay"* thắng dòng
+    mở thư viện: 16/24 lượt model nêu plan `list_documents → create_draft → start_drafting` -- biết
+    phải mở thư viện, chỉ chọn sai `kind` -- và BE từ chối cả plan (`list_documents` không có trong
+    catalog pha thực hiện), giáo viên nhận câu lùi. Bản đã commit 12/24 gọi tool, bản hiện tại
+    trước luật này 4/24. Đổi chữ đã thua nhiều lần ở chính chỗ này (T2b, T3); đây là cấu trúc. Các
+    bước sau bị bỏ: ở bước kế trong cùng vòng gọi tool của BE, model đọc kết quả rồi nêu lại plan.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Request lượt này, mang hai danh sách tool.
+
+    Returns:
+        `call_tool` cho bước đầu khi bước ấy là tool `catalog` mà không phải tool `plannable`, và
+        chưa được gọi với đúng tham số ấy từ plan gần nhất (review T5: không thì BE hỏi lại tới trần
+        `max_tool_steps` rồi báo lỗi); không thì chính `step`.
+    """
+    if step.kind != "plan":
+        return step
+    first = step.steps[0]
+    callable_now = {tool.name for tool in request.catalog}
+    plannable = {tool.name for tool in request.plannable}
+    if first.tool_name not in callable_now or first.tool_name in plannable:
+        return step
+    if _called_since_plan(request, first.tool_name, first.args):
+        return step
+    logger.info("plan opens with %s, a read -- calling it first", first.tool_name)
+    return NextStepCompleted(
+        request_id=step.request_id,
+        kind="call_tool",
+        tool_name=first.tool_name,
+        tool_args=dict(first.args),
+        model_tokens=step.model_tokens,
+    )
+
+
+def _since_plan(request: NextStepRequested) -> list[TurnRecord]:
+    """Các lượt từ sau plan gần nhất, cũ nhất trước. Hàm thuần."""
+    turns: list[TurnRecord] = []
+    for turn in reversed(request.history):
+        if turn.kind == "plan":
+            break
+        turns.append(turn)
+    return turns[::-1]
+
+
+def _called_since_plan(request: NextStepRequested, tool: str, args: dict[str, object]) -> bool:
+    """`tool` đã được gọi với đúng `args` (so bằng chữ) từ plan gần nhất chưa. Hàm thuần."""
+    wanted = {key: str(value) for key, value in args.items()}
+    return any(
+        turn.kind == "tool_call"
+        and turn.tool_name == tool
+        and {key: str(value) for key, value in turn.tool_args.items()} == wanted
+        for turn in _since_plan(request)
+    )
+
+
+def _tables_read(request: NextStepRequested) -> set[str]:
+    """`document_id` của các tài liệu đã đọc mục lục (`list_chapters`, `get_chapter`) từ plan gần
+    nhất. Đọc lượt `tool_call`: lượt `tool_result` không chở tham số. Một lời gọi trả lỗi
+    (`document_id` bịa) vẫn tính -- gọi lại cũng ra đúng lỗi ấy. Hàm thuần."""
+    return {
+        str(turn.tool_args.get("document_id") or "").strip()
+        for turn in _since_plan(request)
+        if turn.kind == "tool_call" and turn.tool_name in {"list_chapters", "get_chapter"}
+    }
+
+
+def _toc_first(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Plan tạo đề theo một tài liệu chưa đọc mục lục là lời gọi `list_chapters` của tài liệu ấy.
+    Hàm thuần.
+
+    Đo ở plan 4c T5: không chip, giáo viên nhắc sách -- `list_documents`, hỏi *"cuốn này chứ?"*,
+    giáo viên bấm tên cuốn -- rồi model nêu `create_draft` với `document_id` mà không đọc mục lục
+    bao giờ. Thiếu `nodes` thì BE dừng ở bước 1; có `nodes` thì đó là số **bịa** (*"1,2,3"*,
+    *"5"*: 4/24 lượt, run-87) mà BE nhận -- không chip thì `nodes` tuỳ chọn, `_document_scope` chỉ
+    kiểm nút có trong cây -- và đề soạn trên mục sai. Điều kiện vì thế là *chưa đọc mục lục*, không
+    phải *thiếu `nodes`* (review T5); đọc rồi thì không gọi lại, plan đi tiếp cho BE xét. Chỉ lượt
+    không chip: có chip thì thủ tục sách đọc mục lục từ trước, và `bind_book` điền `nodes`.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        `call_tool list_chapters` cho tài liệu của `create_draft` khi mục lục của nó chưa được đọc
+        từ plan gần nhất và `list_chapters` gọi được lượt này; không thì chính `step`.
+    """
+    if step.kind != "plan" or request.attached_document is not None:
+        return step
+    if not any(tool.name == "list_chapters" for tool in request.catalog):
+        return step
+    read = _tables_read(request)
+    for one in step.steps:
+        if one.tool_name != "create_draft":
+            continue
+        document = str(one.args.get("document_id") or "").strip()
+        # `{1.document_id}` là tham chiếu tới kết quả một bước trước (ADR-25), chưa phải một id.
+        if document and not document.startswith("{") and document not in read:
+            logger.info("plan drafts from %s before reading its chapters -- reading them", document)
+            return NextStepCompleted(
+                request_id=step.request_id,
+                kind="call_tool",
+                tool_name="list_chapters",
+                tool_args={"document_id": document},
+                model_tokens=step.model_tokens,
+            )
+    return step
+
+
+def _listed_documents(request: NextStepRequested) -> list[dict] | None:
+    """`candidates` của `list_documents` gần nhất từ plan gần nhất, khi sau nó **chưa** đọc mục
+    lục nào; `None` khi không có hay đã đọc. Hàm thuần."""
+    for turn in reversed(_since_plan(request)):
+        if turn.kind == "tool_result" and turn.tool_name in {"list_chapters", "get_chapter"}:
+            return None
+        if turn.kind == "tool_result" and turn.tool_name == "list_documents":
+            listed = turn.tool_result.get("candidates")
+            if not isinstance(listed, list):
+                return []
+            return [one for one in listed if isinstance(one, dict)]
+    return None
+
+
+def _picked_document(request: NextStepRequested) -> str:
+    """`document_id` của tài liệu giáo viên vừa chọn: câu mới nhất của họ, đến **sau** kết quả
+    `list_documents`, trùng đúng một `label` trong đó (nút BE bày gửi đúng chữ ấy). Rỗng khi
+    không. Hàm thuần."""
+    listed = _listed_documents(request)
+    if not listed:
+        return ""
+    turns = _since_plan(request)
+    answered = next(
+        (turn for turn in reversed(turns) if turn.kind in {"teacher", "tool_result"}), None
+    )
+    if answered is None or answered.kind != "teacher":
+        return ""
+    said = _nfc(answered.text).strip().casefold()
+    matched = [
+        str(one.get("document_id") or "")
+        for one in listed
+        if _nfc(str(one.get("label") or "")).strip().casefold() == said
+    ]
+    return matched[0] if len(matched) == 1 and matched[0] else ""
+
+
+def _picked_book_first(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Giáo viên vừa chọn một tài liệu trong danh sách: đọc mục lục của nó, bằng code. Hàm thuần.
+
+    Đo ở plan 4c T5: sau khi giáo viên bấm tên cuốn, model tự gọi `list_chapters` 0/24 lượt
+    (run-87; 20/24 lượt đạt đều do `_toc_first`), còn lại nêu plan -- có lúc `nodes` bịa, có lúc
+    không `document_id` (âm thầm soạn đề không sách). Giáo viên đã chọn, nên đây không phải chọn
+    hộ; và không còn phụ thuộc model ở đúng bước model hỏng (review T5, hướng iii).
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        `call_tool list_chapters` cho tài liệu vừa chọn khi mục lục của nó chưa đọc và `step` chưa
+        tự đọc nó; không thì chính `step`.
+    """
+    if request.attached_document is not None:
+        return step
+    if not any(tool.name == "list_chapters" for tool in request.catalog):
+        return step
+    picked = _picked_document(request)
+    if not picked or picked in _tables_read(request):
+        return step
+    if (
+        step.kind == "call_tool"
+        and step.tool_name in {"list_chapters", "get_chapter"}
+        and str(step.tool_args.get("document_id") or "").strip() == picked
+    ):
+        return step
+    logger.info("teacher picked %s -- reading its chapters", picked)
+    return NextStepCompleted(
+        request_id=step.request_id,
+        kind="call_tool",
+        tool_name="list_chapters",
+        tool_args={"document_id": picked},
+        model_tokens=step.model_tokens,
+    )
+
+
+def _misfiled_read(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Câu hỏi lại ngay sau `list_documents` mà mang `list_chapters` của một tài liệu trong danh
+    sách là lời gọi ấy, nộp nhầm `kind`. Hàm thuần.
+
+    Đo ở plan 4c T5 (run-88): ngay sau `list_documents`, 16/24 lượt model chọn `ask_clarify` mà
+    điền `tool_name=list_chapters` với `document_id` của một tài liệu trong danh sách (15 lượt là
+    cuốn Lớp 10 giáo viên nhắc) -- nó đã chọn sách, chỉ chọn sai `kind`. Bản đã commit tự gọi
+    `list_chapters` 17/24: đây là trả lại đúng lựa chọn của model, không phải code chọn hộ. Hẹp có
+    chủ ý: câu hỏi về khối mang `tool_name=list_class` (`thieu-khoi-co-so-cau`, 9 lượt đúng) và câu
+    hỏi chương mang `list_chapters` **sau** khi đã đọc mục lục (`tai-lieu-khong-khop`, 36 lượt
+    đúng) là câu hỏi thật.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        `call_tool list_chapters` khi điều kiện trên đúng và tài liệu ấy chưa đọc mục lục; không thì
+        chính `step`.
+    """
+    if step.kind != "ask_clarify" or step.tool_name != "list_chapters":
+        return step
+    if request.attached_document is not None:
+        return step
+    if not any(tool.name == "list_chapters" for tool in request.catalog):
+        return step
+    listed = _listed_documents(request) or []
+    document = str(step.tool_args.get("document_id") or "").strip()
+    if not document or document not in {str(one.get("document_id") or "") for one in listed}:
+        return step
+    if document in _tables_read(request):
+        return step
+    logger.info("question names list_chapters of %s -- calling it", document)
+    return NextStepCompleted(
+        request_id=step.request_id,
+        kind="call_tool",
+        tool_name="list_chapters",
+        tool_args={"document_id": document},
+        model_tokens=step.model_tokens,
+    )
+
+
+# Câu hỏi lại ngay sau `list_documents` (plan 4c T5, review T5 hướng ii). Nút của câu ấy luôn là
+# tên tài liệu -- BE coi câu hỏi đến sau một danh sách `candidates` là câu hỏi về dòng (ADR-23) --
+# mà chữ model viết lệch nút 5--17/24 lượt (*"phần mệnh đề nằm ở mục nào?"*, run-83, run-87).
+_WHICH_BOOK = "Bạn soạn theo tài liệu nào?"
+
+
+def _which_book(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Câu hỏi lại ngay sau một danh sách tài liệu hỏi đúng điều nút của nó trả lời. Hàm thuần.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        `step` với `text` là `_WHICH_BOOK` khi nó là `ask_clarify`, không chip, và lượt **ngay
+        trước** nó là kết quả một `list_documents` có ít nhất một tài liệu -- chưa câu nào của
+        giáo viên chen vào; không thì chính `step`. Review chung sau T5: bản đầu đè mọi câu hỏi
+        cho tới khi đọc mục lục, kể cả sau khi giáo viên đã ghi *"thôi, không dùng sách"* qua lối
+        "Khác" -- câu hỏi khối hay số câu thành câu hỏi tài liệu.
+    """
+    if step.kind != "ask_clarify" or request.attached_document is not None:
+        return step
+    if not _listed_documents(request):
+        return step
+    spoken = [turn for turn in _since_plan(request) if turn.kind in {"teacher", "tool_result"}]
+    last = spoken[-1] if spoken else None
+    if last is None or last.kind != "tool_result" or last.tool_name != "list_documents":
+        return step
+    return step.model_copy(update={"text": _WHICH_BOOK})
+
+
+def _garbled(steps: tuple[PlanStep, ...]) -> str:
+    """Bước đầu tiên có tham số mang ký tự điều khiển, gọi tên ra; rỗng khi không bước nào.
+
+    Đo được ở plan 4c T3: hai lượt trong ~1100 trả *"tỉ lệ th\\x13"*, *"tỉ lệ th\\x1c"* làm
+    `topic_scope` (run-53, run-54; nguồn chưa rõ) -- chữ ấy thành tên đề giáo viên đọc. Hỏi lại
+    model một lần như một plan thiếu tham số.
+
+    Args:
+        steps: Các bước model nêu.
+
+    Returns:
+        Một dòng cho log, hoặc chuỗi rỗng.
+    """
+    for index, step in enumerate(steps, start=1):
+        for key, value in step.args.items():
+            if _CONTROL.search(str(value)):
+                return f"step {index} ({step.tool_name}) has a control character in {key}"
+    return ""
+
+
+def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
+    """Bước đầu tiên thiếu một tham số bắt buộc, gọi tên ra; rỗng khi không bước nào thiếu.
+
+    Luật của `vet_plan` bên BE -- tham số khai trong catalog, trừ `optional`, phải **có mặt** --
+    trừ đúng một chỗ BE tự lo: đoạn chat gắn một cuốn sách sẵn sàng thì `bind_book` điền
+    `document_id` **trước** `vet_plan`, nên thiếu nó không phải lý do hỏi lại (review T2b). `nodes`
+    thì vẫn tính: `bind_book` chỉ điền nó khi `topic_scope` trùng đúng tên mục. Tool không có trong
+    catalog thì để BE nói: đó là lời từ chối của nó.
+
+    Args:
+        steps: Các bước model nêu.
+        request: Lượt đang hỏi -- catalog pha thực hiện, và chip của đoạn chat.
+
+    Returns:
+        Một dòng cho log, hoặc chuỗi rỗng.
+    """
+    attached = request.attached_document
+    filled_by_be = {"document_id"} if attached is not None and attached.state == "ready" else set()
+    specs = {spec.name: spec for spec in request.plannable}
+    for index, step in enumerate(steps, start=1):
+        spec = specs.get(step.tool_name)
+        if spec is None:
+            continue
+        missing = set(spec.arguments) - set(step.args) - set(spec.optional) - filled_by_be
+        if missing:
+            return f"step {index} ({step.tool_name}) lacks {sorted(missing)}"
+    return ""
 
 
 # Câu nói khi model hai lần liền để trống lời. Trung tính có chủ ý: **không** lùi về mock của
@@ -167,6 +725,11 @@ class _NothingToSay(ValueError):
 # lớp 10 về mệnh đề"* thành câu hỏi *"bạn muốn xem lớp nào?"* (review A1). Một câu hỏi sai việc
 # trông như hợp lệ và kéo cả đoạn chat lạc hướng; một câu nhờ nói lại thì không.
 _UNCLEAR = "Mình chưa rõ ý bạn lắm. Bạn nói lại giúp mình nhé?"
+
+# Chữ của lối "Khác" mà thẻ hỏi lại tự vẽ (FE, người dùng chốt 13/10/2026): model viết nó vào
+# `choices` thì không phải một lựa chọn (`_answers`). Cùng chữ với `teacher_chat.OTHER_CHOICE` bên
+# BE và `OTHER` trong `Chat.tsx` -- ba nơi không import nhau, một test giữ chúng khớp.
+_OTHER = "Khác"
 
 
 class _Argument(BaseModel):
@@ -274,6 +837,19 @@ class _Proposal(BaseModel):
             "say và ask_clarify."
         ),
     )
+    # Plan 4c T3 (người dùng chốt 12/10/2026): hỏi lại thì có ít nhất 3 lựa chọn do model đề xuất,
+    # FE vẽ thêm lối "Khác" để giáo viên tự ghi. Câu hỏi về một dòng -- lớp, tài liệu, mục -- thì BE
+    # chỉ giữ chữ khớp đúng một tên nó đã đọc (`teacher_chat._choices`, hậu ký ADR-23), nên lời dặn
+    # ở đây là *chép đúng tên*.
+    choices: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Chỉ với ask_clarify: ít nhất 3 câu trả lời ngắn giáo viên có thể bấm, mỗi câu một khả "
+            "năng khác nhau, viết đúng như lời giáo viên sẽ trả lời -- một giá trị, không phải tên "
+            "một mục hay một câu hỏi. Hỏi về một lớp, một tài liệu hay một mục thì chép đúng tên "
+            "trong kết quả tool. Không đánh dấu lựa chọn nào là nên chọn. Các kind khác để trống."
+        ),
+    )
     tool_name: str = ""
     tool_args: tuple[_Argument, ...] = ()
     steps: tuple[_Step, ...] = ()
@@ -292,26 +868,30 @@ class _Proposal(BaseModel):
 
         Returns:
             Đề nghị, kèm hai field model không bao giờ được hỏi. `steps` chỉ đi theo một `plan`,
-            vì hợp đồng từ chối chúng ở mọi `kind` khác. `choices` để rỗng:
-            BE tự viết các lựa chọn cho một câu hỏi lại từ những dòng nó đã đọc
-            (ADR-23), nên hỏi model lấy chúng là hỏi một thứ rồi bị ném đi.
+            vì hợp đồng từ chối chúng ở mọi `kind` khác. `choices` chỉ đi theo `ask_clarify`: BE
+            dựng nút từ chúng (plan 4c T3) -- trước T3 field này để rỗng, vì ADR-23 bản đầu bỏ
+            hết chữ model viết.
         """
+        # NFC cho mọi chữ model viết (plan 4c T3): gpt-4o-mini có lúc trả "ứ" ở dạng phân rã --
+        # "ư" + dấu sắc rời (run-57) -- và chữ ấy không khớp nhãn BE, lời giáo viên hay `bind_book`,
+        # dù in ra trông y hệt.
         return NextStepCompleted(
             request_id=request_id,
             kind=self.kind,
-            text=self.text,
+            text=_nfc(self.text),
             tool_name=self.tool_name,
-            tool_args={argument.param: argument.value for argument in self.tool_args},
+            tool_args={argument.param: _nfc(argument.value) for argument in self.tool_args},
             steps=tuple(
                 PlanStep(
                     tool_name=step.tool_name,
-                    args={argument.param: argument.value for argument in step.args},
-                    title=step.title,
+                    args={argument.param: _nfc(argument.value) for argument in step.args},
+                    title=_nfc(step.title),
                 )
                 for step in self.steps
             )
             if self.kind == "plan"
             else (),
+            choices=tuple(_nfc(one) for one in self.choices) if self.kind == "ask_clarify" else (),
             model_tokens=model_tokens,
         )
 
@@ -386,8 +966,15 @@ def _compose(state: ProposeState) -> dict:
     # cache của provider càng dùng lại được nhiều. Skill nằm **sau** lõi, nên không skill nào nói
     # trước được một luật an toàn.
     opening = [_CORE]
+    library = _opens_library(request, state["skills"])
+    # Một hàm chứ không một chuỗi thay thế: `re.sub` đọc `\` trong chuỗi thay thế như escape, và
+    # một ngày `_LIBRARY` có dấu `\` (LaTeX) thì chuỗi ấy hỏng lặng lẽ (review T2b).
     for skill in skills.named(state["skills"]):
-        opening.append(skill.body)
+        opening.append(
+            _LIBRARY_SLOT.sub(
+                lambda slot: f"{slot.group(1)}{_LIBRARY}\n" if library else "", skill.body
+            )
+        )
     if request.teacher_name:
         opening.append(f"Bạn đang nói với {request.teacher_name}.")
     if request.attached_document is not None:
@@ -486,6 +1073,12 @@ async def _choose(state: ProposeState) -> dict:
     Returns:
         Mảnh `step` của state, với `model_tokens` điền từ provider chứ không điền từ
         model.
+
+    Raises:
+        _NothingToSay: `say` hay `ask_clarify` mà `text` rỗng.
+        _FewChoices: `ask_clarify` ít lựa chọn hơn `_choices_wanted`; mang theo câu hỏi ấy.
+        _IncompletePlan: Plan có bước thiếu tham số bắt buộc; mang theo plan ấy, để `propose`
+            còn dùng được nó khi lần hỏi lại hỏng.
     """
     model = llm.with_fallback(lambda chat: chat.with_structured_output(_Proposal, include_raw=True))
     answered = await model.ainvoke(state["messages"])
@@ -517,7 +1110,35 @@ async def _choose(state: ProposeState) -> dict:
 
     # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
-    return {"step": _unmangled(proposal).completed(request_id="", model_tokens=spent)}
+    request = state["request"]
+    step = _unmangled(proposal).completed(request_id="", model_tokens=spent)
+    # Luật thứ tự đọc (plan 4c T5): đề nghị đúng việc mà sai bước thì thành **một lời gọi tool
+    # đọc**; ở bước kế trong cùng vòng gọi tool của BE, model nêu lại với kết quả trong tay. Bước
+    # nào đã đọc rồi thì không gọi lại -- mỗi luật tự kiểm, không thì BE hỏi tới trần rồi báo lỗi.
+    step = _reads_first(step, request)
+    step = _picked_book_first(step, request)
+    step = _misfiled_read(step, request)
+    step = _toc_first(step, request)
+    step = _library_first(step, request, state["skills"])
+    step = _which_book(step, request)
+    if step.kind == "plan":
+        lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
+        if lacking:
+            raise _IncompletePlan(lacking, step)
+    if step.kind == "ask_clarify":
+        # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`_answers`) -- bấm
+        # chúng là gửi đi một thứ không trả lời gì.
+        answers = _answers(step.choices, step.text)
+        # [CODE CHẾT 2026-10-13] Lối "Khác" không còn gửi chữ "Khác" (xem `_after_other`).
+        # if _after_other(state["request"]):
+        #     # Plan 4c T5: `_CORE` dặn *"vừa chọn Khác thì hỏi lại bằng một câu mở"*, model vẫn bày
+        #     # lựa chọn mới -- trên trình duyệt *"Chương 1/2/3"* cho một đề không có sách.
+        #     answers = ()
+        step = step.model_copy(update={"choices": answers})
+        wanted = _choices_wanted(state["request"])
+        if len(answers) < wanted:
+            raise _FewChoices(f"{len(answers)} choice(s), wanted {wanted}", step)
+    return {"step": step}
 
 
 def _build() -> object:
@@ -557,14 +1178,42 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
     state = {"request": request, "skills": chosen, "messages": [], "step": None}
     try:
         final = await _GRAPH.ainvoke(state)
-    except _NothingToSay:
-        # Một lần nữa, không hơn: lần trống thứ hai là model đang kẹt, không phải xui.
-        logger.warning("empty answer for %s, asking once more", request.request_id)
+    except _AskAgain as first:
+        # Một lần nữa, không hơn: lần hỏng thứ hai là model đang kẹt, không phải xui.
+        logger.warning("%s for %s, asking once more", first, request.request_id)
         try:
             final = await _GRAPH.ainvoke(state)
-        except _NothingToSay:
-            logger.warning("empty answer twice for %s", request.request_id)
-            return NextStepCompleted(request_id=request.request_id, kind="say", text=_UNCLEAR)
+        except _Flawed as again:
+            # Thiếu lần hai thì để đề nghị đi tiếp, như trước khi có lưới này: plan thiếu tham số
+            # thì `vet_plan` của BE nói lời từ chối của nó, câu hỏi ít lựa chọn thì vẫn là một câu
+            # hỏi -- giáo viên vẫn tự ghi được qua "Khác". AGENT không bịa tham số hay lựa chọn.
+            logger.warning("%s again for %s", again, request.request_id)
+            better = again.step
+            if (
+                isinstance(again, _FewChoices)
+                and isinstance(first, _FewChoices)
+                and len(first.step.choices) > len(again.step.choices)
+            ):
+                better = first.step
+            final = {"step": better}
+        except Exception as again:
+            if not isinstance(first, _Flawed):
+                if isinstance(again, _NothingToSay):
+                    logger.warning("empty answer twice for %s", request.request_id)
+                    return NextStepCompleted(
+                        request_id=request.request_id, kind="say", text=_UNCLEAR
+                    )
+                raise
+            # Lần đầu đã có một đề nghị dùng được: lần hai hỏng kiểu gì cũng giữ nó -- không bao
+            # giờ tệ hơn trước khi có lưới này. Plan thì lượt không sách `vet_plan` từ chối như
+            # cũ, lượt có sách `bind_book` có thể điền nốt (review T2b). Lần hai im lặng, hay
+            # provider hỏng, mà thả lỗi ra thì `handlers` lùi về mock.
+            logger.warning(
+                "asking again failed for %s (%r); keeping the first answer",
+                request.request_id,
+                again,
+            )
+            final = {"step": first.step}
     step: NextStepCompleted = final["step"]
     logger.info("proposed %s for %s", step.kind, request.request_id)
     return step.model_copy(update={"request_id": request.request_id})

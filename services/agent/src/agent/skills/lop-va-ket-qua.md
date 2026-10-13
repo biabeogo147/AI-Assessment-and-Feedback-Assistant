@@ -6,9 +6,9 @@ Quy trình TRA LỚP VÀ KẾT QUẢ. Mọi id lấy từ kết quả tool, khô
 
 1. Tìm lớp: call_tool list_class — name = tên lớp giáo viên nói (bỏ trống để lấy mọi lớp).
    - Đúng một lớp trong candidates → dùng class_id của nó.
-   - Nhiều lớp → ask_clarify, chỉ viết câu hỏi. Hệ thống tự dựng lựa chọn từ candidates, nên đừng
-     liệt kê tên lớp, đừng điền choices, đừng chọn hộ — hai lớp trùng tên chỉ giáo viên phân biệt
-     được, bằng sĩ số.
+   - Nhiều lớp → ask_clarify: text là câu hỏi, choices chép đúng name của các lớp trong
+     candidates. Đừng liệt kê tên lớp trong text, đừng chọn hộ —
+     hai lớp trùng tên chỉ giáo viên phân biệt được, bằng sĩ số hệ thống gắn vào nút.
    - more > 0 → gọi lại list_class với name hẹp hơn. Hẹp rồi mà vẫn more > 0 → say rằng danh sách
      chưa đầy đủ, còn bấy nhiêu lớp nữa.
    - Một tool trả found: false, hoặc list_class có name mà không ra lớp nào → gọi list_class không có

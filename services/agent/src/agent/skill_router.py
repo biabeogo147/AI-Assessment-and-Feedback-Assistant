@@ -14,7 +14,9 @@ Ba quyết định đến từ jaggedness của `jev-1.13` (plan 3c, *Khảo sá
 - *Kém với ngôn ngữ khác* → `instructions` và `criteria` tiếng Anh; chữ hội thoại giữ tiếng Việt.
 
 Hỏng theo bất kỳ cách nào -- thiếu khoá, timeout, lỗi mạng, câu trả lời lạ -- thì nạp **mọi** skill
-(D4): đúng bằng prompt trước plan 4a, không bao giờ tệ hơn.
+(D4): đúng bằng prompt trước plan 4a. *"Không bao giờ tệ hơn"* chỉ còn đúng với prompt: từ plan 4c
+T5, việc chọn còn bật một luật code -- `propose._opens_library` chỉ mở thư viện ở lượt có `soan-de`,
+nên nạp thừa `soan-de` thì một câu hỏi lại ở lượt nhắc sách thành lời gọi `list_documents`.
 """
 
 import asyncio

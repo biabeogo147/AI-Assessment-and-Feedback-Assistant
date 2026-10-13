@@ -12,14 +12,22 @@ biết điều đó: danh tính giáo viên và database nằm ở phía bên ki
 test ấy nằm cùng với bên thực thi.
 """
 
+import unicodedata
 from types import SimpleNamespace
 
 import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
-from agent import llm
-from agent.graphs.propose import _Argument, _Proposal, _Step, propose
-from contracts import NextStepRequested, ToolSpec, TurnRecord
+from agent import llm, skill_router
+from agent.graphs.propose import (
+    _answers,
+    _Argument,
+    _choices_wanted,
+    _Proposal,
+    _Step,
+    propose,
+)
+from contracts import AttachedDocument, NextStepRequested, ToolSpec, TurnRecord
 
 _CATALOG = (
     ToolSpec(
@@ -387,6 +395,8 @@ async def test_a_plan_keeps_its_steps_in_order_and_its_references_intact(
                         tool_name="create_draft",
                         args=(
                             _Argument(param="subject", value="Toán"),
+                            _Argument(param="grade", value="12"),
+                            _Argument(param="topic_scope", value="ôn tập"),
                             _Argument(param="question_count", value="10"),
                         ),
                         title="Tạo đề trống",
@@ -407,9 +417,963 @@ async def test_a_plan_keeps_its_steps_in_order_and_its_references_intact(
     assert step.kind == "plan"
     assert step.text == "Được, mình soạn đề ngay."
     assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
-    assert step.steps[0].args == {"subject": "Toán", "question_count": "10"}
+    assert step.steps[0].args == {
+        "subject": "Toán",
+        "grade": "12",
+        "topic_scope": "ôn tập",
+        "question_count": "10",
+    }
     assert step.steps[1].args == {"assessment_id": "{1.assessment_id}"}
     assert [one.title for one in step.steps] == ["Tạo đề trống", "Soạn 10 câu hỏi"]
+
+
+def _draft_plan(*args: tuple[str, str]) -> _Proposal:
+    return _Proposal(
+        kind="plan",
+        text="Được, mình soạn đề ngay.",
+        steps=(
+            _Step(
+                tool_name="create_draft",
+                args=tuple(_Argument(param=key, value=value) for key, value in args),
+                title="Tạo đề trống",
+            ),
+            _Step(
+                tool_name="start_drafting",
+                args=(_Argument(param="assessment_id", value="{1.assessment_id}"),),
+                title="Soạn câu hỏi",
+            ),
+        ),
+    )
+
+
+_FULL = (("subject", "Toán"), ("grade", "9"), ("topic_scope", "ôn tập"), ("question_count", "6"))
+
+
+@pytest.mark.asyncio
+async def test_a_plan_missing_a_required_argument_is_asked_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Plan 4c T2b: giá trị nằm ở `known` mà `create_draft` không kèm tham số nào.
+
+    BE `vet_plan` từ chối đúng plan ấy, và giáo viên nhận một lời từ chối cho một câu đã đủ ý. Hỏi
+    lại model một lần thì rẻ hơn.
+    """
+    model = Scripted([_draft_plan(), _draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("6 câu ôn tập lớp 9"))
+
+    assert len(model.prompts) == 2
+    assert step.steps[0].args == dict(_FULL)
+
+
+@pytest.mark.asyncio
+async def test_a_garbled_argument_is_asked_again(monkeypatch: pytest.MonkeyPatch, on: None) -> None:
+    """Plan 4c T3: *"tỉ lệ th\\x13"* làm `topic_scope` (run-53, run-54) -- chữ hỏng thành tên đề."""
+    garbled = tuple(
+        (key, "tỉ lệ th\x13") if key == "topic_scope" else (key, value) for key, value in _FULL
+    )
+    model = Scripted([_draft_plan(*garbled), _draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("6 câu tỉ lệ thức lớp 7"))
+
+    assert len(model.prompts) == 2
+    assert step.steps[0].args == dict(_FULL)
+
+
+_LIBRARY_TOOL = ToolSpec(name="list_documents", description="Liệt kê tài liệu.", arguments={})
+
+
+def _library_turn(text: str) -> NextStepRequested:
+    return NextStepRequested(
+        request_id="r1",
+        teacher_name="Cô Lan",
+        history=(TurnRecord(kind="teacher", text=text),),
+        catalog=(*_CATALOG, _LIBRARY_TOOL),
+        plannable=_PLANNABLE,
+    )
+
+
+def _opened_by(tool: str, **args: str) -> _Proposal:
+    """`_draft_plan` đầy đủ, mở đầu bằng một bước `tool`."""
+    drafting = _draft_plan(*_FULL)
+    first = _Step(
+        tool_name=tool,
+        args=tuple(_Argument(param=key, value=value) for key, value in args.items()),
+        title="Mở thư viện",
+    )
+    return drafting.model_copy(update={"steps": (first, *drafting.steps)})
+
+
+@pytest.mark.asyncio
+async def test_a_plan_opening_with_a_read_calls_the_read_first(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Plan 4c T5: nhắc sách, đủ bốn mục -- model nêu `list_documents → create_draft → …`, và BE
+    từ chối cả plan vì `list_documents` không có trong catalog pha thực hiện (16/24 lượt, run-73).
+    Bước đầu ấy là ý *"đọc trước"*: nó thành lời gọi, không hỏi lại model."""
+    model = Scripted([_opened_by("list_documents")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    # Câu không nhắc sách: `_library_first` không đụng tới, chỉ `_reads_first` lật được plan này.
+    step = await propose(_library_turn("6 câu ôn tập lớp 9, mở thư viện giúp mình"))
+
+    assert len(model.prompts) == 1
+    assert step.kind == "call_tool"
+    assert step.tool_name == "list_documents"
+    assert step.tool_args == {}
+    assert step.steps == ()
+    assert step.request_id == "r1"
+
+
+@pytest.mark.asyncio
+async def test_a_plan_opening_with_a_plannable_tool_stays_a_plan(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    model = Scripted([_draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_library_turn("6 câu ôn tập lớp 9"))
+
+    assert step.kind == "plan"
+    assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
+
+
+@pytest.mark.asyncio
+async def test_a_plan_opening_with_an_unknown_tool_is_left_for_be_to_refuse(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Chỉ tool có trong `catalog` lượt này mới được gọi -- một tên bịa không thành lời gọi."""
+    model = Scripted([_opened_by("doc_sach_ra")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_library_turn("6 câu ôn tập lớp 9, mở thư viện giúp mình"))
+
+    assert step.kind == "plan"
+    assert step.steps[0].tool_name == "doc_sach_ra"
+
+
+_TOC_TOOL = ToolSpec(
+    name="list_chapters", description="Mục lục một tài liệu.", arguments={"document_id": "id"}
+)
+
+
+def _book_plan(**extra: str) -> _Proposal:
+    """`_draft_plan` đầy đủ, `create_draft` kèm tham số tài liệu."""
+    return _draft_plan(*_FULL, *extra.items())
+
+
+_READ_D10 = (
+    TurnRecord(kind="tool_call", tool_name="list_chapters", tool_args={"document_id": "d10"}),
+    TurnRecord(
+        kind="tool_result",
+        tool_name="list_chapters",
+        tool_result={"found": True, "candidates": [{"node": 3, "label": "Chương I. MỆNH ĐỀ"}]},
+    ),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("proposed", "attached", "before", "read"),
+    [
+        # T5 trên trình duyệt: bấm tên cuốn, model nêu plan không có `nodes` -- BE dừng ở bước 1.
+        (_book_plan(document_id="d10"), None, (), True),
+        # `nodes` chưa đọc mục lục là số bịa -- BE nhận, đề soạn trên mục sai (run-87, review T5).
+        (_book_plan(document_id="d10", nodes="1,2,3"), None, (), True),
+        # Đã đọc mục lục: plan đi tiếp, đủ `nodes` hay không -- gọi lại là lặp tới trần của BE.
+        (_book_plan(document_id="d10", nodes="3,5"), None, _READ_D10, False),
+        (_book_plan(document_id="d10"), None, _READ_D10, False),
+        # Không tài liệu: đề không sách.
+        (_draft_plan(*_FULL), None, (), False),
+        # Có chip: thủ tục sách đọc mục lục từ trước, `bind_book` điền `nodes` -- không đụng tới.
+        (
+            _book_plan(document_id="d10"),
+            AttachedDocument(document_id="d10", filename="Toán 10.pdf", state="ready"),
+            (),
+            False,
+        ),
+    ],
+)
+async def test_a_plan_from_a_book_without_its_chapters_reads_them_first(
+    monkeypatch: pytest.MonkeyPatch, on: None, proposed: _Proposal, attached, before, read: bool
+) -> None:
+    model = Scripted([proposed])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = NextStepRequested(
+        request_id="r1",
+        history=(TurnRecord(kind="teacher", text="soạn 6 câu ôn tập lớp 9"), *before),
+        catalog=(*_CATALOG, _TOC_TOOL),
+        plannable=_PLANNABLE,
+        attached_document=attached,
+    )
+
+    step = await propose(request)
+
+    assert (step.kind == "call_tool") is read
+    if read:
+        assert step.tool_name == "list_chapters"
+        assert step.tool_args == {"document_id": "d10"}
+
+
+@pytest.mark.asyncio
+async def test_no_table_of_contents_tool_no_reading_it(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """`list_chapters` không có trong catalog lượt này thì không gọi nó -- BE sẽ từ chối."""
+    model = Scripted([_book_plan(document_id="d10")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("soạn 6 câu ôn tập lớp 9"))
+
+    assert step.kind == "plan"
+
+
+def _grade_asked() -> _Proposal:
+    return _Proposal(
+        kind="ask_clarify",
+        text="Bạn soạn cho khối mấy?",
+        choices=("Khối 10", "Khối 11", "Khối 12"),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("said", "proposed", "listed"),
+    [
+        # Nhắc sách, không chip: model hỏi khối -- khối nằm sẵn trong tên tài liệu (T5, run-77).
+        ("Soạn 10 câu chương 2 trong cuốn sách mình đã tải lên hôm qua", _grade_asked(), True),
+        # Nhắc sách, đủ bốn mục: model soạn đề không sách.
+        ("Lấy cuốn Toán 10 mình mới tải lên, ra 6 câu ôn tập", _draft_plan(*_FULL), True),
+        # Không nhắc sách: câu hỏi lại là câu hỏi lại.
+        ("Soạn 10 câu chương 2", _grade_asked(), False),
+        # Nhắc sách mà model gọi một tool khác: để nguyên.
+        ("Lớp 12A dùng cuốn sách nào?", _wants("get_class", class_id="c-1"), False),
+    ],
+)
+async def test_a_turn_that_opens_the_library_lists_documents_first(
+    monkeypatch: pytest.MonkeyPatch, on: None, said: str, proposed: _Proposal, listed: bool
+) -> None:
+    """Plan 4c T5: dòng mở thư viện bằng chữ thua nhánh *"còn ? → hỏi lại"* mỗi khi model suy được
+    thêm một mục (`tai-lieu-khong-dinh` 24 → 16/24). Bước đầu của lượt nhắc sách do code quyết."""
+    model = Scripted([proposed])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_library_turn(said))
+
+    assert (step.kind == "call_tool" and step.tool_name == "list_documents") is listed
+    if listed:
+        assert step.tool_args == {}
+        assert step.choices == ()
+
+
+@pytest.mark.asyncio
+async def test_a_book_on_the_chat_never_reopens_the_library(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Chip sẵn sàng: thủ tục sách lo, thư viện không mở lại (T2b: 22/24 → 10/24 khi mở lại)."""
+    model = Scripted([_grade_asked()])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = _library_turn("Soạn 10 câu chương 2 từ sách này").model_copy(
+        update={
+            "attached_document": AttachedDocument(
+                document_id="d1", filename="Toán 10 tập 1.pdf", state="ready"
+            )
+        }
+    )
+
+    step = await propose(request)
+
+    assert step.kind == "ask_clarify"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["processing", "failed"])
+async def test_a_book_not_yet_readable_never_opens_the_library(
+    monkeypatch: pytest.MonkeyPatch, on: None, state: str
+) -> None:
+    """Chip chưa đọc được: dòng báo chip dặn chờ hay đính tài liệu khác -- không mở thư viện."""
+    model = Scripted([_grade_asked()])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = _library_turn("Soạn 10 câu chương 2 từ sách này").model_copy(
+        update={
+            "attached_document": AttachedDocument(
+                document_id="d1", filename="Toán 10 tập 1.pdf", state=state
+            )
+        }
+    )
+
+    step = await propose(request)
+
+    assert step.kind == "ask_clarify"
+
+
+def _more_questions() -> _Proposal:
+    return _Proposal(
+        kind="plan",
+        text="Mình soạn thêm 5 câu.",
+        steps=(
+            _Step(
+                tool_name="start_drafting",
+                args=(
+                    _Argument(param="assessment_id", value="a-1"),
+                    _Argument(param="question_count", value="5"),
+                ),
+                title="Soạn thêm câu",
+            ),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("said", "proposed"),
+    [
+        # Review T5: soạn thêm cho đề đã mở là plan hợp lệ -- "sách giáo khoa" không biến nó thành
+        # việc mở thư viện.
+        ("Soạn thêm 5 câu nữa, bám sát sách giáo khoa", _more_questions()),
+        # Lời nói để nguyên: `_BOOK_WORDS` báo nhầm (*"file Word"*) không được ép thành lời gọi.
+        ("Xuất đề ra file Word giúp mình", _said("Mình chưa xuất được file Word.")),
+    ],
+)
+async def test_the_library_is_not_forced_on_what_is_not_a_question_or_a_new_draft(
+    monkeypatch: pytest.MonkeyPatch, on: None, said: str, proposed: _Proposal
+) -> None:
+    model = Scripted([proposed])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_library_turn(said))
+
+    assert step.kind == proposed.kind
+
+
+@pytest.mark.asyncio
+async def test_the_library_opens_only_on_a_drafting_turn(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Cổng skill của `_opens_library`: lượt chỉ nạp `lop-va-ket-qua` thì không mở thư viện."""
+
+    async def routed(history: object) -> tuple[str, ...]:
+        return ("lop-va-ket-qua",)
+
+    monkeypatch.setattr(skill_router, "choose", routed)
+    model = Scripted([_grade_asked()])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_library_turn("Soạn 10 câu chương 2 trong cuốn sách mình đã tải lên"))
+
+    assert step.kind == "ask_clarify"
+
+
+@pytest.mark.asyncio
+async def test_a_read_already_done_is_not_asked_for_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review T5: `list_documents` đã gọi rồi mà plan lại mở bằng nó -- gọi lại là lặp tới trần
+    `max_tool_steps` của BE rồi báo lỗi; để plan đi tiếp cho BE từ chối một lần."""
+    model = Scripted([_opened_by("list_documents")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = _library_turn("6 câu ôn tập lớp 9, mở thư viện giúp mình")
+    request = request.model_copy(
+        update={
+            "history": (
+                *request.history,
+                TurnRecord(kind="tool_call", tool_name="list_documents"),
+                TurnRecord(kind="tool_result", tool_name="list_documents", tool_result={}),
+            )
+        }
+    )
+
+    step = await propose(request)
+
+    assert step.kind == "plan"
+
+
+@pytest.mark.asyncio
+async def test_a_read_keeps_the_arguments_the_plan_gave_it(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    model = Scripted([_opened_by("list_chapters", document_id="d7")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = _library_turn("6 câu ôn tập lớp 9").model_copy(
+        update={"catalog": (*_CATALOG, _TOC_TOOL)}
+    )
+
+    step = await propose(request)
+
+    assert step.kind == "call_tool"
+    assert step.tool_name == "list_chapters"
+    assert step.tool_args == {"document_id": "d7"}
+
+
+@pytest.mark.asyncio
+async def test_a_tool_that_may_be_planned_is_left_in_the_plan(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Tool vừa gọi được ngay vừa nêu được trong plan: plan mở đầu bằng nó vẫn là plan."""
+    model = Scripted([_draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = _to_plan("6 câu ôn tập lớp 9").model_copy(
+        update={"catalog": (*_CATALOG, _PLANNABLE[0])}
+    )
+
+    step = await propose(request)
+
+    assert step.kind == "plan"
+
+
+_DOCUMENTS = {
+    "found": True,
+    "more": 0,
+    "candidates": [
+        {"document_id": "d10", "label": "Kết nối tri thức Lớp 10 tập 1.pdf"},
+        {"document_id": "d6", "label": "Kết nối tri thức Lớp 6 tập 1.pdf"},
+    ],
+}
+
+
+def _after_library(*later: TurnRecord, documents: dict = _DOCUMENTS) -> NextStepRequested:
+    """Không chip, giáo viên nhắc sách, BE vừa chạy `list_documents`; `later` nối sau đó."""
+    return NextStepRequested(
+        request_id="r1",
+        history=(
+            TurnRecord(kind="teacher", text="Lấy cuốn Toán 10 mình mới tải lên, ra 6 câu ôn tập"),
+            TurnRecord(kind="tool_call", tool_name="list_documents"),
+            TurnRecord(kind="tool_result", tool_name="list_documents", tool_result=documents),
+            *later,
+        ),
+        catalog=(*_CATALOG, _LIBRARY_TOOL, _TOC_TOOL),
+        plannable=_PLANNABLE,
+    )
+
+
+_ASKED_BOOK = TurnRecord(kind="assistant", text="Bạn soạn theo tài liệu nào?")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("said", "before", "read"),
+    [
+        # Bấm nút tên cuốn: giáo viên đã chọn -- đọc mục lục của đúng cuốn ấy, bằng code.
+        ("Kết nối tri thức Lớp 10 tập 1.pdf", (), "d10"),
+        # Khác hoa thường, thừa khoảng trắng: vẫn là cuốn ấy.
+        ("  kết nối tri thức lớp 10 tập 1.PDF ", (), "d10"),
+        # Gõ một câu không trùng tên nào: không chọn hộ.
+        ("cuốn lớp 10", (), ""),
+        # Đã đọc mục lục cuốn ấy rồi: không đọc lại.
+        ("Kết nối tri thức Lớp 10 tập 1.pdf", _READ_D10, ""),
+    ],
+)
+async def test_a_document_the_teacher_picks_has_its_chapters_read(
+    monkeypatch: pytest.MonkeyPatch, on: None, said: str, before: tuple, read: str
+) -> None:
+    """Review T5 (hướng iii): sau khi giáo viên bấm tên cuốn, model tự gọi `list_chapters` 0/24 --
+    nó nêu plan, có `nodes` bịa hay không `document_id` (run-87)."""
+    model = Scripted([_draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(
+        _after_library(_ASKED_BOOK, TurnRecord(kind="teacher", text=said), *before)
+    )
+
+    if read:
+        assert step.kind == "call_tool"
+        assert step.tool_name == "list_chapters"
+        assert step.tool_args == {"document_id": read}
+    else:
+        assert step.kind == "plan"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("documents", "after", "fixed"),
+    [
+        # Ngay sau danh sách tài liệu: nút là tên tài liệu, câu hỏi phải hỏi tài liệu.
+        (_DOCUMENTS, (), True),
+        # Một tài liệu cũng vậy -- không chọn hộ (hướng i chưa được duyệt).
+        ({**_DOCUMENTS, "candidates": _DOCUMENTS["candidates"][:1]}, (), True),
+        # Thư viện rỗng: không có nút nào, câu của model để nguyên.
+        ({"found": False, "more": 0, "candidates": []}, (), False),
+        # Đã đọc mục lục sau đó: câu hỏi là về mục, không đụng tới.
+        (_DOCUMENTS, _READ_D10, False),
+        # Review chung sau T5: giáo viên đã nói sau danh sách (*"thôi, không dùng sách"* qua lối
+        # "Khác") -- câu hỏi kế tiếp là về khối hay số câu, không phải về tài liệu.
+        (
+            _DOCUMENTS,
+            (_ASKED_BOOK, TurnRecord(kind="teacher", text="thôi, không dùng sách")),
+            False,
+        ),
+    ],
+)
+async def test_a_question_right_after_the_library_asks_which_document(
+    monkeypatch: pytest.MonkeyPatch, on: None, documents: dict, after: tuple, fixed: bool
+) -> None:
+    """Review T5 (hướng ii): chữ model lệch nút 5--17/24 lượt -- *"phần mệnh đề nằm ở mục
+    nào?"* với nút là tên tệp (run-83, run-87)."""
+    asked = _Proposal(
+        kind="ask_clarify",
+        text="Phần mệnh đề nằm ở mục nào của cuốn sách?",
+        choices=("Chương 1", "Chương 2", "Chương 3"),
+    )
+    model = Scripted([asked])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_after_library(*after, documents=documents))
+
+    assert step.kind == "ask_clarify"
+    assert (step.text == "Bạn soạn theo tài liệu nào?") is fixed
+
+
+def _asked_naming(tool: str, **args: str) -> _Proposal:
+    """Câu hỏi lại mà model điền thêm một lời gọi tool -- `kind` nộp nhầm (run-88)."""
+    return _Proposal(
+        kind="ask_clarify",
+        text="Phần mệnh đề nằm ở mục nào của cuốn sách?",
+        choices=("Chương 1", "Chương 2", "Chương 3"),
+        tool_name=tool,
+        tool_args=tuple(_Argument(param=key, value=value) for key, value in args.items()),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("proposed", "after", "read"),
+    [
+        # Run-88: 16/24 lượt -- model đã chọn cuốn Lớp 10, chỉ nộp nhầm `kind`.
+        (_asked_naming("list_chapters", document_id="d10"), (), "d10"),
+        # Tài liệu không có trong danh sách: không gọi một `document_id` bịa.
+        (_asked_naming("list_chapters", document_id="d99"), (), ""),
+        # Đã đọc mục lục: câu hỏi về chương là câu hỏi thật (`tai-lieu-khong-khop`).
+        (_asked_naming("list_chapters", document_id="d10"), _READ_D10, ""),
+        # Tool khác: câu hỏi khối mang `list_class` là câu hỏi thật (`thieu-khoi-co-so-cau`).
+        (_asked_naming("list_class", name="10"), (), ""),
+    ],
+)
+async def test_a_question_that_names_the_chapters_of_a_listed_document_reads_them(
+    monkeypatch: pytest.MonkeyPatch, on: None, proposed: _Proposal, after: tuple, read: str
+) -> None:
+    model = Scripted([proposed])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_after_library(*after))
+
+    if read:
+        assert step.kind == "call_tool"
+        assert step.tool_args == {"document_id": read}
+    else:
+        assert step.kind == "ask_clarify"
+
+
+_READY_BOOK = AttachedDocument(document_id="d10", filename="Toán 10 tập 1.pdf", state="ready")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("proposed", "later"),
+    [
+        # `_misfiled_read`: có chip thì thủ tục sách lo việc đọc mục lục.
+        (_asked_naming("list_chapters", document_id="d10"), ()),
+        # `_picked_book_first`: chữ trùng tên một tài liệu, nhưng đoạn chat đã gắn sách.
+        (
+            _draft_plan(*_FULL),
+            (_ASKED_BOOK, TurnRecord(kind="teacher", text="Kết nối tri thức Lớp 10 tập 1.pdf")),
+        ),
+        # `_which_book`: câu hỏi ngay sau danh sách, nhưng có chip -- không đè chữ model.
+        (_grade_asked(), ()),
+    ],
+)
+async def test_the_rules_for_a_chat_without_a_book_leave_a_bound_chat_alone(
+    monkeypatch: pytest.MonkeyPatch, on: None, proposed: _Proposal, later: tuple
+) -> None:
+    """Review chung sau T5: ba luật chỉ dành cho lượt không chip -- bỏ guard chip của chúng thì
+    không test nào đỏ."""
+    model = Scripted([proposed])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    request = _after_library(*later)
+    request = request.model_copy(update={"attached_document": _READY_BOOK})
+
+    step = await propose(request)
+
+    assert step.kind == proposed.kind
+    if step.kind == "ask_clarify":
+        assert step.text == proposed.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("proposed", "request_of"),
+    [
+        (_opened_by("list_documents"), lambda: _library_turn("6 câu ôn tập lớp 9")),
+        (
+            _book_plan(document_id="d10"),
+            lambda: _library_turn("6 câu ôn tập").model_copy(
+                update={"catalog": (*_CATALOG, _TOC_TOOL)}
+            ),
+        ),
+        (_grade_asked(), lambda: _library_turn("Soạn 10 câu chương 2 trong cuốn sách đã tải")),
+        (
+            _draft_plan(*_FULL),
+            lambda: _after_library(
+                _ASKED_BOOK, TurnRecord(kind="teacher", text="Kết nối tri thức Lớp 10 tập 1.pdf")
+            ),
+        ),
+        (_asked_naming("list_chapters", document_id="d10"), lambda: _after_library()),
+    ],
+)
+async def test_a_read_put_in_place_of_a_proposal_keeps_its_cost(
+    monkeypatch: pytest.MonkeyPatch, on: None, proposed: _Proposal, request_of
+) -> None:
+    """Lời gọi do code dựng vẫn là lần gọi model đã trả tiền: số token đi theo."""
+    model = WithUsage(proposed, 4321)
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(request_of())
+
+    assert step.kind == "call_tool"
+    assert step.model_tokens == 4321
+
+
+@pytest.mark.asyncio
+async def test_a_plan_missing_an_argument_twice_goes_on_to_be(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Thiếu lần hai thì để BE nói lời từ chối của nó -- AGENT không bịa tham số thay model."""
+    model = Scripted([_draft_plan(), _draft_plan(("subject", "Toán"))])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("6 câu ôn tập lớp 9"))
+
+    assert len(model.prompts) == 2
+    assert step.kind == "plan"
+    assert step.steps[0].args == {"subject": "Toán"}
+    assert step.request_id == "r1"
+
+
+@pytest.mark.asyncio
+async def test_an_optional_argument_is_not_asked_for(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Tham số khai ở `optional` -- như tài liệu khi đoạn chat không gắn sách -- được bỏ trống."""
+    plannable = tuple(
+        spec.model_copy(
+            update={
+                "arguments": {**spec.arguments, "document_id": "id tài liệu"},
+                "optional": ("document_id",),
+            }
+        )
+        if spec.name == "create_draft"
+        else spec
+        for spec in _PLANNABLE
+    )
+    model = Scripted([_draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("6 câu ôn tập lớp 9").model_copy(update={"plannable": plannable}))
+
+    assert len(model.prompts) == 1
+    assert step.kind == "plan"
+
+
+@pytest.mark.asyncio
+async def test_a_bound_book_needs_no_document_id_from_the_model(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review T2b: đoạn chat gắn sách thì BE `bind_book` điền `document_id` trước `vet_plan`.
+
+    Hình dạng catalog như BE gửi ở lượt ấy -- tham số tài liệu **bắt buộc**. Thiếu `document_id`
+    thì BE tự lo, nên không phải lý do hỏi lại; thiếu `nodes` thì vẫn hỏi.
+    """
+    plannable = tuple(
+        spec.model_copy(
+            update={
+                "arguments": {**spec.arguments, "document_id": "id", "nodes": "các node"},
+                "optional": (),
+            }
+        )
+        if spec.name == "create_draft"
+        else spec
+        for spec in _PLANNABLE
+    )
+    request = _to_plan("6 câu chương 1 từ sách này").model_copy(
+        update={
+            "plannable": plannable,
+            "attached_document": AttachedDocument(document_id="book", filename="Sách.pdf"),
+        }
+    )
+    model = Scripted([_draft_plan(*_FULL, ("nodes", "3")), _draft_plan(*_FULL)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(request)
+
+    assert len(model.prompts) == 1
+    assert "document_id" not in step.steps[0].args
+
+    model = Scripted([_draft_plan(*_FULL), _draft_plan(*_FULL, ("nodes", "3"))])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(request)
+
+    assert len(model.prompts) == 2
+    assert step.steps[0].args["nodes"] == "3"
+
+
+class _Breaks:
+    """Lần đầu trả một đề nghị xếp sẵn, lần sau provider hỏng."""
+
+    def __init__(self, first: _Proposal) -> None:
+        self.first: _Proposal | None = first
+        self.prompts = 0
+
+    def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
+        def answer(messages: object) -> _Proposal:
+            self.prompts += 1
+            if self.first is None:
+                raise RuntimeError("provider down")
+            first, self.first = self.first, None
+            return first
+
+        return RunnableLambda(answer)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("second", ["empty", "broken"])
+async def test_a_failed_second_ask_keeps_the_first_plan(
+    monkeypatch: pytest.MonkeyPatch, on: None, second: str
+) -> None:
+    """Review T2b: lần hỏi lại không bao giờ được làm kết quả tệ hơn khi chưa có nó.
+
+    Trước T2b, plan thiếu tham số đi thẳng tới BE -- và ở lượt có sách `bind_book` có thể điền
+    nốt. Lần hai im lặng thì `_UNCLEAR`, provider hỏng thì lùi về mock: cả hai đều tệ hơn.
+    """
+    model: object = (
+        Scripted([_draft_plan(("subject", "Toán")), _Proposal(kind="say", text=" ")])
+        if second == "empty"
+        else _Breaks(_draft_plan(("subject", "Toán")))
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("6 câu ôn tập lớp 9"))
+
+    assert step.kind == "plan"
+    assert step.steps[0].args == {"subject": "Toán"}
+    assert step.request_id == "r1"
+
+
+def _ask(*choices: str) -> _Proposal:
+    return _Proposal(kind="ask_clarify", text="Bạn muốn bao nhiêu câu?", choices=choices)
+
+
+@pytest.mark.asyncio
+async def test_a_question_back_carries_the_models_choices(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Plan 4c T3: hỏi lại thì có ít nhất 3 lựa chọn do model đề xuất; BE dựng nút từ chúng."""
+    model = Scripted([_ask("10 câu", "15 câu", "20 câu")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("soạn đề góc nội tiếp lớp 9"))
+
+    assert step.choices == ("10 câu", "15 câu", "20 câu")
+    assert len(model.prompts) == 1
+
+
+@pytest.mark.asyncio
+async def test_what_the_model_writes_comes_back_in_nfc(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Run-57: "tỉ lệ thức" với "ứ" phân rã -- in ra y hệt, mà không khớp chữ nào của BE."""
+    split = unicodedata.normalize("NFD", "tỉ lệ thức")
+    plan = _draft_plan(*((key, split) if key == "topic_scope" else (key, v) for key, v in _FULL))
+    model = Scripted([plan])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_to_plan("6 câu tỉ lệ thức lớp 7"))
+
+    assert step.steps[0].args["topic_scope"] == unicodedata.normalize("NFC", "tỉ lệ thức")
+
+
+@pytest.mark.asyncio
+async def test_choices_never_ride_along_with_a_plain_answer(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Nút chỉ đi cùng một câu hỏi: một lời nói mang nút thì màn hình dựng nó thành thẻ hỏi lại."""
+    model = Scripted([_Proposal(kind="say", text="vâng", choices=("a", "b", "c"))])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("chào bạn"))
+
+    assert step.choices == ()
+
+
+@pytest.mark.asyncio
+async def test_a_question_with_too_few_choices_is_asked_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Hai lựa chọn, hay lựa chọn trùng nhau, là chưa đủ ba: hỏi lại model một lần."""
+    model = Scripted([_ask("10 câu", "10 câu ", "15 câu"), _ask("10 câu", "15 câu", "20 câu")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("soạn đề góc nội tiếp lớp 9"))
+
+    assert len(model.prompts) == 2
+    assert step.choices == ("10 câu", "15 câu", "20 câu")
+
+
+@pytest.mark.asyncio
+async def test_a_choice_that_is_a_question_is_not_a_choice(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Run-41: thiếu cả bốn mục thì model bày *"Môn học là gì?"* làm nút -- bấm nó là gửi một câu
+    hỏi đi như lời giáo viên. Lựa chọn kết bằng "?" bị bỏ trước khi đếm đủ ba."""
+    asking = ("Môn học là gì?", "Khối lớp nào?", "Số câu là bao nhiêu?")
+    model = Scripted([_ask(*asking), _ask("khối 6", "khối 7", "khối 8", "Khối lớp nào?")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mình cần một đề"))
+
+    assert len(model.prompts) == 2
+    assert step.choices == ("khối 6", "khối 7", "khối 8")
+
+
+@pytest.mark.asyncio
+async def test_too_few_choices_twice_is_still_a_question(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Thiếu lần hai thì câu hỏi vẫn đi tiếp -- giáo viên vẫn tự ghi được qua lối "Khác". AGENT
+    không bịa lựa chọn."""
+    model = Scripted([_ask("10 câu"), _ask("10 câu", "15 câu")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("soạn đề góc nội tiếp lớp 9"))
+
+    assert (step.kind, step.choices) == ("ask_clarify", ("10 câu", "15 câu"))
+    assert step.request_id == "r1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("history", "enough"),
+    [
+        # Hai lớp trong candidates: chỉ có hai lựa chọn thật -- đòi ba là mời model bịa lớp thứ ba.
+        (
+            (
+                TurnRecord(kind="teacher", text="lớp 12 thế nào"),
+                TurnRecord(kind="tool_call", tool_name="list_class", tool_args={"name": "12"}),
+                TurnRecord(
+                    kind="tool_result",
+                    tool_name="list_class",
+                    tool_result={"candidates": [{"name": "12A"}, {"name": "12B"}], "more": 0},
+                ),
+            ),
+            ("12A", "12B"),
+        ),
+        # [CODE CHẾT 2026-10-13] Không lượt nào còn bắt đầu bằng chữ "Khác" (`_after_other`).
+        # # Giáo viên vừa bấm "Khác": không lựa chọn nào đúng, câu kế tiếp là một câu mở.
+        # (
+        #     (
+        #         TurnRecord(kind="teacher", text="soạn đề góc nội tiếp lớp 9"),
+        #         TurnRecord(kind="assistant", text="Bạn muốn bao nhiêu câu?"),
+        #         TurnRecord(kind="teacher", text="Khác"),
+        #     ),
+        #     (),
+        # ),
+    ],
+)
+async def test_fewer_than_three_choices_are_enough_when_three_cannot_be_real(
+    monkeypatch: pytest.MonkeyPatch, on: None, history: tuple[TurnRecord, ...], enough: tuple
+) -> None:
+    model = Scripted([_ask(*enough)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("x").model_copy(update={"history": history}))
+
+    assert len(model.prompts) == 1
+    assert step.choices == enough
+
+
+# [CODE CHẾT 2026-10-13] Không lượt nào còn bắt đầu bằng chữ "Khác": lối ấy mở ô cho giáo viên
+# ghi, và câu họ ghi mới tới AGENT (người dùng chốt) -- `_after_other` thành code chết.
+# @pytest.mark.asyncio
+# async def test_after_other_the_question_is_open_whatever_the_model_offers(
+#     monkeypatch: pytest.MonkeyPatch, on: None
+# ) -> None:
+#     """Plan 4c T5, trên trình duyệt: *"Cho mình 10 câu kiểm tra lớp 8"* → *"Đại số / Hình học /
+#     Số học"* → "Khác" → model hỏi tiếp kèm *"Chương 1 / Chương 2 / Chương 3"* -- một đề không có
+#     sách. Lời dặn câu mở trong `_CORE` không giữ được; câu hỏi sau "Khác" không mang lựa chọn."""
+#     model = Scripted([_ask("Chương 1", "Chương 2", "Chương 3")])
+#     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+#     history = (
+#         TurnRecord(kind="teacher", text="Cho mình 10 câu kiểm tra lớp 8"),
+#         TurnRecord(kind="assistant", text="Bạn muốn kiểm tra điều gì?"),
+#         TurnRecord(kind="teacher", text="Khác"),
+#     )
+#
+#     step = await propose(_asked("x").model_copy(update={"history": history}))
+#
+#     assert step.kind == "ask_clarify"
+#     assert step.choices == ()
+#     assert step.text
+
+
+def test_names_of_items_and_other_are_not_answers() -> None:
+    """Review T3: thiếu cả bốn mục thì 15/30 lượt bày *"Môn học"*, *"Khối lớp"* -- tên các mục câu
+    hỏi vừa kể -- làm nút; và 58/158 câu hỏi có "Khác" model tự viết, được đếm vào đủ ba."""
+    question = "Bạn cho mình biết môn học, khối lớp, phạm vi kiến thức và số câu hỏi nhé?"
+
+    kept = _answers(("Môn học", "Khối lớp", "Số câu hỏi", "Khác", "khối 6"), question)
+
+    assert kept == ("khối 6",)
+
+
+def test_a_value_stays_even_when_the_question_names_it() -> None:
+    """Có chữ số là một giá trị: *"Bạn muốn 10, 15 hay 20 câu?"* vẫn cho bấm *"20 câu"*."""
+    question = "Bạn muốn 10, 15 hay 20 câu?"
+
+    assert _answers(("10 câu", "15 câu", "20 câu"), question) == ("10 câu", "15 câu", "20 câu")
+
+
+def test_two_rows_from_an_earlier_turn_are_still_enough() -> None:
+    """Review T3: câu hỏi về hai lớp kéo sang lượt sau, giáo viên gõ một tên khác, lượt ấy không
+    gọi lại tool. Đòi ba ở đó là ép model bịa lớp thứ ba."""
+    history = (
+        TurnRecord(kind="teacher", text="lớp 12 thế nào"),
+        TurnRecord(kind="tool_call", tool_name="list_class", tool_args={"name": "12"}),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="list_class",
+            tool_result={"candidates": [{"name": "12A"}, {"name": "12B"}], "more": 0},
+        ),
+        TurnRecord(kind="assistant", text="Bạn muốn xem lớp nào?"),
+        TurnRecord(kind="teacher", text="lớp chuyên ấy"),
+    )
+
+    assert _choices_wanted(_asked("x").model_copy(update={"history": history})) == 2
+    # Một plan đã nêu sau danh sách ấy: việc chọn lớp xong rồi, câu hỏi mới lại cần ba.
+    planned = (*history[:4], TurnRecord(kind="plan"), TurnRecord(kind="teacher", text="soạn đề"))
+    assert _choices_wanted(_asked("x").model_copy(update={"history": planned})) == 3
+
+
+@pytest.mark.asyncio
+async def test_a_second_ask_with_fewer_choices_keeps_the_first(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review T3: hai lần đều thiếu thì giữ lần nhiều lựa chọn hơn -- lần hai có thể còn ít hơn."""
+    model = Scripted([_ask("10 câu", "15 câu"), _ask("10 câu")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("soạn đề góc nội tiếp lớp 9"))
+
+    assert step.choices == ("10 câu", "15 câu")
+
+
+def test_the_schema_tells_the_model_how_to_fill_choices() -> None:
+    """Mô tả field đi vào schema structured output -- text model đọc. Review T3: bỏ hai câu này
+    thì mọi test vẫn xanh."""
+    described = _Proposal.model_json_schema()["properties"]["choices"]["description"]
+
+    assert "chép đúng tên trong kết quả tool" in described
+    assert "Không đánh dấu lựa chọn nào là nên chọn" in described
 
 
 @pytest.mark.asyncio

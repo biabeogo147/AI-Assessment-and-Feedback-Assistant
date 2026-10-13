@@ -4,12 +4,21 @@ Không model nào được gọi: các khẳng định ở đây là về **ch�
 system prompt của pha lên plan.
 """
 
+import unicodedata
+
 import pytest
 from langchain_core.runnables import RunnableLambda
 
 from agent import llm
 from agent.graphs.authoring import draft_brief
-from agent.graphs.propose import _BOOK_PROCEDURE, _describe_tool, _Proposal, propose
+from agent.graphs.propose import (
+    _BOOK_PROCEDURE,
+    _LIBRARY,
+    _compose,
+    _describe_tool,
+    _Proposal,
+    propose,
+)
 from contracts import (
     AttachedDocument,
     DraftQuestionRequested,
@@ -152,6 +161,92 @@ async def test_the_book_procedure_comes_only_with_a_book(
     )
 
     assert (_BOOK_PROCEDURE in prompts[0]) is told
+
+
+_BOOK_TALK = TurnRecord(kind="teacher", text="soạn 10 câu chương 2 trong cuốn sách mình tải lên")
+_ANSWER = TurnRecord(kind="teacher", text="lớp 8")
+
+
+@pytest.mark.parametrize(
+    ("attached", "history", "chosen", "told"),
+    [
+        # Soạn đề, nhắc sách, không chip, chưa đọc sách: lượt duy nhất mở thư viện có nghĩa.
+        (None, (_BOOK_TALK,), ("soan-de",), True),
+        # Không nhắc sách: đứng đầu các nhánh mà hiện ở mọi lượt thì model gọi `list_documents` cả
+        # khi không ai nhắc sách (run-26: 0/6 ở mọi ca đủ mục) -- T3.
+        (None, (_TEACHER,), ("soan-de",), False),
+        (None, (TurnRecord(kind="teacher", text="cho mình danh sách lớp"),), ("soan-de",), False),
+        # Có chip: dòng này từng thắng cả thủ tục sách, 24 lần đo 22/24 → 10/24 (plan 4c T2b).
+        (_READY, (_BOOK_TALK,), ("soan-de",), False),
+        (_PROCESSING, (_BOOK_TALK,), ("soan-de",), False),
+        # Đã mở thư viện: đang chọn sách, thủ tục sách lo phần còn lại.
+        (None, (_BOOK_TALK, *_READ), ("soan-de",), False),
+        # Không phải lượt soạn đề.
+        (None, (_BOOK_TALK,), ("lop-va-ket-qua",), False),
+        # Review T3: nhắc sách ở lượt trước, lượt này chỉ trả lời khối -- vẫn là soạn theo sách.
+        (
+            None,
+            (_BOOK_TALK, TurnRecord(kind="assistant", text="khối nào?"), _ANSWER),
+            ("soan-de",),
+            True,
+        ),
+        # Một plan đã nêu sau câu nhắc sách: việc ấy xong, đề mới không nhắc sách là đề không sách.
+        (None, (_BOOK_TALK, _PLANNED, _TEACHER), ("soan-de",), False),
+        # Chữ gửi từ macOS ở dạng phân rã (NFD) -- "sách" phân rã không khớp nếu không chuẩn hoá.
+        (
+            None,
+            (TurnRecord(kind="teacher", text=unicodedata.normalize("NFD", _BOOK_TALK.text)),),
+            ("soan-de",),
+            True,
+        ),
+        # Giáo viên gọi tài liệu bằng chữ khác "sách".
+        (
+            None,
+            (TurnRecord(kind="teacher", text="soạn 8 câu theo giáo án tuần trước"),),
+            ("soan-de",),
+            True,
+        ),
+    ],
+)
+def test_the_library_hint_comes_only_to_a_drafting_turn_without_a_book(
+    attached, history, chosen, told
+) -> None:
+    request = NextStepRequested(
+        request_id="r1",
+        history=history,
+        attached_document=attached,
+        catalog=(ToolSpec(name="list_documents", description="tra cứu", arguments={}),),
+    )
+
+    composed = _compose({"request": request, "skills": chosen, "messages": [], "step": None})
+    system = composed["messages"][0].text
+
+    assert (_LIBRARY in system) is told
+    # Chỗ trống của skill không bao giờ tới model, điền hay xoá.
+    assert "{thư viện}" not in system
+
+
+def test_the_library_line_stands_among_the_drafting_branches() -> None:
+    """Đứng thành một đoạn riêng sau skill thì model không theo nó; đứng sau nhánh *hỏi lại* thì
+    nhánh ấy thắng.
+
+    Nhắc sách không chip: đoạn riêng 0/6 -- model ghi khối bịa rồi nêu plan (plan 4c T2b); sau nhánh
+    *còn ? → hỏi lại* 11--14/24 -- hỏi khối rồi soạn đề không sách (T3). Chỗ của nó là nhánh đầu.
+    """
+    request = NextStepRequested(
+        request_id="r1",
+        history=(_BOOK_TALK,),
+        catalog=(ToolSpec(name="list_documents", description="tra cứu", arguments={}),),
+    )
+
+    system = _compose({"request": request, "skills": ("soan-de",), "messages": [], "step": None})[
+        "messages"
+    ][0].text
+
+    assert system.index("Chỉ mục ghi ? mới được hỏi") < system.index(_LIBRARY)
+    assert system.index(_LIBRARY) < system.index("- còn ? → ask_clarify")
+    # Khối thường chỉ có trong tên tài liệu, nên mở thư viện không chờ đủ mục.
+    assert "kể cả khi còn ?" in _LIBRARY
 
 
 def test_a_unit_with_no_text_is_briefed_without_an_empty_frame() -> None:

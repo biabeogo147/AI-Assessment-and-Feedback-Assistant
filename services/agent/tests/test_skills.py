@@ -18,7 +18,7 @@ from typesafe_sdk import TypeSafeError
 
 from agent import llm, skill_router, skills
 from agent.config import get_settings
-from agent.graphs.propose import _BOOK_PROCEDURE, _CORE, _Proposal, propose
+from agent.graphs.propose import _BOOK_PROCEDURE, _CORE, _LIBRARY_SLOT, _Proposal, propose
 from contracts import NextStepRequested, TurnRecord
 
 
@@ -58,7 +58,8 @@ def _teacher(text: str) -> TurnRecord:
 
 
 def _body(name: str) -> str:
-    return skills.named((name,))[0].body
+    """Thân skill như model đọc ở một lượt không có `list_documents`: chỗ trống thư viện đã xoá."""
+    return _LIBRARY_SLOT.sub("", skills.named((name,))[0].body)
 
 
 class Recording:
@@ -128,9 +129,15 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         "hai lớp trùng tên chỉ giáo viên phân biệt",
         "Mọi id lấy từ kết quả tool, không bao giờ tự đoán",
         "call_tool get_class — class_id",
-        # ADR-23: model viết câu hỏi, hệ thống dựng phương án.
-        "ask_clarify, chỉ viết câu hỏi",
-        "đừng điền choices",
+        # ADR-23, hậu ký plan 4c T3: model đề xuất ít nhất 3 lựa chọn, FE vẽ thêm lối "Khác"; hỏi
+        # về một lớp thì chép đúng tên -- BE chỉ giữ chữ khớp đúng một dòng nó đã đọc.
+        "Hỏi thì kèm ít nhất 3 lựa chọn trong choices",
+        # Câu này không còn bắn (lối "Khác" gửi câu giáo viên ghi, không gửi chữ "Khác"), nhưng
+        # được giữ vì prompt nhạy đúng chỗ ấy: bỏ nó thì ca logarit tụt 23 → 6/24, thay câu khác
+        # thì 0/24 (plan 4c, sau T5; run-92..94). Xem comment trên `_CORE`.
+        'Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở',
+        "choices chép đúng name của các lớp",
+        "Đừng liệt kê tên lớp trong text",
         "đừng chọn hộ",
         # Hai điểm dừng, không có chúng thì model gọi list_class lặp tới trần của BE (review A1).
         "Hẹp rồi mà vẫn more > 0 → say",
@@ -148,6 +155,25 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         # kê" -- bỏ ở run-20.
         "hoặc suy từ phạm vi",
         "không tự viết câu hỏi ra trong lời nói",
+        # Plan 4c T2b: `known` ghi giá trị bốn mục, không phải tên của chúng. Thử tay run-20: đủ
+        # bốn mục mà `known` ghi *"Cần xác định môn học, khối, phạm vi kiến thức và số câu"*, rồi
+        # hỏi cả ba thứ đã có.
+        "Ghi vào known GIÁ TRỊ đọc được của từng mục",
+        # Khuôn đẩy model lấp đủ ô: nhắc sách không chip thì nó tự điền khối 8, 10, 11 (run-25).
+        "suy thẳng từ lời họ theo bước 1 -- không đoán",
+        "còn ? → ask_clarify một lần",
+        # Chữ trích «» đưa `thieu-khoi-va-so-cau` từ 2/6 lên 6/6 (run-27 → run-28); tham số plan
+        # chép từ `known` (plan thiếu tham số 17/192, run-23); môn khác Toán chỉ khi gọi thẳng
+        # tên môn (`du-xac-suat-10` 1/6 → 5/6, run-28 → run-29). Review T2b: không test nào khoá.
+        # Phạm vi đứng trước môn: chép phạm vi rồi mới suy môn (`du-xac-suat-10` 8/24, run-42).
+        "topic_scope=<giá trị> «<chữ>»; subject=<giá trị> «<chữ>»",
+        "ĐỦ hai bước, mỗi tham số chép đúng giá trị đã ghi trong known",
+        "Chỉ ghi môn khác khi giáo viên gọi thẳng tên một môn học khác",
+        # Plan 4c T5: *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* -- cụm dùng để suy môn
+        # bị coi là đã dùng hết, `topic_scope=? «phần logarit»`, hỏi lại dù đủ bốn mục: bản đã
+        # commit 19/24, bản có T2b/T3 5/24, có câu này 24/24 (run-79). Nó kéo `tai-lieu-khong-dinh`
+        # 24 → 16/24 cho tới khi `_library_first` giữ bước đầu của lượt nhắc sách bằng code.
+        "cụm suy\n     ra môn vẫn là phạm vi",
     ],
 )
 def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> None:
@@ -168,6 +194,18 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
         "call_tool list_chapters — document_id",
         "rải đều theo độ dài các mục",
         "create_draft thêm document_id và nodes",
+        # Plan 4c T2b: chương không có trong sách thì model lấy một chương khác thay vào (run-25).
+        "không phải một mục khác thay vào",
+        # Có chip mà vẫn gọi `list_documents` (`tai-lieu-chua-doc` 2--3/6, run-27..29).
+        "document_id đã có ở dòng tài liệu đính kèm thì\n   không gọi list_documents",
+        # T3: tả nội dung nhãn, không tả trạng thái đối chiếu. *"Chưa khớp được mục nào thì ?"*
+        # thì model ghi ? trước khi đối chiếu, rồi hỏi *"cả chương hay một phần?"* (7/24, run-49);
+        # bỏ hẳn thì nó lấy chương khác thay chương không có (2/24, run-50). Câu này: 23 và 24/24.
+        "không label nào trong kết quả tool\n   nói về điều ấy thì topic_scope=?",
+        # Chữ trích của khối đọc từ tên tài liệu là tên tài liệu -- không thì khối thành ?.
+        "trong known, chữ trích của chúng là\n   tên tài liệu",
+        # T3: câu hỏi về mục thì choices là label -- BE chỉ giữ chữ khớp đúng một dòng.
+        "choices chép đúng label của các mục",
     ],
 )
 def test_the_book_procedure_keeps_the_rules_of_plan_4b(rule: str) -> None:
@@ -179,12 +217,14 @@ def test_no_skill_carries_the_book_procedure() -> None:
 
     Skill `soan-de` từng mang thủ tục sách, kèm dòng dặn *"không hỏi giáo viên có tài liệu hay
     không"*; model vẫn hỏi đúng câu ấy ~7/108 lượt (run-13), và 0/108 khi thủ tục rời skill
-    (run-14). Skill chỉ còn một dòng mở thư viện, kích bởi lời giáo viên. Mô tả skill thì được
-    nhắc -- Jev đọc nó, model soạn đề không đọc.
+    (run-14). Dòng mở thư viện cũng rời skill ở T2b: nằm trong skill thì nó thắng cả lượt có chip
+    (24 lần: 22/24 → 10/24), nên giờ là `propose._LIBRARY`, chỉ chèn ở lượt không có sách. Mô tả
+    skill thì được nhắc -- Jev đọc nó, model soạn đề không đọc.
     """
     for skill in skills.every():
         assert "tài liệu" not in skill.body.casefold()
         assert "list_chapters" not in skill.body
+        assert "list_documents" not in skill.body
 
 
 @pytest.mark.asyncio
