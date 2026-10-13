@@ -92,6 +92,20 @@ ghi, và tự kiểm *đã đọc chưa* để không lặp tới trần của B
 nghĩ gì, và chọn tool là việc của pha lên plan. Giá: việc chọn skill của Jev nay bật cả luật code
 (`_opens_library`), nên nạp thừa `soan-de` không còn vô hại.
 
+### Decision: tên bền không mang mã task của plan
+
+**options considered:** (a) để nguyên, giải nghĩa mã trong plan · (b) **luật trong `AGENTS.md`,
+kèm chỗ thi hành bằng code** · (c) chỉ dặn bằng lời, không kiểm.
+
+**selected option:** (b) -- người dùng chốt 13/10/2026.
+
+**reason:** id ca đo, nhãn lượt đo, thư mục kết quả sống lâu hơn plan đặt ra chúng; khi plan sang
+`completed/`, *"t5-sau-list-documents"* hay *"t3e-khop24"* không còn ai giải được. `AGENTS.md` nói
+một luật không có nơi thi hành chỉ là ý tưởng, nên kèm `task_code_in`, một test quét id ca và một
+lần kiểm `--label` ở bộ đo. Mã task vẫn được dùng trong chính plan, ghi chú của nó và commit message.
+Luật tốn hai dòng `AGENTS.md` (trần 182 → 184): một Repo-Specific Trap, một hàng Invariants -- bản
+đầu là một đoạn bảy dòng, vượt trần, được viết gọn lại.
+
 ## Files
 
 | File | Việc |
@@ -105,7 +119,9 @@ nghĩ gì, và chọn tool là việc của pha lên plan. Giá: việc chọn s
 | `docs/decisions/adr-23-…md` | hậu ký *≥ 3 lựa chọn* |
 | `AGENTS.md`, `packages/contracts/src/contracts/teacher_chat.py` | hàng Invariants và docstring `choices` theo hậu ký ADR-23 (T3) |
 | `services/fe/src/screens/teacher/Chat.tsx`, `teacher.css`, `teacher.test.tsx`; Figma `Clarify request` (`64:23`), artboard `3b` (`585:3061`); `docs/overview/teacher-surface.md` | lối "Khác" thành ô gõ trong thẻ (sau T5) |
-| `tools/{propose,hierarchy,ocr,skill}_bench/run.py`, tài liệu nhắc `data/run-*` | kết quả đo dời vào `data/results/` (sau T5) |
+| `tools/{propose,pageindex,ocr,skill}_bench/run.py`, tài liệu nhắc `data/run-*` | kết quả đo dời vào `data/results/` (sau T5) |
+| `tools/pageindex_bench/` (đổi từ `hierarchy_bench`), `tools/tests/test_pageindex_score.py` | T6 |
+| `AGENTS.md`, `tools/check_contract.py`, `tools/ocr_bench/run.py` (`task_code_in`), `tools/tests/test_run.py`, `tools/propose_bench/{run.py,cases.json}`, `tools/tests/test_propose_bench.py` | T7: tên bền không mang mã task |
 
 ## Ordered Tasks
 
@@ -291,7 +307,7 @@ Mỗi task: xong → subagent review → sửa → task kế. Đo trên model th
       ký tự điều khiển và chữ sai (*"tỉ lệ thước"*) trong `topic_scope` chưa rõ. FE: thẻ hỏi lại
       không dựng toán qua `MathText`, và từ T3 mọi câu hỏi lại có lựa chọn đều thành thẻ -- dữ liệu
       đổi, code màn hình không đổi.
-- [x] T4. Document: tiêu chí Jev, prompt banner và tóm tắt. `hierarchy_bench` trên cây vàng L6T1
+- [x] T4. Document: tiêu chí Jev, prompt banner và tóm tắt. `pageindex_bench` trên cây vàng L6T1
       không tụt (~$0,03), cộng dựng cây một cuốn Toán khác và đọc tay.
       **Đã làm** (13/10/2026): tiêu chí Jev bỏ ví dụ nội dung -- *"1.1. Cho hai tập hợp"* →
       *"1.1. Cho ..."*, *"1. HỆ THẬP PHÂN"*, *"2. SỐ LA MÃ"* → *"1. <TITLE IN CAPITALS>"*, *"Cách ghi
@@ -447,8 +463,8 @@ Mỗi task: xong → subagent review → sửa → task kế. Đo trên model th
       cho tới khi đọc mục lục -- nay chỉ câu hỏi **ngay sau** danh sách tài liệu, chưa câu nào của giáo
       viên chen vào (bản cũ đổi câu hỏi khối thành câu hỏi tài liệu sau khi giáo viên ghi *"thôi, không
       dùng sách"*); dòng backlog hồi quy viết lại theo số mới; năm ca dựa lưng cho luật code chép từ
-      scratchpad vào `tools/propose_bench/cases.json` (`t5-logarit-lop`, `t5-goc-noi-tiep-lop`,
-      `t5-sach-toan10-menh-de`, `t5-sau-list-documents`, `t5-bam-ten-cuon`) -- bộ đo dựng catalog như
+      scratchpad vào `tools/propose_bench/cases.json` (`dap-khoi-va-so-cau-sau-hoi`, `dap-khoi-sau-hoi`,
+      `nhac-sach-du-muc`, `tai-lieu-sau-thu-vien`, `tai-lieu-bam-ten-cuon`) -- bộ đo dựng catalog như
       BE sau khi đoạn chat đã đọc tài liệu; × 24 (run-97): **118/120**, sau `list_documents` 22/24;
       test thêm ca chip cho `_picked_book_first`, `_misfiled_read`, `_which_book` (bỏ guard chip của
       từng luật làm test đỏ) và chi phí của `_misfiled_read`. Ghi chú đã sửa: `_misfiled_read` chặn
@@ -461,10 +477,41 @@ Mỗi task: xong → subagent review → sửa → task kế. Đo trên model th
       đã đóng* -- ghi lý do vào commit; (d) gửi từ ô "Khác…" xoá cả bản nháp ở ô nhập chính (`send`
       gọi `setText("")`), như mọi nút lựa chọn từ trước; (e) master `chờ trả lời` trên Figma còn tiêu
       đề 16 không gắn biến và phương án hai dòng -- có từ trước, artboard ghi đè nên khớp code.
-- [ ] T6. Đổi tên bộ đo `tools/hierarchy_bench` → `tools/pageindex_bench` (người dùng dặn
+- [x] T6. Đổi tên bộ đo `tools/hierarchy_bench` → `tools/pageindex_bench` (người dùng dặn
       13/10/2026): package, import, tên thư mục bản ghi `hierarchy-<model>` trong
       `data/results/run-*`, test `tools/tests/test_hierarchy_score.py`, mọi chỗ nhắc trong code và
       tài liệu (kể cả plan đã đóng). Làm sau phần nút "Khác".
+      **Đã làm:** `git mv` package và test (`test_pageindex_score.py`); bản ghi mới ghi vào
+      `pageindex-<model>`; chín thư mục `hierarchy-jev-1.13.0` cũ (run-6, run-67..70, `ab-8b02fd7`
+      run-7..10) đổi tên, `data/cache/hierarchy/` thành `data/cache/pageindex/` cùng đường trong
+      `config.json` của các bản ghi; docstring `jev.py`, `config.py`, `skill_bench`, backlog, plan
+      3c (đã đóng -- chỉ đổi tên bộ đo và đường dẫn). Đoạn mô tả task này giữ tên cũ có chủ ý.
+- [x] T7. Luật đặt tên: tên bền không mang mã task của plan (người dùng chốt 13/10/2026: id ca đo,
+      nhãn lượt đo *"t5-…"*, *"t3e-…"* người ngoài đọc không hiểu).
+      **Đã làm:** `AGENTS.md` -- một dòng *Repo-Specific Traps* và một hàng *Invariants*; trần
+      `AGENTS_MD_MAX_LINES` nâng 182 → 184 (`tools/check_contract.py`, kèm lý do). Nơi thi
+      hành: `ocr_bench.run.task_code_in` (một đoạn tên khớp chữ cái + chữ số + tuỳ một chữ cái:
+      `t5`, `T2b`, `a1`; `L6T1` không khớp); `test_bench_case_ids_carry_no_task_code` quét id ca
+      của `propose_bench` và `skill_bench`; `propose_bench` từ chối `--label` mang mã task. Năm id
+      ca đổi tên: `dap-khoi-va-so-cau-sau-hoi`, `dap-khoi-sau-hoi`, `nhac-sach-du-muc`,
+      `tai-lieu-sau-thu-vien`, `tai-lieu-bam-ten-cuon`; bốn id chỉ có trong bản ghi cũng đổi
+      (`dap-khoi-sau-hoi-kiem-tra-nhanh`, `dap-khoi-sau-hoi-soan-de`, `bam-nut-lop-sau-hoi-khoi`,
+      `tai-lieu-bai-trong-chuong`). 85 thư mục `model-text-<nhãn>` trong `data/results/` đặt lại
+      nhãn theo việc chúng đo -- số run giữ nguyên, nên mọi chỗ plan, backlog dẫn *"run-N"* vẫn
+      đúng; id cũ bên trong `answers.jsonl`, `report.txt` đổi theo. Bảng tên cũ → mới (85 nhãn, 9
+      id) nằm cạnh bản ghi: `data/results/doi-ten-2026-10-13.json` -- plan này và commit cũ còn nhắc
+      nhãn cũ (*"run-19, t2g"*) và id cũ (*"t5-logarit-lop"*). Ghi chú: tệp cache của `ocr_bench`
+      (`L6T1_p001_200_easyocr_t4.json`) có `t4` là **số luồng**, không phải mã task -- `data/cache/`
+      giữ nguyên theo lời người dùng; 50 tệp ấy là cache mồ côi (code nay nối `_text2` vào tên).
+      **Review T6/T7** (0 chặn, 4 nên sửa), đã sửa: test khoá việc `propose_bench` từ chối nhãn
+      **trước** mọi lời gọi model; id `tai-lieu-khong-dinh-du-muc` va chạm tiền tố với
+      `tai-lieu-khong-dinh` ở `--only` (đo lại 24 lần một ca thành 48 lần hai ca) -- đổi thành
+      `nhac-sach-du-muc`, thêm test không id nào là tiền tố của id khác; bảng đổi tên ra khỏi
+      scratchpad; bảng Files. Thêm: `task_code_in` tách theo mọi ký tự không phải chữ hay số (bắt
+      `(t5)`, `t5,list`), tha tên model `o3`, `o4-mini`, bắt `v2` có chủ ý (ghim trong test); hai
+      nhãn sai nghĩa đặt lại (run-81 `ca-bo-sau-luat-doc-truoc`, run-97
+      `dap-sau-hoi-va-tai-lieu-cases-json`); cột báo cáo canh theo id dài nhất. Không sửa: khoảng 100
+      comment dạng *"(review T2b)"* trong `services/` -- luật nói về **tên**, comment là lời dẫn.
 
 ## Validation Checks
 
