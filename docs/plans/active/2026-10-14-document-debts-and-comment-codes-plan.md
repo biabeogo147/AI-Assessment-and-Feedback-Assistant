@@ -145,12 +145,15 @@ Mở 14/10/2026. Task 1--10 đã commit, mỗi task qua một lượt subagent r
   (docstring thật đọc bằng `ast`, khoảng trắng được gộp trước khi so), một slug mỗi khối, không đụng
   dòng sau nhãn `[CODE CHẾT`, reflow cả đoạn giữ thụt lề treo; review lần hai còn ~20 chỗ chữ, sửa
   tay. Kiểm bằng máy: code và mọi chuỗi không phải docstring giống HEAD từng nút AST; từng dòng code
-  chết còn nguyên, đúng thứ tự. Một lần chạy trung gian từng dồn dòng `# TODO: Cần xem lại` của
-  người dùng vào đoạn bên dưới -- đã tách lại, và script coi dòng `TODO` là ranh giới.
+  chết còn nguyên, đúng thứ tự. Một lần chạy trung gian từng dồn một dòng ghi chú xem-lại của người
+  dùng (không commit) vào đoạn bên dưới -- đã tách lại, và script coi dòng ghi chú ấy là ranh giới.
 
 **Chưa làm -- vì vậy plan còn ở `active/`:** hai lượt thử trên trình duyệt trong `Validation Checks`
 (thẻ hỏi lại giữ chữ ô chính; chip đi *đang đọc x/y trang* → *đang dựng mục lục* → sẵn sàng). Docker
 infra đang tắt, và luật của người dùng là không tự bật Docker Desktop. Test tự động của cả hai đã có.
 
 `dev.ps1 test`: `test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones` hỏng chập chờn -- nợ
-đã ghi ở `backlog.md` (đồng hồ Windows 15,6 ms), có từ trước plan này; chạy lại thì 1085/1085.
+đã ghi ở `backlog.md` (đồng hồ Windows 15,6 ms), có từ trước plan này; chạy lại thì 1090/1090.
+
+Task 11: `backlog.md` đã gỡ mọi dòng đã làm và ghi lý do cho dòng giữ lại. Checkbox còn mở vì nửa sau
+của nó -- đóng plan -- chờ hai lượt thử trình duyệt ở trên.

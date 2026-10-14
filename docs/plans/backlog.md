@@ -982,23 +982,26 @@ khi plan ấy đóng sớm sau Task 2. Plan được **mở lại** cùng ngày 
 (`completed/2026-10-11-mongo-content-store-plan.md`): PDF scan giờ đi đường OCR theo lô, có tiến độ,
 và về `ready`. Còn lại là nợ.
 
+14/10/2026 (`2026-10-14-document-debts-and-comment-codes-plan.md`): năm dòng đã làm và đã gỡ -- chip
+nói *đang đọc x/y trang*, lô chạy lại bỏ trang đã có, `pages_read` không lùi, ghi trang theo lô,
+lần thử cuối gửi `FAILED`.
+
 | Việc | Ghi chú |
 | --- | --- |
 | **Nhiều cuốn scan cùng lúc bị đọc ra *xử lý hỏng* cùng lúc.** Worker `document` chạy `max_jobs = 1`, lô kế của mỗi cuốn xếp cuối queue, nên `k` cuốn đọc xen nhau và khoảng giữa hai tiếng báo tiến độ của một cuốn là chừng `k` × 45 s | Vượt ngưỡng 300 s từ `k` ≈ 7 (≈ 4 với trang dày chữ). Một lần dò tệp có chữ cũng chờ chừng ấy. Hướng: đo *đứng quá lâu* theo nhịp sống của worker chứ không theo tiến độ từng cuốn, hoặc cho chuỗi lô đầu tiên chạy hết trước (FIFO theo cuốn) và báo tiến độ `0` lúc xếp hàng. Phát hiện ở review Task 3 |
-| Hiển thị *"đang đọc 37/200 trang"* trên chip | Cột `pages_read` đã có. Cần Figma trước (luật người dùng) |
-| Chạy lại một lô OCR đọc lại **cả lô** | Năm lần thử liền của một lô ≈ 5 × 45 s + 50 s chờ, sát ngưỡng 300 s. Hướng: bỏ qua trang đã có trong kho khi chạy lại |
 | Id cố định của lô (`ocr:<doc>:<first>`) chỉ chặn chuỗi trùng với **một** process `document` | Chạy hai process thì một lần chạy lại có thể đẻ chuỗi thứ hai và `begin` xoá trang của chuỗi kia |
-| `pages_read` dừng ở lô áp chót sau `ready` (lô cuối gửi kết quả, không gửi tiến độ); tiến độ về sai thứ tự có thể làm nó lùi | Vô hại tới khi FE vẽ tiến độ |
 | **PDF lai qua cổng 10%** (vd. 40/400 trang có lớp chữ mỏng) ra `READY` / `text_layer` với 360 trang rỗng, không bao giờ đi OCR | 3c sẽ dựng cây trên bản thô thủng. Hướng: trang dưới `_MIN_CHARS_PER_PAGE` đi OCR -- cần một bản scan có lớp OCR mỏng thật để đo |
 | **Xoá bản thô khi giáo viên xoá tài liệu**; và bản thô mồ côi khi kho ghi xong mà `_hand_back` hỏng hết lượt thử | BE không giữ khoá Mongo (D1). Có thể là một task `document` nhận lệnh xoá |
-| Mỗi trang một `replace_one` | 2 000 trang ≈ 1 s với Mongo local; Mongo ở xa (RTT ~20 ms) ≈ 40 s, vẫn dưới 120 s. `bulk_write` khi cần |
-| Lần thử cuối của `Retry` hết lượt thì job hỏng im, chip chờ 300 s | Có thể gửi `FAILED` ở lần thử cuối khi Redis còn sống (lô OCR đã làm vậy cho ca object storage hụt) |
 | Một trang đơn lẻ OCR quá 120 s vẫn chạm `job_timeout` | Ngân sách 90 s của lô chỉ kiểm giữa hai trang. Chưa gặp: trang chậm nhất đo được ~12 s |
 
 ## Nợ của plan 3c — document agent, Jev và cây ba cấp
 
 Ghi ngày 11/10/2026, cùng lượt viết plan 3c (`completed/2026-10-11-document-agent-hierarchy-plan.md`).
 Số đo nằm ở `Status` của plan ấy và ở `data/results/run-6/pageindex-jev-1.13.0/`.
+
+14/10/2026 (`2026-10-14-document-debts-and-comment-codes-plan.md`): ba dòng đã gỡ -- chip nói
+*đang dựng mục lục*, token banner tách khỏi token tóm tắt, và dòng *job hỏng vì lỗi lập trình thì
+chip chờ 300 s* (đã xong từ commit `b0dc342`: `index_document` bắt mọi lỗi và gửi `FAILED`).
 
 | Việc | Ghi chú |
 | --- | --- |
@@ -1008,12 +1011,9 @@ Số đo nằm ở `Status` của plan ấy và ở `data/results/run-6/pageinde
 | Thứ OCR không đọc ra thì không cây nào có: tên Bài 10 (trang 39), hai mục Bài 21 (trang 100–101), *Hoạt động thực hành trải nghiệm* (banner không có chữ CHƯƠNG) | Một cổng thứ hai cho luna: trang mở bài (có hộp *KHÁI NIỆM, THUẬT NGỮ*) mà không có `doc_title` -- đọc tên bài trên ảnh. Dải mục màu đỏ (*"1. HÌNH CÓ TRỤC ĐỐI XỨNG..."*) thì PP-DocLayout không thấy khối nào |
 | Mẫu riêng cho bộ KNTT trong luật: watermark *"KẾT NỐI TRI THỨC"*, nhãn hoạt động, `[IL1]` cho lỗi OCR | Overfit có chủ ý cho bộ sách đang dùng; một bộ sách khác cần đo lại |
 | Ba tool đọc (`list_chapters` / `get_chapter` / `get_chunk`) chưa có | Plan 5 hoặc một plan riêng. Cây và chunk đã nằm trong Mongo, có `summary` |
-| Hiển thị *"đang dựng mục lục"* trên chip | Cần Figma trước. Hôm nay chip đứng ở *đang xử lý* thêm vài chục giây sau khi OCR xong |
-| Job dựng cây hỏng vì một lỗi lập trình (không phải `Retry`) thì chip chờ 300 s rồi ra *xử lý hỏng* | Có thể gửi `FAILED` khi graph ném lỗi không lường trước |
 | `LLM_TIMEOUT_SECONDS` dùng chung với AGENT | Tách một biến riêng nếu luna hay tóm tắt cần trần khác |
 | *"1.1"* là bài tập chỉ khi tài liệu đi qua OCR -- một SGK **có** text layer thì *"1.1. Cho hai tập hợp"* thành mục cấp 2 | Phân biệt theo hình dạng (*"1.1."* có chấm cuối, theo sau là câu chữ thường) thay vì theo nguồn đọc |
 | Một khe hẹp: lô OCR cuối của một lần đọc mới giao job dựng cây **trong lúc** job cũ còn chạy thì bị id cố định từ chối, và job cũ bỏ vì bản thô đang đọc dở | Không ai dựng cây; chip ra *xử lý hỏng* sau 300 s. Hướng: id theo `raw.started_at` thay vì theo tài liệu |
-| `summary_tokens` cộng cả token của luna, hai model khác giá | Tách `banner_tokens` khi cần tính tiền theo model |
 | Một đơn vị đọc dài hơn 1 500 ký tự không bị cắt, nên chunk vượt trần | Khối text layer lớn; cắt theo câu khi cần |
 | `except Exception` ở bước banner và tóm tắt che cả lỗi lập trình (chỉ còn `logger.exception`) | Đếm số lần hỏng vào `IndexHeader` để thấy được từ dữ liệu |
 | Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật. *Plan 4c T4 đổi tiêu chí (bỏ ví dụ chương): Jev thuần 120 nút, thắng luật 0 lần ở 0,8; cuốn thứ hai (Lớp 10 tập 1, chưa có cây vàng) lộ `"a. Mệnh đề"` OCR thành `"2. Mệnh để"` bị Jev xếp cấp 3 -- ứng viên cho `letter_case`* | Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/pageindex_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |
@@ -1076,14 +1076,13 @@ Ghi ngày 13/10/2026, gpt-4o-mini. Ca nào có số A/B thì đo 24 lần với 
 Ghi ngày 13/10/2026, khi đóng `2026-10-12-unbiased-model-text-plan.md`. Mỗi dòng chờ người dùng
 quyết, không phải lỗi đã biết cách sửa.
 
+Người dùng quyết ngày 14/10/2026 (`2026-10-14-document-debts-and-comment-codes-plan.md`): năm dòng
+đã gỡ -- đọc mục lục khi chỉ một tài liệu hợp **giữ nguyên** (agent quyết, kể cả khi nó hỏi lại);
+luật mã trong comment, tên cache `ocr_bench`, thẻ hỏi lại giữ chữ ô chính, Figma theo code đã làm.
+
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **BE tự kiểm "đã đọc mục lục"** trước khi mở đề theo tài liệu. ADR-27 (đoạn thêm từ plan 4c) chỉ thi hành ở AGENT (`propose._toc_first`, `_picked_book_first`); BE vẫn nhận `nodes` model bịa nếu một đề nghị đi vòng qua `_choose` -- hiện chưa đường nào làm thế | Người dùng quyết có cần lưới thứ hai ở BE không |
-| **Đọc mục lục luôn khi chỉ một tài liệu hợp** (hướng i của review plan 4c): sau `list_documents` model đọc đúng cuốn 22/24 (ca `tai-lieu-sau-thu-vien`), phần còn lại giáo viên trả lời thêm *"Bạn soạn theo tài liệu nào?"* | Là code chọn hộ giáo viên -- chờ người dùng duyệt |
-| **Luật đặt tên cho comment**: luật `AGENTS.md` mới chỉ nói về **tên** bền; khoảng 100 comment trong `services/` dẫn *"(review T2b)"*, *"T3"* không kèm tên plan | Người dùng quyết có áp luật cho lời dẫn trong comment không (ghi kèm tên plan) |
-| **Tên cache của `ocr_bench`**: `L6T1_p001_200_easyocr_t4.json` -- `t4` là số luồng (`--threads`), không phải mã task, nhưng người ngoài đọc dễ nhầm và `task_code_in` sẽ báo. 50 tệp ấy là cache mồ côi (code nay nối `_text2` vào tên) | Đổi khuôn tên trong code (`_threads4`) không mất gì; người dùng dặn giữ nguyên `data/cache/` |
-| **Gửi từ thẻ hỏi lại xoá bản nháp ở ô nhập chính**: `Chat.tsx` `send` gọi `setText("")` -- đúng cả cho nút lựa chọn từ trước lẫn ô "Khác" mới; lượt hỏng thì câu đã ghi về ô nhập chính chứ không về thẻ | Chưa đo có giáo viên nào gặp; sửa là đổi `send` nhận nguồn câu |
-| **Figma lệch code, có từ trước**: ô nhập chính ở artboard `3` ghi *"Hoặc trả lời bằng câu của bạn…"*, code ghi *"Nhắn cho Kriky…"*; master `Clarify request` / `chờ trả lời` còn tiêu đề 16 không gắn biến và phương án hai dòng (instance trên artboard ghi đè nên artboard khớp code) | Người dùng quyết bên nào đúng |
+| **BE tự kiểm "đã đọc mục lục"** trước khi mở đề theo tài liệu. ADR-27 (đoạn thêm từ plan 4c) chỉ thi hành ở AGENT (`propose._toc_first`, `_picked_book_first`); BE vẫn nhận `nodes` model bịa nếu một đề nghị đi vòng qua `_choose` -- hiện chưa đường nào làm thế | Người dùng 14/10/2026: **chưa làm** khi chưa có lỗi thật -- lưới ở AGENT đủ cho tới khi có một đề nghị đi vòng qua `_choose` |
 
 ## Lộ ra khi làm plan ngân hàng câu hỏi
 
