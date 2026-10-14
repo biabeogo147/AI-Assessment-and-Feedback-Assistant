@@ -289,3 +289,47 @@ async def test_progress_for_a_row_that_is_gone_is_dropped_not_raised(library) ->
     """Giáo viên xoá tài liệu giữa lúc OCR: bỏ tiếng báo, không ném cho arq thử lại vô ích."""
     written = await document_progress({}, _progress("khong-ton-tai"))
     assert written["written"] is False
+
+
+@pytest.mark.asyncio
+async def test_progress_that_arrives_out_of_order_does_not_go_back(library) -> None:
+    """Tiếng báo đi qua queue và có thể về sai thứ tự: chip không được lùi từ 40 về 20 trang."""
+    maker, document_id = library
+
+    await document_progress({}, _progress(document_id, pages_read=40))
+    written = await document_progress({}, _progress(document_id, pages_read=20))
+
+    assert written["written"] is True
+    async with maker() as session:
+        row = await session.scalar(select(Document))
+        assert row is not None
+        assert row.pages_read == 40
+
+
+@pytest.mark.asyncio
+async def test_progress_keeps_the_total_and_rings_the_owner(library) -> None:
+    """Chip nói *"đang đọc 20/184 trang"*: nó cần tổng, và cần một tiếng hích để đọc lại."""
+    maker, document_id = library
+    async with maker() as session:
+        owner = (await session.scalar(select(Document))).teacher_id
+    redis = _Redis()
+
+    await document_progress({"redis": redis}, _progress(document_id))
+
+    async with maker() as session:
+        row = await session.scalar(select(Document))
+        assert row is not None
+        assert (row.pages_read, row.page_count) == (20, 184)
+    assert redis.rang == [(f"documents:{owner}", "1")]
+
+
+@pytest.mark.asyncio
+async def test_a_heartbeat_that_changes_nothing_on_the_chip_rings_nobody(library) -> None:
+    """Job dựng cây báo nhịp tim ở mỗi chặng với cùng một số: chỉ tiếng đầu đổi chữ trên chip."""
+    _, document_id = library
+    redis = _Redis()
+
+    await document_progress({"redis": redis}, _progress(document_id, pages_read=184))
+    await document_progress({"redis": redis}, _progress(document_id, pages_read=184))
+
+    assert len(redis.rang) == 1

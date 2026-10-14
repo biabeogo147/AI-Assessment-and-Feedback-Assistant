@@ -798,6 +798,11 @@ class Document(Base):
     Từ plan 3c, job dựng cây cũng gửi tiến độ ở mỗi chặng, với `pages_read` bằng số trang -- chỉ
     để dời `progress_at`. Nên sau `ready` cả hai cột thường có giá trị, kể cả với tài liệu không
     qua OCR; số trang thật vẫn là `page_count`, không phải `pages_read`.
+
+    Từ 14/10/2026 chip đọc hai cột này để nói tiến độ: `pages_read` không lùi (ghi số lớn hơn), và
+    tiếng báo tiến độ ghi cả `page_count` -- nên lúc `processing` cột ấy có thể đã có số (kể cả
+    `1` cho một tệp văn bản thuần đang dựng cây). Dòng meta của chip chỉ in số trang ở `ready` và
+    `no_text_layer`.
     """
 
     __tablename__ = "documents"

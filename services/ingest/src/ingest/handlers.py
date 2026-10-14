@@ -15,7 +15,7 @@ Một tài liệu xử lý xong trong mười giây mà không ai đọc trong m
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import update
+from sqlalchemy import case, func, select, update
 
 from contracts import DocumentProbed, DocumentProgress, DocumentState
 from ingest.db import session_scope
@@ -89,38 +89,68 @@ async def document_progress(ctx: dict, payload: dict) -> dict:
     Chỉ ghi khi hàng **còn** `processing`. Kết quả cuối đã về thì một tiếng báo đến muộn không có gì
     để nói, và ghi nó là làm cột tiến độ nói một điều sai về một tài liệu đã xong.
 
-    Không hích màn hình: chip chưa vẽ tiến độ (cần Figma -- nợ của plan 3b), nên một tiếng hích ở
-    đây chỉ làm mọi màn hình đang mở đọc lại thư viện mỗi bốn mươi lăm giây mà không thấy gì đổi.
+    **`pages_read` không lùi.** Tiếng báo đi qua queue và có thể về sai thứ tự (một lô chạy lại
+    báo sau lô kế của nó), nên cột giữ số lớn hơn giữa cái đã có và cái vừa nghe. Viết bằng
+    `CASE` chứ không `GREATEST`, vì test chạy trên SQLite. Cái giá: lần dò tệp bị arq chạy lại thì
+    OCR bắt đầu lại từ trang 1, và chip báo dư cho tới khi chuỗi mới vượt số cũ.
+
+    `page_count` cũng được ghi, vì chip cần tổng để nói *"đang đọc 37/200 trang"* (người dùng chốt
+    14/10/2026). Ghi nó lúc `processing` không phải nói sớm: dòng meta của chip chỉ in số trang ở
+    `ready` và `no_text_layer` (`Rail.measure`), và phán quyết cuối ghi đè cột ấy bằng số của nó.
+
+    Hích màn hình **chỉ khi `pages_read` tăng** -- tức khi chip đổi chữ. Job dựng cây gửi nhịp
+    tim ở mỗi chặng (mỗi banner, mỗi nhóm tóm tắt) với `pages_read = page_count`; hích cả những
+    tiếng ấy là mỗi màn hình đang mở đọc lại cả thư viện vài chục lần mà không thấy gì đổi. Tiếng
+    đầu tiên của job ấy vẫn được hích: nó đưa `pages_read` lên bằng tổng, và chip sang *"đang dựng
+    mục lục"*.
 
     Args:
-        ctx: Context worker của arq. Không dùng.
+        ctx: Context worker của arq. `redis` để hích; thiếu thì không hích.
         payload: `DocumentProgress` đã serialise.
 
     Returns:
         Một dict nói đã ghi được hàng nào chưa, cho log của job.
 
     Side effects:
-        Một `UPDATE` trên `documents`.
+        Một `UPDATE` trên `documents`, rồi một tiếng hích lên channel của chủ sở hữu.
     """
     told = DocumentProgress.model_validate(payload)
 
     async with session_scope() as session:
+        # Đọc số cũ trong cùng giao dịch, chỉ để quyết có hích không. Hai tiếng báo chen nhau thì
+        # tệ nhất là thừa hay thiếu một tiếng hích -- tiếng sau sửa lại, vì hích không chở dữ liệu.
+        before = await session.scalar(
+            select(Document.pages_read).where(Document.id == told.document_id)
+        )
         written = await session.execute(
             update(Document)
             .where(
                 Document.id == told.document_id,
                 Document.state == DocumentState.PROCESSING.value,
             )
-            .values(pages_read=told.pages_read, progress_at=datetime.now(UTC))
-            .returning(Document.id)
+            .values(
+                pages_read=case(
+                    (
+                        func.coalesce(Document.pages_read, 0) < told.pages_read,
+                        told.pages_read,
+                    ),
+                    else_=Document.pages_read,
+                ),
+                page_count=told.page_count,
+                progress_at=datetime.now(UTC),
+            )
+            .returning(Document.teacher_id)
         )
-        found = written.scalar_one_or_none()
+        owner = written.scalar_one_or_none()
         await session.commit()
 
-    if found is None:
+    if owner is None:
         # Cùng lý do với `document_probed`: không ném, vì không lần thử lại nào sửa được.
         logger.info("no progress to write for document=%s", told.document_id)
         return {"document_id": told.document_id, "written": False}
+
+    if told.pages_read > (before or 0):
+        await announce(ctx.get("redis"), owner)
 
     logger.info("document=%s read %s/%s pages", told.document_id, told.pages_read, told.page_count)
     return {"document_id": told.document_id, "written": True}

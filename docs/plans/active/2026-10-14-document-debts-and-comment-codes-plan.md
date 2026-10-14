@@ -112,7 +112,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 - [x] **5. Chạy lại lô không OCR lại trang đã có.**
 - [ ] **6. Lần thử cuối gửi `FAILED`** ở cả lần dò, lô OCR, job dựng cây.
 - [x] **7. Tách `banner_tokens` khỏi `summary_tokens`.**
-- [ ] **8. `pages_read` không lùi; tiến độ ghi tổng và hích màn hình.**
+- [x] **8. `pages_read` không lùi; tiến độ ghi tổng và hích màn hình.**
 - [ ] **9. Chip nói tiến độ.** Figma trước, rồi BE + FE; đo Figma = FE bằng số.
 - [ ] **10. Mã trong comment kèm slug.** Check mới, `AGENTS.md`, rồi sửa comment, chia commit theo service.
 - [ ] **11. Backlog, rồi đóng plan.**
