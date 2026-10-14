@@ -376,6 +376,35 @@ class ContentStore:
                     page_writes(pages[start : start + _PAGE_BATCH]), ordered=False
                 )
 
+    async def stored_pages(self, document_id: str, first: int, last: int) -> set[int]:
+        """Số các trang trong `[first, last]` đã nằm trong kho.
+
+        Một lô OCR chạy lại dùng nó để không đọc lại trang lần trước đã ghi. `begin` xoá mọi
+        trang của lần đọc trước, nên trang nào còn đây là trang của lần đọc này -- **khi chỉ một
+        chuỗi lô đang chạy**, cùng giới hạn `_queue_batch` của `ocr_handlers` đã ghi. Một lô của
+        chuỗi cũ còn nằm trong queue lúc tài liệu được đọc lại thì chạy sau `begin` và ghi trang của
+        nó vào kho mới; chuỗi mới bỏ qua chúng thay vì ghi đè. Cùng tệp, cùng đường đọc thì chữ như
+        nhau; chỉ lệch khi `ocr_reader` hay `pipeline` đổi giữa hai lần đọc.
+
+        Args:
+            document_id: Id tài liệu.
+            first: Trang đầu, đếm từ 1.
+            last: Trang cuối, tính cả nó.
+
+        Returns:
+            Các số trang đã có.
+
+        Raises:
+            ContentStoreUnavailable: Khi Mongo không đọc được lúc này.
+        """
+        async with _translated("list the stored pages of", document_id):
+            found = self._db[_PAGES].find(
+                {"document_id": document_id, "page": {"$gte": first, "$lte": last}},
+                {"page": 1, "_id": 0},
+            )
+            rows = await found.to_list()
+        return {int(row["page"]) for row in rows}
+
     async def finish(self, document_id: str, at: datetime) -> None:
         """Đánh dấu đường đọc đã ghi xong trang cuối.
 

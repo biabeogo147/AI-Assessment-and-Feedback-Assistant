@@ -46,6 +46,7 @@ class _Store:
         broken: bool = False,
         broken_pages: bool = False,
         broken_finish: bool = False,
+        broken_stored: bool = False,
     ) -> None:
         self.header: RawDocument | None = None
         self.pages: list[RawPage] = []
@@ -54,6 +55,7 @@ class _Store:
         self._broken = broken
         self._broken_pages = broken_pages
         self._broken_finish = broken_finish
+        self._broken_stored = broken_stored
 
     async def begin(self, header: RawDocument) -> None:
         """Mở bản thô, hoặc chết như một Mongo không với tới được.
@@ -97,6 +99,24 @@ class _Store:
             raise ContentStoreUnavailable("mongo is down")
         self._log.append(f"pages {len(pages)}")
         self.pages.extend(pages)
+
+    async def stored_pages(self, document_id: str, first: int, last: int) -> set[int]:
+        """Các trang trong khoảng đã ghi.
+
+        Args:
+            document_id: Id tài liệu.
+            first: Trang đầu.
+            last: Trang cuối, tính cả nó.
+
+        Returns:
+            Số các trang đã có.
+
+        Raises:
+            ContentStoreUnavailable: Khi kho được dựng với `broken_stored=True`.
+        """
+        if self._broken_stored:
+            raise ContentStoreUnavailable("mongo is down")
+        return {page.page for page in self.pages if first <= page.page <= last}
 
     async def finish(self, document_id: str, at: object) -> None:
         """Đánh dấu xong, hoặc chết nếu được dựng với `broken_finish=True`.
@@ -544,6 +564,28 @@ async def test_a_middle_batch_reads_its_pages_reports_progress_then_queues_the_n
 
 
 @pytest.mark.asyncio
+async def test_a_batch_run_again_reads_only_the_pages_not_yet_stored() -> None:
+    """arq chạy lại một lô sau khi ba trang đầu đã vào kho: OCR chỉ đọc phần còn lại.
+
+    Đọc lại cả lô là mỗi lần thử thêm hàng chục giây vào khoảng chờ của BE, cho đúng những
+    trang đã có.
+    """
+    per_job = get_settings().ocr_pages_per_job
+    log: list[str] = []
+    store = _Store(log)
+    await ocr_pages(_ocr_ctx([], _Queue(), store), _batch(1, 3))
+    kept = list(store.pages)
+
+    await ocr_pages(_ocr_ctx(log, _Queue(log=log), store), _batch(1, per_job))
+
+    assert [line for line in log if line.startswith("ocr")] == [
+        f"ocr {n}" for n in range(4, per_job + 1)
+    ]
+    assert store.pages[:3] == kept
+    assert [page.page for page in store.pages] == list(range(1, per_job + 1))
+
+
+@pytest.mark.asyncio
 async def test_the_pages_of_a_batch_are_kept_as_ocr_pages() -> None:
     """Trang OCR vào kho với nhãn thật, hộp, số giây -- thứ plan 3c dựng cây từ đó."""
     store = _Store([])
@@ -615,6 +657,17 @@ async def test_a_store_that_breaks_mid_batch_asks_for_a_retry() -> None:
     queue = _Queue()
     with pytest.raises(Retry):
         await ocr_pages(_ocr_ctx([], queue, _Store([], broken_pages=True)), _batch(1, 30))
+    assert queue.jobs == []
+
+
+@pytest.mark.asyncio
+async def test_a_store_that_cannot_say_which_pages_it_has_asks_for_a_retry() -> None:
+    """Không hỏi được kho trang nào đã có thì xin chạy lại, chưa OCR trang nào."""
+    log: list[str] = []
+    queue = _Queue(log=log)
+    with pytest.raises(Retry):
+        await ocr_pages(_ocr_ctx(log, queue, _Store(log, broken_stored=True)), _batch(1, 30))
+    assert [line for line in log if line.startswith("ocr")] == []
     assert queue.jobs == []
 
 

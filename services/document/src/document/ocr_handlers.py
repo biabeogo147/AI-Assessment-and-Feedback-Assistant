@@ -65,11 +65,9 @@ from document.storage import StorageUnavailable
 logger = logging.getLogger(__name__)
 
 # Lần thử thứ `n` chờ `n` lần bấy nhiêu giây. Với `MAX_TRIES = 5`, bốn lần chờ cộng lại là
-# 5 + 10 + 15 + 20 = 50 s -- đủ cho Mongo hay Redis khởi động lại. Với lần dò tệp, chừng ấy còn xa
-# ngưỡng 300 s mà BE coi một tài liệu là chết. Với một lô OCR thì **không** xa: mỗi lần chạy lại đọc
-# lại cả lô (tới `_BATCH_BUDGET_SECONDS`), nên năm lần thử liền nhau của cùng một lô có thể chạm
-# ngưỡng ấy và chip ra *xử lý hỏng* dù lần thử cuối thành công. Chấp nhận: năm lần hỏng liền là một
-# hạ tầng đang ốm thật, không phải một nhịp chập chờn.
+# 5 + 10 + 15 + 20 = 50 s -- đủ cho Mongo hay Redis khởi động lại, và còn xa ngưỡng 300 s mà BE coi
+# một tài liệu là chết. Một lô OCR chạy lại chỉ đọc những trang chưa nằm trong kho (`stored_pages`),
+# nên năm lần thử liền không còn cộng năm lần đọc cả lô vào khoảng chờ ấy.
 _RETRY_STEP_SECONDS = 5
 
 # Số lần arq chạy một job, kể cả lần đầu. Đúng mặc định của arq; `ocr_worker.py` đặt nó vào
@@ -164,8 +162,8 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
 
     Raises:
         Retry: Khi kho nội dung không ghi được, không đẩy được job tiếp theo, hoặc object storage
-            chập chờn (trừ lần thử cuối). arq chạy lại **cả lô**: trang ghi theo `_id`, nên đọc lại
-            một trang là ghi đè chứ không chồng.
+            chập chờn (trừ lần thử cuối). Lần chạy lại chỉ đọc những trang của lô chưa nằm trong
+            kho; trang ghi theo `_id`, nên một trang đọc lại vẫn là ghi đè chứ không chồng.
 
     Side effects:
         Mỗi trang của lô trong kho nội dung. Rồi hoặc một tiếng báo tiến độ trên queue của
@@ -188,7 +186,13 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
     started = time.monotonic()
     last = batch.first - 1
     try:
+        # Lần chạy lại của một lô (arq `Retry`) không đọc lại trang lần trước đã ghi: mỗi trang vài
+        # giây, và năm lần chạy lại đọc cả lô từng sát ngưỡng 300 s của BE.
+        stored = await ctx["store"].stored_pages(batch.document_id, batch.first, planned)
         for page in range(batch.first, planned + 1):
+            if page in stored:
+                last = page
+                continue
             # CPU-bound và dài (vài giây một trang), nên vào thread như `probe`. `read_page` đếm
             # trang từ 0, kho đếm từ 1.
             read = await asyncio.to_thread(ctx["ocr"].read_page, raw, page - 1)

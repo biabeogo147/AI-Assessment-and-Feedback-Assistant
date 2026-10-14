@@ -259,8 +259,9 @@ class _Logged:
         self._log.append(f"find {self._name}")
         return self._rows[0] if self._rows else None
 
-    def find(self, *_: object, **__: object) -> "_Logged":
+    def find(self, *args: object, **__: object) -> "_Logged":
         self._log.append(f"find {self._name}")
+        self.asked = args
         return self
 
     def sort(self, *_: object, **__: object) -> "_Logged":
@@ -418,4 +419,19 @@ async def test_pages_come_back_as_models() -> None:
     assert page.blocks[0].text == "KHÁI NIỆM"
     header = await store.raw("doc-1")
     assert header is not None and header.source is RawSource.OCR
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_the_stored_pages_of_a_range_come_back_as_numbers() -> None:
+    """Lô OCR chạy lại hỏi *trang nào trong lô đã có* -- câu trả lời là một tập số trang."""
+    log: list[str] = []
+    store = _logged_store(log)
+    pages = _Logged("pages", log, [{"page": 2}, {"page": 5}])
+    store._db["pages"] = pages
+
+    assert await store.stored_pages("doc-1", 1, 10) == {2, 5}
+    assert log == ["find pages"]
+    # Chỉ trang của đúng tài liệu, trong đúng khoảng của lô.
+    assert pages.asked[0] == {"document_id": "doc-1", "page": {"$gte": 1, "$lte": 10}}
     await store.close()
