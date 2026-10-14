@@ -253,7 +253,8 @@ export default function Chat({
     let thread = here;
     try {
       // Một trong hai, không bao giờ cả hai: BE trả 422 cho một request tự mâu thuẫn.
-      // Chip đi cùng câu (plan 4b): trước bản này nó chỉ hiện trên dải, BE không bao giờ thấy.
+      // Chip đi cùng câu (`draft-from-document`): trước bản này nó chỉ hiện trên dải, BE không
+      // bao giờ thấy.
       const documentId = scope?.document_id;
       await teacher.stream(
         trimmed,
@@ -568,8 +569,8 @@ export default function Chat({
             **còn nguyên** chữ cũ. Nghĩa *"vừa tải lên"* bị bỏ hẳn: rail đã đẩy tệp vừa
             tải lên **đầu** danh sách, nên câu ấy kể lại một việc màn hình vừa nói.
 
-            Từ plan 4b, chip đi cùng câu (`document_id` trong thân request), BE lưu nó cùng
-            câu ấy, và Kriky soạn đề theo mục lục của tài liệu -- mỗi câu một mục. */}
+            Từ `draft-from-document`, chip đi cùng câu (`document_id` trong thân request), BE lưu
+            nó cùng câu ấy, và Kriky soạn đề theo mục lục của tài liệu -- mỗi câu một mục. */}
         {scope !== null && (
           <div className="scope-strip">
             <span className="kind">{scope.kind}</span>
@@ -1026,7 +1027,7 @@ function Thinking({ slow }: { slow: boolean }) {
  * Mỗi phương án là **một chuỗi BE gửi**, và bấm vào nghĩa là gửi lại đúng chuỗi đó như một
  * câu của giáo viên. Không có id nào đi kèm, và đó là chủ ý của ADR-23. Câu hỏi về một lớp,
  * tài liệu hay mục thì chuỗi là nhãn BE viết từ dữ liệu; câu hỏi về một tham số thì là chữ
- * model đề xuất (hậu ký plan 4c T3).
+ * model đề xuất (hậu ký `unbiased-model-text` T3).
  *
  * Hàng cuối "Khác…" **không** phải một phương án (người dùng chốt 13/10/2026): bấm nó không
  * gửi gì, mà mở một ô ngay trong thẻ để giáo viên ghi rõ "khác" là gì — câu họ ghi mới là câu

@@ -2272,8 +2272,8 @@ describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", ()
   });
 
   it("tệp đính đi cùng câu tới BE, không chỉ nằm trên dải", async () => {
-    // Plan 4b: trước bản này chip chỉ là hình trên màn hình — `streamTurn` không gửi nó, nên
-    // Kriky soạn đề như thể giáo viên chưa đính gì.
+    // `draft-from-document`: trước bản này chip chỉ là hình trên màn hình — `streamTurn` không gửi
+    // nó, nên Kriky soạn đề như thể giáo viên chưa đính gì.
     serving();
     const sent = vi.spyOn(teacher, "stream").mockResolvedValue(undefined);
     const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);

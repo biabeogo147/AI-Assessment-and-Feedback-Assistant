@@ -438,8 +438,8 @@ export interface Turn {
   entity_id: string;
   /**
    * Các phương án bày ra cùng bước này, nếu nó là một câu hỏi lại. BE dựng chúng (ADR-23, hậu ký
-   * plan 4c T3). Lối "Khác" không nằm ở đây -- thẻ hỏi lại tự vẽ nó; các đoạn chat cũ còn chữ
-   * "Khác" cuối danh sách, và `questionIn` lọc nó ra.
+   * `unbiased-model-text` T3). Lối "Khác" không nằm ở đây -- thẻ hỏi lại tự vẽ nó; các đoạn chat cũ
+   * còn chữ "Khác" cuối danh sách, và `questionIn` lọc nó ra.
    */
   choices: string[];
   more_choices: number;
@@ -751,8 +751,9 @@ async function streamTurn(
       text,
       conversation_id: into.conversationId ?? null,
       start_new: into.startNew ?? false,
-      // Chip đang đính (plan 4b). BE chỉ dùng nó khi tài liệu thuộc giáo viên và đã sẵn sàng, và
-      // lưu nó cùng câu này -- nên câu sau, khi chip đã rời ô nhập, vẫn nói về cùng cuốn sách.
+      // Chip đang đính (`draft-from-document`). BE chỉ dùng nó khi tài liệu thuộc giáo viên và đã
+      // sẵn sàng, và lưu nó cùng câu này -- nên câu sau, khi chip đã rời ô nhập, vẫn nói về cùng
+      // cuốn sách.
       document_id: into.documentId ?? null,
     }),
     signal,
