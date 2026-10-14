@@ -6,14 +6,15 @@ Hai loại hỏng ở đây có hai cách xử khác nhau, và phân biệt chú
   câu giáo viên đọc được. Ném ra ngoài thay vì gửi đi là để chip đứng mãi ở *đang xử lý*, đúng
   thứ ADR-27 gọi là một chip nói dối.
 - **Không giao nổi kết quả** thì xin arq **chạy lại** job (`arq.Retry`). Không còn đường nào để
-  nói ra nữa, nên thứ duy nhất còn giá trị là thử lại sau vài giây. Hết lượt thử thì phép suy
-  *đứng quá lâu* của BE là lưới cuối.
+  nói ra nữa, nên thứ duy nhất còn giá trị là thử lại sau vài giây. Lần thử cuối của một lần
+  hỏng hạ tầng thì gửi `FAILED` thay vì chết im (`_retry_or_give_up`); gửi cả cái ấy cũng không
+  được thì phép suy *đứng quá lâu* của BE là lưới cuối.
 
 Từ plan 3b, một tệp có chữ còn để lại **bản thô** trong kho nội dung, và **trước** khi `READY`
 rời service -- Decision Record *"chunk trước, `state` sau"*. Không ghi nổi bản thô cũng xin chạy
 lại, cùng lý do: một `READY` mà kho không có chữ là một chip nói dối theo chiều ngược lại. Chạy lại
 an toàn: `ContentStore.begin` xoá bản thô cũ, và trang ghi theo `_id`, nên lần chạy sau ghi đè
-lần trước chứ không chồng lên.
+lần trước chứ không chồng lên. Lần thử cuối mà kho vẫn chết thì gửi `FAILED`, như đoạn trên.
 
 **Phải là `Retry`, không phải một exception bất kỳ.** arq chỉ chạy lại job khi gặp `Retry` (hoặc
 khi worker bị cắt giữa job); mọi exception khác đánh job *hỏng* ngay, không lượt nào nữa. Trước
@@ -110,7 +111,8 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
 
     Raises:
         Retry: Khi không ghi được vào kho nội dung, hoặc không đẩy được job tiếp theo -- kết quả
-            về BE, hay lô OCR đầu. arq chạy lại job sau vài giây.
+            về BE, hay lô OCR đầu. arq chạy lại job sau vài giây; lần thử cuối thì gửi `FAILED`
+            thay vì ném (`_retry_or_give_up`).
 
     Side effects:
         Với tệp có chữ: bản thô của nó trong kho nội dung, ghi đè bản cũ, rồi một job dựng cây
@@ -136,7 +138,7 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
                 await _start_ocr(ctx, asked, pages)
                 return {"document_id": asked.document_id, "ocr_pages": pages}
         except (ContentStoreUnavailable, HandBackFailed) as exc:
-            raise _retry(ctx, exc) from exc
+            return await _retry_or_give_up(ctx, exc, asked.document_id, found.page_count)
 
     # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
     # return await _conclude(ctx, asked.document_id, found)
@@ -201,7 +203,7 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
             if time.monotonic() - started > _BATCH_BUDGET_SECONDS:
                 break
     except ContentStoreUnavailable as exc:
-        raise _retry(ctx, exc) from exc
+        return await _retry_or_give_up(ctx, exc, batch.document_id, batch.page_count)
     except Exception:  # noqa: BLE001 -- xem chú thích: mọi lỗi đọc trang phải thành một câu trả lời
         # `probe` vừa mở được tệp, nên một trang không đọc nổi -- PyMuPDF không dựng được ảnh
         # (`PdfUnreadable`), hay model OCR ném một lỗi của torch / paddle -- là một phán quyết về
@@ -228,7 +230,7 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
         await ctx["store"].finish(batch.document_id, datetime.now(UTC))
         characters = await ctx["store"].characters(batch.document_id)
     except (ContentStoreUnavailable, HandBackFailed) as exc:
-        raise _retry(ctx, exc) from exc
+        return await _retry_or_give_up(ctx, exc, batch.document_id, batch.page_count)
 
     if characters > 0:
         found = Finding(DocumentState.READY, batch.page_count, "")
@@ -319,7 +321,7 @@ async def _settle(
         Kết quả cho log của job.
 
     Raises:
-        Retry: Khi không đẩy được job tiếp theo.
+        Retry: Khi không đẩy được job tiếp theo, trừ lần thử cuối -- lúc ấy gửi `FAILED`.
     """
     if found.state is not DocumentState.READY:
         return await _conclude(ctx, asked.document_id, found)
@@ -332,7 +334,7 @@ async def _settle(
     try:
         await _queue_index(ctx["redis"], request)
     except HandBackFailed as exc:
-        raise _retry(ctx, exc) from exc
+        return await _retry_or_give_up(ctx, exc, asked.document_id, found.page_count)
     logger.info("document=%s has its raw content; queued for indexing", asked.document_id)
     return {"document_id": asked.document_id, "indexing": True}
 
@@ -454,6 +456,45 @@ def _retry(ctx: dict, cause: Exception) -> Retry:
     attempt = ctx.get("job_try", 1)
     logger.warning("try %s failed, asking arq to run the job again: %s", attempt, cause)
     return Retry(defer=attempt * _RETRY_STEP_SECONDS)
+
+
+async def _retry_or_give_up(
+    ctx: dict, cause: Exception, document_id: str, page_count: int | None
+) -> dict:
+    """Xin arq chạy lại khi còn lượt; ở lần thử cuối thì **nói ra** thay vì chết im.
+
+    arq hết lượt thì đánh job hỏng mà không ai gửi gì, và chip đứng *đang xử lý* 300 s rồi mới ra
+    *xử lý hỏng* với một câu chung chung (người dùng chốt 14/10/2026). Hỏng hạ tầng ở lần thứ năm
+    thường vẫn là Mongo chứ không phải Redis, nên còn đường để gửi `FAILED`. Gửi không được thì
+    log rồi thôi: phép suy *đứng quá lâu* của BE vẫn là lưới cuối.
+
+    Args:
+        ctx: Context worker của arq. `job_try` đếm từ 1.
+        cause: Lỗi hạ tầng khiến job hỏng.
+        document_id: Tài liệu.
+        page_count: Số trang đã biết, hoặc `None`.
+
+    Returns:
+        Kết quả cho log của job, khi đây là lần thử cuối.
+
+    Raises:
+        Retry: Khi còn lượt thử.
+    """
+    if ctx.get("job_try", 1) < MAX_TRIES:
+        raise _retry(ctx, cause) from cause
+    logger.error("last try failed for document=%s: %s", document_id, cause)
+    failed = DocumentProbed(
+        document_id=document_id,
+        state=DocumentState.FAILED,
+        page_count=page_count,
+        fault="Kho lưu trữ đang trục trặc nên chưa xử lý xong tệp. Thử tải lại sau.",
+    )
+    try:
+        await _hand_back(ctx["redis"], failed)
+    except HandBackFailed:
+        logger.error("could not tell the be that document=%s failed", document_id)
+        return {"document_id": document_id, "dropped": "last try, be unreachable"}
+    return failed.model_dump(mode="json")
 
 
 def _unreadable() -> Finding:

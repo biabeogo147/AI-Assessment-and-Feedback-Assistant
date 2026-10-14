@@ -33,6 +33,7 @@ from document.index.jev import JevRun, JevUnavailable
 from document.index.llm import BannerReading, Summary
 from document.index.rules import BOOK_SECTION, DEEPER, NOT_HEADING, Decision
 from document.index_handlers import index_document
+from document.ocr_handlers import MAX_TRIES
 
 _AT = datetime(2026, 10, 11, tzinfo=UTC)
 _BANNER = (0.0, 0.0, 1517.0, 1256.0)
@@ -425,3 +426,21 @@ async def test_a_node_without_text_is_not_summarised() -> None:
     store = _Store([], pages)
     await build(_deps(store, [], summarise=record, jev=None)).ainvoke({"asked": _asked()})
     assert asked == []
+
+
+@pytest.mark.asyncio
+async def test_mongo_still_down_on_the_last_try_tells_the_teacher(no_models) -> None:
+    """Lần thử cuối của job dựng cây mà Mongo vẫn chết: gửi `FAILED`, không chết im."""
+    log: list[str] = []
+    store, queue = _Store(log), _Queue(log)
+    store.down = True
+
+    await index_document(
+        {"store": store, "redis": queue, "reader": _Reader(), "job_try": MAX_TRIES},
+        _asked().model_dump(mode="json"),
+    )
+
+    assert log == ["hand back failed"]
+    # Câu của lần thử cuối, không phải câu của `_give_up` (lỗi lập trình) -- hai đường cùng một log.
+    [(_, sent)] = queue.jobs
+    assert sent["fault"].startswith("Kho lưu trữ")

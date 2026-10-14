@@ -19,7 +19,7 @@ Adds to the root contract. Constraints only.
 - Never `import be` or `import agent`. No HTTP server and no port: replies travel as jobs on
   `ingest_queue_name`; a port nobody calls is a surface nobody guards.
 - A job never dies silently: an unreadable file, or an index that cannot be built, becomes a
-  `DocumentProbed` carrying `FAILED`. Failing to store or hand back raises `arq.Retry`: arq
-  retries nothing else. Jev or OpenAI being down is not a failure: the tree falls back to rules.
+  `DocumentProbed` carrying `FAILED`. Failing to store or hand back raises `arq.Retry` (arq
+  retries nothing else); on the last try it sends `FAILED` instead. Jev or OpenAI being down is not a failure: the tree falls back to rules.
 - On Windows, arq cannot install signal handlers, so shutdown is not graceful. Do not rely on
   cleanup running after Ctrl+C.

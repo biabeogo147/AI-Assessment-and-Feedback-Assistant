@@ -110,7 +110,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 - [x] **3. Figma theo code.** Placeholder artboard `3`; master `Clarify request` / `chờ trả lời`. Đo bằng số.
 - [x] **4. Ghi trang theo lô** (`bulk_write`) cho đường có text layer.
 - [x] **5. Chạy lại lô không OCR lại trang đã có.**
-- [ ] **6. Lần thử cuối gửi `FAILED`** ở cả lần dò, lô OCR, job dựng cây.
+- [x] **6. Lần thử cuối gửi `FAILED`** ở cả lần dò, lô OCR, job dựng cây.
 - [x] **7. Tách `banner_tokens` khỏi `summary_tokens`.**
 - [x] **8. `pages_read` không lùi; tiến độ ghi tổng và hích màn hình.**
 - [x] **9. Chip nói tiến độ.** Figma trước, rồi BE + FE; đo Figma = FE bằng số.

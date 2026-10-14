@@ -5,7 +5,8 @@ cây vào Mongo **trước**, `DocumentProbed(READY)` rời service **sau** (*"c
 
 Ba cách kết thúc khác `READY`, mỗi cái một lý do:
 
-- **Kho nội dung hay Redis chập chờn** → `Retry`, như mọi job khác của service này. Một lần chạy lại
+- **Kho nội dung hay Redis chập chờn** → `Retry`, như mọi job khác của service này; lần thử cuối
+  thì gửi `FAILED` thay vì chết im (`_retry_or_give_up`). Một lần chạy lại
   mà cây **đã** ghi trọn cho đúng bản thô hiện tại thì **không** dựng lại: chỉ gửi lại `READY` --
   dựng lại là trả tiền Jev và OpenAI lần nữa cho đúng cái cây đã có.
 - **Bản thô bị đọc lại giữa chừng, hoặc chưa đọc xong** (`RawChanged`) → lần đọc mới đã xong thì
@@ -31,7 +32,7 @@ from document.content_store import ContentStoreUnavailable, RawChanged
 from document.index.graph import Deps, NothingToIndex, build
 from document.index.jev import JevClassifier
 from document.index.llm import read_banner, summarise
-from document.ocr_handlers import HandBackFailed, _hand_back, _retry, _send
+from document.ocr_handlers import HandBackFailed, _hand_back, _retry, _retry_or_give_up, _send
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,8 @@ async def index_document(ctx: dict, payload: dict) -> dict:
         Kết quả, cho log của job.
 
     Raises:
-        Retry: Khi kho nội dung hay Redis không với tới được.
+        Retry: Khi kho nội dung hay Redis không với tới được, trừ lần thử cuối -- lúc ấy gửi
+            `FAILED`.
     """
     asked = DocumentIndexRequested.model_validate(payload)
     settings = get_settings()
@@ -87,7 +89,7 @@ async def index_document(ctx: dict, payload: dict) -> dict:
             ),
         )
     except (ContentStoreUnavailable, HandBackFailed) as exc:
-        raise _retry(ctx, exc) from exc
+        return await _retry_or_give_up(ctx, exc, asked.document_id, asked.page_count)
     except RawChanged:
         return await _raw_changed(ctx, asked)
     except NothingToIndex:
@@ -120,12 +122,13 @@ async def _raw_changed(ctx: dict, asked: DocumentIndexRequested) -> dict:
         Kết quả cho log khi bỏ.
 
     Raises:
-        Retry: Khi bản thô mới đã đọc xong, hoặc Mongo không đọc được.
+        Retry: Khi bản thô mới đã đọc xong, hoặc Mongo không đọc được (lần thử cuối thì gửi
+            `FAILED`).
     """
     try:
         raw = await ctx["store"].raw(asked.document_id)
     except ContentStoreUnavailable as exc:
-        raise _retry(ctx, exc) from exc
+        return await _retry_or_give_up(ctx, exc, asked.document_id, asked.page_count)
     if raw is not None and raw.finished_at is not None:
         raise _retry(
             ctx, RawChanged(f"{asked.document_id} was read again; building on the new read")

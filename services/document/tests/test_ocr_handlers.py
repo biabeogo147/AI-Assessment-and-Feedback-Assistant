@@ -808,3 +808,63 @@ async def test_a_pdf_that_breaks_on_the_second_read_fails_and_leaves_the_store_a
     assert queue.jobs[0][1]["state"] == DocumentState.FAILED
     assert queue.jobs[0][1]["fault"] != ""
     assert store.header is None
+
+
+@pytest.mark.asyncio
+async def test_a_store_still_down_on_the_last_try_fails_the_document_instead_of_dying() -> None:
+    """Lần thử cuối mà kho vẫn chết: gửi `FAILED` kèm lý do, không để chip chờ 300 s trong im
+    lặng (người dùng chốt 14/10/2026). Và vẫn không có `READY` nào."""
+    queue = _Queue()
+    ctx = {
+        "reader": _Reader(_a_pdf_with_text()),
+        "redis": queue,
+        "store": _Store([], broken=True),
+        "job_try": MAX_TRIES,
+    }
+
+    await probe_document(ctx, _asked())
+
+    [failed] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert failed["state"] == DocumentState.FAILED
+    assert failed["fault"]
+    assert queue.sent(INDEX_DOCUMENT_TASK) == []
+
+
+@pytest.mark.asyncio
+async def test_a_batch_whose_store_is_still_down_on_the_last_try_fails_the_document() -> None:
+    """Cùng luật cho một lô OCR giữa chuỗi: lần thử cuối nói ra, không giao lô kế."""
+    queue = _Queue()
+    ctx = _ocr_ctx([], queue, _Store([], broken_pages=True))
+    ctx["job_try"] = MAX_TRIES
+
+    await ocr_pages(ctx, _batch(1, 30))
+
+    [failed] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert failed["state"] == DocumentState.FAILED
+    assert queue.sent(OCR_PAGES_TASK) == []
+
+
+@pytest.mark.asyncio
+async def test_the_last_try_with_redis_down_too_ends_quietly() -> None:
+    """Redis chết thì không gửi được cả `FAILED`: job kết thúc, lưới 300 s của BE còn đó."""
+    ctx = _ocr_ctx([], _Queue(down=True), _Store([], broken_pages=True))
+    ctx["job_try"] = MAX_TRIES
+
+    done = await ocr_pages(ctx, _batch(1, 30))
+
+    assert done["dropped"]
+
+
+@pytest.mark.asyncio
+async def test_a_last_batch_that_cannot_finish_on_the_last_try_fails_instead_of_ready() -> None:
+    """Lô cuối đọc xong mà không đánh dấu được bản thô ở lần thử cuối: `FAILED`, không `READY`,
+    không job dựng cây."""
+    queue = _Queue()
+    ctx = _ocr_ctx([], queue, _Store([], broken_finish=True))
+    ctx["job_try"] = MAX_TRIES
+
+    await ocr_pages(ctx, _batch(1, 2))
+
+    [failed] = queue.sent(DOCUMENT_PROBED_TASK)
+    assert failed["state"] == DocumentState.FAILED
+    assert queue.sent(INDEX_DOCUMENT_TASK) == []
