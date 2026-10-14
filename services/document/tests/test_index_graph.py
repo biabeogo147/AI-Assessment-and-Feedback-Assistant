@@ -1,6 +1,6 @@
-"""Graph dựng cây và job `index_document` (plan 3c, Task 4), không chạm mạng: Jev, luna, tóm tắt và
-kho nội dung đều là bản giả. Thứ được canh là **thứ tự** và **đường lùi**: cây ghi trước `READY`;
-Jev hay OpenAI hỏng thì cây vẫn dựng được, chỉ kém hơn.
+"""Graph dựng cây và job `index_document` (`document-agent-hierarchy`, Task 4), không chạm mạng:
+Jev, luna, tóm tắt và kho nội dung đều là bản giả. Thứ được canh là **thứ tự** và **đường lùi**: cây
+ghi trước `READY`; Jev hay OpenAI hỏng thì cây vẫn dựng được, chỉ kém hơn.
 """
 
 from datetime import UTC, datetime
@@ -310,7 +310,8 @@ async def test_ready_leaves_only_after_the_index_is_written(no_models) -> None:
 @pytest.mark.asyncio
 async def test_a_raw_read_replaced_and_finished_builds_again_on_the_new_one(no_models) -> None:
     """Lần đọc mới đã xong: bỏ ở đây là không còn ai dựng cây, vì job của lần đọc mới bị từ chối
-    bởi id cố định trong lúc job này còn chạy (review Task 4). Nên chạy lại."""
+    bởi id cố định trong lúc job này còn chạy (review Task 4, `document-agent-hierarchy`). Nên chạy
+    lại."""
     log: list[str] = []
     store, queue = _Store(log), _Queue(log)
     store.change_raw = True

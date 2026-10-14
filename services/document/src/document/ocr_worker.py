@@ -39,8 +39,9 @@ _CONNECT_TIMEOUT_SECONDS = 5
 # giây. Hai phút là rộng gấp hàng trăm lần, và nó không phải để chờ việc -- nó để một tệp bệnh
 # hoạn làm `pymupdf` quay vòng vẫn có chỗ dừng, thay vì giữ một slot của worker vĩnh viễn.
 #
-# Từ plan 3b nó cũng là trần của **một lô OCR**: `ocr_pages_per_job` trang × 4,5 s/trang (đo ở plan
-# 3a) = ~45 s với mặc định 10. Tăng số trang mỗi lô thì xem lại con số này trước.
+# Từ `mongo-content-store` nó cũng là trần của **một lô OCR**: `ocr_pages_per_job` trang × 4,5
+# s/trang (đo ở `document-ocr-text-and-latex`) = ~45 s với mặc định 10. Tăng số trang mỗi lô thì
+# xem lại con số này trước.
 _JOB_TIMEOUT_SECONDS = 120
 
 
@@ -56,7 +57,8 @@ def _redis_settings() -> RedisSettings:
 
 
 def _page_reader(settings: Settings) -> object:
-    """Nạp ba model OCR. Sync và chậm (5-6 s đo ở plan 3a), người gọi đặt nó vào một thread.
+    """Nạp ba model OCR. Sync và chậm (5-6 s đo ở `document-ocr-text-and-latex`), người gọi đặt nó
+    vào một thread.
 
     Import **ở trong hàm**, không ở đầu module: `document.ocr` nạp torch và paddle, vài giây và
     vài trăm MB. Đặt ở đầu thì mọi test chạm `worker` -- kể cả test vòng đời không cần model nào
@@ -138,8 +140,8 @@ class WorkerSettings:
     queue_name = _settings.document_queue_name
     redis_settings = _redis_settings()
     job_timeout = _JOB_TIMEOUT_SECONDS
-    # **Một job một lúc** (plan 3b, D3). OCR dùng hết `ocr_threads` luồng CPU, nên hai lô chạy
-    # cùng lúc chỉ tranh nhau rồi cùng chậm -- và một lô chậm gấp đôi là một lô chạm trần
+    # **Một job một lúc** (`mongo-content-store`, D3). OCR dùng hết `ocr_threads` luồng CPU, nên hai
+    # lô chạy cùng lúc chỉ tranh nhau rồi cùng chậm -- và một lô chậm gấp đôi là một lô chạm trần
     # `job_timeout`. Mặc định của arq là 10.
     #
     # Cái giá, và nó lớn dần theo số cuốn scan đang đọc cùng lúc (`k`): lô kế của mỗi cuốn xếp

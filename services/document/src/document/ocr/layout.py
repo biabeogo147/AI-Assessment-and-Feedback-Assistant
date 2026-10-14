@@ -3,8 +3,9 @@
 Hai việc model không làm, và cả hai đo được trên trang 18 của Lớp 6 tập 1 ngày 10/10/2026:
 
 1. **Nó trả về hộp sắp theo điểm tin cậy, không theo thứ tự đọc.** Khối đầu danh sách là khối
-   model chắc nhất, không phải khối trên cùng trang. Thứ tự đọc là thứ bước dựng mục lục ở plan
-   3b dựa vào, nên nó phải được dựng ở đây chứ không để người gọi tự đoán.
+   model chắc nhất, không phải khối trên cùng trang. Thứ tự đọc là thứ bước dựng mục lục
+   (`document-agent-hierarchy`) dựa vào, nên nó phải được dựng ở đây chứ không để người gọi tự
+   đoán.
 2. **Nó trả về hộp trùng nhau mang nhãn khác nhau.** Đúng hình chữ nhật `[322, 1130, 777, 1164]`
    ra **hai** lần: một `text` điểm 0,63 và một `formula` điểm 0,56. Giữ cả hai là đếm một khối
    hai lần -- chữ của nó vào bảng điểm hai lượt, và `order_inversions` thì đếm một cặp nghịch
@@ -143,7 +144,8 @@ def blocks_from_boxes(
         )
     )
     logger.info("layout found %s boxes, kept %s", len(boxes), len(kept))
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # return [
     #     PageBlock(kind=kind_from_label(box["label"]), box=_box(box), text="", latex=None)
     #     for box in in_reading_order(kept)

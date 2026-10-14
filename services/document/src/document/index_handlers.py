@@ -1,4 +1,5 @@
-"""Job dựng cây của một tài liệu đã có bản thô, rồi báo nó *sẵn sàng* (plan 3c, D3).
+"""Job dựng cây của một tài liệu đã có bản thô, rồi báo nó *sẵn sàng* (`document-agent-hierarchy`,
+D3).
 
 Chạy trên `document.index_worker`, queue riêng -- không phải worker OCR (D4). Thứ tự là hợp đồng:
 cây vào Mongo **trước**, `DocumentProbed(READY)` rời service **sau** (*"chunk trước, `state` sau"*).
@@ -73,7 +74,8 @@ async def index_document(ctx: dict, payload: dict) -> dict:
     try:
         # Tự cắt **trước** `job_timeout` của arq: arq giết job chạm trần mà không chạy lại, và một
         # job bị giết thì không gửi được gì -- chip chờ 300 s rồi ra *xử lý hỏng* với câu chung
-        # chung. Tự cắt thì còn kịp gửi `FAILED` kèm lý do (review Task 4).
+        # chung. Tự cắt thì còn kịp gửi `FAILED` kèm lý do (review Task 4,
+        # `document-agent-hierarchy`).
         async with asyncio.timeout(INDEX_BUDGET_SECONDS):
             if await _already_indexed(store, asked.document_id):
                 logger.info("document=%s already has its index; handing back", asked.document_id)
@@ -109,10 +111,10 @@ async def index_document(ctx: dict, payload: dict) -> dict:
 async def _raw_changed(ctx: dict, asked: DocumentIndexRequested) -> dict:
     """Bản thô đã đổi dưới chân job: đọc lại xong rồi thì **chạy lại**, đang đọc dở thì bỏ.
 
-    Chạy lại chứ không bỏ khi lần đọc mới đã xong (review Task 4): job dựng cây mang id cố định
-    `index:<doc>`, nên lần đọc mới giao job của nó trong lúc job này còn chạy thì bị **từ chối** --
-    bỏ ở đây là không còn ai dựng cây. Còn khi lần đọc mới chưa xong, lô OCR cuối của nó sẽ giao
-    job sau khi job này đã nhả id.
+    Chạy lại chứ không bỏ khi lần đọc mới đã xong (review Task 4, `document-agent-hierarchy`): job
+    dựng cây mang id cố định `index:<doc>`, nên lần đọc mới giao job của nó trong lúc job này còn
+    chạy thì bị **từ chối** -- bỏ ở đây là không còn ai dựng cây. Còn khi lần đọc mới chưa xong, lô
+    OCR cuối của nó sẽ giao job sau khi job này đã nhả id.
 
     Args:
         ctx: Context worker.

@@ -1,4 +1,5 @@
-"""Phần thuần của document agent (plan 3c): ứng viên, luật, dựng cây, và cách hỏi Jev.
+"""Phần thuần của document agent (`document-agent-hierarchy`): ứng viên, luật, dựng cây, và cách hỏi
+Jev.
 
 Mọi mẫu chữ ở đây là chữ OCR **thật** của Lớp 6 tập 1 (pipeline `text2`), kể cả lỗi của nó -- luật
 được viết cho đúng những lỗi ấy, và test phải giữ chúng lại.
@@ -136,7 +137,8 @@ def test_activity_labels_carry_no_numbering() -> None:
 
 
 def test_a_picture_is_never_a_candidate_even_when_it_reads_chapter() -> None:
-    """Khối hình chỉ mở cổng banner (D2); hộp chồng nhau nên chữ của nó có thể lặp khối khác."""
+    """Khối hình chỉ mở cổng banner (D2, `document-agent-hierarchy`); hộp chồng nhau nên chữ của nó
+    có thể lặp khối khác."""
     found = candidates(_book())
     assert all(candidate.unit.kind != "image" for candidate in found)
     assert all(candidate.unit.kind not in {"header", "number"} for candidate in found)
@@ -234,7 +236,8 @@ def test_the_tree_from_the_small_book() -> None:
         (2, None, "CÁCH GHI SỐ TỰ NHIÊN", 0),
         (3, "1.", "HỆ THẬP PHÂN", 2),
         (3, "2.", "SỐ LA MÂ", 2),
-        # Tên dựng từ nhãn đã tách, không giữ rác OCR *"BÀl TẬP CUỐl CHƯƠNG |"* (review Task 3).
+        # Tên dựng từ nhãn đã tách, không giữ rác OCR *"BÀl TẬP CUỐl CHƯƠNG |"* (review Task 3,
+        # `document-agent-hierarchy`).
         (2, None, "BÀI TẬP CUỐI CHƯƠNG I", 0),
     ]
     assert nodes[0].title_source is TitleSource.BANNER
@@ -355,9 +358,9 @@ def test_a_markdown_heading_does_not_carry_its_hashes_into_the_title() -> None:
 
 
 def test_a_text_layer_report_reads_its_chapters_and_two_line_sections() -> None:
-    """`report.pdf` thật (thử đầu-cuối Task 4): *"Chương 1"* một khối, tên chương khối kế, và số
-    mục cùng tên mục là **hai dòng của một khối**. Bản đầu đòi một dòng và dựng 6 nút cho 45 tiêu
-    đề; *"1.1"* ở đây là mục, không phải bài tập như trong SGK."""
+    """`report.pdf` thật (thử đầu-cuối Task 4, `document-agent-hierarchy`): *"Chương 1"* một khối,
+    tên chương khối kế, và số mục cùng tên mục là **hai dòng của một khối**. Bản đầu đòi một dòng và
+    dựng 6 nút cho 45 tiêu đề; *"1.1"* ở đây là mục, không phải bài tập như trong SGK."""
     page = RawPage(
         document_id="doc-1",
         page=6,

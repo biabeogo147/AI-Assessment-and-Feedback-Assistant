@@ -8,10 +8,10 @@ một phía -- lúc ấy bộ đo im lặng so hai thứ khác nhau và chấm e
 Giá trị của `BlockKind` **trùng từng chữ** với nhãn PP-DocLayout phát ra, nên dựng một khối từ
 đầu ra của model là một phép ép kiểu chứ không phải một bảng tra.
 
-Ở đây **không** có message nào của `packages/contracts`, và đó là chủ ý của plan 3a: trong đợt
-này chưa có gì rời service, nên chưa có ranh giới nào để một hợp đồng phải canh. Khi đường job
-per-trang được dựng ở plan 3b, hình dạng ấy mới sinh ra -- và lúc ấy nó sinh ra từ cái cây mục
-lục quyết định, không phải từ cái bảng này.
+Ở đây **không** có message nào của `packages/contracts`, và đó là chủ ý của
+`document-ocr-text-and-latex`: trong đợt này chưa có gì rời service, nên chưa có ranh giới nào để
+một hợp đồng phải canh. Khi đường job per-trang được dựng ở `mongo-content-store`, hình dạng ấy mới
+sinh ra -- và lúc ấy nó sinh ra từ cái cây mục lục quyết định, không phải từ cái bảng này.
 """
 
 from enum import StrEnum
@@ -27,8 +27,8 @@ class BlockKind(StrEnum):
         TEXT: Đoạn văn. Toán **nội dòng** nằm trong đây, không tách ra.
         FORMULA: Công thức đứng riêng, không nằm trong một câu văn.
         FIGURE_TITLE: Chú thích của một hình.
-        IMAGE: Hình minh hoạ. Mang chữ của các dòng nằm trong nó (plan 3c, D2) -- với banner mở
-            chương là chữ *CHƯƠNG*, còn lại phần lớn là rác nhãn hình.
+        IMAGE: Hình minh hoạ. Mang chữ của các dòng nằm trong nó (`document-agent-hierarchy`, D2) --
+            với banner mở chương là chữ *CHƯƠNG*, còn lại phần lớn là rác nhãn hình.
         TABLE: Một bảng.
         TABLE_TITLE: Tiêu đề của một bảng.
         NUMBER: Số trang **in trong sách**. Khác số thứ tự trang của tệp PDF, và chính chỗ lệch
@@ -120,7 +120,8 @@ class PageBlock(NamedTuple):
             `FORMULA` cũng chỉ mang chữ OCR: công thức không được đọc lúc upload nữa.
     """
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     #     latex: LaTeX, chỉ có ở khối `FORMULA`, và **`None` khi nhận dạng công thức hỏng**.
     #         Phân biệt ấy không thừa: `latex=None` trên một khối `FORMULA` nghĩa là *có một công
     #         thức ở đây mà chưa đọc được*, khác hẳn *không có công thức nào* -- và plan 3c cần
@@ -129,7 +130,8 @@ class PageBlock(NamedTuple):
     kind: BlockKind
     box: BBox
     text: str
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # latex: str | None
 
 
@@ -141,10 +143,10 @@ class PageRead(NamedTuple):
         width: Chiều rộng ảnh đã render, theo điểm ảnh.
         height: Chiều cao ảnh đã render.
         blocks: Các khối theo thứ tự đọc model trả về.
-        seconds: Thời gian từng chặng, khoá là tên chặng (`render`, `layout`, `detect`,
-            `recognize`, `assign`; trước 11/10/2026 còn có `formula`). Tách theo chặng chứ không
-            một con số tổng, vì câu hỏi đang treo của plan 3a là *chặng nào đắt* -- 1 561 trang ở
-            nhịp đo được là nhiều giờ, và một con số tổng không nói được cắt chỗ nào.
+        seconds: Thời gian từng chặng, khoá là tên chặng (`render`, `layout`, `detect`, `recognize`,
+            `assign`; trước 11/10/2026 còn có `formula`). Tách theo chặng chứ không một con số tổng,
+            vì câu hỏi đang treo của `document-ocr-text-and-latex` là *chặng nào đắt* -- 1 561 trang
+            ở nhịp đo được là nhiều giờ, và một con số tổng không nói được cắt chỗ nào.
     """
 
     page: int

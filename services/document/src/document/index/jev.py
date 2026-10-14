@@ -1,10 +1,11 @@
 """Jev (TypeSafe AI) xếp vai trò và cấp cho từng ứng viên. Module duy nhất import `typesafe_sdk`.
 
-**Một lời gọi mỗi ứng viên, hai câu `choice`** (D1 của plan 3c). Jev chạy mọi câu của một lời gọi
-song song và độc lập trên cùng một `state`, nên câu thứ hai gần như miễn phí -- và mỗi câu phải tự
-đứng được: câu `level` không biết câu `role` trả gì.
+**Một lời gọi mỗi ứng viên, hai câu `choice`** (D1 của `document-agent-hierarchy`). Jev chạy mọi câu
+của một lời gọi song song và độc lập trên cùng một `state`, nên câu thứ hai gần như miễn phí -- và
+mỗi câu phải tự đứng được: câu `level` không biết câu `role` trả gì.
 
-Bốn quyết định đến từ jaggedness đo được của `jev-1.13` (plan 3c, *Khảo sát Jev*):
+Bốn quyết định đến từ jaggedness đo được của `jev-1.13` (`document-agent-hierarchy`, *Khảo sát
+Jev*):
 
 - `instructions` và `criteria` viết **tiếng Anh** -- Jev kém hơn với ngôn ngữ khác; chữ của khối
   vẫn tiếng Việt, vì đó là dữ liệu chứ không phải câu hỏi.
@@ -53,8 +54,8 @@ _ROLE_CRITERIA = {
         "'Tranh luận', 'EM CÓ BIẾT?', 'KHÁI NIỆM, THUẬT NGỮ', 'KIẾN THỨC, KĨ NĂNG', 'BÀI TẬP', "
         "'MỤC TIÊU', 'Chuẩn bị'."
     ),
-    # Plan 4c T4: ví dụ là khuôn -- số bài tập rồi một động từ yêu cầu -- không phải câu của một
-    # chương. Bản trước chép *"Cho hai tập hợp"* nguyên văn từ SGK Toán 6.
+    # `unbiased-model-text` T4: ví dụ là khuôn -- số bài tập rồi một động từ yêu cầu -- không phải
+    # câu của một chương. Bản trước chép *"Cho hai tập hợp"* nguyên văn từ SGK Toán 6.
     NUMBERED_EXERCISE: (
         "The start of a numbered exercise or problem that asks the reader to do something, e.g. "
         "'1.1. Cho ...', '2.15 Tính ...', '3.4 Tìm ...'."
@@ -63,8 +64,8 @@ _ROLE_CRITERIA = {
         "A running header or footer, a page number, the book or series name, a publisher line, or "
         "front or back matter such as 'LỜI NÓI ĐẦU', 'MỤC LỤC', 'BẢNG TRA CỨU THUẬT NGỮ'."
     ),
-    # Plan 4c T4: mục trong bài là chỗ trống `<...>`; bản trước dùng *"1. HỆ THẬP PHÂN"* của SGK
-    # Toán 6 tập 1.
+    # `unbiased-model-text` T4: mục trong bài là chỗ trống `<...>`; bản trước dùng *"1. HỆ THẬP
+    # PHÂN"* của SGK Toán 6 tập 1.
     BOOK_SECTION: (
         "The title of a part of the book's table of contents: a chapter or part, a lesson "
         "('Bài 3 ...' or an unnumbered lesson title in capitals), a review lesson ('LUYỆN TẬP "
@@ -79,11 +80,12 @@ _LEVEL_INSTRUCTIONS = (
 )
 _LEVELS = {"deeper": DEEPER, "level_3": 3, "level_2": 2, "level_1": 1}
 _LEVEL_CRITERIA = {
-    # Plan 4c T4: ví dụ chỉ tả định dạng -- tên mục là chỗ trống `<...>`, tiêu đề con là một câu
-    # mô tả kiểu chữ -- không phải tên mục của một chương Toán. Bản trước dùng *"1. HỆ THẬP PHÂN"*,
-    # *"2. SỐ LA MÃ"* (hai mục) và tiêu đề con *"Cách ghi số tự nhiên trong hệ thập phân"*, đều của
-    # SGK Toán 6 tập 1, cuốn cây vàng duy nhất của `pageindex_bench` -- và Jev bám nguyên văn: gỡ ví
-    # dụ ấy thì chính tiêu đề con ấy lật từ `deeper` sang `level_3` ở `jev@0` (plan 4c, T4).
+    # `unbiased-model-text` T4: ví dụ chỉ tả định dạng -- tên mục là chỗ trống `<...>`, tiêu đề con
+    # là một câu mô tả kiểu chữ -- không phải tên mục của một chương Toán. Bản trước dùng *"1. HỆ
+    # THẬP PHÂN"*, *"2. SỐ LA MÃ"* (hai mục) và tiêu đề con *"Cách ghi số tự nhiên trong hệ thập
+    # phân"*, đều của SGK Toán 6 tập 1, cuốn cây vàng duy nhất của `pageindex_bench` -- và Jev bám
+    # nguyên văn: gỡ ví dụ ấy thì chính tiêu đề con ấy lật từ `deeper` sang `level_3` ở `jev@0`
+    # (`unbiased-model-text`, T4).
     "deeper": (
         "A smaller subheading inside a numbered section, or anything numbered deeper than three "
         "levels: e.g. an unnumbered heading in sentence case under a numbered section, "
@@ -114,7 +116,8 @@ _TEXT_CHARS = 160
 
 
 class JevUnavailable(RuntimeError):
-    """Jev không trả lời được sau khi SDK đã tự retry. Người gọi đi đường luật (D5)."""
+    """Jev không trả lời được sau khi SDK đã tự retry. Người gọi đi đường luật (D5,
+    `document-agent-hierarchy`)."""
 
 
 @dataclass(frozen=True)
@@ -211,7 +214,8 @@ class JevClassifier:
             timeout: Trần giây cho một lời gọi.
             limit: Semaphore **của cả worker** (`index_worker` dựng một cái lúc khởi động): bốn job
                 song song mà mỗi job tự mở `concurrency` lời gọi là 64 lời gọi cùng lúc, sát rate
-                limit mà bên thứ ba ghi (review Task 4). `None` thì mỗi client một cái riêng.
+                limit mà bên thứ ba ghi (review Task 4, `document-agent-hierarchy`). `None` thì mỗi
+                client một cái riêng.
         """
         self._client = AsyncTypeSafeClient(
             api_key=api_key, model=model, timeout=timeout, retry=RetryPolicy(max_retries=3)
@@ -231,7 +235,8 @@ class JevClassifier:
             JevUnavailable: Khi một lời gọi hỏng sau retry. Không trả nửa cây: luật quyết cả cây.
         """
         # `TaskGroup`, không `gather`: một lời gọi hỏng thì **huỷ** mọi lời gọi còn bay -- `gather`
-        # để ~490 lời gọi kia tiếp tục trả tiền và retry trên một client sắp đóng (review Task 3).
+        # để ~490 lời gọi kia tiếp tục trả tiền và retry trên một client sắp đóng (review Task 3,
+        # `document-agent-hierarchy`).
         try:
             async with asyncio.TaskGroup() as group:
                 tasks = [group.create_task(self._ask(state)) for state in states]

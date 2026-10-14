@@ -253,8 +253,8 @@ def test_a_dpi_too_large_to_fit_in_memory_is_the_typed_error() -> None:
 def test_page_text_gives_each_block_with_a_box_inside_the_page() -> None:
     """Text layer thành từng khối có hộp, theo thứ tự trong trang -- bản thô của một PDF có chữ.
 
-    Hộp phải nằm trong trang và theo **điểm** của trang (không theo điểm ảnh): plan 3c dựa vào
-    `width`/`height` của bản thô để biết hộp đo bằng hệ nào.
+    Hộp phải nằm trong trang và theo **điểm** của trang (không theo điểm ảnh):
+    `document-agent-hierarchy` dựa vào `width`/`height` của bản thô để biết hộp đo bằng hệ nào.
     """
     with pymupdf.open() as book:
         page = book.new_page()

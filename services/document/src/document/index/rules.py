@@ -1,6 +1,6 @@
 """Đường luật: vai trò và cấp của một ứng viên, suy bằng code từ nhãn OCR, nhãn số và vị trí.
 
-**Lưới, không phải đường chính** (D5 của plan 3c). Ba chỗ dùng nó:
+**Lưới, không phải đường chính** (D5 của `document-agent-hierarchy`). Ba chỗ dùng nó:
 
 - Jev trả lời với `confidence` dưới ngưỡng -- luật quyết thay;
 - Jev không với tới được sau retry của SDK -- cả cây đi đường luật, `IndexHeader.method = "rules"`;
@@ -20,8 +20,9 @@ from dataclasses import dataclass, field, replace
 from contracts import MAX_LEVEL, DecidedBy, RawSource
 from document.index.features import Candidate, fold, upper_ratio
 
-# Các vai trò, **đúng thứ tự gửi Jev** (D1): lựa chọn an toàn đứng đầu, vì Jev 1.13 nghiêng về lựa
-# chọn đầu tiên -- bỏ sót một mục chỉ gộp nội dung vào cha, còn một mục giả làm rách cây.
+# Các vai trò, **đúng thứ tự gửi Jev** (D1, `document-agent-hierarchy`): lựa chọn an toàn đứng đầu,
+# vì Jev 1.13 nghiêng về lựa chọn đầu tiên -- bỏ sót một mục chỉ gộp nội dung vào cha, còn một mục
+# giả làm rách cây.
 NOT_HEADING = "not_heading"
 ACTIVITY_LABEL = "activity_label"
 NUMBERED_EXERCISE = "numbered_exercise"
@@ -78,7 +79,7 @@ class Decision:
 
 
 def combine(asked: Decision, ruled: Decision, threshold: float) -> Decision:
-    """Jev quyết khi đủ chắc; dưới ngưỡng thì luật quyết (D5).
+    """Jev quyết khi đủ chắc; dưới ngưỡng thì luật quyết (D5, `document-agent-hierarchy`).
 
     Phân phối và `confidence` của Jev **giữ lại** trên quyết định của luật: `BlockLabel` là thứ để
     đo, và một ca luật quyết thay là đúng ca cần nhìn xem Jev đã phân vân giữa những gì.
@@ -155,7 +156,8 @@ def decide(candidate: Candidate) -> Decision:
         return Decision(RUNNING_HEADER, None)
     if found and found.scheme == "dotted":
         # *"1.1. Cho hai tập hợp"* trong SGK là bài tập; *"I.1"*, *"A.I.1"* là mục. Trong một báo
-        # cáo có text layer, *"1.1 Bối cảnh"* lại là mục (`report.pdf`, thử đầu-cuối Task 4).
+        # cáo có text layer, *"1.1 Bối cảnh"* lại là mục (`report.pdf`, thử đầu-cuối Task 4,
+        # `document-agent-hierarchy`).
         if found.all_digits and candidate.source is RawSource.OCR:
             return Decision(NUMBERED_EXERCISE, None)
         return _section(found.depth)

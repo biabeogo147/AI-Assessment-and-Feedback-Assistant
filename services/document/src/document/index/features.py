@@ -4,7 +4,8 @@ Mọi thứ ở đây là hàm thuần trên `RawPage`. Không gọi mạng, kh�
 được hỏi** và **hỏi kèm thông tin gì**, còn quyết định là việc của Jev (`jev.py`) hoặc của luật
 (`rules.py`).
 
-Ba điều đo được trên Lớp 6 tập 1 (plan 3c, *Dữ liệu thật đổi thiết kế*) định hình module này:
+Ba điều đo được trên Lớp 6 tập 1 (`document-agent-hierarchy`, *Dữ liệu thật đổi thiết kế*) định hình
+module này:
 
 - **Nhãn số bị OCR làm lệch** -- *"1, HÌNH CHỮ NHẬT"*, *"2 HÌNH VUÔNG"*, *"1.sỐ NGUYÊN TỐ"*, *"BÀl
   TẬP CUỐl CHƯƠNG"*. Nên mọi mẫu chạy trên chữ đã **gấp** (bỏ dấu, viết hoa, `l`/`|` thành `I`
@@ -281,8 +282,9 @@ def upper_ratio(text: str) -> float:
 def units(pages: list[RawPage]) -> list[Unit]:
     """Mọi đơn vị đọc của tài liệu, theo thứ tự đọc.
 
-    Tệp văn bản thuần có đúng một khối; nó được tách thành **dòng trong bộ nhớ** (D8) -- bản thô
-    không bị sửa, và `BlockRef.line` giữ số dòng để chunk trỏ ngược về được.
+    Tệp văn bản thuần có đúng một khối; nó được tách thành **dòng trong bộ nhớ** (D8,
+    `document-agent-hierarchy`) -- bản thô không bị sửa, và `BlockRef.line` giữ số dòng để chunk trỏ
+    ngược về được.
 
     Args:
         pages: Các trang, trang 1 trước.
@@ -356,7 +358,8 @@ def is_candidate(unit: Unit, source: RawSource) -> bool:
     # return one_line and (numbering(text) is not None or upper_ratio(text) >= _UPPER_RATIO)
     #
     # Tối đa **hai** dòng: PyMuPDF trả *"1.1\nBối cảnh"* là một khối -- số mục một dòng, tên một
-    # dòng. Bản đầu đòi một dòng và loại mất mọi mục của `report.pdf` (thử đầu-cuối, Task 4).
+    # dòng. Bản đầu đòi một dòng và loại mất mọi mục của `report.pdf` (thử đầu-cuối, Task 4,
+    # `document-agent-hierarchy`).
     lines = [line for line in text.split("\n") if line.strip()]
     joined = " ".join(line.strip() for line in lines)
     short = len(lines) <= _TEXT_LAYER_LINES
@@ -498,7 +501,7 @@ def _next_text(every: list[Unit], index: int) -> str:
 
 
 def banner_gates(pages: list[RawPage]) -> list[BlockRef]:
-    """Các khối hình là **banner mở chương**: cổng của D9.
+    """Các khối hình là **banner mở chương**: cổng của D9 (`document-agent-hierarchy`).
 
     Ba điều kiện, cả ba đo được trên Lớp 6 tập 1: khối hình, **ở đầu trang** và **rộng gần trọn
     trang** (banner), và chữ OCR trong nó có *CHƯƠNG* hoặc *PHẦN*. Bỏ điều kiện hình học thì
@@ -521,7 +524,8 @@ def banner_gates(pages: list[RawPage]) -> list[BlockRef]:
             wide, at_top = box[2] - box[0] >= 0.6, box[1] < 0.1
             # *CHƯƠNG* trên chữ đã gấp; *PHẦN* trên chữ **chưa** gấp -- gấp làm *PHẦN* và *PHÂN*
             # (phân số, thập phân) thành một. Bản đầu khớp `CHU?O?NG`, tức cả *CHUNG* (ước chung,
-            # bội chung) -- chỉ điều kiện hình học đang chặn nó (review Task 3).
+            # bội chung) -- chỉ điều kiện hình học đang chặn nó (review Task 3,
+            # `document-agent-hierarchy`).
             opens = re.search(r"\bCHUONG\b", fold(block.text)) or re.search(
                 r"\bPHẦN\b", block.text.upper()
             )

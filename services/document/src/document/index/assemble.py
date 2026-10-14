@@ -7,8 +7,8 @@ phải **đúng mọi lần**, không đúng theo xác suất:
   chunk của nút cha (người dùng chốt ba cấp, 11/10/2026).
 - **Không nhảy cấp** -- một nút không sâu hơn nút đang mở quá một cấp: cấp 3 ngay sau cấp 1 thành
   cấp 2, và nút đầu tiên của tài liệu luôn là cấp 1. Một cây có lỗ hổng làm tool lần xuống lạc.
-- **Chương từ banner** (D9) -- tên chương của SGK nằm trong ảnh, nên nút cấp 1 đến từ `Banner`,
-  không từ một ứng viên chữ.
+- **Chương từ banner** (D9, `document-agent-hierarchy`) -- tên chương của SGK nằm trong ảnh, nên nút
+  cấp 1 đến từ `Banner`, không từ một ứng viên chữ.
 """
 
 from dataclasses import dataclass

@@ -2,9 +2,9 @@
 `langchain`.
 
 - **Đọc banner** (D9): `gpt-5.6-luna` nhìn phần trên của một trang mở chương và đọc **số và tên
-  chương, cùng tên bài in ngay dưới** -- OCR không đọc nổi chữ trang trí (5/5 chương của Lớp 6 tập
-  1 ra rác, plan 3c Status). Chỉ được gọi ở trang qua cổng `features.banner_gates`: đo trên trang 7,
-  luna nhận nhầm một trang bài thường là *"phần mở đầu"*.
+  chương, cùng tên bài in ngay dưới** -- OCR không đọc nổi chữ trang trí (5/5 chương của Lớp 6 tập 1
+  ra rác, `document-agent-hierarchy` Status). Chỉ được gọi ở trang qua cổng `features.banner_gates`:
+  đo trên trang 7, luna nhận nhầm một trang bài thường là *"phần mở đầu"*.
 - **Tóm tắt** (D6): `gpt-4o-mini`, một lời gọi mỗi nút, để model ở plan sau lần xuống cây bằng tiêu
   đề và tóm tắt (PageIndex).
 
@@ -105,7 +105,7 @@ def parse_banner(raw: str, tokens: int) -> BannerReading:
     """Đọc JSON luna trả về. Hàm thuần.
 
     Luna đôi khi bọc JSON trong ```` ``` ````; một câu trả lời không phải JSON thì coi như không đọc
-    được gì -- tên chương lùi về nhãn số (D6), không bao giờ bịa.
+    được gì -- tên chương lùi về nhãn số (D6, `document-agent-hierarchy`), không bao giờ bịa.
 
     Args:
         raw: Chữ model trả.

@@ -1,4 +1,5 @@
-"""Process worker arq thứ hai của `services/document`: *document agent* dựng cây (plan 3c, D4).
+"""Process worker arq thứ hai của `services/document`: *document agent* dựng cây
+(`document-agent-hierarchy`, D4).
 
 Chạy bằng:  arq document.index_worker.WorkerSettings   (`.\\dev.ps1 index`)
 
@@ -53,7 +54,7 @@ async def startup(ctx: dict) -> None:
     await store.prepare()
     ctx["store"] = store
     # Một trần lời gọi Jev cho **cả** worker, không mỗi job một trần: `max_jobs` job song song nhân
-    # trần ấy lên (review Task 4).
+    # trần ấy lên (review Task 4, `document-agent-hierarchy`).
     ctx["jev_limit"] = asyncio.Semaphore(_settings.jev_concurrency)
     if _settings.openai_api_key:
         ctx["banner_model"] = chat_model(

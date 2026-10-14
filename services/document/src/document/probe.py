@@ -5,9 +5,9 @@
 của module ấy để biết vì sao ranh giới này tồn tại, và vì sao `probe.py` từng đứng ở cả hai phía
 của nó tới ngày 10/10/2026.
 
-Từ plan 3b, module này còn dựng **bản thô** của một tệp có chữ (`raw_pages`) -- chữ đi vào kho
-nội dung y như nó nằm trong tệp, chia trang và khối. Vẫn là luật chứ không là cách chạm tệp: *chữ
-của một trang là gì, chia khối ra sao, chuẩn hoá thế nào*.
+Từ `mongo-content-store`, module này còn dựng **bản thô** của một tệp có chữ (`raw_pages`) -- chữ đi
+vào kho nội dung y như nó nằm trong tệp, chia trang và khối. Vẫn là luật chứ không là cách chạm tệp:
+*chữ của một trang là gì, chia khối ra sao, chuẩn hoá thế nào*.
 
 Không có lời gọi model nào ở đây và sẽ không bao giờ có. Đây là phép đếm, không phải phép đọc
 hiểu: việc cắt chương và phân loại đoạn thuộc plan sau.
@@ -112,10 +112,11 @@ def probe(raw: bytes, filename: str) -> Finding:
 def _probe_plain_text(raw: bytes) -> Finding:
     """Một tệp văn bản thuần: chữ **là** toàn bộ tệp.
 
-    Trước plan 3b, hàm này giải mã với `errors="replace"` và để việc đoán bảng mã cho bước cắt
-    đoạn. Từ 3b thì không còn bước nào sau đó đọc lại byte: chữ đi thẳng vào kho nội dung, và bản
-    thô là bất biến (D6). Nên một tệp không đọc đúng được thì **từ chối ở đây**, bằng một câu
-    giáo viên sửa được, thay vì đóng băng rác vào kho (người dùng chốt 11/10/2026).
+    Trước `mongo-content-store`, hàm này giải mã với `errors="replace"` và để việc đoán bảng mã cho
+    bước cắt đoạn. Từ `mongo-content-store` thì không còn bước nào sau đó đọc lại byte: chữ đi
+    thẳng vào kho nội dung, và bản thô là bất biến (D6). Nên một tệp không đọc đúng được thì **từ
+    chối ở đây**, bằng một câu giáo viên sửa được, thay vì đóng băng rác vào kho (người dùng chốt
+    11/10/2026).
 
     Args:
         raw: Toàn bộ byte của tệp.
@@ -206,7 +207,7 @@ def raw_pages(raw: bytes, filename: str, document_id: str, at: datetime) -> list
     đường OCR. Hàm **thuần** và **sync** như `probe`, người gọi đặt nó vào một thread.
 
     Mọi chữ được chuẩn hoá NFC: text layer của PDF tiếng Việt hay mang dấu tách rời (NFD), và bên
-    đọc ở plan 3c so khớp chữ -- `"ệ"` hai dạng là hai chuỗi khác nhau.
+    đọc ở `document-agent-hierarchy` so khớp chữ -- `"ệ"` hai dạng là hai chuỗi khác nhau.
 
     Args:
         raw: Toàn bộ byte của tệp.
@@ -290,16 +291,17 @@ _IMAGE = "image"
 def raw_ocr_page(read: "PageRead", document_id: str, at: datetime) -> RawPage:
     """Bản thô của một trang đọc bằng OCR.
 
-    Khác text layer ở hai chỗ, và cả hai là thứ plan 3c cần: nhãn khối là nhãn **thật** của
-    PP-DocLayout (`paragraph_title`, `formula`, `number`, ...) chứ không phải `text`, và mỗi trang
-    mang số giây từng chặng -- số đo của đường OCR trong worker thật nằm ở đây, không ở bộ đo.
+    Khác text layer ở hai chỗ, và cả hai là thứ `document-agent-hierarchy` cần: nhãn khối là nhãn
+    **thật** của PP-DocLayout (`paragraph_title`, `formula`, `number`, ...) chứ không phải `text`,
+    và mỗi trang mang số giây từng chặng -- số đo của đường OCR trong worker thật nằm ở đây, không ở
+    bộ đo.
 
     Khối không có chữ (hình, bảng) **vẫn ở lại**, với chữ rỗng: một hình giữa hai đoạn là tín hiệu
     bố cục, và bỏ nó là bỏ thông tin mà không ai yêu cầu bỏ. Chỉ `text` của trang bỏ qua chúng.
 
-    Từ plan 3c (D2), khối **hình** mang chữ của các dòng nằm trong nó -- để bên dựng cây thấy chữ
-    *"CHƯƠNG"* trên banner. `text` của trang vẫn bỏ qua khối hình: phần lớn chữ ấy là rác nhãn hình,
-    và `text` là thứ đi vào ngữ cảnh của LLM.
+    Từ `document-agent-hierarchy` (D2), khối **hình** mang chữ của các dòng nằm trong nó -- để bên
+    dựng cây thấy chữ *"CHƯƠNG"* trên banner. `text` của trang vẫn bỏ qua khối hình: phần lớn chữ ấy
+    là rác nhãn hình, và `text` là thứ đi vào ngữ cảnh của LLM.
 
     Args:
         read: Trang `PageReader.read_page` trả về.

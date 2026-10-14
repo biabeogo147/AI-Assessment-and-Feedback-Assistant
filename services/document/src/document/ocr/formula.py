@@ -1,4 +1,5 @@
-# [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+# [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+# `document-ocr-text-and-latex`
 #
 # Cả module này đã chết, và được giữ lại dưới dạng comment thay vì xoá để sau này không ai đi tìm
 # lại nó, hay dựng lại nó, mà không biết vì sao nó bị bỏ.

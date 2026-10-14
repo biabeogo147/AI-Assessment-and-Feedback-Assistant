@@ -6,14 +6,15 @@ Chia ba chặng vì chúng hỏng khác nhau và tốn khác nhau, nên gộp l�
 - `textline` -- detector của PaddleOCR: cả trang thành từng dòng.
 - `recognize` -- EasyOCR hoặc VietOCR: một dòng thành chữ tiếng Việt có dấu.
 
-Vì sao hai hệ: PaddleOCR *nhìn* rất tốt nhưng **thủng từ điển ký tự** -- nó không bao giờ phát ra
-tổ hợp hai dấu, nên `Kết nối tri thức` ra `Kt ni tri thc`. Bộ nhận dạng tiếng Việt đọc đúng dấu
-nhưng không có detector tốt. Lấy nửa mạnh của mỗi bên. Decision Record đầy đủ nằm trong plan 3a.
+Vì sao hai hệ: PaddleOCR *nhìn* rất tốt nhưng **thủng từ điển ký tự** -- nó không bao giờ phát ra tổ
+hợp hai dấu, nên `Kết nối tri thức` ra `Kt ni tri thc`. Bộ nhận dạng tiếng Việt đọc đúng dấu nhưng
+không có detector tốt. Lấy nửa mạnh của mỗi bên. Decision Record đầy đủ nằm trong
+`document-ocr-text-and-latex`.
 
-Công thức được đọc **lúc ra đề**, chỉ ở phần tài liệu được tham chiếu, bằng gpt-4.1-mini qua API
--- sẽ nằm ở `services/agent/src/agent/vision.py` (chưa viết; plan 3a, chờ người dùng duyệt chi
-phí). `formula.py` (PP-FormulaNet) còn trong package nhưng đã comment toàn bộ với nhãn
-`[CODE CHẾT 2026-10-11]`, kèm lý do.
+Công thức được đọc **lúc ra đề**, chỉ ở phần tài liệu được tham chiếu, bằng gpt-4.1-mini qua API --
+sẽ nằm ở `services/agent/src/agent/vision.py` (chưa viết; `document-ocr-text-and-latex`, chờ người
+dùng duyệt chi phí). `formula.py` (PP-FormulaNet) còn trong package nhưng đã comment toàn bộ với
+nhãn `[CODE CHẾT 2026-10-11]`, kèm lý do.
 """
 
 # PHẢI đứng đây, và phải đứng **trước** mọi thứ chạm paddle. Đo trên Windows ngày 10/10/2026:

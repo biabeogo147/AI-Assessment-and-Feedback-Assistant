@@ -10,26 +10,26 @@ Hai loại hỏng ở đây có hai cách xử khác nhau, và phân biệt chú
   hỏng hạ tầng thì gửi `FAILED` thay vì chết im (`_retry_or_give_up`); gửi cả cái ấy cũng không
   được thì phép suy *đứng quá lâu* của BE là lưới cuối.
 
-Từ plan 3b, một tệp có chữ còn để lại **bản thô** trong kho nội dung, và **trước** khi `READY`
-rời service -- Decision Record *"chunk trước, `state` sau"*. Không ghi nổi bản thô cũng xin chạy
-lại, cùng lý do: một `READY` mà kho không có chữ là một chip nói dối theo chiều ngược lại. Chạy lại
-an toàn: `ContentStore.begin` xoá bản thô cũ, và trang ghi theo `_id`, nên lần chạy sau ghi đè
+Từ `mongo-content-store`, một tệp có chữ còn để lại **bản thô** trong kho nội dung, và **trước** khi
+`READY` rời service -- Decision Record *"chunk trước, `state` sau"*. Không ghi nổi bản thô cũng xin
+chạy lại, cùng lý do: một `READY` mà kho không có chữ là một chip nói dối theo chiều ngược lại. Chạy
+lại an toàn: `ContentStore.begin` xoá bản thô cũ, và trang ghi theo `_id`, nên lần chạy sau ghi đè
 lần trước chứ không chồng lên. Lần thử cuối mà kho vẫn chết thì gửi `FAILED`, như đoạn trên.
 
-**Phải là `Retry`, không phải một exception bất kỳ.** arq chỉ chạy lại job khi gặp `Retry` (hoặc
-khi worker bị cắt giữa job); mọi exception khác đánh job *hỏng* ngay, không lượt nào nữa. Trước
-review Task 2 của plan 3b (11/10/2026, đọc `arq/worker.py` 0.28), docstring này nói *"ném để arq
-thử lại"* -- và không có lần thử lại nào cả.
+**Phải là `Retry`, không phải một exception bất kỳ.** arq chỉ chạy lại job khi gặp `Retry` (hoặc khi
+worker bị cắt giữa job); mọi exception khác đánh job *hỏng* ngay, không lượt nào nữa. Trước review
+Task 2 của `mongo-content-store` (11/10/2026, đọc `arq/worker.py` 0.28), docstring này nói *"ném để
+arq thử lại"* -- và không có lần thử lại nào cả.
 
-**PDF scan đi đường OCR theo lô** (plan 3b, Task 3). `probe_document` không trả *không đọc được
-chữ* cho một PDF scan nữa: nó mở đầu mục bản thô, rồi giao lô trang đầu cho `ocr_pages` trên chính
-queue này. Mỗi lô đọc vài trang, ghi chúng vào kho, báo tiến độ về `services/ingest`, rồi tự giao lô
-kế. Lô cuối mới gửi kết quả: `READY` khi cả cuốn có chữ, `NO_TEXT_LAYER` khi OCR xong mà không trang
-nào ra chữ -- lúc ấy câu *không đọc được chữ* mới là một phán quyết thật.
+**PDF scan đi đường OCR theo lô** (`mongo-content-store`, Task 3). `probe_document` không trả *không
+đọc được chữ* cho một PDF scan nữa: nó mở đầu mục bản thô, rồi giao lô trang đầu cho `ocr_pages`
+trên chính queue này. Mỗi lô đọc vài trang, ghi chúng vào kho, báo tiến độ về `services/ingest`, rồi
+tự giao lô kế. Lô cuối mới gửi kết quả: `READY` khi cả cuốn có chữ, `NO_TEXT_LAYER` khi OCR xong mà
+không trang nào ra chữ -- lúc ấy câu *không đọc được chữ* mới là một phán quyết thật.
 
-**Từ plan 3c, `READY` không rời service này.** Bản thô xong thì tài liệu còn chờ cây: `_settle`
-giao một job `index_document` cho `document.index_worker`, và chỉ job ấy gửi `READY` -- sau khi
-cây đã nằm trong kho nội dung (D3). Mọi phán quyết khác vẫn đi thẳng về BE như trước.
+**Từ `document-agent-hierarchy`, `READY` không rời service này.** Bản thô xong thì tài liệu còn chờ
+cây: `_settle` giao một job `index_document` cho `document.index_worker`, và chỉ job ấy gửi `READY`
+-- sau khi cây đã nằm trong kho nội dung (D3). Mọi phán quyết khác vẫn đi thẳng về BE như trước.
 """
 
 import asyncio
@@ -84,8 +84,8 @@ _BATCH_BUDGET_SECONDS = 90
 
 # Phiên bản đường OCR, ghi vào đầu mục bản thô. Cùng nghĩa với `_PIPELINE` của
 # `tools/ocr_bench/run.py`: `text1` là *chỉ chữ, công thức không đọc lúc upload* (11/10/2026);
-# `text2` thêm *khối hình giữ chữ của các dòng trong nó* (plan 3c, D2). Đổi đường đọc thì đổi số
-# này, để bên đọc ở plan 3c biết bản thô nào cần đọc lại.
+# `text2` thêm *khối hình giữ chữ của các dòng trong nó* (`document-agent-hierarchy`, D2). Đổi đường
+# đọc thì đổi số này, để bên đọc ở `document-agent-hierarchy` biết bản thô nào cần đọc lại.
 _OCR_PIPELINE = "text2"
 
 
@@ -116,9 +116,9 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
 
     Side effects:
         Với tệp có chữ: bản thô của nó trong kho nội dung, ghi đè bản cũ, rồi một job dựng cây
-        trên queue của `document.index_worker` (plan 3c). Tệp hỏng: một job mới trên queue của
-        BE. Với PDF scan: đầu mục bản thô, rồi lô OCR đầu trên queue của chính service này --
-        **không** có gì về BE lúc này. Không ghi gì vào object storage.
+        trên queue của `document.index_worker` (`document-agent-hierarchy`). Tệp hỏng: một job mới
+        trên queue của BE. Với PDF scan: đầu mục bản thô, rồi lô OCR đầu trên queue của chính
+        service này -- **không** có gì về BE lúc này. Không ghi gì vào object storage.
     """
     asked = DocumentProbeRequested.model_validate(payload)
 
@@ -140,7 +140,7 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
         except (ContentStoreUnavailable, HandBackFailed) as exc:
             return await _retry_or_give_up(ctx, exc, asked.document_id, found.page_count)
 
-    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
     # return await _conclude(ctx, asked.document_id, found)
     return await _settle(ctx, asked, found)
 
@@ -240,7 +240,7 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
             batch.page_count,
             "Đã đọc hết các trang nhưng không thấy chữ nào.",
         )
-    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
     # return await _conclude(ctx, batch.document_id, found)
     return await _settle(ctx, batch, found)
 
@@ -306,7 +306,8 @@ async def _start_ocr(ctx: dict, asked: DocumentProbeRequested, page_count: int) 
 async def _settle(
     ctx: dict, asked: DocumentProbeRequested | DocumentPagesRequested, found: Finding
 ) -> dict:
-    """Kết thúc đường đọc: phán quyết đi về BE, **trừ** `READY` -- nó còn chờ cây (plan 3c, D3).
+    """Kết thúc đường đọc: phán quyết đi về BE, **trừ** `READY` -- nó còn chờ cây
+    (`document-agent-hierarchy`, D3).
 
     Bản thô đã nằm trong kho thì tài liệu chưa *sẵn sàng*: ba tool đọc ở plan sau cần cây, và một
     chip *sẵn sàng* mà tool không có gì để lần xuống là một chip nói dối. Nên `READY` thành một job

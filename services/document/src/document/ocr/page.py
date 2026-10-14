@@ -30,7 +30,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-# [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+# [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+# `document-ocr-text-and-latex`
 # from document.ocr.formula import FormulaReader
 from document.ocr.layout import LayoutReader
 from document.ocr.model import BlockKind, PageBlock, PageRead
@@ -41,20 +42,22 @@ from document.pdf import open_pdf
 logger = logging.getLogger(__name__)
 
 # Khối thuộc những loại này để chữ rỗng: `_fill` không gán dòng nào vào chúng.
-# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — plan 3c, D2
+# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — `document-agent-hierarchy`,
+# D2
 # _WITHOUT_TEXT = frozenset({BlockKind.IMAGE, BlockKind.TABLE})
 #
-# Từ plan 3c (D2), khối **hình** giữ chữ của những dòng detector đã tìm thấy bên trong nó. Không
-# một crop nào được đưa cho bộ nhận dạng -- dòng đã được detect và đọc từ trước, `_fill` chỉ thôi
-# vứt chúng -- nên không tốn thêm giây nào. Lý do: banner mở chương của SGK là **một khối hình**, và
-# chữ *"CHƯƠNG"* trong nó là tín hiệu duy nhất OCR có cho *"trang này mở một chương"* (đo trên 5/5
-# chương của Lớp 6 tập 1). Tên chương thì không đọc nổi -- chữ trang trí -- nên `gpt-5.6-luna` đọc
-# nó, chỉ ở trang qua cổng ấy (D9). Phần lớn chữ trong hình còn lại là rác nhãn hình (`'a) b)'`,
-# `'4v 12'`), nên `probe.raw_ocr_page` không nối nó vào chữ của trang.
+# Từ `document-agent-hierarchy` (D2), khối **hình** giữ chữ của những dòng detector đã tìm thấy bên
+# trong nó. Không một crop nào được đưa cho bộ nhận dạng -- dòng đã được detect và đọc từ trước,
+# `_fill` chỉ thôi vứt chúng -- nên không tốn thêm giây nào. Lý do: banner mở chương của SGK là
+# **một khối hình**, và chữ *"CHƯƠNG"* trong nó là tín hiệu duy nhất OCR có cho *"trang này mở một
+# chương"* (đo trên 5/5 chương của Lớp 6 tập 1). Tên chương thì không đọc nổi -- chữ trang trí --
+# nên `gpt-5.6-luna` đọc nó, chỉ ở trang qua cổng ấy (D9). Phần lớn chữ trong hình còn lại là rác
+# nhãn hình (`'a) b)'`, `'4v 12'`), nên `probe.raw_ocr_page` không nối nó vào chữ của trang.
 #
-# Bảng thì vẫn rỗng như ở plan 3a: plan 3c không cần chữ của bảng, nên không đổi thứ bộ đo đã đo
-# mà không có lý do. Lưu ý: hộp layout có thể chồng nhau, nên một dòng có thể nằm trong cả khối
-# hình lẫn một khối chữ -- bên dựng cây không bao giờ lấy khối hình làm ứng viên heading.
+# Bảng thì vẫn rỗng như ở `document-ocr-text-and-latex`: `document-agent-hierarchy` không cần chữ
+# của bảng, nên không đổi thứ bộ đo đã đo mà không có lý do. Lưu ý: hộp layout có thể chồng nhau,
+# nên một dòng có thể nằm trong cả khối hình lẫn một khối chữ -- bên dựng cây không bao giờ lấy khối
+# hình làm ứng viên heading.
 _WITHOUT_TEXT = frozenset({BlockKind.TABLE})
 
 
@@ -68,7 +71,8 @@ class PageReader:
         _dpi: Số điểm ảnh mỗi inch khi dựng ảnh trang.
     """
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     #     _math: PP-FormulaNet.
 
     def __init__(
@@ -101,7 +105,8 @@ class PageReader:
         self._words = make_line_reader(reader, vietocr_model=vietocr_model, threads=threads)
         self._layout = LayoutReader(use_mkldnn=use_mkldnn, threads=threads)
         self._lines = TextLineFinder(use_mkldnn=use_mkldnn, threads=threads)
-        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+        # `document-ocr-text-and-latex`
         # self._math = FormulaReader(use_mkldnn=use_mkldnn, threads=threads)
         self._dpi = dpi
 
@@ -138,7 +143,8 @@ class PageReader:
         with _timed(seconds, "recognize"):
             texts = self._words.read_lines(image, lines)
 
-        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+        # `document-ocr-text-and-latex`
         # with _timed(seconds, "formula"):
         #     filled = [self._fill(image, block, lines, texts) for block in blocks]
         # Chặng này giờ chỉ gán dòng vào khối; đổi tên để cột giây không còn nói "formula".
@@ -154,7 +160,8 @@ class PageReader:
         )
         return PageRead(index + 1, width, height, tuple(filled), seconds)
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # `_fill` từng là method vì nó cần `self._math` và `image`; giờ cả hai đã chết nên nó thành hàm
     # thuần ở cấp module, test được mà không nạp model.
     # def _fill(
@@ -180,7 +187,7 @@ def _fill(block: PageBlock, lines: list, texts: list[str]) -> PageBlock:
 
     Returns:
         Khối đã có chữ. Bảng giữ nguyên chữ rỗng; hình mang chữ của các dòng nằm trong nó (D2 của
-        plan 3c).
+        `document-agent-hierarchy`).
     """
     if block.kind in _WITHOUT_TEXT:
         return block

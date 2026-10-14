@@ -5,9 +5,9 @@ Một đường thẳng bảy bước, mỗi bước một node LangGraph:
     load → banners → classify → assemble → chunk → summarise → write
 
 Thẳng chứ không rẽ, vì mọi nhánh *"nếu hỏng thì sao"* đã nằm **trong** từng bước: Jev không với tới
-được thì `classify` đi đường luật (D5); luna không đọc được banner thì chương mang nhãn số (D6); một
-lời tóm tắt hỏng thì nút ấy không có tóm tắt. Không bước nào làm hỏng cả cây vì một model ngoài --
-tài liệu vẫn *sẵn sàng*, chỉ kém hơn, và `IndexHeader` nói kém ở đâu.
+được thì `classify` đi đường luật (D5, `document-agent-hierarchy`); luna không đọc được banner thì
+chương mang nhãn số (D6); một lời tóm tắt hỏng thì nút ấy không có tóm tắt. Không bước nào làm hỏng
+cả cây vì một model ngoài -- tài liệu vẫn *sẵn sàng*, chỉ kém hơn, và `IndexHeader` nói kém ở đâu.
 
 Thứ duy nhất làm job chạy lại là kho nội dung không với tới được (`ContentStoreUnavailable`), và
 thứ duy nhất làm job bỏ cuộc mà không báo gì là bản thô đã bị đọc lại giữa chừng (`RawChanged`) --
@@ -57,7 +57,8 @@ from document.pdf import open_pdf
 logger = logging.getLogger(__name__)
 
 # Phần trên của trang mở chương gửi luna, và độ phân giải. Đo trên Lớp 6 tập 1: dải tên bài đầu
-# chương nằm ở 45--65% chiều cao trang; 150 DPI là cấu hình phép đo VLM của plan 3a.
+# chương nằm ở 45--65% chiều cao trang; 150 DPI là cấu hình phép đo VLM của
+# `document-ocr-text-and-latex`.
 BANNER_TOP = 0.75
 BANNER_DPI = 150
 # Trần ký tự chữ của một nút gửi đi tóm tắt: đủ cho một mục, không trả token cho cả một chương.
@@ -83,7 +84,8 @@ class Deps:
         jev: Hỏi Jev cho một danh sách `state`; trả `JevRun`. `None` khi không có khoá Jev.
         read_banner: Đọc một ảnh banner; `None` khi không có khoá OpenAI.
         summarise: Tóm tắt `(tiêu đề, nội dung)`; `None` khi không có khoá OpenAI.
-        tell: Báo `services/ingest` rằng job vẫn sống -- giữ chip khỏi *xử lý hỏng* (D3).
+        tell: Báo `services/ingest` rằng job vẫn sống -- giữ chip khỏi *xử lý hỏng* (D3,
+            `document-agent-hierarchy`).
     """
 
     store: ContentStore
@@ -158,15 +160,17 @@ async def _load(state: IndexState, deps: Deps) -> dict:
     if raw is None or not pages:
         raise NothingToIndex(f"no raw content for {document_id}")
     if raw.finished_at is None:
-        # Một lần đọc mới đang chạy: dựng trên trang dở dang là gửi `READY` kèm một cây thiếu
-        # trang (review Task 4). Lô OCR cuối của lần đọc ấy sẽ giao lại job dựng cây.
+        # Một lần đọc mới đang chạy: dựng trên trang dở dang là gửi `READY` kèm một cây thiếu trang
+        # (review Task 4, `document-agent-hierarchy`). Lô OCR cuối của lần đọc ấy sẽ giao lại job
+        # dựng cây.
         raise RawChanged(f"the raw content of {document_id} is still being read")
     await deps.tell(len(pages))
     return {"raw": raw, "pages": pages, "jev_tokens": 0, "summary_tokens": 0, "banner_tokens": 0}
 
 
 async def _banners(state: IndexState, deps: Deps) -> dict:
-    """Banner mở chương (D9): cổng OCR, rồi luna đọc tên ở trang qua cổng."""
+    """Banner mở chương (D9, `document-agent-hierarchy`): cổng OCR, rồi luna đọc tên ở trang qua
+    cổng."""
     gates = banner_gates(state["pages"])
     if not gates:
         return {"banners": []}
@@ -197,7 +201,7 @@ async def _banners(state: IndexState, deps: Deps) -> dict:
                 readings[page] = read
             elif read.title is None and read.number is None and read.kind is None:
                 # Luna nói **rõ** đây không phải trang mở đầu -- khác với luna hỏng, khi cổng vẫn
-                # thắng và chương mang nhãn số (review Task 4).
+                # thắng và chương mang nhãn số (review Task 4, `document-agent-hierarchy`).
                 refused.add(page)
             # Một nhịp tim mỗi banner: một lời gọi chậm có thể tới ~60 s khi OpenAI đang ốm.
             await deps.tell(len(state["pages"]))
@@ -296,7 +300,8 @@ async def _chunk(state: IndexState, deps: Deps) -> dict:
 
 
 async def _summarise(state: IndexState, deps: Deps) -> dict:
-    """Tóm tắt từ dưới lên (D6): cấp 3 từ chữ của nó, cha từ tóm tắt của con cộng phần mở đầu."""
+    """Tóm tắt từ dưới lên (D6, `document-agent-hierarchy`): cấp 3 từ chữ của nó, cha từ tóm tắt của
+    con cộng phần mở đầu."""
     nodes = list(state["nodes"])
     if deps.summarise is None or not nodes:
         return {}
@@ -309,8 +314,8 @@ async def _summarise(state: IndexState, deps: Deps) -> dict:
         title = f"{node.numbering} {node.title}" if node.numbering else node.title
         if len(body.strip()) <= len(title) + _TITLE_SLACK_CHARS:
             # Chunk của nút chứa chính dòng tiêu đề, nên *"không có chữ"* nghĩa là chỉ còn tiêu đề
-            # (OCR bỏ sót cả mục). Hỏi tóm tắt chừng ấy là mời model bịa (review Task 4): không
-            # tóm tắt còn hơn tóm tắt sai.
+            # (OCR bỏ sót cả mục). Hỏi tóm tắt chừng ấy là mời model bịa (review Task 4,
+            # `document-agent-hierarchy`): không tóm tắt còn hơn tóm tắt sai.
             return node
         async with limit:
             try:

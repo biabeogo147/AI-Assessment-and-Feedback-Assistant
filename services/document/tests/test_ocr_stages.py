@@ -49,7 +49,8 @@ def _block(kind: BlockKind, box: BBox) -> PageBlock:
     Returns:
         Khối rỗng chữ.
     """
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # return PageBlock(kind=kind, box=box, text="", latex=None)
     return PageBlock(kind=kind, box=box, text="")
 
@@ -241,7 +242,8 @@ def test_a_formula_block_now_carries_the_ocr_text() -> None:
     assert _fill(block, [_line(100, 130)], ["a : b = c"]).text == "a : b = c"
 
 
-# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — plan 3c, D2
+# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — `document-agent-hierarchy`,
+# D2
 # def test_pictures_and_tables_stay_empty() -> None:
 #     """Nhận dạng chữ **không bao giờ** trả về rỗng, nên một hình mà nhận chữ là chữ bịa."""
 #     lines, texts = [_line(100, 130)], ["chữ của một dòng nằm đè lên hình"]
@@ -256,7 +258,8 @@ def test_tables_stay_empty() -> None:
 
 
 def test_a_picture_keeps_the_lines_found_inside_it() -> None:
-    """Banner mở chương là một khối hình, và chữ *CHƯƠNG* trong nó là cổng của D9 (plan 3c).
+    """Banner mở chương là một khối hình, và chữ *CHƯƠNG* trong nó là cổng của D9
+    (`document-agent-hierarchy`).
 
     Không crop nào được đưa cho bộ nhận dạng: dòng đã được detect và đọc từ trước, `_fill` chỉ thôi
     vứt nó. Dòng nằm ngoài hình vẫn không lọt vào.

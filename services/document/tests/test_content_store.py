@@ -2,8 +2,9 @@
 
 Không test nào ở đây cần Mongo chạy. Nhưng chiều đi-về phải đi qua **BSON thật**
 (`bson.encode` / `bson.decode` của chính `pymongo` đã cài), không chỉ qua `as_document` rồi
-`from_document`: bản đầu của file này làm vậy, và review Task 1 (11/10/2026) chứng minh nó xanh cả
-khi một mốc thời gian đi vào Mongo rồi đi ra **khác** đi -- BSON chỉ giữ tới mili giây.
+`from_document`: bản đầu của file này làm vậy, và review Task 1 (`mongo-content-store`, 11/10/2026)
+chứng minh nó xanh cả khi một mốc thời gian đi vào Mongo rồi đi ra **khác** đi -- BSON chỉ giữ tới
+mili giây.
 """
 
 from datetime import UTC, datetime, timedelta, timezone
@@ -73,8 +74,8 @@ def _page(page: int = 3, at: datetime = _AT) -> RawPage:
 def test_a_page_is_keyed_so_writing_it_again_overwrites() -> None:
     """arq chạy lại một lô thì trang ấy được ghi lần hai -- cùng `_id` nên ghi đè, không nhân đôi.
 
-    Khoá dựng bằng `contracts.page_key`, không bằng một f-string riêng: bên đọc ở plan 3c phải dựng
-    đúng khoá ấy để lấy một trang.
+    Khoá dựng bằng `contracts.page_key`, không bằng một f-string riêng: bên đọc ở
+    `document-agent-hierarchy` phải dựng đúng khoá ấy để lấy một trang.
     """
     assert as_document(_page(3))["_id"] == page_key("doc-1", 3) == "doc-1:3"
     assert as_document(_page(3))["_id"] != as_document(_page(4))["_id"]
@@ -100,7 +101,8 @@ def test_a_time_without_a_timezone_is_refused() -> None:
 
 
 def test_the_source_is_stored_as_a_bare_string() -> None:
-    """Bên đọc của plan 3c có thể không dùng Python, nên giá trị phải là chuỗi trần."""
+    """Bên đọc của `document-agent-hierarchy` có thể không dùng Python, nên giá trị phải là chuỗi
+    trần."""
     body = as_document(_page())
     assert body["source"] == "ocr"
     assert type(body["source"]) is str
@@ -147,7 +149,7 @@ async def test_a_mongo_error_becomes_the_typed_error() -> None:
     await store.close()
 
 
-# --- Cây mục lục (plan 3c) ---
+# --- Cây mục lục (`document-agent-hierarchy`) ---
 
 
 def _header(at: datetime = _AT) -> IndexHeader:
@@ -335,7 +337,7 @@ async def test_the_index_header_is_dropped_first_and_written_last() -> None:
 @pytest.mark.asyncio
 async def test_an_index_built_on_a_raw_read_that_was_replaced_is_refused() -> None:
     """Đọc lại tài liệu trong lúc cây đang dựng: cây cũ trỏ `(page, block)` vào chữ mới. Nó bị
-    xoá, không có đầu mục nào được ghi (review Task 2)."""
+    xoá, không có đầu mục nào được ghi (review Task 2, `document-agent-hierarchy`)."""
     log: list[str] = []
     store = _logged_store(log, raw_started_at=_AT + timedelta(minutes=3))
     with pytest.raises(RawChanged):
@@ -356,7 +358,7 @@ async def test_an_index_whose_raw_content_is_gone_is_refused() -> None:
 @pytest.mark.asyncio
 async def test_reading_a_document_again_kills_its_index() -> None:
     """Cây trỏ vào khối của bản thô bằng `(page, block)`; đọc lại là đổi chữ dưới những con trỏ ấy
-    (plan 3c, D7)."""
+    (`document-agent-hierarchy`, D7)."""
     log: list[str] = []
     store = _logged_store(log)
     await store.begin(RawDocument(document_id="doc-1", source=RawSource.OCR, started_at=_AT))

@@ -32,8 +32,8 @@ class Settings(BaseSettings):
             thì worker ngồi không trong khi job dồn lại ở một chỗ khác -- một hình dạng thất bại
             trông y hệt một hệ thống đang rảnh, nên `on_startup` nói tên queue ra thành log.
         ingest_queue_name: Queue kết quả đi về. `services/ingest` tiêu thụ nó.
-        document_index_queue_name: Queue của job dựng cây (plan 3c, D4). Worker OCR đẩy vào,
-            `document.index_worker` tiêu thụ -- cùng service, khác process.
+        document_index_queue_name: Queue của job dựng cây (`document-agent-hierarchy`, D4). Worker
+            OCR đẩy vào, `document.index_worker` tiêu thụ -- cùng service, khác process.
         minio_endpoint: Host và port của object storage, **không kèm scheme** -- SDK minio nhận
             scheme qua `minio_secure` chứ không qua chuỗi này.
         minio_access_key: Tên truy cập của object storage.
@@ -47,13 +47,14 @@ class Settings(BaseSettings):
         mongo_url: Chuỗi kết nối tới kho nội dung (MongoDB), nơi bản thô của mọi tài liệu nằm.
             Được phép ở service này vì cùng lý do với khoá object storage: Mongo giữ **nội dung**
             đọc ra từ tệp, không giữ **sự thật** về tệp -- `documents.state` vẫn chỉ ở kho của BE
-            (plan 3b, D1). Chỉ `content_store.py` được dùng nó.
+            (`mongo-content-store`, D1). Chỉ `content_store.py` được dùng nó.
         mongo_database: Tên database trong Mongo.
-        ocr_pages_per_job: Số trang một job OCR đọc trước khi nhường chỗ cho job kế. 4,5 s/trang
-            đo ở plan 3a nhân 10 là ~45 s, dưới trần `job_timeout` 120 s với chỗ dư cho trang
-            dày chữ.
+        ocr_pages_per_job: Số trang một job OCR đọc trước khi nhường chỗ cho job kế. 4,5 s/trang đo
+            ở `document-ocr-text-and-latex` nhân 10 là ~45 s, dưới trần `job_timeout` 120 s với chỗ
+            dư cho trang dày chữ.
         ocr_reader: Bộ nhận dạng chữ của đường OCR, `easyocr` hoặc `vietocr`. Mặc định
-            `easyocr`: bằng hoặc hơn VietOCR ở mọi thước trên 50 trang (plan 3a).
+            `easyocr`: bằng hoặc hơn VietOCR ở mọi thước trên 50 trang
+            (`document-ocr-text-and-latex`).
         ocr_threads: Số luồng CPU cho OCR. Đặt bằng số vCPU của máy chạy worker.
         jev_api_key: Khoá của Jev (TypeSafe AI), đọc từ `JEV_API_KEY` rồi **truyền vào** client --
             SDK tự tìm `TYPESAFE_API_KEY`, nhưng `.env` của repo này không bao giờ tới
@@ -62,13 +63,14 @@ class Settings(BaseSettings):
             `jev_min_confidence` chỉ có nghĩa đi kèm con số này.
         jev_concurrency: Số lời gọi Jev bay cùng lúc trong một job.
         jev_timeout_seconds: Trần giây cho một lời gọi Jev (TypeSafe báo 70--500 ms).
-        jev_min_confidence: Dưới ngưỡng này luật quyết thay Jev (D5). Chọn bằng bộ đo trên cây
-            vàng (plan 3c, Task 3, `data/results/run-6/pageindex-jev-1.13.0/`): Jev thuần trên
-            Lớp 6 tập 1 dựng 138 nút cho 91 nút vàng (F1 cấp 3: 69%), chủ yếu vì xếp tiêu đề con
-            không đánh số vào cấp 3 với `confidence` thấp. Ở 0,8 Jev chỉ còn thắng luật đúng một ca,
-            và ca ấy sai. Sau khi tiêu chí bỏ ví dụ chương (plan 4c T4, `data/results/run-67/`): Jev
-            thuần 120 nút (F1 cấp 3: 75,9%), và ở 0,8 Jev thắng luật **không** ca nào -- cây trên
-            cuốn này là đúng cây của luật, cho tới khi câu hỏi Jev được làm lại (plan 3c, Status).
+        jev_min_confidence: Dưới ngưỡng này luật quyết thay Jev (D5). Chọn bằng bộ đo trên cây vàng
+            (`document-agent-hierarchy`, Task 3, `data/results/run-6/pageindex-jev-1.13.0/`): Jev
+            thuần trên Lớp 6 tập 1 dựng 138 nút cho 91 nút vàng (F1 cấp 3: 69%), chủ yếu vì xếp tiêu
+            đề con không đánh số vào cấp 3 với `confidence` thấp. Ở 0,8 Jev chỉ còn thắng luật đúng
+            một ca, và ca ấy sai. Sau khi tiêu chí bỏ ví dụ chương (`unbiased-model-text` T4,
+            `data/results/run-67/`): Jev thuần 120 nút (F1 cấp 3: 75,9%), và ở 0,8 Jev thắng luật
+            **không** ca nào -- cây trên cuốn này là đúng cây của luật, cho tới khi câu hỏi Jev được
+            làm lại (`document-agent-hierarchy`, Status).
         openai_api_key: Khoá OpenAI cho tóm tắt và đọc banner -- cùng khoá AGENT dùng, đọc từ cùng
             `OPENAI_API_KEY`, truyền vào client như ở `agent/llm.py`. Rỗng thì cây không có tóm
             tắt và chương chỉ có nhãn số.

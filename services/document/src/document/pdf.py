@@ -135,10 +135,10 @@ class PdfPages:
     def page_text(self, index: int) -> PageText:
         """Đọc text layer của một trang thành từng khối có hộp.
 
-        Đây là bản thô của một PDF có chữ (plan 3b): cùng hình dạng *khối + hộp* với đường OCR,
-        chỉ khác là không ai gán nhãn khối. Thứ tự là thứ tự trong content stream, **không** sắp
-        lại theo toạ độ: với PDF sinh từ trình soạn thảo, đó là thứ tự đọc; còn sắp theo trục dọc
-        thì cắt ngang một trang hai cột.
+        Đây là bản thô của một PDF có chữ (`mongo-content-store`): cùng hình dạng *khối + hộp* với
+        đường OCR, chỉ khác là không ai gán nhãn khối. Thứ tự là thứ tự trong content stream,
+        **không** sắp lại theo toạ độ: với PDF sinh từ trình soạn thảo, đó là thứ tự đọc; còn sắp
+        theo trục dọc thì cắt ngang một trang hai cột.
 
         Không lọc khối ảnh: với cờ mặc định, `get_text("blocks")` không trả chúng (đo 11/10/2026,
         `test_page_text_leaves_pictures_out` canh). Thêm cờ ảnh vào đây thì chữ của khối ảnh là
@@ -182,8 +182,9 @@ class PdfPages:
             index: Số thứ tự trang, đếm từ 0.
             dpi: Số điểm ảnh mỗi inch. Bản scan trong `data/` ở khoảng 144 DPI, nên xin cao hơn
                 mức ấy chỉ phóng to điểm ảnh có sẵn chứ không thêm chi tiết nào.
-            top: Phần trên của trang cần dựng, 0..1 theo chiều cao (plan 3c, D9: banner mở chương
-                cho `gpt-5.6-luna` -- ảnh nhỏ hơn là ít token ảnh hơn). 1 là cả trang.
+            top: Phần trên của trang cần dựng, 0..1 theo chiều cao (`document-agent-hierarchy`, D9:
+                banner mở chương cho `gpt-5.6-luna` -- ảnh nhỏ hơn là ít token ảnh hơn). 1 là cả
+                trang.
 
         Returns:
             Byte của một tệp PNG.
@@ -209,8 +210,8 @@ class PdfPages:
         if not 0 <= index < pages:
             raise IndexError(f"page {index} is outside a pdf of {pages} pages")
         try:
-            # PyMuPDF không thread-safe, và từ plan 3c có hai đường gọi vào đây qua
-            # `asyncio.to_thread`: lô OCR, và tối đa `max_jobs` job dựng cây dựng ảnh banner
+            # PyMuPDF không thread-safe, và từ `document-agent-hierarchy` có hai đường gọi vào đây
+            # qua `asyncio.to_thread`: lô OCR, và tối đa `max_jobs` job dựng cây dựng ảnh banner
             # (review Task 4). Một khoá cho cả process; dựng ảnh nhanh, nên tranh khoá là rẻ.
             with _RENDER_LOCK:
                 page = self._book[index]

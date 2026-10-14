@@ -4,7 +4,7 @@
 `check_agent_and_document_hold_no_database_credentials` canh nó: cùng lập luận đã cho khoá MinIO
 đứng ngoài luật ấy. Mongo giữ **nội dung** đọc ra từ tệp, không giữ **sự thật** về tệp. Một tài
 liệu đã xử lý xong hay chưa thì chỉ `documents.state` trong kho của BE trả lời, và chỉ
-`services/ingest` ghi cột ấy. Người dùng chốt ngày 11/10/2026 (plan 3b, D1).
+`services/ingest` ghi cột ấy. Người dùng chốt ngày 11/10/2026 (`mongo-content-store`, D1).
 
 **Thứ tự ghi** theo Decision Record *"chunk trước, `state` sau"*: mọi trang vào đây **trước** khi
 `DocumentProbed(READY)` rời service. Hỏng giữa chừng thì để lại trang mồ côi -- rác, không ai
@@ -16,12 +16,12 @@ hai thì grep được -- `check_only_one_module_per_service_talks_to_a_sync_sdk
 `AsyncMongoClient` là async thuần, nên khác MinIO ở chỗ không phải bọc thread.
 
 Hình dạng của thứ được ghi **không** khai ở đây mà ở `contracts.content`: Mongo là nơi lưu, không
-phải nơi định nghĩa. Bên đọc ở plan 3c đọc bằng đúng các model ấy.
+phải nơi định nghĩa. Bên đọc ở `document-agent-hierarchy` đọc bằng đúng các model ấy.
 
-**Từ plan 3c, kho giữ thêm cây mục lục** -- bốn collection `indexes`, `nodes`, `chunks`,
-`block_labels`, hình dạng ở `contracts.index`. Cùng một module, vì luật D2 của 3b là *một SDK, một
-module*, và vì chỉ ở đây mới trả lời được câu *"đọc lại tài liệu thì cây cũ có chết theo không"*
-(`begin`, D7 của 3c).
+**Từ `document-agent-hierarchy`, kho giữ thêm cây mục lục** -- bốn collection `indexes`, `nodes`,
+`chunks`, `block_labels`, hình dạng ở `contracts.index`. Cùng một module, vì luật D2 của
+`mongo-content-store` là *một SDK, một module*, và vì chỉ ở đây mới trả lời được câu *"đọc lại tài
+liệu thì cây cũ có chết theo không"* (`begin`, D7 của `document-agent-hierarchy`).
 """
 
 import logging
@@ -56,8 +56,9 @@ _PAGES = "pages"
 # tách lô theo cỡ message, và trần thật cho mỗi trang là 16 MB một document như với `put_page`. Chia
 # khúc để danh sách lệnh dựng sẵn không phình theo cả cuốn, và để một lần đứt chỉ mất một khúc.
 _PAGE_BATCH = 500
-# Cây mục lục (plan 3c). Đầu mục ghi **cuối cùng** và xoá **đầu tiên**, nên có nó là cây đã ghi
-# xong: một lần ghi hay xoá đứt giữa chừng không để lại một cây *trông như* trọn vẹn mà thiếu nút.
+# Cây mục lục (`document-agent-hierarchy`). Đầu mục ghi **cuối cùng** và xoá **đầu tiên**, nên có nó
+# là cây đã ghi xong: một lần ghi hay xoá đứt giữa chừng không để lại một cây *trông như* trọn vẹn
+# mà thiếu nút.
 _INDEXES = "indexes"
 _NODES = "nodes"
 _CHUNKS = "chunks"
@@ -77,7 +78,8 @@ class RawChanged(RuntimeError):
     """Bản thô mà cây được dựng trên đó đã bị **đọc lại** trong lúc dựng.
 
     Cây trỏ vào khối bằng `(page, block)`; sau một lần đọc lại, những con trỏ ấy trỏ vào chữ khác.
-    Không chạy lại: lần đọc mới tự đẩy một job dựng cây của nó (review Task 2, plan 3c).
+    Không chạy lại: lần đọc mới tự đẩy một job dựng cây của nó (review Task 2,
+    `document-agent-hierarchy`).
     """
 
 
@@ -115,8 +117,9 @@ def as_document(model: RawDocument | RawPage) -> dict[str, Any]:
         ValueError: Khi một mốc thời gian không mang múi giờ. Mongo coi nó là UTC, nên một
             `datetime.now()` giờ Việt Nam sẽ lặng lẽ lệch bảy tiếng.
     """
-    # `StrEnum` là `str`, nhưng ghi giá trị trần cho chắc: bên đọc ở plan 3c có thể không dùng
-    # Python. `_bare` làm việc ấy và luật thời gian cho mọi tầng -- một luật cho cả bản thô lẫn cây.
+    # `StrEnum` là `str`, nhưng ghi giá trị trần cho chắc: bên đọc ở `document-agent-hierarchy` có
+    # thể không dùng Python. `_bare` làm việc ấy và luật thời gian cho mọi tầng -- một luật cho cả
+    # bản thô lẫn cây.
     body = _bare(model.model_dump(mode="python"))
     if isinstance(model, RawPage):
         body["_id"] = page_key(model.document_id, model.page)
@@ -144,9 +147,9 @@ def page_writes(pages: list[RawPage]) -> list[ReplaceOne]:
 def _to_bson_time(field: str, value: datetime) -> datetime:
     """Đưa một mốc thời gian về đúng thứ BSON giữ được.
 
-    BSON lưu thời gian tới **mili giây**. Không cắt trước thì `datetime.now()` đi vào Mongo rồi
-    đi ra không còn bằng chính nó (review Task 1, 11/10/2026, đo bằng `bson.encode`/`decode`).
-    Cắt ở đây thì thứ được ghi và thứ đọc lại là một.
+    BSON lưu thời gian tới **mili giây**. Không cắt trước thì `datetime.now()` đi vào Mongo rồi đi
+    ra không còn bằng chính nó (review Task 1, `mongo-content-store`, 11/10/2026, đo bằng
+    `bson.encode`/`decode`). Cắt ở đây thì thứ được ghi và thứ đọc lại là một.
 
     Args:
         field: Tên trường, cho câu báo lỗi.
@@ -220,10 +223,10 @@ def check_index(
 ) -> None:
     """Một cây có tự nhất quán không, **trước** khi chạm Mongo.
 
-    Lý do nó tồn tại (review Task 2): hai nút cùng `ordinal` làm `insert_many` ném lỗi khoá trùng,
-    mà lỗi ấy là `PyMongoError` -- `_translated` sẽ dịch nó thành *"Mongo không với tới được"*, và
-    arq chạy lại job tới hết lượt, mỗi lượt lại trả tiền Jev và `gpt-4o-mini`. Bắt nó ở đây thì nó
-    là đúng thứ nó là: một lỗi lập trình.
+    Lý do nó tồn tại (review Task 2, `document-agent-hierarchy`): hai nút cùng `ordinal` làm
+    `insert_many` ném lỗi khoá trùng, mà lỗi ấy là `PyMongoError` -- `_translated` sẽ dịch nó thành
+    *"Mongo không với tới được"*, và arq chạy lại job tới hết lượt, mỗi lượt lại trả tiền Jev và
+    `gpt-4o-mini`. Bắt nó ở đây thì nó là đúng thứ nó là: một lỗi lập trình.
 
     Args:
         header: Đầu mục cây.
@@ -319,11 +322,11 @@ class ContentStore:
     async def begin(self, header: RawDocument) -> None:
         """Mở bản thô của một tài liệu, xoá bản thô cũ nếu có.
 
-        Đọc lại một tài liệu là **ghi đè** bản thô của nó (plan 3b, D6): trang cũ của một lần đọc
-        trước -- có thể bằng một đường đọc khác -- không được trộn với trang mới.
+        Đọc lại một tài liệu là **ghi đè** bản thô của nó (`mongo-content-store`, D6): trang cũ của
+        một lần đọc trước -- có thể bằng một đường đọc khác -- không được trộn với trang mới.
 
-        Và **cây cũ chết theo** (plan 3c, D7): nó trỏ vào khối của bản thô cũ bằng `(page, block)`,
-        nên giữ nó lại là giữ những con trỏ trỏ vào chữ khác.
+        Và **cây cũ chết theo** (`document-agent-hierarchy`, D7): nó trỏ vào khối của bản thô cũ
+        bằng `(page, block)`, nên giữ nó lại là giữ những con trỏ trỏ vào chữ khác.
 
         Args:
             header: Đầu mục, `finished_at` còn `None`.

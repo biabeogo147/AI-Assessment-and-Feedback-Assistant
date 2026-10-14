@@ -53,7 +53,7 @@ async def test_startup_touches_the_store_and_shutdown_closes_it(
 
 def test_the_worker_runs_both_tasks_one_at_a_time() -> None:
     """Hai task trên một queue, và **một job một lúc**: hai lô OCR song song chỉ tranh CPU rồi cùng
-    chạm trần `job_timeout` (plan 3b, D3).
+    chạm trần `job_timeout` (`mongo-content-store`, D3).
     """
     names = {function.name for function in worker.WorkerSettings.functions}
     assert names == {"probe_document", "ocr_pages"}
@@ -64,8 +64,8 @@ def test_the_worker_runs_both_tasks_one_at_a_time() -> None:
 async def test_the_index_worker_loads_no_ocr_model_and_reads_its_own_queue(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Document agent (plan 3c, D4): queue riêng, vài job song song, **không** nạp model OCR --
-    dựng cây chờ mạng, không chờ CPU."""
+    """Document agent (`document-agent-hierarchy`, D4): queue riêng, vài job song song, **không**
+    nạp model OCR -- dựng cây chờ mạng, không chờ CPU."""
     from document import index_worker
 
     _Store.made.clear()

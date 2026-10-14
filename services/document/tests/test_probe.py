@@ -160,8 +160,9 @@ def test_a_text_file_of_only_whitespace_has_no_text() -> None:
 def test_a_text_file_that_is_not_utf8_is_refused_with_a_fixable_reason(raw: bytes) -> None:
     """Sai bảng mã thì **từ chối**, không đoán (người dùng chốt 11/10/2026, review Task 2).
 
-    Trước plan 3b, ca này ra `READY` vì bước cắt đoạn sẽ đọc lại byte. Từ 3b chữ đi thẳng vào kho
-    nội dung và bất biến, nên `READY` ở đây là đóng băng `\\ufffd` và NUL vào bản thô.
+    Trước `mongo-content-store`, ca này ra `READY` vì bước cắt đoạn sẽ đọc lại byte. Từ
+    `mongo-content-store` chữ đi thẳng vào kho nội dung và bất biến, nên `READY` ở đây là đóng
+    băng `\\ufffd` và NUL vào bản thô.
     """
     found = probe(raw, "cu.txt")
     assert found.state is DocumentState.FAILED
@@ -254,7 +255,7 @@ def test_raw_pages_of_a_pdf_has_one_page_per_page_even_the_blank_ones() -> None:
     """Số trang trong kho phải khớp `page_count`: trang trắng vẫn có mặt, chỉ rỗng.
 
     Bỏ trang trắng đi thì `page` thứ 3 trong kho không còn là trang 3 của tệp, và mọi trích dẫn
-    *"trang 3"* của plan 3c trỏ sai chỗ.
+    *"trang 3"* của `document-agent-hierarchy` trỏ sai chỗ.
     """
     pages = raw_pages(_pdf_with_text(pages=3, text_on=2), "sach.pdf", "doc-1", _AT)
 
@@ -269,8 +270,8 @@ def test_raw_pages_of_a_pdf_has_one_page_per_page_even_the_blank_ones() -> None:
 def test_raw_pages_of_a_text_file_is_one_page_in_nfc() -> None:
     """Tệp thuần: một trang, một khối, không hộp -- và chữ ở dạng NFC dù tệp ghi NFD.
 
-    NFD là dạng mà macOS và nhiều PDF xuất ra; bên đọc ở plan 3c so khớp chữ, và `"ệ"` hai dạng
-    là hai chuỗi khác nhau.
+    NFD là dạng mà macOS và nhiều PDF xuất ra; bên đọc ở `document-agent-hierarchy` so khớp chữ, và
+    `"ệ"` hai dạng là hai chuỗi khác nhau.
     """
     written = unicodedata.normalize("NFD", "Mệnh đề\n\nTập hợp\n")
     [page] = raw_pages(written.encode(), "bai.txt", "doc-1", _AT)
@@ -288,7 +289,8 @@ def test_raw_pages_of_a_pdf_cleans_every_block_and_joins_them_by_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Text layer thật mang dấu tách rời và khoảng trắng hai đầu: đo trên `docs/report/report.pdf`
-    (review Task 2, 11/10/2026), 11/396 khối không NFC, 396/396 khối có khoảng trắng hai đầu.
+    (review Task 2, `mongo-content-store`, 11/10/2026), 11/396 khối không NFC, 396/396 khối có
+    khoảng trắng hai đầu.
 
     Font mặc định của `pymupdf` không dựng nổi chữ có dấu, nên test thay `open_pdf` bằng một tệp
     giả trả đúng hình dạng `PageText` -- thứ đang được canh là **luật** chuẩn hoá, không phải
@@ -333,8 +335,9 @@ def test_an_ocr_page_keeps_real_labels_boxes_and_seconds() -> None:
     """Trang OCR vào bản thô bằng đúng kiểu thật mà `PageReader` trả: nhãn layout thật, hộp theo
     điểm ảnh, số giây từng chặng -- và chữ NFC.
 
-    Khối hình ở lại (nó là tín hiệu bố cục) và từ plan 3c mang chữ của các dòng trong nó, nhưng
-    `text` của trang bỏ qua nó: chữ ấy phần lớn là rác nhãn hình, và `text` đi vào ngữ cảnh LLM.
+    Khối hình ở lại (nó là tín hiệu bố cục) và từ `document-agent-hierarchy` mang chữ của các dòng
+    trong nó, nhưng `text` của trang bỏ qua nó: chữ ấy phần lớn là rác nhãn hình, và `text` đi vào
+    ngữ cảnh LLM.
     """
     from document.ocr.model import BBox, BlockKind, PageBlock, PageRead
     from document.probe import raw_ocr_page

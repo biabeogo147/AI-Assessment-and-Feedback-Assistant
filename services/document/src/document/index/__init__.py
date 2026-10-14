@@ -1,4 +1,5 @@
-"""*Document agent* của plan 3c: đọc bản thô trong kho nội dung, dựng cây mục lục ba cấp, ghi lại.
+"""*Document agent* của `document-agent-hierarchy`: đọc bản thô trong kho nội dung, dựng cây mục lục
+ba cấp, ghi lại.
 
 Riêng với Kriky (`services/agent`): khác prompt, khác model, khác queue. Chia module theo **việc**:
 

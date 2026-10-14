@@ -3,8 +3,8 @@
 Hai cách ấy được xử khác nhau có chủ ý, và đó là thứ mấy test dưới canh: không đọc nổi tệp là
 một **kết quả** gửi về cho BE, còn không giao nổi kết quả thì **ném** để arq thử lại.
 
-Từ plan 3b còn một điều thứ ba: tệp có chữ để lại bản thô trong kho nội dung **trước** khi
-`READY` đi về BE. Kho và queue giả ghi chung một nhật ký, nên thứ tự ấy kiểm được.
+Từ `mongo-content-store` còn một điều thứ ba: tệp có chữ để lại bản thô trong kho nội dung **trước**
+khi `READY` đi về BE. Kho và queue giả ghi chung một nhật ký, nên thứ tự ấy kiểm được.
 
 Và một điều thứ tư (Task 3): PDF scan không về BE ngay mà đi đường OCR theo lô, mỗi lô tự giao lô
 kế, lô cuối mới gửi kết quả. Model OCR thật không nạp ở đây -- `_Ocr` đứng thay nó.
@@ -315,7 +315,8 @@ def _asked(filename: str = "sach.pdf") -> dict:
 
 @pytest.mark.asyncio
 async def test_a_readable_file_goes_to_the_index_queue_not_back_to_the_be() -> None:
-    """Đọc xong một tệp có chữ thì tài liệu **chưa** sẵn sàng: nó còn chờ cây (plan 3c, D3).
+    """Đọc xong một tệp có chữ thì tài liệu **chưa** sẵn sàng: nó còn chờ cây
+    (`document-agent-hierarchy`, D3).
 
     Queue đích là nửa dễ sai nhất và nó không ném gì cả khi sai: job rơi vào một chỗ không ai
     nghe, và hệ thống trông y hệt một hệ thống đang rảnh. Không gì về BE lúc này.
@@ -324,7 +325,7 @@ async def test_a_readable_file_goes_to_the_index_queue_not_back_to_the_be() -> N
     ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
     out = await probe_document(ctx, _asked())
 
-    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
     # assert len(queue.jobs) == 1
     # name, payload, where = queue.jobs[0]
     # assert name == DOCUMENT_PROBED_TASK
@@ -376,14 +377,15 @@ async def test_a_file_that_cannot_be_read_still_gets_an_answer() -> None:
 async def test_a_result_that_cannot_be_handed_back_asks_arq_to_retry(queue: _Queue) -> None:
     """Không giao nổi kết quả thì xin arq **chạy lại** -- bằng `Retry`, không bằng một lỗi bất kỳ.
 
-    arq chỉ chạy lại khi gặp `Retry`; mọi exception khác đánh job hỏng ngay (review Task 2, plan
-    3b). Chạy lại an toàn: bản thô đã ghi được ghi đè chứ không chồng lên. Hết lượt thử thì phép
-    suy *đứng quá lâu* của BE là lưới cuối.
+    arq chỉ chạy lại khi gặp `Retry`; mọi exception khác đánh job hỏng ngay (review Task 2,
+    `mongo-content-store`). Chạy lại an toàn: bản thô đã ghi được ghi đè chứ không chồng lên. Hết
+    lượt thử thì phép suy *đứng quá lâu* của BE là lưới cuối.
 
-    Từ plan 3c chỉ phán quyết **không phải** `READY` còn đi thẳng về BE, nên ca này dùng một tệp
-    không đọc được: với job dựng cây, *bị từ chối* nghĩa là *đã xếp hàng rồi*, không phải hỏng.
+    Từ `document-agent-hierarchy` chỉ phán quyết **không phải** `READY` còn đi thẳng về BE, nên ca
+    này dùng một tệp không đọc được: với job dựng cây, *bị từ chối* nghĩa là *đã xếp hàng rồi*,
+    không phải hỏng.
     """
-    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
     # ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
     ctx = {"reader": _Reader(None), "redis": queue, "store": _Store([])}
     with pytest.raises(Retry):
@@ -394,15 +396,15 @@ async def test_a_result_that_cannot_be_handed_back_asks_arq_to_retry(queue: _Que
 async def test_a_pdf_with_text_is_kept_in_the_store_before_ready_leaves() -> None:
     """Bản thô nằm trong kho **trước** khi `READY` đi về BE -- *"chunk trước, `state` sau"*.
 
-    Đảo thứ tự thì có một khoảnh khắc chip báo *sẵn sàng* mà plan 3c đọc kho không thấy chữ nào,
-    và nếu job chết đúng lúc ấy thì khoảnh khắc ấy kéo dài mãi.
+    Đảo thứ tự thì có một khoảnh khắc chip báo *sẵn sàng* mà `document-agent-hierarchy` đọc kho
+    không thấy chữ nào, và nếu job chết đúng lúc ấy thì khoảnh khắc ấy kéo dài mãi.
     """
     log: list[str] = []
     store = _Store(log)
     ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": _Queue(log=log), "store": store}
     await probe_document(ctx, _asked())
 
-    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
     # assert log == ["begin", "page 1", "finish", "hand back ready"]
     assert log == ["begin", "pages 1", "finish", "queue index"]
     assert store.header is not None
@@ -420,7 +422,8 @@ async def test_a_pdf_with_text_is_kept_in_the_store_before_ready_leaves() -> Non
 
 @pytest.mark.asyncio
 async def test_a_plain_text_file_is_kept_as_one_page() -> None:
-    """Tệp `.md` không có trang, nhưng bên đọc ở plan 3c đọc một hình dạng: một trang, một khối."""
+    """Tệp `.md` không có trang, nhưng bên đọc ở `document-agent-hierarchy` đọc một hình dạng: một
+    trang, một khối."""
     store = _Store([])
     raw = "# Chương 1\n\nMệnh đề và tập hợp.\n".encode()
     await probe_document(
@@ -587,7 +590,8 @@ async def test_a_batch_run_again_reads_only_the_pages_not_yet_stored() -> None:
 
 @pytest.mark.asyncio
 async def test_the_pages_of_a_batch_are_kept_as_ocr_pages() -> None:
-    """Trang OCR vào kho với nhãn thật, hộp, số giây -- thứ plan 3c dựng cây từ đó."""
+    """Trang OCR vào kho với nhãn thật, hộp, số giây -- thứ `document-agent-hierarchy` dựng cây từ
+    đó."""
     store = _Store([])
     await ocr_pages(_ocr_ctx([], _Queue(), store), _batch(1, 2))
 
@@ -612,7 +616,7 @@ async def test_the_last_batch_finishes_and_queues_the_index() -> None:
     await ocr_pages(_ocr_ctx(log, queue, store), _batch(per_job + 1, per_job + 3))
 
     assert [page.page for page in store.pages] == [per_job + 1, per_job + 2, per_job + 3]
-    # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
+    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
     # assert log[-2:] == ["finish", "hand back ready"]
     # [done] = queue.sent(DOCUMENT_PROBED_TASK)
     assert log[-2:] == ["finish", "queue index"]
@@ -688,7 +692,7 @@ async def test_an_ocr_error_of_any_kind_fails_the_document_instead_of_killing_th
     """Model OCR ném một lỗi thường (torch, paddle, PIL): vẫn phải thành `FAILED` về BE.
 
     Để nó thoát ra thì arq đánh job hỏng **không thử lại**, không gì về BE, và chip chờ 300 s mới
-    ra *xử lý hỏng* -- review Task 3 của plan 3b.
+    ra *xử lý hỏng* -- review Task 3 của `mongo-content-store`.
     """
     queue = _Queue()
     ocr = _Ocr(broken_at=2, error=RuntimeError)
