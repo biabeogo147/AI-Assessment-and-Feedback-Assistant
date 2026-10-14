@@ -5301,6 +5301,35 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
     expect(screen.queryByText("Không đọc được chữ")).toBeNull();
   });
 
+  it("đang xử lý mà có tiến độ thì chip nói tiến độ, và dòng meta không in số trang", async () => {
+    // Người dùng chốt 14/10/2026: tiến độ là chữ của `processing`, không phải trạng thái thứ
+    // năm. Job dựng cây báo bằng đúng tổng, nên bằng nhau nghĩa là đang dựng mục lục.
+    for (const [pagesRead, said] of [
+      [37, "Đang đọc 37/184 trang…"],
+      [184, "Đang dựng mục lục…"],
+    ] as const) {
+      rail([[paper("processing", { pages_read: pagesRead })]]);
+      const screenOne = render(
+        <Chat conversationId={null} fresh={true} openPaper={null} />,
+      );
+      await waitFor(() => expect(screen.getByText(said)).toBeTruthy());
+      expect(screen.queryByText(/184 trang$/)).toBeNull();
+      screenOne.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("chip xử lý hỏng không in số trang tạm của tiến độ", async () => {
+    // Một tệp `.md` đang dựng cây mang `page_count = 1` tạm; job chết thì BE suy ra `failed`
+    // lúc đọc mà cột vẫn giữ con số ấy. "1 trang" cho một tệp không có trang là bịa.
+    rail([[paper("failed", { page_count: 1, pages_read: 1 })]]);
+    show();
+    await waitFor(() =>
+      expect(screen.getByText("Xử lí lỗi. Hãy tải lại")).toBeTruthy(),
+    );
+    expect(screen.queryByText(/1 trang/)).toBeNull();
+  });
+
   it("lý do cụ thể nằm trong title, không nằm trên chip", async () => {
     rail([
       [paper("no_text_layer", { fault: "Tệp PDF này không có trang nào." })],

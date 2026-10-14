@@ -242,9 +242,10 @@ async def test_nothing_claims_a_page_count_before_anyone_counted(stack) -> None:
     đo*. Phần không đổi, và là phần quan trọng: `page_count` phải là `None` cho tới khi
     `services/document` trả lời.
 
-    Tám khoá, không bảy: `fault` ở trong đó, vì ADR-27 đòi *lý do nói bằng lời giáo viên hiểu* —
+    Chín khoá. `fault` ở trong đó, vì ADR-27 đòi *lý do nói bằng lời giáo viên hiểu* —
     và hai lý do khác nhau cùng dẫn tới *không đọc được chữ*, một bản scan và một PDF không có
-    trang nào. Riêng trạng thái không phân biệt được hai câu ấy.
+    trang nào. Riêng trạng thái không phân biệt được hai câu ấy. `pages_read` (14/10/2026) cũng
+    `None` lúc này: chưa tiếng báo tiến độ nào về.
     """
     client, _, _ = stack
     sent = await client.post("/api/teacher/documents", headers=TEACHER, files=_file())
@@ -256,10 +257,12 @@ async def test_nothing_claims_a_page_count_before_anyone_counted(stack) -> None:
         "byte_size",
         "state",
         "page_count",
+        "pages_read",
         "fault",
         "uploaded_at",
     }
     assert body["page_count"] is None
+    assert body["pages_read"] is None
     assert body["state"] == DocumentState.PROCESSING
 
 
@@ -451,6 +454,8 @@ async def test_a_scan_that_keeps_reporting_progress_is_not_called_failed(stack) 
 
     listed = await client.get("/api/teacher/documents", headers=TEACHER)
     assert listed.json()[0]["state"] == DocumentState.PROCESSING
+    # Chip nói tiến độ từ chính cột ấy.
+    assert listed.json()[0]["pages_read"] == 120
 
 
 @pytest.mark.asyncio

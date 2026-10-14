@@ -91,8 +91,13 @@ class DocumentRead(BaseModel):
         state: Một trong bốn giá trị của `DocumentState`. Đây là giá trị **đã suy ra**, không
             nhất thiết là giá trị trong cột -- xem `_as_read`.
         page_count: Số trang, hoặc `None` khi con số **không tồn tại** (tệp văn bản thuần)
-            hoặc **chưa đo được** (đang xử lý, hoặc xử lý hỏng). Không bao giờ là `0` cho
-            một tệp không có khái niệm trang: màn hình sẽ in "0 trang", và giáo viên sẽ tin.
+            hoặc **chưa đo được**. Không bao giờ là `0` cho một tệp không có khái niệm trang:
+            màn hình sẽ in "0 trang", và giáo viên sẽ tin. Lúc đang xử lý nó có thể đã mang
+            tổng do tiếng báo tiến độ ghi (kể cả `1` cho tệp văn bản thuần đang dựng cây), nên
+            màn hình chỉ in nó trên dòng meta ở `ready` và `no_text_layer`.
+        pages_read: Tiến độ lúc đang xử lý: số trang đã OCR xong, hoặc bằng `page_count` khi
+            đã đọc hết và đang dựng mục lục. `None` khi chưa nghe tiếng báo nào. Chip nói tiến
+            độ từ hai con số này (người dùng chốt 14/10/2026).
         fault: Vì sao không dùng được, bằng một câu tiếng Việt. Rỗng khi không có gì sai.
             Trạng thái nói *chuyện gì*, câu này nói *vì sao* -- và hai lý do khác nhau cùng
             dẫn tới *không đọc được chữ*: một bản scan, và một PDF không có trang nào.
@@ -105,6 +110,7 @@ class DocumentRead(BaseModel):
     byte_size: int
     state: str
     page_count: int | None
+    pages_read: int | None = None
     fault: str
     uploaded_at: datetime
 
@@ -184,6 +190,7 @@ def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
         byte_size=row.byte_size,
         state=state,
         page_count=row.page_count,
+        pages_read=row.pages_read,
         fault=fault,
         uploaded_at=aware(row.uploaded_at),
     )

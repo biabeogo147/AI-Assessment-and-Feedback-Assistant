@@ -349,8 +349,9 @@ docker exec aiafa-mongo mongosh --quiet aiafa_content --eval "db.nodes.find({doc
 Worker `document` chạy một job một lúc, nên một tệp có chữ tải lên giữa chừng chờ sau lô OCR đang
 chạy, tối đa chừng một phút.
 
-Tệp `.txt` và `.md` mang `page_count: null` **vĩnh viễn**: chúng không có trang, và một số
-`0` ở đó thì màn hình sẽ in "0 trang" và giáo viên sẽ tin.
+Tệp `.txt` và `.md` xử lý xong thì mang `page_count: null`: chúng không có trang, và một số
+`0` ở đó thì màn hình sẽ in "0 trang" và giáo viên sẽ tin. Lúc đang dựng cây cột ấy tạm là
+`1` (tiếng báo tiến độ ghi), nhưng chip không in số trang khi tài liệu chưa xong.
 
 Nội dung tài liệu **vẫn chưa** đi vào prompt của AGENT. Vòng này chỉ đếm chữ và đếm trang;
 việc cắt chương và nhồi ngữ cảnh là các plan sau của cùng đợt việc.

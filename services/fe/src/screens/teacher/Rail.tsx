@@ -279,9 +279,7 @@ export default function Rail({
               <span className="about">
                 <span className="name">{one.filename}</span>
                 <span className="meta">{measure(one)}</span>
-                {CHIP[one.state].say !== "" && (
-                  <span className="status">{CHIP[one.state].say}</span>
-                )}
+                {say(one) !== "" && <span className="status">{say(one)}</span>}
               </span>
             </div>
           ))}
@@ -303,7 +301,8 @@ export type ChipState = "processing" | "ready" | "no_text_layer" | "failed";
 /**
  * Chip nói gì ở mỗi trạng thái.
  *
- * Nhãn là **cố định theo trạng thái**, không phải `fault` từ API. `fault` có sáu giá trị và
+ * Nhãn là **cố định theo trạng thái** — trừ `processing` đã có tiến độ, xem `say` — không phải
+ * `fault` từ API. `fault` có sáu giá trị và
  * chúng là chẩn đoán — *"Tệp PDF này không có trang nào"*, *"Không mở được tệp PDF này"* — chứ
  * không phải nhãn; in thẳng lên một cột rộng 165px thì chúng xuống dòng và chip phình lên.
  * `fault` không mất: nó đi vào `title` của chip.
@@ -328,6 +327,30 @@ const CHIP: Record<ChipState, ChipLook> = {
   no_text_layer: { say: "Không đọc được chữ", tone: "needs-human" },
   failed: { say: "Xử lí lỗi. Hãy tải lại", tone: "needs-human" },
 };
+
+/**
+ * Dòng trạng thái của một chip: nhãn cố định của trạng thái, trừ khi đang xử lý và đã có tiến độ.
+ *
+ * Tiến độ là **chữ** của trạng thái `processing`, không phải một trạng thái thứ năm (người dùng
+ * chốt 14/10/2026; Figma `Document chip`, variant `đang đọc trang` và `đang dựng mục lục`). Job
+ * dựng cây báo tiến độ bằng đúng tổng số trang, nên `pages_read === page_count` nghĩa là đã đọc
+ * hết và đang dựng mục lục — kể cả `1/1` của một tệp văn bản thuần.
+ *
+ * @param one - Tài liệu.
+ * @returns Câu in trên dòng trạng thái, hoặc chuỗi rỗng khi không có dòng ấy.
+ */
+function say(one: TeacherDocument): string {
+  const read = one.pages_read;
+  const total = one.page_count;
+  if (
+    one.state !== "processing" ||
+    typeof read !== "number" ||
+    typeof total !== "number"
+  )
+    return CHIP[one.state].say;
+  if (read >= total) return "Đang dựng mục lục…";
+  return `Đang đọc ${read}/${total} trang…`;
+}
 
 /**
  * Chiều cao ngăn tài liệu đã lưu, hoặc con số của thiết kế.
@@ -392,12 +415,20 @@ function bucket(iso: string): string {
  * tài liệu chưa đọc xong thì **chưa đo được** — nhưng cả hai cho ra cùng một dòng, vì màn
  * hình không có gì thật để nói thêm. In `0 trang` cho ca thứ nhất là bịa, và giáo viên sẽ tin.
  *
+ * Số trang chỉ in khi tệp **đã đọc xong** (`ready`, `no_text_layer`). Lúc đang xử lý cột ấy có
+ * thể đã mang tổng do tiếng báo tiến độ ghi — `1` cho một tệp `.md` đang dựng cây — và một chip
+ * *xử lý hỏng* suy ra lúc đọc vẫn giữ con số tạm ấy. In nó ra là in `1 trang` cho một tệp không
+ * có trang. Tổng của tiến độ đã nằm trên dòng trạng thái.
+ *
  * @param one - Tài liệu.
  * @returns `2,4 MB · 184 trang`, hoặc `2,4 MB`.
  */
 function measure(one: TeacherDocument): string {
   const size = weight(one.byte_size);
-  return one.page_count === null ? size : `${size} · ${one.page_count} trang`;
+  const read = one.state === "ready" || one.state === "no_text_layer";
+  return !read || one.page_count === null
+    ? size
+    : `${size} · ${one.page_count} trang`;
 }
 
 function weight(bytes: number): string {

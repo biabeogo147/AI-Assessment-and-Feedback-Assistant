@@ -394,9 +394,15 @@ export interface TeacherDocument {
   state: "processing" | "ready" | "no_text_layer" | "failed";
   /**
    * Số trang, hoặc `null` khi con số **không tồn tại** (`.txt`, `.md`) hoặc **chưa đo được**.
-   * Không bao giờ là `0` cho một tệp không có khái niệm trang.
+   * Không bao giờ là `0` cho một tệp không có khái niệm trang. Lúc đang xử lý nó có thể đã mang
+   * tổng do tiếng báo tiến độ ghi, nên dòng meta chỉ in nó ở `ready` và `no_text_layer`.
    */
   page_count: number | null;
+  /**
+   * Tiến độ lúc đang xử lý: số trang đã OCR xong, hoặc bằng `page_count` khi đã đọc hết và đang
+   * dựng mục lục. `null` khi chưa nghe tiếng báo nào.
+   */
+  pages_read: number | null;
   /**
    * Vì sao không dùng được, bằng một câu tiếng Việt. Rỗng khi không có gì sai.
    *
