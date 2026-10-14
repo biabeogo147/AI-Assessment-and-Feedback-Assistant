@@ -115,7 +115,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 - [x] **8. `pages_read` không lùi; tiến độ ghi tổng và hích màn hình.**
 - [x] **9. Chip nói tiến độ.** Figma trước, rồi BE + FE; đo Figma = FE bằng số.
 - [x] **10. Mã trong comment kèm slug.** Check mới, `AGENTS.md`, rồi sửa comment, chia commit theo service.
-- [ ] **11. Backlog, rồi đóng plan.**
+- [x] **11. Backlog, rồi đóng plan.**
 
 ## Validation Checks
 
@@ -127,7 +127,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 
 ## Status
 
-Mở 14/10/2026. Task 1--10 đã commit, mỗi task qua một lượt subagent review trước khi commit.
+Mở và **đóng 14/10/2026**. Task 1--11 đã commit, mỗi task qua một lượt subagent review trước khi commit.
 
 **Sửa sau review, đáng nhớ:**
 
@@ -148,12 +148,21 @@ Mở 14/10/2026. Task 1--10 đã commit, mỗi task qua một lượt subagent r
   chết còn nguyên, đúng thứ tự. Một lần chạy trung gian từng dồn một dòng ghi chú xem-lại của người
   dùng (không commit) vào đoạn bên dưới -- đã tách lại, và script coi dòng ghi chú ấy là ranh giới.
 
-**Chưa làm -- vì vậy plan còn ở `active/`:** hai lượt thử trên trình duyệt trong `Validation Checks`
-(thẻ hỏi lại giữ chữ ô chính; chip đi *đang đọc x/y trang* → *đang dựng mục lục* → sẵn sàng). Docker
-infra đang tắt, và luật của người dùng là không tự bật Docker Desktop. Test tự động của cả hai đã có.
+**Thử trên trình duyệt, 14/10/2026, gpt-4o-mini:**
+
+- Thẻ hỏi lại: gõ dở *"nhớ thêm câu về hàm số mũ"* ở ô chính, bấm nút *"khối 11"* rồi gửi ô
+  *"Khác"* với *"8 câu"* -- cả hai câu đi, ô chính giữ nguyên chữ sau mỗi lượt. Đạt.
+- Chip: PDF scan 24 trang (SGK Lớp 6 tập 1, tr. 6--28) đi *"Đang xử lý…"* (0 s) → *"Đang đọc 9/24
+  trang…"* (43 s; lô đầu chạm ngân sách 90 s ở trang 9) → *"Đang đọc 18/24 trang…"* (140 s) →
+  *"Đang dựng mục lục…"* (175 s) → sẵn sàng, *"4,8 MB · 24 trang"* (185 s). Lúc đang xử lý, dòng meta
+  chỉ có kích thước. Đạt.
+- Đầu mục cây trong Mongo: `summary_tokens` 22 677 (`gpt-4o-mini`), `banner_tokens` 1 901
+  (`gpt-5.6-luna`), `schema_version` 2.
+
+Lúc thử, `docker-compose.infra.yml` trong working tree có một chữ lạc ở dòng 1 (thay đổi chưa commit
+của người dùng) nên `infra-up` hỏng; container có sẵn được bật bằng `docker start`, không đụng file.
 
 `dev.ps1 test`: `test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones` hỏng chập chờn -- nợ
 đã ghi ở `backlog.md` (đồng hồ Windows 15,6 ms), có từ trước plan này; chạy lại thì 1090/1090.
 
-Task 11: `backlog.md` đã gỡ mọi dòng đã làm và ghi lý do cho dòng giữ lại. Checkbox còn mở vì nửa sau
-của nó -- đóng plan -- chờ hai lượt thử trình duyệt ở trên.
+Task 11: `backlog.md` đã gỡ mọi dòng đã làm và ghi lý do cho dòng giữ lại.
