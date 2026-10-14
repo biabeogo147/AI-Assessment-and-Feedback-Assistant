@@ -184,7 +184,9 @@ async def test_the_graph_builds_a_three_level_tree_with_summaries() -> None:
         4,
     )
     assert header.raw_started_at == _AT
-    assert header.summary_tokens == 50 + 10 * 4
+    # Hai model khác giá: đọc banner (50) và tóm tắt (10 mỗi nút) đếm riêng.
+    assert (header.banner_tokens, header.summary_tokens) == (50, 10 * 4)
+    assert header.banner_model == get_settings().banner_model
     assert len(labels) == 3
     assert len(told) >= 3
 

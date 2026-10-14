@@ -74,6 +74,17 @@ câu theo `pages_read`**.
 **reason:** hỏng hạ tầng ở lần thử thứ năm vẫn thường là Mongo, không phải Redis -- nên còn đường để
 nói. Gửi không được (Redis chết) thì log rồi thôi; lưới 300 s của BE vẫn là tầng cuối.
 
+### Decision: tách token banner thì nâng `contracts.index.SCHEMA_VERSION` lên 2
+
+**options considered:** (a) **nâng lên 2** · (b) giữ 1, ghi ngày đổi trong docstring.
+
+**selected option:** (a).
+
+**reason:** `summary_tokens` **đổi nghĩa** (thôi gồm token đọc banner), và `packages/contracts/AGENTS.md`
+đòi nâng số khi đổi nghĩa một trường. Chỉ ngày thì mơ hồ: `banner_model = None` vừa là cây cũ dựng có
+khoá, vừa là cây mới dựng không khoá. **Reader kiểm số ấy: chưa có** -- không code nào đọc
+`summary_tokens`; số ấy để người đọc dữ liệu Mongo biết cách cộng.
+
 ## Files
 
 | File | Việc |
@@ -100,7 +111,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 - [x] **4. Ghi trang theo lô** (`bulk_write`) cho đường có text layer.
 - [ ] **5. Chạy lại lô không OCR lại trang đã có.**
 - [ ] **6. Lần thử cuối gửi `FAILED`** ở cả lần dò, lô OCR, job dựng cây.
-- [ ] **7. Tách `banner_tokens` khỏi `summary_tokens`.**
+- [x] **7. Tách `banner_tokens` khỏi `summary_tokens`.**
 - [ ] **8. `pages_read` không lùi; tiến độ ghi tổng và hích màn hình.**
 - [ ] **9. Chip nói tiến độ.** Figma trước, rồi BE + FE; đo Figma = FE bằng số.
 - [ ] **10. Mã trong comment kèm slug.** Check mới, `AGENTS.md`, rồi sửa comment, chia commit theo service.

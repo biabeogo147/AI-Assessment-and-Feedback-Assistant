@@ -107,7 +107,8 @@ class IndexState(TypedDict, total=False):
     method: IndexMethod
     jev_model: str | None
     jev_tokens: int
-    llm_tokens: int
+    summary_tokens: int
+    banner_tokens: int
     low_confidence: int
     nodes: list[IndexNode]
     chunks: list[IndexChunk]
@@ -161,7 +162,7 @@ async def _load(state: IndexState, deps: Deps) -> dict:
         # trang (review Task 4). Lô OCR cuối của lần đọc ấy sẽ giao lại job dựng cây.
         raise RawChanged(f"the raw content of {document_id} is still being read")
     await deps.tell(len(pages))
-    return {"raw": raw, "pages": pages, "jev_tokens": 0, "llm_tokens": 0}
+    return {"raw": raw, "pages": pages, "jev_tokens": 0, "summary_tokens": 0, "banner_tokens": 0}
 
 
 async def _banners(state: IndexState, deps: Deps) -> dict:
@@ -208,7 +209,7 @@ async def _banners(state: IndexState, deps: Deps) -> dict:
     banners = [
         _banner(gate, number, readings.get(gate.page)) for number, gate in enumerate(gates, 1)
     ]
-    return {"banners": banners, "llm_tokens": state["llm_tokens"] + tokens}
+    return {"banners": banners, "banner_tokens": state["banner_tokens"] + tokens}
 
 
 def _render_tops(raw: bytes, pages: list[int]) -> dict[int, bytes]:
@@ -344,7 +345,7 @@ async def _summarise(state: IndexState, deps: Deps) -> dict:
         for done in await asyncio.gather(*work):
             nodes[done.ordinal] = done
         await deps.tell(len(state["pages"]))
-    return {"nodes": nodes, "llm_tokens": state["llm_tokens"] + tokens}
+    return {"nodes": nodes, "summary_tokens": state["summary_tokens"] + tokens}
 
 
 async def _write(state: IndexState, deps: Deps) -> dict:
@@ -382,7 +383,9 @@ async def _write(state: IndexState, deps: Deps) -> dict:
         low_confidence=state["low_confidence"],
         page_offset=page_offset(printed),
         jev_tokens=state["jev_tokens"],
-        summary_tokens=state["llm_tokens"],
+        summary_tokens=state["summary_tokens"],
+        banner_model=deps.settings.banner_model if deps.read_banner else None,
+        banner_tokens=state["banner_tokens"],
         built_at=datetime.now(UTC),
     )
     await deps.store.put_index(header, state["nodes"], state["chunks"], labels)

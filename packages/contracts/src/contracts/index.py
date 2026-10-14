@@ -27,7 +27,9 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field
 
 # Phiên bản riêng của họ này, như `contracts.content` có số của nó.
-SCHEMA_VERSION = 1
+# 2 (14/10/2026): `IndexHeader.summary_tokens` thôi cộng token đọc banner -- nay ở `banner_tokens`.
+# Đổi nghĩa một trường thì nâng số (`packages/contracts/AGENTS.md`); chưa reader nào kiểm nó.
+SCHEMA_VERSION = 2
 
 # Số cấp của cây. Một hằng chứ không một con số rải rác: bên dựng gộp mọi thứ sâu hơn vào đây.
 MAX_LEVEL = 3
@@ -103,7 +105,11 @@ class IndexHeader(BaseModel):
         page_offset: Trang tệp trừ trang in, giá trị phổ biến nhất. `None` khi sách không in số
             trang (hoặc OCR không thấy).
         jev_tokens: Tổng token vào của Jev.
-        summary_tokens: Tổng token (vào + ra) của các lời gọi tóm tắt và đọc banner.
+        summary_tokens: Tổng token (vào + ra) của các lời gọi tóm tắt. Với `schema_version` 1
+            con số này gồm cả token đọc banner (`banner_tokens` của chúng là 0).
+        banner_model: Model đọc banner, `None` khi không có khoá OpenAI.
+        banner_tokens: Tổng token (vào + ra) của các lời gọi đọc banner. Tách khỏi
+            `summary_tokens` vì hai model khác giá: cộng chung thì không tính được tiền.
         built_at: Lúc ghi xong.
         schema_version: Phiên bản hình dạng.
     """
@@ -122,6 +128,8 @@ class IndexHeader(BaseModel):
     page_offset: int | None = None
     jev_tokens: int = Field(default=0, ge=0)
     summary_tokens: int = Field(default=0, ge=0)
+    banner_model: str | None = None
+    banner_tokens: int = Field(default=0, ge=0)
     built_at: datetime
     schema_version: int = SCHEMA_VERSION
 
