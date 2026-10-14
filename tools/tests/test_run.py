@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from ocr_bench.run import model_tag, next_run, task_code_in
+from ocr_bench.run import cache_tag, model_tag, next_run, task_code_in
 
 _TOOLS = Path(__file__).resolve().parents[1]
 
@@ -95,6 +95,15 @@ def test_text_inside_a_picture_is_not_scored() -> None:
 def test_a_task_code_is_found_in_a_lasting_name(name: str, code: str) -> None:
     """Luật đặt tên của `AGENTS.md`: mã task của plan không nằm trong tên sống lâu hơn plan."""
     assert task_code_in(name) == code
+
+
+@pytest.mark.parametrize(("reader", "model"), [("easyocr", ""), ("vietocr", "vgg_seq2seq")])
+def test_a_cache_name_carries_no_task_code(reader: str, model: str) -> None:
+    """Tên cache sống lâu hơn plan: số luồng viết `threads4`, không `t4` trông như mã task."""
+    tag = cache_tag(200, reader, model, 4)
+
+    assert "threads4" in tag
+    assert task_code_in(tag) == ""
 
 
 def test_bench_case_ids_carry_no_task_code() -> None:

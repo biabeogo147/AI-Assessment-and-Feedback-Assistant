@@ -157,6 +157,25 @@ def model_tag(reader: str, vietocr_model: str) -> str:
     return f"vietocr-{vietocr_model}" if reader == "vietocr" else reader
 
 
+def cache_tag(dpi: int, reader: str, vietocr_model: str, threads: int) -> str:
+    """Đuôi tên tệp cache của một cấu hình đọc. Hàm thuần.
+
+    Số luồng viết đủ chữ (`threads4`), không viết `t4`: tên cache sống lâu hơn mọi plan, và `t4`
+    đọc như mã task -- đúng thứ `task_code_in` bắt (người dùng chốt 14/10/2026). Đổi khuôn này thì
+    mọi cache cũ thành mồ côi, như lần đổi `_PIPELINE`.
+
+    Args:
+        dpi: Độ phân giải dựng ảnh trang.
+        reader: Bộ nhận dạng chữ.
+        vietocr_model: Cấu hình VietOCR; chỉ vào tên khi `reader == "vietocr"`.
+        threads: Số luồng CPU.
+
+    Returns:
+        Ví dụ `200_easyocr_threads4_text2`.
+    """
+    return f"{dpi}_{model_tag(reader, vietocr_model)}_threads{threads}_{_PIPELINE}"
+
+
 def next_run(names: list[str]) -> int:
     """Số của lượt chạy kế tiếp: lớn nhất đã có cộng một.
 
@@ -257,11 +276,7 @@ def _read_pages(
     # `_PIPELINE` cũng vậy: cache của đường cũ (chữ + công thức, trước 11/10/2026) mang số giây có
     # chặng `formula` của PP-FormulaNet. Thiếu nó trong tên thì một lượt chạy đường mới đọc lại
     # cache cũ, in ra giây của đường cũ, và không chạy một dòng code mới nào.
-    tag = (
-        f"{dpi}_{reader}"
-        + (f"-{model}" if reader == "vietocr" else "")
-        + f"_t{threads}_{_PIPELINE}"
-    )
+    tag = cache_tag(dpi, reader, model, threads)
     out: list[dict] = []
 
     for one in gold:
