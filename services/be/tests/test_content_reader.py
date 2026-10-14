@@ -1,4 +1,4 @@
-"""BE đọc mục lục và đoạn từ kho nội dung (plan 4b) -- và chỉ đọc.
+"""BE đọc mục lục và đoạn từ kho nội dung (`draft-from-document`) -- và chỉ đọc.
 
 Không Mongo thật nào: các collection là đồ giả nhỏ, đủ cho hai thứ cần kiểm -- reader hỏi đúng
 câu (cây chỉ khi có đầu mục, đoạn theo `node_ordinal`), và lỗi của kho thành `ContentUnavailable`
@@ -137,7 +137,8 @@ async def test_chunks_come_only_from_the_nodes_asked_for() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("read", ["tree", "chunks"])
 async def test_a_tree_older_than_the_contract_is_unreadable_not_a_500(read: str) -> None:
-    """Contract thêm một trường bắt buộc, cây trong Mongo chưa dựng lại (review B2)."""
+    """Contract thêm một trường bắt buộc, cây trong Mongo chưa dựng lại (review B2,
+    `draft-from-document`)."""
     stale_node = {key: value for key, value in _node(0, "Chương I").items() if key != "title"}
     stale_chunk = {key: value for key, value in _chunk(0, 0).items() if key != "text"}
     reader = _reader([_header()], [stale_node], [stale_chunk])

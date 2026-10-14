@@ -44,7 +44,8 @@ class Settings(BaseSettings):
             3-63 ký tự, không gạch dưới -- nếu không `make_bucket` ném.
         minio_secure: Có nói HTTPS với object storage không. Local thì không.
         mongo_url: Kho nội dung (MongoDB), cùng biến `MONGO_URL` với `services/document`. BE chỉ
-            **đọc** cây mục lục và đoạn nội dung từ đây (plan 4b), qua `be/content_reader.py`.
+            **đọc** cây mục lục và đoạn nội dung từ đây (`draft-from-document`), qua
+            `be/content_reader.py`.
         mongo_database: Tên database của kho nội dung.
         database_url: URL SQLAlchemy async của kho giữ state của Attempt. ADR-21
             làm state đó bền, nên đây không phải tuỳ chọn trong bất kỳ môi trường

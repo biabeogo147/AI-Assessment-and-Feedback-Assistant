@@ -394,8 +394,8 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
         for word in ("approve", "publish", "release", "withdraw", "duyet", "phat_hanh")
     )
     # Và dây bẫy: một tool thứ bảy sẽ làm dòng này đỏ và phải tự biện hộ cho mình.
-    # Plan 4b thêm ba tool **đọc** tài liệu: chúng chỉ đọc thư viện và mục lục của chính giáo viên,
-    # không đẩy gì tới học sinh, và mọi lần chạy đều kiểm sở hữu + *sẵn sàng*.
+    # `draft-from-document` thêm ba tool **đọc** tài liệu: chúng chỉ đọc thư viện và mục lục của
+    # chính giáo viên, không đẩy gì tới học sinh, và mọi lần chạy đều kiểm sở hữu + *sẵn sàng*.
     assert offered == {
         "list_class",
         "get_class",
@@ -648,7 +648,8 @@ async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
     assert working == {"create_draft", "start_drafting"}
     assert planning & working == set()
 
-    # Có tài liệu thì hai tool đọc mục lục hiện thêm -- vẫn chỉ ở pha lên plan (plan 4b).
+    # Có tài liệu thì hai tool đọc mục lục hiện thêm -- vẫn chỉ ở pha lên plan
+    # (`draft-from-document`).
     with_book = {spec.name for spec in catalog_for(asking, PHASE_PLAN, documents=True)}
     assert with_book - planning == {"list_chapters", "get_chapter"}
     assert {spec.name for spec in catalog_for(asking, PHASE_WORK, documents=True)} == working
@@ -757,8 +758,9 @@ def test_the_model_never_sees_the_optional_fields_of_a_draft() -> None:
 
     assert set(spec.arguments) == {"subject", "grade", "topic_scope"}
 
-    # Plan 4b: hai tham số tài liệu chỉ hiện khi lượt có tài liệu, và **tuỳ chọn** -- hiện chúng cho
-    # một lượt không sách là mời model hỏi *"dùng tài liệu nào?"*, đúng loại câu hỏi thừa ở trên.
+    # `draft-from-document`: hai tham số tài liệu chỉ hiện khi lượt có tài liệu, và **tuỳ chọn** --
+    # hiện chúng cho một lượt không sách là mời model hỏi *"dùng tài liệu nào?"*, đúng loại câu hỏi
+    # thừa ở trên.
     booked = next(
         one for one in catalog_for(asking, PHASE_WORK, documents=True) if one.name == "create_draft"
     )

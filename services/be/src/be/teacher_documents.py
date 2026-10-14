@@ -131,8 +131,9 @@ def _kind(filename: str) -> str:
 def believed_state(row: Document, stale_after_seconds: int) -> str:
     """Trạng thái nên tin của một tài liệu: cột, trừ khi `processing` đã im quá lâu thì `failed`.
 
-    Tách khỏi `_as_read` để khung chat đọc **cùng** một sự thật với thư viện (review B7): chip của
-    một job đã chết mà Kriky vẫn bảo *"chờ tài liệu sẵn sàng"* là hai màn hình nói hai điều.
+    Tách khỏi `_as_read` để khung chat đọc **cùng** một sự thật với thư viện (review B7,
+    `draft-from-document`): chip của một job đã chết mà Kriky vẫn bảo *"chờ tài liệu sẵn sàng"* là
+    hai màn hình nói hai điều.
 
     Args:
         row: Hàng trong `documents`.
@@ -164,11 +165,11 @@ def _as_read(row: Document, stale_after_seconds: int) -> DocumentRead:
     *"Ngưỡng được áp lúc đọc kết quả chứ không lưu kèm"* (`architecture.md`). Hệ quả hợp ý:
     một job về muộn vẫn **thắng**, vì lần đọc sau thấy một giá trị thật trong cột.
 
-    **Đo từ lần cuối nghe được tin, không từ lúc tải lên** (plan 3b, D4). Một PDF scan được OCR
-    theo lô, mười lăm phút cho một cuốn, và mỗi lô báo tiến độ vào `progress_at`. Đo từ
-    `uploaded_at` thì mọi cuốn scan đều ra *xử lý hỏng* ở giây thứ 301 trong khi đang đọc tốt. Đo
-    từ mốc muộn hơn thì lưới vẫn bắt đúng ca nó sinh ra để bắt: chuỗi lô chết thật thì sau 300 s
-    không tiếng báo nào, và chip ra *xử lý hỏng* như cũ.
+    **Đo từ lần cuối nghe được tin, không từ lúc tải lên** (`mongo-content-store`, D4). Một PDF scan
+    được OCR theo lô, mười lăm phút cho một cuốn, và mỗi lô báo tiến độ vào `progress_at`. Đo từ
+    `uploaded_at` thì mọi cuốn scan đều ra *xử lý hỏng* ở giây thứ 301 trong khi đang đọc tốt. Đo từ
+    mốc muộn hơn thì lưới vẫn bắt đúng ca nó sinh ra để bắt: chuỗi lô chết thật thì sau 300 s không
+    tiếng báo nào, và chip ra *xử lý hỏng* như cũ.
 
     Args:
         row: Hàng trong `documents`.

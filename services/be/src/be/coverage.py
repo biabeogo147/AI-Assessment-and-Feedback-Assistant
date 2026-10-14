@@ -1,4 +1,5 @@
-"""Mỗi câu một mục kiến thức (plan 4b, hậu ký ADR-27). Hàm thuần: không database, không mạng.
+"""Mỗi câu một mục kiến thức (`draft-from-document`, hậu ký ADR-27). Hàm thuần: không database,
+không mạng.
 
 Phạm vi một đề (các nút giáo viên chọn) được chia thành **đơn vị**: mỗi nút trong cây con của
 phạm vi mà **có đoạn nội dung của riêng nó** -- một bài, một mục, hay phần mở đầu của một chương
@@ -62,8 +63,9 @@ class Slot:
 def heading(node: IndexNode) -> str:
     """Nhãn số và tên một nút: *"Bài 3. Phép cộng"*, *"1. HỆ THẬP PHÂN"*.
 
-    Nhãn số kiểu *"1."*, *"I."*, *"A."* đã mang sẵn dấu chấm (`document/index/features.py`),
-    nên chỉ thêm dấu chấm khi nhãn chưa có -- không thì ra *"1.. HỆ THẬP PHÂN"* (review B7).
+    Nhãn số kiểu *"1."*, *"I."*, *"A."* đã mang sẵn dấu chấm (`document/index/features.py`), nên chỉ
+    thêm dấu chấm khi nhãn chưa có -- không thì ra *"1.. HỆ THẬP PHÂN"* (review B7,
+    `draft-from-document`).
 
     Args:
         node: Nút cây.

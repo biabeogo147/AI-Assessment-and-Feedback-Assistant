@@ -297,9 +297,9 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
     assert reply.status_code == 200
     body = reply.json()
     assert body["kind"] == "ask_clarify"
-    # Đúng hai dòng khớp với "12", kèm số học sinh do BE đếm — không phải con số 45
-    # model khai, và không có hai lớp nó bịa ra. Không phương án model viết nào khớp đúng một
-    # tên, nên nút là nhãn BE (plan 4c T3). Không có "Khác": FE tự vẽ lối ấy (13/10/2026).
+    # Đúng hai dòng khớp với "12", kèm số học sinh do BE đếm — không phải con số 45 model khai, và
+    # không có hai lớp nó bịa ra. Không phương án model viết nào khớp đúng một tên, nên nút là nhãn
+    # BE (`unbiased-model-text` T3). Không có "Khác": FE tự vẽ lối ấy (13/10/2026).
     assert body["choices"] == ["12A (3 học sinh)", "12B (1 học sinh)"]
     assert body["more_choices"] == 0
     # Câu hỏi thì vẫn là lời của model. Nó viết câu hỏi; BE viết các câu trả lời.
@@ -308,7 +308,7 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_made_up_class_never_becomes_a_button_on_the_next_turn(stack) -> None:
-    """Review T3 (chặn): câu hỏi về lớp kéo sang lượt sau.
+    """Review T3 (`unbiased-model-text`, chặn): câu hỏi về lớp kéo sang lượt sau.
 
     Lượt 1 tra lớp rồi hỏi lại. Lượt 2 giáo viên ghi một câu không phải nhãn nào (lối "Khác" của
     thẻ), model hỏi tiếp **không** gọi tool,
@@ -347,9 +347,9 @@ async def test_a_made_up_class_never_becomes_a_button_on_the_next_turn(stack) ->
 
 @pytest.mark.asyncio
 async def test_a_question_about_a_number_offers_the_models_options(stack) -> None:
-    """Plan 4c T3: hỏi về một **tham số** thì không có dòng nào để dựng nút -- trước T3 câu hỏi ấy
-    không có nút nào và giáo viên phải gõ lại cả câu. Nay nút là chữ model đề xuất (FE vẽ "Khác"),
-    và chúng sống qua F5 như nút của câu hỏi về lớp."""
+    """`unbiased-model-text` T3: hỏi về một **tham số** thì không có dòng nào để dựng nút -- trước
+    T3 câu hỏi ấy không có nút nào và giáo viên phải gõ lại cả câu. Nay nút là chữ model đề xuất (FE
+    vẽ "Khác"), và chúng sống qua F5 như nút của câu hỏi về lớp."""
     client, _, monkeypatch = stack
     agent = ScriptedAgent(
         NextStepCompleted(
@@ -896,8 +896,8 @@ async def test_a_question_back_is_reported_as_a_question_even_without_choices(st
 
     assert [one.kind for one in seen] == ["clarify", "done"]
     assert seen[-1].ended_as == "clarify"
-    # Không row nào, model không đề xuất gì: không nút nào, và FE không vẽ thẻ (review T3). Vẫn
-    # là một câu hỏi: `ended_as` ở trên.
+    # Không row nào, model không đề xuất gì: không nút nào, và FE không vẽ thẻ (review T3,
+    # `unbiased-model-text`). Vẫn là một câu hỏi: `ended_as` ở trên.
     assert seen[-1].choices == ()
 
 
@@ -1897,7 +1897,7 @@ async def _a_book(maker, teacher_code: str, document_id: str) -> None:
 
 @pytest.mark.asyncio
 async def test_the_chip_on_the_message_reaches_the_assistant(stack) -> None:
-    """Plan 4b: chip đang đính đi tới AGENT, và mở ra hai tool đọc mục lục."""
+    """`draft-from-document`: chip đang đính đi tới AGENT, và mở ra hai tool đọc mục lục."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     agent = ScriptedAgent(NextStepCompleted(request_id="x", kind="say", text="Rõ rồi."))
@@ -1979,8 +1979,9 @@ def _bound_book() -> MemoryContentReader:
 
 @pytest.mark.asyncio
 async def test_the_book_survives_the_chip_leaving_the_composer(stack) -> None:
-    """Review B3: lượt 1 có chip và hỏi lại bằng tên chương; lượt 2 -- giáo viên bấm nút, **không**
-    còn chip -- vẫn mở đề với tài liệu. Trước bản sửa, pha 2 cắt `document_id` và đề mở ra trơn."""
+    """Review B3 (`draft-from-document`): lượt 1 có chip và hỏi lại bằng tên chương; lượt 2 -- giáo
+    viên bấm nút, **không** còn chip -- vẫn mở đề với tài liệu. Trước bản sửa, pha 2 cắt
+    `document_id` và đề mở ra trơn."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     _bound_book()
@@ -2066,8 +2067,9 @@ async def test_opening_the_library_mid_turn_brings_the_chapters_into_view(stack)
 
 @pytest.mark.asyncio
 async def test_the_book_survives_a_turn_that_never_opened_it(stack) -> None:
-    """Review B4: lượt 1 có chip nhưng Kriky hỏi lại ngay, không gọi tool đọc nào; lượt 2 không còn
-    chip vẫn biết cuốn sách -- chip được lưu cùng câu của giáo viên, không chỉ sống một lượt."""
+    """Review B4 (`draft-from-document`): lượt 1 có chip nhưng Kriky hỏi lại ngay, không gọi tool
+    đọc nào; lượt 2 không còn chip vẫn biết cuốn sách -- chip được lưu cùng câu của giáo viên, không
+    chỉ sống một lượt."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     _bound_book()
@@ -2114,8 +2116,8 @@ async def test_the_book_survives_a_turn_that_never_opened_it(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_new_chip_that_cannot_be_used_does_not_fall_back_to_the_old_one(stack) -> None:
-    """Review B5: chip mới trỏ tới sách chưa sẵn sàng thì lượt này **không** có sách -- không lặng
-    lẽ soạn từ chip cũ trong khi giáo viên vừa chỉ một cuốn khác."""
+    """Review B5 (`draft-from-document`): chip mới trỏ tới sách chưa sẵn sàng thì lượt này **không**
+    có sách -- không lặng lẽ soạn từ chip cũ trong khi giáo viên vừa chỉ một cuốn khác."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "old")
     await _a_book(maker, "GV-001", "new")
@@ -2145,8 +2147,9 @@ async def test_a_new_chip_that_cannot_be_used_does_not_fall_back_to_the_old_one(
     )
 
     assert agent.asked[0]["attached_document"]["document_id"] == "old"
-    # Review B6: chip chưa sẵn sàng vẫn tới AGENT, **đánh dấu** chưa sẵn sàng -- không bị bỏ lặng
-    # lẽ, và không lùi về sách cũ. Không có mục lục nào để đọc nên tool mục lục không hiện.
+    # Review B6 (`draft-from-document`): chip chưa sẵn sàng vẫn tới AGENT, **đánh dấu** chưa sẵn
+    # sàng -- không bị bỏ lặng lẽ, và không lùi về sách cũ. Không có mục lục nào để đọc nên tool mục
+    # lục không hiện.
     assert agent.asked[-1]["attached_document"] == {
         "document_id": "new",
         "filename": "SGK Toán 6.pdf",
@@ -2157,8 +2160,9 @@ async def test_a_new_chip_that_cannot_be_used_does_not_fall_back_to_the_old_one(
 
 @pytest.mark.asyncio
 async def test_a_conversation_bound_to_a_book_cannot_open_a_bookless_draft(stack) -> None:
-    """Review B6: chip sẵn sàng thì `document_id` của `create_draft` là **bắt buộc** -- model bỏ nó
-    là `vet_plan` từ chối, chứ không lặng lẽ mở một đề không sách trong đoạn chat về sách."""
+    """Review B6 (`draft-from-document`): chip sẵn sàng thì `document_id` của `create_draft` là
+    **bắt buộc** -- model bỏ nó là `vet_plan` từ chối, chứ không lặng lẽ mở một đề không sách trong
+    đoạn chat về sách."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     agent = ScriptedAgent(
@@ -2194,8 +2198,9 @@ async def test_a_conversation_bound_to_a_book_cannot_open_a_bookless_draft(stack
 
 @pytest.mark.asyncio
 async def test_reading_the_contents_mid_turn_keeps_the_book_required(stack) -> None:
-    """Review B7: đúng luồng skill dặn -- `list_chapters` trước, plan sau -- tham số tài liệu vẫn
-    **bắt buộc** ở bước plan; trước bản sửa, tính lại catalog giữa lượt làm chúng tuỳ chọn lại."""
+    """Review B7 (`draft-from-document`): đúng luồng skill dặn -- `list_chapters` trước, plan sau --
+    tham số tài liệu vẫn **bắt buộc** ở bước plan; trước bản sửa, tính lại catalog giữa lượt làm
+    chúng tuỳ chọn lại."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     _bound_book()
@@ -2223,9 +2228,9 @@ async def test_reading_the_contents_mid_turn_keeps_the_book_required(stack) -> N
 
 @pytest.mark.asyncio
 async def test_a_unit_read_from_another_book_is_not_pinned_on_the_attached_one(stack) -> None:
-    """Review B7: chip là `book`, model đọc mục lục của `other` rồi gửi `nodes` mà quên
-    `document_id`. Điền `book` vào là mở đề trên một mục của sách khác -- nay không điền, và lời từ
-    chối nói lý do thay cho câu chung."""
+    """Review B7 (`draft-from-document`): chip là `book`, model đọc mục lục của `other` rồi gửi
+    `nodes` mà quên `document_id`. Điền `book` vào là mở đề trên một mục của sách khác -- nay không
+    điền, và lời từ chối nói lý do thay cho câu chung."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     await _a_book(maker, "GV-001", "other")
@@ -2272,8 +2277,8 @@ async def test_a_unit_read_from_another_book_is_not_pinned_on_the_attached_one(s
 
 @pytest.mark.asyncio
 async def test_a_chip_whose_job_died_is_read_as_failed_like_the_library(stack) -> None:
-    """Review B7: cột còn `processing` mãi khi job chết; thư viện đọc ra *xử lý hỏng*, khung chat
-    phải đọc y vậy -- không bảo giáo viên chờ một thứ không bao giờ tới."""
+    """Review B7 (`draft-from-document`): cột còn `processing` mãi khi job chết; thư viện đọc ra *xử
+    lý hỏng*, khung chat phải đọc y vậy -- không bảo giáo viên chờ một thứ không bao giờ tới."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "dead")
     async with maker() as session:
@@ -2295,8 +2300,9 @@ async def test_a_chip_whose_job_died_is_read_as_failed_like_the_library(stack) -
 
 @pytest.mark.asyncio
 async def test_a_chip_not_yet_usable_takes_draft_opening_off_the_table(stack) -> None:
-    """Review B7: chip chưa dùng được mà model vẫn mở đề không sách -- lời dặn không giữ được nó,
-    nên `create_draft` rời catalog lượt ấy; nêu nó thì lời từ chối gọi đúng tên tài liệu."""
+    """Review B7 (`draft-from-document`): chip chưa dùng được mà model vẫn mở đề không sách -- lời
+    dặn không giữ được nó, nên `create_draft` rời catalog lượt ấy; nêu nó thì lời từ chối gọi đúng
+    tên tài liệu."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "busy")
     async with maker() as session:

@@ -1,9 +1,11 @@
-"""BE đọc mục lục và đoạn nội dung của một tài liệu từ kho nội dung (plan 4b). **Chỉ đọc.**
+"""BE đọc mục lục và đoạn nội dung của một tài liệu từ kho nội dung (`draft-from-document`). **Chỉ
+đọc.**
 
-Kho nội dung (MongoDB) do `services/document` ghi: bản thô (plan 3b) và cây mục lục (plan 3c). BE
-đọc cây để tool của Kriky khớp lời giáo viên với chương, bài thật, và đọc đoạn để job soạn câu có
-kiến thức của mục mình. Ghi thì không bao giờ: `tools/check_contract.py` cho `pymongo` vào BE
-**chỉ** ở module này, và đỏ khi module này gọi một hàm ghi.
+Kho nội dung (MongoDB) do `services/document` ghi: bản thô (`mongo-content-store`) và cây mục lục
+(`document-agent-hierarchy`). BE đọc cây để tool của Kriky khớp lời giáo viên với chương, bài thật,
+và đọc đoạn để job soạn câu có kiến thức của mục mình. Ghi thì không bao giờ:
+`tools/check_contract.py` cho `pymongo` vào BE **chỉ** ở module này, và đỏ khi module này gọi một
+hàm ghi.
 
 Sự thật về tài liệu -- nó đã *sẵn sàng* chưa, nó thuộc giáo viên nào -- vẫn chỉ ở Postgres. Module
 này không bao giờ được hỏi câu ấy; người gọi kiểm nó trước, ở `documents`.
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Tên collection, như `services/document/src/document/content_store.py` ghi. Hai service không
 # import nhau, nên tên lặp lại ở đây; đổi một bên mà quên bên kia thì `tree` trả rỗng -- và test
-# đầu-cuối của plan 4b là chỗ thấy điều ấy.
+# đầu-cuối của `draft-from-document` là chỗ thấy điều ấy.
 _INDEXES = "indexes"
 _NODES = "nodes"
 _CHUNKS = "chunks"
@@ -108,7 +110,7 @@ class MongoContentReader:
         except (PyMongoError, ValidationError) as exc:
             # `ValidationError` ở đây là một cây ghi theo hình dạng cũ hơn contract -- contract thêm
             # một trường bắt buộc, cây chưa dựng lại. Với khung chat, nó cùng nghĩa với kho vắng
-            # mặt: không đọc được, nói ra, không 500 (review B2).
+            # mặt: không đọc được, nói ra, không 500 (review B2, `draft-from-document`).
             logger.warning("content store unreadable for %s: %s", document_id, exc)
             raise ContentUnavailable(str(exc)) from exc
 

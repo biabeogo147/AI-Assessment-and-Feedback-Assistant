@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Kho nội dung thì **không** chặn startup, khác object storage: soạn đề không có tài liệu vẫn
     # đứng được, và một tool đọc mục lục tự báo *"không với tới được"* khi Mongo vắng. Client nối
-    # lười, nên dựng ở đây không chạm mạng (plan 4b).
+    # lười, nên dựng ở đây không chạm mạng (`draft-from-document`).
     reader = create_reader(settings)
     bind_reader(reader)
 

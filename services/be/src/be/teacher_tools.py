@@ -606,8 +606,8 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     try:
         queued = await fire(session, running.pool, running.settings, assessment_id, wanted)
     except BookUnavailable as gone:
-        # Phạm vi tài liệu không đọc được nữa (plan 4b): nói đúng nguyên nhân, không để
-        # lời từ chối chung *"hàng đợi đang hỏng"* bên dưới nói thay.
+        # Phạm vi tài liệu không đọc được nữa (`draft-from-document`): nói đúng nguyên nhân, không
+        # để lời từ chối chung *"hàng đợi đang hỏng"* bên dưới nói thay.
         await session.rollback()
         return {"started": False, "reason": gone.reason}
     except HTTPException:
@@ -642,7 +642,7 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     }
 
 
-# ------------------------------------------------------------------ tài liệu (plan 4b)
+# ------------------------------------------- tài liệu (`draft-from-document`)
 
 # Một câu hỏi lại vẽ được bao nhiêu nút. Một cuốn SGK có 4--8 chương; một chương có tới ~10 bài.
 _MOST_NODES = 12
@@ -662,8 +662,8 @@ async def owned_document(
     """Tài liệu này khi nó thuộc giáo viên đang hỏi, ở **bất kỳ** trạng thái nào.
 
     Chip của một tệp vừa tải lên còn đang xử lý vẫn là chip của giáo viên: BE lưu nó cùng câu, để
-    lượt sau dùng được khi tài liệu đã sẵn sàng (review B6). Của người khác thì như không có
-    (ADR-22).
+    lượt sau dùng được khi tài liệu đã sẵn sàng (review B6, `draft-from-document`). Của người khác
+    thì như không có (ADR-22).
 
     Args:
         session: Session của database.
@@ -843,8 +843,8 @@ async def _document_scope(
 ) -> tuple[str, list[int], datetime | None, dict | None]:
     """Phạm vi tài liệu `create_draft` nhận: tài liệu, các nút, phiên bản cây -- hoặc từ chối.
 
-    Không có `document_id` là một đề không tài liệu, như trước plan 4b. Có tài liệu thì `nodes`
-    bắt buộc -- thiếu nó là từ chối, không phải *cả cuốn* (review B5).
+    Không có `document_id` là một đề không tài liệu, như trước `draft-from-document`. Có tài liệu
+    thì `nodes` bắt buộc -- thiếu nó là từ chối, không phải *cả cuốn* (review B5).
 
     Args:
         running: Session và giáo viên đang hỏi.
@@ -872,9 +872,10 @@ async def _document_scope(
     except ValueError:
         return "", [], None, _refusal("nodes là các số node cách nhau bằng dấu phẩy")
     if not nodes:
-        # **Không** tự hiểu là cả cuốn (review B5): một model nêu plan ngay mà bỏ qua mục lục sẽ
-        # gửi `topic_scope="chương 1"` không kèm `nodes`, và đề rải câu khắp sách. Cả cuốn là
-        # một lựa chọn phải nói ra -- mọi chương -- chứ không phải giá trị mặc định.
+        # **Không** tự hiểu là cả cuốn (review B5, `draft-from-document`): một model nêu plan ngay
+        # mà bỏ qua mục lục sẽ gửi `topic_scope="chương 1"` không kèm `nodes`, và đề rải câu khắp
+        # sách. Cả cuốn là một lựa chọn phải nói ra -- mọi chương -- chứ không phải giá trị mặc
+        # định.
         return (
             "",
             [],
@@ -888,7 +889,7 @@ async def _document_scope(
     if unknown:
         return "", [], None, _refusal(f"tài liệu không có mục {unknown}; gọi list_chapters")
     # `built_at` **của cây đọc từ Mongo**, không phải giờ hiện tại: `fire` so đúng giá trị này để
-    # biết cây có bị dựng lại giữa chừng không (review B2).
+    # biết cây có bị dựng lại giữa chừng không (review B2, `draft-from-document`).
     return owned.id, nodes, header.built_at, None
 
 
@@ -925,9 +926,10 @@ async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["P
         found = await get_reader().tree(document_id)
     except ContentUnavailable:
         found = None
-    # Mỗi khoá → **mọi** nút mang nó. Khoá trỏ tới hai nút thì không dùng (review B7): SGK có hai
-    # mục *"LUYỆN TẬP CHUNG"*, và chọn cái đầu là đoán. Nhãn đầy đủ giữ khoảng trang -- thứ duy
-    # nhất phân biệt hai mục trùng tên -- nên chép đúng nút bấm vẫn ra đúng một mục.
+    # Mỗi khoá → **mọi** nút mang nó. Khoá trỏ tới hai nút thì không dùng (review B7,
+    # `draft-from-document`): SGK có hai mục *"LUYỆN TẬP CHUNG"*, và chọn cái đầu là đoán. Nhãn đầy
+    # đủ giữ khoảng trang -- thứ duy nhất phân biệt hai mục trùng tên -- nên chép đúng nút bấm vẫn
+    # ra đúng một mục.
     keyed: dict[str, set[int]] = {}
     for node in found[1] if found else []:
         head = heading(node)
@@ -944,12 +946,13 @@ async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["P
         args = dict(one.args)
         chosen = str(args.get("document_id") or "").strip()
         if chosen and chosen != document_id:
-            # Model chọn cuốn khác (qua `list_documents`): cây đang có là của cuốn kia, khớp
-            # nhãn trên nó là gắn nhầm sách (review B7). Để nguyên cho `_document_scope` xét.
+            # Model chọn cuốn khác (qua `list_documents`): cây đang có là của cuốn kia, khớp nhãn
+            # trên nó là gắn nhầm sách (review B7, `draft-from-document`). Để nguyên cho
+            # `_document_scope` xét.
             out.append(one)
             continue
         # Trống **hoặc** rỗng: `""` qua được `vet_plan` (chỉ kiểm có mặt) rồi thành đề không
-        # sách -- cùng lỗi review B6 định chặn, đi đường khác (review B7).
+        # sách -- cùng lỗi review B6 (`draft-from-document`) định chặn, đi đường khác (review B7).
         args["document_id"] = document_id
         if not str(args.get("nodes") or "").strip():
             wanted = [part for part in str(args.get("topic_scope") or "").split(";")]
@@ -964,10 +967,10 @@ async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["P
 
 
 _TOOLS: tuple[Tool, ...] = (
-    # Ba tool đọc tài liệu (plan 4b). Mô tả chỉ nói **làm gì và nhận gì**; dùng lúc nào, theo thứ
-    # tự nào là việc của quy trình -- skill `soan-de` mở thư viện khi giáo viên nhắc sách, còn
-    # đọc mục lục nằm ở `propose._BOOK_PROCEDURE` bên AGENT, chỉ chèn ở lượt có sách (plan 4c).
-    # Một nguồn cho mỗi điều, không lặp ở hai chỗ.
+    # Ba tool đọc tài liệu (`draft-from-document`). Mô tả chỉ nói **làm gì và nhận gì**; dùng lúc
+    # nào, theo thứ tự nào là việc của quy trình -- skill `soan-de` mở thư viện khi giáo viên nhắc
+    # sách, còn đọc mục lục nằm ở `propose._BOOK_PROCEDURE` bên AGENT, chỉ chèn ở lượt có sách
+    # (`unbiased-model-text`). Một nguồn cho mỗi điều, không lặp ở hai chỗ.
     Tool(
         spec=ToolSpec(
             name="list_documents",
@@ -1092,7 +1095,7 @@ PHASE_PLAN = 1
 PHASE_WORK = 2
 
 
-# Tool và tham số chỉ hiện khi lượt chat **có tài liệu** (plan 4b). Cùng phép sửa với
+# Tool và tham số chỉ hiện khi lượt chat **có tài liệu** (`draft-from-document`). Cùng phép sửa với
 # `test_the_model_never_sees_the_optional_fields_of_a_draft`: thứ không nhìn thấy thì không hỏi
 # được -- `document_id` hiện cho một lượt không có sách là mời model hỏi *"dùng tài liệu nào?"*.
 _DOCUMENT_TOOLS = frozenset({"list_chapters", "get_chapter"})
@@ -1103,10 +1106,10 @@ _DOCUMENT_ARGUMENTS = {
         "bắt buộc khi có document_id"
     ),
 }
-# `topic_scope` **không** đổi mô tả ở lượt có sách, dù mô tả chung (*"chép đúng lời giáo viên"*)
-# cãi `_BOOK_PROCEDURE` (*"tên các mục đã chọn"*) -- review T2 thử một mô tả riêng nói cả hai
-# nguồn, và `tai-lieu-khop-chuong` tụt 18/24 → 9/24: model hỏi *"cả chương hay một phần?"*. Khi
-# model bỏ `nodes`, `bind_book` chỉ đỡ được nếu `topic_scope` trùng tên mục.
+# `topic_scope` **không** đổi mô tả ở lượt có sách, dù mô tả chung (*"chép đúng lời giáo viên"*) cãi
+# `_BOOK_PROCEDURE` (*"tên các mục đã chọn"*) -- review T2 (`unbiased-model-text`) thử một mô tả
+# riêng nói cả hai nguồn, và `tai-lieu-khop-chuong` tụt 18/24 → 9/24: model hỏi *"cả chương hay một
+# phần?"*. Khi model bỏ `nodes`, `bind_book` chỉ đỡ được nếu `topic_scope` trùng tên mục.
 
 
 def _with_document(spec: ToolSpec, bound: bool) -> ToolSpec:
@@ -1114,7 +1117,8 @@ def _with_document(spec: ToolSpec, bound: bool) -> ToolSpec:
 
     Tuỳ chọn khi lượt chỉ *từng* mở thư viện -- đề không sách vẫn mở được. **Bắt buộc** khi đoạn
     chat đang gắn với một cuốn sách sẵn sàng (`bound`): bỏ `document_id` là mở một đề không sách
-    trong một đoạn chat về sách, lặng lẽ (review B6) -- `vet_plan` từ chối nó trước khi có gì ghi.
+    trong một đoạn chat về sách, lặng lẽ (review B6, `draft-from-document`) -- `vet_plan` từ chối nó
+    trước khi có gì ghi.
     """
     if spec.name != "create_draft":
         return spec
@@ -1148,7 +1152,7 @@ def catalog_for(
             quyết định xem nó được phép ghi hay chưa, và chỗ để quyết là chỗ gọi.
         documents: Lượt này có tài liệu -- chip đính kèm, hoặc model vừa gọi
             `list_documents`. False thì tool đọc mục lục và tham số tài liệu của
-            `create_draft` không được mô tả (plan 4b).
+            `create_draft` không được mô tả (`draft-from-document`).
         bound: Đoạn chat đang gắn với một cuốn sách sẵn sàng -- tham số tài liệu của
             `create_draft` thành bắt buộc.
 

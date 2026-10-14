@@ -150,8 +150,8 @@ class Said(BaseModel):
         conversation_id: Nói vào đoạn chat nào. Thiếu thì vào đoạn đang chạy, y như
             trước khi giáo viên có nhiều đoạn.
         start_new: Mở một đoạn mới. Đây là đường **duy nhất** mở đoạn thứ hai.
-        document_id: Chip tài liệu đang đính trong ô nhập (plan 4b). BE chỉ chuyển nó cho
-            AGENT khi tài liệu thuộc giáo viên và đã *sẵn sàng*.
+        document_id: Chip tài liệu đang đính trong ô nhập (`draft-from-document`). BE chỉ chuyển nó
+            cho AGENT khi tài liệu thuộc giáo viên và đã *sẵn sàng*.
     """
 
     text: str = Field(min_length=1, max_length=2000)
@@ -206,12 +206,12 @@ class Answered(BaseModel):
     Attributes:
         kind: Lượt đó kết thúc kiểu gì: `say` hay `ask_clarify`.
         text: Phần chữ để hiện ra. Do model viết.
-        choices: Các phương án cho `ask_clarify`, do `_choices` dựng (ADR-23, hậu ký plan 4c
-            T3). Câu hỏi về một row -- lớp, tài liệu, mục -- thì là mọi nhãn BE viết từ chính
-            các row ấy; chữ model viết chỉ đổi thứ tự khi khớp đúng một tên, vì một tên lớp
-            bịa ra đến trước mặt giáo viên với cả uy tín của hệ thống đứng sau. Câu hỏi về
-            một tham số thì là chữ model đề xuất. Không có "Khác" -- FE tự vẽ lối gõ ấy;
-            rỗng với `say`.
+        choices: Các phương án cho `ask_clarify`, do `_choices` dựng (ADR-23, hậu ký
+            `unbiased-model-text` T3). Câu hỏi về một row -- lớp, tài liệu, mục -- thì là mọi nhãn
+            BE viết từ chính các row ấy; chữ model viết chỉ đổi thứ tự khi khớp đúng một tên, vì một
+            tên lớp bịa ra đến trước mặt giáo viên với cả uy tín của hệ thống đứng sau. Câu hỏi về
+            một tham số thì là chữ model đề xuất. Không có "Khác" -- FE tự vẽ lối gõ ấy; rỗng với
+            `say`.
         more_choices: Có bao nhiêu candidate nữa đã bị cắt khỏi `choices`, để giao diện
             nói được rằng danh sách này chưa đủ. Một giáo viên có ba mươi lớp mà chỉ được
             cho xem sáu lớp và không được nói gì thêm thì đọc ra là dữ liệu đã mất.
@@ -278,8 +278,8 @@ async def _ask_agent(
     return NextStepCompleted.model_validate(answer)
 
 
-# Tool đọc tài liệu (plan 4b). Một lần gọi bất kỳ cái nào trong đoạn chat là đoạn chat **đang nói
-# về một tài liệu**, kể cả ở lượt sau khi chip đã rời ô nhập.
+# Tool đọc tài liệu (`draft-from-document`). Một lần gọi bất kỳ cái nào trong đoạn chat là đoạn chat
+# **đang nói về một tài liệu**, kể cả ở lượt sau khi chip đã rời ô nhập.
 _DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter"})
 
 
@@ -307,7 +307,7 @@ async def _read_documents_before(session: AsyncSession, thread: str) -> bool:
 
     FE xoá chip ngay khi gửi, và một đoạn chat chọn sách qua `list_documents` thì không có chip
     nào. Đọc từ database chứ không từ cửa sổ `_HISTORY_STEPS`: một đoạn chat dài không được quên
-    rằng nó đang nói về một cuốn sách (review B3, B5).
+    rằng nó đang nói về một cuốn sách (review B3, `draft-from-document`, B5).
 
     Args:
         session: Session của database.
@@ -332,8 +332,8 @@ def _read_other_books(history: list[TurnRecord], attached: AttachedDocument) -> 
     """Lượt này đã đọc mục lục của một cuốn **khác** cuốn đang gắn chưa.
 
     Khi đã đọc, một `nodes` model gửi có thể là số của cuốn kia; điền `document_id` của cuốn đang
-    gắn vào đó là mở đề trên một mục khác hẳn của một sách khác (review B7). Không điền gì -- để
-    `vet_plan` từ chối nếu model quên.
+    gắn vào đó là mở đề trên một mục khác hẳn của một sách khác (review B7, `draft-from-document`).
+    Không điền gì -- để `vet_plan` từ chối nếu model quên.
 
     Args:
         history: Các bản ghi đã gửi AGENT.
@@ -351,7 +351,7 @@ def _read_other_books(history: list[TurnRecord], attached: AttachedDocument) -> 
 
 
 def _option(entry: dict) -> str:
-    """Một nút bấm từ một candidate: lớp kèm sĩ số, hoặc `label` BE đã dựng (plan 4b).
+    """Một nút bấm từ một candidate: lớp kèm sĩ số, hoặc `label` BE đã dựng (`draft-from-document`).
 
     `label` là của **BE** -- `node_label` hay tên tệp trong `teacher_tools` -- nên luật ADR-23 vẫn
     nguyên: không chuỗi nào trên nút đi qua tay model.
@@ -446,7 +446,7 @@ def _named(result: dict) -> dict[str, str]:
 def _choices(proposed: tuple[str, ...], offered: list[str], named: dict[str, str]) -> list[str]:
     """Các nút của một câu hỏi lại: ít nhất ba khi dữ liệu cho phép.
 
-    Hai loại câu hỏi, hai nguồn (plan 4c T3, người dùng chốt 12/10/2026):
+    Hai loại câu hỏi, hai nguồn (`unbiased-model-text` T3, người dùng chốt 12/10/2026):
 
     - Hỏi về một **dòng** -- lớp, tài liệu, mục -- tức có `candidates` đang được hỏi (`offered`).
       Nút là **mọi** nhãn BE dựng, như ADR-23: *"trả về tất cả"*, một dòng bị giấu là lớp giáo viên
@@ -491,12 +491,12 @@ def _choices(proposed: tuple[str, ...], offered: list[str], named: dict[str, str
 def _rows_in_play(stored: list[TeacherTurn], said: str) -> dict:
     """Kết quả tool mà một câu hỏi về dòng của lượt trước còn đang hỏi, hay `{}`.
 
-    Review T3: câu hỏi về một lớp không xong trong một lượt -- giáo viên ghi ở lối "Khác", hay gõ
-    một tên khác, và model hỏi lại mà **không** gọi tool. Xét theo riêng lượt này thì không có
-    `candidates` nào, câu hỏi bị coi là về tham số, và chữ model viết thành nút: *"12A-1"*,
-    *"12A (45 học sinh)"* -- đúng chuỗi ADR-23 đo là rò. Nên câu hỏi còn **mở** khi câu hỏi lại
-    gần nhất bày đúng nhãn BE dựng từ một kết quả có `candidates` đứng trước nó, và câu giáo viên
-    vừa gõ không phải một trong các nhãn ấy -- bấm một nhãn là đã trả lời xong.
+    Review T3 (`unbiased-model-text`): câu hỏi về một lớp không xong trong một lượt -- giáo viên ghi
+    ở lối "Khác", hay gõ một tên khác, và model hỏi lại mà **không** gọi tool. Xét theo riêng lượt
+    này thì không có `candidates` nào, câu hỏi bị coi là về tham số, và chữ model viết thành nút:
+    *"12A-1"*, *"12A (45 học sinh)"* -- đúng chuỗi ADR-23 đo là rò. Nên câu hỏi còn **mở** khi câu
+    hỏi lại gần nhất bày đúng nhãn BE dựng từ một kết quả có `candidates` đứng trước nó, và câu giáo
+    viên vừa gõ không phải một trong các nhãn ấy -- bấm một nhãn là đã trả lời xong.
 
     Args:
         stored: Các bước đã lưu của đoạn chat, cũ nhất trước, **chưa** gồm câu giáo viên vừa gõ.
@@ -755,12 +755,12 @@ def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str 
             return f"bước {index} gọi {step.tool_name}, không có trong catalog pha thực hiện"
         missing = set(spec.arguments) - set(step.args) - set(spec.optional)
         if missing:
-            # Mọi tham số được mô tả cho model đều là tham số **bắt buộc**, trừ những cái spec
-            # khai tường minh ở `optional` (plan 4b): catalog chỉ nêu những thứ tool thật sự
-            # cần. Thiếu một cái là một bước sẽ chạy với tay không --
-            # đo trên trình duyệt thật, model nêu `start_drafting` không kèm `assessment_id`,
-            # bước ấy hỏng, và lượt để lại một đề rỗng mang tên giáo viên. Từ chối trọn gói ở
-            # đây là cách duy nhất không có gì kịp ghi.
+            # Mọi tham số được mô tả cho model đều là tham số **bắt buộc**, trừ những cái spec khai
+            # tường minh ở `optional` (`draft-from-document`): catalog chỉ nêu những thứ tool thật
+            # sự cần. Thiếu một cái là một bước sẽ chạy với tay không -- đo trên trình duyệt thật,
+            # model nêu `start_drafting` không kèm `assessment_id`, bước ấy hỏng, và lượt để lại một
+            # đề rỗng mang tên giáo viên. Từ chối trọn gói ở đây là cách duy nhất không có gì kịp
+            # ghi.
             return f"bước {index} thiếu tham số {sorted(missing)} của {step.tool_name}"
         for key, value in step.args.items():
             if key not in spec.arguments:
@@ -1097,7 +1097,7 @@ async def _record(
             đây chứ không vào `record` vì `TurnRecord` là payload sang AGENT và model
             không dùng được chúng — y như `duration_ms` ngay trên.
         more_choices: Bao nhiêu phương án nữa đã bị cắt.
-        document_id: Chip tài liệu của câu giáo viên này, đã kiểm sở hữu (plan 4b).
+        document_id: Chip tài liệu của câu giáo viên này, đã kiểm sở hữu (`draft-from-document`).
 
     Returns:
         Vị trí sau bước này, thứ caller dùng cho bước tiếp theo.
@@ -1263,7 +1263,8 @@ class TurnEvent(BaseModel):
         kind: `say`, `clarify`, `plan`, `step_started`, `step_done`, `step_failed`, `report`
             hay `done`.
         text: Lời, cho `say`, `clarify`, `report` và `done`.
-        choices: Phương án của một câu hỏi lại, do `_choices` dựng (ADR-23, T3), không "Khác".
+        choices: Phương án của một câu hỏi lại, do `_choices` dựng (ADR-23, T3,
+            `unbiased-model-text`), không "Khác".
         more_choices: Bao nhiêu candidate đã bị cắt khỏi `choices`.
         conversation_id: Lượt này nằm trong đoạn chat nào.
         ended_as: Lượt kết thúc bằng nhánh nào -- `say`, `clarify` hay `report`. Chỉ có ở sự kiện
@@ -1743,9 +1744,9 @@ async def _go(
 
     history = _as_records(stored)
     history.append(TurnRecord(kind="teacher", text=said.text))
-    # Chip đang đính, khi nó thuộc giáo viên và đã sẵn sàng; không thì như chưa đính (plan 4b).
-    # Chip của câu này, khi nó là của giáo viên -- **kể cả** khi tài liệu còn đang xử lý: lưu nó
-    # cùng câu thì lượt sau dùng được khi sách đã sẵn sàng (review B6).
+    # Chip đang đính, khi nó thuộc giáo viên và đã sẵn sàng; không thì như chưa đính
+    # (`draft-from-document`). Chip của câu này, khi nó là của giáo viên -- **kể cả** khi tài liệu
+    # còn đang xử lý: lưu nó cùng câu thì lượt sau dùng được khi sách đã sẵn sàng (review B6).
     owned = await owned_document(session, asking, said.document_id or "")
     position = await _record(
         session, thread, position, history[-1], document_id=owned.id if owned else ""
@@ -1753,7 +1754,7 @@ async def _go(
     if owned is None and not said.document_id:
         # Không có chip ở câu này: đoạn chat vẫn nói về chip **gần nhất** của nó, đọc từ
         # database chứ không từ cửa sổ `_HISTORY_STEPS` -- một đoạn chat dài không được
-        # quên cuốn sách giữa chừng (review B4).
+        # quên cuốn sách giữa chừng (review B4, `draft-from-document`).
         # Có chip mà chip không dùng được (chưa sẵn sàng, không phải của mình) thì **không** lùi về
         # chip cũ: giáo viên vừa chỉ một cuốn khác, soạn từ cuốn trước là soạn sai sách.
         owned = await owned_document(session, asking, await _last_chip(session, thread))
@@ -1773,13 +1774,14 @@ async def _go(
         planning = catalog_for(asking, PHASE_PLAN, documents=True, bound=bound)
         working = catalog_for(asking, PHASE_WORK, documents=True, bound=bound)
     if attached is not None and not bound:
-        # Chip có mà chưa dùng được (đang xử lý, hỏng): lời dặn *đừng soạn không sách* không
-        # giữ được model, nên `create_draft` **không có mặt** lượt này -- thứ không nhìn thấy
-        # thì không nêu được (review B7). Soạn thêm câu cho đề đã có vẫn được.
+        # Chip có mà chưa dùng được (đang xử lý, hỏng): lời dặn *đừng soạn không sách* không giữ
+        # được model, nên `create_draft` **không có mặt** lượt này -- thứ không nhìn thấy thì không
+        # nêu được (review B7, `draft-from-document`). Soạn thêm câu cho đề đã có vẫn được.
         working = tuple(spec for spec in working if spec.name != "create_draft")
 
-    # Câu hỏi về một dòng mà lượt trước để ngỏ vẫn là câu hỏi về dòng ấy (review T3): chữ model
-    # viết không bao giờ thành nút chỉ vì lượt này chưa gọi tool nào.
+    # Câu hỏi về một dòng mà lượt trước để ngỏ vẫn là câu hỏi về dòng ấy (review T3,
+    # `unbiased-model-text`): chữ model viết không bao giờ thành nút chỉ vì lượt này chưa gọi tool
+    # nào.
     in_play = _rows_in_play(stored, said.text)
     offered, offered_more = _offered(in_play)
     offered_named: dict[str, str] = _named(in_play)
@@ -1816,8 +1818,8 @@ async def _go(
             # như vậy từ trước; từ khi có cột trong database thì nó còn sống qua cả F5 — nên
             # chỗ chặn phải là đây, nơi duy nhất biết `step.kind`.
             asking_back = step.kind == "ask_clarify"
-            # Plan 4c T3: câu hỏi về một dòng giữ nhãn BE, câu hỏi về tham số lấy chữ model đề
-            # xuất -- xem `_choices`. "Khác" do FE vẽ, không nằm trong nút.
+            # `unbiased-model-text` T3: câu hỏi về một dòng giữ nhãn BE, câu hỏi về tham số lấy chữ
+            # model đề xuất -- xem `_choices`. "Khác" do FE vẽ, không nằm trong nút.
             buttons = _choices(step.choices, offered, offered_named) if asking_back else []
             history.append(TurnRecord(kind="assistant", text=step.text))
             position = await _record(
@@ -1830,8 +1832,8 @@ async def _go(
                 choices=buttons,
                 more_choices=offered_more if asking_back else 0,
             )
-            # [CODE CHẾT 2026-10-13] Trước plan 4c T3, `choices` model viết bị bỏ qua hết (ADR-23
-            # bản đầu); nay `_choices` dùng chúng, nên không còn gì để báo là đã bỏ.
+            # [CODE CHẾT 2026-10-13] Trước `unbiased-model-text` T3, `choices` model viết bị bỏ qua
+            # hết (ADR-23 bản đầu); nay `_choices` dùng chúng, nên không còn gì để báo là đã bỏ.
             # if step.choices:
             #     # Bỏ qua, không phải lọc lại. BE là bên giữ các row; thứ model viết ra ở
             #     # đây tốt nhất cũng chỉ là một bản sao, còn tệ nhất là một thứ bịa ra.
@@ -1871,7 +1873,8 @@ async def _go(
 
         if step.kind == "plan":
             if bound and attached is not None and not _read_other_books(history, attached):
-                # Tham số tài liệu BE biết mà không phải đoán -- điền trước khi kiểm (plan 4b).
+                # Tham số tài liệu BE biết mà không phải đoán -- điền trước khi kiểm
+                # (`draft-from-document`).
                 step = step.model_copy(
                     update={"steps": await bind_book(step.steps, attached.document_id)}
                 )
@@ -1917,11 +1920,13 @@ async def _go(
             logger.warning("refused a plan for %s: %s", asking.teacher_code, wrong)
             refusal = _PLAN_REFUSED
             if bound and attached is not None and "create_draft" in wrong:
-                # Đoạn chat gắn sách mà plan thiếu mục của sách (review B7): câu chung *"nói lại"*
-                # thì nói lại bao nhiêu lần cũng không qua. Nói lý do, và đường ra.
+                # Đoạn chat gắn sách mà plan thiếu mục của sách (review B7, `draft-from-document`):
+                # câu chung *"nói lại"* thì nói lại bao nhiêu lần cũng không qua. Nói lý do, và
+                # đường ra.
                 refusal = _BOOK_SCOPE_MISSING.format(filename=attached.filename)
             elif attached is not None and not bound and "create_draft" in wrong:
-                # Chip chưa dùng được, và `create_draft` đã rời catalog lượt này (review B7).
+                # Chip chưa dùng được, và `create_draft` đã rời catalog lượt này (review B7,
+                # `draft-from-document`).
                 refusal = _BOOK_NOT_READY.format(filename=attached.filename)
             history.append(TurnRecord(kind="assistant", text=refusal))
             position = await _record(session, thread, position, history[-1])
@@ -1997,9 +2002,9 @@ async def _go(
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
         if step.tool_name in _DOCUMENT_READS:
             # Không có chip mà model vừa mở thư viện: từ bước sau, tool đọc mục lục và tham số tài
-            # liệu của `create_draft` mới hiện ra (plan 4b) -- trước đó chúng chỉ mời hỏi thừa.
-            # `bound` đi theo: đọc mục lục giữa lượt -- đúng luồng skill dặn -- không được làm
-            # tham số tài liệu thành tuỳ chọn trở lại (review B7).
+            # liệu của `create_draft` mới hiện ra (`draft-from-document`) -- trước đó chúng chỉ mời
+            # hỏi thừa. `bound` đi theo: đọc mục lục giữa lượt -- đúng luồng skill dặn -- không được
+            # làm tham số tài liệu thành tuỳ chọn trở lại (review B7).
             planning = catalog_for(asking, PHASE_PLAN, documents=True, bound=bound)
             working = catalog_for(asking, PHASE_WORK, documents=True, bound=bound)
         position = await _record(session, thread, position, history[-1])

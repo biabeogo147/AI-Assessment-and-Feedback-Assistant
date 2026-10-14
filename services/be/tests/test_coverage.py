@@ -267,7 +267,8 @@ async def test_a_draft_without_a_book_is_written_as_before(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_drafting_more_leaves_the_first_questions_on_their_units(stack) -> None:
-    """Review B4: `fire` lần hai giữ `node_ordinal` của hàng cũ -- bỏ `taken` thì test này đỏ."""
+    """Review B4 (`draft-from-document`): `fire` lần hai giữ `node_ordinal` của hàng cũ -- bỏ
+    `taken` thì test này đỏ."""
     maker, _, queued = stack
     # Một câu trước: nó về Bài 1, đơn vị dài nhất. Câu thêm phải về đơn vị khác -- phép chia cho
     # tổng 2 cũng chọn Bài 1 trước, nên quên ô cũ là đặt câu mới chồng lên đúng câu ấy.
@@ -291,7 +292,8 @@ async def test_drafting_more_leaves_the_first_questions_on_their_units(stack) ->
 
 @pytest.mark.asyncio
 async def test_a_retry_on_a_rebuilt_tree_stops_with_a_reason(stack) -> None:
-    """Review B4: `_refire` gặp cây đã dựng lại thì ô ấy `failed`, kèm lý do đọc được."""
+    """Review B4 (`draft-from-document`): `_refire` gặp cây đã dựng lại thì ô ấy `failed`, kèm lý do
+    đọc được."""
     maker, reader, queued = stack
     first = await _draft(maker, "1")
     header, nodes = reader.trees["book"]

@@ -1,4 +1,5 @@
-"""Kriky đọc thư viện và mục lục của giáo viên, và mở đề với phạm vi là các mục ấy (plan 4b).
+"""Kriky đọc thư viện và mục lục của giáo viên, và mở đề với phạm vi là các mục ấy
+(`draft-from-document`).
 
 Ba loại khẳng định. Tool đọc chỉ thấy tài liệu **của giáo viên** và **đã sẵn sàng** -- tài liệu của
 người khác và tài liệu chưa có cây đọc lên y như nhau (ADR-22). Phương án của một câu hỏi lại là chữ
@@ -220,14 +221,16 @@ async def test_a_draft_freezes_its_book_its_chapters_and_the_tree_it_read(stack)
     async with maker() as session:
         frozen = await session.get(DraftBrief, made["assessment_id"])
     assert (frozen.document_id, frozen.scope_nodes) == ("book", [0])
-    # Phiên bản cây là `built_at` **đọc từ kho**, đúng tới mili giây (review B2).
+    # Phiên bản cây là `built_at` **đọc từ kho**, đúng tới mili giây (review B2,
+    # `draft-from-document`).
     assert frozen.index_built_at.replace(tzinfo=UTC) == _BUILT
 
 
 @pytest.mark.asyncio
 async def test_a_book_without_chapters_named_is_refused_not_read_as_the_whole_book(stack) -> None:
-    """Review B5: model nêu plan ngay mà bỏ qua mục lục sẽ gửi `topic_scope="chương 1"` không kèm
-    `nodes`. Hiểu thiếu là *cả cuốn* thì đề rải câu khắp sách mà không ai từ chối."""
+    """Review B5 (`draft-from-document`): model nêu plan ngay mà bỏ qua mục lục sẽ gửi
+    `topic_scope="chương 1"` không kèm `nodes`. Hiểu thiếu là *cả cuốn* thì đề rải câu khắp sách mà
+    không ai từ chối."""
     maker, _ = stack
     brief = {"subject": "Toán", "grade": "6", "topic_scope": "chương 1"}
 
@@ -260,7 +263,7 @@ async def test_a_scope_that_is_not_in_the_book_opens_nothing(stack, extra, said)
 
 @pytest.mark.asyncio
 async def test_a_new_brief_replaces_the_book_scope_too(stack) -> None:
-    """Review B1: `rebrief` không được giữ phạm vi tài liệu của brief cũ."""
+    """Review B1 (`draft-from-document`): `rebrief` không được giữ phạm vi tài liệu của brief cũ."""
     maker, _ = stack
     brief = {"subject": "Toán", "grade": "6", "topic_scope": "chương I"}
     made = await _run(
@@ -340,8 +343,9 @@ async def test_nodes_the_model_did_send_are_kept(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_two_units_with_one_name_are_told_apart_only_by_their_pages(stack) -> None:
-    """Review B7: SGK có hai mục *"LUYỆN TẬP CHUNG"*. Tên trần trỏ tới hai mục thì không điền gì --
-    chọn cái đầu là đoán; nhãn đầy đủ (có khoảng trang) của nút bấm thì ra đúng một mục."""
+    """Review B7 (`draft-from-document`): SGK có hai mục *"LUYỆN TẬP CHUNG"*. Tên trần trỏ tới hai
+    mục thì không điền gì -- chọn cái đầu là đoán; nhãn đầy đủ (có khoảng trang) của nút bấm thì ra
+    đúng một mục."""
     _, reader = stack
     header, nodes = reader.trees["book"]
     twins = [_node(4, "LUYỆN TẬP CHUNG", 0, 2, None), _node(5, "LUYỆN TẬP CHUNG", 0, 2, None)]
@@ -359,8 +363,8 @@ async def test_two_units_with_one_name_are_told_apart_only_by_their_pages(stack)
 
 @pytest.mark.asyncio
 async def test_a_step_that_chose_another_book_is_left_alone(stack) -> None:
-    """Review B7: model chọn cuốn khác qua `list_documents` -- khớp nhãn trên cây của cuốn đang gắn
-    là gắn nhầm sách."""
+    """Review B7 (`draft-from-document`): model chọn cuốn khác qua `list_documents` -- khớp nhãn
+    trên cây của cuốn đang gắn là gắn nhầm sách."""
     steps = (
         PlanStep(
             tool_name="create_draft",
@@ -374,7 +378,8 @@ async def test_a_step_that_chose_another_book_is_left_alone(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_an_empty_book_id_is_filled_not_kept(stack) -> None:
-    """Review B7: `""` qua `vet_plan` (chỉ kiểm có mặt) rồi thành đề không sách."""
+    """Review B7 (`draft-from-document`): `""` qua `vet_plan` (chỉ kiểm có mặt) rồi thành đề không
+    sách."""
     steps = (
         PlanStep(
             tool_name="create_draft",
@@ -390,7 +395,8 @@ async def test_an_empty_book_id_is_filled_not_kept(stack) -> None:
 
 
 def test_a_numbering_that_carries_its_own_dot_gets_no_second_one() -> None:
-    """Review B7: `numbering` kiểu *"1."*, *"I."* đã có dấu chấm -- không ra *"1.. MÔ TẢ"*."""
+    """Review B7 (`draft-from-document`): `numbering` kiểu *"1."*, *"I."* đã có dấu chấm -- không ra
+    *"1.. MÔ TẢ"*."""
     from be.teacher_tools import node_label
 
     assert node_label(_node(2, "MÔ TẢ TẬP HỢP", 1, 3, "1.")) == "1. MÔ TẢ TẬP HỢP (tr. 5–7)"

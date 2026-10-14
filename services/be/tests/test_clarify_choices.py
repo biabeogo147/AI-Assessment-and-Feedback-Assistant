@@ -1,4 +1,4 @@
-"""Nút của một câu hỏi lại (plan 4c T3, hậu ký ADR-23).
+"""Nút của một câu hỏi lại (`unbiased-model-text` T3, hậu ký ADR-23).
 
 Hai loại câu hỏi, hai nguồn nút: hỏi về một **dòng** (lớp, tài liệu, mục) thì nút là nhãn BE dựng,
 phương án model viết chỉ sống khi khớp đúng một tên; hỏi về một **tham số** (số câu, khối) thì nút
@@ -67,15 +67,17 @@ def test_a_question_about_classes_puts_the_models_picks_first() -> None:
 
 def test_a_class_the_model_made_up_never_reaches_a_button() -> None:
     """ADR-23: *"12A-1"* lệch tên thật một dấu gạch, *"12A (45 học sinh)"* sai sĩ số, *"11C"*
-    không tồn tại. Không chữ nào khớp đúng một tên thì mọi nhãn BE, như trước T3."""
+    không tồn tại. Không chữ nào khớp đúng một tên thì mọi nhãn BE, như trước T3
+    (`unbiased-model-text`)."""
     buttons = _buttons(("12A-1", "12A (45 học sinh)", "11C"), _CLASSES)
 
     assert buttons == ["12A (3 học sinh)", "12A1 (40 học sinh)", "12B (1 học sinh)"]
 
 
 def test_the_models_picks_never_hide_a_real_row() -> None:
-    """Review T3: bản đầu bày đúng tập con model chọn -- năm lớp, model chọn ba, hai lớp thật biến
-    mất mà `more_choices` không báo. ADR-23: *"trả về tất cả"*. Model chỉ đổi được thứ tự."""
+    """Review T3 (`unbiased-model-text`): bản đầu bày đúng tập con model chọn -- năm lớp, model chọn
+    ba, hai lớp thật biến mất mà `more_choices` không báo. ADR-23: *"trả về tất cả"*. Model chỉ đổi
+    được thứ tự."""
     five = {
         "candidates": [
             {"class_id": name, "name": name, "student_count": 30}
@@ -133,8 +135,9 @@ _ASKED_CLASS_NOW = [*_ASKED_CLASS[:3], _turn("assistant", choices=_offered(_CLAS
 
 
 def test_a_question_about_rows_stays_open_after_other() -> None:
-    """Review T3: lượt 1 hỏi lại bằng nhãn lớp, lượt 2 giáo viên bấm "Khác" và model hỏi tiếp mà
-    không gọi tool. Câu hỏi vẫn là về các lớp ấy -- không thì chữ model viết thành nút."""
+    """Review T3 (`unbiased-model-text`): lượt 1 hỏi lại bằng nhãn lớp, lượt 2 giáo viên bấm "Khác"
+    và model hỏi tiếp mà không gọi tool. Câu hỏi vẫn là về các lớp ấy -- không thì chữ model viết
+    thành nút."""
     assert _rows_in_play(_ASKED_CLASS, OTHER_CHOICE) == _CLASSES
     assert _rows_in_play(_ASKED_CLASS, "lớp chuyên") == _CLASSES
     # Lối "Khác" nay gửi câu giáo viên ghi, không gửi chữ "Khác" -- câu hỏi về dòng vẫn mở.
@@ -161,6 +164,7 @@ def test_a_plain_answer_leaves_no_rows_in_play() -> None:
 
 
 def test_no_real_option_means_no_buttons_not_a_lone_other() -> None:
-    """Không lựa chọn thật nào thì không nút nào -- FE không vẽ thẻ (review T3)."""
+    """Không lựa chọn thật nào thì không nút nào -- FE không vẽ thẻ (review T3,
+    `unbiased-model-text`)."""
     assert _buttons(()) == []
     assert _buttons(("Khác", " ")) == []

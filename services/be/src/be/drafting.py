@@ -253,7 +253,7 @@ async def too_many(session: AsyncSession, assessment_id: str, wanted: int) -> st
     return f"số câu phải từ 1 đến {_MOST_QUESTIONS}"
 
 
-# ------------------------------------------------------------------ tài liệu (plan 4b)
+# ------------------------------------------- tài liệu (`draft-from-document`)
 
 
 class BookUnavailable(Exception):
@@ -424,9 +424,9 @@ async def fire(
         )
         return 0
 
-    # **Mỗi câu một mục** (plan 4b): gán ô cho mọi vị trí chưa có, trước khi đẩy job nào. Ô đã
-    # đóng băng ở hàng cũ giữ nguyên. Không đọc được tài liệu thì không đẩy gì -- một đề hứa
-    # soạn theo sách không được lặng lẽ soạn không sách.
+    # **Mỗi câu một mục** (`draft-from-document`): gán ô cho mọi vị trí chưa có, trước khi đẩy job
+    # nào. Ô đã đóng băng ở hàng cũ giữ nguyên. Không đọc được tài liệu thì không đẩy gì -- một đề
+    # hứa soạn theo sách không được lặng lẽ soạn không sách.
     book: _Book | None = None
     placed: dict[int, Slot] = {}
     if brief.document_id:
@@ -523,7 +523,7 @@ async def rebrief(
         topic_scope: Phạm vi mới, theo lời giáo viên.
         question_count: Giờ bộ đề nên có bao nhiêu câu hỏi.
         difficulty: Khó đến đâu, theo lời giáo viên.
-        document_id: Tài liệu của phạm vi (plan 4b); rỗng là đề không tài liệu.
+        document_id: Tài liệu của phạm vi (`draft-from-document`); rỗng là đề không tài liệu.
         scope_nodes: Các nút phạm vi trong cây của tài liệu ấy.
         index_built_at: Phiên bản cây lúc chọn các nút -- `IndexHeader.built_at`.
 
@@ -553,9 +553,9 @@ async def rebrief(
         brief.topic_scope = topic_scope
         brief.difficulty = difficulty
         brief.question_count = question_count
-        # Phạm vi tài liệu đổi **cùng** brief, không ở lại từ brief cũ (review B1): một
-        # brief mới với các nút của brief trước là hai cách hiểu phạm vi trong một vòng.
-        # List mới, không sửa tại chỗ -- cột JSON không theo dõi `.append()`.
+        # Phạm vi tài liệu đổi **cùng** brief, không ở lại từ brief cũ (review B1,
+        # `draft-from-document`): một brief mới với các nút của brief trước là hai cách hiểu phạm vi
+        # trong một vòng. List mới, không sửa tại chỗ -- cột JSON không theo dõi `.append()`.
         brief.document_id = document_id
         brief.scope_nodes = list(scope_nodes or [])
         brief.index_built_at = index_built_at

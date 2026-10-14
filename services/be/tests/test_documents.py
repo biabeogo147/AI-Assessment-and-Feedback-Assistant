@@ -436,7 +436,7 @@ async def test_a_scan_that_keeps_reporting_progress_is_not_called_failed(stack) 
     """Một cuốn scan tải lên từ lâu nhưng **vừa báo tiến độ** thì vẫn *đang xử lý*.
 
     OCR một cuốn sách mất mười lăm phút, gấp ba ngưỡng. Đo từ `uploaded_at` thì cuốn nào cũng ra
-    *xử lý hỏng* giữa đường trong khi đang đọc tốt (plan 3b, D4).
+    *xử lý hỏng* giữa đường trong khi đang đọc tốt (`mongo-content-store`, D4).
     """
     client, maker, _ = stack
     await client.post("/api/teacher/documents", headers=TEACHER, files=_file())
