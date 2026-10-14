@@ -111,6 +111,9 @@ export default function Chat({
   // field rời của response: một luật, một chỗ, và hai đường (vừa chạy xong, và vừa F5) cho
   // ra cùng một màn hình.
   const [asked, setAsked] = useState<Question | null>(null);
+  // Câu đã ghi ở ô "Khác" của một lượt vừa hỏng: thẻ hỏi lại hiện lại với ô ấy mở sẵn và
+  // chữ ấy trong đó. `null` khi không có gì để trả.
+  const [otherBack, setOtherBack] = useState<string | null>(null);
   const [documents, setDocuments] = useState<TeacherDocument[]>([]);
   const [threads, setThreads] = useState<TeacherConversation[]>([]);
   // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
@@ -155,6 +158,7 @@ export default function Chat({
     setHere(conversationId);
     setTurns([]);
     setAsked(null);
+    setOtherBack(null);
     // Tệp đính thuộc về câu đang gõ, và câu đang gõ vừa bị xoá cùng màn hình. Đứng **sau**
     // guard ở trên có chủ ý: guard bắt đúng một ca — route vừa gọi tên đoạn mà lượt đầu
     // vừa tạo ra — và ở ca ấy `send` đã dọn rồi, nên dọn lần nữa chỉ là dọn một chỗ trống.
@@ -213,12 +217,26 @@ export default function Chat({
     bottom.current?.scrollIntoView({ block: "end" });
   }, [turns.length, pending]);
 
-  async function send(said: string) {
+  /**
+   * Gửi một câu của giáo viên và chạy một lượt.
+   *
+   * Câu đến từ hai chỗ, và chỗ ấy quyết ô nào được dọn. Từ **ô nhập chính** thì ô ấy trống đi,
+   * và lượt hỏng trả chữ về đó. Từ **thẻ hỏi lại** — một nút, hay ô "Khác" — thì ô nhập chính
+   * không bị chạm: giáo viên có thể đang gõ dở ở đó, và bấm một nút trên thẻ không phải là
+   * đồng ý xoá nó (người dùng chốt 14/10/2026). Lượt hỏng thì thẻ hiện lại, câu ghi ở "Khác"
+   * nằm lại trong ô "Khác".
+   *
+   * @param said - Câu gửi đi, chưa cắt khoảng trắng.
+   * @param from - Câu đến từ ô nhập chính hay từ thẻ hỏi lại.
+   */
+  async function send(said: string, from: "composer" | "card" = "composer") {
     const trimmed = said.trim();
     if (trimmed === "" || pending !== null) return;
 
+    const question = asked;
     setPending(trimmed);
-    setText("");
+    if (from === "composer") setText("");
+    setOtherBack(null);
     setAsked(null);
     setTrouble(null);
     setLive(null);
@@ -279,12 +297,18 @@ export default function Chat({
       setTurns(whole.turns);
       setAsked(questionIn(whole));
     } catch (cause) {
-      setText(trimmed);
-      setTrouble(
-        stop.signal.aborted
-          ? "Kriky chưa trả lời kịp. Chữ bạn gõ vẫn còn ở ô nhập."
-          : (cause as Error).message,
-      );
+      if (from === "composer") {
+        setText(trimmed);
+      } else {
+        setAsked(question);
+        // Một nút là một chuỗi của thẻ, bấm lại được; chỉ câu tự ghi mới cần được giữ hộ.
+        if (question !== null && !question.choices.includes(trimmed))
+          setOtherBack(trimmed);
+      }
+      let late = "Kriky chưa trả lời kịp. Chữ bạn gõ vẫn còn ở ô nhập.";
+      if (from === "card")
+        late = "Kriky chưa trả lời kịp. Thẻ hỏi lại vẫn còn, bạn chọn lại được.";
+      setTrouble(stop.signal.aborted ? late : (cause as Error).message);
     } finally {
       window.clearTimeout(cut);
       window.clearTimeout(later);
@@ -454,7 +478,8 @@ export default function Chat({
                 // sang câu sau.
                 key={`${asked.text}\n${asked.choices.join("\n")}`}
                 asked={asked}
-                onPick={(one) => void send(one)}
+                written={otherBack}
+                onPick={(one) => void send(one, "card")}
               />
             )}
             {pending !== null && (
@@ -1008,17 +1033,22 @@ function Thinking({ slow }: { slow: boolean }) {
  * trả lời. Ô trống thì nút Gửi tắt thật (`disabled`), Esc đóng ô lại.
  *
  * @param asked - Câu hỏi và các phương án của nó.
+ * @param written - Câu đã ghi ở ô "Khác" của một lượt vừa hỏng: thẻ mở sẵn ô ấy với câu ấy.
+ *   `null` thì thẻ mở như thường. Chỉ đọc lúc thẻ dựng — thẻ ẩn trong lúc lượt chạy, nên mỗi
+ *   lần hiện lại là một lần dựng mới.
  * @param onPick - Được gọi với đúng chuỗi của phương án vừa bấm, hay câu vừa ghi ở ô "Khác".
  */
 function Clarify({
   asked,
+  written,
   onPick,
 }: {
   asked: Question;
+  written: string | null;
   onPick: (choice: string) => void;
 }) {
-  const [writing, setWriting] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [writing, setWriting] = useState(written !== null);
+  const [draft, setDraft] = useState(written ?? "");
   const said = draft.trim();
   return (
     <div className="clarify">

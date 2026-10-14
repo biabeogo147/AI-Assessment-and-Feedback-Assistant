@@ -1290,6 +1290,86 @@ describe("thẻ hỏi lại: lối Khác là để ghi, không phải một lự
     expect(screen.getByText("Khác…")).toBeTruthy();
   });
 
+  it("bấm một lựa chọn không xoá chữ đang gõ dở ở ô nhập chính", async () => {
+    // Người dùng chốt 14/10/2026: chữ ở ô chính là của giáo viên; trả lời thẻ không phải là
+    // đồng ý xoá nó.
+    // Lượt **thành công** thật: kênh stream trả một khung `done` rồi đóng. Bản giả chung
+    // (`routes`) không có `body`, nên mọi lượt đi qua nó đều rơi vào nhánh hỏng.
+    const posted: string[] = [];
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/teacher/chat/messages/stream") {
+          posted.push(JSON.parse(String(init?.body)).text);
+          const frame = `event: done\ndata: ${JSON.stringify({
+            kind: "done",
+            text: "",
+            ended_as: "",
+            conversation_id: "c1",
+          })}\n\n`;
+          return {
+            ok: true,
+            body: new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(frame));
+                controller.close();
+              },
+            }),
+          };
+        }
+        let body: unknown = [];
+        if (url.startsWith("/api/teacher/chat")) body = ASKED;
+        return { ok: true, json: async () => body };
+      }),
+    );
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("15 câu")).toBeTruthy());
+    const composer = screen.getByLabelText("Nhắn cho Kriky") as HTMLInputElement;
+    fireEvent.change(composer, { target: { value: "nhớ thêm hình vẽ" } });
+
+    fireEvent.click(screen.getByText("15 câu"));
+
+    await waitFor(() => expect(posted).toEqual(["15 câu"]));
+    await waitFor(() => expect(composer.disabled).toBe(false));
+    expect(composer.value).toBe("nhớ thêm hình vẽ");
+    expect(document.querySelector(".trouble")).toBeNull();
+    // Một nút là chuỗi của thẻ: không có gì để giữ hộ trong ô "Khác".
+    expect(screen.queryByLabelText("Lựa chọn khác")).toBeNull();
+  });
+
+  it("lượt hỏng từ ô Khác trả lại thẻ với câu đã ghi, ô chính không bị đổ chữ vào", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/teacher/chat/messages/stream")
+          return new Response("boom", { status: 500 });
+        let body: unknown = [];
+        if (url.startsWith("/api/teacher/chat")) body = ASKED;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("Khác…")).toBeTruthy());
+    const composer = screen.getByLabelText("Nhắn cho Kriky") as HTMLInputElement;
+    fireEvent.change(composer, { target: { value: "đang gõ dở" } });
+    fireEvent.click(screen.getByText("Khác…"));
+    fireEvent.change(screen.getByLabelText("Lựa chọn khác"), {
+      target: { value: "12 câu" },
+    });
+
+    const field = document.querySelector(".other-field") as HTMLElement;
+    fireEvent.click(within(field).getByText("Gửi"));
+
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Lựa chọn khác") as HTMLInputElement).value,
+      ).toBe("12 câu"),
+    );
+    expect(composer.value).toBe("đang gõ dở");
+  });
+
   it("chữ Khác cũ BE từng thêm vào dữ liệu không thành một nút gửi đi chữ Khác", async () => {
     // Đoạn chat lưu trước 13/10/2026: "Khác" nằm cuối `choices`.
     routes({ ...ASKED, choices: [...ASKED.choices, "Khác"] });
