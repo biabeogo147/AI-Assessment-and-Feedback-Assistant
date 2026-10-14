@@ -1,0 +1,86 @@
+"""Luật *mã plan trong comment kèm tên plan* (`document-debts-and-comment-codes`).
+
+Chỉ phần thuần được canh ở đây: chuỗi nguồn vào, khối comment ra -- không đọc file nào (`tmp_path`
+không dùng được trên máy dev này).
+"""
+
+import pytest
+
+from check_contract import codes_without_a_plan, comment_blocks
+
+_SLUGS = {"document-agent-hierarchy", "unbiased-model-text"}
+
+
+def _bad(source: str, suffix: str = ".py") -> list[tuple[int, str]]:
+    return codes_without_a_plan(comment_blocks(source, suffix), _SLUGS)
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "# (review Task 4)\n",
+        "# Từ plan 3c, cây có ba cấp.\n",
+        "# tên chương nằm trong ảnh (D9)\n",
+        "# lời dẫn review B7\n",
+        "# Plan 4c T4: ví dụ là khuôn\n",
+    ],
+)
+def test_a_bare_plan_code_is_named(said: str) -> None:
+    """Mỗi dạng trong bốn dạng, đứng một mình, là một vi phạm."""
+    assert _bad(said) != []
+
+
+def test_a_label_cut_across_two_lines_is_still_caught() -> None:
+    """*"plan"* cuối dòng này, *"4b"* đầu dòng sau: khối được nối lại trước khi so."""
+    assert _bad("# chip đi cùng câu (plan\n# 4b), BE lưu nó\n") != []
+
+
+def test_a_label_cut_across_an_indented_docstring_is_still_caught() -> None:
+    """Trong docstring thụt lề, chỗ nối dòng là cả một dải khoảng trắng, không phải một dấu cách."""
+    assert _bad('def f():\n    """Thứ tự đọc là thứ ở plan\n    3b dựa vào."""\n') != []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "# (review Task 4, `document-agent-hierarchy`)\n",
+        "# `unbiased-model-text` T4: ví dụ là khuôn\n",
+        # Một slug cho cả khối, dù mã nằm ba dòng dưới.
+        "# Đo ở `unbiased-model-text`.\n# ...\n# ...\n# (review T2)\n",
+        'def f():\n    """Tóm tắt.\n\n    Review T5: ... (`unbiased-model-text`).\n    """\n',
+    ],
+)
+def test_a_block_that_names_its_plan_passes(source: str) -> None:
+    """Một khối nêu tên plan một lần là đủ cho mọi mã trong nó."""
+    assert _bad(source) == []
+
+
+def test_two_comment_blocks_do_not_lend_each_other_a_slug() -> None:
+    """Một dòng code chen giữa thì là hai lời dẫn khác nhau."""
+    source = "# `document-agent-hierarchy`\nx = 1\n# (review Task 4)\n"
+    assert _bad(source) == [(3, "Task 4")]
+
+
+def test_a_prompt_in_a_triple_quoted_string_is_not_a_comment() -> None:
+    """Chuỗi ba nháy không phải docstring là chữ gửi model hay dữ liệu, không phải lời dẫn."""
+    assert _bad('_CORE = """Bước T3: hỏi lại khối D2."""\n') == []
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["# Lớp 6 tập 1 (L6T1), trang 3-5\n", "# gpt-4.1-mini đọc `\\frac`\n", "# jev 1.13.0\n"],
+)
+def test_names_that_only_look_like_codes_pass(said: str) -> None:
+    """Tên thật -- mã sách, model, phiên bản -- không phải mã plan."""
+    assert _bad(said) == []
+
+
+def test_typescript_comments_are_blocks_and_urls_are_not() -> None:
+    """`//` liền nhau là một khối; `//` trong một URL không phải comment."""
+    source = (
+        'const url = "http://x/T4";\n'
+        "// chip đi cùng câu (plan 4b):\n"
+        "// BE lưu nó.\n"
+        "/** Lối Khác (`unbiased-model-text` T3). */\n"
+    )
+    assert _bad(source, ".tsx") == [(2, "plan 4b")]

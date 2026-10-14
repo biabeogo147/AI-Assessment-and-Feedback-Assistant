@@ -5,7 +5,7 @@ Cùng lệ với `ocr_bench`: không chạy trong `.\\dev.ps1 check`, không ch�
 
 Các đường:
 
-- `rules` -- chỉ luật (D5);
+- `rules` -- chỉ luật (D5, `document-agent-hierarchy`);
 - `jev@<t>` -- Jev quyết, luật quyết thay khi `confidence` < `t` (D5); `jev@0` là Jev thuần.
 
 Jev được hỏi **một lần** cho cả tài liệu; mọi ngưỡng tính lại trên cùng những câu trả lời ấy, nên
@@ -46,7 +46,7 @@ _GOLD = Path("data") / "gold" / "tree" / "L6T1.json"
 # Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
 # người dùng chốt 13/10/2026.
 _RUNS = Path("data") / "results"
-# $ / triệu token vào của Jev; token ra miễn phí (plan 3c, Khảo sát Jev).
+# $ / triệu token vào của Jev; token ra miễn phí (`document-agent-hierarchy`, Khảo sát Jev).
 _JEV_PRICE = 0.042
 _THRESHOLDS = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9)
 

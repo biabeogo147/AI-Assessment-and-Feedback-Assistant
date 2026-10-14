@@ -114,7 +114,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 - [x] **7. Tách `banner_tokens` khỏi `summary_tokens`.**
 - [x] **8. `pages_read` không lùi; tiến độ ghi tổng và hích màn hình.**
 - [x] **9. Chip nói tiến độ.** Figma trước, rồi BE + FE; đo Figma = FE bằng số.
-- [ ] **10. Mã trong comment kèm slug.** Check mới, `AGENTS.md`, rồi sửa comment, chia commit theo service.
+- [x] **10. Mã trong comment kèm slug.** Check mới, `AGENTS.md`, rồi sửa comment, chia commit theo service.
 - [ ] **11. Backlog, rồi đóng plan.**
 
 ## Validation Checks
@@ -127,4 +127,30 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 
 ## Status
 
-Mở 14/10/2026.
+Mở 14/10/2026. Task 1--10 đã commit, mỗi task qua một lượt subagent review trước khi commit.
+
+**Sửa sau review, đáng nhớ:**
+
+- Task 8: bản đầu hích màn hình ở **mọi** tiếng báo, gồm nhịp tim từng chặng của job dựng cây --
+  vài chục lần đọc lại thư viện cho một cuốn. Nay chỉ hích khi `pages_read` tăng.
+- Task 7: `summary_tokens` đổi nghĩa nên `contracts.index.SCHEMA_VERSION` lên 2 (Decision Record
+  trên), theo `packages/contracts/AGENTS.md`.
+- Task 9 commit mà làm đỏ `check_the_document_chip_draws_every_state_the_backend_can_send`: `say`
+  và `measure` so `state` trực tiếp. Lộ ra khi task 10 chạy `.\dev.ps1 check`; sửa ở `1d6d241` bằng
+  hai cờ trong bảng `CHIP`. Bài học: chạy `check`, không chỉ `test` và `typecheck`, trước mỗi commit
+  -- pre-commit không chạy `check_contract.py`.
+- Task 10 làm lại hai lần từ HEAD. Bản đầu (check theo **dòng**, cửa sổ ±1) bị review chặn: script
+  trộn code chết trong comment vào văn xuôi, vỡ mục Args và bullet, gán slug sai cho vài lời dẫn của
+  3b vì commit chung 3a/3b, và check quét cả prompt gửi model. Bản cuối: check theo **khối** comment
+  (docstring thật đọc bằng `ast`, khoảng trắng được gộp trước khi so), một slug mỗi khối, không đụng
+  dòng sau nhãn `[CODE CHẾT`, reflow cả đoạn giữ thụt lề treo; review lần hai còn ~20 chỗ chữ, sửa
+  tay. Kiểm bằng máy: code và mọi chuỗi không phải docstring giống HEAD từng nút AST; từng dòng code
+  chết còn nguyên, đúng thứ tự. Một lần chạy trung gian từng dồn dòng `# TODO: Cần xem lại` của
+  người dùng vào đoạn bên dưới -- đã tách lại, và script coi dòng `TODO` là ranh giới.
+
+**Chưa làm -- vì vậy plan còn ở `active/`:** hai lượt thử trên trình duyệt trong `Validation Checks`
+(thẻ hỏi lại giữ chữ ô chính; chip đi *đang đọc x/y trang* → *đang dựng mục lục* → sẵn sàng). Docker
+infra đang tắt, và luật của người dùng là không tự bật Docker Desktop. Test tự động của cả hai đã có.
+
+`dev.ps1 test`: `test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones` hỏng chập chờn -- nợ
+đã ghi ở `backlog.md` (đồng hồ Windows 15,6 ms), có từ trước plan này; chạy lại thì 1085/1085.

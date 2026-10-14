@@ -1,4 +1,5 @@
-"""Đo text model đọc trên các ca Toán **khác chương** với mọi ví dụ trong prompt (plan 4c).
+"""Đo text model đọc trên các ca Toán **khác chương** với mọi ví dụ trong prompt
+(`unbiased-model-text`).
 
 Ba phần, cùng lệ với `skill_bench`: không chạy trong `.\\dev.ps1 check` vì gọi model thật; thứ
 `check` canh là **test của thước** và luật *câu đo không bao giờ nằm trong prompt*
@@ -128,8 +129,9 @@ def foreign_words(said: str, title: str) -> list[str]:
     return [word for word in re.findall(r"\w+", title.casefold()) if word not in seen]
 
 
-# Tên các mục của một đề -- nút mang đúng chữ này là nút kể mục, không phải câu trả lời (review T3:
-# 15/30 lượt `thieu-het`). Chỉ là thước của bộ đo; AGENT bỏ những nút ấy bằng `_answers`.
+# Tên các mục của một đề -- nút mang đúng chữ này là nút kể mục, không phải câu trả lời (review T3,
+# `unbiased-model-text`: 15/30 lượt `thieu-het`). Chỉ là thước của bộ đo; AGENT bỏ những nút ấy bằng
+# `_answers`.
 _ITEM_NAMES = frozenset(
     {
         "môn",
@@ -154,7 +156,8 @@ def _names_an_item(buttons: list[str]) -> bool:
 
 
 def be_buttons(step: dict, history: tuple) -> list[str]:
-    """Các nút BE bày cho một câu hỏi lại, qua đúng `teacher_chat._choices` (plan 4c T3).
+    """Các nút BE bày cho một câu hỏi lại, qua đúng `teacher_chat._choices` (`unbiased-model-text`
+    T3).
 
     Câu hỏi về một dòng thì BE chỉ giữ chữ model viết khớp đúng một tên trong `candidates` của
     tool gần nhất; không đủ thì bày mọi nhãn BE. Ghi lại nút thật để đọc được BE giữ hay thay.
@@ -218,7 +221,7 @@ class _Known(logging.Handler):
 
     last = ""
     # Lần `propose` gần nhất có phải hỏi model lần hai không: cái giá của lưới hỏi lại (review
-    # T2b) -- một lượt đạt nhờ hỏi lại tốn gấp đôi thời gian và token.
+    # T2b, `unbiased-model-text`) -- một lượt đạt nhờ hỏi lại tốn gấp đôi thời gian và token.
     asked_again = False
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -238,7 +241,7 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
 
     asking = Asking(teacher_id="bench", teacher_code="GV-BENCH", full_name="Cô Hà")
     # `known` không rời AGENT, nhưng một lần hỏi thừa chỉ đọc ra được từ nó: model chép tên mục
-    # hay đọc ra giá trị (plan 4c T2b).
+    # hay đọc ra giá trị (`unbiased-model-text` T2b).
     known = _Known()
     watched = logging.getLogger("agent.graphs.propose")
     watched.addHandler(known)
@@ -247,8 +250,9 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
     for case in cases:
         attached = case.get("attached")
         document = AttachedDocument(**attached) if attached else None
-        # Như BE (`teacher_chat._read_documents_before`): đoạn chat đã gọi một tool đọc tài liệu
-        # thì tool mục lục hiện ra, có chip hay không -- ca không chip sau `list_documents` (4c T5).
+        # Như BE (`teacher_chat._read_documents_before`): đoạn chat đã gọi một tool đọc tài liệu thì
+        # tool mục lục hiện ra, có chip hay không -- ca không chip sau `list_documents` (T5,
+        # `unbiased-model-text`).
         documents = bool(document) or any(
             row[0] == "tool_call" and row[1] in _DOCUMENT_READS for row in case["history"]
         )
@@ -279,8 +283,9 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
                 real = len([one for one in buttons if one.strip().casefold() != "khác"])
                 wanted = case["expect"].get("min_choices", 0)
                 if ok and step.get("kind") == "ask_clarify" and real < wanted:
-                    # Chấm trên nút BE thật bày, trừ "Khác" (review T3): `choices` thô đếm cả
-                    # "Khác" model tự viết, và `thieu-het` ra 30/30 khi một nửa nút là tên mục.
+                    # Chấm trên nút BE thật bày, trừ "Khác" (review T3, `unbiased-model-text`):
+                    # `choices` thô đếm cả "Khác" model tự viết, và `thieu-het` ra 30/30 khi một nửa
+                    # nút là tên mục.
                     ok, why = False, f"{real} nút thật < {wanted}"
             except Exception as exc:  # noqa: BLE001 -- một lần hỏng là một lần trượt, không dừng bộ đo
                 step, ok, why = {}, False, f"lỗi {exc!r}"[:200]
@@ -346,7 +351,8 @@ async def _name(cases: list[dict], runs: int) -> list[dict]:
                 title = f"lỗi {exc!r}"[:200]
             extra = foreign_words(case["text"], title)
             if re.search(r"[<>]", title):
-                # Khuôn ví dụ của `naming` dùng `<nội dung>`; chép cả dấu ngoặc là hỏng (review T2).
+                # Khuôn ví dụ của `naming` dùng `<nội dung>`; chép cả dấu ngoặc là hỏng (review T2,
+                # `unbiased-model-text`).
                 extra = ["<>", *extra]
             rows.append(
                 {
@@ -393,8 +399,8 @@ def main() -> None:
     parser.add_argument("--label", required=True)
     parser.add_argument("--runs", type=int, default=6)
     parser.add_argument("--parts", default="propose,author,name")
-    # Đo lặp một nhóm ca cho rẻ: dao động ở 6 lần lớn hơn ±3/6 (review T2), nên ca nghi phải
-    # đo lại 24 lần -- không đáng đo lại cả bộ.
+    # Đo lặp một nhóm ca cho rẻ: dao động ở 6 lần lớn hơn ±3/6 (review T2, `unbiased-model-text`),
+    # nên ca nghi phải đo lại 24 lần -- không đáng đo lại cả bộ.
     parser.add_argument("--only", default="", help="tiền tố id ca, cách nhau bằng dấu phẩy")
     parsed = parser.parse_args()
 

@@ -46,9 +46,9 @@ def test_each_reader_gets_its_own_folder() -> None:
 
 
 def test_text_inside_a_picture_is_not_scored() -> None:
-    """Từ đường `text2` (plan 3c, D2), khối hình mang chữ OCR nằm trong nó, còn nhãn vàng để khối
-    hình rỗng. Chấm chữ ấy thì CER của đường mới tăng âm thầm, và bảng số không còn so được với các
-    lượt trước."""
+    """Từ đường `text2` (`document-agent-hierarchy`, D2), khối hình mang chữ OCR nằm trong nó, còn
+    nhãn vàng để khối hình rỗng. Chấm chữ ấy thì CER của đường mới tăng âm thầm, và bảng số không
+    còn so được với các lượt trước."""
     from document.ocr.model import BlockKind
     from ocr_bench.gold import GoldBlock, GoldPage
     from ocr_bench.run import _score_page
@@ -117,7 +117,8 @@ def test_bench_case_ids_carry_no_task_code() -> None:
 
 def test_no_bench_case_id_is_the_prefix_of_another() -> None:
     """`--only` lọc theo tiền tố: `tai-lieu-khong-dinh` từng kéo theo cả một ca mang tên nó cộng
-    hậu tố, và lượt đo lại 24 lần của một ca thành 48 lần của hai ca (review T6/T7)."""
+    hậu tố, và lượt đo lại 24 lần của một ca thành 48 lần của hai ca (review T6,
+    `unbiased-model-text`/T7)."""
     propose = json.loads((_TOOLS / "propose_bench" / "cases.json").read_text(encoding="utf-8"))
     ids = [case["id"] for part in propose.values() for case in part]
 

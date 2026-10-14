@@ -1,8 +1,10 @@
-"""Thước đo text model đọc (plan 4c): test của **thước**, và luật *câu đo không nằm trong prompt*.
+"""Thước đo text model đọc (`unbiased-model-text`): test của **thước**, và luật *câu đo không nằm
+trong prompt*.
 
-Luật thứ hai là bài học của plan 4a: câu thử tay *"Tạo đề … chương Hàm số cho lớp 12A, 10 câu"* nằm
-nguyên văn trong prompt, và câu *"căn bậc 3 của x^2"* nằm nguyên văn trong skill -- một ca *"đạt"*
-khi ấy chỉ chứng minh model nhớ được ví dụ. Câu dùng để đo thì không bao giờ được là ví dụ.
+Luật thứ hai là bài học của `kriky-skill-routing`: câu thử tay *"Tạo đề … chương Hàm số cho lớp 12A,
+10 câu"* nằm nguyên văn trong prompt, và câu *"căn bậc 3 của x^2"* nằm nguyên văn trong skill -- một
+ca *"đạt"* khi ấy chỉ chứng minh model nhớ được ví dụ. Câu dùng để đo thì không bao giờ được là ví
+dụ.
 """
 
 import json
@@ -49,7 +51,8 @@ def test_be_takes_a_well_formed_plan() -> None:
 
 
 def test_a_plan_the_be_refuses_is_named() -> None:
-    """Review T2: thước chấm ý ca không biết luật BE -- tham chiếu sai khuôn vẫn "đạt"."""
+    """Review T2 (`unbiased-model-text`): thước chấm ý ca không biết luật BE -- tham chiếu sai khuôn
+    vẫn "đạt"."""
     step = _plan(subject="Toán", grade="9", topic_scope="phương trình bậc hai")
     step["steps"][1]["args"]["assessment_id"] = "{1.assessment_id} nhé"
 
@@ -91,7 +94,8 @@ def test_a_content_word_the_teacher_never_said_is_flagged() -> None:
 
 
 def test_a_word_that_names_the_task_is_not_copying() -> None:
-    """Review T1: *"Kết quả lớp 9A2"* là tên đúng ý cho một câu hỏi kết quả."""
+    """Review T1 (`unbiased-model-text`): *"Kết quả lớp 9A2"* là tên đúng ý cho một câu hỏi kết
+    quả."""
     assert foreign_words("Lớp 9A2 làm bài kiểm tra vừa rồi thế nào?", "Kết quả lớp 9A2") == []
 
 
@@ -130,7 +134,8 @@ def _model_text(document: bool = True) -> list[str]:
         ]
     texts += [skill.body + skill.description for skill in skills.every()]
     # Schema của structured output **cũng** là text model đọc: pydantic gửi docstring của class và
-    # mô tả của field (review T1 -- `SolutionMethod` từng mang *"ví dụ 'xét dấu đạo hàm'"*).
+    # mô tả của field (review T1, `unbiased-model-text` -- `SolutionMethod` từng mang *"ví dụ 'xét
+    # dấu đạo hàm'"*).
     from contracts import GeneratedQuestion
 
     texts += [
@@ -174,8 +179,8 @@ def _shared(sentence: str) -> list[str]:
     return [" ".join(gram) for gram in sorted(_grams(sentence) & model)]
 
 
-# Câu đo đã biết là đang trùng một ví dụ -- việc của T2 trong plan 4c. `strict`: gỡ ví dụ mà quên gỡ
-# dòng này thì test đỏ (XPASS), không lặng lẽ xanh mãi.
+# Câu đo đã biết là đang trùng một ví dụ -- việc của T2 trong `unbiased-model-text`. `strict`: gỡ ví
+# dụ mà quên gỡ dòng này thì test đỏ (XPASS), không lặng lẽ xanh mãi.
 _KNOWN_TO_FIX: set[str] = set()
 
 
@@ -218,9 +223,10 @@ def test_a_question_with_too_few_choices_is_named() -> None:
     )
 
 
-# Tên của một chủ đề Toán cụ thể. Text model đọc không được mang cái nào (plan 4c): một ví dụ
-# nội dung là thứ model chép, và một prompt bám một chương làm ca chương khác tệ đi -- baseline đo
-# 9/54 ca soạn đề khác chương nêu được plan. Ký hiệu chung (`\frac`, `\sqrt`) thì không phải chủ đề.
+# Tên của một chủ đề Toán cụ thể. Text model đọc không được mang cái nào (`unbiased-model-text`):
+# một ví dụ nội dung là thứ model chép, và một prompt bám một chương làm ca chương khác tệ đi --
+# baseline đo 9/54 ca soạn đề khác chương nêu được plan. Ký hiệu chung (`\frac`, `\sqrt`) thì không
+# phải chủ đề.
 _TOPICS = (
     "đạo hàm",
     "tích phân",
@@ -248,12 +254,13 @@ def test_kriky_text_names_no_math_topic(topic: str) -> None:
 
 
 def test_document_agent_text_names_no_math_topic() -> None:
-    """Plan 4c T4: tiêu chí Jev và hai prompt dựng cây cũng không gọi tên chủ đề Toán nào."""
+    """`unbiased-model-text` T4: tiêu chí Jev và hai prompt dựng cây cũng không gọi tên chủ đề Toán
+    nào."""
     assert not [topic for topic in _TOPICS if any(topic in text for text in _model_text())]
 
 
 def test_agent_and_be_agree_on_which_tools_read_documents() -> None:
-    """Hai bản `_DOCUMENT_READS` phải là một bộ (review T2).
+    """Hai bản `_DOCUMENT_READS` phải là một bộ (review T2, `unbiased-model-text`).
 
     BE dùng bộ này để mở tool mục lục cho đoạn chat từng đọc tài liệu; AGENT dùng nó để biết lượt
     nào còn đang chọn sách và chèn `_BOOK_PROCEDURE`. Hai service không import nhau, nên bộ được
@@ -267,7 +274,7 @@ def test_agent_and_be_agree_on_which_tools_read_documents() -> None:
 
 
 def test_agent_be_and_fe_agree_on_the_other_choice() -> None:
-    """Chữ của lối "Khác" là một (plan 4c T3; từ 13/10/2026 là lối gõ FE tự vẽ).
+    """Chữ của lối "Khác" là một (`unbiased-model-text` T3; từ 13/10/2026 là lối gõ FE tự vẽ).
 
     FE vẽ "Khác…" và lọc chữ "Khác" khỏi nút đã lưu của đoạn chat cũ; BE loại "Khác" model tự
     viết khỏi nút, và đọc nút cũ (`_rows_in_play`); AGENT không đếm nó là một lựa chọn. Lệch một

@@ -1,1 +1,2 @@
-"""Bộ đo cây mục lục của plan 3c: cây dựng ra so với cây vàng soạn tay, theo từng cấp."""
+"""Bộ đo cây mục lục của `document-agent-hierarchy`: cây dựng ra so với cây vàng soạn tay, theo từng
+cấp."""

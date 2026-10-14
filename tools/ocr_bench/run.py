@@ -38,7 +38,8 @@ from ocr_bench.score import (
     cer,
     diacritic_error_rate,
     label_accuracy,
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # latex_distance,
     # latex_matches,
     match_blocks,
@@ -57,8 +58,9 @@ _RUNS = Path("data") / "results"
 _RUN_NAME = re.compile(r"^run-(\d+)$")
 # Phiên bản đường đọc, nằm trong tên cache. Đổi chặng nào của `PageReader` thì tăng số này.
 # `text1`: chỉ chữ, công thức không đọc lúc upload (11/10/2026).
-# `text2`: khối hình giữ chữ của các dòng nằm trong nó (plan 3c, D2). Nhãn vàng để khối hình rỗng,
-# nên `_score_page` bỏ chữ ấy ra trước khi chấm -- bảng số của hai đường vẫn so được với nhau.
+# `text2`: khối hình giữ chữ của các dòng nằm trong nó (`document-agent-hierarchy`, D2). Nhãn vàng
+# để khối hình rỗng, nên `_score_page` bỏ chữ ấy ra trước khi chấm -- bảng số của hai đường vẫn so
+# được với nhau.
 _PIPELINE = "text2"
 
 _MISSING = f"""Không có dữ liệu để đo.
@@ -194,7 +196,8 @@ def next_run(names: list[str]) -> int:
 
 # Một đoạn tên là mã task của plan: một chữ cái, các chữ số, có thể thêm một chữ cái -- `t5`,
 # `T2b`, `a1`, `b2`. `L6T1` (Lớp 6 tập 1) không phải: hai cụm số. Tên model `o3`, `o4-mini` là
-# tên thật nên được tha; `v1`, `v2` thì không -- cũng là một mã người ngoài không giải được.
+# tên thật nên được tha; `v1`, `v2` thì không -- cũng là một mã người ngoài không giải được. Luật
+# đặt ở `unbiased-model-text`.
 _TASK_CODE = re.compile(r"^(?!o\d+$)[a-z]\d+[a-z]?$", re.IGNORECASE)
 
 
@@ -297,7 +300,8 @@ def _read_pages(
         payload = {
             "page": read.page,
             "seconds": read.seconds,
-            # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+            # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+            # `document-ocr-text-and-latex`
             # "blocks": [
             #     {"kind": block.kind.value, "text": block.text, "latex": block.latex}
             #     for block in read.blocks
@@ -356,7 +360,8 @@ def _report(gold: list[GoldPage], reads: list[dict]) -> None:
     )
     _stages(reads)
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # formulas = [one for row in rows for one in row["formulas"]]
     # if formulas:
     #     exact = sum(1 for one in formulas if one["exact"]) / len(formulas)
@@ -388,7 +393,8 @@ def _score_page(one: GoldPage, read: dict) -> dict:
 
     matched = match_blocks(gold_texts, read_texts)
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+    # `document-ocr-text-and-latex`
     # gold_math = [block.latex for block in one.blocks if block.latex]
     # read_math = [block["latex"] for block in read["blocks"] if block.get("latex")]
     # pairs = [
@@ -408,7 +414,8 @@ def _score_page(one: GoldPage, read: dict) -> dict:
         ),
         "inversions": order_inversions(matched),
         "seconds": sum(read["seconds"].values()),
-        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem plan 3a
+        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
+        # `document-ocr-text-and-latex`
         # "formulas": pairs,
         # "formulas_missing": max(0, len(gold_math) - len(read_math)),
     }
@@ -417,8 +424,8 @@ def _score_page(one: GoldPage, read: dict) -> dict:
 def _stages(reads: list[dict]) -> None:
     """In thời gian theo chặng.
 
-    Câu hỏi đang treo của plan 3a là *chặng nào đắt*: 1 561 trang ở nhịp hiện tại là nhiều giờ,
-    và một con số tổng không nói được cắt chỗ nào.
+    Câu hỏi đang treo của `document-ocr-text-and-latex` là *chặng nào đắt*: 1 561 trang ở nhịp hiện
+    tại là nhiều giờ, và một con số tổng không nói được cắt chỗ nào.
 
     Args:
         reads: Kết quả engine.

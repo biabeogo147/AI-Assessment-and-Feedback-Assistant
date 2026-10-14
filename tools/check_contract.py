@@ -150,7 +150,8 @@ PYMUPDF_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymupdf|fitz)\b", re.MULT
 # nội dung trước, `state` sau không"*.
 PYMONGO_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymongo|motor)\b", re.MULTILINE)
 
-# Hai SDK model của document agent (plan 3c), và mọi SDK model nói chung cho BE và `ingest`.
+# Hai SDK model của document agent (`document-agent-hierarchy`), và mọi SDK model nói chung cho BE
+# và `ingest`.
 TYPESAFE_IMPORT = re.compile(r"^\s*(?:from|import)\s+typesafe_sdk\b", re.MULTILINE)
 LANGCHAIN_IMPORT = re.compile(r"^\s*(?:from|import)\s+langchain\w*\b", re.MULTILINE)
 MODEL_SDK_IMPORT = re.compile(
@@ -162,9 +163,9 @@ MODEL_SDK_IMPORT = re.compile(
 _INDEX = REPO_ROOT / "services" / "document" / "src" / "document" / "index"
 
 # Bản nới của `DB_CREDENTIAL_PATTERN` cho `services/document`: bỏ Mongo ra. Người dùng chốt ngày
-# 11/10/2026 (plan 3b, D1) rằng **Mongo là kho nội dung, như MinIO** -- nơi thứ đọc được từ tệp
-# nằm, không phải nơi sự thật về tệp nằm. Mọi thứ còn lại -- Postgres, `DATABASE_URL`, mật khẩu,
-# `sqlalchemy` -- vẫn bị cấm y như cũ.
+# 11/10/2026 (`mongo-content-store`, D1) rằng **Mongo là kho nội dung, như MinIO** -- nơi thứ đọc
+# được từ tệp nằm, không phải nơi sự thật về tệp nằm. Mọi thứ còn lại -- Postgres, `DATABASE_URL`,
+# mật khẩu, `sqlalchemy` -- vẫn bị cấm y như cũ.
 DB_CREDENTIAL_PATTERN_CONTENT_STORE_ALLOWED = re.compile(
     r"POSTGRES|DATABASE_URL|\bDSN\b|PASSWORD|psycopg|sqlalchemy",
     re.IGNORECASE,
@@ -252,12 +253,12 @@ def check_agent_and_document_hold_no_database_credentials() -> str | None:
     `MINIO_SECRET_KEY`: pattern dưới khớp chữ `PASSWORD` không phân biệt hoa thường.
 
     **Mongo cũng không tính, nhưng chỉ ở `services/document`.** Người dùng chốt ngày 11/10/2026
-    (plan 3b, D1): Mongo là **kho nội dung, như MinIO** -- bản thô đọc ra từ tệp nằm ở đó, còn sự
-    thật vẫn chỉ ở Postgres. `services/document` ghi bản thô, nên với nó Mongo được phép, qua đúng
-    một module (`content_store.py`, canh bởi
-    `check_only_one_module_per_service_talks_to_a_sync_sdk`).
-    AGENT **chưa** được: *document agent* đọc Mongo là việc của plan 3c, và mở cửa ấy là quyết định
-    của plan ấy -- không phải một thứ mở sẵn cho tiện.
+    (`mongo-content-store`, D1): Mongo là **kho nội dung, như MinIO** -- bản thô đọc ra từ tệp nằm ở
+    đó, còn sự thật vẫn chỉ ở Postgres. `services/document` ghi bản thô, nên với nó Mongo được phép,
+    qua đúng một module (`content_store.py`, canh bởi
+    `check_only_one_module_per_service_talks_to_a_sync_sdk`). AGENT **chưa** được: *document agent*
+    đọc Mongo là việc của `document-agent-hierarchy`, và mở cửa ấy là quyết định của plan ấy --
+    không phải một thứ mở sẵn cho tiện.
 
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
@@ -316,8 +317,8 @@ def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
     from be.config import Settings as BeSettings
 
     agent = AgentSettings()
-    # Lần thứ ba một lời gọi mới xuất hiện trước model (plan 4a): Jev chọn skill trước mỗi lần
-    # propose, có trần riêng, nên trường hợp xấu nhất cộng thêm trần ấy.
+    # Lần thứ ba một lời gọi mới xuất hiện trước model (`kriky-skill-routing`): Jev chọn skill trước
+    # mỗi lần propose, có trần riêng, nên trường hợp xấu nhất cộng thêm trần ấy.
     worst_case = (
         agent.skill_router_timeout_seconds + agent.llm_timeout_seconds * agent.llm_max_attempts
     )
@@ -1458,8 +1459,8 @@ def _service_sources() -> list[Path]:
 def check_one_process_builds_the_schema_and_the_rest_only_check_it() -> str | None:
     """Dựng schema, và xoá nó, mỗi việc có đúng những chỗ được phép.
 
-    Luật này mới cần tới một cái lưới từ plan 2c, và nó cần vì một lý do cụ thể: trước đó
-    `prepare_schema` nằm trong `be/db.py`, một module mà chỉ `services/be` import được, nên
+    Luật này mới cần tới một cái lưới từ `ingest-service-split`, và nó cần vì một lý do cụ thể:
+    trước đó `prepare_schema` nằm trong `be/db.py`, một module mà chỉ `services/be` import được, nên
     "ai được dựng schema" là một câu hỏi ranh giới service đã trả lời hộ. Nay nó ở
     `packages/schema`, dùng chung — và `services/ingest` import được nó như BE.
 
@@ -1622,15 +1623,15 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
     một trang, và việc ấy không thuộc một module chính sách. Danh sách vẫn **đúng một** file --
     nới nó thành hai là đổi một luật grep được thành một luật phải nhớ.
 
-    `pymongo` vào danh sách ngày 11/10/2026 (plan 3b, D2), dù client async của nó **không** chặn
-    event loop: tên của check này hẹp hơn luật nó canh. Luật thật là *một SDK chạm kho, một module*
-    -- và với kho nội dung, module ấy là nơi duy nhất phải trả lời câu *"nội dung có được ghi trước
-    khi `state` đổi không"*.
+    `pymongo` vào danh sách ngày 11/10/2026 (`mongo-content-store`, D2), dù client async của nó
+    **không** chặn event loop: tên của check này hẹp hơn luật nó canh. Luật thật là *một SDK chạm
+    kho, một module* -- và với kho nội dung, module ấy là nơi duy nhất phải trả lời câu *"nội dung
+    có được ghi trước khi `state` đổi không"*.
 
-    Plan 3c thêm ba cửa nữa theo cùng luật: `typesafe_sdk` (Jev) chỉ ở `index/jev.py`,
-    `langchain` trong `document` chỉ ở `index/llm.py` -- nơi duy nhất truyền khoá vào client --
-    và BE cùng `ingest` **không** import SDK model nào: chỉ `agent` và `document` gọi model
-    provider.
+    `document-agent-hierarchy` thêm ba cửa nữa theo cùng luật: `typesafe_sdk` (Jev) chỉ ở
+    `index/jev.py`, `langchain` trong `document` chỉ ở `index/llm.py` -- nơi duy nhất truyền khoá
+    vào client -- và BE cùng `ingest` **không** import SDK model nào: chỉ `agent` và `document` gọi
+    model provider.
 
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại kèm tên các file.
@@ -1659,16 +1660,17 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
                 REPO_ROOT / "services" / "be" / "src" / "be" / "content_reader.py",
             ),
             # Quét **cả bốn** service, không chỉ `document`: `ingest` và AGENT không giữ khoá Mongo
-            # (plan 3b, D1), và review Task 1 chỉ ra không gì canh điều đó -- `agent-no-db` chỉ
-            # quét AGENT và `document`. Plan 3c mở thêm một cửa cho document agent ở đây; plan 4b
-            # mở cửa **chỉ đọc** cho BE (`content_reader.py`), và
-            # `check_the_content_reader_only_reads` giữ chữ *chỉ đọc*.
+            # (`mongo-content-store`, D1), và review Task 1 chỉ ra không gì canh điều đó --
+            # `agent-no-db` chỉ quét AGENT và `document`. `document-agent-hierarchy` mở thêm một cửa
+            # cho document agent ở đây; `draft-from-document` mở cửa **chỉ đọc** cho BE
+            # (`content_reader.py`), và `check_the_content_reader_only_reads` giữ chữ *chỉ đọc*.
             ("be", "agent", "document", "ingest"),
         ),
         (
-            # Jev (plan 3c, D1): một module hỏi Jev, nên một chỗ giữ thứ tự lựa chọn và tiêu chí
-            # -- thứ bộ đo đã hiệu chỉnh ngưỡng trên đó. Plan 4a mở cửa thứ hai, cùng luật: một
-            # module **mỗi service** -- AGENT hỏi Jev chọn skill cho Kriky ở `skill_router.py`.
+            # Jev (`document-agent-hierarchy`, D1): một module hỏi Jev, nên một chỗ giữ thứ tự lựa
+            # chọn và tiêu chí -- thứ bộ đo đã hiệu chỉnh ngưỡng trên đó. `kriky-skill-routing` mở
+            # cửa thứ hai, cùng luật: một module **mỗi service** -- AGENT hỏi Jev chọn skill cho
+            # Kriky ở `skill_router.py`.
             "typesafe_sdk",
             TYPESAFE_IMPORT,
             (
@@ -1678,8 +1680,9 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
             ("be", "agent", "document", "ingest"),
         ),
         (
-            # Model sinh chữ của document agent (D6, D9): một module truyền khoá vào client, đúng
-            # bài học của `agent/llm.py`. Chỉ quét `document`: AGENT có seam của riêng nó.
+            # Model sinh chữ của document agent (D6, `document-agent-hierarchy`, D9): một module
+            # truyền khoá vào client, đúng bài học của `agent/llm.py`. Chỉ quét `document`: AGENT có
+            # seam của riêng nó.
             "langchain",
             LANGCHAIN_IMPORT,
             (_INDEX / "llm.py",),
@@ -1725,18 +1728,20 @@ _MONGO_WRITE = re.compile(
     r"\.(?:insert_one|insert_many|update_one|update_many|replace_one|delete_one|delete_many"
     r"|find_one_and_\w+|bulk_write|drop|drop_collection|drop_database|create_index|create_indexes"
     r"|drop_index|rename|command)\s*\("
-    # `aggregate` đọc được, trừ khi pipeline của nó ghi ra một collection (review B2).
+    # `aggregate` đọc được, trừ khi pipeline của nó ghi ra một collection (review B2,
+    # `draft-from-document`).
     r"|[\"']\$(?:out|merge)[\"']"
 )
 
 
 def check_the_content_reader_only_reads() -> str | None:
-    """BE đọc kho nội dung, không bao giờ ghi (plan 4b).
+    """BE đọc kho nội dung, không bao giờ ghi (`draft-from-document`).
 
-    Kho nội dung do `services/document` ghi; sự thật về tài liệu ở Postgres, do `ingest` ghi. Plan
-    4b cho BE **đọc** mục lục và đoạn để soạn đề, qua đúng một module (`sync-sdk-seam` giữ chữ *một
-    module*). Check này giữ chữ *đọc*: một lời gọi ghi trong module ấy làm BE thành người ghi thứ
-    hai của một kho mà nó không sở hữu, và cây mục lục sẽ có hai tác giả không biết nhau.
+    Kho nội dung do `services/document` ghi; sự thật về tài liệu ở Postgres, do `ingest` ghi.
+    `draft-from-document` cho BE **đọc** mục lục và đoạn để soạn đề, qua đúng một module
+    (`sync-sdk-seam` giữ chữ *một module*). Check này giữ chữ *đọc*: một lời gọi ghi trong module ấy
+    làm BE thành người ghi thứ hai của một kho mà nó không sở hữu, và cây mục lục sẽ có hai tác giả
+    không biết nhau.
 
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại.
@@ -1757,6 +1762,176 @@ def check_the_content_reader_only_reads() -> str | None:
             " services/document writes it",
         )
     return None
+
+
+# Luật của `document-debts-and-comment-codes` (người dùng chốt 14/10/2026): bốn dạng mã chỉ người
+# đã đọc plan mới giải được -- mã task (*"T4"*, *"review Task 3"*), nhãn ô đợt (*"plan 3c"*), mã
+# quyết định (*"D9"*), mã pipeline hay mã review (*"B10"*, *"C4"*).
+_PLAN_CODE = re.compile(
+    r"\b(?:Task \d+[a-z]?|T\d+[a-z]?|[Pp]lan \d[a-z]?|D\d{1,2}|[BC]\d{1,2})\b(?![-.]\d)"
+)
+_PLAN_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}-(.+)-plan\.md$")
+
+
+def _plan_slugs() -> set[str]:
+    """Tên ngắn của mọi plan có file: tên file bỏ ngày và `-plan.md`.
+
+    Returns:
+        Các slug, vd. `document-agent-hierarchy`.
+    """
+    return {
+        found.group(1)
+        for path in (REPO_ROOT / "docs" / "plans").rglob("*.md")
+        if (found := _PLAN_FILE.match(path.name))
+    }
+
+
+def comment_blocks(source: str, suffix: str) -> list[tuple[int, list[str]]]:
+    """Các khối comment của một file nguồn, mỗi khối là một lời dẫn liền mạch. Hàm thuần.
+
+    - Python: các dòng comment `#` liền nhau gộp một khối; mỗi **docstring thật** (câu đầu của
+      module, class, hàm -- đọc bằng `ast`) là một khối. Chuỗi ba nháy khác -- prompt gửi model,
+      dữ liệu test -- **không** phải comment: bắt người ta nhét slug vào chữ model đọc là đổi
+      prompt.
+    - TypeScript, CSS: mỗi `/* */` một khối; các dòng `//` liền nhau gộp một khối. `//` đứng sau
+      `:` không tính, để một URL trong chuỗi không thành comment.
+
+    Args:
+        source: Nội dung file.
+        suffix: Đuôi file, `.py`, `.ts`, `.tsx` hay `.css`.
+
+    Returns:
+        (số dòng đầu, các dòng của khối), theo thứ tự trong file.
+    """
+    lines = source.splitlines()
+    blocks: list[tuple[int, list[str]]] = []
+    if suffix == ".py":
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(
+                node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+            ):
+                continue
+            first = node.body[0] if node.body else None
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                blocks.append((first.lineno, lines[first.lineno - 1 : first.end_lineno]))
+        run: list[str] = []
+        start = 0
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type != tokenize.COMMENT:
+                continue
+            row = token.start[0]
+            if run and row == start + len(run):
+                run.append(token.string)
+                continue
+            if run:
+                blocks.append((start, run))
+            start, run = row, [token.string]
+        if run:
+            blocks.append((start, run))
+        return sorted(blocks)
+    for block in re.finditer(r"/\*.*?\*/", source, flags=re.DOTALL):
+        first = source.count("\n", 0, block.start()) + 1
+        blocks.append((first, block.group(0).splitlines()))
+    if suffix != ".css":
+        run, start = [], 0
+        for number, line in enumerate(lines, 1):
+            inline = re.search(r"(?<![:\w])//.*", line)
+            if inline is not None and run and number == start + len(run):
+                run.append(inline.group(0))
+            elif inline is not None:
+                if run:
+                    blocks.append((start, run))
+                start, run = number, [inline.group(0)]
+        if run:
+            blocks.append((start, run))
+    return sorted(blocks)
+
+
+def codes_without_a_plan(
+    blocks: list[tuple[int, list[str]]], slugs: set[str]
+) -> list[tuple[int, str]]:
+    """Những khối comment có mã plan mà không có slug plan nào. Hàm thuần.
+
+    Đơn vị là **khối**, không phải dòng: một lời dẫn có thể bị cắt xuống dòng giữa *"plan"* và
+    *"4b"*, hay giữa mã và tên plan, nên các dòng được nối lại trước khi so. Một khối nêu tên plan
+    một lần là đủ cho mọi mã trong nó.
+
+    Args:
+        blocks: Kết quả của `comment_blocks`.
+        slugs: Slug của mọi plan có file.
+
+    Returns:
+        (số dòng của mã đầu tiên, mã ấy) cho mỗi khối vi phạm.
+    """
+    bad = []
+    for start, lines in blocks:
+        # Gộp mọi khoảng trắng: một nhãn bị cắt dòng trong docstring thụt lề thành chữ *"plan"*,
+        # một dải khoảng trắng, rồi số -- còn mẫu mã chỉ chờ đúng một dấu cách.
+        joined = re.sub(
+            r"\s+", " ", " ".join(re.sub(r"^\s*(#|//|/?\*+/?)\s?", "", line) for line in lines)
+        )
+        if any(slug in joined for slug in slugs):
+            continue
+        for offset, line in enumerate(lines):
+            if (found := _PLAN_CODE.search(line)) is not None:
+                bad.append((start + offset, found.group(0)))
+                break
+        else:
+            if (found := _PLAN_CODE.search(joined)) is not None:
+                bad.append((start, found.group(0)))
+    return bad
+
+
+def _commented_sources() -> list[Path]:
+    """Mọi file nguồn của chúng ta có comment: Python ở `services/`, `packages/`, `tools/`, và
+    TypeScript, CSS của FE. Gồm cả `tests/`: một test sống lâu như code nó canh.
+
+    Returns:
+        Đường dẫn tuyệt đối, đã sắp xếp.
+    """
+    found = [
+        path
+        for root in ("services", "packages", "tools")
+        for path in (REPO_ROOT / root).rglob("*.py")
+        if "node_modules" not in path.parts and "__pycache__" not in path.parts
+    ]
+    fe = REPO_ROOT / "services" / "fe" / "src"
+    found += [path for pattern in ("*.ts", "*.tsx", "*.css") for path in fe.rglob(pattern)]
+    return sorted(found)
+
+
+def check_plan_codes_in_comments_name_their_plan() -> str | None:
+    """Một mã plan trong comment phải đi kèm tên plan của nó.
+
+    Luật tên bền của `AGENTS.md` từng chỉ nói về **tên** -- id ca đo, nhãn lượt đo, tên file.
+    Người dùng chốt 14/10/2026 (`document-debts-and-comment-codes`) áp nó cho cả lời dẫn trong
+    comment: *"(review Task 4)"* hay *"(plan 3c, D3)"* chỉ giải được khi biết đó là plan nào, và
+    khi plan đã đóng thì không ai nhớ. Kèm slug -- tên file plan bỏ ngày -- là đủ để mở đúng file
+    ra đọc.
+
+    Returns:
+        None khi mọi khối có mã đều nêu tên plan, ngược lại là một thông báo thất bại.
+    """
+    slugs = _plan_slugs()
+    bad = []
+    for path in _commented_sources():
+        blocks = comment_blocks(path.read_text(encoding="utf-8"), path.suffix)
+        where = path.relative_to(REPO_ROOT).as_posix()
+        bad += [f"{where}:{number} {code}" for number, code in codes_without_a_plan(blocks, slugs)]
+    if not bad:
+        return None
+    shown = "\n  ".join(bad[:20])
+    more = f"\n  ... and {len(bad) - 20} more" if len(bad) > 20 else ""
+    return _fail(
+        "plan-codes-name-their-plan",
+        f"{len(bad)} comment blocks carry a plan code but no plan slug (write the plan file name "
+        f"without its date, e.g. `document-agent-hierarchy`):\n  {shown}{more}",
+    )
 
 
 CHECKS = (
@@ -1781,6 +1956,7 @@ CHECKS = (
     check_collapsed_panes_shrink_to_their_own_head,
     check_a_locked_control_looks_locked,
     check_no_document_repeats_itself,
+    check_plan_codes_in_comments_name_their_plan,
 )
 
 

@@ -58,7 +58,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | A deleted conversation reads as absent, takes no new turn, and keeps the turns it holds | automatic: `test_a_deleted_conversation_is_not_the_running_one`, `test_a_deleted_conversation_keeps_its_turns` |
 | Only a question back carries buttons | automatic: `test_a_plain_answer_carries_no_buttons_even_with_candidates_in_hand` |
 | A conversation runs at most one turn at a time | automatic: `test_a_second_turn_in_the_same_thread_is_refused_while_the_first_runs` |
-| Benchmark case ids and run labels carry no plan task code | automatic: `test_bench_case_ids_carry_no_task_code`; `propose_bench` refuses such a `--label` |
+| Benchmark case ids and run labels carry no plan task code; a plan code in a comment names its plan | automatic: `test_bench_case_ids_carry_no_task_code`; `propose_bench` refuses such a `--label`; `check_plan_codes_in_comments_name_their_plan` |
 | `contracts` holds no business logic | review: read the diff of `packages/contracts` |
 | No package named `common`, `utils` or `shared` | review: look at `packages/` |
 | A retry question is a variant of the same question, not merely the same objective | not yet enforced; needs a test when the retry-question flow is built (ADR-17) |
@@ -175,7 +175,7 @@ keep this honest.
 
 - Do not create `docs/adr/`; business decisions live in `docs/decisions/`, technical ones in a plan.
 - Do not name a package `common`, `utils` or `shared`. A meaningless name absorbs everything.
-- No plan task code (`T2b`, `A1`) in a name outliving its plan: case ids, run labels, files.
+- No plan task code (`T2b`, `A1`) in a name outliving its plan: case ids, run labels, files. In a comment, a code (`T4`, `plan 3c`, `D9`, `B10`) sits beside its plan's slug (file name, no date).
 - Do not edit plans in `docs/plans/completed/`. They are closed records.
 - Do not invoke `python -m importlinter.cli`. Use the `lint-imports` console script.
 - A `.ps1` needs a UTF-8 BOM; without one PowerShell 5.1 reads cp1252 and `Get-Help` garbles.
