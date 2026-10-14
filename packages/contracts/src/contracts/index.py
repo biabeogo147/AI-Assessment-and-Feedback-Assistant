@@ -1,9 +1,9 @@
 """Hình dạng của **cây mục lục** một tài liệu, như nó nằm trong kho nội dung (MongoDB).
 
 Cùng lệ với `contracts.content`: Mongo là nơi lưu, không phải nơi định nghĩa. Bên ghi là *document
-agent* của plan 3c (`services/document/src/document/index/`); bên đọc sau này là ba tool
-`list_chapters` → `get_chapter` → `get_chunk` -- kiểu PageIndex, lần xuống cây bằng tiêu đề và tóm
-tắt, không vector.
+agent* của `document-agent-hierarchy` (`services/document/src/document/index/`); bên đọc sau này là
+ba tool `list_chapters` → `get_chapter` → `get_chunk` -- kiểu PageIndex, lần xuống cây bằng tiêu đề
+và tóm tắt, không vector.
 
 **Cây có đúng ba cấp** (người dùng chốt 11/10/2026): cấp 1 là chương hoặc phần (I, A, ...), cấp 2
 là A.I hoặc I.1, cấp 3 là A.I.1 hoặc I.1.1. Bậc sâu hơn **không thành nút** -- nội dung của nó nằm
@@ -38,8 +38,8 @@ MAX_LEVEL = 3
 class IndexMethod(StrEnum):
     """Cây được dựng bằng đường nào.
 
-    `RULES` là đường lùi khi Jev không với tới được (D5 của plan 3c). Tài liệu vẫn *sẵn sàng*, nhưng
-    bên đọc -- và người đo -- phải biết cây nào chỉ do luật dựng.
+    `RULES` là đường lùi khi Jev không với tới được (D5 của `document-agent-hierarchy`). Tài liệu
+    vẫn *sẵn sàng*, nhưng bên đọc -- và người đo -- phải biết cây nào chỉ do luật dựng.
     """
 
     JEV = "jev"
@@ -51,8 +51,8 @@ class TitleSource(StrEnum):
 
     Attributes:
         TEXT: Chữ của khối heading, đọc từ OCR hoặc text layer.
-        BANNER: `gpt-5.6-luna` đọc trên ảnh banner mở chương (D9) -- OCR không đọc nổi chữ trang
-            trí. Luna chỉ **đọc** tên in trên ảnh.
+        BANNER: `gpt-5.6-luna` đọc trên ảnh banner mở chương (D9, `document-agent-hierarchy`) -- OCR
+            không đọc nổi chữ trang trí. Luna chỉ **đọc** tên in trên ảnh.
         NUMBERING: Không có tên đọc được; tên là nhãn số (*"Chương III"*). Không model nào **bịa**
             ra một cái tên.
     """
@@ -76,7 +76,7 @@ class BlockRef(BaseModel):
         page: Số trang, đếm từ 1.
         block: Vị trí trong `RawPage.blocks`, đếm từ 0.
         line: Số dòng trong khối, đếm từ 0 -- chỉ với tệp văn bản thuần, nơi cả tệp là **một** khối
-            và mỗi dòng được hỏi riêng (D8). `None` ở mọi đường khác.
+            và mỗi dòng được hỏi riêng (D8, `document-agent-hierarchy`). `None` ở mọi đường khác.
     """
 
     model_config = ConfigDict(frozen=True)

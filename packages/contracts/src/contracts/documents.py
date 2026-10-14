@@ -23,12 +23,14 @@ SCHEMA_VERSION = 1
 # package của bên kia.
 PROBE_DOCUMENT_TASK = "probe_document"
 DOCUMENT_PROBED_TASK = "document_probed"
-# Từ plan 3b: một PDF scan được đọc bằng OCR theo **lô trang**, mỗi lô một job trên chính queue của
-# `services/document`, và sau mỗi lô có một tiếng báo tiến độ đi về `services/ingest`.
+# Từ `mongo-content-store`: một PDF scan được đọc bằng OCR theo **lô trang**, mỗi lô một job trên
+# chính queue của `services/document`, và sau mỗi lô có một tiếng báo tiến độ đi về
+# `services/ingest`.
 OCR_PAGES_TASK = "ocr_pages"
 DOCUMENT_PROGRESS_TASK = "document_progress"
-# Từ plan 3c: bản thô đã nằm trong kho nội dung thì tài liệu chưa *sẵn sàng* -- nó còn chờ cây. Job
-# dựng cây chạy trên queue **riêng** của `services/document` (D4), và chỉ nó gửi `READY`.
+# Từ `document-agent-hierarchy`: bản thô đã nằm trong kho nội dung thì tài liệu chưa *sẵn sàng* --
+# nó còn chờ cây. Job dựng cây chạy trên queue **riêng** của `services/document` (D4), và chỉ nó gửi
+# `READY`.
 INDEX_DOCUMENT_TASK = "index_document"
 
 
@@ -129,8 +131,8 @@ class DocumentPagesRequested(BaseModel):
 
     Vì sao theo lô chứ không cả cuốn trong một job: một cuốn 200 trang ở 4,5 s/trang là ~15 phút,
     gấp bảy lần trần một job. Mỗi lô đọc vài trang, ghi chúng vào kho nội dung, rồi tự đẩy lô kế
-    (plan 3b, D3). Nối đuôi chứ không song song: OCR ăn hết CPU, nên hai lô cùng lúc chỉ tranh
-    luồng.
+    (`mongo-content-store`, D3). Nối đuôi chứ không song song: OCR ăn hết CPU, nên hai lô cùng lúc
+    chỉ tranh luồng.
 
     Attributes:
         document_id: Tài liệu đang đọc.
@@ -154,13 +156,13 @@ class DocumentPagesRequested(BaseModel):
 class DocumentProgress(BaseModel):
     """Tiếng báo của `services/document` sau mỗi lô OCR: *đã đọc được ngần này trang*.
 
-    Từ plan 3c nó cũng là **nhịp tim** của job dựng cây: gửi ở mỗi chặng với
+    Từ `document-agent-hierarchy` nó cũng là **nhịp tim** của job dựng cây: gửi ở mỗi chặng với
     `pages_read = page_count`, chỉ để dời `progress_at`.
 
     Nó tồn tại vì **phép suy *đứng quá lâu*** của BE: một hàng đứng ở `processing` quá 300 s bị đọc
     ra `failed`, và một cuốn sách scan thì đứng ở đó mười lăm phút một cách hợp lệ. Mỗi tiếng báo
     dời mốc đo của phép suy ấy (`documents.progress_at`), nên chỉ một chuỗi lô **ngừng tiến** mới
-    bị coi là chết -- lưới cũ còn nguyên cho đúng ca nó sinh ra để bắt (plan 3b, D4).
+    bị coi là chết -- lưới cũ còn nguyên cho đúng ca nó sinh ra để bắt (`mongo-content-store`, D4).
 
     Không mang `state`: tiến độ không phải một phán quyết, và tài liệu vẫn `processing`.
 
@@ -183,7 +185,8 @@ class DocumentIndexRequested(BaseModel):
 
     Như `DocumentPagesRequested`, đây là việc `services/document` tự giao cho chính nó -- nhưng cho
     **một worker khác** (`document.index_worker`), trên queue riêng: dựng cây là việc chờ mạng (Jev,
-    `gpt-4o-mini`), còn worker OCR chạy một job một lúc vì OCR ăn hết CPU (plan 3c, D4).
+    `gpt-4o-mini`), còn worker OCR chạy một job một lúc vì OCR ăn hết CPU
+    (`document-agent-hierarchy`, D4).
 
     Không chở chữ: bản thô nằm trong Mongo, và job đọc nó từ đó. Chở `storage_key` vì tên chương
     nằm trong **ảnh** banner, và `gpt-5.6-luna` cần ảnh ấy (D9).

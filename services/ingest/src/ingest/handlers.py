@@ -81,10 +81,10 @@ async def document_progress(ctx: dict, payload: dict) -> dict:
     """Ghi tiến độ của một PDF scan đang được OCR: số trang đã đọc, và lúc nghe được.
 
     Cột cần thiết là `progress_at`, không phải `pages_read`: BE đo *đứng quá lâu* từ nó, nên mỗi
-    tiếng báo là một lần nói *chuỗi lô vẫn đang tiến* (plan 3b, D4). Mốc là giờ **của process
-    này** lúc ghi, không phải giờ trong message: BE so nó với đồng hồ của chính BE, và hai process
-    trên cùng một máy chung một đồng hồ -- còn một mốc chở theo message thì một job nằm lâu trong
-    Redis sẽ ghi một mốc cũ.
+    tiếng báo là một lần nói *chuỗi lô vẫn đang tiến* (`mongo-content-store`, D4). Mốc là giờ **của
+    process này** lúc ghi, không phải giờ trong message: BE so nó với đồng hồ của chính BE, và hai
+    process trên cùng một máy chung một đồng hồ -- còn một mốc chở theo message thì một job nằm lâu
+    trong Redis sẽ ghi một mốc cũ.
 
     Chỉ ghi khi hàng **còn** `processing`. Kết quả cuối đã về thì một tiếng báo đến muộn không có gì
     để nói, và ghi nó là làm cột tiến độ nói một điều sai về một tài liệu đã xong.

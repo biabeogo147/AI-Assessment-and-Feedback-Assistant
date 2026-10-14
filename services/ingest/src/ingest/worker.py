@@ -12,13 +12,13 @@ và điểm ấy là cả lý do nó không phải service đọc-và-báo: nó 
 hợp lệ — cái làm `agent` với `document` thành service không-credential là chúng không ghi vào
 bảng nào, chứ không phải việc chúng chạy process riêng.
 
-Vì sao nó không phải một process của `services/be`, mà là một service riêng: cho tới plan 2c nó
-đúng là vậy, và không chỗ nào nói được process nào được làm gì. `be/config.py` chở hai mươi
-trường cho một worker chạm năm; luật *API dựng schema, worker chỉ kiểm* sống trong một
-docstring; và hai bootstrap gần giống nhau khác đúng một dòng. Tách ra làm cái ranh giới ấy
-thành thứ `lint-imports` canh được: service này **không import nổi** một dòng nào của `be`, nên
-không cần một danh sách module nghiệp vụ nào — và một danh sách không tồn tại thì không lỗi
-thời được.
+Vì sao nó không phải một process của `services/be`, mà là một service riêng: cho tới
+`ingest-service-split` nó đúng là vậy, và không chỗ nào nói được process nào được làm gì.
+`be/config.py` chở hai mươi trường cho một worker chạm năm; luật *API dựng schema, worker chỉ kiểm*
+sống trong một docstring; và hai bootstrap gần giống nhau khác đúng một dòng. Tách ra làm cái ranh
+giới ấy thành thứ `lint-imports` canh được: service này **không import nổi** một dòng nào của `be`,
+nên không cần một danh sách module nghiệp vụ nào — và một danh sách không tồn tại thì không lỗi thời
+được.
 
 Một hạn chế đã biết trên Windows: arq không đăng ký được signal handler, nên Ctrl+C cắt ngang
 job đang chạy. Ở đường này nó để lại một tài liệu đứng ở *đang xử lý*, và BE suy ra *xử lý hỏng*
@@ -57,7 +57,7 @@ def _hear_our_own_loggers(level: str) -> None:
     `be/worker.py` — gọi `logging.basicConfig(level=logging.INFO)`, tức hardcode mức log và
     bỏ qua `LOG_LEVEL`. Hệ quả: `LOG_LEVEL=WARNING` trong .env làm process API im nhưng process
     worker vẫn nói, và không một dòng nào ở đâu nói ra sự khác biệt ấy. Đúng loại chỗ mờ mà
-    plan 2c tồn tại để dọn: một process làm khác process kia mà không ai khai.
+    `ingest-service-split` tồn tại để dọn: một process làm khác process kia mà không ai khai.
 
     Cấu hình **đúng cây logger của mình**, không dùng `basicConfig`, và lý do đã ghi ở
     `be/main.py`: hàm ấy không làm gì khi root logger đã có handler, nên nó im lặng thành một

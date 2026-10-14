@@ -10,7 +10,7 @@ trong thân `check_schema`: nó lặp trên `Base.metadata.tables`, nên nó kh�
 nằm cách xa `Base`. Hai service cùng ghi database này, và nhân đôi phép đối chiếu ấy vào cả
 hai là nhân đôi đúng cái thứ phải không bao giờ lệch.
 
-**Ai được gọi cái gì** -- luật của plan 2c, và `tools/check_contract.py` canh nó:
+**Ai được gọi cái gì** -- luật của `ingest-service-split`, và `tools/check_contract.py` canh nó:
 
 - `prepare_schema` chỉ có **một** chỗ gọi trong code chạy thật: `be/main.py`. Process API sở
   hữu việc dựng. (Test thì gọi nó để tự dựng một sqlite trong bộ nhớ; đó là database của

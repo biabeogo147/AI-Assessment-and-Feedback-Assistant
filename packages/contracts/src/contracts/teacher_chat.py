@@ -39,9 +39,10 @@ class ToolSpec(BaseModel):
             *không* nên dùng nó.
         arguments: Mô tả tham số theo hình dạng JSON schema, dưới dạng một mapping thuần. Không phải
             một model pydantic, vì catalog được lắp lúc chạy và hình dạng khác nhau theo từng tool.
-        optional: Tham số **không** bắt buộc trong một bước plan (plan 4b: `create_draft` nhận
-            tài liệu khi có). Mặc định rỗng -- mọi tham số đều bắt buộc, như luật của `vet_plan`;
-            một tham số chỉ tuỳ chọn khi được khai ở đây, không bao giờ do đoán.
+        optional: Tham số **không** bắt buộc trong một bước plan (`draft-from-document`:
+            `create_draft` nhận tài liệu khi có). Mặc định rỗng -- mọi tham số đều bắt buộc, như
+            luật của `vet_plan`; một tham số chỉ tuỳ chọn khi được khai ở đây, không bao giờ do
+            đoán.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -107,7 +108,7 @@ class TurnRecord(BaseModel):
 
 
 class AttachedDocument(BaseModel):
-    """Tài liệu giáo viên đính vào tin nhắn này (plan 4b): chip đang nằm trong ô nhập.
+    """Tài liệu giáo viên đính vào tin nhắn này (`draft-from-document`): chip đang nằm trong ô nhập.
 
     BE chỉ gửi nó khi tài liệu thuộc giáo viên; AGENT dùng `document_id` làm tham số cho tool đọc
     mục lục khi `state` là `ready`, `filename` để gọi tên tài liệu với giáo viên.
@@ -146,8 +147,8 @@ class NextStepRequested(BaseModel):
             đoán -- mà BE kiểm tên tham số theo spec và sẽ từ chối cả plan. Hai danh sách chứ không
             một, vì "được gọi ngay" và "được hẹn làm" là hai quyền khác nhau và trộn chúng lại là
             mở đúng cánh cửa ADR-25 đóng: ghi trước khi hỏi.
-        attached_document: Tài liệu đính kèm tin nhắn mới nhất, `None` khi không có chip (plan
-            4b). Tuỳ chọn, nên payload trước plan 4b vẫn hợp lệ.
+        attached_document: Tài liệu đính kèm tin nhắn mới nhất, `None` khi không có chip
+            (`draft-from-document`). Tuỳ chọn, nên payload trước `draft-from-document` vẫn hợp lệ.
 
     Ở đây **không có** `stream_channel`, khác với `ExplainTurnRequested`. Một lượt của cuộc hội
     thoại này là một vòng lặp gồm vài lời gọi model và chỉ lời gọi cuối cùng sinh ra chữ, nên một
@@ -175,8 +176,8 @@ class NextStepCompleted(BaseModel):
     - `say`: trả lời bằng lời; `text` chở lời đó và lượt kết thúc.
     - `call_tool`: BE nên chạy `tool_name` với `tool_args`, rồi hỏi lại.
     - `ask_clarify`: chưa đủ thông tin để hành động; `text` là câu hỏi và `choices` là các lựa chọn
-      model đề xuất. BE mới dựng nút: hỏi về một dòng thì chỉ chữ khớp đúng một dòng BE đã đọc
-      được giữ (ADR-23, hậu ký plan 4c T3). Lối "Khác" -- giáo viên tự ghi -- do FE vẽ.
+      model đề xuất. BE mới dựng nút: hỏi về một dòng thì chỉ chữ khớp đúng một dòng BE đã đọc được
+      giữ (ADR-23, hậu ký `unbiased-model-text` T3). Lối "Khác" -- giáo viên tự ghi -- do FE vẽ.
     - `plan`: đã đủ thông tin để làm; `steps` là các bước ghi, theo thứ tự, và `text` là câu nói
       trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
 

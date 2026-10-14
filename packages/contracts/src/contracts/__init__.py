@@ -12,11 +12,11 @@ một tệp cho `services/document` mở ra đọc, rồi nhận lại một ph�
 hai task, và không mũi HTTP nào giữa hai service.
 
 `content` không phải một họ message mà là hình dạng của **bản thô** trong kho nội dung (MongoDB):
-`services/document` ghi nó, *document agent* của plan 3c đọc nó. Hai bên không gặp nhau qua queue mà
-qua Mongo, nên hình dạng ấy phải được khai ở đây y như một message.
+`services/document` ghi nó, *document agent* của `document-agent-hierarchy` đọc nó. Hai bên không
+gặp nhau qua queue mà qua Mongo, nên hình dạng ấy phải được khai ở đây y như một message.
 
 `index` cũng vậy, cho **cây mục lục** mà *document agent* dựng trên bản thô và ghi ngược lại Mongo
-(plan 3c).
+(`document-agent-hierarchy`).
 """
 
 from contracts.authoring import (

@@ -1,8 +1,8 @@
-"""Hình dạng của plan 4b: tài liệu đi kèm tin nhắn, mỗi câu một mục kiến thức.
+"""Hình dạng của `draft-from-document`: tài liệu đi kèm tin nhắn, mỗi câu một mục kiến thức.
 
-Hai loại khẳng định. Trường mới đều **tuỳ chọn**, nên payload trước plan 4b vẫn hợp lệ -- một
-job đang nằm trong Redis lúc deploy không chết vì thiếu field. Và pha 2 **không** có chỗ chở nội
-dung tài liệu: hậu ký ADR-27 chỉ rút luật lọc bài tập cho prompt soạn đề, vì câu luyện tập đi
+Hai loại khẳng định. Trường mới đều **tuỳ chọn**, nên payload trước `draft-from-document` vẫn hợp lệ
+-- một job đang nằm trong Redis lúc deploy không chết vì thiếu field. Và pha 2 **không** có chỗ chở
+nội dung tài liệu: hậu ký ADR-27 chỉ rút luật lọc bài tập cho prompt soạn đề, vì câu luyện tập đi
 thẳng tới học sinh mà không qua duyệt.
 """
 

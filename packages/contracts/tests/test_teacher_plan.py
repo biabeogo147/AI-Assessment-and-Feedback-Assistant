@@ -60,7 +60,7 @@ def test_the_report_task_is_not_the_thinking_task() -> None:
 
     Test này canh được đúng một nửa của luật — hai tên không trùng nhau. Nửa còn lại, *một job
     một lời gọi model*, không check nào hôm nay bắt được, và ADR-25 đã nói thẳng điều đó; nó
-    được mua bằng một check riêng ở Task 12 của plan.
+    được mua bằng một check riêng ở Task 12 của `hai-pha-mot-luot-chat`.
     """
     assert REPORT_PLAN_TASK != PROPOSE_NEXT_STEP_TASK
 

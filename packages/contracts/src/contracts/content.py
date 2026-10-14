@@ -2,13 +2,13 @@
 
 **Mongo là nơi lưu, không phải nơi định nghĩa.** Decision Record *"byte sang MinIO, chunk sang
 MongoDB"* của plan ô đặt điều kiện ấy là *không thương lượng*: thiếu nó, ranh giới giữa
-`services/document` (bên ghi bản thô) và *document agent* của plan 3c (bên đọc bản thô rồi dựng cây)
-âm thầm thành không kiểu -- hai bên nói chuyện qua một dict mà không ai khai.
+`services/document` (bên ghi bản thô) và *document agent* của `document-agent-hierarchy` (bên đọc
+bản thô rồi dựng cây) âm thầm thành không kiểu -- hai bên nói chuyện qua một dict mà không ai khai.
 
 **Bản thô là bất biến.** Chỉ đường đọc tệp của `services/document` ghi nó, và ghi bằng upsert theo
-`_id`, nên arq chạy lại một job không nhân đôi trang nào. Plan 3c ghi cây và chunk vào collection
-**của riêng nó**, trỏ về `document_id` + số trang -- không sửa `pages`. Đọc lại một tài liệu là ghi
-đè bản thô của nó, và mọi thứ dựng trên bản thô phải dựng lại.
+`_id`, nên arq chạy lại một job không nhân đôi trang nào. `document-agent-hierarchy` ghi cây và
+chunk vào collection **của riêng nó**, trỏ về `document_id` + số trang -- không sửa `pages`. Đọc lại
+một tài liệu là ghi đè bản thô của nó, và mọi thứ dựng trên bản thô phải dựng lại.
 
 Module này chỉ là dữ liệu, như mọi module khác của `contracts`.
 """
@@ -21,11 +21,11 @@ from pydantic import BaseModel, ConfigDict
 # Phiên bản của họ này, như mọi họ khác của `contracts` tự khai số của mình. Nhích khi một trường
 # đổi nghĩa hoặc bị bỏ, để bên đọc biết bản nào cũ.
 #
-# 2 (plan 3c, D2): `RawBlock.text` của khối **hình** thôi luôn rỗng -- nó mang chữ của các dòng OCR
-# nằm trong hình. Bên đọc canh nó là bên dựng cây (`document/index/`): chữ ấy chỉ được dùng làm
-# cổng *"trang này mở một chương"* (D9), và một bản thô số 1 thì không có cổng nào mở -- cây vẫn
-# dựng được, chỉ không có tên chương đọc từ banner. `RawPage.text` không đổi nghĩa: nó vẫn bỏ khối
-# hình.
+# 2 (`document-agent-hierarchy`, D2): `RawBlock.text` của khối **hình** thôi luôn rỗng -- nó mang
+# chữ của các dòng OCR nằm trong hình. Bên đọc canh nó là bên dựng cây (`document/index/`): chữ ấy
+# chỉ được dùng làm cổng *"trang này mở một chương"* (D9), và một bản thô số 1 thì không có cổng nào
+# mở -- cây vẫn dựng được, chỉ không có tên chương đọc từ banner. `RawPage.text` không đổi nghĩa: nó
+# vẫn bỏ khối hình.
 SCHEMA_VERSION = 2
 
 
@@ -33,8 +33,8 @@ class RawSource(StrEnum):
     """Chữ của một tài liệu đến từ đâu.
 
     Ba đường, và bên đọc cần biết đường nào: chữ OCR có lỗi (thiếu từ trung vị 9,3% trên 50 trang
-    SGK, đo ở plan 3a) và có nhãn layout thật; chữ text layer thì đúng từng ký tự nhưng mọi khối
-    mang nhãn `text`; tệp văn bản thuần không có trang, không có hộp.
+    SGK, đo ở `document-ocr-text-and-latex`) và có nhãn layout thật; chữ text layer thì đúng từng ký
+    tự nhưng mọi khối mang nhãn `text`; tệp văn bản thuần không có trang, không có hộp.
     """
 
     OCR = "ocr"
@@ -47,7 +47,8 @@ class RawBlock(BaseModel):
 
     Attributes:
         kind: Nhãn khối. Với OCR là nhãn PP-DocLayout (`paragraph_title`, `formula`, `number`, ...)
-            -- tín hiệu cấu trúc mà plan 3c dựng cây từ đó. Với text layer và tệp thuần luôn là
+            -- tín hiệu cấu trúc mà `document-agent-hierarchy` dựng cây từ đó. Với text layer và tệp
+            thuần luôn là
             `text`: không có ai gán nhãn.
         box: Hộp bao `[trái, trên, phải, dưới]` theo điểm ảnh của ảnh đã dựng (OCR) hoặc theo điểm
             của trang PDF (text layer). `None` với tệp văn bản thuần.
@@ -128,8 +129,8 @@ class RawDocument(BaseModel):
 def page_key(document_id: str, page: int) -> str:
     """Khoá `_id` của một trang trong collection `pages`.
 
-    Ở đây chứ không trong `content_store.py`, vì bên đọc ở plan 3c phải dựng đúng khoá ấy để lấy một
-    trang -- hai bên tự dựng khoá là hai sơ đồ đặt tên có thể lệch nhau.
+    Ở đây chứ không trong `content_store.py`, vì bên đọc ở `document-agent-hierarchy` phải dựng đúng
+    khoá ấy để lấy một trang -- hai bên tự dựng khoá là hai sơ đồ đặt tên có thể lệch nhau.
 
     Args:
         document_id: Id tài liệu.

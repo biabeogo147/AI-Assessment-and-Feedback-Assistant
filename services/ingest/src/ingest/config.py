@@ -1,8 +1,8 @@
 """Cấu hình của INGEST, đọc từ environment.
 
-**Bốn trường, và đó là cả điểm của service này.** Trước plan 2c, process worker đọc settings
-từ `be/config.py` — hai mươi trường, trong đó nó chạm năm, và hai trong năm chỉ vì nó import
-`be/queue.py` cho một hàm nó không gọi. Mở file ấy ra thì không cách nào biết được điều đó.
+**Bốn trường, và đó là cả điểm của service này.** Trước `ingest-service-split`, process worker đọc
+settings từ `be/config.py` — hai mươi trường, trong đó nó chạm năm, và hai trong năm chỉ vì nó
+import `be/queue.py` cho một hàm nó không gọi. Mở file ấy ra thì không cách nào biết được điều đó.
 
 Một file bốn trường **tự nói ra** ranh giới: không ngưỡng review, không khoá object storage,
 không trần số bước gọi model, không header danh tính. Service này không quyết định gì nên nó

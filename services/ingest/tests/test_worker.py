@@ -1,7 +1,7 @@
 """Hai luật của lúc INGEST khởi động, và cả hai từng không có lưới nào.
 
-Plan 2c sinh ra vì process worker làm khác process API mà không chỗ nào nói ra. Hai chỗ khác
-ấy nằm đúng trong `startup`, nên chúng được canh ở đây:
+`ingest-service-split` sinh ra vì process worker làm khác process API mà không chỗ nào nói ra. Hai
+chỗ khác ấy nằm đúng trong `startup`, nên chúng được canh ở đây:
 
 1. **Mức log đọc từ `Settings`, không viết cứng.** Bản trước của worker — hồi nó còn là
    `be/worker.py` — gọi `logging.basicConfig(level=logging.INFO)`, nên `LOG_LEVEL=WARNING`
@@ -86,8 +86,8 @@ def test_the_level_comes_from_the_setting_not_from_a_hardcoded_info() -> None:
 def test_startup_actually_calls_it_with_the_configured_level() -> None:
     """Đo **lời gọi**, và nó khẳng định cả tham số.
 
-    Gọi mà viết cứng `"INFO"` thì `Settings.log_level` thành một field không có tác dụng —
-    đúng tình trạng của `be/worker.py` trước plan 2c, chỉ khác là lúc ấy nó không gọi gì cả.
+    Gọi mà viết cứng `"INFO"` thì `Settings.log_level` thành một field không có tác dụng — đúng tình
+    trạng của `be/worker.py` trước `ingest-service-split`, chỉ khác là lúc ấy nó không gọi gì cả.
     """
     calls = [
         node

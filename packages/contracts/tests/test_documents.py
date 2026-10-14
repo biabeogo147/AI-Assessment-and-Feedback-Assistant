@@ -108,9 +108,10 @@ def test_the_two_task_names_are_not_the_same() -> None:
 
 
 def test_all_five_task_names_differ() -> None:
-    """Từ plan 3b có bốn task trên ba queue, và hai cái trong số ấy cùng nằm trên queue của
-    `services/document`. Trùng tên là một lô OCR bị đọc như một lần dò tệp -- payload sai hình dạng,
-    và job chết ở `model_validate` thay vì đọc trang nào. Plan 3c thêm cái thứ năm, dựng cây.
+    """Từ `mongo-content-store` có bốn task trên ba queue, và hai cái trong số ấy cùng nằm trên
+    queue của `services/document`. Trùng tên là một lô OCR bị đọc như một lần dò tệp -- payload sai
+    hình dạng, và job chết ở `model_validate` thay vì đọc trang nào. `document-agent-hierarchy` thêm
+    cái thứ năm, dựng cây.
     """
     names = [
         PROBE_DOCUMENT_TASK,
@@ -156,7 +157,8 @@ def test_progress_is_not_a_verdict() -> None:
 @pytest.mark.parametrize("first, page_count", [(0, 10), (1, 0)])
 def test_a_batch_that_would_read_nothing_is_refused(first: int, page_count: int) -> None:
     """Một lô không trang nào phải chết ở biên. Lọt qua thì nó tự giao lại chính nó với cùng id, bị
-    arq từ chối vì job vẫn đang chạy, và chuỗi lô dừng im -- review Task 3 của plan 3b.
+    arq từ chối vì job vẫn đang chạy, và chuỗi lô dừng im -- review Task 3 của
+    `mongo-content-store`.
     """
     with pytest.raises(ValidationError):
         DocumentPagesRequested(
