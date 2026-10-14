@@ -431,8 +431,7 @@ async def _keep_raw(
             started_at=at,
         )
     )
-    for page in pages:
-        await store.put_page(page)
+    await store.put_pages(pages)
     await store.finish(asked.document_id, datetime.now(UTC))
     logger.info("kept raw content document=%s pages=%s", asked.document_id, len(pages))
     return found

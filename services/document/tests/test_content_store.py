@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import bson
 import pytest
 from bson.codec_options import CodecOptions
+from pymongo import ReplaceOne
 from pymongo.errors import AutoReconnect
 
 from contracts import (
@@ -40,6 +41,7 @@ from document.content_store import (
     finished,
     from_document,
     index_document,
+    page_writes,
 )
 
 # Có micro giây lẻ, có cả múi giờ +07:00: đúng hai thứ BSON xử khác Python.
@@ -250,6 +252,9 @@ class _Logged:
     async def replace_one(self, *_: object, **__: object) -> None:
         self._log.append(f"replace {self._name}")
 
+    async def bulk_write(self, writes: list, *_: object, **__: object) -> None:
+        self._log.append(f"bulk {self._name} {len(writes)}")
+
     async def find_one(self, *_: object, **__: object) -> dict | None:
         self._log.append(f"find {self._name}")
         return self._rows[0] if self._rows else None
@@ -283,6 +288,27 @@ def _logged_store(log: list[str], raw_started_at: datetime | None = _AT) -> Cont
         ]
     store._db["documents"] = _Logged("documents", log, raw)
     return store
+
+
+def test_a_batch_of_pages_overwrites_each_page_by_its_key() -> None:
+    """Ghi theo lô giữ luật của `put_page`: mỗi trang ghi đè đúng `_id` của nó, có `upsert`."""
+    assert page_writes([_page(1), _page(2)]) == [
+        ReplaceOne({"_id": page_key("doc-1", n)}, as_document(_page(n)), upsert=True)
+        for n in (1, 2)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_many_pages_go_to_mongo_in_a_few_round_trips() -> None:
+    """1 200 trang là ba lượt `bulk_write`, không phải 1 200 lượt `replace_one`."""
+    log: list[str] = []
+    store = _logged_store(log)
+
+    await store.put_pages([_page(n) for n in range(1, 1201)])
+    await store.put_pages([])
+
+    assert log == ["bulk pages 500", "bulk pages 500", "bulk pages 200"]
+    await store.close()
 
 
 @pytest.mark.asyncio

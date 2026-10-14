@@ -97,7 +97,7 @@ Mỗi task: làm → `.\dev.ps1 check` xanh → subagent review → sửa → co
 - [x] **2. Thẻ hỏi lại giữ chữ ô chính.** `send` biết câu đến từ đâu; từ thẻ thì không xoá ô chính, lượt
       hỏng trả lại thẻ, câu *"Khác"* về ô *"Khác"*.
 - [x] **3. Figma theo code.** Placeholder artboard `3`; master `Clarify request` / `chờ trả lời`. Đo bằng số.
-- [ ] **4. Ghi trang theo lô** (`bulk_write`) cho đường có text layer.
+- [x] **4. Ghi trang theo lô** (`bulk_write`) cho đường có text layer.
 - [ ] **5. Chạy lại lô không OCR lại trang đã có.**
 - [ ] **6. Lần thử cuối gửi `FAILED`** ở cả lần dò, lô OCR, job dựng cây.
 - [ ] **7. Tách `banner_tokens` khỏi `summary_tokens`.**

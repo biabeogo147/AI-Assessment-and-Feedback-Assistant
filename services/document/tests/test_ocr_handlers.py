@@ -84,6 +84,20 @@ class _Store:
         self.pages.append(page)
         self._log.append(f"page {page.page}")
 
+    async def put_pages(self, pages: list[RawPage]) -> None:
+        """Ghi nhiều trang một lượt, cùng nhật ký với `put_page`.
+
+        Args:
+            pages: Các trang.
+
+        Raises:
+            ContentStoreUnavailable: Khi kho được dựng với `broken_pages=True`.
+        """
+        if self._broken_pages:
+            raise ContentStoreUnavailable("mongo is down")
+        self._log.append(f"pages {len(pages)}")
+        self.pages.extend(pages)
+
     async def finish(self, document_id: str, at: object) -> None:
         """Đánh dấu xong, hoặc chết nếu được dựng với `broken_finish=True`.
 
@@ -357,7 +371,7 @@ async def test_a_result_that_cannot_be_handed_back_asks_arq_to_retry(queue: _Que
 
 
 @pytest.mark.asyncio
-async def test_a_pdf_with_text_is_kept_page_by_page_before_ready_leaves() -> None:
+async def test_a_pdf_with_text_is_kept_in_the_store_before_ready_leaves() -> None:
     """Bản thô nằm trong kho **trước** khi `READY` đi về BE -- *"chunk trước, `state` sau"*.
 
     Đảo thứ tự thì có một khoảnh khắc chip báo *sẵn sàng* mà plan 3c đọc kho không thấy chữ nào,
@@ -370,7 +384,7 @@ async def test_a_pdf_with_text_is_kept_page_by_page_before_ready_leaves() -> Non
 
     # [CODE CHẾT 2026-10-11] READY chờ cây — plan 3c, D3
     # assert log == ["begin", "page 1", "finish", "hand back ready"]
-    assert log == ["begin", "page 1", "finish", "queue index"]
+    assert log == ["begin", "pages 1", "finish", "queue index"]
     assert store.header is not None
     assert store.header.source is RawSource.TEXT_LAYER
     assert store.header.page_count == 1

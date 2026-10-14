@@ -32,7 +32,7 @@ from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
-from pymongo import ASCENDING, AsyncMongoClient
+from pymongo import ASCENDING, AsyncMongoClient, ReplaceOne
 from pymongo.errors import PyMongoError
 
 from contracts import (
@@ -52,6 +52,10 @@ logger = logging.getLogger(__name__)
 
 _DOCUMENTS = "documents"
 _PAGES = "pages"
+# Số trang mỗi lượt `bulk_write` của `put_pages`. Không phải để né trần của Mongo -- `pymongo` tự
+# tách lô theo cỡ message, và trần thật cho mỗi trang là 16 MB một document như với `put_page`. Chia
+# khúc để danh sách lệnh dựng sẵn không phình theo cả cuốn, và để một lần đứt chỉ mất một khúc.
+_PAGE_BATCH = 500
 # Cây mục lục (plan 3c). Đầu mục ghi **cuối cùng** và xoá **đầu tiên**, nên có nó là cây đã ghi
 # xong: một lần ghi hay xoá đứt giữa chừng không để lại một cây *trông như* trọn vẹn mà thiếu nút.
 _INDEXES = "indexes"
@@ -119,6 +123,22 @@ def as_document(model: RawDocument | RawPage) -> dict[str, Any]:
     else:
         body["_id"] = model.document_id
     return body
+
+
+def page_writes(pages: list[RawPage]) -> list[ReplaceOne]:
+    """Các lệnh ghi đè cho một khúc trang, để `bulk_write`. Hàm thuần như `as_document`.
+
+    Args:
+        pages: Các trang.
+
+    Returns:
+        Mỗi trang một `ReplaceOne` theo `_id` của nó, `upsert` -- cùng luật với `put_page`.
+    """
+    writes = []
+    for page in pages:
+        body = as_document(page)
+        writes.append(ReplaceOne({"_id": body["_id"]}, body, upsert=True))
+    return writes
 
 
 def _to_bson_time(field: str, value: datetime) -> datetime:
@@ -333,6 +353,28 @@ class ContentStore:
         body = as_document(page)
         async with _translated("put a page of", page.document_id):
             await self._db[_PAGES].replace_one({"_id": body["_id"]}, body, upsert=True)
+
+    async def put_pages(self, pages: list[RawPage]) -> None:
+        """Ghi nhiều trang, mỗi khúc `_PAGE_BATCH` trang một lượt tới Mongo.
+
+        Đường có text layer đọc cả cuốn trong một nhịp, nên ghi từng trang là một vòng tới Mongo
+        cho mỗi trang: 2 000 trang với một Mongo ở xa (~20 ms một vòng) là ~40 s chỉ để ghi. Một
+        `bulk_write` mỗi khúc giữ đúng luật của `put_page` -- ghi lại là ghi đè -- với vài vòng.
+
+        Args:
+            pages: Các trang, có thể rỗng.
+
+        Raises:
+            ContentStoreUnavailable: Khi Mongo không ghi được lúc này. Một khúc đã ghi thì ở lại;
+                lần chạy lại ghi đè nó, không nhân đôi.
+        """
+        if not pages:
+            return
+        async with _translated("put the pages of", pages[0].document_id):
+            for start in range(0, len(pages), _PAGE_BATCH):
+                await self._db[_PAGES].bulk_write(
+                    page_writes(pages[start : start + _PAGE_BATCH]), ordered=False
+                )
 
     async def finish(self, document_id: str, at: datetime) -> None:
         """Đánh dấu đường đọc đã ghi xong trang cuối.
