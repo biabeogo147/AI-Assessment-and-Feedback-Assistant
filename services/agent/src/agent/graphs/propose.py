@@ -25,9 +25,9 @@ chọn phương án nào khi lựa chọn đó là một quyết định sư ph�
 quyền ấy. Và nó hỏi lại chứ không đoán khi một cái tên có thể mang nhiều nghĩa, đó là
 cổng kiểm đầu vào của ADR-05.
 
-Từ plan 4a, prompt là **lõi + skill**. `_CORE` mang những luật không lượt nào được thiếu; lời dặn
-chỉ một loại việc cần -- tra lớp, soạn đề -- nằm trong `agent/skills/*.md`, và `skill_router` (Jev)
-chọn skill nào được nạp trước khi graph chạy.
+Từ `kriky-skill-routing`, prompt là **lõi + skill**. `_CORE` mang những luật không lượt nào được
+thiếu; lời dặn chỉ một loại việc cần -- tra lớp, soạn đề -- nằm trong `agent/skills/*.md`, và
+`skill_router` (Jev) chọn skill nào được nạp trước khi graph chạy.
 """
 
 import json
@@ -48,10 +48,10 @@ logger = logging.getLogger(__name__)
 
 # Câu *"Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở"* ở dưới không còn bao giờ bắn: từ
 # 13/10/2026 lối "Khác" mở ô cho giáo viên ghi, và câu họ ghi -- không phải chữ "Khác" -- tới đây.
-# Nó **được giữ nguyên văn** vì đo ra prompt nhạy theo đúng chỗ ấy (plan 4c, sau T5): bỏ nó thì
-# *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* tụt 23 → 6/24 (run-93, run-92), thay bằng một
-# câu đúng với hành vi mới (*"Giáo viên ghi câu trả lời của riêng họ thì dùng đúng câu ấy"*) thì
-# 0/24 (run-94). Đổi câu này phải đo lại ca ấy.
+# Nó **được giữ nguyên văn** vì đo ra prompt nhạy theo đúng chỗ ấy (`unbiased-model-text`, sau T5):
+# bỏ nó thì *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* tụt 23 → 6/24 (run-93, run-92),
+# thay bằng một câu đúng với hành vi mới (*"Giáo viên ghi câu trả lời của riêng họ thì dùng đúng câu
+# ấy"*) thì 0/24 (run-94). Đổi câu này phải đo lại ca ấy.
 _CORE = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
 
 Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
@@ -109,10 +109,11 @@ Cách viết:
   cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`."""
 
 
-# Thủ tục soạn theo sách, chỉ chèn ở lượt **có** sách (plan 4c). Nằm trong skill `soan-de` thì mọi
-# lượt soạn đề đều đọc thấy chữ "tài liệu", và gpt-4o-mini hỏi lại "bạn có tài liệu nào không" ở
-# khoảng 7/108 lượt không có sách (run-13) -- dù skill có dòng dặn đừng hỏi. Thứ không nhìn thấy
-# thì không hỏi được, cùng cách `catalog_for` giấu `list_chapters` khi lượt không có sách.
+# Thủ tục soạn theo sách, chỉ chèn ở lượt **có** sách (`unbiased-model-text`). Nằm trong skill
+# `soan-de` thì mọi lượt soạn đề đều đọc thấy chữ "tài liệu", và gpt-4o-mini hỏi lại "bạn có tài
+# liệu nào không" ở khoảng 7/108 lượt không có sách (run-13) -- dù skill có dòng dặn đừng hỏi. Thứ
+# không nhìn thấy thì không hỏi được, cùng cách `catalog_for` giấu `list_chapters` khi lượt không có
+# sách.
 #
 # Câu chữ là bản đã đo ở run-15. Review T2 thử hai chỗ, cả hai làm `tai-lieu-khop-chuong` tụt từ 5/6
 # xuống 0–1/6 (run-16, run-17) -- model hỏi *"cả chương hay một phần?"* cho một chương khớp đúng:
@@ -136,9 +137,9 @@ _BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài li�
 4. Plan như quy trình soạn đề, create_draft thêm document_id và nodes (các số node đã chọn).
    Lời nêu plan nói rõ số câu được rải đều theo độ dài các mục, mỗi câu một mục khác nhau."""
 
-# Mở thư viện khi giáo viên nhắc sách mà **không** đính kèm (plan 4c T2b). Chỉ đúng ở lượt không có
-# sách, mà chỉ có tác dụng khi đứng **giữa** các nhánh quyết định của `soan-de` -- nên skill để một
-# chỗ trống, `_compose` điền hay xoá theo lượt. Đo:
+# Mở thư viện khi giáo viên nhắc sách mà **không** đính kèm (`unbiased-model-text` T2b). Chỉ đúng ở
+# lượt không có sách, mà chỉ có tác dụng khi đứng **giữa** các nhánh quyết định của `soan-de` -- nên
+# skill để một chỗ trống, `_compose` điền hay xoá theo lượt. Đo:
 # - dòng cố định trong skill: nó thắng cả lượt **có** chip -- `tai-lieu-chua-doc` 24 lần, bản đã
 #   commit 22/24, bản có `known` 10/24: model gọi `list_documents` dù `document_id` ở ngay dòng
 #   đính kèm;
@@ -168,9 +169,9 @@ _NOT_A_BOOK = re.compile(r"danh\s+sách", re.IGNORECASE)
 def _mentions_book(request: NextStepRequested) -> bool:
     """Giáo viên có nhắc tới một tài liệu, kể từ plan gần nhất, không.
 
-    Mọi câu của giáo viên từ plan gần nhất, không chỉ câu cuối (review T3): nhắc sách ở lượt này
-    rồi trả lời *"lớp 8"* ở lượt sau thì việc soạn đề vẫn là việc soạn theo sách. Plan đã nêu thì
-    việc ấy xong -- một đề mới không nhắc sách là đề không sách.
+    Mọi câu của giáo viên từ plan gần nhất, không chỉ câu cuối (review T3, `unbiased-model-text`):
+    nhắc sách ở lượt này rồi trả lời *"lớp 8"* ở lượt sau thì việc soạn đề vẫn là việc soạn theo
+    sách. Plan đã nêu thì việc ấy xong -- một đề mới không nhắc sách là đề không sách.
 
     Args:
         request: Lượt đang hỏi.
@@ -198,10 +199,10 @@ _DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter"})
 def _book_in_view(request: NextStepRequested) -> bool:
     """Lượt này có một cuốn sách để soạn theo không -- tức `_BOOK_PROCEDURE` có được chèn không.
 
-    Đọc **sự kiện**, không đọc catalog (review T2). BE mở tool mục lục cho mọi lượt sau khi đoạn
-    chat từng đọc tài liệu (`teacher_chat._read_documents_before`), nên *"`list_chapters` có trong
-    catalog"* đúng cả ở một lượt soạn đề không dính gì tới sách -- và thủ tục sẽ bắt model đọc mục
-    lục, hay bịa `document_id`.
+    Đọc **sự kiện**, không đọc catalog (review T2, `unbiased-model-text`). BE mở tool mục lục cho
+    mọi lượt sau khi đoạn chat từng đọc tài liệu (`teacher_chat._read_documents_before`), nên
+    *"`list_chapters` có trong catalog"* đúng cả ở một lượt soạn đề không dính gì tới sách -- và thủ
+    tục sẽ bắt model đọc mục lục, hay bịa `document_id`.
 
     Có sách khi: chip sẵn sàng; hoặc, không có chip, lịch sử có kết quả của một tool đọc tài liệu
     mà **chưa** có plan nào nêu sau nó -- việc chọn sách còn dở (hỏi lại chương nào, giáo viên trả
@@ -254,8 +255,8 @@ def _library_first(
     """Ở lượt có dòng mở thư viện, một câu hỏi lại hay một đề mở không tài liệu thành lời gọi
     `list_documents`. Hàm thuần.
 
-    Dòng ấy dặn đúng điều này, và chữ không giữ được nó (plan 4c T5): nhánh *"còn ? → hỏi lại"*
-    thắng mỗi khi model suy được thêm một mục -- *"cụm suy ra môn vẫn là phạm vi"* chữa
+    Dòng ấy dặn đúng điều này, và chữ không giữ được nó (`unbiased-model-text` T5): nhánh *"còn ? →
+    hỏi lại"* thắng mỗi khi model suy được thêm một mục -- *"cụm suy ra môn vẫn là phạm vi"* chữa
     *"kiểm tra nhanh phần logarit"* (5 → 24/24) mà kéo `tai-lieu-khong-dinh` 24 → 16/24, model hỏi
     khối thay vì mở thư viện nơi khối nằm sẵn trong tên tài liệu.
 
@@ -298,10 +299,10 @@ class _NothingToSay(_AskAgain):
 class _Flawed(_AskAgain):
     """Một đề nghị dùng được nhưng thiếu một thứ: mang nó theo, để lần hỏi lại hỏng thì còn nó.
 
-    Lưới hỏi lại không bao giờ được làm kết quả tệ hơn khi chưa có nó (review T2b): lần hai hỏng
-    kiểu khác -- im lặng, provider lỗi -- thì giữ đề nghị lần đầu. Lần hai cũng thiếu thì giữ
-    lần hai cho plan, vì cả hai đều tới BE và BE tự xét; với câu hỏi thì giữ lần có nhiều lựa
-    chọn hơn (review T3: lần hai có thể còn ít hơn lần đầu).
+    Lưới hỏi lại không bao giờ được làm kết quả tệ hơn khi chưa có nó (review T2b,
+    `unbiased-model-text`): lần hai hỏng kiểu khác -- im lặng, provider lỗi -- thì giữ đề nghị lần
+    đầu. Lần hai cũng thiếu thì giữ lần hai cho plan, vì cả hai đều tới BE và BE tự xét; với câu hỏi
+    thì giữ lần có nhiều lựa chọn hơn (review T3: lần hai có thể còn ít hơn lần đầu).
     """
 
     def __init__(self, flaw: str, step: NextStepCompleted) -> None:
@@ -312,21 +313,23 @@ class _Flawed(_AskAgain):
 class _IncompletePlan(_Flawed):
     """Model nêu plan mà một bước thiếu tham số bắt buộc của tool ấy.
 
-    Đo được khi `soan-de` bắt ghi giá trị bốn mục vào `known` (plan 4c T2b): hỏi thừa giảm từ
-    80/192 xuống 1/192, nhưng ~11/192 plan nêu `create_draft` không kèm tham số nào -- giá trị đã
-    nằm ở `known`, model không chép sang. BE `vet_plan` từ chối đúng những plan ấy, và giáo viên
-    nhận một lời từ chối cho một câu đã đủ ý. Hỏi lại ở đây rẻ hơn.
+    Đo được khi `soan-de` bắt ghi giá trị bốn mục vào `known` (`unbiased-model-text` T2b): hỏi thừa
+    giảm từ 80/192 xuống 1/192, nhưng ~11/192 plan nêu `create_draft` không kèm tham số nào -- giá
+    trị đã nằm ở `known`, model không chép sang. BE `vet_plan` từ chối đúng những plan ấy, và giáo
+    viên nhận một lời từ chối cho một câu đã đủ ý. Hỏi lại ở đây rẻ hơn.
     """
 
 
 class _FewChoices(_Flawed):
-    """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (plan 4c T3: ít nhất 3)."""
+    """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (`unbiased-model-text` T3: ít nhất
+    3)."""
 
 
 def _answers(choices: tuple[str, ...], question: str) -> tuple[str, ...]:
     """Những lựa chọn thật sự là một câu trả lời để bấm, gộp trùng.
 
-    Ba thứ trông như lựa chọn mà không phải, đều đo được ở ca thiếu cả bốn mục (plan 4c T3):
+    Ba thứ trông như lựa chọn mà không phải, đều đo được ở ca thiếu cả bốn mục
+    (`unbiased-model-text` T3):
 
     - kết bằng "?" -- một câu hỏi (*"Môn học là gì?"*, run-41);
     - không chữ số nào và nằm nguyên trong chính câu hỏi -- tên một mục mà câu hỏi vừa kể
@@ -376,10 +379,11 @@ def _choices_wanted(request: NextStepRequested) -> int:
 
     Ba, theo luật người dùng chốt -- trừ khi số ba không đúng:
 
-    - Kết quả tool gần nhất có `candidates` ít hơn ba dòng: câu hỏi về một dòng thì chỉ có bấy
-      nhiêu lựa chọn **thật**, và đòi ba là mời model bịa dòng thứ ba. Gần nhất tính từ plan gần
-      nhất, **qua** các câu của giáo viên (review T3): câu hỏi về hai lớp kéo sang lượt sau khi giáo
-      viên gõ một tên khác, và lượt ấy không gọi lại tool -- đòi ba ở đó là ép model bịa lớp.
+    - Kết quả tool gần nhất có `candidates` ít hơn ba dòng: câu hỏi về một dòng thì chỉ có bấy nhiêu
+      lựa chọn **thật**, và đòi ba là mời model bịa dòng thứ ba. Gần nhất tính từ plan gần nhất,
+      **qua** các câu của giáo viên (review T3, `unbiased-model-text`): câu hỏi về hai lớp kéo sang
+      lượt sau khi giáo viên gõ một tên khác, và lượt ấy không gọi lại tool -- đòi ba ở đó là ép
+      model bịa lớp.
 
     Args:
         request: Lượt đang hỏi.
@@ -413,13 +417,14 @@ def _reads_first(step: NextStepCompleted, request: NextStepRequested) -> NextSte
     """Plan mở đầu bằng một tool chỉ gọi được ngay -- không nêu được trong plan -- là lời gọi tool
     ấy, chưa phải plan. Hàm thuần.
 
-    Đo ở plan 4c T5: giáo viên nhắc sách mà không đính kèm và nói đủ bốn mục (*"Lấy cuốn Toán 10
-    mình mới tải lên, ra 8 câu phần mệnh đề"*) thì nhánh *"không còn ? → nêu plan ngay"* thắng dòng
-    mở thư viện: 16/24 lượt model nêu plan `list_documents → create_draft → start_drafting` -- biết
-    phải mở thư viện, chỉ chọn sai `kind` -- và BE từ chối cả plan (`list_documents` không có trong
-    catalog pha thực hiện), giáo viên nhận câu lùi. Bản đã commit 12/24 gọi tool, bản hiện tại
-    trước luật này 4/24. Đổi chữ đã thua nhiều lần ở chính chỗ này (T2b, T3); đây là cấu trúc. Các
-    bước sau bị bỏ: ở bước kế trong cùng vòng gọi tool của BE, model đọc kết quả rồi nêu lại plan.
+    Đo ở `unbiased-model-text` T5: giáo viên nhắc sách mà không đính kèm và nói đủ bốn mục (*"Lấy
+    cuốn Toán 10 mình mới tải lên, ra 8 câu phần mệnh đề"*) thì nhánh *"không còn ? → nêu plan
+    ngay"* thắng dòng mở thư viện: 16/24 lượt model nêu plan `list_documents → create_draft →
+    start_drafting` -- biết phải mở thư viện, chỉ chọn sai `kind` -- và BE từ chối cả plan
+    (`list_documents` không có trong catalog pha thực hiện), giáo viên nhận câu lùi. Bản đã commit
+    12/24 gọi tool, bản hiện tại trước luật này 4/24. Đổi chữ đã thua nhiều lần ở chính chỗ này
+    (T2b, T3); đây là cấu trúc. Các bước sau bị bỏ: ở bước kế trong cùng vòng gọi tool của BE, model
+    đọc kết quả rồi nêu lại plan.
 
     Args:
         step: Đề nghị model vừa nêu.
@@ -485,13 +490,14 @@ def _toc_first(step: NextStepCompleted, request: NextStepRequested) -> NextStepC
     """Plan tạo đề theo một tài liệu chưa đọc mục lục là lời gọi `list_chapters` của tài liệu ấy.
     Hàm thuần.
 
-    Đo ở plan 4c T5: không chip, giáo viên nhắc sách -- `list_documents`, hỏi *"cuốn này chứ?"*,
-    giáo viên bấm tên cuốn -- rồi model nêu `create_draft` với `document_id` mà không đọc mục lục
-    bao giờ. Thiếu `nodes` thì BE dừng ở bước 1; có `nodes` thì đó là số **bịa** (*"1,2,3"*,
-    *"5"*: 4/24 lượt, run-87) mà BE nhận -- không chip thì `nodes` tuỳ chọn, `_document_scope` chỉ
-    kiểm nút có trong cây -- và đề soạn trên mục sai. Điều kiện vì thế là *chưa đọc mục lục*, không
-    phải *thiếu `nodes`* (review T5); đọc rồi thì không gọi lại, plan đi tiếp cho BE xét. Chỉ lượt
-    không chip: có chip thì thủ tục sách đọc mục lục từ trước, và `bind_book` điền `nodes`.
+    Đo ở `unbiased-model-text` T5: không chip, giáo viên nhắc sách -- `list_documents`, hỏi *"cuốn
+    này chứ?"*, giáo viên bấm tên cuốn -- rồi model nêu `create_draft` với `document_id` mà không
+    đọc mục lục bao giờ. Thiếu `nodes` thì BE dừng ở bước 1; có `nodes` thì đó là số **bịa**
+    (*"1,2,3"*, *"5"*: 4/24 lượt, run-87) mà BE nhận -- không chip thì `nodes` tuỳ chọn,
+    `_document_scope` chỉ kiểm nút có trong cây -- và đề soạn trên mục sai. Điều kiện vì thế là
+    *chưa đọc mục lục*, không phải *thiếu `nodes`* (review T5); đọc rồi thì không gọi lại, plan đi
+    tiếp cho BE xét. Chỉ lượt không chip: có chip thì thủ tục sách đọc mục lục từ trước, và
+    `bind_book` điền `nodes`.
 
     Args:
         step: Đề nghị model vừa nêu.
@@ -562,9 +568,9 @@ def _picked_document(request: NextStepRequested) -> str:
 def _picked_book_first(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
     """Giáo viên vừa chọn một tài liệu trong danh sách: đọc mục lục của nó, bằng code. Hàm thuần.
 
-    Đo ở plan 4c T5: sau khi giáo viên bấm tên cuốn, model tự gọi `list_chapters` 0/24 lượt
-    (run-87; 20/24 lượt đạt đều do `_toc_first`), còn lại nêu plan -- có lúc `nodes` bịa, có lúc
-    không `document_id` (âm thầm soạn đề không sách). Giáo viên đã chọn, nên đây không phải chọn
+    Đo ở `unbiased-model-text` T5: sau khi giáo viên bấm tên cuốn, model tự gọi `list_chapters` 0/24
+    lượt (run-87; 20/24 lượt đạt đều do `_toc_first`), còn lại nêu plan -- có lúc `nodes` bịa, có
+    lúc không `document_id` (âm thầm soạn đề không sách). Giáo viên đã chọn, nên đây không phải chọn
     hộ; và không còn phụ thuộc model ở đúng bước model hỏng (review T5, hướng iii).
 
     Args:
@@ -602,13 +608,13 @@ def _misfiled_read(step: NextStepCompleted, request: NextStepRequested) -> NextS
     """Câu hỏi lại ngay sau `list_documents` mà mang `list_chapters` của một tài liệu trong danh
     sách là lời gọi ấy, nộp nhầm `kind`. Hàm thuần.
 
-    Đo ở plan 4c T5 (run-88): ngay sau `list_documents`, 16/24 lượt model chọn `ask_clarify` mà
-    điền `tool_name=list_chapters` với `document_id` của một tài liệu trong danh sách (15 lượt là
-    cuốn Lớp 10 giáo viên nhắc) -- nó đã chọn sách, chỉ chọn sai `kind`. Bản đã commit tự gọi
-    `list_chapters` 17/24: đây là trả lại đúng lựa chọn của model, không phải code chọn hộ. Hẹp có
-    chủ ý: câu hỏi về khối mang `tool_name=list_class` (`thieu-khoi-co-so-cau`, 9 lượt đúng) và câu
-    hỏi chương mang `list_chapters` **sau** khi đã đọc mục lục (`tai-lieu-khong-khop`, 36 lượt
-    đúng) là câu hỏi thật.
+    Đo ở `unbiased-model-text` T5 (run-88): ngay sau `list_documents`, 16/24 lượt model chọn
+    `ask_clarify` mà điền `tool_name=list_chapters` với `document_id` của một tài liệu trong danh
+    sách (15 lượt là cuốn Lớp 10 giáo viên nhắc) -- nó đã chọn sách, chỉ chọn sai `kind`. Bản đã
+    commit tự gọi `list_chapters` 17/24: đây là trả lại đúng lựa chọn của model, không phải code
+    chọn hộ. Hẹp có chủ ý: câu hỏi về khối mang `tool_name=list_class` (`thieu-khoi-co-so-cau`, 9
+    lượt đúng) và câu hỏi chương mang `list_chapters` **sau** khi đã đọc mục lục
+    (`tai-lieu-khong-khop`, 36 lượt đúng) là câu hỏi thật.
 
     Args:
         step: Đề nghị model vừa nêu.
@@ -640,9 +646,10 @@ def _misfiled_read(step: NextStepCompleted, request: NextStepRequested) -> NextS
     )
 
 
-# Câu hỏi lại ngay sau `list_documents` (plan 4c T5, review T5 hướng ii). Nút của câu ấy luôn là
-# tên tài liệu -- BE coi câu hỏi đến sau một danh sách `candidates` là câu hỏi về dòng (ADR-23) --
-# mà chữ model viết lệch nút 5--17/24 lượt (*"phần mệnh đề nằm ở mục nào?"*, run-83, run-87).
+# Câu hỏi lại ngay sau `list_documents` (`unbiased-model-text` T5, review T5 hướng ii). Nút của câu
+# ấy luôn là tên tài liệu -- BE coi câu hỏi đến sau một danh sách `candidates` là câu hỏi về dòng
+# (ADR-23) -- mà chữ model viết lệch nút 5--17/24 lượt (*"phần mệnh đề nằm ở mục nào?"*, run-83,
+# run-87).
 _WHICH_BOOK = "Bạn soạn theo tài liệu nào?"
 
 
@@ -655,10 +662,10 @@ def _which_book(step: NextStepCompleted, request: NextStepRequested) -> NextStep
 
     Returns:
         `step` với `text` là `_WHICH_BOOK` khi nó là `ask_clarify`, không chip, và lượt **ngay
-        trước** nó là kết quả một `list_documents` có ít nhất một tài liệu -- chưa câu nào của
-        giáo viên chen vào; không thì chính `step`. Review chung sau T5: bản đầu đè mọi câu hỏi
-        cho tới khi đọc mục lục, kể cả sau khi giáo viên đã ghi *"thôi, không dùng sách"* qua lối
-        "Khác" -- câu hỏi khối hay số câu thành câu hỏi tài liệu.
+        trước** nó là kết quả một `list_documents` có ít nhất một tài liệu -- chưa câu nào của giáo
+        viên chen vào; không thì chính `step`. Review chung sau T5 (`unbiased-model-text`): bản đầu
+        đè mọi câu hỏi cho tới khi đọc mục lục, kể cả sau khi giáo viên đã ghi *"thôi, không dùng
+        sách"* qua lối "Khác" -- câu hỏi khối hay số câu thành câu hỏi tài liệu.
     """
     if step.kind != "ask_clarify" or request.attached_document is not None:
         return step
@@ -674,9 +681,9 @@ def _which_book(step: NextStepCompleted, request: NextStepRequested) -> NextStep
 def _garbled(steps: tuple[PlanStep, ...]) -> str:
     """Bước đầu tiên có tham số mang ký tự điều khiển, gọi tên ra; rỗng khi không bước nào.
 
-    Đo được ở plan 4c T3: hai lượt trong ~1100 trả *"tỉ lệ th\\x13"*, *"tỉ lệ th\\x1c"* làm
-    `topic_scope` (run-53, run-54; nguồn chưa rõ) -- chữ ấy thành tên đề giáo viên đọc. Hỏi lại
-    model một lần như một plan thiếu tham số.
+    Đo được ở `unbiased-model-text` T3: hai lượt trong ~1100 trả *"tỉ lệ th\\x13"*, *"tỉ lệ
+    th\\x1c"* làm `topic_scope` (run-53, run-54; nguồn chưa rõ) -- chữ ấy thành tên đề giáo viên
+    đọc. Hỏi lại model một lần như một plan thiếu tham số.
 
     Args:
         steps: Các bước model nêu.
@@ -694,11 +701,11 @@ def _garbled(steps: tuple[PlanStep, ...]) -> str:
 def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
     """Bước đầu tiên thiếu một tham số bắt buộc, gọi tên ra; rỗng khi không bước nào thiếu.
 
-    Luật của `vet_plan` bên BE -- tham số khai trong catalog, trừ `optional`, phải **có mặt** --
-    trừ đúng một chỗ BE tự lo: đoạn chat gắn một cuốn sách sẵn sàng thì `bind_book` điền
-    `document_id` **trước** `vet_plan`, nên thiếu nó không phải lý do hỏi lại (review T2b). `nodes`
-    thì vẫn tính: `bind_book` chỉ điền nó khi `topic_scope` trùng đúng tên mục. Tool không có trong
-    catalog thì để BE nói: đó là lời từ chối của nó.
+    Luật của `vet_plan` bên BE -- tham số khai trong catalog, trừ `optional`, phải **có mặt** -- trừ
+    đúng một chỗ BE tự lo: đoạn chat gắn một cuốn sách sẵn sàng thì `bind_book` điền `document_id`
+    **trước** `vet_plan`, nên thiếu nó không phải lý do hỏi lại (review T2b, `unbiased-model-text`).
+    `nodes` thì vẫn tính: `bind_book` chỉ điền nó khi `topic_scope` trùng đúng tên mục. Tool không
+    có trong catalog thì để BE nói: đó là lời từ chối của nó.
 
     Args:
         steps: Các bước model nêu.
@@ -817,11 +824,11 @@ class _Proposal(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # **Đứng trước `kind`, có chủ ý** (plan 4a, 12/10/2026). Model sinh JSON từ trái sang phải, nên
-    # field đầu tiên là quyết định đầu tiên. Khi `kind` đứng đầu, gpt-4o-mini chọn hỏi lại trước khi
-    # kịp đọc ra các mục đã có -- *"Tạo đề … chương Hàm số cho lớp 12A, 10 câu"* hỏi lại 8/8 lần
-    # dù prompt dặn nêu plan ngay, và đổi chữ ở lõi, skill, mô tả tool đều 0/6. Bắt nó ghi ra thứ đã
-    # biết trước thì 4/6. Không rời AGENT: `completed` bỏ nó đi, chỉ log giữ lại.
+    # **Đứng trước `kind`, có chủ ý** (`kriky-skill-routing`, 12/10/2026). Model sinh JSON từ trái
+    # sang phải, nên field đầu tiên là quyết định đầu tiên. Khi `kind` đứng đầu, gpt-4o-mini chọn
+    # hỏi lại trước khi kịp đọc ra các mục đã có -- *"Tạo đề … chương Hàm số cho lớp 12A, 10 câu"*
+    # hỏi lại 8/8 lần dù prompt dặn nêu plan ngay, và đổi chữ ở lõi, skill, mô tả tool đều 0/6. Bắt
+    # nó ghi ra thứ đã biết trước thì 4/6. Không rời AGENT: `completed` bỏ nó đi, chỉ log giữ lại.
     known: str = Field(
         default="",
         description=(
@@ -837,10 +844,10 @@ class _Proposal(BaseModel):
             "say và ask_clarify."
         ),
     )
-    # Plan 4c T3 (người dùng chốt 12/10/2026): hỏi lại thì có ít nhất 3 lựa chọn do model đề xuất,
-    # FE vẽ thêm lối "Khác" để giáo viên tự ghi. Câu hỏi về một dòng -- lớp, tài liệu, mục -- thì BE
-    # chỉ giữ chữ khớp đúng một tên nó đã đọc (`teacher_chat._choices`, hậu ký ADR-23), nên lời dặn
-    # ở đây là *chép đúng tên*.
+    # `unbiased-model-text` T3 (người dùng chốt 12/10/2026): hỏi lại thì có ít nhất 3 lựa chọn do
+    # model đề xuất, FE vẽ thêm lối "Khác" để giáo viên tự ghi. Câu hỏi về một dòng -- lớp, tài
+    # liệu, mục -- thì BE chỉ giữ chữ khớp đúng một tên nó đã đọc (`teacher_chat._choices`, hậu ký
+    # ADR-23), nên lời dặn ở đây là *chép đúng tên*.
     choices: tuple[str, ...] = Field(
         default=(),
         description=(
@@ -869,12 +876,12 @@ class _Proposal(BaseModel):
         Returns:
             Đề nghị, kèm hai field model không bao giờ được hỏi. `steps` chỉ đi theo một `plan`,
             vì hợp đồng từ chối chúng ở mọi `kind` khác. `choices` chỉ đi theo `ask_clarify`: BE
-            dựng nút từ chúng (plan 4c T3) -- trước T3 field này để rỗng, vì ADR-23 bản đầu bỏ
-            hết chữ model viết.
+            dựng nút từ chúng (`unbiased-model-text` T3) -- trước T3 field này để rỗng, vì ADR-23
+            bản đầu bỏ hết chữ model viết.
         """
-        # NFC cho mọi chữ model viết (plan 4c T3): gpt-4o-mini có lúc trả "ứ" ở dạng phân rã --
-        # "ư" + dấu sắc rời (run-57) -- và chữ ấy không khớp nhãn BE, lời giáo viên hay `bind_book`,
-        # dù in ra trông y hệt.
+        # NFC cho mọi chữ model viết (`unbiased-model-text` T3): gpt-4o-mini có lúc trả "ứ" ở dạng
+        # phân rã -- "ư" + dấu sắc rời (run-57) -- và chữ ấy không khớp nhãn BE, lời giáo viên hay
+        # `bind_book`, dù in ra trông y hệt.
         return NextStepCompleted(
             request_id=request_id,
             kind=self.kind,
@@ -967,8 +974,9 @@ def _compose(state: ProposeState) -> dict:
     # trước được một luật an toàn.
     opening = [_CORE]
     library = _opens_library(request, state["skills"])
-    # Một hàm chứ không một chuỗi thay thế: `re.sub` đọc `\` trong chuỗi thay thế như escape, và
-    # một ngày `_LIBRARY` có dấu `\` (LaTeX) thì chuỗi ấy hỏng lặng lẽ (review T2b).
+    # Một hàm chứ không một chuỗi thay thế: `re.sub` đọc `\` trong chuỗi thay thế như escape, và một
+    # ngày `_LIBRARY` có dấu `\` (LaTeX) thì chuỗi ấy hỏng lặng lẽ (review T2b,
+    # `unbiased-model-text`).
     for skill in skills.named(state["skills"]):
         opening.append(
             _LIBRARY_SLOT.sub(
@@ -978,8 +986,8 @@ def _compose(state: ProposeState) -> dict:
     if request.teacher_name:
         opening.append(f"Bạn đang nói với {request.teacher_name}.")
     if request.attached_document is not None:
-        # Plan 4b: tài liệu của đoạn chat -- chip của câu này, hoặc chip gần nhất. Id viết ra
-        # nguyên văn vì model gửi lại nó làm tham số `document_id`.
+        # `draft-from-document`: tài liệu của đoạn chat -- chip của câu này, hoặc chip gần nhất. Id
+        # viết ra nguyên văn vì model gửi lại nó làm tham số `document_id`.
         document = request.attached_document
         if document.state == "ready":
             opening.append(
@@ -987,16 +995,17 @@ def _compose(state: ProposeState) -> dict:
                 f"(document_id = {document.document_id})."
             )
         elif document.state == "processing":
-            # Tệp vừa tải lên, còn đang xử lý (review B6): chưa có mục lục để đọc. Nói ra, thay
-            # vì soạn như thể không có chip -- giáo viên đang nghĩ đề sẽ theo sách này.
+            # Tệp vừa tải lên, còn đang xử lý (review B6, `draft-from-document`): chưa có mục lục để
+            # đọc. Nói ra, thay vì soạn như thể không có chip -- giáo viên đang nghĩ đề sẽ theo sách
+            # này.
             opening.append(
                 f"Tài liệu giáo viên đính kèm: {document.filename} -- đang xử lý, chưa đọc "
                 "được. Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng cần chờ tài liệu "
                 "sẵn sàng rồi gửi lại; đừng soạn đề không tài liệu thay cho nó."
             )
         else:
-            # Hỏng, hay không đọc được chữ (review B7): chờ cũng không ra gì -- bảo chờ là kẹt
-            # đoạn chat ở một lời hứa không ai giữ.
+            # Hỏng, hay không đọc được chữ (review B7, `draft-from-document`): chờ cũng không ra gì
+            # -- bảo chờ là kẹt đoạn chat ở một lời hứa không ai giữ.
             opening.append(
                 f"Tài liệu giáo viên đính kèm: {document.filename} -- KHÔNG đọc được nội dung. "
                 "Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng tài liệu này không dùng "
@@ -1112,9 +1121,10 @@ async def _choose(state: ProposeState) -> dict:
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
     request = state["request"]
     step = _unmangled(proposal).completed(request_id="", model_tokens=spent)
-    # Luật thứ tự đọc (plan 4c T5): đề nghị đúng việc mà sai bước thì thành **một lời gọi tool
-    # đọc**; ở bước kế trong cùng vòng gọi tool của BE, model nêu lại với kết quả trong tay. Bước
-    # nào đã đọc rồi thì không gọi lại -- mỗi luật tự kiểm, không thì BE hỏi tới trần rồi báo lỗi.
+    # Luật thứ tự đọc (`unbiased-model-text` T5): đề nghị đúng việc mà sai bước thì thành **một lời
+    # gọi tool đọc**; ở bước kế trong cùng vòng gọi tool của BE, model nêu lại với kết quả trong
+    # tay. Bước nào đã đọc rồi thì không gọi lại -- mỗi luật tự kiểm, không thì BE hỏi tới trần rồi
+    # báo lỗi.
     step = _reads_first(step, request)
     step = _picked_book_first(step, request)
     step = _misfiled_read(step, request)
@@ -1129,7 +1139,8 @@ async def _choose(state: ProposeState) -> dict:
         # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`_answers`) -- bấm
         # chúng là gửi đi một thứ không trả lời gì.
         answers = _answers(step.choices, step.text)
-        # [CODE CHẾT 2026-10-13] Lối "Khác" không còn gửi chữ "Khác" (xem `_after_other`).
+        # [CODE CHẾT 2026-10-13] Lối "Khác" không còn gửi chữ "Khác" (xem `_after_other`;
+        # `unbiased-model-text`).
         # if _after_other(state["request"]):
         #     # Plan 4c T5: `_CORE` dặn *"vừa chọn Khác thì hỏi lại bằng một câu mở"*, model vẫn bày
         #     # lựa chọn mới -- trên trình duyệt *"Chương 1/2/3"* cho một đề không có sách.
@@ -1204,10 +1215,10 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
                         request_id=request.request_id, kind="say", text=_UNCLEAR
                     )
                 raise
-            # Lần đầu đã có một đề nghị dùng được: lần hai hỏng kiểu gì cũng giữ nó -- không bao
-            # giờ tệ hơn trước khi có lưới này. Plan thì lượt không sách `vet_plan` từ chối như
-            # cũ, lượt có sách `bind_book` có thể điền nốt (review T2b). Lần hai im lặng, hay
-            # provider hỏng, mà thả lỗi ra thì `handlers` lùi về mock.
+            # Lần đầu đã có một đề nghị dùng được: lần hai hỏng kiểu gì cũng giữ nó -- không bao giờ
+            # tệ hơn trước khi có lưới này. Plan thì lượt không sách `vet_plan` từ chối như cũ, lượt
+            # có sách `bind_book` có thể điền nốt (review T2b, `unbiased-model-text`). Lần hai im
+            # lặng, hay provider hỏng, mà thả lỗi ra thì `handlers` lùi về mock.
             logger.warning(
                 "asking again failed for %s (%r); keeping the first answer",
                 request.request_id,

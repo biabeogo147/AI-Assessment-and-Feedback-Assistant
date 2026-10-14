@@ -42,9 +42,9 @@ class Settings(BaseSettings):
             nằm ở đây chứ không nằm cạnh cái loop nó điều khiển, vì mức kiên nhẫn
             của BE với một job phải phủ hết số lần đó, và `tools/check_contract.py`
             chỉ check được điều ấy nếu nó đọc được con số.
-        jev_api_key: Khoá Jev (TypeSafe AI) để chọn skill cho Kriky (plan 4a), cùng biến
-            `JEV_API_KEY` với document agent. Rỗng thì mọi lượt nạp cả ba skill -- đúng bằng
-            prompt trước plan 4a.
+        jev_api_key: Khoá Jev (TypeSafe AI) để chọn skill cho Kriky (`kriky-skill-routing`), cùng
+            biến `JEV_API_KEY` với document agent. Rỗng thì mọi lượt nạp cả ba skill -- đúng bằng
+            prompt trước `kriky-skill-routing`.
         jev_model: Phiên bản Jev ghim. `skill_min_yes` chỉ có nghĩa đi kèm con số này.
         skill_min_yes: Một skill được nạp khi Jev cho xác suất "yes" từ ngưỡng này. Thấp có chủ ý:
             nạp thừa một skill chỉ là prompt hôm nay, thiếu `soan-de` là một plan bị BE từ chối.

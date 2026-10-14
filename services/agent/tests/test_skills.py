@@ -1,9 +1,9 @@
-"""Lõi, skill, và Jev chọn skill nào cho một lượt của Kriky (plan 4a).
+"""Lõi, skill, và Jev chọn skill nào cho một lượt của Kriky (`kriky-skill-routing`).
 
 Ba loại khẳng định. Lõi **luôn** mang luật an toàn, vì Jev chọn sai thì một skill vắng mặt -- nên
 một luật ADR-05 lọt vào skill là một luật có thể biến mất mà không ai thấy. Bộ chọn hỏng theo cách
-nào cũng lùi về **mọi** skill, tức prompt trước plan 4a. Và state gửi Jev là chữ, không có kết quả
-tool, nên mọi bước của một vòng tool chọn cùng skill.
+nào cũng lùi về **mọi** skill, tức prompt trước `kriky-skill-routing`. Và state gửi Jev là chữ,
+không có kết quả tool, nên mọi bước của một vòng tool chọn cùng skill.
 
 Không test nào ở đây gọi Jev thật: `conftest.py` đóng `_client`, và test nào cần Jev tự cài một
 client giả.
@@ -123,18 +123,18 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
 @pytest.mark.parametrize(
     "rule",
     [
-        # Ba luật đầu từng rơi mất ở lần tách đầu -- review plan 4a bắt được, không test nào bắt.
-        # Từ ngày 12/10/2026 skill viết thành quy trình (người dùng chốt), nên mỗi luật được kiểm
-        # bằng câu chữ của quy trình, không bằng câu chữ của `_SYSTEM` cũ.
+        # Ba luật đầu từng rơi mất ở lần tách đầu -- review `kriky-skill-routing` bắt được, không
+        # test nào bắt. Từ ngày 12/10/2026 skill viết thành quy trình (người dùng chốt), nên mỗi
+        # luật được kiểm bằng câu chữ của quy trình, không bằng câu chữ của `_SYSTEM` cũ.
         "hai lớp trùng tên chỉ giáo viên phân biệt",
         "Mọi id lấy từ kết quả tool, không bao giờ tự đoán",
         "call_tool get_class — class_id",
-        # ADR-23, hậu ký plan 4c T3: model đề xuất ít nhất 3 lựa chọn, FE vẽ thêm lối "Khác"; hỏi
-        # về một lớp thì chép đúng tên -- BE chỉ giữ chữ khớp đúng một dòng nó đã đọc.
+        # ADR-23, hậu ký `unbiased-model-text` T3: model đề xuất ít nhất 3 lựa chọn, FE vẽ thêm lối
+        # "Khác"; hỏi về một lớp thì chép đúng tên -- BE chỉ giữ chữ khớp đúng một dòng nó đã đọc.
         "Hỏi thì kèm ít nhất 3 lựa chọn trong choices",
         # Câu này không còn bắn (lối "Khác" gửi câu giáo viên ghi, không gửi chữ "Khác"), nhưng
         # được giữ vì prompt nhạy đúng chỗ ấy: bỏ nó thì ca logarit tụt 23 → 6/24, thay câu khác
-        # thì 0/24 (plan 4c, sau T5; run-92..94). Xem comment trên `_CORE`.
+        # thì 0/24 (`unbiased-model-text`, sau T5; run-92..94). Xem comment trên `_CORE`.
         'Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở',
         "choices chép đúng name của các lớp",
         "Đừng liệt kê tên lớp trong text",
@@ -149,30 +149,32 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         "Tổng số câu của một đề không quá 50",
         "đừng nói là đã soạn xong",
         "average_total_marks trên average_out_of câu",
-        # Plan 4c: môn suy từ phạm vi (người dùng chốt), và câu hỏi của đề không viết ra trong lời
-        # nói. Một dòng dặn *"không ghi tên phân môn"* từng đứng đây: lượt hỏi lại môn ở 8 ca soạn
-        # đề đủ mục tăng từ 3 (run-13) lên 10--18 (run-14..19), mà subject vẫn ra "xác suất thống
-        # kê" -- bỏ ở run-20.
+        # `unbiased-model-text`: môn suy từ phạm vi (người dùng chốt), và câu hỏi của đề không viết
+        # ra trong lời nói. Một dòng dặn *"không ghi tên phân môn"* từng đứng đây: lượt hỏi lại môn
+        # ở 8 ca soạn đề đủ mục tăng từ 3 (run-13) lên 10--18 (run-14..19), mà subject vẫn ra "xác
+        # suất thống kê" -- bỏ ở run-20.
         "hoặc suy từ phạm vi",
         "không tự viết câu hỏi ra trong lời nói",
-        # Plan 4c T2b: `known` ghi giá trị bốn mục, không phải tên của chúng. Thử tay run-20: đủ
-        # bốn mục mà `known` ghi *"Cần xác định môn học, khối, phạm vi kiến thức và số câu"*, rồi
-        # hỏi cả ba thứ đã có.
+        # `unbiased-model-text` T2b: `known` ghi giá trị bốn mục, không phải tên của chúng. Thử tay
+        # run-20: đủ bốn mục mà `known` ghi *"Cần xác định môn học, khối, phạm vi kiến thức và số
+        # câu"*, rồi hỏi cả ba thứ đã có.
         "Ghi vào known GIÁ TRỊ đọc được của từng mục",
         # Khuôn đẩy model lấp đủ ô: nhắc sách không chip thì nó tự điền khối 8, 10, 11 (run-25).
         "suy thẳng từ lời họ theo bước 1 -- không đoán",
         "còn ? → ask_clarify một lần",
         # Chữ trích «» đưa `thieu-khoi-va-so-cau` từ 2/6 lên 6/6 (run-27 → run-28); tham số plan
-        # chép từ `known` (plan thiếu tham số 17/192, run-23); môn khác Toán chỉ khi gọi thẳng
-        # tên môn (`du-xac-suat-10` 1/6 → 5/6, run-28 → run-29). Review T2b: không test nào khoá.
-        # Phạm vi đứng trước môn: chép phạm vi rồi mới suy môn (`du-xac-suat-10` 8/24, run-42).
+        # chép từ `known` (plan thiếu tham số 17/192, run-23); môn khác Toán chỉ khi gọi thẳng tên
+        # môn (`du-xac-suat-10` 1/6 → 5/6, run-28 → run-29). Review T2b (`unbiased-model-text`):
+        # không test nào khoá. Phạm vi đứng trước môn: chép phạm vi rồi mới suy môn
+        # (`du-xac-suat-10` 8/24, run-42).
         "topic_scope=<giá trị> «<chữ>»; subject=<giá trị> «<chữ>»",
         "ĐỦ hai bước, mỗi tham số chép đúng giá trị đã ghi trong known",
         "Chỉ ghi môn khác khi giáo viên gọi thẳng tên một môn học khác",
-        # Plan 4c T5: *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* -- cụm dùng để suy môn
-        # bị coi là đã dùng hết, `topic_scope=? «phần logarit»`, hỏi lại dù đủ bốn mục: bản đã
-        # commit 19/24, bản có T2b/T3 5/24, có câu này 24/24 (run-79). Nó kéo `tai-lieu-khong-dinh`
-        # 24 → 16/24 cho tới khi `_library_first` giữ bước đầu của lượt nhắc sách bằng code.
+        # `unbiased-model-text` T5: *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* -- cụm dùng
+        # để suy môn bị coi là đã dùng hết, `topic_scope=? «phần logarit»`, hỏi lại dù đủ bốn mục:
+        # bản đã commit 19/24, bản có T2b/T3 5/24, có câu này 24/24 (run-79). Nó kéo
+        # `tai-lieu-khong-dinh` 24 → 16/24 cho tới khi `_library_first` giữ bước đầu của lượt nhắc
+        # sách bằng code.
         "cụm suy\n     ra môn vẫn là phạm vi",
     ],
 )
@@ -188,23 +190,27 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
 @pytest.mark.parametrize(
     "rule",
     [
-        # Plan 4b: tài liệu đọc TRƯỚC khi nêu plan (review B5), và phép rải số câu phải được nói ra
-        # (hậu ký ADR-27). Từ plan 4c thủ tục này nằm ở `_BOOK_PROCEDURE`, chỉ chèn ở lượt có sách.
+        # `draft-from-document`: tài liệu đọc TRƯỚC khi nêu plan (review B5), và phép rải số câu
+        # phải được nói ra (hậu ký ADR-27). Từ `unbiased-model-text` thủ tục này nằm ở
+        # `_BOOK_PROCEDURE`, chỉ chèn ở lượt có sách.
         "TRƯỚC khi nêu plan",
         "call_tool list_chapters — document_id",
         "rải đều theo độ dài các mục",
         "create_draft thêm document_id và nodes",
-        # Plan 4c T2b: chương không có trong sách thì model lấy một chương khác thay vào (run-25).
+        # `unbiased-model-text` T2b: chương không có trong sách thì model lấy một chương khác thay
+        # vào (run-25).
         "không phải một mục khác thay vào",
         # Có chip mà vẫn gọi `list_documents` (`tai-lieu-chua-doc` 2--3/6, run-27..29).
         "document_id đã có ở dòng tài liệu đính kèm thì\n   không gọi list_documents",
-        # T3: tả nội dung nhãn, không tả trạng thái đối chiếu. *"Chưa khớp được mục nào thì ?"*
-        # thì model ghi ? trước khi đối chiếu, rồi hỏi *"cả chương hay một phần?"* (7/24, run-49);
-        # bỏ hẳn thì nó lấy chương khác thay chương không có (2/24, run-50). Câu này: 23 và 24/24.
+        # T3 (`unbiased-model-text`): tả nội dung nhãn, không tả trạng thái đối chiếu. *"Chưa khớp
+        # được mục nào thì ?"* thì model ghi ? trước khi đối chiếu, rồi hỏi *"cả chương hay một
+        # phần?"* (7/24, run-49); bỏ hẳn thì nó lấy chương khác thay chương không có (2/24, run-50).
+        # Câu này: 23 và 24/24.
         "không label nào trong kết quả tool\n   nói về điều ấy thì topic_scope=?",
         # Chữ trích của khối đọc từ tên tài liệu là tên tài liệu -- không thì khối thành ?.
         "trong known, chữ trích của chúng là\n   tên tài liệu",
-        # T3: câu hỏi về mục thì choices là label -- BE chỉ giữ chữ khớp đúng một dòng.
+        # T3 (`unbiased-model-text`): câu hỏi về mục thì choices là label -- BE chỉ giữ chữ khớp
+        # đúng một dòng.
         "choices chép đúng label của các mục",
     ],
 )
@@ -213,7 +219,7 @@ def test_the_book_procedure_keeps_the_rules_of_plan_4b(rule: str) -> None:
 
 
 def test_no_skill_carries_the_book_procedure() -> None:
-    """Plan 4c: lượt không có sách thì thủ tục sách không tới model.
+    """`unbiased-model-text`: lượt không có sách thì thủ tục sách không tới model.
 
     Skill `soan-de` từng mang thủ tục sách, kèm dòng dặn *"không hỏi giáo viên có tài liệu hay
     không"*; model vẫn hỏi đúng câu ấy ~7/108 lượt (run-13), và 0/108 khi thủ tục rời skill
@@ -301,7 +307,8 @@ async def test_a_probability_exactly_on_the_threshold_loads(
 async def test_a_broken_jev_loads_every_skill(
     monkeypatch: pytest.MonkeyPatch, fake: FakeJev
 ) -> None:
-    """Jev hỏng hay trả hình dạng lạ thì nạp cả ba -- đúng bằng prompt trước plan 4a."""
+    """Jev hỏng hay trả hình dạng lạ thì nạp cả ba -- đúng bằng prompt trước
+    `kriky-skill-routing`."""
     _jev(monkeypatch, fake)
 
     chosen = await skill_router.choose([_teacher("tạo đề")])

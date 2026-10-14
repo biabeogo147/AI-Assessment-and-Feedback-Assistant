@@ -1,4 +1,5 @@
-"""AGENT dùng tài liệu (plan 4b): job soạn câu nhận đúng mục của nó, Kriky biết tài liệu đính kèm.
+"""AGENT dùng tài liệu (`draft-from-document`): job soạn câu nhận đúng mục của nó, Kriky biết tài
+liệu đính kèm.
 
 Không model nào được gọi: các khẳng định ở đây là về **chữ đưa vào prompt** -- brief của một job, và
 system prompt của pha lên plan.
@@ -120,18 +121,20 @@ _READY = AttachedDocument(document_id="book", filename="Sách.pdf")
 @pytest.mark.parametrize(
     ("attached", "history", "told"),
     [
-        # Không chip, chưa mở thư viện: không chữ nào về thủ tục sách (plan 4c, run-13).
+        # Không chip, chưa mở thư viện: không chữ nào về thủ tục sách (`unbiased-model-text`,
+        # run-13).
         (None, (_TEACHER,), False),
         (_READY, (_TEACHER,), True),
         # Chip còn đang xử lý: chưa đọc được mục lục -- kể cả khi đoạn chat từng mở thư viện, để
-        # prompt không vừa bảo *đừng soạn* vừa bảo *đọc mục lục* (review T2).
+        # prompt không vừa bảo *đừng soạn* vừa bảo *đọc mục lục* (review T2, `unbiased-model-text`).
         (_PROCESSING, (_TEACHER,), False),
         (_PROCESSING, (*_READ, _TEACHER), False),
         # Model vừa mở thư viện, hay lượt trước mở rồi hỏi lại chương nào: việc chọn sách còn dở.
         (None, (_TEACHER, *_READ), True),
         (None, (*_READ, TurnRecord(kind="assistant", text="chương nào?"), _TEACHER), True),
         # Một plan đã nêu sau lần đọc: việc chọn sách xong rồi. BE vẫn để `list_chapters` trong
-        # catalog cả đoạn chat, nên catalog **không** được là thứ quyết định (review T2).
+        # catalog cả đoạn chat, nên catalog **không** được là thứ quyết định (review T2,
+        # `unbiased-model-text`).
         (None, (*_READ, _PLANNED, _TEACHER), False),
     ],
 )
@@ -173,17 +176,19 @@ _ANSWER = TurnRecord(kind="teacher", text="lớp 8")
         # Soạn đề, nhắc sách, không chip, chưa đọc sách: lượt duy nhất mở thư viện có nghĩa.
         (None, (_BOOK_TALK,), ("soan-de",), True),
         # Không nhắc sách: đứng đầu các nhánh mà hiện ở mọi lượt thì model gọi `list_documents` cả
-        # khi không ai nhắc sách (run-26: 0/6 ở mọi ca đủ mục) -- T3.
+        # khi không ai nhắc sách (run-26: 0/6 ở mọi ca đủ mục) -- T3 (`unbiased-model-text`).
         (None, (_TEACHER,), ("soan-de",), False),
         (None, (TurnRecord(kind="teacher", text="cho mình danh sách lớp"),), ("soan-de",), False),
-        # Có chip: dòng này từng thắng cả thủ tục sách, 24 lần đo 22/24 → 10/24 (plan 4c T2b).
+        # Có chip: dòng này từng thắng cả thủ tục sách, 24 lần đo 22/24 → 10/24
+        # (`unbiased-model-text` T2b).
         (_READY, (_BOOK_TALK,), ("soan-de",), False),
         (_PROCESSING, (_BOOK_TALK,), ("soan-de",), False),
         # Đã mở thư viện: đang chọn sách, thủ tục sách lo phần còn lại.
         (None, (_BOOK_TALK, *_READ), ("soan-de",), False),
         # Không phải lượt soạn đề.
         (None, (_BOOK_TALK,), ("lop-va-ket-qua",), False),
-        # Review T3: nhắc sách ở lượt trước, lượt này chỉ trả lời khối -- vẫn là soạn theo sách.
+        # Review T3 (`unbiased-model-text`): nhắc sách ở lượt trước, lượt này chỉ trả lời khối --
+        # vẫn là soạn theo sách.
         (
             None,
             (_BOOK_TALK, TurnRecord(kind="assistant", text="khối nào?"), _ANSWER),
@@ -230,8 +235,9 @@ def test_the_library_line_stands_among_the_drafting_branches() -> None:
     """Đứng thành một đoạn riêng sau skill thì model không theo nó; đứng sau nhánh *hỏi lại* thì
     nhánh ấy thắng.
 
-    Nhắc sách không chip: đoạn riêng 0/6 -- model ghi khối bịa rồi nêu plan (plan 4c T2b); sau nhánh
-    *còn ? → hỏi lại* 11--14/24 -- hỏi khối rồi soạn đề không sách (T3). Chỗ của nó là nhánh đầu.
+    Nhắc sách không chip: đoạn riêng 0/6 -- model ghi khối bịa rồi nêu plan (`unbiased-model-text`
+    T2b); sau nhánh *còn ? → hỏi lại* 11--14/24 -- hỏi khối rồi soạn đề không sách (T3). Chỗ của nó
+    là nhánh đầu.
     """
     request = NextStepRequested(
         request_id="r1",
@@ -250,7 +256,8 @@ def test_the_library_line_stands_among_the_drafting_branches() -> None:
 
 
 def test_a_unit_with_no_text_is_briefed_without_an_empty_frame() -> None:
-    """Review B5: mục có tên mà đoạn không đọc được -- không gửi khung `<<< >>>` rỗng."""
+    """Review B5 (`draft-from-document`): mục có tên mà đoạn không đọc được -- không gửi khung `<<<
+    >>>` rỗng."""
     brief = draft_brief(_asked(focus_title="Chương I › Bài 1", focus_text="  "))
 
     assert "<<<" not in brief
@@ -259,7 +266,8 @@ def test_a_unit_with_no_text_is_briefed_without_an_empty_frame() -> None:
 
 @pytest.mark.asyncio
 async def test_kriky_is_told_a_document_still_being_read(monkeypatch) -> None:
-    """Review B6: chip của tệp còn đang xử lý -- Kriky được báo, không soạn như thể không có."""
+    """Review B6 (`draft-from-document`): chip của tệp còn đang xử lý -- Kriky được báo, không soạn
+    như thể không có."""
     prompts: list[str] = []
 
     class Recording:
@@ -289,7 +297,8 @@ async def test_kriky_is_told_a_document_still_being_read(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_a_broken_document_is_not_something_to_wait_for(monkeypatch) -> None:
-    """Review B7: tài liệu hỏng thì bảo chờ là kẹt đoạn chat mãi -- nói nó không dùng được."""
+    """Review B7 (`draft-from-document`): tài liệu hỏng thì bảo chờ là kẹt đoạn chat mãi -- nói nó
+    không dùng được."""
     prompts: list[str] = []
 
     class Recording:

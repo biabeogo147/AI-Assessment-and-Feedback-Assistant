@@ -291,11 +291,11 @@ def draft_brief(request: DraftQuestionRequested) -> str:
     if request.difficulty:
         lines.append(f"Mức độ giáo viên yêu cầu: {request.difficulty}")
     # Có mục mà không có chữ (đoạn không đọc được) thì soạn như đề không tài liệu: một khung
-    # `<<< >>>` rỗng dặn model bám vào hư không (review B5).
+    # `<<< >>>` rỗng dặn model bám vào hư không (review B5, `draft-from-document`).
     if request.focus_title and request.focus_text.strip():
-        # Plan 4b: câu này có **một mục** của tài liệu (hậu ký ADR-27). Đoạn dưới là kiến thức
-        # để viết câu mới, không phải kho câu để chép -- và các mục của câu khác được nêu tên
-        # vì các job chạy song song, không thấy nhau.
+        # `draft-from-document`: câu này có **một mục** của tài liệu (hậu ký ADR-27). Đoạn dưới là
+        # kiến thức để viết câu mới, không phải kho câu để chép -- và các mục của câu khác được nêu
+        # tên vì các job chạy song song, không thấy nhau.
         lines += [
             "",
             f"Câu này CHỈ hỏi kiến thức của mục: {request.focus_title}",

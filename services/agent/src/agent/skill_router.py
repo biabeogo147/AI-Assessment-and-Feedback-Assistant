@@ -1,22 +1,23 @@
-"""Jev chọn skill nào được nạp cho một lượt của Kriky (plan 4a). Module duy nhất của AGENT import
-`typesafe_sdk`.
+"""Jev chọn skill nào được nạp cho một lượt của Kriky (`kriky-skill-routing`). Module duy nhất của
+AGENT import `typesafe_sdk`.
 
 **Mỗi skill chuyên biệt một câu `choice` có/không** (D2), chạy song song trong một lời gọi: một tin
 nhắn có thể cần hai skill (*"xem kết quả lớp 12A rồi soạn đề ôn"*). Skill bao quát không được hỏi --
 nó là chỗ rơi vào khi không skill nào qua ngưỡng.
 
-Ba quyết định đến từ jaggedness của `jev-1.13` (plan 3c, *Khảo sát Jev*):
+Ba quyết định đến từ jaggedness của `jev-1.13` (`document-agent-hierarchy`, *Khảo sát Jev*):
 
 - *Nghiêng về lựa chọn đầu* → **"yes" đứng đầu**. Ở đây lựa chọn an toàn là nạp: nạp thừa một skill
-  chỉ là prompt trước plan 4a, thiếu `soan-de` là một plan bị BE từ chối.
+  chỉ là prompt trước `kriky-skill-routing`, thiếu `soan-de` là một plan bị BE từ chối.
 - *State to làm Jev lạc* → state chỉ là vài lượt **chữ** gần nhất, không có kết quả tool (D3). Nhờ
   vậy mọi bước trong một vòng tool của BE thấy cùng một state và chọn cùng skill.
 - *Kém với ngôn ngữ khác* → `instructions` và `criteria` tiếng Anh; chữ hội thoại giữ tiếng Việt.
 
 Hỏng theo bất kỳ cách nào -- thiếu khoá, timeout, lỗi mạng, câu trả lời lạ -- thì nạp **mọi** skill
-(D4): đúng bằng prompt trước plan 4a. *"Không bao giờ tệ hơn"* chỉ còn đúng với prompt: từ plan 4c
-T5, việc chọn còn bật một luật code -- `propose._opens_library` chỉ mở thư viện ở lượt có `soan-de`,
-nên nạp thừa `soan-de` thì một câu hỏi lại ở lượt nhắc sách thành lời gọi `list_documents`.
+(D4): đúng bằng prompt trước `kriky-skill-routing`. *"Không bao giờ tệ hơn"* chỉ còn đúng với
+prompt: từ `unbiased-model-text` T5, việc chọn còn bật một luật code -- `propose._opens_library` chỉ
+mở thư viện ở lượt có `soan-de`, nên nạp thừa `soan-de` thì một câu hỏi lại ở lượt nhắc sách thành
+lời gọi `list_documents`.
 """
 
 import asyncio
