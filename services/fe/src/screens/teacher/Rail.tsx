@@ -319,13 +319,27 @@ export type ChipState = "processing" | "ready" | "no_text_layer" | "failed";
 interface ChipLook {
   say: string;
   tone: string;
+  /** Trạng thái này nói tiến độ thay nhãn khi đã nghe tiếng báo (chỉ `processing`). */
+  progress: boolean;
+  /** Dòng meta in số trang: chỉ khi tệp **đã đọc xong** (`ready`, `no_text_layer`). */
+  counted: boolean;
 }
 
 const CHIP: Record<ChipState, ChipLook> = {
-  processing: { say: "Đang xử lý…", tone: "processing" },
-  ready: { say: "", tone: "settled" },
-  no_text_layer: { say: "Không đọc được chữ", tone: "needs-human" },
-  failed: { say: "Xử lí lỗi. Hãy tải lại", tone: "needs-human" },
+  processing: { say: "Đang xử lý…", tone: "processing", progress: true, counted: false },
+  ready: { say: "", tone: "settled", progress: false, counted: true },
+  no_text_layer: {
+    say: "Không đọc được chữ",
+    tone: "needs-human",
+    progress: false,
+    counted: true,
+  },
+  failed: {
+    say: "Xử lí lỗi. Hãy tải lại",
+    tone: "needs-human",
+    progress: false,
+    counted: false,
+  },
 };
 
 /**
@@ -342,12 +356,9 @@ const CHIP: Record<ChipState, ChipLook> = {
 function say(one: TeacherDocument): string {
   const read = one.pages_read;
   const total = one.page_count;
-  if (
-    one.state !== "processing" ||
-    typeof read !== "number" ||
-    typeof total !== "number"
-  )
-    return CHIP[one.state].say;
+  const look = CHIP[one.state];
+  if (!look.progress || typeof read !== "number" || typeof total !== "number")
+    return look.say;
   if (read >= total) return "Đang dựng mục lục…";
   return `Đang đọc ${read}/${total} trang…`;
 }
@@ -425,8 +436,7 @@ function bucket(iso: string): string {
  */
 function measure(one: TeacherDocument): string {
   const size = weight(one.byte_size);
-  const read = one.state === "ready" || one.state === "no_text_layer";
-  return !read || one.page_count === null
+  return !CHIP[one.state].counted || one.page_count === null
     ? size
     : `${size} · ${one.page_count} trang`;
 }
