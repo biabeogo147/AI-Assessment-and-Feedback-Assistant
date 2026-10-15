@@ -1109,3 +1109,24 @@ phạm vi plan ấy, chờ người dùng quyết có sửa không.
 | **Chip nguồn thật trên từng câu.** Từ ADR-28 phần *đã kiểm / chưa kiểm* suy được từ trạng thái đề; phần *ngân hàng / Kriky soạn* cần cột nguồn ở dòng trên. Hôm nay chip bịa có thể in *"Lấy từ ngân hàng câu hỏi"* trên đúng câu mà hộp xoá nói *"chưa có trong ngân hàng câu hỏi"* | Người dùng dặn giữ nguyên giao diện ở plan ngân hàng; chờ quyết |
 | **Sửa bản trong ngân hàng** (vòng ADR-19) và câu hỏi đi kèm: lần duyệt lại đề gốc sẽ ghi đè bản đã sửa ấy | Chưa có màn ngân hàng; quyết lúc dựng đường sửa (ADR-28, Hệ quả) |
 | **`docs/decisions/README.md` (*Nguồn thiết kế*) đã cũ, từ trước plan này**: ghi trang `Screen — Chat` *"mười hai artboard"*, trong khi trang nay tên `Screen — Teacher` (`12:2`) và có 16 artboard đánh số (1--15 và `3b`); số `13`--`15` bên giáo viên trùng số bên học sinh (*"13…24"*). Cùng chữ cũ ở `adr-10-pham-vi-dot-dau.md` và *"mười hai artboard"* ở `data-model.md` (*Dữ liệu mẫu*) | Sửa chữ, miễn plan; chưa làm vì ngoài phạm vi plan ngân hàng |
+
+## Lộ ra khi làm plan dàn ý đề
+
+Ghi ngày 15/10/2026, khi đóng `2026-10-15-draft-outline-plan.md` (ADR-29). Số đo là `propose_bench`
+gpt-4o-mini 6 lần/ca (`data/results/run-101`, trước `_approved_plan`) và ba lượt thử trình duyệt; chi
+tiết ở mục *Status* của plan.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Plan chỉ có `create_draft` không qua cổng duyệt.** Cổng ADR-29 chỉ xét plan có `start_drafting` hay `replace_question`; thử tay lượt ba, model chép lại một plan hỏng của lượt trước và mở một **đề trống mới** cho lời xin *"soạn thêm 2 câu"* | **Chờ người dùng quyết**: chặn nó là bỏ khả năng mở đề trống bằng chat (đề trống vẫn thêm câu tay được ở panel) |
+| **`tra-lop-ket-qua` tụt 6/6 → 2/6** -- hồi quy ngoài luồng dàn ý: model nêu `call_tool` không tên tool hay không tham số khi tra kết quả lớp | Chưa rõ gốc: prompt `_CORE` dài thêm việc thứ năm là nghi vấn đầu. Cần đo riêng ca ấy trên bản trước plan và bản hiện tại |
+| **Dàn ý chung chung.** Thử tay: năm mục cùng ghi *"tỉ lệ thức"*, công thức thiếu hay lặp y nhau giữa các mục, nên câu 1, 3, 4 ra cùng một dạng. Dàn ý theo sách (đọc `read_section`) cụ thể hơn hẳn | Một luật prompt (*mỗi mục một kiến thức khác nhau, công thức của riêng mục*) và một ca bench chấm độ khác nhau giữa các mục -- chưa làm, cần đo trước khi tin |
+| **`vuot-tran-12-cau` 0/6**: xin 12 câu thì model nêu dàn ý 10 câu thay vì nói trần 10 câu một lần | BE vẫn chặn quá 10 nên không hỏng dữ liệu; giáo viên chỉ không được nói vì sao. Sửa bằng một lời BE thêm khi tổng dàn ý thấp hơn số xin, hay luật prompt |
+| **`dan-y-duyet-khong-gian` 2/6 đo trước `_approved_plan`** | Đo lại khi có lần chạy bench thật kế tiếp (không chạy riêng chỉ để đo ca này) |
+| **Model nói "mình sẽ soạn dàn ý ngay" trong một `ask_clarify`** (thử tay lượt ba) và hỏi phạm vi trên sách khác khối của đề (chip Lớp 6 đính vào đoạn chat của đề lớp 7) | Lỗi thứ hai là hệ quả của chip tự đính lúc tải lên (plan 4b), không của dàn ý |
+| **Mục dàn ý của câu đã bị thay vẫn nằm trong `brief.outline`** và vẫn vào `other_items` của job sau (có trần); thẻ kết quả bước thay câu dùng đầu đề *"Đã tạo đề"* | Review đợt 5 ghi nhận; không sai dữ liệu |
+| **`IntegrityError` ở commit đầu của `fire` cuộn lại `brief.outline`** mà ô sau vẫn trỏ mục -- cùng lỗ đã có với `question_count` | Review đợt 3 ghi nhận; khe hẹp (hai lần bắn cùng đề cùng lúc) |
+| **Dàn ý và plan bị từ chối không ghi `model_tokens`**; một lượt dàn ý không đóng câu hỏi lại đang mở trước nó (`_rows_in_play`) | Review đợt 3 ghi nhận |
+| **Bench `be_refuses` chỉ chạy `vet_plan`**, không chạy cổng duyệt -- một plan soạn khi chưa có dàn ý vẫn được chấm là đạt nếu đủ tham số | Cần bench dựng lịch sử có lượt dàn ý; ca `dan-y-*` hiện chấm bằng hình dạng đề nghị |
+| **Kriky hỏi lại dù đã đủ mục** (thử tay lượt bốn: *"soạn thêm 1 câu về cách ghi số La Mã"* → hai câu hỏi lại về khía cạnh và bài, rồi mới nêu dàn ý; bench run-98 thấy cùng kiểu ở ca đủ mục). Chữ kiến thức trong dàn ý đôi khi đuôi dấu `;` (*"Cách đọc số La Mã từ 1 đến 30;"*) | Chưa có cách sửa bằng code; luật prompt *đủ bốn mục thì nêu dàn ý* đã có. Cần đo riêng trước khi đổi prompt |
+| **`_document_scope` của `create_draft` đọc `nodes` *"1 2"* thành nút 12** (có từ plan 4b; `read_section` đã sửa lỗi ấy ở đợt 2) | Ngoài phạm vi plan dàn ý |

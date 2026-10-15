@@ -252,7 +252,7 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
       (`coverage.py`, `test_coverage.py`). Rồi rà lại tài liệu nhắc tới chúng (task 17).
 - [x] 17. ADR-29 `đã chốt` cùng bảng nơi thi hành; `AGENTS.md`; `teacher-surface.md`; kịch bản thử
       tay; `backlog.md`.
-- [ ] 18. Thử trình duyệt **một đợt** (người dùng dặn 15/10/2026: plan không đóng khi chưa thử tay;
+- [x] 18. Thử trình duyệt **một đợt** (người dùng dặn 15/10/2026: plan không đóng khi chưa thử tay;
       gpt-4o-mini, **xin phép trước**): dàn ý có công thức → sửa → duyệt → câu
       bám dàn ý; thay câu 1; soạn thêm 3 câu; một đề không tài liệu; F5; log không payload nào có
       chữ chunk. `db-reset` trước khi bật service (Decision *dọn `coverage.py`*). Đóng plan.
@@ -416,3 +416,18 @@ sửa: lần hỏi lại model (`_NoOutline`) gửi đúng prompt cũ, không k�
   `call_tool` không mang tham số -- hồi quy ngoài luồng dàn ý, theo dõi ở `backlog.md`);
   `dan-y-duyet-khong-gian` 2/6 (đo trước `_approved_plan`); `vuot-tran-12-cau` 0/6 (model nêu dàn ý
   10 câu thay vì nói trần; BE vẫn chặn quá 10).
+
+**Thử trình duyệt, lượt bốn** (BE, AGENT chạy `324be52`, rồi AGENT chạy `d5e12c7`): chat có sách
+`e3672757`, *"soạn thêm 1 câu về cách ghi số La Mã"* -- Kriky hỏi lại hai lần dù đủ mục (điểm yếu đã
+biết), rồi dàn ý ra `for=new` *"Câu 1"* vì câu cuối là tên bài: sửa ở `d5e12c7` (`_right_purpose` dò
+mọi câu kể từ plan). *"ok nhưng đổi sang viết số tự nhiên thành số La Mã"* → **dàn ý mới** bản 4
+*"Câu 8"*, không soạn gì (trước review đợt 6 câu này là đồng ý). *"oke"* → một bước soạn, đề 8 câu,
+câu 8 trỏ mục 7 đúng chữ dàn ý.
+
+**Đóng 15/10/2026.** Task 1–18 xong. Đạt: mọi đề đi qua dàn ý BE in (có sách và không sách), sửa
+dàn ý, duyệt bằng chat, câu bám mục dàn ý (`draft_briefs.outline` khớp chữ đã hiện, mỗi `DraftItem`
+trỏ đúng mục), thay một câu, soạn thêm câu, F5 giữ nguyên, không payload job nào có chữ tài liệu
+(trường `focus_*` đã gỡ khỏi hợp đồng). **Không đạt trọn** tiêu chí bench: `tra-lop-ket-qua` 2/6
+(trước plan 6/6) là ca ngoài luồng dàn ý bị tụt. Chi phí model thật cả plan: ba lần `propose_bench`
+(~0,2 USD mỗi lần), một `skill_bench` (~0,0015 USD), bốn lượt thử trình duyệt (dưới 0,05 USD).
+Việc còn lại và điểm yếu đã đo ở `backlog.md`, mục *Lộ ra khi làm plan dàn ý đề*.

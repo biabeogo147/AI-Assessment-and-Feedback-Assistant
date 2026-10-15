@@ -82,8 +82,8 @@ còn đọc hết được.
 
 ## Nơi luật này đang được thi hành
 
-Plan thi hành: `docs/plans/active/2026-10-15-draft-outline-plan.md` (thử trên trình duyệt còn chờ khi
-viết dòng này).
+Plan thi hành: `docs/plans/completed/2026-10-15-draft-outline-plan.md` (đóng 15/10/2026, sau bốn lượt
+thử trên trình duyệt).
 
 | Luật | Sống ở | Test canh |
 |---|---|---|
