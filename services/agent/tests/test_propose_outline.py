@@ -11,6 +11,7 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from agent import llm
 from agent.graphs import propose as propose_module
 from agent.graphs.propose import (
+    _AGREES,
     _CORE,
     _UNCLEAR,
     _approved_plan,
@@ -25,7 +26,6 @@ from agent.graphs.propose import (
     _right_purpose,
     propose,
 )
-from agent.handlers import _AGREES
 from contracts import (
     AttachedDocument,
     NextStepCompleted,
@@ -277,9 +277,33 @@ def test_the_core_prompt_carries_the_outline_rules() -> None:
     assert "replace (thay một câu: một mục một câu, kèm question" in _CORE
 
 
-@pytest.mark.parametrize("said", ["oke", "OK luôn", "được", "Đồng ý nhé", "chốt"])
+@pytest.mark.parametrize(
+    "said", ["oke", "OK luôn", "được", "Đồng ý nhé", "chốt", "Được rồi", "ok, soạn đi", "vâng ạ."]
+)
 def test_the_mock_hears_an_agreement(said: str) -> None:
     assert _AGREES.search(said) is not None
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "ok nhưng câu 2 đổi sang tự luận",
+        "được không?",
+        "chốt câu 3 đổi sang hình học",
+        "OK để mình xem lại đã",
+        "đồng ý, nhưng chỉ 1 câu thôi",
+        "duyệt lại câu 2 giúp mình",
+        "ừ mà khoan",
+        "Được rồi, nhưng đổi khối 7",
+        "vâng nhưng đừng soạn vội",
+    ],
+)
+def test_an_agreement_with_a_change_is_not_an_agreement(said: str) -> None:
+    """Review đợt 6: khớp đầu câu thì những câu này soạn theo dàn ý giáo viên vừa xin đổi."""
+    kept = {"version": 1, "for": "more", "items": [{"questions": 1}]}
+
+    assert _AGREES.search(said) is None
+    assert _approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
 
 
 def _counted(*questions: int, purpose: str = "new") -> NextStepCompleted:
@@ -386,6 +410,16 @@ def test_without_a_draft_in_the_thread_the_purpose_stays(said: str) -> None:
     assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
 
 
+def test_drafting_another_paper_on_a_drafted_thread_stays_new() -> None:
+    """Review đợt 6: *"soạn thêm một đề mới"* là đề khác, không phải câu thêm vào đề cũ."""
+    asked = NextStepRequested(
+        request_id="r1",
+        history=(_DRAFTED, TurnRecord(kind="teacher", text="soạn thêm một đề mới về hàm số 5 câu")),
+    )
+
+    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
+
+
 def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
     """Thử tay 15/10/2026 (`draft-outline`): đọc phần 1/5 rồi viết dàn ý -- dàn ý chỉ phủ đầu
     chương."""
@@ -399,7 +433,7 @@ def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
     read = TurnRecord(
         kind="tool_result",
         tool_name="read_section",
-        tool_result={"found": True, "part": 1, "parts": 5, "more": True},
+        tool_result={"found": True, "part": 1, "parts": 5, "more": True, "nodes": [1, 2]},
     )
     call = TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked)
 
@@ -409,6 +443,47 @@ def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
 
     assert (step.kind, step.tool_name) == ("call_tool", "read_section")
     assert step.tool_args == {**asked, "part": "2"}
+
+
+def _read_part(more: bool, nodes: str, read: list[int]) -> tuple[TurnRecord, TurnRecord]:
+    asked = {"document_id": "book", "nodes": nodes, "questions": "5", "part": "1"}
+    return (
+        TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="read_section",
+            tool_result={"found": True, "part": 1, "parts": 5, "more": more, "nodes": read},
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "history",
+    [
+        # Đọc hết rồi.
+        (TurnRecord(kind="teacher", text="x"), *_read_part(False, "0", [1, 2])),
+        # Ngó một mục khác dàn ý không trỏ tới (review đợt 6).
+        (TurnRecord(kind="teacher", text="x"), *_read_part(True, "7", [8, 9])),
+        # Lần đọc của lượt trước, rồi giáo viên đã gõ câu mới (review đợt 6).
+        (
+            TurnRecord(kind="teacher", text="x"),
+            *_read_part(True, "0", [1, 2]),
+            TurnRecord(kind="outline", text="Dàn ý."),
+            TurnRecord(kind="teacher", text="câu 1 đổi"),
+        ),
+    ],
+)
+def test_an_outline_is_not_held_back_for_a_read_it_does_not_need(
+    history: tuple[TurnRecord, ...],
+) -> None:
+    outline = NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+    )
+
+    assert _read_before_outline(outline, _with_book(*history)) is outline
 
 
 def _agreed(kept: dict, said: str = "oke") -> NextStepRequested:
@@ -480,6 +555,51 @@ def test_an_agreement_to_more_or_a_replacement_plans_that(purpose: str, tool: st
 )
 def test_no_agreement_or_no_brief_leaves_the_model_answer(kept: dict, said: str) -> None:
     assert _approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
+
+
+def test_an_agreement_retyped_after_a_turn_that_never_answered_still_plans() -> None:
+    """Review đợt 6: lượt *"oke"* hỏng trước khi đáp để lại một câu mồ côi; gõ lại *"oke"* vẫn
+    duyệt."""
+    kept = {"version": 2, "for": "more", "first": 6, "items": [{"questions": 2}]}
+    asked = NextStepRequested(
+        request_id="r1",
+        history=(
+            TurnRecord(kind="teacher", text="soạn thêm 2 câu"),
+            TurnRecord(kind="outline", text="Dàn ý", tool_result=kept),
+            TurnRecord(kind="teacher", text="oke"),
+            TurnRecord(kind="teacher", text="oke"),
+        ),
+    )
+
+    assert [one.tool_name for one in _approved_plan(_ASKED_AGAIN, asked).steps] == [
+        "start_drafting"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_broken_reply_to_an_agreement_still_plans(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review đợt 6: sau *"oke"* model trả lời rỗng hai lần -- trước đây thành câu trung tính, lời
+    duyệt mất."""
+    model = Scripted([_Proposal(kind="say", text=""), _Proposal(kind="say", text="")])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+    kept = {"version": 2, "for": "more", "first": 6, "items": [{"questions": 2}]}
+
+    step = await propose(_agreed(kept))
+
+    assert step.kind == "plan" and [one.tool_name for one in step.steps] == ["start_drafting"]
+
+
+def test_the_brief_keeps_a_scope_with_a_comma_in_it() -> None:
+    """Review đợt 6: *"tỉ lệ thuận, tỉ lệ nghịch"* là một phạm vi, không phải hai mục."""
+    known = "topic_scope=tỉ lệ thuận, tỉ lệ nghịch «hai bài»; subject=Toán; grade=7"
+
+    assert _brief_in(known) == {
+        "topic_scope": "tỉ lệ thuận, tỉ lệ nghịch",
+        "subject": "Toán",
+        "grade": "7",
+    }
 
 
 def test_the_brief_is_read_from_what_the_model_knew() -> None:

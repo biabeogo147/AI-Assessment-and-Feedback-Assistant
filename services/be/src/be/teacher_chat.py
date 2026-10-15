@@ -423,9 +423,11 @@ async def _shown_outline(session: AsyncSession, thread: str, began: int) -> dict
     Đọc từ database, không từ cửa sổ `_HISTORY_STEPS`. *"Ngay trước"* là luật duy nhất BE chứng
     minh được: câu giáo viên vừa gõ là câu đáp lại dàn ý ấy. Thử tay 15/10/2026: một dàn ý soạn
     thêm còn bỏ dở từ mấy lượt trước được dùng cho lời xin *"soạn thêm 2 câu về …"* mới gõ -- giáo
-    viên chưa thấy dàn ý nào cho lời xin ấy. Có một câu của giáo viên chen giữa thì dàn ý ấy đã
-    qua, Kriky nêu lại. *"Chưa thành câu"* đọc `outline_version` mà bước soạn ghi vào kết quả của
-    nó -- một dàn ý soạn hai lần là hai đề giáo viên chỉ duyệt một.
+    viên chưa thấy dàn ý nào cho lời xin ấy. Kriky đã đáp một câu nào sau dàn ý thì dàn ý ấy đã
+    qua, Kriky nêu lại. Câu giáo viên gõ mà chưa được đáp (lượt hỏng, hàng mồ côi) thì không tính:
+    lượt hỏng mời giáo viên gõ lại, và gõ lại *"oke"* không được thành ngõ cụt (review đợt 6).
+    *"Chưa thành câu"* đọc `outline_version` mà bước soạn ghi vào kết quả của nó -- một dàn ý soạn
+    hai lần là hai đề giáo viên chỉ duyệt một.
 
     Args:
         session: Session của database.
@@ -435,25 +437,29 @@ async def _shown_outline(session: AsyncSession, thread: str, began: int) -> dict
     Returns:
         `tool_result` của lượt dàn ý ấy, hoặc `None`.
     """
-    asked = await session.scalar(
-        select(func.max(TeacherTurn.sequence)).where(
-            TeacherTurn.conversation_id == thread,
-            TeacherTurn.kind == "teacher",
-            TeacherTurn.sequence < began,
-        )
-    )
     row = await session.scalar(
         select(TeacherTurn)
         .where(
             TeacherTurn.conversation_id == thread,
             TeacherTurn.kind == "outline",
             TeacherTurn.sequence < began,
-            TeacherTurn.sequence > (-1 if asked is None else asked),
         )
         .order_by(TeacherTurn.sequence.desc())
         .limit(1)
     )
     if row is None:
+        return None
+    answered = await session.scalar(
+        select(func.count())
+        .select_from(TeacherTurn)
+        .where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.sequence > row.sequence,
+            TeacherTurn.sequence < began,
+            TeacherTurn.kind != "teacher",
+        )
+    )
+    if answered:
         return None
     shown = dict(row.tool_result or {})
     used = await session.scalars(
@@ -492,14 +498,24 @@ async def guard_drafting(
     drafting = [one for one in steps if one.tool_name in _DRAFTING_TOOLS]
     if not drafting:
         return steps, None
-    targets = {str(one.args.get("assessment_id") or "").strip() for one in drafting}
+    # Đề để trống thì BE điền đề mới nhất, nên trống không phải một đề khác (review đợt 6).
+    targets = {str(one.args.get("assessment_id") or "").strip() for one in drafting} - {""}
     only_start = all(one.tool_name == "start_drafting" for one in drafting)
-    opening = any(one.tool_name == "create_draft" for one in steps)
-    if len(drafting) > 1 and only_start and len(targets) == 1 and not opening:
+    opens = any(one.tool_name == "create_draft" for one in steps)
+    if len(drafting) > 1 and only_start and len(targets) <= 1 and not opens:
         # Thử tay 15/10/2026: dàn ý soạn thêm 2 câu ra plan hai bước `start_drafting`, mỗi câu
         # một bước. Cùng một đề thì đó là **một** lần soạn theo một dàn ý: gộp thành bước đầu,
-        # số câu để BE điền từ dàn ý (`draft-outline`).
-        first = drafting[0].model_copy(update={"args": {**drafting[0].args, "question_count": ""}})
+        # số câu để BE điền từ dàn ý (`draft-outline`); tên bước nói cả lần soạn, không câu đầu.
+        first = drafting[0].model_copy(
+            update={
+                "args": {
+                    **drafting[0].args,
+                    "assessment_id": next(iter(targets), ""),
+                    "question_count": "",
+                },
+                "title": "Soạn câu hỏi theo dàn ý",
+            }
+        )
         steps = tuple(
             first if one is drafting[0] else one
             for one in steps
@@ -516,7 +532,6 @@ async def guard_drafting(
             "giáo viên chưa thấy dàn ý nào cho lần soạn này: nêu dàn ý (kind outline) trước; "
             "câu hỏi chỉ được soạn ở lượt sau, khi giáo viên đã đồng ý"
         )
-    opens = any(one.tool_name == "create_draft" for one in steps)
     replaces = any(one.tool_name == "replace_question" for one in steps)
     if opens and replaces:
         # Thay một câu là trên đề đã có: mở đề mới rồi thay là để lại một đề rỗng (review đợt 5).

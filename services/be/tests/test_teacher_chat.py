@@ -24,7 +24,7 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
@@ -2641,6 +2641,36 @@ async def test_an_outline_from_before_the_last_teacher_message_is_not_an_approva
 
 
 @pytest.mark.asyncio
+async def test_an_agreement_retyped_after_a_turn_that_never_answered_still_drafts(
+    stack,
+) -> None:
+    """Review đợt 6: lượt *"oke"* hỏng trước khi Kriky đáp để lại một câu mồ côi; gõ lại vẫn
+    duyệt."""
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), _open_and_draft(""))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for=set())
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    async with maker() as session:
+        last = await session.scalar(select(func.max(TeacherTurn.sequence)))
+        session.add(
+            TeacherTurn(
+                conversation_id=(await session.scalar(select(TeacherTurn.conversation_id))),
+                sequence=last + 1,
+                kind="teacher",
+                text="oke",
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
+
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is not None
+
+
+@pytest.mark.asyncio
 async def test_a_plan_asking_for_more_questions_than_the_outline_is_refused(stack) -> None:
     http, _, monkeypatch = stack
     agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), _open_and_draft("5"))
@@ -2932,20 +2962,16 @@ async def test_replacing_in_a_bookless_draft_needs_no_lesson_even_with_a_chip(st
     bind_reader(None)
 
 
-@pytest.mark.asyncio
-async def test_more_questions_planned_one_step_each_become_one_step(stack) -> None:
-    """Thử tay 15/10/2026 (`draft-outline`): soạn thêm 2 câu ra hai bước `start_drafting` cho cùng
-    một đề -- một lần soạn theo một dàn ý, nên gộp thành một bước."""
-    _, maker, _ = stack
+async def _guarded_more(maker, first: str, second: str):
     two = (
         PlanStep(
             tool_name="start_drafting",
-            args={"assessment_id": "p1", "question_count": "1"},
+            args={"assessment_id": first, "question_count": "1"},
             title="Soạn câu 6",
         ),
         PlanStep(
             tool_name="start_drafting",
-            args={"assessment_id": "p1", "question_count": "1"},
+            args={"assessment_id": second, "question_count": "1"},
             title="Soạn câu 7",
         ),
     )
@@ -2957,11 +2983,33 @@ async def test_more_questions_planned_one_step_each_become_one_step(stack) -> No
         teacher_chat_shown = teacher_chat._shown_outline
         teacher_chat._shown_outline = shown
         try:
-            guarded = await teacher_chat.guard_drafting(session, "t", 5, two)
+            return await teacher_chat.guard_drafting(session, "t", 5, two)
         finally:
             teacher_chat._shown_outline = teacher_chat_shown
 
-    steps, _ = guarded
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("first", "second"), [("p1", "p1"), ("", "p1")])
+async def test_more_questions_planned_one_step_each_become_one_step(
+    stack, first: str, second: str
+) -> None:
+    """Thử tay 15/10/2026 (`draft-outline`): soạn thêm 2 câu ra hai bước `start_drafting` cho cùng
+    một đề -- một lần soạn theo một dàn ý, nên gộp thành một bước. Đề để trống là đề BE điền, không
+    phải một đề khác (review đợt 6)."""
+    _, maker, _ = stack
+
+    steps, _ = await _guarded_more(maker, first, second)
+
     assert [(one.tool_name, one.args["question_count"]) for one in steps] == [
         ("start_drafting", "2")
     ]
+    assert steps[0].title == "Soạn câu hỏi theo dàn ý"
+
+
+@pytest.mark.asyncio
+async def test_drafting_steps_on_two_papers_are_not_merged(stack) -> None:
+    _, maker, _ = stack
+
+    refused = await _guarded_more(maker, "p1", "p2")
+
+    assert isinstance(refused, str) and "một plan chỉ soạn một lần" in refused

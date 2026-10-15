@@ -400,6 +400,16 @@ Thử lại trên chat có sách (`e3672757`): *"soạn thêm 2 câu về tập 
 6–7 trỏ mục 5–6, F5 giữ nguyên. **Còn hở:** plan chỉ có `create_draft` (không soạn câu nào) không qua
 cổng duyệt -- chat `d115952e` model chép lại một plan hỏng của lượt trước và mở một đề trống mới cho
 lời xin *"soạn thêm"*. Chặn nó là bỏ khả năng mở đề trống bằng chat: chờ người dùng quyết.
+
+**Đợt 6** (sửa từ ba lượt thử trình duyệt, task 16b xoá code chết). Review đợt 6: phần xoá code chết
+không mất dòng sống nào, không còn tham chiếu treo, đổi hợp đồng theo `packages/contracts/AGENTS.md`.
+Đã sửa -- `_AGREES` khớp **cả câu** (*"ok nhưng câu 2 đổi…"*, *"được không?"* từng thành đồng ý và
+soạn theo dàn ý giáo viên vừa xin đổi), một bản dùng chung cho mock; lời đồng ý thắng trước mọi lần
+hỏi lại, nên câu trả lời hỏng sau *"oke"* không làm mất lời duyệt; câu mồ côi (lượt hỏng trước khi
+đáp) không chen giữa dàn ý và lời đồng ý, ở cả AGENT lẫn cổng BE; *"soạn thêm một đề mới"* giữ
+`for=new`; `_brief_in` giữ dấu phẩy trong phạm vi; gộp bước soạn coi đề để trống là đề BE điền, tên
+bước nói cả lần soạn; đọc tiếp chỉ phần đọc của lượt này và cùng phạm vi với dàn ý. Ghi nhận, chưa
+sửa: lần hỏi lại model (`_NoOutline`) gửi đúng prompt cũ, không kèm lý do lần trước hỏng.
 - **Đo lần ba** (`data/results/run-101`, nhãn `dan-y-dung-viec`, sau schema và `_right_purpose`, trước
   `_approved_plan`): **182/204**, hỏi lại 14 lần. Ca đủ mục 6/6; `tai-lieu-doc-xong` 6/6;
   `dan-y-soan-them` 6/6; `dan-y-thay-cau` 5/6. Còn: `tra-lop-ket-qua` **2/6** (trước plan 6/6;

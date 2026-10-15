@@ -299,9 +299,25 @@ def _read_before_outline(step: NextStepCompleted, request: NextStepRequested) ->
     if results:
         # Đọc dở (`more`): thử tay 15/10/2026 đọc phần 1/5 của chương rồi viết dàn ý, nên dàn ý chỉ
         # phủ đầu chương. Còn phần chưa đọc thì đọc phần kế, cùng phạm vi, trước khi nêu dàn ý.
-        last = results[-1].tool_result
-        calls = [turn for turn in reads if turn.kind == "tool_call"]
-        if last.get("found") is True and last.get("more") is True and calls:
+        # Chỉ phần đọc **của lượt này**, và chỉ khi dàn ý trỏ vào phạm vi ấy: một lần ngó mục khác,
+        # hay lần đọc của lượt trước, không bắt đọc hết phần còn lại (review đợt 6).
+        asked_at = max((at for at, turn in enumerate(since) if turn.kind == "teacher"), default=-1)
+        current = [turn for turn in since[asked_at + 1 :] if turn.tool_name == "read_section"]
+        calls = [turn for turn in current if turn.kind == "tool_call"]
+        done = [turn.tool_result for turn in current if turn.kind == "tool_result"]
+        last = done[-1] if done else {}
+        sources = {node for item in step.outline for node in item.source_nodes}
+        read = {int(node) for node in last.get("nodes") or ()}
+        if calls:
+            read |= {
+                int(node) for node in re.findall(r"\d+", str(calls[-1].tool_args.get("nodes")))
+            }
+        if (
+            last.get("found") is True
+            and last.get("more") is True
+            and calls
+            and (not sources or sources & read)
+        ):
             asked = dict(calls[-1].tool_args)
             next_part = int(last.get("part") or 1) + 1
             logger.info(
@@ -795,12 +811,19 @@ _COUNT_IN_KNOWN = re.compile(r"question_count\s*=\s*(\d+)")
 # Lời giáo viên nói rõ việc của dàn ý: *"thay câu 3 …"*, *"soạn thêm 3 câu"* (`draft-outline`).
 _REPLACES = re.compile(r"\b(?:thay|đổi|làm lại|soạn lại)\s+(?:câu|câu hỏi)\s*(?:số\s*)?(\d+)", re.I)
 _ADDS = re.compile(r"\b(?:soạn|ra|làm|viết)\s+thêm\b|\bthêm\s+\d+\s+câu\b", re.I)
-# Câu đồng ý ngắn của giáo viên ngay sau một dàn ý (`draft-outline`).
+# *"soạn thêm một đề mới"* là đề khác, không phải câu thêm vào đề đang có (review đợt 6).
+_ANOTHER_PAPER = re.compile(r"\bđề\s+(?:mới|khác|nữa)\b", re.I)
+# Câu đồng ý của giáo viên ngay sau một dàn ý (`draft-outline`): **cả câu** chỉ là lời đồng ý, cùng
+# vài tiếng đệm. Review đợt 6: khớp đầu câu thì *"ok nhưng câu 2 đổi sang tự luận"*, *"được không?"*
+# thành đồng ý, và câu hỏi được soạn theo dàn ý giáo viên vừa xin đổi.
+_AGREE_WORD = r"(?:ok|oke|okay|được|đồng ý|duyệt|chốt|ừ|vâng|soạn đi|làm đi)"
 _AGREES = re.compile(
-    r"^\s*(ok|oke|okay|được|đồng ý|duyệt|chốt|ừ|vâng|soạn đi|làm đi)\b", re.IGNORECASE
+    rf"^\s*{_AGREE_WORD}(?:[\s,]+(?:{_AGREE_WORD}|nhé|nha|nhá|luôn|đi|rồi|ạ|vậy))*\s*[.!]*\s*$",
+    re.IGNORECASE,
 )
-# Một mục trong `known`: `subject=Toán «Toán»` -- giá trị đứng trước «.
-_KNOWN_FIELD = re.compile(r"\b(subject|grade|topic_scope)\s*=\s*([^«;,]+?)\s*(?:«|;|,|$)")
+# Một mục trong `known`: `subject=Toán «Toán»` -- giá trị đứng trước «, hay trước `; mục=` kế tiếp.
+# Dấu phẩy ở trong giá trị: *"tỉ lệ thuận, tỉ lệ nghịch"* là một phạm vi (review đợt 6).
+_KNOWN_FIELD = re.compile(r"\b(subject|grade|topic_scope)\s*=\s*(.+?)\s*(?=«|;\s*\w+\s*=|;?\s*$)")
 
 
 def _brief_in(known: str) -> dict[str, str]:
@@ -830,10 +853,18 @@ def _approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextS
     Returns:
         Plan soạn theo dàn ý, hoặc `step` nguyên.
     """
-    if len(request.history) < 2:
+    if len(request.history) < 2 or request.history[-1].kind != "teacher":
         return step
-    said, shown = request.history[-1], request.history[-2]
-    if said.kind != "teacher" or shown.kind != "outline" or not shown.tool_result.get("items"):
+    said = request.history[-1]
+    # Câu giáo viên gõ mà lượt hỏng trước khi đáp (hàng mồ côi) không chen giữa dàn ý và lời đồng ý:
+    # giáo viên gõ lại *"oke"* là đúng việc nên làm (review đợt 6).
+    earlier = list(request.history[:-1])
+    while earlier and earlier[-1].kind == "teacher":
+        earlier.pop()
+    if not earlier:
+        return step
+    shown = earlier[-1]
+    if shown.kind != "outline" or not shown.tool_result.get("items"):
         return step
     if not _AGREES.search(unicodedata.normalize("NFC", said.text)):
         return step
@@ -936,7 +967,7 @@ def _right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextS
                     }
                 )
         return step
-    if _ADDS.search(said) and has_draft and purpose == "new":
+    if _ADDS.search(said) and not _ANOTHER_PAPER.search(said) and has_draft and purpose == "new":
         logger.info("outline for new on a turn asking for more -- for=more")
         return step.model_copy(update={"tool_args": {**step.tool_args, "for": "more"}})
     return step
@@ -1458,6 +1489,15 @@ async def _choose(state: ProposeState) -> dict:
         proposal, spent = answered, 0
 
     logger.info("known before choosing %s: %s", proposal.kind, proposal.known)
+    # Giáo viên vừa đồng ý dàn ý: plan dựng từ dàn ý, **trước** mọi lần hỏi lại -- một câu trả lời
+    # rỗng hay hỏng sau *"oke"* mà thành câu trung tính thì lời duyệt mất, và lần gõ lại không còn
+    # đứng ngay sau dàn ý (review đợt 6).
+    agreed = _approved_plan(
+        NextStepCompleted(request_id="", kind="say", text=_UNCLEAR, model_tokens=spent),
+        state["request"],
+    )
+    if agreed.kind == "plan":
+        return {"step": agreed}
     if proposal.kind in {"say", "ask_clarify"} and not proposal.text.strip():
         # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
         # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần.
@@ -1497,7 +1537,6 @@ async def _choose(state: ProposeState) -> dict:
         step = step.model_copy(
             update={"tool_args": {**_brief_in(proposal.known), **step.tool_args}}
         )
-    step = _approved_plan(step, request)
     if step.kind == "plan":
         lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
         if lacking:

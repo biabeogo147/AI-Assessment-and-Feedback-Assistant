@@ -24,7 +24,7 @@ from agent import llm
 from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_question
 from agent.graphs.explain import speak
 from agent.graphs.naming import name_it
-from agent.graphs.propose import propose
+from agent.graphs.propose import _AGREES, propose
 from agent.graphs.reporting import tell_about
 from contracts import (
     ConversationNameCompleted,
@@ -624,9 +624,6 @@ def _subject_in(asked: str) -> str | None:
 _WHAT_IS_MISSING = (
     "Bạn cho mình biết thêm: môn gì, khối nào, phạm vi kiến thức, và bao nhiêu câu nhé."
 )
-# Giáo viên đồng ý dàn ý vừa hiện (ADR-29, `draft-outline`). Mock chỉ cần nhận ra câu đồng ý ngắn;
-# mọi câu khác đi đường cũ.
-_AGREES = re.compile(r"^\s*(ok|oke|okay|được|đồng ý|duyệt|chốt|ừ|vâng)\b", re.IGNORECASE)
 # Trần số câu một lần soạn (ADR-29); BE từ chối dàn ý quá trần, nên mock nói trước.
 _MOST_AT_ONCE = 10
 
