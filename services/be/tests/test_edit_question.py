@@ -26,6 +26,7 @@ from schema.models import (
     Assessment,
     AssessmentState,
     Attempt,
+    DraftItem,
     Method,
     Question,
     Student,
@@ -408,3 +409,29 @@ async def test_latex_outside_the_dollars_saves_now_instead_of_blocking(stack) ->
 
     assert answer.status_code == 200, answer.text
     assert answer.json()["stem"] == loose
+
+
+@pytest.mark.asyncio
+async def test_a_question_being_replaced_cannot_be_edited(stack) -> None:
+    """`draft-outline`: câu mới về là gỡ câu cũ -- bản sửa tay của giáo viên sẽ mất theo."""
+    http, maker, (paper, question) = stack
+    async with maker() as session:
+        session.add(
+            DraftItem(
+                assessment_id=paper,
+                ordinal=1,
+                job_id="job-1",
+                status="pending",
+                replacing=True,
+                replaces_question_id=question,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+    answer = await http.patch(
+        f"/api/teacher/assessments/{paper}/questions/{question}", json=_body(), headers=TEACHER
+    )
+
+    assert answer.status_code == 409
+    assert "đang được soạn lại" in answer.json()["detail"]

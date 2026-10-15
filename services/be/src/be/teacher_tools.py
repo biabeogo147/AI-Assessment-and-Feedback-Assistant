@@ -52,6 +52,7 @@ from be.drafting import (
     harvest,
     pending_count,
     rebrief,
+    replace,
     too_many,
 )
 from be.identity import Asking
@@ -668,6 +669,93 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     }
 
 
+async def _replace_question(running: Running, args: dict) -> dict:
+    """Soạn lại đúng một câu của đề nháp theo dàn ý giáo viên vừa duyệt (ADR-29).
+
+    Câu cũ ở lại cho tới khi câu mới qua ADR-18 (`drafting.replace`, `harvest`), nên một job hỏng
+    không để lại một ô trống. Bản ngân hàng của câu cũ theo luật xoá của ADR-28: ở lại.
+
+    Args:
+        running: Session, giáo viên đang hỏi, queue, và dàn ý đã xem (`Running.outline`).
+        args: `assessment_id`, `question_number`.
+
+    Returns:
+        `started` cùng `queued`, `assessment_id`, `title`, `outline_version`, `question_number`;
+        hoặc một lời từ chối.
+    """
+    session, asking = running.session, running.asking
+    assessment_id = str(args.get("assessment_id") or "")
+    owned = await session.scalar(
+        select(Assessment).where(
+            Assessment.id == assessment_id, Assessment.teacher_id == asking.teacher_id
+        )
+    )
+    if owned is None:
+        return dict(_NO_SUCH_DRAFT)
+    if running.outline is None or running.outline.get("for") != "replace":
+        return {
+            "started": False,
+            "reason": "chưa có dàn ý thay câu nào giáo viên đã xem; nêu dàn ý trước",
+        }
+    try:
+        number = int(str(args.get("question_number") or "").strip())
+    except ValueError:
+        return {
+            "started": False,
+            "unreadable": ["question_number"],
+            "reason": "question_number phải là số của câu, ví dụ 3",
+        }
+    if number != running.outline.get("first"):
+        meant = running.outline.get("first")
+        return {
+            "started": False,
+            "reason": f"dàn ý đã xem là để thay câu {meant}, không phải {number}",
+        }
+
+    await harvest(session, running.pool, running.settings, assessment_id)
+    if await pending_count(session, assessment_id):
+        return {"started": False, "reason": "đề này đang soạn dở; chờ xong rồi hãy thay câu"}
+    sat = await session.scalar(
+        select(func.count()).select_from(Attempt).where(Attempt.assessment_id == assessment_id)
+    )
+    if sat:
+        return {"started": False, "reason": "đề đã có lượt làm bài nên không thay câu được"}
+    there = await session.scalar(
+        select(Question.id).where(
+            Question.assessment_id == assessment_id, Question.order_index == number
+        )
+    )
+    if there is None:
+        return {"started": False, "reason": f"đề không có câu {number}"}
+
+    try:
+        queued = await replace(
+            session, running.pool, running.settings, assessment_id, number, running.outline
+        )
+    except HTTPException:
+        # Cùng lý do với `start_drafting`: không thuật lại câu *"bỏ duyệt trước"* viết cho màn hình.
+        return {
+            "started": False,
+            "reason": "đề này đã duyệt nên nội dung đã khoá; việc bỏ duyệt làm ở panel bên phải",
+        }
+    if not queued:
+        return {
+            "started": False,
+            "reason": "chưa thay được câu: đề chưa có yêu cầu soạn, hoặc hàng đợi đang hỏng",
+        }
+    return {
+        "started": True,
+        "queued": queued,
+        "assessment_id": assessment_id,
+        "title": owned.title,
+        "outline_version": running.outline.get("version"),
+        "question_number": number,
+        # Câu bị thay: vòng lượt so với câu đang đứng ở vị trí này sau khi đợi, để nói đúng
+        # câu đã được thay hay vẫn giữ nguyên (review đợt 5, `draft-outline`).
+        "replaced_question_id": there,
+    }
+
+
 # ------------------------------------------- tài liệu (`draft-from-document`)
 
 # Một câu hỏi lại vẽ được bao nhiêu nút. Một cuốn SGK có 4--8 chương; một chương có tới ~10 bài.
@@ -1222,6 +1310,21 @@ _TOOLS: tuple[Tool, ...] = (
             },
         ),
         run=_start_drafting,
+        writes=True,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="replace_question",
+            description=(
+                "Soạn lại một câu của đề nháp theo dàn ý thay câu giáo viên vừa đồng ý. Câu cũ ở "
+                "lại tới khi câu mới soạn xong."
+            ),
+            arguments={
+                "assessment_id": "id đề nháp",
+                "question_number": "số của câu bị thay",
+            },
+        ),
+        run=_replace_question,
         writes=True,
     ),
 )

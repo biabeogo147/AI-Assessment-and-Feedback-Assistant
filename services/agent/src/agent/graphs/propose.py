@@ -81,7 +81,8 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
   (công thức sẽ dùng, mỗi công thức một cặp $), approach (dạng câu và các bước giải), source_nodes
   (số node của bài nguồn; rỗng khi không có tài liệu). Hai câu chung một mục thì cùng kiến thức,
   khác cách hỏi. Mỗi lần tối đa 10 câu. text là một câu mở đầu ngắn; hệ thống tự in dàn ý và hỏi
-  giáo viên có đồng ý không. tool_args: for = new (đề mới) hoặc more (soạn thêm cho đề đang có).
+  giáo viên có đồng ý không. tool_args: for = new (đề mới), more (soạn thêm cho đề đang có) hoặc
+  replace (thay một câu: một mục một câu, kèm question = số câu bị thay).
 
 Về plan:
 - Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: khi xong, việc

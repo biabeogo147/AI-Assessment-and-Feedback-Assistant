@@ -331,3 +331,12 @@ def test_an_outline_scores_on_its_total_its_purpose_and_its_sources() -> None:
     assert score_propose(expect, _outline(6, nodes=(99,)))[0] is False
     assert score_propose(expect, _outline(6))[0] is False
     assert score_propose({"kind": "outline"}, _outline(6, purpose="more"))[1] == "for 'more'"
+
+
+def test_a_replacing_outline_scores_on_the_question_it_replaces() -> None:
+    step = {**_outline(1, purpose="replace"), "tool_args": {"for": "replace", "question": "2"}}
+
+    assert score_propose({"kind": "outline", "for": "replace", "question": "2"}, step)[0] is True
+    assert score_propose({"kind": "outline", "for": "replace", "question": "3"}, step)[1] == (
+        "question '2'"
+    )

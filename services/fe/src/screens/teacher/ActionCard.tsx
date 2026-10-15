@@ -19,6 +19,8 @@ const STEP_TITLE: Record<string, string> = {
   class_assessment_summary: "Xem kết quả một đề",
   create_draft: "Tạo đề trống",
   start_drafting: "Soạn câu hỏi",
+  // `draft-outline`: soạn lại một câu theo dàn ý thay câu (ADR-29).
+  replace_question: "Thay một câu",
   "teacher.approve": "Duyệt đề",
   "teacher.unapprove": "Bỏ duyệt",
   "teacher.publish": "Phát hành",
@@ -148,6 +150,26 @@ function outcome(turn: Turn): string {
     }
     return `${Number(result.queued ?? 0)} câu bắt đầu soạn`;
   }
+  if (turn.tool_name === "replace_question") {
+    return replaced(result);
+  }
+  return "";
+}
+
+/**
+ * Một bước thay câu đã đóng, đọc thành một dòng (`draft-outline`) — soi `_replacement_outcome`
+ * của BE, vì hai đường của cùng một bước phải nói cùng một câu.
+ *
+ * @param result - `tool_result` của bước `replace_question`.
+ * @returns Dòng kết quả, y như BE viết; rỗng khi bước chưa đợi xong.
+ */
+function replaced(result: Record<string, unknown>): string {
+  const number = Number(result.question_number ?? 0);
+  if (result.replaced === true) return `đã thay câu ${number}`;
+  if (result.replaced === false && Number(result.still_drafting ?? 0) > 0)
+    return `câu ${number} mới còn đang soạn`;
+  if (result.replaced === false)
+    return `câu ${number} giữ nguyên: câu mới soạn không đạt`;
   return "";
 }
 
@@ -258,7 +280,8 @@ function modelCardTurn(turns: Turn[]): Turn | null {
     // không thẻ nào, mà panel đề chỉ mở được từ một nút trên thẻ — Kriky nói đã soạn xong và
     // không có cửa nào vào xem.
     if (
-      turn.tool_name === "start_drafting" &&
+      (turn.tool_name === "start_drafting" ||
+        turn.tool_name === "replace_question") &&
       turn.tool_result.asked_for === undefined
     ) {
       continue;
@@ -310,6 +333,7 @@ export type CardState = "drafted" | "approved" | "published" | "failed";
 const STATE_OF: Record<string, CardState> = {
   create_draft: "drafted",
   start_drafting: "drafted",
+  replace_question: "drafted",
   "teacher.approve": "approved",
   "teacher.unapprove": "drafted",
   "teacher.publish": "published",

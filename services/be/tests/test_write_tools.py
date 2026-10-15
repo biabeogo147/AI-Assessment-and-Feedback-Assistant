@@ -433,7 +433,8 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
     # `draft-from-document` thêm ba tool **đọc** tài liệu: chúng chỉ đọc thư viện và mục lục của
     # chính giáo viên, không đẩy gì tới học sinh, và mọi lần chạy đều kiểm sở hữu + *sẵn sàng*.
     # `draft-outline` thêm `read_section`: cũng chỉ đọc, cũng cùng hai phép kiểm ấy -- chữ đọc được
-    # tới Kriky để viết dàn ý, không tới học sinh nào.
+    # tới Kriky để viết dàn ý, không tới học sinh nào. Và `replace_question`: một tool **ghi** đảo
+    # ngược được như `start_drafting` -- chỉ chạm đề chưa duyệt, câu cũ ở lại tới khi câu mới đạt.
     assert offered == {
         "list_class",
         "get_class",
@@ -445,6 +446,7 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
         "read_section",
         "create_draft",
         "start_drafting",
+        "replace_question",
     }
 
 
@@ -684,7 +686,7 @@ async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
         "class_assessment_summary",
         "list_documents",
     }
-    assert working == {"create_draft", "start_drafting"}
+    assert working == {"create_draft", "start_drafting", "replace_question"}
     assert planning & working == set()
 
     # Có tài liệu thì hai tool đọc mục lục và tool đọc chữ hiện thêm -- vẫn chỉ ở pha lên plan
@@ -956,3 +958,40 @@ async def test_drafting_without_an_outline_seen_is_refused(stack) -> None:
 
     assert answer["started"] is False
     assert "dàn ý" in answer["reason"]
+
+
+def _replacing(number: int, purpose: str = "replace") -> dict:
+    return {**_shown(1), "for": purpose, "first": number}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("outline", "number", "reason"),
+    [
+        (None, "1", "chưa có dàn ý thay câu"),
+        (_replacing(1, purpose="new"), "1", "chưa có dàn ý thay câu"),
+        (_replacing(2), "1", "để thay câu 2, không phải 1"),
+        (_replacing(1), "1", "đề không có câu 1"),
+    ],
+)
+async def test_replacing_a_question_needs_the_outline_seen_for_that_question(
+    stack, outline: dict | None, number: str, reason: str
+) -> None:
+    maker, queue = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
+        answer = await _execute(
+            session,
+            asking,
+            "replace_question",
+            {"assessment_id": made["assessment_id"], "question_number": number},
+            pool=queue,
+            phase=PHASE_WORK,
+            outline=outline,
+        )
+
+    assert answer["started"] is False
+    assert reason in answer["reason"]

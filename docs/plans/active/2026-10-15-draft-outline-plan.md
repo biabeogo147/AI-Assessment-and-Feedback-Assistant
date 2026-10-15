@@ -225,18 +225,19 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 5 — sửa sau khi soạn**
 
-- [ ] 14. Lõi xoá câu tách từ `teacher_routes.delete_question` sang `drafting.py`.
-- [ ] 15. `replace_question`: từ chối khi đề khoá, có job chờ, có bài làm, câu không có; `harvest`
+- [x] 14. Lõi xoá câu tách từ `teacher_routes.delete_question` sang `drafting.py`.
+- [x] 15. `replace_question`: từ chối khi đề khoá, có job chờ, có bài làm, câu không có; `harvest`
       tráo; catalog 11; FE nhãn bước. Cùng lúc mới dạy model `for=replace` + `question` (`_CORE`)
       và thêm *"thay một câu"* vào mô tả skill `soan-de` -- gỡ ra ở review đợt 4 vì dạy một việc chưa
       có tool là mời giáo viên duyệt một dàn ý không chạy được.
-- [ ] 16. Soạn thêm: `start_drafting` trên đề có sẵn nối mục dàn ý; prompt và ca bench offline.
+- [x] 16. Soạn thêm: `start_drafting` trên đề có sẵn nối mục dàn ý; prompt và ca bench offline.
 
 **Đợt 6 — tài liệu và thử đầu-cuối**
 
 - [ ] 17. ADR-29 `đã chốt` cùng bảng nơi thi hành; `AGENTS.md`; `teacher-surface.md`; kịch bản thử
       tay; `backlog.md`.
-- [ ] 18. Thử trình duyệt (gpt-4o-mini, **xin phép trước**): dàn ý có công thức → sửa → duyệt → câu
+- [ ] 18. Thử trình duyệt **một đợt** (người dùng dặn 15/10/2026: plan không đóng khi chưa thử tay;
+      gpt-4o-mini, **xin phép trước**): dàn ý có công thức → sửa → duyệt → câu
       bám dàn ý; thay câu 1; soạn thêm 3 câu; một đề không tài liệu; F5; log không payload nào có
       chữ chunk. `db-reset` trước khi bật service (Decision *dọn `coverage.py`*). Đóng plan.
 
@@ -319,3 +320,14 @@ quá 10 câu thì nói ra; mô tả `question_count` của `start_drafting` nói
 Ghi nhận, chưa sửa: bench `be_refuses` chỉ chạy `vet_plan`, không chạy cổng duyệt; quên `for=more`
 khi soạn thêm thì lời từ chối của BE dẫn model mở đề thứ hai (cần một ca đo ở task 16); máy dev
 không key có chip sách thì mock lặp tới trần bước (ghi trong comment).
+
+**Đợt 5 xong 15/10/2026** (task 14–16, một commit: `drafting.py` mang cả lõi gỡ câu lẫn phép thay).
+`drop_question` dùng chung cho xoá câu và tráo câu; `replace_question` soạn lại một câu, câu cũ ở lại
+tới khi câu mới qua ADR-18; soạn thêm không cần code mới (dàn ý `for=more` + `start_drafting`), chỉ
+thêm ca bench. Review đợt 5: sửa -- thay câu không đạt thì bước nói *"câu N giữ nguyên"* và hỏng,
+không báo là đã thay (`_replacement_outcome`, FE `replaced()` cùng chữ); route sửa câu từ chối câu
+đang được thay; cổng chặn plan mở đề rồi thay câu; cột `replaces_question_id` để hai lần thu không
+tráo một câu hai lần; ô thay luôn nằm trong `question_count`; lời từ chối không còn đổ cho hàng đợi.
+Ghi nhận, chưa sửa: mục dàn ý của câu đã bị thay vẫn nằm trong `brief.outline` và vẫn đi vào
+`other_items` (có trần); thẻ kết quả của bước thay câu dùng đầu đề *"Đã tạo đề"* của nấc
+`drafted`.

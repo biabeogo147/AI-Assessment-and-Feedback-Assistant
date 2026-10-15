@@ -493,6 +493,9 @@ async def guard_drafting(
         )
     opens = any(one.tool_name == "create_draft" for one in steps)
     replaces = any(one.tool_name == "replace_question" for one in steps)
+    if opens and replaces:
+        # Thay một câu là trên đề đã có: mở đề mới rồi thay là để lại một đề rỗng (review đợt 5).
+        return "thay câu là trên đề đã có, không mở đề mới; plan chỉ một bước replace_question"
     wanted = "replace" if replaces else "new" if opens else "more"
     purpose = shown.get("for", "new")
     if purpose != wanted:
@@ -522,6 +525,16 @@ async def guard_drafting(
                 )
             if book and not str(args.get("nodes") or "").strip() and sources:
                 args["nodes"] = ",".join(str(node) for node in sources)
+        if one.tool_name == "replace_question":
+            # Câu bị thay là câu dàn ý đã viết cho -- BE biết, không phải đoán.
+            asked_for = str(args.get("question_number") or "").strip()
+            meant = str(shown.get("first") or "")
+            if not asked_for:
+                args["question_number"] = meant
+            elif asked_for != meant:
+                return (
+                    f"dàn ý giáo viên đã xem là để thay câu {meant}, plan lại thay câu {asked_for}"
+                )
         if one.tool_name == "start_drafting":
             # Số câu là tổng của dàn ý đã xem: trống thì BE điền; một con số khác là plan soạn
             # khác thứ giáo viên đã đọc. Chữ không đọc được thì để tool từ chối như mọi tham số.
@@ -1767,6 +1780,37 @@ def _how_many(counted: tuple[int, int, int]) -> str:
     return f"đã soạn {written}/{asked_for} câu"
 
 
+async def _replacement_outcome(
+    session: AsyncSession, paper: str, result: dict, detail: str
+) -> tuple[dict, str]:
+    """Kết quả của một bước thay câu sau khi đợi: đã thay, còn đang soạn, hay câu cũ ở lại.
+
+    Câu cũ ở lại khi câu mới không đạt (`drafting._keep_the_old`). Không nói ra điều đó thì bước
+    báo *"đã soạn N/N câu"* và Kriky kể là đã thay -- trong khi đề vẫn là câu cũ (review đợt 5,
+    `draft-outline`).
+
+    Args:
+        session: Session của database.
+        paper: Đề.
+        result: Kết quả `replace_question`, đã có ba con số đếm.
+        detail: Dòng kết quả đang có.
+
+    Returns:
+        `(kết quả, dòng kết quả)` đã sửa.
+    """
+    number = result.get("question_number")
+    standing = await session.scalar(
+        select(Question.id).where(Question.assessment_id == paper, Question.order_index == number)
+    )
+    await session.rollback()
+    if standing is not None and standing != result.get("replaced_question_id"):
+        return {**result, "replaced": True}, f"đã thay câu {number}"
+    if result.get("still_drafting"):
+        return {**result, "replaced": False}, f"câu {number} mới còn đang soạn"
+    kept = f"câu {number} giữ nguyên: câu mới soạn không đạt"
+    return {**result, "started": False, "replaced": False, "reason": kept}, kept
+
+
 def _paper_in(results: list[dict]) -> str:
     """Id của đề mà plan vừa đụng tới, nếu có.
 
@@ -2512,7 +2556,8 @@ async def _go(
         # đường thật chưa dùng nó.
         #
         # Biết trước được vì `start_drafting` nhận đúng cái id đề trong tham số của nó.
-        opening_a_round = watching and step_of_plan.tool_name == "start_drafting"
+        # Thay một câu (`draft-outline`) cũng mở một vòng soạn: một job, một tiếng chuông.
+        opening_a_round = watching and step_of_plan.tool_name in _DRAFTING_TOOLS
         paper = args.get("assessment_id", "") if opening_a_round else ""
         held: dict[str, dict] = {}
 
@@ -2577,6 +2622,8 @@ async def _go(
                     "asked_for": asked_now,
                     "still_drafting": running_now,
                 }
+                if step_of_plan.tool_name == "replace_question":
+                    result, detail = await _replacement_outcome(session, paper, result, detail)
         else:
             await run_the_step()
             result = held.get("result", {"error": f"bước {index} chạy không xong"})

@@ -1,6 +1,6 @@
 ---
 name: soan-de
-description: The teacher wants a test, quiz or exam drafted, or more questions written for a draft, possibly from an attached document -- including replies that supply a missing subject, grade, topic, number of questions, or the chapter or lesson of the document for such a draft, and replies that approve or ask to change a proposed outline of the draft.
+description: The teacher wants a test, quiz or exam drafted, or more questions written for a draft, or one question of a draft replaced, possibly from an attached document -- including replies that supply a missing subject, grade, topic, number of questions, or the chapter or lesson of the document for such a draft, and replies that approve or ask to change a proposed outline of the draft.
 ---
 Quy trình SOẠN ĐỀ. Chỉ dùng khi giáo viên nhờ soạn. Hỏi một lớp đã làm bài thế nào là hỏi kết quả,
 không phải nhờ soạn.
@@ -44,6 +44,10 @@ không phải nhờ soạn.
    đồng ý → plan một bước:
    1. start_drafting — assessment_id lấy từ kết quả create_draft phía trên, question_count
    Tổng số câu của một đề không quá 50.
+
+5. THAY một câu của đề đã mở ("thay câu 3 bằng …", "câu 3 hỏi sang …") → dàn ý for=replace,
+   question = số câu ấy, đúng một mục một câu; giáo viên đồng ý → plan một bước:
+   1. replace_question — assessment_id lấy từ kết quả create_draft phía trên, question_number
 
 Câu hỏi của đề do start_drafting soạn: không tự viết câu hỏi ra trong lời nói, và
 đừng nói là đã soạn xong -- câu hỏi hiện dần ở panel bên phải.

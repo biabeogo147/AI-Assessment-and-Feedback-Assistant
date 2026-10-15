@@ -31,10 +31,12 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from be.agent_gateway import collect_result, enqueue_task, validate_question
 from be.assessment_state import AssessmentState, advance, assert_editable, editable
 from be.config import Settings
+from be.question_bank import release
 from contracts import (
     WRITE_DRAFT_QUESTION_TASK,
     DraftQuestionCompleted,
@@ -577,6 +579,103 @@ async def fire(
     return queued
 
 
+async def replace(
+    session: AsyncSession,
+    pool: object,
+    settings: Settings,
+    assessment_id: str,
+    question_number: int,
+    outline: dict,
+) -> int:
+    """Soạn lại đúng một câu theo một mục dàn ý mới; câu cũ ở lại tới khi câu mới đạt (ADR-29).
+
+    Mục mới được **nối** vào `brief.outline`, ô của câu trỏ sang nó, cờ `replacing` bật, và một job
+    được bắn. `harvest` tráo khi câu mới qua ADR-18; hỏng hẳn thì ô về `ready` với câu cũ.
+
+    Args:
+        session: Session của database. Commit ở đây.
+        pool: Pool của arq, hoặc None khi không với tới được queue.
+        settings: Settings của process.
+        assessment_id: Đề nháp nào.
+        question_number: Câu thứ mấy -- `Question.order_index`.
+        outline: Dàn ý đã xem, đúng một mục một câu.
+
+    Returns:
+        1 khi job đã vào queue, 0 khi không (không brief, không đề, queue chết).
+
+    Raises:
+        HTTPException: 409 khi nội dung của đề đã khoá (ADR-01).
+    """
+    brief = await session.get(DraftBrief, assessment_id)
+    assessment = await session.get(Assessment, assessment_id)
+    if brief is None or assessment is None:
+        return 0
+    assert_editable(assessment)
+
+    old = await session.scalar(
+        select(Question.id).where(
+            Question.assessment_id == assessment_id, Question.order_index == question_number
+        )
+    )
+    if old is None:
+        return 0
+    kept = list(brief.outline or [])
+    index = len(kept)
+    brief.outline = kept + [
+        {**item, "version": outline.get("version")} for item in outline.get("items", [])
+    ]
+    # Ô của câu luôn nằm trong số ô `harvest` coi là còn sống (review đợt 5).
+    brief.question_count = max(brief.question_count, question_number)
+    row = await session.scalar(
+        select(DraftItem).where(
+            DraftItem.assessment_id == assessment_id, DraftItem.ordinal == question_number
+        )
+    )
+    now = datetime.now(UTC)
+    if row is None:
+        # Câu có trước khi đề có ô soạn (đề seed, câu thêm tay): ô mới cho chính vị trí ấy.
+        row = DraftItem(
+            assessment_id=assessment_id,
+            ordinal=question_number,
+            job_id="",
+            status="ready",
+            attempts=0,
+            brief_version=brief.version,
+            created_at=now,
+        )
+        session.add(row)
+    asked = DraftQuestionRequested(
+        request_id=f"{assessment_id}:{question_number}:{brief.version}:r{index}",
+        subject=assessment.subject,
+        grade=assessment.grade,
+        topic_scope=brief.topic_scope,
+        difficulty=brief.difficulty,
+        ordinal=question_number,
+        of_total=max(brief.question_count, question_number),
+        banned_stems=tuple(await _stems(session, assessment_id)),
+        progress_channel=progress_channel(assessment_id),
+        **item_fields(brief, index, 1),
+    )
+    job_id = await enqueue_task(
+        pool, settings, WRITE_DRAFT_QUESTION_TASK, asked.model_dump(mode="json")
+    )
+    if job_id is None:
+        await session.rollback()
+        return 0
+    row.job_id = job_id
+    row.status = "pending"
+    row.attempts = 1
+    row.brief_version = brief.version
+    row.outline_item = index
+    row.item_part = 1
+    row.replacing = True
+    row.replaces_question_id = old
+    row.last_fault = ""
+    await session.commit()
+    logger.info("replacing question %d of %s", question_number, assessment_id)
+    return 1
+
+
 async def rebrief(
     session: AsyncSession,
     assessment_id: str,
@@ -689,6 +788,48 @@ async def _write(
         )
 
 
+async def drop_question(session: AsyncSession, teacher_id: str, question: Question) -> None:
+    """Gỡ một câu khỏi đề: thả bản ngân hàng, rồi xoá phương án, lời giải và chính câu (ADR-28).
+
+    Một chỗ cho hai đường: giáo viên xoá câu (`teacher_routes.delete_question`), và một câu mới về
+    thay câu cũ (`harvest`, `draft-outline`). **Không** dồn số và không đụng ô soạn: xoá thì dồn,
+    thay thì câu mới đứng đúng chỗ câu cũ -- việc ấy của bên gọi.
+
+    Args:
+        session: Session của database. Không commit ở đây.
+        teacher_id: Chủ của đề, chủ của ngân hàng.
+        question: Câu cần gỡ, đã nạp sẵn `options` và `methods` -- trong session async một lần nạp
+            lười giữa lúc flush là một lỗi.
+
+    Side effects:
+        Bản ngân hàng (nếu có) thôi trỏ về câu; câu và các dòng con của nó bị xoá.
+    """
+    await release(session, teacher_id, question.id)
+    for row in [*question.options, *question.methods]:
+        await session.delete(row)
+    await session.flush()
+    await session.delete(question)
+    await session.flush()
+
+
+def _keep_the_old(row: DraftItem) -> None:
+    """Thôi thay câu ở ô này: câu cũ vẫn nằm trong đề, nên ô về lại `ready` (`draft-outline`).
+
+    Thay câu giữ câu cũ cho tới khi câu mới qua ADR-18 (Decision *thay một câu*): job hỏng hay hết
+    lượt thử thì giáo viên còn nguyên câu đang tốt, không phải một ô trống. Mục dàn ý của ô quay về
+    mục cũ không được -- chỉ số mục cũ không còn giữ --, nên ô trỏ mục mới mà câu là câu cũ; lần
+    thay sau ghi đè lại.
+    """
+    row.status = "ready"
+    row.replacing = False
+    logger.warning(
+        "replacing position %d of %s gave up; the old question stays: %s",
+        row.ordinal,
+        row.assessment_id,
+        row.last_fault,
+    )
+
+
 def _give_up_or_retry(row: DraftItem, why: str) -> None:
     """Đánh dấu một vị trí để thử lại, hoặc thôi không tiêu thêm vào nó nữa.
 
@@ -700,6 +841,9 @@ def _give_up_or_retry(row: DraftItem, why: str) -> None:
         Ghi `row.status`.
     """
     row.last_fault = why[:120]
+    if row.attempts >= _MOST_ATTEMPTS and row.replacing:
+        _keep_the_old(row)
+        return
     if row.attempts >= _MOST_ATTEMPTS:
         row.status = "failed"
         logger.warning(
@@ -771,6 +915,9 @@ async def harvest(
         return 0
 
     seen = {_comparable(stem) for stem in await _stems(session, assessment_id)}
+    # Giáo viên chủ đề -- chủ ngân hàng câu hỏi, khi một câu thay gỡ câu cũ (ADR-28).
+    owner = await session.get(Assessment, assessment_id)
+    owner_id = owner.teacher_id if owner is not None else ""
     taken = set(
         await session.scalars(
             select(Question.order_index).where(Question.assessment_id == assessment_id)
@@ -799,6 +946,10 @@ async def harvest(
         if state == "failed":
             # Chính cái job đã nổ. Hỏi lại thì vẫn nhận đúng cái lỗi đó, nên lần
             # này không đi qua bộ đếm số lần thử.
+            if row.replacing:
+                row.last_fault = "job soạn câu thay đã hỏng"
+                _keep_the_old(row)
+                continue
             row.status = "failed"
             logger.warning("job for position %d of %s raised", row.ordinal, assessment_id)
             continue
@@ -814,7 +965,26 @@ async def harvest(
             _give_up_or_retry(row, "đề trùng một câu đã có")
             continue
 
-        if row.ordinal in taken:
+        if row.replacing:
+            # Câu thay về và đạt (`draft-outline`): gỡ câu cũ ở đúng vị trí rồi ghi câu mới vào
+            # đó -- cùng một giao dịch, nên không lúc nào đề thiếu câu này.
+            old = await session.scalar(
+                select(Question)
+                .where(Question.assessment_id == assessment_id, Question.order_index == row.ordinal)
+                .options(selectinload(Question.options), selectinload(Question.methods))
+            )
+            if old is not None and old.id != row.replaces_question_id:
+                # Câu ở vị trí này không còn là câu lúc bắt đầu thay: một lần thu khác đã tráo
+                # rồi. Không gỡ câu mới ấy (review đợt 5).
+                row.replacing = False
+                row.status = "ready"
+                continue
+            if old is not None:
+                seen.discard(_comparable(old.stem))
+                await drop_question(session, owner_id, old)
+            taken.discard(row.ordinal)
+            row.replacing = False
+        elif row.ordinal in taken:
             # Vị trí này đã có một câu hỏi, nghĩa là có một job trùng cho cùng một
             # ordinal đã lọt qua. Giữ cái đầu tiên và dừng.
             _give_up_or_retry(row, "vị trí này đã có câu")

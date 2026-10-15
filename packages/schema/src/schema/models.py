@@ -764,6 +764,9 @@ class DraftItem(Base):
     # trong đề cho tới khi câu mới qua ADR-18; `harvest` tráo rồi hạ cờ. Job hỏng thì câu cũ còn
     # nguyên và cờ hạ.
     replacing: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Id của **đúng** câu đang bị thay. `harvest` chỉ gỡ câu mang id này: hai lần thu cùng lúc (hai
+    # tab) không được gỡ cả câu mới vừa ghi (review đợt 5, `draft-outline`).
+    replaces_question_id: Mapped[str] = mapped_column(String(36), default="")
 
 
 class Document(Base):

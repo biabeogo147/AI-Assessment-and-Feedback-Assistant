@@ -61,7 +61,7 @@ from be.assessment_state import (
 )
 from be.config import Settings, get_settings
 from be.db import get_session
-from be.drafting import harvest, pending_count
+from be.drafting import drop_question, harvest, pending_count
 from be.identity import Asking, current_teacher
 from be.publication_wording import (
     FAULT_CLOSES_BEFORE_OPENS,
@@ -73,7 +73,7 @@ from be.publication_wording import (
     phase_one_note,
     phase_two_note,
 )
-from be.question_bank import file_approved, in_bank, release
+from be.question_bank import file_approved, in_bank
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
@@ -1671,6 +1671,21 @@ async def edit_question(
     if question is None:
         raise HTTPException(status_code=404, detail=_NO_SUCH)
 
+    # **Không sửa một câu đang được thay** (`draft-outline`): câu mới về là gỡ câu cũ, và bản sửa
+    # của giáo viên mất theo mà không ai nói (review đợt 5).
+    being_replaced = await session.scalar(
+        select(DraftItem.id).where(
+            DraftItem.assessment_id == assessment_id,
+            DraftItem.replacing.is_(True),
+            DraftItem.replaces_question_id == question_id,
+        )
+    )
+    if being_replaced is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Câu này đang được soạn lại. Đợi câu mới về rồi sửa.",
+        )
+
     # **Không sửa một câu đã có người làm.** `AnswerOption.id` là `new_id()`, nên thay cả
     # bộ phương án sinh ra id mới kể cả khi giáo viên chỉ đổi một dấu phẩy — và mọi
     # `Answer.option_id` của câu ấy thành mồ côi. Trên SQLite nó im lặng; trên Postgres,
@@ -1920,11 +1935,7 @@ async def delete_question(
         )
 
     gone = question.order_index
-    await release(session, assessment.teacher_id, question_id)
-    for row in [*question.options, *question.methods]:
-        await session.delete(row)
-    await session.flush()
-    await session.delete(question)
+    await drop_question(session, assessment.teacher_id, question)
     slot = await session.scalar(
         select(DraftItem).where(DraftItem.assessment_id == assessment_id, DraftItem.ordinal == gone)
     )

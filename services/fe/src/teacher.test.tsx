@@ -749,6 +749,36 @@ describe("một lượt của Kriky", () => {
     expect(screen.getByText("Chưa có gì được thay đổi")).toBeTruthy();
   });
 
+  it("một bước thay câu đọc lại sau F5 nói đúng câu của BE", () => {
+    // `draft-outline`: hai đường của cùng một bước -- `detail` lúc đang chạy và `tool_result`
+    // đã lưu -- phải nói cùng một câu, kể cả khi câu cũ ở lại.
+    const done = stepFor(
+      blank({
+        kind: "tool_result",
+        tool_name: "replace_question",
+        tool_result: { started: true, question_number: 3, asked_for: 5, replaced: true },
+      }),
+    );
+    expect(done.title).toBe("Thay một câu");
+    expect(done.result).toBe("— đã thay câu 3");
+
+    const kept = stepFor(
+      blank({
+        kind: "tool_result",
+        tool_name: "replace_question",
+        tool_result: {
+          started: false,
+          question_number: 3,
+          asked_for: 5,
+          replaced: false,
+          reason: "câu 3 giữ nguyên: câu mới soạn không đạt",
+        },
+      }),
+    );
+    expect(kept.mark).toBe("failed");
+    expect(kept.result).toBe("— câu 3 giữ nguyên: câu mới soạn không đạt");
+  });
+
   it("để start_drafting lại làm một bước chứ không bỏ nó đi", () => {
     const step = stepFor(
       blank({

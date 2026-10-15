@@ -62,6 +62,7 @@ from schema.models import (
     Document,
     DraftBrief,
     DraftItem,
+    Question,
     SchoolClass,
     Student,
     Teacher,
@@ -2751,3 +2752,122 @@ async def test_more_questions_are_numbered_after_the_highest_slot_not_the_count(
 
     assert shape[:2] == ("more", 3)
     assert shape[3] == brief.assessment_id
+
+
+@pytest.mark.asyncio
+async def test_replacing_a_question_goes_through_its_own_outline(stack) -> None:
+    """ADR-29: *"thay câu 2"* -- dàn ý một mục cho đúng câu 2, đồng ý, rồi ô 2 soạn lại; câu cũ ở
+    lại tới khi câu mới về."""
+    http, maker, monkeypatch = stack
+    replace_two = _outline_step(
+        _outline_item(questions=1, source_nodes=()), **{"for": "replace", "question": "2"}
+    )
+    replace_plan = _plan(
+        PlanStep(
+            tool_name="replace_question",
+            args={"assessment_id": "", "question_number": ""},
+            title="Thay câu 2",
+        )
+    )
+    agent = ScriptedAgent(
+        _outline_step(_outline_item(source_nodes=())),
+        _open_and_draft(""),
+        replace_two,
+        replace_plan,
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for={1, 2})
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    async def ready(pool, settings, job_id):
+        return "ready", DraftQuestionCompleted(
+            request_id="r", question=_question(job_id)
+        ).model_dump(mode="json")
+
+    monkeypatch.setattr(drafting, "collect_result", ready)
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+        await drafting.harvest(session, None, get_settings(), brief.assessment_id)
+
+    shown = await http.post(
+        "/api/teacher/chat/messages", json={"text": "thay câu 2 đi"}, headers=TEACHER
+    )
+    assert "Câu 2 ·" in shown.json()["text"]
+    await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
+
+    async with maker() as session:
+        row = await session.scalar(select(DraftItem).where(DraftItem.ordinal == 2))
+        kept = await session.scalar(
+            select(Question).where(
+                Question.assessment_id == brief.assessment_id, Question.order_index == 2
+            )
+        )
+    assert (row.status, row.replacing) == ("pending", True)
+    assert kept is not None
+
+
+@pytest.mark.asyncio
+async def test_a_plan_cannot_open_a_draft_and_replace_a_question_in_it(stack) -> None:
+    http, maker, monkeypatch = stack
+    open_and_replace = _plan(
+        PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề"),
+        PlanStep(
+            tool_name="replace_question",
+            args={"assessment_id": "{1.assessment_id}", "question_number": "1"},
+            title="Thay câu 1",
+        ),
+    )
+    agent = ScriptedAgent(open_and_replace)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 1, purpose="replace")
+
+    await http.post("/api/teacher/chat/messages", json={"text": "thay câu 1"}, headers=TEACHER)
+
+    assert "không mở đề mới" in agent.asked[-1]["history"][-1]["tool_result"]["error"]
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("standing", "running", "said", "replaced"),
+    [
+        ("new", 0, "đã thay câu 2", True),
+        ("old", 1, "câu 2 mới còn đang soạn", False),
+        ("old", 0, "câu 2 giữ nguyên: câu mới soạn không đạt", False),
+    ],
+)
+async def test_a_replacement_step_says_whether_the_question_changed(
+    stack, standing: str, running: int, said: str, replaced: bool
+) -> None:
+    """Review đợt 5 (`draft-outline`): câu mới không đạt thì bước không được báo là đã thay."""
+    _, maker, _ = stack
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        paper = Assessment(
+            teacher_id=teacher.id,
+            title="Đề",
+            subject="Toán",
+            grade="6",
+            state=AssessmentState.HAS_QUESTIONS,
+            created_at=datetime.now(UTC),
+        )
+        session.add(paper)
+        await session.flush()
+        question = Question(
+            assessment_id=paper.id, order_index=2, stem="Câu hai", learning_objective="x"
+        )
+        session.add(question)
+        await session.commit()
+        before = {
+            "started": True,
+            "question_number": 2,
+            "replaced_question_id": question.id if standing == "old" else "id-cũ",
+            "still_drafting": running,
+        }
+        result, detail = await teacher_chat._replacement_outcome(session, paper.id, before, "")
+
+    assert detail == said
+    assert result["replaced"] is replaced
+    assert (result["started"] is False) == (detail.endswith("không đạt"))

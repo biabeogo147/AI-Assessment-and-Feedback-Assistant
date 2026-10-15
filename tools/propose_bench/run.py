@@ -121,6 +121,9 @@ def _score_outline(expect: dict, step: dict) -> tuple[bool, str]:
     purpose = str((step.get("tool_args") or {}).get("for") or "new")
     if purpose != expect.get("for", "new"):
         return False, f"for {purpose!r}"
+    question = str((step.get("tool_args") or {}).get("question") or "")
+    if "question" in expect and question != expect["question"]:
+        return False, f"question {question!r}"
     if any(
         not str(item.get("knowledge") or "").strip() or not str(item.get("approach") or "").strip()
         for item in items

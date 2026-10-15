@@ -266,7 +266,8 @@ def test_the_core_prompt_carries_the_outline_rules() -> None:
     assert "outline: đề xuất DÀN Ý đề" in _CORE
     assert "chỉ nêu SAU KHI giáo viên đã đồng ý một dàn ý ở lượt trước" in _CORE
     assert "nêu lại outline ĐỦ mọi mục" in _CORE
-    assert "for = new (đề mới) hoặc more" in _CORE
+    assert "for = new (đề mới), more" in _CORE
+    assert "replace (thay một câu: một mục một câu, kèm question" in _CORE
 
 
 @pytest.mark.parametrize("said", ["oke", "OK luôn", "được", "Đồng ý nhé", "chốt"])

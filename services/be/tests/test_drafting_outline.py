@@ -19,8 +19,14 @@ from be.config import get_settings
 from be.db import bind_sessions
 from be.drafting import item_fields, place_items
 from be.seed import seed_if_empty
+from contracts import (
+    DraftQuestionCompleted,
+    GeneratedOption,
+    GeneratedQuestion,
+    SolutionMethod,
+)
 from schema.ddl import prepare_schema
-from schema.models import Assessment, DraftBrief, DraftItem, Teacher
+from schema.models import Assessment, DraftBrief, DraftItem, Question, Teacher
 
 
 class FakeQueue:
@@ -201,3 +207,169 @@ def test_two_items_on_the_same_knowledge_do_not_tell_each_other_to_stay_away() -
     brief = DraftBrief(assessment_id="a", topic_scope="x", question_count=3, outline=same)
 
     assert item_fields(brief, 1, 1)["other_items"] == ("B",)
+
+
+# ------------------------------------------------------------------ thay một câu
+
+
+class HarvestingQueue(FakeQueue):
+    """`FakeQueue` biết trả kết quả cho `harvest`."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.results: dict[str, tuple[str, object]] = {}
+
+    def finish(self, job_id: str, stem: str) -> None:
+        question = GeneratedQuestion(
+            stem=stem,
+            options=(
+                GeneratedOption(label="A", text="đúng", is_correct=True),
+                GeneratedOption(label="B", text="sai", is_correct=False, error_label="lỗi B"),
+            ),
+            methods=(SolutionMethod(title="1", body="..."), SolutionMethod(title="2", body="...")),
+            learning_objective="x",
+        )
+        self.results[job_id] = (
+            "ready",
+            DraftQuestionCompleted(request_id="r", question=question).model_dump(mode="json"),
+        )
+
+
+async def _two_questions(maker, draft_id, queue, monkeypatch) -> None:
+    async def collect(pool, settings, job_id):
+        return queue.results.get(job_id, ("pending", None))
+
+    monkeypatch.setattr(drafting, "collect_result", collect)
+    async with maker() as session:
+        await drafting.fire(session, queue, get_settings(), draft_id, 2, _outline((2, "A")))
+    queue.finish("job-1", "Câu một cũ")
+    queue.finish("job-2", "Câu hai cũ")
+    async with maker() as session:
+        assert await drafting.harvest(session, queue, get_settings(), draft_id) == 2
+
+
+def _stems(rows) -> dict[int, str]:
+    return {row.order_index: row.stem for row in rows}
+
+
+@pytest.mark.asyncio
+async def test_a_replaced_question_stays_until_its_successor_lands(stack, monkeypatch) -> None:
+    maker, draft_id, _ = stack
+    queue = HarvestingQueue()
+    await _two_questions(maker, draft_id, queue, monkeypatch)
+
+    async with maker() as session:
+        assert await drafting.replace(
+            session, queue, get_settings(), draft_id, 2, _outline((1, "C"), version=2)
+        )
+    asked = queue.payloads[-1]
+    assert (asked["ordinal"], asked["item_knowledge"], asked["other_items"]) == (2, "C", ["A"])
+    # Câu mới chưa về: câu cũ vẫn trong đề.
+    async with maker() as session:
+        assert _stems(
+            await session.scalars(select(Question).where(Question.assessment_id == draft_id))
+        ) == {
+            1: "Câu một cũ",
+            2: "Câu hai cũ",
+        }
+
+    queue.finish("job-3", "Câu hai mới")
+    async with maker() as session:
+        assert await drafting.harvest(session, queue, get_settings(), draft_id) == 1
+        row = await session.scalar(
+            select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 2)
+        )
+        stems = _stems(
+            await session.scalars(select(Question).where(Question.assessment_id == draft_id))
+        )
+    assert stems == {1: "Câu một cũ", 2: "Câu hai mới"}
+    assert (row.status, row.replacing, row.outline_item) == ("ready", False, 1)
+
+
+@pytest.mark.asyncio
+async def test_a_replacement_whose_job_breaks_leaves_the_old_question(stack, monkeypatch) -> None:
+    maker, draft_id, _ = stack
+    queue = HarvestingQueue()
+    await _two_questions(maker, draft_id, queue, monkeypatch)
+    async with maker() as session:
+        await drafting.replace(
+            session, queue, get_settings(), draft_id, 1, _outline((1, "C"), version=2)
+        )
+    queue.results["job-3"] = ("failed", None)
+
+    async with maker() as session:
+        await drafting.harvest(session, queue, get_settings(), draft_id)
+        row = await session.scalar(
+            select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 1)
+        )
+        stems = _stems(
+            await session.scalars(select(Question).where(Question.assessment_id == draft_id))
+        )
+
+    assert stems[1] == "Câu một cũ"
+    assert (row.status, row.replacing) == ("ready", False)
+    assert row.last_fault
+
+
+@pytest.mark.asyncio
+async def test_a_replacement_out_of_attempts_leaves_the_old_question(stack, monkeypatch) -> None:
+    maker, draft_id, _ = stack
+    queue = HarvestingQueue()
+    await _two_questions(maker, draft_id, queue, monkeypatch)
+    async with maker() as session:
+        await drafting.replace(
+            session, queue, get_settings(), draft_id, 1, _outline((1, "C"), version=2)
+        )
+        row = await session.scalar(
+            select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 1)
+        )
+        row.attempts = drafting._MOST_ATTEMPTS
+        await session.commit()
+    queue.results["job-3"] = ("gone", None)
+
+    async with maker() as session:
+        await drafting.harvest(session, queue, get_settings(), draft_id)
+        row = await session.scalar(
+            select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 1)
+        )
+        stems = _stems(
+            await session.scalars(select(Question).where(Question.assessment_id == draft_id))
+        )
+
+    assert stems[1] == "Câu một cũ"
+    assert (row.status, row.replacing) == ("ready", False)
+
+
+@pytest.mark.asyncio
+async def test_a_question_already_swapped_is_not_swapped_again(stack, monkeypatch) -> None:
+    """Hai lần thu cùng giữ một ô đang thay: lần sau không gỡ câu mới lần trước vừa ghi."""
+    maker, draft_id, _ = stack
+    queue = HarvestingQueue()
+    await _two_questions(maker, draft_id, queue, monkeypatch)
+    async with maker() as session:
+        await drafting.replace(
+            session, queue, get_settings(), draft_id, 2, _outline((1, "C"), version=2)
+        )
+        old_id = (
+            await session.scalar(
+                select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 2)
+            )
+        ).replaces_question_id
+    queue.finish("job-3", "Câu hai mới")
+    async with maker() as session:
+        await drafting.harvest(session, queue, get_settings(), draft_id)
+        # Lần thu thứ hai, trễ hơn, vẫn thấy ô ở trạng thái lúc trước khi tráo.
+        row = await session.scalar(
+            select(DraftItem).where(DraftItem.assessment_id == draft_id, DraftItem.ordinal == 2)
+        )
+        row.status, row.replacing, row.replaces_question_id = "pending", True, old_id
+        await session.commit()
+    queue.finish("job-3", "Câu hai mới hơn nữa")
+
+    async with maker() as session:
+        await drafting.harvest(session, queue, get_settings(), draft_id)
+        stems = _stems(
+            await session.scalars(select(Question).where(Question.assessment_id == draft_id))
+        )
+
+    assert stems[2] == "Câu hai mới"
