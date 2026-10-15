@@ -629,12 +629,6 @@ async def _start_drafting(running: Running, args: dict) -> dict:
         queued = await fire(
             session, running.pool, running.settings, assessment_id, wanted, running.outline
         )
-    # [CODE CHẾT 2026-10-15 `draft-outline`: `fire` thôi đọc sách, nên không còn ném lỗi này]
-    # except BookUnavailable as gone:
-    #     # Phạm vi tài liệu không đọc được nữa (`draft-from-document`): nói đúng nguyên nhân,
-    #     # không để lời từ chối chung *"hàng đợi đang hỏng"* bên dưới nói thay.
-    #     await session.rollback()
-    #     return {"started": False, "reason": gone.reason}
     except HTTPException:
         # `fire` gọi `assert_editable`, nên một đề đã duyệt sẽ rơi vào đây. ADR-01 khoá
         # nội dung ở lúc duyệt, và chính cái khoá đó là lý do việc duyệt có nghĩa.

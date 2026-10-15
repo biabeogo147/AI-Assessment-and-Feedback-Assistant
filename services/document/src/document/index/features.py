@@ -353,10 +353,6 @@ def is_candidate(unit: Unit, source: RawSource) -> bool:
         )
     if source is RawSource.PLAIN and text.startswith("#"):
         return True
-    # [CODE CHẾT 2026-10-11] text layer xếp số mục và tên mục thành hai dòng của một khối
-    # one_line = "\n" not in text
-    # return one_line and (numbering(text) is not None or upper_ratio(text) >= _UPPER_RATIO)
-    #
     # Tối đa **hai** dòng: PyMuPDF trả *"1.1\nBối cảnh"* là một khối -- số mục một dòng, tên một
     # dòng. Bản đầu đòi một dòng và loại mất mọi mục của `report.pdf` (thử đầu-cuối, Task 4,
     # `document-agent-hierarchy`).

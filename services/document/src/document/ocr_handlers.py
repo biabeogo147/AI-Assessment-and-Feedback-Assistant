@@ -140,8 +140,6 @@ async def probe_document(ctx: dict, payload: dict) -> dict:
         except (ContentStoreUnavailable, HandBackFailed) as exc:
             return await _retry_or_give_up(ctx, exc, asked.document_id, found.page_count)
 
-    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
-    # return await _conclude(ctx, asked.document_id, found)
     return await _settle(ctx, asked, found)
 
 
@@ -240,8 +238,6 @@ async def ocr_pages(ctx: dict, payload: dict) -> dict:
             batch.page_count,
             "Đã đọc hết các trang nhưng không thấy chữ nào.",
         )
-    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
-    # return await _conclude(ctx, batch.document_id, found)
     return await _settle(ctx, batch, found)
 
 

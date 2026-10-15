@@ -171,6 +171,6 @@ hay "Khác"), `Clarify` / `questionIn` trong `services/fe/src/screens/teacher/Ch
 `ghi khác`, artboard `3b`, `services/be/tests/test_clarify_choices.py`,
 `test_a_made_up_class_never_becomes_a_button_on_the_next_turn`, `teacher.test.tsx` *"thẻ hỏi lại:
 lối Khác là để ghi"*, `test_agent_be_and_fe_agree_on_the_other_choice`. `propose._after_other`
-(câu mở sau chữ "Khác", T5) là code chết từ ngày ấy.
+(câu mở sau chữ "Khác", T5) là code chết từ ngày ấy, xoá hẳn 15/10/2026 (`draft-outline`).
 `test_the_options_are_written_by_be_not_by_the_model` vẫn đúng: ba lớp model bịa không lớp nào khớp
 đúng một tên, nên nút là nhãn BE.

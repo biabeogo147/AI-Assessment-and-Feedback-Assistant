@@ -12,8 +12,7 @@ Thứ tự bị ép bởi phụ thuộc, không bởi sở thích:
 PP-FormulaNet trên CPU không cứu được: trên 58 công thức nhãn vàng, layout làm hỏng 24 và model
 hỏng 21. Công thức được đọc **lúc ra đề**, chỉ ở phần tài liệu được tham chiếu, bằng
 gpt-4.1-mini qua API (sẽ nằm ở `services/agent/src/agent/vision.py`, chưa viết). Khối `FORMULA`
-vẫn ở lại: nó nhận chữ OCR như mọi khối chữ, và nhãn của nó là gợi ý *trang này có toán*. Các
-dòng của đường cũ được comment bằng `#` với nhãn `[CODE CHẾT 2026-10-11]`, không xoá.
+vẫn ở lại: nó nhận chữ OCR như mọi khối chữ, và nhãn của nó là gợi ý *trang này có toán*.
 
 **Model nạp một lần, ở `on_startup` của worker.** Lớp này giữ chúng, và nó cố ý không tự nạp
 trong `read_page`: nạp ba model mất vài giây, và trả cái giá ấy cho mỗi trang của một cuốn bốn
@@ -30,9 +29,6 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-# [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-# `document-ocr-text-and-latex`
-# from document.ocr.formula import FormulaReader
 from document.ocr.layout import LayoutReader
 from document.ocr.model import BlockKind, PageBlock, PageRead
 from document.ocr.recognize import make_line_reader
@@ -42,10 +38,6 @@ from document.pdf import open_pdf
 logger = logging.getLogger(__name__)
 
 # Khối thuộc những loại này để chữ rỗng: `_fill` không gán dòng nào vào chúng.
-# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — `document-agent-hierarchy`,
-# D2
-# _WITHOUT_TEXT = frozenset({BlockKind.IMAGE, BlockKind.TABLE})
-#
 # Từ `document-agent-hierarchy` (D2), khối **hình** giữ chữ của những dòng detector đã tìm thấy bên
 # trong nó. Không một crop nào được đưa cho bộ nhận dạng -- dòng đã được detect và đọc từ trước,
 # `_fill` chỉ thôi vứt chúng -- nên không tốn thêm giây nào. Lý do: banner mở chương của SGK là
@@ -70,10 +62,6 @@ class PageReader:
         _words: Bộ nhận dạng chữ -- EasyOCR hoặc VietOCR, xem `recognize.py`.
         _dpi: Số điểm ảnh mỗi inch khi dựng ảnh trang.
     """
-
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    #     _math: PP-FormulaNet.
 
     def __init__(
         self,
@@ -105,9 +93,6 @@ class PageReader:
         self._words = make_line_reader(reader, vietocr_model=vietocr_model, threads=threads)
         self._layout = LayoutReader(use_mkldnn=use_mkldnn, threads=threads)
         self._lines = TextLineFinder(use_mkldnn=use_mkldnn, threads=threads)
-        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-        # `document-ocr-text-and-latex`
-        # self._math = FormulaReader(use_mkldnn=use_mkldnn, threads=threads)
         self._dpi = dpi
 
     def read_page(self, raw: bytes, index: int) -> PageRead:
@@ -143,10 +128,6 @@ class PageReader:
         with _timed(seconds, "recognize"):
             texts = self._words.read_lines(image, lines)
 
-        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-        # `document-ocr-text-and-latex`
-        # with _timed(seconds, "formula"):
-        #     filled = [self._fill(image, block, lines, texts) for block in blocks]
         # Chặng này giờ chỉ gán dòng vào khối; đổi tên để cột giây không còn nói "formula".
         with _timed(seconds, "assign"):
             filled = [_fill(block, lines, texts) for block in blocks]
@@ -159,22 +140,6 @@ class PageReader:
             sum(seconds.values()),
         )
         return PageRead(index + 1, width, height, tuple(filled), seconds)
-
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # `_fill` từng là method vì nó cần `self._math` và `image`; giờ cả hai đã chết nên nó thành hàm
-    # thuần ở cấp module, test được mà không nạp model.
-    # def _fill(
-    #     self, image: np.ndarray, block: PageBlock, lines: list, texts: list[str]
-    # ) -> PageBlock:
-    #     if block.kind in _WITHOUT_TEXT:
-    #         return block
-    #     if block.kind is BlockKind.FORMULA:
-    #         latex = self._math.read(image, block.box)
-    #         # Chữ OCR vẫn được giữ làm bản dự phòng ngay cả khi có LaTeX: plan 3c cần so bản
-    #         # sửa với **ảnh**, và chuỗi chữ là thứ gần ảnh nhất mà một phép so chuỗi chạm được.
-    #         return block._replace(text=_text_inside(block, lines, texts), latex=latex)
-    #     return block._replace(text=_text_inside(block, lines, texts))
 
 
 def _fill(block: PageBlock, lines: list, texts: list[str]) -> PageBlock:

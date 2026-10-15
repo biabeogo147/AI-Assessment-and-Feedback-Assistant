@@ -120,19 +120,9 @@ class PageBlock(NamedTuple):
             `FORMULA` cũng chỉ mang chữ OCR: công thức không được đọc lúc upload nữa.
     """
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    #     latex: LaTeX, chỉ có ở khối `FORMULA`, và **`None` khi nhận dạng công thức hỏng**.
-    #         Phân biệt ấy không thừa: `latex=None` trên một khối `FORMULA` nghĩa là *có một công
-    #         thức ở đây mà chưa đọc được*, khác hẳn *không có công thức nào* -- và plan 3c cần
-    #         đúng chỗ phân biệt ấy để biết nó phải sửa cái gì.
-
     kind: BlockKind
     box: BBox
     text: str
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # latex: str | None
 
 
 class PageRead(NamedTuple):

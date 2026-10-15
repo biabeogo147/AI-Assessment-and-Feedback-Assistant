@@ -1279,16 +1279,6 @@ async def test_too_few_choices_twice_is_still_a_question(
             ),
             ("12A", "12B"),
         ),
-        # [CODE CHẾT 2026-10-13] Không lượt nào còn bắt đầu bằng chữ "Khác" (`_after_other`).
-        # # Giáo viên vừa bấm "Khác": không lựa chọn nào đúng, câu kế tiếp là một câu mở.
-        # (
-        #     (
-        #         TurnRecord(kind="teacher", text="soạn đề góc nội tiếp lớp 9"),
-        #         TurnRecord(kind="assistant", text="Bạn muốn bao nhiêu câu?"),
-        #         TurnRecord(kind="teacher", text="Khác"),
-        #     ),
-        #     (),
-        # ),
     ],
 )
 async def test_fewer_than_three_choices_are_enough_when_three_cannot_be_real(
@@ -1301,31 +1291,6 @@ async def test_fewer_than_three_choices_are_enough_when_three_cannot_be_real(
 
     assert len(model.prompts) == 1
     assert step.choices == enough
-
-
-# [CODE CHẾT 2026-10-13] Không lượt nào còn bắt đầu bằng chữ "Khác": lối ấy mở ô cho giáo viên
-# ghi, và câu họ ghi mới tới AGENT (người dùng chốt) -- `_after_other` thành code chết
-# (`unbiased-model-text`).
-# @pytest.mark.asyncio
-# async def test_after_other_the_question_is_open_whatever_the_model_offers(
-#     monkeypatch: pytest.MonkeyPatch, on: None
-# ) -> None:
-#     """Plan 4c T5, trên trình duyệt: *"Cho mình 10 câu kiểm tra lớp 8"* → *"Đại số / Hình học /
-#     Số học"* → "Khác" → model hỏi tiếp kèm *"Chương 1 / Chương 2 / Chương 3"* -- một đề không có
-#     sách. Lời dặn câu mở trong `_CORE` không giữ được; câu hỏi sau "Khác" không mang lựa chọn."""
-#     model = Scripted([_ask("Chương 1", "Chương 2", "Chương 3")])
-#     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
-#     history = (
-#         TurnRecord(kind="teacher", text="Cho mình 10 câu kiểm tra lớp 8"),
-#         TurnRecord(kind="assistant", text="Bạn muốn kiểm tra điều gì?"),
-#         TurnRecord(kind="teacher", text="Khác"),
-#     )
-#
-#     step = await propose(_asked("x").model_copy(update={"history": history}))
-#
-#     assert step.kind == "ask_clarify"
-#     assert step.choices == ()
-#     assert step.text
 
 
 def test_names_of_items_and_other_are_not_answers() -> None:

@@ -704,7 +704,7 @@ câu**, nên dòng tổng *"N câu ngân hàng · x câu thêm mới đã kiểm
 sau luật ấy nó không còn đếm điều gì. Đầu panel còn hai hàng -- tên đề và dòng meta -- cao **86**.
 Chip nguồn trên **từng câu** thì ở lại, vẫn là chữ bịa theo hash id (`invented-not-from-be.ts`), vì
 người dùng dặn giữ nguyên mọi phần giao diện khác; món nợ ấy ở `docs/plans/backlog.md`. Hàm
-`Provenance` và CSS `.provenance` được comment lại, không xoá.
+`Provenance` và CSS `.provenance` đã xoá.
 
 Nút **`Xoá`** đứng ngay sau `Sửa`, cùng kiểu chữ (`.qcard .edit`), cùng điều kiện hiện: đề đã duyệt
 thì cả hai biến mất (thuộc tính `Sửa được` của `Question card`, `267:30`). Thẻ đang sửa không có nó.

@@ -38,10 +38,6 @@ from ocr_bench.score import (
     cer,
     diacritic_error_rate,
     label_accuracy,
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # latex_distance,
-    # latex_matches,
     match_blocks,
     missing_words,
     order_inversions,
@@ -300,12 +296,6 @@ def _read_pages(
         payload = {
             "page": read.page,
             "seconds": read.seconds,
-            # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-            # `document-ocr-text-and-latex`
-            # "blocks": [
-            #     {"kind": block.kind.value, "text": block.text, "latex": block.latex}
-            #     for block in read.blocks
-            # ],
             "blocks": [{"kind": block.kind.value, "text": block.text} for block in read.blocks],
         }
         cached.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -360,19 +350,6 @@ def _report(gold: list[GoldPage], reads: list[dict]) -> None:
     )
     _stages(reads)
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # formulas = [one for row in rows for one in row["formulas"]]
-    # if formulas:
-    #     exact = sum(1 for one in formulas if one["exact"]) / len(formulas)
-    #     distance = statistics.median(one["distance"] for one in formulas)
-    #     print(
-    #         f"\ncông thức  {len(formulas)} cặp so được, khớp đúng {exact:.1%}, "
-    #         f"khoảng cách trung vị {distance:.3f}"
-    #     )
-    # missing = sum(row["formulas_missing"] for row in rows)
-    # print(f"công thức nhãn vàng có mà engine không trả về: {missing}")
-
 
 def _score_page(one: GoldPage, read: dict) -> dict:
     """Chấm một trang.
@@ -393,15 +370,6 @@ def _score_page(one: GoldPage, read: dict) -> dict:
 
     matched = match_blocks(gold_texts, read_texts)
 
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # gold_math = [block.latex for block in one.blocks if block.latex]
-    # read_math = [block["latex"] for block in read["blocks"] if block.get("latex")]
-    # pairs = [
-    #     {"exact": latex_matches(left, right), "distance": latex_distance(left, right)}
-    #     for left, right in zip(gold_math, read_math, strict=False)
-    # ]
-
     return {
         "page": one.page,
         "missing": missing_words(whole_gold, whole_read),
@@ -414,10 +382,6 @@ def _score_page(one: GoldPage, read: dict) -> dict:
         ),
         "inversions": order_inversions(matched),
         "seconds": sum(read["seconds"].values()),
-        # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-        # `document-ocr-text-and-latex`
-        # "formulas": pairs,
-        # "formulas_missing": max(0, len(gold_math) - len(read_math)),
     }
 
 

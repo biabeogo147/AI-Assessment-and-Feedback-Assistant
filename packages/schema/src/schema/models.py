@@ -749,12 +749,6 @@ class DraftItem(Base):
     # loại trừ mới đoán ra nguyên nhân. Rỗng nghĩa là chưa lần nào hỏng.
     last_fault: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    # [CODE CHẾT 2026-10-15 `draft-outline`: mục của câu nay là mục dàn ý (`outline_item`, ADR-29)]
-    # # **Mục kiến thức** của câu này, gán một lần trước khi job đầu tiên chạy
-    # # (`draft-from-document`). `chunk_ordinals` là nhóm đoạn trong mục, khi số câu nhiều hơn số
-    # # mục.
-    # node_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # chunk_ordinals: Mapped[list[int]] = mapped_column(JSON, default=list)
     # **Mục dàn ý** của câu này (ADR-29, `draft-outline`): chỉ số vào `DraftBrief.outline`, và câu
     # thứ mấy trong số câu mục ấy phủ (đếm từ 1). Gán một lần trước job đầu tiên, như mục kiến thức
     # cũ. `None` chỉ ở hàng cũ hơn ADR-29.

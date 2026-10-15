@@ -859,8 +859,6 @@ def _choices(proposed: tuple[str, ...], offered: list[str], named: dict[str, str
                 chosen.append(text)
         chosen = chosen[:_MOST_CHOICES]
     # Không lựa chọn thật nào -- model chỉ đưa tên mục -- thì không nút nào, và FE không vẽ thẻ.
-    # [CODE CHẾT 2026-10-13] "Khác" thôi là một nút BE gửi -- FE tự vẽ lối gõ (người dùng chốt).
-    # return [*chosen, OTHER_CHOICE] if chosen else []
     return chosen
 
 
@@ -2292,16 +2290,6 @@ async def _go(
                 choices=buttons,
                 more_choices=offered_more if asking_back else 0,
             )
-            # [CODE CHẾT 2026-10-13] Trước `unbiased-model-text` T3, `choices` model viết bị bỏ qua
-            # hết (ADR-23 bản đầu); nay `_choices` dùng chúng, nên không còn gì để báo là đã bỏ.
-            # if step.choices:
-            #     # Bỏ qua, không phải lọc lại. BE là bên giữ các row; thứ model viết ra ở
-            #     # đây tốt nhất cũng chỉ là một bản sao, còn tệ nhất là một thứ bịa ra.
-            #     logger.info(
-            #         "ignored %d model-written choice(s) for %s",
-            #         len(step.choices),
-            #         asking.teacher_code,
-            #     )
             if asking_back and offered and step.choices:
                 # Câu hỏi về một dòng: bao nhiêu chữ model viết khớp đúng một dòng, tức được đưa
                 # lên đầu; phần còn lại bị bỏ, nút vẫn là mọi nhãn BE.

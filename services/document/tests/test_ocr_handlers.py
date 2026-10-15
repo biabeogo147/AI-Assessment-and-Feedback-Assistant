@@ -325,13 +325,6 @@ async def test_a_readable_file_goes_to_the_index_queue_not_back_to_the_be() -> N
     ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
     out = await probe_document(ctx, _asked())
 
-    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
-    # assert len(queue.jobs) == 1
-    # name, payload, where = queue.jobs[0]
-    # assert name == DOCUMENT_PROBED_TASK
-    # assert where == get_settings().ingest_queue_name
-    # assert payload["state"] == DocumentState.READY
-    # assert payload["page_count"] == 1
     assert len(queue.jobs) == 1
     name, payload, where = queue.jobs[0]
     assert name == INDEX_DOCUMENT_TASK
@@ -385,8 +378,6 @@ async def test_a_result_that_cannot_be_handed_back_asks_arq_to_retry(queue: _Que
     này dùng một tệp không đọc được: với job dựng cây, *bị từ chối* nghĩa là *đã xếp hàng rồi*,
     không phải hỏng.
     """
-    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
-    # ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": queue, "store": _Store([])}
     ctx = {"reader": _Reader(None), "redis": queue, "store": _Store([])}
     with pytest.raises(Retry):
         await probe_document(ctx, _asked())
@@ -404,8 +395,6 @@ async def test_a_pdf_with_text_is_kept_in_the_store_before_ready_leaves() -> Non
     ctx = {"reader": _Reader(_a_pdf_with_text()), "redis": _Queue(log=log), "store": store}
     await probe_document(ctx, _asked())
 
-    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
-    # assert log == ["begin", "page 1", "finish", "hand back ready"]
     assert log == ["begin", "pages 1", "finish", "queue index"]
     assert store.header is not None
     assert store.header.source is RawSource.TEXT_LAYER
@@ -616,9 +605,6 @@ async def test_the_last_batch_finishes_and_queues_the_index() -> None:
     await ocr_pages(_ocr_ctx(log, queue, store), _batch(per_job + 1, per_job + 3))
 
     assert [page.page for page in store.pages] == [per_job + 1, per_job + 2, per_job + 3]
-    # [CODE CHẾT 2026-10-11] READY chờ cây — `document-agent-hierarchy`, D3
-    # assert log[-2:] == ["finish", "hand back ready"]
-    # [done] = queue.sent(DOCUMENT_PROBED_TASK)
     assert log[-2:] == ["finish", "queue index"]
     assert queue.sent(DOCUMENT_PROBED_TASK) == []
     [done] = queue.sent(INDEX_DOCUMENT_TASK)

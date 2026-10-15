@@ -799,33 +799,6 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
             tool_args={"for": "new"},
         )
 
-    # [CODE CHẾT 2026-10-15 `draft-outline`: plan soạn đề chỉ sau khi giáo viên đồng ý dàn ý,
-    # ADR-29]
-    #     # Số câu đi với `start_drafting`, không với `create_draft`: một đề trống chưa có
-    #     # số câu nào để khai. Mock chia đôi brief ở đây cho đúng chỗ của con số ấy -- gửi
-    #     # nó vào `create_draft` là gửi một tham số tool đó không còn nhận.
-    #     wanted = brief["question_count"]
-    #     fields = {key: value for key, value in brief.items() if key != "question_count"}
-    #     return NextStepCompleted(
-    #         request_id=request.request_id,
-    #         kind="plan",
-    #         text="Được, mình soạn đề ngay.",
-    #         steps=(
-    #             PlanStep(
-    #                 tool_name="create_draft",
-    #                 args=fields,
-    #                 title=f"Tạo đề {wanted} câu",
-    #             ),
-    #             # `{1.assessment_id}` là cú pháp BE giải, và một mock viết nó ra là cách
-    #             # đường ấy được đi qua ở một bản dev không có API key.
-    #             PlanStep(
-    #                 tool_name="start_drafting",
-    #                 args={"assessment_id": "{1.assessment_id}", "question_count": wanted},
-    #                 title=f"Soạn {wanted} câu hỏi",
-    #             ),
-    #         ),
-    #     )
-
     if harvested is not None and len(harvested.tool_result.get("candidates") or ()) > 1:
         # ADR-23: không ai chọn giữa các candidates, và điều đó gồm cả mock. Đây là
         # đường một buổi demo đi qua, nên một mock âm thầm chọn một cái sẽ đang trình

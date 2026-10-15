@@ -470,22 +470,6 @@ def _answers(choices: tuple[str, ...], question: str) -> tuple[str, ...]:
     return tuple(kept.values())
 
 
-# [CODE CHẾT 2026-10-13] "Khác" thôi là một nút gửi đi chữ "Khác": FE mở ô để giáo viên ghi rõ, và
-# câu họ ghi mới tới AGENT (người dùng chốt). Lối ấy không còn gửi chữ "Khác"; giáo viên tự gõ đúng
-# chữ ấy thì chỉ tốn một lần hỏi lại model (`_FewChoices`).
-# def _after_other(request: NextStepRequested) -> bool:
-#     """Câu mới nhất của giáo viên là nút "Khác". Hàm thuần.
-#
-#     Args:
-#         request: Lượt đang hỏi.
-#
-#     Returns:
-#         True khi giáo viên vừa nói không lựa chọn nào đúng.
-#     """
-#     said = next((turn.text for turn in reversed(request.history) if turn.kind == "teacher"), "")
-#     return said.strip().casefold() == _OTHER.casefold()
-
-
 def _choices_wanted(request: NextStepRequested) -> int:
     """Một câu hỏi lại lượt này cần ít nhất bao nhiêu lựa chọn.
 
@@ -503,9 +487,6 @@ def _choices_wanted(request: NextStepRequested) -> int:
     Returns:
         Số lựa chọn tối thiểu, có thể là 0.
     """
-    # [CODE CHẾT 2026-10-13] Lối "Khác" không còn gửi chữ "Khác" (xem `_after_other`).
-    # if _after_other(request):
-    #     return 0
     for turn in reversed(request.history):
         if turn.kind == "plan":
             break
@@ -1529,12 +1510,6 @@ async def _choose(state: ProposeState) -> dict:
         # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`_answers`) -- bấm
         # chúng là gửi đi một thứ không trả lời gì.
         answers = _answers(step.choices, step.text)
-        # [CODE CHẾT 2026-10-13] Lối "Khác" không còn gửi chữ "Khác" (xem `_after_other`;
-        # `unbiased-model-text`).
-        # if _after_other(state["request"]):
-        #     # Plan 4c T5: `_CORE` dặn *"vừa chọn Khác thì hỏi lại bằng một câu mở"*, model vẫn bày
-        #     # lựa chọn mới -- trên trình duyệt *"Chương 1/2/3"* cho một đề không có sách.
-        #     answers = ()
         step = step.model_copy(update={"choices": answers})
         wanted = _choices_wanted(state["request"])
         if len(answers) < wanted:

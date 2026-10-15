@@ -515,7 +515,7 @@ nguyên, câu 2 đổi. Rồi `oke` soạn theo bản 2, không theo bản 1.
 Đính chip một cuốn SGK, **gõ:** `soạn 5 câu chương 1 từ sách này`. **Phải thấy:** khối bước đọc mục
 lục rồi `read_section` (một hay vài lần, không quá 5), rồi dàn ý có *"Theo: Bài …"* là nhãn bài thật.
 `oke` → 5 câu. Log worker AGENT: payload `write_draft_question` có `item_knowledge`, **không** có chữ
-OCR nào trong `focus_text`.
+OCR nào (hợp đồng không còn trường `focus_*`).
 
 ### H4. Thay một câu, soạn thêm `[2–4 lượt]`
 

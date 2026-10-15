@@ -12,7 +12,11 @@ bởi AGENT không giữ credential database.
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = 1
+# 2: `DraftQuestionRequested` gỡ `focus_title`, `focus_text`, `other_foci` (ADR-29, plan
+# `draft-outline`).
+# Bên đọc là AGENT `write_draft_question`; một job cũ còn chở chúng vẫn đọc được vì Pydantic bỏ
+# trường lạ, và chữ tài liệu thô trong đó không đi tiếp. Không bên nào kiểm con số này.
+SCHEMA_VERSION = 2
 
 # Tên task của arq. BE enqueue bằng chuỗi và không bao giờ import package AGENT.
 WRITE_DRAFT_QUESTION_TASK = "write_draft_question"
@@ -110,12 +114,6 @@ class DraftQuestionRequested(BaseModel):
             nghe thì lời nói mất luôn. Nếu chuông chở nội dung thì một người đóng tab đúng lúc
             sẽ làm mất hẳn một câu đã soạn xong. Chở một con số thì mất một tiếng chuông chỉ là
             mất một lần cập nhật màn hình, và lần quan sát sau vẫn đưa đủ câu vào đề.
-        focus_title: [CODE CHẾT 2026-10-15 `draft-outline`: BE thôi điền; giữ để payload cũ còn
-            trong Redis vẫn hợp lệ] Mục kiến thức câu này được gán (`draft-from-document`).
-        focus_text: [CODE CHẾT 2026-10-15 `draft-outline`: chữ tài liệu thô thôi tới job, ADR-29]
-            Chữ của các đoạn thuộc mục ấy, có trần.
-        other_foci: [CODE CHẾT 2026-10-15 `draft-outline`: nhường cho `other_items`] Tiêu đề mục
-            của các câu khác cùng đề.
         item_knowledge: Kiến thức của mục dàn ý câu này thuộc (ADR-29) -- Kriky viết, giáo viên đã
             thấy nguyên văn trước khi duyệt. Rỗng chỉ ở payload cũ hơn ADR-29.
         item_formulas: Công thức của mục, mỗi phần tử một công thức trong cặp `$`.
@@ -141,9 +139,6 @@ class DraftQuestionRequested(BaseModel):
     of_total: int = Field(ge=1, le=50)
     banned_stems: tuple[str, ...] = ()
     progress_channel: str = ""
-    focus_title: str = ""
-    focus_text: str = ""
-    other_foci: tuple[str, ...] = ()
     item_knowledge: str = ""
     item_formulas: tuple[str, ...] = ()
     item_approach: str = ""

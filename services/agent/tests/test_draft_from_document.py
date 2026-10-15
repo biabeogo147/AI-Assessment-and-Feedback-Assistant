@@ -41,26 +41,6 @@ def _asked(**extra) -> DraftQuestionRequested:
     )
 
 
-# [CODE CHẾT 2026-10-15 `draft-outline`: BE thôi gửi chữ tài liệu thô (ADR-29); job nhận mục
-# dàn ý -- xem `test_a_question_on_an_outline_item_is_told_exactly_that_item`]
-# def test_a_question_with_a_unit_is_told_its_unit_its_text_and_what_others_cover() -> None:
-#     brief = draft_brief(
-#         _asked(
-#             focus_title="Chương I. SỐ TỰ NHIÊN › Bài 1. Tập hợp",
-#             focus_text="Tập hợp là một khái niệm cơ bản …",
-#             other_foci=("Chương I. SỐ TỰ NHIÊN › Bài 2. Ghi số",),
-#         )
-#     )
-#
-#     assert "CHỈ hỏi kiến thức của mục: Chương I. SỐ TỰ NHIÊN › Bài 1. Tập hợp" in brief
-#     assert "Tập hợp là một khái niệm cơ bản" in brief
-#     # Hậu ký ADR-27: kiến thức để viết câu mới, không kho câu để chép.
-#     assert "Không chép nguyên một câu" in brief
-#     assert "· Chương I. SỐ TỰ NHIÊN › Bài 2. Ghi số" in brief
-#     # Lời nhắc chung *"khía cạnh khác nhau"* nhường chỗ cho mục cụ thể.
-#     assert "khía cạnh khác nhau" not in brief
-
-
 def test_a_question_on_an_outline_item_is_told_exactly_that_item() -> None:
     """ADR-29: job nhận đúng mục dàn ý giáo viên đã duyệt -- kiến thức, công thức, cách làm."""
     brief = draft_brief(
@@ -93,7 +73,8 @@ def test_a_one_question_item_is_not_told_about_parts() -> None:
 
 def test_raw_document_text_never_reaches_the_brief_any_more() -> None:
     """Một payload cũ còn chở `focus_text` thì chữ ấy không vào prompt (ADR-29)."""
-    brief = draft_brief(_asked(focus_title="Bài 1", focus_text="chữ OCR f8h4%2 rác"))
+    old = _asked().model_dump() | {"focus_title": "Bài 1", "focus_text": "chữ OCR f8h4%2 rác"}
+    brief = draft_brief(DraftQuestionRequested.model_validate(old))
 
     assert "f8h4%2" not in brief
 
@@ -292,15 +273,6 @@ def test_the_library_line_stands_among_the_drafting_branches() -> None:
     assert system.index(_LIBRARY) < system.index("- còn ? → ask_clarify")
     # Khối thường chỉ có trong tên tài liệu, nên mở thư viện không chờ đủ mục.
     assert "kể cả khi còn ?" in _LIBRARY
-
-
-def test_a_unit_with_no_text_is_briefed_without_an_empty_frame() -> None:
-    """Review B5 (`draft-from-document`): mục có tên mà đoạn không đọc được -- không gửi khung `<<<
-    >>>` rỗng."""
-    brief = draft_brief(_asked(focus_title="Chương I › Bài 1", focus_text="  "))
-
-    assert "<<<" not in brief
-    assert "khía cạnh khác nhau" in brief
 
 
 @pytest.mark.asyncio

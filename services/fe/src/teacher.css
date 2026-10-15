@@ -1437,14 +1437,6 @@
   color: var(--surface);
 }
 
-/* [CODE CHẾT 2026-10-13] Dòng gợi ý "trả lời ở ô nhập bên dưới" đã thay bằng hàng "Khác…".
-.teacher .clarify .fallback {
-  color: var(--ink-muted);
-  font-size: var(--type-caption);
-  line-height: 1.5;
-}
-*/
-
 /* ------------------------------------------------------- thẻ kết quả hành động */
 
 /*
@@ -1656,20 +1648,6 @@
   font-size: var(--type-caption);
   line-height: 1.5;
 }
-
-/* [CODE CHẾT 2026-10-13] Dòng tổng nguồn câu hỏi dưới tên đề, gỡ theo ADR-28.
-.teacher .panel-head .provenance {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--type-caption);
-  line-height: 1.5;
-}
-
-.teacher .panel-head .provenance .lead {
-  color: var(--ink-muted);
-}
-*/
 
 /*
  * Chip nguồn. Bo tròn hẳn (999) để nó không bị đọc nhầm thành một nút.

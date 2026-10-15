@@ -310,104 +310,6 @@ def item_fields(brief: DraftBrief, index: int | None, part: int) -> dict:
     }
 
 
-# [CODE CHẾT 2026-10-15 `draft-outline`: chữ tài liệu thô thôi tới job; job nhận mục dàn ý (ADR-29)]
-# # ------------------------------------------- tài liệu (`draft-from-document`)
-#
-#
-# class BookUnavailable(Exception):
-#     """Phạm vi tài liệu của brief không soạn được: cây đã dựng lại, hoặc kho nội dung vắng mặt.
-#
-#     Attributes:
-#         reason: Câu nói cho giáo viên.
-#     """
-#
-#     def __init__(self, reason: str) -> None:
-#         super().__init__(reason)
-#         self.reason = reason
-#
-#
-# @dataclass(frozen=True)
-# class _Book:
-#     """Phạm vi tài liệu của một brief, đã đọc từ kho: các đơn vị và chữ của từng đoạn."""
-#
-#     units: list[Unit]
-#     texts: dict[int, str]
-#
-#     def titles(self) -> dict[int, str]:
-#         return {unit.node: unit.title for unit in self.units}
-#
-#
-# def _aware(at: datetime | None) -> datetime | None:
-#     """Postgres trả thời gian có múi giờ, SQLite của test thì không; so trên cùng một hệ."""
-#     return at.replace(tzinfo=UTC) if at is not None and at.tzinfo is None else at
-#
-#
-# async def _open_book(brief: DraftBrief) -> _Book:
-#     """Đọc phạm vi tài liệu của brief từ kho nội dung.
-#
-#     Args:
-#         brief: Brief có `document_id`.
-#
-#     Returns:
-#         Các đơn vị kiến thức và chữ của đoạn.
-#
-#     Raises:
-#         BookUnavailable: Khi cây đã dựng lại sau lúc chọn phạm vi (`index_built_at` lệch) -- các
-#             `ordinal` đóng băng nay trỏ sang nội dung khác --, khi cây biến mất, hoặc khi kho
-#             không đọc được.
-#     """
-#     try:
-#         reader = get_reader()
-#         found = await reader.tree(brief.document_id)
-#         if found is None or _aware(found[0].built_at) != _aware(brief.index_built_at):
-#             raise BookUnavailable(
-#                 "tài liệu của đề này đã được đọc lại nên mục lục đã đổi; "
-#                 "hãy mở đề mới từ tài liệu"
-#             )
-#         nodes = found[1]
-#         inside = scope_of(nodes, brief.scope_nodes)
-#         pieces = await reader.chunks(brief.document_id, inside)
-#     except ContentUnavailable as exc:
-#         raise BookUnavailable("kho nội dung tài liệu tạm thời không đọc được") from exc
-#     units = units_in_scope(nodes, pieces, brief.scope_nodes)
-#     if not units:
-#         raise BookUnavailable("phạm vi đã chọn trong tài liệu không có nội dung nào để soạn")
-#     return _Book(units=units, texts={one.ordinal: one.text for one in pieces})
-#
-#
-# def _focus(book: _Book, slot: Slot, every: dict[int, Slot]) -> dict:
-#     """Ba trường tài liệu của `DraftQuestionRequested` cho một ô.
-#
-#     Args:
-#         book: Phạm vi đã đọc.
-#         slot: Ô của câu này.
-#         every: Ô của **mọi** câu trong đề, gồm cả câu này.
-#
-#     Returns:
-#         `focus_title`, `focus_text`, `other_foci`.
-#     """
-#     titles = book.titles()
-#     own = titles.get(slot.node, "")
-#     text = "\n\n".join(book.texts[ordinal] for ordinal in slot.chunks if ordinal in book.texts)
-#     others: list[str] = []
-#     for one in every.values():
-#         title = titles.get(one.node, "")
-#         if title and title != own and title not in others:
-#             others.append(title)
-#     return {
-#         "focus_title": own,
-#         "focus_text": text[:FOCUS_CHARS],
-#         "other_foci": tuple(others[:OTHER_FOCI]),
-#     }
-#
-#
-# def _frozen(row: DraftItem) -> Slot | None:
-#     """Ô đã đóng băng của một hàng, `None` khi hàng chưa có ô."""
-#     if row.node_ordinal is None:
-#         return None
-#     return Slot(row.node_ordinal, tuple(row.chunk_ordinals or ()))
-
-
 async def fire(
     session: AsyncSession,
     pool: object,
@@ -486,17 +388,6 @@ async def fire(
             _MOST_QUESTIONS,
         )
         return 0
-
-    # [CODE CHẾT 2026-10-15 `draft-outline`: mỗi câu một mục của sách nhường cho dàn ý (ADR-29)]
-    # # **Mỗi câu một mục** (`draft-from-document`): gán ô cho mọi vị trí chưa có, trước khi đẩy
-    # # job nào. Ô đã đóng băng ở hàng cũ giữ nguyên.
-    # book: _Book | None = None
-    # placed: dict[int, Slot] = {}
-    # if brief.document_id:
-    #     book = await _open_book(brief)
-    #     taken = {ordinal: slot for ordinal, row in rows.items() if (slot := _frozen(row))}
-    #     missing = [ordinal for ordinal in range(1, total + 1) if ordinal not in taken]
-    #     placed = {**taken, **assign(book.units, total, taken, missing)}
 
     # **Mỗi câu một mục dàn ý** (ADR-29): các mục giáo viên đã xem được nối vào brief, và mỗi câu
     # mới nhận mục của nó trước khi job nào chạy -- bắn lại một ô `retry` hay soạn thêm không xáo
@@ -1078,23 +969,6 @@ async def _refire(
     assessment = await session.get(Assessment, assessment_id)
     if brief is None or assessment is None:
         return
-
-    # [CODE CHẾT 2026-10-15 `draft-outline`: ô bắn lại đọc mục dàn ý của nó, không đọc sách]
-    # book: _Book | None = None
-    # placed: dict[int, Slot] = {}
-    # if brief.document_id:
-    #     try:
-    #         book = await _open_book(brief)
-    #     except BookUnavailable as gone:
-    #         # Không soạn lại trên một cây khác cây đã chọn: ô ấy dừng, kèm lý do đọc được.
-    #         for row in rows:
-    #             row.status = "failed"
-    #             row.last_fault = gone.reason[:120]
-    #         return
-    #     every = await session.scalars(
-    #         select(DraftItem).where(DraftItem.assessment_id == assessment_id)
-    #     )
-    #     placed = {one.ordinal: slot for one in every if (slot := _frozen(one))}
 
     banned = tuple(await _stems(session, assessment_id))
     for row in rows:

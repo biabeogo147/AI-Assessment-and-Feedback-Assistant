@@ -137,9 +137,6 @@ def test_blocks_come_back_without_text_yet() -> None:
     """Chặng này chỉ nói *ở đâu* và *là gì*. Chữ là việc của hai chặng sau."""
     blocks = blocks_from_boxes([_box("text", 10, 10, 100, 50)])
     assert blocks[0].text == ""
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # assert blocks[0].latex is None
     assert blocks[0].box.width == 90
     assert blocks[0].box.height == 40
 

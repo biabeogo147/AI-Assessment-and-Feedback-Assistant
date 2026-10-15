@@ -1108,11 +1108,6 @@ function Clarify({
           </button>
         )}
       </div>
-      {/* [CODE CHẾT 2026-10-13] Lối tự ghi nay là hàng "Khác…" ngay trong thẻ (người dùng chốt).
-      <div className="fallback">
-        Không lựa chọn nào đúng ý? Trả lời bằng câu của bạn ở ô nhập bên dưới.
-      </div>
-      */}
     </div>
   );
 }

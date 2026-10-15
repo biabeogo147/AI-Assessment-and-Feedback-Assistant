@@ -138,7 +138,7 @@ async def test_a_job_receives_exactly_its_outline_item(stack) -> None:
         (2, 2),
     ]
     # Không chữ tài liệu nào (ADR-29).
-    assert all(one["focus_text"] == "" for one in queue.payloads)
+    assert not any(key.startswith("focus_") for one in queue.payloads for key in one)
 
     async with maker() as session:
         brief = await session.get(DraftBrief, draft_id)

@@ -156,6 +156,14 @@ phần còn lại của `coverage.py` và `test_coverage.py` comment `[CODE CH�
 task 10, cùng lúc `drafting.py` thôi đọc chúng -- làm sớm hơn thì code đang chạy gãy giữa hai task.
 BE ghi; ingest chỉ kiểm schema (`check_schema`).
 
+**Sửa 15/10/2026 (task 16b):** người dùng dặn xoá **toàn bộ** khối `[CODE CHẾT]` ở pha cuối -- tức là
+(b) cho mọi code chết trong repo, không chỉ của plan này: `coverage.py`, `test_coverage.py`,
+`ocr/formula.py` xoá hẳn; cột `node_ordinal`/`chunk_ordinals` không còn trong `models.py`; trường
+`focus_*` gỡ khỏi `DraftQuestionRequested` (job cũ còn chở chúng vẫn đọc được: Pydantic bỏ trường lạ).
+Gỡ trường là đổi hợp đồng (`packages/contracts/AGENTS.md`): `SCHEMA_VERSION` của họ `authoring` lên
+2. Bên đọc là AGENT `write_draft_question`; không bên nào kiểm con số ấy, như mọi họ hôm nay -- thứ
+thi hành là `test_a_job_from_before_adr_29_still_reads_and_drops_its_document_text`.
+
 **reason:** `heading` và `scope_of` là hai hàm duy nhất còn người dùng (`teacher_tools.py` dựng nhãn
 và `read_section` gom cây con, cùng phép gộp `toc.parts`); để chúng lại trong một module đã chết là giữ một import sống trỏ vào
 code chết. **Từ task 3, BE và ingest khởi động lại trên DB dev cũ sẽ chết vì `check_schema`** (thiếu
@@ -239,7 +247,7 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 6 — tài liệu và thử đầu-cuối**
 
-- [ ] 16b. **Xoá toàn bộ khối `[CODE CHẾT]`** (người dùng dặn 15/10/2026: thêm vào pha cuối, trước
+- [x] 16b. **Xoá toàn bộ khối `[CODE CHẾT]`** (người dùng dặn 15/10/2026: thêm vào pha cuối, trước
       khi cập nhật tài liệu) -- comment code chết trong `services/`, `packages/`, `tools/`, cả file chết
       (`coverage.py`, `test_coverage.py`). Rồi rà lại tài liệu nhắc tới chúng (task 17).
 - [x] 17. ADR-29 `đã chốt` cùng bảng nơi thi hành; `AGENTS.md`; `teacher-surface.md`; kịch bản thử
@@ -380,6 +388,18 @@ HỢP (tr. 5–9)"*, *"oke"* → 5 câu bám dàn ý; 11 payload job trong Redis
 bước `start_drafting` cho cùng đề (nay cổng gộp); sau *"oke"* model mất phạm vi rồi hỏi lại khối (nay
 lượt dàn ý giữ môn, khối, phạm vi và *"oke"* ngay sau dàn ý thành plan dựng từ chính dàn ý --
 `_approved_plan`); `outline` để trống mục (nay đứng ngay sau `text` trong schema).
+
+**Thử trình duyệt, lượt ba** (BE, AGENT chạy `97a1ffd`): *"soạn thêm 2 câu về đại lượng tỉ lệ thuận"*
+ra một lời gọi tool tên `outline` (BE từ chối, giáo viên thấy lỗi trong bằng chứng), rồi plan soạn
+thêm mà cổng cho qua nhờ dàn ý bản 6 bỏ dở hai lượt trước -- câu 6–7 được soạn khi giáo viên chưa thấy
+dàn ý nào cho lời xin ấy. Sửa ở `9aafbc0`: cổng chỉ nhận dàn ý **ngay trước** câu giáo viên vừa gõ;
+tool tên `outline` thì AGENT hỏi lại. Thử lại: dàn ý bản 7 `for=more`, nhưng *"oke"* ra plan
+`create_draft` khối 6 do model tự nêu -- sửa ở `e3a796d`: lượt đồng ý luôn lấy plan dựng từ dàn ý.
+Thử lại trên chat có sách (`e3672757`): *"soạn thêm 2 câu về tập hợp"* → đọc sách, dàn ý bản 2 câu
+6–7 *"Theo: Bài 1. TẬP HỢP"* → *"oke"* → một bước soạn, đề 7 câu, `draft_briefs.outline` 7 mục, câu
+6–7 trỏ mục 5–6, F5 giữ nguyên. **Còn hở:** plan chỉ có `create_draft` (không soạn câu nào) không qua
+cổng duyệt -- chat `d115952e` model chép lại một plan hỏng của lượt trước và mở một đề trống mới cho
+lời xin *"soạn thêm"*. Chặn nó là bỏ khả năng mở đề trống bằng chat: chờ người dùng quyết.
 - **Đo lần ba** (`data/results/run-101`, nhãn `dan-y-dung-viec`, sau schema và `_right_purpose`, trước
   `_approved_plan`): **182/204**, hỏi lại 14 lần. Ca đủ mục 6/6; `tai-lieu-doc-xong` 6/6;
   `dan-y-soan-them` 6/6; `dan-y-thay-cau` 5/6. Còn: `tra-lop-ket-qua` **2/6** (trước plan 6/6;

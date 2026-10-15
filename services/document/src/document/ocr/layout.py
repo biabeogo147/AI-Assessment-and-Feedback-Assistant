@@ -144,12 +144,6 @@ def blocks_from_boxes(
         )
     )
     logger.info("layout found %s boxes, kept %s", len(boxes), len(kept))
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # return [
-    #     PageBlock(kind=kind_from_label(box["label"]), box=_box(box), text="", latex=None)
-    #     for box in in_reading_order(kept)
-    # ]
     return [
         PageBlock(kind=kind_from_label(box["label"]), box=_box(box), text="")
         for box in in_reading_order(kept)

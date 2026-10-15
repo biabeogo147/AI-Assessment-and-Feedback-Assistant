@@ -207,10 +207,6 @@ export default function Panel({
           {paper.question_count} câu · {paper.subject} {paper.grade}
           {paper.topic_scope !== "" && ` · ${paper.topic_scope}`}
         </div>
-        {/* [CODE CHẾT 2026-10-13] Dòng tổng nguồn câu hỏi dưới tên đề -- ADR-28: duyệt đề là đã
-            kiểm mọi câu, nên "x câu thêm mới đã kiểm · y câu chưa kiểm" không còn đếm điều gì.
-        <Provenance questions={paper.questions} />
-        */}
       </div>
 
       <div className="panel-questions">
@@ -432,43 +428,6 @@ const _ERASE_SAVED =
   "Câu này đã lưu vào ngân hàng câu hỏi từ lần duyệt trước. Xoá ở đây chỉ gỡ nó khỏi đề này — bản trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.";
 const _ERASE_FRESH =
   "Câu này chưa có trong ngân hàng câu hỏi, nên xoá rồi thì không lấy lại được. Các câu sau dồn số lên.";
-
-// [CODE CHẾT 2026-10-13] Dòng tổng nguồn câu hỏi dưới tên đề. ADR-28: duyệt đề là đã kiểm mọi
-// câu, nên "x câu thêm mới đã kiểm · y câu chưa kiểm" không còn đếm điều gì. Chip trên từng câu
-// (`provenanceOf`) vẫn ở lại, giữ nguyên giao diện theo lời người dùng.
-//
-// /**
-//  * Dòng tổng kết nguồn câu hỏi, ngay dưới tên đề.
-//  *
-//  * Mọi con số ở đây đếm từ các chip của từng câu, nên dòng này và các thẻ bên dưới không
-//  * bao giờ nói hai điều khác nhau — kể cả khi cả hai cùng bịa.
-//  */
-// function Provenance({ questions }: { questions: TeacherQuestion[] }) {
-//   const tally = { bank: 0, checked: 0, unchecked: 0 };
-//   for (const one of questions) {
-//     const tone = provenanceOf(one.question_id).tone;
-//     if (tone === "checked") tally.checked += 1;
-//     else if (tone === "unchecked") tally.unchecked += 1;
-//     else tally.bank += 1;
-//   }
-//   return (
-//     <div className="provenance">
-//       {tally.bank > 0 && (
-//         <span className="lead">{tally.bank} câu ngân hàng ·</span>
-//       )}
-//       {tally.checked > 0 && (
-//         <span className="source-chip checked">
-//           {tally.checked} câu thêm mới đã kiểm
-//         </span>
-//       )}
-//       {tally.unchecked > 0 && (
-//         <span className="source-chip unchecked">
-//           {tally.unchecked} câu chưa kiểm
-//         </span>
-//       )}
-//     </div>
-//   );
-// }
 
 /**
  * Một câu hỏi trong panel.

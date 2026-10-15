@@ -49,9 +49,6 @@ def _block(kind: BlockKind, box: BBox) -> PageBlock:
     Returns:
         Khối rỗng chữ.
     """
-    # [CODE CHẾT 2026-10-11] công thức đọc bằng gpt-4.1-mini lúc ra đề — xem
-    # `document-ocr-text-and-latex`
-    # return PageBlock(kind=kind, box=box, text="", latex=None)
     return PageBlock(kind=kind, box=box, text="")
 
 
@@ -240,15 +237,6 @@ def test_a_formula_block_now_carries_the_ocr_text() -> None:
     """
     block = _block(BlockKind.FORMULA, BBox(0, 0, 1000, 1000))
     assert _fill(block, [_line(100, 130)], ["a : b = c"]).text == "a : b = c"
-
-
-# [CODE CHẾT 2026-10-11] khối hình giữ chữ của các dòng nằm trong nó — `document-agent-hierarchy`,
-# D2
-# def test_pictures_and_tables_stay_empty() -> None:
-#     """Nhận dạng chữ **không bao giờ** trả về rỗng, nên một hình mà nhận chữ là chữ bịa."""
-#     lines, texts = [_line(100, 130)], ["chữ của một dòng nằm đè lên hình"]
-#     for kind in (BlockKind.IMAGE, BlockKind.TABLE):
-#         assert _fill(_block(kind, BBox(0, 0, 1000, 1000)), lines, texts).text == ""
 
 
 def test_tables_stay_empty() -> None:

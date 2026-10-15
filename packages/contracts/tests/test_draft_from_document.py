@@ -36,7 +36,9 @@ def test_a_turn_carries_the_document_on_its_chip() -> None:
     }
 
 
-def test_a_question_without_a_document_is_written_as_before() -> None:
+def test_a_job_from_before_adr_29_still_reads_and_drops_its_document_text() -> None:
+    """`focus_*` đã gỡ (ADR-29, `draft-outline`): một job cũ còn chở chúng trong Redis vẫn đọc được,
+    và chữ tài liệu thô của nó không đi tiếp."""
     asked = DraftQuestionRequested.model_validate(
         {
             "request_id": "a:1:1",
@@ -45,10 +47,18 @@ def test_a_question_without_a_document_is_written_as_before() -> None:
             "topic_scope": "Hàm số",
             "ordinal": 1,
             "of_total": 10,
+            "focus_title": "Bài 1",
+            "focus_text": "chữ OCR",
+            "other_foci": ["Bài 2"],
         }
     )
 
-    assert (asked.focus_title, asked.focus_text, asked.other_foci) == ("", "", ())
+    assert "chữ OCR" not in asked.model_dump_json()
+    assert not set(DraftQuestionRequested.model_fields) & {
+        "focus_title",
+        "focus_text",
+        "other_foci",
+    }
 
 
 @pytest.mark.parametrize("phase_two", [RetryQuestionRequested, ExplainTurnRequested])

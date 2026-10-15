@@ -115,7 +115,7 @@ Dựng ở plan `2026-10-13-question-bank-write-path-plan.md`.
 - **Hộp xác nhận, hai lời dẫn theo `QuestionRead.in_bank`:** `services/fe/src/screens/teacher/Panel.tsx`;
   vitest *"xoá một câu khỏi đề (ADR-28)"* trong `services/fe/src/teacher.test.tsx`; Figma
   `Consequence dialog — xoá câu khỏi đề` (`592:3180`), artboard 15 (`594:2550`).
-- **Dòng tổng *"đã kiểm / chưa kiểm"* đã gỡ:** `Panel.tsx` (comment `[CODE CHẾT 2026-10-13]`), Figma
+- **Dòng tổng *"đã kiểm / chưa kiểm"* đã gỡ:** `Panel.tsx` (code đã xoá 15/10/2026), Figma
   artboard 6, 7, 8, 12, 14.
 - **Chưa thi hành:** đường đọc (Kriky rút câu từ ngân hàng); việc sửa bản trong ngân hàng; chip nguồn
   thật trên từng câu.

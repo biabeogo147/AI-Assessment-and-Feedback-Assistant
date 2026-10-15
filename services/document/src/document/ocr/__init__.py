@@ -13,8 +13,7 @@ không có detector tốt. Lấy nửa mạnh của mỗi bên. Decision Record 
 
 Công thức được đọc **lúc ra đề**, chỉ ở phần tài liệu được tham chiếu, bằng gpt-4.1-mini qua API --
 sẽ nằm ở `services/agent/src/agent/vision.py` (chưa viết; `document-ocr-text-and-latex`, chờ người
-dùng duyệt chi phí). `formula.py` (PP-FormulaNet) còn trong package nhưng đã comment toàn bộ với
-nhãn `[CODE CHẾT 2026-10-11]`, kèm lý do.
+dùng duyệt chi phí). PP-FormulaNet (`formula.py`) đã gỡ khỏi package.
 """
 
 # PHẢI đứng đây, và phải đứng **trước** mọi thứ chạm paddle. Đo trên Windows ngày 10/10/2026:

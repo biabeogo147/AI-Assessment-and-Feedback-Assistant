@@ -946,7 +946,8 @@ CPU-bound, còn arq chạy tới `max_jobs` job đồng thời"*.
 
 **Paddle khớp từng chữ với mô tả đó, và nặng hơn nhiều.** `pymupdf` dựng một trang mất mili giây;
 `LayoutReader.read` đo được **3,6–5,3 giây một trang**, và đường OCR đầy đủ mất hơn trăm giây. Hiện
-`paddleocr` được import ở **ba** module (`ocr/layout.py`, `ocr/textline.py`, `ocr/formula.py`), và
+`paddleocr` được import ở **hai** module (`ocr/layout.py`, `ocr/textline.py`; `ocr/formula.py` đã xoá
+15/10/2026), và
 trong cả `services/document/src/document/ocr/` **không có một `asyncio.to_thread` nào**.
 
 | Việc | Cái gì đang chặn |
@@ -1104,7 +1105,7 @@ phạm vi plan ấy, chờ người dùng quyết có sửa không.
 | --- | --- |
 | **Đường đọc ngân hàng**: tool để Kriky rút câu từ ngân hàng khi soạn đề, và câu kết *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* của artboard 5 | Một plan riêng. Cần quyết cách chọn câu (theo môn, khối, mục tiêu, phạm vi) và cách hỏi lại giáo viên về nguồn (ADR-05: không đánh dấu lựa chọn nào là nên chọn) |
 | **Câu lấy từ ngân hàng sang đề mới không được sinh bản trùng khi duyệt** (ADR-28, Hệ quả). `file_approved` hôm nay chép **mọi** câu của đề, khoá theo `question_id`; một câu chép từ ngân hàng sang là một `Question` mới, nên sẽ thành một dòng mới | Cần một cột nguồn trên `Question` (trỏ về `BankQuestion`) -- cùng cột mà chip nguồn thật cần. Làm cùng đường đọc |
-| **Mục kiến thức và tài liệu chưa vào ngân hàng.** `drafting._write` không nối `DraftItem` với `Question`, nên lúc duyệt không có `node_ordinal` nào để chép; đường đọc theo phạm vi sách sẽ cần nó | Nối `DraftItem` ↔ `Question` lúc thu hoạch, rồi chép tiêu đề mục (bền qua lần dựng lại cây) vào `BankQuestion` |
+| **Mục kiến thức và tài liệu chưa vào ngân hàng.** `drafting._write` không nối `DraftItem` với `Question`, nên lúc duyệt không có mục nào (nay là `outline_item`) để chép; đường đọc theo phạm vi sách sẽ cần nó | Nối `DraftItem` ↔ `Question` lúc thu hoạch, rồi chép tiêu đề mục (bền qua lần dựng lại cây) vào `BankQuestion` |
 | **Chip nguồn thật trên từng câu.** Từ ADR-28 phần *đã kiểm / chưa kiểm* suy được từ trạng thái đề; phần *ngân hàng / Kriky soạn* cần cột nguồn ở dòng trên. Hôm nay chip bịa có thể in *"Lấy từ ngân hàng câu hỏi"* trên đúng câu mà hộp xoá nói *"chưa có trong ngân hàng câu hỏi"* | Người dùng dặn giữ nguyên giao diện ở plan ngân hàng; chờ quyết |
 | **Sửa bản trong ngân hàng** (vòng ADR-19) và câu hỏi đi kèm: lần duyệt lại đề gốc sẽ ghi đè bản đã sửa ấy | Chưa có màn ngân hàng; quyết lúc dựng đường sửa (ADR-28, Hệ quả) |
 | **`docs/decisions/README.md` (*Nguồn thiết kế*) đã cũ, từ trước plan này**: ghi trang `Screen — Chat` *"mười hai artboard"*, trong khi trang nay tên `Screen — Teacher` (`12:2`) và có 16 artboard đánh số (1--15 và `3b`); số `13`--`15` bên giáo viên trùng số bên học sinh (*"13…24"*). Cùng chữ cũ ở `adr-10-pham-vi-dot-dau.md` và *"mười hai artboard"* ở `data-model.md` (*Dữ liệu mẫu*) | Sửa chữ, miễn plan; chưa làm vì ngoài phạm vi plan ngân hàng |
