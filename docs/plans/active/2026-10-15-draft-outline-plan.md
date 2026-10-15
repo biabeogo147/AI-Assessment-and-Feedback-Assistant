@@ -206,17 +206,19 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 3 — BE: lượt dàn ý, cổng duyệt, đóng băng, job**
 
-- [ ] 7. `be/outline.py`: `validate` và `render`.
-- [ ] 8. Nhánh `outline` trong vòng lượt; FE `spoken()` nhận `outline`.
-- [ ] 9. Cổng duyệt `_shown_outline`, `Running.outline`, điền hộ `assessment_id`/`nodes`.
-- [ ] 10. `fire`/`_refire` theo dàn ý; payload `item_*`; `coverage.assign` và cột
+- [x] 7. `be/outline.py`: `validate` và `render`.
+- [x] 8. Nhánh `outline` trong vòng lượt; FE `spoken()` nhận `outline`.
+- [x] 9. Cổng duyệt `_shown_outline`, `Running.outline`, điền hộ `assessment_id`/`nodes`.
+- [x] 10. `fire`/`_refire` theo dàn ý; payload `item_*`; `coverage.assign` và cột
       `node_ordinal`/`chunk_ordinals` thành code chết; check
       `check_drafting_reads_no_document_text`; `draft_brief` nhánh dàn ý.
 
 **Đợt 4 — Kriky đề xuất dàn ý**
 
 - [ ] 11. `_Proposal.outline`, `completed`, `_unmangled` sửa cả ba trường chữ, hỏi lại một lần khi dàn
-      ý thiếu, `_compose` phát lại dàn ý mới nhất, mock nêu dàn ý rồi plan.
+      ý thiếu, `_compose` phát lại dàn ý mới nhất, mock nêu dàn ý rồi plan. Lượt dàn ý chở
+      `tool_args` `for` (`new`/`more`/`replace`) và `question` khi thay câu -- thiếu chúng thì mọi dàn
+      ý là `for=new` và cổng chặn soạn thêm, thay câu (review đợt 3).
 - [ ] 12. Prompt: `_CORE`, `soan-de.md`, `_BOOK_PROCEDURE`, router `state_of`.
 - [ ] 13. Bench offline (ca `plan` → `outline`, ca duyệt/sửa/plan khi chưa có dàn ý, ca routing);
       chạy thật một lần **khi người dùng cho phép**.
@@ -271,3 +273,32 @@ Review đợt 2: không lỗi chặn; sửa `nodes` viết cách nhau bằng d�
 sàn cắt mỗi đơn vị không còn đẩy một phần quá trần, chữ đọc chưa thành dàn ý được giữ, `drafting.py`
 import `scope_of` từ `toc`. Ngoài phạm vi, chưa sửa: `_document_scope` của `create_draft` có đúng lỗi
 *"1 2"* ấy từ plan 4b. Dòng `deadline += …` chưa có test riêng (đột biến bỏ dòng ấy vẫn xanh).
+
+**Đợt 3 xong 15/10/2026** (task 7–10): `outline.py` (`cddab3b`); lượt dàn ý, cổng duyệt, `fire` theo dàn ý. Đổi so với bản đầu, đều ghi ở đây:
+- Dàn ý nói nó dành cho việc gì bằng `tool_args["for"]` của lượt dàn ý -- `new`, `more`, `replace`
+  (kèm `question`) --, không cần đổi contract; BE tính số câu đầu (*"Câu 11–13"* khi soạn thêm).
+- Dàn ý bị BE từ chối và plan bị cổng chặn đều về với model như một kết quả tool **không lưu**:
+  giáo viên chưa thấy gì, nên không có bước nào để vẽ lại sau F5.
+- Số câu: trống thì BE điền tổng của dàn ý; một con số khác tổng là lời từ chối (Decision 3); chữ
+  không đọc được thì tool từ chối như mọi tham số.
+- Lời dặn *"bám đúng kiến thức, công thức và cách làm"* nằm trong brief của câu có mục, không trong
+  `_SYSTEM` -- chỉ câu có mục mới cần nó.
+- `coverage.py`, `test_coverage.py`, đường đọc sách của `drafting.py` (`_open_book`, `_focus`,
+  `BookUnavailable`) và hai cột `node_ordinal`/`chunk_ordinals` thành `[CODE CHẾT]`. Hai file chết mang
+  `# ruff: noqa: E501`: comment lại làm mỗi dòng dài thêm hai ký tự.
+- Task 9 và 10 chung một commit: `start_drafting` từ chối khi không có dàn ý thì mọi test soạn câu cũ
+  cần `fire` biết dàn ý cùng lúc.
+- Test cũ không nói về cổng duyệt được cấp sẵn một dàn ý đã xem (`_outline_shown` trong
+  `test_teacher_chat.py`, `execute` bọc trong `test_write_tools.py`).
+
+Review đợt 3: đảm bảo cốt lõi đứng (không soạn từ dàn ý cùng lượt, của đoạn chat khác, hay hai lần).
+Đã sửa: một plan chỉ một bước soạn; tài liệu của `create_draft` phải là tài liệu của dàn ý;
+`_outline_book` theo luật `_read_other_books` (nay gồm cả `read_section`); dàn ý `more`/`replace`
+mang `assessment_id` của nó và cổng so plan với đúng đề ấy; `_latest_draft` chỉ đọc kết quả mở/soạn
+đề, không đọc dòng duyệt/phát hành; số câu đầu theo ô cao nhất như `fire`, không theo số câu; job
+không bị dặn né chính kiến thức của nó; `start_drafting` từ chối số câu khác tổng dàn ý ở mọi đường
+gọi; lời từ chối khi quên `create_draft` nói đúng việc; check bắt cả import `content_reader`. Chưa
+sửa, ghi nhận: một `IntegrityError` ở commit đầu của `fire` cuộn lại `brief.outline` mà ô sau vẫn
+trỏ mục (cùng lỗ đã có với `question_count`); dàn ý và plan bị từ chối không ghi `model_tokens`;
+một lượt dàn ý không đóng câu hỏi lại đang mở trước nó (`_rows_in_play`). Check không bắt được khoá
+dict `"focus_text"` (`_code_only` xoá chuỗi) -- ghi trong docstring của check.

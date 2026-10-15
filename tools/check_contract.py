@@ -474,6 +474,45 @@ def check_no_tool_changes_an_assessment_state() -> str | None:
     return None
 
 
+# Đường đọc kho nội dung và ba trường chở chữ tài liệu thô của job soạn câu (`draft-outline`).
+DOCUMENT_TEXT_READS = re.compile(
+    r"\bget_reader\b|\.chunks\s*\(|\bcontent_reader\b|\b(focus_text|focus_title|other_foci)\s*="
+)
+
+
+def check_drafting_reads_no_document_text() -> str | None:
+    """Job soạn câu chỉ nhận mục dàn ý giáo viên đã xem, không bao giờ nhận chữ tài liệu thô.
+
+    ADR-29: tài liệu tới Kriky, Kriky tới dàn ý, BE in dàn ý ra chat, dàn ý tới job. Luật *job nhận
+    đúng thứ giáo viên đã thấy* chỉ đứng được khi `drafting.py` -- nơi dựng mọi payload soạn câu --
+    không có đường nào đọc kho nội dung. Một lời gọi `get_reader`, `.chunks(` hay một phép gán
+    `focus_text=` trở lại là chữ OCR bẩn trở lại prompt của job, ở chỗ giáo viên không thấy.
+
+    Chỉ quét **phần code** (`_code_only`): code chết comment lại và docstring kể lịch sử thì được.
+    Giới hạn đã biết: `_code_only` xoá trắng mọi chuỗi, nên một khoá dict `"focus_text": …` không bị
+    bắt -- đường chính vẫn bị, vì không có `get_reader`/`.chunks(`/`content_reader` thì không có
+    chữ tài liệu nào để đặt vào khoá ấy.
+
+    Returns:
+        None khi `drafting.py` sạch, ngược lại là một thông báo thất bại kèm mọi dòng vi phạm.
+    """
+    drafting = REPO_ROOT / "services" / "be" / "src" / "be" / "drafting.py"
+    if not drafting.exists():
+        return _fail("outline-only", f"{drafting} is missing; the check cannot run")
+    offenders = [
+        f"{drafting.name}:{number}"
+        for number, line in enumerate(_code_only(drafting.read_text(encoding="utf-8")), 1)
+        if DOCUMENT_TEXT_READS.search(line)
+    ]
+    if offenders:
+        return _fail(
+            "outline-only",
+            f"drafting reads document text at {offenders}. A drafting job receives the "
+            "outline item the teacher saw, never raw document text (ADR-29).",
+        )
+    return None
+
+
 def check_invented_data_lives_in_one_file() -> str | None:
     """Thứ màn hình nói mà backend không biết là đúng thì chỉ được sống ở một chỗ.
 
@@ -1945,6 +1984,7 @@ CHECKS = (
     check_contract_files_stay_short,
     check_named_dev_tasks_exist,
     check_no_tool_changes_an_assessment_state,
+    check_drafting_reads_no_document_text,
     check_invented_data_lives_in_one_file,
     check_the_report_is_a_job_of_its_own,
     check_the_form_fills_the_slots_the_wording_declares,

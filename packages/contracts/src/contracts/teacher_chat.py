@@ -88,8 +88,8 @@ class OutlineItem(BaseModel):
     giải ra sao -- *"câu 1 về hàm hằng"* thì không duyệt được gì.
 
     Hình dạng thôi; luật nội dung -- chữ không chỉ toàn khoảng trắng, trần độ dài, công thức nằm
-    trong cặp `$`, nút nguồn thuộc phạm vi, tổng câu mỗi lần xin -- là của `be/outline.validate`
-    (plan `draft-outline`), nơi có cây để so.
+    trong cặp `$`, nút nguồn có trong cây của tài liệu, tổng câu mỗi lần xin -- là của
+    `be/outline.validate` (plan `draft-outline`), nơi có cây để so.
 
     Không có trường độ khó theo mục: tên ấy nằm trong mẫu tên cấm của
     `services/agent/tests/test_no_routing_decision.py`, và độ khó vẫn đi theo cả đề (`difficulty`

@@ -110,13 +110,12 @@ class DraftQuestionRequested(BaseModel):
             nghe thì lời nói mất luôn. Nếu chuông chở nội dung thì một người đóng tab đúng lúc
             sẽ làm mất hẳn một câu đã soạn xong. Chở một con số thì mất một tiếng chuông chỉ là
             mất một lần cập nhật màn hình, và lần quan sát sau vẫn đưa đủ câu vào đề.
-        focus_title: Mục kiến thức câu này được gán (`draft-from-document`), đường dẫn tiêu đề trong
-            mục lục -- *"Chương I › Bài 2 › 1. Tập hợp N và N*"*. Rỗng khi đề không có tài liệu.
-            Thành code chết khi `drafting.fire` chuyển sang dàn ý (task 10, `draft-outline`).
-        focus_text: Chữ của các đoạn thuộc mục ấy, có trần. Cũng thành code chết ở task 10
-            (`draft-outline`): chữ tài liệu thô thôi tới job (ADR-29).
-        other_foci: Tiêu đề mục của các câu khác cùng đề. Thành code chết ở task 10
-            (`draft-outline`), nhường cho `other_items`.
+        focus_title: [CODE CHẾT 2026-10-15 `draft-outline`: BE thôi điền; giữ để payload cũ còn
+            trong Redis vẫn hợp lệ] Mục kiến thức câu này được gán (`draft-from-document`).
+        focus_text: [CODE CHẾT 2026-10-15 `draft-outline`: chữ tài liệu thô thôi tới job, ADR-29]
+            Chữ của các đoạn thuộc mục ấy, có trần.
+        other_foci: [CODE CHẾT 2026-10-15 `draft-outline`: nhường cho `other_items`] Tiêu đề mục
+            của các câu khác cùng đề.
         item_knowledge: Kiến thức của mục dàn ý câu này thuộc (ADR-29) -- Kriky viết, giáo viên đã
             thấy nguyên văn trước khi duyệt. Rỗng chỉ ở payload cũ hơn ADR-29.
         item_formulas: Công thức của mục, mỗi phần tử một công thức trong cặp `$`.
@@ -126,8 +125,8 @@ class DraftQuestionRequested(BaseModel):
             hỏi, và đây là cách duy nhất hai job song song biết điều đó.
         other_items: Kiến thức của các mục khác cùng đề -- những gì câu này **không** được hỏi sang.
 
-    Khi ADR-29 thi hành xong (plan `draft-outline`), không trường nào ở đây còn chở chữ tài liệu
-    thô: tài liệu tới Kriky, Kriky tới dàn ý, dàn ý tới job.
+    **BE không điền trường nào ở đây bằng chữ tài liệu thô** (ADR-29): tài liệu tới Kriky, Kriky tới
+    dàn ý, dàn ý tới job. `tools/check_contract.py` giữ cho `drafting.py` không đọc kho nội dung.
     """
 
     model_config = ConfigDict(frozen=True)

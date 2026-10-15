@@ -482,6 +482,37 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
     expect(said.compareDocumentPosition(card) & 4).toBe(4);
   });
 
+  it("đọc lại một lượt dàn ý thì chữ BE dựng hiện như lời Kriky", async () => {
+    // ADR-29 (`draft-outline`): lượt dàn ý mang `kind: "outline"`, không phải `assistant`. Bỏ
+    // qua nó thì sau một lần F5 dàn ý giáo viên đang duyệt biến khỏi màn hình.
+    Element.prototype.scrollIntoView = vi.fn();
+    const outlined = {
+      ...SPOKEN,
+      turns: [
+        blank({ kind: "teacher", text: "soạn 2 câu chương 1" }),
+        blank({ kind: "outline", text: "Dàn ý — 2 câu (bản 1)" }),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(url.startsWith("/api/teacher/chat") ? outlined : []),
+        }),
+      ),
+    );
+
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+
+    await waitFor(() =>
+      expect(document.querySelector(".reply-text")?.textContent).toContain(
+        "Dàn ý — 2 câu (bản 1)",
+      ),
+    );
+  });
+
   it("vẫn chỉ MỘT avatar khi lượt có cả câu mở đầu lẫn câu kết", async () => {
     // Đây là hình dạng đầy đủ của một lượt hai pha: Kriky nói trước khi bắt tay, chạy plan,
     // rồi kể lại. Bản trước dựng avatar lần thứ hai cho câu kết, nên cùng một người nói

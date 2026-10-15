@@ -48,7 +48,6 @@ from be.config import Settings, get_settings
 from be.content_reader import ContentUnavailable, get_reader
 from be.drafting import (
     _MOST_QUESTIONS,
-    BookUnavailable,
     fire,
     harvest,
     pending_count,
@@ -56,6 +55,7 @@ from be.drafting import (
     too_many,
 )
 from be.identity import Asking
+from be.outline import MOST_QUESTIONS_ASKED
 from be.resolve import Candidate, capped, classes_with_counts, normalise
 from be.toc import heading, parts, scope_of, title_path
 from contracts import DocumentState, IndexNode, PlanStep, ToolSpec
@@ -117,12 +117,16 @@ class Running:
         pool: Pool của arq, hoặc None khi không với tới được queue. Chỉ các tool ghi
             đọc nó.
         settings: Settings của process, cung cấp tên queue.
+        outline: Dàn ý giáo viên đã xem mà bước này soạn theo (ADR-29, `draft-outline`) -- chính
+            `tool_result` của lượt dàn ý, do cổng duyệt của vòng lượt tìm ra. `None` khi lượt
+            không có dàn ý nào hợp lệ; tool soạn câu từ chối khi ấy.
     """
 
     session: AsyncSession
     asking: Asking
     pool: object
     settings: Settings
+    outline: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -567,6 +571,17 @@ async def _start_drafting(running: Running, args: dict) -> dict:
     if owned is None:
         return dict(_NO_SUCH_DRAFT)
 
+    # ADR-29: không soạn câu nào giáo viên chưa thấy dàn ý. Cổng chính ở vòng lượt
+    # (`teacher_chat._shown_outline`); dòng này giữ luật ở chính tool, cho mọi đường gọi.
+    if running.outline is None:
+        return {
+            "started": False,
+            "reason": "chưa có dàn ý nào giáo viên đã xem cho lần soạn này; nêu dàn ý trước",
+        }
+    if args.get("question_count") in (None, ""):
+        # Số câu là tổng của dàn ý đã xem -- BE biết, không phải đoán.
+        args = {**args, "question_count": str(running.outline.get("total") or "")}
+
     try:
         wanted = int(str(args.get("question_count") or "").strip())
     except (TypeError, ValueError):
@@ -584,6 +599,12 @@ async def _start_drafting(running: Running, args: dict) -> dict:
 
     if not 1 <= wanted <= _MOST_QUESTIONS:
         return {"started": False, "reason": f"số câu phải từ 1 đến {_MOST_QUESTIONS}"}
+    if wanted != running.outline.get("total"):
+        # Cổng của vòng lượt đã so điều này; dòng này giữ luật cho mọi đường gọi khác.
+        return {
+            "started": False,
+            "reason": f"dàn ý đã xem có {running.outline.get('total')} câu, không phải {wanted}",
+        }
 
     # Thu về trước đã. Không có gì khác trong BE đi thu những job này, nên một vòng đã
     # xong trong lúc không ai để ý thì vẫn đọc ra là đang chạy -- và lời từ chối bên
@@ -604,12 +625,15 @@ async def _start_drafting(running: Running, args: dict) -> dict:
         return {"started": False, "reason": overflowing}
 
     try:
-        queued = await fire(session, running.pool, running.settings, assessment_id, wanted)
-    except BookUnavailable as gone:
-        # Phạm vi tài liệu không đọc được nữa (`draft-from-document`): nói đúng nguyên nhân, không
-        # để lời từ chối chung *"hàng đợi đang hỏng"* bên dưới nói thay.
-        await session.rollback()
-        return {"started": False, "reason": gone.reason}
+        queued = await fire(
+            session, running.pool, running.settings, assessment_id, wanted, running.outline
+        )
+    # [CODE CHẾT 2026-10-15 `draft-outline`: `fire` thôi đọc sách, nên không còn ném lỗi này]
+    # except BookUnavailable as gone:
+    #     # Phạm vi tài liệu không đọc được nữa (`draft-from-document`): nói đúng nguyên nhân,
+    #     # không để lời từ chối chung *"hàng đợi đang hỏng"* bên dưới nói thay.
+    #     await session.rollback()
+    #     return {"started": False, "reason": gone.reason}
     except HTTPException:
         # `fire` gọi `assert_editable`, nên một đề đã duyệt sẽ rơi vào đây. ADR-01 khoá
         # nội dung ở lúc duyệt, và chính cái khoá đó là lý do việc duyệt có nghĩa.
@@ -639,6 +663,8 @@ async def _start_drafting(running: Running, args: dict) -> dict:
         "queued": queued,
         "assessment_id": assessment_id,
         "title": owned.title,
+        # Dàn ý nào đã thành câu: cổng duyệt đọc nó để một dàn ý chỉ được dùng một lần.
+        "outline_version": running.outline.get("version"),
     }
 
 
@@ -654,8 +680,6 @@ _SUMMARY_CHARS = 200
 # một chương dài sẽ nhét cả chương vào một bước. Phần vượt trần thì **mỗi đơn vị** bị cắt theo tỉ lệ
 # độ dài của nó, giữ phần đầu -- định nghĩa và ví dụ mẫu thường đứng đầu bài.
 _PART_CHARS = 8000
-# Trần số câu một lần xin (ADR-29): cũng là trần số phần đọc.
-MOST_QUESTIONS_ASKED = 10
 _NO_SUCH_DOCUMENT = {
     "found": False,
     "reason": "không có tài liệu sẵn sàng nào như vậy trong thư viện của bạn",
@@ -1355,6 +1379,7 @@ async def execute(
     pool: object = None,
     settings: Settings | None = None,
     phase: int = PHASE_PLAN,
+    outline: dict | None = None,
 ) -> dict:
     """Chạy một tool thay mặt giáo viên này.
 
@@ -1378,6 +1403,7 @@ async def execute(
             không tồn tại -- cổng là chỗ này, không phải catalog. Mặc định là pha lên
             plan, tức mặc định **không ghi được gì**: một caller quên nói mình đang ở pha
             nào thì bị từ chối, chứ không lặng lẽ được cấp quyền ghi.
+        outline: Dàn ý đã xem cho bước soạn câu (`Running.outline`).
 
     Returns:
         Kết quả của tool, đã được tóm tắt sẵn.
@@ -1399,6 +1425,7 @@ async def execute(
             asking=asking,
             pool=pool,
             settings=settings or get_settings(),
+            outline=outline,
         ),
         args,
     )

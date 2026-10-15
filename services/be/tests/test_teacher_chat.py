@@ -49,6 +49,7 @@ from contracts import (
     IndexMethod,
     IndexNode,
     NextStepCompleted,
+    OutlineItem,
     PlanReportCompleted,
     PlanStep,
     SolutionMethod,
@@ -60,6 +61,7 @@ from schema.models import (
     AssessmentState,
     Document,
     DraftBrief,
+    DraftItem,
     SchoolClass,
     Student,
     Teacher,
@@ -109,6 +111,34 @@ class ScriptedAgent:
             )
         )
         return step.model_copy(update={"request_id": payload["request_id"]}).model_dump(mode="json")
+
+
+def _outline_shown(monkeypatch, total: int, purpose: str = "new") -> None:
+    """Một dàn ý giáo viên đã xem ở lượt trước (ADR-29), cho test **không** nói về cổng duyệt.
+
+    Từ `draft-outline`, plan soạn câu chỉ chạy trên một dàn ý đã hiện. Test về chuông, về tham
+    chiếu, về khối bước thì không cần dựng cả lượt dàn ý trước: dàn ý ở đây thay đúng chỗ ấy.
+    """
+
+    async def shown(*_args: object) -> dict:
+        return {
+            "version": 1,
+            "first": 1,
+            "total": total,
+            "for": purpose,
+            "document_id": "",
+            "items": [
+                {
+                    "questions": total,
+                    "knowledge": "Kiến thức của đề",
+                    "formulas": [],
+                    "approach": "Chọn đáp án đúng",
+                    "source_nodes": [],
+                }
+            ],
+        }
+
+    monkeypatch.setattr(teacher_chat, "_shown_outline", shown)
 
 
 @pytest_asyncio.fixture
@@ -699,6 +729,7 @@ async def test_a_plan_passes_the_id_from_one_step_into_the_next(stack) -> None:
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
 
     answer = await http.post(
         "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu Hàm số"}, headers=TEACHER
@@ -771,15 +802,13 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
             ),
             # Bước này là toàn bộ phép đo: nó hợp lệ, nên thứ duy nhất giữ nó không chạy
             # là luật "một bước đỏ thì dừng". Thiếu nó, test xanh với một vòng lặp chạy
-            # tiếp qua mọi lỗi.
-            PlanStep(
-                tool_name="start_drafting",
-                args={"assessment_id": "{1.assessment_id}", "question_count": "3"},
-                title="Soạn thêm câu",
-            ),
+            # tiếp qua mọi lỗi. Một `create_draft` chứ không phải `start_drafting` thứ hai:
+            # từ `draft-outline` một plan chỉ soạn một lần, theo một dàn ý.
+            PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo thêm một đề"),
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
 
     answer = await http.post(
         "/api/teacher/chat/messages", json={"text": "Tạo giúp tôi một đề"}, headers=TEACHER
@@ -901,6 +930,7 @@ async def test_the_turn_tells_what_is_happening_while_it_happens(stack) -> None:
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
 
     teacher = await _teacher(maker, "GV-001")
     asked = teacher_chat.Said(text="Tạo đề 3 câu Hàm số")
@@ -1055,6 +1085,7 @@ async def test_a_reference_that_cannot_be_resolved_does_not_leak_field_names(sta
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
 
     answer = await http.post(
@@ -1137,6 +1168,7 @@ async def test_the_stream_sends_each_event_as_it_happens(stack) -> None:
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
 
     frames = []
@@ -1287,6 +1319,7 @@ async def test_the_stream_waits_for_the_questions_and_opens_its_ears_first(stack
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
 
     order = _drafting_stack(http, monkeypatch, rings_for={1, 2, 3}, ready_for={1, 2, 3})
@@ -1350,6 +1383,7 @@ async def test_a_finished_drafting_step_carries_the_real_counts(stack) -> None:
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
 
     _drafting_stack(http, monkeypatch, rings_for={1, 2, 3}, ready_for={1, 2, 3})
@@ -1405,6 +1439,7 @@ async def test_the_post_door_adds_no_counts_it_did_not_wait_for(stack) -> None:
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
 
     answer = await http.post(
@@ -1540,6 +1575,7 @@ async def test_a_lost_last_bell_still_ends_with_every_question_in(stack) -> None
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
     _drafting_stack(http, monkeypatch, rings_for={1, 2}, ready_for={1, 2, 3})
 
@@ -1572,6 +1608,7 @@ async def test_a_draft_that_stops_short_says_it_stopped(stack) -> None:
         )
     )
     monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
     # Câu thứ ba: chính job đã nổ, nên nó rời `pending` mà không mang theo câu nào.
     _drafting_stack(
@@ -2397,3 +2434,320 @@ async def test_a_chip_not_yet_usable_takes_draft_opening_off_the_table(stack) ->
     assert "chưa dùng được" in reply.json()["text"]
     async with maker() as session:
         assert await session.scalar(select(DraftBrief)) is None
+
+
+# ------------------------------------------------------------------ dàn ý (`draft-outline`)
+
+
+def _outline_item(**overrides: object) -> OutlineItem:
+    fields: dict[str, object] = {
+        "questions": 2,
+        "knowledge": "Đọc và viết số tự nhiên",
+        "formulas": ("$\overline{ab} = 10a + b$",),
+        "approach": "Cho một số, chọn cách đọc đúng",
+        "source_nodes": (0,),
+    }
+    fields.update(overrides)
+    return OutlineItem.model_validate(fields)
+
+
+def _outline_step(*items: OutlineItem, **args: str) -> NextStepCompleted:
+    return NextStepCompleted(
+        request_id="x",
+        kind="outline",
+        text="Mình đã đọc chương I.",
+        outline=items or (_outline_item(),),
+        tool_args=dict(args),
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_outline_shown_is_the_one_be_rendered_and_stored(stack) -> None:
+    """ADR-29: chữ dàn ý trên màn hình do BE dựng từ các mục, và một lần F5 dựng lại đúng chữ ấy."""
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(_outline_step()))
+
+    reply = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 2 câu chương 1", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    async with maker() as session:
+        row = await session.scalar(select(TeacherTurn).where(TeacherTurn.kind == "outline"))
+    expected = teacher_chat.render(
+        "Mình đã đọc chương I.",
+        [_outline_item()],
+        {0: "Chương I. SỐ TỰ NHIÊN (tr. 1–2)"},
+        version=1,
+    )
+    assert reply.json()["text"] == expected
+    assert row.text == expected
+    assert row.tool_result["items"] == [_outline_item().model_dump(mode="json")]
+    assert (row.tool_result["for"], row.tool_result["first"]) == ("new", 1)
+    assert row.tool_result["document_id"] == "book"
+    again = await client.get("/api/teacher/chat", headers=TEACHER)
+    assert [one["text"] for one in again.json()["turns"] if one["kind"] == "outline"] == [expected]
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_an_outline_be_refuses_goes_back_to_the_model_not_to_the_teacher(stack) -> None:
+    client, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    agent = ScriptedAgent(
+        _outline_step(_outline_item(source_nodes=(99,))),
+        _outline_step(),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn 2 câu chương 1", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    # Lần hỏi thứ hai mang lời từ chối của BE; giáo viên chỉ thấy bản đúng.
+    assert len(agent.asked) == 2
+    told = agent.asked[1]["history"][-1]
+    assert told["tool_name"] == "outline" and "[99]" in told["tool_result"]["error"]
+    assert "(bản 1)" in reply.json()["text"]
+    async with maker() as session:
+        names = list(await session.scalars(select(TeacherTurn.tool_name)))
+    assert "outline" not in names
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_an_outline_without_a_book_points_at_no_lesson(stack) -> None:
+    client, maker, monkeypatch = stack
+    step = _outline_step(_outline_item(source_nodes=()))
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(step))
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn 2 câu Toán 6"}, headers=TEACHER
+    )
+
+    assert "Theo:" not in reply.json()["text"]
+    async with maker() as session:
+        row = await session.scalar(select(TeacherTurn).where(TeacherTurn.kind == "outline"))
+    assert row.tool_result["document_id"] == ""
+
+
+@pytest.mark.asyncio
+async def test_each_new_outline_in_a_thread_is_the_next_version(stack) -> None:
+    client, _, monkeypatch = stack
+    bookless = _outline_step(_outline_item(source_nodes=()))
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(bookless, bookless))
+
+    await client.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    second = await client.post(
+        "/api/teacher/chat/messages", json={"text": "câu 2 đổi đi"}, headers=TEACHER
+    )
+
+    assert "(bản 2)" in second.json()["text"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [({"for": "more"}, "chưa có đề"), ({"for": "khác"}, "for phải là")],
+)
+async def test_an_outline_for_a_draft_that_is_not_there_is_refused(
+    stack, args: dict, error: str
+) -> None:
+    client, _, monkeypatch = stack
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=()), **args))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post("/api/teacher/chat/messages", json={"text": "soạn thêm"}, headers=TEACHER)
+
+    assert error in agent.asked[1]["history"][-1]["tool_result"]["error"]
+
+
+def _open_and_draft(count: str) -> NextStepCompleted:
+    return _plan(
+        PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống"),
+        PlanStep(
+            tool_name="start_drafting",
+            args={"assessment_id": "{1.assessment_id}", "question_count": count},
+            title="Soạn câu hỏi",
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_no_question_is_drafted_before_the_teacher_has_seen_an_outline(stack) -> None:
+    """ADR-29: plan soạn câu mà chưa có dàn ý nào hiện ở lượt trước thì về lại với model."""
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(_open_and_draft("3"))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 3 câu"}, headers=TEACHER)
+
+    told = agent.asked[1]["history"][-1]
+    assert told["tool_name"] == "plan" and "dàn ý" in told["tool_result"]["error"]
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None
+
+
+@pytest.mark.asyncio
+async def test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once(stack) -> None:
+    http, maker, monkeypatch = stack
+    bookless = _outline_step(_outline_item(source_nodes=()))
+    agent = ScriptedAgent(bookless, _open_and_draft(""), _open_and_draft(""))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for=set())
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
+
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+        rows = list(await session.scalars(select(DraftItem).order_by(DraftItem.ordinal)))
+    # Số câu BE điền từ dàn ý (2), và mỗi câu nhận mục của nó.
+    assert [item["knowledge"] for item in brief.outline] == ["Đọc và viết số tự nhiên"]
+    assert [(row.outline_item, row.item_part) for row in rows] == [(0, 1), (0, 2)]
+
+    # Cùng dàn ý ấy, plan thứ hai: không soạn lần nữa.
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn lại đi"}, headers=TEACHER)
+    told = agent.asked[-1]["history"][-1]
+    assert told["tool_name"] == "plan" and "chưa thấy dàn ý" in told["tool_result"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_a_plan_asking_for_more_questions_than_the_outline_is_refused(stack) -> None:
+    http, _, monkeypatch = stack
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), _open_and_draft("5"))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
+
+    told = agent.asked[-1]["history"][-1]
+    assert "có 2 câu, plan lại xin 5" in told["tool_result"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_drafting_more_needs_an_outline_for_more_and_finds_the_draft_itself(stack) -> None:
+    """Soạn thêm: dàn ý `for=more`, và BE điền `assessment_id` của đề mới nhất khi model quên."""
+    http, maker, monkeypatch = stack
+    bookless = _outline_item(source_nodes=())
+    more = _outline_step(_outline_item(questions=1, source_nodes=()), **{"for": "more"})
+    only_more = _plan(
+        PlanStep(
+            tool_name="start_drafting",
+            args={"assessment_id": "", "question_count": ""},
+            title="Soạn thêm câu",
+        )
+    )
+    agent = ScriptedAgent(_outline_step(bookless), _open_and_draft(""), more, only_more)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for={1, 2})
+
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    # Hai câu đầu về đề -- `for=more` cần đề đã có câu. Cửa POST không nghe chuông, nên kết quả
+    # được trả thẳng cho `harvest`.
+    async def ready(pool, settings, job_id):
+        return "ready", DraftQuestionCompleted(
+            request_id="r", question=_question(job_id)
+        ).model_dump(mode="json")
+
+    monkeypatch.setattr(drafting, "collect_result", ready)
+    async with maker() as session:
+        draft = await session.scalar(select(DraftBrief))
+        await drafting.harvest(session, None, get_settings(), draft.assessment_id)
+    for said in ("soạn thêm 1 câu", "oke"):
+        reply = await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    assert "Câu 3 ·" in agent.asked[3]["history"][-2]["text"]  # dàn ý đếm tiếp từ câu 3
+    async with maker() as session:
+        rows = list(await session.scalars(select(DraftItem).order_by(DraftItem.ordinal)))
+    assert [(row.ordinal, row.outline_item) for row in rows] == [(1, 0), (2, 0), (3, 1)]
+    assert reply.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_one_outline_drafts_once_even_inside_one_plan(stack) -> None:
+    """Review đợt 3 (`draft-outline`): hai cặp mở-đề-rồi-soạn trong một plan là hai đề từ một lần
+    duyệt."""
+    http, maker, monkeypatch = stack
+    twice = _plan(*_open_and_draft("").steps, *_open_and_draft("").steps)
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), twice)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    assert "một plan chỉ soạn một lần" in agent.asked[-1]["history"][-1]["tool_result"]["error"]
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None
+
+
+@pytest.mark.asyncio
+async def test_a_bookless_outline_cannot_open_a_draft_on_a_book(stack) -> None:
+    http, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    on_a_book = _plan(
+        PlanStep(
+            tool_name="create_draft",
+            args={**_BRIEF, "document_id": "book", "nodes": "0"},
+            title="Tạo đề",
+        ),
+        *_open_and_draft("").steps[1:],
+    )
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), on_a_book)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    told = agent.asked[-1]["history"][-1]["tool_result"]["error"]
+    assert "tài liệu khác tài liệu của dàn ý" in told
+    bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_a_new_outline_cannot_be_drafted_without_opening_a_draft(stack) -> None:
+    http, _, monkeypatch = stack
+    only_draft = _plan(*_open_and_draft("").steps[1:])
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), only_draft)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    told = agent.asked[-1]["history"][-1]["tool_result"]["error"]
+    assert "cần create_draft rồi start_drafting" in told
+
+
+@pytest.mark.asyncio
+async def test_more_questions_are_numbered_after_the_highest_slot_not_the_count(stack) -> None:
+    """Ô hỏng để lại lỗ: dàn ý soạn thêm đánh số theo ô cao nhất, đúng chỗ `fire` sẽ đặt câu."""
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), _open_and_draft(""))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for=set())
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+        # Câu 1 về đề, câu 2 hỏng hẳn.
+        rows = list(await session.scalars(select(DraftItem).order_by(DraftItem.ordinal)))
+        rows[1].status = "failed"
+        await session.commit()
+        thread = await _the_thread(maker)
+        shape = await teacher_chat._outline_shape(
+            session,
+            thread,
+            _outline_step(_outline_item(source_nodes=()), **{"for": "more"}),
+        )
+
+    assert shape[:2] == ("more", 3)
+    assert shape[3] == brief.assessment_id

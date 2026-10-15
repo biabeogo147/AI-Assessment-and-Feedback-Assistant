@@ -790,7 +790,9 @@ function spoken(turns: Turn[]): Spoken {
       if (!byTheTeacher(one)) steps.push(stepFor(one));
       continue;
     }
-    if (one.kind !== "assistant") continue;
+    // Lượt dàn ý (ADR-29, `draft-outline`) cũng là lời Kriky: chữ của nó do BE dựng từ các mục,
+    // nhưng nó đứng đúng chỗ một câu trả lời đứng.
+    if (one.kind !== "assistant" && one.kind !== "outline") continue;
     // Câu trước mốc là lời mở — câu **cuối** trong số đó, vì model có thể nói hai câu
     // trước khi bắt tay. Mọi câu sau mốc là câu kết, và câu cuối thắng.
     if (edge >= 0 && at < edge) opening = one.text;

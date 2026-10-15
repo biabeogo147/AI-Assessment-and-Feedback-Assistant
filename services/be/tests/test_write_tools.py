@@ -38,12 +38,48 @@ from be.teacher_tools import (
     UnknownTool,
     Unresolvable,
     catalog_for,
-    execute,
     resolve_args,
 )
+from be.teacher_tools import execute as _execute
 from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
 from schema.ddl import prepare_schema
 from schema.models import Assessment, DraftBrief, DraftItem, Question, Teacher
+
+
+def _shown(total: int) -> dict:
+    """Một dàn ý giáo viên đã xem (ADR-29) phủ `total` câu bằng một mục."""
+    return {
+        "version": 1,
+        "first": 1,
+        "total": total,
+        "for": "new",
+        "document_id": "",
+        "items": [
+            {
+                "questions": total,
+                "knowledge": "Kiến thức của đề",
+                "formulas": [],
+                "approach": "Chọn đáp án đúng",
+                "source_nodes": [],
+            }
+        ],
+    }
+
+
+async def execute(session, asking, name, args, **kwargs) -> dict:
+    """`teacher_tools.execute`, với một dàn ý đã xem cho mỗi lần soạn câu (`draft-outline`).
+
+    Test ở đây nói về tool ghi -- trần số câu, sở hữu, chạy hai lần --, không về cổng duyệt; cổng
+    ấy có test riêng. Từ ADR-29 `start_drafting` từ chối khi không có dàn ý, nên mỗi lần gọi nó ở
+    đây mang một dàn ý phủ đúng số câu test xin.
+    """
+    if name == "start_drafting" and "outline" not in kwargs:
+        try:
+            total = int(str(args.get("question_count")))
+        except (TypeError, ValueError):
+            total = 1
+        kwargs["outline"] = _shown(max(1, min(total, 10)))
+    return await _execute(session, asking, name, args, **kwargs)
 
 
 class FakeQueue:
@@ -876,3 +912,47 @@ async def test_the_question_cap_lives_where_the_questions_are_made(stack) -> Non
     # Và không một job nào được đẩy đi: một lời từ chối sau khi đã bắn job là một lời từ
     # chối nói sai.
     assert queue.jobs == []
+
+
+@pytest.mark.asyncio
+async def test_drafting_a_count_other_than_the_outline_seen_is_refused(stack) -> None:
+    """ADR-29: `start_drafting` soạn đúng số câu của dàn ý đã xem, ở mọi đường gọi."""
+    maker, queue = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
+        answer = await execute(
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"], "question_count": "3"},
+            pool=queue,
+            phase=PHASE_WORK,
+            outline=_shown(2),
+        )
+
+    assert answer["started"] is False
+    assert "2 câu" in answer["reason"]
+
+
+@pytest.mark.asyncio
+async def test_drafting_without_an_outline_seen_is_refused(stack) -> None:
+    maker, queue = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        made = await execute(
+            session, asking, "create_draft", dict(_FULL), pool=queue, phase=PHASE_WORK
+        )
+        answer = await _execute(
+            session,
+            asking,
+            "start_drafting",
+            {"assessment_id": made["assessment_id"], "question_count": "3"},
+            pool=queue,
+            phase=PHASE_WORK,
+        )
+
+    assert answer["started"] is False
+    assert "dàn ý" in answer["reason"]

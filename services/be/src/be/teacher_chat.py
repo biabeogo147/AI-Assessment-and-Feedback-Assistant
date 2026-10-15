@@ -66,13 +66,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
+from be.content_reader import ContentUnavailable, get_reader
 from be.db import get_session, session_scope
-from be.drafting import harvest, open_bells, pending_count
+from be.drafting import _MOST_QUESTIONS, harvest, open_bells, pending_count
 from be.identity import Asking, current_teacher
+from be.outline import MOST_QUESTIONS_ASKED, render, stored, validate
 from be.teacher_documents import believed_state
 from be.teacher_tools import (
     LOOKS_LIKE_REFERENCE,
-    MOST_QUESTIONS_ASKED,
     PHASE_PLAN,
     PHASE_WORK,
     REFERENCE,
@@ -81,7 +82,9 @@ from be.teacher_tools import (
     bind_book,
     catalog_for,
     execute,
+    node_label,
     owned_document,
+    ready_document,
     resolve_args,
 )
 from contracts import (
@@ -94,6 +97,7 @@ from contracts import (
     DocumentState,
     NextStepCompleted,
     NextStepRequested,
+    OutlineItem,
     PlanReportCompleted,
     PlanReportRequested,
     PlanStep,
@@ -103,6 +107,7 @@ from contracts import (
 )
 from schema.models import (
     DraftBrief,
+    DraftItem,
     Question,
     Teacher,
     TeacherConversation,
@@ -282,6 +287,8 @@ async def _ask_agent(
 # Tool đọc tài liệu (`draft-from-document`). Một lần gọi bất kỳ cái nào trong đoạn chat là đoạn chat
 # **đang nói về một tài liệu**, kể cả ở lượt sau khi chip đã rời ô nhập.
 _DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter", "read_section"})
+# Tool đọc **một cuốn** cụ thể: mục lục hay chữ của nó (`read_section` từ `draft-outline`).
+_BOOK_READS = frozenset({"list_chapters", "get_chapter", "read_section"})
 
 
 def read_allowance(tool_name: str, result: dict, granted: int) -> int:
@@ -307,6 +314,299 @@ def read_allowance(tool_name: str, result: dict, granted: int) -> int:
     except (TypeError, ValueError):
         return 0
     return max(0, wanted - granted)
+
+
+# ------------------------------------------------------------------ dàn ý (`draft-outline`)
+
+# Ba việc một dàn ý có thể dành cho, Kriky nói trong `tool_args["for"]` của lượt dàn ý: một đề
+# mới, thêm câu cho đề đang có, hay thay một câu của nó (ADR-29). BE cần biết để đánh số câu --
+# *"Câu 11–13"* khi soạn thêm, *"Câu 3"* khi thay câu 3 -- và để cổng duyệt so đúng việc.
+OUTLINE_FOR = ("new", "more", "replace")
+
+
+def _outline_book(history: list[TurnRecord], attached: AttachedDocument | None) -> str:
+    """Tài liệu mà dàn ý lượt này dựa vào: chip đang gắn, không thì cuốn vừa đọc gần nhất.
+
+    Cùng luật với `bind_book`: lượt đã đọc một cuốn **khác** chip thì chip không phải sách của dàn ý
+    (`_read_other_books`) -- số nút nhỏ, khớp nhầm trên cây của cuốn kia là in nhãn bài sai.
+    """
+    if (
+        attached is not None
+        and attached.state == DocumentState.READY.value
+        and not _read_other_books(history, attached)
+    ):
+        return attached.document_id
+    for turn in reversed(history):
+        if turn.kind == "tool_call" and turn.tool_name in _BOOK_READS:
+            return str(turn.tool_args.get("document_id") or "").strip()
+    return ""
+
+
+# Kết quả tool **nói đã mở hay soạn đề nào** -- chỉ những dòng này cho biết *đề của đoạn chat*.
+# Duyệt hay phát hành cũng ghi đề vào đoạn chat (`conversation_of`), nhưng không làm đề ấy thành đề
+# đang soạn (review đợt 3, `draft-outline`).
+_DRAFT_RESULTS = frozenset({"create_draft", "start_drafting", "replace_question"})
+
+
+async def _latest_draft(session: AsyncSession, thread: str) -> tuple[str, int] | None:
+    """Đề mới nhất đoạn chat này đã mở hay soạn, và ô cao nhất của nó; `None` khi chưa có đề nào.
+
+    Ô cao nhất, không số câu: `fire` nối câu mới sau `max(ordinal)`, và một ô hỏng để lại lỗ --
+    đánh số dàn ý theo số câu thì *"Câu 10"* trên màn hình thành câu 11 trong đề (review đợt 3).
+    """
+    found = await session.scalar(
+        select(TeacherTurn.entity_id)
+        .where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.entity_kind == "assessment",
+            TeacherTurn.tool_name.in_(_DRAFT_RESULTS),
+        )
+        .order_by(TeacherTurn.sequence.desc())
+        .limit(1)
+    )
+    if not found:
+        return None
+    highest = await session.scalar(
+        select(func.max(DraftItem.ordinal)).where(DraftItem.assessment_id == found)
+    )
+    return found, int(highest or 0)
+
+
+async def _outline_shape(
+    session: AsyncSession, thread: str, step: NextStepCompleted
+) -> tuple[str, int, int, str] | str:
+    """Dàn ý này dành cho việc gì, câu đầu tiên của nó mang số mấy, được tối đa bao nhiêu câu, và
+    cho đề nào.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat.
+        step: Lượt dàn ý model nêu.
+
+    Returns:
+        `(for, first, most, assessment_id)` -- `assessment_id` rỗng với `for=new` --, hoặc lời từ
+        chối cho model đọc.
+    """
+    purpose = str(step.tool_args.get("for") or "new").strip()
+    if purpose not in OUTLINE_FOR:
+        return f"for phải là một trong {', '.join(OUTLINE_FOR)}"
+    if purpose == "new":
+        return purpose, 1, MOST_QUESTIONS_ASKED, ""
+    draft = await _latest_draft(session, thread)
+    if draft is None or draft[1] == 0:
+        return "đoạn chat này chưa có đề nào có câu để soạn thêm hay thay; dùng for=new"
+    paper, highest = draft
+    if purpose == "more":
+        room = min(MOST_QUESTIONS_ASKED, _MOST_QUESTIONS - highest)
+        if room <= 0:
+            return f"đề đã đủ {_MOST_QUESTIONS} câu, không soạn thêm được"
+        return purpose, highest + 1, room, paper
+    try:
+        question = int(str(step.tool_args.get("question") or "").strip())
+    except ValueError:
+        return "thay câu thì question là số của câu bị thay"
+    there = await session.scalar(
+        select(Question.id).where(Question.assessment_id == paper, Question.order_index == question)
+    )
+    if there is None:
+        return f"đề không có câu {question}"
+    return purpose, question, 1, paper
+
+
+# Tool soạn câu: chỉ chạy trên một dàn ý giáo viên đã xem (ADR-29).
+_DRAFTING_TOOLS = frozenset({"start_drafting", "replace_question"})
+
+
+async def _shown_outline(session: AsyncSession, thread: str, began: int) -> dict | None:
+    """Dàn ý mới nhất đã hiện ở một lượt **trước** lượt này, và chưa thành câu lần nào.
+
+    Đọc từ database, không từ cửa sổ `_HISTORY_STEPS`. *"Trước"* là luật duy nhất BE chứng minh
+    được: giáo viên đã có một lượt để đọc nó. *"Chưa thành câu"* đọc `outline_version` mà bước
+    soạn ghi vào kết quả của nó -- một dàn ý soạn hai lần là hai đề giáo viên chỉ duyệt một.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat.
+        began: Số thứ tự của dòng đầu tiên của lượt này.
+
+    Returns:
+        `tool_result` của lượt dàn ý ấy, hoặc `None`.
+    """
+    row = await session.scalar(
+        select(TeacherTurn)
+        .where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.kind == "outline",
+            TeacherTurn.sequence < began,
+        )
+        .order_by(TeacherTurn.sequence.desc())
+        .limit(1)
+    )
+    if row is None:
+        return None
+    shown = dict(row.tool_result or {})
+    used = await session.scalars(
+        select(TeacherTurn.tool_result).where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.kind == "tool_result",
+            TeacherTurn.tool_name.in_(_DRAFTING_TOOLS),
+            TeacherTurn.sequence > row.sequence,
+        )
+    )
+    if any((one or {}).get("outline_version") == shown.get("version") for one in used):
+        return None
+    return shown
+
+
+async def guard_drafting(
+    session: AsyncSession, thread: str, began: int, steps: tuple[PlanStep, ...]
+) -> tuple[tuple[PlanStep, ...], dict | None] | str:
+    """Cổng duyệt của ADR-29 cho một plan, và các tham số BE điền hộ từ dàn ý.
+
+    Plan không soạn câu nào (không `start_drafting`, không `replace_question`) đi qua nguyên vẹn.
+    Plan có soạn thì phải có một dàn ý đã xem (`_shown_outline`) **đúng việc**: mở đề mới cần dàn
+    ý `for=new`, soạn thêm cho đề đang có cần `for=more`, thay câu cần `for=replace`. Rồi BE điền
+    thứ nó biết mà không phải đoán (Decision *BE điền hộ*): số câu là tổng của dàn ý, đề là đề
+    mới nhất của đoạn chat, tài liệu và các nút của `create_draft` lấy từ dàn ý.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat.
+        began: Dòng đầu tiên của lượt này.
+        steps: Các bước model nêu, đã qua `vet_plan`.
+
+    Returns:
+        `(các bước đã điền, dàn ý)`, hoặc lời từ chối cho model đọc.
+    """
+    drafting = [one for one in steps if one.tool_name in _DRAFTING_TOOLS]
+    if not drafting:
+        return steps, None
+    if len(drafting) > 1:
+        # Một dàn ý giáo viên duyệt là **một** lần soạn: hai bước soạn trong một plan là hai đề
+        # (hay hai lượt) từ một lần duyệt (review đợt 3).
+        return "một plan chỉ soạn một lần, theo một dàn ý; tách việc kia sang lượt sau"
+    shown = await _shown_outline(session, thread, began)
+    if shown is None:
+        return (
+            "giáo viên chưa thấy dàn ý nào cho lần soạn này: nêu dàn ý (kind outline) trước; "
+            "câu hỏi chỉ được soạn ở lượt sau, khi giáo viên đã đồng ý"
+        )
+    opens = any(one.tool_name == "create_draft" for one in steps)
+    replaces = any(one.tool_name == "replace_question" for one in steps)
+    wanted = "replace" if replaces else "new" if opens else "more"
+    purpose = shown.get("for", "new")
+    if purpose != wanted:
+        if purpose == "new":
+            return "dàn ý đã xem là cho một đề mới: plan cần create_draft rồi start_drafting"
+        return (
+            f"dàn ý đã xem là dàn ý for={purpose}, còn plan này là for={wanted}; "
+            "nêu lại dàn ý cho đúng việc"
+        )
+    book = str(shown.get("document_id") or "")
+    paper = str(shown.get("assessment_id") or "")
+    sources = sorted(
+        {node for item in shown.get("items", []) for node in item.get("source_nodes", [])}
+    )
+    out = []
+    for one in steps:
+        args = dict(one.args)
+        if one.tool_name == "create_draft":
+            # Đề mở trên đúng cuốn dàn ý đã đọc, hoặc không cuốn nào khi dàn ý không theo sách.
+            chosen = str(args.get("document_id") or "").strip()
+            if not chosen and book:
+                args["document_id"] = book
+            elif chosen != book:
+                return (
+                    "plan mở đề trên một tài liệu khác tài liệu của dàn ý đã xem; "
+                    "mở đề đúng tài liệu ấy, hoặc nêu dàn ý mới"
+                )
+            if book and not str(args.get("nodes") or "").strip() and sources:
+                args["nodes"] = ",".join(str(node) for node in sources)
+        if one.tool_name == "start_drafting":
+            # Số câu là tổng của dàn ý đã xem: trống thì BE điền; một con số khác là plan soạn
+            # khác thứ giáo viên đã đọc. Chữ không đọc được thì để tool từ chối như mọi tham số.
+            asked = str(args.get("question_count") or "").strip()
+            total = str(shown.get("total") or "")
+            if not asked:
+                args["question_count"] = total
+            elif asked.isdigit() and asked != total:
+                return (
+                    f"dàn ý giáo viên đã xem có {total} câu, plan lại xin {asked}; "
+                    "soạn đúng dàn ý, hoặc nêu dàn ý mới"
+                )
+        if one.tool_name in _DRAFTING_TOOLS and not opens:
+            # Soạn thêm hay thay câu: đúng đề dàn ý được viết cho.
+            asked_for = str(args.get("assessment_id") or "").strip()
+            if not asked_for:
+                args["assessment_id"] = paper
+            elif asked_for != paper:
+                return "plan soạn cho một đề khác đề của dàn ý đã xem; soạn đúng đề ấy"
+        out.append(one.model_copy(update={"args": args}))
+    return tuple(out), shown
+
+
+async def outline_turn(
+    session: AsyncSession,
+    asking: Asking,
+    thread: str,
+    step: NextStepCompleted,
+    history: list[TurnRecord],
+    attached: AttachedDocument | None,
+) -> TurnRecord | dict:
+    """Kiểm một dàn ý model nêu, rồi dựng lượt dàn ý BE sẽ lưu và in ra (ADR-29).
+
+    Args:
+        session: Session của database.
+        asking: Ai đang hỏi.
+        thread: Đoạn chat.
+        step: Lượt `outline` model nêu.
+        history: Mọi bước tới giờ của lượt, để tìm cuốn sách vừa đọc.
+        attached: Chip đang gắn, khi có.
+
+    Returns:
+        `TurnRecord(kind="outline")` với `text` là chữ BE dựng và `tool_result` là các mục; hoặc
+        `{"error": lý do}` để model sửa dàn ý trong cùng lượt.
+    """
+    shape = await _outline_shape(session, thread, step)
+    if isinstance(shape, str):
+        return {"error": shape}
+    purpose, first, most, paper = shape
+    document_id = _outline_book(history, attached)
+    known: set[int] | None = None
+    labels: dict[int, str] = {}
+    if document_id:
+        owned = await ready_document(session, asking, document_id)
+        if owned is None:
+            return {"error": "dàn ý trỏ về một tài liệu không có trong thư viện của giáo viên"}
+        try:
+            found = await get_reader().tree(owned.id)
+        except ContentUnavailable:
+            return {"error": "kho nội dung tài liệu tạm thời không đọc được"}
+        nodes = found[1] if found else []
+        known = {node.ordinal for node in nodes}
+        labels = {node.ordinal: node_label(node) for node in nodes}
+    items: list[OutlineItem] = list(step.outline)
+    wrong = validate(items, known, most=most)
+    if wrong is not None:
+        return {"error": wrong}
+    version = 1 + int(
+        await session.scalar(
+            select(func.count())
+            .select_from(TeacherTurn)
+            .where(TeacherTurn.conversation_id == thread, TeacherTurn.kind == "outline")
+        )
+        or 0
+    )
+    kept = stored(items, version=version, first=first, document_id=document_id)
+    # Việc và đề của dàn ý đi cùng nó: cổng duyệt so plan với **chính** đề này, không với đề mới
+    # nhất lúc plan chạy (review đợt 3).
+    kept["for"] = purpose
+    kept["assessment_id"] = paper
+    return TurnRecord(
+        kind="outline",
+        text=render(step.text, items, labels, version=version, first=first),
+        tool_result=kept,
+    )
 
 
 async def _last_chip(session: AsyncSession, thread: str) -> str:
@@ -366,11 +666,11 @@ def _read_other_books(history: list[TurnRecord], attached: AttachedDocument) -> 
         attached: Cuốn đang gắn.
 
     Returns:
-        True khi có một lần `list_chapters`/`get_chapter` với `document_id` khác.
+        True khi có một lần `list_chapters`/`get_chapter`/`read_section` với `document_id` khác.
     """
     return any(
         turn.kind == "tool_call"
-        and turn.tool_name in {"list_chapters", "get_chapter"}
+        and turn.tool_name in _BOOK_READS
         and str(turn.tool_args.get("document_id") or "") not in {"", attached.document_id}
         for turn in history
     )
@@ -1339,9 +1639,10 @@ class TurnEvent(BaseModel):
             `unbiased-model-text`), không "Khác".
         more_choices: Bao nhiêu candidate đã bị cắt khỏi `choices`.
         conversation_id: Lượt này nằm trong đoạn chat nào.
-        ended_as: Lượt kết thúc bằng nhánh nào -- `say`, `clarify` hay `report`. Chỉ có ở sự kiện
-            `done`. Suy nó từ việc `choices` có rỗng hay không thì sai ở đúng ca một câu hỏi lại
-            chưa có candidate nào: nó là câu hỏi, mà bị báo về như một câu trả lời.
+        ended_as: Lượt kết thúc bằng nhánh nào -- `say`, `clarify`, `outline` (dàn ý, ADR-29) hay
+            `report`. Chỉ có ở sự kiện `done`. Suy nó từ việc `choices` có rỗng hay không thì sai ở
+            đúng ca một câu hỏi lại chưa có candidate nào: nó là câu hỏi, mà bị báo về như một câu
+            trả lời.
         title: Câu tiếng Việt của một bước, cho ba sự kiện `step_*`.
         detail: Dòng kết quả của một bước, hoặc lý do nó hỏng.
         index: Bước thứ mấy, đếm từ 1.
@@ -1862,6 +2163,8 @@ async def _go(
     # Trần bước **động** (`draft-outline`): mỗi phần đọc `read_section` báo cho lượt thêm một bước
     # và `read_step_seconds` giây, tới mười phần.
     allowed, taken, granted = settings.max_tool_steps, 0, 0
+    # Dàn ý đã xem mà plan lượt này soạn theo (ADR-29); `guard_drafting` tìm nó.
+    outline: dict | None = None
 
     # ---------------------------------------------------------------- pha 1: lên plan
     while taken < allowed:
@@ -1947,6 +2250,39 @@ async def _go(
             )
             return
 
+        if step.kind == "outline":
+            # ADR-29: BE kiểm dàn ý, dựng chữ từ chính các mục, lưu rồi mới in -- chữ giáo viên đọc
+            # là thứ các job sẽ nhận. Dàn ý hỏng thì trả lý do cho model như một kết quả tool, để nó
+            # sửa trong cùng lượt; **không lưu**: giáo viên chưa thấy gì, và một lời từ chối nội bộ
+            # không phải một bước để vẽ lên khối bằng chứng sau F5.
+            shown = await outline_turn(session, asking, thread, step, history, attached)
+            if isinstance(shown, dict):
+                logger.info("refused an outline for %s: %s", asking.teacher_code, shown)
+                history.append(
+                    TurnRecord(kind="tool_result", tool_name="outline", tool_result=shown)
+                )
+                continue
+            history.append(shown)
+            position = await _record(
+                session,
+                thread,
+                position,
+                history[-1],
+                duration_ms=spent_ms,
+                model_tokens=step.model_tokens,
+            )
+            yield TurnEvent(kind="say", text=shown.text, conversation_id=thread)
+            if began == 0:
+                await _name_the_thread(session, request, settings, thread, said.text)
+            yield TurnEvent(
+                kind="done",
+                text=shown.text,
+                conversation_id=thread,
+                ended_as="outline",
+                began=began,
+            )
+            return
+
         if step.kind == "plan":
             if bound and attached is not None and not _read_other_books(history, attached):
                 # Tham số tài liệu BE biết mà không phải đoán -- điền trước khi kiểm
@@ -1954,6 +2290,18 @@ async def _go(
                 step = step.model_copy(
                     update={"steps": await bind_book(step.steps, attached.document_id)}
                 )
+            # Cổng duyệt của ADR-29 **trước** `vet_plan`: nó điền các tham số BE biết từ dàn ý,
+            # và `vet_plan` từ chối một plan thiếu tham số. Không có dàn ý đã xem thì lời từ chối
+            # về với model như một kết quả tool -- việc đúng là nêu dàn ý, ngay trong lượt này.
+            guarded = await guard_drafting(session, thread, began, step.steps)
+            if isinstance(guarded, str):
+                logger.info("held back a drafting plan for %s: %s", asking.teacher_code, guarded)
+                history.append(
+                    TurnRecord(kind="tool_result", tool_name="plan", tool_result={"error": guarded})
+                )
+                continue
+            step = step.model_copy(update={"steps": guarded[0]})
+            outline = guarded[1]
             wrong = vet_plan(step.steps, working)
             if wrong is None:
                 plan = step.steps
@@ -2187,6 +2535,7 @@ async def _go(
                     pool=getattr(request.app.state, "queue_pool", None),
                     settings=settings,
                     phase=PHASE_WORK,
+                    outline=outline if step_of_plan.tool_name in _DRAFTING_TOOLS else None,
                 )
             except UnknownTool:
                 held["result"] = {"error": f"không có tool nào tên {step_of_plan.tool_name}"}

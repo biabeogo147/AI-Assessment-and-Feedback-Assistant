@@ -290,25 +290,45 @@ def draft_brief(request: DraftQuestionRequested) -> str:
     ]
     if request.difficulty:
         lines.append(f"Mức độ giáo viên yêu cầu: {request.difficulty}")
-    # Có mục mà không có chữ (đoạn không đọc được) thì soạn như đề không tài liệu: một khung
-    # `<<< >>>` rỗng dặn model bám vào hư không (review B5, `draft-from-document`).
-    if request.focus_title and request.focus_text.strip():
-        # `draft-from-document`: câu này có **một mục** của tài liệu (hậu ký ADR-27). Đoạn dưới là
-        # kiến thức để viết câu mới, không phải kho câu để chép -- và các mục của câu khác được nêu
-        # tên vì các job chạy song song, không thấy nhau.
-        lines += [
-            "",
-            f"Câu này CHỈ hỏi kiến thức của mục: {request.focus_title}",
-            "Nội dung của mục, lấy từ tài liệu giáo viên tải lên:",
-            "<<<",
-            request.focus_text,
-            ">>>",
-            "Dùng nội dung trên làm KIẾN THỨC để viết một câu MỚI. Không chép nguyên một câu "
-            "hỏi hay bài tập có sẵn trong đó.",
-        ]
-        if request.other_foci:
-            lines.append("Các câu khác của đề đã lo những mục sau, đừng hỏi sang:")
-            lines += [f"  · {title}" for title in request.other_foci]
+    # [CODE CHẾT 2026-10-15 `draft-outline`: BE thôi gửi chữ tài liệu thô (ADR-29); job nhận mục
+    # dàn ý ở nhánh dưới]
+    # # Có mục mà không có chữ (đoạn không đọc được) thì soạn như đề không tài liệu: một khung
+    # # `<<< >>>` rỗng dặn model bám vào hư không (review B5, `draft-from-document`).
+    # if request.focus_title and request.focus_text.strip():
+    #     lines += [
+    #         "",
+    #         f"Câu này CHỈ hỏi kiến thức của mục: {request.focus_title}",
+    #         "Nội dung của mục, lấy từ tài liệu giáo viên tải lên:",
+    #         "<<<",
+    #         request.focus_text,
+    #         ">>>",
+    #         "Dùng nội dung trên làm KIẾN THỨC để viết một câu MỚI. Không chép nguyên một câu "
+    #         "hỏi hay bài tập có sẵn trong đó.",
+    #     ]
+    #     if request.other_foci:
+    #         lines.append("Các câu khác của đề đã lo những mục sau, đừng hỏi sang:")
+    #         lines += [f"  · {title}" for title in request.other_foci]
+    #     return "\n".join(lines)
+    if request.item_knowledge.strip():
+        # ADR-29 (`draft-outline`): câu này đứng trên **một mục của dàn ý** giáo viên đã duyệt --
+        # kiến thức, công thức và cách làm, đúng như giáo viên đã đọc. Hai câu chung một mục thì
+        # được nói mình là câu thứ mấy, vì các job chạy song song và không thấy nhau.
+        lines += ["", f"Kiến thức câu này kiểm: {request.item_knowledge}"]
+        if request.item_formulas:
+            lines.append("Công thức sẽ dùng: " + "; ".join(request.item_formulas))
+        lines.append(f"Cách làm bài: {request.item_approach}")
+        if request.item_parts > 1:
+            lines.append(
+                f"Mục này có {request.item_parts} câu; đây là câu thứ {request.item_part}. "
+                "Cùng kiến thức nhưng khác cách hỏi hoặc số liệu với các câu kia của mục."
+            )
+        if request.other_items:
+            lines.append("Các câu khác của đề lo những kiến thức sau, đừng hỏi sang:")
+            lines += [f"  · {knowledge}" for knowledge in request.other_items]
+        lines.append(
+            "Bám đúng kiến thức, công thức và cách làm trên: giáo viên đã duyệt chúng trước khi "
+            "câu được soạn."
+        )
         return "\n".join(lines)
     lines += [
         "",

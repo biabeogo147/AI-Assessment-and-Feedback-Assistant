@@ -41,22 +41,61 @@ def _asked(**extra) -> DraftQuestionRequested:
     )
 
 
-def test_a_question_with_a_unit_is_told_its_unit_its_text_and_what_others_cover() -> None:
+# [CODE CHẾT 2026-10-15 `draft-outline`: BE thôi gửi chữ tài liệu thô (ADR-29); job nhận mục
+# dàn ý -- xem `test_a_question_on_an_outline_item_is_told_exactly_that_item`]
+# def test_a_question_with_a_unit_is_told_its_unit_its_text_and_what_others_cover() -> None:
+#     brief = draft_brief(
+#         _asked(
+#             focus_title="Chương I. SỐ TỰ NHIÊN › Bài 1. Tập hợp",
+#             focus_text="Tập hợp là một khái niệm cơ bản …",
+#             other_foci=("Chương I. SỐ TỰ NHIÊN › Bài 2. Ghi số",),
+#         )
+#     )
+#
+#     assert "CHỈ hỏi kiến thức của mục: Chương I. SỐ TỰ NHIÊN › Bài 1. Tập hợp" in brief
+#     assert "Tập hợp là một khái niệm cơ bản" in brief
+#     # Hậu ký ADR-27: kiến thức để viết câu mới, không kho câu để chép.
+#     assert "Không chép nguyên một câu" in brief
+#     assert "· Chương I. SỐ TỰ NHIÊN › Bài 2. Ghi số" in brief
+#     # Lời nhắc chung *"khía cạnh khác nhau"* nhường chỗ cho mục cụ thể.
+#     assert "khía cạnh khác nhau" not in brief
+
+
+def test_a_question_on_an_outline_item_is_told_exactly_that_item() -> None:
+    """ADR-29: job nhận đúng mục dàn ý giáo viên đã duyệt -- kiến thức, công thức, cách làm."""
     brief = draft_brief(
         _asked(
-            focus_title="Chương I. SỐ TỰ NHIÊN › Bài 1. Tập hợp",
-            focus_text="Tập hợp là một khái niệm cơ bản …",
-            other_foci=("Chương I. SỐ TỰ NHIÊN › Bài 2. Ghi số",),
+            item_knowledge="Lũy thừa với số mũ tự nhiên",
+            item_formulas=("$a^m \\cdot a^n = a^{m+n}$",),
+            item_approach="Rút gọn rồi so sánh",
+            item_part=2,
+            item_parts=3,
+            other_items=("Thứ tự thực hiện phép tính",),
         )
     )
 
-    assert "CHỈ hỏi kiến thức của mục: Chương I. SỐ TỰ NHIÊN › Bài 1. Tập hợp" in brief
-    assert "Tập hợp là một khái niệm cơ bản" in brief
-    # Hậu ký ADR-27: kiến thức để viết câu mới, không kho câu để chép.
-    assert "Không chép nguyên một câu" in brief
-    assert "· Chương I. SỐ TỰ NHIÊN › Bài 2. Ghi số" in brief
+    assert "Kiến thức câu này kiểm: Lũy thừa với số mũ tự nhiên" in brief
+    assert "Công thức sẽ dùng: $a^m \\cdot a^n = a^{m+n}$" in brief
+    assert "Cách làm bài: Rút gọn rồi so sánh" in brief
+    assert "Mục này có 3 câu; đây là câu thứ 2." in brief
+    assert "· Thứ tự thực hiện phép tính" in brief
+    assert "giáo viên đã duyệt" in brief
     # Lời nhắc chung *"khía cạnh khác nhau"* nhường chỗ cho mục cụ thể.
     assert "khía cạnh khác nhau" not in brief
+
+
+def test_a_one_question_item_is_not_told_about_parts() -> None:
+    brief = draft_brief(_asked(item_knowledge="Tập hợp", item_approach="Chọn tập đúng"))
+
+    assert "đây là câu thứ" not in brief
+    assert "Công thức sẽ dùng" not in brief
+
+
+def test_raw_document_text_never_reaches_the_brief_any_more() -> None:
+    """Một payload cũ còn chở `focus_text` thì chữ ấy không vào prompt (ADR-29)."""
+    brief = draft_brief(_asked(focus_title="Bài 1", focus_text="chữ OCR f8h4%2 rác"))
+
+    assert "f8h4%2" not in brief
 
 
 def test_a_question_without_a_document_is_briefed_as_before() -> None:
