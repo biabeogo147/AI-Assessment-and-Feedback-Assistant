@@ -193,7 +193,7 @@ def _mentions_book(request: NextStepRequested) -> bool:
 
 # Tool đọc tài liệu; kết quả của một trong số chúng trong lịch sử là *đoạn chat đang chọn sách*.
 # Cùng bộ với `teacher_chat._DOCUMENT_READS` bên BE.
-_DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter"})
+_DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter", "read_section"})
 
 
 def _book_in_view(request: NextStepRequested) -> bool:

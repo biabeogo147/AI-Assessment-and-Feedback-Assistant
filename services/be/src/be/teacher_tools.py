@@ -46,7 +46,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from be.assessment_state import AssessmentState
 from be.config import Settings, get_settings
 from be.content_reader import ContentUnavailable, get_reader
-from be.coverage import heading
 from be.drafting import (
     _MOST_QUESTIONS,
     BookUnavailable,
@@ -58,6 +57,7 @@ from be.drafting import (
 )
 from be.identity import Asking
 from be.resolve import Candidate, capped, classes_with_counts, normalise
+from be.toc import heading, parts, scope_of, title_path
 from contracts import DocumentState, IndexNode, PlanStep, ToolSpec
 from schema.models import (
     Assessment,
@@ -646,9 +646,16 @@ async def _start_drafting(running: Running, args: dict) -> dict:
 
 # Một câu hỏi lại vẽ được bao nhiêu nút. Một cuốn SGK có 4--8 chương; một chương có tới ~10 bài.
 _MOST_NODES = 12
-# Tóm tắt một nút cắt ở đây: đủ để model khớp *"chương Hàm số"* với một tên chương, không đủ để
-# thành nội dung -- nội dung đi tới job soạn câu, không tới khung chat.
+# Tóm tắt một nút cắt ở đây: đủ để model khớp *"chương Hàm số"* với một tên chương. Nội dung thì đi
+# bằng `read_section`, khi Kriky đọc để viết dàn ý (`draft-outline`, ADR-29) -- không bằng tóm tắt.
 _SUMMARY_CHARS = 200
+# Trần chữ của **một** phần đọc (`read_section`). Mười phần (trần 10 câu mỗi lần xin) là ~80 nghìn
+# ký tự trong một lượt -- vừa một prompt gpt-4o-mini; một phần to hơn thì giáo viên xin ít câu trên
+# một chương dài sẽ nhét cả chương vào một bước. Phần vượt trần thì **mỗi đơn vị** bị cắt theo tỉ lệ
+# độ dài của nó, giữ phần đầu -- định nghĩa và ví dụ mẫu thường đứng đầu bài.
+_PART_CHARS = 8000
+# Trần số câu một lần xin (ADR-29): cũng là trần số phần đọc.
+MOST_QUESTIONS_ASKED = 10
 _NO_SUCH_DOCUMENT = {
     "found": False,
     "reason": "không có tài liệu sẵn sàng nào như vậy trong thư viện của bạn",
@@ -834,6 +841,95 @@ async def _get_chapter(running: Running, args: dict) -> dict:
     return _listed([node for node in every if node.parent_ordinal == wanted], every)
 
 
+def _units(every: list[IndexNode], chunks: list, scope: list[int]) -> list[tuple[int, list[str]]]:
+    """Các đơn vị của phạm vi, thứ tự đọc: mỗi nút có đoạn của riêng nó, kèm chữ các đoạn ấy."""
+    inside = scope_of(every, scope)
+    owned: dict[int, list[str]] = {}
+    for chunk in sorted(chunks, key=lambda one: one.ordinal):
+        if chunk.node_ordinal in inside:
+            owned.setdefault(chunk.node_ordinal, []).append(chunk.text)
+    return [(ordinal, owned[ordinal]) for ordinal in sorted(owned)]
+
+
+def _part_text(every: list[IndexNode], units: list[tuple[int, list[str]]]) -> str:
+    """Chữ một phần đọc: mỗi đơn vị một dòng tiêu đề rồi chữ của nó, cắt theo `_PART_CHARS`."""
+    bodies = ["\n".join(texts) for _, texts in units]
+    total = sum(len(body) for body in bodies)
+    # Sàn mỗi đơn vị không vượt phần chia đều của trần: một câu trên cả cuốn sách là ~150 đơn vị
+    # trong một phần, và sàn cố định 200 ký tự sẽ đưa phần ấy lên gấp năm lần trần (review đợt 2,
+    # `draft-outline`).
+    floor = min(200, _PART_CHARS // len(units))
+    out = []
+    for (ordinal, _), body in zip(units, bodies, strict=True):
+        if total > _PART_CHARS:
+            keep = max(floor, _PART_CHARS * len(body) // total)
+            if len(body) > keep:
+                body = body[:keep] + "\n[… phần sau của mục này không đọc trong lượt này]"
+        out.append(f"## {title_path(every, ordinal)}\n{body}")
+    return "\n\n".join(out)
+
+
+async def _read_section(running: Running, args: dict) -> dict:
+    """Chữ của một phạm vi tài liệu, gộp thành tối đa `questions` phần, trả phần thứ `part`.
+
+    Kriky đọc trước khi viết dàn ý (`draft-outline`, ADR-29). Phạm vi -- các nút giáo viên chọn và
+    cây con của chúng -- được gộp **không tách nút** thành `min(questions, số đơn vị)` phần liên
+    tiếp (`toc.parts`), nên số lần đọc không vượt số câu xin. Chữ là chữ OCR: công thức và hình
+    không có, và Kriky được dặn công thức trong dàn ý là của nó.
+
+    Args:
+        running: Session và giáo viên đang hỏi.
+        args: `document_id`, `nodes` (các số node cách nhau bằng dấu phẩy), `questions` (số câu
+            giáo viên xin), `part` (đếm từ 1; trống là 1).
+
+    Returns:
+        `found`, `part`, `parts`, `more` (còn phần chưa đọc), `nodes` (các nút trong phần này --
+        nguồn cho dàn ý), `labels`, `text`; hoặc `found: False` kèm `reason`.
+    """
+    every, refused = await _tree_of(running, args)
+    if refused is not None:
+        return refused
+    # Tách ở dấu phẩy **và** khoảng trắng: bỏ khoảng trắng rồi mới tách thì *"1 2"* thành nút 12, và
+    # nút ấy có thật thì đọc nhầm bài mà không ai biết (review đợt 2, `draft-outline`).
+    raw = str(args.get("nodes") or "").strip()
+    try:
+        scope = sorted({int(one) for one in re.split(r"[,\s]+", raw) if one})
+        questions = int(str(args.get("questions") or "").strip())
+        part = int(str(args.get("part") or "1").strip())
+    except ValueError:
+        return {"found": False, "reason": "nodes, questions, part phải là số"}
+    known = {node.ordinal for node in every}
+    if not scope or any(one not in known for one in scope):
+        return {"found": False, "reason": "nodes phải là số node lấy từ list_chapters/get_chapter"}
+    if not 1 <= questions <= MOST_QUESTIONS_ASKED:
+        return {
+            "found": False,
+            "reason": f"questions là số câu giáo viên xin, 1 đến {MOST_QUESTIONS_ASKED}",
+        }
+    try:
+        document_id = str(args.get("document_id") or "").strip()
+        chunks = await get_reader().chunks(document_id, scope_of(every, scope))
+    except ContentUnavailable:
+        return dict(_CONTENT_DOWN)
+    units = _units(every, chunks, scope)
+    if not units:
+        return {"found": False, "reason": "phạm vi này không có chữ nào đọc được"}
+    grouped = parts([sum(len(text) for text in texts) for _, texts in units], questions)
+    if not 1 <= part <= len(grouped):
+        return {"found": False, "reason": f"part phải từ 1 đến {len(grouped)}"}
+    chosen = [units[index] for index in grouped[part - 1]]
+    by_ordinal = {node.ordinal: node for node in every}
+    return {
+        "found": True,
+        "part": part,
+        "parts": len(grouped),
+        "more": part < len(grouped),
+        "nodes": [ordinal for ordinal, _ in chosen],
+        "labels": [node_label(by_ordinal[ordinal]) for ordinal, _ in chosen],
+        "text": _part_text(every, chosen),
+    }
+
+
 def _refusal(reason: str) -> dict:
     return {"created": False, "missing": [], "reason": reason}
 
@@ -967,10 +1063,11 @@ async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["P
 
 
 _TOOLS: tuple[Tool, ...] = (
-    # Ba tool đọc tài liệu (`draft-from-document`). Mô tả chỉ nói **làm gì và nhận gì**; dùng lúc
-    # nào, theo thứ tự nào là việc của quy trình -- skill `soan-de` mở thư viện khi giáo viên nhắc
-    # sách, còn đọc mục lục nằm ở `propose._BOOK_PROCEDURE` bên AGENT, chỉ chèn ở lượt có sách
-    # (`unbiased-model-text`). Một nguồn cho mỗi điều, không lặp ở hai chỗ.
+    # Bốn tool đọc tài liệu (`draft-from-document`; `read_section` từ `draft-outline`). Mô tả chỉ
+    # nói **làm gì và nhận gì**; dùng lúc nào, theo thứ tự nào là việc của quy trình -- skill
+    # `soan-de` mở thư viện khi giáo viên nhắc sách, còn đọc mục lục nằm ở `propose._BOOK_PROCEDURE`
+    # bên AGENT, chỉ chèn ở lượt có sách (`unbiased-model-text`). Một nguồn cho mỗi điều, không lặp
+    # ở hai chỗ.
     Tool(
         spec=ToolSpec(
             name="list_documents",
@@ -994,6 +1091,23 @@ _TOOLS: tuple[Tool, ...] = (
             arguments={"document_id": "id tài liệu", "node": "số node, lấy từ list_chapters"},
         ),
         run=_get_chapter,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="read_section",
+            description=(
+                "Đọc chữ của phạm vi tài liệu để viết dàn ý. Phạm vi được gộp thành tối đa "
+                "questions phần; đọc lần lượt part 1, 2, … tới khi more là false. Chữ đọc từ ảnh "
+                "quét: công thức và hình không có."
+            ),
+            arguments={
+                "document_id": "id tài liệu",
+                "nodes": "các số node của phạm vi, cách nhau bằng dấu phẩy",
+                "questions": "số câu giáo viên xin, 1 đến 10",
+                "part": "phần thứ mấy, đếm từ 1",
+            },
+        ),
+        run=_read_section,
     ),
     Tool(
         spec=ToolSpec(
@@ -1098,7 +1212,7 @@ PHASE_WORK = 2
 # Tool và tham số chỉ hiện khi lượt chat **có tài liệu** (`draft-from-document`). Cùng phép sửa với
 # `test_the_model_never_sees_the_optional_fields_of_a_draft`: thứ không nhìn thấy thì không hỏi
 # được -- `document_id` hiện cho một lượt không có sách là mời model hỏi *"dùng tài liệu nào?"*.
-_DOCUMENT_TOOLS = frozenset({"list_chapters", "get_chapter"})
+_DOCUMENT_TOOLS = frozenset({"list_chapters", "get_chapter", "read_section"})
 _DOCUMENT_ARGUMENTS = {
     "document_id": "id tài liệu của phạm vi: tài liệu đính kèm, hoặc lấy từ list_documents",
     "nodes": (

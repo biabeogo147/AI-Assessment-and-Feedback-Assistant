@@ -13,11 +13,14 @@ trước bài đầu tiên. Rồi:
 
 Gán **một lần**: câu đã có ô giữ ô của nó; câu mới nhận những ô còn trống của phép chia cho tổng mới
 (`assign`). Đó là điều `DraftItem` đóng băng -- soạn thêm câu không xáo câu đã xong.
+
+`heading` và `scope_of` sống ở `be/toc.py` từ `draft-outline`: `read_section` cũng cần chúng.
 """
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
+from be.toc import heading, scope_of
 from contracts import IndexChunk, IndexNode
 
 # Trần chữ của `focus_text` gửi một job: đủ một bài SGK (vài đoạn 1 500 ký tự), không đủ để prompt
@@ -58,50 +61,6 @@ class Slot:
 
     node: int
     chunks: tuple[int, ...]
-
-
-def heading(node: IndexNode) -> str:
-    """Nhãn số và tên một nút: *"Bài 3. Phép cộng"*, *"1. HỆ THẬP PHÂN"*.
-
-    Nhãn số kiểu *"1."*, *"I."*, *"A."* đã mang sẵn dấu chấm (`document/index/features.py`), nên chỉ
-    thêm dấu chấm khi nhãn chưa có -- không thì ra *"1.. HỆ THẬP PHÂN"* (review B7,
-    `draft-from-document`).
-
-    Args:
-        node: Nút cây.
-
-    Returns:
-        Nhãn số và tên, hoặc tên trần.
-    """
-    if not node.numbering:
-        return node.title
-    joiner = " " if node.numbering.endswith(".") else ". "
-    return f"{node.numbering}{joiner}{node.title}"
-
-
-def scope_of(nodes: Iterable[IndexNode], scope: Iterable[int]) -> set[int]:
-    """`ordinal` mọi nút trong cây con của phạm vi, kể cả chính các nút phạm vi.
-
-    Args:
-        nodes: Mọi nút của cây.
-        scope: `ordinal` các nút giáo viên chọn.
-
-    Returns:
-        Tập `ordinal`; nút lạ trong `scope` bị bỏ qua.
-    """
-    known = {node.ordinal for node in nodes}
-    children: dict[int, list[int]] = {}
-    for node in nodes:
-        if node.parent_ordinal is not None:
-            children.setdefault(node.parent_ordinal, []).append(node.ordinal)
-    inside: set[int] = set()
-    waiting = [one for one in scope if one in known]
-    while waiting:
-        current = waiting.pop()
-        if current not in inside:
-            inside.add(current)
-            waiting.extend(children.get(current, []))
-    return inside
 
 
 def units_in_scope(

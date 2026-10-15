@@ -72,6 +72,7 @@ from be.identity import Asking, current_teacher
 from be.teacher_documents import believed_state
 from be.teacher_tools import (
     LOOKS_LIKE_REFERENCE,
+    MOST_QUESTIONS_ASKED,
     PHASE_PLAN,
     PHASE_WORK,
     REFERENCE,
@@ -280,7 +281,32 @@ async def _ask_agent(
 
 # Tool đọc tài liệu (`draft-from-document`). Một lần gọi bất kỳ cái nào trong đoạn chat là đoạn chat
 # **đang nói về một tài liệu**, kể cả ở lượt sau khi chip đã rời ô nhập.
-_DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter"})
+_DOCUMENT_READS = frozenset({"list_documents", "list_chapters", "get_chapter", "read_section"})
+
+
+def read_allowance(tool_name: str, result: dict, granted: int) -> int:
+    """Lượt được thêm bao nhiêu bước sau kết quả này (`draft-outline`). Hàm thuần.
+
+    Một `read_section` trả `parts` -- số phần phạm vi được gộp thành, không vượt số câu xin. Lượt
+    cần đủ bước để đọc hết chừng ấy phần **cộng** các bước nó vốn có (mục lục, nộp dàn ý), nên mỗi
+    phần là một bước thêm, đếm một lần cho cả lượt: đọc lại phần 1 không mua thêm bước nào. Trần là
+    `MOST_QUESTIONS_ASKED` phần -- số phần không bao giờ vượt số câu xin.
+
+    Args:
+        tool_name: Tool vừa chạy.
+        result: Kết quả của nó.
+        granted: Số bước đã cộng thêm trong lượt này.
+
+    Returns:
+        Số bước cộng thêm bây giờ, 0 khi không có gì để cộng.
+    """
+    if tool_name != "read_section" or result.get("found") is not True:
+        return 0
+    try:
+        wanted = min(int(result.get("parts") or 0), MOST_QUESTIONS_ASKED)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, wanted - granted)
 
 
 async def _last_chip(session: AsyncSession, thread: str) -> str:
@@ -1787,9 +1813,13 @@ async def _go(
     offered_named: dict[str, str] = _named(in_play)
     deadline = asyncio.get_running_loop().time() + settings.turn_budget_seconds
     plan: tuple[PlanStep, ...] = ()
+    # Trần bước **động** (`draft-outline`): mỗi phần đọc `read_section` báo cho lượt thêm một bước
+    # và `read_step_seconds` giây, tới mười phần.
+    allowed, taken, granted = settings.max_tool_steps, 0, 0
 
     # ---------------------------------------------------------------- pha 1: lên plan
-    for _ in range(settings.max_tool_steps):
+    while taken < allowed:
+        taken += 1
         if asyncio.get_running_loop().time() >= deadline:
             # Mức trần số bước, một mình nó, không phải một lời hứa về thời gian đợi: tám
             # bước nhân với timeout của một job là hơn chín phút, và một browser hay một
@@ -2000,6 +2030,11 @@ async def _go(
         offered, offered_more = _offered(result)
         offered_named = _named(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
+        more = read_allowance(step.tool_name, result, granted)
+        if more:
+            granted += more
+            allowed += more
+            deadline += more * settings.read_step_seconds
         if step.tool_name in _DOCUMENT_READS:
             # Không có chip mà model vừa mở thư viện: từ bước sau, tool đọc mục lục và tham số tài
             # liệu của `create_draft` mới hiện ra (`draft-from-document`) -- trước đó chúng chỉ mời
@@ -2012,9 +2047,7 @@ async def _go(
     if not plan:
         # Mức trần. Chạm tới, không phải đâm vào: giáo viên nhận được một câu gọi tên
         # nguyên nhân và gợi ý đúng một việc có ích.
-        logger.warning(
-            "tool loop hit %d steps for %s", settings.max_tool_steps, asking.teacher_code
-        )
+        logger.warning("tool loop hit %d steps for %s", allowed, asking.teacher_code)
         history.append(TurnRecord(kind="assistant", text=_CEILING_REACHED))
         await _record(session, thread, position, history[-1])
         yield TurnEvent(kind="say", text=_CEILING_REACHED, conversation_id=thread)

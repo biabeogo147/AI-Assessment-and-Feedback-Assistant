@@ -251,6 +251,68 @@ async def test_the_loop_stops_at_its_ceiling_and_says_so(stack) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(("parts", "extra"), [(5, 5), (20, 10)])
+async def test_each_part_to_read_buys_the_turn_one_more_step(stack, parts: int, extra: int) -> None:
+    """`draft-outline`: xin N câu thì phạm vi gộp thành tối đa N phần, và lượt phải đọc được hết.
+
+    Mỗi phần `read_section` báo là một bước thêm, tới mười -- trần mười câu mỗi lần xin. Một model
+    đọc mãi vẫn dừng ở trần mới, và nói ra như ở trần cũ.
+    """
+    client, _, monkeypatch = stack
+    forever = ScriptedAgent(
+        *[
+            NextStepCompleted(
+                request_id="x", kind="call_tool", tool_name="read_section", tool_args={}
+            )
+            for _ in range(40)
+        ]
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", forever)
+
+    async def read(*_args, **_kwargs) -> dict:
+        return {"found": True, "part": 1, "parts": parts, "more": True, "text": "chữ"}
+
+    monkeypatch.setattr(teacher_chat, "execute", read)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn đề"}, headers=TEACHER
+    )
+
+    assert reply.json()["text"] == teacher_chat._CEILING_REACHED
+    assert len(forever.asked) == get_settings().max_tool_steps + extra
+
+
+@pytest.mark.parametrize(
+    ("tool", "result", "granted", "expected"),
+    [
+        ("read_section", {"found": True, "parts": 4}, 0, 4),
+        ("read_section", {"found": True, "parts": 4}, 4, 0),
+        ("read_section", {"found": True, "parts": 6}, 4, 2),
+        ("read_section", {"found": False, "reason": "x"}, 0, 0),
+        ("read_section", {"found": True, "parts": "rác"}, 0, 0),
+        ("list_chapters", {"found": True, "parts": 4}, 0, 0),
+    ],
+)
+def test_only_a_successful_read_buys_steps(
+    tool: str, result: dict, granted: int, expected: int
+) -> None:
+    assert teacher_chat.read_allowance(tool, result, granted) == expected
+
+
+def test_the_longest_reading_turn_still_ends_before_its_lock_goes_stale() -> None:
+    """Một lượt đọc đủ mười phần là lượt dài nhất pha 1 có; khoá của nó không được hết hạn trước."""
+    settings = get_settings()
+    # Bước cuối có thể bắt đầu ngay trước hạn và đợi trọn một job.
+    longest = (
+        settings.turn_budget_seconds
+        + 10 * settings.read_step_seconds
+        + settings.agent_job_timeout_seconds
+    )
+
+    assert longest < settings.turn_lock_stale_seconds
+
+
+@pytest.mark.asyncio
 async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
     """BE dựng các phương án từ những dòng chính nó đã đọc; phương án của model bị bỏ.
 

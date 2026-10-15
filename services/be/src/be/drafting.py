@@ -43,9 +43,9 @@ from be.coverage import (
     Slot,
     Unit,
     assign,
-    scope_of,
     units_in_scope,
 )
+from be.toc import scope_of
 from contracts import (
     WRITE_DRAFT_QUESTION_TASK,
     DraftQuestionCompleted,

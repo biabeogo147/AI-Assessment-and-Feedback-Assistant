@@ -396,6 +396,8 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
     # Và dây bẫy: một tool thứ bảy sẽ làm dòng này đỏ và phải tự biện hộ cho mình.
     # `draft-from-document` thêm ba tool **đọc** tài liệu: chúng chỉ đọc thư viện và mục lục của
     # chính giáo viên, không đẩy gì tới học sinh, và mọi lần chạy đều kiểm sở hữu + *sẵn sàng*.
+    # `draft-outline` thêm `read_section`: cũng chỉ đọc, cũng cùng hai phép kiểm ấy -- chữ đọc được
+    # tới Kriky để viết dàn ý, không tới học sinh nào.
     assert offered == {
         "list_class",
         "get_class",
@@ -404,6 +406,7 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
         "list_documents",
         "list_chapters",
         "get_chapter",
+        "read_section",
         "create_draft",
         "start_drafting",
     }
@@ -648,10 +651,10 @@ async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
     assert working == {"create_draft", "start_drafting"}
     assert planning & working == set()
 
-    # Có tài liệu thì hai tool đọc mục lục hiện thêm -- vẫn chỉ ở pha lên plan
-    # (`draft-from-document`).
+    # Có tài liệu thì hai tool đọc mục lục và tool đọc chữ hiện thêm -- vẫn chỉ ở pha lên plan
+    # (`draft-from-document`; `read_section` từ `draft-outline`).
     with_book = {spec.name for spec in catalog_for(asking, PHASE_PLAN, documents=True)}
-    assert with_book - planning == {"list_chapters", "get_chapter"}
+    assert with_book - planning == {"list_chapters", "get_chapter", "read_section"}
     assert {spec.name for spec in catalog_for(asking, PHASE_WORK, documents=True)} == working
 
 

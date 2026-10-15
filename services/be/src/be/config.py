@@ -74,6 +74,10 @@ class Settings(BaseSettings):
             mức job timeout là hơn chín phút, và một proxy hay một browser sẽ ngắt
             kết nối từ lâu trước đó trong khi BE vẫn log thành công. Đây là giới
             hạn mà giáo viên thật sự cảm thấy.
+        read_step_seconds: Mỗi phần đọc của `read_section` cho lượt thêm một bước và chừng này
+            giây (`draft-outline`, ADR-29): giáo viên xin N câu thì phạm vi gộp thành tối đa N phần,
+            và Kriky phải đọc hết chúng trong một lượt mà vẫn còn bước để nộp dàn ý. Trần cứng là
+            `max_tool_steps` cộng mười phần -- trần mười câu mỗi lần xin.
         turn_lock_stale_seconds: Một khoá "đoạn chat này đang chạy một lượt" được coi
             là quá hạn sau bao lâu. Đường nhả khoá bình thường nằm trong `finally` và có
             `shield` nên nó sống qua cả một lần ngắt kết nối; mức này là lưới cuối cho ca
@@ -107,6 +111,7 @@ class Settings(BaseSettings):
     stream_silence_timeout_seconds: float = 25.0
     max_tool_steps: int = 8
     turn_budget_seconds: float = 90.0
+    read_step_seconds: float = 10.0
     turn_lock_stale_seconds: int = 600
     log_level: str = "INFO"
 
