@@ -814,6 +814,98 @@ _COUNT_IN_KNOWN = re.compile(r"question_count\s*=\s*(\d+)")
 # Lời giáo viên nói rõ việc của dàn ý: *"thay câu 3 …"*, *"soạn thêm 3 câu"* (`draft-outline`).
 _REPLACES = re.compile(r"\b(?:thay|đổi|làm lại|soạn lại)\s+(?:câu|câu hỏi)\s*(?:số\s*)?(\d+)", re.I)
 _ADDS = re.compile(r"\b(?:soạn|ra|làm|viết)\s+thêm\b|\bthêm\s+\d+\s+câu\b", re.I)
+# Câu đồng ý ngắn của giáo viên ngay sau một dàn ý (`draft-outline`).
+_AGREES = re.compile(
+    r"^\s*(ok|oke|okay|được|đồng ý|duyệt|chốt|ừ|vâng|soạn đi|làm đi)\b", re.IGNORECASE
+)
+# Một mục trong `known`: `subject=Toán «Toán»` -- giá trị đứng trước «.
+_KNOWN_FIELD = re.compile(r"\b(subject|grade|topic_scope)\s*=\s*([^«;,]+?)\s*(?:«|;|,|$)")
+
+
+def _brief_in(known: str) -> dict[str, str]:
+    """Môn, khối, phạm vi model đã ghi trong `known`, bỏ mục ghi `?`. Hàm thuần."""
+    found: dict[str, str] = {}
+    for key, value in _KNOWN_FIELD.findall(known):
+        if value.strip() and value.strip() != "?":
+            found.setdefault(key, value.strip())
+    return found
+
+
+def _approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Giáo viên đồng ý dàn ý vừa hiện mà model không nêu plan: plan dựng từ chính dàn ý. Hàm thuần.
+
+    Thử tay 15/10/2026: sau *"oke"* model dựng lại `known` từ câu vừa gõ, mất phạm vi, rồi hỏi
+    lại khối -- lỗi *lời đáp ngắn làm model quên lượt trước* (`backlog.md`), rơi đúng vào bước duyệt
+    của ADR-29. Mọi thứ plan cần đã nằm trong lượt dàn ý: việc (`for`), đề, câu bị thay, và môn,
+    khối, phạm vi ghi lúc nêu dàn ý (`brief`). Thiếu một mục thì để model tự xoay.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        Plan soạn theo dàn ý, hoặc `step` nguyên.
+    """
+    if step.kind == "plan" or len(request.history) < 2:
+        return step
+    said, shown = request.history[-1], request.history[-2]
+    if said.kind != "teacher" or shown.kind != "outline" or not shown.tool_result.get("items"):
+        return step
+    if not _AGREES.search(unicodedata.normalize("NFC", said.text)):
+        return step
+    kept = shown.tool_result
+    purpose = str(kept.get("for") or "new")
+    if purpose == "replace":
+        steps: tuple[PlanStep, ...] = (
+            PlanStep(
+                tool_name="replace_question",
+                args={"assessment_id": "", "question_number": ""},
+                title=f"Thay câu {kept.get('first')}",
+            ),
+        )
+    elif purpose == "more":
+        steps = (
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "", "question_count": ""},
+                title="Soạn thêm câu hỏi",
+            ),
+        )
+    else:
+        brief = dict(kept.get("brief") or {})
+        if not all(
+            str(brief.get(key) or "").strip() for key in ("subject", "grade", "topic_scope")
+        ):
+            return step
+        steps = (
+            PlanStep(
+                tool_name="create_draft",
+                # Sách và các nút để trống: cổng duyệt của BE điền chúng từ chính dàn ý.
+                args={
+                    **{key: str(brief[key]) for key in ("subject", "grade", "topic_scope")},
+                    "document_id": "",
+                    "nodes": "",
+                },
+                title="Tạo đề trống",
+            ),
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "{1.assessment_id}", "question_count": ""},
+                title="Soạn câu hỏi theo dàn ý",
+            ),
+        )
+    logger.info(
+        "teacher agreed to outline %s; planning it (model chose %s)", kept.get("version"), step.kind
+    )
+    return NextStepCompleted(
+        request_id=step.request_id,
+        kind="plan",
+        text="Được, mình soạn theo dàn ý ngay.",
+        steps=steps,
+        model_tokens=step.model_tokens,
+    )
+
+
 # Kết quả tool nói đoạn chat đã có một đề.
 _HAS_DRAFT = frozenset({"create_draft", "start_drafting", "replace_question"})
 
@@ -1412,6 +1504,12 @@ async def _choose(state: ProposeState) -> dict:
     step = _which_book(step, request)
     step = _read_before_outline(step, request)
     step = _right_purpose(step, request)
+    if step.kind == "outline":
+        # Môn, khối, phạm vi đi cùng dàn ý, cho lượt duyệt (`_approved_plan`).
+        step = step.model_copy(
+            update={"tool_args": {**_brief_in(proposal.known), **step.tool_args}}
+        )
+    step = _approved_plan(step, request)
     if step.kind == "plan":
         lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
         if lacking:

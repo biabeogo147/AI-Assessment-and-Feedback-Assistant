@@ -366,3 +366,18 @@ bài chia tiền; F5 giữ hai bản dàn ý, khối bước và thẻ. Chất l
 nguồn -- sửa: dàn ý `more`/`replace` theo sách **của đề**. H3: model hỏi lại chương mà chưa đọc mục lục
 (lỗi có từ trước, `backlog.md`), rồi chọn `outline` mà để trống mục hai lần → câu trung tính. **Chưa thử
 lại** H3, H4, soạn thêm sau hai bản sửa: cần khởi động lại BE và AGENT.
+
+**Thử trình duyệt, lượt hai** (BE, AGENT khởi động lại, người dùng cho phép): H4 **đạt** -- dàn ý
+*"Câu 3 · …"* một mục (bản 4), *"oke"* → bước *Thay một câu*, câu 3 đổi, bốn câu kia giữ nguyên, một
+đề duy nhất, `replaced=true`. H3 **đạt** -- đọc mục lục, `read_section`, dàn ý có *"Theo: Bài 1. TẬP
+HỢP (tr. 5–9)"*, *"oke"* → 5 câu bám dàn ý; 11 payload job trong Redis đều `focus_text` rỗng. Lộ thêm,
+đã sửa bằng code: đọc phần 1/5 rồi viết dàn ý (nay đọc tiếp khi còn `more`); soạn thêm 2 câu ra hai
+bước `start_drafting` cho cùng đề (nay cổng gộp); sau *"oke"* model mất phạm vi rồi hỏi lại khối (nay
+lượt dàn ý giữ môn, khối, phạm vi và *"oke"* ngay sau dàn ý thành plan dựng từ chính dàn ý --
+`_approved_plan`); `outline` để trống mục (nay đứng ngay sau `text` trong schema).
+- **Đo lần ba** (`data/results/run-101`, nhãn `dan-y-dung-viec`, sau schema và `_right_purpose`, trước
+  `_approved_plan`): **182/204**, hỏi lại 14 lần. Ca đủ mục 6/6; `tai-lieu-doc-xong` 6/6;
+  `dan-y-soan-them` 6/6; `dan-y-thay-cau` 5/6. Còn: `tra-lop-ket-qua` **2/6** (trước plan 6/6;
+  `call_tool` không mang tham số -- hồi quy ngoài luồng dàn ý, theo dõi ở `backlog.md`);
+  `dan-y-duyet-khong-gian` 2/6 (đo trước `_approved_plan`); `vuot-tran-12-cau` 0/6 (model nêu dàn ý
+  10 câu thay vì nói trần; BE vẫn chặn quá 10).
