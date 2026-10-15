@@ -696,6 +696,12 @@ class DraftBrief(Base):
     document_id: Mapped[str] = mapped_column(String(36), default="")
     scope_nodes: Mapped[list[int]] = mapped_column(JSON, default=list)
     index_built_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # **Dàn ý đã duyệt** (ADR-29, `draft-outline`): các mục giáo viên đã thấy nguyên văn trước
+    # khi soạn, mỗi mục một dict hình dạng `OutlineItem` cộng `version` của dàn ý chứa nó. Chỉ
+    # **nối thêm**: soạn thêm câu nối mục mới, thay một câu nối một mục mới và trỏ ô ấy sang nó --
+    # mục cũ ở lại, vì câu đã soạn vẫn đứng trên nó. Không tăng `version` của brief: tăng là bảo
+    # `harvest` bỏ các ô đang chờ.
+    outline: Mapped[list[dict]] = mapped_column(JSON, default=list)
 
 
 class DraftItem(Base):
@@ -749,6 +755,15 @@ class DraftItem(Base):
     # câu nhiều hơn số mục.
     node_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chunk_ordinals: Mapped[list[int]] = mapped_column(JSON, default=list)
+    # **Mục dàn ý** của câu này (ADR-29, `draft-outline`): chỉ số vào `DraftBrief.outline`, và câu
+    # thứ mấy trong số câu mục ấy phủ (đếm từ 1). Gán một lần trước job đầu tiên, như mục kiến thức
+    # cũ. `None` chỉ ở hàng cũ hơn ADR-29.
+    outline_item: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    item_part: Mapped[int] = mapped_column(Integer, default=1)
+    # **Đang thay câu đã có** (`replace_question`, sẽ có ở plan `draft-outline`): ô vẫn giữ câu cũ
+    # trong đề cho tới khi câu mới qua ADR-18; `harvest` tráo rồi hạ cờ. Job hỏng thì câu cũ còn
+    # nguyên và cờ hạ.
+    replacing: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Document(Base):

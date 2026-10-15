@@ -183,12 +183,12 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 1 — quyết định và hình dạng dữ liệu**
 
-- [ ] 1. Plan này, ADR-29 (`đã chốt, chưa thi hành`), hậu ký ADR-27, `docs/decisions/README.md`,
+- [x] 1. Plan này, ADR-29 (`đã chốt, chưa thi hành`), hậu ký ADR-27, `docs/decisions/README.md`,
       dòng plan 5a trong plan ô.
-- [ ] 2. Contracts: `OutlineItem`; `NextStepCompleted.kind` thêm `outline` cùng trường `outline` (bắt
+- [x] 2. Contracts: `OutlineItem`; `NextStepCompleted.kind` thêm `outline` cùng trường `outline` (bắt
       buộc với `outline`, cấm ở kind khác); `TurnRecord.kind` thêm `outline`; các trường `item_*`
       của `DraftQuestionRequested`; pha 2 cấm `item_*`.
-- [ ] 3. Schema: cột mới (`outline`, `outline_item`, `item_part`, `replacing`), `data-model.md`.
+- [x] 3. Schema: cột mới (`outline`, `outline_item`, `item_part`, `replacing`), `data-model.md`.
 
 **Đợt 2 — Kriky đọc được sách**
 
@@ -250,4 +250,11 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 ## Status
 
-Mở 15/10/2026. Chưa task nào xong.
+Mở 15/10/2026.
+
+**Đợt 1 xong 15/10/2026** (task 1–3): ADR-29 và hậu ký ADR-27 (`9789d1f`), contracts (`422c991`),
+schema. Review đợt 1: không lỗi runtime; sửa docstring nói sai về hiện tại (`focus_*` chỉ chết ở task
+10), luật *công thức là của Kriky* có chỗ thi hành (`outline.render`), cổng 3 nói rõ dàn ý không đi
+qua `ask_clarify`, `item_part ≤ item_parts` thành validator, Decision Records đủ phương án và lý do.
+`check` 22/22, pytest 1109, vitest 208, `typecheck` xanh. **DB dev chưa `db-reset`**: BE hay ingest
+khởi động lại sẽ chết vì `check_schema` cho tới khi chạy nó.
