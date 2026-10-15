@@ -233,34 +233,60 @@ async def test_the_mock_looks_only_at_this_turn_not_the_whole_conversation() -> 
     assert answer["kind"] == "call_tool"
 
 
-@pytest.mark.asyncio
-async def test_the_mock_plans_both_steps_when_the_sentence_carries_a_whole_brief() -> None:
-    """Một bản dev không có API key vẫn phải soạn được một đề có câu hỏi.
+async def _outline_then_agree(said: str) -> tuple[dict, dict]:
+    """Lượt một: câu nhờ soạn. Lượt hai: *"oke"* sau dàn ý mock vừa nêu (ADR-29)."""
+    outlined = await propose_next_step(
+        {}, _payload(TurnRecord(kind="teacher", text=said), plannable=_PLANNABLE)
+    )
+    agreed = await propose_next_step(
+        {},
+        _payload(
+            TurnRecord(kind="teacher", text=said),
+            TurnRecord(kind="outline", text="Dàn ý — …", tool_result={"version": 1}),
+            TurnRecord(kind="teacher", text="oke"),
+            plannable=_PLANNABLE,
+        ),
+    )
+    return outlined, agreed
 
-    Hai bước, không một: "tạo đề" nghĩa là tạo **và** thêm câu, nên một mock chỉ mở đề
-    trống đang trình diễn đúng cái lỗi ADR-25 sinh ra để diệt. Và bước hai trỏ về bước một
-    bằng cú pháp BE giải, nên đường ấy được đi qua ngay cả khi không ai gọi model.
+
+@pytest.mark.asyncio
+async def test_the_mock_outlines_first_and_plans_both_steps_once_agreed() -> None:
+    """Một bản dev không có API key vẫn phải soạn được một đề có câu hỏi -- qua dàn ý (ADR-29).
+
+    Lượt một là dàn ý, không phải plan: BE chỉ soạn trên một dàn ý giáo viên đã thấy, nên một mock
+    nêu plan ngay sẽ bị chặn tới trần bước. Lượt hai, giáo viên đồng ý, mới là plan hai bước, và
+    bước hai trỏ về bước một bằng cú pháp BE giải.
     """
+    outlined, agreed = await _outline_then_agree("tạo đề 10 câu Toán về tích phân cho lớp 12A1")
+
+    assert outlined["kind"] == "outline"
+    assert outlined["outline"][0]["questions"] == 10
+    assert outlined["tool_args"] == {"for": "new"}
+    assert agreed["kind"] == "plan"
+    assert [one["tool_name"] for one in agreed["steps"]] == ["create_draft", "start_drafting"]
+    assert agreed["steps"][0]["args"]["subject"] == "Toán"
+    assert agreed["steps"][0]["args"]["grade"] == "12"
+    # Số câu đi với bước **hai**, và để trống: BE điền tổng của dàn ý đã xem.
+    assert "question_count" not in agreed["steps"][0]["args"]
+    assert agreed["steps"][1]["args"] == {
+        "assessment_id": "{1.assessment_id}",
+        "question_count": "",
+    }
+
+
+@pytest.mark.asyncio
+async def test_the_mock_says_ten_is_the_most_at_once() -> None:
     answer = await propose_next_step(
         {},
         _payload(
-            TurnRecord(kind="teacher", text="tạo đề 10 câu Toán về tích phân cho lớp 12A1"),
+            TurnRecord(kind="teacher", text="soạn đề 25 câu môn Hoá học cho lớp 10B"),
             plannable=_PLANNABLE,
         ),
     )
 
-    assert answer["kind"] == "plan"
-    assert [one["tool_name"] for one in answer["steps"]] == ["create_draft", "start_drafting"]
-    assert answer["steps"][0]["args"]["subject"] == "Toán"
-    assert answer["steps"][0]["args"]["grade"] == "12"
-    # Số câu đi với bước **hai**, không bước một: `create_draft` thôi nhận nó. Khẳng định
-    # này là nơi thi hành của luật ấy ở phía mock -- gửi nó vào `create_draft` thì
-    # `vet_plan` từ chối trọn gói cả plan, và một bản dev không API key mất đường soạn đề.
-    assert "question_count" not in answer["steps"][0]["args"]
-    assert answer["steps"][1]["args"] == {
-        "assessment_id": "{1.assessment_id}",
-        "question_count": "10",
-    }
+    assert answer["kind"] == "say"
+    assert "tối đa 10 câu" in answer["text"]
 
 
 @pytest.mark.asyncio
@@ -301,22 +327,24 @@ async def test_the_mock_reads_the_brief_instead_of_remembering_one() -> None:
     cứng `subject="Toán"` hay `grade="12"` vẫn xanh. Hai câu khác nhau là giá rẻ nhất để
     luật "mock chỉ đọc" có một nơi thi hành.
     """
-    answer = await propose_next_step(
-        {},
-        _payload(
-            TurnRecord(kind="teacher", text="soạn đề 25 câu môn Hoá học cho lớp 10B"),
-            plannable=_PLANNABLE,
-        ),
-    )
+    outlined, agreed = await _outline_then_agree("soạn đề 8 câu môn Hoá học cho lớp 10B")
 
-    assert answer["kind"] == "plan"
-    args = answer["steps"][0]["args"]
+    assert outlined["outline"][0]["questions"] == 8
+    args = agreed["steps"][0]["args"]
     assert args["subject"] == "Hoá học"
     assert args["grade"] == "10"
-    assert answer["steps"][1]["args"]["question_count"] == "25"
     # `topic_scope` là *phạm vi kiến thức theo lời giáo viên*, nên lời họ là giá trị đúng
-    # nhất mock có -- và nó phải là lời của **câu này**, không phải một chuỗi dọn sẵn.
-    assert args["topic_scope"] == "soạn đề 25 câu môn Hoá học cho lớp 10B"
+    # nhất mock có -- và nó phải là lời của **câu ấy**, không phải một chuỗi dọn sẵn.
+    assert args["topic_scope"] == "soạn đề 8 câu môn Hoá học cho lớp 10B"
+
+
+@pytest.mark.asyncio
+async def test_the_mock_does_not_plan_on_an_agreement_without_an_outline() -> None:
+    answer = await propose_next_step(
+        {}, _payload(TurnRecord(kind="teacher", text="oke"), plannable=_PLANNABLE)
+    )
+
+    assert answer["kind"] != "plan"
 
 
 @pytest.mark.asyncio

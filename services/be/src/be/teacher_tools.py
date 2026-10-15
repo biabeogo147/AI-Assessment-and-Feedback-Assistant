@@ -1218,7 +1218,7 @@ _TOOLS: tuple[Tool, ...] = (
             ),
             arguments={
                 "assessment_id": "id đề nháp, lấy từ create_draft",
-                "question_count": "số câu soạn lần này, 1 đến 50",
+                "question_count": "số câu soạn lần này: đúng tổng số câu của dàn ý vừa duyệt",
             },
         ),
         run=_start_drafting,

@@ -190,12 +190,14 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
 @pytest.mark.parametrize(
     "rule",
     [
-        # `draft-from-document`: tài liệu đọc TRƯỚC khi nêu plan (review B5), và phép rải số câu
-        # phải được nói ra (hậu ký ADR-27). Từ `unbiased-model-text` thủ tục này nằm ở
-        # `_BOOK_PROCEDURE`, chỉ chèn ở lượt có sách.
-        "TRƯỚC khi nêu plan",
+        # `draft-from-document`: tài liệu đọc TRƯỚC khi nêu plan (review B5). Từ `unbiased-model-
+        # text` thủ tục này nằm ở `_BOOK_PROCEDURE`, chỉ chèn ở lượt có sách. Từ ADR-29
+        # (`draft-outline`): đọc trước khi nêu **dàn ý**, đọc chữ bằng `read_section`, và phép rải
+        # số câu theo độ dài thôi tồn tại -- dàn ý thay nó.
+        "TRƯỚC khi nêu dàn ý",
         "call_tool list_chapters — document_id",
-        "rải đều theo độ dài các mục",
+        "call_tool read_section — document_id, nodes",
+        "công thức trong dàn ý là bạn tự viết",
         "create_draft thêm document_id và nodes",
         # `unbiased-model-text` T2b: chương không có trong sách thì model lấy một chương khác thay
         # vào (run-25).
@@ -388,3 +390,17 @@ async def test_every_step_of_one_tool_loop_asks_jev_once(monkeypatch: pytest.Mon
     assert await skill_router.choose(first) == ("lop-va-ket-qua",)
     assert await skill_router.choose(later) == ("lop-va-ket-qua",)
     assert len(fake.calls) == 1
+
+
+def test_jev_reads_an_outline_as_kriky_speaking() -> None:
+    """ADR-29 (`draft-outline`): *"oke"* ngay sau một dàn ý là duyệt dàn ý đề -- Jev phải thấy dàn ý
+    để chọn `soan-de`."""
+    state = skill_router.state_of(
+        (
+            TurnRecord(kind="teacher", text="soạn 5 câu chương 2"),
+            TurnRecord(kind="outline", text="Dàn ý — 5 câu (bản 1)"),
+            TurnRecord(kind="teacher", text="oke"),
+        )
+    )
+
+    assert state["conversation"][1] == {"speaker": "assistant", "text": "Dàn ý — 5 câu (bản 1)"}

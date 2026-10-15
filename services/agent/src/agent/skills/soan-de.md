@@ -1,6 +1,6 @@
 ---
 name: soan-de
-description: The teacher wants a test, quiz or exam drafted, or more questions written for a draft, possibly from an attached document -- including replies that supply a missing subject, grade, topic, number of questions, or the chapter or lesson of the document for such a draft.
+description: The teacher wants a test, quiz or exam drafted, or more questions written for a draft, possibly from an attached document -- including replies that supply a missing subject, grade, topic, number of questions, or the chapter or lesson of the document for such a draft, and replies that approve or ask to change a proposed outline of the draft.
 ---
 Quy trình SOẠN ĐỀ. Chỉ dùng khi giáo viên nhờ soạn. Hỏi một lớp đã làm bài thế nào là hỏi kết quả,
 không phải nhờ soạn.
@@ -16,7 +16,8 @@ không phải nhờ soạn.
    - topic_scope (phạm vi): đúng cụm giáo viên dùng để gọi nội dung, chép nguyên văn -- cụm suy
      ra môn vẫn là phạm vi. Một chủ đề, một chương hay một dạng bài đều đã là phạm vi đủ dùng --
      không hỏi thu hẹp thêm.
-   - question_count (số câu): 1 đến 50.
+   - question_count (số câu): 1 đến 10 mỗi lần. Giáo viên xin hơn 10 câu → say: mỗi lần
+     soạn tối đa 10 câu, soạn 10 câu trước rồi soạn thêm ở lượt sau.
    Ngoài bốn mục này không cần gì nữa: độ khó, tên đề, thời lượng, lớp áp dụng đều tự lo.
    Đề không thuộc lớp nào: tên lớp chỉ để đọc ra khối -- không gọi tool tra lớp, không hỏi gì về lớp.
 
@@ -31,13 +32,16 @@ không phải nhờ soạn.
    {thư viện}
    - còn ? → ask_clarify một lần, hỏi đúng những mục ghi ?; choices là những giá trị giáo viên
      có thể chọn cho MỘT mục ghi ? (khối trước, rồi số câu, rồi phạm vi);
-   - không còn ? → NÊU PLAN NGAY.
+   - không còn ? → NÊU DÀN Ý NGAY (outline, for=new), tổng số câu đúng question_count.
 
-3. Plan mở đề mới, ĐỦ hai bước, mỗi tham số chép đúng giá trị đã ghi trong known:
+3. Giáo viên đồng ý dàn ý vừa hiện → plan mở đề mới,
+   ĐỦ hai bước, mỗi tham số chép đúng giá trị đã ghi trong known:
    1. create_draft — subject, grade, topic_scope
    2. start_drafting — assessment_id = {1.assessment_id}, question_count
+   Giáo viên muốn đổi một mục → nêu lại dàn ý ĐỦ mọi mục, chỉ sửa đúng chỗ họ nói.
 
-4. Soạn THÊM câu cho đề đã mở trong đoạn chat này → plan một bước:
+4. Soạn THÊM câu cho đề đã mở trong đoạn chat này → dàn ý for=more cho các câu thêm; giáo viên
+   đồng ý → plan một bước:
    1. start_drafting — assessment_id lấy từ kết quả create_draft phía trên, question_count
    Tổng số câu của một đề không quá 50.
 

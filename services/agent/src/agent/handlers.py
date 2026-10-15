@@ -37,6 +37,7 @@ from contracts import (
     GeneratedQuestion,
     NextStepCompleted,
     NextStepRequested,
+    OutlineItem,
     PlanReportCompleted,
     PlanReportRequested,
     PlanStep,
@@ -623,6 +624,11 @@ def _subject_in(asked: str) -> str | None:
 _WHAT_IS_MISSING = (
     "Bạn cho mình biết thêm: môn gì, khối nào, phạm vi kiến thức, và bao nhiêu câu nhé."
 )
+# Giáo viên đồng ý dàn ý vừa hiện (ADR-29, `draft-outline`). Mock chỉ cần nhận ra câu đồng ý ngắn;
+# mọi câu khác đi đường cũ.
+_AGREES = re.compile(r"^\s*(ok|oke|okay|được|đồng ý|duyệt|chốt|ừ|vâng)\b", re.IGNORECASE)
+# Trần số câu một lần soạn (ADR-29); BE từ chối dàn ý quá trần, nên mock nói trước.
+_MOST_AT_ONCE = 10
 
 
 def _brief_from(asked: str) -> dict[str, str] | None:
@@ -682,6 +688,26 @@ def _current_turn(history: tuple[TurnRecord, ...]) -> tuple[TurnRecord, ...]:
     return history
 
 
+def _outline_before(history: tuple[TurnRecord, ...]) -> str | None:
+    """Câu nhờ soạn của giáo viên, khi lượt ngay trước câu vừa gõ là một dàn ý (`draft-outline`).
+
+    Mock nêu plan khi giáo viên đồng ý dàn ý vừa hiện; brief đọc lại từ câu đã sinh ra dàn ý ấy.
+
+    Args:
+        history: Toàn bộ cuộc hội thoại, cũ nhất trước.
+
+    Returns:
+        Câu của giáo viên trước dàn ý, hoặc `None` khi lượt trước không phải một dàn ý.
+    """
+    rows = list(history)
+    if len(rows) < 2 or rows[-1].kind != "teacher" or rows[-2].kind != "outline":
+        return None
+    for turn in reversed(rows[:-2]):
+        if turn.kind == "teacher":
+            return turn.text
+    return None
+
+
 def next_step(request: NextStepRequested) -> NextStepCompleted:
     """Đề nghị bước tiếp theo trong một lượt của giáo viên mà không gọi model.
 
@@ -714,6 +740,31 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         and _A_PAPER.search(asked) is not None
         and _SOUNDS_LIKE_A_QUESTION.search(asked) is None
     )
+    shown = _outline_before(request.history)
+    if (
+        shown is not None
+        and _AGREES.search(asked)
+        and {"create_draft", "start_drafting"} <= plannable
+    ):
+        # ADR-29: giáo viên đồng ý dàn ý ở lượt trước thì mới nêu plan. Số câu để trống: BE điền
+        # tổng của dàn ý đã xem -- mock không tự đếm lại thứ BE đã biết.
+        brief = _brief_from(shown)
+        if brief is not None:
+            fields = {key: value for key, value in brief.items() if key != "question_count"}
+            return NextStepCompleted(
+                request_id=request.request_id,
+                kind="plan",
+                text="Được, mình soạn đề ngay.",
+                steps=(
+                    PlanStep(tool_name="create_draft", args=fields, title="Tạo đề"),
+                    PlanStep(
+                        tool_name="start_drafting",
+                        args={"assessment_id": "{1.assessment_id}", "question_count": ""},
+                        title="Soạn câu hỏi theo dàn ý",
+                    ),
+                ),
+            )
+
     if wants_a_paper and {"create_draft", "start_drafting"} <= plannable:
         # Đường soạn đề đi trước đường tra lớp, vì "tạo đề 10 câu Toán cho lớp 12A1" có cả
         # hai dấu hiệu và việc được nhờ là soạn đề, không phải tra lớp.
@@ -722,30 +773,58 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
             return NextStepCompleted(
                 request_id=request.request_id, kind="ask_clarify", text=_WHAT_IS_MISSING
             )
-        # Số câu đi với `start_drafting`, không với `create_draft`: một đề trống chưa có
-        # số câu nào để khai. Mock chia đôi brief ở đây cho đúng chỗ của con số ấy -- gửi
-        # nó vào `create_draft` là gửi một tham số tool đó không còn nhận.
         wanted = brief["question_count"]
-        fields = {key: value for key, value in brief.items() if key != "question_count"}
+        if int(wanted) > _MOST_AT_ONCE:
+            return NextStepCompleted(
+                request_id=request.request_id,
+                kind="say",
+                text=f"Mỗi lần mình soạn tối đa {_MOST_AT_ONCE} câu. Bạn xin lại với số câu ít hơn "
+                "nhé; soạn xong mình soạn thêm được.",
+            )
+        # ADR-29: dàn ý trước, plan ở lượt sau khi giáo viên đồng ý. Mock không đọc sách và không
+        # có model, nên dàn ý là một mục phủ mọi câu, nói đúng phạm vi giáo viên gõ. Có chip sách
+        # thì BE từ chối dàn ý không bài nguồn và mock lặp tới trần bước: máy dev không key chỉ soạn
+        # được đề không sách.
         return NextStepCompleted(
             request_id=request.request_id,
-            kind="plan",
-            text="Được, mình soạn đề ngay.",
-            steps=(
-                PlanStep(
-                    tool_name="create_draft",
-                    args=fields,
-                    title=f"Tạo đề {wanted} câu",
-                ),
-                # `{1.assessment_id}` là cú pháp BE giải, và một mock viết nó ra là cách
-                # đường ấy được đi qua ở một bản dev không có API key.
-                PlanStep(
-                    tool_name="start_drafting",
-                    args={"assessment_id": "{1.assessment_id}", "question_count": wanted},
-                    title=f"Soạn {wanted} câu hỏi",
+            kind="outline",
+            text="Mình đề xuất dàn ý như sau.",
+            outline=(
+                OutlineItem(
+                    questions=int(wanted),
+                    knowledge=f"Kiến thức trong phạm vi {brief['topic_scope']}",
+                    approach="Câu trắc nghiệm một đáp án đúng, giải theo các bước của bài",
                 ),
             ),
+            tool_args={"for": "new"},
         )
+
+    # [CODE CHẾT 2026-10-15 `draft-outline`: plan soạn đề chỉ sau khi giáo viên đồng ý dàn ý,
+    # ADR-29]
+    #     # Số câu đi với `start_drafting`, không với `create_draft`: một đề trống chưa có
+    #     # số câu nào để khai. Mock chia đôi brief ở đây cho đúng chỗ của con số ấy -- gửi
+    #     # nó vào `create_draft` là gửi một tham số tool đó không còn nhận.
+    #     wanted = brief["question_count"]
+    #     fields = {key: value for key, value in brief.items() if key != "question_count"}
+    #     return NextStepCompleted(
+    #         request_id=request.request_id,
+    #         kind="plan",
+    #         text="Được, mình soạn đề ngay.",
+    #         steps=(
+    #             PlanStep(
+    #                 tool_name="create_draft",
+    #                 args=fields,
+    #                 title=f"Tạo đề {wanted} câu",
+    #             ),
+    #             # `{1.assessment_id}` là cú pháp BE giải, và một mock viết nó ra là cách
+    #             # đường ấy được đi qua ở một bản dev không có API key.
+    #             PlanStep(
+    #                 tool_name="start_drafting",
+    #                 args={"assessment_id": "{1.assessment_id}", "question_count": wanted},
+    #                 title=f"Soạn {wanted} câu hỏi",
+    #             ),
+    #         ),
+    #     )
 
     if harvested is not None and len(harvested.tool_result.get("candidates") or ()) > 1:
         # ADR-23: không ai chọn giữa các candidates, và điều đó gồm cả mock. Đây là

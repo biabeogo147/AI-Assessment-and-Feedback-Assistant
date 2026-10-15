@@ -1469,8 +1469,9 @@ async def test_the_prompt_carries_the_syntax_without_which_no_plan_works(
     # muốn đặt tên cho đề không — một câu hỏi về một mục tuỳ chọn, tốn trọn một lượt.
     # Đo ba lần trên trình duyệt thật: model hỏi tên đề, rồi hỏi độ khó, rồi hỏi phạm vi
     # cho một câu đã nói phạm vi. Luật phải nói tuyệt đối — "đủ thì nêu plan NGAY" — chứ
-    # không liệt kê từng mục không được hỏi.
-    assert "NÊU PLAN NGAY" in prompt
+    # không liệt kê từng mục không được hỏi. Từ ADR-29 (`draft-outline`) thứ nêu ngay là dàn ý,
+    # và luật vẫn tuyệt đối như cũ.
+    assert "NÊU DÀN Ý NGAY" in prompt
     # `question_count` thuộc `start_drafting`, không thuộc `create_draft`: gửi nó vào bước mở đề
     # là `vet_plan` từ chối trọn gói cả plan. Từ ngày 12/10/2026 skill `soan-de` viết thành quy
     # trình (người dùng chốt), nên luật ấy là **danh sách param của từng bước**, không còn là câu

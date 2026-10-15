@@ -61,12 +61,21 @@ def state_of(history: Sequence[TurnRecord]) -> dict | None:
         `{"conversation": [...]}`, hoặc `None` khi không có lượt nào của giáo viên -- không có gì
         để chọn.
     """
-    said = [turn for turn in history if turn.kind in {"teacher", "assistant"} and turn.text]
+    # Lượt dàn ý (ADR-29, `draft-outline`) là lời Kriky: *"oke"* ngay sau nó là duyệt một dàn ý
+    # đề, và Jev chỉ thấy điều ấy khi dàn ý nằm trong đoạn hội thoại nó đọc. Chữ dàn ý BE dựng là
+    # lời mở của Kriky rồi *"Dàn ý — N câu"*, nên phần cắt ở `_TEXT_CHARS` vẫn nói nó là gì -- câu
+    # kết hỏi đồng ý thì có thể bị cắt mất ở một dàn ý dài.
+    said = [
+        turn for turn in history if turn.kind in {"teacher", "assistant", "outline"} and turn.text
+    ]
     if not any(turn.kind == "teacher" for turn in said):
         return None
     return {
         "conversation": [
-            {"speaker": turn.kind, "text": turn.text.strip()[:_TEXT_CHARS]}
+            {
+                "speaker": "teacher" if turn.kind == "teacher" else "assistant",
+                "text": turn.text.strip()[:_TEXT_CHARS],
+            }
             for turn in said[-_TURNS:]
         ]
     }

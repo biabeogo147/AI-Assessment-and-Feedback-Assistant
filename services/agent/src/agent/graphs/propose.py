@@ -38,11 +38,18 @@ from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agent import llm, skill_router, skills
 from agent.latex_escapes import restore_latex_escapes
-from contracts import NextStepCompleted, NextStepRequested, PlanStep, ToolSpec, TurnRecord
+from contracts import (
+    NextStepCompleted,
+    NextStepRequested,
+    OutlineItem,
+    PlanStep,
+    ToolSpec,
+    TurnRecord,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +64,7 @@ _CORE = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thôn
 Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
 danh sách những việc sẽ làm. Hệ thống chạy plan ấy ở pha sau, rồi hỏi bạn kể lại kết quả.
 
-Mỗi lượt bạn chọn ĐÚNG MỘT trong bốn việc:
+Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
 - say: trả lời bằng lời. Dùng khi câu vừa rồi chỉ cần một câu trả lời, không cần làm gì.
 - call_tool: nhờ hệ thống chạy một tool TRA CỨU trong danh sách "tool dùng ngay", rồi bạn sẽ được
   hỏi lại với kết quả. Dùng khi bạn cần dữ liệu mà mình chưa có.
@@ -69,6 +76,12 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong bốn việc:
   thêm "Khác". Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở.
 - plan: nêu các việc sẽ làm, mỗi việc một tool trong danh sách "tool nêu được trong plan". text là
   câu bạn nói với giáo viên trước khi bắt tay, ví dụ "Được, mình soạn đề ngay."
+- outline: đề xuất DÀN Ý đề cho giáo viên duyệt, TRƯỚC khi soạn câu hỏi. Mỗi mục trong outline:
+  questions (mục phủ bao nhiêu câu), knowledge (kiến thức câu kiểm, viết lại gọn và sạch), formulas
+  (công thức sẽ dùng, mỗi công thức một cặp $), approach (dạng câu và các bước giải), source_nodes
+  (số node của bài nguồn; rỗng khi không có tài liệu). Hai câu chung một mục thì cùng kiến thức,
+  khác cách hỏi. Mỗi lần tối đa 10 câu. text là một câu mở đầu ngắn; hệ thống tự in dàn ý và hỏi
+  giáo viên có đồng ý không. tool_args: for = new (đề mới) hoặc more (soạn thêm cho đề đang có).
 
 Về plan:
 - Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: khi xong, việc
@@ -80,6 +93,9 @@ Về plan:
   Chỉ viết đúng khuôn đó, không thêm chữ nào quanh nó, và chỉ trỏ về một bước ĐỨNG TRƯỚC nó.
 - Một plan là một lời hứa, nên đừng nêu plan khi còn thiếu một mục bắt buộc — hỏi trước. Sau khi
   plan đã nêu thì KHÔNG còn chỗ nào để hỏi lại nữa.
+- Plan soạn câu hỏi (start_drafting) chỉ nêu SAU KHI giáo viên đã đồng ý một dàn ý ở lượt trước;
+  số câu là tổng của dàn ý ấy. Giáo viên muốn đổi gì trong dàn ý thì nêu lại outline ĐỦ mọi mục,
+  chỉ sửa đúng chỗ họ nói.
 - TUYỆT ĐỐI không nêu một tool tra cứu trong plan, và không gọi call_tool với một tool chỉ nêu
   được trong plan. Hai danh sách là hai quyền khác nhau.
 
@@ -115,14 +131,18 @@ Cách viết:
 # không nhìn thấy thì không hỏi được, cùng cách `catalog_for` giấu `list_chapters` khi lượt không có
 # sách.
 #
-# Câu chữ là bản đã đo ở run-15. Review T2 thử hai chỗ, cả hai làm `tai-lieu-khop-chuong` tụt từ 5/6
+# Câu chữ là bản đã đo ở run-15; từ ADR-29 (`draft-outline`) đầu thủ tục nói *"nêu dàn ý"* thay
+# *"nêu plan"*, bước 4 đọc chữ bằng `read_section` và câu *"rải đều theo độ dài"* thôi tồn tại --
+# chưa đo, phải đo lại các ca sách trước khi đóng plan.
+#
+# Review T2 thử hai chỗ, cả hai làm `tai-lieu-khop-chuong` tụt từ 5/6
 # xuống 0–1/6 (run-16, run-17) -- model hỏi *"cả chương hay một phần?"* cho một chương khớp đúng:
 # nói thẳng *"đủ bốn mục vẫn CHƯA nêu plan"* (để thắng câu *"nêu plan ngay"* của skill), rồi chỉ
 # đổi đầu thành *"Mở đề mới…"* kèm luật nối mục bằng `;`. Mô tả `topic_scope` riêng cho lượt có sách
 # cũng thử rồi bỏ (comment trên `teacher_tools._with_document`), nên luật nối mục bằng `;` không còn
 # nằm trong chữ nào model đọc: model bỏ `nodes` thì `bind_book` chỉ đỡ được khi `topic_scope` trùng
 # đúng một tên mục, hay các tên mục nối bằng `;`.
-_BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệu, nên TRƯỚC khi nêu plan:
+_BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệu, nên TRƯỚC khi nêu dàn ý:
 1. call_tool list_chapters — document_id. Cần bài hay mục bên trong một chương thì
    call_tool get_chapter — document_id, node. document_id đã có ở dòng tài liệu đính kèm thì
    không gọi list_documents. Kết quả list_documents có nhiều tài liệu cùng hợp → ask_clarify
@@ -134,8 +154,12 @@ _BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài li�
    tên tài liệu. topic_scope là label của mục nói về đúng điều giáo viên nói --
    mục KHỚP lời giáo viên, không phải một mục khác thay vào; không label nào trong kết quả tool
    nói về điều ấy thì topic_scope=?.
-4. Plan như quy trình soạn đề, create_draft thêm document_id và nodes (các số node đã chọn).
-   Lời nêu plan nói rõ số câu được rải đều theo độ dài các mục, mỗi câu một mục khác nhau."""
+4. Đọc phạm vi: call_tool read_section — document_id, nodes (các node đã chọn), questions (số
+   câu giáo viên xin), part 1; rồi part 2, 3, … tới khi more là false. Viết dàn ý từ chữ đã
+   đọc, source_nodes lấy từ nodes của các phần đọc. Chữ đọc từ ảnh quét nên công thức và hình
+   không có: công thức trong dàn ý là bạn tự viết.
+5. Giáo viên đồng ý dàn ý → plan như quy trình soạn đề, create_draft thêm document_id và nodes
+   (các số node đã chọn)."""
 
 # Mở thư viện khi giáo viên nhắc sách mà **không** đính kèm (`unbiased-model-text` T2b). Chỉ đúng ở
 # lượt không có sách, mà chỉ có tác dụng khi đứng **giữa** các nhánh quyết định của `soan-de` -- nên
@@ -249,6 +273,56 @@ def _opens_library(request: NextStepRequested, chosen: tuple[str, ...]) -> bool:
     )
 
 
+def _read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Ở lượt có sách, một dàn ý nêu khi chưa đọc chữ phạm vi thành lời gọi `read_section`.
+
+    Hàm thuần.
+
+    `_BOOK_PROCEDURE` dặn đọc trước khi nêu dàn ý, và chữ không giữ được model (review đợt 4,
+    `draft-outline`): nó chép `source_nodes` từ mục lục, BE nhận vì nút có thật, và dàn ý viết từ
+    tóm tắt chứ không từ bài. Phạm vi đọc là chính các nút dàn ý trỏ tới, số câu là tổng của dàn
+    ý -- model nêu lại với chữ trong tay. Đã đọc từ plan gần nhất thì để nguyên.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        `call_tool read_section` khi lượt có sách mà chưa đọc chữ; không thì `step`.
+    """
+    if step.kind != "outline" or not _book_in_view(request):
+        return step
+    since = _since_plan(request)
+    if any(turn.kind == "tool_result" and turn.tool_name == "read_section" for turn in since):
+        return step
+    nodes = sorted({node for item in step.outline for node in item.source_nodes})
+    attached = request.attached_document
+    document = attached.document_id if attached is not None else ""
+    if not document:
+        reads = [
+            str(turn.tool_args.get("document_id") or "")
+            for turn in since
+            if turn.kind == "tool_call" and turn.tool_name in _DOCUMENT_READS
+        ]
+        document = next((one for one in reversed(reads) if one), "")
+    if not nodes or not document:
+        return step
+    total = min(10, sum(item.questions for item in step.outline))
+    logger.info("model outlined before reading -- reading %s first", nodes)
+    return NextStepCompleted(
+        request_id=step.request_id,
+        kind="call_tool",
+        tool_name="read_section",
+        tool_args={
+            "document_id": document,
+            "nodes": ",".join(str(node) for node in nodes),
+            "questions": str(total),
+            "part": "1",
+        },
+        model_tokens=step.model_tokens,
+    )
+
+
 def _library_first(
     step: NextStepCompleted, request: NextStepRequested, chosen: tuple[str, ...]
 ) -> NextStepCompleted:
@@ -276,6 +350,11 @@ def _library_first(
     unbooked = step.kind == "plan" and any(
         one.tool_name == "create_draft" and not str(one.args.get("document_id") or "").strip()
         for one in step.steps
+    )
+    # Từ ADR-29 nước đi đầu là dàn ý, không phải plan: một dàn ý không trỏ về bài nào ở lượt mở thư
+    # viện là dàn ý soạn không sách -- cùng lỗi, hình dạng mới (review đợt 4, `draft-outline`).
+    unbooked = unbooked or (
+        step.kind == "outline" and not any(item.source_nodes for item in step.outline)
     )
     if not (step.kind == "ask_clarify" or unbooked) or not _opens_library(request, chosen):
         return step
@@ -318,6 +397,10 @@ class _IncompletePlan(_Flawed):
     trị đã nằm ở `known`, model không chép sang. BE `vet_plan` từ chối đúng những plan ấy, và giáo
     viên nhận một lời từ chối cho một câu đã đủ ý. Hỏi lại ở đây rẻ hơn.
     """
+
+
+class _NoOutline(_AskAgain):
+    """Model chọn `outline` mà không nêu mục nào, hay một mục không đọc được (`draft-outline`)."""
 
 
 class _FewChoices(_Flawed):
@@ -754,6 +837,27 @@ class _Argument(BaseModel):
     value: str = Field(description="Giá trị của tham số.")
 
 
+class _OutlineItem(BaseModel):
+    """Một mục dàn ý đề (ADR-29, `draft-outline`), dưới hình dạng model trả lời được.
+
+    Object đóng, như `_Step`: structured output chặt nhận một tuple object có field cố định.
+    `contracts.OutlineItem` mới là hình dạng BE đọc, và `completed` dịch sang nó.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    questions: int = Field(description="Mục này phủ bao nhiêu câu.")
+    knowledge: str = Field(description="Kiến thức câu kiểm, viết lại sạch bằng lời của bạn.")
+    formulas: tuple[str, ...] = Field(
+        description="Công thức sẽ dùng, mỗi công thức một cặp $. Rỗng khi không có công thức."
+    )
+    approach: str = Field(description="Dạng câu và các bước giải dự kiến.")
+    source_nodes: tuple[int, ...] = Field(
+        description="Số node của bài nguồn, lấy từ nodes của read_section. Rỗng khi không có "
+        "tài liệu."
+    )
+
+
 class _Step(BaseModel):
     """Một bước của plan, dưới hình dạng model trả lời được.
 
@@ -798,6 +902,19 @@ def _unmangled(proposal: "_Proposal") -> "_Proposal":
                 step.model_copy(update={"title": restore_latex_escapes(step.title)})
                 for step in proposal.steps
             ),
+            # Mục dàn ý (`draft-outline`): BE in nguyên văn ba trường chữ ra chat, trong
+            # `MathText`, và job soạn câu đọc đúng chúng -- `\frac` thành form-feed ở đây là
+            # hỏng ở cả hai chỗ.
+            "outline": tuple(
+                item.model_copy(
+                    update={
+                        "knowledge": restore_latex_escapes(item.knowledge),
+                        "approach": restore_latex_escapes(item.approach),
+                        "formulas": tuple(restore_latex_escapes(one) for one in item.formulas),
+                    }
+                )
+                for item in proposal.outline
+            ),
         }
     )
 
@@ -836,7 +953,7 @@ class _Proposal(BaseModel):
             "quả tool, và còn thiếu gì cho việc họ nhờ. Không viết câu hỏi hay câu trả lời ở đây."
         ),
     )
-    kind: Literal["say", "call_tool", "ask_clarify", "plan"]
+    kind: Literal["say", "call_tool", "ask_clarify", "plan", "outline"]
     text: str = Field(
         default="",
         description=(
@@ -860,6 +977,12 @@ class _Proposal(BaseModel):
     tool_name: str = ""
     tool_args: tuple[_Argument, ...] = ()
     steps: tuple[_Step, ...] = ()
+    # ADR-29 (`draft-outline`): dàn ý đề, chỉ với kind outline. Đứng sau `steps`: `known` vẫn là
+    # field đầu tiên, và thứ tự ấy là thứ đã đo (`kriky-skill-routing`).
+    outline: tuple[_OutlineItem, ...] = Field(
+        default=(),
+        description="Chỉ với outline: các mục dàn ý, theo thứ tự câu. Các kind khác để trống.",
+    )
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
         """Biến câu trả lời của model thành message BE đọc.
@@ -899,6 +1022,18 @@ class _Proposal(BaseModel):
             if self.kind == "plan"
             else (),
             choices=tuple(_nfc(one) for one in self.choices) if self.kind == "ask_clarify" else (),
+            outline=tuple(
+                OutlineItem(
+                    questions=item.questions,
+                    knowledge=_nfc(item.knowledge),
+                    formulas=tuple(_nfc(one) for one in item.formulas),
+                    approach=_nfc(item.approach),
+                    source_nodes=item.source_nodes,
+                )
+                for item in self.outline
+            )
+            if self.kind == "outline"
+            else (),
             model_tokens=model_tokens,
         )
 
@@ -1042,10 +1177,30 @@ def _compose(state: ProposeState) -> dict:
         elif turn.kind == "tool_call":
             args = json.dumps(turn.tool_args, ensure_ascii=False, sort_keys=True)
             messages.append(AIMessage(f"Mình xin gọi {turn.tool_name} với {args}."))
+        elif turn.kind == "outline":
+            messages.append(AIMessage(_describe_outline(turn)))
         else:
             messages.append(HumanMessage(_describe_result(turn)))
 
     return {"messages": messages}
+
+
+def _describe_outline(turn: TurnRecord) -> str:
+    """Một lượt dàn ý trong lịch sử, như model cần đọc lại nó (`draft-outline`). Hàm thuần.
+
+    Chữ BE đã in -- thứ giáo viên đọc -- cộng các mục dạng gọn: sửa dàn ý là nêu lại **đủ** mục, và
+    `source_nodes` chỉ chép lại được khi nó còn nằm đâu đó. Dàn ý đã bị thay thì BE chỉ gửi số bản
+    (`teacher_chat._shrunk`), và chỉ còn chữ.
+    """
+    kept = turn.tool_result or {}
+    if not kept.get("items"):
+        return turn.text
+    compact = json.dumps(
+        {key: kept.get(key) for key in ("version", "for", "first", "items")},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return f"{turn.text}\n\n(Dàn ý bản này, để bạn sửa: {compact})"
 
 
 def _spent(raw: object) -> int:
@@ -1116,11 +1271,20 @@ async def _choose(state: ProposeState) -> dict:
         # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
         # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần.
         raise _NothingToSay(f"model chose {proposal.kind} with nothing to say")
+    if proposal.kind == "outline" and not proposal.outline:
+        raise _NoOutline("model chose outline with no item")
 
     # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
     request = state["request"]
-    step = _unmangled(proposal).completed(request_id="", model_tokens=spent)
+    try:
+        step = _unmangled(proposal).completed(request_id="", model_tokens=spent)
+    except ValidationError as unusable:
+        # Một mục dàn ý sai hình dạng (số câu ngoài 1–10, chữ rỗng): hỏi lại một lần, như một
+        # câu rỗng -- không có gì để giáo viên đọc (`draft-outline`).
+        if proposal.kind != "outline":
+            raise
+        raise _NoOutline(f"unusable outline item: {unusable.errors()[0]['msg']}") from unusable
     # Luật thứ tự đọc (`unbiased-model-text` T5): đề nghị đúng việc mà sai bước thì thành **một lời
     # gọi tool đọc**; ở bước kế trong cùng vòng gọi tool của BE, model nêu lại với kết quả trong
     # tay. Bước nào đã đọc rồi thì không gọi lại -- mỗi luật tự kiểm, không thì BE hỏi tới trần rồi
@@ -1131,6 +1295,7 @@ async def _choose(state: ProposeState) -> dict:
     step = _toc_first(step, request)
     step = _library_first(step, request, state["skills"])
     step = _which_book(step, request)
+    step = _read_before_outline(step, request)
     if step.kind == "plan":
         lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
         if lacking:
@@ -1209,7 +1374,9 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
             final = {"step": better}
         except Exception as again:
             if not isinstance(first, _Flawed):
-                if isinstance(again, _NothingToSay):
+                # Dàn ý hỏng hai lần cũng vậy: lùi về mock là cho giáo viên xem một dàn ý mock bịa
+                # giữa một lượt chat thật (review đợt 4, `draft-outline`).
+                if isinstance(again, (_NothingToSay, _NoOutline)):
                     logger.warning("empty answer twice for %s", request.request_id)
                     return NextStepCompleted(
                         request_id=request.request_id, kind="say", text=_UNCLEAR
