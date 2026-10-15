@@ -832,12 +832,15 @@ def _brief_in(known: str) -> dict[str, str]:
 
 
 def _approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
-    """Giáo viên đồng ý dàn ý vừa hiện mà model không nêu plan: plan dựng từ chính dàn ý. Hàm thuần.
+    """Giáo viên đồng ý dàn ý vừa hiện: plan dựng từ chính dàn ý, kể cả khi model nêu plan khác. Hàm
+    thuần.
 
     Thử tay 15/10/2026: sau *"oke"* model dựng lại `known` từ câu vừa gõ, mất phạm vi, rồi hỏi
     lại khối -- lỗi *lời đáp ngắn làm model quên lượt trước* (`backlog.md`), rơi đúng vào bước duyệt
-    của ADR-29. Mọi thứ plan cần đã nằm trong lượt dàn ý: việc (`for`), đề, câu bị thay, và môn,
-    khối, phạm vi ghi lúc nêu dàn ý (`brief`). Thiếu một mục thì để model tự xoay.
+    của ADR-29. Lượt thử sau đó: *"oke"* cho một dàn ý soạn thêm ra plan `create_draft` khối 6 --
+    plan của model cũng quên như vậy, nên không giữ nó. Mọi thứ plan cần đã nằm trong lượt dàn ý:
+    việc (`for`), đề, câu bị thay, và môn, khối, phạm vi ghi lúc nêu dàn ý (`brief`); nút và tài
+    liệu BE điền từ dàn ý. Thiếu một mục thì để model tự xoay.
 
     Args:
         step: Đề nghị model vừa nêu.
@@ -846,7 +849,7 @@ def _approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextS
     Returns:
         Plan soạn theo dàn ý, hoặc `step` nguyên.
     """
-    if step.kind == "plan" or len(request.history) < 2:
+    if len(request.history) < 2:
         return step
     said, shown = request.history[-1], request.history[-2]
     if said.kind != "teacher" or shown.kind != "outline" or not shown.tool_result.get("items"):

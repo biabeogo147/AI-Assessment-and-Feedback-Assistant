@@ -31,6 +31,7 @@ from contracts import (
     NextStepCompleted,
     NextStepRequested,
     OutlineItem,
+    PlanStep,
     TurnRecord,
 )
 
@@ -435,6 +436,27 @@ def test_an_agreement_after_an_outline_becomes_its_plan_even_if_the_model_forgot
     assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
     assert step.steps[0].args == {**_BRIEF, "document_id": "", "nodes": ""}
     assert step.steps[1].args == {"assessment_id": "{1.assessment_id}", "question_count": ""}
+
+
+def test_an_agreement_to_more_wins_over_a_plan_that_opens_a_new_draft() -> None:
+    """Thử tay 15/10/2026: *"oke"* cho dàn ý soạn thêm ra plan `create_draft` khối 6."""
+    kept = {"version": 7, "for": "more", "first": 8, "items": [{"questions": 2}]}
+    opened = NextStepCompleted(
+        request_id="r1",
+        kind="plan",
+        text="Mình mở đề nháp.",
+        steps=(
+            PlanStep(
+                tool_name="create_draft",
+                args={"subject": "Toán", "grade": "6", "topic_scope": "tỉ lệ nghịch"},
+                title="Tạo đề trống",
+            ),
+        ),
+    )
+
+    step = _approved_plan(opened, _agreed(kept))
+
+    assert [one.tool_name for one in step.steps] == ["start_drafting"]
 
 
 @pytest.mark.parametrize(
