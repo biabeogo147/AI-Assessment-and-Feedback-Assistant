@@ -81,6 +81,8 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
                 return False, f"tool {key} {args.get(key)!r} / args {sorted(args)}"
     if kind == "ask_clarify" and len(step.get("choices") or []) < expect.get("min_choices", 0):
         return False, f"chỉ {len(step.get('choices') or [])} phương án"
+    if kind == "outline":
+        return _score_outline(expect, step)
     if kind != "plan":
         return True, ""
 
@@ -101,6 +103,33 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
     for key in ("nodes", "document_id"):
         if key in expect and str(args.get(key, "")).replace(" ", "") != expect[key]:
             return False, f"{key} {args.get(key)!r}"
+    return True, ""
+
+
+def _score_outline(expect: dict, step: dict) -> tuple[bool, str]:
+    """Một dàn ý đề (ADR-29, `draft-outline`) có đúng ý ca không. Hàm thuần.
+
+    Đúng số câu, đúng việc (`for`), mỗi mục có kiến thức và cách làm, và -- ca có sách -- bài nguồn
+    nằm trong các node ca cho phép. Nội dung kiến thức không chấm ở đây: đó là việc giáo viên duyệt.
+    """
+    items = list(step.get("outline") or [])
+    if not items:
+        return False, "dàn ý không có mục"
+    total = sum(int(item.get("questions") or 0) for item in items)
+    if "count" in expect and str(total) != expect["count"]:
+        return False, f"tổng câu {total}"
+    purpose = str((step.get("tool_args") or {}).get("for") or "new")
+    if purpose != expect.get("for", "new"):
+        return False, f"for {purpose!r}"
+    if any(
+        not str(item.get("knowledge") or "").strip() or not str(item.get("approach") or "").strip()
+        for item in items
+    ):
+        return False, "mục thiếu kiến thức hay cách làm"
+    if "nodes_in" in expect:
+        sources = {node for item in items for node in item.get("source_nodes") or []}
+        if not sources or not sources <= set(expect["nodes_in"]):
+            return False, f"source_nodes {sorted(sources)}"
     return True, ""
 
 
@@ -211,6 +240,8 @@ def _history(raw: list) -> tuple:
             out.append(TurnRecord(kind=row[0], text=row[1]))
         elif row[0] == "tool_call":
             out.append(TurnRecord(kind="tool_call", tool_name=row[1], tool_args=row[2]))
+        elif row[0] == "outline":
+            out.append(TurnRecord(kind="outline", text=row[1], tool_result=row[2]))
         else:
             out.append(TurnRecord(kind="tool_result", tool_name=row[1], tool_result=row[2]))
     return tuple(out)

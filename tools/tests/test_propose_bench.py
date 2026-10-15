@@ -309,3 +309,25 @@ def test_a_label_with_a_task_code_is_refused_before_any_model_call(
 
     with pytest.raises(SystemExit, match="mã task"):
         run.main()
+
+
+def _outline(count: int, purpose: str = "new", nodes: tuple[int, ...] = ()) -> dict:
+    return {
+        "kind": "outline",
+        "text": "Dàn ý.",
+        "tool_args": {"for": purpose},
+        "outline": [
+            {"questions": count, "knowledge": "K", "approach": "A", "source_nodes": list(nodes)}
+        ],
+    }
+
+
+def test_an_outline_scores_on_its_total_its_purpose_and_its_sources() -> None:
+    """`draft-outline`: dàn ý đúng số câu, đúng việc, bài nguồn trong các node ca cho phép."""
+    expect = {"kind": "outline", "count": "6", "nodes_in": [7, 8]}
+
+    assert score_propose(expect, _outline(6, nodes=(8,))) == (True, "")
+    assert score_propose(expect, _outline(5, nodes=(8,)))[1] == "tổng câu 5"
+    assert score_propose(expect, _outline(6, nodes=(99,)))[0] is False
+    assert score_propose(expect, _outline(6))[0] is False
+    assert score_propose({"kind": "outline"}, _outline(6, purpose="more"))[1] == "for 'more'"

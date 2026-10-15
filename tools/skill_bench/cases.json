@@ -47,5 +47,7 @@
   {"id": "chung-phat-hanh", "expect": [], "history": [["teacher", "phát hành đề cho lớp 12A đi"]]},
   {"id": "chung-ma-tran", "expect": [], "history": [["teacher", "ma trận đề kiểm tra là gì?"]]},
   {"id": "chung-sau-ket-qua", "expect": [], "history": [["teacher", "lớp 12A làm bài thế nào"], ["assistant", "Lớp 12A có 30/32 em đã nộp, điểm trung bình 6,5 trên 10 câu."], ["teacher", "ok, vậy là ổn"]]},
-  {"id": "chung-dang-cau-hoi", "expect": [], "history": [["teacher", "câu hỏi trắc nghiệm nhiều lựa chọn khác gì câu đúng sai?"]]}
+  {"id": "chung-dang-cau-hoi", "expect": [], "history": [["teacher", "câu hỏi trắc nghiệm nhiều lựa chọn khác gì câu đúng sai?"]]},
+  {"id": "dan-y-oke", "expect": ["soan-de"], "history": [["teacher", "Soạn đề 8 câu hình học không gian lớp 11"], ["outline", "Mình đề xuất dàn ý như sau.\n\nDàn ý — 8 câu (bản 1)\n\nCâu 1–4 · Quan hệ vuông góc giữa đường thẳng và mặt phẳng\n  Cách làm: Chọn mệnh đề đúng về quan hệ vuông góc\n\nCâu 5–8 · Khoảng cách từ một điểm đến một mặt phẳng\n  Cách làm: Tính khoảng cách trong hình chóp đều\n\nBạn đồng ý với dàn ý này chứ? Muốn đổi câu nào, cứ nói."], ["teacher", "oke"]]},
+  {"id": "dan-y-doi-cau", "expect": ["soan-de"], "history": [["teacher", "Soạn đề 8 câu hình học không gian lớp 11"], ["outline", "Mình đề xuất dàn ý như sau.\n\nDàn ý — 8 câu (bản 1)\n\nCâu 1–4 · Quan hệ vuông góc giữa đường thẳng và mặt phẳng\n  Cách làm: Chọn mệnh đề đúng về quan hệ vuông góc\n\nCâu 5–8 · Khoảng cách từ một điểm đến một mặt phẳng\n  Cách làm: Tính khoảng cách trong hình chóp đều\n\nBạn đồng ý với dàn ý này chứ? Muốn đổi câu nào, cứ nói."], ["teacher", "câu 3 đổi sang tính thể tích"]]}
 ]

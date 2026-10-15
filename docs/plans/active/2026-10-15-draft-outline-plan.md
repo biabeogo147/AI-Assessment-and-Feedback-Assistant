@@ -215,11 +215,11 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 4 — Kriky đề xuất dàn ý**
 
-- [ ] 11. `_Proposal.outline`, `completed`, `_unmangled` sửa cả ba trường chữ, hỏi lại một lần khi dàn
+- [x] 11. `_Proposal.outline`, `completed`, `_unmangled` sửa cả ba trường chữ, hỏi lại một lần khi dàn
       ý thiếu, `_compose` phát lại dàn ý mới nhất, mock nêu dàn ý rồi plan. Lượt dàn ý chở
       `tool_args` `for` (`new`/`more`/`replace`) và `question` khi thay câu -- thiếu chúng thì mọi dàn
       ý là `for=new` và cổng chặn soạn thêm, thay câu (review đợt 3).
-- [ ] 12. Prompt: `_CORE`, `soan-de.md`, `_BOOK_PROCEDURE`, router `state_of`.
+- [x] 12. Prompt: `_CORE`, `soan-de.md`, `_BOOK_PROCEDURE`, router `state_of`.
 - [ ] 13. Bench offline (ca `plan` → `outline`, ca duyệt/sửa/plan khi chưa có dàn ý, ca routing);
       chạy thật một lần **khi người dùng cho phép**.
 
@@ -227,7 +227,9 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 - [ ] 14. Lõi xoá câu tách từ `teacher_routes.delete_question` sang `drafting.py`.
 - [ ] 15. `replace_question`: từ chối khi đề khoá, có job chờ, có bài làm, câu không có; `harvest`
-      tráo; catalog 11; FE nhãn bước.
+      tráo; catalog 11; FE nhãn bước. Cùng lúc mới dạy model `for=replace` + `question` (`_CORE`)
+      và thêm *"thay một câu"* vào mô tả skill `soan-de` -- gỡ ra ở review đợt 4 vì dạy một việc chưa
+      có tool là mời giáo viên duyệt một dàn ý không chạy được.
 - [ ] 16. Soạn thêm: `start_drafting` trên đề có sẵn nối mục dàn ý; prompt và ca bench offline.
 
 **Đợt 6 — tài liệu và thử đầu-cuối**
@@ -302,3 +304,18 @@ sửa, ghi nhận: một `IntegrityError` ở commit đầu của `fire` cuộn 
 trỏ mục (cùng lỗ đã có với `question_count`); dàn ý và plan bị từ chối không ghi `model_tokens`;
 một lượt dàn ý không đóng câu hỏi lại đang mở trước nó (`_rows_in_play`). Check không bắt được khoá
 dict `"focus_text"` (`_code_only` xoá chuỗi) -- ghi trong docstring của check.
+
+**Đợt 4, phần offline xong 15/10/2026** (task 11, 12, 13 trừ lần chạy thật). Kriky nêu được kind
+`outline` (`_OutlineItem`, `_NoOutline`, `_describe_outline`), mock nêu dàn ý rồi plan khi giáo viên
+đồng ý, prompt `_CORE` có việc thứ năm, `soan-de` nêu dàn ý ngay khi đủ mục, `_BOOK_PROCEDURE` đọc
+bằng `read_section`, bộ chọn skill thấy lượt dàn ý. Bench: ca đủ mục chấm dàn ý; ca đổi đầu vào mang
+tên mới (`du-luong-giac-chuyen-9-cau`, `du-xac-suat-10-cau`, `dap-so-cau-sau-hoi-6`,
+`vuot-tran-12-cau`) nên **không so được** với số đo cũ dưới tên cũ; thêm ca duyệt (ba ca mang lại
+khối và phạm vi), sửa dàn ý, đọc xong sách, hai ca định tuyến.
+Review đợt 4: sửa -- dàn ý hỏng hai lần nói câu trung tính thay vì lùi về mock (mock bịa dàn ý); dàn
+ý không bài nguồn ở lượt nhắc sách mở thư viện (`_library_first`); dàn ý ở lượt có sách mà chưa đọc
+chữ thành lời gọi `read_section` (`_read_before_outline`); gỡ `replace` khỏi prompt tới task 15; xin
+quá 10 câu thì nói ra; mô tả `question_count` của `start_drafting` nói *"đúng tổng của dàn ý"*.
+Ghi nhận, chưa sửa: bench `be_refuses` chỉ chạy `vet_plan`, không chạy cổng duyệt; quên `for=more`
+khi soạn thêm thì lời từ chối của BE dẫn model mở đề thứ hai (cần một ca đo ở task 16); máy dev
+không key có chip sách thì mock lặp tới trần bước (ghi trong comment).

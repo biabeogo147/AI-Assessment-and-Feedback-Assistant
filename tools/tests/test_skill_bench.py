@@ -35,7 +35,8 @@ def test_every_case_names_real_skills_and_ends_on_the_teacher() -> None:
     for case in cases:
         assert set(case["expect"]) <= specialised, case["id"]
         assert case["history"][-1][0] == "teacher", case["id"]
-        assert {speaker for speaker, _ in case["history"]} <= {"teacher", "assistant"}
+        # `outline` là lời Kriky ở dạng dàn ý (ADR-29, `draft-outline`): *"oke"* sau nó là duyệt.
+        assert {speaker for speaker, _ in case["history"]} <= {"teacher", "assistant", "outline"}
     # Mọi skill chuyên biệt, và skill bao quát, đều có ca của mình.
     for name in specialised:
         assert any(name in case["expect"] for case in cases), name
