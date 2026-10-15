@@ -13,7 +13,9 @@ from agent.graphs import propose as propose_module
 from agent.graphs.propose import (
     _CORE,
     _UNCLEAR,
+    _approved_plan,
     _Argument,
+    _brief_in,
     _compose,
     _library_first,
     _miscounted,
@@ -404,3 +406,61 @@ def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
 
     assert (step.kind, step.tool_name) == ("call_tool", "read_section")
     assert step.tool_args == {**asked, "part": "2"}
+
+
+def _agreed(kept: dict, said: str = "oke") -> NextStepRequested:
+    return NextStepRequested(
+        request_id="r1",
+        history=(
+            TurnRecord(kind="teacher", text="soạn 2 câu"),
+            TurnRecord(kind="outline", text="Dàn ý", tool_result=kept),
+            TurnRecord(kind="teacher", text=said),
+        ),
+    )
+
+
+_ASKED_AGAIN = NextStepCompleted(request_id="r1", kind="ask_clarify", text="Khối mấy?")
+_BRIEF = {"subject": "Toán", "grade": "7", "topic_scope": "tỉ lệ thức"}
+
+
+def test_an_agreement_after_an_outline_becomes_its_plan_even_if_the_model_forgot() -> None:
+    """Thử tay 15/10/2026 (`draft-outline`): sau *"oke"* model mất phạm vi và hỏi lại khối."""
+    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+
+    step = _approved_plan(_ASKED_AGAIN, _agreed(kept))
+
+    assert step.kind == "plan"
+    assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
+    assert step.steps[0].args == {**_BRIEF, "document_id": "", "nodes": ""}
+    assert step.steps[1].args == {"assessment_id": "{1.assessment_id}", "question_count": ""}
+
+
+@pytest.mark.parametrize(
+    ("purpose", "tool"), [("more", "start_drafting"), ("replace", "replace_question")]
+)
+def test_an_agreement_to_more_or_a_replacement_plans_that(purpose: str, tool: str) -> None:
+    kept = {"version": 2, "for": purpose, "first": 3, "items": [{"questions": 1}]}
+
+    step = _approved_plan(_ASKED_AGAIN, _agreed(kept))
+
+    assert [one.tool_name for one in step.steps] == [tool]
+
+
+@pytest.mark.parametrize(
+    ("kept", "said"),
+    [
+        ({"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}, "câu 2 đổi"),
+        ({"version": 1, "for": "new", "items": [{"questions": 2}]}, "oke"),
+        ({"version": 1, "superseded": True}, "oke"),
+    ],
+)
+def test_no_agreement_or_no_brief_leaves_the_model_answer(kept: dict, said: str) -> None:
+    assert _approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
+
+
+def test_the_brief_is_read_from_what_the_model_knew() -> None:
+    known = (
+        "topic_scope=tỉ lệ thức «tỉ lệ thức»; subject=Toán «Toán»; grade=? «?»; question_count=5"
+    )
+
+    assert _brief_in(known) == {"topic_scope": "tỉ lệ thức", "subject": "Toán"}

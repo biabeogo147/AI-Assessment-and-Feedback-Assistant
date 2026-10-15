@@ -635,6 +635,12 @@ async def outline_turn(
     # nhất lúc plan chạy (review đợt 3).
     kept["for"] = purpose
     kept["assessment_id"] = paper
+    # Môn, khối, phạm vi của dàn ý, lúc model còn đủ bốn mục: lượt *"oke"* sau đó dựng plan từ chính
+    # dàn ý, không từ trí nhớ của model (thử tay 15/10/2026, `draft-outline`).
+    kept["brief"] = {
+        key: str(step.tool_args.get(key) or "").strip()
+        for key in ("subject", "grade", "topic_scope")
+    }
     return TurnRecord(
         kind="outline",
         text=render(step.text, items, labels, version=version, first=first),
