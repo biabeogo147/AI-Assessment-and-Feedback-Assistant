@@ -57,6 +57,17 @@ Nhịp: **6** giữa avatar và phần đầu tiên, **20** giữa các phần v
 lượt thiếu phần nào — dữ liệu thật thường không có câu mở đầu, và khi đó avatar giới thiệu thẳng khối
 bước.
 
+### Lượt dàn ý — lời Kriky, chữ của BE
+
+Từ [ADR-29](../decisions/adr-29-dan-y-de-truoc-khi-soan.md) mọi đề đi qua một **dàn ý** trước khi soạn:
+lượt ấy (`kind: "outline"`) vẽ **đúng như một câu Kriky nói** — cùng `Message turn` (Vai=agent), cùng
+`MathText`, không thẻ mới, không nút duyệt. Khác một điều: chữ do **BE dựng** từ các mục đã lưu
+(`be/outline.render`) — lời mở của Kriky, *"Dàn ý — N câu (bản v)"*, mỗi mục một khối *"Câu a–b ·
+kiến thức / Công thức Kriky đề xuất / Cách làm / Theo: bài"*, rồi câu hỏi đồng ý cố định. Giáo viên
+duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau. Sau F5 lượt dàn ý dựng lại đúng chữ
+ấy (`spoken()` coi `outline` là lời trợ lý). Bước *"Thay một câu"* có dòng kết quả riêng: *"đã thay câu
+N"*, hay *"câu N giữ nguyên: câu mới soạn không đạt"* — câu cũ ở lại khi câu mới không qua ADR-18.
+
 ### Luật quan trọng nhất: thẻ mọc cho kết quả còn đứng vững
 
 Mọi `tool_result` thuộc về **các bước trong khối bằng chứng**. Chỉ một kết quả **còn đứng vững tới

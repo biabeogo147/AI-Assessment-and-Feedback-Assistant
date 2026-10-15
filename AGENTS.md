@@ -52,7 +52,7 @@ This is an enforcement index, not an explanation. The reasoning lives in `archit
 | Teacher approves an assessment before release | automatic: `test_an_unapproved_assessment_cannot_be_published_over_http` |
 | The options in a clarifying question about a row (class, document, section) are BE labels from rows it read; a model-written option survives only by naming one row exactly | automatic: `test_the_options_are_written_by_be_not_by_the_model`, `test_a_class_the_model_made_up_never_reaches_a_button` |
 | Every report figure was exported from the current `.drawio` | automatic: `tools/check_contract.py` |
-| No agent tool changes an assessment's state | automatic: `tools/check_contract.py` |
+| No agent tool changes an assessment's state; no question is drafted from an outline the teacher has not seen, and a drafting job gets its outline item, never raw document text (ADR-29) | automatic: `tools/check_contract.py`; `test_no_question_is_drafted_before_the_teacher_has_seen_an_outline` |
 | Invented screen data stays in its one self-accusing module | automatic: `tools/check_contract.py` |
 | An empty assessment is never approved | automatic: `test_an_empty_assessment_cannot_be_approved` |
 | A deleted conversation reads as absent, takes no new turn, and keeps the turns it holds | automatic: `test_a_deleted_conversation_is_not_the_running_one`, `test_a_deleted_conversation_keeps_its_turns` |

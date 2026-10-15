@@ -108,6 +108,9 @@ của nó còn trơ, chưa màn hình nào liệt kê đề nháp. Cách duy nh�
 
 **Gõ:** `Toán 12, chương tích phân, 3 câu`
 
+**Từ 15/10/2026 (ADR-29) lượt này ra một dàn ý**, không chạy plan: xem Chặng H. Gõ `oke` ở lượt sau
+thì mới tới phần dưới đây.
+
 **Phải thấy:** khối bước chạy với `bước 1/2` rồi `bước 2/2`; dòng dưới bước soạn đếm tăng dần rồi
 dừng ở `— đã soạn 3/3 câu`; một câu kể; và **một thẻ** `Đã tạo đề`. Thẻ **không có nút nào** —
 bấm vào chính nó là mở panel đề.
@@ -129,6 +132,9 @@ câu khác — *đề này đang ở nấc nào*.
 ### B1. Số câu quá lớn `[1 lượt]`
 
 **Gõ:** `tạo đề 500 câu Toán 12 về đạo hàm`
+
+**Từ 15/10/2026 (ADR-29)** mỗi lần xin tối đa 10 câu: Kriky nói ra mức ấy ngay ở lượt này, không mở
+đề nào. Phần dưới là hành vi trước ADR-29, giữ làm lịch sử.
 
 **Phải thấy:** bước **1** (`Tạo đề trống`) đánh `✓`, bước **2** (`Soạn câu hỏi`) đánh `✕` với lý do
 nói đúng mức trần (**số câu phải từ 1 đến 50**), plan dừng ở đó, và Kriky thuật lại lý do ấy.
@@ -483,6 +489,41 @@ liệu **chưa** đi vào việc soạn đề, và màn hình không được h�
 Chúng dùng chung màu có chủ ý: Foundations của Figma ghi *"ba màu cùng trọng lượng, cố ý không
 xếp hạng nghiêm trọng"*, và cái phân biệt hai trạng thái xấu là **chữ**, không phải màu. Chip
 *sẵn sàng* không có dòng trạng thái nào — số trang đã là bằng chứng đã đọc được chữ.
+
+---
+
+## Chặng H — dàn ý đề trước khi soạn (ADR-29) `[4–6 lượt]`
+
+### H1. Đề không tài liệu `[2 lượt]`
+
+**Gõ:** `soạn 5 câu Toán lớp 7 về tỉ lệ thức`, rồi `oke`.
+
+**Phải thấy:** lượt một là **một lời Kriky** chứa *"Dàn ý — 5 câu (bản 1)"*, mỗi mục có *"Công thức
+Kriky đề xuất"* (khi có) và *"Cách làm"*, kết bằng câu hỏi đồng ý; **không** khối bước, **không**
+câu hỏi nào được soạn. Lượt hai mới chạy `Tạo đề trống` → `Soạn câu hỏi`, và câu hỏi bám đúng các mục.
+
+**Sai nếu:** lượt một đã soạn câu; dàn ý có Markdown hay số node trần; F5 làm dàn ý biến mất hay đổi
+chữ.
+
+### H2. Sửa dàn ý `[1 lượt]`
+
+Trước `oke`, **gõ:** `câu 2 đổi sang bài toán thực tế`. **Phải thấy:** *"(bản 2)"*, mọi mục khác giữ
+nguyên, câu 2 đổi. Rồi `oke` soạn theo bản 2, không theo bản 1.
+
+### H3. Theo tài liệu `[2 lượt]`
+
+Đính chip một cuốn SGK, **gõ:** `soạn 5 câu chương 1 từ sách này`. **Phải thấy:** khối bước đọc mục
+lục rồi `read_section` (một hay vài lần, không quá 5), rồi dàn ý có *"Theo: Bài …"* là nhãn bài thật.
+`oke` → 5 câu. Log worker AGENT: payload `write_draft_question` có `item_knowledge`, **không** có chữ
+OCR nào trong `focus_text`.
+
+### H4. Thay một câu, soạn thêm `[2–4 lượt]`
+
+**Gõ:** `thay câu 2 bằng một câu khó hơn` → dàn ý *"Câu 2 · …"* một mục → `oke` → bước *"Thay một
+câu"* kết thúc bằng *"đã thay câu 2"*; câu 1, 3, 4, 5 không đổi. **Gõ:** `soạn thêm 3 câu` → dàn ý
+*"Câu 6–8"* → `oke` → đề 8 câu, câu cũ không đổi.
+
+**Sai nếu:** thay câu mà đề có lúc thiếu câu 2; câu mới không đạt mà bước vẫn báo *"đã thay"*.
 
 ---
 

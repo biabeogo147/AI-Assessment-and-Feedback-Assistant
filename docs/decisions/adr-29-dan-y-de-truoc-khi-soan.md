@@ -1,6 +1,6 @@
 # ADR-29 — Dàn ý đề trước khi soạn
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-10-15
 
 ## Bối cảnh
@@ -82,13 +82,14 @@ còn đọc hết được.
 
 ## Nơi luật này đang được thi hành
 
-**Chưa nơi nào.** Plan thi hành: `docs/plans/active/2026-10-15-draft-outline-plan.md`. Nơi nó sẽ sống:
+Plan thi hành: `docs/plans/active/2026-10-15-draft-outline-plan.md` (thử trên trình duyệt còn chờ khi
+viết dòng này).
 
-| Luật | Sẽ sống ở |
-|---|---|
-| Mọi đề qua dàn ý đã hiện | cổng `_shown_outline` trong `services/be/src/be/teacher_chat.py` |
-| BE dựng chữ dàn ý, gọi công thức là của Kriky | `services/be/src/be/outline.py` (`render`) |
-| Job chỉ nhận mục của nó, không chữ thô | `drafting.fire`; check `check_drafting_reads_no_document_text` |
-| Thay câu giữ câu cũ | `replace_question` và `harvest` trong `drafting.py` |
-| Mười câu mỗi lần | `be/outline.validate`, `start_drafting` |
-| Pha 2 không đổi | **đã có**: `packages/contracts/tests/test_draft_outline.py` (`test_phase_two_has_no_room_for_an_outline_item`) |
+| Luật | Sống ở | Test canh |
+|---|---|---|
+| Mọi đề qua một dàn ý đã hiện ở lượt trước, chưa dùng, đúng việc, đúng sách, đúng đề | `teacher_chat._shown_outline`, `guard_drafting`; `teacher_tools._start_drafting` từ chối khi không có dàn ý | `test_no_question_is_drafted_before_the_teacher_has_seen_an_outline`, `test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once`, `test_drafting_without_an_outline_seen_is_refused` |
+| BE dựng chữ dàn ý, gọi công thức là của Kriky | `be/outline.render`, nhánh `outline` của `teacher_chat._go` | `test_the_outline_shown_is_what_be_rendered_from_stored_items`, `test_the_outline_shown_is_the_one_be_rendered_and_stored` |
+| Job chỉ nhận mục của nó, không chữ tài liệu thô | `drafting.fire`, `drafting.item_fields`; agent `authoring.draft_brief` | `test_a_job_receives_exactly_its_outline_item`, `check_drafting_reads_no_document_text` |
+| Thay câu giữ câu cũ tới khi câu mới đạt; thay câu theo luật xoá ADR-28 | `drafting.replace`, `harvest`, `drop_question`; `teacher_tools._replace_question` | `test_a_replaced_question_stays_until_its_successor_lands`, `test_a_replacement_whose_job_breaks_leaves_the_old_question`, `test_a_replacement_step_says_whether_the_question_changed` |
+| Mười câu mỗi lần | `be/outline.validate`, `teacher_tools.MOST_QUESTIONS_ASKED` | `test_more_than_ten_questions_in_one_go_is_refused` |
+| Pha 2 không đổi | contracts | `test_phase_two_has_no_room_for_an_outline_item` |

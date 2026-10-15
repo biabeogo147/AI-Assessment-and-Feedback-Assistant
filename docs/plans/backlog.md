@@ -1054,9 +1054,13 @@ Ghi ngày 12/10/2026, hậu ký ADR-27. ADR-27 đòi: giáo viên không thu h�
 **nhiều** cách chia, mỗi cách tự nêu cái giá, không cách nào được đánh dấu là nên chọn, phương án do BE
 dựng. Plan 4b chỉ hỏi lại bằng tên chương/bài; số câu BE tự rải theo độ dài nội dung, mỗi câu một mục.
 
+**Đóng 15/10/2026** (ADR-29, `2026-10-15-draft-outline-plan.md`): phép rải theo độ dài thôi tồn tại.
+Mọi đề đi qua một dàn ý Kriky đề xuất và BE in ra; giáo viên không chọn trong nhiều cách chia, họ sửa
+thẳng một cách chia hiện rõ. Dòng dưới giữ làm lịch sử.
+
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| BE dựng 2--3 cách chia (rải đều mọi bài · dồn vào bài dài · chỉ một bài) làm phương án `ask_clarify` | Chưa cần: cần đo trước xem giáo viên có thật sự không thu hẹp không, khi Kriky đã hỏi bằng tên chương |
+| ~~BE dựng 2--3 cách chia (rải đều mọi bài · dồn vào bài dài · chỉ một bài) làm phương án `ask_clarify`~~ | Thay bằng dàn ý (ADR-29) |
 
 ## Soạn đề: lỗi lộ ra khi thử tay plan 4c T5
 
