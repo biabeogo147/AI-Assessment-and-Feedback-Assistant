@@ -22,54 +22,10 @@ tốn lượt gọi nào — chúng chạy qua nút bấm, không qua chat.
 
 ---
 
-## Trước khi bắt đầu
+## Chuẩn bị và luật soi mọi lượt
 
-1. `.\dev.ps1 db-reset` — để mọi lần chạy bắt đầu từ cùng một chỗ. Có dữ liệu seed: lớp **12A**
-   với 3 học sinh, một đề đã phát hành.
-2. Mở ba cửa sổ: `.\dev.ps1 be`, `.\dev.ps1 agent`, `.\dev.ps1 fe`.
-3. Model phải là **`gpt-4o-mini`**.
-4. Mở `http://localhost:5173/#/teacher`.
-5. **Thêm một lớp thứ hai.** Chặng C cần ít nhất hai lớp khớp chữ "12" thì đường hỏi-lại-có-nút mới
-   xảy ra. Chưa có màn hình tạo lớp **và cũng chưa có tool nào tạo lớp** — bốn đích đến trên rail
-   còn trơ — nên phải thêm thẳng vào database:
-
-   ```
-   docker exec aiafa-postgres psql -U aiafa -d aiafa -c      "insert into classes (id, teacher_id, name) select gen_random_uuid()::text, id, '12B' from teachers limit 1;"
-   ```
-
-6. **Mỗi tình huống một đoạn chat.** Đừng dồn cả bản vào một đoạn: một đoạn dài làm mọi lượt sau
-   mang theo ngữ cảnh của lượt trước, nên khi một câu trả lời sai thì không biết nó sai vì luật hay
-   vì nó đọc nhầm câu cũ. Bấm **Đoạn chat mới** giữa các chặng.
-
----
-
-## Luật áp cho **mọi** lượt Kriky trả lời
-
-Đây là phần quan trọng nhất của bản này. Mỗi lần Kriky nói, soi đủ bảy dòng dưới đây — chúng
-không phụ thuộc bạn đang ở mục nào.
-
-| # | Phải đúng | Sai thì trông thế nào |
-|---|---|---|
-| 1 | **Một lượt, một avatar.** Kriky nói hai câu (mở đầu và kết) vẫn chỉ một hàng logo trên cùng | Hai hàng logo trong một lượt — cùng một người được giới thiệu hai lần |
-| 2 | **Không con số nào không có trong kết quả.** Kriky không thấy đề, không thấy câu hỏi nào | *"mình đã soạn xong 10 câu rất hay"*, *"đề này khó vừa phải"* — nhận xét về thứ nó không đọc |
-| 3 | **Con số trên thẻ và trong câu nói phải khớp nhau** | Câu nói *"đã soạn xong"* mà thẻ ghi `Dừng ở 2/10 câu` |
-| 4 | **Không hứa một việc nó không làm được.** Nó không có tool bỏ duyệt, không có tool phát hành | *"để mình bỏ duyệt giúp bạn nhé"* |
-| 5 | **Không Markdown.** Không `**đậm**`, không `` `mã` ``, không bảng | Thấy dấu sao hoặc dấu huyền kép nguyên văn trên màn hình |
-| 6 | **Toán viết bằng LaTeX trong cặp `$`**, và màn hình **dựng hình** nó | Thấy `$\frac{1}{2}$` nguyên văn trên màn — tức cụm ấy không được dựng hình |
-| 7 | **Không định danh máy nào lọt ra màn hình** | Thấy một chuỗi UUID, hay tên tool như `start_drafting` |
-
-Luật 6 **đã bị lật một lần**, nên đọc kỹ: bản cũ của dòng này viết ngược — nó bắt toán phải là ký
-hiệu Unicode và coi `$...$` là lỗi. Hợp đồng nay là ngược lại (ADR-26): prompt soạn câu **bắt**
-model viết `$y = x^3 - 3x$`, và `MathText` dựng hình phần nằm giữa hai dấu `$`. Thấy dấu đô la trên
-màn hình nghĩa là cụm ấy **không dựng được**, không phải model viết sai quy ước.
-
-Và **hai luật cho khối bước**:
-
-- `bước k/n` — `n` phải cố định từ lúc khối hiện ra. `n` nhảy giữa chừng nghĩa là nó đang đếm từ số
-  bước đã chạy, chứ không đến từ plan.
-- **Đúng một hàng có dải sáng quét**, và nó là hàng đang chạy. Bước xong rồi thì tắt; bước chưa tới
-  thì chưa sáng. Cả khối cùng động, hoặc một hàng đã `✓` vẫn sáng, đều là sai — khối này là bằng
-  chứng đọc lại được, không phải hiệu ứng chờ.
+Đã dời sang `huong-dan.md` cùng thư mục (15/10/2026): các bước chuẩn bị, bảy luật soi mọi lượt Kriky
+và hai luật khối bước dùng chung cho file này lẫn bộ ca cố định trong `cases/`.
 
 ---
 
@@ -108,8 +64,8 @@ của nó còn trơ, chưa màn hình nào liệt kê đề nháp. Cách duy nh�
 
 **Gõ:** `Toán 12, chương tích phân, 3 câu`
 
-**Từ 15/10/2026 (ADR-29) lượt này ra một dàn ý**, không chạy plan: xem Chặng H. Gõ `oke` ở lượt sau
-thì mới tới phần dưới đây.
+**Từ 15/10/2026 (ADR-29) lượt này ra một dàn ý**, không chạy plan: chấm dàn ý theo `cases/01-xin-de-mo-ho.md`.
+Gõ `oke` ở lượt sau thì mới tới phần dưới đây.
 
 **Phải thấy:** khối bước chạy với `bước 1/2` rồi `bước 2/2`; dòng dưới bước soạn đếm tăng dần rồi
 dừng ở `— đã soạn 3/3 câu`; một câu kể; và **một thẻ** `Đã tạo đề`. Thẻ **không có nút nào** —
@@ -165,7 +121,8 @@ Gõ ngay sau khi vừa bắt đầu một vòng soạn khác, **trong lúc nó c
 
 **Gõ:** `soạn thêm câu cho đề vừa rồi`
 
-**Phải thấy:** từ chối với lý do *đề này đang soạn dở; chờ xong rồi hãy soạn thêm*.
+**Phải thấy:** từ chối với lý do *đề này đang soạn dở; chờ xong rồi hãy soạn thêm*. Từ ADR-29 Kriky
+có thể nêu dàn ý soạn thêm trước; lời từ chối đến ở lượt đồng ý. Soạn thêm bình thường: `cases/06`.
 
 **Sai nếu:** nó bắn thêm một vòng soạn nữa — hai vòng cùng ghi vào một đề.
 
@@ -175,7 +132,8 @@ Làm sau khi đã duyệt ở mục D3.
 
 **Gõ:** `thêm 2 câu nữa vào đề vừa duyệt`
 
-**Phải thấy:** từ chối, lý do nói nội dung đã khoá và việc bỏ duyệt làm ở panel bên phải.
+**Phải thấy:** từ chối, lý do nói nội dung đã khoá và việc bỏ duyệt làm ở panel bên phải (từ ADR-29
+có thể sau một dàn ý, ở lượt đồng ý).
 
 **Sai nếu:** Kriky nói *"để mình bỏ duyệt rồi soạn thêm nhé"*. Nó **không có** tool bỏ duyệt, nên
 câu đó là một lời hứa không ai giữ được. Đây là chỗ luật số 4 ở bảng trên bị vi phạm dễ nhất.
@@ -476,7 +434,7 @@ xoá đoạn chat không xoá đề.
 | G5 | Thử một file `.docx` | Bị từ chối. Từ 08/10/2026 chỉ còn `.pdf`, `.txt`, `.md` — PyMuPDF không đọc được Word, nên nhận là hứa một thứ sẽ phải từ chối muộn hơn |
 | G6 | Sau G1, mở console MinIO ở <http://127.0.0.1:9001> | Object nằm ở `documents/<giáo viên>/<tài liệu>.pdf`. Byte **không** nằm trong Postgres |
 | G7 | Sau G1, **nhìn chip** trên rail | Dòng meta in `kích thước · số trang`, và số trang **khớp số trang thật** của tệp. Mở tệp ra đếm tay để so — một con số sai ở đây thì không màn hình nào nói ra |
-| G8 | Tải lên một PDF **chụp lại** (scan, không có lớp chữ) | Chip đi từ *Đang xử lý…* sang **Không đọc được chữ** màu hổ phách, **không cần F5**. Rê chuột lên chip: `title` nói lý do cụ thể. Thử kéo nó vào ô nhập — **nó không đi** |
+| G8 | Tải lên một PDF **không có chữ nào** (một trang trắng). PDF chụp lại có chữ thì được OCR và lên *sẵn sàng* — xem `cases/13-tai-lieu-scan.md` | Chip đi từ *Đang xử lý…* sang **Không đọc được chữ** màu hổ phách, **không cần F5**. Rê chuột lên chip: `title` nói lý do cụ thể. Thử kéo nó vào ô nhập — **nó không đi** |
 | G9 | Tắt `.\dev.ps1 document`, tải một tệp lên, hạ `DOCUMENT_STALE_AFTER_SECONDS` xuống vài giây rồi đợi | Chip đọc ra **Xử lí lỗi. Hãy tải lại**, **nhưng cột trong Postgres vẫn là `processing`** — xem `psql -c "select state from documents"`. Đó là bằng chứng trạng thái thứ tư được suy ra lúc đọc chứ không ghi gì. Bật `document` lại thì tài liệu ấy **vẫn** được xử lý |
 | G10 | Tải một `.txt` có chữ lên | Dòng meta chỉ có **kích thước**, không có số trang. Không bao giờ in `0 trang`: một tệp văn bản thuần không có trang, và giáo viên sẽ tin con số ấy |
 | G11 | Mở hai tab cùng lúc, tải một tệp ở tab này | Chip trên **cả hai** tab cùng đổi mặt. Kênh SSE theo giáo viên, không theo tab |
@@ -492,38 +450,10 @@ xếp hạng nghiêm trọng"*, và cái phân biệt hai trạng thái xấu l�
 
 ---
 
-## Chặng H — dàn ý đề trước khi soạn (ADR-29) `[4–6 lượt]`
+## Chặng H — dàn ý đề trước khi soạn (ADR-29)
 
-### H1. Đề không tài liệu `[2 lượt]`
-
-**Gõ:** `soạn 5 câu Toán lớp 7 về tỉ lệ thức`, rồi `oke`.
-
-**Phải thấy:** lượt một là **một lời Kriky** chứa *"Dàn ý — 5 câu (bản 1)"*, mỗi mục có *"Công thức
-Kriky đề xuất"* (khi có) và *"Cách làm"*, kết bằng câu hỏi đồng ý; **không** khối bước, **không**
-câu hỏi nào được soạn. Lượt hai mới chạy `Tạo đề trống` → `Soạn câu hỏi`, và câu hỏi bám đúng các mục.
-
-**Sai nếu:** lượt một đã soạn câu; dàn ý có Markdown hay số node trần; F5 làm dàn ý biến mất hay đổi
-chữ.
-
-### H2. Sửa dàn ý `[1 lượt]`
-
-Trước `oke`, **gõ:** `câu 2 đổi sang bài toán thực tế`. **Phải thấy:** *"(bản 2)"*, mọi mục khác giữ
-nguyên, câu 2 đổi. Rồi `oke` soạn theo bản 2, không theo bản 1.
-
-### H3. Theo tài liệu `[2 lượt]`
-
-Đính chip một cuốn SGK, **gõ:** `soạn 5 câu chương 1 từ sách này`. **Phải thấy:** khối bước đọc mục
-lục rồi `read_section` (một hay vài lần, không quá 5), rồi dàn ý có *"Theo: Bài …"* là nhãn bài thật.
-`oke` → 5 câu. Log worker AGENT: payload `write_draft_question` có `item_knowledge`, **không** có chữ
-OCR nào (hợp đồng không còn trường `focus_*`).
-
-### H4. Thay một câu, soạn thêm `[2–4 lượt]`
-
-**Gõ:** `thay câu 2 bằng một câu khó hơn` → dàn ý *"Câu 2 · …"* một mục → `oke` → bước *"Thay một
-câu"* kết thúc bằng *"đã thay câu 2"*; câu 1, 3, 4, 5 không đổi. **Gõ:** `soạn thêm 3 câu` → dàn ý
-*"Câu 6–8"* → `oke` → đề 8 câu, câu cũ không đổi.
-
-**Sai nếu:** thay câu mà đề có lúc thiếu câu 2; câu mới không đạt mà bước vẫn báo *"đã thay"*.
+Đã dời sang bộ ca cố định (15/10/2026): đề không tài liệu `cases/02`, sửa dàn ý `cases/03`, theo
+sách `cases/04`, thay một câu `cases/05`, soạn thêm `cases/06`, đồng ý kèm điều kiện `cases/07`.
 
 ---
 
