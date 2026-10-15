@@ -80,6 +80,41 @@ class PlanStep(BaseModel):
     title: str = Field(min_length=1, max_length=120)
 
 
+class OutlineItem(BaseModel):
+    """Một mục của dàn ý đề (ADR-29): một nhóm câu cùng kiến thức, công thức và cách làm.
+
+    Kriky viết mục; BE kiểm, lưu, in nguyên văn ra chat, và khi giáo viên đồng ý thì mỗi job soạn
+    câu nhận đúng một mục. Mục là thứ giáo viên **duyệt**, nên nó phải nói được câu ấy hỏi gì và
+    giải ra sao -- *"câu 1 về hàm hằng"* thì không duyệt được gì.
+
+    Hình dạng thôi; luật nội dung -- chữ không chỉ toàn khoảng trắng, trần độ dài, công thức nằm
+    trong cặp `$`, nút nguồn thuộc phạm vi, tổng câu mỗi lần xin -- là của `be/outline.validate`
+    (plan `draft-outline`), nơi có cây để so.
+
+    Không có trường độ khó theo mục: tên ấy nằm trong mẫu tên cấm của
+    `services/agent/tests/test_no_routing_decision.py`, và độ khó vẫn đi theo cả đề (`difficulty`
+    của brief).
+
+    Attributes:
+        questions: Mục này phủ bao nhiêu câu. Hai câu chung một mục thì chung kiến thức nhưng phải
+            khác cách hỏi -- job biết mình là câu thứ mấy của mục.
+        knowledge: Kiến thức câu kiểm, viết sạch bằng lời của Kriky -- không phải chữ OCR chép lại.
+        formulas: Công thức sẽ dùng, mỗi phần tử một công thức trong cặp `$`. Rỗng được, cho môn
+            không có công thức.
+        approach: Phương án làm bài: dạng câu và các bước giải dự kiến.
+        source_nodes: `ordinal` các nút trong cây của tài liệu mà mục dựa vào. Rỗng khi đề không có
+            tài liệu.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    questions: int = Field(ge=1, le=10)
+    knowledge: str = Field(min_length=1)
+    formulas: tuple[str, ...] = ()
+    approach: str = Field(min_length=1)
+    source_nodes: tuple[int, ...] = ()
+
+
 class TurnRecord(BaseModel):
     """Một việc đã xảy ra trong cuộc hội thoại này.
 
@@ -91,7 +126,9 @@ class TurnRecord(BaseModel):
         kind: Ai hay cái gì tạo ra turn này. `plan` là danh sách việc model vừa nêu ở cuối pha 1
             (ADR-25); nó được lưu như một turn vì `bước k/n` phải dựng lại được sau một lần F5, và
             một con số không có chỗ nào lưu là một con số chỉ đúng khi không ai tải lại trang.
-        text: Lời, cho turn `teacher` và `assistant`.
+            `outline` là một dàn ý đề Kriky vừa đề xuất (ADR-29): `text` là chữ BE dựng từ các mục,
+            `tool_result` chở chính các mục -- lượt sau model đọc mục, không đọc lại văn xuôi.
+        text: Lời, cho turn `teacher` và `assistant`; chữ dàn ý cho turn `outline`.
         tool_name: Tool nào, cho `tool_call` và `tool_result`.
         tool_args: Tham số mà BE đã thực thi với.
         tool_result: Thứ tool trả về. BE đã tóm tắt sẵn: điểm của cả một lớp vừa không nhét nổi vào
@@ -100,7 +137,7 @@ class TurnRecord(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["teacher", "assistant", "tool_call", "tool_result", "plan"]
+    kind: Literal["teacher", "assistant", "tool_call", "tool_result", "plan", "outline"]
     text: str = ""
     tool_name: str = ""
     tool_args: dict[str, object] = Field(default_factory=dict)
@@ -171,7 +208,7 @@ class NextStepRequested(BaseModel):
 class NextStepCompleted(BaseModel):
     """Thứ AGENT đề nghị làm tiếp.
 
-    Đúng một trong ba hình dạng, chọn bằng `kind`:
+    Đúng một trong năm hình dạng, chọn bằng `kind`:
 
     - `say`: trả lời bằng lời; `text` chở lời đó và lượt kết thúc.
     - `call_tool`: BE nên chạy `tool_name` với `tool_args`, rồi hỏi lại.
@@ -180,6 +217,8 @@ class NextStepCompleted(BaseModel):
       giữ (ADR-23, hậu ký `unbiased-model-text` T3). Lối "Khác" -- giáo viên tự ghi -- do FE vẽ.
     - `plan`: đã đủ thông tin để làm; `steps` là các bước ghi, theo thứ tự, và `text` là câu nói
       trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
+    - `outline`: một dàn ý đề cho giáo viên duyệt (ADR-29); `outline` là các mục và `text` là câu
+      mở đầu. Lượt kết thúc ở đây: BE lưu dàn ý, in nó ra chat, và chỉ soạn ở một lượt **sau**.
 
     `ask_clarify` là cổng đầu vào của ADR-05, và luật của nó -- kể cả việc một câu hỏi làm rõ được
     phép và không được phép hỏi những gì -- nằm trong chính decision record đó, do BE thi hành. Chép
@@ -191,12 +230,13 @@ class NextStepCompleted(BaseModel):
 
     schema_version: int = SCHEMA_VERSION
     request_id: str
-    kind: Literal["say", "call_tool", "ask_clarify", "plan"]
+    kind: Literal["say", "call_tool", "ask_clarify", "plan", "outline"]
     text: str = ""
     tool_name: str = ""
     tool_args: dict[str, object] = Field(default_factory=dict)
     choices: tuple[str, ...] = ()
     steps: tuple[PlanStep, ...] = ()
+    outline: tuple[OutlineItem, ...] = ()
     # Lời gọi tốn bao nhiêu, do AGENT điền từ báo cáo usage của chính nhà cung
     # cấp, **sau khi** model đã trả lời. Model không thể biết con số này, nên
     # bất cứ thứ gì nó viết vào đây đều bị ghi đè -- đúng cách `request_id`
@@ -218,7 +258,8 @@ class NextStepCompleted(BaseModel):
         Raises:
             ValueError: Khi `kind` là `call_tool` mà `tool_name` rỗng, khi `plan` mà không có bước
                 nào, hoặc khi một `kind` khác lại chở `steps` -- cái cuối là để BE không phải nhớ
-                bỏ qua chúng ở mọi nhánh, vì một luật phải nhớ là một luật sẽ quên.
+                bỏ qua chúng ở mọi nhánh, vì một luật phải nhớ là một luật sẽ quên. `outline` theo
+                đúng luật ấy: `kind='outline'` phải có mục, kind khác không được chở mục.
         """
         if self.kind == "call_tool" and not self.tool_name.strip():
             raise ValueError("kind='call_tool' needs a tool_name")
@@ -226,6 +267,10 @@ class NextStepCompleted(BaseModel):
             raise ValueError("kind='plan' needs at least one step")
         if self.kind != "plan" and self.steps:
             raise ValueError("only kind='plan' may carry steps")
+        if self.kind == "outline" and not self.outline:
+            raise ValueError("kind='outline' needs at least one item")
+        if self.kind != "outline" and self.outline:
+            raise ValueError("only kind='outline' may carry outline items")
         return self
 
 

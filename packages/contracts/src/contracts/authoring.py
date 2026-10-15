@@ -10,7 +10,7 @@ Mọi payload đều tự chứa. Không field nào ở đây là một identifi
 bởi AGENT không giữ credential database.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = 1
 
@@ -111,12 +111,23 @@ class DraftQuestionRequested(BaseModel):
             sẽ làm mất hẳn một câu đã soạn xong. Chở một con số thì mất một tiếng chuông chỉ là
             mất một lần cập nhật màn hình, và lần quan sát sau vẫn đưa đủ câu vào đề.
         focus_title: Mục kiến thức câu này được gán (`draft-from-document`), đường dẫn tiêu đề trong
-            mục lục -- *"Chương I › Bài 2 › 1. Tập hợp N và N*"*. Rỗng khi đề không có tài liệu:
-            soạn như cũ, chỉ theo `topic_scope`.
-        focus_text: Chữ của các đoạn thuộc mục ấy, có trần. Là **kiến thức** để viết câu mới, không
-            phải kho câu để chép (hậu ký ADR-27).
-        other_foci: Tiêu đề mục của các câu khác cùng đề -- những gì câu này **không** được hỏi
-            sang, vì các job chạy song song và không thấy nhau.
+            mục lục -- *"Chương I › Bài 2 › 1. Tập hợp N và N*"*. Rỗng khi đề không có tài liệu.
+            Thành code chết khi `drafting.fire` chuyển sang dàn ý (task 10, `draft-outline`).
+        focus_text: Chữ của các đoạn thuộc mục ấy, có trần. Cũng thành code chết ở task 10
+            (`draft-outline`): chữ tài liệu thô thôi tới job (ADR-29).
+        other_foci: Tiêu đề mục của các câu khác cùng đề. Thành code chết ở task 10
+            (`draft-outline`), nhường cho `other_items`.
+        item_knowledge: Kiến thức của mục dàn ý câu này thuộc (ADR-29) -- Kriky viết, giáo viên đã
+            thấy nguyên văn trước khi duyệt. Rỗng chỉ ở payload cũ hơn ADR-29.
+        item_formulas: Công thức của mục, mỗi phần tử một công thức trong cặp `$`.
+        item_approach: Phương án làm bài của mục: dạng câu và các bước giải.
+        item_part: Câu này là câu thứ mấy của mục, đếm từ một; không vượt `item_parts`.
+        item_parts: Mục phủ bao nhiêu câu. Hai câu chung một mục thì chung kiến thức nhưng khác cách
+            hỏi, và đây là cách duy nhất hai job song song biết điều đó.
+        other_items: Kiến thức của các mục khác cùng đề -- những gì câu này **không** được hỏi sang.
+
+    Khi ADR-29 thi hành xong (plan `draft-outline`), không trường nào ở đây còn chở chữ tài liệu
+    thô: tài liệu tới Kriky, Kriky tới dàn ý, dàn ý tới job.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -134,6 +145,26 @@ class DraftQuestionRequested(BaseModel):
     focus_title: str = ""
     focus_text: str = ""
     other_foci: tuple[str, ...] = ()
+    item_knowledge: str = ""
+    item_formulas: tuple[str, ...] = ()
+    item_approach: str = ""
+    item_part: int = Field(default=1, ge=1)
+    item_parts: int = Field(default=1, ge=1, le=10)
+    other_items: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _a_part_fits_its_item(self) -> "DraftQuestionRequested":
+        """Từ chối *"câu 3 của một mục 2 câu"*: hai job sẽ cùng tin mình là câu cuối của mục.
+
+        Returns:
+            Chính nó.
+
+        Raises:
+            ValueError: Khi `item_part` lớn hơn `item_parts`.
+        """
+        if self.item_part > self.item_parts:
+            raise ValueError("item_part cannot exceed item_parts")
+        return self
 
 
 class DraftQuestionCompleted(BaseModel):
