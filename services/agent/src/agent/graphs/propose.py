@@ -934,6 +934,11 @@ def _right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextS
     N, một câu, `for=replace`. Tương tự *"soạn thêm"* trong đoạn chat đã có đề mà dàn ý là
     `for=new` thì việc là `for=more`.
 
+    Lời nói rõ việc là câu **gần nhất** nói rõ một việc, kể từ plan gần nhất -- không chỉ câu
+    cuối: thử tay sau review đợt 6, *"soạn thêm 1 câu về số La Mã"* rồi hai lần bấm lựa chọn Kriky
+    hỏi lại, và dàn ý ra `for=new` vì câu cuối là tên một bài. Câu nhắc *"đề mới"* thì dừng dò:
+    việc là đề mới.
+
     Args:
         step: Dàn ý model nêu.
         request: Lượt đang hỏi.
@@ -943,8 +948,14 @@ def _right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextS
     """
     if step.kind != "outline":
         return step
-    said = next((turn.text for turn in reversed(request.history) if turn.kind == "teacher"), "")
-    said = unicodedata.normalize("NFC", said)
+    said = ""
+    for turn in reversed(_since_plan(request)):
+        if turn.kind != "teacher":
+            continue
+        text = unicodedata.normalize("NFC", turn.text)
+        if _ANOTHER_PAPER.search(text) or _REPLACES.search(text) or _ADDS.search(text):
+            said = text
+            break
     purpose = str(step.tool_args.get("for") or "new")
     has_draft = any(
         turn.kind == "tool_result"

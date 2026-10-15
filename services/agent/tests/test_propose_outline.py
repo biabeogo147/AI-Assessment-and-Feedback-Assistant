@@ -410,6 +410,22 @@ def test_without_a_draft_in_the_thread_the_purpose_stays(said: str) -> None:
     assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
 
 
+def test_drafting_more_is_heard_across_the_questions_kriky_asked_back() -> None:
+    """Thử tay sau review đợt 6: *"soạn thêm 1 câu"*, rồi hai lần bấm lựa chọn -- câu cuối là tên
+    một bài, việc vẫn là soạn thêm."""
+    asked = NextStepRequested(
+        request_id="r1",
+        history=(
+            _DRAFTED,
+            TurnRecord(kind="teacher", text="soạn thêm 1 câu về cách ghi số La Mã"),
+            TurnRecord(kind="assistant", text="Khía cạnh nào?"),
+            TurnRecord(kind="teacher", text="CÁCH GHI SỐ TỰ NHIÊN (tr. 9–13)"),
+        ),
+    )
+
+    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
+
+
 def test_drafting_another_paper_on_a_drafted_thread_stays_new() -> None:
     """Review đợt 6: *"soạn thêm một đề mới"* là đề khác, không phải câu thêm vào đề cũ."""
     asked = NextStepRequested(
