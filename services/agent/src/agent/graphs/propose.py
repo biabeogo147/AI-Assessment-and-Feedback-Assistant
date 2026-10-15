@@ -294,7 +294,29 @@ def _read_before_outline(step: NextStepCompleted, request: NextStepRequested) ->
     if step.kind != "outline" or not _book_in_view(request):
         return step
     since = _since_plan(request)
-    if any(turn.kind == "tool_result" and turn.tool_name == "read_section" for turn in since):
+    reads = [turn for turn in since if turn.tool_name == "read_section"]
+    results = [turn for turn in reads if turn.kind == "tool_result"]
+    if results:
+        # Đọc dở (`more`): thử tay 15/10/2026 đọc phần 1/5 của chương rồi viết dàn ý, nên dàn ý chỉ
+        # phủ đầu chương. Còn phần chưa đọc thì đọc phần kế, cùng phạm vi, trước khi nêu dàn ý.
+        last = results[-1].tool_result
+        calls = [turn for turn in reads if turn.kind == "tool_call"]
+        if last.get("found") is True and last.get("more") is True and calls:
+            asked = dict(calls[-1].tool_args)
+            next_part = int(last.get("part") or 1) + 1
+            logger.info(
+                "model outlined after part %d of %s -- reading on", next_part - 1, last.get("parts")
+            )
+            return NextStepCompleted(
+                request_id=step.request_id,
+                kind="call_tool",
+                tool_name="read_section",
+                tool_args={
+                    **{key: str(value) for key, value in asked.items()},
+                    "part": str(next_part),
+                },
+                model_tokens=step.model_tokens,
+            )
         return step
     nodes = sorted({node for item in step.outline for node in item.source_nodes})
     attached = request.attached_document
@@ -1049,6 +1071,17 @@ class _Proposal(BaseModel):
             "say và ask_clarify."
         ),
     )
+    # ADR-29 (`draft-outline`): dàn ý đề, chỉ với kind outline. Đứng **ngay sau `text`**, không ở
+    # cuối: thử tay và bench run-98/run-100 thấy model chọn `outline` rồi để trống mục -- ở cuối,
+    # sau `choices`, `tool_name`, `tool_args`, `steps`, nó đã "nói xong" ở `text` trước khi tới
+    # mục. Model sinh JSON từ trái sang phải, cùng lý do `known` đứng đầu (`kriky-skill-routing`).
+    outline: tuple[_OutlineItem, ...] = Field(
+        default=(),
+        description=(
+            "Chỉ với outline: các mục dàn ý, theo thứ tự câu. Tổng questions của mọi mục ĐÚNG bằng "
+            "số câu giáo viên xin; thay câu thì đúng một mục một câu. Các kind khác để trống."
+        ),
+    )
     # `unbiased-model-text` T3 (người dùng chốt 12/10/2026): hỏi lại thì có ít nhất 3 lựa chọn do
     # model đề xuất, FE vẽ thêm lối "Khác" để giáo viên tự ghi. Câu hỏi về một dòng -- lớp, tài
     # liệu, mục -- thì BE chỉ giữ chữ khớp đúng một tên nó đã đọc (`teacher_chat._choices`, hậu ký
@@ -1065,15 +1098,6 @@ class _Proposal(BaseModel):
     tool_name: str = ""
     tool_args: tuple[_Argument, ...] = ()
     steps: tuple[_Step, ...] = ()
-    # ADR-29 (`draft-outline`): dàn ý đề, chỉ với kind outline. Đứng sau `steps`: `known` vẫn là
-    # field đầu tiên, và thứ tự ấy là thứ đã đo (`kriky-skill-routing`).
-    outline: tuple[_OutlineItem, ...] = Field(
-        default=(),
-        description=(
-            "Chỉ với outline: các mục dàn ý, theo thứ tự câu. Tổng questions của mọi mục ĐÚNG bằng "
-            "số câu giáo viên xin; thay câu thì đúng một mục một câu. Các kind khác để trống."
-        ),
-    )
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
         """Biến câu trả lời của model thành message BE đọc.

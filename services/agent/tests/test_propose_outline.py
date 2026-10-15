@@ -379,3 +379,28 @@ def test_without_a_draft_in_the_thread_the_purpose_stays(said: str) -> None:
     asked = NextStepRequested(request_id="r1", history=(TurnRecord(kind="teacher", text=said),))
 
     assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
+
+
+def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
+    """Thử tay 15/10/2026 (`draft-outline`): đọc phần 1/5 rồi viết dàn ý -- dàn ý chỉ phủ đầu
+    chương."""
+    outline = NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+    )
+    asked = {"document_id": "book", "nodes": "0", "questions": "5", "part": "1"}
+    read = TurnRecord(
+        kind="tool_result",
+        tool_name="read_section",
+        tool_result={"found": True, "part": 1, "parts": 5, "more": True},
+    )
+    call = TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked)
+
+    step = _read_before_outline(
+        outline, _with_book(TurnRecord(kind="teacher", text="x"), call, read)
+    )
+
+    assert (step.kind, step.tool_name) == ("call_tool", "read_section")
+    assert step.tool_args == {**asked, "part": "2"}

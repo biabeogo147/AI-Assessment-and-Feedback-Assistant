@@ -2909,3 +2909,38 @@ async def test_replacing_in_a_bookless_draft_needs_no_lesson_even_with_a_chip(st
 
     assert "Câu 2 ·" in shown.json()["text"]
     bind_reader(None)
+
+
+@pytest.mark.asyncio
+async def test_more_questions_planned_one_step_each_become_one_step(stack) -> None:
+    """Thử tay 15/10/2026 (`draft-outline`): soạn thêm 2 câu ra hai bước `start_drafting` cho cùng
+    một đề -- một lần soạn theo một dàn ý, nên gộp thành một bước."""
+    _, maker, _ = stack
+    two = (
+        PlanStep(
+            tool_name="start_drafting",
+            args={"assessment_id": "p1", "question_count": "1"},
+            title="Soạn câu 6",
+        ),
+        PlanStep(
+            tool_name="start_drafting",
+            args={"assessment_id": "p1", "question_count": "1"},
+            title="Soạn câu 7",
+        ),
+    )
+
+    async def shown(*_args: object) -> dict:
+        return {"version": 2, "for": "more", "total": 2, "assessment_id": "p1", "items": []}
+
+    async with maker() as session:
+        teacher_chat_shown = teacher_chat._shown_outline
+        teacher_chat._shown_outline = shown
+        try:
+            guarded = await teacher_chat.guard_drafting(session, "t", 5, two)
+        finally:
+            teacher_chat._shown_outline = teacher_chat_shown
+
+    steps, _ = guarded
+    assert [(one.tool_name, one.args["question_count"]) for one in steps] == [
+        ("start_drafting", "2")
+    ]

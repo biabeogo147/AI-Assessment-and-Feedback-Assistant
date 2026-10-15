@@ -234,6 +234,9 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 6 — tài liệu và thử đầu-cuối**
 
+- [ ] 16b. **Xoá toàn bộ khối `[CODE CHẾT]`** (người dùng dặn 15/10/2026: thêm vào pha cuối, trước
+      khi cập nhật tài liệu) -- comment code chết trong `services/`, `packages/`, `tools/`, cả file chết
+      (`coverage.py`, `test_coverage.py`). Rồi rà lại tài liệu nhắc tới chúng (task 17).
 - [x] 17. ADR-29 `đã chốt` cùng bảng nơi thi hành; `AGENTS.md`; `teacher-surface.md`; kịch bản thử
       tay; `backlog.md`.
 - [ ] 18. Thử trình duyệt **một đợt** (người dùng dặn 15/10/2026: plan không đóng khi chưa thử tay;

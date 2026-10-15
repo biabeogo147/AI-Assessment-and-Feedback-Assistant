@@ -481,6 +481,20 @@ async def guard_drafting(
     drafting = [one for one in steps if one.tool_name in _DRAFTING_TOOLS]
     if not drafting:
         return steps, None
+    targets = {str(one.args.get("assessment_id") or "").strip() for one in drafting}
+    only_start = all(one.tool_name == "start_drafting" for one in drafting)
+    opening = any(one.tool_name == "create_draft" for one in steps)
+    if len(drafting) > 1 and only_start and len(targets) == 1 and not opening:
+        # Thử tay 15/10/2026: dàn ý soạn thêm 2 câu ra plan hai bước `start_drafting`, mỗi câu
+        # một bước. Cùng một đề thì đó là **một** lần soạn theo một dàn ý: gộp thành bước đầu,
+        # số câu để BE điền từ dàn ý (`draft-outline`).
+        first = drafting[0].model_copy(update={"args": {**drafting[0].args, "question_count": ""}})
+        steps = tuple(
+            first if one is drafting[0] else one
+            for one in steps
+            if one.tool_name != "start_drafting" or one is drafting[0]
+        )
+        drafting = [first]
     if len(drafting) > 1:
         # Một dàn ý giáo viên duyệt là **một** lần soạn: hai bước soạn trong một plan là hai đề
         # (hay hai lượt) từ một lần duyệt (review đợt 3).
