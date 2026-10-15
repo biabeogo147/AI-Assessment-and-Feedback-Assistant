@@ -404,6 +404,12 @@ class _NoOutline(_AskAgain):
     """Model chọn `outline` mà không nêu mục nào, hay một mục không đọc được (`draft-outline`)."""
 
 
+class _UncountedOutline(_Flawed):
+    """Dàn ý có tổng câu khác số câu model vừa ghi trong `known`, hay dàn ý thay câu không phải đúng
+    một mục một câu (`draft-outline`). Đo ở bench run-98: *"6 câu"* ra dàn ý 4 mục × 2 câu; *"thay
+    câu 2"* ra dàn ý nêu lại cả đề."""
+
+
 class _FewChoices(_Flawed):
     """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (`unbiased-model-text` T3: ít nhất
     3)."""
@@ -782,6 +788,34 @@ def _garbled(steps: tuple[PlanStep, ...]) -> str:
     return ""
 
 
+_COUNT_IN_KNOWN = re.compile(r"question_count\s*=\s*(\d+)")
+
+
+def _miscounted(step: NextStepCompleted, known: str) -> str:
+    """Vì sao số câu của một dàn ý không khớp việc được nhờ; rỗng khi khớp. Hàm thuần.
+
+    Đối chiếu với chính thứ model đã ghi: `question_count=N` trong `known` (quy trình `soan-de` bắt
+    ghi nó). Không ghi thì không đối chiếu -- BE vẫn chặn quá mười câu. Thay câu thì đúng một mục
+    một câu, vì dàn ý ấy chỉ dành cho đúng câu bị thay.
+
+    Args:
+        step: Dàn ý model nêu.
+        known: Ghi chú `known` của lần trả lời ấy.
+
+    Returns:
+        Lý do, hoặc chuỗi rỗng.
+    """
+    total = sum(item.questions for item in step.outline)
+    if str(step.tool_args.get("for") or "") == "replace":
+        if len(step.outline) != 1 or total != 1:
+            return f"replace outline has {len(step.outline)} item(s), {total} question(s)"
+        return ""
+    found = _COUNT_IN_KNOWN.search(known)
+    if found and int(found.group(1)) != total:
+        return f"outline totals {total}, known says {found.group(1)}"
+    return ""
+
+
 def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
     """Bước đầu tiên thiếu một tham số bắt buộc, gọi tên ra; rỗng khi không bước nào thiếu.
 
@@ -982,7 +1016,10 @@ class _Proposal(BaseModel):
     # field đầu tiên, và thứ tự ấy là thứ đã đo (`kriky-skill-routing`).
     outline: tuple[_OutlineItem, ...] = Field(
         default=(),
-        description="Chỉ với outline: các mục dàn ý, theo thứ tự câu. Các kind khác để trống.",
+        description=(
+            "Chỉ với outline: các mục dàn ý, theo thứ tự câu. Tổng questions của mọi mục ĐÚNG bằng "
+            "số câu giáo viên xin; thay câu thì đúng một mục một câu. Các kind khác để trống."
+        ),
     )
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
@@ -1301,6 +1338,10 @@ async def _choose(state: ProposeState) -> dict:
         lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
         if lacking:
             raise _IncompletePlan(lacking, step)
+    if step.kind == "outline":
+        miscounted = _miscounted(step, proposal.known)
+        if miscounted:
+            raise _UncountedOutline(miscounted, step)
     if step.kind == "ask_clarify":
         # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`_answers`) -- bấm
         # chúng là gửi đi một thứ không trả lời gì.

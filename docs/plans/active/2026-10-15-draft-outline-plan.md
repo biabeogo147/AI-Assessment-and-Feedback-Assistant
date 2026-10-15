@@ -220,7 +220,7 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
       `tool_args` `for` (`new`/`more`/`replace`) và `question` khi thay câu -- thiếu chúng thì mọi dàn
       ý là `for=new` và cổng chặn soạn thêm, thay câu (review đợt 3).
 - [x] 12. Prompt: `_CORE`, `soan-de.md`, `_BOOK_PROCEDURE`, router `state_of`.
-- [ ] 13. Bench offline (ca `plan` → `outline`, ca duyệt/sửa/plan khi chưa có dàn ý, ca routing);
+- [x] 13. Bench offline (ca `plan` → `outline`, ca duyệt/sửa/plan khi chưa có dàn ý, ca routing);
       chạy thật một lần **khi người dùng cho phép**.
 
 **Đợt 5 — sửa sau khi soạn**
@@ -234,7 +234,7 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 6 — tài liệu và thử đầu-cuối**
 
-- [ ] 17. ADR-29 `đã chốt` cùng bảng nơi thi hành; `AGENTS.md`; `teacher-surface.md`; kịch bản thử
+- [x] 17. ADR-29 `đã chốt` cùng bảng nơi thi hành; `AGENTS.md`; `teacher-surface.md`; kịch bản thử
       tay; `backlog.md`.
 - [ ] 18. Thử trình duyệt **một đợt** (người dùng dặn 15/10/2026: plan không đóng khi chưa thử tay;
       gpt-4o-mini, **xin phép trước**): dàn ý có công thức → sửa → duyệt → câu
@@ -331,3 +331,18 @@ tráo một câu hai lần; ô thay luôn nằm trong `question_count`; lời t�
 Ghi nhận, chưa sửa: mục dàn ý của câu đã bị thay vẫn nằm trong `brief.outline` và vẫn đi vào
 `other_items` (có trần); thẻ kết quả của bước thay câu dùng đầu đề *"Đã tạo đề"* của nấc
 `drafted`.
+
+**Đo trên model thật một lần, sau đợt 5** (người dùng chọn gộp; gpt-4o-mini, 6 lần/ca):
+- `skill_bench` (`data/results/run-99`): `soan-de` và `lop-va-ket-qua` recall 100% ở mọi ngưỡng,
+  kể cả hai ca *"oke"* và *"câu 3 đổi"*; chi phí ~0,0015 USD.
+- `propose_bench` (`data/results/run-98`, nhãn `dan-y`): **152/204**, hỏi lại model 38 lần. So với
+  `run-95` trước plan (127/132, ca đủ mục 6/6), ca đủ mục **tụt**: `du-hinh-khong-gian-11` 0/6 và
+  `du-so-nguyen-to-6` 0/6 (model hỏi xác nhận dù đủ bốn mục), `du-phan-so-lop-la` 3/6,
+  `du-vecto-10` 3/6 (tổng câu lệch số xin, hay dàn ý hỏng hai lần thành câu trung tính).
+  `tai-lieu-doc-xong` 0/6 (dàn ý 2 mục cho 6 câu, hay hỏng); `dan-y-thay-cau` 2/6 (nêu lại cả đề);
+  `dan-y-soan-them` 3/6; `dan-y-duyet-khong-gian` 1/6 (`topic_scope` chép từ dàn ý thay lời giáo
+  viên). Giữ vững: định tuyến sách, đọc mục lục, hỏi khi thiếu mục, ca duyệt dàn ý khác 6/6.
+- Sửa offline sau lần đo: `_miscounted` -- tổng câu của dàn ý phải bằng `question_count` model ghi
+  trong `known`, dàn ý thay câu đúng một mục một câu; lệch thì hỏi lại model một lần
+  (`_UncountedOutline`); mô tả trường `outline` nói rõ luật ấy. **Chưa đo lại** -- chờ người dùng
+  cho phép. Kiểu trượt *"hỏi xác nhận dù đủ mục"* chưa có cách sửa bằng code.

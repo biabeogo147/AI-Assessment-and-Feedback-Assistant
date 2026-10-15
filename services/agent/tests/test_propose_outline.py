@@ -16,6 +16,7 @@ from agent.graphs.propose import (
     _Argument,
     _compose,
     _library_first,
+    _miscounted,
     _OutlineItem,
     _Proposal,
     _read_before_outline,
@@ -273,3 +274,56 @@ def test_the_core_prompt_carries_the_outline_rules() -> None:
 @pytest.mark.parametrize("said", ["oke", "OK luôn", "được", "Đồng ý nhé", "chốt"])
 def test_the_mock_hears_an_agreement(said: str) -> None:
     assert _AGREES.search(said) is not None
+
+
+def _counted(*questions: int, purpose: str = "new") -> NextStepCompleted:
+    return NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=tuple(OutlineItem(questions=n, knowledge="A", approach="B") for n in questions),
+        tool_args={"for": purpose},
+    )
+
+
+@pytest.mark.parametrize(
+    ("step", "known", "wrong"),
+    [
+        (_counted(2, 2, 2), "question_count=6 «6 câu»", False),
+        (_counted(2, 2, 2, 2), "question_count=6 «6 câu»", True),
+        (_counted(3), "topic_scope=x", False),
+        (_counted(1, purpose="replace"), "question_count=5 «5 câu»", False),
+        (_counted(1, 1, purpose="replace"), "", True),
+        (_counted(2, purpose="replace"), "", True),
+    ],
+)
+def test_an_outline_must_add_up_to_what_was_asked(
+    step: NextStepCompleted, known: str, wrong: bool
+) -> None:
+    """Bench run-98 (`draft-outline`): *"6 câu"* ra 4 mục × 2 câu; *"thay câu 2"* ra cả đề."""
+    assert bool(_miscounted(step, known)) is wrong
+
+
+@pytest.mark.asyncio
+async def test_a_miscounted_outline_is_asked_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    eight = _Proposal(
+        known="question_count=6 «6 câu»",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(_item(questions=4), _item(questions=4)),
+    )
+    six = _Proposal(
+        known="question_count=6 «6 câu»",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(_item(questions=3), _item(questions=3)),
+    )
+    model = Scripted([eight, six])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked())
+
+    assert sum(item.questions for item in step.outline) == 6
+    assert len(model.prompts) == 2
