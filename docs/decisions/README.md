@@ -35,8 +35,9 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [24](adr-24-mot-giao-vien-nhieu-doan-chat.md) | Một giáo viên nhiều đoạn chat; biên bản rơi vào đoạn đã tạo ra đề | đã chốt, đang thi hành |
 | [25](adr-25-hai-pha-mot-luot-chat.md) | Một lượt chat có hai pha: lên plan, rồi thực hiện plan | đang thi hành |
 | [26](adr-26-chu-sai-cu-phap-di-toi-giao-vien.md) | Chữ sai cú pháp đi tới giáo viên, và giáo viên nhìn thấy chỗ sai | đã chốt |
-| [27](adr-27-tai-lieu-di-vao-ngu-canh-ra-de.md) | Tài liệu đi vào ngữ cảnh ra đề để cung cấp kiến thức; mỗi câu một mục (hậu ký 12/10/2026: lọc bài tập chỉ còn cho pha 2) | đã chốt, chưa thi hành |
+| [27](adr-27-tai-lieu-di-vao-ngu-canh-ra-de.md) | Tài liệu đi vào ngữ cảnh ra đề để cung cấp kiến thức (hậu ký 12/10/2026: lọc bài tập chỉ còn cho pha 2; hậu ký 15/10/2026: *mỗi câu một mục* nhường cho ADR-29) | đã chốt, chưa thi hành |
 | [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đang thi hành (đường ghi; đường đọc chưa có) |
+| [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; BE in dàn ý, job chỉ nhận mục của nó, không chữ tài liệu thô | đã chốt, chưa thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.

@@ -53,7 +53,8 @@ lại; sympy lùi thành **3d**.
 | 4a | [`2026-10-12-kriky-skill-routing-plan.md`](../completed/2026-10-12-kriky-skill-routing-plan.md) — Jev **trong AGENT** chọn skill cho Kriky; prompt gốc thành lõi + ba skill quy trình, `known` trước `kind` — **đóng 12/10/2026** | recall của skill `soan-de` và `lop-va-ket-qua` bằng 100% trên bộ nhãn, và Kriky không kém hôm nay trên trình duyệt | **có** |
 | 4b | [`2026-10-12-draft-from-document-plan.md`](../completed/2026-10-12-draft-from-document-plan.md) — **đóng 12/10/2026** — soạn đề theo tài liệu: chip đi kèm tin nhắn, tool đọc cây, `ask_clarify` bằng tên chương/bài, mỗi câu một ô kiến thức | mười câu của một đề đứng trên mười ô kiến thức khác nhau của tài liệu | **có** |
 | 4c | [`2026-10-12-unbiased-model-text-plan.md`](../completed/2026-10-12-unbiased-model-text-plan.md) — **đóng 13/10/2026** — text model đọc không bám một chương Toán (Kriky lẫn document agent); Kriky không hỏi thừa khi đủ bốn mục; câu hỏi lại có ít nhất ba lựa chọn, lối "Khác" là ô ghi rõ; soạn đề theo tài liệu không chip đọc mục lục trước khi mở đề | `propose_bench` cả bộ không tụt so với baseline (127/132), không text model đọc gọi tên chủ đề Toán nào; cây Lớp 6 tập 1 không tụt | **có** |
-| 5 | Nội dung vào prompt — *chưa viết*. Từ 12/10/2026 4b nhận ba tool đọc và nội dung vào prompt **soạn đề**; plan 5 còn lại: Kriky trả lời câu hỏi về nội dung tài liệu trong chat (`get_chunk`), và quyết định riêng cho pha 2 (hậu ký ADR-27) | ~~không payload nào rời BE mang chunk nhãn bài tập~~ (rút 12/10/2026); cổng viết khi tới lượt | có |
+| 5a | [`2026-10-15-draft-outline-plan.md`](2026-10-15-draft-outline-plan.md) — **dàn ý đề** (ADR-29): Kriky đọc phạm vi bằng `read_section`, đề xuất dàn ý (kiến thức, công thức, cách làm), BE in ra chat, giáo viên duyệt bằng chat; job chỉ nhận mục dàn ý, không chữ tài liệu thô | một đề 5 câu theo chương đi qua dàn ý → sửa → duyệt → 5 câu bám dàn ý; không payload job nào có chữ chunk | **có** |
+| 5 | Nội dung vào prompt — *chưa viết*. Từ 12/10/2026 4b nhận ba tool đọc và nội dung vào prompt **soạn đề**; từ 15/10/2026 phần soạn đề chuyển sang 5a (chữ thô thôi tới job, Kriky đọc bằng `read_section`); plan 5 còn lại: Kriky trả lời câu hỏi về nội dung tài liệu trong chat (dùng lại `read_section`), và quyết định riêng cho pha 2 (hậu ký ADR-27) | ~~không payload nào rời BE mang chunk nhãn bài tập~~ (rút 12/10/2026); cổng viết khi tới lượt | có |
 
 Hai plan sau **cố ý chưa có file** (3d, 5): `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading,
 và thiết kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
@@ -363,7 +364,10 @@ HTTP ghi một hàng).
 - [x] **Plan 4c — text model đọc không bám một chương Toán** (thêm 12/10/2026, sau 4b). Đóng
       13/10/2026: `propose_bench` 127/132, năm ca thử tay × 24 118/120; việc treo ở `backlog.md`,
       mục *Còn treo khi đóng plan 4c*
-- [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**)
+- [ ] **Plan 5a — dàn ý đề** (thêm 15/10/2026, tách từ plan 5; ADR-29):
+      `2026-10-15-draft-outline-plan.md`
+- [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**) -- phần còn lại sau 5a: Kriky trả lời câu hỏi
+      tự do về tài liệu (dùng lại `read_section` của 5a), quyết định pha 2
 
 ## Validation Checks
 

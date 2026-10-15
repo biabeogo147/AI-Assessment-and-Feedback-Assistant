@@ -6,6 +6,8 @@
   `services/document`. Luật không đổi ý; chỗ nó được thi hành thì đổi.
 - **Sửa:** 2026-10-12 — **rút luật lọc bài tập**; *"nhiều cách chia"* hoãn. Xem *Hậu ký 12/10/2026*
   ở cuối. Phần trên giữ nguyên làm lịch sử.
+- **Sửa:** 2026-10-15 — *mỗi câu một mục* và phép rải theo độ dài nhường cho ADR-29 (dàn ý đề). Xem
+  *Hậu ký 15/10/2026*.
 
 ## Bối cảnh
 
@@ -180,3 +182,18 @@ không nhận tài liệu -- không payload pha 2 nào có trường nội dung 
 đọc mục lục của nó -- không thì `nodes` là số model bịa, BE nhận, và đề soạn trên mục sai mà không ai
 biết. Thi hành ở AGENT: `propose._toc_first` (plan tạo đề theo tài liệu chưa đọc mục lục → đọc trước)
 và `_picked_book_first` (giáo viên chọn một tài liệu trong danh sách → đọc mục lục của nó).
+
+## Hậu ký 15/10/2026
+
+**Khi ADR-29 thi hành (plan `draft-outline`), luật *mỗi câu một mục* và phép rải câu theo độ dài nội
+dung thôi áp dụng, và chữ tài liệu thô thôi đi vào job soạn câu.** Tới lúc ấy, code vẫn chạy theo hậu
+ký 12/10. [ADR-29](adr-29-dan-y-de-truoc-khi-soan.md) thay chúng bằng một **dàn ý** Kriky đề
+xuất từ chính tài liệu, BE in ra chat, giáo viên duyệt hay sửa bằng chat; job chỉ nhận mục dàn ý của
+nó. Đo trên SGK Lớp 6 tập 1 ngày 14/10/2026 là lý do: 7–12% chữ OCR là rác hay công thức đọc lệch mà
+job đọc nguyên, và phép rải theo độ dài -- hậu ký 12/10 đã tự gọi là một lựa chọn sư phạm ngầm -- nay
+có chỗ để hiện ra và để sửa.
+
+Tài liệu vẫn **cung cấp kiến thức và giới hạn phạm vi**, đúng như ADR-04; chỉ đường đi đổi: tài liệu
+tới Kriky, Kriky tới dàn ý, dàn ý tới job. Luật *hỏi bằng tên chương và bài*, *phạm vi đóng băng* và
+*pha 2 không nhận tài liệu* giữ nguyên. Mục *"nhiều cách chia"* đang hoãn ở `backlog.md` được dàn ý
+trả lời: giáo viên không chọn trong nhiều cách chia, họ sửa thẳng một cách chia hiện rõ.
