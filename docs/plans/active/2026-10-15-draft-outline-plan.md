@@ -92,17 +92,21 @@ nghĩa là đồng ý -- đọc nhầm thì sửa được bằng thay câu hay 
 **reason:** `read_section(document_id, nodes, questions, part)`: BE gộp các đơn vị của phạm vi thành
 `P = min(questions, số đơn vị)` phần **liên tiếp**, cân theo độ dài, không chặt một nút; trả phần
 `part`. Trần bước của lượt là `cơ sở + P` (P ≤ 10 vì trần 10 câu mỗi lần xin), và ngân sách thời gian
-lượt cùng `agent_job_timeout` tính theo cùng công thức, để `check_model_call_fits_inside_the_job_
-waiting_for_it` vẫn nói đúng.
+lượt cộng `read_step_seconds` mỗi phần. `agent_job_timeout` **không** đổi: mỗi bước vẫn là một job,
+và `check_model_call_fits_inside_the_job_waiting_for_it` so đúng một job với độ kiên nhẫn của BE --
+P không đụng tới phép so ấy (review đợt 2). Thứ P đụng tới là độ dài cả lượt, nên một test thay cho
+check: lượt đọc dài nhất cộng một job vẫn ngắn hơn `turn_lock_stale_seconds`.
 
 ### Decision: lịch sử không phình
 
 **options considered:** (a) **BE thu gọn lúc dựng lịch sử: đọc cũ thành dòng tóm, dàn ý cũ thành
 `superseded`** · (b) AGENT cắt trong `_describe_result` · (c) không lưu kết quả đọc.
 
-**selected option:** (a). `_as_records` (`teacher_chat.py:1039`) thay mọi `read_section` của lượt **cũ**
-bằng một dòng tóm `{label, part, parts, elided}`; dàn ý đã bị thay thành `{version, superseded}`; chỉ
-dàn ý mới nhất giữ đủ mục. Chữ đọc trong lượt đang chạy giữ nguyên.
+**selected option:** (a). `_as_records` (`teacher_chat.py`) bỏ chữ của mọi `read_section` **đã thành
+dàn ý** (đứng trước dàn ý mới nhất), giữ `{part, parts, nodes, labels, elided}`; chữ đọc **chưa** thành
+dàn ý (đọc rồi hỏi lại giáo viên) ở lại, tối đa mười phần mới nhất (sửa sau review đợt 2: bản đầu bỏ
+cả chữ ấy, và lượt sau phải đọc lại); dàn ý đã bị thay thành `{version, superseded}`; chỉ dàn ý mới
+nhất giữ đủ mục. Chữ đọc trong lượt đang chạy giữ nguyên.
 
 **reason:** `_describe_result` (`propose.py:940`) phát lại nguyên kết quả tool vào mọi lượt sau; sáu
 nghìn ký tự mỗi phần đọc nhân mười phần nhân bốn mươi lượt là prompt không ai trả nổi. (b) để BE vẫn
@@ -137,7 +141,10 @@ giáo viên không thấy. `focus_*` chỉ thành code chết ở task 10, cùng
 **options considered:** (a) **chuyển hai hàm còn dùng, phần còn lại comment `[CODE CHẾT]`** · (b) xoá
 hẳn · (c) giữ `coverage.assign` làm đường lùi khi Kriky lỗi.
 
-**selected option:** (a); (c) người dùng loại 14/10/2026, (b) trái luật repo về code chết. `heading` và `scope_of` chuyển sang `teacher_tools.py` (nơi duy nhất còn dùng);
+**selected option:** (a); (c) người dùng loại 14/10/2026, (b) trái luật repo về code chết.
+`heading` và `scope_of` chuyển sang module thuần mới `be/toc.py` (sửa khi làm task 4: đặt ở
+`teacher_tools.py` như bản đầu thì `drafting.py` -- còn cần `scope_of` tới task 10 -- phải import
+`teacher_tools`, vốn đã import `drafting`: vòng import);
 phần còn lại của `coverage.py` và `test_coverage.py` comment `[CODE CHẾT 2026-10-15 …]`. Thêm
 `DraftBrief.outline` (JSON, mỗi mục gắn version dàn ý), `DraftItem.outline_item`, `DraftItem.item_part`,
 `DraftItem.replacing` (task 3). Cột `DraftItem.node_ordinal`/`chunk_ordinals` chỉ thành code chết ở
@@ -145,7 +152,7 @@ task 10, cùng lúc `drafting.py` thôi đọc chúng -- làm sớm hơn thì co
 BE ghi; ingest chỉ kiểm schema (`check_schema`).
 
 **reason:** `heading` và `scope_of` là hai hàm duy nhất còn người dùng (`teacher_tools.py` dựng nhãn
-và `read_section` gom cây con); để chúng lại trong một module đã chết là giữ một import sống trỏ vào
+và `read_section` gom cây con, cùng phép gộp `toc.parts`); để chúng lại trong một module đã chết là giữ một import sống trỏ vào
 code chết. **Từ task 3, BE và ingest khởi động lại trên DB dev cũ sẽ chết vì `check_schema`** (thiếu
 bốn cột mới); tiến trình đang chạy thì không sao. `db-reset` chạy trước lần khởi động lại BE hay
 ingest đầu tiên sau task 3 -- lệnh xoá dữ liệu dev, test không cần nó, nên không chạy sớm hơn.
@@ -168,7 +175,7 @@ lượt của giáo viên cho một thứ BE không phải đoán.
 | Nghiệp vụ | `docs/decisions/adr-29-dan-y-de-truoc-khi-soan.md`, hậu ký `adr-27-…`, `docs/decisions/README.md` |
 | Contracts | `packages/contracts/src/contracts/teacher_chat.py`, `authoring.py`, tests |
 | Schema | `packages/schema/src/schema/models.py`, `docs/overview/data-model.md` |
-| Đọc sách | `services/be/src/be/teacher_tools.py`, `teacher_chat.py`, `config.py`, `coverage.py` |
+| Đọc sách | `services/be/src/be/toc.py` (mới), `teacher_tools.py`, `teacher_chat.py`, `config.py`, `coverage.py` |
 | Dàn ý | `services/be/src/be/outline.py` (mới), `teacher_chat.py`, `drafting.py` |
 | Kriky | `services/agent/src/agent/graphs/propose.py`, `skills/soan-de.md`, `handlers.py` (mock), `skill_router.py` |
 | Job | `services/agent/src/agent/graphs/authoring.py` |
@@ -192,10 +199,10 @@ thật của cả đợt → sửa → commit theo task. Không gọi model th�
 
 **Đợt 2 — Kriky đọc được sách**
 
-- [ ] 4. `read_section` gộp theo số câu; `heading`/`scope_of` chuyển chỗ; hai tập `_DOCUMENT_READS`;
+- [x] 4. `read_section` gộp theo số câu; `heading`/`scope_of` chuyển chỗ; hai tập `_DOCUMENT_READS`;
       catalog 10.
-- [ ] 5. Trần bước và ngân sách thời gian lượt theo P; check ngân sách cập nhật.
-- [ ] 6. Lịch sử gọn: đọc cũ thành dòng tóm, dàn ý cũ thành `superseded`.
+- [x] 5. Trần bước và ngân sách thời gian lượt theo P; test lượt dài nhất thay cho đổi check.
+- [x] 6. Lịch sử gọn: đọc cũ thành dòng tóm, dàn ý cũ thành `superseded`.
 
 **Đợt 3 — BE: lượt dàn ý, cổng duyệt, đóng băng, job**
 
@@ -258,3 +265,9 @@ schema. Review đợt 1: không lỗi runtime; sửa docstring nói sai về hi�
 qua `ask_clarify`, `item_part ≤ item_parts` thành validator, Decision Records đủ phương án và lý do.
 `check` 22/22, pytest 1109, vitest 208, `typecheck` xanh. **DB dev chưa `db-reset`**: BE hay ingest
 khởi động lại sẽ chết vì `check_schema` cho tới khi chạy nó.
+
+**Đợt 2 xong 15/10/2026** (task 4–6): `read_section` và `be/toc.py`; trần bước động; lịch sử gọn.
+Review đợt 2: không lỗi chặn; sửa `nodes` viết cách nhau bằng dấu cách (*"1 2"* từng thành nút 12),
+sàn cắt mỗi đơn vị không còn đẩy một phần quá trần, chữ đọc chưa thành dàn ý được giữ, `drafting.py`
+import `scope_of` từ `toc`. Ngoài phạm vi, chưa sửa: `_document_scope` của `create_draft` có đúng lỗi
+*"1 2"* ấy từ plan 4b. Dòng `deadline += …` chưa có test riêng (đột biến bỏ dòng ấy vẫn xanh).

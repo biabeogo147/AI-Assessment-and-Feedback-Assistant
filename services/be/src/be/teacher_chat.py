@@ -1062,11 +1062,38 @@ async def _stored_turns(session: AsyncSession, conversation_id: str) -> list[Tea
     return list(rows)
 
 
+def _without_text(result: dict) -> dict:
+    """Kết quả `read_section` bỏ chữ, giữ dấu đã đọc gì: phần nào, nút nào, tên bài nào."""
+    kept = {key: value for key, value in result.items() if key != "text"}
+    return {**kept, "elided": True} if "text" in result else kept
+
+
+def _shrunk(turn: TeacherTurn, latest_outline: int | None, kept_reads: set[int]) -> dict:
+    """`tool_result` của một bước đã lưu, như lượt **sau** cần đọc nó (`draft-outline`).
+
+    Hai thứ to được thu lại. Chữ một phần đọc (`teacher_tools._PART_CHARS`, tới mười phần một
+    lượt) chỉ giữ khi nó **chưa thành dàn ý** (`kept_reads`): đọc rồi hỏi lại giáo viên thì lượt
+    sau viết dàn ý từ chữ ấy, không đọc lại. Đọc **trước** dàn ý mới nhất thì dàn ý đã chở nó --
+    chỉ còn dấu *đã đọc gì*. Và một dàn ý đã bị thay chỉ còn số bản: mục của nó không còn là thứ
+    giáo viên đang duyệt.
+    """
+    result = dict(turn.tool_result or {})
+    if turn.kind == "tool_result" and turn.tool_name == "read_section":
+        return result if turn.sequence in kept_reads else _without_text(result)
+    if turn.kind == "outline" and turn.sequence != latest_outline:
+        return {"version": result.get("version"), "superseded": True}
+    return result
+
+
 def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
     """Biến các bước đã lưu thành phần history mà AGENT đọc.
 
     Chỉ phần đuôi được gửi đi. Lý do xem ở `_HISTORY_STEPS`, và lưu ý là chỗ bị cắt là
     phần đầu: model cần câu hỏi nó vừa hỏi hơn nhiều so với câu nó hỏi tuần trước.
+
+    Mọi bước đã lưu đều thuộc một lượt **trước** -- hàm này chạy lúc lượt bắt đầu --, nên chữ đã đọc
+    và dàn ý đã bị thay được thu lại ở đây (`_shrunk`); bước của lượt đang chạy nằm trong bộ nhớ,
+    nguyên vẹn.
 
     Args:
         turns: Các bước đã lưu, cũ nhất trước.
@@ -1074,13 +1101,25 @@ def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
     Returns:
         `_HISTORY_STEPS` bước cuối trong số đó, dưới dạng record của contract.
     """
+    outlines = [turn.sequence for turn in turns if turn.kind == "outline"]
+    latest_outline = outlines[-1] if outlines else None
+    # Chữ đọc sau dàn ý mới nhất còn đang chờ thành dàn ý; giữ tối đa `MOST_QUESTIONS_ASKED` phần
+    # mới nhất -- vài lượt đọc liền không có dàn ý không được cộng dồn thành cả cuốn sách.
+    unwritten = [
+        turn.sequence
+        for turn in turns
+        if turn.kind == "tool_result"
+        and turn.tool_name == "read_section"
+        and (latest_outline is None or turn.sequence > latest_outline)
+    ]
+    kept_reads = set(unwritten[-MOST_QUESTIONS_ASKED:])
     return [
         TurnRecord(
             kind=turn.kind,
             text=turn.text,
             tool_name=turn.tool_name,
             tool_args=turn.tool_args or {},
-            tool_result=turn.tool_result or {},
+            tool_result=_shrunk(turn, latest_outline, kept_reads),
         )
         for turn in turns[-_HISTORY_STEPS:]
     ]
@@ -1213,12 +1252,19 @@ async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord)
 
 
 def _visible(turn: TeacherTurn) -> Turn:
-    """Chiếu một bước đã lưu sang đúng thứ client được xem."""
+    """Chiếu một bước đã lưu sang đúng thứ client được xem.
+
+    Chữ một phần đọc (`read_section`) không tới client: màn hình không vẽ nó, và mười phần một lượt
+    là cả trăm nghìn ký tự đi mỗi lần tải lại đoạn chat.
+    """
+    result = dict(turn.tool_result or {})
+    if turn.tool_name == "read_section":
+        result = _without_text(result)
     return Turn(
         kind=turn.kind,
         text=turn.text,
         tool_name=turn.tool_name,
-        tool_result=turn.tool_result or {},
+        tool_result=result,
         entity_kind=turn.entity_kind,
         entity_id=turn.entity_id,
         choices=list(turn.choices or []),
