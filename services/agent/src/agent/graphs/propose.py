@@ -789,6 +789,59 @@ def _garbled(steps: tuple[PlanStep, ...]) -> str:
 
 
 _COUNT_IN_KNOWN = re.compile(r"question_count\s*=\s*(\d+)")
+# Lời giáo viên nói rõ việc của dàn ý: *"thay câu 3 …"*, *"soạn thêm 3 câu"* (`draft-outline`).
+_REPLACES = re.compile(r"\b(?:thay|đổi|làm lại|soạn lại)\s+(?:câu|câu hỏi)\s*(?:số\s*)?(\d+)", re.I)
+_ADDS = re.compile(r"\b(?:soạn|ra|làm|viết)\s+thêm\b|\bthêm\s+\d+\s+câu\b", re.I)
+# Kết quả tool nói đoạn chat đã có một đề.
+_HAS_DRAFT = frozenset({"create_draft", "start_drafting", "replace_question"})
+
+
+def _right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
+    """Dàn ý đúng việc giáo viên vừa nói, khi lời họ nói rõ việc ấy. Hàm thuần.
+
+    Thử tay 15/10/2026 (H4) và bench run-98 (`dan-y-thay-cau` 2/6): *"thay câu 3 bằng …"* ra một
+    dàn ý **cả đề** `for=new` -- giáo viên gõ *"oke"* là mở một đề mới thay vì thay câu 3. Model
+    viết lại cả dàn ý, chỉ mục chứa câu ấy đổi, nên phép sửa không phải đoán: lấy đúng mục chứa câu
+    N, một câu, `for=replace`. Tương tự *"soạn thêm"* trong đoạn chat đã có đề mà dàn ý là
+    `for=new` thì việc là `for=more`.
+
+    Args:
+        step: Dàn ý model nêu.
+        request: Lượt đang hỏi.
+
+    Returns:
+        Dàn ý đã đúng việc, hoặc `step` nguyên khi lời giáo viên không nói rõ việc gì.
+    """
+    if step.kind != "outline":
+        return step
+    said = next((turn.text for turn in reversed(request.history) if turn.kind == "teacher"), "")
+    said = unicodedata.normalize("NFC", said)
+    purpose = str(step.tool_args.get("for") or "new")
+    has_draft = any(
+        turn.kind == "tool_result"
+        and turn.tool_name in _HAS_DRAFT
+        and (turn.tool_result.get("created") or turn.tool_result.get("started"))
+        for turn in request.history
+    )
+    replaces = _REPLACES.search(said)
+    if replaces and has_draft and purpose != "replace":
+        number = int(replaces.group(1))
+        seen = 0
+        for item in step.outline:
+            seen += item.questions
+            if number <= seen:
+                logger.info("outline for %s rewritten to replace question %d", purpose, number)
+                return step.model_copy(
+                    update={
+                        "outline": (item.model_copy(update={"questions": 1}),),
+                        "tool_args": {**step.tool_args, "for": "replace", "question": str(number)},
+                    }
+                )
+        return step
+    if _ADDS.search(said) and has_draft and purpose == "new":
+        logger.info("outline for new on a turn asking for more -- for=more")
+        return step.model_copy(update={"tool_args": {**step.tool_args, "for": "more"}})
+    return step
 
 
 def _miscounted(step: NextStepCompleted, known: str) -> str:
@@ -1334,6 +1387,7 @@ async def _choose(state: ProposeState) -> dict:
     step = _library_first(step, request, state["skills"])
     step = _which_book(step, request)
     step = _read_before_outline(step, request)
+    step = _right_purpose(step, request)
     if step.kind == "plan":
         lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
         if lacking:

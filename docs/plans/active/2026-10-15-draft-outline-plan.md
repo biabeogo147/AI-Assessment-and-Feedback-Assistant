@@ -346,3 +346,20 @@ Ghi nhận, chưa sửa: mục dàn ý của câu đã bị thay vẫn nằm tro
   trong `known`, dàn ý thay câu đúng một mục một câu; lệch thì hỏi lại model một lần
   (`_UncountedOutline`); mô tả trường `outline` nói rõ luật ấy. **Chưa đo lại** -- chờ người dùng
   cho phép. Kiểu trượt *"hỏi xác nhận dù đủ mục"* chưa có cách sửa bằng code.
+- **Đo lại một lần** (người dùng cho phép; `data/results/run-100`, nhãn `dan-y-dem-cau`): **169/204**.
+  Ca đủ mục về lại 6/6 trừ `du-ti-le-thuc-7` 4/6; `dan-y-sua-mot-muc` 6/6. Còn yếu: `dan-y-thay-cau`
+  1/6 và `dan-y-soan-them` 3/6 (dàn ý `for=new`) -- đo **trước** `_right_purpose`; `tai-lieu-doc-xong`
+  2/6 (dàn ý không bài nguồn, sai tổng); `tra-lop-ket-qua` 2/6 (trước plan 6/6: `call_tool` không tên
+  tool -- theo dõi); `vuot-tran-12-cau` 1/6.
+
+**Thử trình duyệt, lượt một 15/10/2026** (gpt-4o-mini; `db-reset`; BE, AGENT, ba worker, FE chạy code
+mới): H1 đạt -- dàn ý hiện như lời Kriky, không bước nào chạy; H2 đạt -- *"bản 2"*, câu 2 đổi đúng,
+công thức dựng toán; *"oke"* → 5 câu, `draft_briefs.outline` 5 mục bản 2, ô 1–5 trỏ mục 0–4, câu 2 là
+bài chia tiền; F5 giữ hai bản dàn ý, khối bước và thẻ. Chất lượng: dàn ý lượt đầu ghi mỗi mục
+*"tỉ lệ thức"*, không công thức, nên câu 1, 3, 4 cùng một dạng. H4 trượt: *"thay câu 3"* ra dàn ý cả
+đề `for=new` -- sửa bằng `_right_purpose` (rút đúng mục chứa câu N, `for=replace`; *"soạn thêm"* trên
+đoạn chat đã có đề thành `for=more`); thử lại sau khi khởi động lại AGENT (người dùng cho phép): AGENT
+đúng, BE từ chối vì chip sách tự đính lúc tải lên làm dàn ý thay câu của một đề không sách bị đòi bài
+nguồn -- sửa: dàn ý `more`/`replace` theo sách **của đề**. H3: model hỏi lại chương mà chưa đọc mục lục
+(lỗi có từ trước, `backlog.md`), rồi chọn `outline` mà để trống mục hai lần → câu trung tính. **Chưa thử
+lại** H3, H4, soạn thêm sau hai bản sửa: cần khởi động lại BE và AGENT.

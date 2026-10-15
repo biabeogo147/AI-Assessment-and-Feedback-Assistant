@@ -585,6 +585,12 @@ async def outline_turn(
         return {"error": shape}
     purpose, first, most, paper = shape
     document_id = _outline_book(history, attached)
+    if paper:
+        # Soạn thêm hay thay câu là trên **đề đã có**: sách của dàn ý là sách của đề, không phải
+        # chip đang gắn. Thử tay 15/10/2026: chip tự đính lúc tải sách lên làm dàn ý thay câu của
+        # một đề không sách bị đòi bài nguồn (`draft-outline`).
+        brief = await session.get(DraftBrief, paper)
+        document_id = brief.document_id if brief is not None else ""
     known: set[int] | None = None
     labels: dict[int, str] = {}
     if document_id:

@@ -2871,3 +2871,41 @@ async def test_a_replacement_step_says_whether_the_question_changed(
     assert detail == said
     assert result["replaced"] is replaced
     assert (result["started"] is False) == (detail.endswith("không đạt"))
+
+
+@pytest.mark.asyncio
+async def test_replacing_in_a_bookless_draft_needs_no_lesson_even_with_a_chip(stack) -> None:
+    """Thử tay 15/10/2026 (`draft-outline`): chip sách đính vào câu *"thay câu 2"* của một đề không
+    sách -- dàn ý thay câu theo sách của **đề**, nên không bị đòi bài nguồn."""
+    http, maker, monkeypatch = stack
+    await _a_book(maker, "GV-001", "book")
+    _bound_book()
+    replace_two = _outline_step(
+        _outline_item(questions=1, source_nodes=()), **{"for": "replace", "question": "2"}
+    )
+    agent = ScriptedAgent(
+        _outline_step(_outline_item(source_nodes=())), _open_and_draft(""), replace_two
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for={1, 2})
+    for said in ("soạn 2 câu", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    async def ready(pool, settings, job_id):
+        return "ready", DraftQuestionCompleted(
+            request_id="r", question=_question(job_id)
+        ).model_dump(mode="json")
+
+    monkeypatch.setattr(drafting, "collect_result", ready)
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+        await drafting.harvest(session, None, get_settings(), brief.assessment_id)
+
+    shown = await http.post(
+        "/api/teacher/chat/messages",
+        json={"text": "thay câu 2", "document_id": "book"},
+        headers=TEACHER,
+    )
+
+    assert "Câu 2 ·" in shown.json()["text"]
+    bind_reader(None)

@@ -20,6 +20,7 @@ from agent.graphs.propose import (
     _OutlineItem,
     _Proposal,
     _read_before_outline,
+    _right_purpose,
     propose,
 )
 from agent.handlers import _AGREES
@@ -327,3 +328,54 @@ async def test_a_miscounted_outline_is_asked_again(
 
     assert sum(item.questions for item in step.outline) == 6
     assert len(model.prompts) == 2
+
+
+_DRAFTED = TurnRecord(
+    kind="tool_result",
+    tool_name="start_drafting",
+    tool_result={"started": True, "assessment_id": "p1"},
+)
+
+
+def _whole(*knowledge: str) -> NextStepCompleted:
+    return NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=tuple(
+            OutlineItem(questions=2 if one == "B" else 1, knowledge=one, approach="x")
+            for one in knowledge
+        ),
+        tool_args={"for": "new"},
+    )
+
+
+def test_replacing_question_three_takes_the_item_holding_question_three() -> None:
+    """Thử tay H4 (`draft-outline`): *"thay câu 3"* ra cả dàn ý `for=new`; câu 3 nằm trong mục B."""
+    asked = NextStepRequested(
+        request_id="r1",
+        history=(_DRAFTED, TurnRecord(kind="teacher", text="thay câu 3 bằng một câu khó hơn")),
+    )
+
+    step = _right_purpose(_whole("A", "B", "C"), asked)
+
+    assert step.tool_args == {"for": "replace", "question": "3"}
+    assert [(item.knowledge, item.questions) for item in step.outline] == [("B", 1)]
+
+
+def test_drafting_more_on_a_drafted_thread_is_for_more() -> None:
+    asked = NextStepRequested(
+        request_id="r1",
+        history=(_DRAFTED, TurnRecord(kind="teacher", text="soạn thêm 3 câu nữa")),
+    )
+
+    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
+
+
+@pytest.mark.parametrize(
+    "said", ["thay câu 3 bằng câu khác", "soạn thêm 3 câu", "soạn 5 câu về tỉ lệ thức"]
+)
+def test_without_a_draft_in_the_thread_the_purpose_stays(said: str) -> None:
+    asked = NextStepRequested(request_id="r1", history=(TurnRecord(kind="teacher", text=said),))
+
+    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
