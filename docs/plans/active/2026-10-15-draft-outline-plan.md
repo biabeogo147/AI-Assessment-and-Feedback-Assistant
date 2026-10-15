@@ -82,6 +82,11 @@ không giữ được model. (a) chứng minh được giáo viên **đã đư�
 nghĩa là đồng ý -- đọc nhầm thì sửa được bằng thay câu hay xoá câu, và cổng duyệt đề (ADR-05) vẫn
 đứng trước học sinh. ADR-29 ghi nhận giới hạn ấy.
 
+**Sửa 15/10/2026 (thử tay lượt ba):** *"trước"* thành **"ngay trước"** -- dàn ý phải hiện sau câu
+giáo viên gõ trước câu này. Một dàn ý soạn thêm bỏ dở từ mấy lượt trước đã được dùng cho lời xin
+*"soạn thêm 2 câu về …"* mới gõ, giáo viên chưa thấy dàn ý nào cho lời xin ấy. Giá: hỏi một câu xen
+giữa dàn ý và *"oke"* thì Kriky nêu lại dàn ý.
+
 ### Decision: ngân sách đọc gộp theo số câu
 
 **options considered:** (a) chỉ đọc bài cần dùng, giữ 8 bước · (b) nâng trần bước cố định · (c) phần

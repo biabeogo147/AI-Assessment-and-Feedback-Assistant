@@ -128,6 +128,8 @@ async def test_the_three_text_fields_get_their_backslashes_back(
         _Proposal(kind="outline", text="Dàn ý."),
         _Proposal(kind="outline", text="Dàn ý.", outline=(_item(questions=0),)),
         _Proposal(kind="outline", text="Dàn ý.", outline=(_item(approach=""),)),
+        # Thử tay 15/10/2026: `outline` là kind, model lại gọi nó như một tool.
+        _Proposal(kind="call_tool", tool_name="outline"),
     ],
 )
 async def test_an_outline_that_cannot_be_shown_is_asked_again(

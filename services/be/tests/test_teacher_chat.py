@@ -2444,7 +2444,7 @@ def _outline_item(**overrides: object) -> OutlineItem:
     fields: dict[str, object] = {
         "questions": 2,
         "knowledge": "Đọc và viết số tự nhiên",
-        "formulas": ("$\overline{ab} = 10a + b$",),
+        "formulas": ("$\\overline{ab} = 10a + b$",),
         "approach": "Cho một số, chọn cách đọc đúng",
         "source_nodes": (0,),
     }
@@ -2617,6 +2617,27 @@ async def test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once(st
     await http.post("/api/teacher/chat/messages", json={"text": "soạn lại đi"}, headers=TEACHER)
     told = agent.asked[-1]["history"][-1]
     assert told["tool_name"] == "plan" and "chưa thấy dàn ý" in told["tool_result"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_an_outline_from_before_the_last_teacher_message_is_not_an_approval(stack) -> None:
+    """Thử tay 15/10/2026: dàn ý bỏ dở mấy lượt trước không được dùng cho một lời xin mới gõ."""
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _outline_step(_outline_item(source_nodes=())),
+        NextStepCompleted(request_id="x", kind="say", text="Bạn muốn đổi gì?"),
+        _open_and_draft(""),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    await http.post("/api/teacher/chat/messages", json={"text": "khoan đã"}, headers=TEACHER)
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+
+    told = agent.asked[-1]["history"][-1]
+    assert told["tool_name"] == "plan" and "chưa thấy dàn ý" in told["tool_result"]["error"]
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None
 
 
 @pytest.mark.asyncio

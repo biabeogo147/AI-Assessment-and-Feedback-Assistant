@@ -418,11 +418,14 @@ _DRAFTING_TOOLS = frozenset({"start_drafting", "replace_question"})
 
 
 async def _shown_outline(session: AsyncSession, thread: str, began: int) -> dict | None:
-    """Dàn ý mới nhất đã hiện ở một lượt **trước** lượt này, và chưa thành câu lần nào.
+    """Dàn ý đã hiện ở lượt **ngay trước** lượt này, và chưa thành câu lần nào.
 
-    Đọc từ database, không từ cửa sổ `_HISTORY_STEPS`. *"Trước"* là luật duy nhất BE chứng minh
-    được: giáo viên đã có một lượt để đọc nó. *"Chưa thành câu"* đọc `outline_version` mà bước
-    soạn ghi vào kết quả của nó -- một dàn ý soạn hai lần là hai đề giáo viên chỉ duyệt một.
+    Đọc từ database, không từ cửa sổ `_HISTORY_STEPS`. *"Ngay trước"* là luật duy nhất BE chứng
+    minh được: câu giáo viên vừa gõ là câu đáp lại dàn ý ấy. Thử tay 15/10/2026: một dàn ý soạn
+    thêm còn bỏ dở từ mấy lượt trước được dùng cho lời xin *"soạn thêm 2 câu về …"* mới gõ -- giáo
+    viên chưa thấy dàn ý nào cho lời xin ấy. Có một câu của giáo viên chen giữa thì dàn ý ấy đã
+    qua, Kriky nêu lại. *"Chưa thành câu"* đọc `outline_version` mà bước soạn ghi vào kết quả của
+    nó -- một dàn ý soạn hai lần là hai đề giáo viên chỉ duyệt một.
 
     Args:
         session: Session của database.
@@ -432,12 +435,20 @@ async def _shown_outline(session: AsyncSession, thread: str, began: int) -> dict
     Returns:
         `tool_result` của lượt dàn ý ấy, hoặc `None`.
     """
+    asked = await session.scalar(
+        select(func.max(TeacherTurn.sequence)).where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.kind == "teacher",
+            TeacherTurn.sequence < began,
+        )
+    )
     row = await session.scalar(
         select(TeacherTurn)
         .where(
             TeacherTurn.conversation_id == thread,
             TeacherTurn.kind == "outline",
             TeacherTurn.sequence < began,
+            TeacherTurn.sequence > (-1 if asked is None else asked),
         )
         .order_by(TeacherTurn.sequence.desc())
         .limit(1)

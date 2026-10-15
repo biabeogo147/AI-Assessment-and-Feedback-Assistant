@@ -1480,6 +1480,10 @@ async def _choose(state: ProposeState) -> dict:
         raise _NothingToSay(f"model chose {proposal.kind} with nothing to say")
     if proposal.kind == "outline" and not proposal.outline:
         raise _NoOutline("model chose outline with no item")
+    if proposal.kind == "call_tool" and proposal.tool_name.strip() == "outline":
+        # Thử tay 15/10/2026: `outline` là một kind, không phải tool; BE từ chối lời gọi ấy và
+        # giáo viên thấy *"không có tool nào tên outline"* trong bằng chứng. Hỏi lại một lần.
+        raise _NoOutline("model called a tool named outline")
 
     # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
