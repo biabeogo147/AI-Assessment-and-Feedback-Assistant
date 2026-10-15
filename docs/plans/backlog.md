@@ -1130,3 +1130,29 @@ tiết ở mục *Status* của plan.
 | **Bench `be_refuses` chỉ chạy `vet_plan`**, không chạy cổng duyệt -- một plan soạn khi chưa có dàn ý vẫn được chấm là đạt nếu đủ tham số | Cần bench dựng lịch sử có lượt dàn ý; ca `dan-y-*` hiện chấm bằng hình dạng đề nghị |
 | **Kriky hỏi lại dù đã đủ mục** (thử tay lượt bốn: *"soạn thêm 1 câu về cách ghi số La Mã"* → hai câu hỏi lại về khía cạnh và bài, rồi mới nêu dàn ý; bench run-98 thấy cùng kiểu ở ca đủ mục). Chữ kiến thức trong dàn ý đôi khi đuôi dấu `;` (*"Cách đọc số La Mã từ 1 đến 30;"*) | Chưa có cách sửa bằng code; luật prompt *đủ bốn mục thì nêu dàn ý* đã có. Cần đo riêng trước khi đổi prompt |
 | **`_document_scope` của `create_draft` đọc `nodes` *"1 2"* thành nút 12** (có từ plan 4b; `read_section` đã sửa lỗi ấy ở đợt 2) | Ngoài phạm vi plan dàn ý |
+
+## Lộ ra ở lần chạy mốc bộ ca thử tay
+
+Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên bản nguyên văn:
+`docs/testing/ket-qua/2026-10-15-6287fc3.md` (gpt-4o-mini). Mỗi dòng ghi case thấy nó.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Câu mở của lượt dàn ý chép lại một dàn ý giả** (case 03, 06, 14): model viết cả dàn ý vào `text`, BE in `text` rồi in dàn ý thật — màn hình có hai dàn ý, cái đầu sai số bản (*"(bản 1)"*) hay sai số câu (*"Câu 1"* thay vì *"Câu 8"*) | Chưa sửa. Hướng: BE cắt `text` của lượt `outline` về một câu mở, hay từ chối `text` có dòng `Dàn ý —` |
+| **Nút hỏi lại không phải giá trị bấm được** (01, 08, 13): *"khối 6, 7, 8, 9"*, *"số câu từ 1 đến 10"*, *"Mình chỉ soạn 1 lần 12 câu."* (trái với trần vừa nói), *"Môn học là Lịch sử"* | `_answers` chỉ bỏ câu hỏi và tên mục trần; chưa có luật cho nút gộp cả dải giá trị |
+| **Mất số câu sau một lượt hỏi lại** (04): xin 5 câu, sau khi Kriky hỏi bài nào và giáo viên đáp *"cả chương luôn"*, dàn ý ra 10 câu | `_miscounted` chỉ đối chiếu với `known` của chính lượt ấy, mà `known` đã mất số 5 |
+| **Dàn ý không công thức, câu lệch mục** (02, 07, 08): 0/5 mục có công thức; câu 2 *"vận tốc 120 km / 2 giờ"* dưới mục tỉ lệ thức, câu 4 tỉ số đơn dưới mục dãy tỉ số | Trùng mục *"Dàn ý chung chung"* ở trên; nay có số đo trên trình duyệt |
+| **Tên đề là chuỗi nhãn bài kèm trang, bị cắt** (04): *"Đề Bài 1. TẬP HỢP (tr. 5–9), CÁCH GHI SỐ TỰ NHIÊN (tr. 9–13), …, P"* | `_create_draft` đặt `Đề <topic_scope>`, mà `topic_scope` của đề theo sách là chuỗi nhãn |
+| **`read_section` đọc nhầm nút** (06): xin 2 câu số La Mã, Kriky đọc nút 4 (Hệ thập phân) và dàn ý ghi `Theo: 1. HỆ THẬP PHÂN` | Model chọn nút; chưa có luật đối chiếu chủ đề với nhãn nút |
+| **Khối ĐÃ PHÁT HÀNH in giờ theo UTC** (10): đóng 20:00 hiện *"Vào tham gia tới hết 13:00"*, hạn chữa 22:00 hiện *"Chữa bài tới hết 15:00"*; dòng *"Mở 19:00"* cùng khối thì đúng | Lỗi FE hiển thị; database đúng giờ |
+| **Kết quả lớp dừng ở bước tra lớp** (12): *"bài kiểm tra 15 phút hàm số của 12A các em làm thế nào rồi"* → chỉ `list_class` rồi *"Lớp 12A có 3 học sinh."* | Cùng kiểu ca bench `tra-lop-ket-qua` 2/6; log cho thấy model tự chọn `say`, không phải lùi về mock |
+| **Tệp đang xử lý thì Kriky nói "chưa thấy tài liệu"** (13) thay vì nói tệp đang được đọc và nhờ chờ | Prompt có dòng *đang xử lý*; model không theo |
+
+**Đọc ra từ code khi viết case, lần chạy này chưa gặp** (chờ thấy trên trình duyệt):
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| Plan soạn model tự nêu ngay sau một lời **xin sửa** dàn ý vẫn qua cổng, với dàn ý cũ (cổng chỉ đòi dàn ý ở lượt ngay trước) | Case 03, 07 đều ra bản 2 đúng, nên chưa thấy |
+| `list_assessment` không lọc bản phát hành đã thu hồi: sau khi hoàn tác ở case 10, 12A sẽ có hai đề | Thứ tự chạy đã đưa 11, 12 lên trước 09–10 để tránh |
+| Lý do của bước `✕` in thẳng `reason` / `error`, có thể lộ tên tool (luật 7) | Lần chạy này không có bước `✕` nào |
+| Chữ *"sách"* trong lời phủ định (*"ko cần sách"*) vẫn mở thư viện (`_BOOK_WORDS`) | Case 02, 08 đã bỏ cụm ấy; giáo viên thật vẫn có thể gõ |

@@ -45,10 +45,10 @@ Tên `README.md` bị loại: AGENTS.md bắt README tiếng Anh, còn tài li�
 - [x] 5. Một subagent review cả bộ đối chiếu code thật; sửa; commit.
 
 ### Đợt 3 -- chạy mốc
-- [ ] 6. Báo số lượt model và chi phí ước tính; xin phép `db-reset`, khởi động lại BE/AGENT, gọi
+- [x] 6. Báo số lượt model và chi phí ước tính; xin phép `db-reset`, khởi động lại BE/AGENT, gọi
       gpt-4o-mini.
-- [ ] 7. Chạy 14 case trên Chrome, gõ đúng nguyên văn; ghi biên bản `ket-qua/`.
-- [ ] 8. Đóng plan.
+- [x] 7. Chạy 14 case trên Chrome, gõ đúng nguyên văn; ghi biên bản `ket-qua/`.
+- [x] 8. Đóng plan.
 
 ## Validation Checks
 
@@ -71,3 +71,12 @@ phát hành đã thu hồi vẫn được `list_assessment` liệt kê. Lỗ s�
 soạn model tự nêu sau một lời xin sửa dàn ý vẫn qua cổng với dàn ý cũ; `list_assessment` không lọc
 bản đã thu hồi; lý do của bước ✕ lộ tên tool; một `call_tool` không tên làm lượt lùi về mock (nghi là
 gốc của `tra-lop-ket-qua` 2/6) — chờ đối chiếu ở lượt chạy mốc rồi mới vào `backlog.md`.
+
+**Đợt 3 xong, đóng 15/10/2026.** Người dùng cho phép `db-reset`, khởi động lại BE, gọi gpt-4o-mini.
+Chạy đủ 14 case theo thứ tự của `huong-dan.md`; biên bản `docs/testing/ket-qua/2026-10-15-6287fc3.md`:
+3 đạt (07, 09, 11), 4 chấp nhận được (03, 05, 08, 14), 7 không đạt (01, 02, 04, 06, 10, 12, 13), chi
+phí khoảng 0,08–0,1 USD. Các cổng của code đứng vững (dàn ý trước khi soạn, *"ok nhưng…"* không
+soạn, xoá câu theo luật ngân hàng, phát hành và hoàn tác, F5 và đóng tab); phần trượt là chữ của
+model và ba lỗi hiển thị/đặt tên. Chín lỗi sản phẩm đã thấy cùng bốn điều đọc từ code vào
+`backlog.md`, mục *Lộ ra ở lần chạy mốc bộ ca thử tay* — không sửa code trong plan này. Case 04, 14
+thêm một nhánh mỗi case từ lần chạy (biên bản ghi rõ hai chỗ lệch khỏi lời chat cố định).
