@@ -16,7 +16,7 @@
         <mxCell id="lane-cay-dau" value="worker dựng cây&lt;br&gt;bốn job song song" style="rounded=0;whiteSpace=wrap;html=1;horizontal=0;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;fontSize=16;fontFamily=Times New Roman;" vertex="1" parent="1">
           <mxGeometry x="0" y="280" width="40" height="220" as="geometry" />
         </mxCell>
-        <mxCell id="ing" value="queue của ingest&lt;br&gt;&lt;br&gt;&lt;i&gt;dựng cây cũng báo tiến độ ở các khâu dài, và báo hỏng nếu hỏng&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;fontSize=16;fontFamily=Times New Roman;align=center;" vertex="1" parent="1">
+        <mxCell id="ing" value="queue của ingest&lt;br&gt;&lt;br&gt;&lt;i&gt;dựng cây cũng báo tiến độ ở những hàm chạy lâu, và báo hỏng nếu hỏng&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2b8a3e;fontSize=16;fontFamily=Times New Roman;align=center;" vertex="1" parent="1">
           <mxGeometry x="852" y="0" width="88" height="500" as="geometry" />
         </mxCell>
         <mxCell id="job-probe" value="job probe_document&lt;br&gt;từ backend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#343a40;fontSize=16;fontFamily=Times New Roman;align=center;" vertex="1" parent="1">
@@ -102,7 +102,7 @@
         <mxCell id="e-banners-classify" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#343a40;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontFamily=Times New Roman;" edge="1" parent="1" source="k-banners" target="k-classify">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="k-assemble" value="&lt;b&gt;assemble&lt;/b&gt;&lt;br&gt;dựng cây" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#343a40;fontSize=16;fontFamily=Times New Roman;align=center;" vertex="1" parent="1">
+        <mxCell id="k-assemble" value="&lt;b&gt;assemble&lt;/b&gt;&lt;br&gt;ghép cây" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#343a40;fontSize=16;fontFamily=Times New Roman;align=center;" vertex="1" parent="1">
           <mxGeometry x="372" y="330" width="88" height="64" as="geometry" />
         </mxCell>
         <mxCell id="e-classify-assemble" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#343a40;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontFamily=Times New Roman;" edge="1" parent="1" source="k-classify" target="k-assemble">
@@ -143,7 +143,7 @@
         <mxCell id="lbl-ready" value="sẵn&lt;br&gt;sàng" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="776" y="318" width="56" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="lbl-provider" value="Model Provider" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="lbl-provider" value="Mô hình ngoài" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="20" y="520" width="130" height="40" as="geometry" />
         </mxCell>
         <mxCell id="m-luna" value="gpt-5.6-luna" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f3f5;strokeColor=#495057;fontSize=16;fontFamily=Times New Roman;align=center;dashed=1;" vertex="1" parent="1">

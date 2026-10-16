@@ -660,60 +660,102 @@ chưa thực thi. Ba yêu cầu đầu hở vì cùng một lý do: nội dung d
         minh được dàn ý đã hiện ra cho giáo viên, nên plan ấy vẫn đi qua.
 \end{itemize}
 
-\section{\texttt{document}}
+\section{Document}
 
-\texttt{document} đọc những tệp giáo viên tải lên và dựng cây mục lục cho chúng. Khi một job của nó
-bắt đầu, byte của tệp đã nằm trong object store và job đã nằm trên queue (mục~\ref{sec:noi-chuyen});
-mục này kể từ lúc worker lấy job xuống tới lúc kết quả rời service.
+\subsection{Vai trò và trách nhiệm}
 
-\subsection{Vào và ra}
+\texttt{document} đọc những tệp giáo viên tải lên và dựng cây mục lục cho chúng; một tài liệu chỉ
+dùng được khi có đủ cả hai. Service này gồm hai worker, không nhận lời gọi nào từ bên ngoài và không
+có quyền vào database. Job tới mang địa chỉ của tệp trong object store, không mang byte của tệp;
+worker tự lấy byte về để đọc.
 
-\texttt{document} nhận job của ba task: \texttt{probe\_document} từ \texttt{backend}, cùng hai task
-nó tự giao cho chính mình, \texttt{ocr\_pages} cho lô \textbf{OCR} (đọc chữ từ ảnh) kế tiếp và
-\texttt{index\_document} cho việc dựng cây. Nó gửi về queue của \texttt{ingest} job của hai task:
-\texttt{document\_probed} mang kết quả, \texttt{document\_progress} báo tiến độ. Job tới mang khoá
-của tệp trong object store chứ không mang byte của nó. Mọi thứ \texttt{document} ghi đều nằm ở
-content store, chia thành sáu \textbf{collection} (nhóm bản ghi cùng loại,
-như một bảng) mà bảng~\ref{tab:doc-kho} liệt kê.
+Mọi thứ \texttt{document} đọc ra và dựng nên đều nằm ở content store: chữ của từng trang, gọi là
+\emph{bản thô}, cây mục lục, và các \textbf{chunk} (mẩu chữ ngắn) dưới từng nút của cây, chia vào
+sáu \textbf{collection} (nhóm bản ghi cùng loại, như một bảng của database). Còn kết quả xử lý và
+tiến độ thì \texttt{document} không ghi vào database: nó gửi chúng đi thành job trên queue của
+\texttt{ingest}, và \texttt{ingest} mới là bên ghi.
+
+Để dựng cây, \texttt{document} gọi hai thứ nằm ngoài hệ thống, cũng là hai thứ \texttt{agent} gọi:
+Model Provider, để đọc tên chương trên ảnh và tóm tắt từng nút của cây, và Jev, để quyết mỗi dòng có
+dáng tiêu đề thật ra là gì và thuộc cấp nào của cây. Mặc định, \texttt{gpt-5.6-luna} đọc tên chương
+và \texttt{gpt-4o-mini} viết tóm tắt; mỗi mô hình đổi được sang một mô hình Claude bằng cấu hình.
+Còn \textbf{OCR} (đọc chữ từ ảnh) thì không gọi ra ngoài: ba mô hình của nó chạy ngay trong worker
+đọc tệp.
+
+\subsection{Hai worker, ba task và sáu collection}
+
+\texttt{document} nhận job của ba task, và hai trong số đó nó tự giao cho mình
+(bảng~\ref{tab:doc-task}): một bản chụp được đọc thành nhiều \emph{lô}, mỗi lô tối đa mười trang và
+là một job \texttt{ocr\_pages}, rồi cây được dựng trong một job \texttt{index\_document}. Ra khỏi
+service thì nó chỉ gửi job của hai task, cả hai lên queue của \texttt{ingest}:
+\texttt{document\_progress} báo tiến độ, \texttt{document\_probed} mang kết quả cuối cùng của một
+tệp.
+
+\begin{table}[htb]
+\centering
+\caption[Ba task của \texttt{document}]{Ba task của \texttt{document}: worker nào nhận, ai giao, và job gửi đi}
+\label{tab:doc-task}
+\begin{tabular}{@{}L{2.9cm}L{2.6cm}L{2.4cm}L{6.2cm}@{}}
+\toprule
+\textbf{Task} & \textbf{Worker nhận} & \textbf{Ai giao} & \textbf{Gửi đi} \\
+\midrule
+\texttt{probe\_document} & Đọc tệp & \texttt{backend}, khi giáo viên tải tệp lên & Tệp có sẵn chữ: \texttt{index\_document}, sau khi đã ghi bản thô. Bản chụp: lô \texttt{ocr\_pages} đầu tiên. Tệp hỏng hay rỗng: \texttt{document\_probed} kèm lý do \\
+\addlinespace
+\texttt{ocr\_pages} & Đọc tệp & Chính worker đọc tệp & \texttt{document\_progress} sau mỗi lô trừ lô cuối; rồi lô kế, hay sau lô cuối \texttt{index\_document} nếu cả cuốn có chữ; \texttt{document\_probed} khi cả cuốn không ra chữ nào, hay một trang không đọc nổi \\
+\addlinespace
+\texttt{index\_document} & Dựng cây & Worker đọc tệp & \texttt{document\_progress} trong lúc dựng; \texttt{document\_probed} khi cây đã ghi xong, hay khi dựng hỏng \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Vì sao có hai worker.} Đọc tệp tốn bộ xử lý, còn dựng cây tốn thời gian gọi Jev và Model
+Provider qua mạng. Worker đọc tệp vì vậy chạy một job một lúc: OCR chiếm trọn bộ xử lý, nên hai lô
+chạy song song chỉ tranh nhau rồi cùng chậm. Nó nạp ba mô hình OCR một lần lúc khởi động, mất năm
+tới sáu giây, vì nạp lại ở mỗi lô là tốn thêm năm, sáu giây ấy cho từng lô của một cuốn. Worker dựng
+cây không nạp mô hình nào và chạy tới bốn job song song. Gộp làm một worker thì phải chọn: chạy một
+job một lúc thì job dựng cây xếp sau mọi lô OCR, chạy nhiều job thì các lô OCR tranh bộ xử lý. Cái
+giá của việc chỉ chạy một job một lúc nằm ở mục~\ref{sec:doc-gioi-han}.
+
+\paragraph{Tự giao job và báo tiến độ.} Job của một lô OCR mang một mã cố định ghép từ tài liệu và
+trang đầu của lô; job dựng cây mang một mã cố định theo tài liệu. Một lô bị chạy lại sau khi đã giao
+lô kế thì lần giao thứ hai bị từ chối, nên một cuốn không có hai chuỗi lô đọc song song, cũng không
+có hai job dựng cùng một cây. Mã chỉ chặn trùng khi job kia còn trên queue hay đang chạy, nên điều
+này chỉ đúng khi có một worker đọc tệp, như hiện nay. Worker dựng cây báo tiến độ ngay trong lúc
+dựng --- sau khi nạp bản thô, sau mỗi tên chương đọc được, sau khi Jev xếp xong, và trong lúc tóm
+tắt --- để \texttt{backend} không đọc một cuốn đang dựng ra là hỏng sau ba trăm giây; dòng trạng
+thái khi ấy hiện ``Đang dựng mục lục\ldots''.
+
+\paragraph{Sáu collection.} Bảng~\ref{tab:doc-kho} kể sáu collection, ai ghi và ai đọc. Chỉ
+\texttt{document} ghi content store; \texttt{backend} chỉ đọc cây và các chunk, khi hội thoại của
+giáo viên cần tới.
 
 \begin{table}[htb]
 \centering
 \caption[Sáu collection của content store]{Sáu collection của content store: giữ gì, ai ghi, ai đọc}
 \label{tab:doc-kho}
-\begin{tabular}{@{}L{2.6cm}L{5.4cm}L{3.1cm}L{3.0cm}@{}}
+\begin{tabular}{@{}L{2.6cm}L{4.9cm}L{3.1cm}L{3.5cm}@{}}
 \toprule
 \textbf{Collection} & \textbf{Giữ gì} & \textbf{Ai ghi} & \textbf{Ai đọc} \\
 \midrule
-\texttt{documents} & Đầu mục của bản thô, khác bảng cùng tên của database: đọc thẳng chữ có sẵn hay qua OCR, đã đọc xong chưa & đường đọc tệp & đường dựng cây \\
+\texttt{documents} & Bản ghi chung của bản thô, khác bảng cùng tên của database: đọc thẳng chữ có sẵn hay qua OCR, đã đọc xong chưa & Worker đọc tệp & Worker dựng cây \\
 \addlinespace
-\texttt{pages} & Chữ của từng trang, chia theo khối & đường đọc tệp & đường dựng cây \\
+\texttt{pages} & Chữ của từng trang, chia theo khối & Worker đọc tệp & Worker đọc tệp, để bỏ qua trang đã đọc; worker dựng cây \\
 \addlinespace
-\texttt{indexes} & Đầu mục của cây, ghi sau cùng & đường dựng cây & \texttt{backend} \\
+\texttt{indexes} & Bản ghi chung của cây (số nút, số chunk, cách xếp), ghi sau cùng & Worker dựng cây & Worker dựng cây, \texttt{backend} \\
 \addlinespace
-\texttt{nodes} & Các nút của cây mục lục & đường dựng cây & \texttt{backend} \\
+\texttt{nodes} & Các nút của cây mục lục & Worker dựng cây & \texttt{backend} \\
 \addlinespace
-\texttt{chunks} & Các chunk của mỗi nút & đường dựng cây & \texttt{backend} \\
+\texttt{chunks} & Các chunk của mỗi nút & Worker dựng cây & \texttt{backend} \\
 \addlinespace
-\texttt{block\_labels} & Quyết định cho từng ứng viên tiêu đề: ai quyết, Jev đã phân vân giữa những gì; để gỡ lỗi và đo & đường dựng cây & không ai, lúc chạy \\
+\texttt{block\_labels} & Quyết định cho từng dòng có dáng tiêu đề: ai quyết, Jev đã phân vân giữa những gì; để gỡ lỗi và đo & Worker dựng cây & Không ai, lúc chạy \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Vì sao có hai worker}
-
-Đọc tệp và dựng cây bị giới hạn bởi hai thứ khác nhau. Worker đọc tệp chạy một job một lúc: OCR chiếm
-trọn bộ xử lí, nên hai lô chạy song song chỉ tranh nhau rồi cùng chậm. Nó nạp ba mô hình OCR
-một lần lúc khởi động, vì nạp lại ở mỗi lô là trả lại chừng ấy thời gian cho từng lô của một cuốn.
-Worker dựng cây không nạp mô hình nào và chạy tới bốn job song song, vì phần lớn thời gian của nó là
-đợi Model Provider trả lời.
-
-Cái giá của một job một lúc là nhiều bản chụp tải lên cùng lúc được đọc xen kẽ từng lô. Từ chừng
-bảy cuốn trở lên, hay bốn cuốn nếu trang dày chữ, một cuốn im quá ba trăm giây giữa hai lần báo tiến
-độ, và \texttt{backend} đọc mọi cuốn đang đọc ra là hỏng.
-
 \subsection{Một tệp đi qua service}
 
-Hình~\ref{fig:document-pipeline} vẽ đường đi của một tệp qua hai worker.
+Hình~\ref{fig:document-pipeline} vẽ đường đi của một tệp qua hai worker, từ lúc worker đọc tệp lấy
+job dò tệp xuống tới lúc kết quả sẵn sàng rời service.
 
 \begin{figure}[htbp]
   \centering
@@ -722,126 +764,223 @@ Hình~\ref{fig:document-pipeline} vẽ đường đi của một tệp qua hai w
   \label{fig:document-pipeline}
 \end{figure}
 
-\paragraph{Dò tệp.} Worker đọc tệp lấy byte của tệp từ object store rồi dò xem nó có chữ không. Tệp
-\texttt{.txt} và \texttt{.md} phải là UTF-8, hay UTF-16 có dấu BOM; bảng mã khác bị từ chối chứ
+\paragraph{Dò tệp.} Worker đọc tệp lấy byte của tệp từ object store rồi dò xem tệp có sẵn chữ không.
+Tệp \texttt{.txt} và \texttt{.md} phải là UTF-8, hay UTF-16 có BOM; bảng mã khác bị từ chối chứ
 không đoán, vì đoán sai thì ra chữ trông như chữ mà sai dấu. Với tệp PDF, nó đếm số trang có chữ, và
 một trang tính là có chữ khi có từ một trăm ký tự trở lên: từ mười phần trăm số trang có chữ trở lên
-thì tệp có sẵn chữ, còn lại là bản chụp. Một PDF không có trang nào bị trả về là không có chữ, không
-đi OCR. Đếm trang chứ không cộng ký tự là có chủ ý: một bản chụp có một trang mục lục dày chữ vẫn
-không lọt cổng.
+thì tệp có sẵn chữ, còn lại là bản chụp. Một PDF không có trang nào được báo là không có chữ, không
+đi OCR. Đếm trang chứ không lấy trung bình ký tự là có chủ ý: một bản chụp dày mà riêng trang mục
+lục có sẵn chữ, đủ nhiều để kéo trung bình lên quá một trăm ký tự một trang, vẫn được nhận ra là bản
+chụp.
 
 \paragraph{Bản chụp đọc theo lô.} Một bản chụp được đọc qua nhiều job, mỗi job một lô: tối đa mười
-trang, và không mở trang mới sau chín mươi giây. Mỗi lô ghi trang của nó vào content store; trừ lô
-cuối, nó báo tiến độ về \texttt{ingest} rồi tự giao lô kế lên chính queue của worker đọc tệp. Mỗi
-trang đi qua năm chặng: dựng ảnh, nhận khối, tìm dòng, đọc chữ từng dòng, rồi gán dòng vào khối. Hai
-chặng nhận khối và tìm dòng dùng mô hình của PaddleOCR, còn chặng đọc chữ dùng EasyOCR, vì bộ đọc
-chữ của PaddleOCR không bao giờ phát ra chữ tiếng Việt mang hai dấu như ``ế'' hay ``ộ''. Công thức
-toán không được đọc riêng, vì lần đo trên máy chỉ có bộ xử lí trung tâm cho thấy mô hình đọc công
-thức không cứu được: khối công thức chỉ nhận chữ OCR như mọi khối khác.
+trang, và lô đã chạy quá chín mươi giây thì không mở trang mới, để lô không chạm trần một trăm hai
+mươi giây của worker. Mỗi lô ghi trang của nó vào content store; một lô bị chạy lại thì chỉ đọc
+những trang chưa có trong content store. Mỗi trang đi qua năm \emph{chặng}, tức năm công đoạn nối
+tiếp nhau của OCR: dựng ảnh, nhận khối, tìm dòng, đọc chữ từng dòng, rồi gán dòng vào khối. Hai
+chặng nhận khối và tìm dòng dùng mô hình của PaddleOCR, còn chặng đọc chữ dùng một bộ đọc khác, mặc
+định là EasyOCR, vì bộ đọc chữ của PaddleOCR không phát ra một số chữ tiếng Việt mang hai dấu, như
+``ế'' hay ``ộ''. Công thức toán không được đọc riêng. Trên một bộ đo năm mươi trang có năm mươi tám
+công thức, mô hình đọc công thức từng được thử chỉ đọc đúng chín: hai mươi bốn công thức đã hỏng từ
+chặng nhận khối, nên mô hình nào đứng sau cũng không cứu được, mô hình ấy đọc sai thêm hai mươi mốt,
+và bốn công thức còn lại hỏng mà chưa rõ do đâu. Khối công thức vì vậy chỉ nhận chữ OCR như mọi khối
+khác.
 
-\paragraph{Bản thô ghi trước.} Đọc xong, \texttt{document} có một \emph{bản thô}
-(mục~\ref{sec:tu-dien}) trong content store, nhưng tài liệu \emph{chưa} sẵn sàng: nó còn cần cây
-mục lục. Worker đọc tệp giao một job \texttt{index\_document} lên queue riêng của worker dựng cây, và
-chưa gửi kết quả nào về \texttt{ingest}.
+\paragraph{Bản thô ghi trước.} Đọc xong, bản thô của tệp, chia theo trang và theo khối, đã nằm trong
+content store. Tài liệu lúc này \emph{chưa} sẵn sàng, vì nó còn cần cây mục lục. Worker đọc tệp giao
+một job \texttt{index\_document} lên queue riêng của worker dựng cây, và chưa gửi kết quả nào về
+\texttt{ingest}.
 
-\paragraph{Bảy khâu dựng cây.} Job dựng cây chạy một graph gồm bảy khâu nối thẳng
-(bảng~\ref{tab:doc-khau}). Ba khâu gọi một mô hình ngoài, và cả ba đều có đường lùi ngay bên trong
-khâu: mô hình không trả lời thì tài liệu vẫn sẵn sàng, chỉ kém hơn.
+\paragraph{Bảy hàm dựng cây.} Job dựng cây chạy một graph gồm bảy hàm nối thẳng
+(bảng~\ref{tab:doc-khau}). Mô hình không tự dựng cây: hàm \texttt{assemble} ghép cây bằng mã nguồn,
+từ quyết định của hàm \texttt{classify}. Mô hình chỉ góp phần vào ba hàm, và cả ba đều có đường lùi
+ngay bên trong hàm: mô hình không trả lời, hay chưa được cấu hình, thì tài liệu vẫn sẵn sàng, chỉ
+kém hơn.
 
-\begin{table}[H]
+\begin{table}[htb]
 \centering
-\caption[Bảy khâu dựng cây mục lục]{Bảy khâu dựng cây mục lục, và đường lùi của những khâu gọi mô hình}
+\caption[Bảy hàm dựng cây mục lục]{Bảy hàm dựng cây mục lục, và đường lùi của những hàm có gọi mô hình}
 \label{tab:doc-khau}
 \begin{tabular}{@{}L{2.3cm}L{7.3cm}L{5.0cm}@{}}
 \toprule
-\textbf{Khâu} & \textbf{Làm gì} & \textbf{Mô hình không trả lời thì} \\
+\textbf{Hàm} & \textbf{Làm gì} & \textbf{Mô hình không trả lời thì} \\
 \midrule
-\texttt{load} & Đọc bản thô; bản thô chưa đọc xong thì không chạy & --- \\
+\texttt{load} & Đọc bản thô; bản thô chưa đọc xong thì dừng cả job & --- \\
 \addlinespace
-\texttt{banners} & Đọc tên chương trên ảnh đầu chương, bằng \texttt{gpt-5.6-luna} & Chương mang nhãn số \\
+\texttt{banners} & Chỉ với bản chụp: đọc tên chương trên ảnh rộng ở đầu trang, khi chữ OCR trong ảnh có CHƯƠNG hay PHẦN, bằng Model Provider (mặc định \texttt{gpt-5.6-luna}) & Chương mang nhãn số \\
 \addlinespace
-\texttt{classify} & Xếp vai trò và cấp cho từng tiêu đề; luật và Jev cùng quyết, Jev thắng khi đủ chắc & Luật quyết thay \\
+\texttt{classify} & Xếp vai trò và cấp cho từng dòng có dáng tiêu đề; luật và Jev cùng quyết, Jev thắng khi đủ chắc & Luật quyết thay \\
 \addlinespace
-\texttt{assemble} & Dựng cây tối đa ba cấp, không nhảy cấp; tiêu đề sâu hơn gộp vào nút cha & --- \\
+\texttt{assemble} & Ghép cây tối đa ba cấp, không nhảy cấp; tiêu đề sâu hơn gộp vào nút cha & --- \\
 \addlinespace
 \texttt{chunk} & Cắt chữ thành các chunk dưới từng nút & --- \\
 \addlinespace
-\texttt{summarise} & Tóm tắt từng nút, từ dưới lên, bằng \texttt{gpt-4o-mini} & Nút không có tóm tắt \\
+\texttt{summarise} & Tóm tắt từng nút, từ cấp sâu nhất lên; nút cha tóm từ tóm tắt của các con, bằng Model Provider (mặc định \texttt{gpt-4o-mini}) & Nút không có tóm tắt \\
 \addlinespace
 \texttt{write} & Ghi cây vào content store & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Mô hình không dựng cây. Ở khâu \texttt{classify}, luật và Jev cùng đưa ra một quyết định cho mỗi
-tiêu đề, và Jev chỉ thắng khi độ tin cậy của nó đạt một ngưỡng cấu hình được. Trên cuốn duy nhất đã
-có mục lục chuẩn để so, ở ngưỡng hiện tại Jev chưa đổi quyết định nào của luật, nên cây của cuốn ấy
-chính là cây của luật. Luật cũng được chỉnh trên chính cuốn ấy, nên phép so này chưa công bằng.
+Ở hàm \texttt{classify}, luật và Jev cùng đưa ra một quyết định cho mỗi dòng có dáng tiêu đề, và Jev
+chỉ thắng khi độ tin cậy của nó từ tám mươi phần trăm trở lên, một ngưỡng cấu hình được. Jev được
+hỏi riêng cho từng dòng, và chỉ một lời gọi hỏng là luật quyết cả cây, để cây không nửa Jev nửa
+luật. Tóm tắt của mỗi nút là để trợ lí, khi đọc mục lục, chọn đúng chương hay bài chỉ bằng tiêu đề
+và tóm tắt, chưa phải đọc chữ của nút. Vì sao chưa nói được Jev đã làm cây tốt hơn hay chưa thì nằm
+ở mục~\ref{sec:doc-gioi-han}.
 
-\paragraph{Ghi cây rồi mới báo sẵn sàng.} Khâu cuối ghi các nút, các \textbf{chunk} (mẩu chữ ngắn) và
-quyết định cho từng ứng viên tiêu đề, kiểm rằng bản thô chưa bị đọc lại trong lúc dựng, rồi ghi đầu
-mục của cây \emph{sau cùng}; khi xoá thì đầu mục đi \emph{trước}. Nhờ vậy, có đầu mục là có cả cây.
-Chỉ sau đó job mới gửi kết quả sẵn sàng về \texttt{ingest}.
+\paragraph{Ghi cây rồi mới báo sẵn sàng.} Hàm cuối ghi các nút, các chunk và quyết định cho từng
+dòng có dáng tiêu đề, kiểm rằng bản thô chưa bị đọc lại trong lúc dựng, rồi mới ghi bản ghi chung
+của cây, \emph{sau cùng}; khi xoá thì nó đi \emph{trước}. Nhờ vậy, thấy bản ghi chung là thấy cả
+cây. Chỉ sau đó job mới gửi kết quả sẵn sàng về \texttt{ingest}. Một job dựng cây bị chạy lại khi
+cây của đúng bản thô hiện tại đã ghi xong thì chỉ gửi lại kết quả ấy, không dựng lại.
 
-\subsection{Luật và chỗ canh luật}
+\subsection{Các ràng buộc và cơ chế kiểm soát}
 
-Bảng~\ref{tab:doc-luat} ghi những luật \texttt{document} giữ, nơi thi hành chúng, và loại lưới
-canh chúng.
+Bảng~\ref{tab:doc-rang-buoc} tổng hợp các ràng buộc \texttt{document} giữ, cơ chế thực thi mỗi ràng
+buộc, và cách kiểm chứng. Như ở \texttt{agent}, cột cuối dùng hai trong ba loại đã giải thích trước
+bảng~\ref{tab:be-rang-buoc}.
 
-\begin{table}[H]
-\centering
-\caption[Luật \texttt{document} giữ]{Luật \texttt{document} giữ, nơi thi hành, và loại lưới canh chúng}
-\label{tab:doc-luat}
-\begin{tabular}{@{}L{6.6cm}L{4.8cm}L{3.1cm}@{}}
+\begin{longtable}{@{}L{7.0cm}L{4.7cm}L{2.9cm}@{}}
+\caption[Ràng buộc \texttt{document} giữ]{Ràng buộc \texttt{document} giữ, cơ chế thực thi, và cách kiểm chứng}
+\label{tab:doc-rang-buoc}\\
 \toprule
-\textbf{Luật} & \textbf{Nơi thi hành} & \textbf{Loại lưới} \\
+\textbf{Ràng buộc} & \textbf{Cơ chế thực thi} & \textbf{Kiểm chứng} \\
 \midrule
-Không giữ credential của database & cả service & \texttt{check\_contract} \\
-\addlinespace
-Mỗi thư viện bên ngoài chỉ được dùng thẳng ở đúng một tệp: object store, PDF, content store, Jev, mô hình ngôn ngữ & \texttt{storage}, \texttt{pdf}, \texttt{content\_store}, \texttt{index/jev}, \texttt{index/llm} & \texttt{check\_contract} \\
-\addlinespace
-Kết quả sẵn sàng chỉ được gửi sau khi cây đã ghi & \texttt{index\_handlers} & kiểm thử tự động \\
-\addlinespace
-Đầu mục của cây ghi sau cùng, xoá đầu tiên & \texttt{content\_store} & kiểm thử tự động \\
-\addlinespace
-Đọc lại một tài liệu thì cây cũ bị xoá & \texttt{content\_store} & kiểm thử tự động \\
-\addlinespace
-Tệp hay trang không đọc nổi, cây không dựng được, kho hỏng tới lần thử cuối: đều thành một kết quả kèm lý do & \texttt{ocr\_handlers}, \texttt{index\_handlers} & kiểm thử tự động \\
-\addlinespace
-Worker đọc tệp chạy một job một lúc & cấu hình worker & kiểm thử tự động \\
-\addlinespace
-Không mở cổng nào & cấu hình chạy service & không gì canh \\
+\endfirsthead
+\toprule
+\textbf{Ràng buộc} & \textbf{Cơ chế thực thi} & \textbf{Kiểm chứng} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r@{}}{\small\emph{tiếp trang sau}} \\
+\endfoot
 \bottomrule
-\end{tabular}
-\end{table}
+\endlastfoot
 
-\subsection{Khi hỏng}
+\multicolumn{3}{@{}l@{}}{\textbf{Phân quyền}} \\*
+\addlinespace
+Không có quyền vào database & Mã nguồn không nhắc tới thư viện hay thông tin kết nối database nào & \texttt{check\_contract} \\
+\cmidrule{1-3}
+Mỗi thư viện bên ngoài chỉ được dùng thẳng ở đúng một tệp: object store, đọc PDF, content store, Jev, mô hình ngôn ngữ & \texttt{storage}, \texttt{pdf}, \texttt{content\_store}, \texttt{index/jev}, \texttt{index/llm} & \texttt{check\_contract} \\
+\cmidrule{1-3}
+Chỉ \texttt{document} ghi content store; \texttt{backend} chỉ đọc & \texttt{agent} và \texttt{ingest} không dùng thư viện của content store; tệp duy nhất của \texttt{backend} dùng nó không gọi hàm ghi nào & \texttt{check\_contract} \\
+\addlinespace
 
-arq, thư viện chạy các worker, chỉ chạy lại một job khi job ấy chủ động xin chạy lại; một job chạm
-trần thời gian thì bị giết, và không ai báo gì. Vì vậy mọi cách hỏng của \texttt{document} phải tự
-biến thành một kết quả (bảng~\ref{tab:doc-hong}). Một tệp không đọc được hay không có chữ thì không
-nằm trong bảng này: đó là một kết quả bình thường của việc dò tệp. Khi giáo viên thấy lỗi, dòng
-trạng thái của tài liệu in ``Xử lí lỗi. Hãy tải lại'', và lý do hiện khi trỏ chuột vào nó.
+\multicolumn{3}{@{}l@{}}{\textbf{Tính nhất quán}} \\*
+\addlinespace
+Kết quả sẵn sàng chỉ được gửi sau khi bản thô và cây đã ghi & Thứ tự trong hai worker & kiểm thử tự động \\
+\cmidrule{1-3}
+Bản ghi chung của cây ghi sau cùng, xoá đầu tiên & \texttt{content\_store} & kiểm thử tự động \\
+\cmidrule{1-3}
+Tài liệu bị đọc lại (chỉ khi job dò tệp chạy lại) thì cây cũ bị xoá & \texttt{content\_store} & kiểm thử tự động \\
+\cmidrule{1-3}
+Tệp hay trang không đọc nổi, cây không dựng được, content store hay \texttt{redis} hỏng tới lần thử cuối: mỗi ca thành một kết quả kèm lý do & Ba hàm nhận job, trong \texttt{ocr\_handlers} và \texttt{index\_handlers} & kiểm thử tự động \\
+\addlinespace
 
-\begin{table}[H]
-\centering
-\caption[Khi một thao tác của \texttt{document} hỏng]{Khi một thao tác bên trong \texttt{document} hỏng}
-\label{tab:doc-hong}
-\begin{tabular}{@{}L{4.4cm}L{6.4cm}L{3.8cm}@{}}
+\multicolumn{3}{@{}l@{}}{\textbf{Điều khiển đồng thời}} \\*
+\addlinespace
+Worker đọc tệp chạy một job một lúc & Cấu hình worker & kiểm thử tự động \\
+\cmidrule{1-3}
+Một cuốn chỉ có một chuỗi lô và một job dựng cây & Mã cố định của job & kiểm thử tự động \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Thời gian}} \\*
+\addlinespace
+Job tự dừng trước khi chạm trần thời gian của worker & Lô OCR không mở trang mới sau 90 giây, dưới trần 120 giây; job dựng cây tự cắt ở 540 giây, dưới trần 600 giây & kiểm thử tự động \\
+\end{longtable}
+
+Ràng buộc thời gian được kiểm chứng hẹp hơn lời của nó, ở hai chỗ. Khác phép kiểm của
+\texttt{agent}, không gì so mốc tự dừng của một job với trần thời gian của worker chạy nó: hạ trần
+trong cấu hình worker xuống dưới mốc ấy cũng không làm kiểm thử nào đỏ. Và lô OCR chỉ xem đồng hồ
+sau khi đọc xong một trang, nên một trang đọc lâu hơn ba mươi giây vẫn đẩy được cả lô quá trần.
+Ngoài bảng, việc \texttt{document} không nhận lời gọi nào từ bên ngoài đứng được nhờ hình dạng của
+nó: hai worker chỉ lấy job từ queue. Điều ấy chỉ được ghi trong luật của service; không gì chặn một
+lượt sửa sau thêm vào đó một máy chủ HTTP.
+
+\subsection{Xử lý lỗi}
+
+Các worker chạy trên thư viện arq, và arq chỉ chạy lại một job khi job ấy chủ động xin; một job chạm
+trần thời gian thì bị giết mà không ai báo gì. Vì vậy mọi cách hỏng của \texttt{document} phải tự
+biến thành một kết quả (bảng~\ref{tab:doc-hong}). Cột cuối nói giáo viên thấy gì: khi có lỗi, dòng
+trạng thái của tài liệu in ``Xử lí lỗi. Hãy tải lại'', và lý do hiện khi trỏ chuột vào nó. Một tệp
+hỏng hay không có chữ thì không nằm trong bảng: đó là một kết quả bình thường của việc dò tệp.
+
+\begin{longtable}{@{}L{4.4cm}L{6.4cm}L{3.8cm}@{}}
+\caption[Khi một thao tác của \texttt{document} hỏng]{Khi một thao tác bên trong \texttt{document} hỏng, và giáo viên thấy gì}
+\label{tab:doc-hong}\\
 \toprule
 \textbf{Khi} & \textbf{\texttt{document} làm gì} & \textbf{Giáo viên thấy} \\
 \midrule
-Content store hay \texttt{redis} chập chờn & Xin chạy lại; tối đa năm lần chạy kể cả lần đầu, bốn lần chờ cộng lại 50 giây; lần thứ năm vẫn hỏng thì gửi kết quả hỏng & Dòng trạng thái vẫn báo đang xử lý, rồi báo lỗi \\
-\addlinespace
-Một trang không đọc nổi giữa một lô & Gửi kết quả hỏng, nói rõ trang nào & Lỗi, kèm số trang \\
-\addlinespace
-Một lô dài quá & Không mở trang mới sau 90 giây, dưới trần 120 giây, rồi giao phần còn lại cho lô kế & Không thấy gì \\
-\addlinespace
-Job dựng cây chạy quá lâu & Tự cắt ở 540 giây, dưới trần 600 giây, rồi gửi kết quả hỏng kèm lý do & Lỗi \\
-\addlinespace
-Bản thô bị đọc lại giữa lúc dựng cây & Lần đọc mới đã xong thì xin chạy lại trên bản mới; còn đang đọc thì dừng, không gửi gì, và lô OCR cuối sẽ giao lại job dựng cây & Không thấy gì \\
-\addlinespace
-Không báo gì quá 300 giây: job bị giết, hay \texttt{redis} chết ở lần thử cuối & Lưới cuối nằm ngoài service: \texttt{backend} đọc tài liệu ra là hỏng & Lỗi \\
+\endfirsthead
+\toprule
+\textbf{Khi} & \textbf{\texttt{document} làm gì} & \textbf{Giáo viên thấy} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r@{}}{\small\emph{tiếp trang sau}} \\
+\endfoot
 \bottomrule
-\end{tabular}
-\end{table}
+\endlastfoot
+
+\multicolumn{3}{@{}l@{}}{\textbf{Content store, object store và \texttt{redis}}} \\*
+\addlinespace
+Content store hay \texttt{redis} trục trặc & Xin chạy lại: tối đa năm lần chạy kể cả lần đầu, bốn khoảng nghỉ cộng lại 50 giây; lần thứ năm vẫn hỏng thì gửi kết quả hỏng & Đang xử lý, rồi lỗi: ``Kho lưu trữ đang trục trặc nên chưa xử lý xong tệp. Thử tải lại sau.'' \\
+\cmidrule{1-3}
+Không đọc được tệp từ object store & Lúc dò tệp: gửi kết quả hỏng ngay, không chạy lại. Giữa chuỗi lô: xin chạy lại như hàng trên & Lỗi: ``Chưa đọc được tệp đã cất. Thử lại sau.'' \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Đọc tệp}} \\*
+\addlinespace
+Một trang không đọc nổi giữa một lô & Gửi kết quả hỏng, nói rõ trang nào & Lỗi: ``Không đọc được trang $n$ của tệp PDF này.'' \\
+\cmidrule{1-3}
+Một lô chạy quá lâu & Không mở trang mới sau 90 giây, rồi giao phần còn lại cho lô kế; một trang chậm vẫn có thể đẩy lô quá trần 120 giây, và khi ấy job bị giết & Thường không thấy gì; job bị giết thì như hàng cuối \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Dựng cây}} \\*
+\addlinespace
+Jev hay một mô hình hỏng, hay chưa được cấu hình & Hàm ấy đi đường lùi của nó (bảng~\ref{tab:doc-khau}) & Không thấy gì; cây kém hơn \\
+\cmidrule{1-3}
+Job dựng cây chạy quá lâu & Tự cắt ở 540 giây, dưới trần 600 giây, rồi gửi kết quả hỏng kèm lý do & Lỗi, như hàng dưới \\
+\cmidrule{1-3}
+Một lỗi bất ngờ khác khi dựng cây & Gửi kết quả hỏng & Lỗi: ``Đã đọc được chữ nhưng chưa dựng được mục lục. Thử tải lại tệp.'' \\
+\cmidrule{1-3}
+Tài liệu bị đọc lại giữa lúc dựng cây & Lần đọc mới đã xong thì xin chạy lại trên bản mới; còn đang đọc thì dừng, không gửi gì, và lần đọc mới, khi xong, sẽ giao lại job dựng cây & Thường không thấy gì; job mới bị từ chối vì job cũ còn chạy thì như hàng cuối \\
+\cmidrule{1-3}
+Không có bản thô nào để dựng & Dừng, không gửi gì & Như hàng cuối \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Khi \texttt{document} không báo được gì}} \\*
+\addlinespace
+Không báo gì quá 300 giây: job bị giết, hay \texttt{redis} chết ở lần thử cuối & \texttt{backend} đọc tài liệu ra là hỏng & Lỗi: ``Xử lý tài liệu này đã dừng giữa đường. Thử tải lại.'' \\
+\end{longtable}
+
+\subsection{Các giới hạn hiện tại}
+\label{sec:doc-gioi-han}
+
+Bốn yêu cầu dưới đây đã được đặt ra cho hệ thống, nhưng \texttt{document} mới thực thi một phần. Mỗi
+yêu cầu có một chỗ hở cụ thể:
+
+\begin{itemize}
+  \item \textbf{Một tài liệu đang đọc không bị báo hỏng oan} --- worker đọc tệp chạy một job một
+        lúc, nên nhiều bản chụp tải lên cùng lúc được đọc xen kẽ từng lô, và ngay một lần dò tệp có
+        sẵn chữ cũng phải xếp sau các lô ấy. Mỗi lô mất chừng bốn mươi lăm giây, tới chín mươi giây
+        nếu trang dày chữ, nên hai lần báo tiến độ của một cuốn cách nhau chừng ấy nhân với số cuốn
+        đang đọc. Từ chừng bảy cuốn, hay bốn cuốn nếu trang dày chữ, khoảng cách ấy vượt ba trăm
+        giây và \texttt{backend} đọc cuốn ấy ra là hỏng. Lỗi ấy tự hết khi lô kế của cuốn báo tiến
+        độ, nhưng trong lúc đó giáo viên đọc ``Hãy tải lại''.
+  \item \textbf{Cây mục lục đúng với cuốn sách} --- ở ngưỡng hiện tại, trên cuốn duy nhất có mục lục
+        chuẩn để so, Jev chưa làm đổi nút nào của cây, nên cây của cuốn ấy chính là cây của luật. Cả
+        luật lẫn ngưỡng đều được chỉnh trên chính cuốn ấy, và luật còn mang mẫu riêng của một bộ
+        sách giáo khoa, nên phép so Jev với luật chưa công bằng. Một lỗi đã gặp: trên cuốn Toán 10
+        tập 1, nút ``Chương IV. VECTƠ'' trỏ vào các trang của chương I, nên một đề ``phần vectơ'' ra
+        tám câu về mệnh đề và tập hợp.
+  \item \textbf{Đọc trọn chữ của bản chụp} --- công thức chỉ có chữ OCR, và khối bảng không nhận chữ
+        nào. Hướng đã chọn là đọc công thức lúc ra đề, chỉ ở phần tài liệu được dùng, bằng một mô
+        hình đọc ảnh; đường ấy chưa được viết.
+  \item \textbf{Giáo viên biết khi cây kém hơn} --- bản ghi chung của cây ghi cây được xếp bằng Jev
+        hay chỉ bằng luật, mô hình tóm tắt và mô hình đọc tên chương có được cấu hình không, và bao
+        nhiêu dòng Jev không đủ chắc. Nhưng không đoạn mã nào của \texttt{backend} hay
+        \texttt{agent} đọc những trường ấy, nên giáo viên không được báo; còn một mô hình hỏng lúc
+        chạy thì bản ghi chung không ghi lại.
+\end{itemize}

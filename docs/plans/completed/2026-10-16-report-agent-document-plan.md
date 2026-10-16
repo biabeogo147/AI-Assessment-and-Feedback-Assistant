@@ -32,11 +32,11 @@ này, chương 7 hết mang hai bộ chữ cho bảng luật và bảng lỗi.
 - [x] A3: viết mục các task chính; review.
 - [x] A4: viết ràng buộc, xử lý lỗi, giới hạn; review.
 - [x] A5: kiểm toàn mục; `rules.md` §2 (*hàm*); backlog; Status. **Dừng, chờ người dùng duyệt.**
-- [ ] D1: đổi nhãn *"khâu"* trong hình `document-pipeline`, xuất lại; dàn ý Document; review.
-- [ ] D2: viết *Vai trò và trách nhiệm* và mục cơ chế, đổi tiêu đề thành `\section{Document}`; review.
-- [ ] D3: viết mục luồng một tệp; review.
-- [ ] D4: viết ràng buộc, xử lý lỗi, giới hạn; review.
-- [ ] D5: kiểm toàn chương; `rules.md`, backlog; Status; hỏi commit.
+- [x] D1: đổi nhãn *"khâu"* trong hình `document-pipeline`, xuất lại; dàn ý Document; review.
+- [x] D2: viết *Vai trò và trách nhiệm* và mục cơ chế, đổi tiêu đề thành `\section{Document}`; review.
+- [x] D3: viết mục luồng một tệp; review.
+- [x] D4: viết ràng buộc, xử lý lỗi, giới hạn; review.
+- [x] D5: kiểm toàn chương; `rules.md`, backlog; Status; hỏi commit.
 
 ## Decision Records
 
@@ -77,21 +77,27 @@ reason: người dùng chọn; diff của Agent và Document tách bạch khỏi
 
 ## Status
 
-Phần Agent xong ngày 16/10/2026; dừng chờ người dùng duyệt trước khi sang Document. Chưa commit
-phần Agent.
+Cả hai phần xong ngày 16/10/2026. Phần Agent đã commit (`8ce9ec8`) sau khi người dùng duyệt; phần
+Document commit ngày 17/10/2026, khi người dùng bảo commit.
 
-- Năm pha A1–A5, mỗi pha một subagent review và đã sửa theo: dàn ý (mười chỗ phải sửa, phần lớn là số
-  dòng và các khẳng định nói quá mang theo từ bản cũ), 7.2.1–7.2.2, 7.2.3, 7.2.4–7.2.6.
-- Build sạch (53 trang), `.\dev.ps1 check` 23/23. Phần ngoài mục Agent giống mốc `moc4` từng byte.
-- Những chỗ bản cũ nói sai đã sửa: khuôn JSON chỉ ở hai graph; Jev đọc bốn tin nhắn, không phải bốn
-  "lượt"; trong tám luật sửa, sáu đổi đề xuất thành lời gọi tool tra cứu; trần hai mươi giây là
-  của một lần gửi, nên một lần gọi có thể quá sáu mươi giây; đề xuất dọn trước không còn tự nêu plan
-  soạn đề; giới hạn đồng ý dàn ý nằm ở mô hình chứ không ở luật so chữ.
-- `rules.md` §2: phần của graph là **hàm**; *Những chỗ đã biết là còn sai* thêm "hàm" hai nghĩa và
-  thu hẹp "hai bộ chữ" về mục Document. `backlog.md`: hai bộ chữ, "khoá", "hàm", bốn docstring sai
-  của `agent`, mảnh chữ phát hỏng.
-- Trang 49 (mục Document cũ) trống khoảng một phần tư, vì bảng `[H]` *Bảy khâu* bị đẩy sang trang
-  sau khi mục Agent dài ra; phần Document sẽ viết lại chỗ ấy.
-- Trong lúc làm, một thay đổi khác (`claude-provider-option`) sửa code `agent` và `document` mà
-  chưa commit. Lượt này không đụng tới nó; câu về thư viện của OpenAI tự gửi lại ở 7.2.4 cần xem lại
-  nếu Model Provider mặc định đổi sang Claude.
+- **Agent:** năm pha A1–A5, mỗi pha một subagent review và đã sửa theo (chi tiết ở commit `8ce9ec8`).
+- **Document:** năm pha D1–D5, mỗi pha một subagent review và đã sửa theo.
+  - Hình `document-pipeline` đổi ba nhãn trước văn bản (`rules.md` §6): "những hàm chạy lâu",
+    "ghép cây", "Mô hình ngoài". Jev không còn bị xếp dưới Model Provider.
+  - Những chỗ bản cũ nói sai đã sửa:
+    - check `sync-sdk-seam` chỉ canh năm thư viện, không phải mọi thư viện bên ngoài;
+    - "dưới trần 120 giây" không chắc, vì lô chỉ xem đồng hồ sau mỗi trang;
+    - lô cuối không gửi tiến độ, và chỉ giao job dựng cây khi cả cuốn có chữ;
+    - mã của lô OCR ghép từ tài liệu và trang đầu;
+    - Jev được dùng ở phần lớn các dòng nhưng chưa làm đổi nút nào của cây;
+    - mô hình đọc công thức đọc đúng chín trên năm mươi tám công thức;
+    - tên mô hình tóm tắt và đọc tên chương nay là mặc định, đổi được sang Claude (`d6c82d4`).
+  - Bảng mới `tab:doc-task`; ba bảng nhóm (ràng buộc, lỗi) là longtable; bảng lỗi giữ cột *Giáo viên
+    thấy* với câu nguyên văn; bốn giới hạn dạng *yêu cầu --- chỗ hở*.
+- Build sạch (55 trang), `.\dev.ps1 check` 23/23. Phần ngoài mục Document giống HEAD từng byte.
+- Chương 7 hết mang hai bộ chữ: `rules.md` bỏ mục ấy khỏi *Những chỗ đã biết là còn sai*, đo lại số
+  đo §3, §4, §7, §9, §10, ghi ba nhãn hình ở §6, thêm *Agent*, *Document* vào chỗ miễn §1.
+  `backlog.md` bỏ hai hàng đã xong ("hai bộ chữ", "khoá"), sửa hàng "một job một lúc" (đã có ca kiểm
+  thử), thêm docstring cũ của `document`.
+- Còn mở: "hàm" tạm hai nghĩa (người dùng sẽ tự sửa *hàm nhận job*); câu về thư viện của OpenAI tự
+  gửi lại ở 7.2.4 cần xem lại nếu Model Provider mặc định đổi sang Claude.

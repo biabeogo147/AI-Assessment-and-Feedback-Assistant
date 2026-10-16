@@ -53,9 +53,9 @@ Activity Overview, Business Workflows, System Architecture, Use Case Diagram); v
 lí dấu gạch chéo, nên đổi nó sang tiếng Việt là mất ý.
 
 Luật cũng không tính chữ trong `\texttt` (tên trong code, kể cả nhãn `System/AI` ở chương 04), tên
-service viết hoa ở đầu một tiêu đề (*Frontend*, *Backend*), và lời trích nguyên văn (*"ok"* ở
-chương 07). Chữ **vẽ trong hình** thì có tính, nhưng hình chỉ sửa được bằng một việc riêng (§6);
-những chữ còn sót trong hình được ghi ở `docs/plans/backlog.md`.
+service viết hoa ở đầu một tiêu đề (*Frontend*, *Backend*, *Agent*, *Document*), và lời trích nguyên
+văn (*"ok"* ở chương 07). Chữ **vẽ trong hình** thì có tính, nhưng hình chỉ sửa được bằng một việc
+riêng (§6); những chữ còn sót trong hình được ghi ở `docs/plans/backlog.md`.
 
 ## 2. Một chữ, một nghĩa — và một nghĩa, một chữ
 
@@ -140,7 +140,7 @@ vào* hay *giữ*.
 - **Mọi lần sau trong cùng chương**: dùng thẳng tiếng Anh, **không in đậm lại**.
 - **Hai dạng chú thích được phép**: ngoặc đơn ngay sau chữ — `\textbf{queue} (hàng đợi)` — hoặc giải
   thích ngay trong cùng câu — *"kèm `\textbf{task}` là tên của loại việc ấy"*.
-- **Không bao giờ chú thích bằng một cặp gạch ngang.** Trong tám chương, `---` được dùng **51 lần**
+- **Không bao giờ chú thích bằng một cặp gạch ngang.** Trong tám chương, `---` được dùng **64 lần**
   cho mệnh đề phụ, nên một bản dịch kẹp giữa hai gạch ngang không phân biệt được với một mệnh đề
   phụ. (Một gạch ngang **đơn** sau nhãn đầu `\item` — `\item \textbf{Nội dung} --- câu hỏi và lời
   giải` — là văn phong của báo cáo, không phải chú thích.)
@@ -171,7 +171,7 @@ không dùng:"* và ba gạch đầu dòng đọc thành **ba thứ hệ thống
 chính danh sách.
 
 Có hai trường hợp không cần dấu hai chấm, và chúng là văn phong có sẵn. Thứ nhất, một danh sách mở
-**ngay sau** một tiêu đề. Trong 23 danh sách của báo cáo, tám danh sách thuộc dạng này: năm ở chương
+**ngay sau** một tiêu đề. Trong 25 danh sách của báo cáo, tám danh sách thuộc dạng này: năm ở chương
 04, ngay sau `\paragraph{Luồng chính.}` và họ hàng; ba ở từ điển chương 3, ngay sau `\subsection` của
 nhóm (nhóm *Tài liệu* thì vẫn mở bằng một câu dẫn). Thứ hai, danh mục ở chương tham khảo: một
 `description` đứng sau một đoạn văn trọn vẹn, không sau một câu dẫn.
@@ -225,6 +225,12 @@ chương 01, 02, 04, 05:
 | `teacher-chat-turn` | 07 | **không chữ nào** |
 | `document-pipeline` | 07 | **không chữ nào** |
 
+Luật này áp cho mọi chữ, không chỉ năm chữ trong bảng. Lượt viết lại mục Document của chương 7
+(16/10/2026) đổi ba nhãn của `document-pipeline` *trước* khi đổi văn bản: *"những hàm chạy lâu"* (thay
+*"các khâu dài"*), *"ghép cây"* cho hàm `assemble` (thay *"dựng cây"*, vốn là tên của cả graph), và
+hàng mô hình ở đáy hình thành *"Mô hình ngoài"* (thay *"Model Provider"*, vì Jev không phải một
+Model Provider).
+
 Chương 06 và 07 nhúng hình không chứa chữ nào trong năm chữ ấy, nên chỉ ở hai chương ấy mới Anh
 hoá được. Chương 06 dùng giấy phép ấy; chương 07 không cần, và vẫn viết "duyệt" bằng tiếng Việt.
 **Giấy phép chỉ gồm `draft` và `approve`**: "phát hành" và "điểm" giữ tiếng Việt ở **mọi**
@@ -243,7 +249,7 @@ sẽ để lại bốn câu trỏ vào hư không, và đó đúng là việc đ
 **Một tham chiếu phải đáng công đi.** Chỉ `\ref` sang chỗ nói **nhiều hơn** chỗ đang đứng; `\ref` tới
 một mục nói ít hơn là bắt người đọc đi không.
 
-**Nhưng đừng đòi mọi `\label` phải có ai `\ref`.** Hiện 44 nhãn, 28 được trỏ tới, và phần lớn số
+**Nhưng đừng đòi mọi `\label` phải có ai `\ref`.** Hiện 47 nhãn, 31 được trỏ tới, và phần lớn số
 còn lại có việc riêng: `ch:` và `tab:`/`fig:` phục vụ mục lục, `\listoffigures` và `\listoftables`.
 Thứ thật sự là gánh nặng là một `sec:` không ai trỏ — hiện có **7** cái; chương 7 không thêm cái
 nào, vì hai nhãn mục không ai trỏ tới đã bị bỏ, và mục backend viết lại của nó trỏ tới
@@ -293,7 +299,7 @@ draw.io đọc nó như một thẻ và nuốt mất.
 
 **Bảng lớn đặt `[htb]`, không `[htbp]`.** Với `p`, LaTeX có thể đẩy một bảng ra trang riêng, ngồi
 giữa một khoảng trắng — chương 7 đã gặp hai lần. Một bảng mà trôi xuống dưới tiêu đề của mục kế thì
-đặt `[H]`, như bảng cuối của chương 7. Nhưng `[H]` không co lại: bảng không vừa phần trang còn lại
+đặt `[H]`, như hai bảng của chương 06. Nhưng `[H]` không co lại: bảng không vừa phần trang còn lại
 thì tràn xuống lề, và log ghi `Overfull \vbox` chứ không báo lỗi.
 
 **Bảng có nhóm mà cao quá 70% trang thì dùng `longtable`.** `[htb]` chỉ đặt một bảng ở đầu trang khi
@@ -329,20 +335,20 @@ Văn phong đo được từ tám chương hiện có — theo nó, đừng đ�
 | Độ dài dòng văn xuôi | gói quanh **100**, không quá ~110 | p90 của mọi chương: 95–106 |
 | Dòng của bảng | **một dòng một hàng**, không gói | hàng dài nhất 375 ký tự |
 | Dòng tiếp của `\item` | thụt **8 cách** | 113 lần |
-| Gạch ngang | luôn `---`, không bao giờ `--` | 51 so với 0 |
-| Ngoặc kép | kiểu LaTeX ```...''`, không dùng `"` | 14 so với 0 |
+| Gạch ngang | luôn `---`, không bao giờ `--` | 64 so với 0 |
+| Ngoặc kép | kiểu LaTeX ```...''`, không dùng `"` | 25 so với 0 |
 | Số đếm trong văn xuôi | **viết chữ**: "năm service", "hai mươi mốt bảng" | "một" 408, "hai" 84, "ba" 64 |
 | Chữ số | chỉ cho điểm (`0,5`), số giai đoạn, mã UC | — |
-| `\paragraph{...}` | **kết bằng dấu chấm** | 54/55; thiếu ở `06:105` |
+| `\paragraph{...}` | **kết bằng dấu chấm** | 58/59; thiếu ở `06:105` |
 | Newline cuối tệp | phải có | `04` đang thiếu |
 | Khoảng trắng cuối dòng | không có | 15 dòng đang vi phạm |
 
 ## 10. Cách gọi người
 
 - **`Teacher` / `Student`** chỉ dùng khi đang nói về **actor** và trong sơ đồ.
-- **"giáo viên" / "học sinh"** trong văn xuôi kể. Đây là mặc định: "học sinh" 98 lần so với
-  `Student` 24, "giáo viên" 86 so với `Teacher` 20 (không tính tên trong `\texttt`).
-- **"em"** dùng được khi câu đang nói về **một** học sinh cụ thể (11 lần).
+- **"giáo viên" / "học sinh"** trong văn xuôi kể. Đây là mặc định: "học sinh" 105 lần so với
+  `Student` 24, "giáo viên" 106 so với `Teacher` 20 (không tính tên trong `\texttt`).
+- **"em"** dùng được khi câu đang nói về **một** học sinh cụ thể (17 lần).
 - **"họ"** thì đừng — chỉ còn 1 lần (`04:86`) và nó lạc giọng so với phần còn lại.
 
 ## Những chỗ đã biết là còn sai
@@ -359,10 +365,6 @@ Văn phong đo được từ tám chương hiện có — theo nó, đừng đ�
    ghi ở đâu.
 4. **`04` thiếu newline cuối tệp**; 15 dòng ở `01`, `02`, `04`, `05` còn khoảng trắng cuối dòng; và
    chín dòng văn xuôi ở `01`, `02`, `04`, `05` dài quá 112 ký tự (dài nhất `04:79`, 140 ký tự).
-5. **Chương 07 mang hai bộ chữ cho bảng luật và bảng lỗi**, trái §2. Mục Backend và Agent dùng
-   *Các ràng buộc và cơ chế kiểm soát*, *Xử lý lỗi*, cột *Ràng buộc / Cơ chế thực thi / Kiểm
-   chứng*; mục document vẫn dùng *Luật và chỗ canh luật*, *Khi hỏng*, cột *Luật / Nơi thi hành /
-   Loại lưới*, tới khi lượt viết lại mục ấy xong.
-6. **"Hàm" mang hai nghĩa trong chương 07**, trái §2: phần của một graph (theo mục *Graph* của từ
+5. **"Hàm" mang hai nghĩa trong chương 07**, trái §2: phần của một graph (theo mục *Graph* của từ
    điển), và *hàm nhận job*, chỗ worker gọi vào khi lấy một job xuống. Người dùng giữ *hàm nhận
    job* ngày 16/10/2026 và sẽ tự chọn chữ khác cho nó.

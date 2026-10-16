@@ -9,7 +9,7 @@
   },
   "document-pipeline.pdf": {
     "source": "docs/diagrams/document-pipeline.drawio",
-    "sha256": "319792a7cd451544649493d06d9711283e971c415df59c3ccfad9b9062ede4c1"
+    "sha256": "684e040cce1f8472ecc492f244308289869d2b8baae65ce726ca04f5b3b86206"
   },
   "domain-context.pdf": {
     "source": "docs/diagrams/domain-context.drawio",
