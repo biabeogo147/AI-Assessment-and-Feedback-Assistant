@@ -21,6 +21,12 @@ const STEP_TITLE: Record<string, string> = {
   start_drafting: "Soạn câu hỏi",
   // `draft-outline`: soạn lại một câu theo dàn ý thay câu (ADR-29).
   replace_question: "Thay một câu",
+  // Bốn tool đọc tài liệu (`kriky-writes-every-word`): thiếu chúng thì lượt dàn ý theo sách hiện
+  // `Đã làm 4 bước` mà mở ra là bốn dòng `Một bước nữa`.
+  list_documents: "Xem thư viện tài liệu",
+  list_chapters: "Xem mục lục",
+  get_chapter: "Mở một chương",
+  read_section: "Đọc sách",
   "teacher.approve": "Duyệt đề",
   "teacher.unapprove": "Bỏ duyệt",
   "teacher.publish": "Phát hành",
@@ -65,11 +71,23 @@ export function stepFor(turn: Turn): Step {
   const refused = refusal(result);
   return {
     mark: refused ? "failed" : "done",
-    // Tool chưa có trong bảng vẫn phải đọc được bằng tiếng người. In `turn.tool_name` ra
-    // đây là thả một định danh máy lên bề mặt giáo viên, đúng thứ `teacher-surface.md` cấm.
-    title: STEP_TITLE[turn.tool_name] ?? "Một bước nữa",
+    title: titleOf(turn.tool_name),
     result: refused ? dash(why(result)) : dash(outcome(turn)),
   };
+}
+
+/**
+ * Tên một bước theo tool của nó — một bảng cho cả bước đang chạy lẫn bước đọc lại sau F5
+ * (`kriky-writes-every-word`), nên tên không đổi lúc lượt xong.
+ *
+ * @param toolName - Tool của bước.
+ * @param fallback - Tên BE gửi kèm, khi tool chưa có trong bảng.
+ * @returns Tên bước bằng tiếng Việt thường.
+ */
+export function titleOf(toolName: string, fallback = ""): string {
+  // Tool chưa có trong bảng vẫn phải đọc được bằng tiếng người. In `toolName` ra đây là thả
+  // một định danh máy lên bề mặt giáo viên, đúng thứ `teacher-surface.md` cấm.
+  return STEP_TITLE[toolName] ?? (fallback || "Một bước nữa");
 }
 
 /**
@@ -152,6 +170,31 @@ function outcome(turn: Turn): string {
   }
   if (turn.tool_name === "replace_question") {
     return replaced(result);
+  }
+  return read(turn.tool_name, result);
+}
+
+/**
+ * Dòng kết quả của một bước đọc tài liệu, lấy từ chính `tool_result` (`kriky-writes-every-word`).
+ *
+ * @param toolName - Một trong bốn tool đọc tài liệu.
+ * @param result - Kết quả của nó, đã bỏ chữ sách (BE `_client_result`).
+ * @returns Dòng kết quả; rỗng cho tool khác.
+ */
+function read(toolName: string, result: Record<string, unknown>): string {
+  const shown = Array.isArray(result.candidates) ? result.candidates.length : 0;
+  const cut = Number(result.more ?? 0);
+  const tail = cut > 0 ? `, còn ${cut} nữa` : "";
+  if (toolName === "list_documents") return `${shown} tài liệu${tail}`;
+  if (toolName === "list_chapters") return `${shown} chương${tail}`;
+  if (toolName === "get_chapter") return `${shown} mục${tail}`;
+  if (toolName === "read_section") {
+    // Một phần có thể gộp hàng chục mục (`teacher_tools._part_text`): một dòng kết quả nêu hai
+    // mục đầu rồi đếm phần còn lại.
+    const labels = Array.isArray(result.labels) ? result.labels.map(String) : [];
+    const named = labels.slice(0, 2).join("; ");
+    const rest = labels.length > 2 ? ` và ${labels.length - 2} mục nữa` : "";
+    return `phần ${Number(result.part ?? 0)}/${Number(result.parts ?? 0)}: ${named}${rest}`;
   }
   return "";
 }

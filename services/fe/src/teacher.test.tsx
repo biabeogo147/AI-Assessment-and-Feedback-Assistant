@@ -803,6 +803,45 @@ describe("một lượt của Kriky", () => {
     expect(step.mark).toBe("failed");
     expect(step.result).toBe("— đề này đang soạn dở");
   });
+
+  it("bốn tool đọc tài liệu có tên và dòng kết quả, không còn `Một bước nữa`", () => {
+    // Thử tay 16/10/2026 (case 04): lượt dàn ý theo sách hiện `Đã làm 4 bước` mà mở ra là bốn
+    // dòng `Một bước nữa` (`kriky-writes-every-word`).
+    const read = (tool_name: string, tool_result: Record<string, unknown>) =>
+      stepFor(blank({ kind: "tool_result", tool_name, tool_result }));
+
+    expect(read("list_documents", { candidates: [{}, {}], more: 0 })).toEqual({
+      mark: "done",
+      title: "Xem thư viện tài liệu",
+      result: "— 2 tài liệu",
+    });
+    expect(read("list_chapters", { found: true, candidates: [{}], more: 0 }).title).toBe(
+      "Xem mục lục",
+    );
+    expect(read("list_chapters", { found: true, candidates: [{}], more: 0 }).result).toBe(
+      "— 1 chương",
+    );
+    expect(read("get_chapter", { found: true, candidates: [{}, {}, {}], more: 2 }).result).toBe(
+      "— 3 mục, còn 2 nữa",
+    );
+    const part = read("read_section", {
+      found: true,
+      part: 2,
+      parts: 5,
+      more: true,
+      labels: ["2. SỐ LA MÂ (tr. 10–13)"],
+      elided: true,
+    });
+    expect(part.title).toBe("Đọc sách");
+    expect(part.result).toBe("— phần 2/5: 2. SỐ LA MÂ (tr. 10–13)");
+    expect(read("read_section", { found: false, reason: "part phải từ 1 đến 5" }).mark).toBe(
+      "failed",
+    );
+    // Một phần gộp nhiều mục: hai mục đầu, rồi đếm phần còn lại.
+    expect(
+      read("read_section", { found: true, part: 1, parts: 1, labels: ["A", "B", "C", "D"] }).result,
+    ).toBe("— phần 1/1: A; B và 2 mục nữa");
+  });
 });
 
 describe("một lượt đang chạy, dựng từ các sự kiện", () => {
@@ -820,6 +859,10 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
       total: 0,
       titles: [],
       began: 0,
+      // Đúng hình BE gửi lên dây: mọi sự kiện có hai field này (review pha 1,
+      // `kriky-writes-every-word` — helper thiếu chúng làm test xanh trong khi màn hình sai).
+      tool_name: "",
+      result: null,
       ...some,
     } as TurnEvent;
   }
@@ -882,6 +925,79 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
     expect(live.total).toBe(2);
     expect(live.steps[0].result).toBe("— đã soạn 4/10 câu");
     expect(live.steps[0].mark).toBe("running");
+  });
+
+  it("bước tra cứu trước plan hiện lúc đang chạy, y như sau F5, và không vào `bước k/n`", () => {
+    // `kriky-writes-every-word`: BE phát `step_*` cho mỗi `call_tool` của pha lên plan, mang
+    // `tool_name` và `tool_result` đã bỏ chữ -- FE dựng dòng bằng chính `stepFor` của F5.
+    const result = { found: true, part: 1, parts: 5, more: true, labels: ["Bài 1. TẬP HỢP"] };
+    let live = grow(null, event({ kind: "step_started", tool_name: "read_section" }));
+    expect(live.steps[0]).toMatchObject({ mark: "running", title: "Đọc sách", planned: false });
+    live = grow(live, event({ kind: "step_done", tool_name: "read_section", result }));
+    const reloaded = stepFor(
+      blank({ kind: "tool_result", tool_name: "read_section", tool_result: result }),
+    );
+    expect(live.steps[0]).toEqual({ ...reloaded, planned: false });
+
+    live = grow(live, event({ kind: "say", text: "Được, mình soạn đề ngay." }));
+    live = grow(live, event({ kind: "plan", total: 2 }));
+    // Lời tới sau bước tra cứu thành lời mở khi plan theo sau -- `spoken` đặt nó như vậy sau F5.
+    expect(live.opening).toBe("Được, mình soạn đề ngay.");
+    expect(live.report).toBe("");
+    live = grow(
+      live,
+      event({ kind: "step_started", title: "Tạo đề trống", tool_name: "create_draft", index: 1, total: 2 }),
+    );
+    render(<Steps steps={live.steps} total={live.total} />);
+    expect(screen.getByText(/bước\s*1\s*\/2/)).toBeTruthy();
+  });
+
+  it("bước của plan hỏng vẫn là ✕ với câu của BE, kể cả khi sự kiện mang `tool_name`", () => {
+    // Review pha 1: bước plan mang `tool_name` và `result: null` trên dây; bản đầu đưa nó qua
+    // `stepFor({})` và ra `✓ — 0 câu bắt đầu soạn` cho một bước đã hỏng.
+    let live = grow(null, event({ kind: "plan", total: 1 }));
+    live = grow(
+      live,
+      event({ kind: "step_started", title: "Soạn câu hỏi", tool_name: "start_drafting", index: 1, total: 1 }),
+    );
+    live = grow(
+      live,
+      event({ kind: "step_failed", tool_name: "start_drafting", detail: "không soạn được", index: 1, total: 1 }),
+    );
+    expect(live.steps[0]).toEqual({
+      mark: "failed",
+      title: "Soạn câu hỏi",
+      result: "— không soạn được",
+      planned: true,
+    });
+    render(<Steps steps={live.steps} total={live.total} />);
+    expect(screen.getByText("Dừng ở bước 1")).toBeTruthy();
+  });
+
+  it("bước tra cứu hỏng mang ✕ ở hàng của nó mà không làm cả khối thành `Dừng ở bước k`", () => {
+    // Model đọc lý do rồi đi tiếp, nên lượt không dừng (review pha 1).
+    let live = grow(null, event({ kind: "step_started", tool_name: "read_section" }));
+    live = grow(
+      live,
+      event({ kind: "step_failed", tool_name: "read_section", result: { found: false, reason: "chưa đọc được" } }),
+    );
+    live = grow(live, event({ kind: "step_started", tool_name: "read_section" }));
+    render(<Steps steps={live.steps} />);
+    expect(live.steps[0].mark).toBe("failed");
+    expect(screen.queryByText(/Dừng ở/)).toBeNull();
+    expect(screen.getByText("Đọc sách…")).toBeTruthy();
+  });
+
+  it("lời tới sau bước tra cứu mà không có plan là câu trả lời, nằm dưới khối bước", () => {
+    // Lượt dàn ý theo sách: đọc rồi nói, không plan. Sau F5 `spoken` đặt lời ấy dưới khối bước.
+    let live = grow(null, event({ kind: "step_started", tool_name: "list_chapters" }));
+    live = grow(
+      live,
+      event({ kind: "step_done", tool_name: "list_chapters", result: { candidates: [{}] } }),
+    );
+    live = grow(live, event({ kind: "say", text: "Dàn ý 5 câu đây." }));
+    expect(live.opening).toBe("");
+    expect(live.report).toBe("Dàn ý 5 câu đây.");
   });
 
   it("gắn dòng tiến độ vào bước soạn câu — đúng dãy sự kiện BE phát", () => {
@@ -3750,6 +3866,10 @@ describe("shimmer chỉ ở bước đang chạy", () => {
       total: 0,
       titles: [],
       began: 0,
+      // Đúng hình BE gửi lên dây: mọi sự kiện có hai field này (review pha 1,
+      // `kriky-writes-every-word` — helper thiếu chúng làm test xanh trong khi màn hình sai).
+      tool_name: "",
+      result: null,
       ...some,
     } as TurnEvent;
   }

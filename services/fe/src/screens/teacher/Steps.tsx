@@ -8,6 +8,11 @@ export interface Step {
   title: string;
   /** Dòng kết quả, chữ của BE. Rỗng thì không in dòng nào. */
   result: string;
+  /**
+   * Bước này thuộc plan hay là một bước tra cứu trước plan (`kriky-writes-every-word`). Chỉ bước
+   * của plan vào `bước k/n`: `n` là số bước plan (ADR-25). Không ghi thì coi như thuộc plan.
+   */
+  planned?: boolean;
 }
 
 /**
@@ -31,14 +36,18 @@ export interface Step {
  *   có trước khi chạy (ADR-25). Bỏ trống thì đếm theo `steps`, đúng cho một lượt đã xong.
  */
 export default function Steps({ steps, total }: { steps: Step[]; total?: number }) {
-  const failed = steps.some((one) => one.mark === "failed");
+  // Chỉ một bước **của plan** hỏng mới dừng lượt (ADR-25). Một bước tra cứu hỏng thì model đọc lý
+  // do rồi đi tiếp, nên nó mang dấu ✕ ở hàng của nó mà không làm cả khối thành `Dừng ở bước k`
+  // (review pha 1, `kriky-writes-every-word`).
+  const planned = steps.filter((one) => one.planned !== false);
+  const failed = planned.some((one) => one.mark === "failed");
   const live = steps.some((one) => one.mark === "running");
   // Chỉ là giá trị khởi tạo: sau đó người đọc làm chủ. Một lượt đang chạy mà tự đóng lại
   // dưới tay người đang đọc nó là mất chỗ, nên state không bao giờ bị ép lại theo `live`.
   const [open, setOpen] = useState(live || failed);
   const shown = failed || open;
 
-  const broken = steps.findIndex((one) => one.mark === "failed");
+  const broken = planned.findIndex((one) => one.mark === "failed");
   const doing = steps.find((one) => one.mark === "running");
   // Header **không** nhắc lại câu lỗi: câu ấy đã nằm ở dòng của chính bước hỏng, và thẻ
   // kết quả in nó lần nữa. Ba lần cùng một câu trên một màn hình đọc ra như ba sự cố.
@@ -62,9 +71,9 @@ export default function Steps({ steps, total }: { steps: Step[]; total?: number 
             được là lời mời bấm vào thứ không nhận. Artboard cũng bỏ nó ở variant này. */}
         {!failed && <span className={`caret ${shown ? "open" : ""}`} aria-hidden="true" />}
         <span className="what">{head}</span>
-        {live && (
+        {live && doing?.planned !== false && (
           <span className="count">
-            bước {steps.indexOf(doing!) + 1}/{total ?? steps.length}
+            bước {planned.indexOf(doing!) + 1}/{total || planned.length}
           </span>
         )}
       </button>

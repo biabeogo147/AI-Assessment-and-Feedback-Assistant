@@ -73,12 +73,11 @@ Và **hai luật cho khối bước**:
 - **Đúng một hàng có dải sáng quét**, và nó là hàng đang chạy. Bước xong thì tắt, bước chưa tới thì
   chưa sáng.
 
-**Tên bước đổi khi lượt xong — lệch đã biết, không tính trượt.** Lúc đang chạy, mỗi hàng mang tên
-bước trong plan (*"Soạn câu hỏi theo dàn ý"*, *"Soạn thêm câu hỏi"*, *"Thay câu 3"*). Lượt xong, FE
-đọc lại cả đoạn chat từ database và đặt tên theo tool (`STEP_TITLE` trong `ActionCard.tsx`):
-`Tạo đề trống`, `Soạn câu hỏi`, `Thay một câu`, `Xem các lớp`… Các tool đọc sách (`list_chapters`,
-`get_chapter`, `read_section`, `list_documents`) chưa có tên nên hiện **`Một bước nữa`**. Mọi case
-chấm theo tên **sau khi lượt xong**, và F5 không được đổi gì thêm.
+**Tên bước là một, lúc đang chạy và sau F5.** Mỗi hàng mang tên theo tool (`STEP_TITLE` trong
+`ActionCard.tsx`): `Xem mục lục`, `Đọc sách`, `Tạo đề trống`, `Soạn câu hỏi`, `Thay một câu`, `Xem
+các lớp`… Bước tra cứu trước plan (đọc sách, tra lớp) hiện **ngay lúc chạy**, có dòng kết quả (vd
+`— phần 2/5: 2. SỐ LA MÂ (tr. 10–13)`), và không vào `bước k/n` — `n` chỉ đếm bước của plan. Tên hay
+dòng kết quả đổi sau F5 là trượt.
 
 **Kriky làm được gì** (để không chờ nó làm thứ nó không có): tra lớp (`list_class`, `get_class`),
 tra đề và kết quả lớp (`list_assessment`, `class_assessment_summary`), đọc tài liệu

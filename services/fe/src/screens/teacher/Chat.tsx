@@ -9,7 +9,7 @@ import {
   type Turn,
   type TurnEvent,
 } from "../../api";
-import ActionCard, { byTheTeacher, cardTurns, stepFor } from "./ActionCard";
+import ActionCard, { byTheTeacher, cardTurns, stepFor, titleOf } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
 import Rail from "./Rail";
@@ -787,7 +787,10 @@ function spoken(turns: Turn[]): Spoken {
       // Việc giáo viên tự làm thì không vào khối bước: khối ấy là bằng chứng **model** đã
       // làm gì. Nó vẫn lên thẻ, nên biên bản không mất đi đâu (ADR-24) — và nay là **mỗi
       // việc một thẻ**, vì bản trước để `unapprove` đè mất `approve`.
-      if (!byTheTeacher(one)) steps.push(stepFor(one));
+      // Bước tra cứu trước plan đầu tiên (hay mọi bước, ở lượt không plan) không thuộc plan:
+      // nó không làm khối thành `Dừng ở bước k` (`kriky-writes-every-word`).
+      if (!byTheTeacher(one))
+        steps.push({ ...stepFor(one), planned: firstPlan >= 0 && at > firstPlan });
       continue;
     }
     // Lượt dàn ý (ADR-29, `draft-outline`) cũng là lời Kriky: chữ của nó do BE dựng từ các mục,
@@ -870,22 +873,59 @@ export function grow(before: Live | null, event: TurnEvent): Live {
 
   switch (event.kind) {
     case "say":
+      // Lời tới **sau** các bước tra cứu mà chưa có plan là câu trả lời của lượt (dàn ý, câu đáp)
+      // — `spoken` đặt nó dưới khối bước. Nó chỉ thành lời mở nếu một plan theo sau
+      // (`kriky-writes-every-word`): vẽ khác thứ tự ấy thì F5 lúc lượt xong làm câu nhảy chỗ.
+      if (steps.length > 0 && now.total === 0) return { ...now, report: event.text };
       return { ...now, opening: event.text };
     case "plan":
+      if (now.opening === "" && now.report !== "")
+        return { ...now, opening: now.report, report: "", total: event.total };
       return { ...now, total: event.total };
     case "step_started":
-      steps.push({ mark: "running", title: event.title, result: "" });
+      steps.push({
+        mark: "running",
+        title: titleOf(event.tool_name ?? "", event.title),
+        result: "",
+        // Bước tra cứu của pha lên plan tới **trước** sự kiện `plan` và không mang `index`: nó
+        // không vào `bước k/n` (ADR-25).
+        planned: now.total > 0 || event.index > 0,
+      });
       return { ...now, steps, total: now.total || event.total };
     case "step_done":
     case "step_failed": {
       // Bước đang chạy là bước vừa xong — tìm từ cuối, vì các bước chạy tuần tự và một
       // tiêu đề có thể lặp lại giữa hai lượt.
       const last = steps.map((one) => one.mark).lastIndexOf("running");
-      const closed = {
-        mark: (event.kind === "step_done" ? "done" : "failed") as Step["mark"],
-        title: event.title || (last >= 0 ? steps[last].title : "Một bước nữa"),
-        result: event.detail === "" ? "" : `— ${event.detail}`,
-      };
+      // Bước tra cứu mang chính `tool_result` của nó, nên dòng của nó dựng bằng đúng `stepFor`
+      // dùng sau F5 — hai đường, một câu (`kriky-writes-every-word`). Bước của plan mang
+      // `result: null`, và dòng của nó đi trong `detail`.
+      const closed: Step =
+        event.result != null && event.tool_name
+          ? {
+              ...stepFor({
+                kind: "tool_result",
+                text: "",
+                tool_name: event.tool_name,
+                tool_result: event.result,
+                entity_kind: "",
+                entity_id: "",
+                choices: [],
+                more_choices: 0,
+                model_tokens: 0,
+                duration_ms: 0,
+              }),
+              planned: false,
+            }
+          : {
+              mark: (event.kind === "step_done" ? "done" : "failed") as Step["mark"],
+              title: titleOf(
+                event.tool_name ?? "",
+                event.title || (last >= 0 ? steps[last].title : ""),
+              ),
+              result: event.detail === "" ? "" : `— ${event.detail}`,
+              planned: true,
+            };
       // Không có bước nào đang chạy nghĩa là bước này hỏng **trước khi** nó bắt đầu — BE
       // phát `step_failed` không kèm `step_started` khi một tham chiếu không giải được.
       // Bỏ qua nó thì màn hình sống im lặng về đúng cái bước đã làm lượt dừng lại.

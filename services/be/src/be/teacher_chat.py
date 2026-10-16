@@ -1614,15 +1614,23 @@ async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord)
     await _record(session, thread, len(stored), record)
 
 
+def _client_result(tool_name: str, result: dict) -> dict:
+    """`tool_result` như client được xem: chữ một phần đọc (`read_section`) không tới client.
+
+    Một chỗ cho hai đường -- sự kiện bước lúc lượt đang chạy và lượt đọc lại sau F5 -- vì hai
+    đường của cùng một bước phải vẽ cùng một dòng (`kriky-writes-every-word`).
+    """
+    result = dict(result)
+    return _without_text(result) if tool_name == "read_section" else result
+
+
 def _visible(turn: TeacherTurn) -> Turn:
     """Chiếu một bước đã lưu sang đúng thứ client được xem.
 
     Chữ một phần đọc (`read_section`) không tới client: màn hình không vẽ nó, và mười phần một lượt
     là cả trăm nghìn ký tự đi mỗi lần tải lại đoạn chat.
     """
-    result = dict(turn.tool_result or {})
-    if turn.tool_name == "read_section":
-        result = _without_text(result)
+    result = _client_result(turn.tool_name, turn.tool_result or {})
     return Turn(
         kind=turn.kind,
         text=turn.text,
@@ -1714,6 +1722,13 @@ class TurnEvent(BaseModel):
         titles: Tiêu đề của từng bước, chỉ ở sự kiện `plan`. Khối bằng chứng vẽ được cả
             danh sách việc trước khi bước đầu tiên chạy.
         began: Lượt này bắt đầu ở vị trí nào trong hội thoại.
+        tool_name: Tool của bước, cho ba sự kiện `step_*` (`kriky-writes-every-word`). FE đặt tên
+            bước từ đây bằng đúng bảng nó dùng sau F5, nên tên không đổi lúc lượt xong.
+        result: Kết quả của một bước tra cứu ở pha lên plan, cho `step_done`/`step_failed` --
+            đúng thứ client đọc lại sau F5 (`_client_result`), nên dòng kết quả cũng không đổi.
+            Bước của plan để `None` (lên dây là `null`): dòng của chúng đi trong `detail`. Một
+            dict rỗng mặc định thì không phân biệt được hai loại bước (review pha 1,
+            `kriky-writes-every-word`).
     """
 
     kind: str
@@ -1728,6 +1743,8 @@ class TurnEvent(BaseModel):
     total: int = 0
     titles: tuple[str, ...] = ()
     began: int = 0
+    tool_name: str = ""
+    result: dict[str, object] | None = None
 
 
 # Câu nói cho giáo viên khi một bước hỏng. `reason` của một tool là văn bản viết **cho
@@ -2461,6 +2478,10 @@ async def _go(
             duration_ms=spent_ms,
             model_tokens=step.model_tokens,
         )
+        # Bước tra cứu cũng hiện **lúc đang chạy** (`kriky-writes-every-word`): đọc sách mất mười
+        # mấy giây, và trước đây màn hình đứng im suốt lúc ấy rồi bật ra cả khối khi lượt xong.
+        # Không `index`/`total`: `bước k/n` đếm bước của plan (ADR-25), và plan chưa có.
+        yield TurnEvent(kind="step_started", tool_name=step.tool_name, conversation_id=thread)
 
         try:
             result = await execute(
@@ -2521,6 +2542,13 @@ async def _go(
             planning = catalog_for(asking, PHASE_PLAN, documents=True, bound=bound)
             working = catalog_for(asking, PHASE_WORK, documents=True, bound=bound)
         position = await _record(session, thread, position, history[-1])
+        # Phát **sau** khi đã ghi, như bước của plan: F5 ngay sau đó phải cho ra đúng dòng này.
+        yield TurnEvent(
+            kind="step_failed" if _went_wrong(result) else "step_done",
+            tool_name=step.tool_name,
+            result=_client_result(step.tool_name, result),
+            conversation_id=thread,
+        )
 
     if not plan:
         # Mức trần. Chạm tới, không phải đâm vào: giáo viên nhận được một câu gọi tên
@@ -2558,6 +2586,7 @@ async def _go(
             yield TurnEvent(
                 kind="step_failed",
                 title=step_of_plan.title,
+                tool_name=step_of_plan.tool_name,
                 detail=_COULD_NOT_CARRY_OVER,
                 index=index,
                 total=len(plan),
@@ -2582,6 +2611,7 @@ async def _go(
         yield TurnEvent(
             kind="step_started",
             title=step_of_plan.title,
+            tool_name=step_of_plan.tool_name,
             index=index,
             total=len(plan),
             conversation_id=thread,
@@ -2682,6 +2712,7 @@ async def _go(
         yield TurnEvent(
             kind="step_failed" if broke else "step_done",
             title=step_of_plan.title,
+            tool_name=step_of_plan.tool_name,
             detail=detail,
             index=index,
             total=len(plan),

@@ -961,8 +961,56 @@ async def test_the_turn_tells_what_is_happening_while_it_happens(stack) -> None:
     started = [one for one in seen if one.kind == "step_started"]
     assert [(one.index, one.total) for one in started] == [(1, 2), (2, 2)]
     assert [one.title for one in started] == ["Tạo đề trống", "Soạn câu hỏi"]
+    # Bước của plan mang `tool_name` nhưng `result` là `None`: dòng của nó đi trong `detail`, và
+    # FE phân biệt nó với bước tra cứu bằng đúng điều này (review pha 1, `kriky-writes-every-word`).
+    steps = [one for one in seen if one.kind.startswith("step_")]
+    assert [one.tool_name for one in steps] == ["create_draft"] * 2 + ["start_drafting"] * 2
+    assert all(one.result is None for one in steps)
 
     assert seen[-1].ended_as == "report"
+
+
+@pytest.mark.asyncio
+async def test_a_lookup_before_the_plan_shows_while_it_runs(stack) -> None:
+    """Bước tra cứu của pha lên plan cũng phát `step_*`, mang đúng thứ client đọc lại sau F5.
+
+    `kriky-writes-every-word`: đọc sách mất mười mấy giây, và trước bản này màn hình đứng im suốt
+    lúc ấy. Sự kiện mang `tool_name` và `tool_result` **đã bỏ chữ sách** (`_client_result`), không
+    `index`/`total` -- `bước k/n` chỉ đếm bước của plan (ADR-25).
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="read_section", tool_args={}),
+        NextStepCompleted(request_id="x", kind="say", text="Mình đã đọc xong bài."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    read = {"found": True, "part": 1, "parts": 2, "more": True, "labels": ["Bài 1"], "text": "chữ"}
+
+    async def execute(*_args, **_kwargs) -> dict:
+        return dict(read)
+
+    monkeypatch.setattr(teacher_chat, "execute", execute)
+
+    teacher = await _teacher(maker, "GV-001")
+    asked = teacher_chat.Said(text="đọc bài 1 giúp mình")
+    seen = []
+    async with maker() as session:
+        async for event in teacher_chat.run_turn(
+            asked, _request(), teacher, session, get_settings()
+        ):
+            seen.append(event)
+
+    assert [one.kind for one in seen] == ["step_started", "step_done", "say", "done"]
+    started, done = seen[0], seen[1]
+    assert (started.tool_name, started.index, started.total) == ("read_section", 0, 0)
+    assert done.tool_name == "read_section"
+    assert "text" not in done.result and done.result["elided"] is True
+    assert done.result["labels"] == ["Bài 1"]
+
+    # Sau F5, client đọc đúng kết quả ấy -- hai đường, một dòng.
+    turns = (await http.get("/api/teacher/chat", headers=TEACHER)).json()["turns"]
+    stored = next(one for one in turns if one["kind"] == "tool_result")
+    assert stored["tool_result"] == done.result
 
 
 @pytest.mark.asyncio

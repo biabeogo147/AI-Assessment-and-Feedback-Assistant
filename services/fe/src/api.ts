@@ -672,6 +672,10 @@ export interface TurnEvent {
   total: number;
   titles: string[];
   began: number;
+  /** Tool của bước, cho ba sự kiện `step_*`: tên bước lấy từ `STEP_TITLE` như sau F5. */
+  tool_name?: string;
+  /** Kết quả của một bước tra cứu ở pha lên plan — đúng thứ đọc lại được sau F5; `null` cho bước của plan. */
+  result?: Record<string, unknown> | null;
 }
 
 /**
