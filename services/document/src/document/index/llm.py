@@ -10,7 +10,9 @@
 
 Cùng khuôn với `agent/llm.py`, và cùng hai bài học: **credential được truyền vào** (`.env` của repo
 không bao giờ tới `os.environ`), và mọi lời gọi qua đúng một module -- đổi model là sửa `.env`, test
-thay builder ở đây là không gì chạm mạng.
+thay builder ở đây là không gì chạm mạng. Mỗi lời gọi chọn được provider, OpenAI hay Claude
+(`SUMMARY_PROVIDER`, `BANNER_PROVIDER`; `claude-provider-option`), nên chữ trả về đọc bằng `.text`:
+Claude trả `content` là một list block, và `str()` của list ấy không phải chữ model viết.
 """
 
 import base64
@@ -21,6 +23,8 @@ from dataclasses import dataclass
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+
+from document.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -84,21 +88,76 @@ class Summary:
     tokens: int
 
 
-def chat_model(model: str, api_key: str, timeout: float, **extra: object) -> BaseChatModel:
-    """Dựng một chat model OpenAI với khoá truyền vào.
+def claude_options(thinking: str, effort: str) -> dict[str, object]:
+    """Tham số riêng của Claude, như `agent/llm.claude_options`. Hàm thuần.
+
+    Hai service không import nhau (import-linter), nên phép dịch bốn dòng này có hai bản; luật
+    của nó -- rỗng thì theo mặc định của model -- là một.
 
     Args:
+        thinking: `LLM_THINKING`: `disabled`, `adaptive`, hay rỗng.
+        effort: `LLM_EFFORT`, hay rỗng.
+
+    Returns:
+        `thinking` và `effort` khi có đặt.
+    """
+    options: dict[str, object] = {}
+    if thinking:
+        options["thinking"] = {"type": thinking}
+    if effort:
+        options["effort"] = effort
+    return options
+
+
+def chat_model(
+    provider: str, model: str, api_key: str, timeout: float, **extra: object
+) -> BaseChatModel:
+    """Dựng một chat model với khoá truyền vào.
+
+    Args:
+        provider: `openai` hay `anthropic`.
         model: Id model.
-        api_key: Khoá OpenAI, từ `Settings`.
+        api_key: Khoá của provider ấy, từ `Settings`.
         timeout: Trần giây.
-        **extra: Tham số riêng của model (`reasoning_effort` cho luna).
+        **extra: Tham số riêng của provider (`reasoning_effort` cho luna, `claude_options` cho
+            Claude).
 
     Returns:
         Một chat model gọi được ngay.
     """
     return init_chat_model(
-        model, model_provider="openai", api_key=api_key, timeout=timeout, **extra
+        model, model_provider=provider, api_key=api_key, timeout=timeout, **extra
     )
+
+
+def model_for(
+    settings: Settings, provider: str, model: str, **openai_extra: object
+) -> BaseChatModel | None:
+    """Model của một lời gọi theo provider nó chọn, hay `None` khi thiếu khoá của provider ấy.
+
+    Khoá theo **provider**, không theo lời gọi: tóm tắt trên Claude và banner trên OpenAI thì mỗi
+    model cầm khoá của mình, và thiếu một khoá chỉ tắt đúng model cần nó.
+
+    Args:
+        settings: Settings của process.
+        provider: `openai` hay `anthropic` (`Settings` đã từ chối giá trị khác).
+        model: Id model.
+        **openai_extra: Tham số chỉ OpenAI nhận (`reasoning_effort` của luna); Claude nhận
+            `claude_options` thay vào.
+
+    Returns:
+        Chat model, hoặc `None`.
+    """
+    if provider == "anthropic":
+        key, extra = (
+            settings.claude_api_key,
+            claude_options(settings.llm_thinking, settings.llm_effort),
+        )
+    else:
+        key, extra = settings.openai_api_key, dict(openai_extra)
+    if not key:
+        return None
+    return chat_model(provider, model, key, settings.llm_timeout_seconds, **extra)
 
 
 def parse_banner(raw: str, tokens: int) -> BannerReading:
@@ -159,7 +218,7 @@ async def read_banner(model: BaseChatModel, png: bytes) -> BannerReading:
         ]
     )
     answer = await model.ainvoke([message])
-    return parse_banner(str(answer.content), _tokens(answer))
+    return parse_banner(answer.text, _tokens(answer))
 
 
 async def summarise(model: BaseChatModel, title: str, body: str) -> Summary:
@@ -179,4 +238,4 @@ async def summarise(model: BaseChatModel, title: str, body: str) -> Summary:
             HumanMessage(content=f"Tiêu đề: {title}\n\nNội dung:\n{body}"),
         ]
     )
-    return Summary(str(answer.content).strip(), _tokens(answer))
+    return Summary(answer.text.strip(), _tokens(answer))

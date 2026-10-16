@@ -186,7 +186,7 @@ Với ba worker, không có endpoint nào để gọi, nên bằng chứng chún
 
 ```text
 Starting worker for 6 functions: write_draft_question, generate_retry_question, explain_turn, name_conversation, propose_next_step, report_plan
-AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0
+AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0 model=off (canned)
 ```
 
 Hai worker kia cũng in ra tên queue của chúng:
@@ -194,12 +194,13 @@ Hai worker kia cũng in ra tên queue của chúng:
 ```text
 INGEST ready: queue=aiafa:ingest redis=redis://127.0.0.1:6379/0
 DOCUMENT worker ready: consuming=aiafa:document handing back to=aiafa:ingest redis=redis://127.0.0.1:6379/0
-DOCUMENT INDEX worker ready: consuming=aiafa:document-index handing back to=aiafa:ingest jev=jev-1.13.0 summary=gpt-4o-mini banner=gpt-5.6-luna
+DOCUMENT INDEX worker ready: consuming=aiafa:document-index handing back to=aiafa:ingest jev=jev-1.13.0 summary=openai/gpt-4o-mini banner=openai/gpt-5.6-luna
 ```
 
-Worker `index` in ra model nó sẽ gọi. `jev=off (rules only)` nghĩa là `.env` không có
-`JEV_API_KEY`: cây vẫn dựng được, bằng luật. `summary=off` nghĩa là không có `OPENAI_API_KEY`: cây
-không có tóm tắt, và tên chương chỉ là nhãn số.
+AGENT và worker `index` in ra model chúng sẽ gọi. `model=off (canned)` nghĩa là AGENT trả nội dung
+soạn sẵn (`LLM_ENABLED=false` hoặc `LLM_MODEL` trống). `jev=off (rules only)` nghĩa là `.env` không
+có `JEV_API_KEY`: cây vẫn dựng được, bằng luật. `summary=off` nghĩa là thiếu khoá của provider tóm
+tắt: cây không có tóm tắt; `banner=off` thì tên chương chỉ là nhãn số.
 
 Những dòng ấy in ra tên queue có chủ đích. Nếu hai bên đọc hai tên queue khác nhau thì hệ
 thống trông y hệt lúc bình thường: job được đẩy vào, không báo lỗi gì, và không có gì chạy.
@@ -232,8 +233,27 @@ chứng minh danh tính là tạm.
 Muốn thấy ca *sắp hết hạn* — cảnh báo lượt có thể bị **DỪNG** — thì sửa `remediation_deadline` của
 hàng trong bảng `publications` về gần hiện tại rồi tải lại màn hỏi trợ lý.
 
-**AGENT là mock.** Nó không gọi model nào: ba handler trả nội dung soạn sẵn, tất định. Cái chạy thật
-là ranh giới, hợp đồng và luật chấm điểm.
+**Mặc định AGENT là mock** (`LLM_ENABLED=false`): nó không gọi model nào, các handler trả nội dung
+soạn sẵn, tất định. Cái chạy thật là ranh giới, hợp đồng và luật chấm điểm. Bật model thật ở mục
+dưới.
+
+### Bật model thật: OpenAI hay Claude
+
+Chọn bằng `.env`, rồi khởi động lại worker đọc nó (`agent`, `index`) -- worker không tự nạp lại.
+
+| Việc | OpenAI | Claude |
+| --- | --- | --- |
+| Kriky (AGENT) | `LLM_ENABLED=true`, `LLM_PROVIDER=openai`, `LLM_MODEL=gpt-4o-mini`, `OPENAI_API_KEY` | `LLM_ENABLED=true`, `LLM_PROVIDER=anthropic`, `LLM_MODEL=claude-haiku-5-5`, `LLM_THINKING=disabled`, `LLM_EFFORT=low`, `CLAUDE_API_KEY` |
+| Tóm tắt nút cây | `SUMMARY_PROVIDER=openai`, `SUMMARY_MODEL=gpt-4o-mini` | `SUMMARY_PROVIDER=anthropic`, `SUMMARY_MODEL=claude-haiku-5-5` |
+| Đọc banner chương | `BANNER_PROVIDER=openai`, `BANNER_MODEL=gpt-5.6-luna` | `BANNER_PROVIDER=anthropic`, `BANNER_MODEL=claude-haiku-5-5` |
+
+`LLM_THINKING` và `LLM_EFFORT` chỉ đi tới Claude, và **cả ba hàng** dùng chung chúng: chuyển riêng
+tóm tắt hay banner sang Claude cũng phải đặt hai biến này. Vì dùng chung, `LLM_THINKING=disabled` với
+một hàng chạy Sonnet 5.5 hay Opus 5.5 là lỗi ở hàng ấy. Haiku 5.5 tắt được thinking, và phải tắt tường
+minh: thinking bật thì structured output của Kriky không còn ép model gọi tool. Sonnet 5.5 và Opus 5.5
+không tắt được (để `LLM_THINKING` trống), nên với chúng Kriky mất đường ép tool. Key Claude phải gắn
+một workspace, không thì API đòi header `anthropic-workspace-id` ở mọi lời gọi. Banner trên Claude
+nghĩa là ảnh phần trên trang sách được gửi sang Anthropic.
 
 ### Gọi thẳng API, không qua giao diện
 

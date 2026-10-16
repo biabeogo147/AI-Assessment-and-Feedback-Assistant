@@ -69,9 +69,10 @@ dependencies = [
     # gọi này. Chỉ `index/jev.py` được import nó.
     "typesafe-sdk==0.7.4",
     # Graph của document agent, và hai lời gọi sinh chữ -- tóm tắt (gpt-4o-mini)
-    # và đọc banner (gpt-5.6-luna). Chỉ `index/llm.py` được import langchain.
+    # và đọc banner (gpt-5.6-luna), mỗi cái chọn được OpenAI hay Claude bằng `.env`
+    # (`claude-provider-option`). Chỉ `index/llm.py` được import langchain.
     "langgraph>=1.0",
-    "langchain[openai]>=1.0",
+    "langchain[openai,anthropic]>=1.0",
 ]
 
 # Không có starlette ở đây, dù `be/storage.py` bọc thread bằng `run_in_threadpool`

@@ -19,7 +19,7 @@ from arq.worker import func
 from contracts import INDEX_DOCUMENT_TASK
 from document.config import get_settings
 from document.content_store import ContentStore
-from document.index.llm import chat_model
+from document.index.llm import claude_options, model_for
 from document.index_handlers import index_document
 from document.ocr_handlers import MAX_TRIES
 from document.ocr_worker import _redis_settings
@@ -56,23 +56,29 @@ async def startup(ctx: dict) -> None:
     # Một trần lời gọi Jev cho **cả** worker, không mỗi job một trần: `max_jobs` job song song nhân
     # trần ấy lên (review Task 4, `document-agent-hierarchy`).
     ctx["jev_limit"] = asyncio.Semaphore(_settings.jev_concurrency)
-    if _settings.openai_api_key:
-        ctx["banner_model"] = chat_model(
-            _settings.banner_model,
-            _settings.openai_api_key,
-            _settings.llm_timeout_seconds,
-            reasoning_effort="low",
-        )
-        ctx["summary_model"] = chat_model(
-            _settings.summary_model, _settings.openai_api_key, _settings.llm_timeout_seconds
-        )
+    # Mỗi model cầm khoá của provider nó chọn (`claude-provider-option`); thiếu khoá thì chỉ model
+    # ấy tắt, và handler đi đường không có nó như trước.
+    banner = model_for(
+        _settings, _settings.banner_provider, _settings.banner_model, reasoning_effort="low"
+    )
+    summary = model_for(_settings, _settings.summary_provider, _settings.summary_model)
+    if banner is not None:
+        ctx["banner_model"] = banner
+    if summary is not None:
+        ctx["summary_model"] = summary
+    claude = ""
+    if "anthropic" in {_settings.summary_provider, _settings.banner_provider}:
+        options = claude_options(_settings.llm_thinking, _settings.llm_effort)
+        claude = f" claude={options or 'model defaults'}"
     logger.info(
-        "DOCUMENT INDEX worker ready: consuming=%s handing back to=%s jev=%s summary=%s banner=%s",
+        "DOCUMENT INDEX worker ready: consuming=%s handing back to=%s jev=%s summary=%s "
+        "banner=%s%s",
         _settings.document_index_queue_name,
         _settings.ingest_queue_name,
         _settings.jev_model if _settings.jev_api_key else "off (rules only)",
-        _settings.summary_model if _settings.openai_api_key else "off",
-        _settings.banner_model if _settings.openai_api_key else "off",
+        f"{_settings.summary_provider}/{_settings.summary_model}" if summary else "off",
+        f"{_settings.banner_provider}/{_settings.banner_model}" if banner else "off",
+        claude,
     )
 
 

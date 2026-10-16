@@ -15,7 +15,7 @@ from pathlib import Path
 from document.config import get_settings
 from document.content_store import ContentStore
 from document.index.features import banner_gates
-from document.index.llm import chat_model, read_banner
+from document.index.llm import model_for, read_banner
 from document.pdf import open_pdf
 
 # Phần trên của trang gửi luna: banner chương và dải tên bài đầu tiên, đo trên Lớp 6 tập 1 (dải bài
@@ -36,12 +36,11 @@ async def main() -> None:
     pages = await store.pages(args.document)
     await store.close()
     gates = banner_gates(pages)
-    model = chat_model(
-        settings.banner_model,
-        settings.openai_api_key,
-        settings.llm_timeout_seconds,
-        reasoning_effort="low",
+    model = model_for(
+        settings, settings.banner_provider, settings.banner_model, reasoning_effort="low"
     )
+    if model is None:
+        raise SystemExit(f"thiếu khoá của {settings.banner_provider} cho banner_model")
     with open_pdf(args.pdf.read_bytes()) as book:
         images = {gate.page: book.render(gate.page - 1, BANNER_DPI, BANNER_TOP) for gate in gates}
 

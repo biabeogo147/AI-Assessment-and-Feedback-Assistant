@@ -12,6 +12,7 @@ kho của BE biết, và kho ấy ở phía bên kia tường.
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,13 +72,23 @@ class Settings(BaseSettings):
             `data/results/run-67/`): Jev thuần 120 nút (F1 cấp 3: 75,9%), và ở 0,8 Jev thắng luật
             **không** ca nào -- cây trên cuốn này là đúng cây của luật, cho tới khi câu hỏi Jev được
             làm lại (`document-agent-hierarchy`, Status).
-        openai_api_key: Khoá OpenAI cho tóm tắt và đọc banner -- cùng khoá AGENT dùng, đọc từ cùng
-            `OPENAI_API_KEY`, truyền vào client như ở `agent/llm.py`. Rỗng thì cây không có tóm
-            tắt và chương chỉ có nhãn số.
+        openai_api_key: Khoá OpenAI cho tóm tắt và đọc banner khi provider của chúng là `openai`
+            -- cùng khoá AGENT dùng, đọc từ cùng `OPENAI_API_KEY`, truyền vào client như ở
+            `agent/llm.py`. Thiếu khoá của provider thì cây không có tóm tắt, hay chương chỉ có
+            nhãn số.
+        claude_api_key: Khoá Claude, cùng biến `CLAUDE_API_KEY` với AGENT, truyền vào client như
+            khoá OpenAI (`claude-provider-option`).
+        summary_provider: Provider của `summary_model`: `openai` hay `anthropic`. Thiếu khoá của
+            provider ấy thì cây không có tóm tắt.
         summary_model: Model tóm tắt nút cây (người dùng chốt `gpt-4o-mini`, 11/10/2026).
+        banner_provider: Provider của `banner_model`, như `summary_provider`. Ảnh trang sách đi tới
+            provider này.
         banner_model: Model đọc tên chương trên ảnh banner (D9; người dùng chọn `gpt-5.6-luna`).
-        llm_timeout_seconds: Trần giây cho một lời gọi OpenAI.
-        llm_concurrency: Số lời gọi OpenAI bay cùng lúc trong một job.
+        llm_thinking: Thinking của Claude, cùng biến `LLM_THINKING` với AGENT; chỉ đi tới
+            `anthropic`. Banner trên OpenAI vẫn chạy `reasoning_effort="low"` như cũ.
+        llm_effort: Effort của Claude, cùng biến `LLM_EFFORT` với AGENT.
+        llm_timeout_seconds: Trần giây cho một lời gọi model.
+        llm_concurrency: Số lời gọi model bay cùng lúc trong một job.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -102,8 +113,13 @@ class Settings(BaseSettings):
     jev_timeout_seconds: float = Field(default=20, gt=0)
     jev_min_confidence: float = Field(default=0.8, ge=0, le=1)
     openai_api_key: str = ""
+    claude_api_key: str = ""
+    summary_provider: Literal["openai", "anthropic"] = "openai"
     summary_model: str = "gpt-4o-mini"
+    banner_provider: Literal["openai", "anthropic"] = "openai"
     banner_model: str = "gpt-5.6-luna"
+    llm_thinking: Literal["", "adaptive", "disabled"] = ""
+    llm_effort: Literal["", "low", "medium", "high", "xhigh", "max"] = ""
     llm_timeout_seconds: float = Field(default=60, gt=0)
     llm_concurrency: int = Field(default=8, ge=1)
 
