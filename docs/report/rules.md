@@ -71,7 +71,7 @@ những chữ còn sót trong hình được ghi ở `docs/plans/backlog.md`.
 | "hỏi lại" | agent hỏi khi thiếu thông tin, và học sinh hỏi cho hiểu | hai câu khác nhau |
 | "hạn" | hạn mở, hạn đóng, hạn giai đoạn 2 | `opens_at` / `closes_at` / `remediation_deadline` |
 | "hích", "tiếng hích" | thứ phát lên channel chỉ để báo có gì vừa đổi, và thứ `backend` gửi xuống màn hình qua SSE | **thông báo** / **event** |
-| "bước" | bước của một lượt hội thoại, một phần của graph, một công đoạn OCR | **bước** / **khâu** / **chặng** |
+| "bước" | bước của một lượt hội thoại, một phần của graph, một công đoạn OCR | **bước** / **hàm** / **chặng** |
 | "lượt" | lượt làm lại, và một tin nhắn cùng mọi thứ trợ lí làm để đáp lại nó | **Lượt** / **lượt hội thoại** |
 | "chờ" | `backend` đợi kết quả một job, và thứ làm chậm một worker | **lấy kết quả** / nói thẳng bộ xử lí hay mô hình |
 | "lớp" | lớp học, tầng của code, và lớp chữ của một tệp PDF | **lớp** chỉ cho lớp học / **phần** / **có sẵn chữ** |
@@ -82,11 +82,18 @@ những chữ còn sót trong hình được ghi ở `docs/plans/backlog.md`.
 Năm hàng từ "bước" tới "tầng" được chốt khi viết chương 7 (16/10/2026); hàng "hích" ngay trên chúng
 được chốt cùng ngày, ở lượt sửa từ điển sau đó (đoạn *Pub/sub* dưới đây); hai hàng cuối được chốt ở
 lượt viết lại mục backend của chương 7, cũng ngày ấy, khi review bắt được "luồng SSE" đứng ngay cạnh
-"luồng nghiệp vụ", và "đoạn chữ" ở mục backend trong khi mục agent gọi đúng thứ ấy là "mảnh chữ". Chương 06 đã dùng "bước" cho bước của một
-lượt hội thoại; code của `document/ocr/` đã gọi công đoạn OCR là "chặng"; nên phần của graph mang
-chữ thứ ba, **khâu**. Từ điển định nghĩa cả hai chữ mới: *khâu* trong mục *Graph*, *chặng* trong
-mục *OCR*. "Chờ" vẫn dùng được theo nghĩa thường — *người đang chờ* (chương 06), *job đang chờ*
-(mục *Store*) — chỉ không dùng cho cách `backend` nhận kết quả một job. **"Đợi" cũng không**: đổi sang một từ
+"luồng nghiệp vụ", và "đoạn chữ" ở mục backend trong khi mục agent gọi đúng thứ ấy là "mảnh chữ".
+
+Chương 06 đã dùng "bước" cho bước của một lượt hội thoại, và code của `document/ocr/` đã gọi công
+đoạn OCR là "chặng", nên phần của graph từng mang chữ thứ ba, **khâu**. Sau đó người dùng sửa mục
+*Graph* của từ điển thành *"một chuỗi các hàm cố định"*, và từ điển là nơi duy nhất quyết định chữ
+(§1): từ lượt viết lại mục Agent (16/10/2026), phần của graph là **hàm**. Hệ quả biết trước: *hàm
+nhận job* cũng là "hàm", nên chữ ấy tạm mang hai nghĩa (xem *Những chỗ đã biết là còn sai*). Từ điển
+cũng không còn định nghĩa *chặng* — mục *OCR* nay chỉ một câu — nên chương 7 giải nghĩa nó tại
+chỗ.
+
+"Chờ" vẫn dùng được theo nghĩa thường — *người đang chờ* (chương 06), *job đang chờ* (mục *Store*)
+— chỉ không dùng cho cách `backend` nhận kết quả một job. **"Đợi" cũng không**: đổi sang một từ
 đồng nghĩa là né luật, không phải theo luật — bản cũ của chương 7 viết *"giao đi mà không đứng
 đợi"* đúng ở chỗ ấy.
 
@@ -352,7 +359,10 @@ Văn phong đo được từ tám chương hiện có — theo nó, đừng đ�
    ghi ở đâu.
 4. **`04` thiếu newline cuối tệp**; 15 dòng ở `01`, `02`, `04`, `05` còn khoảng trắng cuối dòng; và
    chín dòng văn xuôi ở `01`, `02`, `04`, `05` dài quá 112 ký tự (dài nhất `04:79`, 140 ký tự).
-5. **Chương 07 mang hai bộ chữ cho bảng luật và bảng lỗi**, trái §2. Mục backend dùng *Các ràng buộc
-   và cơ chế kiểm soát*, *Xử lý lỗi*, cột *Ràng buộc / Cơ chế thực thi / Kiểm chứng*; mục agent và
-   document vẫn dùng *Luật và chỗ canh luật*, *Khi hỏng*, cột *Luật / Nơi thi hành / Loại lưới*.
-   Người dùng chọn để vậy ngày 16/10/2026; hai mục kia chờ một lượt riêng.
+5. **Chương 07 mang hai bộ chữ cho bảng luật và bảng lỗi**, trái §2. Mục Backend và Agent dùng
+   *Các ràng buộc và cơ chế kiểm soát*, *Xử lý lỗi*, cột *Ràng buộc / Cơ chế thực thi / Kiểm
+   chứng*; mục document vẫn dùng *Luật và chỗ canh luật*, *Khi hỏng*, cột *Luật / Nơi thi hành /
+   Loại lưới*, tới khi lượt viết lại mục ấy xong.
+6. **"Hàm" mang hai nghĩa trong chương 07**, trái §2: phần của một graph (theo mục *Graph* của từ
+   điển), và *hàm nhận job*, chỗ worker gọi vào khi lấy một job xuống. Người dùng giữ *hàm nhận
+   job* ngày 16/10/2026 và sẽ tự chọn chữ khác cho nó.

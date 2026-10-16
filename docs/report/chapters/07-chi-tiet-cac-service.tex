@@ -338,18 +338,35 @@ chưa thực thi; mỗi yêu cầu có một chỗ hở cụ thể:
         gọi nào để giáo viên đọc chúng.
 \end{itemize}
 
-\section{\texttt{agent}}
+\section{Agent}
 
-\texttt{agent} là service soạn nội dung bằng mô hình ngôn ngữ. Nó không mở cổng nào: nó là một
-worker ngồi nghe queue của mình, gọi \textbf{Model Provider} (nhà cung cấp mô hình), rồi trả kết
-quả về \texttt{redis}.
+\subsection{Vai trò và trách nhiệm}
 
-\subsection{Vào và ra}
+\texttt{agent} là service viết những nội dung cần tới mô hình ngôn ngữ: câu hỏi của đề, câu biến
+thể, câu trả lời cho học sinh ở giai đoạn 2, đề xuất bước tiếp theo trong hội thoại của giáo viên,
+lời kể lại kết quả một plan, và tên một đoạn hội thoại. Để viết, nó gọi \textbf{Model Provider} (nhà
+cung cấp mô hình). Ngoài Model Provider, nó chỉ gọi thêm một thứ nằm ngoài hệ thống: Jev, mô hình
+phân loại của TypeSafe AI. Mỗi lần gọi mô hình đều gửi kèm một \emph{lời dặn}, tức đoạn chữ hướng
+dẫn mô hình phải viết gì; trong hội thoại của giáo viên, Jev chọn phần nào của lời dặn được nạp.
 
-\texttt{agent} nhận job của sáu task, và mỗi task chạy trong đúng một \textbf{graph} (chuỗi khâu cố
-định, dựng bằng thư viện LangGraph); hai task soạn câu dùng chung một graph.
-Bảng~\ref{tab:agent-vao-ra} nói mỗi task đi qua graph nào, gọi mô hình mấy lần và trả về gì; còn khi
-nào mỗi task được giao thì bảng~\ref{tab:bay-viec} đã nói.
+\texttt{agent} không nhận lời gọi nào từ bên ngoài và không có quyền vào database. Nó là một worker
+ngồi nghe queue của mình: \texttt{backend} giao job, \texttt{agent} viết, rồi đặt kết quả vào
+\texttt{redis} để \texttt{backend} lấy về. Vì không tra được database, mỗi job phải tự mang mọi thứ
+nó cần: job trả lời học sinh mang theo mọi câu em làm sai, kèm các phương án, lời giải, đáp án đúng
+và phương án em đã chọn, chứ không mang một mã câu hỏi rồi tự đi tra.
+
+Thứ \texttt{agent} trả về chỉ là nội dung, không bao giờ là một quyết định: không điểm, không độ tin
+cậy, không kết luận học sinh đã hiểu hay chưa. Nó cũng không tự chạy gì: một tool hay một plan nó đề
+xuất chỉ chạy khi \texttt{backend} chạy nó. Dùng nội dung ấy thế nào, ghi hay bỏ, là việc của
+\texttt{backend}. Ngoài giá trị trả về, \texttt{agent} còn phát hai thứ qua pub/sub: từng mảnh chữ
+của câu trả lời cho học sinh, và thông báo mỗi khi viết xong một câu cho đề đang soạn.
+
+\subsection{Nhận job, gọi mô hình và trả kết quả}
+
+\texttt{agent} nhận job của sáu task. Mọi lần nó gọi mô hình để viết chữ đều nằm trong một
+\textbf{graph} (chuỗi hàm cố định) dựng bằng thư viện LangGraph; hai task soạn câu dùng chung một
+graph. Bảng~\ref{tab:agent-vao-ra} cho biết mỗi task chạy graph nào, gọi mô hình mấy lần và trả về
+gì; còn khi nào mỗi task được giao thì bảng~\ref{tab:bay-viec} đã nói.
 
 \begin{table}[htb]
 \centering
@@ -363,9 +380,9 @@ nào mỗi task được giao thì bảng~\ref{tab:bay-viec} đã nói.
 \addlinespace
 \texttt{generate\_retry\_question} & \texttt{authoring} & Một tới ba lần & Một câu biến thể \\
 \addlinespace
-\texttt{explain\_turn} & \texttt{explain} & Một lần, trả chữ dần & Lời giải thích \\
+\texttt{explain\_turn} & \texttt{explain} & Một lần, trả chữ dần & Câu trả lời cho học sinh \\
 \addlinespace
-\texttt{propose\_next\_step} & \texttt{propose} & Một hay hai lần, sau khi Jev chọn lời dặn & Một đề xuất: trả lời, hỏi giáo viên, dàn ý, tool, hay plan \\
+\texttt{propose\_next\_step} & \texttt{propose} & Một hay hai lần, sau khi Jev chọn tệp lời dặn & Một đề xuất: trả lời, hỏi giáo viên, dàn ý, tool, hay plan \\
 \addlinespace
 \texttt{report\_plan} & \texttt{reporting} & Một lần & Lời kể lại \\
 \addlinespace
@@ -374,131 +391,274 @@ nào mỗi task được giao thì bảng~\ref{tab:bay-viec} đã nói.
 \end{tabular}
 \end{table}
 
-Mỗi job tự chứa mọi thứ nó cần: job trả lời học sinh mang theo cả câu hỏi, các phương án, lời giải,
-đáp án đúng và phương án học sinh đã chọn, chứ không mang một mã câu hỏi rồi tự đi tra. Ngoài giá
-trị trả về, \texttt{agent} còn phát hai thứ qua pub/sub: từng mảnh chữ của câu trả lời cho học sinh,
-và thông báo mỗi khi viết xong một câu cho đề đang soạn.
+\paragraph{Graph và hàm.} Mỗi hàm của graph làm một phần của job rồi trao kết quả cho hàm sau. Graph
+trả lời học sinh có hai hàm: hàm đầu dựng lời dặn từ những câu em làm sai, hàm sau gửi lời dặn ấy
+cho mô hình và nhận chữ về. Graph đề xuất bước tiếp theo cũng có hai hàm: dựng lời dặn, rồi gọi mô
+hình chọn một đề xuất. Graph soạn câu có hai hàm, viết rồi tự kiểm, nhưng có thêm một đường vòng:
+hàm tự kiểm thấy câu chưa đạt thì gửi lý do về cho hàm viết để viết một câu khác, và hàm viết chạy
+tối đa ba lần. Graph kể lại và graph đặt tên chỉ có một hàm. Hàm nhận job, nói ở đoạn dưới, không
+thuộc graph nào: đó là hàm worker gọi khi lấy một job xuống, và chính nó chạy graph.
 
-\subsection{Bốn phần bên trong}
+\paragraph{Ba lối ra của một job.} Mỗi task có một hàm nhận job, và cả sáu hàm đi cùng một đường. Mô
+hình bị tắt trong cấu hình thì hàm trả \emph{nội dung dọn trước}, tức nội dung mã nguồn tự dựng mà
+không cần mô hình: một câu viết sẵn, hay vài chữ ghép từ chính job, như sáu chữ đầu của tin nhắn làm
+tên đoạn hội thoại; mô hình bật thì hàm chạy graph; graph hỏng thì hàm quay về nội dung dọn trước.
+Thà có một câu dọn trước còn hơn một tính năng từ chối chạy, nhưng lựa chọn ấy có cái giá, nói ở
+mục~\ref{sec:agent-gioi-han}. Riêng hàm trả lời học sinh: đã phát được vài chữ rồi mới hỏng thì nó
+trả về đúng những chữ đã phát làm câu trả lời, không thay bằng câu dọn trước, vì học sinh đã thấy
+chúng trên màn hình.
 
-\paragraph{Vỏ worker.} Sáu task được đăng ký dưới đúng tên khai trong gói dùng chung
+\paragraph{Đăng ký task và thông báo.} Sáu task được đăng ký dưới đúng tên khai trong gói dùng chung
 \texttt{contracts}, không dưới tên hàm, nên đổi tên một hàm không làm gãy lời giao job của
-\texttt{backend}. Thông báo của \texttt{write\_draft\_question} chỉ được phát sau khi kết quả đã
-ghi vào \texttt{redis}, không phát trong thân job: phát sớm thì \texttt{backend} nhận thông báo, đi
-thu hoạch, và chỉ gặp một kết quả chưa có.
+\texttt{backend}. Thông báo một câu soạn xong chỉ được phát ngay sau khi kết quả đã ghi vào
+\texttt{redis}: hàm nhận job chỉ đặt sẵn thông báo; worker ghi kết quả vào \texttt{redis} khi hàm
+trả về, rồi mới phát thông báo. Phát sớm hơn thì \texttt{backend} nhận thông báo, đi thu hoạch, và
+chỉ gặp một kết quả chưa có. Thông báo chỉ mang số thứ tự của câu, không mang câu: pub/sub không giữ
+lại gì, nên thông báo lạc thì câu vẫn nằm trong kết quả của job và \texttt{backend} vẫn thu hoạch
+được. Phát hỏng thì bỏ qua, và job vẫn được tính là xong.
 
-\paragraph{Hàm nhận job, và ba lối ra.} Mỗi task có một hàm nhận job, và cả sáu hàm đi cùng một
-đường. Mô hình bị tắt trong cấu hình thì hàm trả \emph{nội dung dọn trước}, tức câu chữ viết sẵn
-trong mã nguồn; mô hình bật thì hàm chạy graph; graph hỏng thì hàm quay về nội dung dọn trước. Riêng hàm
-trả lời học sinh: đã phát được vài chữ rồi mới hỏng thì nó giữ đúng những chữ ấy, vì học sinh đã đọc
-chúng.
+\paragraph{Nối mô hình.} Chỉ một tệp, \texttt{llm.py}, biết đang gọi Model Provider nào, nên đổi
+Model Provider chỉ là sửa cấu hình; Jev thì đi qua một tệp riêng. \texttt{llm.py} đặt trần thời gian
+mặc định hai mươi giây cho mỗi lần gửi tới Model Provider, và xếp một mô hình dự phòng sau mô hình
+chính nếu cấu hình có. Hai graph soạn câu và đề xuất bước tiếp theo bắt mô hình trả lời theo một
+khuôn JSON cố định, tức một bộ ô có tên sẵn mà mô hình phải điền, như đề bài, các phương án, lời
+giải; ba graph còn lại nhận chữ thường. Chữ trong khuôn --- câu hỏi soạn ra, lời nói của một đề
+xuất, tên các việc của plan, dàn ý --- còn đi qua một bộ dựng lại ký hiệu toán. Mô hình viết toán
+bằng LaTeX, mà trong một chuỗi JSON, dấu gạch chéo đứng trước f, n, r, t hay b là mã của một ký tự
+điều khiển, nên \texttt{\textbackslash frac} về tới nơi thành một ký tự điều khiển cộng với ``rac''.
+Lỗi này đã lọt vào database thật ngày 05/10/2026. Bộ dựng lại đi theo một danh sách lệnh LaTeX đã
+biết, nên một lệnh không có trong danh sách thì để nguyên, chứ không bị đoán sai.
 
-\paragraph{Graph và khâu.} Mọi lần \texttt{agent} gọi mô hình để viết chữ đều nằm trong một graph.
-Graph soạn câu có hai khâu, viết rồi tự kiểm: câu không qua phép tự kiểm thì quay lại khâu viết kèm
-lý do bị loại, và khâu viết chạy tối đa ba lần. Phép tự kiểm này không thay cho phép kiểm của
-\texttt{backend}: nó chỉ để khỏi mất một vòng gửi đi rồi bị từ chối.
+\subsection{Xử lý các task chính}
 
-\paragraph{Nối mô hình.} Chỉ một tệp, \texttt{llm.py}, nối tới mô hình ngôn ngữ; Jev, mô hình phân
-loại của TypeSafe AI, đi qua một tệp riêng. \texttt{llm.py} truyền khoá vào, đặt trần mặc định hai mươi giây cho mỗi lần gửi, và xếp một mô hình dự phòng sau
-mô hình chính nếu cấu hình có. Mô hình trả lời theo một khuôn JSON cố định, và chữ trong đó --- câu
-hỏi soạn ra, lời nói của một đề xuất, tên các việc của plan, dàn ý --- còn đi qua một bộ dựng lại ký
-hiệu toán: JSON nuốt dấu gạch chéo của LaTeX, nên \texttt{\textbackslash frac} về tới nơi thành một
-ký tự điều khiển cộng với ``rac''. Lỗi này đã lọt vào database thật ngày 05/10/2026.
+Bốn phần dưới đây đi qua bốn nhóm task. Mỗi phần nói \texttt{agent} nhận gì, viết gì, và thứ nó viết
+được kiểm ở đâu, nếu có; \texttt{backend} làm gì với kết quả thì mục~\ref{sec:be} đã nói.
 
-\subsection{Một bước của lượt hội thoại: ba tầng phòng thủ}
+\paragraph{Soạn câu hỏi và câu biến thể.} Hai task này dùng chung graph soạn câu, chỉ khác lời dặn.
+Job soạn một câu của đề mang mục dàn ý sinh ra câu ấy: kiến thức cần kiểm, công thức và cách làm,
+đúng như giáo viên đã đọc. Các job của một lần soạn chạy song song và không thấy nhau, nên mỗi job
+còn được biết mình là câu thứ mấy và kiến thức của các câu khác để khỏi hỏi sang, và mang đề bài của
+những câu đã có trong đề để phép tự kiểm loại một câu lặp lại; nếu vẫn trùng thì \texttt{backend}
+bắt khi thu hoạch. Job câu biến thể mang câu gốc, phương án học sinh đã chọn và lỗi em mắc, cùng đề
+bài của các lượt trước; đề bài câu gốc và các lượt ấy đều bị cấm lặp. Lời dặn đòi một câu cùng dạng
+và cùng cách làm nhưng khác số liệu, có một phương án nhiễu ứng với đúng lỗi ấy. Viết xong, câu qua
+hàm tự kiểm, xét bốn điều: đúng một đáp án đúng, mọi phương án nhiễu gắn một lỗi, ít nhất hai lời
+giải, và đề bài không trùng một đề bài bị cấm. Câu không đạt thì lý do được gửi về cho hàm viết để
+viết một câu khác; sau ba lần vẫn không đạt thì hàm nhận job trả nội dung dọn trước. Phép tự kiểm
+này không thay phép kiểm của \texttt{backend}, vốn rộng hơn; nó chỉ để một câu sai hình dạng không
+phải đi tới \texttt{backend} rồi bị giao lại.
 
-Đề xuất bước tiếp theo là task phức tạp nhất của \texttt{agent}: graph \texttt{propose} chiếm hơn
-một phần ba mã nguồn và khoảng một nửa số ca kiểm thử của service. Mỗi bước của pha 1 trong
-hình~\ref{fig:teacher-chat-turn} đi qua ba tầng, và mỗi tầng bắt một loại sai khác.
+\paragraph{Trả lời học sinh.} Mỗi tin nhắn của học sinh là một job và một lần gọi mô hình. Lời dặn
+yêu cầu trợ lí giải thích chứ không kết luận --- không cho điểm, không nói em đã hiểu --- và dùng
+đúng nhãn lỗi đã gắn sẵn cho phương án em chọn từ lúc soạn đề thay vì tự chẩn đoán lại, để hai học
+sinh mắc cùng một lỗi được giải thích theo cùng lỗi ấy. Trong lúc mô hình viết, hàm nhận job phát
+từng mảnh chữ lên channel mà \texttt{backend} đang nghe; khi job xong, cả câu trả lời vẫn được trả
+về, và đó mới là thứ được lưu.
 
-\paragraph{Tầng một: mô hình đề xuất trong một khuôn.} Lời dặn cho mô hình được ghép từ một lõi
-chung, vài tệp lời dặn theo chủ đề, tên giáo viên, tài liệu đang đính kèm, và danh sách tool. Tệp lời
-dặn nào được nạp thì Jev chọn: nó đọc bốn lượt chữ gần
-nhất rồi trả lời có hay không cho từng tệp chuyên biệt; không tệp nào được chọn thì nạp tệp chung,
-còn Jev không trả lời thì nạp cả ba. Loại đề xuất trong khuôn là một trong năm: trả lời, hỏi giáo
-viên, đưa ra dàn ý, gọi một tool, hay nêu plan. Khuôn chỉ chứa những gì mô hình trả lời được, vì mỗi
-ô trong khuôn là một câu hỏi đặt cho nó. Bài học ấy có giá: khi khuôn còn là cả bản hợp đồng giữa
-hai service, nó có một ô mở tới mức nhà cung cấp mô hình từ chối thẳng mọi lần gọi, và nội dung dọn
-trước che kín chuyện ấy sau một câu trả lời nghe hợp lý.
+\paragraph{Đề xuất bước tiếp theo.} Đây là task phức tạp nhất: graph đề xuất chiếm hơn một phần ba
+mã nguồn và ít nhất một nửa số ca kiểm thử của \texttt{agent}. Mỗi bước của pha 1 trong
+hình~\ref{fig:teacher-chat-turn} là một job của task này, và đề xuất của nó đi qua ba tầng, mỗi tầng
+bắt một loại sai khác.
 
-\paragraph{Tầng hai: luật trong \texttt{agent} sửa đề xuất.} Một số luật sửa đề xuất ngay trong
-\texttt{agent}, trước khi nó rời đi. Ví dụ: giáo viên vừa được xem dàn ý và trả lời bằng một câu chỉ
-gồm lời đồng ý, như ``ok'' hay ``được'', thì \texttt{agent} dựng plan thẳng từ dàn ý, không giữ plan
-mô hình tự viết, vì sau một chữ ``ok'' mô hình hay quên phạm vi vừa bàn. Sau các luật sửa là các
-phép kiểm; đề xuất vấp một phép kiểm thì \texttt{agent} gọi mô hình thêm đúng một lần.
+Tầng một là chính mô hình, đề xuất trong một khuôn. Lời dặn của task này không viết liền một khối:
+phần chỉ một loại việc cần nằm trong ba \emph{tệp lời dặn}, một cho việc tra lớp và kết quả, một cho
+việc soạn đề, và một tệp chung. Trước khi graph chạy, Jev đọc bốn tin nhắn gần nhất và trả lời có
+hay không cho từng tệp chuyên biệt; không tệp nào được chọn thì nạp tệp chung, còn Jev không trả lời
+được thì nạp cả ba. Lời dặn gửi mô hình ghép từ một lõi chung, các tệp vừa chọn, tên giáo viên, tài
+liệu đang đính kèm, và hai danh sách tool: tool gọi được ngay, và tool chỉ nêu được trong plan.
+Những luật mà lượt hội thoại nào cũng cần nằm trong lõi, vì Jev chọn sai thì một tệp vắng mặt. Mô
+hình trả về đúng một trong năm loại đề xuất: trả lời, hỏi giáo viên, đưa ra dàn ý, gọi một tool, hay
+nêu plan. Khuôn chỉ có những ô có tên sẵn, nên một đề xuất sai hình dạng không qua được tầng này.
 
-\paragraph{Tầng ba: \texttt{backend} gác cổng.} Đề xuất về tới \texttt{backend} vẫn chỉ là đề xuất,
-và mục~\ref{sec:be} đã kể \texttt{backend} kiểm gì. Nhưng có một giới hạn nên nói thẳng:
-\texttt{backend} chứng minh được dàn ý đã hiện ra cho giáo viên, không chứng minh được giáo viên đã
-đồng ý. Lời đồng ý chỉ được đọc trong \texttt{agent}: nếu mô hình đọc ``ok nhưng đổi câu 2'' thành
-đồng ý và nêu plan soạn câu, \texttt{backend} vẫn cho qua.
+Khuôn chỉ hỏi những gì mô hình trả lời được, vì mỗi ô là một câu hỏi đặt cho nó, và không ô nào được
+để ngỏ. Bài học ấy có giá: khuôn đầu tiên là nguyên kiểu dữ liệu \texttt{agent} trả cho
+\texttt{backend}, nên hỏi cả những thứ mô hình không thể biết, như mã của job, và có một ô tham số
+nhận bất cứ thứ gì. Model Provider từ chối thẳng mọi lần gọi vì ô ấy, và nội dung dọn trước che kín
+chuyện đó sau một câu trả lời nghe hợp lý.
 
-\subsection{Luật và chỗ canh luật}
+Tầng hai là tám luật trong \texttt{agent}, sửa đề xuất ngay sau khi mô hình trả lời. Sáu luật giữ
+thứ tự tra cứu, phần lớn quanh tài liệu: plan mở đầu bằng một tool tra cứu thì tool ấy được gọi
+trước, chưa đọc mục lục thì chưa được nêu plan soạn theo tài liệu, chưa đọc chữ của phần ấy thì chưa
+được đưa ra dàn ý. Một đề xuất đến sớm như vậy thành một lời gọi tool tra cứu, với tham số lấy từ
+chính đề xuất hay từ những gì đã có trong hội thoại, không đoán thêm; ở bước sau, mô hình nêu lại
+với kết quả trong tay. Luật thứ bảy sửa lời một câu hỏi lại đứng ngay sau danh sách tài liệu, cho
+khớp các nút giáo viên sẽ bấm. Luật thứ tám sửa mục đích của một dàn ý: giáo viên nói rõ là thay câu
+thứ ba mà dàn ý lại viết cho cả một đề mới thì dàn ý được thu về đúng mục chứa câu ấy. Riêng khi
+giáo viên vừa được xem dàn ý và trả lời bằng một câu chỉ gồm lời đồng ý, như ``ok'' hay ``được'',
+thì \texttt{agent} dựng plan thẳng từ dàn ý và bỏ đề xuất của mô hình, vì sau một chữ ``ok'' mô hình
+hay quên phạm vi vừa bàn.
 
-Bảng~\ref{tab:agent-luat} ghi những luật \texttt{agent} giữ, nơi thi hành chúng, và loại lưới
-canh chúng.
+Sau các luật sửa là các phép kiểm: plan thiếu tham số bắt buộc, đúng luật \texttt{backend} dùng khi
+kiểm plan, hay có ký tự điều khiển trong tham số; dàn ý rỗng, hay có tổng số câu khác số câu mô hình
+vừa ghi nhận; câu hỏi lại giáo viên có quá ít lựa chọn; hay một đề xuất không có chữ nào. Đề xuất
+vấp một phép kiểm thì \texttt{agent} chạy lại graph thêm đúng một lần. Lần hai vẫn vấp thì nó giữ
+lại một trong hai đề xuất để \texttt{backend} xét, chứ không tự bịa tham số hay lựa chọn; hai lần
+đều rỗng thì nó trả một câu trung tính nhờ giáo viên nói lại.
 
-\begin{table}[htb]
-\centering
-\caption[Luật \texttt{agent} giữ]{Luật \texttt{agent} giữ, nơi thi hành, và loại lưới canh chúng}
-\label{tab:agent-luat}
-\begin{tabular}{@{}L{7.2cm}L{4.2cm}L{3.1cm}@{}}
+Tầng ba là \texttt{backend}: đề xuất về tới đó vẫn chỉ là đề xuất, và đoạn \emph{Điều phối lượt hội
+thoại của giáo viên} ở mục~\ref{sec:be} đã kể nó được kiểm những gì.
+
+\paragraph{Kể lại và đặt tên.} Lời kể lại kết quả một plan là một job riêng, không phải một vòng nữa
+của task đề xuất: nó đọc kết quả của các việc đã chạy và không cầm danh sách tool nào, nên không thể
+đề xuất thêm việc. Số câu đã soạn được đưa vào như một dòng dữ liệu, dựng từ con số \texttt{backend}
+đếm trong database; lời dặn cấm nói quá điều đã làm (chỗ hở của luật này ở
+mục~\ref{sec:agent-gioi-han}). Đặt tên cho một đoạn hội thoại là task nhỏ nhất: một hàm, nhận câu mở
+đầu của giáo viên và trả về một cái tên ngắn. Ở đây \texttt{backend} có phép kiểm thật: cái tên phải
+có ít nhất một từ chung với câu mở đầu, không thì \texttt{backend} dùng chính câu mở đầu, đã làm
+gọn.
+
+\subsection{Các ràng buộc và cơ chế kiểm soát}
+
+Bảng~\ref{tab:agent-rang-buoc} tổng hợp các ràng buộc \texttt{agent} giữ, cơ chế thực thi mỗi ràng
+buộc, và cách kiểm chứng. Cột cuối dùng hai trong ba loại đã giải thích trước
+bảng~\ref{tab:be-rang-buoc}; không có ràng buộc database, vì \texttt{agent} không có database.
+
+\begin{longtable}{@{}L{7.0cm}L{4.7cm}L{2.9cm}@{}}
+\caption[Ràng buộc \texttt{agent} giữ]{Ràng buộc \texttt{agent} giữ, cơ chế thực thi, và cách kiểm chứng}
+\label{tab:agent-rang-buoc}\\
 \toprule
-\textbf{Luật} & \textbf{Nơi thi hành} & \textbf{Loại lưới} \\
+\textbf{Ràng buộc} & \textbf{Cơ chế thực thi} & \textbf{Kiểm chứng} \\
 \midrule
-Không trả về phán quyết nào, ở bất kỳ độ sâu nào của kết quả & mọi hàm nhận job & kiểm thử tự động \\
-\addlinespace
-Không giữ credential của database nào & cả service & \texttt{check\_contract} \\
-\addlinespace
-Một job, kể cả mọi lần thử lại, hết giờ trước khi \texttt{backend} thôi lấy kết quả & cấu hình của hai service & \texttt{check\_contract} \\
-\addlinespace
-Lời kể lại là một job riêng, không cầm tool nào & \texttt{reporting} & \texttt{check\_contract} \\
-\addlinespace
-Chữ trả về theo khuôn đi qua bộ dựng lại ký hiệu toán & \texttt{latex\_escapes} & \texttt{check\_contract} \\
-\addlinespace
-Câu hỏi có đúng một đáp án đúng, mọi phương án nhiễu gắn một lỗi, ít nhất hai lời giải & phép tự kiểm trong \texttt{authoring} & kiểm thử tự động \\
-\addlinespace
-Lời kể lại không nói quá điều đã làm & chỉ lời dặn của \texttt{reporting} & không gì canh \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Hai lưới trong bảng yếu hơn tên của chúng. Ca kiểm thử ``không phán quyết'' chạy mọi task hai lần,
-với mô hình tắt rồi bật, nhưng mô hình giả dùng khi kiểm thử không dựng được đầu ra theo khuôn: ở lần
-chạy bật, ba trong sáu task vẫn rơi về nội dung dọn trước, nên giá trị thật của hai graph
-\texttt{authoring} và \texttt{propose} chưa bị soi. Và phép kiểm thời gian chưa tính mô hình dự
-phòng, cũng chưa tính hai lần thư viện của OpenAI tự gửi lại khi quá giờ, nên một lần gọi có thể dài
-gần sáu mươi giây.
-
-\subsection{Khi hỏng}
-
-Nội dung dọn trước là một lựa chọn có chủ ý: thà có một câu còn hơn một tính năng từ chối chạy. Nhưng
-nó có cái giá, và bảng~\ref{tab:agent-hong} ghi cả cái giá ấy.
-
-\begin{table}[htb]
-\centering
-\caption[Khi một thao tác của \texttt{agent} hỏng]{Khi một thao tác bên trong \texttt{agent} hỏng, và cái giá của cách nó đỡ}
-\label{tab:agent-hong}
-\begin{tabular}{@{}L{3.4cm}L{4.8cm}L{6.3cm}@{}}
+\endfirsthead
 \toprule
-\textbf{Khi} & \textbf{\texttt{agent} làm gì} & \textbf{Cái giá} \\
+\textbf{Ràng buộc} & \textbf{Cơ chế thực thi} & \textbf{Kiểm chứng} \\
 \midrule
-Mô hình quá giờ hay báo lỗi & Gọi mô hình dự phòng nếu có, rồi trả nội dung dọn trước & Lỗi bị che sau một câu nghe hợp lý \\
-\addlinespace
-Câu hay đề xuất vấp phép tự kiểm & Viết lại trong graph: câu hỏi tới tối đa ba lần, đề xuất thêm một lần & Câu hỏi vẫn vấp sau ba lần thì hàm nhận job trả câu dọn trước, như hai hàng dưới; đề xuất vẫn sai thì vẫn tới \texttt{backend}, hay thành một câu trung tính \\
-\addlinespace
-Mô hình hỏng hẳn khi soạn một câu hỏi & Trả một câu dọn trước & Câu ấy lấy từ sáu câu Toán cố định, không theo môn hay phạm vi giáo viên xin, và \texttt{backend} không có dấu nào để nhận ra; chỉ cổng duyệt của giáo viên chặn nó \\
-\addlinespace
-Mô hình hỏng hẳn khi viết câu biến thể & Câu gốc nằm trong bộ câu dọn trước và còn biến thể chưa dùng thì trả biến thể ấy; không thì trả lại chính câu gốc, thêm đuôi ``(đề thay số cho lượt \ldots)'' & Khi mô hình bật, câu gốc do mô hình viết nên luôn rơi vào nhánh sau: câu ấy qua được phép kiểm của \texttt{backend}, và học sinh làm lại đúng câu cũ mà không cổng nào chặn \\
-\addlinespace
-Mô hình hỏng giữa lúc trả lời học sinh & Giữ những chữ đã phát & Câu trả lời bị cắt ngang \\
-\addlinespace
-Mô hình hỏng khi đề xuất bước tiếp theo & Trả một đề xuất dọn trước, đoán việc bằng từ khoá & Đề xuất ấy có thể là một plan thật \\
-\addlinespace
-Jev không trả lời & Nạp cả ba tệp lời dặn & Lời dặn dài hơn, và luật của những tệp không liên quan cũng được áp \\
+\endhead
+\midrule
+\multicolumn{3}{r@{}}{\small\emph{tiếp trang sau}} \\
+\endfoot
 \bottomrule
-\end{tabular}
-\end{table}
+\endlastfoot
+
+\multicolumn{3}{@{}l@{}}{\textbf{Phân quyền}} \\
+\addlinespace
+Kết quả chỉ mang nội dung, không mang quyết định nào, kể cả trong các trường lồng nhau & Kiểu dữ liệu trả về của mọi task chỉ có nội dung & kiểm thử tự động \\
+\cmidrule{1-3}
+Không có quyền vào database & Mã nguồn không nhắc tới thư viện hay thông tin kết nối database nào & \texttt{check\_contract} \\
+\cmidrule{1-3}
+Lời kể lại không cầm tool nào & Yêu cầu của job kể lại không có trường nào mang tool & \texttt{check\_contract} \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Tính hợp lệ}} \\
+\addlinespace
+Câu hỏi đúng hình dạng & Phép tự kiểm trong graph soạn câu; \texttt{backend} kiểm lại khi thu hoạch & kiểm thử tự động \\
+\cmidrule{1-3}
+Chữ trong khuôn đi qua bộ dựng lại ký hiệu toán & \texttt{latex\_escapes}, ở graph soạn câu và graph đề xuất & \texttt{check\_contract} \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Tính nhất quán}} \\
+\addlinespace
+Task đăng ký dưới đúng tên trong \texttt{contracts} & Danh sách task của worker & kiểm thử tự động \\
+\cmidrule{1-3}
+Thông báo câu soạn xong phát sau khi kết quả đã ghi, chỉ mang số thứ tự & Worker phát thông báo khi job đã kết thúc & kiểm thử tự động \\
+\cmidrule{1-3}
+Câu trả lời bị cắt giữa chừng giữ đúng những chữ đã phát & Hàm nhận job của task trả lời học sinh & kiểm thử tự động \\
+\addlinespace
+
+\multicolumn{3}{@{}l@{}}{\textbf{Thời gian}} \\
+\addlinespace
+Một job, kể cả lời chọn của Jev và các lần graph gọi lại mô hình, kết thúc trước khi \texttt{backend} thôi lấy kết quả & So cấu hình hai service: Jev 3 giây + 20 giây $\times$ 3 lần gọi = 63 giây, dưới 70 giây & \texttt{check\_contract} \\
+\end{longtable}
+
+Hai ràng buộc trong bảng được kiểm chứng hẹp hơn lời của chúng. Ca kiểm thử ``không mang quyết
+định'' chạy mọi task hai lần, với mô hình tắt rồi bật, nhưng mô hình giả dùng khi kiểm thử không
+dựng được đầu ra theo khuôn: ở lần chạy bật, ba trong sáu task vẫn rơi về nội dung dọn trước, nên
+đầu ra thật của graph soạn câu và graph đề xuất chưa bị soi. Còn phép kiểm thời gian coi hai mươi
+giây là trần của cả một lần gọi, trong khi đó chỉ là trần của một lần gửi: thư viện của OpenAI tự
+gửi lại tới hai lần khi quá giờ, rồi mới tới mô hình dự phòng. Một lần gọi vì thế có thể dài hơn sáu
+mươi giây, và \texttt{backend} có thể thôi lấy kết quả trong lúc worker vẫn đang viết.
+
+\subsection{Xử lý lỗi}
+
+Bảng~\ref{tab:agent-hong} nói \texttt{agent} làm gì khi mô hình hay Jev hỏng, hay khi thứ mô hình
+viết vấp phép kiểm, theo từng nhóm task. Đường lùi chung là nội dung dọn trước, như đoạn \emph{Ba
+lối ra của một job} đã nói; bảng cho thấy nó trông thế nào ở từng task.
+
+\begin{longtable}{@{}L{5.6cm}L{9.0cm}@{}}
+\caption[Khi một thao tác của \texttt{agent} hỏng]{Khi một thao tác bên trong \texttt{agent} hỏng}
+\label{tab:agent-hong}\\
+\toprule
+\textbf{Khi} & \textbf{\texttt{agent} làm gì} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Khi} & \textbf{\texttt{agent} làm gì} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{2}{r@{}}{\small\emph{tiếp trang sau}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+
+\multicolumn{2}{@{}l@{}}{\textbf{Mọi task}} \\
+\addlinespace
+Mô hình quá giờ hay báo lỗi & Gọi mô hình dự phòng nếu cấu hình có; vẫn hỏng thì xử lý theo từng task dưới đây \\
+\addlinespace
+
+\multicolumn{2}{@{}l@{}}{\textbf{Soạn câu hỏi và câu biến thể}} \\
+\addlinespace
+Câu vấp phép tự kiểm & Gửi lý do về để viết lại; hàm viết chạy tối đa ba lần, vẫn vấp thì xử lý như mô hình hỏng \\
+\cmidrule{1-2}
+Mô hình hỏng khi soạn một câu của đề & Trả một câu dọn trước, lấy từ sáu câu Toán cố định \\
+\cmidrule{1-2}
+Mô hình hỏng khi viết câu biến thể & Câu gốc thuộc bộ câu dọn trước và còn biến thể chưa dùng thì trả biến thể ấy; không thì trả lại chính câu gốc, thêm đuôi ``(đề thay số cho lượt \ldots)'' \\
+\cmidrule{1-2}
+Phát thông báo câu soạn xong hỏng & Bỏ qua; job vẫn xong, và \texttt{backend} vẫn thu hoạch được câu \\
+\addlinespace
+
+\multicolumn{2}{@{}l@{}}{\textbf{Trả lời học sinh}} \\
+\addlinespace
+Mô hình hỏng trước khi phát chữ nào & Trả một câu trả lời dọn trước \\
+\cmidrule{1-2}
+Mô hình hỏng giữa chừng & Trả đúng những chữ đã phát làm câu trả lời \\
+\addlinespace
+
+\multicolumn{2}{@{}l@{}}{\textbf{Đề xuất bước tiếp theo}} \\
+\addlinespace
+Jev chưa được cấu hình, báo lỗi, quá 3 giây, hay trả lời một hình dạng lạ & Nạp cả ba tệp lời dặn \\
+\cmidrule{1-2}
+Đề xuất vấp phép kiểm & Chạy lại graph đúng một lần và giữ đề xuất lần hai, trừ ba trường hợp: lần đầu có đề xuất mà lần hai rỗng hay mô hình hỏng thì giữ lần đầu; cả hai là câu hỏi quá ít lựa chọn thì giữ lần nhiều lựa chọn hơn; cả hai đều rỗng thì trả một câu trung tính nhờ giáo viên nói lại \\
+\cmidrule{1-2}
+Mô hình hỏng & Trả một đề xuất dọn trước, đoán việc theo vài chữ trong tin nhắn \\
+\addlinespace
+
+\multicolumn{2}{@{}l@{}}{\textbf{Kể lại và đặt tên}} \\
+\addlinespace
+Mô hình hỏng khi kể lại & Ghép một câu từ kết quả các việc \\
+\cmidrule{1-2}
+Mô hình hỏng khi đặt tên & Lấy sáu chữ đầu của câu mở đầu \\
+\end{longtable}
+
+\subsection{Các giới hạn hiện tại}
+\label{sec:agent-gioi-han}
+
+Năm yêu cầu dưới đây đã được đặt ra cho hệ thống, nhưng \texttt{agent} mới thực thi một phần hoặc
+chưa thực thi. Ba yêu cầu đầu hở vì cùng một lý do: nội dung dọn trước không mang dấu nào để
+\texttt{backend} nhận ra nó. Mỗi yêu cầu có một chỗ hở cụ thể:
+
+\begin{itemize}
+  \item \textbf{Câu hỏi theo đúng môn và phạm vi giáo viên xin} --- mô hình hỏng khi soạn một câu
+        thì câu dọn trước là một trong sáu câu Toán cố định, bất kể môn hay phạm vi. Câu ấy đúng
+        hình dạng nên qua phép kiểm của \texttt{backend}; chỉ lúc giáo viên duyệt đề mới chặn được
+        nó.
+  \item \textbf{Câu biến thể khác câu gốc} --- khi mô hình bật, câu gốc do mô hình viết nên không
+        thuộc bộ câu dọn trước, và mô hình hỏng thì học sinh nhận lại đúng câu gốc kèm một đuôi nói
+        số đã đổi. Phép so đề bài của \texttt{backend} coi đuôi ấy là một đề bài khác, nên không
+        cổng nào chặn.
+  \item \textbf{Đề xuất đúng việc giáo viên nhờ} --- mô hình hỏng thì đề xuất dọn trước đoán việc
+        theo vài chữ trong tin nhắn, và có thể đoán sai: ``ra đề Toán lớp 10 về mệnh đề'' thành câu
+        hỏi ``Bạn muốn xem lớp nào?''. Phép đoán không còn tự nêu plan soạn đề: nó chỉ nêu plan khi
+        giáo viên vừa đồng ý một dàn ý. Nhưng nó vẫn đưa ra được một dàn ý tự dựng, và
+        \texttt{backend} không biết một đề xuất đến từ mô hình hay từ phép đoán.
+  \item \textbf{Lời kể lại không nói quá điều đã làm} --- chỉ lời dặn canh điều này. Con số trên màn
+        hình do \texttt{backend} tự đếm nên không sai theo, nhưng câu mô hình viết đi thẳng lên màn
+        hình mà không ai so lại.
+  \item \textbf{Giáo viên đồng ý dàn ý trước khi câu được soạn} --- luật trong \texttt{agent} chỉ
+        bắt câu chỉ gồm lời đồng ý; câu khác thì đề xuất của mô hình đi nguyên, và mô hình có thể
+        đọc ``ok nhưng đổi câu 2'' thành đồng ý rồi nêu plan soạn câu. \texttt{backend} chỉ chứng
+        minh được dàn ý đã hiện ra cho giáo viên, nên plan ấy vẫn đi qua.
+\end{itemize}
 
 \section{\texttt{document}}
 
