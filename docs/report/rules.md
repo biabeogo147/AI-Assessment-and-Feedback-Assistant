@@ -76,13 +76,19 @@ những chữ còn sót trong hình được ghi ở `docs/plans/backlog.md`.
 | "chờ" | `backend` đợi kết quả một job, và thứ làm chậm một worker | **lấy kết quả** / nói thẳng bộ xử lí hay mô hình |
 | "lớp" | lớp học, tầng của code, và lớp chữ của một tệp PDF | **lớp** chỉ cho lớp học / **phần** / **có sẵn chữ** |
 | "tầng" | phần của code, và tầng phòng thủ trải qua nhiều service | **phần** / **tầng** |
+| "luồng" | luồng nghiệp vụ, và kết nối SSE mà `backend` giữ mở | **luồng** chỉ cho luồng nghiệp vụ / **kết nối SSE** |
+| "đoạn chữ" | phần chữ hiện dần, và đoạn văn hay *đoạn hội thoại* | **mảnh chữ** cho phần chữ hiện dần |
 
-Năm hàng cuối được chốt khi viết chương 7 (16/10/2026); hàng "hích" ngay trên chúng được chốt cùng
-ngày, ở lượt sửa từ điển sau đó (đoạn *Pub/sub* dưới đây). Chương 06 đã dùng "bước" cho bước của một
+Năm hàng từ "bước" tới "tầng" được chốt khi viết chương 7 (16/10/2026); hàng "hích" ngay trên chúng
+được chốt cùng ngày, ở lượt sửa từ điển sau đó (đoạn *Pub/sub* dưới đây); hai hàng cuối được chốt ở
+lượt viết lại mục backend của chương 7, cũng ngày ấy, khi review bắt được "luồng SSE" đứng ngay cạnh
+"luồng nghiệp vụ", và "đoạn chữ" ở mục backend trong khi mục agent gọi đúng thứ ấy là "mảnh chữ". Chương 06 đã dùng "bước" cho bước của một
 lượt hội thoại; code của `document/ocr/` đã gọi công đoạn OCR là "chặng"; nên phần của graph mang
 chữ thứ ba, **khâu**. Từ điển định nghĩa cả hai chữ mới: *khâu* trong mục *Graph*, *chặng* trong
 mục *OCR*. "Chờ" vẫn dùng được theo nghĩa thường — *người đang chờ* (chương 06), *job đang chờ*
-(mục *Store*) — chỉ không dùng cho cách `backend` nhận kết quả một job.
+(mục *Store*) — chỉ không dùng cho cách `backend` nhận kết quả một job. **"Đợi" cũng không**: đổi sang một từ
+đồng nghĩa là né luật, không phải theo luật — bản cũ của chương 7 viết *"giao đi mà không đứng
+đợi"* đúng ở chỗ ấy.
 
 Hai chữ nữa đi kèm. **Việc** đếm được — *một việc*, *các việc của plan* — là một phần tử của plan
 (mục *Plan*); *việc* theo nghĩa thường (*loại việc*, *mất việc*) không tính. Và **nội
@@ -127,7 +133,7 @@ vào* hay *giữ*.
 - **Mọi lần sau trong cùng chương**: dùng thẳng tiếng Anh, **không in đậm lại**.
 - **Hai dạng chú thích được phép**: ngoặc đơn ngay sau chữ — `\textbf{queue} (hàng đợi)` — hoặc giải
   thích ngay trong cùng câu — *"kèm `\textbf{task}` là tên của loại việc ấy"*.
-- **Không bao giờ chú thích bằng một cặp gạch ngang.** Trong tám chương, `---` được dùng **45 lần**
+- **Không bao giờ chú thích bằng một cặp gạch ngang.** Trong tám chương, `---` được dùng **51 lần**
   cho mệnh đề phụ, nên một bản dịch kẹp giữa hai gạch ngang không phân biệt được với một mệnh đề
   phụ. (Một gạch ngang **đơn** sau nhãn đầu `\item` — `\item \textbf{Nội dung} --- câu hỏi và lời
   giải` — là văn phong của báo cáo, không phải chú thích.)
@@ -158,10 +164,10 @@ không dùng:"* và ba gạch đầu dòng đọc thành **ba thứ hệ thống
 chính danh sách.
 
 Có hai trường hợp không cần dấu hai chấm, và chúng là văn phong có sẵn. Thứ nhất, một danh sách mở
-**ngay sau** `\paragraph{...}`. Trong 22 danh sách của báo cáo, năm danh sách thuộc dạng này, đều ở
-chương 04 (`\paragraph{Luồng chính.}` và họ hàng). Từ điển chương 3 từng mở danh sách ngay sau
-`\label{sec:tu-dien}`; nay mỗi nhóm của nó mở bằng một câu dẫn. Thứ hai, danh mục ở chương tham
-khảo: một `description` đứng sau một đoạn văn trọn vẹn, không sau một câu dẫn.
+**ngay sau** một tiêu đề. Trong 23 danh sách của báo cáo, tám danh sách thuộc dạng này: năm ở chương
+04, ngay sau `\paragraph{Luồng chính.}` và họ hàng; ba ở từ điển chương 3, ngay sau `\subsection` của
+nhóm (nhóm *Tài liệu* thì vẫn mở bằng một câu dẫn). Thứ hai, danh mục ở chương tham khảo: một
+`description` đứng sau một đoạn văn trọn vẹn, không sau một câu dẫn.
 
 **Tiêu đề phải nói đúng cái thân bài nói.** `\paragraph{Ba mốc thời gian}` đứng trên một đoạn liệt kê
 *ba tham số*, trong đó cái thứ nhất là một **thời lượng** chứ không phải một mốc. Và
@@ -230,10 +236,11 @@ sẽ để lại bốn câu trỏ vào hư không, và đó đúng là việc đ
 **Một tham chiếu phải đáng công đi.** Chỉ `\ref` sang chỗ nói **nhiều hơn** chỗ đang đứng; `\ref` tới
 một mục nói ít hơn là bắt người đọc đi không.
 
-**Nhưng đừng đòi mọi `\label` phải có ai `\ref`.** Hiện 45 nhãn, 28 được trỏ tới, và phần lớn số
+**Nhưng đừng đòi mọi `\label` phải có ai `\ref`.** Hiện 44 nhãn, 28 được trỏ tới, và phần lớn số
 còn lại có việc riêng: `ch:` và `tab:`/`fig:` phục vụ mục lục, `\listoffigures` và `\listoftables`.
-Thứ thật sự là gánh nặng là một `sec:` không ai trỏ — hiện có **8** cái; chương 7 không thêm cái
-nào, vì hai nhãn mục không ai trỏ tới đã bị bỏ. Và `fig:use-case` không được `\ref` từ văn xuôi
+Thứ thật sự là gánh nặng là một `sec:` không ai trỏ — hiện có **7** cái; chương 7 không thêm cái
+nào, vì hai nhãn mục không ai trỏ tới đã bị bỏ, và mục backend viết lại của nó trỏ tới
+`sec:hang-doi`, vốn chưa ai trỏ. Và `fig:use-case` không được `\ref` từ văn xuôi
 nào, tức chương 05 nhúng một hình mà không có câu nào dẫn vào nó, khác hẳn 01, 02, 04, 06, 07 đều
 mở bằng `Hình~\ref{...}`.
 
@@ -282,6 +289,13 @@ giữa một khoảng trắng — chương 7 đã gặp hai lần. Một bảng 
 đặt `[H]`, như bảng cuối của chương 7. Nhưng `[H]` không co lại: bảng không vừa phần trang còn lại
 thì tràn xuống lề, và log ghi `Overfull \vbox` chứ không báo lỗi.
 
+**Bảng có nhóm mà cao quá 70% trang thì dùng `longtable`.** `[htb]` chỉ đặt một bảng ở đầu trang khi
+nó không cao quá 70% trang (`\topfraction` mặc định); cao hơn thì nó chỉ đứng được đúng chỗ khai báo
+(`h`), hụt chỗ là trôi tới tận cuối chương, và build vẫn sạch. Bảng ràng buộc và bảng lỗi của mục
+backend chương 7 đã trôi như vậy, hai lần, khi ô bảng dài thêm sau review (16/10/2026). Nay chúng là
+`longtable` theo khuôn `tab:bang-du-lieu` của chương 06: chạy ngay sau câu dẫn và ngắt qua trang.
+Rút chữ để bảng thấp hơn 70% chỉ là chữa tạm: lượt sửa sau làm ô dài ra là bảng lại trôi.
+
 **`\caption[ngắn]{dài}` không phải tuỳ chọn.** `report.tex` in `\listoffigures` và `\listoftables`;
 bỏ phần ngoặc vuông thì Danh mục hình vẽ nhận cả phần giải thích dài phía sau.
 
@@ -308,20 +322,20 @@ Văn phong đo được từ tám chương hiện có — theo nó, đừng đ�
 | Độ dài dòng văn xuôi | gói quanh **100**, không quá ~110 | p90 của mọi chương: 95–106 |
 | Dòng của bảng | **một dòng một hàng**, không gói | hàng dài nhất 375 ký tự |
 | Dòng tiếp của `\item` | thụt **8 cách** | 113 lần |
-| Gạch ngang | luôn `---`, không bao giờ `--` | 45 so với 0 |
-| Ngoặc kép | kiểu LaTeX ```...''`, không dùng `"` | 18 so với 0 |
+| Gạch ngang | luôn `---`, không bao giờ `--` | 51 so với 0 |
+| Ngoặc kép | kiểu LaTeX ```...''`, không dùng `"` | 14 so với 0 |
 | Số đếm trong văn xuôi | **viết chữ**: "năm service", "hai mươi mốt bảng" | "một" 408, "hai" 84, "ba" 64 |
 | Chữ số | chỉ cho điểm (`0,5`), số giai đoạn, mã UC | — |
-| `\paragraph{...}` | **kết bằng dấu chấm** | 54/54 |
+| `\paragraph{...}` | **kết bằng dấu chấm** | 54/55; thiếu ở `06:105` |
 | Newline cuối tệp | phải có | `04` đang thiếu |
 | Khoảng trắng cuối dòng | không có | 15 dòng đang vi phạm |
 
 ## 10. Cách gọi người
 
 - **`Teacher` / `Student`** chỉ dùng khi đang nói về **actor** và trong sơ đồ.
-- **"giáo viên" / "học sinh"** trong văn xuôi kể. Đây là mặc định: "học sinh" 99 lần so với
-  `Student` 24, "giáo viên" 79 so với `Teacher` 20 (không tính tên trong `\texttt`).
-- **"em"** dùng được khi câu đang nói về **một** học sinh cụ thể (10 lần).
+- **"giáo viên" / "học sinh"** trong văn xuôi kể. Đây là mặc định: "học sinh" 98 lần so với
+  `Student` 24, "giáo viên" 86 so với `Teacher` 20 (không tính tên trong `\texttt`).
+- **"em"** dùng được khi câu đang nói về **một** học sinh cụ thể (11 lần).
 - **"họ"** thì đừng — chỉ còn 1 lần (`04:86`) và nó lạc giọng so với phần còn lại.
 
 ## Những chỗ đã biết là còn sai
@@ -338,3 +352,7 @@ Văn phong đo được từ tám chương hiện có — theo nó, đừng đ�
    ghi ở đâu.
 4. **`04` thiếu newline cuối tệp**; 15 dòng ở `01`, `02`, `04`, `05` còn khoảng trắng cuối dòng; và
    chín dòng văn xuôi ở `01`, `02`, `04`, `05` dài quá 112 ký tự (dài nhất `04:79`, 140 ký tự).
+5. **Chương 07 mang hai bộ chữ cho bảng luật và bảng lỗi**, trái §2. Mục backend dùng *Các ràng buộc
+   và cơ chế kiểm soát*, *Xử lý lỗi*, cột *Ràng buộc / Cơ chế thực thi / Kiểm chứng*; mục agent và
+   document vẫn dùng *Luật và chỗ canh luật*, *Khi hỏng*, cột *Luật / Nơi thi hành / Loại lưới*.
+   Người dùng chọn để vậy ngày 16/10/2026; hai mục kia chờ một lượt riêng.

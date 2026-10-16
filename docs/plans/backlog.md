@@ -1223,3 +1223,19 @@ miễn mục từ điển cho tên riêng. Những chỗ dưới đây nằm ngo
 | **`02:67` viết `` câu 3\` ``.** LaTeX đọc `` \` `` là lệnh dấu huyền, nên trang in ra dấu huyền chồng lên dấu phẩy ngay sau thay cho dấu phẩy trên (câu 3′) | Không gì chặn; chương 02 nằm ngoài phạm vi plan ấy |
 | **Chữ vẽ trong các hình của người dùng chưa theo từ điển.** Chữ tiếng Anh không có mục: `upload`, `cache` (`system-architecture`), `Boundary` (`domain-context`), "Teacher review" (`activity-overview`), "Review đề" (`business-workflows`). Nặng hơn: `domain-context` và `use-case` ghi "pha 1 / pha 2" cho bài làm học sinh, trong khi từ điển dành "pha" cho lượt hội thoại của giáo viên và gọi phần của học sinh là "giai đoạn" | Hình chỉ sửa được bằng một việc riêng (`rules.md` §6); chưa quyết |
 | **Tên UC-02 *"Review và phát hành đề"* có chữ tiếng Anh "Review"** mà từ điển không có mục; plan trên miễn nó như một tên use case. Đổi tên phải đổi cùng lúc bảng `tab:sau-use-case`, tiêu đề `\subsection`, các `\emph` ở chương 05, và nhãn vẽ trong `use-case` (`rules.md` §6) | Chưa quyết có đổi không |
+
+## Lộ ra khi viết lại mục backend của chương 7
+
+Ghi ngày 16/10/2026, plan `2026-10-16-report-backend-section-plan.md`. Một subagent debate dàn ý và
+một subagent review đọc lại code từng câu; những thứ dưới đây nằm ngoài mục backend hay ngoài báo
+cáo. Bốn giới hạn mà mục ấy nêu (giờ kết thúc của một lượt, cấu trúc câu biến thể, plan bị cắt khi
+đóng thẻ, giáo viên chưa đọc được báo cáo) đã có ở *Luật chưa ép* phía trên nên không ghi lại.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Chương 07 mang hai bộ chữ cho bảng luật và bảng lỗi.** Mục backend dùng *Các ràng buộc và cơ chế kiểm soát*, *Xử lý lỗi*, cột *Ràng buộc / Cơ chế thực thi / Kiểm chứng*; mục agent và document vẫn dùng *Luật và chỗ canh luật* (`07:436`, `:626`), *Khi hỏng* (`:473`, `:658`), cột *Luật / Nơi thi hành / Loại lưới*. Trái `docs/report/rules.md` §2, đã ghi ở mục *Những chỗ đã biết là còn sai* của tệp ấy | Người dùng chọn để vậy; chưa quyết khi nào đổi hai mục kia |
+| **"Khoá" mang ba nghĩa trong chương 07.** Mục backend dành chữ ấy cho khoá đoạn hội thoại (hình `teacher-chat-turn` cũng vẽ chữ ấy), còn mục agent viết *"truyền khoá vào"* cho khoá của nhà cung cấp mô hình (`07:402`) và mục document viết *"mang khoá của tệp"* cho tên tệp trong object store (`07:514`) | Ngoài phạm vi plan ấy; chưa làm |
+| **Đoạn mở chương 07 (`07:4-7`, người dùng viết) dùng "service" lần đầu mà không in đậm, không chú thích** (`rules.md` §3); ba dòng `07:4-6` có khoảng trắng cuối dòng, `07:4` có hai dấu cách liền nhau | Phần người dùng viết; chỉ báo, không sửa |
+| **Báo cáo chưa chỗ nào nói rằng chưa có đăng nhập.** `backend` xác định người gọi bằng header `X-Actor` do màn hình tự khai (`be/identity.py:1-8`, `be/config.py:53-58`); phần kiểm quyền phía sau là thật. Review đề nghị thêm thành giới hạn thứ năm của mục backend | Chưa quyết có thêm không |
+| **Docstring đầu `be/content_reader.py` (`:1-6`) nói `backend` đọc đoạn chữ của tài liệu *"để job soạn câu có kiến thức của mục mình"*,** trái với `check_drafting_reads_no_document_text` (`tools/check_contract.py:483`): job soạn câu chỉ nhận mục dàn ý | Không bị chặn; chưa làm |
+| **`be/config.py:99` khai `job_result_ttl_seconds` mà code `backend` không dùng ở đâu.** Thời gian kết quả sống trong `redis` do `agent` đặt (`agent/worker.py:103`) | Không bị chặn; chưa làm |
