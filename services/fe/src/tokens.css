@@ -707,6 +707,93 @@ button:disabled {
   background: var(--sunken);
 }
 
+/*
+ * Lời Kriky dựng từ Markdown (`KrikyText`, ADR-30, `kriky-writes-every-word`) — component
+ * `Kriky text — Markdown` (`616:23`) của Figma. Cỡ chữ đi theo `--type-body` của mật độ đang dùng,
+ * nên một khối CSS phục vụ cả bong bóng giáo viên lẫn học sinh.
+ *
+ * `react-markdown` chèn ký tự xuống dòng **giữa** các khối; `pre-wrap` của chỗ chứa sẽ in chúng
+ * thành dòng trống. Nên khoảng trắng về `normal` ở khối ngoài, và chỉ chữ **trong** một đoạn, một
+ * mục, một ô giữ xuống dòng (`pre-line`): câu model xuống dòng một lần vẫn xuống dòng — như trước ở
+ * lời Kriky của giáo viên, và nay cả ở bong bóng học sinh. Các node chữ chỉ có xuống dòng giữa hai
+ * khối bị `KrikyText.withMath` bỏ trước, nên `pre-line` không in chúng.
+ */
+.kriky-text {
+  white-space: normal;
+}
+
+.kriky-text p,
+.kriky-text li,
+.kriky-text td,
+.kriky-text th {
+  white-space: pre-line;
+}
+
+.kriky-text > * {
+  margin: 0;
+}
+
+.kriky-text > * + * {
+  margin-top: 8px;
+}
+
+.kriky-text strong {
+  font-weight: 600;
+}
+
+/* Lời chat không có tiêu đề lớn: mọi cấp tiêu đề là chữ thân đậm. */
+.kriky-text h1,
+.kriky-text h2,
+.kriky-text h3,
+.kriky-text h4,
+.kriky-text h5,
+.kriky-text h6 {
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.kriky-text ul,
+.kriky-text ol {
+  padding-left: 20px;
+}
+
+.kriky-text li + li {
+  margin-top: 4px;
+}
+
+.kriky-text li::marker {
+  color: var(--ink-muted);
+}
+
+/* Bảng rộng cuộn ngang trong chính nó, không tràn khỏi cột chat. */
+.kriky-text table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--type-label);
+}
+
+.kriky-text th,
+.kriky-text td {
+  padding: 6px 10px;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.kriky-text th {
+  background: var(--sunken);
+  font-weight: 600;
+}
+
+.kriky-text tbody td {
+  border-top: 1px solid var(--line);
+}
+
 .composer {
   display: flex;
   gap: 12px;

@@ -18,6 +18,7 @@ import Split from "./Split";
 import Steps, { type Step } from "./Steps";
 import Veil from "./Veil";
 import MathText from "../../MathText";
+import KrikyText from "../../KrikyText";
 
 /**
  * Một câu hỏi lại đang chờ trả lời: câu hỏi, cùng các phương án đi với nó.
@@ -500,7 +501,7 @@ export default function Chat({
                   <div className="turn-body">
                     {live.opening !== "" && (
                       <div className="reply-text">
-                        <MathText>{live.opening}</MathText>
+                        <KrikyText>{live.opening}</KrikyText>
                       </div>
                     )}
                     {live.steps.length > 0 && (
@@ -511,7 +512,7 @@ export default function Chat({
                     )}
                     {live.report !== "" && (
                       <div className="reply-text">
-                        <MathText>{live.report}</MathText>
+                        <KrikyText>{live.report}</KrikyText>
                       </div>
                     )}
                   </div>
@@ -793,8 +794,8 @@ function spoken(turns: Turn[]): Spoken {
         steps.push({ ...stepFor(one), planned: firstPlan >= 0 && at > firstPlan });
       continue;
     }
-    // Lượt dàn ý (ADR-29, `draft-outline`) cũng là lời Kriky: chữ của nó do BE dựng từ các mục,
-    // nhưng nó đứng đúng chỗ một câu trả lời đứng.
+    // Lượt dàn ý (ADR-29, `draft-outline`) cũng là lời Kriky — từ ADR-30 là chính lời Kriky viết,
+    // Markdown — và nó đứng đúng chỗ một câu trả lời đứng.
     if (one.kind !== "assistant" && one.kind !== "outline") continue;
     // Câu trước mốc là lời mở — câu **cuối** trong số đó, vì model có thể nói hai câu
     // trước khi bắt tay. Mọi câu sau mốc là câu kết, và câu cuối thắng.
@@ -989,13 +990,13 @@ function Turnful({
         <div className="turn-body">
           {said.opening !== "" && (
             <div className="reply-text">
-              <MathText>{said.opening}</MathText>
+              <KrikyText>{said.opening}</KrikyText>
             </div>
           )}
           {steps}
           {said.conclusion !== "" && (
             <div className="reply-text">
-              <MathText>{said.conclusion}</MathText>
+              <KrikyText>{said.conclusion}</KrikyText>
             </div>
           )}
           {said.cards.map((one, index) => (
@@ -1095,7 +1096,9 @@ function Clarify({
   const said = draft.trim();
   return (
     <div className="clarify">
-      <h3>{asked.text}</h3>
+      <h3>
+        <KrikyText inline>{asked.text}</KrikyText>
+      </h3>
       {asked.more_choices > 0 && (
         <div className="cut">
           Còn {asked.more_choices} lựa chọn nữa không nằm trong danh sách.

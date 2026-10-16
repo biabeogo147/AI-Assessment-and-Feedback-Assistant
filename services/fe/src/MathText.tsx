@@ -55,9 +55,12 @@ import { Fragment } from "react";
  *   `$  $` sẽ thành một công thức trống.
  * - **Cho phép xuống dòng bên trong.** Bản đầu dùng `[^$\n]`, nên một công thức model ngắt
  *   dòng ở giữa hiện ra nguyên văn — đúng cái kết cục việc này đi sửa.
+ * - **Khối `$$…$$` nhận cả xuống dòng làm phần đệm** (`kriky-writes-every-word`): lời Kriky viết
+ *   Markdown thì hay đặt `$$` trên một dòng riêng, công thức ở dòng giữa. Dấu `$` đơn vẫn chỉ đệm
+ *   dấu cách và tab, như luật trên.
  */
 const MATH =
-  /(?<![0-9A-Za-z])\$\$[ \t]*(?![\s$])([\s\S]+?)(?<![\s$])[ \t]*\$\$(?![0-9])|(?<![0-9A-Za-z$])\$[ \t]*(?![\s$])([^$]+?)(?<![\s$])[ \t]*\$(?![0-9])|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)/g;
+  /(?<![0-9A-Za-z])\$\$\s*(?![\s$])([\s\S]+?)(?<![\s$])\s*\$\$(?![0-9])|(?<![0-9A-Za-z$])\$[ \t]*(?![\s$])([^$]+?)(?<![\s$])[ \t]*\$(?![0-9])|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)/g;
 
 /**
  * Dựng một cụm toán thành HTML.
@@ -66,12 +69,56 @@ const MATH =
  * @param display - Công thức đứng riêng một dòng hay nằm trong dòng chữ.
  * @returns HTML của KaTeX, hoặc chính chuỗi gốc khi nó không dựng được.
  */
-function drawn(source: string, display: boolean): string {
+export function drawn(source: string, display: boolean): string {
   return katex.renderToString(source, {
     displayMode: display,
     throwOnError: false,
     strict: false,
   });
+}
+
+/** Một mảnh của chuỗi: chữ thường, hay một cụm toán (không gồm dấu). */
+export interface Piece {
+  kind: "text" | "math";
+  body: string;
+  display: boolean;
+}
+
+/**
+ * Tách một chuỗi thành chữ và các cụm toán, bằng đúng khuôn `MATH`.
+ *
+ * Một chỗ cho hai bộ dựng: `MathText` (chữ câu hỏi) và `KrikyText` (lời Kriky, Markdown —
+ * `kriky-writes-every-word`). Hai bộ dựng cùng một khuôn thì một công thức dựng hình ở panel
+ * cũng dựng hình trong lời Kriky.
+ *
+ * @param children - Chuỗi cần tách.
+ * @returns Các mảnh, đúng thứ tự.
+ */
+export function pieces(children: string): Piece[] {
+  const out: Piece[] = [];
+  let at = 0;
+  for (const found of children.matchAll(MATH)) {
+    const start = found.index ?? 0;
+    if (start > at) {
+      out.push({
+        kind: "text",
+        body: children.slice(at, start),
+        display: false,
+      });
+    }
+    const block = found[1] ?? found[3];
+    const inline = found[2] ?? found[4];
+    out.push({
+      kind: "math",
+      body: block ?? inline ?? "",
+      display: block !== undefined,
+    });
+    at = start + found[0].length;
+  }
+  if (at < children.length) {
+    out.push({ kind: "text", body: children.slice(at), display: false });
+  }
+  return out;
 }
 
 /**
@@ -80,34 +127,9 @@ function drawn(source: string, display: boolean): string {
  * @param children - Chuỗi cần in. Chỗ gọi truyền thẳng giá trị từ API, không dọn trước.
  */
 export default function MathText({ children }: { children: string }) {
-  const pieces: { kind: "text" | "math"; body: string; display: boolean }[] =
-    [];
-  let at = 0;
-  for (const found of children.matchAll(MATH)) {
-    const start = found.index ?? 0;
-    if (start > at) {
-      pieces.push({
-        kind: "text",
-        body: children.slice(at, start),
-        display: false,
-      });
-    }
-    const block = found[1] ?? found[3];
-    const inline = found[2] ?? found[4];
-    pieces.push({
-      kind: "math",
-      body: block ?? inline ?? "",
-      display: block !== undefined,
-    });
-    at = start + found[0].length;
-  }
-  if (at < children.length) {
-    pieces.push({ kind: "text", body: children.slice(at), display: false });
-  }
-
   return (
     <>
-      {pieces.map((one, index) =>
+      {pieces(children).map((one, index) =>
         one.kind === "text" ? (
           <Fragment key={index}>{one.body}</Fragment>
         ) : (

@@ -44,8 +44,8 @@ Cách nói:
   `$\sqrt{x}$`, `$a \le b$`.
   Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc
   cả câu trong `$`. Và đừng dùng dấu ngoặc kiểu \( \) hay \[ \] — chỉ `$`.
-- Viết văn xuôi thuần, không Markdown: không **in đậm**, không *nghiêng*, không `mã`, không đầu
-  dòng bằng - hay *. Cùng một lý do — màn hình in đúng những ký tự bạn gõ.
+- Viết bằng Markdown gọn (màn hình dựng nó): **đậm** cho chỗ cần nhấn, gạch đầu dòng hay đánh số
+  khi kể các bước giải. Không tiêu đề, không khối mã, không bảng.
 - Không bịa thêm câu hỏi mới, không hứa hẹn điểm số."""
 
 

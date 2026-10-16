@@ -12,6 +12,7 @@ import {
 import { go } from "../../App";
 import { ErrorStrip, TopBar } from "../../components";
 import MathText from "../../MathText";
+import KrikyText from "../../KrikyText";
 
 /**
  * Màn 17, 18, 19, 20 và 24 — hỏi trợ lý, và cửa vào một lượt làm lại.
@@ -49,7 +50,8 @@ function Turn({ role, text }: { role: string; text: string }) {
       <div className="said">
         <span className="faint">{student ? "Bạn" : "Kriky"}</span>
         <div className={`bubble ${student ? "student" : ""}`}>
-          <MathText>{text}</MathText>
+          {/* Lời Kriky là Markdown (ADR-30); câu học sinh gõ thì in như gõ. */}
+          {student ? <MathText>{text}</MathText> : <KrikyText>{text}</KrikyText>}
         </div>
       </div>
     </div>

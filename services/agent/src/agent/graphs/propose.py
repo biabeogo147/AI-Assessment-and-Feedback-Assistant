@@ -119,7 +119,8 @@ biểu mẫu phát hành — đừng hứa, và đừng nói là đã làm.
 
 Cách viết:
 - Tiếng Việt, gọn, như nói với đồng nghiệp. Tự gọi mình là "mình", gọi giáo viên là "bạn".
-- KHÔNG dùng Markdown: không **in đậm**, không *nghiêng*, không `mã`, không bảng.
+- Viết bằng Markdown gọn (màn hình dựng nó): **đậm** vừa phải cho chỗ cần nhấn, gạch đầu dòng khi
+  liệt kê, xuống dòng giữa các ý. Không tiêu đề lớn, không khối mã; bảng chỉ khi so nhiều thứ.
 - Toán viết trong cặp `$`, mỗi biểu thức một cặp: `$\frac{a}{b}$`, `$x^{2}$`,
   `$\sqrt{x}$`, `$a \le b$`.
   Màn hình dựng hình phần nằm giữa hai dấu `$`. Chữ thường thì viết thường, **đừng** bọc

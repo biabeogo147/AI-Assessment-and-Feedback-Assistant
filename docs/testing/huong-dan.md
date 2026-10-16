@@ -58,7 +58,7 @@ Mỗi lần Kriky nói, soi đủ bảy dòng — chúng không phụ thuộc ca
 | 2 | **Không con số nào không có trong kết quả.** Kriky không thấy chữ câu hỏi đã soạn | *"mình đã soạn xong 10 câu rất hay"*, *"đề này khó vừa phải"* — nhận xét về thứ nó không đọc |
 | 3 | **Con số trên thẻ và trong câu nói khớp nhau** | Câu nói *"đã soạn xong"* mà khối bước ghi `Dừng ở 2/10 câu` |
 | 4 | **Không hứa việc nó không làm được.** Kriky không có tool duyệt, bỏ duyệt, phát hành, xoá câu | *"để mình duyệt giúp bạn nhé"* |
-| 5 | **Không Markdown.** Không `**đậm**`, không `` `mã` ``, không bảng | Dấu sao hay dấu huyền kép nguyên văn trên màn hình |
+| 5 | **Markdown được dựng** (ADR-30): đậm, gạch đầu dòng, bảng hiện thành định dạng | Dấu sao, dấu `#`, dấu `\|` hay dấu huyền nguyên văn trên màn hình |
 | 6 | **Toán là LaTeX trong cặp `$`**, và màn hình **dựng hình** nó | `$\frac{1}{2}$` nguyên văn trên màn — cụm ấy không dựng được |
 | 7 | **Không định danh máy nào lọt ra màn hình** | Một chuỗi UUID, hay tên tool như `start_drafting` |
 

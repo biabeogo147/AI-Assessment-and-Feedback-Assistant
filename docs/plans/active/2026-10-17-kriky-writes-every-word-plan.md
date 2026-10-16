@@ -61,11 +61,16 @@ gọi model thật (ước 0,05–0,08 USD).
   nội dung soạn sẵn và đoạn chat đang chạy; hệ quả nới luật công thức) → commit.
 
 ### Pha 3 — Markdown
-- [ ] 7. `KrikyText`: tách toán bằng regex của `MathText` trước khi parse Markdown; không HTML thô.
-  Dùng cho lời Kriky (`Chat.tsx`) và trợ lý (`Tutor.tsx`).
-- [ ] 8. Figma kiểu chữ Markdown, đo bằng nhau.
-- [ ] 9. Prompt `propose`, `reporting`, `explain` cho phép Markdown gọn; luật 5 `huong-dan.md`.
-- [ ] 10. Test. Review → commit.
+- [x] 7. `KrikyText` (react-markdown 9.0.1 + remark-gfm 4.0.0): tách toán bằng `MathText.pieces`
+  trước khi parse Markdown; không HTML thô, ảnh chỉ in `alt`, link mở tab mới; `inline` cho tiêu đề
+  thẻ hỏi lại. Dùng cho lời Kriky (`Chat.tsx`, cả lúc chạy lẫn sau F5) và bong bóng trợ lý
+  (`Tutor.tsx`). Khối `$$…$$` của `MathText` nhận xuống dòng làm phần đệm.
+- [x] 8. Figma: component `Kriky text — Markdown` (`616:23`). Đo ở mode `Teacher` bằng một lượt mẫu
+  trong DB dev: chữ 14/21px, màu, khoảng 8px, mục 4px, bảng 193px, ô 6×10 khớp; chiều cao bảng lệch
+  1px (cách tính viền). Bong bóng học sinh (mode `Student`) chưa đo.
+- [x] 9. Prompt `propose`, `reporting`, `explain` cho phép Markdown gọn; luật 5 `huong-dan.md`.
+- [x] 10. Test. Review: ba lỗi gần chặn (dòng trống trong mục danh sách, ảnh tự tải, `$$` riêng dòng)
+  và các điểm nhỏ — đã sửa. Commit.
 
 ### Pha 4 — Dàn ý
 - [ ] 11. Contract: `text` của `kind=outline` là cả lời Kriky; `outline` vẫn là thứ duy nhất vào job.
