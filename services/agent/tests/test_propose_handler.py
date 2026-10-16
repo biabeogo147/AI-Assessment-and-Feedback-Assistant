@@ -397,3 +397,29 @@ async def test_the_mock_asks_back_when_the_number_is_outside_what_the_tool_takes
     )
 
     assert answer["kind"] == "ask_clarify"
+
+
+@pytest.mark.asyncio
+async def test_a_model_that_breaks_gives_a_system_notice_not_the_mock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Model bật mà hỏng thì không lùi về mock (ADR-30, `kriky-writes-every-word`).
+
+    Mock nói dưới giọng Kriky một việc nó đoán bằng từ khoá; giữa một lượt chat thật, đó là code nói
+    thay model. Lượt ra một thông báo hệ thống, và BE lưu nó thành `notice`.
+    """
+    from agent import handlers
+
+    async def breaks(request):
+        raise RuntimeError("provider đi vắng")
+
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(handlers, "propose", breaks)
+
+    answer = await propose_next_step(
+        {}, _payload(TurnRecord(kind="teacher", text="lớp 12A thế nào"))
+    )
+
+    assert answer["kind"] == "say"
+    assert answer["notice"] is True
+    assert answer["tool_name"] == ""

@@ -85,11 +85,20 @@ gọi model thật (ước 0,05–0,08 USD).
   câu quá chặt, regex bỏ sót cách viết phổ biến, comment cũ — đã sửa. Commit.
 
 ### Pha 5 — Loại A còn lại, notice, check
-- [ ] 15. `_approved_plan` dùng lời model hoặc không lời mở.
-- [ ] 16. `_which_book` hỏi model lại thay vì đè chữ.
-- [ ] 17. Plan hỏng: lý do về model như kết quả tool.
-- [ ] 18. `kind="notice"` cho thông báo hệ thống (`be/notices.py`, `_UNCLEAR`); FE vẽ khác, Figma.
-- [ ] 19. Check trong `check_contract.py` + hàng `AGENTS.md`. Review → commit.
+- [x] 15. `_approved_plan` dùng lời model hoặc không lời mở.
+- [x] 16. `_which_book` hỏi model lại thay vì đè chữ.
+- [x] 17. Plan hỏng: lý do về model như kết quả tool.
+- [x] 18. `kind="notice"` cho thông báo hệ thống (`be/notices.py`, `_UNCLEAR`); FE vẽ khác, Figma.
+  Figma `System notice` (`619:20`) ôm chiều cao, cỡ chữ gắn `type/label`; đo ở Teacher: 820×36
+  so với trình duyệt 820×35,5 (Figma làm tròn dòng 19,5 → 20), màu, padding, gap, bo góc bằng nhau.
+- [x] 19. Check trong `check_contract.py` + hàng `AGENTS.md`. Review → commit.
+  Review pha 5 sửa: lời mở plan rơi mất trên đường `_choose` (C1); một `notice` giữa dàn ý và *"oke"*
+  gõ lại làm mất lời duyệt, cả BE lẫn AGENT (C2); câu `notices.py` chỉ hợp lệ dưới `kind="notice"`, và
+  check bắt thêm biến cục bộ, `.format()`, `or`/`if…else`, `model_copy`, kind không biết,
+  `PlanReportCompleted`, mock trong `except` (N1, N2 -- trên HEAD trước pha 5 nó bắt đủ các câu pha
+  này gỡ, trừ câu một hàm khác trả về); lần hỏi lại của `_which_book` mang lý do (N3); câu hỏi *"tài
+  liệu gì"*, Markdown, tên tệp cũng tính (N4); trần chạm vì plan cứ bị từ chối ra `PLAN_REFUSED` /
+  `BOOK_*` thay câu trần chung (N5).
 
 ### Pha 6 — Tài liệu, thử tay, đóng
 - [ ] 20. `teacher-surface.md`, `huong-dan.md`, case 01–07, 13, 14.
@@ -111,9 +120,11 @@ gọi model thật (ước 0,05–0,08 USD).
 - Bước tra cứu hỏng in nguyên `reason`/`error` viết cho model (vd *"nodes phải là số node lấy từ
   list_chapters/get_chapter"*) — lỗi đã có trong `backlog.md` (luật 7), nay hiện cả lúc lượt đang
   chạy. Chờ người dùng quyết.
+- Lời giải thích của trợ lý học sinh (`explain`) khi model hỏng vẫn lùi về câu dọn trước: đổi nó
+  cần sửa hợp đồng và màn học sinh, ngoài plan này. Báo người dùng.
 - `test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones` chập chờn (hai lần `now()` trùng
   nhau trên đồng hồ Windows); chạy lại thì xanh.
 
 ## Status
 
-Đang làm pha 1.
+Đang làm pha 6.

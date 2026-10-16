@@ -216,9 +216,9 @@ def be_refuses(step: dict, plannable: tuple) -> str:
     """Lời `vet_plan` của BE cho một plan, rỗng khi BE nhận nó.
 
     Thước chấm ý ca (`score_propose`) không biết luật của BE: tham chiếu sai khuôn, tool ngoài
-    catalog pha thực hiện, thiếu tham số bắt buộc. Plan như thế thì giáo viên chỉ nhận
-    `_PLAN_REFUSED`, nên nó không được tính là đạt. `bind_book` không chạy ở đây (nó đọc Mongo):
-    ca có sách phải tự điền `document_id` và `nodes`, đúng như `expect` của chúng đòi.
+    catalog pha thực hiện, thiếu tham số bắt buộc. Plan như thế thì không bước nào chạy -- BE trả
+    lý do về model (ADR-30) --, nên nó không được tính là đạt. `bind_book` không chạy ở đây (nó đọc
+    Mongo): ca có sách phải tự điền `document_id` và `nodes`, đúng như `expect` của chúng đòi.
 
     Args:
         step: `NextStepCompleted` đã dump, `kind` là plan.

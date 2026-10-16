@@ -902,6 +902,27 @@
 }
 
 /*
+ * Thông báo hệ thống (ADR-30, ngoại lệ 1) — `System notice` (`619:20`). Không avatar và không
+ * thụt theo cột lời Kriky: đây không phải Kriky nói. Nền chìm, chữ nhạt, cỡ nhãn.
+ */
+.teacher .system-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .system-notice .mark {
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+
+/*
  * 440 là trần, không phải bề rộng. Một câu ba chữ nằm trong một bong bóng rộng
  * 440 đọc ra như một đoạn văn bị cắt, còn trần thì giữ cho một đoạn dài không
  * chạy hết 820px — quá dài để mắt tìm được đầu dòng sau.

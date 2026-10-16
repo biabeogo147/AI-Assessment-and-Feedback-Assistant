@@ -425,7 +425,8 @@ export interface Approval {
  * Một dòng trong hội thoại của giáo viên.
  *
  * `kind` là `"teacher"`, `"assistant"`, `"outline"` (dàn ý đề, lời Kriky — vẽ như lời trợ lý),
- * `"tool_call"` hay `"tool_result"`. Luật render nằm ở
+ * `"notice"` (thông báo hệ thống khi model không có mặt để nói, ADR-30 — dòng riêng, không
+ * avatar), `"tool_call"` hay `"tool_result"`. Luật render nằm ở
  * màn hình, không ở đây: `tool_call` không hiện gì (nó không mang kết quả), còn `tool_result`
  * ra một thẻ chọn theo **nấc của đề** — `ActionCard.STATE_OF` dịch `tool_name` thành nấc, và
  * đó là chỗ duy nhất phép dịch ấy xảy ra.

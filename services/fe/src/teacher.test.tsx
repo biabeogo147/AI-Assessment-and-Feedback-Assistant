@@ -482,7 +482,7 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
     expect(said.compareDocumentPosition(card) & 4).toBe(4);
   });
 
-  it("đọc lại một lượt dàn ý thì chữ BE dựng hiện như lời Kriky", async () => {
+  it("đọc lại một lượt dàn ý thì lời Kriky viết hiện như lời Kriky", async () => {
     // ADR-29 (`draft-outline`): lượt dàn ý mang `kind: "outline"`, không phải `assistant`. Bỏ
     // qua nó thì sau một lần F5 dàn ý giáo viên đang duyệt biến khỏi màn hình.
     Element.prototype.scrollIntoView = vi.fn();
@@ -511,6 +511,90 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
         "Dàn ý — 2 câu (bản 1)",
       ),
     );
+  });
+
+  it("thông báo hệ thống là một dòng riêng, không avatar, dưới khối bước của Kriky", async () => {
+    // ADR-30, ngoại lệ 1 (`kriky-writes-every-word`): model không kể lại được thì BE lưu một lượt
+    // `notice`. Vẽ nó như lời Kriky là để code nói thay model dưới giọng của nó.
+    Element.prototype.scrollIntoView = vi.fn();
+    const told = {
+      ...SPOKEN,
+      turns: [
+        blank({ kind: "teacher", text: "Tạo đề 3 câu" }),
+        blank({ kind: "tool_call", tool_name: "create_draft" }),
+        blank({
+          kind: "tool_result",
+          tool_name: "create_draft",
+          tool_result: { assessment_id: "p1", title: "Hàm số", question_count: 3 },
+        }),
+        blank({ kind: "notice", text: "Kriky chưa kể lại được kết quả lượt này." }),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(url.startsWith("/api/teacher/chat") ? told : []),
+        }),
+      ),
+    );
+
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+
+    const notice = await waitFor(() => {
+      const found = document.querySelector(".system-notice");
+      expect(found).not.toBeNull();
+      return found as Element;
+    });
+    expect(notice.textContent).toContain("Kriky chưa kể lại được kết quả lượt này.");
+    // Không nằm trong khối của Kriky, và không có avatar của riêng nó.
+    expect(notice.closest(".voice")).toBeNull();
+    expect(document.querySelectorAll(".exchange .who")).toHaveLength(1);
+    expect(document.querySelector(".reply-text")).toBeNull();
+    const steps = document.querySelector(".steps-block") as Element;
+    expect(steps.compareDocumentPosition(notice) & 4).toBe(4);
+  });
+
+  it("lượt đang chạy chỉ có thông báo hệ thống thì không avatar nào", async () => {
+    // Review pha 5 (`kriky-writes-every-word`): `voiced()` giữ chỗ này — một avatar trên khoảng
+    // trống là giới thiệu một người không nói gì, ngay trên câu không phải của Kriky.
+    Element.prototype.scrollIntoView = vi.fn();
+    const empty = { kind: "say", text: "", conversation_id: "c1", choices: [], more_choices: 0, turns: [] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/teacher/chat/messages/stream") {
+          const frame = `data: ${JSON.stringify({
+            kind: "notice",
+            text: "Kriky chưa trả lời được lúc này.",
+            conversation_id: "c1",
+          })}\n\n`;
+          // Không đóng luồng: lượt còn đang chạy, màn hình vẽ từ `live`.
+          return {
+            ok: true,
+            body: new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(frame));
+              },
+            }),
+          };
+        }
+        const body = url.startsWith("/api/teacher/chat") ? empty : [];
+        return { ok: true, json: async () => body };
+      }),
+    );
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    fireEvent.change(screen.getByLabelText("Nhắn cho Kriky"), { target: { value: "soạn đề" } });
+    fireEvent.click(screen.getByText("Gửi"));
+
+    await waitFor(() =>
+      expect(document.querySelector(".system-notice")?.textContent).toContain(
+        "Kriky chưa trả lời được lúc này.",
+      ),
+    );
+    expect(document.querySelectorAll(".exchange .who")).toHaveLength(0);
   });
 
   it("vẫn chỉ MỘT avatar khi lượt có cả câu mở đầu lẫn câu kết", async () => {
@@ -892,6 +976,18 @@ describe("một lượt đang chạy, dựng từ các sự kiện", () => {
     expect(live.total).toBe(2);
     expect(live.steps).toHaveLength(1);
     expect(live.steps[0].mark).toBe("running");
+  });
+
+  it("thông báo hệ thống không thành lời Kriky lúc đang chạy", () => {
+    // ADR-30, ngoại lệ 1: câu của hệ thống đi riêng, không vào lời mở hay câu kết.
+    const live = grow(
+      null,
+      event({ kind: "notice", text: "Kriky chưa trả lời được lúc này." }),
+    );
+
+    expect(live.notice).toBe("Kriky chưa trả lời được lúc này.");
+    expect(live.opening).toBe("");
+    expect(live.report).toBe("");
   });
 
   it("đóng bước đang chạy khi nó xong, và giữ dòng kết quả của BE", () => {

@@ -624,6 +624,8 @@ def _subject_in(asked: str) -> str | None:
 _WHAT_IS_MISSING = (
     "Bạn cho mình biết thêm: môn gì, khối nào, phạm vi kiến thức, và bao nhiêu câu nhé."
 )
+# Thông báo hệ thống khi model bật mà không đề nghị được gì (ADR-30, ngoại lệ 1).
+_MODEL_DOWN = "Kriky chưa trả lời được lúc này. Bạn thử gửi lại sau một chút nhé."
 # Trần số câu một lần soạn (ADR-29); BE từ chối dàn ý quá trần, nên mock nói trước.
 _MOST_AT_ONCE = 10
 
@@ -882,11 +884,13 @@ async def propose_next_step(ctx: dict, payload: dict) -> dict:
     try:
         return (await propose(request)).model_dump(mode="json")
     except Exception:
-        # Đề nghị dọn trước ở đây thay thế vào được một cách an toàn, khác với trên
-        # đường kèm học sinh: chưa có gì tới tay giáo viên, vì một đề nghị không được
-        # cho ai xem cho tới khi BE đã hành động trên nó.
+        # Model bật mà hỏng thì **không** lùi về đề nghị dọn trước: chữ của mock nói dưới giọng
+        # Kriky một việc nó đoán bằng từ khoá. Lượt ra một thông báo hệ thống (ADR-30, ngoại lệ 1,
+        # `kriky-writes-every-word`); mock chỉ còn cho `LLM_ENABLED=false`.
         logger.exception("model could not propose a next step for %s", request.request_id)
-        return next_step(request).model_dump(mode="json")
+        return NextStepCompleted(
+            request_id=request.request_id, kind="say", text=_MODEL_DOWN, notice=True
+        ).model_dump(mode="json")
 
 
 # Chỗ handler đặt tiếng chuông xuống cho `after_job_end` nhặt lên. Một khoá trong `ctx`,
@@ -1143,9 +1147,10 @@ async def report_plan(ctx: dict, payload: dict) -> dict:
         payload: `PlanReportRequested` dưới dạng JSON.
 
     Returns:
-        `PlanReportCompleted` dưới dạng JSON. Mọi cách model hỏng đều lùi về mock: lượt chat
-        đã chạy xong và đã ghi đủ trước khi task này được gọi, nên một exception từ phần kể
-        lại sẽ biến một lượt đã thành công thành một lỗi.
+        `PlanReportCompleted` dưới dạng JSON. Mọi cách model hỏng đều ra lời rỗng, không ném
+        lên: lượt chat đã chạy xong và đã ghi đủ trước khi task này được gọi, nên một exception
+        từ phần kể lại sẽ biến một lượt đã thành công thành một lỗi. Lời rỗng thì BE ra một
+        thông báo hệ thống (ADR-30); mock chỉ còn cho `LLM_ENABLED=false`.
 
     Raises:
         ValidationError: Khi `payload` không phải một `PlanReportRequested`. Nằm ngoài
@@ -1160,7 +1165,9 @@ async def report_plan(ctx: dict, payload: dict) -> dict:
         text = await tell_about(request)
     except Exception:
         logger.exception("model failed to report a plan for %s", request.request_id)
-        return plan_report(request).model_dump(mode="json")
+        # Lời rỗng: BE ra thông báo hệ thống thay cho lời kể (ADR-30, ngoại lệ 1); câu dọn trước
+        # chỉ còn cho `LLM_ENABLED=false`.
+        return PlanReportCompleted(request_id=request.request_id, text="").model_dump(mode="json")
 
     return PlanReportCompleted(request_id=request.request_id, text=text).model_dump(mode="json")
 

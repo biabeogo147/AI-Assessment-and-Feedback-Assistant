@@ -455,6 +455,8 @@ export default function Chat({
                     <MathText>{block.said}</MathText>
                   </div>
                 </div>
+              ) : "notice" in block ? (
+                <Notice key={index} text={block.notice} />
               ) : (
                 <Turnful
                   key={index}
@@ -494,7 +496,7 @@ export default function Chat({
             {/* Lượt đang chạy. Hình dạng y hệt một lượt đã xong — avatar một lần, rồi câu
                 mở, khối bước, câu kết — nên không có cú nhảy nào lúc nó chuyển thành lượt
                 đã lưu. Chỉ khi chưa có sự kiện nào thì mới là vòng quay chờ. */}
-            {pending !== null && live !== null && (
+            {pending !== null && live !== null && voiced(live) && (
               <div className="exchange">
                 <div className="voice">
                   <Who />
@@ -518,6 +520,9 @@ export default function Chat({
                   </div>
                 </div>
               </div>
+            )}
+            {pending !== null && live !== null && live.notice !== "" && (
+              <Notice text={live.notice} />
             )}
             {pending !== null && live === null && <Thinking slow={slow} />}
             <div ref={bottom} />
@@ -726,8 +731,11 @@ export default function Chat({
   );
 }
 
-/** Một bong bóng của giáo viên, hoặc **cả** một lượt của Kriky. */
-type Block = { said: string } | { kriky: Turn[] };
+/**
+ * Một bong bóng của giáo viên, **cả** một lượt của Kriky, hoặc một thông báo của hệ thống (ADR-30,
+ * ngoại lệ 1) — dòng riêng, không avatar, vì đó không phải lời Kriky.
+ */
+type Block = { said: string } | { kriky: Turn[] } | { notice: string };
 
 /** Một lượt của Kriky, đã tách thành bốn khối của artboard `5 · Đã có đề nháp`. */
 interface Spoken {
@@ -836,6 +844,12 @@ function blocks(turns: Turn[]): Block[] {
       continue;
     }
     if (one.kind === "tool_call") continue;
+    // Thông báo hệ thống cắt khối của Kriky: nó đứng dưới những gì Kriky đã làm, và không thuộc
+    // về avatar của khối ấy (`kriky-writes-every-word`).
+    if (one.kind === "notice") {
+      out.push({ notice: one.text });
+      continue;
+    }
     const open = out[out.length - 1];
     if (open !== undefined && "kriky" in open) open.kriky.push(one);
     else out.push({ kriky: [one] });
@@ -853,6 +867,21 @@ interface Live {
   total: number;
   /** Câu kết, có từ lúc model kể lại. */
   report: string;
+  /** Thông báo hệ thống khi model không có mặt để nói (ADR-30, ngoại lệ 1). */
+  notice: string;
+}
+
+/**
+ * Lượt đang chạy có vẽ avatar của Kriky không. Một lượt chỉ có thông báo hệ thống thì không: câu ấy
+ * không phải Kriky nói, và một avatar trên khoảng trống là giới thiệu một người không nói gì.
+ */
+function voiced(live: Live): boolean {
+  return (
+    live.notice === "" ||
+    live.opening !== "" ||
+    live.steps.length > 0 ||
+    live.report !== ""
+  );
 }
 
 /**
@@ -869,7 +898,13 @@ interface Live {
  * @returns Lượt sau khi đã nhận sự kiện ấy.
  */
 export function grow(before: Live | null, event: TurnEvent): Live {
-  const now: Live = before ?? { opening: "", steps: [], total: 0, report: "" };
+  const now: Live = before ?? {
+    opening: "",
+    steps: [],
+    total: 0,
+    report: "",
+    notice: "",
+  };
   const steps = [...now.steps];
 
   switch (event.kind) {
@@ -951,9 +986,32 @@ export function grow(before: Live | null, event: TurnEvent): Live {
       return { ...now, report: event.text };
     case "clarify":
       return { ...now, report: event.text };
+    case "notice":
+      return { ...now, notice: event.text };
     default:
       return now;
   }
+}
+
+/**
+ * Một thông báo của hệ thống trên dòng hội thoại — component `System notice` (`619:20`).
+ *
+ * Model không có mặt để nói (hỏng, chạm trần bước, không kể lại được), nên câu này **không** mang
+ * giọng Kriky: không avatar, chữ nhạt trên nền chìm, chữ trơn không Markdown (ADR-30, ngoại lệ 1).
+ *
+ * @param text - Câu của `be/notices.py`, hoặc của AGENT khi model hỏng.
+ */
+function Notice({ text }: { text: string }) {
+  return (
+    <div className="exchange">
+      <div className="system-notice" role="status">
+        <span className="mark" aria-hidden="true">
+          !
+        </span>
+        <span>{text}</span>
+      </div>
+    </div>
+  );
 }
 
 /**

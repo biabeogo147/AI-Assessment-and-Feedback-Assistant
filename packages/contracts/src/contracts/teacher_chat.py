@@ -128,8 +128,10 @@ class TurnRecord(BaseModel):
             một con số không có chỗ nào lưu là một con số chỉ đúng khi không ai tải lại trang.
             `outline` là một dàn ý đề Kriky vừa đề xuất (ADR-29): `text` là lời Kriky trình bày dàn
             ý (Markdown, ADR-30), `tool_result` chở chính các mục -- thứ duy nhất đi vào job, và
-            thứ lượt sau model đọc lại cùng lời.
-        text: Lời, cho turn `teacher` và `assistant`; lời dàn ý cho turn `outline`.
+            thứ lượt sau model đọc lại cùng lời. `notice` là một thông báo của **hệ thống**, không
+            phải lời Kriky -- khi model không trả lời được, hay lượt chạm trần bước (ADR-30, ngoại
+            lệ 1); model đọc lại nó như một ghi chú, không như lời mình đã nói.
+        text: Lời, cho turn `teacher`, `assistant` và `notice`; lời dàn ý cho turn `outline`.
         tool_name: Tool nào, cho `tool_call` và `tool_result`.
         tool_args: Tham số mà BE đã thực thi với.
         tool_result: Thứ tool trả về. BE đã tóm tắt sẵn: điểm của cả một lớp vừa không nhét nổi vào
@@ -138,7 +140,7 @@ class TurnRecord(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["teacher", "assistant", "tool_call", "tool_result", "plan", "outline"]
+    kind: Literal["teacher", "assistant", "tool_call", "tool_result", "plan", "outline", "notice"]
     text: str = ""
     tool_name: str = ""
     tool_args: dict[str, object] = Field(default_factory=dict)
@@ -240,6 +242,10 @@ class NextStepCompleted(BaseModel):
     choices: tuple[str, ...] = ()
     steps: tuple[PlanStep, ...] = ()
     outline: tuple[OutlineItem, ...] = ()
+    # `say` này là thông báo của **hệ thống**, không phải lời Kriky (ADR-30, ngoại lệ 1,
+    # `kriky-writes-every-word`): model không trả lời được, nên AGENT nói một câu cố định, và BE lưu
+    # nó thành lượt `notice`. Chỉ đi với `say`.
+    notice: bool = False
     # Lời gọi tốn bao nhiêu, do AGENT điền từ báo cáo usage của chính nhà cung
     # cấp, **sau khi** model đã trả lời. Model không thể biết con số này, nên
     # bất cứ thứ gì nó viết vào đây đều bị ghi đè -- đúng cách `request_id`
@@ -274,6 +280,8 @@ class NextStepCompleted(BaseModel):
             raise ValueError("kind='outline' needs at least one item")
         if self.kind != "outline" and self.outline:
             raise ValueError("only kind='outline' may carry outline items")
+        if self.notice and self.kind != "say":
+            raise ValueError("only kind='say' may be a system notice")
         return self
 
 

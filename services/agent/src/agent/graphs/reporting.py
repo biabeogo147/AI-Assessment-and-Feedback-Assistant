@@ -15,8 +15,9 @@ Prompt ở đây có một luật nặng hơn cả: **không nói quá kết qu�
 thứ gì.
 
 Và luật ấy **chỉ** đứng trong prompt: câu model viết đi thẳng ra bong bóng chat, y như mọi
-lời nói khác của Kriky. BE chỉ `.strip()` rồi lùi về câu ghép của mình khi lời gọi hỏng
-(`teacher_chat._report`); nó không cắt, không dọn Markdown, và không kiểm lại con số nào.
+lời nói khác của Kriky. BE chỉ `.strip()`; lời gọi hỏng thì lượt ra một thông báo hệ thống, không
+câu ghép nào thay lời kể (`teacher_chat._report`, ADR-30). BE không cắt, không dọn Markdown, và
+không kiểm lại con số nào.
 Thứ **có** lưới là các con số trên thẻ kết quả và dưới từng bước: chúng do BE tự đọc từ
 database (`_said_about`), nên một lời kể nói quá vẫn không làm con số trên màn hình sai
 theo.
@@ -182,9 +183,9 @@ async def tell_about(request: PlanReportRequested) -> str:
         request: Câu giáo viên đã nhờ và kết quả từng bước.
 
     Returns:
-        Lời kể, nguyên văn như model trả về. BE lùi về một câu dự phòng khi lời gọi này
-        hỏng, nhưng nó **không** cắt và không dọn chuỗi — khác đường đặt tên đoạn chat, nơi
-        có một hàm dọn thật. Luật về độ dài và về Markdown vì thế chỉ nằm trong prompt.
+        Lời kể, nguyên văn như model trả về. Lời gọi này hỏng thì BE ra một thông báo hệ thống
+        (ADR-30), và nó **không** cắt, không dọn chuỗi — khác đường đặt tên đoạn chat, nơi có
+        một hàm dọn thật. Luật về độ dài và về Markdown vì thế chỉ nằm trong prompt.
     """
     final = await _GRAPH.ainvoke(
         {

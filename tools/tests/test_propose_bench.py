@@ -142,14 +142,14 @@ def _model_text(document: bool = True) -> list[str]:
         json.dumps(kind.model_json_schema(), ensure_ascii=False)
         for kind in (propose._Proposal, GeneratedQuestion)
     ]
-    # Câu BE ghi vào lịch sử chat, model đọc lại ở lượt sau.
-    from be import teacher_chat
+    # Câu BE ghi vào lịch sử chat hay gửi kèm lý do từ chối, model đọc lại ở lượt sau.
+    from be import notices, teacher_chat
 
     texts += [
-        teacher_chat._PLAN_REFUSED,
         teacher_chat._BOOK_SCOPE_MISSING,
         teacher_chat._BOOK_NOT_READY,
-        teacher_chat._CEILING_REACHED,
+        notices.CEILING_REACHED,
+        notices.REPORT_MISSING,
     ]
     texts += [spec.description + json.dumps(spec.arguments, ensure_ascii=False) for spec in specs]
     return [text.casefold() for text in texts]

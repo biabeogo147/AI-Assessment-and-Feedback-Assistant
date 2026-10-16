@@ -34,7 +34,7 @@ import json
 import logging
 import re
 import unicodedata
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
@@ -413,7 +413,15 @@ def _library_first(
 
 
 class _AskAgain(ValueError):
-    """Một đề nghị hỏng theo kiểu hỏi lại model một lần thường là sửa được."""
+    """Một đề nghị hỏng theo kiểu hỏi lại model một lần thường là sửa được.
+
+    Attributes:
+        hint: Lý do nói với model ở lần hỏi lại, khi lệch có hệ thống -- một lần hỏi lại mù dễ ra
+            lại đúng câu cũ (review pha 5, `kriky-writes-every-word`). Rỗng thì hỏi lại y như lần
+            đầu.
+    """
+
+    hint = ""
 
 
 class _NothingToSay(_AskAgain):
@@ -452,6 +460,16 @@ class _UncountedOutline(_Flawed):
     """Dàn ý có tổng câu khác số câu model vừa ghi trong `known`, hay dàn ý thay câu không phải đúng
     một mục một câu (`draft-outline`). Đo ở bench run-98: *"6 câu"* ra dàn ý 4 mục × 2 câu; *"thay
     câu 2"* ra dàn ý nêu lại cả đề."""
+
+
+class _WrongQuestion(_Flawed):
+    """Model hỏi lại ngay sau danh sách tài liệu mà không hỏi tài liệu nào -- nút của câu hỏi là các
+    tài liệu (`_which_book`, `kriky-writes-every-word`)."""
+
+    hint = (
+        "Câu hỏi vừa rồi không hợp: ngay sau danh sách tài liệu, các nút giáo viên bấm là tên tài "
+        "liệu, nên câu hỏi phải hỏi giáo viên soạn theo tài liệu nào. Viết lại câu hỏi ấy."
+    )
 
 
 class _FewChoices(_Flawed):
@@ -765,32 +783,70 @@ def _misfiled_read(step: NextStepCompleted, request: NextStepRequested) -> NextS
 # ấy luôn là tên tài liệu -- BE coi câu hỏi đến sau một danh sách `candidates` là câu hỏi về dòng
 # (ADR-23) -- mà chữ model viết lệch nút 5--17/24 lượt (*"phần mệnh đề nằm ở mục nào?"*, run-83,
 # run-87).
-_WHICH_BOOK = "Bạn soạn theo tài liệu nào?"
+# Câu hỏi hỏi **tài liệu nào**: *"bạn soạn theo tài liệu nào?"*, *"cuốn sách giáo khoa nào?"*,
+# *"tài liệu Toán 10 gì?"* -- tối đa ba chữ chen giữa. Chữ "sách" một mình thì không: *"phần mệnh
+# đề nằm ở mục nào của cuốn sách?"* là đúng ca lệch đã đo (run-83, run-87). Dấu Markdown bỏ trước
+# khi so (review pha 5, `kriky-writes-every-word`): từ ADR-30 *"**tài liệu** nào"* là chữ hợp lệ.
+_ASKS_WHICH_BOOK = re.compile(
+    r"\b(?:tài liệu|giáo trình|cuốn|quyển|sách|tệp|file)(?:\s+\S+){0,3}?\s+(?:nào|gì)\b", re.I
+)
+_MARKUP = re.compile(r"[*_`]")
+
+
+def _asks_which_book(text: str, listed: list[dict]) -> bool:
+    """Câu hỏi có hỏi giáo viên soạn theo tài liệu nào không. Hàm thuần.
+
+    Hai cách hỏi đúng: một cụm *"tài liệu nào"* (`_ASKS_WHICH_BOOK`), hay nêu thẳng tên các tài liệu
+    -- *"bạn dùng Toán 10.pdf hay Đại số.pdf?"*, cách hỏi tự nhiên khi nút là tên tệp.
+
+    Args:
+        text: Câu hỏi model viết.
+        listed: `candidates` của `list_documents` (`label` là tên tệp).
+
+    Returns:
+        True khi câu hỏi hỏi tài liệu nào.
+    """
+    plain = _MARKUP.sub("", unicodedata.normalize("NFC", text))
+    if _ASKS_WHICH_BOOK.search(plain):
+        return True
+    lowered = plain.casefold()
+    names = [unicodedata.normalize("NFC", str(one.get("label") or "")).casefold() for one in listed]
+    stems = [name.rsplit(".", 1)[0] if "." in name else name for name in names]
+    return any(stem and stem in lowered for stem in stems)
 
 
 def _which_book(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
     """Câu hỏi lại ngay sau một danh sách tài liệu hỏi đúng điều nút của nó trả lời. Hàm thuần.
+
+    Từ ADR-30 (`kriky-writes-every-word`) code không đè chữ câu hỏi bằng một câu cố định nữa: model
+    hỏi sai điều thì được hỏi lại một lần, và lần hai vẫn vậy thì câu của model đi tiếp. Chỉ soi
+    câu hỏi **ngay sau** danh sách: review chung sau T5 (`unbiased-model-text`) thấy bản đầu đè mọi
+    câu hỏi cho tới khi đọc mục lục, kể cả sau khi giáo viên đã ghi *"thôi, không dùng sách"* qua
+    lối "Khác".
 
     Args:
         step: Đề nghị model vừa nêu.
         request: Lượt đang hỏi.
 
     Returns:
-        `step` với `text` là `_WHICH_BOOK` khi nó là `ask_clarify`, không chip, và lượt **ngay
-        trước** nó là kết quả một `list_documents` có ít nhất một tài liệu -- chưa câu nào của giáo
-        viên chen vào; không thì chính `step`. Review chung sau T5 (`unbiased-model-text`): bản đầu
-        đè mọi câu hỏi cho tới khi đọc mục lục, kể cả sau khi giáo viên đã ghi *"thôi, không dùng
-        sách"* qua lối "Khác" -- câu hỏi khối hay số câu thành câu hỏi tài liệu.
+        Chính `step`.
+
+    Raises:
+        _WrongQuestion: Khi `step` là `ask_clarify`, không chip, lượt **ngay trước** nó là kết quả
+            một `list_documents` có ít nhất một tài liệu, mà câu hỏi không nhắc tài liệu hay sách.
     """
     if step.kind != "ask_clarify" or request.attached_document is not None:
         return step
-    if not _listed_documents(request):
+    listed = _listed_documents(request)
+    if not listed:
         return step
     spoken = [turn for turn in _since_plan(request) if turn.kind in {"teacher", "tool_result"}]
     last = spoken[-1] if spoken else None
     if last is None or last.kind != "tool_result" or last.tool_name != "list_documents":
         return step
-    return step.model_copy(update={"text": _WHICH_BOOK})
+    if _asks_which_book(step.text, listed):
+        return step
+    raise _WrongQuestion("asked something else right after listing the documents", step)
 
 
 def _garbled(steps: tuple[PlanStep, ...]) -> str:
@@ -864,8 +920,10 @@ def _approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextS
     said = request.history[-1]
     # Câu giáo viên gõ mà lượt hỏng trước khi đáp (hàng mồ côi) không chen giữa dàn ý và lời đồng ý:
     # giáo viên gõ lại *"oke"* là đúng việc nên làm (review đợt 6).
+    # Thông báo hệ thống cũng vậy: model hỏng sau *"oke"* thì giáo viên được dặn gửi lại, và lần gửi
+    # lại ấy vẫn là lời đáp dàn ý (review pha 5, `kriky-writes-every-word`).
     earlier = list(request.history[:-1])
-    while earlier and earlier[-1].kind == "teacher":
+    while earlier and earlier[-1].kind in {"teacher", "notice"}:
         earlier.pop()
     if not earlier:
         return step
@@ -921,7 +979,9 @@ def _approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextS
     return NextStepCompleted(
         request_id=step.request_id,
         kind="plan",
-        text="Được, mình soạn theo dàn ý ngay.",
+        # Lời của chính model khi nó vừa nêu plan -- `_choose` chở nó trong một `say` -- không thì
+        # không lời mở nào (ADR-30): câu hỏi lại model vừa viết không phải lời mở của plan này.
+        text=step.text if step.kind in {"plan", "say"} else "",
         steps=steps,
         model_tokens=step.model_tokens,
     )
@@ -1044,11 +1104,12 @@ def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
     return ""
 
 
-# Câu nói khi model hai lần liền để trống lời. Trung tính có chủ ý: **không** lùi về mock của
+# Thông báo hệ thống khi model hai lần liền để trống lời (ADR-30, ngoại lệ 1: không giọng Kriky; BE
+# lưu nó thành lượt `notice`). Trung tính có chủ ý: **không** lùi về mock của
 # `handlers.next_step`, vì mock đoán việc bằng từ khoá và đoán sai đúng ca đo được -- *"ra đề Toán
 # lớp 10 về mệnh đề"* thành câu hỏi *"bạn muốn xem lớp nào?"* (review A1). Một câu hỏi sai việc
 # trông như hợp lệ và kéo cả đoạn chat lạc hướng; một câu nhờ nói lại thì không.
-_UNCLEAR = "Mình chưa rõ ý bạn lắm. Bạn nói lại giúp mình nhé?"
+_UNCLEAR = "Kriky chưa hiểu rõ ý bạn. Bạn nói lại theo cách khác giúp nhé?"
 
 # Chữ của lối "Khác" mà thẻ hỏi lại tự vẽ (FE, người dùng chốt 13/10/2026): model viết nó vào
 # `choices` thì không phải một lựa chọn (`_answers`). Cùng chữ với `teacher_chat.OTHER_CHOICE` bên
@@ -1233,8 +1294,8 @@ class _Proposal(BaseModel):
 
         Raises:
             ValidationError: Khi model nói `plan` mà không nêu bước nào, hoặc nêu một bước không có
-                tên tool. Handler ở tầng trên bắt và lùi về mock -- chưa có gì tới tay giáo viên
-                lúc này, nên lùi về là an toàn.
+                tên tool. Handler ở tầng trên bắt và trả một thông báo hệ thống (ADR-30) -- không
+                lùi về mock, vì mock nói dưới giọng Kriky một việc nó đoán.
 
         Returns:
             Đề nghị, kèm hai field model không bao giờ được hỏi. `steps` chỉ đi theo một `plan`,
@@ -1286,12 +1347,15 @@ class ProposeState(TypedDict):
         skills: Tên các skill nạp cho lượt này, do `skill_router` chọn trước khi graph chạy.
         messages: Những gì model thấy, do `compose` điền.
         step: Đề nghị, do `choose` điền.
+        hint: Lý do của lần hỏi lại, `compose` đặt nó cuối cùng như một ghi chú hệ thống; rỗng ở
+            lần đầu (`_AskAgain.hint`).
     """
 
     request: NextStepRequested
     skills: tuple[str, ...]
     messages: Annotated[list[BaseMessage], lambda old, new: new]
     step: NextStepCompleted | None
+    hint: NotRequired[str]
 
 
 def _describe_tool(tool: ToolSpec) -> str:
@@ -1417,6 +1481,9 @@ def _compose(state: ProposeState) -> dict:
         elif turn.kind == "tool_call":
             args = json.dumps(turn.tool_args, ensure_ascii=False, sort_keys=True)
             messages.append(AIMessage(f"Mình xin gọi {turn.tool_name} với {args}."))
+        elif turn.kind == "notice":
+            # Thông báo của hệ thống (ADR-30, ngoại lệ 1): không phải lời model đã nói.
+            messages.append(HumanMessage(f"(Ghi chú của hệ thống, giáo viên đã thấy: {turn.text})"))
         elif turn.kind == "outline":
             messages.append(AIMessage(turn.text))
             items = _outline_items(turn)
@@ -1424,6 +1491,8 @@ def _compose(state: ProposeState) -> dict:
                 messages.append(HumanMessage(items))
         else:
             messages.append(HumanMessage(_describe_result(turn)))
+    if state.get("hint"):
+        messages.append(HumanMessage(f"(Ghi chú của hệ thống: {state['hint']})"))
 
     return {"messages": messages}
 
@@ -1519,8 +1588,14 @@ async def _choose(state: ProposeState) -> dict:
     # Giáo viên vừa đồng ý dàn ý: plan dựng từ dàn ý, **trước** mọi lần hỏi lại -- một câu trả lời
     # rỗng hay hỏng sau *"oke"* mà thành câu trung tính thì lời duyệt mất, và lần gõ lại không còn
     # đứng ngay sau dàn ý (review đợt 6).
+    # Lời mở là lời model vừa viết cho plan, hay không có lời mở nào (ADR-30): không câu cố định.
     agreed = _approved_plan(
-        NextStepCompleted(request_id="", kind="say", text=_UNCLEAR, model_tokens=spent),
+        NextStepCompleted(
+            request_id="",
+            kind="say",
+            text=proposal.text.strip() if proposal.kind == "plan" else "",
+            model_tokens=spent,
+        ),
         state["request"],
     )
     if agreed.kind == "plan":
@@ -1614,8 +1689,8 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
         của một lượt khác.
 
     Raises:
-        Exception: Bất cứ thứ gì provider raise. Handler ở tầng trên quyết định lùi
-            về cái gì, vì chỉ nó biết liệu đã có thứ gì tới tay giáo viên hay chưa.
+        Exception: Bất cứ thứ gì provider raise. Handler ở tầng trên biến nó thành một thông
+            báo hệ thống (ADR-30).
     """
     chosen = await skill_router.choose(request.history)
     state = {"request": request, "skills": chosen, "messages": [], "step": None}
@@ -1625,7 +1700,7 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
         # Một lần nữa, không hơn: lần hỏng thứ hai là model đang kẹt, không phải xui.
         logger.warning("%s for %s, asking once more", first, request.request_id)
         try:
-            final = await _GRAPH.ainvoke(state)
+            final = await _GRAPH.ainvoke({**state, "hint": first.hint})
         except _Flawed as again:
             # Thiếu lần hai thì để đề nghị đi tiếp, như trước khi có lưới này: plan thiếu tham số
             # thì `vet_plan` của BE nói lời từ chối của nó, câu hỏi ít lựa chọn thì vẫn là một câu
@@ -1646,13 +1721,13 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
                 if isinstance(again, (_NothingToSay, _NoOutline)):
                     logger.warning("empty answer twice for %s", request.request_id)
                     return NextStepCompleted(
-                        request_id=request.request_id, kind="say", text=_UNCLEAR
+                        request_id=request.request_id, kind="say", text=_UNCLEAR, notice=True
                     )
                 raise
             # Lần đầu đã có một đề nghị dùng được: lần hai hỏng kiểu gì cũng giữ nó -- không bao giờ
             # tệ hơn trước khi có lưới này. Plan thì lượt không sách `vet_plan` từ chối như cũ, lượt
             # có sách `bind_book` có thể điền nốt (review T2b, `unbiased-model-text`). Lần hai im
-            # lặng, hay provider hỏng, mà thả lỗi ra thì `handlers` lùi về mock.
+            # lặng, hay provider hỏng, mà thả lỗi ra thì `handlers` ra một thông báo hệ thống.
             logger.warning(
                 "asking again failed for %s (%r); keeping the first answer",
                 request.request_id,

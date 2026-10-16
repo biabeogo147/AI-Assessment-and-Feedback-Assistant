@@ -1973,6 +1973,224 @@ def check_plan_codes_in_comments_name_their_plan() -> str | None:
     )
 
 
+# Kind nào của mỗi lời gọi là **lời Kriky** -- chỗ ADR-30 cấm code đặt chữ cố định. `notice` và
+# `done` không nằm đây: `notice` là thông báo hệ thống (ngoại lệ 1), `done` chỉ chở lại chữ của sự
+# kiện trước nó. `NextStepCompleted` và `PlanReportCompleted` là lời model viết, nên mọi kind đều
+# tính -- trừ khi lời gọi tự khai `notice=True`.
+_KRIKY_KINDS = {
+    "TurnEvent": {"say", "clarify", "outline", "report"},
+    "TurnRecord": {"assistant", "outline"},
+    "NextStepCompleted": None,
+    "PlanReportCompleted": None,
+}
+
+# Đường lùi về chế độ demo: gọi chúng trong một `except` của handler gọi model là để mock nói thay
+# model đang hỏng (ADR-30). Gọi khi `LLM_ENABLED=false` thì đúng là chế độ demo, không bị soi.
+_MOCK_SPEAKERS = {"next_step", "plan_report"}
+
+
+def _module_strings(tree: ast.Module) -> set[str]:
+    """Tên các hằng chữ ở tầng module: `_X = "..."`, kể cả chuỗi nối trong ngoặc."""
+    found = set()
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if isinstance(value, (ast.Constant, ast.JoinedStr)) and (
+                isinstance(value, ast.JoinedStr) or isinstance(value.value, str)
+            ):
+                found |= {one.id for one in targets if isinstance(one, ast.Name)}
+    return found
+
+
+def _assigned(function: ast.AST) -> dict[str, list[ast.expr]]:
+    """Mọi giá trị từng gán cho mỗi tên cục bộ của một hàm: `x = ...` và `x: T = ...`."""
+    found: dict[str, list[ast.expr]] = {}
+    for node in ast.walk(function):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    found.setdefault(target.id, []).append(node.value)
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and node.value is not None
+            and isinstance(node.target, ast.Name)
+        ):
+            found.setdefault(node.target.id, []).append(node.value)
+    return found
+
+
+def _fixed(node: ast.expr | None, constants: set[str], local: dict, seen: frozenset = frozenset()):
+    """Biểu thức có thể cho ra một câu cố định không: literal khác rỗng, f-string, hằng chữ, hằng
+    ấy `.format(...)`, hay một nhánh `or` / `if…else` / `+` là một trong số đó -- kể cả qua một biến
+    cục bộ từng được gán như vậy."""
+    if node is None:
+        return False
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str) and node.value != ""
+    if isinstance(node, ast.JoinedStr):
+        return True
+    if isinstance(node, ast.Name):
+        if node.id in constants:
+            return True
+        if node.id in seen:
+            return False
+        return any(
+            _fixed(one, constants, local, seen | {node.id}) for one in local.get(node.id, ())
+        )
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        return node.func.attr == "format" and _fixed(node.func.value, constants, local, seen)
+    if isinstance(node, ast.BoolOp):
+        return any(_fixed(one, constants, local, seen) for one in node.values)
+    if isinstance(node, ast.IfExp):
+        return _fixed(node.body, constants, local, seen) or _fixed(
+            node.orelse, constants, local, seen
+        )
+    if isinstance(node, ast.BinOp):
+        return _fixed(node.left, constants, local, seen) or _fixed(
+            node.right, constants, local, seen
+        )
+    return False
+
+
+def _kinds_named(node: ast.expr | None, local: dict) -> set[str] | None:
+    """Mọi chuỗi kind một biểu thức có thể cho ra -- `"a" if x else "b"` cho cả hai, một biến cục bộ
+    cho mọi giá trị từng gán. `None` khi không đọc ra được chuỗi nào: kind không biết thì có thể là
+    lời Kriky."""
+    if node is None:
+        return None
+    found: set[str] = set()
+    pending = [node]
+    names_seen: set[str] = set()
+    while pending:
+        current = pending.pop()
+        for one in ast.walk(current):
+            if isinstance(one, ast.Constant) and isinstance(one.value, str):
+                found.add(one.value)
+            elif isinstance(one, ast.Name) and one.id not in names_seen:
+                names_seen.add(one.id)
+                pending += local.get(one.id, [])
+    return found or None
+
+
+def _text_given(node: ast.Call) -> tuple[str, ast.expr | None, dict[str, ast.expr]] | None:
+    """Tên lời gọi, `text` nó nhận, và các keyword của nó -- cho constructor của lời Kriky, hay
+    `x.model_copy(update={"text": ...})`. `None` khi lời gọi không chở lời nào."""
+    given = {one.arg: one.value for one in node.keywords if one.arg}
+    called = getattr(node.func, "id", getattr(node.func, "attr", ""))
+    if called in _KRIKY_KINDS:
+        return called, given.get("text"), given
+    update = given.get("update")
+    if called == "model_copy" and isinstance(update, ast.Dict):
+        for key, value in zip(update.keys, update.values, strict=True):
+            if isinstance(key, ast.Constant) and key.value == "text":
+                return "model_copy", value, {}
+    return None
+
+
+def fixed_kriky_words(
+    source: str, notices: set[str], within: set[str] | None = None
+) -> list[tuple[int, str]]:
+    """Những chỗ code đặt một câu cố định vào lời Kriky (ADR-30). Hàm thuần.
+
+    Bắt: một `TurnEvent`/`TurnRecord` với kind có thể là lời Kriky (kể cả kind không đọc ra được),
+    một `NextStepCompleted`/`PlanReportCompleted` không khai `notice=True`, hay một
+    `model_copy(update={"text": ...})`, mà `text` có thể là câu cố định (`_fixed`); và một lời gọi
+    mock (`_MOCK_SPEAKERS`) trong một `except`. Câu của `notices` cũng là câu cố định: chúng chỉ
+    được đi dưới `kind="notice"`.
+
+    Không bắt -- chấp nhận được cho một check thô có chủ ý: câu cố định một hàm khác **trả về** rồi
+    mới tới constructor (`_report` cũ trả `written or fallback`), `**kwargs`, và biến gán qua nhiều
+    hàm. Test của mỗi hàm ấy giữ phần còn lại.
+
+    Args:
+        source: Mã nguồn Python.
+        notices: Tên các câu hệ thống (`be/notices.py`).
+        within: Chỉ soi thân các hàm tầng module mang những tên này; `None` là mọi hàm.
+
+    Returns:
+        `(dòng, chữ dẫn)` cho mỗi chỗ vi phạm.
+    """
+    tree = ast.parse(source)
+    constants = _module_strings(tree) | notices
+    functions = [
+        one
+        for one in (tree.body if within is not None else ast.walk(tree))
+        if isinstance(one, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and (within is None or one.name in within)
+    ]
+    bad = set()
+    for function in functions:
+        local = _assigned(function)
+        for node in ast.walk(function):
+            if isinstance(node, ast.ExceptHandler):
+                for inner in ast.walk(node):
+                    if (
+                        isinstance(inner, ast.Call)
+                        and getattr(inner.func, "id", "") in _MOCK_SPEAKERS
+                    ):
+                        bad.add((inner.lineno, f"{inner.func.id}() in an except: the mock speaks"))
+            if not isinstance(node, ast.Call):
+                continue
+            found = _text_given(node)
+            if found is None:
+                continue
+            called, text, given = found
+            notice = given.get("notice")
+            if isinstance(notice, ast.Constant) and notice.value is True:
+                continue
+            wanted = _KRIKY_KINDS.get(called)
+            kinds = _kinds_named(given.get("kind"), local)
+            if wanted is not None and kinds is not None and not kinds & wanted:
+                continue
+            if _fixed(text, constants, local):
+                bad.add((node.lineno, f"{called}(text={ast.unparse(text)[:40]})"))
+    return sorted(bad)
+
+
+def _notice_names() -> set[str]:
+    """Các câu hệ thống của `be/notices.py` -- chỉ được đi dưới `kind="notice"`."""
+    notices = REPO_ROOT / "services" / "be" / "src" / "be" / "notices.py"
+    return _module_strings(ast.parse(notices.read_text(encoding="utf-8")))
+
+
+def check_kriky_says_nothing_fixed() -> str | None:
+    """Mọi lời Kriky do model viết; code chỉ nói được bằng thông báo hệ thống (ADR-30).
+
+    Người dùng chốt 17/10/2026 (`kriky-writes-every-word`): câu cố định nói dưới giọng Kriky là code
+    nói thay model. Chỗ một câu như thế quay lại là các hàm dựng lượt -- `_go` của BE, graph
+    `propose` và `reporting`, hai handler gọi model của AGENT. Ngoại lệ có tên: câu của
+    `be/notices.py` dưới `kind="notice"`, và lời AGENT tự khai `notice=True` khi model không có mặt.
+    Chế độ demo không model (`handlers.next_step`, `plan_report` khi `LLM_ENABLED=false`) là ngoại
+    lệ ADR-30 ghi, nên của `handlers.py` chỉ hai handler kia bị soi. Dạng nào check không bắt: xem
+    `fixed_kriky_words`.
+
+    Returns:
+        None khi luật còn đứng, ngược lại là một thông báo thất bại gọi tên từng chỗ.
+    """
+    notices = _notice_names()
+    agent = REPO_ROOT / "services" / "agent" / "src" / "agent"
+    files = (
+        (REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py", None),
+        (agent / "graphs" / "propose.py", None),
+        (agent / "graphs" / "reporting.py", None),
+        (agent / "handlers.py", {"propose_next_step", "report_plan"}),
+    )
+    bad = []
+    for path, within in files:
+        where = path.relative_to(REPO_ROOT).as_posix()
+        found = fixed_kriky_words(path.read_text(encoding="utf-8"), notices, within)
+        bad += [f"{where}:{line} {what}" for line, what in found]
+    if not bad:
+        return None
+    shown = "\n  ".join(bad)
+    return _fail(
+        "kriky-says-nothing-fixed",
+        "code puts a fixed sentence in Kriky's mouth (ADR-30). Let the model write it, or make it "
+        f"a system notice in be/notices.py under kind='notice' / mark it notice=True:\n  {shown}",
+    )
+
+
 CHECKS = (
     check_the_content_reader_only_reads,
     check_env_example_has_no_orphans,
@@ -1997,6 +2215,7 @@ CHECKS = (
     check_a_locked_control_looks_locked,
     check_no_document_repeats_itself,
     check_plan_codes_in_comments_name_their_plan,
+    check_kriky_says_nothing_fixed,
 )
 
 

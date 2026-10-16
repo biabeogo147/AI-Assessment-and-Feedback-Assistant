@@ -116,12 +116,13 @@ async def test_the_mock_says_where_it_stopped(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_model_that_dies_still_gets_a_closing_line(on, monkeypatch) -> None:
-    """Model ném lỗi thì lùi về mock, không ném tiếp lên trên.
+async def test_a_model_that_dies_returns_an_empty_report_not_a_raise(on, monkeypatch) -> None:
+    """Model ném lỗi thì trả lời rỗng, không ném tiếp lên trên.
 
     Phép kiểm đáng giá nhất trong file: lúc task này chạy, đề đã được mở và các câu đã
     bắt đầu soạn. Một exception thoát ra đây làm giáo viên đọc một thất bại trong khi
-    database nói ngược lại.
+    database nói ngược lại. Lời rỗng, không câu mock: BE ra thông báo hệ thống thay cho lời kể
+    (ADR-30, ngoại lệ 1) -- câu dọn trước chỉ còn cho `LLM_ENABLED=false`.
     """
 
     async def dies(request):
@@ -131,7 +132,7 @@ async def test_a_model_that_dies_still_gets_a_closing_line(on, monkeypatch) -> N
 
     answer = await handlers.report_plan({}, DONE.model_dump(mode="json"))
 
-    assert answer["text"] == "Mình đã tạo đề 10 câu; soạn 10 câu hỏi."
+    assert answer["text"] == ""
 
 
 def test_the_report_task_is_registered_under_the_name_be_enqueues() -> None:

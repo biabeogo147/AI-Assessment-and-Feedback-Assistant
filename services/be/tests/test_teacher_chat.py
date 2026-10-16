@@ -28,7 +28,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
-from be import drafting, teacher_chat
+from be import drafting, notices, teacher_chat
 from be.config import get_settings
 from be.content_reader import MemoryContentReader, bind_reader
 from be.db import bind_sessions
@@ -140,6 +140,21 @@ def _outline_shown(monkeypatch, total: int, purpose: str = "new") -> None:
         }
 
     monkeypatch.setattr(teacher_chat, "_shown_outline", shown)
+
+
+def _refusal(agent: "ScriptedAgent") -> str:
+    """Lý do BE trả về model khi từ chối một plan (ADR-30): kết quả `plan` trong lần hỏi cuối.
+
+    Từ `kriky-writes-every-word` BE không nói câu từ chối với giáo viên nữa; lý do đi về model như
+    kết quả một tool, và model nói lại trong cùng lượt.
+    """
+    results = [
+        turn
+        for turn in agent.asked[-1]["history"]
+        if turn["kind"] == "tool_result" and turn["tool_name"] == "plan"
+    ]
+    assert results, "BE không trả lý do từ chối plan về model"
+    return results[-1]["tool_result"]["error"]
 
 
 @pytest_asyncio.fixture
@@ -274,11 +289,102 @@ async def test_the_loop_stops_at_its_ceiling_and_says_so(stack) -> None:
     # `fallback` sang nói "hết kịch bản" khi hết kịch bản, nên một test chỉ kiểm
     # rằng text không rỗng sẽ báo "mức trần hoạt động tốt" sau một lượt chạy mà
     # mức trần chưa hề bị chạm tới.
-    assert body["text"] == teacher_chat._CEILING_REACHED
+    assert body["text"] == notices.CEILING_REACHED
+    # Câu của hệ thống, không phải lời Kriky (ADR-30, ngoại lệ 1).
+    assert body["turns"][-1]["kind"] == "notice"
     # Đúng con số đã cấu hình, và đọc ra từ config. `<= 8` sẽ cho qua một vòng lặp
     # chỉ chạy một lần, còn viết cứng số 8 sẽ âm thầm xanh với bất cứ ai hạ giá trị
     # cấu hình đó xuống.
     assert len(forever.asked) == get_settings().max_tool_steps
+
+
+@pytest.mark.asyncio
+async def test_a_notice_from_the_agent_is_stored_as_a_system_notice(stack) -> None:
+    """AGENT nói câu cố định khi model hỏng, và khai `notice=True` (ADR-30, ngoại lệ 1).
+
+    BE lưu nó thành lượt `notice`, không thành lời Kriky: lượt sau model đọc nó như ghi chú hệ
+    thống, và màn hình vẽ nó không avatar (`kriky-writes-every-word`).
+    """
+    client, _, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x", kind="say", text="Kriky chưa trả lời được lúc này.", notice=True
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER
+    )
+
+    body = reply.json()
+    assert [turn["kind"] for turn in body["turns"]] == ["teacher", "notice"]
+    assert body["text"] == "Kriky chưa trả lời được lúc này."
+
+
+@pytest.mark.asyncio
+async def test_the_ceiling_streams_a_notice_not_kriky_s_words(stack) -> None:
+    """Review pha 5 (`kriky-writes-every-word`): câu trần đi dưới `notice` cả lúc đang chạy, không
+    chỉ sau F5 -- sự kiện `say` thì FE vẽ nó như lời Kriky có avatar."""
+    _, maker, monkeypatch = stack
+    forever = ScriptedAgent(
+        *[
+            NextStepCompleted(
+                request_id="x", kind="call_tool", tool_name="list_class", tool_args={}
+            )
+            for _ in range(20)
+        ]
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", forever)
+
+    teacher = await _teacher(maker, "GV-001")
+    seen = []
+    async with maker() as session:
+        async for event in teacher_chat.run_turn(
+            teacher_chat.Said(text="lớp 12A thế nào"), _request(), teacher, session, get_settings()
+        ):
+            seen.append(event)
+
+    spoken = [one for one in seen if one.text == notices.CEILING_REACHED]
+    assert [one.kind for one in spoken] == ["notice", "done"]
+    assert seen[-1].ended_as == "notice"
+
+
+@pytest.mark.asyncio
+async def test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck(stack) -> None:
+    """Review pha 5: model cứ nêu plan BE không nhận tới trần -- câu trần chung bảo *"nói rõ tên
+    lớp"* là gợi ý sai, nên thông báo nói chỗ vướng là các bước."""
+    client, _, monkeypatch = stack
+    refused = _plan(PlanStep(tool_name="list_class", args={"name": "12A"}, title="Tra lớp"))
+    agent = ScriptedAgent(*[refused for _ in range(20)])
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề cho 12A"}, headers=TEACHER
+    )
+
+    body = reply.json()
+    assert body["text"] == notices.PLAN_REFUSED
+    assert body["turns"][-1]["kind"] == "notice"
+
+
+@pytest.mark.asyncio
+async def test_an_agreement_retyped_after_a_system_notice_still_drafts(stack) -> None:
+    """Review pha 5: model hỏng sau *"oke"*, thông báo dặn gửi lại -- gửi lại vẫn là lời đáp dàn
+    ý, không phải một lượt soạn bị chặn vì *"chưa thấy dàn ý"*."""
+    http, maker, monkeypatch = stack
+    down = NextStepCompleted(
+        request_id="x", kind="say", text="Kriky chưa trả lời được lúc này.", notice=True
+    )
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), down, _open_and_draft(""))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for=set())
+
+    for said in ("soạn 2 câu", "oke", "oke"):
+        await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
+
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is not None
 
 
 @pytest.mark.asyncio
@@ -309,7 +415,7 @@ async def test_each_part_to_read_buys_the_turn_one_more_step(stack, parts: int, 
         "/api/teacher/chat/messages", json={"text": "soạn đề"}, headers=TEACHER
     )
 
-    assert reply.json()["text"] == teacher_chat._CEILING_REACHED
+    assert reply.json()["text"] == notices.CEILING_REACHED
     assert len(forever.asked) == get_settings().max_tool_steps + extra
 
 
@@ -837,9 +943,10 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
 
 @pytest.mark.asyncio
 async def test_a_plan_naming_a_tool_outside_the_working_catalog_runs_nothing(stack) -> None:
-    """Plan hỏng thì **không bước nào** chạy, và giáo viên nhận một câu nói.
+    """Plan hỏng thì **không bước nào** chạy, và lý do về model, không về giáo viên.
 
-    Một bước đỏ ở đây sẽ nói sai: với giáo viên, chưa có gì xảy ra cả.
+    Một bước đỏ ở đây sẽ nói sai: với giáo viên, chưa có gì xảy ra cả. Từ ADR-30 BE cũng không nói
+    câu từ chối dọn trước: model được nghe lý do và tự nói lại trong cùng lượt.
     """
     http, maker, monkeypatch = stack
     agent = ScriptedAgent(
@@ -857,7 +964,8 @@ async def test_a_plan_naming_a_tool_outside_the_working_catalog_runs_nothing(sta
     assert answer.status_code == 200
     body = answer.json()
     assert [turn["kind"] for turn in body["turns"]] == ["teacher", "assistant"]
-    assert "chưa dựng được" in body["text"]
+    assert "list_class" in _refusal(agent)
+    assert body["text"] == "hết kịch bản"
     assert agent.reported == []
 
 
@@ -906,9 +1014,12 @@ async def test_the_turn_survives_a_model_that_cannot_tell_what_happened(stack) -
 
     assert answer.status_code == 200
     body = answer.json()
-    # Đường lùi dựng từ chính các bước đã chạy, nên nó vẫn nói đúng việc đã xảy ra.
-    assert "Tạo đề trống" in body["text"]
-    assert [turn["kind"] for turn in body["turns"]][-1] == "assistant"
+    # BE không dựng lời kể thay model (ADR-30): một thông báo hệ thống nói vì sao không có lời kể,
+    # còn việc đã xảy ra vẫn nằm trong khối bước.
+    assert body["text"] == notices.REPORT_MISSING
+    kinds = [turn["kind"] for turn in body["turns"]]
+    assert kinds[-1] == "notice"
+    assert "tool_call" in kinds
 
 
 @pytest.mark.asyncio
@@ -1792,7 +1903,7 @@ async def test_a_second_turn_in_the_same_thread_is_refused_while_the_first_runs(
     )
 
     assert refused.status_code == 409
-    assert refused.json()["detail"] == teacher_chat._ALREADY_RUNNING
+    assert refused.json()["detail"] == notices.ALREADY_RUNNING
 
 
 @pytest.mark.asyncio
@@ -1977,7 +2088,7 @@ async def test_the_stream_says_the_refusal_instead_of_a_status_code(stack) -> No
     said = [json.loads(one[len("data: ") :]) for one in frames if one.startswith("data: ")]
     assert [one["kind"] for one in said] == ["done"]
     assert said[0]["ended_as"] == "error"
-    assert said[0]["text"] == teacher_chat._ALREADY_RUNNING
+    assert said[0]["text"] == notices.ALREADY_RUNNING
 
 
 @pytest.mark.asyncio
@@ -2419,7 +2530,8 @@ async def test_a_unit_read_from_another_book_is_not_pinned_on_the_attached_one(s
 
     async with maker() as session:
         assert await session.scalar(select(DraftBrief)) is None
-    assert "cần biết chương hay bài nào" in reply.json()["text"]
+    assert "chương hay bài của tài liệu" in _refusal(agent)
+    assert reply.json()["text"] == "hết kịch bản"
     bind_reader(None)
 
 
@@ -2480,7 +2592,8 @@ async def test_a_chip_not_yet_usable_takes_draft_opening_off_the_table(stack) ->
     )
 
     assert "create_draft" not in {spec["name"] for spec in agent.asked[0]["plannable"]}
-    assert "chưa dùng được" in reply.json()["text"]
+    assert "chưa dùng được" in _refusal(agent)
+    assert reply.json()["text"] == "hết kịch bản"
     async with maker() as session:
         assert await session.scalar(select(DraftBrief)) is None
 

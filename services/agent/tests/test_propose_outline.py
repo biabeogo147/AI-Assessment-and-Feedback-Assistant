@@ -24,6 +24,7 @@ from agent.graphs.propose import (
     _Proposal,
     _read_before_outline,
     _right_purpose,
+    _Step,
     propose,
 )
 from contracts import (
@@ -212,6 +213,28 @@ async def test_an_outline_broken_twice_ends_in_a_neutral_ask_not_the_mock(
     step = await propose(_asked())
 
     assert (step.kind, step.text) == ("say", _UNCLEAR)
+    # Câu cố định là thông báo của hệ thống, không phải lời Kriky (ADR-30, ngoại lệ 1).
+    assert step.notice is True
+
+
+def test_a_system_notice_in_history_reads_as_a_note_not_as_kriky_s_words() -> None:
+    """Model đọc lại thông báo hệ thống như một ghi chú phía người dùng, không như lời mình đã nói
+    (`kriky-writes-every-word`) -- nếu không, nó học giọng của câu cố định."""
+    state = {
+        "request": _asked(
+            TurnRecord(kind="teacher", text="soạn đề"),
+            TurnRecord(kind="notice", text="Kriky chưa trả lời được lúc này."),
+        ),
+        "skills": (),
+        "messages": [],
+        "step": None,
+    }
+
+    messages = _compose(state)["messages"]
+
+    noted = [one for one in messages if "Kriky chưa trả lời được lúc này." in one.text]
+    assert [type(one).__name__ for one in noted] == ["HumanMessage"]
+    assert "Ghi chú của hệ thống" in noted[0].text
 
 
 def _with_book(*history: TurnRecord) -> NextStepRequested:
@@ -520,6 +543,47 @@ def _agreed(kept: dict, said: str = "oke") -> NextStepRequested:
 
 
 _ASKED_AGAIN = NextStepCompleted(request_id="r1", kind="ask_clarify", text="Khối mấy?")
+
+
+@pytest.mark.asyncio
+async def test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review pha 5 (`kriky-writes-every-word`): lời mở đi qua `_choose` -- test gọi thẳng
+    `_approved_plan` không thấy được đường chạy thật làm rơi mất nó."""
+    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    planned = _Proposal(
+        kind="plan",
+        text="Mình soạn 2 câu theo dàn ý nhé.",
+        steps=(_Step(tool_name="create_draft", title="Tạo đề trống"),),
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([planned]),))
+
+    step = await propose(_agreed(kept))
+
+    assert step.kind == "plan"
+    assert step.text == "Mình soạn 2 câu theo dàn ý nhé."
+
+
+def test_a_system_notice_between_the_outline_and_the_agreement_does_not_hide_it() -> None:
+    """Review pha 5: model hỏng sau *"oke"*, thông báo dặn gửi lại -- gửi lại vẫn duyệt dàn ý."""
+    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    request = NextStepRequested(
+        request_id="r1",
+        history=(
+            TurnRecord(kind="teacher", text="soạn 2 câu"),
+            TurnRecord(kind="outline", text="Dàn ý", tool_result=kept),
+            TurnRecord(kind="teacher", text="oke"),
+            TurnRecord(kind="notice", text="Kriky chưa trả lời được lúc này."),
+            TurnRecord(kind="teacher", text="oke"),
+        ),
+    )
+
+    step = _approved_plan(_ASKED_AGAIN, request)
+
+    assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
+
+
 _BRIEF = {"subject": "Toán", "grade": "7", "topic_scope": "tỉ lệ thức"}
 
 
@@ -530,6 +594,8 @@ def test_an_agreement_after_an_outline_becomes_its_plan_even_if_the_model_forgot
     step = _approved_plan(_ASKED_AGAIN, _agreed(kept))
 
     assert step.kind == "plan"
+    # Model không nêu plan nên không có lời mở nào -- không câu cố định (ADR-30).
+    assert step.text == ""
     assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
     assert step.steps[0].args == {**_BRIEF, "document_id": "", "nodes": ""}
     assert step.steps[1].args == {"assessment_id": "{1.assessment_id}", "question_count": ""}
@@ -554,6 +620,8 @@ def test_an_agreement_to_more_wins_over_a_plan_that_opens_a_new_draft() -> None:
     step = _approved_plan(opened, _agreed(kept))
 
     assert [one.tool_name for one in step.steps] == ["start_drafting"]
+    # Lời mở là lời của chính model khi nó vừa nêu plan (ADR-30).
+    assert step.text == "Mình mở đề nháp."
 
 
 @pytest.mark.parametrize(

@@ -22,6 +22,7 @@ from agent import llm, skill_router
 from agent.graphs.propose import (
     _answers,
     _Argument,
+    _asks_which_book,
     _choices_wanted,
     _Proposal,
     _Step,
@@ -918,19 +919,71 @@ async def test_a_question_right_after_the_library_asks_which_document(
     monkeypatch: pytest.MonkeyPatch, on: None, documents: dict, after: tuple, fixed: bool
 ) -> None:
     """Review T5 (`unbiased-model-text`, hướng ii): chữ model lệch nút 5--17/24 lượt -- *"phần mệnh
-    đề nằm ở mục nào?"* với nút là tên tệp (run-83, run-87)."""
+    đề nằm ở mục nào?"* với nút là tên tệp (run-83, run-87).
+
+    Từ ADR-30 (`kriky-writes-every-word`) code không đè chữ bằng một câu cố định: model được hỏi lại
+    một lần, và câu của chính nó đi tiếp."""
     asked = _Proposal(
         kind="ask_clarify",
         text="Phần mệnh đề nằm ở mục nào của cuốn sách?",
         choices=("Chương 1", "Chương 2", "Chương 3"),
     )
-    model = Scripted([asked])
+    better = _Proposal(
+        kind="ask_clarify",
+        text="Bạn muốn soạn theo tài liệu nào?",
+        choices=("Chương 1", "Chương 2", "Chương 3"),
+    )
+    model = Scripted([asked, better])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_after_library(*after, documents=documents))
 
     assert step.kind == "ask_clarify"
-    assert (step.text == "Bạn soạn theo tài liệu nào?") is fixed
+    assert (step.text == "Bạn muốn soạn theo tài liệu nào?") is fixed
+    assert len(model.prompts) == (2 if fixed else 1)
+    if fixed:
+        # Lần hỏi lại nói lý do: lệch ở đây có hệ thống, một lần hỏi lại mù dễ ra lại đúng câu cũ
+        # (review pha 5, `kriky-writes-every-word`).
+        assert "phải hỏi giáo viên soạn theo tài liệu nào" in model.prompts[1]
+        assert "phải hỏi giáo viên soạn theo tài liệu nào" not in model.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_a_question_still_off_the_second_time_keeps_the_model_s_words(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Lần hai vẫn hỏi sai điều thì câu của model đi tiếp -- code không nói thay nó (ADR-30)."""
+    asked = _Proposal(
+        kind="ask_clarify",
+        text="Phần mệnh đề nằm ở mục nào của cuốn sách?",
+        choices=("Chương 1", "Chương 2", "Chương 3"),
+    )
+    model = Scripted([asked, asked])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_after_library())
+
+    assert step.text == "Phần mệnh đề nằm ở mục nào của cuốn sách?"
+    assert len(model.prompts) == 2
+
+
+@pytest.mark.parametrize(
+    ("text", "asks"),
+    [
+        ("Bạn soạn theo tài liệu nào?", True),
+        ("Bạn muốn dùng tài liệu gì?", True),
+        ("Dùng sách giáo khoa nào?", True),
+        ("Tài liệu Toán 10 nào?", True),
+        ("Bạn soạn theo **tài liệu** nào?", True),
+        ("Bạn dùng Kết nối tri thức Lớp 10 tập 1 hay Lớp 6 tập 1?", True),
+        ("Phần mệnh đề nằm ở mục nào của cuốn sách?", False),
+        ("Bạn muốn chương nào?", False),
+        ("Trong tài liệu này bạn muốn chương nào?", False),
+    ],
+)
+def test_a_question_about_which_document_is_told_apart(text: str, asks: bool) -> None:
+    """Review pha 5 (`kriky-writes-every-word`): mỗi ca lọt là một lần gọi model thừa."""
+    assert _asks_which_book(text, _DOCUMENTS["candidates"]) is asks
 
 
 def _asked_naming(tool: str, **args: str) -> _Proposal:

@@ -110,3 +110,14 @@ def test_only_a_plan_carries_steps() -> None:
     step = PlanStep(tool_name="create_draft", args={}, title="Tạo đề trống")
     with pytest.raises(ValidationError):
         NextStepCompleted(request_id="r1", kind="say", text="xong rồi", steps=(step,))
+
+
+def test_only_a_say_is_a_system_notice() -> None:
+    """Thông báo hệ thống (ADR-30, ngoại lệ 1) là một câu nói, không phải câu hỏi hay plan.
+
+    Một `ask_clarify` mang `notice` là nút bấm dưới một câu không phải của Kriky; BE lưu nó thành
+    lượt `notice` và nút mất chỗ đứng (`kriky-writes-every-word`).
+    """
+    assert NextStepCompleted(request_id="r1", kind="say", text="x", notice=True).notice
+    with pytest.raises(ValidationError):
+        NextStepCompleted(request_id="r1", kind="ask_clarify", text="x?", notice=True)
