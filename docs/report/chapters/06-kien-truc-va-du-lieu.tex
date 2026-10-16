@@ -4,7 +4,7 @@
 \section{Các service trong hệ thống}
 
 Hệ thống gồm năm \textbf{service} (thành phần) chạy độc lập với nhau. Các thuật ngữ tiếng Anh
-của chương này phần lớn được định nghĩa ở mục~\ref{sec:tu-dien}.
+của chương này được định nghĩa ở mục~\ref{sec:tu-dien}.
 
 \begin{table}[htbp]
 \centering
@@ -27,7 +27,7 @@ của chương này phần lớn được định nghĩa ở mục~\ref{sec:tu-d
 \end{table}
 
 \texttt{frontend} không biết \texttt{agent} tồn tại. Mọi thứ nó cần đều đi qua \texttt{backend}, nên hệ
-thống chỉ có một \textbf{gateway} (cửa ra vào duy nhất).
+thống chỉ có một \textbf{gateway} (cửa vào duy nhất).
 
 \begin{landscape}
 \begin{figure}[p]
@@ -41,9 +41,10 @@ thống chỉ có một \textbf{gateway} (cửa ra vào duy nhất).
 \section{Frontend không nhìn thấy bên trong hệ thống}
 
 Hình~\ref{fig:system-architecture} chia hệ thống làm hai vùng, và đặt \texttt{frontend} ở ngoài cả
-hai. Trong VPC, \texttt{backend} nằm ở \emph{public subnet}; \texttt{agent}, \texttt{document},
-\texttt{ingest} và bốn \textbf{store} (bốn kho) nằm ở \emph{private subnet} --- chỉ những gì ở
-public subnet mới nhận được kết nối từ bên ngoài.
+hai. Trong \textbf{VPC} (đám mây riêng ảo), \texttt{backend} nằm ở \textbf{public subnet} (vùng
+mạng công khai); \texttt{agent}, \texttt{document}, \texttt{ingest} và bốn \textbf{store} (bốn kho)
+nằm ở \textbf{private subnet} (vùng mạng nội bộ) --- chỉ những gì ở public subnet mới nhận được kết
+nối từ bên ngoài.
 
 \texttt{frontend} không bao giờ biết bên trong có mấy service, hay chúng tên gì.
 
@@ -78,14 +79,14 @@ Ví dụ, đối với việc soạn đề:
 
 Bốn store ấy là bốn loại khác nhau: postgres là một \textbf{database} (cơ sở dữ liệu) giữ dữ liệu
 có cấu trúc, redis là một \textbf{queue} (hàng đợi), minio là một \textbf{object store}
-(kho tệp) giữ byte của tệp, và mongodb là một \textbf{content store} (kho nội dung) giữ nội dung
-đã xử lí của tài liệu.
+(kho tệp) giữ \textbf{byte} (dữ liệu gốc) của tệp, và mongodb là một \textbf{content store} (kho
+nội dung) giữ nội dung đã xử lí.
 
 \paragraph{Database thuộc về \texttt{backend} và \texttt{ingest}.} Nó giữ lớp, học sinh, đề,
 lần làm bài, sổ điểm ba mức, bộ đếm vòng, từng lượt làm lại kèm đề đã sinh ra, các đoạn hội
 thoại, và các báo cáo.
 
-\paragraph{Object store giữ \textbf{byte} của tài liệu, tức nội dung thô của tệp.}
+\paragraph{Object store giữ byte của tài liệu, tức chính tệp giáo viên tải lên.}
 \texttt{backend} ghi vào, \texttt{document} đọc ra, và không có chiều ngược lại.
 
 \paragraph{Content store giữ thứ đọc được từ tài liệu.} Sau khi đọc một tệp, \texttt{document} ghi
@@ -99,34 +100,35 @@ về tệp}.
 \section{Các service nói chuyện với nhau thế nào}
 \label{sec:noi-chuyen}
 
-Có \textbf{hai} cơ chế chở việc, và một kênh phát không giữ lại gì.
+Hệ thống sử dụng ba hình thức giao tiếp: gọi API trực tiếp, gửi công việc qua hàng đợi và thông báo thay đổi qua Redis Pub/Sub. 
 
-\paragraph{Một lời gọi, khi có người đang chờ.} \texttt{frontend} gọi \texttt{backend}. Đó là đường duy nhất
-đi vào hệ thống từ bên ngoài, và cũng là lời gọi api duy nhất giữa hai service.
+\paragraph{Giao tiếp trực tiếp qua API} \texttt{frontend} gọi \texttt{backend}. Đó là đường duy nhất
+đi vào hệ thống từ bên ngoài, và cũng là lời gọi \textbf{API} (giao diện lập trình) duy nhất
+giữa hai service.
 
-\paragraph{Một job trên queue, cho mọi trao đổi bên trong hệ thống.} Bên gửi đặt một \textbf{job} (một
+\paragraph{Xử lý công việc qua hàng đợi.} Bên gửi đặt một \textbf{job} (một
 đầu việc, một lần chạy) lên queue ở \texttt{redis}, kèm \textbf{task} là tên của loại việc ấy.
 Một \textbf{worker} (tiến trình nền) ngồi nghe queue đó, lấy job xuống và làm. Bên gửi không bao
 giờ nói chuyện thẳng với worker; kết quả, nếu cần, cũng đi về qua \texttt{redis}.
 
-\paragraph{Và một kênh phát, khi có thứ vừa đổi.} Khi giáo viên tải lên một tài
-liệu, màn hình hiển thị trạng thái ``Đang xử lý…'' và \texttt{backend} đẩy job xử lí tài liệu lên
-queue. \texttt{document} đọc byte của tệp từ object store, ghi thứ đọc được vào content store, rồi
-mới đẩy tiếp một job cho \texttt{ingest} để ghi trạng thái của tài liệu vào database. Khi
-\texttt{ingest} ghi xong một kết quả, nó phát một tiếng lên một \textbf{channel} (kênh) của
-\texttt{redis}. Đây là \textbf{pub/sub}, không phải queue: tín hiệu không nằm lại chờ ai lấy, ai
-đang nghe thì nhận. \texttt{backend} đang nghe
-channel ấy, nên nó hích xuống \texttt{frontend} --- và tiếng hích ấy cũng không chở gì, nên
-\texttt{frontend} phải hỏi lại danh sách tài liệu mới thấy tài liệu ấy đã sẵn sàng. Chữ hiện dần
-của trợ lí cho học sinh cũng đi qua một channel như thế; câu trả lời trọn vẹn thì về theo job và
-được lưu riêng.
+\paragraph{Thông báo thay đổi qua Pub/Sub.} Redis Pub/Sub được sử dụng để thông báo cho các thành phần 
+khác khi có dữ liệu mới hoặc trạng thái thay đổi. Khác với hàng đợi job, thông báo Pub/Sub không được 
+lưu lại để xử lý sau mà chỉ được gửi đến những thành phần đang đăng ký theo dõi channel tại thời điểm phát thông báo.
+
+Ví dụ, khi giáo viên tải lên một tài liệu, \texttt{frontend} hiển thị trạng thái ``Đang xử lý…'', còn \texttt{backend} 
+đưa job xử lý tài liệu vào hàng đợi. \texttt{document} đọc dữ liệu tệp từ \texttt{object store}, trích xuất nội dung và lưu vào \texttt{content store}. 
+Sau đó, \texttt{document} tạo một job cho \texttt{ingest} để cập nhật trạng thái tài liệu trong \texttt{database}.
+
+Khi \texttt{ingest} hoàn tất việc ghi dữ liệu, nó phát một thông báo lên channel của \texttt{redis}. \texttt{backend} 
+nhận thông báo này và gửi một event đến \texttt{frontend}. Vì event chỉ đóng vai trò báo hiệu, không chứa dữ liệu cập nhật, 
+\texttt{frontend} cần gọi lại API để lấy danh sách tài liệu mới nhất và hiển thị trạng thái đã sẵn sàng.
 
 \section{Job nào đi qua queue, job nào không}
 \label{sec:hang-doi}
 
-Mọi job cần gọi \textbf{Model Provider} (nhà cung cấp mô hình) đều chạy qua một queue ---
-đây là đường duy nhất tới \texttt{agent} và \texttt{document}. Có bảy task như vậy, 
-sáu của \texttt{agent} và một của \texttt{document}.
+Mọi job cần gọi \textbf{Model Provider} (nhà cung cấp mô hình) đều chạy qua một queue, đường
+duy nhất tới \texttt{agent} và \texttt{document}. Có bảy task như vậy: sáu của \texttt{agent}, một
+của \texttt{document}.
 
 \begin{table}[H]
 \centering
@@ -157,16 +159,16 @@ Dựng cây mục lục & \texttt{document} & Khi tải lên tài liệu và đ�
 đã chọn và đáp án đúng đã lưu sẵn, nên nó chạy ngay trong lúc học sinh nộp bài. Kết quả nhìn thấy
 được trên màn hình: giữa lúc nộp và lúc xem kết quả \textbf{không có trạng thái đang chấm nào}.
 
-\paragraph{Màn hình được hích bằng SSE, thay vì phải polling.} \textbf{SSE} là một kết nối
-\texttt{backend} giữ mở để hích xuống khi có gì đổi; \textbf{polling} (màn hình tự hỏi lại theo
+\paragraph{Màn hình nhận event qua SSE, thay vì phải polling.} \textbf{SSE} là một kết nối
+\texttt{backend} giữ mở để gửi event xuống khi có gì đổi; \textbf{polling} (màn hình tự hỏi lại theo
 chu kì) là phương án hệ thống không dùng. Có những chỗ dữ liệu hiện ra dần:
 
 \begin{itemize}
-  \item \textbf{Hội thoại của học sinh} hiện chữ dần cho học sinh.
-  \item \textbf{Hội thoại của giáo viên} đẩy lời nói, plan và từng việc của plan ngay khi chúng xảy
-        ra; các bước tra cứu ở pha 1 chỉ được ghi lại, không đẩy xuống.
+  \item \textbf{Hội thoại của học sinh} Hiển thị nội dung phản hồi của trợ lí theo thời gian thực.
+  \item \textbf{Hội thoại của giáo viên} Hiển thị nội dung phản hồi của trợ lí, kế hoạch thực hiện (plan) 
+        và tiến độ của từng công việc trong kế hoạch theo thời gian thực.
   \item \textbf{Thư viện tài liệu của giáo viên} hiển thị ``Đang xử lý…'' ngay khi tệp vừa tải
-        lên, rồi tự chuyển sang sẵn sàng mà không cần refresh màn hình.
+        lên, rồi tự chuyển sang sẵn sàng mà không cần làm mới màn hình.
 \end{itemize}
 
 \section{Nếu một service ngừng thì mất gì?}
@@ -268,7 +270,7 @@ nghiệp vụ, và phần ghi chú dưới đây nói vì sao ranh giới giữa
 \cmidrule{1-2}
 \texttt{pregenerated\_items} & Câu viết \emph{trước} khi học sinh bấm nút, trong lúc em còn đang đọc giải thích \\
 \cmidrule{1-2}
-\texttt{chat\_messages} & Từng tin nhắn giữa học sinh và trợ lí. Câu trả lời hiện dần lên màn hình và chỉ được lưu khi đã trọn vẹn; đóng tab giữa chừng thì câu ấy mất, và trợ lí chỉ trả lời lại khi em gửi tin nhắn tiếp theo \\
+\texttt{chat\_messages} & Từng tin nhắn giữa học sinh và trợ lí. Câu trả lời hiện dần lên màn hình và chỉ được lưu khi đã trọn vẹn; đóng thẻ trình duyệt giữa chừng thì câu ấy mất, và trợ lí chỉ trả lời lại khi em gửi tin nhắn tiếp theo \\
 \cmidrule{1-2}
 \texttt{reports} & Báo cáo \emph{giải thích chưa rõ}, gắn với cả bài chứ không với một tin nhắn \\
 \addlinespace

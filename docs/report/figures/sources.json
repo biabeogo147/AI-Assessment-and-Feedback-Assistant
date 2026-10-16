@@ -21,11 +21,11 @@
   },
   "teacher-chat-turn.pdf": {
     "source": "docs/diagrams/teacher-chat-turn.drawio",
-    "sha256": "0b013684426ff3a5eb96a0a5b19195b5be24d2e4f3b560d038ce38e7b455000b"
+    "sha256": "d12d69f951a34ea927dbd553d09f29868e8335705c97dd378b3be7052725c4c8"
   },
   "use-case.pdf": {
     "source": "docs/diagrams/use-case.drawio",
-    "sha256": "a6cf18959803cd43953ec156497d0c8f98f9acd1444c6dc2955280445b78c1b1"
+    "sha256": "970d52058b59704dc4438a138be74a9f53449c03f04c2e125123097a4b4a8073"
   },
   "vong-hoc.pdf": {
     "source": "docs/diagrams/vong-hoc.drawio",

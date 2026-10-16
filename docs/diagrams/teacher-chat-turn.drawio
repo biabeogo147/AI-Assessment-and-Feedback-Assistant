@@ -235,7 +235,7 @@
             <mxPoint x="850" y="930" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="lbl-msg-13" value="câu hỏi, rồi chuông" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;" vertex="1" parent="1">
+        <mxCell id="lbl-msg-13" value="câu hỏi, rồi thông báo" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="611" y="936" width="233" height="20" as="geometry" />
         </mxCell>
         <mxCell id="msg-13" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#343a40;strokeWidth=1;dashed=1;fontFamily=Times New Roman;" edge="1" parent="1">
@@ -244,7 +244,7 @@
             <mxPoint x="605" y="957" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="lbl-msg-14" value="chuông" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;" vertex="1" parent="1">
+        <mxCell id="lbl-msg-14" value="thông báo" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontFamily=Times New Roman;align=center;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="366" y="963" width="233" height="20" as="geometry" />
         </mxCell>
         <mxCell id="msg-14" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#343a40;strokeWidth=1;dashed=1;fontFamily=Times New Roman;" edge="1" parent="1">

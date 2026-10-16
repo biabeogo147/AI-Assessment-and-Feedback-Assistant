@@ -21,7 +21,8 @@ UC-06 & Student & Báo cáo chỗ trợ lí giải thích chưa rõ \\
 \end{tabular}
 \end{table}
 
-UC-05 không có actor trực tiếp: đó là hành vi hệ thống, được \texttt{<<include>>} từ UC-04.
+UC-05 không có \textbf{actor} (tác nhân) trực tiếp: đó là hành vi hệ thống, được
+\texttt{<<include>>} từ UC-04.
 
 \begin{landscape}
 \begin{figure}[p]
@@ -36,12 +37,12 @@ UC-05 không có actor trực tiếp: đó là hành vi hệ thống, được \
 
 \subsection{UC-01 --- Tạo đề nháp}
 
-\paragraph{Điều kiện trước.} Teacher biết chủ đề hoặc mục tiêu học tập cần kiểm tra, và mô tả
-được yêu cầu ở mức đủ hiểu.
+\paragraph{Điều kiện trước.} \textbf{Teacher} (giáo viên) biết chủ đề hoặc mục tiêu học tập cần
+kiểm tra, và mô tả được yêu cầu ở mức đủ hiểu.
 
 \paragraph{Luồng chính.} Teacher nhập yêu cầu và các ràng buộc (chủ đề, số câu, độ khó, thời gian
-làm bài, loại bài). Hệ thống phân tích, sinh đề nháp gồm câu hỏi, phương án, đáp án đúng, lời giải
-và metadata, rồi hiển thị cho Teacher.
+làm bài, loại bài). Hệ thống phân tích, sinh đề nháp gồm câu hỏi, các phương án, đáp án đúng, và lời giải
+rồi hiển thị cho Teacher.
 
 \paragraph{Quan hệ.} \emph{Tạo đề nháp} \texttt{<<include>>} \emph{Sinh nội dung đề}. \emph{Hỏi bổ
 sung yêu cầu} \texttt{<<extend>>} \emph{Tạo đề nháp}, khi yêu cầu ban đầu chưa đủ rõ --- đây chính
@@ -53,19 +54,16 @@ là một trong hai nơi Giáo viên ra quyết định ở mục~\ref{sec:hai-c
 
 \paragraph{Luồng chính.} Teacher xem từng câu hỏi, xem đáp án đúng, lời giải và phương án sai;
 chỉnh sửa nếu cần; duyệt đề; rồi phát hành với sáu tham số. Mỗi lần phát hành cho một lớp
-sinh ra một \emph{Publication}.
+sinh ra một \textbf{Publication} (bản ghi phát hành).
 
 \paragraph{Quan hệ.} \emph{Tạo lại nội dung đề} \texttt{<<extend>>} \emph{Review và phát hành đề},
 khi Teacher thấy một phần hoặc toàn bộ đề chưa phù hợp.
 
 \subsection{UC-03 --- Làm và nộp bài}
 
-\paragraph{Điều kiện trước.} Bài đã được phát hành và Student có quyền truy cập.
+\paragraph{Điều kiện trước.} Bài đã được phát hành và \textbf{Student} (học sinh) có quyền truy cập.
 
 \paragraph{Luồng chính.} Student mở bài, đọc câu hỏi, chọn đáp án, nộp bài. Hệ thống ghi nhận, và chấm bài.
-
-\paragraph{Quan hệ.} \emph{Làm bài thường xuyên} và \emph{Làm bài cuối kỳ} đều generalize lên
-\emph{Làm và nộp bài (giai đoạn 1)}.
 
 Sơ đồ \emph{không} dùng \texttt{<<include>>} từ \emph{Làm và nộp bài} sang \emph{Chấm bài}: 
 chấm bài là bước xử lý \emph{sau} khi có bài nộp, không phải hành vi bắt buộc để Student hoàn thành mục tiêu nộp bài của mình.

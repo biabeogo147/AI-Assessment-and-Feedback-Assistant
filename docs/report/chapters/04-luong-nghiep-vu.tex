@@ -21,16 +21,16 @@ vẫn là người duyệt cuối cùng trước khi phát hành.
 
 \paragraph{Luồng chính.}
 \begin{enumerate}
-  \item Teacher nhập yêu cầu tạo đề.
+  \item \textbf{Teacher} (giáo viên) nhập yêu cầu tạo đề.
   \item Teacher cung cấp ràng buộc: chủ đề, độ khó, số lượng câu hỏi, loại bài kiểm tra, thời
         gian làm bài.
   \item \texttt{System/AI} phân tích yêu cầu.
   \item \texttt{System/AI} tạo đề nháp gồm câu hỏi, phương án trả lời, đáp án đúng, lời giải và
-        metadata cơ bản.
+        \textbf{metadata} (thông tin mô tả) cơ bản.
   \item Teacher xem đề nháp.
   \item Teacher chỉnh sửa thủ công, hoặc yêu cầu tạo lại một phần.
   \item Teacher duyệt đề.
-  \item Teacher phát hành đề cho Student.
+  \item Teacher phát hành đề cho \textbf{Student} (học sinh).
 \end{enumerate}
 
 \paragraph{Điểm kiểm soát.} Teacher phải duyệt đề trước khi đề được phát hành. Đề kiểm tra ảnh
@@ -42,11 +42,11 @@ hưởng trực tiếp đến việc đánh giá học sinh, nên trợ lí khô
 
 \paragraph{Luồng chính.}
 \begin{enumerate}
-  \item Student nhận assessment đã được Teacher phát hành.
+  \item Student nhận \textbf{assessment} (bài kiểm tra) đã được Teacher phát hành.
   \item Student vào làm, \emph{tới hết} giờ đóng.
   \item Student trả lời câu hỏi trắc nghiệm.
   \item Student nộp bài.
-  \item Hệ thống ghi nhận submission để đánh giá.
+  \item Hệ thống ghi nhận \textbf{submission} (việc nộp bài) để đánh giá.
 \end{enumerate}
 
 \paragraph{Ba tham số thời gian.}

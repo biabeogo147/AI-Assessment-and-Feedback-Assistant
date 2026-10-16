@@ -1209,3 +1209,17 @@ mục đã có ở trên thì không ghi lại: ADR-20 ghi trạng thái cũ, nh
 | **Chữ *"pha"* lệch giữa hai tài liệu:** từ điển của báo cáo dành *"pha"* cho lượt hội thoại giáo viên và *"giai đoạn"* cho bài làm học sinh, còn `architecture.md` và các ADR dùng *"pha 1/pha 2"* cho học sinh | Chưa quyết bên nào đổi |
 | **Ô `ingest` của `tab:nam-service` ghi `postgres (chỉ ghi)`**, nhưng `ingest` cũng lọc theo `documents.state` khi ghi (`ingest/handlers.py:126-140`) | Chưa làm |
 | **Mục *"Những chỗ đã biết là còn sai"* của `docs/report/rules.md`** chưa xử lí: bộ nhãn trạng thái, `04:116`, logo không có trong `sources.json`, newline cuối tệp và khoảng trắng cuối dòng | Như mục ấy ghi |
+
+## Lộ ra khi sửa từ điển chương 3 của báo cáo
+
+Ghi ngày 16/10/2026, plan `2026-10-16-report-dictionary-plan.md`. Plan ấy chốt **thông báo** cho
+thứ `ingest` và `agent` phát lên channel, **event** cho thứ `backend` gửi xuống màn hình qua SSE, và
+miễn mục từ điển cho tên riêng. Những chỗ dưới đây nằm ngoài phạm vi của nó.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **`docs/overview/architecture.md` còn dùng "chuông", "hích", "chở"** cho thứ phát lên channel và thứ gửi xuống qua SSE (`:15`, `:77`, `:88-89`, `:154-157`, `:334`), và "chở" theo nghĩa *một job mang gì* (`:48`, `:98`, `:104`, `:192`): đúng những chữ báo cáo vừa bỏ | Chưa quyết `architecture.md` có theo bảng chữ của báo cáo (`docs/report/rules.md` §2) không |
+| **Ô `ingest` của hình `system-architecture` mang dòng phụ *"Đẩy dữ liệu bất đồng bộ"*.** Đó là nghĩa thứ ba của "đẩy" (ghi vào database), bên cạnh đẩy job lên queue và cách báo cáo cũ gọi việc gửi xuống màn hình | Hình của người dùng; chưa quyết |
+| **`02:67` viết `` câu 3\` ``.** LaTeX đọc `` \` `` là lệnh dấu huyền, nên trang in ra dấu huyền chồng lên dấu phẩy ngay sau thay cho dấu phẩy trên (câu 3′) | Không gì chặn; chương 02 nằm ngoài phạm vi plan ấy |
+| **Chữ vẽ trong các hình của người dùng chưa theo từ điển.** Chữ tiếng Anh không có mục: `upload`, `cache` (`system-architecture`), `Boundary` (`domain-context`), "Teacher review" (`activity-overview`), "Review đề" (`business-workflows`). Nặng hơn: `domain-context` và `use-case` ghi "pha 1 / pha 2" cho bài làm học sinh, trong khi từ điển dành "pha" cho lượt hội thoại của giáo viên và gọi phần của học sinh là "giai đoạn" | Hình chỉ sửa được bằng một việc riêng (`rules.md` §6); chưa quyết |
+| **Tên UC-02 *"Review và phát hành đề"* có chữ tiếng Anh "Review"** mà từ điển không có mục; plan trên miễn nó như một tên use case. Đổi tên phải đổi cùng lúc bảng `tab:sau-use-case`, tiêu đề `\subsection`, các `\emph` ở chương 05, và nhãn vẽ trong `use-case` (`rules.md` §6) | Chưa quyết có đổi không |
