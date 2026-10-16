@@ -52,11 +52,14 @@ mỗi đợt; thử trên trình duyệt sau cùng.
 - [x] 6. `.env.example` khối document, `docs/local-development.md`. Subagent review → sửa → commit.
 
 ### Đợt 4 — so chất lượng trên trình duyệt
-- [ ] 7. Xin phép: sửa `.env` sang Claude, khởi động lại BE/AGENT/index worker, `db-reset`, chi phí
-  0,1–0,2 USD.
-- [ ] 8. Chuẩn bị theo `docs/testing/huong-dan.md`; so nhãn mục lục SGK (banner Claude) với mốc.
-- [ ] 9. Chạy 14 ca theo thứ tự của `huong-dan.md`; biên bản cạnh cột gpt-4o-mini; lỗi mới → backlog.
-- [ ] 10. Hỏi giữ `.env` ở Claude hay trả về OpenAI. Đóng plan.
+- [x] 7. Người dùng bảo làm xong một lượt rồi chạy 14 ca. `.env` sang Claude (bản sao lưu ở
+  scratchpad), khởi động lại BE/AGENT/index worker, `db-reset`; log khởi động ghi
+  `anthropic/claude-haiku-5-5` và `{'thinking': {'type': 'disabled'}, 'effort': 'low'}`.
+- [x] 8. Chuẩn bị theo `huong-dan.md`. Banner Claude đọc đúng `Chương I. TẬP HỢP CÁC SỐ TỰ NHIÊN` và
+  `Bài 1. TẬP HỢP`; nhãn mục (OCR) trùng mốc. `parse_banner` không vấp lần nào.
+- [x] 9. 14 ca: Haiku 5.5 7 đạt · 3 chấp nhận được · 4 không đạt (mốc 3 · 4 · 7). Biên bản
+  `docs/testing/ket-qua/2026-10-16-d6c82d4-claude-haiku-5-5.md`; lỗi mới vào `backlog.md`.
+- [x] 10. Người dùng chọn giữ `.env` ở Claude.
 
 ## Validation Checks
 
@@ -89,8 +92,19 @@ mỗi đợt; thử trên trình duyệt sau cùng.
 - `AGENTS.md:17`, `services/document/AGENTS.md:23`, `docs/overview/architecture.md` còn gọi OpenAI là
   provider duy nhất của mô tả lỗi; sửa `AGENTS.md` cần plan và decision record riêng.
 - `parse_banner` chỉ gỡ JSON khi cả câu trả lời là một khối; Haiku viết thêm câu dẫn thì banner lùi
-  về nhãn số. Đo ở task 8 rồi mới quyết.
+  về nhãn số. Task 8 đo: không vấp lần nào trên SGK Lớp 6 và tệp scan, nên chưa sửa.
 
 ## Status
 
-Đợt 1–3 xong, hai subagent review không có lỗi chặn, phát hiện nên sửa đã sửa. Đang làm đợt 4.
+Xong 16/10/2026. Claude chọn được bằng `.env` cho AGENT và document; mặc định vẫn OpenAI. Hai
+subagent review (AGENT, document) không có lỗi chặn; các phát hiện nên sửa đã sửa trước commit.
+Check 23/23, pytest AGENT, document, tools xanh, không test nào gọi mạng.
+
+Chạy 14 ca trên Haiku 5.5 (thinking tắt, effort low): 7 · 3 · 4 so với 3 · 4 · 7 của gpt-4o-mini,
+khoảng 487 nghìn token cho các bước Kriky, ước 0,06–0,09 USD. Tốt hơn ở chữ (nút hỏi lại, công thức
+trong dàn ý, nói thật khi tệp còn xử lý, đi hết đường tra kết quả); kém hơn ở ba chỗ ghi
+`backlog.md` mục *Lộ ra khi chạy bộ ca thử tay trên Claude Haiku 5.5*: `known` rỗng từ lượt hai,
+một tool call sai hình dạng làm câu mock vào đề, hai câu cùng mục trùng nhau. Không sửa code sản
+phẩm nào trong plan này.
+
+`.env` của máy dev giữ ở Claude theo lời người dùng.

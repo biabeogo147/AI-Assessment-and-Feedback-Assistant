@@ -1157,6 +1157,22 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 | Lý do của bước `✕` in thẳng `reason` / `error`, có thể lộ tên tool (luật 7) | Lần chạy này không có bước `✕` nào |
 | Chữ *"sách"* trong lời phủ định (*"ko cần sách"*) vẫn mở thư viện (`_BOOK_WORDS`) | Case 02, 08 đã bỏ cụm ấy; giáo viên thật vẫn có thể gõ |
 
+## Lộ ra khi chạy bộ ca thử tay trên Claude Haiku 5.5
+
+Ghi ngày 16/10/2026, plan `2026-10-16-claude-provider-option-plan.md`. Biên bản:
+`docs/testing/ket-qua/2026-10-16-d6c82d4-claude-haiku-5-5.md`, đặt cạnh mốc gpt-4o-mini. Mỗi dòng
+ghi case thấy nó.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Haiku để trống `known` từ lượt thứ hai** (03, 04, 07): dàn ý lưu `brief` rỗng, nên *"oke"* lùi về plan của model thay vì plan dựng từ dàn ý (`_approved_plan`), và `_miscounted` không còn gì để so | Chưa sửa. Hướng: dàn ý mới mang `brief` của dàn ý trước khi `known` rỗng, hoặc BE ghi `brief` từ `create_draft` đầu tiên của đoạn chat |
+| **Tool soạn câu trả sai hình dạng rồi câu mock vào đề** (05, 1/24 job): thiếu `options`, `methods` là chuỗi JSON; `write_draft_question` lùi về câu soạn sẵn (*"Giới hạn của (x² − 1)/(x − 1)…"*), câu ấy thay câu 3 của đề lớp 7 và bước báo *"đã thay câu 3"* | Hai việc: đường ép tool của Claude chưa `strict`; và lùi về mock khi model thật hỏng là đưa một câu lạc đề vào đề thật — với mọi provider |
+| **Hai câu cùng mục trùng nhau** (02, 06, 07): job bám ví dụ trong `formulas`, bỏ lời dặn *"khác cách hỏi hoặc số liệu"*; `banned_stems` chỉ bắt chữ trùng y | Chưa sửa. Mốc gpt-4o-mini không thấy vì dàn ý của nó ít khi gộp câu vào một mục |
+| **Dàn ý một mục cho cả đề** (01, 03, 07, 08, 13): `Câu 1–N` một mục | Đúng `outline.validate`; chưa có luật về số mục |
+| **`_read_before_outline` để lọt dàn ý đọc dở** (04): đọc phần 3/5 xong, dàn ý chỉ trỏ nút phần 1–2, nên không giao nút phần vừa đọc và AGENT thôi bắt đọc tiếp | Điều kiện *"dàn ý trỏ vào phạm vi ấy"* so với phần **cuối**, không với cả phạm vi đã gọi |
+| **Hỏi lại hai lần với tệp scan một trang, một `get_chapter` sai id tài liệu** (13) | Chưa sửa |
+| **Tóm tắt nút cây mở bằng "Phần này"** (mục lục SGK dựng trên Haiku) | Prompt tóm tắt cấm; Haiku không theo |
+
 ## Lộ ra khi viết chương 7 của báo cáo
 
 Ghi ngày 16/10/2026, plan `2026-10-16-report-service-chapter-plan.md`. Ba subagent khảo sát
