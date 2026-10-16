@@ -37,7 +37,28 @@ from agent.config import Settings, get_settings
 _CREDENTIAL = {
     "openai": "openai_api_key",
     "google_genai": "google_api_key",
+    "anthropic": "claude_api_key",
 }
+
+
+def claude_options(settings: Settings) -> dict[str, object]:
+    """Tham số riêng của Claude, đọc từ `.env` (`claude-provider-option`). Hàm thuần.
+
+    Chỉ provider `anthropic` nhận chúng: `thinking` và `effort` là tên của `ChatAnthropic`, gửi
+    sang client OpenAI là một tham số lạ.
+
+    Args:
+        settings: Settings của process.
+
+    Returns:
+        `thinking` và `effort` khi có đặt; rỗng thì model theo mặc định của nó.
+    """
+    options: dict[str, object] = {}
+    if settings.llm_thinking:
+        options["thinking"] = {"type": settings.llm_thinking}
+    if settings.llm_effort:
+        options["effort"] = settings.llm_effort
+    return options
 
 
 class ModelNotConfigured(RuntimeError):
@@ -81,6 +102,8 @@ def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
         if not credential:
             raise ModelNotConfigured(f"provider {provider!r} has no credential in this process")
         extra["api_key"] = credential
+    if provider == "anthropic":
+        extra.update(claude_options(settings))
 
     return init_chat_model(model, model_provider=provider, **extra)
 

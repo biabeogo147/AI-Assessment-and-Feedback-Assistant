@@ -15,6 +15,7 @@ import logging
 from arq.connections import RedisSettings
 from arq.worker import func
 
+from agent import llm
 from agent.config import get_settings
 from agent.handlers import (
     explain,
@@ -60,7 +61,9 @@ async def startup(ctx: dict) -> None:
     """Nói ra worker đang tiêu thụ queue nào.
 
     Không có dòng này thì việc tên queue của BE và AGENT lệch nhau trông y hệt một
-    hệ thống đang rảnh: job được đẩy vào, không có lỗi nào, và không có gì chạy.
+    hệ thống đang rảnh: job được đẩy vào, không có lỗi nào, và không có gì chạy. Model
+    cũng vậy: đổi provider trong `.env` mà worker chưa khởi động lại thì lượt chat vẫn
+    trả lời, bằng model cũ (`claude-provider-option`).
 
     Args:
         ctx: Context worker của arq. Không dùng.
@@ -68,10 +71,16 @@ async def startup(ctx: dict) -> None:
     Side effects:
         Ghi một dòng log.
     """
+    model = f"{_settings.llm_provider}/{_settings.llm_model}" if llm.enabled() else "off (canned)"
+    if llm.enabled() and _settings.llm_fallback_provider and _settings.llm_fallback_model:
+        model += f" then {_settings.llm_fallback_provider}/{_settings.llm_fallback_model}"
+    if llm.enabled() and "anthropic" in {_settings.llm_provider, _settings.llm_fallback_provider}:
+        model += f" claude={llm.claude_options(_settings) or 'model defaults'}"
     logger.info(
-        "AGENT worker ready: queue=%s redis=%s",
+        "AGENT worker ready: queue=%s redis=%s model=%s",
         _settings.agent_queue_name,
         _settings.redis_url,
+        model,
     )
 
 

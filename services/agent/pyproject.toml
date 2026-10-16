@@ -14,7 +14,7 @@ dependencies = [
     # The provider packages are pulled in by extras rather than named directly:
     # agent/llm.py builds a model from a provider string, and naming the classes
     # here would be the second place that has to change to add a provider.
-    "langchain[openai,google-genai]>=1.0",
+    "langchain[openai,google-genai,anthropic]>=1.0",
     "langgraph>=1.0",
     # Jev chọn skill cho Kriky (plan 4a). Ghim đúng bản document agent dùng: hai service cùng một
     # SDK thì cùng một phiên bản.

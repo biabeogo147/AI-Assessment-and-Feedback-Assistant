@@ -6,6 +6,7 @@ lưu trữ nào, nên một bài nộp phải tới kèm theo mọi thứ cần 
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,6 +36,18 @@ class Settings(BaseSettings):
         openai_api_key: Credential cho provider OpenAI.
         google_api_key: Credential cho provider Gemini. Rỗng nghĩa là chuỗi
             fallback không có chỗ nào để lùi về, và điều đó được phép.
+        claude_api_key: Credential cho provider `anthropic` (Claude), đọc từ `CLAUDE_API_KEY`
+            -- tên người dùng đặt, không phải `ANTHROPIC_API_KEY` mà SDK tự tìm; `llm.py` truyền nó
+            vào client (`claude-provider-option`).
+        llm_thinking: Thinking của Claude: `disabled` tắt hẳn, `adaptive` để model tự quyết, rỗng
+            theo mặc định của model. Chỉ đi tới provider `anthropic`, và áp cho **mọi** model
+            anthropic trong chuỗi fallback. Tắt thì `with_structured_output` ép model gọi tool của
+            `_Proposal` hay `GeneratedQuestion`; thinking bật thì langchain bỏ ép, model có thể
+            không gọi tool và lời đề nghị không parse được. Haiku 5.5 tắt được (Models API,
+            16/10/2026); Sonnet 5.5 và Opus 5.5 thì không, và langchain không ép tool với chúng --
+            dùng chúng là mất đường ép tool.
+        llm_effort: Mức effort của Claude (`output_config.effort`), rỗng theo mặc định của model.
+            Người dùng chốt mức thấp nhất cho Kriky, gần gpt-4o-mini nhất (16/10/2026).
         llm_fallback_provider: Provider được thử khi provider đầu raise.
         llm_fallback_model: Id model tại provider fallback.
         llm_timeout_seconds: Trần thời gian cho một lần gọi model.
@@ -63,6 +76,9 @@ class Settings(BaseSettings):
     llm_model: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""
+    claude_api_key: str = ""
+    llm_thinking: Literal["", "adaptive", "disabled"] = ""
+    llm_effort: Literal["", "low", "medium", "high", "xhigh", "max"] = ""
     llm_fallback_provider: str = ""
     llm_fallback_model: str = ""
     llm_timeout_seconds: int = 20

@@ -143,3 +143,184 @@ def test_enabled_needs_both_a_switch_and_a_model(
     monkeypatch.setattr(llm, "get_settings", lambda: Settings(llm_enabled=enabled, llm_model=model))
 
     assert llm.enabled() is expected
+
+
+def _isolated(**settings: object) -> Settings:
+    """Settings chỉ từ tham số: không đọc `.env` thật, không có fallback nào lọt vào.
+
+    `.env` của máy dev đổi theo lần thử tay (`claude-provider-option` đợt 4); một `LLM_FALLBACK_*`
+    đặt ở đó làm `chat_models` dựng hai model, và test đọc nhầm tham số của model thứ hai.
+    """
+    fields: dict[str, object] = {"llm_fallback_provider": "", "llm_fallback_model": ""}
+    fields.update(settings)
+    return Settings(_env_file=None, **fields)
+
+
+def _built_with(monkeypatch: pytest.MonkeyPatch, **settings: object) -> dict[str, object]:
+    """Dựng model thật qua `chat_models`, nhưng bắt lấy tham số thay vì dựng client.
+
+    Args:
+        monkeypatch: Bộ patch của pytest.
+        **settings: Các setting của lần dựng.
+
+    Returns:
+        Provider và mọi tham số `init_chat_model` nhận được.
+    """
+    seen: dict[str, object] = {}
+
+    def capture(model: str, **kwargs: object) -> object:
+        seen.update(kwargs, model=model)
+        return _fake()
+
+    monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
+    monkeypatch.setattr(llm, "init_chat_model", capture)
+    monkeypatch.setattr(llm, "get_settings", lambda: _isolated(**settings))
+    REAL_CHAT_MODELS.cache_clear()
+    llm.chat_models()
+    REAL_CHAT_MODELS.cache_clear()
+    return seen
+
+
+def test_claude_gets_its_key_and_its_thinking_and_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`LLM_PROVIDER=anthropic` lấy `CLAUDE_API_KEY`, kèm thinking và effort của `.env`.
+
+    Key truyền vào, không thừa hưởng: `.env` không bao giờ tới `os.environ`, nên SDK tự tìm
+    `ANTHROPIC_API_KEY` thì không thấy gì (docstring của `agent/llm.py`).
+    """
+    seen = _built_with(
+        monkeypatch,
+        llm_provider="anthropic",
+        llm_model="claude-haiku-5-5",
+        claude_api_key="claude-key",
+        openai_api_key="openai-key",
+        llm_thinking="disabled",
+        llm_effort="low",
+    )
+
+    assert seen["model_provider"] == "anthropic"
+    assert seen["api_key"] == "claude-key"
+    assert seen["thinking"] == {"type": "disabled"}
+    assert seen["effort"] == "low"
+
+
+def test_claude_without_its_key_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Có key OpenAI mà thiếu key Claude thì vẫn từ chối: mỗi provider một key."""
+    monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
+    monkeypatch.setattr(
+        llm,
+        "get_settings",
+        lambda: _isolated(
+            llm_provider="anthropic",
+            llm_model="claude-haiku-5-5",
+            openai_api_key="openai-key",
+            claude_api_key="",
+        ),
+    )
+    REAL_CHAT_MODELS.cache_clear()
+
+    with pytest.raises(llm.ModelNotConfigured, match="anthropic"):
+        llm.chat_models()
+
+    REAL_CHAT_MODELS.cache_clear()
+
+
+def test_openai_never_receives_claude_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`LLM_THINKING`, `LLM_EFFORT` để sẵn trong `.env` không lọt sang client OpenAI.
+
+    Đổi qua lại hai provider chỉ là sửa `LLM_PROVIDER` và `LLM_MODEL`; một tham số lạ đi tới
+    OpenAI là một lỗi ở mọi lời gọi.
+    """
+    seen = _built_with(
+        monkeypatch,
+        llm_provider="openai",
+        llm_model="gpt-4o-mini",
+        openai_api_key="openai-key",
+        llm_thinking="disabled",
+        llm_effort="low",
+    )
+
+    assert seen["api_key"] == "openai-key"
+    assert "thinking" not in seen
+    assert "effort" not in seen
+
+
+@pytest.mark.parametrize(("field", "value"), [("llm_effort", "lowest"), ("llm_thinking", "off")])
+def test_an_unknown_claude_option_is_refused_when_settings_load(field: str, value: str) -> None:
+    """Gõ sai hỏng lúc worker khởi động, không phải ở lời gọi model đầu tiên."""
+    with pytest.raises(ValueError, match=field):
+        _isolated(**{field: value})
+
+
+def test_a_claude_fallback_gets_claude_options_and_the_openai_model_does_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chuỗi openai → anthropic: mỗi model nhận đúng tham số của provider nó."""
+    built: list[dict[str, object]] = []
+
+    def capture(model: str, **kwargs: object) -> object:
+        built.append({**kwargs, "model": model})
+        return _fake()
+
+    monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
+    monkeypatch.setattr(llm, "init_chat_model", capture)
+    monkeypatch.setattr(
+        llm,
+        "get_settings",
+        lambda: _isolated(
+            llm_provider="openai",
+            llm_model="gpt-4o-mini",
+            openai_api_key="openai-key",
+            llm_fallback_provider="anthropic",
+            llm_fallback_model="claude-haiku-5-5",
+            claude_api_key="claude-key",
+            llm_thinking="disabled",
+            llm_effort="low",
+        ),
+    )
+    REAL_CHAT_MODELS.cache_clear()
+    llm.chat_models()
+    REAL_CHAT_MODELS.cache_clear()
+
+    first, second = built
+    assert "thinking" not in first and "effort" not in first
+    assert (second["api_key"], second["thinking"], second["effort"]) == (
+        "claude-key",
+        {"type": "disabled"},
+        "low",
+    )
+
+
+def test_the_real_claude_client_sends_thinking_off_and_low_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Qua `ChatAnthropic` thật -- key giả, không gọi mạng: payload mang đúng hai tham số.
+
+    Test trên chỉ bắt tham số **trước** `init_chat_model`; langchain đổi tên alias `effort` thì chỉ
+    test này đỏ. Và structured output phải còn ép tool: thinking bật thì langchain bỏ ép, model có
+    thể không gọi tool, và `_Proposal` không parse được.
+    """
+    monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
+    monkeypatch.setattr(
+        llm,
+        "get_settings",
+        lambda: _isolated(
+            llm_provider="anthropic",
+            llm_model="claude-haiku-5-5",
+            claude_api_key="not-a-real-key",
+            llm_thinking="disabled",
+            llm_effort="low",
+            llm_timeout_seconds=20,
+        ),
+    )
+    REAL_CHAT_MODELS.cache_clear()
+    (chat,) = llm.chat_models()
+    REAL_CHAT_MODELS.cache_clear()
+
+    payload = chat._get_request_payload([("human", "chào")])
+    assert payload["thinking"] == {"type": "disabled"}
+    assert payload["output_config"]["effort"] == "low"
+    assert chat.default_request_timeout == 20
+
+    shaped = chat.with_structured_output(Shape)
+    bound = shaped.first.kwargs
+    assert bound["tool_choice"]["type"] == "tool"
