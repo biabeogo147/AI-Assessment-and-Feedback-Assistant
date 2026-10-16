@@ -1156,3 +1156,56 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 | `list_assessment` không lọc bản phát hành đã thu hồi: sau khi hoàn tác ở case 10, 12A sẽ có hai đề | Thứ tự chạy đã đưa 11, 12 lên trước 09–10 để tránh |
 | Lý do của bước `✕` in thẳng `reason` / `error`, có thể lộ tên tool (luật 7) | Lần chạy này không có bước `✕` nào |
 | Chữ *"sách"* trong lời phủ định (*"ko cần sách"*) vẫn mở thư viện (`_BOOK_WORDS`) | Case 02, 08 đã bỏ cụm ấy; giáo viên thật vẫn có thể gõ |
+
+## Lộ ra khi viết chương 7 của báo cáo
+
+Ghi ngày 16/10/2026, plan `2026-10-16-report-service-chapter-plan.md`. Ba subagent khảo sát
+`backend`, `agent`, `document`, và năm lần review đọc lại code từng câu; những thứ dưới đây là sự
+thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu nói sai mà plan ấy không được sửa. Ba
+mục đã có ở trên thì không ghi lại: ADR-20 ghi trạng thái cũ, nhiều cuốn scan đọc xen nhau, và
+`agent/vision.py` chưa viết.
+
+### Nội dung dọn trước đi tới người dùng mà không ai biết
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Câu dọn trước lọt vào đề nháp.** Mô hình hỏng khi soạn một câu thì `write_draft_question` trả câu thứ `(ordinal-1) % 6` của sáu câu Toán cố định, không theo môn hay phạm vi giáo viên xin (`agent/handlers.py:383`, `:986-993`). `DraftQuestionCompleted` không có dấu nào để `backend` nhận ra (`contracts/authoring.py:164-175`), và câu ấy đúng hình dạng nên qua phép kiểm. Chỉ cổng duyệt của giáo viên chặn nó | Chưa quyết: đánh dấu câu dọn trước để `backend` từ chối hay cảnh báo, hay để job hỏng hẳn thay vì trả câu. Báo cáo chương 7 tả đúng hiện trạng |
+| **Câu biến thể dọn trước lặp lại câu gốc.** Câu gốc không có trong kho dọn trước thì `retry_question` trả lại chính câu gốc -- cùng phương án, cùng đáp án -- chỉ thêm đuôi *"(đề thay số cho lượt N)"* (`agent/handlers.py:432-437`). `validate_retry` chỉ so đề bài đã chuẩn hoá khoảng trắng (`be/agent_gateway.py:458-463`), nên đuôi ấy đủ để lọt. Học sinh làm lại đúng câu cũ dưới một nhãn nói số đã đổi, và không cổng nào chặn: đúng điều ADR-17 cấm | Chưa quyết, cùng câu hỏi với dòng trên. Nặng hơn dòng trên vì đi thẳng tới học sinh |
+| **Đề xuất dọn trước có thể là một plan thật.** `propose_next_step` hỏng thì lùi về `next_step`, và chính comment ở `agent/handlers.py:560-565` ghi rằng một lần hết giờ trên một câu *hỏi* từng ghi một đề thật vào database | `_ASKS_TO_MAKE` đã siết; chưa có dấu nào báo `backend` đề xuất ấy là dọn trước |
+
+### Lưới yếu hơn tên của nó
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Lượt *"mô hình bật"* của `test_no_routing_decision` không soi được ba task.** `GenericFakeChatModel` không có `with_structured_output`, nên `write_draft_question`, `generate_retry_question`, `propose_next_step` ném `NotImplementedError` rồi rơi về nội dung dọn trước. Đã chạy xác nhận ngày 16/10/2026: log `handlers.py:992`, `:1027`, `:882` | Cần một mô hình giả dựng được đầu ra theo khuôn |
+| **Check `timeout-order` không tính mô hình dự phòng** (`agent/llm.py:106-107`: mỗi lần thử có thể chạy hai mô hình nối nhau) **và số lần thử lại mặc định của SDK OpenAI** (`max_retries` không đặt) | Không bị chặn; chưa làm |
+| **Không gì canh hai luật của `document`:** không mở cổng HTTP nào, và `ocr_worker` chạy một job một lúc. Cả hai chỉ nằm trong cấu hình và docstring | Không bị chặn; chưa làm |
+| **Lời đồng ý dàn ý chỉ được đọc trong `agent`** (regex `_AGREES`, `graphs/propose.py:820-824`). `guard_drafting` chứng minh được dàn ý đã hiện ở lượt hội thoại ngay trước, không chứng minh được giáo viên đã đồng ý | Chưa quyết `backend` có cần tự đọc lời đồng ý không |
+
+### Luật chưa ép
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **`submit_round` không kiểm giờ kết thúc của lượt hay hạn giai đoạn 2** (`be/student_routes.py:2095`), trong khi `save_round_answer` có kiểm (`:2082`). Chương 04 của báo cáo (`04:116`) hứa *"hết hạn thì dừng"* | Chưa làm |
+| **Câu biến thể giữ cấu trúc của câu gốc (ADR-17):** ngoài các phép kiểm chung, chỉ có phép so đề bài; không gì so cấu trúc | Đã có dòng *"chưa ép"* trong `AGENTS.md`; chưa làm |
+| **Đóng tab giữa một lượt hội thoại thì lượt ấy không có lời kể lại** (ADR-25) | Chưa làm |
+| **Chương 04 (`04:121-123`) nói giáo viên xem được báo cáo *"giải thích chưa rõ"* của học sinh**, nhưng `backend` chỉ có đường ghi `file_report`; không api hay tool nào đọc bảng `reports` | Chưa làm |
+
+### Tài liệu nói sai về code, ngoài phạm vi plan báo cáo
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **ADR ghi trạng thái cũ:** ADR-15, 16, 18, 21, 27 vẫn ghi *"chưa thi hành"* hay *"chưa có ở backend"*; ADR-23:114 trỏ `propose._SYSTEM`, nay là `_CORE`; ADR-25 (sửa 10/10) định bỏ job kể lại, code vẫn chạy nó; ADR-27 nói Jev là bộ định tuyến của `document`, đã bị thay ngày 12/10; ADR-29:68 nói lời đồng ý đọc bằng mô hình, thực ra bằng regex | Cố ý hoãn, như mục *Tài liệu quyết định* ở đầu tệp: sửa một ADR là sửa lịch sử |
+| **`AGENTS.md`:** `services/be/AGENTS.md` nói *"clients poll once per second"* (không còn gì poll), *"`advance` is the only function"* (`withdraw` cũng đặt state, `assessment_state.py:236`), *"every path calls `assert_editable`"* (`edit_question`, `approve`, `harvest` dùng `editable()`); `AGENTS.md:16` gốc nói `agent` làm *"AI grading"* | Sửa `AGENTS.md` cần plan và decision record riêng |
+| **Docstring, comment và cấu hình nói sai về chính code:** `be/student_routes.py:1717-1723` (*"lưu rồi mới stream"*), `fe/src/api.ts:991-994`, `screens/student/Tutor.tsx:93-95` (cùng câu ấy); `agent/handlers.py:3-6` (*"mọi handler là mock"*), `worker.py:91`, `llm.py:4-5`, `graphs/__init__.py:3-6`, `graphs/propose.py:12-15`; docstring đầu `be/teacher_documents.py`; `contracts/documents.py:1` (*"Hai message"*, có năm), `:109-110`; `document/index_handlers.py:7` (*"Ba cách"* rồi kể bốn), `index/graph.py:12-14`, `content_store.py:77-83`, `probe.py:12-13`, câu ở `probe.py:195-198` không bao giờ tới giáo viên; `ocr/page.py:3-9` kể chặng theo thứ tự cũ; `pyproject.toml:65`, `.pre-commit-config.yaml:1` (số service dùng chung env), `dev.ps1:89-91` (*"BE không giữ khoá Mongo"*), `be/config.py:40` (tên check cũ), `be/teacher_routes.py:1122` (*"mỗi lớp một bộ hạn riêng"*, trái với code bên dưới), `.env.example:3`, `:20-21` | Không bị chặn; chưa làm |
+| **FE nói *"`fault` có sáu giá trị"*** (`Rail.tsx:305`, `api.ts:409`); `document` phát mười câu, chưa kể câu của phép suy 300 s ở `backend` | Chưa làm |
+| **ERD chưa vẽ**, dù điều kiện cũ trong `architecture.md` (*"khi có Postgres"*) đã đạt | Chưa quyết có cần: `data-model.md` đang nói hai mươi hai bảng bằng bảng và lời |
+
+### Báo cáo
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Hình `activity-overview` ở chương 04 vượt trang 23,8 pt** (`Float too large`, có từ trước plan này) | Ngoài phạm vi plan chương 7 |
+| **Chữ *"pha"* lệch giữa hai tài liệu:** từ điển của báo cáo dành *"pha"* cho lượt hội thoại giáo viên và *"giai đoạn"* cho bài làm học sinh, còn `architecture.md` và các ADR dùng *"pha 1/pha 2"* cho học sinh | Chưa quyết bên nào đổi |
+| **Ô `ingest` của `tab:nam-service` ghi `postgres (chỉ ghi)`**, nhưng `ingest` cũng lọc theo `documents.state` khi ghi (`ingest/handlers.py:126-140`) | Chưa làm |
+| **Mục *"Những chỗ đã biết là còn sai"* của `docs/report/rules.md`** chưa xử lí: bộ nhãn trạng thái, `04:116`, logo không có trong `sources.json`, newline cuối tệp và khoảng trắng cuối dòng | Như mục ấy ghi |

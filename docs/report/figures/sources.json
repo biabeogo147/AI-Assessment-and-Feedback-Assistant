@@ -7,13 +7,21 @@
     "source": "docs/diagrams/business-workflows.drawio",
     "sha256": "d89b0a1bfea91f6ac85f1dbd4faccd262d20861df3b25153cf3c8aa1bc7de66f"
   },
+  "document-pipeline.pdf": {
+    "source": "docs/diagrams/document-pipeline.drawio",
+    "sha256": "319792a7cd451544649493d06d9711283e971c415df59c3ccfad9b9062ede4c1"
+  },
   "domain-context.pdf": {
     "source": "docs/diagrams/domain-context.drawio",
     "sha256": "6b9dde9bcf358e9e7edc6ff807a779329153b1df4328b58a30df93e7959b7f8d"
   },
   "system-architecture.pdf": {
     "source": "docs/diagrams/system-architecture.drawio",
-    "sha256": "5543619eaaa995d7e732b7660400c42ce703dbf1c0a38a707a485d66c1b6f9a9"
+    "sha256": "43bf433bfa1b820cc53850e8234f944a9e759e29f00249f71607f6886e6ef0f4"
+  },
+  "teacher-chat-turn.pdf": {
+    "source": "docs/diagrams/teacher-chat-turn.drawio",
+    "sha256": "0b013684426ff3a5eb96a0a5b19195b5be24d2e4f3b560d038ce38e7b455000b"
   },
   "use-case.pdf": {
     "source": "docs/diagrams/use-case.drawio",

@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Claude">
   <diagram id="system-architecture" name="System Architecture">
-    <mxGraphModel dx="3463" dy="1139" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1480" pageHeight="1000" math="0" shadow="0">
+    <mxGraphModel dx="3071" dy="914" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1480" pageHeight="1000" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -22,6 +22,9 @@
         <mxCell id="SRt0i51-yR8GFM_2OfAY-16" edge="1" parent="1" source="be" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#d79b00;align=center;verticalAlign=middle;fontFamily=Times New Roman;fontSize=15;fontColor=default;labelBackgroundColor=default;startArrow=classic;startFill=1;endArrow=classic;fillColor=#ffe6cc;" target="minio">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="Ecm6Ht9Yjn_v9hY0E98V-7" edge="1" parent="1" source="be" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#d79b00;align=center;verticalAlign=middle;fontFamily=Times New Roman;fontSize=15;fontColor=default;labelBackgroundColor=default;startArrow=classic;startFill=1;endArrow=classic;fillColor=#ffe6cc;" target="Ecm6Ht9Yjn_v9hY0E98V-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="be" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#e67700;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="Backend - FastAPI&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Giữ mọi quyết định nghiệp vụ&lt;/span&gt;" vertex="1">
           <mxGeometry height="110" width="280" x="684.5" y="141" as="geometry" />
         </mxCell>
@@ -40,23 +43,32 @@
         <mxCell id="ingest" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f0ff;strokeColor=#7048e8;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="ingest&lt;div&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Đẩy dữ liệu bất đồng bộ&lt;/span&gt;&lt;/div&gt;" vertex="1">
           <mxGeometry height="110" width="280" x="288.5" y="642" as="geometry" />
         </mxCell>
-        <mxCell id="SRt0i51-yR8GFM_2OfAY-23" edge="1" parent="1" source="document" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;strokeColor=#9673a6;align=center;verticalAlign=middle;fontFamily=Times New Roman;fontSize=15;fontColor=default;labelBackgroundColor=default;endArrow=classic;fillColor=#e1d5e7;" target="redis">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="SRt0i51-yR8GFM_2OfAY-24" edge="1" parent="1" source="document" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;strokeColor=#9673a6;align=center;verticalAlign=middle;fontFamily=Times New Roman;fontSize=15;fontColor=default;labelBackgroundColor=default;endArrow=classic;fillColor=#e1d5e7;" target="minio">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1221.5" y="560.2" />
+              <mxPoint x="969.5" y="560.2" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ecm6Ht9Yjn_v9hY0E98V-5" edge="1" parent="1" source="document" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;strokeColor=#9673a6;align=center;verticalAlign=middle;fontFamily=Times New Roman;fontSize=15;fontColor=default;labelBackgroundColor=default;endArrow=classic;fillColor=#e1d5e7;" target="redis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1221.5" y="560.2" />
+              <mxPoint x="734.8" y="560.2" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ecm6Ht9Yjn_v9hY0E98V-6" edge="1" parent="1" source="document" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#9673a6;align=center;verticalAlign=middle;fontFamily=Times New Roman;fontSize=15;fontColor=default;labelBackgroundColor=default;endArrow=classic;fillColor=#e1d5e7;" target="Ecm6Ht9Yjn_v9hY0E98V-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1221.5" y="560" />
+              <mxPoint x="1256.5" y="560" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="document" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3f0ff;strokeColor=#7048e8;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="document&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Xử lí tài liệu / giáo án do giáo viên upload&lt;/span&gt;" vertex="1">
           <mxGeometry height="110" width="280" x="1081.5" y="642" as="geometry" />
-        </mxCell>
-        <mxCell id="postgres" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=top;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="&lt;br&gt;&lt;br&gt;postgres&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Kho dữ liệu chính&lt;/span&gt;" vertex="1">
-          <mxGeometry height="110" width="280" x="288.5" y="399" as="geometry" />
-        </mxCell>
-        <mxCell id="redis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="&lt;div&gt;redis&lt;/div&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Hàng đợi và lưu cache&lt;/span&gt;" vertex="1">
-          <mxGeometry height="110" width="277" x="686.5" y="399" as="geometry" />
-        </mxCell>
-        <mxCell id="minio" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="minio&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Nội dung thô của tài liệu giáo viên&lt;/span&gt;" vertex="1">
-          <mxGeometry height="110" width="280" x="1081.5" y="399" as="geometry" />
         </mxCell>
         <mxCell id="e-fe-be" edge="1" parent="1" source="fe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#1971c2;fontSize=15;verticalAlign=bottom;fontFamily=Times New Roman;" target="be" value="HTTP /api">
           <mxGeometry relative="1" as="geometry" />
@@ -87,6 +99,18 @@
         </mxCell>
         <mxCell id="T5VM_ixn5f1gcg9-ErZk-9" parent="1" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc2;strokeColor=#8C4FFF;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#AAB7B8;dashed=0;" value="VPC" vertex="1">
           <mxGeometry height="742" width="1212" x="219" y="63" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" parent="T5VM_ixn5f1gcg9-ErZk-9" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;align=center;fontColor=default;" value="&lt;div&gt;redis&lt;/div&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Hàng đợi và lưu cache&lt;/span&gt;" vertex="1">
+          <mxGeometry height="110" width="213" x="356" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="postgres" parent="T5VM_ixn5f1gcg9-ErZk-9" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="postgres&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Kho dữ liệu chính&lt;/span&gt;" vertex="1">
+          <mxGeometry height="110" width="213" x="68" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="minio" parent="T5VM_ixn5f1gcg9-ErZk-9" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="minio&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Nội dung thô của&amp;nbsp;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;tài liệu giáo viên&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="213" x="644" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="Ecm6Ht9Yjn_v9hY0E98V-2" parent="T5VM_ixn5f1gcg9-ErZk-9" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ebfbee;strokeColor=#2f9e44;fontStyle=1;verticalAlign=middle;spacingTop=8;fontFamily=Times New Roman;fontSize=15;" value="mongodb&lt;br&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;Nội dung đã xử lí của&amp;nbsp;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-weight: normal;&quot;&gt;tài liệu giáo viên&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="213" x="931" y="348" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

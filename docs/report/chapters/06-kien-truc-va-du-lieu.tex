@@ -16,14 +16,13 @@ của chương này phần lớn được định nghĩa ở mục~\ref{sec:tu-d
 \midrule
 \texttt{frontend} & \texttt{frontend} cho giáo viên và học sinh. Chỉ nói chuyện với \texttt{backend} & Không & Không có \\
 \addlinespace
-\texttt{backend} & Nơi giữ mọi quyết định nghiệp vụ, và là gateway của hệ thống & \textbf{Mọi quyết định} & postgres / redis / minio \\
+\texttt{backend} & Nơi giữ mọi quyết định nghiệp vụ, và là gateway của hệ thống & \textbf{Mọi quyết định} & postgres / redis / minio / mongodb \\
 \addlinespace
-\texttt{agent} & Kết nối với Model Provider. Thực hiện yêu cầu của giáo viên và giải đáp học sinh thông qua các cuộc trò chuyện & Không & Không có \\
+\texttt{agent} & Kết nối với Model Provider. Soạn câu hỏi, đề xuất bước tiếp theo cho yêu cầu của giáo viên, và giải đáp học sinh trong hội thoại & Không & redis \\
 \addlinespace
-\texttt{document} & Đọc/Xử lí tài liệu giáo viên tải lên phục vụ \texttt{agent} sau này. & Không & minio (chỉ đọc) \\
+\texttt{document} & Kết nối với Model Provider. Đọc tài liệu giáo viên tải lên, và dựng cây mục lục cho \texttt{agent} dùng khi ra đề & Không & redis / minio / mongodb \\
 \addlinespace
-\texttt{ingest} & Đẩy dữ liệu từ \texttt{document} vào database --- nơi \texttt{agent} truy vấn thông qua \texttt{backend}  & Không & postgres (chỉ ghi) \\
-\bottomrule
+\texttt{ingest} & Ghi vào database trạng thái xử lí mà \texttt{document} báo về & Không & redis / postgres
 \end{tabular}
 \end{table}
 
@@ -43,8 +42,8 @@ thống chỉ có một \textbf{gateway} (cửa ra vào duy nhất).
 
 Hình~\ref{fig:system-architecture} chia hệ thống làm hai vùng, và đặt \texttt{frontend} ở ngoài cả
 hai. Trong VPC, \texttt{backend} nằm ở \emph{public subnet}; \texttt{agent}, \texttt{document},
-\texttt{ingest} và ba \textbf{store} (ba kho) nằm ở \emph{private subnet} --- chỉ những gì ở public subnet mới nhận
-được kết nối từ bên ngoài.
+\texttt{ingest} và bốn \textbf{store} (bốn kho) nằm ở \emph{private subnet} --- chỉ những gì ở
+public subnet mới nhận được kết nối từ bên ngoài.
 
 \texttt{frontend} không bao giờ biết bên trong có mấy service, hay chúng tên gì.
 
@@ -57,82 +56,99 @@ phải một lựa chọn kỹ thuật. Luật chỉ có một câu: \textbf{\te
 \texttt{agent} trả về \texttt{backend} hai thứ:
 
 \begin{itemize}
-  \item \textbf{Nội dung} --- câu hỏi và lời giải, một lượt trả lời cho giáo viên hay học
-        sinh, một bản phân tích đọc từ dữ liệu mà \texttt{backend} cấp cho nó.
+  \item \textbf{Nội dung} --- câu hỏi và lời giải cho đề kiểm tra; câu trả lời trong hội thoại với giáo viên
+        hay học sinh; một bản phân tích đọc từ dữ liệu mà \texttt{backend} cấp cho nó.
   \item \textbf{Đề xuất hành động} --- \textbf{tool} (công cụ) nào nên chạy, với tham số nào.
 \end{itemize}
 
-Hiệu lực do \texttt{backend} quyết định. Với nội dung: kiểm trước khi ghi.
+Hai thứ trên có hiệu lực hay không đều do \texttt{backend} quyết định. Với nội dung: kiểm trước khi ghi.
 Với hành động: chỉ chạy những tool chính nó cấp cho mô hình, và từ chối một đề xuất gọi tool
 ngoài danh sách ấy hay thiếu tham số.
 
-Chỗ thấy rõ nhất là việc soạn đề:
+Ví dụ, đối với việc soạn đề:
 
 \begin{itemize}
-  \item \texttt{agent} trả về một \textbf{đề xuất}: câu hỏi, các phương án, ánh xạ từ mỗi phương
-        án nhiễu sang một lỗi cụ thể, và lời giải.
-  \item \texttt{backend} \textbf{kiểm lại từng câu trước khi ghi} --- đúng một đáp án đúng, mọi phương
-        án nhiễu đều gắn một lỗi, ít nhất hai cách giải --- rồi mới lưu. Và một đề chỉ rời trạng
+  \item \texttt{agent} trả về một \textbf{đề xuất}: câu hỏi, lời giải, và các phương án lựa chọn, trong đó mỗi phương
+        án nhiễu đi kèm một lỗi cụ thể.
+  \item \texttt{backend} kiểm tra lại ràng buộc từng câu rồi mới lưu. Và một đề chỉ rời trạng
         thái \textbf{draft} (nháp) khi giáo viên bấm \textbf{approve} (duyệt).
 \end{itemize}
 
 \section{Service nào kết nối tới store nào?}
 
-Ba store ấy là ba loại khác nhau: postgres là một \textbf{database} giữ dữ liệu có cấu trúc,
-redis là một \textbf{queue} (hàng đợi), và minio là một \textbf{object store} giữ byte của tệp.
+Bốn store ấy là bốn loại khác nhau: postgres là một \textbf{database} (cơ sở dữ liệu) giữ dữ liệu
+có cấu trúc, redis là một \textbf{queue} (hàng đợi), minio là một \textbf{object store}
+(kho tệp) giữ byte của tệp, và mongodb là một \textbf{content store} (kho nội dung) giữ nội dung
+đã xử lí của tài liệu.
 
 \paragraph{Database thuộc về \texttt{backend} và \texttt{ingest}.} Nó giữ lớp, học sinh, đề,
 lần làm bài, sổ điểm ba mức, bộ đếm vòng, từng lượt làm lại kèm đề đã sinh ra, các đoạn hội
-thoại, và các báo cáo. 
+thoại, và các báo cáo.
 
-\paragraph{Object store giữ \textbf{byte} của tài liệu, tức nội dung thô của tệp.} Đây là
-store duy nhất không phải database, và là store duy nhất mà một service chỉ đọc chứ không
-bao giờ ghi: \texttt{backend} ghi vào, \texttt{document} đọc ra, và không có chiều ngược lại.
+\paragraph{Object store giữ \textbf{byte} của tài liệu, tức nội dung thô của tệp.}
+\texttt{backend} ghi vào, \texttt{document} đọc ra, và không có chiều ngược lại.
 
-\texttt{agent} và \texttt{document} không có credential của database.
+\paragraph{Content store giữ thứ đọc được từ tài liệu.} Sau khi đọc một tệp, \texttt{document} ghi
+vào nội dung của từng trang và cây mục lục dựng từ chúng. \texttt{backend} chỉ đọc ra, để đưa mục
+lục hay nội dung của một bài cho \texttt{agent} khi ra đề theo tài liệu. Tài liệu đã xử lí xong hay chưa
+thì vẫn do database trả lời: content store giữ \emph{thứ đọc được từ tệp}, không giữ \emph{sự thật
+về tệp}.
+
+\texttt{agent} và \texttt{document} không có \textbf{credential} (khoá truy cập) của database.
 
 \section{Các service nói chuyện với nhau thế nào}
 \label{sec:noi-chuyen}
 
-Có \textbf{hai} cơ chế chở việc, và một tín hiệu rất ngắn không chở gì.
+Có \textbf{hai} cơ chế chở việc, và một kênh phát không giữ lại gì.
 
 \paragraph{Một lời gọi, khi có người đang chờ.} \texttt{frontend} gọi \texttt{backend}. Đó là đường duy nhất
 đi vào hệ thống từ bên ngoài, và cũng là lời gọi api duy nhất giữa hai service.
 
-\paragraph{Một job trên queue, khi không ai chờ.} Mọi trao đổi còn lại đi đường này. Bên gửi đặt
-một \textbf{job} (một đầu việc, một lần chạy) lên queue ở \texttt{redis}, kèm
-\textbf{task} là tên của loại việc ấy, rồi đi tiếp. Một \textbf{worker} (tiến trình nền) ngồi nghe queue đó, lấy job
-xuống và làm.
+\paragraph{Một job trên queue, cho mọi trao đổi bên trong hệ thống.} Bên gửi đặt một \textbf{job} (một
+đầu việc, một lần chạy) lên queue ở \texttt{redis}, kèm \textbf{task} là tên của loại việc ấy.
+Một \textbf{worker} (tiến trình nền) ngồi nghe queue đó, lấy job xuống và làm. Bên gửi không bao
+giờ nói chuyện thẳng với worker; kết quả, nếu cần, cũng đi về qua \texttt{redis}.
 
-\paragraph{Và một tín hiệu rất ngắn, khi có trạng thái thay đổi.} Khi giáo viên tải lên một tài
-liệu, tài liệu hiển thị trạng thái ``đang xử lí'' trên \texttt{frontend}, lúc này \texttt{backend} đẩy
-job xử lí tài liệu lên queue, \texttt{document} làm xong thì đẩy tiếp một job nữa, và
-\texttt{ingest} lấy job đó để ghi vào database. Khi \texttt{ingest} ghi xong một kết quả, nó
-phát một tiếng lên một \textbf{channel} (kênh) của \texttt{redis}. Đây là \textbf{pub/sub}, không
-phải queue: tín hiệu không nằm lại chờ ai lấy, ai đang nghe thì nhận. \texttt{backend} đang nghe
+\paragraph{Và một kênh phát, khi có thứ vừa đổi.} Khi giáo viên tải lên một tài
+liệu, màn hình hiển thị trạng thái ``Đang xử lý…'' và \texttt{backend} đẩy job xử lí tài liệu lên
+queue. \texttt{document} đọc byte của tệp từ object store, ghi thứ đọc được vào content store, rồi
+mới đẩy tiếp một job cho \texttt{ingest} để ghi trạng thái của tài liệu vào database. Khi
+\texttt{ingest} ghi xong một kết quả, nó phát một tiếng lên một \textbf{channel} (kênh) của
+\texttt{redis}. Đây là \textbf{pub/sub}, không phải queue: tín hiệu không nằm lại chờ ai lấy, ai
+đang nghe thì nhận. \texttt{backend} đang nghe
 channel ấy, nên nó hích xuống \texttt{frontend} --- và tiếng hích ấy cũng không chở gì, nên
-\texttt{frontend} phải hỏi lại danh sách tài liệu mới thấy ``đã xong''.
+\texttt{frontend} phải hỏi lại danh sách tài liệu mới thấy tài liệu ấy đã sẵn sàng. Chữ hiện dần
+của trợ lí cho học sinh cũng đi qua một channel như thế; câu trả lời trọn vẹn thì về theo job và
+được lưu riêng.
 
 \section{Job nào đi qua queue, job nào không}
 \label{sec:hang-doi}
 
-Mọi job cần gọi mô hình đều chạy qua một queue vì một lần gọi mô hình lâu tới mức giữ một kết nối mở suốt thời gian chờ là không hợp lý.
+Mọi job cần gọi \textbf{Model Provider} (nhà cung cấp mô hình) đều chạy qua một queue ---
+đây là đường duy nhất tới \texttt{agent} và \texttt{document}. Có bảy task như vậy, 
+sáu của \texttt{agent} và một của \texttt{document}.
 
-\begin{table}[htbp]
+\begin{table}[H]
 \centering
-\caption{Bốn task thật sự cần gọi mô hình}
-\label{tab:bon-viec}
-\begin{tabular}{@{}L{4.2cm}L{9.6cm}@{}}
+\caption[Bảy task gọi Model Provider]{Bảy task gọi Model Provider}
+\label{tab:bay-viec}
+\begin{tabular}{@{}L{4.2cm}lL{7.4cm}@{}}
 \toprule
-\textbf{Task} & \textbf{Khi nào xảy ra} \\
+\textbf{Task} & \textbf{Service} & \textbf{Khi nào xảy ra} \\
 \midrule
-Viết một câu hỏi & Mỗi câu của bộ đề giáo viên yêu cầu. \textbf{Một câu một job}, không phải cả bộ một job \\
+Viết một câu hỏi & \texttt{agent} & Mỗi câu của bộ đề giáo viên yêu cầu. \textbf{Một câu một job}. \\
 \addlinespace
-Sinh câu biến thể & Ngay khi học sinh nộp bài giai đoạn 1, để câu có sẵn lúc em bấm nút \\
+Sinh câu biến thể & \texttt{agent} & Khi học sinh nộp bài giai đoạn 1 \\
 \addlinespace
-Trả lời một lượt hội thoại & Mỗi lượt học sinh hỏi lại ở giai đoạn 2 \\
+Trả lời một tin nhắn của học sinh & \texttt{agent} & Khi học sinh cần giải đáp thắc mắc ở giai đoạn 2 \\
 \addlinespace
-Đề xuất bước tiếp theo & Mỗi bước của một lượt trò chuyện với giáo viên \\
+Đề xuất bước tiếp theo & \texttt{agent} & Khi giáo viên gửi một tin nhắn / yêu cầu / thắc mắc \\
+\addlinespace
+Báo cáo kết quả một plan & \texttt{agent} & Sau khi \texttt{backend} chạy xong các việc của một plan \\
+\addlinespace
+Đặt tên một đoạn hội thoại & \texttt{agent} & Khi giáo viên gửi tin nhắn đầu tiên và Kriky trả lời \\
+\addlinespace
+Dựng cây mục lục & \texttt{document} & Khi tải lên tài liệu và đã đọc xong nội dung của mọi trang \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -142,13 +158,15 @@ Trả lời một lượt hội thoại & Mỗi lượt học sinh hỏi lại �
 được trên màn hình: giữa lúc nộp và lúc xem kết quả \textbf{không có trạng thái đang chấm nào}.
 
 \paragraph{Màn hình được hích bằng SSE, thay vì phải polling.} \textbf{SSE} là một kết nối
-\texttt{backend} giữ mở để hích xuống khi có gì đổi; \textbf{polling} --- màn hình tự hỏi lại theo
-chu kì --- là phương án hệ thống không dùng. Có những chỗ dữ liệu hiện ra dần:
+\texttt{backend} giữ mở để hích xuống khi có gì đổi; \textbf{polling} (màn hình tự hỏi lại theo
+chu kì) là phương án hệ thống không dùng. Có những chỗ dữ liệu hiện ra dần:
 
 \begin{itemize}
   \item \textbf{Hội thoại của học sinh} hiện chữ dần cho học sinh.
-  \item \textbf{Hội thoại của giáo viên} đẩy từng bước của một lượt ngay khi bước đó xảy ra.
-  \item \textbf{Thư viện tài liệu của giáo viên} lúc vừa tải lên hiển thị ``đang xử lí'', sau đó hiển thị ``đã xong'' mà không cần refresh màn hình.
+  \item \textbf{Hội thoại của giáo viên} đẩy lời nói, plan và từng việc của plan ngay khi chúng xảy
+        ra; các bước tra cứu ở pha 1 chỉ được ghi lại, không đẩy xuống.
+  \item \textbf{Thư viện tài liệu của giáo viên} hiển thị ``Đang xử lý…'' ngay khi tệp vừa tải
+        lên, rồi tự chuyển sang sẵn sàng mà không cần refresh màn hình.
 \end{itemize}
 
 \section{Nếu một service ngừng thì mất gì?}
@@ -172,20 +190,22 @@ Một kiến trúc chia nhiều phần chỉ đáng giá nếu một phần hỏ
 \addlinespace
 \texttt{agent} & Soạn đề, hội thoại & Mọi thứ còn lại \\
 \addlinespace
-\texttt{document} & Tài liệu mới không tải lên được & Thư viện vẫn mở, tài liệu cũ vẫn dùng được \\
+\texttt{mongodb} & Ra đề theo tài liệu, và tài liệu mới không xử lí xong & \texttt{backend} vẫn khởi động; ra đề không có tài liệu và mọi thứ còn lại \\
 \addlinespace
-\texttt{ingest} & Tài liệu mới không tải lên được & Job \textbf{không mất}: nó nằm lại trên queue, bật lại thì chạy tiếp \\
+\texttt{document} & Tài liệu mới không xử lí xong & Thư viện vẫn mở, tài liệu cũ vẫn dùng được để ra đề \\
+\addlinespace
+\texttt{ingest} & Tài liệu mới không xử lí xong & Job \textbf{không mất}: nó nằm lại trên queue, bật lại thì chạy tiếp \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Mô hình dữ liệu}
 
-Mô hình dữ liệu có hai mươi mốt bảng, chia theo năm nhóm. Mỗi bảng trả lời đúng một câu hỏi
+Mô hình dữ liệu có hai mươi hai bảng, chia theo năm nhóm. Mỗi bảng trả lời đúng một câu hỏi
 nghiệp vụ, và phần ghi chú dưới đây nói vì sao ranh giới giữa chúng nằm ở chỗ đó.
 
 \begin{longtable}{@{}lL{9.1cm}@{}}
-\caption{Hai mươi mốt bảng, theo năm nhóm}
+\caption[Hai mươi hai bảng dữ liệu]{Hai mươi hai bảng, theo năm nhóm}
 \label{tab:bang-du-lieu}\\
 \toprule
 \textbf{Bảng} & \textbf{Giữ gì} \\
@@ -220,13 +240,15 @@ nghiệp vụ, và phần ghi chú dưới đây nói vì sao ranh giới giữa
 \cmidrule{1-2}
 \texttt{methods} & Các cách giải của một câu. Bắt buộc nhiều hơn một \\
 \cmidrule{1-2}
+\texttt{bank\_questions} & Ngân hàng câu hỏi của từng giáo viên: bản chép của mỗi câu, kèm phương án và lời giải, lúc đề chứa nó được duyệt. Xoá câu khỏi đề thì bản này ở lại \\
+\cmidrule{1-2}
 \texttt{publications} & Sáu tham số phát hành, một dòng cho mỗi cặp đề và lớp, nên thu hồi được từng lớp một \\
 \cmidrule{1-2}
-\texttt{documents} & Tài liệu giáo viên tải lên: tên tệp, kích thước, khoá trỏ tới object store, trạng thái xử lý, số trang, lý do hỏng. \textbf{Không giữ byte nào}. Thuộc về giáo viên, không thuộc về đề \\
+\texttt{documents} & Tài liệu giáo viên tải lên: tên tệp, kích thước, khoá trỏ tới object store, trạng thái xử lý, số trang, số trang đã đọc, lý do hỏng. \textbf{Không giữ byte nào}. Thuộc về giáo viên, không thuộc về đề \\
 \cmidrule{1-2}
-\texttt{draft\_briefs} & Yêu cầu soạn của một đề: môn, khối, phạm vi, tổng số câu đã xin \\
+\texttt{draft\_briefs} & Yêu cầu soạn của một đề: môn, khối, phạm vi, tổng số câu đã xin; tài liệu và các nút của cây mục lục khi ra đề theo tài liệu; và các mục dàn ý giáo viên đã đồng ý \\
 \cmidrule{1-2}
-\texttt{draft\_items} & Một ô cho mỗi câu đang soạn, kèm trạng thái, số lần đã thử, và \emph{lý do} lần gần nhất bị loại \\
+\texttt{draft\_items} & Một ô cho mỗi câu đang soạn, kèm mục dàn ý câu ấy theo, trạng thái, số lần đã thử, và \emph{lý do} lần gần nhất bị loại \\
 \addlinespace
 
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 3 --- bài làm và điểm}} \\
@@ -246,14 +268,17 @@ nghiệp vụ, và phần ghi chú dưới đây nói vì sao ranh giới giữa
 \cmidrule{1-2}
 \texttt{pregenerated\_items} & Câu viết \emph{trước} khi học sinh bấm nút, trong lúc em còn đang đọc giải thích \\
 \cmidrule{1-2}
-\texttt{chat\_messages} & Từng lượt hội thoại, lưu \emph{trước} khi phát ra màn hình \\
+\texttt{chat\_messages} & Từng tin nhắn giữa học sinh và trợ lí. Câu trả lời hiện dần lên màn hình và chỉ được lưu khi đã trọn vẹn; đóng tab giữa chừng thì câu ấy mất, và trợ lí chỉ trả lời lại khi em gửi tin nhắn tiếp theo \\
 \cmidrule{1-2}
 \texttt{reports} & Báo cáo \emph{giải thích chưa rõ}, gắn với cả bài chứ không với một tin nhắn \\
 \addlinespace
 
 \multicolumn{2}{@{}l@{}}{\textbf{Nhóm 5 --- hội thoại của giáo viên}} \\
 \addlinespace
-\texttt{teacher\_conversations} & Một mạch hội thoại của một giáo viên. Tiêu đề do trợ lí đặt sau lượt đầu, giáo viên sửa được; xoá là \emph{xoá mềm} \\
+\texttt{teacher\_conversations} & Một đoạn hội thoại của một giáo viên. Tiêu đề do trợ lí đặt sau lượt hội thoại đầu tiên, giáo viên sửa được; xoá là \emph{xoá mềm} \\
 \cmidrule{1-2}
-\texttt{teacher\_turns} & Từng \emph{bước} của một lượt: lời nói, hoặc tool đã chạy, kèm chủ thể mà bước đó nói về \\
+\texttt{teacher\_turns} & Từng \emph{bước} của một lượt hội thoại: lời nói, plan, dàn ý, hoặc tool đã chạy, kèm chủ thể mà bước đó nói về \\
 \end{longtable}
+
+Thứ đọc được từ tài liệu không nằm trong hai mươi hai bảng này mà ở content store; database chỉ
+biết một tài liệu đã xử lí xong hay chưa.

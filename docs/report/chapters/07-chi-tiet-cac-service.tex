@@ -1,0 +1,572 @@
+\chapter{Chi tiết các service}
+\label{ch:chi-tiet-cac-service}
+
+Chương~\ref{ch:kien-truc-va-du-lieu} nhìn hệ thống từ bên ngoài: có những \textbf{service} (thành
+phần) nào, mỗi service giữ khoá của \textbf{store} (kho) nào, và chúng nói chuyện với nhau ra sao.
+Chương này đi vào bên trong ba service chở phần lớn logic của hệ thống: \texttt{backend},
+\texttt{agent} và \texttt{document}. Mỗi mục trả lời năm câu hỏi theo cùng một thứ tự: service nhận
+gì và trả gì, bên trong gồm những phần nào, một luồng đi qua nó ra sao, nó giữ những luật nào và cái
+gì canh các luật ấy, và khi có gì hỏng thì nó làm gì. Ba tiêu đề \emph{Vào và ra}, \emph{Luật và
+chỗ canh luật} và \emph{Khi hỏng} giống nhau ở cả ba mục, để đặt chúng cạnh nhau mà so. Bốn service
+viết bằng Python không import nhau, và \texttt{lint-imports} canh điều ấy cho cả bốn, nên ba bảng
+luật dưới đây không nhắc lại.
+
+\section{\texttt{backend}}
+\label{sec:be}
+
+\texttt{backend} là service duy nhất \texttt{frontend} gọi tới. Bên trong, nó chỉ có một tiến trình:
+tiến trình ấy trả lời lời gọi, giao việc đi qua queue, rồi lấy kết quả về theo ba cách khác nhau.
+
+\subsection{Vào và ra}
+
+Từ \texttt{frontend}, \texttt{backend} nhận ba mươi sáu loại lời gọi api: mười sáu cho học sinh,
+mười chín cho giáo viên, và một để kiểm tra tiến trình còn sống. Ba trong số đó trả về bằng
+\textbf{SSE} (kết nối \texttt{backend} giữ mở để hích xuống màn hình), đúng ba chỗ
+chương~\ref{ch:kien-truc-va-du-lieu} đã kể.
+
+Đi vào trong hệ thống, \texttt{backend} giao \textbf{job} (một đầu việc, một lần chạy) qua
+\textbf{queue} (hàng đợi) của \texttt{redis}. Các job ấy thuộc sáu \textbf{task}, tức sáu loại việc,
+của \texttt{agent} trong bảng~\ref{tab:bay-viec}, cùng một task dò tệp cho \texttt{document}; task
+dò tệp không gọi mô hình nên không có trong bảng ấy. \texttt{backend} cũng nghe ba loại
+\textbf{channel} (kênh): chuông báo một câu của một đề vừa soạn xong, tiếng hích khi tài liệu của
+một giáo viên đổi trạng thái, và chữ hiện dần của từng câu trả lời cho học sinh.
+
+\subsection{Bảy mảng việc, và không có worker nào}
+
+Code của \texttt{backend} chia thành bảy mảng việc (bảng~\ref{tab:be-khoi}). Ranh giới mảng không
+trùng ranh giới tệp: một luồng như soạn đề đi qua ba mảng, và một tệp có thể chở việc của nhiều
+mảng.
+
+\texttt{backend} không có \textbf{worker} (tiến trình nền) nào: tiến trình duy nhất của nó chỉ chạy
+khi có lời gọi. Vì vậy kết quả của những job nó giao đi mà không đứng đợi chỉ được lấy về khi có
+một lời gọi khác đi qua --- việc mà báo cáo gọi là \emph{thu hoạch} (mục~\ref{sec:tu-dien}). Thu
+hoạch chạy cả trong lời gọi chỉ đọc, nên ngay lời gọi xem chi tiết một đề cũng có thể ghi câu mới vào
+\textbf{database} (cơ sở dữ liệu).
+
+\begin{table}[htb]
+\centering
+\caption[Bảy mảng việc của \texttt{backend}]{Bảy mảng việc bên trong \texttt{backend}}
+\label{tab:be-khoi}
+\begin{tabular}{@{}L{3.6cm}L{11.0cm}@{}}
+\toprule
+\textbf{Mảng} & \textbf{Việc} \\
+\midrule
+Khung tiến trình & Mở kết nối tới các store lúc khởi động, đọc cấu hình, nạp dữ liệu mẫu khi database còn trống \\
+\addlinespace
+Vòng đời đề & Duyệt, bỏ duyệt, phát hành, thu hồi; sửa và xoá câu; chép câu vào ngân hàng khi duyệt \\
+\addlinespace
+Soạn đề từng câu & Mỗi câu một job; thu hoạch kết quả, kiểm từng câu, đặt câu đúng vị trí \\
+\addlinespace
+Cổng sang \texttt{agent} & Ba cách lấy kết quả một job; kiểm câu hỏi trước khi ghi \\
+\addlinespace
+Hội thoại giáo viên & Chạy lượt hội thoại hai pha, cấp tool theo pha, kiểm plan, khoá đoạn hội thoại \\
+\addlinespace
+Học sinh & Làm bài, chấm ngay trong lời gọi nộp, giai đoạn 2, hội thoại với trợ lí \\
+\addlinespace
+Tài liệu & Cất byte của tệp trước rồi mới ghi hàng; đọc cây mục lục và chunk; nghe tiếng hích \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ba cách lấy kết quả một job}
+
+Queue tách \texttt{backend} khỏi \texttt{agent}, nhưng không tách màn hình khỏi \texttt{backend}:
+khi có người đang nhìn màn hình, \texttt{backend} giữ lời gọi của màn hình mở trong lúc lấy kết quả
+job. Có ba cách lấy kết quả, chọn theo việc ai cần kết quả ấy và cần lúc nào
+(bảng~\ref{tab:be-lay-ket-qua}).
+
+\begin{table}[htb]
+\centering
+\caption[Ba cách \texttt{backend} lấy kết quả một job]{Ba cách \texttt{backend} lấy kết quả một job, và giới hạn mặc định của mỗi cách}
+\label{tab:be-lay-ket-qua}
+\begin{tabular}{@{}L{4.0cm}L{7.0cm}L{3.6cm}@{}}
+\toprule
+\textbf{Cách} & \textbf{Dùng cho} & \textbf{Giới hạn} \\
+\midrule
+Lấy ngay trong lời gọi & Ba task của hội thoại giáo viên; câu biến thể khi phải viết tại chỗ & 70 giây cho một job \\
+\addlinespace
+Nghe trước, rồi mới giao job & Trả lời một tin nhắn của học sinh & 25 giây không có chữ mới \\
+\addlinespace
+Giao job rồi đi, thu hoạch sau & Viết một câu hỏi; viết trước câu biến thể & Kết quả sống 1 giờ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cách thứ hai nghe trước rồi mới giao job, vì \textbf{pub/sub} (phát lên một channel, ai đang nghe
+thì nhận) của \texttt{redis} không giữ lịch sử: giao job trước thì những chữ đầu tiên \texttt{agent}
+viết ra có thể rơi vào lúc chưa ai nghe. Chuông soạn đề cũng được nghe trước theo đúng lý do ấy.
+
+\subsection{Các luồng đi qua \texttt{backend}}
+
+Năm đoạn dưới đây đi theo thứ tự một đề ra đời rồi tới tay học sinh. Mỗi đoạn chỉ nói điều
+\texttt{backend} làm mà chương~\ref{ch:luong-nghiep-vu} không nói: cái gì được kiểm, và cái gì bị
+khoá.
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth,height=0.95\textheight,keepaspectratio]{teacher-chat-turn.pdf}
+  \caption[Một lượt hội thoại của giáo viên]{Một lượt hội thoại của giáo viên, qua SSE}
+  \label{fig:teacher-chat-turn}
+\end{figure}
+
+\paragraph{Lượt hội thoại của giáo viên.} Hình~\ref{fig:teacher-chat-turn} vẽ trọn một lượt hội
+thoại. Trước khi ghi gì, \texttt{backend} khoá đoạn hội thoại bằng một câu lệnh duy nhất trên
+database, nên khi hai tab cùng gửi thì chỉ một tab thắng; tab kia nhận một sự kiện lỗi ngay trong
+luồng SSE. Ở pha 1, \texttt{agent} chỉ \emph{gọi} được \textbf{tool} (công cụ) tra cứu: tool ghi chỉ
+được nêu trong một \textbf{plan} (danh sách việc trợ lí định làm), và một lời gọi tool ghi ở pha 1
+bị từ chối như gọi một tool không tồn tại.
+Pha 1 lặp chừng nào \texttt{agent} còn tra cứu, hay đề xuất của nó bị trả lại, trong trần mặc định
+tám bước và chín mươi giây; mỗi phần tài liệu được đọc thêm cộng một bước và mười giây, tối đa mười
+phần. Khi \texttt{agent} nêu một plan, \texttt{backend} kiểm \emph{cả} plan trước khi việc nào chạy: không quá tám việc, mỗi việc gọi một tool có trong danh
+sách của pha 2, đủ tham số, và một việc dùng kết quả của việc khác thì chỉ được trỏ tới việc đứng
+trước nó. Một plan soạn câu còn phải theo đúng dàn ý giáo viên vừa xem ở lượt hội thoại ngay trước.
+Pha 2 chạy từng việc và dừng ở việc hỏng đầu tiên, rồi giao một job riêng để \texttt{agent} kể lại
+kết quả. Đoạn hội thoại được mở khoá ở cuối, kể cả khi lượt hội thoại hỏng giữa chừng.
+
+\paragraph{Soạn đề từng câu.} Một yêu cầu soạn mười câu thành mười job, mỗi job một vị trí. Đề còn
+câu đang soạn thì không mở được lần soạn mới, nên mọi câu của một lần soạn theo cùng một yêu cầu.
+Thu hoạch được một câu, \texttt{backend} cho nó qua đúng phép kiểm mà
+chương~\ref{ch:kien-truc-va-du-lieu} nêu, cộng một phép chống trùng đề bài với các câu đã có, rồi
+đặt nó vào đúng vị trí giáo viên xin, không theo thứ tự nó về. Câu bị loại thì vị trí ấy được giao
+lại, trong giới hạn ba lần thử. Chuông chỉ đánh thức \texttt{backend} đi thu hoạch; con số trên màn
+hình luôn được đếm lại từ database, vì một tiếng chuông có thể mất.
+
+\paragraph{Duyệt, bỏ duyệt, phát hành.} Duyệt chỉ đi qua khi \texttt{backend} đã thu hoạch mọi câu
+vừa soạn xong, không còn câu nào đang được soạn, và đề có ít nhất một câu; trong cùng một lần ghi
+ấy, mọi câu được chép vào ngân hàng câu hỏi. Từ lúc đó, mọi đường ghi câu bị từ chối cho tới khi
+giáo viên bỏ duyệt. Một lần phát hành dùng chung một khung giờ cho mọi lớp được chọn nhưng xét từng
+lớp riêng: phát hành lại cho một lớp đã qua giờ mở, hay đã có học sinh vào làm, thì chỉ lớp ấy
+trượt. Thu hồi chỉ được
+trước giờ mở của lớp đó, và bỏ duyệt một đề đã phát hành là thu hồi mọi lớp trong một lần ghi: hoặc
+tất cả, hoặc không lớp nào.
+
+\paragraph{Làm bài và chấm.} Giờ phải xong của một \textbf{Attempt} (lần làm bài) do \texttt{backend}
+đặt lúc học sinh bắt đầu; đồng hồ trên màn hình chỉ để hiển thị, còn một lựa chọn gửi tới sau giờ
+ấy bị từ chối. Đáp án đúng không tới màn hình học sinh trước khi em nộp: câu gửi xuống không mang dấu
+đáp án nào, và lời gọi xem lời giải bị từ chối khi chưa nộp. Nộp xong, \texttt{backend} giao job viết
+trước câu biến thể cho những câu sai.
+
+\paragraph{Giai đoạn 2.} Thời lượng của một lượt bị cắt xuống hạn kết thúc giai đoạn 2 nếu vượt.
+Học sinh mở một lượt mà câu biến thể của mọi câu còn mở đã được viết sẵn thì lượt mở ngay; chưa có
+thì \texttt{backend} giao một job mới và lấy kết quả ngay trong lời gọi mở lượt. Sau mỗi lượt, điểm
+của một câu chỉ có thể lên, không xuống.
+
+\subsection{Luật và chỗ canh luật}
+
+Bảng~\ref{tab:be-luat} ghi những luật \texttt{backend} giữ, nơi code thi hành chúng, và loại lưới
+canh chúng.
+
+\begin{table}[htb]
+\centering
+\caption[Luật \texttt{backend} giữ]{Luật \texttt{backend} giữ, nơi thi hành, và loại lưới canh chúng}
+\label{tab:be-luat}
+\begin{tabular}{@{}L{6.6cm}L{4.8cm}L{3.1cm}@{}}
+\toprule
+\textbf{Luật} & \textbf{Nơi thi hành} & \textbf{Loại lưới} \\
+\midrule
+Không tool nào đổi trạng thái của đề & danh sách tool trong \texttt{teacher\_tools} & \texttt{check\_contract} \\
+\addlinespace
+Đề đã duyệt từ chối mọi đường ghi câu & \texttt{assessment\_state} & test tự động \\
+\addlinespace
+Câu hỏi được kiểm trước khi ghi & \texttt{validate\_question} trong \texttt{agent\_gateway} & test tự động \\
+\addlinespace
+Không câu nào soạn từ một dàn ý giáo viên chưa thấy; job soạn câu không nhận chữ thô của tài liệu & \texttt{guard\_drafting} trong \texttt{teacher\_chat}; \texttt{drafting} & \texttt{check\_contract}, test tự động \\
+\addlinespace
+Đề, câu hay lớp của giáo viên khác trả lời như không tồn tại & \texttt{teacher\_routes} & test tự động \\
+\addlinespace
+Một đoạn hội thoại chạy nhiều nhất một lượt hội thoại một lúc & \texttt{teacher\_chat} & test tự động \\
+\addlinespace
+Một đề rỗng không duyệt được; một đề chưa duyệt không phát hành được & \texttt{teacher\_routes} & test tự động \\
+\addlinespace
+Mỗi học sinh có nhiều nhất một Attempt cho một đề & bảng \texttt{attempts} & ràng buộc database \\
+\addlinespace
+Byte của tệp được cất trước, hàng tài liệu ghi sau & \texttt{teacher\_documents} & test tự động \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ba luật chưa được ép, và mỗi luật có một chỗ hở cụ thể. Luật giờ kết thúc của một lượt
+(chương~\ref{ch:luong-nghiep-vu}): lưu từng lựa chọn thì có kiểm giờ, nhưng nộp cả lượt thì không,
+nên một lượt nộp muộn vẫn được nhận. Luật câu biến thể giữ cấu trúc của câu gốc
+(mục~\ref{sec:tu-dien}): ngoài các phép kiểm chung của mọi câu, chỉ có phép so đề bài với câu gốc
+và với các vòng trước; không gì so cấu trúc. Luật một plan đã chạy thì chạy hết và được kể lại:
+giáo viên đóng tab giữa pha 2 thì lượt hội thoại dừng ngay chỗ đang đợi, các việc còn lại không
+chạy, và không có lời kể nào.
+
+\subsection{Khi hỏng}
+
+Bảng~\ref{tab:suy-giam} nói một service ngừng thì hệ thống mất gì. Bảng~\ref{tab:be-hong} nói
+\texttt{backend} làm gì khi một thao tác bên trong nó hỏng.
+
+\begin{table}[htb]
+\centering
+\caption[Khi một thao tác của \texttt{backend} hỏng]{Khi một thao tác bên trong \texttt{backend} hỏng}
+\label{tab:be-hong}
+\begin{tabular}{@{}L{6.2cm}L{8.4cm}@{}}
+\toprule
+\textbf{Khi} & \textbf{\texttt{backend} làm gì} \\
+\midrule
+Không lấy được kết quả từ \texttt{agent} trong lúc lời gọi còn mở & Lượt hội thoại kết thúc bằng một sự kiện lỗi; lời kể lại thay bằng một câu \texttt{backend} tự dựng từ kết quả các việc; tên đoạn hội thoại lấy câu đầu tiên đã làm gọn; mở lượt làm lại trả lỗi 503 \\
+\addlinespace
+Quá lâu không có chữ mới khi đang trả lời học sinh & Báo lỗi ngay trong luồng SSE; câu trả lời dở không được lưu \\
+\addlinespace
+Kết quả một job hết hạn trước khi được thu hoạch & Giao lại job; với việc soạn đề, lần ấy tính vào ba lần thử \\
+\addlinespace
+Câu không qua phép kiểm, hay trùng câu đã có & Giao lại, trong giới hạn ba lần thử, rồi dừng kèm lý do \\
+\addlinespace
+Job soạn câu hỏng hẳn & Vị trí ấy dừng ngay, không giao lại \\
+\addlinespace
+Tiến trình chết giữa một lượt hội thoại & Khoá của đoạn hội thoại có hạn, mặc định 10 phút, nên đoạn không kẹt mãi \\
+\addlinespace
+Không giao được job dò tài liệu & Hàng tài liệu ghi ngay là hỏng, kèm lý do \\
+\addlinespace
+Tài liệu không báo tiến độ quá 300 giây & Đọc ra là hỏng, mà không ghi gì \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{\texttt{agent}}
+
+\texttt{agent} là service soạn nội dung bằng mô hình ngôn ngữ. Nó không mở cổng nào: nó là một
+worker ngồi nghe queue của mình, gọi \textbf{Model Provider} (nhà cung cấp mô hình), rồi trả kết
+quả về \texttt{redis}.
+
+\subsection{Vào và ra}
+
+\texttt{agent} nhận job của sáu task, và mỗi task chạy trong đúng một \textbf{graph} (chuỗi khâu cố
+định, dựng bằng thư viện LangGraph); hai task soạn câu dùng chung một graph.
+Bảng~\ref{tab:agent-vao-ra} nói mỗi task đi qua graph nào, gọi mô hình mấy lần và trả về gì; còn khi
+nào mỗi task được giao thì bảng~\ref{tab:bay-viec} đã nói.
+
+\begin{table}[htb]
+\centering
+\caption[Sáu task của \texttt{agent}]{Sáu task của \texttt{agent}: graph, số lần gọi mô hình, và thứ trả về}
+\label{tab:agent-vao-ra}
+\begin{tabular}{@{}L{4.9cm}L{2.0cm}L{3.6cm}L{3.6cm}@{}}
+\toprule
+\textbf{Task} & \textbf{Graph} & \textbf{Gọi mô hình} & \textbf{Trả về} \\
+\midrule
+\texttt{write\_draft\_question} & \texttt{authoring} & Một tới ba lần & Một câu hỏi \\
+\addlinespace
+\texttt{generate\_retry\_question} & \texttt{authoring} & Một tới ba lần & Một câu biến thể \\
+\addlinespace
+\texttt{explain\_turn} & \texttt{explain} & Một lần, trả chữ dần & Lời giải thích \\
+\addlinespace
+\texttt{propose\_next\_step} & \texttt{propose} & Một hay hai lần, sau khi Jev chọn lời dặn & Một đề xuất: trả lời, hỏi giáo viên, dàn ý, tool, hay plan \\
+\addlinespace
+\texttt{report\_plan} & \texttt{reporting} & Một lần & Lời kể lại \\
+\addlinespace
+\texttt{name\_conversation} & \texttt{naming} & Một lần & Tên đoạn hội thoại \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Mỗi job tự chứa mọi thứ nó cần: job trả lời học sinh chở cả câu hỏi, các phương án, lời giải, đáp
+án đúng và phương án học sinh đã chọn, chứ không chở một mã câu hỏi để tự đi tra. Ngoài giá trị trả về, \texttt{agent}
+còn phát hai thứ qua pub/sub: từng mảnh chữ của câu trả lời cho học sinh, và tiếng chuông báo một
+câu hỏi vừa soạn xong.
+
+\subsection{Bốn phần bên trong}
+
+\paragraph{Vỏ worker.} Sáu task được đăng ký dưới đúng tên khai trong gói dùng chung
+\texttt{contracts}, không dưới tên hàm, nên đổi tên một hàm không làm gãy lời giao job của
+\texttt{backend}. Chuông soạn đề rung sau khi kết quả đã ghi vào \texttt{redis}, không rung trong
+thân job: rung sớm thì \texttt{backend} nghe chuông, đi thu hoạch, và chỉ gặp một kết quả chưa có.
+
+\paragraph{Hàm nhận job, và ba lối ra.} Mỗi task có một hàm nhận job, và cả sáu hàm đi cùng một
+đường. Mô hình bị tắt trong cấu hình thì hàm trả \emph{nội dung dọn trước}, tức câu chữ viết sẵn
+trong code; mô hình bật thì hàm chạy graph; graph hỏng thì hàm quay về nội dung dọn trước. Riêng hàm
+trả lời học sinh: đã phát được vài chữ rồi mới hỏng thì nó giữ đúng những chữ ấy, vì học sinh đã đọc
+chúng.
+
+\paragraph{Graph và khâu.} Mọi lần \texttt{agent} gọi mô hình để viết chữ đều nằm trong một graph.
+Graph soạn câu có hai khâu, viết rồi tự kiểm: câu không qua phép tự kiểm thì quay lại khâu viết kèm
+lý do bị loại, và khâu viết chạy tối đa ba lần. Phép tự kiểm này không thay cho phép kiểm của
+\texttt{backend}: nó chỉ để khỏi mất một vòng gửi đi rồi bị từ chối.
+
+\paragraph{Nối mô hình.} Chỉ một tệp, \texttt{llm.py}, nối tới mô hình ngôn ngữ; Jev, mô hình phân
+loại của TypeSafe AI, đi qua một tệp riêng. \texttt{llm.py} truyền khoá vào, đặt trần mặc định hai mươi giây cho mỗi lần gửi, và xếp một mô hình dự phòng sau
+mô hình chính nếu cấu hình có. Mô hình trả lời theo một khuôn JSON cố định, và chữ trong đó --- câu
+hỏi soạn ra, lời nói của một đề xuất, tên các việc của plan, dàn ý --- còn đi qua một bộ dựng lại ký
+hiệu toán: JSON nuốt dấu gạch chéo của LaTeX, nên \texttt{\textbackslash frac} về tới nơi thành một
+ký tự điều khiển cộng với ``rac''. Lỗi này đã lọt vào database thật ngày 05/10/2026.
+
+\subsection{Một bước của lượt hội thoại: ba tầng phòng thủ}
+
+Đề xuất bước tiếp theo là task phức tạp nhất của \texttt{agent}: graph \texttt{propose} chiếm hơn
+một phần ba code và khoảng một nửa số test của service. Mỗi bước của pha 1 trong
+hình~\ref{fig:teacher-chat-turn} đi qua ba tầng, và mỗi tầng bắt một loại sai khác.
+
+\paragraph{Tầng một: mô hình đề xuất trong một khuôn.} Lời dặn cho mô hình được ghép từ một lõi
+chung, vài tệp lời dặn theo chủ đề, tên giáo viên, tài liệu đang đính kèm, và danh sách tool. Tệp lời
+dặn nào được nạp thì Jev chọn: nó đọc bốn lượt chữ gần
+nhất rồi trả lời có hay không cho từng tệp chuyên biệt; không tệp nào được chọn thì nạp tệp chung,
+còn Jev không trả lời thì nạp cả ba. Loại đề xuất trong khuôn là một trong năm: trả lời, hỏi giáo
+viên, đưa ra dàn ý, gọi một tool, hay nêu plan. Khuôn chỉ chứa những gì mô hình trả lời được, vì mỗi
+ô trong khuôn là một câu hỏi đặt cho nó. Bài học ấy có giá: khi khuôn còn là cả bản hợp đồng giữa
+hai service, nó có một ô mở tới mức nhà cung cấp mô hình từ chối thẳng mọi lần gọi, và nội dung dọn
+trước che kín chuyện ấy sau một câu trả lời nghe hợp lý.
+
+\paragraph{Tầng hai: code của \texttt{agent} sửa đề xuất.} Một số luật sửa đề xuất ngay trong
+\texttt{agent}, trước khi nó rời đi. Ví dụ: giáo viên vừa được xem dàn ý và trả lời bằng một câu chỉ
+gồm lời đồng ý, như ``ok'' hay ``được'', thì \texttt{agent} dựng plan thẳng từ dàn ý, không giữ plan
+mô hình tự viết, vì sau một chữ ``ok'' mô hình hay quên phạm vi vừa bàn. Sau các luật sửa là các
+phép kiểm; đề xuất vấp một phép kiểm thì \texttt{agent} gọi mô hình thêm đúng một lần.
+
+\paragraph{Tầng ba: \texttt{backend} gác cổng.} Đề xuất về tới \texttt{backend} vẫn chỉ là đề xuất,
+và mục~\ref{sec:be} đã kể \texttt{backend} kiểm gì. Nhưng có một giới hạn nên nói thẳng:
+\texttt{backend} chứng minh được dàn ý đã hiện ra cho giáo viên, không chứng minh được giáo viên đã
+đồng ý. Lời đồng ý chỉ được đọc trong \texttt{agent}: nếu mô hình đọc ``ok nhưng đổi câu 2'' thành
+đồng ý và nêu plan soạn câu, \texttt{backend} vẫn cho qua.
+
+\subsection{Luật và chỗ canh luật}
+
+Bảng~\ref{tab:agent-luat} ghi những luật \texttt{agent} giữ, nơi code thi hành chúng, và loại lưới
+canh chúng.
+
+\begin{table}[htb]
+\centering
+\caption[Luật \texttt{agent} giữ]{Luật \texttt{agent} giữ, nơi thi hành, và loại lưới canh chúng}
+\label{tab:agent-luat}
+\begin{tabular}{@{}L{7.2cm}L{4.2cm}L{3.1cm}@{}}
+\toprule
+\textbf{Luật} & \textbf{Nơi thi hành} & \textbf{Loại lưới} \\
+\midrule
+Không trả về phán quyết nào, ở bất kỳ độ sâu nào của kết quả & mọi hàm nhận job & test tự động \\
+\addlinespace
+Không giữ credential của database nào & cả service & \texttt{check\_contract} \\
+\addlinespace
+Một job, kể cả mọi lần thử lại, hết giờ trước khi \texttt{backend} thôi lấy kết quả & cấu hình của hai service & \texttt{check\_contract} \\
+\addlinespace
+Lời kể lại là một job riêng, không cầm tool nào & \texttt{reporting} & \texttt{check\_contract} \\
+\addlinespace
+Chữ trả về theo khuôn đi qua bộ dựng lại ký hiệu toán & \texttt{latex\_escapes} & \texttt{check\_contract} \\
+\addlinespace
+Câu hỏi có đúng một đáp án đúng, mọi phương án nhiễu gắn một lỗi, ít nhất hai lời giải & phép tự kiểm trong \texttt{authoring} & test tự động \\
+\addlinespace
+Lời kể lại không nói quá điều đã làm & chỉ lời dặn của \texttt{reporting} & không gì canh \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Hai lưới trong bảng yếu hơn tên của chúng. Test ``không phán quyết'' chạy mọi task hai lần, với mô
+hình tắt rồi bật, nhưng mô hình giả của test không dựng được đầu ra theo khuôn: ở lần chạy bật, ba
+trong sáu task vẫn rơi về nội dung dọn trước, nên giá trị thật của hai graph \texttt{authoring} và
+\texttt{propose} chưa bị soi. Và phép kiểm thời gian chưa tính mô hình dự phòng, cũng chưa tính hai
+lần thư viện của OpenAI tự gửi lại khi quá giờ, nên một lần gọi có thể dài gần sáu mươi giây.
+
+\subsection{Khi hỏng}
+
+Nội dung dọn trước là một lựa chọn có chủ ý: thà có một câu còn hơn một tính năng từ chối chạy. Nhưng
+nó có cái giá, và bảng~\ref{tab:agent-hong} ghi cả cái giá ấy.
+
+\begin{table}[htb]
+\centering
+\caption[Khi một thao tác của \texttt{agent} hỏng]{Khi một thao tác bên trong \texttt{agent} hỏng, và cái giá của cách nó đỡ}
+\label{tab:agent-hong}
+\begin{tabular}{@{}L{3.4cm}L{4.8cm}L{6.3cm}@{}}
+\toprule
+\textbf{Khi} & \textbf{\texttt{agent} làm gì} & \textbf{Cái giá} \\
+\midrule
+Mô hình quá giờ hay báo lỗi & Gọi mô hình dự phòng nếu có, rồi trả nội dung dọn trước & Lỗi bị che sau một câu nghe hợp lý \\
+\addlinespace
+Câu hay đề xuất vấp phép tự kiểm & Viết lại trong graph: câu hỏi tới tối đa ba lần, đề xuất thêm một lần & Câu hỏi vẫn vấp sau ba lần thì hàm nhận job trả câu dọn trước, như hai hàng dưới; đề xuất vẫn sai thì vẫn tới \texttt{backend}, hay thành một câu trung tính \\
+\addlinespace
+Mô hình hỏng hẳn khi soạn một câu hỏi & Trả một câu dọn trước & Câu ấy lấy từ sáu câu Toán cố định, không theo môn hay phạm vi giáo viên xin, và \texttt{backend} không có dấu nào để nhận ra; chỉ cổng duyệt của giáo viên chặn nó \\
+\addlinespace
+Mô hình hỏng hẳn khi viết câu biến thể & Câu gốc nằm trong bộ câu dọn trước và còn biến thể chưa dùng thì trả biến thể ấy; không thì trả lại chính câu gốc, thêm đuôi ``(đề thay số cho lượt \ldots)'' & Khi mô hình bật, câu gốc do mô hình viết nên luôn rơi vào nhánh sau: câu ấy qua được phép kiểm của \texttt{backend}, và học sinh làm lại đúng câu cũ mà không cổng nào chặn \\
+\addlinespace
+Mô hình hỏng giữa lúc trả lời học sinh & Giữ những chữ đã phát & Câu trả lời bị cắt ngang \\
+\addlinespace
+Mô hình hỏng khi đề xuất bước tiếp theo & Trả một đề xuất dọn trước, đoán việc bằng từ khoá & Đề xuất ấy có thể là một plan thật \\
+\addlinespace
+Jev không trả lời & Nạp cả ba tệp lời dặn & Lời dặn dài hơn, và luật của những tệp không liên quan cũng được áp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{\texttt{document}}
+
+\texttt{document} đọc những tệp giáo viên tải lên và dựng cây mục lục cho chúng. Khi một job của nó
+bắt đầu, byte của tệp đã nằm trong \textbf{object store} (kho tệp) và job đã nằm trên queue
+(mục~\ref{sec:noi-chuyen}); mục này kể từ lúc worker lấy job xuống tới lúc kết quả rời service.
+
+\subsection{Vào và ra}
+
+\texttt{document} nhận job của ba task: \texttt{probe\_document} từ \texttt{backend}, cùng hai task
+nó tự giao cho chính mình, \texttt{ocr\_pages} cho lô OCR kế tiếp và \texttt{index\_document} cho
+việc dựng cây. Nó gửi về queue của \texttt{ingest} job của hai task: \texttt{document\_probed} chở
+kết quả, \texttt{document\_progress} báo tiến độ. Job tới chỉ chở khoá của tệp trong object store,
+không chở byte. Mọi thứ \texttt{document} ghi đều nằm ở \textbf{content store} (kho nội dung), chia
+thành sáu \textbf{collection} (nhóm bản ghi cùng loại, như một bảng) mà bảng~\ref{tab:doc-kho} liệt
+kê.
+
+\begin{table}[htb]
+\centering
+\caption[Sáu collection của content store]{Sáu collection của content store: giữ gì, ai ghi, ai đọc}
+\label{tab:doc-kho}
+\begin{tabular}{@{}L{2.6cm}L{5.4cm}L{3.1cm}L{3.0cm}@{}}
+\toprule
+\textbf{Collection} & \textbf{Giữ gì} & \textbf{Ai ghi} & \textbf{Ai đọc} \\
+\midrule
+\texttt{documents} & Đầu mục của bản thô, khác bảng cùng tên của database: đọc thẳng chữ có sẵn hay qua OCR, đã đọc xong chưa & đường đọc tệp & đường dựng cây \\
+\addlinespace
+\texttt{pages} & Chữ của từng trang, chia theo khối & đường đọc tệp & đường dựng cây \\
+\addlinespace
+\texttt{indexes} & Đầu mục của cây, ghi sau cùng & đường dựng cây & \texttt{backend} \\
+\addlinespace
+\texttt{nodes} & Các nút của cây mục lục & đường dựng cây & \texttt{backend} \\
+\addlinespace
+\texttt{chunks} & Các chunk của mỗi nút & đường dựng cây & \texttt{backend} \\
+\addlinespace
+\texttt{block\_labels} & Quyết định cho từng ứng viên tiêu đề: ai quyết, Jev đã phân vân giữa những gì; để gỡ lỗi và đo & đường dựng cây & không ai, lúc chạy \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Vì sao có hai worker}
+
+Đọc tệp và dựng cây bị giới hạn bởi hai thứ khác nhau. Worker đọc tệp chạy một job một
+lúc: OCR dùng hết CPU, nên hai lô chạy song song chỉ tranh nhau rồi cùng chậm. Nó nạp ba mô hình OCR
+một lần lúc khởi động, vì nạp lại ở mỗi lô là trả lại chừng ấy thời gian cho từng lô của một cuốn.
+Worker dựng cây không nạp mô hình nào và chạy tới bốn job song song, vì phần lớn thời gian của nó là
+đợi Model Provider trả lời.
+
+Cái giá của một job một lúc là nhiều bản chụp tải lên cùng lúc được đọc xen kẽ từng lô. Từ chừng
+bảy cuốn trở lên, hay bốn cuốn nếu trang dày chữ, một cuốn im quá ba trăm giây giữa hai lần báo tiến
+độ, và \texttt{backend} đọc mọi cuốn đang đọc ra là hỏng.
+
+\subsection{Một tệp đi qua service}
+
+Hình~\ref{fig:document-pipeline} vẽ đường đi của một tệp qua hai worker.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{document-pipeline.pdf}
+  \caption[Một tệp đi qua \texttt{document}]{Một tệp đi qua \texttt{document}: hai worker, ba mô hình ngoài, và các đường lùi}
+  \label{fig:document-pipeline}
+\end{figure}
+
+\paragraph{Dò tệp.} Worker đọc tệp lấy byte của tệp từ object store rồi dò xem nó có chữ không. Tệp
+\texttt{.txt} và \texttt{.md} phải là UTF-8, hay UTF-16 có dấu BOM; bảng mã khác bị từ chối chứ
+không đoán, vì đoán sai thì ra chữ trông như chữ mà sai dấu. Với tệp PDF, nó đếm số trang có chữ, và
+một trang tính là có chữ khi có từ một trăm ký tự trở lên: từ mười phần trăm số trang có chữ trở lên
+thì tệp có sẵn chữ, còn lại là bản chụp. Một PDF không có trang nào bị trả về là không có chữ, không
+đi OCR. Đếm trang chứ không cộng ký tự là có chủ ý: một bản chụp có một trang mục lục dày chữ vẫn
+không lọt cổng.
+
+\paragraph{Bản chụp đọc theo lô.} Một bản chụp được đọc qua nhiều job, mỗi job một lô: tối đa mười
+trang, và không mở trang mới sau chín mươi giây. Mỗi lô ghi trang của nó vào content store; trừ lô
+cuối, nó báo tiến độ về \texttt{ingest} rồi tự giao lô kế lên chính queue của worker đọc tệp. Mỗi
+trang đi qua năm chặng: dựng ảnh, nhận khối, tìm dòng, đọc chữ từng dòng, rồi gán dòng vào khối. Hai
+chặng nhận khối và tìm dòng dùng mô hình của PaddleOCR, còn chặng đọc chữ dùng EasyOCR, vì bộ đọc chữ
+của PaddleOCR không bao giờ phát ra chữ tiếng Việt mang hai dấu như ``ế'' hay ``ộ''. Công thức toán
+không được đọc riêng, vì lần đo trên CPU cho thấy mô hình đọc công thức không cứu được: khối công
+thức chỉ nhận chữ OCR như mọi khối khác.
+
+\paragraph{Bản thô ghi trước.} Đọc xong, \texttt{document} có một \emph{bản thô}
+(mục~\ref{sec:tu-dien}) trong content store, nhưng tài liệu \emph{chưa} sẵn sàng: nó còn cần cây
+mục lục. Worker đọc tệp giao một job \texttt{index\_document} lên queue riêng của worker dựng cây, và
+chưa gửi kết quả nào về \texttt{ingest}.
+
+\paragraph{Bảy khâu dựng cây.} Job dựng cây chạy một graph gồm bảy khâu nối thẳng
+(bảng~\ref{tab:doc-khau}). Ba khâu gọi một mô hình ngoài, và cả ba đều có đường lùi ngay bên trong
+khâu: mô hình không trả lời thì tài liệu vẫn sẵn sàng, chỉ kém hơn.
+
+\begin{table}[H]
+\centering
+\caption[Bảy khâu dựng cây mục lục]{Bảy khâu dựng cây mục lục, và đường lùi của những khâu gọi mô hình}
+\label{tab:doc-khau}
+\begin{tabular}{@{}L{2.3cm}L{7.3cm}L{5.0cm}@{}}
+\toprule
+\textbf{Khâu} & \textbf{Làm gì} & \textbf{Mô hình không trả lời thì} \\
+\midrule
+\texttt{load} & Đọc bản thô; bản thô chưa đọc xong thì không chạy & --- \\
+\addlinespace
+\texttt{banners} & Đọc tên chương trên ảnh đầu chương, bằng \texttt{gpt-5.6-luna} & Chương mang nhãn số \\
+\addlinespace
+\texttt{classify} & Xếp vai trò và cấp cho từng tiêu đề; luật và Jev cùng quyết, Jev thắng khi đủ chắc & Luật quyết thay \\
+\addlinespace
+\texttt{assemble} & Dựng cây tối đa ba cấp, không nhảy cấp; tiêu đề sâu hơn gộp vào nút cha & --- \\
+\addlinespace
+\texttt{chunk} & Cắt chữ thành các chunk dưới từng nút & --- \\
+\addlinespace
+\texttt{summarise} & Tóm tắt từng nút, từ dưới lên, bằng \texttt{gpt-4o-mini} & Nút không có tóm tắt \\
+\addlinespace
+\texttt{write} & Ghi cây vào content store & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Mô hình không dựng cây. Ở khâu \texttt{classify}, luật và Jev cùng đưa ra một quyết định cho mỗi
+tiêu đề, và Jev chỉ thắng khi độ tin cậy của nó đạt một ngưỡng cấu hình được. Trên cuốn duy nhất đã
+có mục lục chuẩn để so, ở ngưỡng hiện tại Jev chưa đổi quyết định nào của luật, nên cây của cuốn ấy
+chính là cây của luật. Luật cũng được chỉnh trên chính cuốn ấy, nên phép so này chưa công bằng.
+
+\paragraph{Ghi cây rồi mới báo sẵn sàng.} Khâu cuối ghi các nút, các \textbf{chunk} (mẩu chữ ngắn) và
+quyết định cho từng ứng viên tiêu đề, kiểm rằng bản thô chưa bị đọc lại trong lúc dựng, rồi ghi đầu
+mục của cây \emph{sau cùng}; khi xoá thì đầu mục đi \emph{trước}. Nhờ vậy, có đầu mục là có cả cây.
+Chỉ sau đó job mới gửi kết quả sẵn sàng về \texttt{ingest}.
+
+\subsection{Luật và chỗ canh luật}
+
+Bảng~\ref{tab:doc-luat} ghi những luật \texttt{document} giữ, nơi code thi hành chúng, và loại lưới
+canh chúng.
+
+\begin{table}[H]
+\centering
+\caption[Luật \texttt{document} giữ]{Luật \texttt{document} giữ, nơi thi hành, và loại lưới canh chúng}
+\label{tab:doc-luat}
+\begin{tabular}{@{}L{6.6cm}L{4.8cm}L{3.1cm}@{}}
+\toprule
+\textbf{Luật} & \textbf{Nơi thi hành} & \textbf{Loại lưới} \\
+\midrule
+Không giữ credential của database & cả service & \texttt{check\_contract} \\
+\addlinespace
+Mỗi thư viện bên ngoài chỉ được import ở đúng một tệp: object store, PDF, content store, Jev, mô hình ngôn ngữ & \texttt{storage}, \texttt{pdf}, \texttt{content\_store}, \texttt{index/jev}, \texttt{index/llm} & \texttt{check\_contract} \\
+\addlinespace
+Kết quả sẵn sàng chỉ được gửi sau khi cây đã ghi & \texttt{index\_handlers} & test tự động \\
+\addlinespace
+Đầu mục của cây ghi sau cùng, xoá đầu tiên & \texttt{content\_store} & test tự động \\
+\addlinespace
+Đọc lại một tài liệu thì cây cũ bị xoá & \texttt{content\_store} & test tự động \\
+\addlinespace
+Tệp hay trang không đọc nổi, cây không dựng được, kho hỏng tới lần thử cuối: đều thành một kết quả kèm lý do & \texttt{ocr\_handlers}, \texttt{index\_handlers} & test tự động \\
+\addlinespace
+Worker đọc tệp chạy một job một lúc & cấu hình worker & test tự động \\
+\addlinespace
+Không mở cổng nào & cấu hình chạy service & không gì canh \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Khi hỏng}
+
+arq, thư viện chạy các worker, chỉ chạy lại một job khi job ấy chủ động xin chạy lại; một job chạm
+trần thời gian thì bị giết, và không ai báo gì. Vì vậy mọi cách hỏng của \texttt{document} phải tự
+biến thành một kết quả (bảng~\ref{tab:doc-hong}). Một tệp không đọc được hay không có chữ thì không
+nằm trong bảng này: đó là một kết quả bình thường của việc dò tệp. Khi giáo viên thấy lỗi, dòng
+trạng thái của tài liệu in ``Xử lí lỗi. Hãy tải lại'', và lý do hiện khi trỏ chuột vào nó.
+
+\begin{table}[H]
+\centering
+\caption[Khi một thao tác của \texttt{document} hỏng]{Khi một thao tác bên trong \texttt{document} hỏng}
+\label{tab:doc-hong}
+\begin{tabular}{@{}L{4.4cm}L{6.4cm}L{3.8cm}@{}}
+\toprule
+\textbf{Khi} & \textbf{\texttt{document} làm gì} & \textbf{Giáo viên thấy} \\
+\midrule
+Content store hay \texttt{redis} chập chờn & Xin chạy lại; tối đa năm lần chạy kể cả lần đầu, bốn lần chờ cộng lại 50 giây; lần thứ năm vẫn hỏng thì gửi kết quả hỏng & Dòng trạng thái vẫn báo đang xử lý, rồi báo lỗi \\
+\addlinespace
+Một trang không đọc nổi giữa một lô & Gửi kết quả hỏng, nói rõ trang nào & Lỗi, kèm số trang \\
+\addlinespace
+Một lô dài quá & Không mở trang mới sau 90 giây, dưới trần 120 giây, rồi giao phần còn lại cho lô kế & Không thấy gì \\
+\addlinespace
+Job dựng cây chạy quá lâu & Tự cắt ở 540 giây, dưới trần 600 giây, rồi gửi kết quả hỏng kèm lý do & Lỗi \\
+\addlinespace
+Bản thô bị đọc lại giữa lúc dựng cây & Lần đọc mới đã xong thì xin chạy lại trên bản mới; còn đang đọc thì dừng, không gửi gì, và lô OCR cuối sẽ giao lại job dựng cây & Không thấy gì \\
+\addlinespace
+Không báo gì quá 300 giây: job bị giết, hay \texttt{redis} chết ở lần thử cuối & Lưới cuối nằm ngoài service: \texttt{backend} đọc tài liệu ra là hỏng & Lỗi \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -9,15 +9,20 @@ Tài liệu này không mô tả nghiệp vụ. Nghiệp vụ thuộc về [Proj
 Diagram liên quan:
 
 - [System Architecture Diagram](../diagrams/system-architecture.drawio)
+- [Document Pipeline](../diagrams/document-pipeline.drawio) -- một tệp đi qua `document`: hai
+  worker, ba nhánh sau khi dò tệp, bảy khâu dựng cây, ba model ngoài và đường lùi về luật.
+- [Teacher Chat Turn](../diagrams/teacher-chat-turn.drawio) -- sequence của một lượt chat giáo viên
+  qua SSE: giữ đoạn chat, pha 1 hỏi AGENT qua queue, pha 2 chạy plan và nghe chuông soạn đề, kể
+  lại, nhả đoạn chat.
 
-## Năm service, năm process
+## Năm service, sáu process
 
 | Service | Vai trò | Chạy bằng |
 | --- | --- | --- |
 | `fe` | Giao diện cho Teacher và Student. Chỉ nói chuyện với BE. | Vite dev server, cổng 5173 |
 | `be` | Business layer, system of record, nơi giữ mọi quyết định nghiệp vụ. | uvicorn cổng 8000 |
-| `agent` | Soạn nội dung bằng AI: đề, câu của lượt làm lại, lượt trả lời trong chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
-| `document` | Đọc tệp giáo viên tải lên: có chữ hay không, bao nhiêu trang. Báo lại, không sở hữu hàng nào. | arq worker, không có cổng |
+| `agent` | Soạn nội dung bằng AI: câu hỏi của đề, câu của lượt làm lại, câu trả lời cho học sinh ở pha 2; trong chat giáo viên thì đề xuất bước tiếp theo, kể lại kết quả một plan và đặt tên đoạn chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
+| `document` | Đọc tệp giáo viên tải lên: dò chữ có sẵn, OCR bản chụp theo lô, ghi bản thô rồi dựng cây mục lục vào MongoDB, và báo trạng thái về `ingest`. Không sở hữu hàng nào. | hai arq worker (`document.ocr_worker`, `document.index_worker`), không có cổng |
 | `ingest` | Ghi lại thứ `document` báo về. Giữ credential database, sở hữu không quyết định nào. | arq worker, không có cổng |
 
 **`ingest` giữ credential database, và nó vẫn là một service riêng.** Hai điều ấy
@@ -46,8 +51,9 @@ schema, worker chỉ kiểm* sống trong một docstring; và hai bootstrap g�
 
 Vòng xử lý tài liệu là thứ phá hình dạng cũ, vì **không ai chờ nó**: giáo viên đã rời
 màn hình tải lên, và kết quả vẫn phải vào database. Một process đã rời đi thì không có
-ai để trả 503 cho. Cho tới ngày ấy BE chỉ **đẩy** job rồi chờ kết quả ngay trong
-request; `be/queue.py` không có một handler nào.
+ai để trả 503 cho. Cho tới ngày ấy BE chưa bao giờ **tiêu thụ** một queue: nó đẩy job rồi đọc
+kết quả từ result store, chờ ngay trong request hoặc thu lại sau; `be/queue.py` không có một
+handler nào.
 
 `document` và `ingest` **không mở cổng nào**, dù quy ước dưới dành cho `document` số
 8100. Kết quả đi về bằng một job trên queue, không bằng một request, nên một cổng ở đó
@@ -64,36 +70,42 @@ mọi property bản này không nhắc tới thì vẫn do bản kia quyết.
 ## Đường giao tiếp
 
 ```text
-FE  --HTTP /api-->  BE  --aiafa:grading-->  Redis  -->  AGENT
-                    │ ▲                                   │
-                    │ └────────── arq result store ───────┘
-                    │
-                    ├--aiafa:document--> Redis -->  DOCUMENT
-                    │                                   │
-                    │        ┌--aiafa:ingest-- Redis <--┘
-                    │        ▼
-                    │     INGEST ──> Postgres, rồi một tiếng hích trên `documents:<id>`
-                    └<────────┘  BE nghe tiếng hích ấy và đẩy xuống FE qua SSE
-                    │
-                    ├── Postgres (trạng thái bài làm, trạng thái tài liệu)
-                    └── MinIO    (byte của tài liệu)   <-- DOCUMENT đọc trực tiếp
-
-                        MongoDB  (bản thô, cây mục lục)  <-- DOCUMENT ghi; BE chỉ đọc cây và đoạn
+FE --HTTP /api--> BE --aiafa:grading--> Redis --> AGENT ──> model provider
+                  │ ▲                               │
+                  │ ├────── arq result store ───────┤
+                  │ └────────── pub/sub ────────────┘  (aiafa:stream:<uuid>: chữ hiện dần;
+                  │                                     draft:<assessment_id>: chuông "một câu xong")
+                  │
+                  ├--aiafa:document--> Redis --> DOCUMENT ocr_worker ──┐
+                  │                                │    ▲             │ ocr_pages: lô kế,
+                  │                                │    └─────────────┘ trên chính queue này
+                  │                                │ aiafa:document-index
+                  │                                ▼
+                  │                      DOCUMENT index_worker ──> model provider
+                  │                                │
+                  │       ┌──aiafa:ingest── Redis <┘  (`ocr_worker` cũng báo về đây)
+                  │       ▼
+                  │    INGEST ──> Postgres, rồi một tiếng hích trên `documents:<id>`
+                  └<───────┘  BE nghe tiếng hích ấy và đẩy xuống FE qua SSE
+                  │
+                  ├── Postgres (đề, bài làm, hội thoại, trạng thái tài liệu)
+                  ├── MinIO    (byte của tài liệu)          <-- DOCUMENT đọc trực tiếp
+                  └── MongoDB  (bản thô, cây mục lục, chunk) <-- DOCUMENT ghi; BE chỉ đọc cây và chunk
 ```
 
-Hai mũi dưới là **hai queue khác nhau**, không phải một đường hai chiều, và tên chúng
-đặt theo **bên tiêu thụ** chứ không theo công việc. Lý do nằm ngay ở dòng trên:
+Đường xuống `document` và đường về `ingest` là **hai queue riêng**, không phải một đường hai
+chiều, và mọi queue ở đây đặt tên theo **bên tiêu thụ** chứ không theo công việc. Lý do nằm ngay ở dòng trên:
 `aiafa:grading` đặt tên theo công việc, rồi nhận thêm task khác, và nay chở sáu task mà
 không task nào chấm bài -- tên ấy nói dối. Một queue thì chỉ có một worker đứng sau, nên tên nói về bên tiêu
 thụ không hết đúng được.
 
 **`DOCUMENT` đọc MinIO trực tiếp, và không đọc Postgres.** Đó là cả lý do byte tài liệu
 phải rời khỏi một cột `LargeBinary` ngày 08/10/2026: ba đường thay thế đều phá một luật
-đang có. Nó cũng là lý do `DocumentProbeRequested` chở `storage_key` chứ không chở một
-hàng id — một service không có credential database thì không tra được hàng nào.
+đang có. Nó cũng là lý do `DocumentProbeRequested` chở `storage_key` để đọc tệp; `document_id`
+đi kèm chỉ để báo lại, vì một service không có credential database thì không tra được hàng nào.
 
 Vì sao `DOCUMENT` không trả kết quả qua arq result store, cách `agent_gateway` đang
-làm: `worker.py` đặt `keep_result = JOB_RESULT_TTL_SECONDS`, nên **kết quả job hết
+làm: `agent/worker.py` đặt `keep_result = JOB_RESULT_TTL_SECONDS`, nên **kết quả job hết
 hạn**. Một tài liệu xử lý xong trong mười giây mà không ai đọc trong một giờ là một kết
 quả bốc hơi. Một job tự mang dữ liệu đi thì không có hạn sống nào.
 
@@ -102,30 +114,40 @@ database của BE, nên nó chạy ngay trong request nộp bài
 ([ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md)). Hệ quả nhìn thấy được: giữa màn làm
 bài và màn kết quả không có trạng thái *đang chấm* nào.
 
-**Hàng đợi `aiafa:grading` dành cho sáu việc thật sự cần model**, và cả sáu đều bất đồng bộ vì
-một lần gọi LLM đủ lâu để giữ kết nối HTTP mở là không hợp lý:
+**Hàng đợi `aiafa:grading` dành cho sáu việc thật sự cần model.** Cả sáu đi qua queue vì AGENT
+không mở cổng nào -- queue là đường duy nhất tới nó; BE lấy kết quả theo ba cách, nói ở đoạn sau
+bảng:
 
 | Task | Khi nào | BE làm gì với kết quả |
 | --- | --- | --- |
 | `write_draft_question` | **một câu** của bộ đề giáo viên yêu cầu | kiểm theo ADR-18 rồi lưu vào đúng vị trí đã yêu cầu |
-| `generate_retry_question` | học sinh mở một lượt làm lại | kiểm rồi lưu kèm đáp án đúng, để BE tự chấm lượt |
-| `explain_turn` | mỗi lượt trả lời trong chat pha 2 | lưu vào lịch sử **trước** khi phát ra SSE |
-| `propose_next_step` | mỗi bước của một lượt chat giáo viên | chạy tool đã đề xuất, hoặc từ chối nó |
+| `generate_retry_question` | viết trước: lúc học sinh nộp bài pha 1, lúc mở phần chữa bài, và sau mỗi lượt làm lại được nộp; viết tại chỗ chỉ khi học sinh mở lượt mà chưa có câu viết trước | kiểm rồi lưu kèm đáp án đúng, để BE tự chấm lượt |
+| `explain_turn` | mỗi tin nhắn học sinh gửi trong chat pha 2 (lời chào mở đầu do BE viết, không qua AGENT) | chuyển tiếp từng mảnh ra SSE, lưu khi câu trả lời đã trọn vẹn, rồi gửi `done` |
+| `propose_next_step` | mỗi bước của một lượt chat giáo viên, trước khi có plan | lưu lời nói hay câu hỏi lại, hiện dàn ý chờ giáo viên đồng ý, chạy tool đọc; hoặc kiểm cả plan rồi chạy các việc ghi của nó |
 | `report_plan` | sau khi cả một plan của lượt chat đã chạy | lưu lời kể vào lịch sử đoạn chat |
 | `name_conversation` | lượt đầu của một đoạn chat giáo viên | đặt tên đoạn chat |
 
 `write_draft_question` viết **một** câu một job, không phải cả bộ. Đó không phải khẩu vị mà là số
-học: `tools/check_contract.py` so `LLM_TIMEOUT_SECONDS × LLM_MAX_ATTEMPTS` với độ kiên nhẫn của BE
-cho **một** job, nên một job soạn 50 câu là 50 lần ngân sách mà check đang kiểm. Task cũ
+học: `tools/check_contract.py` so `SKILL_ROUTER_TIMEOUT_SECONDS + LLM_TIMEOUT_SECONDS ×
+LLM_MAX_ATTEMPTS` với độ kiên nhẫn của BE cho **một** job (`AGENT_JOB_TIMEOUT_SECONDS`), nên
+một job soạn 50 câu là 50 lần ngân sách mà check đang kiểm. Task cũ
 `draft_assessment` làm đúng thế, và check nói dối về nó suốt thời gian nó tồn tại.
 
-BE chờ job xong ngay trong request (`agent_gateway.run_task`) thay vì trả `job_id` cho FE: mọi lời
-gọi ấy đều nằm trong một thao tác người dùng đang nhìn, nên thêm một giao thức poll thứ hai chồng
-lên arq không mua được gì.
+BE không bao giờ trả `job_id` cho FE, và lấy kết quả theo ba cách:
 
-**Thư viện tài liệu cũng dùng SSE, và đó là kênh đẩy đầu tiên của giáo viên.**
-`GET /api/teacher/documents/stream` mở một `text/event-stream` sống suốt thời gian
-màn hình mở. Nó tồn tại vì thư viện đổi **sau** lúc tải lên và không lời gọi nào của
+- **Chờ ngay trong request** (`agent_gateway.run_task`): ba task của chat giáo viên, và câu làm lại
+  khi phải viết tại chỗ. Người dùng đang nhìn, nên thêm một giao thức poll thứ hai chồng lên arq
+  không mua được gì.
+- **Nghe trước rồi mới đẩy** (`stream_task`): `explain_turn`, để chữ hiện dần.
+- **Bắn rồi thu sau** (`enqueue_task` rồi `collect_result`): `write_draft_question` và câu làm lại
+  viết trước. BE giữ `job_id` trong một hàng của chính nó (`DraftItem`, `PregeneratedItem`) và
+  *thu hoạch* kết quả mỗi khi một màn hình hay một lượt chat đọc tới. BE không có worker nào chạy
+  nền, nên một kết quả không ai đến thu thì hết hạn cùng result store; lần thu kế thấy nó đã mất
+  và đặt lại job, chứ không mất câu.
+
+**Thư viện tài liệu cũng dùng SSE.** Đó là kênh SSE thứ hai của giáo viên, sau luồng trả về của
+một lượt chat (`POST /api/teacher/chat/messages/stream`), và là kênh duy nhất sống suốt thời gian
+màn hình mở: `GET /api/teacher/documents/stream`. Nó tồn tại vì thư viện đổi **sau** lúc tải lên và không lời gọi nào của
 màn hình gây ra việc ấy: một tài liệu đi từ *đang xử lý* sang *sẵn sàng* vài giây
 sau, hoặc vài phút sau khi queue đang dồn.
 
@@ -146,9 +168,12 @@ trong `contracts`. Đáng một check riêng vì lúc hai bản sao lệch nhau 
 **không có lỗi nào**: `publish` vào một channel không ai nghe thành công y như một
 channel có người nghe, và triệu chứng duy nhất là chip thôi tự đổi mặt.
 
-**Chat dùng SSE.** `GET /api/attempts/{id}/chat/stream` trả `text/event-stream`, chữ hiện dần. Nó là
-**kênh tăng tốc cảm giác, không phải nguồn sự thật**: lượt trả lời được lưu xong mới phát, nên mất
-kết nối chỉ mất phần hoạt hình. Client đọc lại lịch sử bằng REST sau mỗi lần stream.
+**Chat của học sinh dùng SSE.** `GET /api/attempts/{id}/chat/stream` trả `text/event-stream`, chữ
+hiện dần. Nó là **kênh tăng tốc cảm giác, không phải nguồn sự thật**: từng mảnh được chuyển tiếp
+ngay khi AGENT viết ra, còn lượt trả lời chỉ được lưu khi đã trọn vẹn, sau mảnh cuối. Mất kết nối
+giữa chừng thì câu trả lời ấy mất -- không bao giờ lưu nửa vời, cũng không lưu hai lần -- và trợ
+lí chỉ trả lời lại khi học sinh gửi tin nhắn tiếp theo, vì màn hình chỉ tự xin một lượt khi lịch
+sử còn trống (`Tutor.tsx`). Client đọc lại lịch sử bằng REST sau mỗi lần stream.
 
 FE gọi đường tương đối `/api` và Vite proxy sang BE, nên trình duyệt chỉ làm việc với một origin duy nhất và BE không cần cấu hình CORS.
 
@@ -163,8 +188,10 @@ Luật chỉ có một câu: **AGENT nộp nội dung, BE quyết định nội 
   cách giải (`agent_gateway.py`, gọi trước mọi đường ghi) — và một đề chỉ rời trạng thái nháp khi
   giáo viên bấm duyệt. Một luật nghiệp vụ chỉ được nhắc trong prompt là một luật không được thi hành.
 
-Việc chấm đi xa thêm một bước: **AGENT không bao giờ trả về điểm**. Đáp án đúng nằm trong Postgres,
-mà AGENT thì không giữ chìa khoá của kho ấy, nên nó không phán được đúng sai kể cả khi muốn.
+Việc chấm đi xa thêm một bước: **AGENT không bao giờ trả về điểm**. Nó *biết* đáp án -- nó soạn ra
+đáp án, và job `explain_turn` chở cả đáp án đúng lẫn phương án học sinh đã chọn -- nhưng việc chấm nằm
+trong request nộp bài của BE ([ADR-20](../decisions/adr-20-cham-trac-nghiem-thuoc-be.md)), và không
+thứ gì AGENT trả về được dùng làm điểm.
 
 Nếu để AGENT tự quyết định, cổng teacher-in-the-loop sẽ nằm bên trong AI service, trái nguyên tắc
 trong [Project Overview](project-overview.md).
@@ -175,17 +202,22 @@ bất kỳ độ sâu nào.
 
 ## Ranh giới dữ liệu
 
-Postgres thuộc về BE và chỉ BE — **cả hai process của nó**, API lẫn worker, cùng cầm
-một credential và cùng đọc một `models.py`. Ranh giới ở đây là ranh giới **sở hữu**,
-không phải ranh giới process. Nó giữ lớp, học sinh, đề, lần làm bài, sổ điểm ba mức, bộ đếm vòng,
-từng lượt làm lại kèm đề đã sinh ra, đoạn chat và các báo cáo.
-[ADR-21](../decisions/adr-21-trang-thai-bai-lam-la-ben.md) là lý do nó tồn tại: hạn pha 2 do giáo
+Postgres có hai bên ghi: BE, qua process API -- process duy nhất của nó, vì BE không có worker
+nào -- và `ingest`. Cả hai giữ cùng một credential Postgres (`DATABASE_URL`) và đọc cùng một
+định nghĩa bảng trong `packages/schema` (`schema/models.py`); chỉ BE dựng schema, `ingest` chỉ
+kiểm. Ranh giới ở đây là
+ranh giới **sở hữu**, không phải ranh giới process: mọi quyết định về các hàng ấy là của BE, còn
+`ingest` chỉ ghi lại thứ `document` báo về. Hai mươi hai bảng và lý do của chúng nằm ở
+[Data Model](data-model.md).
+[ADR-21](../decisions/adr-21-trang-thai-bai-lam-la-ben.md) là lý do Postgres có mặt: hạn pha 2 do giáo
 viên đặt, tính bằng giờ hoặc ngày, nên trạng thái bài làm không thể sống trong một chỗ có TTL một
 giờ. `JOB_RESULT_TTL_SECONDS` vẫn còn và vẫn đúng — nó nói về kết quả một job của arq, không nói về
 bài làm của học sinh.
 
-MinIO là **kho duy nhất không phải database**, và nó là kho duy nhất **hai** service chạm
-tới. Byte của tài liệu giáo viên nằm ở đó; `documents.storage_key` trong Postgres là khoá,
+MinIO là **object store** duy nhất, nơi byte của tài liệu giáo viên nằm. Không tính Redis --
+đường đi chung của cả bốn service Python -- thì mỗi kho có đúng **hai** service chạm tới: Postgres
+(BE và `ingest`), MinIO (BE ghi, `document` đọc), MongoDB (`document` ghi, BE chỉ đọc). Với
+MinIO, `documents.storage_key` trong Postgres là khoá,
 còn bảng thì không giữ một byte nào. Chúng rời khỏi một cột `LargeBinary` ngày 08/10/2026 vì
 `services/document` — service đọc tệp — không có credential database, nên nó không với tới
 được một cột; ba đường thay thế đều phá một luật đang có.
@@ -198,7 +230,9 @@ thứ hai để byte vào bucket, và hai đường thì sớm muộn khác nhau
 Việc `document` giữ khoá của MinIO **không** phá dòng *"BE sở hữu mọi database"*, và lý do
 đáng nói ra chứ không nên để người đọc tự suy: object storage là nơi **byte** nằm, không phải
 nơi **sự thật** nằm. Một tài liệu đã xử lý xong hay chưa thì chỉ `documents.state` trong
-Postgres biết, và không service nào ngoài BE đọc được cột ấy. `document` đọc một tệp rồi báo
+Postgres biết, và chỉ BE với `ingest` chạm cột ấy: BE tạo hàng ở `processing` và tự ghi `failed`
+khi không giao được job, `ingest` ghi kết quả `document` báo về, còn *đứng quá lâu* thì BE suy ra
+lúc đọc. `document` đọc một tệp rồi báo
 lại; nó không bao giờ biết câu trả lời của nó đã được ghi hay chưa.
 
 Trong mỗi service, **đúng một module** được import `minio` — `be/storage.py` và
@@ -215,21 +249,23 @@ vào database `aiafa_content`, **trước** khi báo `READY` (*"chunk trước, 
 `documents.state` trong Postgres trả lời. Nên `document` được giữ khoá Mongo mà luật *"không giữ
 credential database"* không đổi -- `tools/check_contract.py` dùng một mẫu nới riêng cho
 `services/document` (cho `MONGO_*`, vẫn cấm Postgres), AGENT vẫn mẫu chặt. Hình dạng dữ liệu khai ở
-`contracts.content`, không ở Mongo; `document/content_store.py` là module duy nhất import
-`pymongo`, và cùng hàm seam bên dưới canh nó trên cả bốn service. Bản thô là bất biến: chỉ đường đọc
+`contracts.content`, không ở Mongo. `pymongo` được import ở đúng hai module:
+`document/content_store.py` để ghi, `be/content_reader.py` để đọc -- và
+`check_the_content_reader_only_reads` giữ chữ *chỉ đọc* của module thứ hai. Hàm seam bên dưới quét
+cả bốn service, nên `ingest` và AGENT không có cửa nào. Bản thô là bất biến: chỉ đường đọc
 tệp ghi `pages`; *document agent* của plan 3c ghi cây và chunk vào collection của riêng nó
 (`indexes`, `nodes`, `chunks`, `block_labels`, hình dạng ở `contracts.index`), và đọc lại tài liệu là
 xoá cây cũ.
 
 **PDF scan đi đường OCR theo lô trang** (plan 3b, Task 3). Lần dò tệp thấy một PDF có trang mà
 không có chữ thì không báo *không đọc được chữ* nữa: nó mở đầu mục bản thô rồi giao lô đầu
-(`ocr_pages`, mặc định 10 trang ≈ 45 s) cho **chính queue của `document`**. Mỗi lô ghi trang của nó
+(`ocr_pages`, mặc định 10 trang ≈ 45 s) cho chính queue `aiafa:document` của nó. Mỗi lô ghi trang của nó
 vào Mongo, gửi `DocumentProgress` về `ingest` (cột `pages_read`, `progress_at`), rồi tự giao lô kế;
 lô cuối gửi `NO_TEXT_LAYER` khi cả cuốn không ra chữ nào, còn có chữ thì giao job dựng cây (đoạn
 dưới). Phép suy
 *đứng quá lâu* của BE đo từ `max(uploaded_at, progress_at)`, nên một cuốn đọc mười lăm phút mà vẫn
-tiến không bị gọi là chết, còn một chuỗi lô ngừng tiến thì vẫn bị. Worker `document` chạy **một
-job một lúc** (`max_jobs = 1`): OCR dùng hết luồng CPU, hai lô song song chỉ tranh nhau.
+tiến không bị gọi là chết, còn một chuỗi lô ngừng tiến thì vẫn bị. `document.ocr_worker` chạy
+**một job một lúc** (`max_jobs = 1`): OCR dùng hết luồng CPU, hai lô song song chỉ tranh nhau.
 
 **`READY` chờ cây** (plan 3c, 11/10/2026). Bản thô xong thì tài liệu **chưa** sẵn sàng: `document`
 giao một job `index_document` cho **process thứ hai** của chính service ấy, `document.index_worker`,
@@ -237,20 +273,23 @@ trên queue riêng `aiafa:document-index`. Hai process vì hai việc khác nhau
 quyết: OCR ăn hết CPU nên chạy một job một lúc và nạp ba model; dựng cây thì **chờ mạng** -- Jev xếp
 cấp từng tiêu đề, `gpt-5.6-luna` đọc tên chương trên ảnh banner, `gpt-4o-mini` tóm tắt từng nút --
 nên chạy vài job song song và không nạp model nào. Job ghi cây vào Mongo **rồi mới** gửi `READY`
-(*"chunk trước, `state` sau"*), gửi `DocumentProgress` ở mỗi chặng để phép suy *đứng quá lâu* không
+(*"chunk trước, `state` sau"*), gửi `DocumentProgress` ở mỗi khâu dài để phép suy *đứng quá lâu* không
 cắt nó, và gửi `FAILED` kèm lý do khi hỏng theo cách arq không chạy lại. Jev hay OpenAI không với
 tới được thì **không** hỏng: cây đi đường luật, hoặc thiếu tóm tắt, và `IndexHeader` nói kém ở đâu.
 Đây là agent riêng của `document`, không phải Kriky -- khác queue, khác prompt, khác model -- và nó
 làm `document` thành service thứ hai gọi model provider. Hai seam mới canh việc ấy: `typesafe_sdk`
-chỉ ở `document/index/jev.py`, `langchain` trong `document` chỉ ở `document/index/llm.py`
+mỗi service gọi Jev ở đúng một module (`document/index/jev.py`, và `agent/skill_router.py` nơi AGENT
+chọn skill),
+`langchain` trong `document` chỉ ở `document/index/llm.py`
 (nơi duy nhất truyền khoá vào client), và BE cùng `ingest` không import SDK model nào.
 
-Cùng hàm ấy canh `pymupdf`. Ở `services/document` một job chạy một lúc, nhưng event loop vẫn phải
-rảnh trong lúc OCR một trang -- kết nối Redis và Mongo của worker sống trên đó -- nên lời gọi sync
-vẫn đi qua `asyncio.to_thread`. Nhà của nó là `document/probe.py`.
+Cùng hàm ấy canh `pymupdf`, và nhà của nó là `document/pdf.py`. `ocr_worker` chạy một job một lúc
+nhưng event loop vẫn phải rảnh cho kết nối Redis và Mongo trong lúc OCR một trang; `index_worker`
+chạy tới bốn job, nên dựng ảnh banner mà chặn loop là chặn cả ba job kia. Mọi lời gọi sync đi qua
+`asyncio.to_thread`.
 
-AGENT và `document` không nhận credential của bất kỳ database nào, nên **một job phải tự
-chứa**: `explain_turn` mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn chứ không mang
+AGENT và `document` không nhận credential của Postgres (`document` giữ khoá MinIO và Mongo,
+không giữ khoá Postgres), nên **một job phải tự chứa**: `explain_turn` mang theo cả câu hỏi, phương án, lời giải và lỗi đã soạn chứ không mang
 id để tra, và `DocumentProbeRequested` mang `storage_key` chứ không mang một hàng.
 `tools/check_contract.py` canh điều này bằng cách quét mọi file Python của **cả hai** service
 tìm dấu vết truy cập database.
@@ -261,37 +300,49 @@ chủ đích: schema hiện có một người dùng và chưa có dữ liệu t
 
 ## Shared code
 
-`packages/contracts` là thứ duy nhất cả BE và AGENT cùng import. Nó chỉ chứa dữ liệu: message, enum, và hằng số tên task. Không có logic, vì bất cứ hành vi nào đặt ở đây sẽ trở thành hành vi dùng chung mà không service nào sở hữu.
+Có hai package dùng chung. `packages/contracts` được cả bốn service Python import, và là thứ duy nhất BE và AGENT cùng import. Nó chỉ chứa dữ liệu: message, enum, hằng số tên task, hình dạng dữ liệu nằm trong MongoDB (`content.py`, `index.py`), và vài hàm thuần dựng tên khoá hay tên channel. `packages/schema` khai bảng Postgres cho hai service cùng ghi, BE và `ingest`. Không có logic nghiệp vụ, vì bất cứ hành vi nào đặt ở đây sẽ trở thành hành vi dùng chung mà không service nào sở hữu.
 
-Tên task queue là hằng số trong `contracts`, nên BE enqueue bằng chuỗi và không bao giờ phải import `agent`.
+Tên task là hằng số trong `contracts`, nên BE enqueue bằng chuỗi và không bao giờ phải import `agent`. Tên queue thì không nằm ở đó: nó là cấu hình trong `.env` mà mỗi service tự đọc.
 
 Hai loại package dùng chung khác chưa được tạo và chỉ tạo khi có nhu cầu thật: một thư viện hạ tầng không dính nghiệp vụ, và một client TypeScript sinh từ OpenAPI của BE. Không tạo package tên `common`, `utils` hay `shared`, vì tên vô nghĩa sẽ hút mọi thứ vào.
 
 ## Cơ chế giữ ranh giới
 
-BE và AGENT hiện dùng chung một conda env. Đó là quyết định về thao tác, không phải về kiến trúc, nhưng nó có hệ quả: **không có gì chặn được import chéo lúc chạy**.
+Bốn service Python (`be`, `agent`, `document`, `ingest`) và hai package dùng chung hiện cài chung một conda env. Đó là quyết định về thao tác, không phải về kiến trúc, nhưng nó có hệ quả: **không có gì chặn được import chéo lúc chạy**.
 
 Vì vậy ranh giới chỉ còn một cơ chế duy nhất đỡ, và nó phải tự động:
 
-- `import-linter` cấu hình trong `pyproject.toml` với hai contract: `be` và `agent` độc lập với nhau, và `contracts` không được import ngược lên service nào.
+- `import-linter` cấu hình trong `pyproject.toml` với ba contract: bốn service `be`, `agent`, `document`, `ingest` độc lập với nhau, và cả `contracts` lẫn `schema` không được import ngược lên service nào.
 - Hook pre-commit chạy nó mỗi lần commit, dùng đường dẫn tuyệt đối tới interpreter của conda env.
 
 Hai lưu ý khi sửa cấu hình này:
 
 - Phải gọi console script `lint-imports`. Lệnh `python -m importlinter.cli` thoát 0 mà không kiểm tra gì — một false pass sẽ vô hiệu hoá toàn bộ cơ chế mà không ai biết.
-- Ba package Python dùng `setuptools` chứ không phải `hatchling`, vì editable install của hatchling khiến `grimp` có thể không dựng được đồ thị import và im lặng báo không có vi phạm.
+- Sáu package Python dùng `setuptools` chứ không phải `hatchling`, vì editable install của hatchling khiến `grimp` có thể không dựng được đồ thị import và im lặng báo không có vi phạm.
 
 Cách duy nhất biết hàng rào còn sống là thử phá nó: thêm `import be` vào `services/agent/src/agent/worker.py`, chạy `.\dev.ps1 check`, xác nhận nó fail, rồi hoàn tác.
 
-## Vì sao chưa có các diagram khác
+## Diagram nào đã có, và vì sao chưa có các loại khác
 
-Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiến trúc. Ba loại còn lại chưa tạo, mỗi loại có một điều kiện rõ ràng để bắt đầu.
+Repo có tám diagram: năm diagram nghiệp vụ (`activity-overview`, `business-workflows`,
+`domain-context`, `use-case`, `vong-hoc`), một diagram kiến trúc (`system-architecture`), và hai
+diagram bên trong service, vẽ cho chương 7 của báo cáo ngày 16/10/2026 (`document-pipeline`,
+`teacher-chat-turn`).
 
-**Sequence Diagram** sẽ cần khi luồng chấm có nhiều hơn một bước bất đồng bộ. Hiện chỉ có đúng một chặng qua queue, và mô tả bằng lời trong mục "Đường giao tiếp" đã đủ. Khi AGENT gọi LLM thật, luồng sẽ có thêm ít nhất một bước chờ và một nhánh lỗi — lúc đó sequence diagram bắt đầu nói được thứ mà lời văn không nói nổi.
+**Sequence Diagram** đã có một: `teacher-chat-turn`. Điều kiện đặt ra ở đây từ trước -- luồng có
+nhiều hơn một bước bất đồng bộ -- đã đạt từ lâu: một lượt chat giáo viên đi qua queue ít nhất hai
+lần (đề xuất bước tiếp theo, kể lại kết quả), có thể nghe chuông soạn đề qua pub/sub, và pha 1 của
+nó kết thúc theo nhiều cách. Lời văn ở mục "Đường giao tiếp" không còn đủ để thấy thứ tự ấy.
 
-**Class Diagram hoặc ERD** sẽ cần khi có Postgres. Hiện chưa có bảng nào, nên vẽ ra chỉ khiến team hiểu nhầm rằng data model đã chốt. `domain-context.drawio` chỉ mô tả boundary và tương tác với Teacher, Student; nó không mô tả object nội bộ hay schema.
+**Class Diagram hoặc ERD** vẫn chưa vẽ, dù điều kiện cũ -- *"khi có Postgres"* -- đã đạt: Postgres
+nay có hai mươi hai bảng, và [Data Model](data-model.md) nói về chúng bằng bảng và lời. Vẽ hay chưa
+là việc còn để ngỏ, ghi ở `docs/plans/backlog.md`. `domain-context.drawio` chỉ mô tả boundary và
+tương tác với Teacher, Student; nó không mô tả object nội bộ hay schema.
 
-**Deployment Diagram** sẽ cần khi các service được container hoá, và lúc ấy nó là chỗ **duy nhất** nói về nơi chạy. `system-architecture.drawio` cố ý **không** nói: nó vẽ ranh giới quyền quyết định và chìa khoá — những thứ không đổi khi hạ tầng đổi — nên một ranh giới native/container nằm trên đó sẽ sai vào đúng ngày đầu tiên đẩy lên máy chủ. Mục "Năm service, năm process" ở đầu file này và `docs/local-development.md` mới là nơi nói tiến trình nào chạy bằng gì trên máy local.
+**Deployment Diagram** chưa có riêng. Câu cũ ở đây nói `system-architecture.drawio` cố ý không nói
+nơi chạy; từ khi sơ đồ ấy vẽ VPC cùng public subnet và private subnet, câu ấy không còn đúng: vùng
+mạng của từng service nay nằm ngay trên sơ đồ kiến trúc. Mục "Năm service, sáu process" ở đầu file
+này và `docs/local-development.md` vẫn là nơi nói tiến trình nào chạy bằng gì trên máy local.
 
 ## Quy ước đặt tên service mới
 
@@ -303,6 +354,6 @@ Repo hiện có bốn diagram nghiệp vụ từ Phase 1 và một diagram kiế
 | Tiền tố biến môi trường | UPPER_SNAKE | `REVIEW_QUEUE_DB_DSN` |
 | Cổng | BE 8000, service mới cộng thêm 100 | `8100`, `8200` |
 
-`be`, `agent` và `fe` là ngoại lệ của quy tắc đặt theo domain vì chúng là tầng chứ không phải domain. Service thứ tư trở đi đặt theo domain — `services/document` là cái đầu tiên, `services/ingest` là cái thứ hai — và cả hai theo đúng bảng trên ở mọi dòng trừ **cổng**: chúng không mở cổng nào, nên 8100 chỉ là một số đã dành.
+`be`, `agent` và `fe` là ngoại lệ của quy tắc đặt theo domain vì chúng là tầng chứ không phải domain. Service thứ tư trở đi đặt theo domain — `services/document` là cái đầu tiên, `services/ingest` là cái thứ hai — và cả hai theo đúng bảng trên ở mọi dòng trừ **cổng** và **tiền tố biến môi trường**: chúng không mở cổng nào, nên 8100 chỉ là một số đã dành; và không service nào dùng tiền tố, vì cả bốn service Python đọc chung một `.env` theo những tên dùng chung (`REDIS_URL`, `DATABASE_URL`, `MINIO_*`, `MONGO_*`).
 
 Mỗi service giữ `pyproject.toml` riêng khai báo đúng dependency của mình, kể cả khi đang dùng chung môi trường. Nhờ vậy lúc tách service ra không phải viết lại gì, chỉ đổi cách cài đặt.
