@@ -782,10 +782,16 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         # có model, nên dàn ý là một mục phủ mọi câu, nói đúng phạm vi giáo viên gõ. Có chip sách
         # thì BE từ chối dàn ý không bài nguồn và mock lặp tới trần bước: máy dev không key chỉ soạn
         # được đề không sách.
+        # Lời soạn sẵn của chế độ demo (ngoại lệ của ADR-30) vẫn phải qua phép đối chiếu nhẹ của BE
+        # (`outline.check_message`): nêu câu đầu của mục và hỏi giáo viên.
+        span = "Câu 1" if int(wanted) == 1 else f"Câu 1–{wanted}"
         return NextStepCompleted(
             request_id=request.request_id,
             kind="outline",
-            text="Mình đề xuất dàn ý như sau.",
+            text=(
+                f"Mình đề xuất dàn ý như sau.\n\n- **{span}:** kiến thức trong phạm vi "
+                f"{brief['topic_scope']}, câu trắc nghiệm một đáp án đúng.\n\nBạn đồng ý chứ?"
+            ),
             outline=(
                 OutlineItem(
                     questions=int(wanted),

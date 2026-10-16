@@ -1,16 +1,15 @@
-"""Dàn ý đề (ADR-29, `draft-outline`): BE kiểm các mục Kriky viết, rồi dựng chữ giáo viên đọc. Hàm
-thuần: không database, không mạng.
+"""Dàn ý đề (ADR-29, `draft-outline`): BE kiểm các mục Kriky viết, và đối chiếu chúng với lời Kriky
+trình bày dàn ý. Hàm thuần: không database, không mạng.
 
-Chữ trên màn hình **do BE dựng** từ các mục đã lưu, không do model kể lại: thứ giáo viên duyệt và
-thứ các job soạn câu nhận phải là một. Cùng tinh thần với phương án hỏi lại do BE viết từ hàng nó
-đọc (ADR-23) -- model đề xuất, BE in.
-
-Bản đọc của sách hiện chỉ có chữ (OCR), nên không công thức nào chép được từ sách: chữ dựng ở đây
-luôn gọi chúng là công thức **Kriky đề xuất** (ADR-29).
+Từ ADR-30 (`kriky-writes-every-word`), chữ trên màn hình **do Kriky viết** (Markdown), không do BE
+dựng; các mục có cấu trúc vẫn là thứ duy nhất đi vào job. BE không chứng minh được lời và mục giống
+nhau từng chữ, nên nó chỉ đối chiếu **nhẹ** (`check_message`): số câu, công thức, một câu hỏi xin
+đồng ý.
 """
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+import unicodedata
+from collections.abc import Iterable, Sequence
 
 from contracts import OutlineItem
 
@@ -24,11 +23,6 @@ _MOST_FORMULAS = 6
 _MOST_FORMULA = 200
 # Một công thức nằm trong cặp `$` (`MathText` dựng phần ở giữa), và không gì khác.
 _FORMULA = re.compile(r"^\$[^$]+\$$")
-
-CLOSING = (
-    'Bạn đồng ý với dàn ý này chứ? Muốn đổi câu nào, cứ nói, ví dụ: "câu 2 đổi sang …". '
-    "Câu hỏi chỉ được soạn sau khi bạn đồng ý."
-)
 
 
 def validate(
@@ -77,50 +71,72 @@ def validate(
     return None
 
 
-def _questions(first: int, count: int) -> str:
-    return f"Câu {first}" if count == 1 else f"Câu {first}–{first + count - 1}"
+# *"Câu 3"*, *"câu 1–2"*, *"Câu hỏi 1"*, *"câu số 2"*, *"câu thứ 2"*: số câu lời Kriky nhắc tới.
+# Không bắt *"5 câu"* -- đó là một con số đếm, không phải một câu.
+_QUESTION_NUMBER = re.compile(
+    r"\bcâu\s+(?:hỏi\s+)?(?:số\s+|thứ\s+)?(\d+)(?:\s*[–—-]\s*(\d+))?", re.IGNORECASE
+)
+# Những thứ hai cách viết cùng một công thức hay khác nhau (review pha 4): ngoặc nhóm, cỡ ngoặc,
+# kiểu dựng, dấu nhân. `a^2` và `a^{2}`, `\dfrac` và `\frac`, `(n-1)d` và `(n-1) \cdot d` là một.
+_NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times)|[{}$\s]")
 
 
-def render(
-    intro: str,
-    items: Sequence[OutlineItem],
-    labels: Mapping[int, str],
-    *,
-    version: int,
-    first: int = 1,
-) -> str:
-    """Chữ dàn ý giáo viên đọc trong chat: lời mở của Kriky, các mục, câu kết của BE.
+def _flat(formula: str) -> str:
+    """Một công thức bỏ những gì chỉ là cách viết, để so mà không vấp."""
+    plain = formula.replace("\\dfrac", "\\frac").replace("\\tfrac", "\\frac")
+    return _NOISE.sub("", plain)
 
-    Chữ thường, không Markdown -- ô trả lời chỉ dựng toán trong `$`. Bài nguồn hiện bằng nhãn BE
-    dựng (`teacher_tools.node_label`), không bằng số nút.
+
+def check_message(text: str, items: Sequence[OutlineItem], *, first: int = 1) -> str | None:
+    """Lời Kriky trình bày dàn ý có khớp các mục không -- **đối chiếu nhẹ** (ADR-30). Hàm thuần.
+
+    Nhẹ có chủ ý (ADR-30): lời được diễn đạt lại, nên chỉ bắt những lệch làm giáo viên duyệt nhầm
+    một đề khác -- sai đánh số, mất hẳn công thức. Bốn tiêu chí:
+
+    - lời nhắc tới **Câu m** -- câu đầu của mỗi mục -- nên giáo viên đọc được câu nào hỏi gì;
+    - lời không nhắc câu nào **sau** câu cuối của dàn ý. Câu trước câu đầu thì được: soạn thêm hay
+      thay câu nói về câu đã có của đề (*"đề đang có câu 1–5"*);
+    - mỗi mục có công thức thì lời có ít nhất **một** công thức của nó;
+    - lời có ít nhất một câu hỏi, để giáo viên biết mình đang được hỏi ý.
+
+    Kiến thức, cách làm và tên bài không bị so: lời được diễn đạt lại.
 
     Args:
-        intro: Câu mở đầu Kriky viết; rỗng thì không có.
+        text: Lời Kriky, Markdown.
         items: Các mục, đã qua `validate`.
-        labels: `ordinal` → nhãn bài, cho mọi nút các mục trỏ tới.
-        version: Bản thứ mấy của dàn ý trong đoạn chat này.
-        first: Số của câu đầu tiên dàn ý phủ -- 1 cho đề mới, câu kế tiếp khi soạn thêm, chính câu
-            bị thay khi thay một câu.
+        first: Số của câu đầu tiên dàn ý phủ.
 
     Returns:
-        Chữ hiện ra, đúng như sẽ lưu.
+        Lý do model đọc rồi viết lại được, hoặc `None` khi khớp.
     """
-    total = sum(item.questions for item in items)
-    lines = [intro.strip(), ""] if intro.strip() else []
-    lines.append(f"Dàn ý — {total} câu (bản {version})")
+    if not text.strip():
+        return "lời dàn ý trống: viết lời trình bày dàn ý cho giáo viên"
+    text = unicodedata.normalize("NFC", text)
+    mentioned: set[int] = set()
+    for found in _QUESTION_NUMBER.finditer(text):
+        low = int(found.group(1))
+        high = int(found.group(2) or low)
+        mentioned.update(range(low, high + 1) if low <= high <= low + 50 else (low,))
+    last = first + sum(item.questions for item in items) - 1
     number = first
-    for item in items:
-        lines += ["", f"{_questions(number, item.questions)} · {item.knowledge.strip()}"]
-        if item.formulas:
-            formulas = "; ".join(one.strip() for one in item.formulas)
-            lines.append(f"  Công thức Kriky đề xuất: {formulas}")
-        lines.append(f"  Cách làm: {item.approach.strip()}")
-        sources = [labels[one] for one in item.source_nodes if one in labels]
-        if sources:
-            lines.append(f"  Theo: {'; '.join(sources)}")
+    for index, item in enumerate(items, start=1):
+        if number not in mentioned:
+            return (
+                f"lời chưa nhắc tới Câu {number}, câu đầu của mục {index}; dàn ý này bắt đầu từ "
+                f"Câu {first}"
+            )
         number += item.questions
-    lines += ["", CLOSING]
-    return "\n".join(lines)
+    stray = sorted(one for one in mentioned if one > last)
+    if stray:
+        span = f"Câu {first}" if first == last else f"Câu {first}–{last}"
+        return f"lời nhắc Câu {stray[0]}, ngoài dàn ý ({span})"
+    flat = _flat(text)
+    for index, item in enumerate(items, start=1):
+        if item.formulas and not any(_flat(one) in flat for one in item.formulas):
+            return f"lời chưa có công thức nào của mục {index}; nêu ít nhất một, trong cặp $"
+    if "?" not in text:
+        return "lời chưa hỏi giáo viên có đồng ý dàn ý không"
+    return None
 
 
 def stored(

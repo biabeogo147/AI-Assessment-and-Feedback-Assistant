@@ -80,9 +80,14 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
   questions (mục phủ bao nhiêu câu), knowledge (kiến thức câu kiểm, viết lại gọn và sạch), formulas
   (công thức sẽ dùng, mỗi công thức một cặp $), approach (dạng câu và các bước giải), source_nodes
   (số node của bài nguồn; rỗng khi không có tài liệu). Hai câu chung một mục thì cùng kiến thức,
-  khác cách hỏi. Mỗi lần tối đa 10 câu. text là một câu mở đầu ngắn; hệ thống tự in dàn ý và hỏi
-  giáo viên có đồng ý không. tool_args: for = new (đề mới), more (soạn thêm cho đề đang có) hoặc
-  replace (thay một câu: một mục một câu, kèm question = số câu bị thay).
+  khác cách hỏi. Mỗi lần tối đa 10 câu. text là CẢ LỜI bạn trình bày dàn ý cho giáo viên, bằng
+  Markdown và bằng lời của bạn: mỗi mục nêu số câu của nó (**Câu k** hay **Câu k–m**, đánh số từ câu
+  đầu tiên của dàn ý), kiến thức, ít nhất một công thức của mục trong cặp $ khi mục có công thức,
+  cách làm, và bài nguồn khi có sách. Công thức là bạn đề xuất, đừng gọi là công thức của sách.
+  Kết bằng một câu hỏi bạn tự viết, xin giáo viên đồng ý hay nói chỗ cần đổi. Lời phải khớp đúng
+  các mục trong outline, vì các mục mới là thứ được soạn. tool_args: for = new (đề mới), more
+  (soạn thêm cho đề đang có) hoặc replace (thay một câu: một mục một câu, kèm question = số câu
+  bị thay).
 
 Về plan:
 - Các bước chạy TUẦN TỰ và một bước hỏng thì DỪNG cả plan. Vì thế plan phải đủ: khi xong, việc
@@ -412,7 +417,7 @@ class _AskAgain(ValueError):
 
 
 class _NothingToSay(_AskAgain):
-    """Model chọn `say` hay `ask_clarify` mà để `text` rỗng."""
+    """Model chọn `say`, `ask_clarify` hay `outline` mà để `text` rỗng."""
 
 
 class _Flawed(_AskAgain):
@@ -1131,9 +1136,9 @@ def _unmangled(proposal: "_Proposal") -> "_Proposal":
                 step.model_copy(update={"title": restore_latex_escapes(step.title)})
                 for step in proposal.steps
             ),
-            # Mục dàn ý (`draft-outline`): BE in nguyên văn ba trường chữ ra chat, trong
-            # `MathText`, và job soạn câu đọc đúng chúng -- `\frac` thành form-feed ở đây là
-            # hỏng ở cả hai chỗ.
+            # Mục dàn ý (`draft-outline`): job soạn câu đọc đúng ba trường chữ này, và BE so công
+            # thức của chúng với lời Kriky (`outline.check_message`, ADR-30) -- `\frac` thành
+            # form-feed ở đây là hỏng ở cả hai chỗ.
             "outline": tuple(
                 item.model_copy(
                     update={
@@ -1186,8 +1191,9 @@ class _Proposal(BaseModel):
     text: str = Field(
         default="",
         description=(
-            "Câu giáo viên đọc trên màn hình. Với ask_clarify, đây là câu hỏi. Không được rỗng với "
-            "say và ask_clarify."
+            "Lời giáo viên đọc trên màn hình, Markdown. Với ask_clarify, đây là câu hỏi. Với "
+            "outline, đây là cả lời trình bày dàn ý, khớp các mục. Không được rỗng với say, "
+            "ask_clarify và outline."
         ),
     )
     # ADR-29 (`draft-outline`): dàn ý đề, chỉ với kind outline. Đứng **ngay sau `text`**, không ở
@@ -1412,29 +1418,38 @@ def _compose(state: ProposeState) -> dict:
             args = json.dumps(turn.tool_args, ensure_ascii=False, sort_keys=True)
             messages.append(AIMessage(f"Mình xin gọi {turn.tool_name} với {args}."))
         elif turn.kind == "outline":
-            messages.append(AIMessage(_describe_outline(turn)))
+            messages.append(AIMessage(turn.text))
+            items = _outline_items(turn)
+            if items:
+                messages.append(HumanMessage(items))
         else:
             messages.append(HumanMessage(_describe_result(turn)))
 
     return {"messages": messages}
 
 
-def _describe_outline(turn: TurnRecord) -> str:
-    """Một lượt dàn ý trong lịch sử, như model cần đọc lại nó (`draft-outline`). Hàm thuần.
+def _outline_items(turn: TurnRecord) -> str:
+    """Các mục của một lượt dàn ý trong lịch sử, như một ghi chú của hệ thống (`draft-outline`). Hàm
+    thuần.
 
-    Chữ BE đã in -- thứ giáo viên đọc -- cộng các mục dạng gọn: sửa dàn ý là nêu lại **đủ** mục, và
-    `source_nodes` chỉ chép lại được khi nó còn nằm đâu đó. Dàn ý đã bị thay thì BE chỉ gửi số bản
-    (`teacher_chat._shrunk`), và chỉ còn chữ.
+    Sửa dàn ý là nêu lại **đủ** mục, và `source_nodes` chỉ chép lại được khi nó còn nằm đâu đó. Ghi
+    chú đi **riêng** khỏi lời Kriky -- một tin nhắn của phía người dùng, không nối vào lời của chính
+    model: từ ADR-30 lời ấy là cả dàn ý, và một khối JSON nằm trong lời mình vừa nói là thứ model dễ
+    chép lại vào lời sau (review pha 4, `kriky-writes-every-word`). Dàn ý đã bị thay thì BE chỉ gửi
+    số bản (`teacher_chat._shrunk`), và không có ghi chú nào.
+
+    Returns:
+        Ghi chú các mục, hoặc chuỗi rỗng khi lượt không còn mục.
     """
     kept = turn.tool_result or {}
     if not kept.get("items"):
-        return turn.text
+        return ""
     compact = json.dumps(
         {key: kept.get(key) for key in ("version", "for", "first", "items")},
         ensure_ascii=False,
         sort_keys=True,
     )
-    return f"{turn.text}\n\n(Dàn ý bản này, để bạn sửa: {compact})"
+    return f"(Ghi chú của hệ thống, giáo viên không thấy: các mục của dàn ý vừa rồi — {compact})"
 
 
 def _spent(raw: object) -> int:
@@ -1473,7 +1488,7 @@ async def _choose(state: ProposeState) -> dict:
         model.
 
     Raises:
-        _NothingToSay: `say` hay `ask_clarify` mà `text` rỗng.
+        _NothingToSay: `say`, `ask_clarify` hay `outline` mà `text` rỗng.
         _FewChoices: `ask_clarify` ít lựa chọn hơn `_choices_wanted`; mang theo câu hỏi ấy.
         _IncompletePlan: Plan có bước thiếu tham số bắt buộc; mang theo plan ấy, để `propose`
             còn dùng được nó khi lần hỏi lại hỏng.
@@ -1510,9 +1525,10 @@ async def _choose(state: ProposeState) -> dict:
     )
     if agreed.kind == "plan":
         return {"step": agreed}
-    if proposal.kind in {"say", "ask_clarify"} and not proposal.text.strip():
+    if proposal.kind in {"say", "ask_clarify", "outline"} and not proposal.text.strip():
         # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
-        # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần.
+        # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần. Dàn ý cũng vậy
+        # từ ADR-30: lời trình bày dàn ý là lời Kriky viết, không còn khuôn BE dựng thay.
         raise _NothingToSay(f"model chose {proposal.kind} with nothing to say")
     if proposal.kind == "outline" and not proposal.outline:
         raise _NoOutline("model chose outline with no item")

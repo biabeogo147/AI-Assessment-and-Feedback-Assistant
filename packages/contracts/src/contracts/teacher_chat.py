@@ -126,9 +126,10 @@ class TurnRecord(BaseModel):
         kind: Ai hay cái gì tạo ra turn này. `plan` là danh sách việc model vừa nêu ở cuối pha 1
             (ADR-25); nó được lưu như một turn vì `bước k/n` phải dựng lại được sau một lần F5, và
             một con số không có chỗ nào lưu là một con số chỉ đúng khi không ai tải lại trang.
-            `outline` là một dàn ý đề Kriky vừa đề xuất (ADR-29): `text` là chữ BE dựng từ các mục,
-            `tool_result` chở chính các mục -- lượt sau model đọc mục, không đọc lại văn xuôi.
-        text: Lời, cho turn `teacher` và `assistant`; chữ dàn ý cho turn `outline`.
+            `outline` là một dàn ý đề Kriky vừa đề xuất (ADR-29): `text` là lời Kriky trình bày dàn
+            ý (Markdown, ADR-30), `tool_result` chở chính các mục -- thứ duy nhất đi vào job, và
+            thứ lượt sau model đọc lại cùng lời.
+        text: Lời, cho turn `teacher` và `assistant`; lời dàn ý cho turn `outline`.
         tool_name: Tool nào, cho `tool_call` và `tool_result`.
         tool_args: Tham số mà BE đã thực thi với.
         tool_result: Thứ tool trả về. BE đã tóm tắt sẵn: điểm của cả một lớp vừa không nhét nổi vào
@@ -217,8 +218,10 @@ class NextStepCompleted(BaseModel):
       giữ (ADR-23, hậu ký `unbiased-model-text` T3). Lối "Khác" -- giáo viên tự ghi -- do FE vẽ.
     - `plan`: đã đủ thông tin để làm; `steps` là các bước ghi, theo thứ tự, và `text` là câu nói
       trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
-    - `outline`: một dàn ý đề cho giáo viên duyệt (ADR-29); `outline` là các mục và `text` là câu
-      mở đầu. Lượt kết thúc ở đây: BE lưu dàn ý, in nó ra chat, và chỉ soạn ở một lượt **sau**.
+    - `outline`: một dàn ý đề cho giáo viên duyệt (ADR-29); `outline` là các mục -- thứ duy nhất
+      đi vào job -- và `text` là **cả lời** Kriky trình bày dàn ý cho giáo viên (Markdown, ADR-30).
+      Lượt kết thúc ở đây: BE đối chiếu nhẹ lời với các mục, lưu, in lời ra chat, và chỉ soạn ở một
+      lượt **sau**.
 
     `ask_clarify` là cổng đầu vào của ADR-05, và luật của nó -- kể cả việc một câu hỏi làm rõ được
     phép và không được phép hỏi những gì -- nằm trong chính decision record đó, do BE thi hành. Chép

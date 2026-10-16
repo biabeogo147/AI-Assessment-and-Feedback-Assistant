@@ -1,13 +1,16 @@
-"""BE kiểm dàn ý Kriky viết và dựng chữ giáo viên đọc (`draft-outline`, ADR-29). Hàm thuần.
+"""BE kiểm dàn ý Kriky viết và đối chiếu nó với lời Kriky (`draft-outline`, ADR-29, ADR-30).
+
+Hàm thuần.
 
 Hai loại khẳng định. `validate` từ chối thứ giáo viên không duyệt được -- quá mười câu, mục rỗng,
-công thức ngoài cặp `$`, bài nguồn bịa -- bằng lời model sửa được. Và `render` dựng **đúng từng ký
-tự**: chữ trên màn hình là thứ job nhận, nên một chữ lệch là một lời hứa sai.
+công thức ngoài cặp `$`, bài nguồn bịa -- bằng lời model sửa được. Và `check_message` đối chiếu
+**nhẹ** lời Kriky với các mục: số câu, công thức, một câu hỏi -- không so từng chữ
+(`kriky-writes-every-word`).
 """
 
 import pytest
 
-from be.outline import CLOSING, render, stored, validate
+from be.outline import check_message, stored, validate
 from contracts import OutlineItem
 
 
@@ -71,57 +74,103 @@ def test_an_item_without_formulas_is_fine() -> None:
     assert validate([_item(formulas=())], {2}) is None
 
 
-# ------------------------------------------------------------------ render
+# ------------------------------------------------------------ check_message (ADR-30)
+
+_TWO = [
+    _item(),
+    _item(
+        questions=2,
+        knowledge="Lũy thừa với số mũ tự nhiên",
+        formulas=("$a^m \\cdot a^n = a^{m+n}$", "$a^m : a^n = a^{m-n}$"),
+        approach="Rút gọn rồi so sánh hai lũy thừa",
+        source_nodes=(3, 4),
+    ),
+]
 
 
-def test_the_outline_shown_is_what_be_rendered_from_stored_items() -> None:
-    items = [
-        _item(),
-        _item(
-            questions=2,
-            knowledge="Lũy thừa với số mũ tự nhiên",
-            formulas=("$a^m \\cdot a^n = a^{m+n}$", "$a^m : a^n = a^{m-n}$"),
-            approach="Rút gọn rồi so sánh hai lũy thừa",
-            source_nodes=(3, 4),
-        ),
-    ]
-    labels = {2: "Bài 2. Thứ tự (tr. 9–10)", 3: "Bài 3. Lũy thừa (tr. 11)", 4: "Luyện tập (tr. 12)"}
-
-    shown = render("Mình đã đọc chương I.", items, labels, version=2)
-
-    assert shown == "\n".join(
-        [
-            "Mình đã đọc chương I.",
-            "",
-            "Dàn ý — 3 câu (bản 2)",
-            "",
-            "Câu 1 · Thứ tự thực hiện phép tính",
-            "  Công thức Kriky đề xuất: $a + b \\cdot c$",
-            "  Cách làm: Cho một biểu thức, chọn kết quả đúng",
-            "  Theo: Bài 2. Thứ tự (tr. 9–10)",
-            "",
-            "Câu 2–3 · Lũy thừa với số mũ tự nhiên",
-            "  Công thức Kriky đề xuất: $a^m \\cdot a^n = a^{m+n}$; $a^m : a^n = a^{m-n}$",
-            "  Cách làm: Rút gọn rồi so sánh hai lũy thừa",
-            "  Theo: Bài 3. Lũy thừa (tr. 11); Luyện tập (tr. 12)",
-            "",
-            CLOSING,
-        ]
+def test_a_message_in_kriky_s_own_words_passes() -> None:
+    """Diễn đạt khác chữ các mục vẫn qua: tiêu chí là số câu, công thức, một câu hỏi."""
+    said = (
+        "Mình đã đọc chương I, đề xuất thế này:\n\n"
+        "- **Câu 1:** tính giá trị biểu thức theo đúng thứ tự, kiểu $a+b\\cdot c$.\n"
+        "- **Câu 2–3:** lũy thừa — nhân hai lũy thừa cùng cơ số $a^m\\cdot a^n=a^{m+n}$.\n\n"
+        "Bạn thấy ổn không?"
     )
+
+    assert check_message(said, _TWO) is None
+
+
+@pytest.mark.parametrize(
+    ("said", "why"),
+    [
+        ("Câu 1 về thứ tự $a + b \\cdot c$, rồi lũy thừa $a^m : a^n = a^{m-n}$. Ổn chứ?", "Câu 2"),
+        ("Câu 1: $a + b \\cdot c$. Câu 2–4: $a^m : a^n = a^{m-n}$. Ổn chứ?", "Câu 4"),
+        (
+            "Câu 1: thứ tự phép tính. Câu 2–3: $a^m : a^n = a^{m-n}$. Ổn chứ?",
+            "công thức nào của mục 1",
+        ),
+        ("Câu 1: $a + b \\cdot c$. Câu 2–3: $a^m : a^n = a^{m-n}$.", "hỏi"),
+        ("   ", "trống"),
+    ],
+)
+def test_a_message_that_drifts_from_its_items_goes_back_to_the_model(said: str, why: str) -> None:
+    """Thiếu câu đầu của một mục, nhắc câu ngoài khoảng, mất hết công thức của một mục, hay không
+    hỏi giáo viên: lý do về model, model viết lại trong cùng lượt."""
+    wrong = check_message(said, _TWO)
+
+    assert wrong is not None and why in wrong
 
 
 def test_an_outline_for_more_questions_counts_on_from_the_draft() -> None:
-    shown = render("", [_item(questions=3, source_nodes=())], {}, version=1, first=11)
+    """Soạn thêm thì câu đầu là câu kế tiếp của đề: lời phải nói *Câu 11*, không *Câu 1*."""
+    item = [_item(questions=3, source_nodes=())]
 
-    assert shown.startswith("Dàn ý — 3 câu (bản 1)\n\nCâu 11–13 · ")
-    assert "Theo:" not in shown
+    assert check_message("Câu 11–13: $a + b \\cdot c$. Được không?", item, first=11) is None
+    assert "Câu 11" in (
+        check_message("Câu 1–3: $a + b \\cdot c$. Được không?", item, first=11) or ""
+    )
 
 
-def test_formulas_are_always_called_kriky_s_never_the_book_s() -> None:
-    shown = render("", [_item()], {2: "Bài 2"}, version=1)
+def test_one_formula_written_another_way_still_counts() -> None:
+    """Review pha 4: cùng một công thức, hai cách viết -- `a^2` và `a^{2}`, `\\dfrac` và `\\frac`,
+    `(n-1)d` và `(n-1) \\cdot d` -- không bắt model viết lại."""
+    items = [
+        _item(formulas=("$x^{2} = \\frac{a}{b}$",)),
+        _item(formulas=("$u_n = u_1 + (n-1) \\cdot d$",)),
+    ]
+    said = "Câu 1: $x^2 = \\dfrac{a}{b}$. Câu 2: $u_n=u_1+(n-1)d$. Ổn không?"
 
-    assert "Công thức Kriky đề xuất:" in shown
-    assert "Công thức của sách" not in shown
+    assert check_message(said, items) is None
+
+
+def test_more_and_replace_may_talk_about_questions_already_in_the_draft() -> None:
+    """Câu **trước** câu đầu là câu đã có của đề: soạn thêm hay thay câu nói về nó là thường."""
+    more = [_item(questions=3, source_nodes=())]
+    replace = [_item(questions=1, source_nodes=())]
+
+    assert (
+        check_message(
+            "Đề đang có câu 1–5, mình thêm Câu 6–8: $a + b \\cdot c$. Được không?", more, first=6
+        )
+        is None
+    )
+    assert (
+        check_message("Câu 3 mới khác câu 2: $a + b \\cdot c$. Ổn không?", replace, first=3) is None
+    )
+
+
+@pytest.mark.parametrize(
+    "said", ["Câu hỏi 1: $a + b \\cdot c$. Ổn không?", "Câu số 1: $a+b c$. Ổn không?"]
+)
+def test_other_common_ways_of_naming_a_question_are_heard(said: str) -> None:
+    assert check_message(said, [_item()]) is None
+
+
+def test_a_count_of_questions_is_not_a_question_number() -> None:
+    """*"5 câu"* là một con số đếm: không bị đọc thành *Câu 5* ngoài khoảng."""
+    said = "Dàn ý 5 câu, mình bắt đầu từ Câu 1: $a + b \\cdot c$ nhé, được không?"
+
+    assert check_message(said, [_item()]) is None
 
 
 def test_what_is_stored_is_exactly_the_items_shown() -> None:

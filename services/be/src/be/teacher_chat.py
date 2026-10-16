@@ -70,7 +70,7 @@ from be.content_reader import ContentUnavailable, get_reader
 from be.db import get_session, session_scope
 from be.drafting import _MOST_QUESTIONS, harvest, open_bells, pending_count
 from be.identity import Asking, current_teacher
-from be.outline import MOST_QUESTIONS_ASKED, render, stored, validate
+from be.outline import MOST_QUESTIONS_ASKED, check_message, stored, validate
 from be.teacher_documents import believed_state
 from be.teacher_tools import (
     LOOKS_LIKE_REFERENCE,
@@ -82,7 +82,6 @@ from be.teacher_tools import (
     bind_book,
     catalog_for,
     execute,
-    node_label,
     owned_document,
     ready_document,
     resolve_args,
@@ -606,7 +605,8 @@ async def outline_turn(
     history: list[TurnRecord],
     attached: AttachedDocument | None,
 ) -> TurnRecord | dict:
-    """Kiểm một dàn ý model nêu, rồi dựng lượt dàn ý BE sẽ lưu và in ra (ADR-29).
+    """Kiểm một dàn ý model nêu -- các mục, rồi lời Kriky đối chiếu với chúng -- và dựng lượt dàn
+    ý BE sẽ lưu và in ra (ADR-29, ADR-30).
 
     Args:
         session: Session của database.
@@ -617,8 +617,8 @@ async def outline_turn(
         attached: Chip đang gắn, khi có.
 
     Returns:
-        `TurnRecord(kind="outline")` với `text` là chữ BE dựng và `tool_result` là các mục; hoặc
-        `{"error": lý do}` để model sửa dàn ý trong cùng lượt.
+        `TurnRecord(kind="outline")` với `text` là lời Kriky (ADR-30) và `tool_result` là các
+        mục; hoặc `{"error": lý do}` để model sửa dàn ý trong cùng lượt.
     """
     shape = await _outline_shape(session, thread, step)
     if isinstance(shape, str):
@@ -632,7 +632,6 @@ async def outline_turn(
         brief = await session.get(DraftBrief, paper)
         document_id = brief.document_id if brief is not None else ""
     known: set[int] | None = None
-    labels: dict[int, str] = {}
     if document_id:
         owned = await ready_document(session, asking, document_id)
         if owned is None:
@@ -643,9 +642,9 @@ async def outline_turn(
             return {"error": "kho nội dung tài liệu tạm thời không đọc được"}
         nodes = found[1] if found else []
         known = {node.ordinal for node in nodes}
-        labels = {node.ordinal: node_label(node) for node in nodes}
     items: list[OutlineItem] = list(step.outline)
-    wrong = validate(items, known, most=most)
+    # Mục trước, lời sau: lời chỉ đối chiếu được với các mục đã đúng hình (ADR-30).
+    wrong = validate(items, known, most=most) or check_message(step.text, items, first=first)
     if wrong is not None:
         return {"error": wrong}
     version = 1 + int(
@@ -669,7 +668,8 @@ async def outline_turn(
     }
     return TurnRecord(
         kind="outline",
-        text=render(step.text, items, labels, version=version, first=first),
+        # Lời Kriky, nguyên văn (ADR-30): BE đã đối chiếu nó với các mục ở trên, không dựng lại.
+        text=step.text.strip(),
         tool_result=kept,
     )
 
@@ -2352,10 +2352,10 @@ async def _go(
             return
 
         if step.kind == "outline":
-            # ADR-29: BE kiểm dàn ý, dựng chữ từ chính các mục, lưu rồi mới in -- chữ giáo viên đọc
-            # là thứ các job sẽ nhận. Dàn ý hỏng thì trả lý do cho model như một kết quả tool, để nó
-            # sửa trong cùng lượt; **không lưu**: giáo viên chưa thấy gì, và một lời từ chối nội bộ
-            # không phải một bước để vẽ lên khối bằng chứng sau F5.
+            # ADR-29, ADR-30: BE kiểm các mục, đối chiếu nhẹ lời Kriky với chúng, lưu rồi mới in
+            # -- các mục là thứ các job sẽ nhận. Dàn ý hỏng thì trả lý do cho model như một kết quả
+            # tool, để nó sửa trong cùng lượt; **không lưu**: giáo viên chưa thấy gì, và một lời từ
+            # chối nội bộ không phải một bước để vẽ lên khối bằng chứng sau F5.
             shown = await outline_turn(session, asking, thread, step, history, attached)
             if isinstance(shown, dict):
                 logger.info("refused an outline for %s: %s", asking.teacher_code, shown)

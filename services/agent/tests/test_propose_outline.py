@@ -131,6 +131,9 @@ async def test_the_three_text_fields_get_their_backslashes_back(
         _Proposal(kind="outline", text="Dàn ý.", outline=(_item(approach=""),)),
         # Thử tay 15/10/2026: `outline` là kind, model lại gọi nó như một tool.
         _Proposal(kind="call_tool", tool_name="outline"),
+        # ADR-30: lời trình bày dàn ý là lời Kriky viết, không còn khuôn BE dựng thay -- lời rỗng
+        # thì hỏi lại ngay ở AGENT (review pha 4, `kriky-writes-every-word`).
+        _Proposal(kind="outline", text="  ", outline=(_item(),)),
     ],
 )
 async def test_an_outline_that_cannot_be_shown_is_asked_again(
@@ -171,9 +174,12 @@ def test_an_outline_in_the_history_comes_back_with_its_items() -> None:
 
     messages = _compose(state)["messages"]
 
-    replayed = next(one.text for one in messages if "Dàn ý — 2 câu" in one.text)
-    assert '"source_nodes": [3]' in replayed
-    assert type(messages[2]).__name__ == "AIMessage"
+    # Lời Kriky về đúng là lời của nó; các mục đi riêng, như một ghi chú của hệ thống phía người
+    # dùng -- không nối vào lời model để nó chép lại (review pha 4, `kriky-writes-every-word`).
+    at = next(index for index, one in enumerate(messages) if one.text == "Dàn ý — 2 câu (bản 1)")
+    assert type(messages[at]).__name__ == "AIMessage"
+    assert type(messages[at + 1]).__name__ == "HumanMessage"
+    assert '"source_nodes": [3]' in messages[at + 1].text
 
 
 def test_a_superseded_outline_comes_back_as_its_text_only() -> None:

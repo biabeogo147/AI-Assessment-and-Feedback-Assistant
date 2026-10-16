@@ -73,11 +73,16 @@ gọi model thật (ước 0,05–0,08 USD).
   và các điểm nhỏ — đã sửa. Commit.
 
 ### Pha 4 — Dàn ý
-- [ ] 11. Contract: `text` của `kind=outline` là cả lời Kriky; `outline` vẫn là thứ duy nhất vào job.
-- [ ] 12. Prompt `_CORE`, `soan-de`, `_Proposal.text`.
-- [ ] 13. `outline.check_message` (tiêu chí nhẹ: số câu đầu từng mục có mặt; không `Câu m` ngoài
-  khoảng; mỗi mục có công thức thì một công thức có mặt; có một câu hỏi); bỏ `render`, `CLOSING`.
-- [ ] 14. Test; dữ liệu bench (không chạy bench). Review → commit.
+- [x] 11. Contract: `text` của `kind=outline` là cả lời Kriky; `outline` vẫn là thứ duy nhất vào job.
+- [x] 12. Prompt `_CORE`, `soan-de` (soạn thêm đánh số tiếp sau câu cuối), `_Proposal.text`; lời
+  rỗng thì AGENT hỏi lại (`_NothingToSay`); các mục của dàn ý trong lịch sử đi thành một ghi chú
+  riêng, không nối vào lời model.
+- [x] 13. `outline.check_message`: lời nhắc `Câu m` đầu mỗi mục (cả "Câu hỏi m", "câu số m"); không
+  câu nào **sau** câu cuối (câu trước câu đầu là câu đã có của đề); mục có công thức thì một công thức
+  có mặt (so bỏ `$`, khoảng trắng, `{}`, `\left`, `\right`, `\cdot`, `\dfrac`→`\frac`); có một `?`.
+  Bỏ `render`, `CLOSING`. Lời mock dàn ý (chế độ demo) qua được phép đối chiếu.
+- [x] 14. Test; dữ liệu bench (không chạy bench). Review: không lỗi chặn; phép so công thức và khoảng
+  câu quá chặt, regex bỏ sót cách viết phổ biến, comment cũ — đã sửa. Commit.
 
 ### Pha 5 — Loại A còn lại, notice, check
 - [ ] 15. `_approved_plan` dùng lời model hoặc không lời mở.

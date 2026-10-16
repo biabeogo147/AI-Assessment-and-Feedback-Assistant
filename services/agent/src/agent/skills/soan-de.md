@@ -32,7 +32,8 @@ không phải nhờ soạn.
    {thư viện}
    - còn ? → ask_clarify một lần, hỏi đúng những mục ghi ?; choices là những giá trị giáo viên
      có thể chọn cho MỘT mục ghi ? (khối trước, rồi số câu, rồi phạm vi);
-   - không còn ? → NÊU DÀN Ý NGAY (outline, for=new), tổng số câu đúng question_count.
+   - không còn ? → NÊU DÀN Ý NGAY (outline, for=new), tổng số câu đúng question_count; text là
+     lời bạn trình bày dàn ý, kết bằng câu hỏi xin đồng ý.
 
 3. Giáo viên đồng ý dàn ý vừa hiện → plan mở đề mới,
    ĐỦ hai bước, mỗi tham số chép đúng giá trị đã ghi trong known:
@@ -40,8 +41,8 @@ không phải nhờ soạn.
    2. start_drafting — assessment_id = {1.assessment_id}, question_count
    Giáo viên muốn đổi một mục → nêu lại dàn ý ĐỦ mọi mục, chỉ sửa đúng chỗ họ nói.
 
-4. Soạn THÊM câu cho đề đã mở trong đoạn chat này → dàn ý for=more cho các câu thêm; giáo viên
-   đồng ý → plan một bước:
+4. Soạn THÊM câu cho đề đã mở trong đoạn chat này → dàn ý for=more cho các câu thêm, đánh số
+   tiếp sau câu cuối của đề; giáo viên đồng ý → plan một bước:
    1. start_drafting — assessment_id lấy từ kết quả create_draft phía trên, question_count
    Tổng số câu của một đề không quá 50.
 

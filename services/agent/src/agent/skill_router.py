@@ -62,9 +62,9 @@ def state_of(history: Sequence[TurnRecord]) -> dict | None:
         để chọn.
     """
     # Lượt dàn ý (ADR-29, `draft-outline`) là lời Kriky: *"oke"* ngay sau nó là duyệt một dàn ý
-    # đề, và Jev chỉ thấy điều ấy khi dàn ý nằm trong đoạn hội thoại nó đọc. Chữ dàn ý BE dựng là
-    # lời mở của Kriky rồi *"Dàn ý — N câu"*, nên phần cắt ở `_TEXT_CHARS` vẫn nói nó là gì -- câu
-    # kết hỏi đồng ý thì có thể bị cắt mất ở một dàn ý dài.
+    # đề, và Jev chỉ thấy điều ấy khi dàn ý nằm trong đoạn hội thoại nó đọc. Lời dàn ý do Kriky viết
+    # (ADR-30), nên phần cắt ở `_TEXT_CHARS` thường vẫn cho thấy đây là một dàn ý -- nhưng không gì
+    # bảo đảm, và câu hỏi đồng ý ở cuối có thể bị cắt mất ở một dàn ý dài.
     said = [
         turn for turn in history if turn.kind in {"teacher", "assistant", "outline"} and turn.text
     ]

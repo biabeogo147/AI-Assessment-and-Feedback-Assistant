@@ -2500,23 +2500,47 @@ def _outline_item(**overrides: object) -> OutlineItem:
     return OutlineItem.model_validate(fields)
 
 
-def _outline_step(*items: OutlineItem, **args: str) -> NextStepCompleted:
+def _outline_step(*items: OutlineItem, first: int | None = None, **args: str) -> NextStepCompleted:
+    """Một lượt dàn ý model nêu: các mục, và **lời Kriky** khớp chúng (ADR-30).
+
+    Lời nêu `Câu k` đầu mỗi mục, một công thức của mục và một câu hỏi -- đủ để qua phép đối chiếu
+    nhẹ của `outline.check_message`. Câu đầu suy từ việc: đề mới là 1, thay câu là chính câu ấy,
+    soạn thêm là 3 (các test soạn thêm chạy trên một đề 2 câu); `first` ghi đè.
+    """
+    outline = items or (_outline_item(),)
+    purpose = args.get("for", "new")
+    number = first or (
+        int(args["question"]) if purpose == "replace" else 3 if purpose == "more" else 1
+    )
+    lines = ["Mình đã đọc chương I, đề xuất dàn ý thế này:", ""]
+    for item in outline:
+        span = (
+            f"Câu {number}"
+            if item.questions == 1
+            else f"Câu {number}–{number + item.questions - 1}"
+        )
+        formula = f" {item.formulas[0]}" if item.formulas else ""
+        lines.append(f"- **{span}:** {item.knowledge}{formula}")
+        number += item.questions
+    lines += ["", "Bạn đồng ý với dàn ý này không?"]
     return NextStepCompleted(
         request_id="x",
         kind="outline",
-        text="Mình đã đọc chương I.",
-        outline=items or (_outline_item(),),
+        text="\n".join(lines),
+        outline=outline,
         tool_args=dict(args),
     )
 
 
 @pytest.mark.asyncio
-async def test_the_outline_shown_is_the_one_be_rendered_and_stored(stack) -> None:
-    """ADR-29: chữ dàn ý trên màn hình do BE dựng từ các mục, và một lần F5 dựng lại đúng chữ ấy."""
+async def test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored(stack) -> None:
+    """ADR-30: lời dàn ý trên màn hình là lời Kriky viết, nguyên văn; các mục -- thứ đi vào job --
+    lưu cạnh nó; và một lần F5 cho lại đúng lời ấy."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
     _bound_book()
-    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(_outline_step()))
+    step = _outline_step()
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(step))
 
     reply = await client.post(
         "/api/teacher/chat/messages",
@@ -2526,12 +2550,7 @@ async def test_the_outline_shown_is_the_one_be_rendered_and_stored(stack) -> Non
 
     async with maker() as session:
         row = await session.scalar(select(TeacherTurn).where(TeacherTurn.kind == "outline"))
-    expected = teacher_chat.render(
-        "Mình đã đọc chương I.",
-        [_outline_item()],
-        {0: "Chương I. SỐ TỰ NHIÊN (tr. 1–2)"},
-        version=1,
-    )
+    expected = step.text
     assert reply.json()["text"] == expected
     assert row.text == expected
     assert row.tool_result["items"] == [_outline_item().model_dump(mode="json")]
@@ -2563,7 +2582,7 @@ async def test_an_outline_be_refuses_goes_back_to_the_model_not_to_the_teacher(s
     assert len(agent.asked) == 2
     told = agent.asked[1]["history"][-1]
     assert told["tool_name"] == "outline" and "[99]" in told["tool_result"]["error"]
-    assert "(bản 1)" in reply.json()["text"]
+    assert reply.json()["text"] == _outline_step().text
     async with maker() as session:
         names = list(await session.scalars(select(TeacherTurn.tool_name)))
     assert "outline" not in names
@@ -2587,17 +2606,48 @@ async def test_an_outline_without_a_book_points_at_no_lesson(stack) -> None:
 
 
 @pytest.mark.asyncio
-async def test_each_new_outline_in_a_thread_is_the_next_version(stack) -> None:
+async def test_a_message_that_drifts_from_its_outline_goes_back_to_the_model(stack) -> None:
+    """ADR-30: lời không nhắc câu đầu của mục, hay không hỏi giáo viên, bị trả về model như một kết
+    quả tool; giáo viên chỉ thấy lời đã khớp các mục."""
     client, _, monkeypatch = stack
+    drifted = NextStepCompleted(
+        request_id="x",
+        kind="outline",
+        text="Mình soạn hai câu về đọc số tự nhiên nhé.",
+        outline=(_outline_item(source_nodes=()),),
+    )
+    good = _outline_step(_outline_item(source_nodes=()))
+    agent = ScriptedAgent(drifted, good)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER
+    )
+
+    told = agent.asked[1]["history"][-1]
+    assert told["tool_name"] == "outline" and "Câu 1" in told["tool_result"]["error"]
+    assert reply.json()["text"] == good.text
+
+
+@pytest.mark.asyncio
+async def test_each_new_outline_in_a_thread_is_the_next_version(stack) -> None:
+    client, maker, monkeypatch = stack
     bookless = _outline_step(_outline_item(source_nodes=()))
     monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(bookless, bookless))
 
     await client.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
-    second = await client.post(
-        "/api/teacher/chat/messages", json={"text": "câu 2 đổi đi"}, headers=TEACHER
-    )
+    await client.post("/api/teacher/chat/messages", json={"text": "câu 2 đổi đi"}, headers=TEACHER)
 
-    assert "(bản 2)" in second.json()["text"]
+    # Lời do Kriky viết không mang số bản (ADR-30); số bản sống ở chính lượt dàn ý.
+    async with maker() as session:
+        kept = list(
+            await session.scalars(
+                select(TeacherTurn.tool_result)
+                .where(TeacherTurn.kind == "outline")
+                .order_by(TeacherTurn.sequence)
+            )
+        )
+    assert [one["version"] for one in kept] == [1, 2]
 
 
 @pytest.mark.asyncio
@@ -2765,7 +2815,7 @@ async def test_drafting_more_needs_an_outline_for_more_and_finds_the_draft_itsel
     for said in ("soạn thêm 1 câu", "oke"):
         reply = await http.post("/api/teacher/chat/messages", json={"text": said}, headers=TEACHER)
 
-    assert "Câu 3 ·" in agent.asked[3]["history"][-2]["text"]  # dàn ý đếm tiếp từ câu 3
+    assert "Câu 3:" in agent.asked[3]["history"][-2]["text"]  # dàn ý đếm tiếp từ câu 3
     async with maker() as session:
         rows = list(await session.scalars(select(DraftItem).order_by(DraftItem.ordinal)))
     assert [(row.ordinal, row.outline_item) for row in rows] == [(1, 0), (2, 0), (3, 1)]
@@ -2892,7 +2942,7 @@ async def test_replacing_a_question_goes_through_its_own_outline(stack) -> None:
     shown = await http.post(
         "/api/teacher/chat/messages", json={"text": "thay câu 2 đi"}, headers=TEACHER
     )
-    assert "Câu 2 ·" in shown.json()["text"]
+    assert "Câu 2:" in shown.json()["text"]
     await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
 
     async with maker() as session:
@@ -3006,7 +3056,7 @@ async def test_replacing_in_a_bookless_draft_needs_no_lesson_even_with_a_chip(st
         headers=TEACHER,
     )
 
-    assert "Câu 2 ·" in shown.json()["text"]
+    assert "Câu 2:" in shown.json()["text"]
     bind_reader(None)
 
 
