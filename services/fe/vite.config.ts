@@ -37,5 +37,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: [],
+    // Giờ Việt Nam, ghim cứng: test so giờ địa phương mà máy chạy ở UTC thì một bản in giờ UTC
+    // cũng xanh (review code pha 5, plan `backlog-tier-1`).
+    env: { TZ: "Asia/Ho_Chi_Minh" },
   },
 });

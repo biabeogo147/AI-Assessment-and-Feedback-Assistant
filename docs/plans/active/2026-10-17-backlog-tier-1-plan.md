@@ -139,7 +139,7 @@ Người dùng chốt (17/10):
   decision record). **Không đụng `07-chi-tiet-cac-service.tex`** (phiên khác).
   Ảnh linh vật (PNG khung vuông, hạ bão hoà) là việc người vẽ — không làm bằng code; chuyển khỏi
   Tier 1 (ghi *việc ngoài code*).
-- [ ] 26. Trình duyệt + subagent chấm ảnh cho các màn đã đổi ở việc 23; sửa theo. Commit pha 4.
+- [x] 26. Trình duyệt + subagent chấm ảnh cho các màn đã đổi ở việc 23; sửa theo. Commit pha 4.
 
 ### Pha 5 — Vòng review cho tới khi hết Tier 1
 - [ ] 27. **Một subagent review code** của cả plan (pha 1–4). Mọi phát hiện → một dòng backlog + một hàng
@@ -203,5 +203,6 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 
 ## Status
 
-Pha 0–3 đã commit (`c93a482`, `53a8724`, `6bc8daf`, `0fe3a4c`). Đang làm pha 4 (việc 26: trình
-duyệt + chấm ảnh, rồi commit).
+Pha 0–4 đã commit (`c93a482`, `53a8724`, `6bc8daf`, `0fe3a4c`, `6e30e8a`). Pha 5, vòng review 1: 15
+phát hiện, 13 Tier 1 đã sửa (chờ commit), #3 phần định nghĩa *gần trùng* và #14 sang Tier 2. Kế
+tiếp: commit vòng 1, rồi review lại.

@@ -2990,6 +2990,52 @@ async def test_a_revised_outline_with_an_empty_brief_keeps_the_earlier_one(stack
 
 
 @pytest.mark.asyncio
+async def test_an_outline_after_a_finished_plan_does_not_borrow_the_old_paper(stack) -> None:
+    """Review code pha 5 (plan `backlog-tier-1`): một plan đã chạy giữa hai dàn ý là hai đề khác
+    nhau -- dàn ý của *"đề mới lớp 8"* không được lấp khối 7 của đề trước."""
+    client, maker, monkeypatch = stack
+    first = _outline_step(
+        _outline_item(source_nodes=()), subject="Toán", grade="7", topic_scope="tỉ lệ thức"
+    )
+    second = _outline_step(_outline_item(source_nodes=()), subject="Toán")
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(first, second))
+
+    await client.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    thread = await _the_thread(maker)
+    async with maker() as session:
+        last = await session.scalar(
+            select(func.max(TeacherTurn.sequence)).where(TeacherTurn.conversation_id == thread)
+        )
+        session.add(
+            TeacherTurn(
+                conversation_id=thread,
+                sequence=last + 1,
+                kind="plan",
+                text="",
+                tool_name="",
+                tool_result={"steps": ["Tạo đề", "Soạn"], "total": 2},
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+    await client.post(
+        "/api/teacher/chat/messages",
+        json={"text": "soạn thêm một đề mới lớp 8", "conversation_id": thread},
+        headers=TEACHER,
+    )
+
+    async with maker() as session:
+        kept = list(
+            await session.scalars(
+                select(TeacherTurn.tool_result)
+                .where(TeacherTurn.kind == "outline")
+                .order_by(TeacherTurn.sequence)
+            )
+        )
+    assert kept[1]["brief"] == {"subject": "Toán", "grade": "", "topic_scope": ""}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("args", "error"),
     [({"for": "more"}, "chưa có đề"), ({"for": "khác"}, "for phải là")],

@@ -677,6 +677,10 @@ async def outline_turn(
     )
 
 
+# Lời cho **giáo viên** trên dòng ✕ khi `error` chở tên tool (`said`, plan `backlog-tier-1`).
+_SAID_NOT_NOW = "Kriky gọi một việc không làm được ở bước này"
+_SAID_BROKE = "Việc này chạy không xong"
+
 _BRIEF_KEYS = ("subject", "grade", "topic_scope")
 
 
@@ -691,6 +695,10 @@ async def _filled_brief(
     dàn ý gần nhất có giá trị; dàn ý cho đề đã có (*thêm*, *thay*) thì lấy cả từ chính đề ấy.
     Model ghi giá trị nào thì giá trị ấy thắng.
 
+    Chỉ các dàn ý **sau lượt `plan` gần nhất**: một plan đã chạy là đề trước đã soạn, và dàn ý
+    trước nó là của đề khác -- *"soạn thêm một đề mới lớp 8"* từng được lấp khối 7 của đề cũ
+    (review code pha 5, plan `backlog-tier-1`).
+
     Args:
         session: Session của database.
         thread: Đoạn chat.
@@ -703,9 +711,18 @@ async def _filled_brief(
     if all(brief.values()):
         return brief
     filled = dict(brief)
+    last_plan = await session.scalar(
+        select(func.max(TeacherTurn.sequence)).where(
+            TeacherTurn.conversation_id == thread, TeacherTurn.kind == "plan"
+        )
+    )
     earlier = await session.scalars(
         select(TeacherTurn.tool_result)
-        .where(TeacherTurn.conversation_id == thread, TeacherTurn.kind == "outline")
+        .where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.kind == "outline",
+            TeacherTurn.sequence > (last_plan if last_plan is not None else -1),
+        )
         .order_by(TeacherTurn.sequence.desc())
     )
     for result in earlier:
@@ -2723,7 +2740,9 @@ async def _go(
                     f"{step.tool_name} chỉ nêu được trong plan, không gọi ngay"
                     if step.tool_name in {spec.name for spec in working}
                     else f"không có tool nào tên {step.tool_name}"
-                )
+                ),
+                # Dòng ✕ in `said` trước `error`: tên tool là chữ cho model (review code pha 5).
+                "said": _SAID_NOT_NOW,
             }
         except Exception:
             # Mọi sự cố khác cũng vậy, và cũng vì đúng lý do đó. Một tool hỏng không phải
@@ -2731,7 +2750,7 @@ async def _go(
             # hỏi chuyện khác, và đó là một lượt tốt hơn một lỗi 500 không có chữ tiếng
             # Việt nào trong đó.
             logger.exception("tool %r failed for %s", step.tool_name, asking.teacher_code)
-            result = {"error": f"tool {step.tool_name} chạy không xong"}
+            result = {"error": f"tool {step.tool_name} chạy không xong", "said": _SAID_BROKE}
         finally:
             # Thả connection ra giữa các bước. Không có dòng này thì một session giữ một
             # connection lấy từ pool -- và một transaction Postgres nằm không -- xuyên qua
@@ -2868,7 +2887,10 @@ async def _go(
                     outline=outline if step_of_plan.tool_name in _DRAFTING_TOOLS else None,
                 )
             except UnknownTool:
-                held["result"] = {"error": f"không có tool nào tên {step_of_plan.tool_name}"}
+                held["result"] = {
+                    "error": f"không có tool nào tên {step_of_plan.tool_name}",
+                    "said": _SAID_NOT_NOW,
+                }
             except Exception:
                 logger.exception("step %d of a plan failed for %s", index, asking.teacher_code)
                 held["result"] = {"error": f"bước {index} chạy không xong"}

@@ -2083,7 +2083,8 @@ async def publications_of(
                 phase2_minutes_per_question=row.phase2_minutes_per_question,
                 remediation_deadline=deadline,
                 withdrawable_until=aware(row.opens_at),
-                recallable=now < aware(row.opens_at),
+                # Cùng luật với đường thu hồi (ADR-02, mốc bao gồm): một nơi quyết, không hai.
+                recallable=may_withdraw(aware(row.opens_at), now),
             )
         )
     return Publications(assessment_id=assessment_id, classes=tuple(rows))

@@ -411,6 +411,9 @@ async def test_a_miscounted_outline_is_asked_again(
 
     assert sum(item.questions for item in step.outline) == 6
     assert len(model.prompts) == 2
+    # Lần hỏi lại nói số câu đúng (review code pha 5): hint rỗng thì model không biết sai ở đâu.
+    assert "Giáo viên xin 6 câu" in model.prompts[1]
+    assert "Giáo viên xin 6 câu" not in model.prompts[0]
 
 
 _DRAFTED = TurnRecord(
@@ -561,6 +564,12 @@ def _read_part(more: bool, nodes: str, read: list[int]) -> tuple[TurnRecord, Tur
         (TurnRecord(kind="teacher", text="x"), *_read_part(False, "0", [1, 2])),
         # Ngó một mục khác dàn ý không trỏ tới (review đợt 6).
         (TurnRecord(kind="teacher", text="x"), *_read_part(True, "7", [8, 9])),
+        # Đọc trọn mục dàn ý trỏ tới, rồi ngó phần 1 của mục khác (review code pha 5).
+        (
+            TurnRecord(kind="teacher", text="x"),
+            *_read_part(False, "0", [1, 2]),
+            *_read_part(True, "7", [8, 9]),
+        ),
         # Lần đọc của lượt trước, rồi giáo viên đã gõ câu mới (review đợt 6).
         (
             TurnRecord(kind="teacher", text="x"),
@@ -760,6 +769,10 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
         ("thêm một câu hình học", True),
         ("oke", False),
         ("được rồi, soạn đi nhé", False),
+        # Lời phủ định không phải lời xin sửa (review code pha 5).
+        ("không cần sửa gì, soạn đi", False),
+        ("ok không đổi gì nữa, soạn luôn nhé", False),
+        ("không cần sửa, nhưng câu 3 khó hơn nhé", True),
     ],
 )
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
@@ -782,3 +795,28 @@ def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bo
     kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
 
     assert _drafts_over_a_revision(plan, _agreed(kept, said)) is held
+
+
+@pytest.mark.parametrize(
+    ("said", "total", "wrong"),
+    [
+        # Số sau *lớp* là khối, không phải số câu.
+        (("ra đề cho lớp 7 câu hỏi về tỉ lệ thức nhé",), 5, False),
+        # Sau một dàn ý, *"thêm 2 câu"* sửa dàn ý ấy: không đối chiếu với 2.
+        (("soạn 5 câu", "@outline", "thêm 2 câu hình học"), 7, False),
+        (("soạn 5 câu", "@outline", "bớt 1 câu"), 4, False),
+        # Không có dàn ý trước thì *"soạn thêm 3 câu"* vẫn là số câu xin.
+        (("soạn thêm 3 câu",), 5, True),
+    ],
+)
+def test_a_count_after_a_grade_or_a_revision_is_not_the_total(
+    said: tuple[str, ...], total: int, wrong: bool
+) -> None:
+    """Review code pha 5 (plan `backlog-tier-1`): `_count_said` bắt nhầm số câu."""
+    turns = tuple(
+        TurnRecord(kind="outline", text="Dàn ý.")
+        if text == "@outline"
+        else TurnRecord(kind="teacher", text=text)
+        for text in said
+    )
+    assert bool(_miscounted(_counted(total), "topic_scope=chương 1", _asked(*turns))) is wrong

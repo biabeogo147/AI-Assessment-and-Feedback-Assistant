@@ -123,9 +123,10 @@ Mọi file trong `cases/` theo đúng bảy mục này, đúng thứ tự:
 
 ## Thứ tự chạy
 
-Thứ tự: **01–08, 11, 12, 09, 10, 13, 14, 15**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở case 10
-chỉ thu hồi mềm: bản phát hành cho 12A còn lại với `recalled_at`, và `list_assessment` vẫn liệt
-kê nó, nên 12A sẽ có hai đề thay vì một. Bốn chuỗi nối nhau:
+Thứ tự: **01–08, 11, 12, 09, 10, 13, 14, 15, 16**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở
+case 10 chỉ thu hồi mềm: bản phát hành cho 12A còn lại với `recalled_at`. Từ 17/10/2026
+`list_assessment` đã lọc bản thu hồi, nhưng thứ tự giữ nguyên để các lần chạy so được với nhau. Bốn
+chuỗi nối nhau:
 
 - **02 → 05 → 09 → 10**: cùng một đề không tài liệu — soạn, thay câu 3, sửa / duyệt / xoá câu,
   phát hành rồi hoàn tác. Case 05 quay lại đúng đoạn chat của case 02.
@@ -134,6 +135,7 @@ kê nó, nên 12A sẽ có hai đề thay vì một. Bốn chuỗi nối nhau:
   hụt.
 - **13 sau 04**: tệp scan cũng lên *sẵn sàng*, tải trước case 04 thì thư viện có hai cuốn.
 - 01, 03, 07, 08, 11, 12: mỗi case một đoạn chat mới, không dựa vào đề của case nào.
+- 16 là ca của **học sinh**, chạy sau cùng trên đề seed: không dựa vào đề nào của giáo viên.
 
 Một case trong chuỗi không đạt thì các case sau vẫn chạy nếu trạng thái chúng cần vẫn có (ví dụ đề
 vẫn đủ câu); không có thì ghi *"không chạy được — case NN hỏng"* thay vì đoán.

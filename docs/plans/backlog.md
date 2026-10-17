@@ -1244,6 +1244,23 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | **Lượt chữa đã hết giờ (đồng hồ 00:00) vẫn cho chọn đáp án, và hộp nộp vẫn mời *"Quay lại làm tiếp"*** -- `Round.tsx` không có trạng thái *đã dừng*; BE từ chối lưu nên lựa chọn bấm sau giờ không được tính -- review ảnh pha 4 | Tier 2: màn *lượt đã dừng* trông thế nào (khoá phương án, chỉ còn nút nộp) là việc thiết kế, cần artboard |
 | **Câu luật của BE viết chưa tự nhiên**: *"có thể nộp lúc 18:01"* nên là *"nộp muộn nhất lúc 18:01"*; *"bị DỪNG"* viết hoa như hét -- review ảnh pha 4 | Tier 2 (gộp câu 17): chữ câu luật là nguyên văn ADR-03 |
 | **Kriky viết *"Để bạn vừa làm"*, *"Để hiện ở"* thay cho *"Đề"*** (đoạn chat case 04, lượt hỏi tên đề) -- review ảnh pha 4 | Tier 4: lỗi chữ của model |
+| ~~**`_filled_brief` lấp môn/khối/phạm vi từ dàn ý của một đề khác trong cùng đoạn chat** -- *"soạn thêm một đề mới lớp 8"* ra đề khối 7 -- review code pha 5, Nặng~~ | **Đã làm: chỉ lấy dàn ý sau lượt `plan` gần nhất** (plan `backlog-tier-1`, pha 5) |
+| ~~**Hỏi lại vì dàn ý sai số câu mà không nói số đúng** (`_UncountedOutline` không hint) -- review code pha 5~~ | **Đã làm: hint *"Giáo viên xin N câu…"*** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_gist` tính chữ số trong `x^{2}`, `u_{10}` là số liệu** -- review code pha 5~~ | **Đã làm: bỏ cụm `^{…}`/`_{…}`; docstring ghi giới hạn** (plan `backlog-tier-1`, pha 5) |
+| ~~**Panel: thao tác của đề cũ về muộn đè lên đề vừa mở** (`<Panel>` không `key`) -- review code pha 5~~ | **Đã làm: `key={openPaper}`** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_row_names` không nhận nhãn nút *"12A (32 học sinh)"*** -- review code pha 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_read_before_outline` gộp nút đọc của mọi phạm vi**, bắt đọc tiếp nhầm mục -- review code pha 5~~ | **Đã làm: chỉ gộp lần đọc cùng phạm vi với lần cuối** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_count_said` đọc *"lớp 7 câu hỏi"* thành 7, *"thêm 2 câu"* sau dàn ý thành tổng 2** -- review code pha 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_drafts_over_a_revision` coi *"không cần sửa gì"* là lời xin sửa** -- review code pha 5~~ | **Đã làm: `_NO_CHANGE`** (plan `backlog-tier-1`, pha 5) |
+| ~~**`error` của vòng chạy bước chở tên tool lên dòng ✕**, check `refusal-said` không soi `error`, `teacher_chat.py`, dict có `**` -- review code pha 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**`recallable` chép lại luật ADR-02 mà lệch mốc** (`<` thay `<=`) -- review code pha 5~~ | **Đã làm: `may_withdraw`** (plan `backlog-tier-1`, pha 5) |
+| ~~**Hai lưới mới có lỗ**: `models.Assessment(...)`, `Assessment(**f)`; `import aiohttp`, `prometheus_client`, `asyncio.start_server` -- review code pha 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**Docstring `handlers.py` và `harvest` nói sai đường lùi khi model hỏng** -- review code pha 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**Test chứng minh ít hơn điều nó nói**: lượt *mô hình bật* không phân biệt soạn câu với biến thể; vitest giờ địa phương xanh cả trên máy UTC; `fire`/`replace` khoá mà không test -- review code pha 5~~ | **Đã làm: đếm schema + stem ngoài kho; `TZ` ghim trong `vite.config.ts`; test đọc câu lệnh `FOR UPDATE`** (plan `backlog-tier-1`, pha 5) |
+| ~~**Plan không trung thực** (việc 26 chưa tick, Status cũ) -- review code pha 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| **Lưới gần trùng báo nhầm hai câu khác ý cùng mở bằng một hàm cụ thể** (*"Cho hàm số $y=x^3-3x+2$"* đồng biến / cực đại): câu sau thử lại tới `failed` -- review code pha 5 | Tier 2: *gần trùng* nghĩa là gì (cùng gist **và** cùng phần chữ hỏi?) là quyết định |
+| **Hộp nộp lượt in cứng *"câu làm đúng được 0,5 điểm"*** (`Round.tsx`): bản sao FE của `scoring.MARK_REMEDIATED` -- review code pha 5 | Tier 2: thêm một trường BE, hay bỏ dòng ấy (artboard 22b đang vẽ nó) |
+| ~~**`onApproved` của panel cũ đọc lại đoạn chat cũ rồi vẽ lên đoạn chat mới** khi lời đáp về sau một cú chuyển đoạn -- review ảnh pha 5~~ | **Đã làm: bỏ lời đáp khi đoạn chat đã đổi (`hereNow`); chưa có test riêng** (plan `backlog-tier-1`, pha 5) |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 

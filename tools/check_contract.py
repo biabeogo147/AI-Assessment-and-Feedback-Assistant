@@ -441,20 +441,28 @@ def _code_only(source: str) -> list[str]:
 def assessments_made_past_empty(source: str) -> list[int]:
     """Các dòng tạo `Assessment(...)` với một `state=` khác `AssessmentState.EMPTY`.
 
+    Bắt cả `models.Assessment(...)`, và cả `Assessment(**fields)`: khoá trải ra thì không ai đọc
+    được state nó mang, nên tính là vi phạm (review code pha 5, plan `backlog-tier-1`).
+
     Args:
         source: Mã nguồn Python.
 
     Returns:
         Số dòng của từng lời gọi như thế; rỗng khi không có.
     """
+
+    def named(func: ast.expr) -> bool:
+        return (isinstance(func, ast.Name) and func.id == "Assessment") or (
+            isinstance(func, ast.Attribute) and func.attr == "Assessment"
+        )
+
     return [
         node.lineno
         for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "Assessment"
+        if isinstance(node, ast.Call) and named(node.func)
         for keyword in node.keywords
-        if keyword.arg == "state" and ast.unparse(keyword.value) != "AssessmentState.EMPTY"
+        if keyword.arg is None
+        or (keyword.arg == "state" and ast.unparse(keyword.value) != "AssessmentState.EMPTY")
     ]
 
 
@@ -2232,12 +2240,27 @@ def check_kriky_says_nothing_fixed() -> str | None:
 # Thư viện mở một cổng HTTP. `document` nhận việc qua queue và trả lời qua queue, nên không file
 # nào của nó được import một trong số này (`services/document/AGENTS.md`).
 HTTP_SERVERS = frozenset(
-    {"fastapi", "starlette", "uvicorn", "flask", "aiohttp.web", "http.server", "socketserver"}
+    {
+        "fastapi",
+        "starlette",
+        "uvicorn",
+        "flask",
+        "aiohttp",
+        "http.server",
+        "socketserver",
+        "wsgiref",
+        "tornado",
+        "hypercorn",
+        "prometheus_client",
+    }
 )
+# Lời gọi mở một cổng mà không cần import thư viện server nào (`asyncio.start_server`).
+SERVER_CALLS = frozenset({"start_server", "create_server", "start_http_server", "run_app"})
 
 
 def http_servers_imported(source: str) -> list[int]:
-    """Các dòng import một thư viện mở cổng HTTP (`HTTP_SERVERS`), hay một module con của nó.
+    """Các dòng import một thư viện mở cổng HTTP (`HTTP_SERVERS`), hay một module con của nó, hay
+    gọi một hàm mở cổng (`SERVER_CALLS`).
 
     Args:
         source: Mã nguồn Python.
@@ -2257,6 +2280,12 @@ def http_servers_imported(source: str) -> list[int]:
             names = [node.module, *(f"{node.module}.{alias.name}" for alias in node.names)]
             if any(serving(name) for name in names):
                 lines.append(node.lineno)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in SERVER_CALLS
+        ):
+            lines.append(node.lineno)
     return lines
 
 
@@ -2309,7 +2338,8 @@ def _literal_text(node: ast.AST) -> str:
 def reasons_for_the_model_only(source: str) -> list[int]:
     """Các dòng có một lời từ chối mà `reason` chở chữ của máy và không kèm `said`.
 
-    Lời từ chối là một dict mang khoá `"reason"`, hay một lời gọi `_refusal(reason)` một tham số.
+    Lời từ chối là một dict mang khoá `"reason"` hay `"error"`, hay một lời gọi `_refusal(reason)`
+    một tham số.
 
     Args:
         source: Mã nguồn Python.
@@ -2319,12 +2349,12 @@ def reasons_for_the_model_only(source: str) -> list[int]:
     """
     lines = []
     for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Dict) and None not in node.keys:
+        if isinstance(node, ast.Dict):
+            # `**rest` là một khoá `None`: dict ấy vẫn được soi, chỉ khoá trải ra là không đọc được.
             keys = [key.value if isinstance(key, ast.Constant) else None for key in node.keys]
-            if (
-                "reason" in keys
-                and "said" not in keys
-                and MACHINE_WORDS.search(_literal_text(node.values[keys.index("reason")]))
+            told = [node.values[at] for at, key in enumerate(keys) if key in {"reason", "error"}]
+            if "said" not in keys and any(
+                MACHINE_WORDS.search(_literal_text(value)) for value in told
             ):
                 lines.append(node.lineno)
         elif (
@@ -2349,10 +2379,12 @@ def check_a_refusal_the_teacher_reads_names_no_tool() -> str | None:
     Returns:
         None khi mọi lời từ chối như thế có `said`, ngược lại là một thông báo thất bại.
     """
-    tools = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_tools.py"
+    # Hai file dựng kết quả bước mà dòng ✕ in: tool của giáo viên, và vòng chạy bước của chat.
+    be = REPO_ROOT / "services" / "be" / "src" / "be"
     offenders = [
-        f"{tools.name}:{line}"
-        for line in reasons_for_the_model_only(tools.read_text(encoding="utf-8"))
+        f"{path.name}:{line}"
+        for path in (be / "teacher_tools.py", be / "teacher_chat.py")
+        for line in reasons_for_the_model_only(path.read_text(encoding="utf-8"))
     ]
     if offenders:
         return _fail(

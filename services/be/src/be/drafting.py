@@ -97,6 +97,9 @@ def _comparable(stem: str) -> str:
 _MATH = re.compile(r"\$([^$]+)\$")
 # Một con số trong biểu thức, trừ chỉ số và số mũ viết liền sau `_`, `^` ($u_1$, $x^2$).
 _NUMBER = re.compile(r"(?<![_^\d])\d+(?:[.,]\d+)?")
+# Chỉ số và số mũ viết trong ngoặc ($x^{2}$, $u_{10}$): bỏ cả cụm trước khi đếm số (review code
+# pha 5, plan `backlog-tier-1` -- chữ số đứng sau `{` thì lookbehind của `_NUMBER` không thấy).
+_BRACED_SCRIPT = re.compile(r"[_^]\{[^{}]*\}")
 
 
 def _gist(stem: str) -> frozenset[str]:
@@ -106,13 +109,18 @@ def _gist(stem: str) -> frozenset[str]:
     $\frac{x}{6}=\frac{4}{9}$"* và *"Tìm số x biết $\frac{x}{6}=\frac{4}{9}$. Giá trị của x là:"*
     -- là cùng một bài, chỉ khác chữ (thử tay 17/10/2026, case 02). So khớp nguyên văn không bắt
     được chúng. Chỉ tính biểu thức mang **số liệu**: ít nhất hai con số khác nhau, không kể chỉ số
-    và số mũ đứng ngay sau `_`, `^`. Công thức tổng quát ($u_n = u_1 + (n-1)d$) và một biến ($x$)
-    không tính: hai câu khác nhau dùng chung chúng là chuyện thường.
+    và số mũ, viết liền sau `_`, `^` hay trong ngoặc sau chúng. Công thức tổng quát
+    ($u_n = u_1 + (n-1)d$) và một biến ($x$) không tính: hai câu khác nhau dùng chung chúng là
+    chuyện thường.
+
+    Giới hạn đã biết: hai câu khác ý cùng mở bằng một hàm cụ thể (*"Cho hàm số $y=x^3-3x+2$"*, một
+    câu hỏi đồng biến, một câu hỏi cực đại) ra cùng gist, nên câu sau bị coi là trùng. *Gần trùng*
+    nghĩa là gì cho ca ấy là quyết định của người dùng (backlog, Tier 2).
     """
     found = set()
     for piece in _MATH.findall(stem):
         compact = "".join(piece.split())
-        if len(set(_NUMBER.findall(compact))) >= 2:
+        if len(set(_NUMBER.findall(_BRACED_SCRIPT.sub("", compact)))) >= 2:
             found.add(compact)
     return frozenset(found)
 
@@ -810,9 +818,10 @@ async def harvest(
     không ai đi thu thì là một kết quả sẽ hết hạn.
 
     **Mọi thứ đều được kiểm ở đây, ngay trên đường vào.** AGENT có kiểm output của
-    chính nó và có fallback sang nội dung soạn trước, nhưng đây mới là cái check có
-    giá trị: đề nháp là thứ giáo viên duyệt và học sinh làm, nên một câu hỏi phá
-    ADR-18 thì phải bị chặn ở cửa này, hoặc không bị chặn ở đâu cả. Hai job trả về
+    chính nó (và không còn lùi về câu soạn trước khi model hỏng -- job ném, ô được thử
+    lại), nhưng đây mới là cái check có giá trị: đề nháp là thứ giáo viên duyệt và
+    học sinh làm, nên một câu hỏi phá ADR-18 thì phải bị chặn ở cửa này, hoặc không bị
+    chặn ở đâu cả. Hai job trả về
     cùng một stem là chuyện thường tình chứ không phải một bug -- không có gì điều
     phối chúng -- và một đề có một câu hỏi hai lần thì tệ hơn một đề thiếu đi một
     câu.

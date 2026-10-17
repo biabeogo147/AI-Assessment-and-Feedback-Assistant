@@ -75,9 +75,10 @@ _QUESTION = GeneratedQuestion(
     learning_objective="Tính đơn điệu của hàm bậc ba",
 )
 
-# Câu biến thể khác câu gốc: `validate_retry` từ chối một câu lặp lại `_QUESTION`.
+# Câu biến thể khác câu gốc (`validate_retry` từ chối một câu lặp lại `_QUESTION`), và **không có
+# trong kho** dọn trước: nhận về đúng câu này là bằng chứng handler đã đi đường model.
 _VARIANT = _QUESTION.model_copy(
-    update={"stem": "Cho hàm số y = x³ − 12x. Hàm số nghịch biến trên khoảng nào?"}
+    update={"stem": "Cho hàm số y = x³ − 27x. Hàm số đồng biến trên khoảng nào? (câu của model)"}
 )
 
 # Thứ model giả trả cho từng schema mà handler xin qua `with_structured_output`.
@@ -298,8 +299,10 @@ async def test_no_registered_task_returns_a_verdict(
     rung: list[tuple[str, object]] = []
     ctx: dict = {"redis": _Loa(rung)}
 
+    answers: dict[str, dict] = {}
     for name, run in _registered().items():
         answer = await run(ctx, PAYLOADS[name])
+        answers[name] = answer
 
         assert type(answer) is dict, f"task {name} trả {type(answer).__name__}, không phải dict"
         offenders = _verdicts_in(answer)
@@ -310,8 +313,11 @@ async def test_no_registered_task_returns_a_verdict(
         assert not heard, f"task {name} rung một quyết định ra Redis: {sorted(heard)}"
 
     if model_on:
-        # Soạn câu, câu biến thể và propose đều đã đi qua schema, không rơi về đường dọn sẵn.
-        assert set(_ASKED) == {"GeneratedQuestion", "_Proposal"}, _ASKED
+        # Soạn câu và câu biến thể (cùng schema) cùng propose đều đã đi qua model, và câu biến
+        # thể trả về là câu của model chứ không phải câu của kho (review code pha 5).
+        assert _ASKED.count("GeneratedQuestion") == 2, _ASKED
+        assert _ASKED.count("_Proposal") >= 1, _ASKED
+        assert answers[GENERATE_RETRY_QUESTION_TASK]["question"]["stem"] == _VARIANT.stem
 
 
 def test_no_message_agent_returns_declares_a_verdict_field() -> None:

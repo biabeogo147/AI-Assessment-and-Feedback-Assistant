@@ -1738,6 +1738,39 @@ async def test_two_classes_are_enough_choices_for_each_of_several_questions(
 
 
 @pytest.mark.asyncio
+async def test_classes_named_the_way_the_buttons_name_them_are_still_rows(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review code pha 5 (plan `backlog-tier-1`): model chép đúng chữ trên nút BE, *"12A (32 học
+    sinh)"* -- câu ấy vẫn là câu về dòng, hai lựa chọn là đủ."""
+    history = (
+        TurnRecord(kind="teacher", text="lớp 12 thế nào"),
+        TurnRecord(kind="tool_call", tool_name="list_class", tool_args={"name": "12"}),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="list_class",
+            tool_result={
+                "candidates": [
+                    {"name": "12A", "student_count": 32},
+                    {"name": "12B", "student_count": 30},
+                ],
+                "more": 0,
+            },
+        ),
+    )
+    lop = _Question(
+        label="Lớp", text="Lớp nào?", choices=("12A (32 học sinh)", "12B (30 học sinh)")
+    )
+    so_cau = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu", "15 câu"))
+    model = Scripted([_several(lop, so_cau)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    await propose(_asked("x").model_copy(update={"history": history}))
+
+    assert len(model.prompts) == 1
+
+
+@pytest.mark.asyncio
 async def test_a_parameter_question_still_needs_three_choices_beside_two_classes(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:

@@ -159,6 +159,9 @@ export default function Chat({
   // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
   // đầu thì id chỉ có sau khi BE trả lời.
   const [here, setHere] = useState<string | null>(conversationId);
+  // Đoạn chat đang mở **lúc này**, cho các lời đáp về muộn so với lúc gọi (`onApproved`).
+  const hereNow = useRef(here);
+  hereNow.current = here;
   // Đoạn chat đã **tải xong**, khác với đoạn đang hiện trên route. Phải là một ref riêng
   // chứ không phải `here`: lúc mount sạch ở `#/teacher/chat/X` thì `here` đã bằng `X` từ
   // giá trị khởi tạo, nên so với nó là so một con số với chính nó — và effect bỏ qua lần
@@ -755,6 +758,10 @@ export default function Chat({
 
       {openPaper !== null && (
         <Panel
+          // Mỗi đề một panel mới: thao tác đang chạy của đề cũ (đổi tên, duyệt, lưu, xoá) về muộn
+          // thì đè lên panel cũ đã bỏ, không lên đề vừa mở (review code pha 5, plan
+          // `backlog-tier-1`).
+          key={openPaper}
           assessmentId={openPaper}
           onClose={() =>
             go(here === null ? "/teacher" : `/teacher/chat/${here}`)
@@ -770,9 +777,14 @@ export default function Chat({
             // Đọc lại **đúng đoạn đang mở**. Bản trước gọi không id, mà không id nghĩa là
             // *đoạn đang chạy* — nên duyệt một đề mở từ một đoạn cũ sẽ ghi lượt của đoạn
             // khác đè lên màn hình.
+            // Lời đáp về sau khi giáo viên đã sang đoạn chat khác thì bỏ: vẽ nó là ghi lượt
+            // của đoạn cũ lên màn hình đoạn mới (review ảnh pha 5, plan `backlog-tier-1`).
+            const asked = here;
             teacher
-              .conversation(here ?? undefined)
-              .then((answered: Answered) => setTurns(answered.turns))
+              .conversation(asked ?? undefined)
+              .then((answered: Answered) => {
+                if (hereNow.current === asked) setTurns(answered.turns);
+              })
               .catch((cause: Error) => setTrouble(cause.message));
           }}
         />

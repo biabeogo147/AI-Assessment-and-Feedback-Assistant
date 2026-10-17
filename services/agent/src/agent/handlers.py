@@ -2,8 +2,16 @@
 
 Mỗi handler có hai đường. `LLM_ENABLED=false` thì nó trả nội dung dọn trước, tất định, để
 luồng hai pha chạy được từ đầu tới cuối mà không gọi model nào và một test khẳng định được
-cùng một điều hai lần. Bật model thì nó gọi model qua `agent.llm`; model hỏng thì job **ném**
--- không lùi về nội dung dọn trước, vì nội dung ấy từng lọt vào đề thật (plan `backlog-tier-1`).
+cùng một điều hai lần. Bật model thì nó gọi model qua `agent.llm`. Model hỏng thì mỗi handler xử
+một kiểu, và kiểu nào cũng có lý do của nó:
+
+  - `write_draft_question` **ném** -- không lùi về câu dọn trước, vì câu ấy từng lọt vào đề thật
+    của giáo viên (plan `backlog-tier-1`); BE thử lại ô ấy rồi đánh dấu hỏng.
+  - `generate_retry_question` lùi về kho biến thể của câu gốc, và **ném** khi kho không có -- BE
+    trả 503 trước khi ghi lượt, học sinh không mất vòng nào (ADR-17).
+  - `explain` chưa phát mảnh nào thì trả lượt dọn trước (`explain_turn`); đã phát thì giữ phần đã
+    phát. `name_conversation` lùi về tên dọn trước -- một tên đoạn chat không vào đề nào.
+
 Hai đường chung một hình dạng đầu ra, và sự kỷ luật về những gì vắng mặt trong đó.
 
 Ba luật đi qua cả hai đường, và các test canh chúng chứ không canh bất kỳ câu chữ nào được

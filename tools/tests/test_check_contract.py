@@ -100,6 +100,11 @@ def test_a_tool_may_only_make_an_empty_paper() -> None:
 
     assert assessments_made_past_empty(made) == [1]
     assert assessments_made_past_empty(empty) == []
+    # Review code pha 5: qua tên module, và qua khoá trải ra.
+    assert assessments_made_past_empty("x = models.Assessment(state=AssessmentState.APPROVED)") == [
+        1
+    ]
+    assert assessments_made_past_empty("x = Assessment(**fields)") == [1]
 
 
 def test_a_server_import_in_any_form_is_caught() -> None:
@@ -108,6 +113,9 @@ def test_a_server_import_in_any_form_is_caught() -> None:
     assert http_servers_imported("from fastapi import FastAPI") == [1]
     assert http_servers_imported("from http import server") == [1]
     assert http_servers_imported("from aiohttp import web") == [1]
+    assert http_servers_imported("import aiohttp") == [1]
+    assert http_servers_imported("from prometheus_client import start_http_server") == [1]
+    assert http_servers_imported("server = await asyncio.start_server(handle, port=8001)") == [1]
     assert http_servers_imported("import httpx\nfrom http import HTTPStatus") == []
 
 
@@ -121,3 +129,7 @@ def test_a_refusal_naming_a_tool_must_carry_words_for_the_teacher() -> None:
     assert reasons_for_the_model_only(said) == []
     assert reasons_for_the_model_only(plain) == []
     assert reasons_for_the_model_only('_refusal(f"part phải từ 1 đến {n}")') == [1]
+    # Review code pha 5: khoá `error` của vòng chạy bước, và dict có `**rest`, cũng được soi.
+    assert reasons_for_the_model_only('x = {"error": f"tool {t} chạy không xong"}') == []
+    assert reasons_for_the_model_only('x = {"error": "không có tool nào tên create_draft"}') == [1]
+    assert reasons_for_the_model_only('x = {**base, "reason": "gọi list_class trước"}') == [1]

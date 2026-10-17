@@ -330,12 +330,21 @@ def _read_before_outline(step: NextStepCompleted, request: NextStepRequested) ->
         done = [turn.tool_result for turn in current if turn.kind == "tool_result"]
         last = done[-1] if done else {}
         sources = {node for item in step.outline for node in item.source_nodes}
+
         # **Cả** phạm vi đã đọc trong lượt -- mọi phần, mọi lời gọi --, không chỉ phần cuối: đọc
         # phần 3/5 xong mà dàn ý trỏ nút của phần 1–2 thì so với phần cuối không giao nhau, và
         # AGENT thôi bắt đọc tiếp dù còn hai phần (thử tay 17/10, case 04; plan `backlog-tier-1`).
-        read = {int(node) for result in done for node in result.get("nodes") or ()}
-        for call in calls:
-            read |= {int(node) for node in re.findall(r"\d+", str(call.tool_args.get("nodes")))}
+        # Chỉ các lần đọc **cùng phạm vi** với lần cuối (cùng tham số, trừ `part`): đọc trọn mục B
+        # rồi ngó phần 1 của mục A thì dàn ý trỏ vào B không bắt đọc tiếp A (review code pha 5).
+        def scope(call: TurnRecord) -> dict:
+            return {key: value for key, value in call.tool_args.items() if key != "part"}
+
+        same = [at for at, call in enumerate(calls) if calls and scope(call) == scope(calls[-1])]
+        read = {int(node) for at in same if at < len(done) for node in done[at].get("nodes") or ()}
+        for at in same:
+            read |= {
+                int(node) for node in re.findall(r"\d+", str(calls[at].tool_args.get("nodes")))
+            }
         if (
             last.get("found") is True
             and last.get("more") is True
@@ -477,7 +486,29 @@ class _NoOutline(_AskAgain):
 class _UncountedOutline(_Flawed):
     """Dàn ý có tổng câu khác số câu model vừa ghi trong `known`, hay dàn ý thay câu không phải đúng
     một mục một câu (`draft-outline`). Đo ở bench run-98: *"6 câu"* ra dàn ý 4 mục × 2 câu; *"thay
-    câu 2"* ra dàn ý nêu lại cả đề."""
+    câu 2"* ra dàn ý nêu lại cả đề.
+
+    Lần hỏi lại phải nói **số câu đúng** (review code pha 5, plan `backlog-tier-1`): hint rỗng thì
+    model không biết sai ở đâu, và lần hai ra đúng dàn ý ấy.
+    """
+
+    def __init__(self, flaw: str, step: NextStepCompleted) -> None:
+        super().__init__(flaw, step)
+        wanted = _WANTED.search(flaw)
+        if flaw.startswith("replace"):
+            self.hint = (
+                "Dàn ý thay câu chỉ có đúng một mục, mục ấy một câu: chỉ cho câu bị thay. Nêu lại."
+            )
+        elif wanted:
+            n = wanted.group(1)
+            self.hint = (
+                f"Giáo viên xin {n} câu: tổng số câu của các mục trong dàn ý phải đúng {n}. "
+                "Nêu lại dàn ý."
+            )
+
+
+# Số câu đúng trong lý do của `_miscounted` (*"known says 5"*, *"the teacher asked for 5"*).
+_WANTED = re.compile(r"(?:says|asked for) (\d+)")
 
 
 class _PlanOverRevision(_Flawed):
@@ -598,6 +629,11 @@ def _row_names(request: NextStepRequested) -> set[str]:
                         for key in ("name", "label"):
                             if one.get(key):
                                 names.add(" ".join(str(one[key]).split()).casefold())
+                        # Chữ trên nút BE dựng cho một lớp (`teacher_chat._option`): model chép
+                        # đúng nhãn ấy thì câu vẫn là câu về dòng (review code pha 5).
+                        if one.get("name") and isinstance(one.get("student_count"), int):
+                            button = f"{one['name']} ({one['student_count']} học sinh)"
+                            names.add(" ".join(button.split()).casefold())
                 return names
     return set()
 
@@ -1121,15 +1157,30 @@ def _right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextS
 def _count_said(request: NextStepRequested) -> int | None:
     """Số câu giáo viên nói gần nhất kể từ plan gần nhất, hay None. Hàm thuần.
 
-    Bỏ câu *"thay câu 3 …"*: con số ấy là số thứ tự (`_REPLACES`).
+    Bỏ câu *"thay câu 3 …"*: con số ấy là số thứ tự (`_REPLACES`). Bỏ số đứng sau *lớp*, *khối*:
+    *"ra đề cho lớp 7 câu hỏi …"* không xin bảy câu. Lời *"thêm 2 câu"*, *"bớt 1 câu"* nói **sau**
+    một dàn ý là lời sửa dàn ý ấy, không phải tổng mới: gặp nó thì không đối chiếu nữa -- BE vẫn
+    chặn quá mười câu (review code pha 5, plan `backlog-tier-1`).
     """
-    for turn in reversed(_since_plan(request)):
+    since = _since_plan(request)
+    for at in range(len(since) - 1, -1, -1):
+        turn = since[at]
         if turn.kind != "teacher" or _REPLACES.search(turn.text):
             continue
-        said = _COUNT_SAID.findall(turn.text)
+        if (_ADDS.search(turn.text) or _TRIMS.search(turn.text)) and any(
+            earlier.kind == "outline" for earlier in since[:at]
+        ):
+            return None
+        said = _COUNT_SAID.findall(_GRADE_NUMBER.sub("", turn.text))
         if said:
             return int(said[-1])
     return None
+
+
+# *"lớp 7"*, *"khối 11"*: số ấy là khối, không phải số câu (`_count_said`).
+_GRADE_NUMBER = re.compile(r"\b(?:lớp|khối)\s*\d+", re.IGNORECASE)
+# Lời bớt câu khỏi một dàn ý: *"bớt 1 câu"*, *"bỏ 2 câu"* (`_count_said`).
+_TRIMS = re.compile(r"\b(?:bớt|bỏ)\s+\d+\s+câu\b", re.IGNORECASE)
 
 
 def _miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) -> str:
@@ -1184,7 +1235,18 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
     else:
         return False
     said = [turn.text for turn in after if turn.kind == "teacher"]
-    return bool(said) and not _AGREES.match(said[0]) and bool(_REVISES.search(said[0]))
+    if not said or _AGREES.match(said[0]):
+        return False
+    return bool(_REVISES.search(_NO_CHANGE.sub(" ", said[0])))
+
+
+# Lời **không** xin sửa: *"không cần sửa gì"*, *"ko đổi gì nữa"* -- bỏ đi trước khi tìm `_REVISES`,
+# như `_NO_BOOK` với chữ *sách* (review code pha 5, plan `backlog-tier-1`).
+_NO_CHANGE = re.compile(
+    r"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?"
+    r"(?:sửa|đổi|thay|thêm|bớt|bỏ)(?:\s+gì)?(?:\s+(?:nữa|cả|hết))?\b",
+    re.IGNORECASE,
+)
 
 
 def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:

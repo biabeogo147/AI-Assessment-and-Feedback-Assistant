@@ -374,3 +374,44 @@ async def test_a_question_already_swapped_is_not_swapped_again(stack, monkeypatc
         )
 
     assert stems[2] == "Câu hai mới"
+
+
+def _locked_tables(session) -> list[str]:
+    """Bọc `session.scalar` để ghi tên bảng của mọi câu `select … FOR UPDATE` đi qua nó.
+
+    SQLite bỏ `FOR UPDATE` lúc biên dịch, nên test đua thật không dựng được ở đây; test đơn vị đọc
+    chính câu lệnh: khoá có được xin không (plan `backlog-tier-1`, việc 15).
+    """
+    seen: list[str] = []
+    real = session.scalar
+
+    async def scalar(statement, *args, **kwargs):
+        if getattr(statement, "_for_update_arg", None) is not None:
+            seen.extend(table.name for table in statement.get_final_froms())
+        return await real(statement, *args, **kwargs)
+
+    session.scalar = scalar
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_firing_and_replacing_lock_the_paper_then_its_brief(stack, monkeypatch) -> None:
+    """Review code pha 5: `fire` và `replace` cùng đọc-sửa-ghi `brief.outline`; cả hai phải khoá
+    đề rồi brief, cùng một thứ tự, không thì hai bên đua làm mất mục của nhau."""
+    maker, draft_id, _ = stack
+    queue = HarvestingQueue()
+    await _two_questions(maker, draft_id, queue, monkeypatch)
+
+    async with maker() as session:
+        fired = _locked_tables(session)
+        await drafting.fire(
+            session, queue, get_settings(), draft_id, 1, _outline((1, "B"), version=2)
+        )
+    async with maker() as session:
+        replaced = _locked_tables(session)
+        await drafting.replace(
+            session, queue, get_settings(), draft_id, 2, _outline((1, "C"), version=3)
+        )
+
+    assert fired[:2] == ["assessments", "draft_briefs"]
+    assert replaced[:2] == ["assessments", "draft_briefs"]

@@ -4812,6 +4812,9 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     const [one, two] = ruledFor(CLOSES, ENDS);
     expect(said).toContain(one);
     expect(said).toContain(two);
+    // Chữ cứng, không tính lại: `CLOSES` là 02:30 UTC, tức 09:30 giờ Việt Nam (TZ ghim trong
+    // `vite.config.ts`). Một bản in giờ UTC thì ra 02:30 và đỏ ở đây.
+    expect(said).toContain("Vào tham gia tới hết 09:30");
     // Thu hồi được tới **giờ mở**, và con số ấy do BE nêu riêng chứ không do FE suy ra.
     expect(said).toContain(`Thu hồi được tới ${moment(OPENS)}`);
   });

@@ -357,8 +357,15 @@ async def test_two_jobs_writing_the_same_problem_in_other_words_yield_one_questi
 
 def test_a_gist_keeps_only_expressions_with_numbers() -> None:
     stem = r"Cho $x$, $\frac{x}{6} = \frac{4}{9}$, $u_n=u_1+(n-1)d$ và $2^{10}$ với $3x^2 + 5$."
-    # $2^{10}$ là số liệu cụ thể; chỉ số $u_1$ và số mũ $x^2$ không tính là số liệu.
-    assert drafting._gist(stem) == frozenset({r"\frac{x}{6}=\frac{4}{9}", "2^{10}", "3x^2+5"})
+    # Chỉ số $u_1$ và số mũ ($x^2$, $2^{10}$) không tính là số liệu, nên $2^{10}$ chỉ còn một số.
+    assert drafting._gist(stem) == frozenset({r"\frac{x}{6}=\frac{4}{9}", "3x^2+5"})
+
+
+def test_a_braced_script_is_not_a_number_either() -> None:
+    """Review code pha 5 (plan `backlog-tier-1`): $x^{2}-1$ và $u_{10}+u_{2}$ từng tính chữ số
+    trong ngoặc là số liệu, trong khi $x^2-1$ thì không -- cùng một biểu thức, hai cách viết."""
+    stem = r"Cho $x^{2}-1$, $x^2-1$, $u_{10}+u_{2}$ và $x^{2}-5x+6$."
+    assert drafting._gist(stem) == frozenset({"x^{2}-5x+6"})
 
 
 @pytest.mark.asyncio
