@@ -343,7 +343,9 @@ def _already_written(request: DraftQuestionRequested) -> list[str]:
     Returns:
         Các dòng thêm vào brief; rỗng khi đề chưa có câu nào.
     """
-    written = [stem for stem in request.banned_stems if stem.strip()][:_MOST_WRITTEN_SHOWN]
+    # Mười câu **cuối**: BE gửi theo thứ tự câu, và câu gần nhất là câu một job soạn thêm hay một
+    # lần thử lại dễ trùng nhất (review code pha 6) -- mười câu đầu của một đề dài bỏ sót đúng nó.
+    written = [stem for stem in request.banned_stems if stem.strip()][-_MOST_WRITTEN_SHOWN:]
     if not written:
         return []
     return [
@@ -393,17 +395,20 @@ def draft_brief(request: DraftQuestionRequested) -> str:
         if request.other_items:
             lines.append("Các câu khác của đề lo những kiến thức sau, đừng hỏi sang:")
             lines += [f"  · {knowledge}" for knowledge in request.other_items]
-        lines += _already_written(request)
         lines.append(
             "Bám đúng kiến thức, công thức và cách làm trên: giáo viên đã duyệt chúng trước khi "
             "câu được soạn."
         )
+        # Sau câu *"Bám đúng … trên"*, không trước: đứng trước thì *"trên"* trỏ vào các câu phải
+        # tránh, như thể giáo viên đã duyệt chúng (review code pha 6).
+        lines += _already_written(request)
         return "\n".join(lines)
-    lines += _already_written(request)
     lines += [
         "",
         "Mỗi câu trong bộ phải hỏi một khía cạnh khác nhau của phạm vi trên.",
     ]
+    # Cùng lý do với nhánh có dàn ý: *"phạm vi trên"* phải trỏ vào phạm vi, không vào các câu cũ.
+    lines += _already_written(request)
     return "\n".join(lines)
 
 

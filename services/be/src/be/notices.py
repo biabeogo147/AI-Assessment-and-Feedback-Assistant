@@ -30,8 +30,9 @@ PLAN_REFUSED = (
     "Kriky chưa dựng được các bước cho việc này. Bạn thử nói lại cụ thể hơn: việc gì, cho lớp hay "
     "đề nào."
 )
-# Dàn ý bị BE trả về cùng một lý do hai lần liền (plan `backlog-tier-1`): model đang kẹt như với
-# plan, nên lượt dừng thay vì gọi model tới trần cho cùng một lời từ chối.
+# Dàn ý bị BE trả về cùng một lý do hai lần liền, hay bị trả về lần thứ ba vì bất kỳ lý do gì (plan
+# `backlog-tier-1`, pha 5 và 6): model đang kẹt như với plan, nên lượt dừng thay vì gọi model tới
+# trần.
 OUTLINE_REFUSED = (
     "Kriky chưa nêu được dàn ý cho đề này. Bạn thử nói lại cụ thể hơn: phạm vi, số câu, dạng câu."
 )

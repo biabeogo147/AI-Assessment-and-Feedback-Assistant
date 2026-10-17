@@ -350,3 +350,19 @@ def test_a_question_is_shown_the_questions_already_in_the_paper(on_an_item: bool
     assert already in brief
     assert "Không viết lại bài nào" in brief
     assert "Không viết lại bài nào" not in fresh
+
+
+@pytest.mark.parametrize("on_an_item", [True, False])
+def test_a_long_paper_shows_its_last_questions_after_the_teachers_brief(on_an_item: bool) -> None:
+    """Review code pha 6 (plan `backlog-tier-1`): BE gửi câu theo thứ tự, câu gần nhất là câu dễ
+    trùng nhất, nên một đề mười hai câu nêu mười câu **cuối**. Và danh sách đứng sau những câu
+    *"… trên"* của brief, để chữ *trên* không trỏ vào các câu phải tránh."""
+    stems = tuple(f"Câu đã có số {n}: tính $ {n} + {n} $." for n in range(1, 13))
+    item = {"item_knowledge": "Tỉ lệ thức", "item_approach": "Nhân chéo"} if on_an_item else {}
+
+    brief = draft_brief(_asked(banned_stems=stems, **item))
+
+    assert stems[0] not in brief and stems[1] not in brief
+    assert all(stem in brief for stem in stems[2:])
+    above = "Bám đúng kiến thức" if on_an_item else "phạm vi trên"
+    assert brief.index(above) < brief.index("Không viết lại bài nào")
