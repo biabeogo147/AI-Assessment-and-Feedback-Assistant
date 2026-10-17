@@ -225,3 +225,17 @@ def test_a_teacher_who_asks_for_no_change_is_not_held_back(said: str) -> None:
 @pytest.mark.parametrize("said", REVISES)
 def test_a_teacher_who_asks_for_a_change_holds_the_plan_back(said: str) -> None:
     assert _drafts_over_a_revision(_PLAN, _after_an_outline(said)) is True
+
+
+@pytest.mark.parametrize(
+    "lead", ["không cần sửa luôn", "không cần sửa đi", "không cần sửa luôn luôn"]
+)
+def test_a_long_message_does_not_hang_the_check(lead: str) -> None:
+    """Review code vòng 10: *"gì thêm"* khớp được hai cách, và một chuỗi lặp nó từng backtrack theo
+    hàm mũ (24 cặp mất 13 s). `said` cho tới 2 000 ký tự -- cỡ ấy phải xong tức thì."""
+    import time
+
+    said = lead + " gì thêm" * 250 + " x"
+    started = time.perf_counter()
+    _drafts_over_a_revision(_PLAN, _after_an_outline(said))
+    assert time.perf_counter() - started < 1.0

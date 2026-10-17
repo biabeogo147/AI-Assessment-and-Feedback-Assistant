@@ -1300,8 +1300,12 @@ _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|
 _END_PARTICLE = r"(?:nh[éeaá]+n?|ạ+)"
 # *"gì thêm"* là *"gì nữa"*: *gì* mang theo *thêm* dù có chữ khác theo sau (*"không cần sửa gì thêm
 # soạn đi"*), trừ khi sau *thêm* là tân ngữ -- *"gì thêm 1 câu"* là lời xin thêm câu (vòng 9).
+# `?+` (possessive): *"gì thêm"* khớp được cả một tiểu từ lẫn *gì* + `_TRAILING_MORE`, và để
+# regex thử cả hai thì một chuỗi *"luôn gì thêm gì thêm …"* backtrack theo hàm mũ -- 24 cặp đã mất
+# 13 s, trong khi `said` cho tới 2 000 ký tự (review code vòng 10).
 _INNER_PARTICLE = (
-    r"(?:gì[iì]*(?:\s+thêm\b(?!\s+(?:\d|một|hai|ba|vài|mấy|câu|cho|phần|bài)))?"
+    r"(?:gì[iì]*(?:\s+thêm\b(?!\s+(?:\d|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|vài|mấy|câu|cho"
+    r"|phần|bài)))?+"
     r"|nữa|cả|hết+|đâu)"
 )
 _LONG_PARTICLE = r"(?:luôn|đi)"
