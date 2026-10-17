@@ -128,6 +128,16 @@ _SPLIT = [_item(formulas=("$a = bq + r,\\ 0 \\le r < b$",))]
         ("$x, y > 0,\\ x+y=1$", "$x+y=1$ với $x, y > 0$"),
         # Toàn vế ngắn thì chỉ so nguyên vẹn được, và `\ ` chỉ là cách viết.
         ("$a,\\ b,\\ c,\\ d \\ge 0$", "$a, b, c, d \\ge 0$"),
+        # Hai điểm có toạ độ; chữ đơn vị bỏ đi thì còn một vế; `\\ ` xuống dòng của `cases`.
+        ("$A(1; 2),\\ B(3; 4)$", "$A(1; 2)$ và $B(3; 4)$"),
+        ("$v = 36\\ \\text{km/h}$", "$v = 36$ km/h"),
+        # Hệ phương trình: chấm phẩy giữa `5` và `2x` vẫn là chỗ nối; `cases` tách mỗi dòng một cặp.
+        ("$x + y = 5;\\ 2x - y = 1$", "$x+y=5$ và $2x-y=1$"),
+        ("$\\begin{cases}x+y=5\\\\ x-y=1\\end{cases}$", "$x+y=5$ và $x-y=1$"),
+        (
+            "$\\begin{cases}x+y=5\\\\ x-y=1\\end{cases}$",
+            "$\\begin{cases}x+y=5\\\\x-y=1\\end{cases}$",
+        ),
     ],
 )
 def test_a_formula_the_message_splits_around_a_word_still_counts(formula: str, said: str) -> None:
@@ -148,6 +158,11 @@ def test_a_formula_the_message_splits_around_a_word_still_counts(formula: str, s
         ("$m = 2,5\\ \\text{kg}$", "$m = 25$"),
         # Vế dài phải phủ phần lớn công thức: `d \ge 0` không thay được cho `a, b, c, d \ge 0`.
         ("$a, b, c, d \\ge 0$", "$d \\ge 0$"),
+        # Chuẩn hoá trước khi tách: `{,}`, `\,` và `; ` có cách vẫn nằm giữa hai chữ số.
+        ("$m = 2{,}5$", "$m = 25$"),
+        ("$x = 3\\,512$", "$x = 3\\sqrt{512}$"),
+        ("$x \\in \\{1; 2; 3\\}$", "$x \\in \\{1\\}$"),
+        ("$\\vec{u} = (2; 3)$", "$\\vec{u} = (2; 5)$"),
     ],
 )
 def test_a_short_or_decimal_part_is_not_a_joint(formula: str, said: str) -> None:

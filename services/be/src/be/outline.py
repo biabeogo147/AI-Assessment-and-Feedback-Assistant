@@ -90,8 +90,12 @@ _QUESTION_NUMBER = re.compile(
 )
 # Những thứ hai cách viết cùng một công thức hay khác nhau (review pha 4): ngoặc nhóm, cỡ ngoặc,
 # kiểu dựng, dấu nhân. `a^2` và `a^{2}`, `\dfrac` và `\frac`, `(n-1)d` và `(n-1) \cdot d` là một.
-# Khoảng trắng LaTeX (`\ `, `\,`, `\:`, `\;`, `\!`, `\quad`) cũng chỉ là cách viết.
-_NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times|q?quad)|\\[ ,:;!]|[{}$\s]")
+# Khoảng trắng LaTeX (`\ `, `\,`, `\:`, `\;`, `\!`, `\quad`) cũng chỉ là cách viết -- trừ `\\ `
+# xuống dòng của `cases`, mà `\` thứ hai không được ăn mất. Ngoặc nhọn của tập hợp `\{…\}` bỏ cả
+# dấu `\`, như ngoặc nhóm: để lại `\` thì `\{1; 2\}` thành `\1;2\`, và `2\` không còn là một số.
+_NOISE = re.compile(
+    r"\\(?:left|right|displaystyle|cdot|times|q?quad)|(?<!\\)\\[ ,:;!]|(?<!\\)\\(?=[{}])|[{}$\s]"
+)
 # Số node là định danh máy (luật 7 của bộ thử tay): *"(node 1, 3, 6, 17)"*, *"node 5"*. Thử tay
 # 17/10/2026 (`kriky-writes-every-word`): từ khi Kriky tự viết lời dàn ý, model chép `source_nodes`
 # vào lời ở cả ba lượt dàn ý theo sách -- trước ADR-30, dòng `Theo:` BE dựng in nhãn bài, không số.
@@ -100,12 +104,16 @@ _NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times|q?quad)|\\[ ,:;!]|
 _NODE_NUMBER = re.compile(r"(?<![a-z])nodes?\s*(?:số\s*)?[:#=]?\s*\[?\s*\d", re.IGNORECASE)
 
 
-# Chỗ nối giữa các vế của một công thức gộp: dấu phẩy, chấm phẩy, khoảng trắng LaTeX (`\ `, `\,`,
-# `\:`, `\;`), `\quad`, và chữ trong `\text{…}` (*"với"*, *"và"*). Mục buộc phải viết
-# `$a = bq + r,\ 0 \le r < b$` trong một cặp `$` (`validate`), còn lời thì tự nhiên viết
-# *"$a = bq + r$ với $0 \le r < b$"*. Chỗ nối **giữa hai chữ số** thì không tách: `2,5` là số thập
-# phân, `\{1;2;3\}` là một tập hợp, `3\,512` là một số (review của bản sửa này).
-_JOINT = re.compile(r"\\q?quad|\\text\{[^{}]*\}|(?<!\d)(?:\\[ ,:;]|[,;])|(?:\\[ ,:;]|[,;])(?!\d)")
+# Chỗ nối giữa các vế của một công thức gộp. Mục buộc phải viết `$a = bq + r,\ 0 \le r < b$` trong
+# một cặp `$` (`validate`), còn lời thì tự nhiên viết *"$a = bq + r$ với $0 \le r < b$"*.
+# Hai bước, **chuẩn hoá trước rồi mới tách** (review lần ba): chữ trong `\text{…}` (*"với"*, *"và"*)
+# và `\quad` thành dấu phẩy, rồi `_flat` bỏ ngoặc nhóm, dấu cách, khoảng trắng LaTeX; chỉ khi ấy
+# mới tách ở dấu phẩy, chấm phẩy -- **trừ khi nó nằm giữa một chữ số và một số trơn** (`2,5`,
+# `1;2;3`, `(2;3)`); `5;2x` của một hệ phương trình thì vẫn tách. Tách trước thì `{,}`, `\,`, `; `
+# đứng chen giữa chữ số và dấu, nên `2{,}5`, `3\,512`, `\{1; 2; 3\}`, `(2; 3)` bị tách sai. `\\`
+# xuống dòng và vỏ `\begin{cases}` cũng là chỗ nối: lời hay viết mỗi phương trình một cặp `$`.
+_WORDED_JOINT = re.compile(r"\\text\{[^{}]*\}|\\q?quad|\\\\|\\(?:begin|end)\{[a-z*]+\}")
+_JOINT = re.compile(r"(?<!\d)[,;]|[,;](?!\d++(?![a-zA-Z\\]))")
 # Vế ngắn hơn chừng này (`a` trong `a, b \ge 0`, `b)` trong `(a; b)`) khớp với chữ nào của lời cũng
 # được, nên không dùng làm bằng chứng; các vế dài phải phủ ít nhất hai phần ba công thức.
 _SHORT_PART = 3
@@ -124,14 +132,15 @@ def _shown(formula: str, flat: str) -> bool:
     ghi điều kiện chung một cặp với biểu thức, lời thì tách hai cặp có chữ ở giữa, nên phép so cả
     chuỗi không khớp và dàn ý bị trả về ba lần. Đủ **mọi** vế dài mới tính -- nêu một nửa là
     thiếu. Vế ngắn (`_SHORT_PART`) bị bỏ qua thay vì làm hỏng cả phép tách: *"$a, b \ge 0$"* là
-    cách viết hay gặp (review lần hai của bản sửa này).
+    cách viết hay gặp (review lần hai của bản sửa này). Một vế duy nhất còn lại sau khi bỏ chữ
+    cũng được: `$v = 36\ \text{km/h}$` với lời *"$v = 36$ km/h"*.
     """
     if _flat(formula) in flat:
         return True
-    parts = [one for one in (_flat(part) for part in _JOINT.split(formula)) if one]
+    parts = [one for one in _JOINT.split(_flat(_WORDED_JOINT.sub(",", formula))) if one]
     long = [one for one in parts if len(one) >= _SHORT_PART]
     return (
-        len(parts) > 1
+        bool(long)
         and 3 * sum(map(len, long)) >= 2 * sum(map(len, parts))
         and all(one in flat for one in long)
     )
