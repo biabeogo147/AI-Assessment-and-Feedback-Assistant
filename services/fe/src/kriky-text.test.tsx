@@ -155,4 +155,21 @@ describe("KrikyText", () => {
       "2.",
     ]);
   });
+
+  it("danh sách lỏng trong một dòng: dấu và chữ của mục vẫn chung một dòng", () => {
+    // Review cuối plan: dòng trống giữa các mục làm mỗi mục bọc một `p`, và `p` ấy từng thành
+    // một dòng riêng dưới dấu `•`.
+    const { container } = render(
+      <h3>
+        <KrikyText inline>{"Bạn cho mình biết:\n\n- Khối nào?\n\n- Số câu?"}</KrikyText>
+      </h3>,
+    );
+    const shown = [...container.querySelectorAll(".line")];
+    expect(shown.map((one) => one.textContent)).toEqual([
+      "Bạn cho mình biết:",
+      "Khối nào?",
+      "Số câu?",
+    ]);
+    expect(container.querySelectorAll(".line .line")).toHaveLength(0);
+  });
 });

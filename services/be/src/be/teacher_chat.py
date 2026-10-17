@@ -2407,6 +2407,7 @@ async def _go(
                 )
                 stuck = PLAN_REFUSED
                 if guarded == refused:
+                    logger.warning("same drafting refusal twice for %s", asking.teacher_code)
                     break
                 refused = guarded
                 continue
@@ -2465,6 +2466,7 @@ async def _go(
                 TurnRecord(kind="tool_result", tool_name="plan", tool_result={"error": why})
             )
             if why == refused:
+                logger.warning("same plan refusal twice for %s", asking.teacher_code)
                 break
             refused = why
             continue
@@ -2557,7 +2559,8 @@ async def _go(
     if not plan:
         # Mức trần. Chạm tới, không phải đâm vào: giáo viên nhận được một câu gọi tên
         # nguyên nhân và gợi ý đúng một việc có ích.
-        logger.warning("tool loop hit %d steps for %s", allowed, asking.teacher_code)
+        if not stuck:
+            logger.warning("tool loop hit %d steps for %s", allowed, asking.teacher_code)
         history.append(TurnRecord(kind="notice", text=stuck or CEILING_REACHED))
         await _record(session, thread, position, history[-1])
         yield TurnEvent(kind="notice", text=history[-1].text, conversation_id=thread)

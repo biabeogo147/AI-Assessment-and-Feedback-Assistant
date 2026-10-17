@@ -140,6 +140,19 @@ function lines(node: HastNode): void {
           ...item.properties,
           dataMarker: child.tagName === "ol" ? `${start + index}.` : "•",
         };
+        // Danh sách lỏng (dòng trống giữa các mục) bọc chữ mỗi mục trong một `p`; để `p` thành
+        // dòng riêng thì dấu `•` đứng một mình và chữ rơi xuống dòng dưới (review cuối plan,
+        // `kriky-writes-every-word`). Gỡ `p`, hai đoạn trong một mục cách nhau bằng `br`.
+        const kept: HastNode[] = [];
+        for (const inner of item.children ?? []) {
+          if (inner.type !== "element" || inner.tagName !== "p") {
+            kept.push(inner);
+            continue;
+          }
+          if (kept.length > 0) kept.push({ type: "element", tagName: "br", children: [] });
+          kept.push(...(inner.children ?? []));
+        }
+        item.children = kept;
         index += 1;
       }
     }

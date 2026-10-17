@@ -82,7 +82,9 @@ _NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times)|[{}$\s]")
 # Số node là định danh máy (luật 7 của bộ thử tay): *"(node 1, 3, 6, 17)"*, *"node 5"*. Thử tay
 # 17/10/2026 (`kriky-writes-every-word`): từ khi Kriky tự viết lời dàn ý, model chép `source_nodes`
 # vào lời ở cả ba lượt dàn ý theo sách -- trước ADR-30, dòng `Theo:` BE dựng in nhãn bài, không số.
-_NODE_NUMBER = re.compile(r"\bnodes?\s*[:#]?\s*\d", re.IGNORECASE)
+# Cả *"node số 5"*, *"nodes 14, 15"* và *"source_nodes: [5]"* -- `_` liền trước làm `\b` không khớp
+# (review cuối plan).
+_NODE_NUMBER = re.compile(r"(?<![a-z])nodes?\s*(?:số\s*)?[:#=]?\s*\[?\s*\d", re.IGNORECASE)
 
 
 def _flat(formula: str) -> str:

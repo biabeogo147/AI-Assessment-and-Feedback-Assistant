@@ -371,6 +371,42 @@ async def test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck(stack
 
 
 @pytest.mark.asyncio
+async def test_a_drafting_plan_held_back_twice_stops_the_turn_too(stack) -> None:
+    """Review cuối plan: nhánh `guard_drafting` -- soạn khi chưa có dàn ý -- cũng dừng ở lần hai."""
+    client, _, monkeypatch = stack
+    agent = ScriptedAgent(*[_open_and_draft("") for _ in range(20)])
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER
+    )
+
+    assert reply.json()["text"] == notices.PLAN_REFUSED
+    assert len(agent.asked) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_lookup_between_two_refusals_lets_the_model_try_again(stack) -> None:
+    """Một bước tra cứu chạy được giữa hai lần từ chối là model đang xoay xở, không phải kẹt: lý
+    do cũ quên đi, lần từ chối sau không dừng lượt."""
+    client, _, monkeypatch = stack
+    refused = _plan(PlanStep(tool_name="list_class", args={"name": "12A"}, title="Tra lớp"))
+    looked = NextStepCompleted(
+        request_id="x", kind="call_tool", tool_name="list_class", tool_args={}
+    )
+    said = NextStepCompleted(request_id="x", kind="say", text="Lớp 12A có 3 học sinh.")
+    agent = ScriptedAgent(refused, looked, refused, said)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12A thế nào"}, headers=TEACHER
+    )
+
+    assert reply.json()["text"] == "Lớp 12A có 3 học sinh."
+    assert len(agent.asked) == 4
+
+
+@pytest.mark.asyncio
 async def test_an_agreement_retyped_after_a_system_notice_still_drafts(stack) -> None:
     """Review pha 5: model hỏng sau *"oke"*, thông báo dặn gửi lại -- gửi lại vẫn là lời đáp dàn
     ý, không phải một lượt soạn bị chặn vì *"chưa thấy dàn ý"*."""

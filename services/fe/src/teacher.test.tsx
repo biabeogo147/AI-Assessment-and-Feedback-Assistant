@@ -490,7 +490,7 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
       ...SPOKEN,
       turns: [
         blank({ kind: "teacher", text: "soạn 2 câu chương 1" }),
-        blank({ kind: "outline", text: "Dàn ý — 2 câu (bản 1)" }),
+        blank({ kind: "outline", text: "Câu 1–2: tập hợp. Bạn đồng ý chứ?" }),
       ],
     };
     vi.stubGlobal(
@@ -508,7 +508,7 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
 
     await waitFor(() =>
       expect(document.querySelector(".reply-text")?.textContent).toContain(
-        "Dàn ý — 2 câu (bản 1)",
+        "Câu 1–2: tập hợp. Bạn đồng ý chứ?",
       ),
     );
   });
