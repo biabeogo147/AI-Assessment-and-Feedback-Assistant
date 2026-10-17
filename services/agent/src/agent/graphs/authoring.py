@@ -341,7 +341,8 @@ def _already_written(request: DraftQuestionRequested) -> list[str]:
     """
     # Mọi câu, không cắt: câu đã gây trùng có thể nằm ở bất kỳ đâu trong đề (một ô soạn thêm trùng
     # câu 1), nên cắt mười câu đầu hay mười câu cuối đều bỏ sót được đúng nó (review code vòng 12,
-    # 13). Đề có trần 50 câu, nên danh sách dài nhất là 49 dòng.
+    # 13). Đề có trần 50 câu, nên danh sách dài nhất là 50 dòng: thay một câu trong đề đầy, câu
+    # đang bị thay vẫn còn trong đề (review code vòng 14; xem Tier 2 câu 23 của backlog).
     written = [stem for stem in request.banned_stems if stem.strip()]
     if not written:
         return []
