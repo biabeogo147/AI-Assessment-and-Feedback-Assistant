@@ -1277,6 +1277,9 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | ~~**`_NO_CHANGE` coi *"luôn"*, *"đi"* giữa câu là cuối ý**: *"sao không đổi luôn câu 3 sang tự luận?"* lọt qua như lời không xin sửa -- review code vòng 4~~ | **Đã làm: tiểu từ chỉ tính khi theo sau là cuối ý** (plan `backlog-tier-1`, pha 5) |
 | ~~**Docstring `_count_revised` còn tả hành vi cũ** -- review code vòng 4~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
 | **`_COUNT_SAID` đọc *"2 câu cuối khó hơn nhé"* thành tổng 2** -- có từ trước, review code vòng 4 | Tier 4: lời nói về một phần của đề hay về tổng là chuyện đọc hiểu, regex không đủ; đo trên bench trước khi đổi |
+| ~~**`_NO_CHANGE` vòng 4 bắt cả tiểu từ cuối câu thật phải có dấu câu theo sau**: *"không cần sửa nhé em"* bị giữ như lời xin sửa; *"không cần sửa thêm"* cũng vậy -- review code vòng 5~~ | **Đã làm: chỉ *luôn/đi* cần cuối ý; nhận hai động từ liền nhau** (plan `backlog-tier-1`, pha 5) |
+| ~~**Docstring `_count_revised` không nói tới lời *soạn thêm* không con số** -- review code vòng 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| **Phân biệt *đồng ý* với *xin sửa* dàn ý bằng regex không bao giờ kín**: bốn vòng review liền (pha 5) đều ra một ca biên mới của `_NO_CHANGE`/`_REVISES` | Tier 2 câu 5 (lời đồng ý dàn ý): nút *Soạn theo dàn ý này* do BE dựng thay cho regex. Từ nay ca biên của regex này xếp vào câu 5, không vào Tier 1 |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 
