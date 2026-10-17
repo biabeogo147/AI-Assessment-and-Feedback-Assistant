@@ -142,7 +142,7 @@ Người dùng chốt (17/10):
 - [x] 26. Trình duyệt + subagent chấm ảnh cho các màn đã đổi ở việc 23; sửa theo. Commit pha 4.
 
 ### Pha 5 — Vòng review cho tới khi hết Tier 1
-- [ ] 27. **Một subagent review code** của cả plan (pha 1–4). Mọi phát hiện → một dòng backlog + một hàng
+- [x] 27. **Một subagent review code** của cả plan (pha 1–4). Mọi phát hiện → một dòng backlog + một hàng
   artifact, xếp tier (luật tier của artifact). Tier 1 mới ⇒ làm, commit, **review lại**; lặp tới khi
   review không ra Tier 1 nào.
 
@@ -203,7 +203,7 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 
 ## Status
 
-Pha 0–4 đã commit. Pha 5: review vòng 1 (13 Tier 1) sửa ở `98122e2`, vòng 2 (10) ở `3c3e8ac`, vòng 3
-(3) ở `d7af19b`, vòng 4 (2) ở `ed6352a`, vòng 5 (2) ở `e136202`, vòng 6 (1) ở `58a81a7`, vòng 7 (2)
-ở `f7b3d0d` (regex viết lại, bộ câu có nhãn), vòng 8 (2) ở `110d0f7`, vòng 9 (1) ở `95b07f3`, vòng 10
-(1, backtracking hàm mũ) sửa trong commit mang dòng Status này. Kế tiếp: review vòng 11.
+Pha 0–5 đã commit. Pha 5: mười một vòng review; vòng 1–10 ra 37 phát hiện Tier 1, sửa ở `98122e2`,
+`3c3e8ac`, `d7af19b`, `ed6352a`, `e136202`, `58a81a7`, `f7b3d0d`, `110d0f7`, `95b07f3`, `f5d0ddc`;
+vòng 11 không còn Tier 1 (audit backtracking toàn bộ `_NO_CHANGE` trên chuỗi tới 2 000 ký tự). Kế
+tiếp: pha 6, thử tay trên Haiku 5.5.
