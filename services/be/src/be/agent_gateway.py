@@ -453,11 +453,24 @@ def validate_retry(question: GeneratedQuestion, origin_stem: str, spent: list[st
         origin_stem: Câu hỏi pha 1 đang được remediation.
         spent: Những stem đã dùng ở các round trước của câu hỏi này.
 
+    "Lặp lại" gồm cả câu cũ **chứa trọn** trong câu mới -- câu gốc kèm một cái đuôi như *"(đề thay
+    số cho lượt 2)"*: bản đóng thế ấy từng đi lọt phép so khớp nguyên văn tới thẳng học sinh.
+
     Raises:
         AgentError: Nếu stem lặp lại câu gốc hoặc lặp lại bất kỳ round trước đó.
     """
-    normalise = " ".join(question.stem.split())
-    if normalise == " ".join(origin_stem.split()):
+    fresh = _folded(question.stem)
+    if _repeats(fresh, _folded(origin_stem)):
         raise AgentError(f"a retry question repeats the question it replaces: {question.stem}")
-    if normalise in {" ".join(stem.split()) for stem in spent}:
+    if any(_repeats(fresh, _folded(stem)) for stem in spent):
         raise AgentError(f"a retry question repeats an earlier round: {question.stem}")
+
+
+def _folded(stem: str) -> str:
+    """Stem gộp khoảng trắng, không phân biệt hoa thường. Hàm thuần."""
+    return " ".join(stem.split()).casefold()
+
+
+def _repeats(fresh: str, earlier: str) -> bool:
+    """Câu mới có phải câu cũ -- nguyên văn, hay câu cũ chứa trọn trong nó -- không. Hàm thuần."""
+    return bool(earlier) and (fresh == earlier or earlier in fresh)

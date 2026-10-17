@@ -662,16 +662,70 @@ async def outline_turn(
     kept["assessment_id"] = paper
     # Môn, khối, phạm vi của dàn ý, lúc model còn đủ bốn mục: lượt *"oke"* sau đó dựng plan từ chính
     # dàn ý, không từ trí nhớ của model (thử tay 15/10/2026, `draft-outline`).
-    kept["brief"] = {
-        key: str(step.tool_args.get(key) or "").strip()
-        for key in ("subject", "grade", "topic_scope")
-    }
+    kept["brief"] = await _filled_brief(
+        session,
+        thread,
+        paper,
+        {key: str(step.tool_args.get(key) or "").strip() for key in _BRIEF_KEYS},
+    )
     return TurnRecord(
         kind="outline",
         # Lời Kriky, nguyên văn (ADR-30): BE đã đối chiếu nó với các mục ở trên, không dựng lại.
         text=step.text.strip(),
         tool_result=kept,
     )
+
+
+_BRIEF_KEYS = ("subject", "grade", "topic_scope")
+
+
+async def _filled_brief(
+    session: AsyncSession, thread: str, paper: str, brief: dict[str, str]
+) -> dict[str, str]:
+    """Môn, khối, phạm vi của một dàn ý, lấp chỗ trống từ dàn ý trước của đoạn chat.
+
+    Thử tay 16-17/10/2026: Haiku để trống `known` từ lượt thứ hai (backlog *Haiku để trống
+    known*), nên dàn ý sửa lưu `brief` rỗng -- *"oke"* lùi về plan của model thay vì plan dựng từ
+    dàn ý (`_approved_plan`). Database giữ đủ `tool_result` của mọi dàn ý, nên chỗ trống lấy từ
+    dàn ý gần nhất có giá trị; dàn ý cho đề đã có (*thêm*, *thay*) thì lấy cả từ chính đề ấy.
+    Model ghi giá trị nào thì giá trị ấy thắng.
+
+    Args:
+        session: Session của database.
+        thread: Đoạn chat.
+        paper: Đề của dàn ý; rỗng với dàn ý cho đề mới.
+        brief: Thứ model ghi lượt này, có thể có ô rỗng.
+
+    Returns:
+        `brief` với các ô rỗng đã lấp được.
+    """
+    if all(brief.values()):
+        return brief
+    filled = dict(brief)
+    earlier = await session.scalars(
+        select(TeacherTurn.tool_result)
+        .where(TeacherTurn.conversation_id == thread, TeacherTurn.kind == "outline")
+        .order_by(TeacherTurn.sequence.desc())
+    )
+    for result in earlier:
+        before = (result or {}).get("brief") or {}
+        for key in _BRIEF_KEYS:
+            if not filled[key] and str(before.get(key) or "").strip():
+                filled[key] = str(before[key]).strip()
+        if all(filled.values()):
+            return filled
+    if paper:
+        assessment = await session.get(Assessment, paper)
+        draft = await session.get(DraftBrief, paper)
+        known = {
+            "subject": assessment.subject if assessment is not None else "",
+            "grade": assessment.grade if assessment is not None else "",
+            "topic_scope": draft.topic_scope if draft is not None else "",
+        }
+        for key in _BRIEF_KEYS:
+            if not filled[key]:
+                filled[key] = str(known[key] or "").strip()
+    return filled
 
 
 async def _last_chip(session: AsyncSession, thread: str) -> str:

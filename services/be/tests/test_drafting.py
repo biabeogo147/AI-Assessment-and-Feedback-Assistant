@@ -326,17 +326,49 @@ async def test_two_jobs_returning_the_same_stem_yield_one_question(stack) -> Non
 
 
 @pytest.mark.asyncio
-async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
-    """Một câu trả lời bị mất thì `retry` được; một job đã ném exception thì không.
+async def test_two_jobs_writing_the_same_problem_in_other_words_yield_one_question(stack) -> None:
+    """Thử tay 17/10/2026, case 02: câu 3 và câu 4 cùng một bài $\frac{x}{6}=\frac{4}{9}$, chỉ khác
+    chữ. Hai job song song không thấy nhau, nên lưới đứng ở lúc thu (plan `backlog-tier-1`)."""
+    maker, draft_id, queue = stack
+
+    async with maker() as session:
+        await drafting.fire(session, queue, get_settings(), draft_id, 3)
+
+    queue.finish(
+        "job-0", _good(r"Tìm số hạng chưa biết $x$ trong tỉ lệ thức $\frac{x}{6}=\frac{4}{9}$.")
+    )
+    queue.finish("job-1", _good(r"Tìm số x biết $\frac{x}{6} = \frac{4}{9}$. Giá trị của x là:"))
+    # Cùng công thức tổng quát, không số liệu: không phải trùng.
+    queue.finish("job-2", _good(r"Công thức $u_n = u_1 + (n-1)d$ cho số hạng thứ mấy?"))
+
+    async with maker() as session:
+        landed = await drafting.harvest(session, queue, get_settings(), draft_id)
+        rows = {
+            row.ordinal: (row.status, row.last_fault)
+            for row in await session.scalars(
+                select(DraftItem).where(DraftItem.assessment_id == draft_id)
+            )
+        }
+
+    assert landed == 2
+    assert rows[2] == ("pending", "đề gần trùng một câu đã có (cùng biểu thức, cùng số liệu)")
+    assert rows[3][0] == "ready"
+
+
+def test_a_gist_keeps_only_expressions_with_numbers() -> None:
+    stem = r"Cho $x$, $\frac{x}{6} = \frac{4}{9}$, $u_n=u_1+(n-1)d$ và $2^{10}$ với $3x^2 + 5$."
+    # $2^{10}$ là số liệu cụ thể; chỉ số $u_1$ và số mũ $x^2$ không tính là số liệu.
+    assert drafting._gist(stem) == frozenset({r"\frac{x}{6}=\frac{4}{9}", "2^{10}", "3x^2+5"})
+
+
+@pytest.mark.asyncio
+async def test_a_result_that_aged_out_or_a_job_that_raised_is_asked_again(stack) -> None:
+    """Một câu trả lời bị mất, hay một job ném lỗi, đều được hỏi lại -- có trần.
 
     Kết quả job sống được một giờ, nên một giáo viên bắt đầu soạn nháp rồi mai
     quay lại sẽ thấy chúng không còn — chuyện thường, và đáng thêm một job nữa.
-    Một job đã chạy rồi *ném exception* thì khác: hỏi lại cũng nhận đúng cái hỏng
-    đó, nên nó không đi qua bộ đếm attempts chút nào.
-
-    Và khẳng định đáng giá nằm ở lượt `fire` thứ hai: một status mà không ai hành
-    động theo thì chẳng chứng minh được gì, nên chỗ này kiểm rằng vị trí đó thật
-    sự nhận một job mới, còn vị trí `failed` thì không.
+    Job ném lỗi nay là đường của một model không viết được câu dùng được: AGENT thôi lùi về
+    câu soạn sẵn (plan `backlog-tier-1`), nên lần sau model hay viết được.
     """
     maker, draft_id, queue = stack
     settings = get_settings()
@@ -356,10 +388,8 @@ async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
             )
         }
 
-    # Ô 1 hết hạn trong Redis thì được hỏi lại **ngay trong lượt harvest ấy**; ô 2 có
-    # job tự nổ nên bỏ cuộc, không thử lại. Trước đợt này ô 1 dừng ở `retry` và chờ một
-    # cú `start_drafting` nữa — mà không có cú ấy thì nó chờ mãi.
-    assert rows == {1: "pending", 2: "failed", 3: "pending"}
+    # Cả hai được hỏi lại **ngay trong lượt harvest ấy**.
+    assert rows == {1: "pending", 2: "pending", 3: "pending"}
 
     async with maker() as session:
         after = {
@@ -370,8 +400,33 @@ async def test_a_result_that_aged_out_is_asked_again(stack) -> None:
         }
 
     assert after[1] == ("pending", 2, "kết quả đã hết hạn trong Redis")
-    # Job tự nổ thì KHÔNG đi qua bộ đếm: hỏi lại sẽ nhận đúng cái lỗi đó.
-    assert after[2][:2] == ("failed", 1)
+    assert after[2] == ("pending", 2, "model không soạn được câu này")
+
+
+@pytest.mark.asyncio
+async def test_a_job_that_keeps_raising_ends_failed_with_its_reason(stack) -> None:
+    """Model hỏng mãi thì ô đứng `failed` kèm lý do, không có câu nào thay chỗ nó."""
+    maker, draft_id, queue = stack
+    settings = get_settings()
+
+    async with maker() as session:
+        await drafting.fire(session, queue, settings, draft_id, 1)
+
+    for _ in range(5):
+        for job_id, _name, _payload in list(queue.jobs):
+            queue.break_(job_id)
+        async with maker() as session:
+            await drafting.harvest(session, queue, settings, draft_id)
+
+    async with maker() as session:
+        item = await session.scalar(select(DraftItem).where(DraftItem.assessment_id == draft_id))
+        stems = (
+            await session.scalars(select(Question).where(Question.assessment_id == draft_id))
+        ).all()
+
+    assert item is not None
+    assert (item.status, item.last_fault) == ("failed", "model không soạn được câu này")
+    assert stems == []
 
 
 @pytest.mark.asyncio

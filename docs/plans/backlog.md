@@ -1129,7 +1129,7 @@ tiết ở mục *Status* của plan.
 | **Dàn ý và plan bị từ chối không ghi `model_tokens`**; một lượt dàn ý không đóng câu hỏi lại đang mở trước nó (`_rows_in_play`) | Review đợt 3 ghi nhận |
 | **Bench `be_refuses` chỉ chạy `vet_plan`**, không chạy cổng duyệt -- một plan soạn khi chưa có dàn ý vẫn được chấm là đạt nếu đủ tham số | Cần bench dựng lịch sử có lượt dàn ý; ca `dan-y-*` hiện chấm bằng hình dạng đề nghị |
 | **Kriky hỏi lại dù đã đủ mục** (thử tay lượt bốn: *"soạn thêm 1 câu về cách ghi số La Mã"* → hai câu hỏi lại về khía cạnh và bài, rồi mới nêu dàn ý; bench run-98 thấy cùng kiểu ở ca đủ mục). Chữ kiến thức trong dàn ý đôi khi đuôi dấu `;` (*"Cách đọc số La Mã từ 1 đến 30;"*) | Chưa có cách sửa bằng code; luật prompt *đủ bốn mục thì nêu dàn ý* đã có. Cần đo riêng trước khi đổi prompt |
-| **`_document_scope` của `create_draft` đọc `nodes` *"1 2"* thành nút 12** (có từ plan 4b; `read_section` đã sửa lỗi ấy ở đợt 2) | Ngoài phạm vi plan dàn ý |
+| ~~**`_document_scope` của `create_draft` đọc `nodes` *"1 2"* thành nút 12** (có từ plan 4b; `read_section` đã sửa lỗi ấy ở đợt 2)~~ | **Đã sửa 17/10/2026: _node_list dùng chung với read_section** (plan `backlog-tier-1`, pha 1). Ngoài phạm vi plan dàn ý |
 
 ## Lộ ra ở lần chạy mốc bộ ca thử tay
 
@@ -1140,7 +1140,7 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 | --- | --- |
 | ~~**Câu mở của lượt dàn ý chép lại một dàn ý giả** (case 03, 06, 14): model viết cả dàn ý vào `text`, BE in `text` rồi in dàn ý thật~~ | **Hết lý do** 17/10/2026 (`kriky-writes-every-word`, ADR-30): lời Kriky nay **là** cả dàn ý, BE không dựng bản thứ hai; `outline.check_message` trả lại lời nhắc câu ngoài dàn ý (*"Câu 1"* thay vì *"Câu 8"*) |
 | **Nút hỏi lại không phải giá trị bấm được** (01, 08, 13): *"khối 6, 7, 8, 9"*, *"số câu từ 1 đến 10"*, *"Mình chỉ soạn 1 lần 12 câu."* (trái với trần vừa nói), *"Môn học là Lịch sử"* | `_answers` chỉ bỏ câu hỏi và tên mục trần; chưa có luật cho nút gộp cả dải giá trị |
-| **Mất số câu sau một lượt hỏi lại** (04): xin 5 câu, sau khi Kriky hỏi bài nào và giáo viên đáp *"cả chương luôn"*, dàn ý ra 10 câu | `_miscounted` chỉ đối chiếu với `known` của chính lượt ấy, mà `known` đã mất số 5 |
+| ~~**Mất số câu sau một lượt hỏi lại** (04): xin 5 câu, sau khi Kriky hỏi bài nào và giáo viên đáp *"cả chương luôn"*, dàn ý ra 10 câu~~ | **Đã sửa code 17/10/2026: _miscounted đối chiếu số câu giáo viên đã nói khi known trống — chờ thử tay** (plan `backlog-tier-1`, pha 1). `_miscounted` chỉ đối chiếu với `known` của chính lượt ấy, mà `known` đã mất số 5 |
 | **Dàn ý không công thức, câu lệch mục** (02, 07, 08): 0/5 mục có công thức; câu 2 *"vận tốc 120 km / 2 giờ"* dưới mục tỉ lệ thức, câu 4 tỉ số đơn dưới mục dãy tỉ số | Trùng mục *"Dàn ý chung chung"* ở trên; nay có số đo trên trình duyệt |
 | **Tên đề là chuỗi nhãn bài kèm trang, bị cắt** (04): *"Đề Bài 1. TẬP HỢP (tr. 5–9), CÁCH GHI SỐ TỰ NHIÊN (tr. 9–13), …, P"* | `_create_draft` đặt `Đề <topic_scope>`, mà `topic_scope` của đề theo sách là chuỗi nhãn |
 | **`read_section` đọc nhầm nút** (06): xin 2 câu số La Mã, Kriky đọc nút 4 (Hệ thập phân) và dàn ý ghi `Theo: 1. HỆ THẬP PHÂN` | Model chọn nút; chưa có luật đối chiếu chủ đề với nhãn nút |
@@ -1153,7 +1153,7 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | Plan soạn model tự nêu ngay sau một lời **xin sửa** dàn ý vẫn qua cổng, với dàn ý cũ (cổng chỉ đòi dàn ý ở lượt ngay trước) | Case 03, 07 đều ra bản 2 đúng, nên chưa thấy |
-| `list_assessment` không lọc bản phát hành đã thu hồi: sau khi hoàn tác ở case 10, 12A sẽ có hai đề | Thứ tự chạy đã đưa 11, 12 lên trước 09–10 để tránh |
+| ~~`list_assessment` không lọc bản phát hành đã thu hồi: sau khi hoàn tác ở case 10, 12A sẽ có hai đề~~ | **Đã sửa 17/10/2026: lọc recalled_at** (plan `backlog-tier-1`, pha 1). Thứ tự chạy đã đưa 11, 12 lên trước 09–10 để tránh |
 | Lý do của bước `✕` in thẳng `reason` / `error`, có thể lộ tên tool (luật 7) | Lần chạy này không có bước `✕` nào |
 | Chữ *"sách"* trong lời phủ định (*"ko cần sách"*) vẫn mở thư viện (`_BOOK_WORDS`) | Case 02, 08 đã bỏ cụm ấy; giáo viên thật vẫn có thể gõ |
 
@@ -1165,8 +1165,8 @@ ghi case thấy nó.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Haiku để trống `known` từ lượt thứ hai** (03, 04, 07): dàn ý lưu `brief` rỗng, nên *"oke"* lùi về plan của model thay vì plan dựng từ dàn ý (`_approved_plan`), và `_miscounted` không còn gì để so | Chưa sửa. Hướng: dàn ý mới mang `brief` của dàn ý trước khi `known` rỗng, hoặc BE ghi `brief` từ `create_draft` đầu tiên của đoạn chat |
-| **Tool soạn câu trả sai hình dạng rồi câu mock vào đề** (05, 1/24 job): thiếu `options`, `methods` là chuỗi JSON; `write_draft_question` lùi về câu soạn sẵn (*"Giới hạn của (x² − 1)/(x − 1)…"*), câu ấy thay câu 3 của đề lớp 7 và bước báo *"đã thay câu 3"* | Hai việc: đường ép tool của Claude chưa `strict`; và lùi về mock khi model thật hỏng là đưa một câu lạc đề vào đề thật — với mọi provider. **Người dùng chốt 17/10/2026: để backlog, chưa sửa; cùng ngày gỡ hoãn — làm ở plan `2026-10-17-backlog-tier-1-plan.md`.** Hướng sửa khi tới lượt: tool `strict`, bỏ đường lùi về câu soạn sẵn trong `write_draft_question` — ô hỏng thì báo hỏng (`last_fault`), không thay bằng câu khác |
+| ~~**Haiku để trống `known` từ lượt thứ hai** (03, 04, 07): dàn ý lưu `brief` rỗng, nên *"oke"* lùi về plan của model thay vì plan dựng từ dàn ý (`_approved_plan`), và `_miscounted` không còn gì để so~~ | **Đã sửa code 17/10/2026: BE lấp brief rỗng từ dàn ý trước — chờ thử tay** (plan `backlog-tier-1`, pha 1). Chưa sửa. Hướng: dàn ý mới mang `brief` của dàn ý trước khi `known` rỗng, hoặc BE ghi `brief` từ `create_draft` đầu tiên của đoạn chat |
+| ~~**Tool soạn câu trả sai hình dạng rồi câu mock vào đề** (05, 1/24 job): thiếu `options`, `methods` là chuỗi JSON; `write_draft_question` lùi về câu soạn sẵn (*"Giới hạn của (x² − 1)/(x − 1)…"*), câu ấy thay câu 3 của đề lớp 7 và bước báo *"đã thay câu 3"*~~ | **Đã sửa 17/10/2026: sai hình dạng thành lời phàn nàn cho model viết lại; hết lượt thì job hỏng, BE hỏi lại có trần, không câu soạn sẵn nào vào đề — chờ thử tay** (plan `backlog-tier-1`, pha 1). Hai việc: đường ép tool của Claude chưa `strict`; và lùi về mock khi model thật hỏng là đưa một câu lạc đề vào đề thật — với mọi provider. **Người dùng chốt 17/10/2026: để backlog, chưa sửa; cùng ngày gỡ hoãn — làm ở plan `2026-10-17-backlog-tier-1-plan.md`.** Hướng sửa khi tới lượt: tool `strict`, bỏ đường lùi về câu soạn sẵn trong `write_draft_question` — ô hỏng thì báo hỏng (`last_fault`), không thay bằng câu khác |
 | **Hai câu cùng mục trùng nhau** (02, 06, 07): job bám ví dụ trong `formulas`, bỏ lời dặn *"khác cách hỏi hoặc số liệu"*; `banned_stems` chỉ bắt chữ trùng y | Chưa sửa. Mốc gpt-4o-mini không thấy vì dàn ý của nó ít khi gộp câu vào một mục |
 | **Dàn ý một mục cho cả đề** (01, 03, 07, 08, 13): `Câu 1–N` một mục | Đúng `outline.validate`; chưa có luật về số mục |
 | **`_read_before_outline` để lọt dàn ý đọc dở** (04): đọc phần 3/5 xong, dàn ý chỉ trỏ nút phần 1–2, nên không giao nút phần vừa đọc và AGENT thôi bắt đọc tiếp | Điều kiện *"dàn ý trỏ vào phạm vi ấy"* so với phần **cuối**, không với cả phạm vi đã gọi |
@@ -1182,9 +1182,9 @@ ghi ở đây.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Câu mock vào đề nay 3/21 job** (02, 06, 07) — dòng *"Tool soạn câu trả sai hình dạng"* ở trên, tần suất tăng từ 1/24 | Như dòng trên. Đây là lỗi nặng nhất của lần chạy: ba trên năm ca có soạn câu không đạt vì nó |
+| ~~**Câu mock vào đề nay 3/21 job** (02, 06, 07) — dòng *"Tool soạn câu trả sai hình dạng"* ở trên, tần suất tăng từ 1/24~~ | **Đã sửa cùng dòng trên — chờ thử tay** (plan `backlog-tier-1`, pha 1). Như dòng trên. Đây là lỗi nặng nhất của lần chạy: ba trên năm ca có soạn câu không đạt vì nó |
 | **Dàn ý sửa không tách mục gộp** (03): sửa câu 3 của mục `Câu 3–4` thì câu 4 thành cùng dạng | Chưa có luật; `_right_purpose` không biết câu nào trong mục bị đổi |
-| **Lời đồng ý không thành plan khi `brief` rỗng, và model bịa một nút "xác nhận soạn đề"** (04, lần chạy dở): lời ấy *đáp* dàn ý, nên lượt sau BE chặn mọi plan soạn vì *"chưa thấy dàn ý"* | Gốc là dòng *"Haiku để trống `known`"* ở trên |
+| ~~**Lời đồng ý không thành plan khi `brief` rỗng, và model bịa một nút "xác nhận soạn đề"** (04, lần chạy dở): lời ấy *đáp* dàn ý, nên lượt sau BE chặn mọi plan soạn vì *"chưa thấy dàn ý"*~~ | **Đã sửa code cùng dòng trên — chờ thử tay** (plan `backlog-tier-1`, pha 1). Gốc là dòng *"Haiku để trống `known`"* ở trên |
 | **BE trả dàn ý về năm lần vì công thức sai khuôn `$…$`** (04, lượt chạy lại): mỗi lần một lời gọi model với ngữ cảnh lớn dần | Khuôn `outline.validate` đúng; chưa có dừng sớm như với plan bị từ chối lặp lại |
 | **Tên đoạn chat chép lời dặn**: *"Soạn đề toán lớp 6 chương 1 (từ chối? không) — tiêu đề: Soạn"* | `naming.py` trên Haiku; chưa đo lại |
 | **"Cả chương" mà chỉ đọc một phần chương** (04): `read_section` với `nodes` 1, 3, 6, 17 do model chọn, bỏ bốn bài, mà lời dàn ý vẫn nói *"lấy từ bài 1 đến thứ tự thực hiện các phép tính"* | Model chọn nút; `_read_before_outline` chỉ đòi đọc hết phạm vi **đã gọi**, không đối chiếu với phạm vi giáo viên nói |
@@ -1198,7 +1198,7 @@ trong buổi, không ghi ở đây.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Nút của câu hỏi phạm vi là *loại* phạm vi** (01): *"Một chương đang học"*, *"Một chủ đề cụ thể"* — không bấm được thành một phạm vi | `_answers` bỏ tên mục và câu hỏi, không nhận ra một *loại*; luật skill chưa nói nút phạm vi phải là tên một phần kiến thức |
-| **Hai ô cùng một mục lấy cùng một bài từ ngân hàng** (02): câu 3 và 4 đều $\frac{x}{6}=\frac{4}{9}$, chỉ khác chữ | Đường lấy câu ngân hàng không loại câu đã dùng trong đề; lưới *"đề trùng một câu đã có"* chỉ chặn câu model viết |
+| ~~**Hai ô cùng một mục lấy cùng một bài từ ngân hàng** (02): câu 3 và 4 đều $\frac{x}{6}=\frac{4}{9}$, chỉ khác chữ~~ | **Đã sửa phần lưới 17/10/2026: harvest bắt câu cùng biểu thức có số liệu; gốc không phải ngân hàng mà là model viết hai câu gần trùng (chip ngân hàng là chữ bịa)** (plan `backlog-tier-1`, pha 1). Đường lấy câu ngân hàng không loại câu đã dùng trong đề; lưới *"đề trùng một câu đã có"* chỉ chặn câu model viết |
 | **Lời dàn ý gộp bài nguồn ở cuối** (04) thay vì nêu theo từng mục | ADR-30 chỉ đối chiếu nhẹ lời dàn ý; `source_nodes` từng mục vẫn đúng, chỉ chữ không nói |
 | **Phương án rác `$4\,volume$`** (04, câu 3) do job soạn câu viết, và đáp án đánh dấu theo đó sai | Không lưới nào soi chữ không phải toán trong phương án số |
 | **Tên đoạn chat là lời trợ lý** (04): *"Bạn gửi kèm sách hoặc chụp các trang chương 1 Toán 6 giúp mì…"* | Cùng gốc với dòng *"Tên đoạn chat chép lời dặn"* ở trên (`naming.py` trên Haiku) |
@@ -1237,9 +1237,9 @@ mục đã có ở trên thì không ghi lại: ADR-20 ghi trạng thái cũ, nh
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Câu dọn trước lọt vào đề nháp.** Mô hình hỏng khi soạn một câu thì `write_draft_question` trả câu thứ `(ordinal-1) % 6` của sáu câu Toán cố định, không theo môn hay phạm vi giáo viên xin (`agent/handlers.py:383`, `:986-993`). `DraftQuestionCompleted` không có dấu nào để `backend` nhận ra (`contracts/authoring.py:164-175`), và câu ấy đúng hình dạng nên qua phép kiểm. Chỉ cổng duyệt của giáo viên chặn nó | Chưa quyết: đánh dấu câu dọn trước để `backend` từ chối hay cảnh báo, hay để job hỏng hẳn thay vì trả câu. Báo cáo chương 7 tả đúng hiện trạng |
-| **Câu biến thể dọn trước lặp lại câu gốc.** Câu gốc không có trong kho dọn trước thì `retry_question` trả lại chính câu gốc -- cùng phương án, cùng đáp án -- chỉ thêm đuôi *"(đề thay số cho lượt N)"* (`agent/handlers.py:432-437`). `validate_retry` chỉ so đề bài đã chuẩn hoá khoảng trắng (`be/agent_gateway.py:458-463`), nên đuôi ấy đủ để lọt. Học sinh làm lại đúng câu cũ dưới một nhãn nói số đã đổi, và không cổng nào chặn: đúng điều ADR-17 cấm | Chưa quyết, cùng câu hỏi với dòng trên. Nặng hơn dòng trên vì đi thẳng tới học sinh |
-| **Đề xuất dọn trước có thể là một plan thật.** `propose_next_step` hỏng thì lùi về `next_step`, và chính comment ở `agent/handlers.py:560-565` ghi rằng một lần hết giờ trên một câu *hỏi* từng ghi một đề thật vào database | `_ASKS_TO_MAKE` đã siết; chưa có dấu nào báo `backend` đề xuất ấy là dọn trước |
+| ~~**Câu dọn trước lọt vào đề nháp.** Mô hình hỏng khi soạn một câu thì `write_draft_question` trả câu thứ `(ordinal-1) % 6` của sáu câu Toán cố định, không theo môn hay phạm vi giáo viên xin (`agent/handlers.py:383`, `:986-993`). `DraftQuestionCompleted` không có dấu nào để `backend` nhận ra (`contracts/authoring.py:164-175`), và câu ấy đúng hình dạng nên qua phép kiểm. Chỉ cổng duyệt của giáo viên chặn nó~~ | **Đã sửa 17/10/2026: job hỏng thay vì trả câu soạn sẵn** (plan `backlog-tier-1`, pha 1). Chưa quyết: đánh dấu câu dọn trước để `backend` từ chối hay cảnh báo, hay để job hỏng hẳn thay vì trả câu. Báo cáo chương 7 tả đúng hiện trạng |
+| ~~**Câu biến thể dọn trước lặp lại câu gốc.** Câu gốc không có trong kho dọn trước thì `retry_question` trả lại chính câu gốc -- cùng phương án, cùng đáp án -- chỉ thêm đuôi *"(đề thay số cho lượt N)"* (`agent/handlers.py:432-437`). `validate_retry` chỉ so đề bài đã chuẩn hoá khoảng trắng (`be/agent_gateway.py:458-463`), nên đuôi ấy đủ để lọt. Học sinh làm lại đúng câu cũ dưới một nhãn nói số đã đổi, và không cổng nào chặn: đúng điều ADR-17 cấm~~ | **Đã sửa 17/10/2026: hết biến thể thì ném, BE 503 bằng câu cho học sinh (không mất vòng); validate_retry bắt câu gốc kèm đuôi** (plan `backlog-tier-1`, pha 1). Chưa quyết, cùng câu hỏi với dòng trên. Nặng hơn dòng trên vì đi thẳng tới học sinh |
+| ~~**Đề xuất dọn trước có thể là một plan thật.** `propose_next_step` hỏng thì lùi về `next_step`, và chính comment ở `agent/handlers.py:560-565` ghi rằng một lần hết giờ trên một câu *hỏi* từng ghi một đề thật vào database~~ | **Hết lý do: model hỏng thì propose_next_step trả thông báo hệ thống, không lùi về next_step (handlers.py)** (plan `backlog-tier-1`, pha 1). `_ASKS_TO_MAKE` đã siết; chưa có dấu nào báo `backend` đề xuất ấy là dọn trước |
 
 ### Lưới yếu hơn tên của nó
 

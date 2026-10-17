@@ -894,6 +894,9 @@ def _garbled(steps: tuple[PlanStep, ...]) -> str:
 
 
 _COUNT_IN_KNOWN = re.compile(r"question_count\s*=\s*(\d+)")
+# Số câu giáo viên tự nói: *"tầm 5 câu"*, *"Số câu: 5 câu"* (tin gộp của thẻ hỏi lại). Không khớp
+# *"câu 3"* -- đó là số thứ tự, không phải số câu.
+_COUNT_SAID = re.compile(r"(\d+)\s*câu\b", re.I)
 # Lời giáo viên nói rõ việc của dàn ý: *"thay câu 3 …"*, *"soạn thêm 3 câu"* (`draft-outline`).
 _REPLACES = re.compile(r"\b(?:thay|đổi|làm lại|soạn lại)\s+(?:câu|câu hỏi)\s*(?:số\s*)?(\d+)", re.I)
 _ADDS = re.compile(r"\b(?:soạn|ra|làm|viết)\s+thêm\b|\bthêm\s+\d+\s+câu\b", re.I)
@@ -1074,16 +1077,33 @@ def _right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextS
     return step
 
 
-def _miscounted(step: NextStepCompleted, known: str) -> str:
+def _count_said(request: NextStepRequested) -> int | None:
+    """Số câu giáo viên nói gần nhất kể từ plan gần nhất, hay None. Hàm thuần.
+
+    Bỏ câu *"thay câu 3 …"*: con số ấy là số thứ tự (`_REPLACES`).
+    """
+    for turn in reversed(_since_plan(request)):
+        if turn.kind != "teacher" or _REPLACES.search(turn.text):
+            continue
+        said = _COUNT_SAID.findall(turn.text)
+        if said:
+            return int(said[-1])
+    return None
+
+
+def _miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) -> str:
     """Vì sao số câu của một dàn ý không khớp việc được nhờ; rỗng khi khớp. Hàm thuần.
 
     Đối chiếu với chính thứ model đã ghi: `question_count=N` trong `known` (quy trình `soan-de` bắt
-    ghi nó). Không ghi thì không đối chiếu -- BE vẫn chặn quá mười câu. Thay câu thì đúng một mục
-    một câu, vì dàn ý ấy chỉ dành cho đúng câu bị thay.
+    ghi nó). `known` không có số câu -- Haiku hay để trống nó từ lượt thứ hai -- thì đối chiếu với
+    số câu giáo viên đã nói kể từ plan gần nhất (backlog *Mất số câu sau một lượt hỏi lại*: xin 5
+    câu, hỏi lại một lượt, dàn ý ra 10). Không ai nói thì không đối chiếu -- BE vẫn chặn quá mười
+    câu. Thay câu thì đúng một mục một câu, vì dàn ý ấy chỉ dành cho đúng câu bị thay.
 
     Args:
         step: Dàn ý model nêu.
         known: Ghi chú `known` của lần trả lời ấy.
+        request: Lượt đang hỏi, để đọc lời giáo viên.
 
     Returns:
         Lý do, hoặc chuỗi rỗng.
@@ -1094,8 +1114,13 @@ def _miscounted(step: NextStepCompleted, known: str) -> str:
             return f"replace outline has {len(step.outline)} item(s), {total} question(s)"
         return ""
     found = _COUNT_IN_KNOWN.search(known)
-    if found and int(found.group(1)) != total:
-        return f"outline totals {total}, known says {found.group(1)}"
+    if found:
+        if int(found.group(1)) != total:
+            return f"outline totals {total}, known says {found.group(1)}"
+        return ""
+    said = _count_said(request)
+    if said is not None and said != total:
+        return f"outline totals {total}, the teacher asked for {said}"
     return ""
 
 
@@ -1754,7 +1779,7 @@ async def _choose(state: ProposeState) -> dict:
         if lacking:
             raise _IncompletePlan(lacking, step)
     if step.kind == "outline":
-        miscounted = _miscounted(step, proposal.known)
+        miscounted = _miscounted(step, proposal.known, request)
         if miscounted:
             raise _UncountedOutline(miscounted, step)
     if step.kind == "ask_clarify" and step.questions:

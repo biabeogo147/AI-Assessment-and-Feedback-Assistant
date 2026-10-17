@@ -229,6 +229,24 @@ async def test_a_draft_freezes_its_book_its_chapters_and_the_tree_it_read(stack)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("nodes", ["1 2", "1,2", "1, 2", "1\n2"])
+async def test_nodes_split_on_spaces_too(stack, nodes) -> None:
+    """Plan `backlog-tier-1`: `create_draft` từng bỏ khoảng trắng rồi mới tách, nên *"1 2"* thành
+    nút 12 -- cách `read_section` đã sửa từ đợt `draft-outline`."""
+    maker, _ = stack
+    brief = {"subject": "Toán", "grade": "6", "topic_scope": "bài 1, bài 2"}
+
+    made = await _run(
+        maker, "create_draft", {**brief, "document_id": "book", "nodes": nodes}, PHASE_WORK
+    )
+
+    assert made["created"] is True
+    async with maker() as session:
+        frozen = await session.get(DraftBrief, made["assessment_id"])
+    assert frozen.scope_nodes == [1, 2]
+
+
+@pytest.mark.asyncio
 async def test_a_book_without_chapters_named_is_refused_not_read_as_the_whole_book(stack) -> None:
     """Review B5 (`draft-from-document`): model nêu plan ngay mà bỏ qua mục lục sẽ gửi
     `topic_scope="chương 1"` không kèm `nodes`. Hiểu thiếu là *cả cuốn* thì đề rải câu khắp sách mà

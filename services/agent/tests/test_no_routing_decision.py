@@ -252,6 +252,14 @@ async def test_no_registered_task_returns_a_verdict(
     qua đó thì không có mặt trong giá trị trả về.
     """
     monkeypatch.setattr(llm, "enabled", lambda: model_on)
+    if model_on:
+        # Model giả của `conftest.py` không có `with_structured_output`; từ khi
+        # `write_draft_question` thôi lùi về câu soạn sẵn, lỗi ấy làm job ném thay vì trả về.
+        # Thay đúng bước viết câu bằng một câu thật để soi phần còn lại của đường chạy thật.
+        async def wrote(brief: str, banned: frozenset[str]) -> GeneratedQuestion:
+            return _QUESTION
+
+        monkeypatch.setattr(handlers, "write_question", wrote)
     rung: list[tuple[str, object]] = []
     ctx: dict = {"redis": _Loa(rung)}
 

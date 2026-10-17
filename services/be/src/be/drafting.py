@@ -24,6 +24,7 @@ khi nó soạn trước một câu hỏi remediation.
 
 import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -90,6 +91,30 @@ def _comparable(stem: str) -> str:
         thường.
     """
     return " ".join(stem.split()).casefold()
+
+
+# Một biểu thức toán trong stem (ADR-26: toán viết trong cặp `$`).
+_MATH = re.compile(r"\$([^$]+)\$")
+# Một con số trong biểu thức, trừ chỉ số và số mũ viết liền sau `_`, `^` ($u_1$, $x^2$).
+_NUMBER = re.compile(r"(?<![_^\d])\d+(?:[.,]\d+)?")
+
+
+def _gist(stem: str) -> frozenset[str]:
+    """Các biểu thức toán **có số liệu** của một stem, bỏ khoảng trắng. Hàm thuần.
+
+    Hai câu cùng một biểu thức có số liệu cụ thể -- *"Tìm số hạng chưa biết $x$ trong tỉ lệ thức
+    $\frac{x}{6}=\frac{4}{9}$"* và *"Tìm số x biết $\frac{x}{6}=\frac{4}{9}$. Giá trị của x là:"*
+    -- là cùng một bài, chỉ khác chữ (thử tay 17/10/2026, case 02). So khớp nguyên văn không bắt
+    được chúng. Chỉ tính biểu thức mang **số liệu**: ít nhất hai con số khác nhau, không kể chỉ số
+    và số mũ đứng ngay sau `_`, `^`. Công thức tổng quát ($u_n = u_1 + (n-1)d$) và một biến ($x$)
+    không tính: hai câu khác nhau dùng chung chúng là chuyện thường.
+    """
+    found = set()
+    for piece in _MATH.findall(stem):
+        compact = "".join(piece.split())
+        if len(set(_NUMBER.findall(compact))) >= 2:
+            found.add(compact)
+    return frozenset(found)
 
 
 async def _stems(session: AsyncSession, assessment_id: str) -> list[str]:
@@ -806,6 +831,16 @@ async def harvest(
         return 0
 
     seen = {_comparable(stem) for stem in await _stems(session, assessment_id)}
+    # Biểu thức có số liệu của từng câu đã có, theo vị trí: câu đang được thay không tính là trùng
+    # với chính nó (plan `backlog-tier-1`).
+    gists = {
+        order: _gist(stem)
+        for order, stem in await session.execute(
+            select(Question.order_index, Question.stem).where(
+                Question.assessment_id == assessment_id
+            )
+        )
+    }
     # Giáo viên chủ đề -- chủ ngân hàng câu hỏi, khi một câu thay gỡ câu cũ (ADR-28).
     owner = await session.get(Assessment, assessment_id)
     owner_id = owner.teacher_id if owner is not None else ""
@@ -835,14 +870,11 @@ async def harvest(
             _give_up_or_retry(row, "kết quả đã hết hạn trong Redis")
             continue
         if state == "failed":
-            # Chính cái job đã nổ. Hỏi lại thì vẫn nhận đúng cái lỗi đó, nên lần
-            # này không đi qua bộ đếm số lần thử.
-            if row.replacing:
-                row.last_fault = "job soạn câu thay đã hỏng"
-                _keep_the_old(row)
-                continue
-            row.status = "failed"
+            # Job ném lỗi: từ khi AGENT thôi lùi về câu soạn sẵn, đây là đường của một model
+            # không viết được câu dùng được (sai hình dạng mọi lần thử, hay hết giờ). Hỏi lại có
+            # trần như mọi lỗi khác -- lần sau model hay viết được; hết `attempts` thì `failed`.
             logger.warning("job for position %d of %s raised", row.ordinal, assessment_id)
+            _give_up_or_retry(row, "model không soạn được câu này")
             continue
 
         try:
@@ -854,6 +886,17 @@ async def harvest(
 
         if _comparable(question.stem) in seen:
             _give_up_or_retry(row, "đề trùng một câu đã có")
+            continue
+
+        # Các job của một lô chạy song song và không thấy câu của nhau (`banned` tính một lần ở
+        # `fire`), nên lưới gần trùng phải đứng ở đây, nơi các câu về lần lượt.
+        twin = _gist(question.stem)
+        if twin and any(
+            twin & other
+            for order, other in gists.items()
+            if not (row.replacing and order == row.ordinal)
+        ):
+            _give_up_or_retry(row, "đề gần trùng một câu đã có (cùng biểu thức, cùng số liệu)")
             continue
 
         if row.replacing:
@@ -888,6 +931,7 @@ async def harvest(
         # vào.
         await _write(session, assessment_id, row.ordinal, question)
         seen.add(_comparable(question.stem))
+        gists[row.ordinal] = twin
         taken.add(row.ordinal)
         row.status = "ready"
         landed += 1

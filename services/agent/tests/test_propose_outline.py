@@ -360,7 +360,32 @@ def test_an_outline_must_add_up_to_what_was_asked(
     step: NextStepCompleted, known: str, wrong: bool
 ) -> None:
     """Bench run-98 (`draft-outline`): *"6 câu"* ra 4 mục × 2 câu; *"thay câu 2"* ra cả đề."""
-    assert bool(_miscounted(step, known)) is wrong
+    silent = _asked(TurnRecord(kind="teacher", text="soạn đề chương 1"))
+    assert bool(_miscounted(step, known, silent)) is wrong
+
+
+@pytest.mark.parametrize(
+    ("said", "total", "wrong"),
+    [
+        # Backlog *Mất số câu sau một lượt hỏi lại*: 5 câu, hỏi lại, *"cả chương luôn"*, dàn ý 10.
+        (("cho mình 5 câu chương 1", "cả chương luôn"), 10, True),
+        (("cho mình 5 câu chương 1", "cả chương luôn"), 5, False),
+        # Tin gộp của thẻ hỏi lại nhiều câu (ADR-32).
+        (("soạn đề", "Khối: lớp 11 · Số câu: 5 câu · Phạm vi: cấp số cộng"), 5, False),
+        # Lời nói sau thắng: giáo viên đổi ý.
+        (("soạn 5 câu", "à thôi 8 câu nhé"), 8, False),
+        # *"thay câu 3"* là số thứ tự, không phải số câu.
+        (("soạn 4 câu", "thay câu 3 cho khó hơn"), 4, False),
+        # Không ai nói số câu thì không đối chiếu.
+        (("soạn đề chương 1",), 7, False),
+    ],
+)
+def test_without_a_count_in_known_the_teacher_s_own_count_is_used(
+    said: tuple[str, ...], total: int, wrong: bool
+) -> None:
+    step = _counted(total)
+    asked = _asked(*(TurnRecord(kind="teacher", text=text) for text in said))
+    assert bool(_miscounted(step, "topic_scope=chương 1", asked)) is wrong
 
 
 @pytest.mark.asyncio

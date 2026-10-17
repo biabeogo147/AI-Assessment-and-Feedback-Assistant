@@ -130,10 +130,11 @@ async def test_the_path_that_actually_runs_in_production_rings(monkeypatch) -> N
 
 @pytest.mark.asyncio
 async def test_a_model_that_dies_still_rings(monkeypatch) -> None:
-    """Model hỏng thì job lùi về nội dung dọn trước — và vẫn báo.
+    """Model hỏng thì job ném lỗi — và vẫn báo.
 
-    Không rung ở nhánh này thì màn hình đứng im đúng lúc có một câu vừa vào đề, và người
-    đọc kết luận rằng hệ thống treo.
+    arq gọi `after_job_end` cả khi job ném (`Worker.run_job`), nên chuông đặt sẵn vẫn rung và BE
+    thu hoạch ngay một ô hỏng để hỏi lại. Không rung thì màn hình đứng im, và người đọc kết luận
+    rằng hệ thống treo.
     """
     monkeypatch.setattr(llm, "enabled", lambda: True)
 
@@ -143,10 +144,12 @@ async def test_a_model_that_dies_still_rings(monkeypatch) -> None:
     monkeypatch.setattr(handlers, "write_question", dies)
     bells = Bells()
 
-    answer = await _one_job({"redis": bells}, _asked())
+    ctx = {"redis": bells}
+    with pytest.raises(RuntimeError, match="đi vắng"):
+        await handlers.write_draft_question(ctx, _asked())
+    await handlers.ring_bell(ctx)
 
     assert bells.rung == [("draft:de-1", "3")]
-    assert answer["question"]["stem"]
 
 
 @pytest.mark.asyncio

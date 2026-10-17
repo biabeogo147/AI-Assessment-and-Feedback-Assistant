@@ -358,9 +358,6 @@ async def test_a_retry_that_repeats_the_question_is_refused(
     submitted = await _start_and_submit(client, correct_count=5)
     attempt_id = submitted["attempt_id"]
 
-    result = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
-    wrong = next(item for item in result["items"] if item["mark"] == 0)
-
     async def echo_the_origin(pool, settings, task_name, payload) -> dict:
         if task_name.endswith("retry_question"):
             question = _RETRY.model_copy(update={"stem": payload["origin"]["stem"]})
@@ -373,7 +370,10 @@ async def test_a_retry_that_repeats_the_question_is_refused(
 
     refused = await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
     assert refused.status_code == 503
-    assert wrong["stem"][:20] in refused.json()["detail"]
+    # Câu cho học sinh, không chở lỗi máy hay chữ câu hỏi.
+    assert (
+        refused.json()["detail"] == "Chưa soạn được câu cho lượt này. Em thử lại sau ít phút nhé."
+    )
 
     # Lời từ chối không được tiêu mất một vòng nào.
     panel = (await client.get(f"/api/attempts/{attempt_id}/remediation", headers=STUDENT)).json()

@@ -34,7 +34,7 @@ from be.identity import Asking
 from be.seed import seed_if_empty
 from be.teacher_tools import execute
 from schema.ddl import prepare_schema
-from schema.models import SchoolClass, Student, Teacher
+from schema.models import Publication, SchoolClass, Student, Teacher
 
 
 @pytest_asyncio.fixture
@@ -222,6 +222,28 @@ async def test_a_summary_refusal_points_at_the_tool_that_names_the_real_assessme
     titles = [entry["title"] for entry in listed["assessments"]]
     assert titles == ["Kiểm tra 15 phút — Hàm số"]
     assert all(entry["assessment_id"] for entry in listed["assessments"])
+
+
+@pytest.mark.asyncio
+async def test_a_recalled_paper_is_no_longer_listed_for_the_class(stack) -> None:
+    """Thu hồi mềm (ADR-02) giữ hàng `publications`; `list_assessment` thì không còn kể nó là đề
+    của lớp -- thiếu bộ lọc, lớp vừa hoàn tác rồi phát hành lại thấy hai đề (plan
+    `backlog-tier-1`)."""
+    from datetime import UTC, datetime
+
+    async with stack() as session:
+        asking = await _mine(session)
+        listing = await execute(session, asking, "list_class", {"name": "12A"})
+        class_id = listing["candidates"][0]["class_id"]
+        for one in await session.scalars(
+            select(Publication).where(Publication.class_id == class_id)
+        ):
+            one.recalled_at = datetime.now(UTC)
+        await session.commit()
+
+        listed = await execute(session, asking, "list_assessment", {"class_id": class_id})
+
+    assert listed["assessments"] == []
 
 
 @pytest.mark.asyncio

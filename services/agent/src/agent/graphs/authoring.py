@@ -58,6 +58,8 @@ class WriteState(TypedDict):
         question: Lần thử gần nhất, hoặc None khi chưa thử lần nào.
         complaints: Vì sao lần thử trước bị loại. Được đưa trở lại cho model, và đó
             là chỗ khác nhau giữa retry và gieo lại xúc xắc.
+        malformed: Lỗi giải mã của lần thử trước khi model trả về sai hình dạng -- thiếu
+            `options`, `methods` là một chuỗi JSON --, rỗng khi lần thử đọc được.
         attempts: Model đã được hỏi bao nhiêu lần.
     """
 
@@ -65,6 +67,7 @@ class WriteState(TypedDict):
     banned: Annotated[frozenset[str], lambda old, new: new]
     question: GeneratedQuestion | None
     complaints: Annotated[list[str], lambda old, new: new]
+    malformed: str
     attempts: int
 
 
@@ -188,14 +191,30 @@ def _unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
     )
 
 
+def _parsed(answer: object) -> tuple[GeneratedQuestion | None, str]:
+    """Câu hỏi đọc được từ một lần gọi model, và lỗi giải mã nếu không đọc được. Hàm thuần.
+
+    `include_raw=True` trả một dict `{raw, parsed, parsing_error}`; một model giả trong test có
+    thể trả thẳng câu hỏi.
+    """
+    if isinstance(answer, dict):
+        error = answer.get("parsing_error")
+        return answer.get("parsed"), "" if error is None else str(error)
+    return answer if isinstance(answer, GeneratedQuestion) else None, ""
+
+
 async def _write(state: WriteState) -> dict:
     """Hỏi model một câu hỏi, kèm theo chuyện lần trước đã sai ở đâu.
+
+    Câu trả về **sai hình dạng** không ném ra ngoài: nó thành một lời phàn nàn và loop hỏi lại
+    (backlog *Tool soạn câu trả sai hình dạng rồi câu mock vào đề*). Trước đây lỗi giải mã thoát
+    khỏi graph, và handler lùi về một câu Toán soạn sẵn -- câu lạc đề vào đề thật của giáo viên.
 
     Args:
         state: Mang theo brief và mọi lời phàn nàn về lần thử trước.
 
     Returns:
-        Hai mảnh `question` và `attempts` của state.
+        Các mảnh `question`, `malformed` và `attempts` của state.
     """
     messages = [SystemMessage(_SYSTEM), HumanMessage(state["brief"])]
     if state["complaints"]:
@@ -207,9 +226,15 @@ async def _write(state: WriteState) -> dict:
             )
         )
 
-    model = llm.with_fallback(lambda chat: chat.with_structured_output(GeneratedQuestion))
-    question = await model.ainvoke(messages)
-    return {"question": _unmangled(question), "attempts": state["attempts"] + 1}
+    model = llm.with_fallback(
+        lambda chat: chat.with_structured_output(GeneratedQuestion, include_raw=True)
+    )
+    question, malformed = _parsed(await model.ainvoke(messages))
+    return {
+        "question": None if question is None else _unmangled(question),
+        "malformed": malformed,
+        "attempts": state["attempts"] + 1,
+    }
 
 
 def _check(state: WriteState) -> dict:
@@ -223,7 +248,16 @@ def _check(state: WriteState) -> dict:
     """
     question = state["question"]
     if question is None:
-        return {"complaints": ["Không nhận được câu nào."]}
+        # Nói cho model biết hình dạng sai ở đâu, cắt gọn: lỗi pydantic dài và lặp.
+        why = state.get("malformed", "")[:300]
+        return {
+            "complaints": [
+                "Câu vừa rồi sai hình dạng nên không đọc được"
+                + (f" ({why})" if why else "")
+                + ". options và methods phải là DANH SÁCH các đối tượng (không phải một chuỗi "
+                "JSON), và phải có đủ stem, options, methods, learning_objective."
+            ]
+        }
     return {"complaints": _faults(question, state["banned"])}
 
 
@@ -273,12 +307,18 @@ async def write_question(brief: str, banned: frozenset[str] = frozenset()) -> Ge
         Câu hỏi.
 
     Raises:
-        ValueError: Nếu mọi lần thử đều trả về một câu sai hình dạng. Bên gọi sẽ
-            lùi về nội dung dọn trước; raise thay vì trả về một thứ hỏng giữ quyết
-            định đó ở bên gọi, nơi có sẵn các lựa chọn thay thế.
+        ValueError: Nếu mọi lần thử đều trả về một câu sai hình dạng. Bên gọi để job hỏng; BE
+            ghi `last_fault` rồi hỏi lại có trần -- không lùi về một câu soạn sẵn.
     """
     final = await _GRAPH.ainvoke(
-        {"brief": brief, "banned": banned, "question": None, "complaints": [], "attempts": 0}
+        {
+            "brief": brief,
+            "banned": banned,
+            "question": None,
+            "malformed": "",
+            "complaints": [],
+            "attempts": 0,
+        }
     )
     if final["complaints"] or final["question"] is None:
         raise ValueError(f"model could not write a usable question: {final['complaints']}")

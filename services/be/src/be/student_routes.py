@@ -1988,8 +1988,11 @@ async def start_round(
                 spent.get(question.id, []),
             )
         except AgentError as exc:
+            # Câu cho học sinh, không chở lỗi máy (ADR-17: lượt chưa ghi, em không mất vòng nào).
+            logger.warning("no retry question for %s: %s", question.id, exc)
             raise HTTPException(
-                status_code=503, detail=f"Chưa sinh được đề lượt này: {exc}"
+                status_code=503,
+                detail="Chưa soạn được câu cho lượt này. Em thử lại sau ít phút nhé.",
             ) from exc
 
         item = RoundItem(

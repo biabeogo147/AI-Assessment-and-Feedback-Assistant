@@ -122,10 +122,9 @@ _ASYMPTOTE_METHODS = (
     ("Lấy giới hạn", "Cho x → ±∞, chia cả tử và mẫu cho x rồi lấy giới hạn."),
 )
 
-# Mỗi câu hỏi được gieo sẵn cần một họ ở đây. Một câu hỏi ngoài bank sẽ lùi về một
-# câu đóng thế, và BE từ chối câu đóng thế đó vì nó lặp lại đúng cái stem nó đáng ra
-# phải thay (ADR-17) -- đó là lần thất bại đúng đắn, nhưng nó có nghĩa là buổi demo
-# đứng lại thay vì dạy được gì.
+# Mỗi câu hỏi được gieo sẵn cần một họ ở đây. Một câu hỏi ngoài bank **không có** biến thể
+# dọn trước: `retry_question` ném, BE trả 503 trước khi ghi lượt nên học sinh không mất vòng nào
+# (ADR-17). Demo pha 2 với `LLM_ENABLED=false` vì thế chỉ chạy với các câu của kho này.
 _BANK_SEED: tuple[tuple[str, tuple[GeneratedQuestion, ...]], ...] = (
     (
         "Đạo hàm của y = x² + 3x là gì?",
@@ -408,9 +407,10 @@ def _origin_question(stem: str, variants: tuple[GeneratedQuestion, ...]) -> Gene
 def retry_question(request: RetryQuestionRequested) -> RetryQuestionCompleted:
     """Viết câu hỏi cho một lượt chữa lỗi.
 
-    Mock: ưu tiên một biến thể dọn trước trong cùng họ câu hỏi, bỏ qua mọi stem đã
-    dùng ở một lượt trước. Lùi về một câu đóng thế có nhãn rõ ràng khi câu gốc nằm
-    ngoài bank.
+    Mock: một biến thể dọn trước trong cùng họ câu hỏi, bỏ qua mọi stem đã dùng ở một lượt
+    trước. Hết biến thể -- hay câu gốc nằm ngoài bank -- thì **ném**, không đưa lại câu gốc kèm một
+    cái đuôi: ADR-17 nói biến thể không phải bản sao của câu gốc, và bản sao có đuôi từng qua được
+    phép kiểm của BE tới thẳng học sinh.
 
     Args:
         request: Câu gốc, phương án học sinh đã chọn, đây là lượt thứ mấy, và các stem
@@ -420,6 +420,9 @@ def retry_question(request: RetryQuestionRequested) -> RetryQuestionCompleted:
         Một câu hỏi, cùng hình dạng với mọi câu khác. Không bao giờ là một phán xét về
         chuyện học sinh có được thêm một lượt nữa hay không -- cái trần đó là của BE
         (ADR-17).
+
+    Raises:
+        ValueError: Khi không còn biến thể dọn trước nào cho câu này.
     """
     used = {normalise(stem) for stem in request.previous_stems}
     used.add(normalise(request.origin.stem))
@@ -429,14 +432,10 @@ def retry_question(request: RetryQuestionRequested) -> RetryQuestionCompleted:
             logger.info("retry round=%d from bank for %s", request.round_index, request.request_id)
             return RetryQuestionCompleted(request_id=request.request_id, question=candidate)
 
-    fallback = GeneratedQuestion(
-        stem=f"{request.origin.stem} (đề thay số cho lượt {request.round_index})",
-        options=request.origin.options,
-        methods=request.origin.methods,
-        learning_objective=request.origin.learning_objective,
+    logger.info(
+        "retry round=%d has no prepared variant for %s", request.round_index, request.request_id
     )
-    logger.info("retry round=%d fell back for %s", request.round_index, request.request_id)
-    return RetryQuestionCompleted(request_id=request.request_id, question=fallback)
+    raise ValueError("không còn biến thể dọn trước nào cho câu này")
 
 
 _OPENING = (
@@ -966,9 +965,13 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
     màn hình, thay vì để giáo viên nhìn một khối bước đứng yên.
 
     Chuông đặt **trước** khi làm việc, nên nó có mặt trên cả ba đường ra -- model viết được,
-    model hỏng và lùi về nội dung dọn trước, và máy dev không có API key. Cả ba đều đặt một
-    kết quả vào result store, và một màn hình chỉ sống khi có API key thì không phải một màn
-    hình sống.
+    model hỏng (job ném lỗi), và máy dev không có API key. Một màn hình chỉ sống khi có API key
+    thì không phải một màn hình sống.
+
+    Model hỏng thì job **hỏng**, không lùi về câu soạn sẵn: câu ấy là một trong sáu câu Toán cố
+    định, không theo môn hay phạm vi giáo viên xin, và nó đúng hình dạng nên qua mọi phép kiểm
+    của BE -- chỉ mắt giáo viên chặn được (backlog *Câu dọn trước lọt vào đề nháp*, 3/21 job lần
+    chạy 17/10/2026). BE nhận job hỏng thì ghi `last_fault` và hỏi lại có trần.
 
     Args:
         ctx: Context job của arq, nơi tiếng chuông được đặt xuống.
@@ -976,6 +979,9 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
 
     Returns:
         Một DraftQuestionCompleted đã serialise.
+
+    Raises:
+        Exception: Khi model không viết được một câu dùng được -- arq ghi job là hỏng.
 
     Side effects:
         Ghi tiếng chuông vào `ctx`. AGENT không ghi vào store nào của riêng nó; BE harvest
@@ -986,21 +992,21 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
     if not llm.enabled():
         return draft_question(request).model_dump(mode="json")
 
+    # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `_faults` so
+    # sánh theo. BE gửi các stem đúng như nó đã lưu: hai bộ normalise buộc phải
+    # khớp nhau qua một ranh giới service là một lần lệch nhau đã hẹn trước ngày --
+    # và bản đầu tiên của dòng này đã chứng minh điều đó, đem bộ normalise tên lớp
+    # của BE so với bộ normalise khoảng trắng của AGENT, nên không stem bị cấm nào
+    # khớp được lần nào.
+    banned = frozenset(normalise(stem) for stem in request.banned_stems)
     try:
-        # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `_faults` so
-        # sánh theo. BE gửi các stem đúng như nó đã lưu: hai bộ normalise buộc phải
-        # khớp nhau qua một ranh giới service là một lần lệch nhau đã hẹn trước ngày --
-        # và bản đầu tiên của dòng này đã chứng minh điều đó, đem bộ normalise tên lớp
-        # của BE so với bộ normalise khoảng trắng của AGENT, nên không stem bị cấm nào
-        # khớp được lần nào.
-        banned = frozenset(normalise(stem) for stem in request.banned_stems)
         question = await write_question(draft_brief(request), banned)
     except Exception:
-        # Nội dung dọn trước, chứ không phải không có gì. Một đề nháp thiếu một câu là
-        # chuyện giáo viên hỏi lại một lần; một đề nháp từ chối bắt đầu là một tính năng
-        # không hoạt động.
+        # Job hỏng, không câu soạn sẵn nào thay chỗ (xem docstring): một ô thiếu câu kèm
+        # `last_fault` là chuyện giáo viên thấy và soạn lại; một câu lạc đề trong đề thật thì
+        # không ai thấy cho tới lúc học sinh làm bài.
         logger.exception("model could not write question %d of the draft", request.ordinal)
-        return draft_question(request).model_dump(mode="json")
+        raise
 
     return DraftQuestionCompleted(request_id=request.request_id, question=question).model_dump(
         mode="json"
@@ -1010,11 +1016,11 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
 async def generate_retry_question(ctx: dict, payload: dict) -> dict:
     """Điểm vào arq cho câu hỏi của một lượt chữa lỗi.
 
-    Lùi về bank dọn trước khi model không sinh được một câu giữ đúng hình dạng. Chính
-    cái fallback đó là thứ làm cái loop kết thúc: một biến thể viết tay thoả ADR-18 ngay
-    từ cách nó được dựng, nên BE luôn có thứ để nhận dù model có cư xử tệ đến đâu. Học
-    sinh thì đang mở một lượt trong cả hai trường hợp, và một lượt mở ra trên một câu
-    dọn trước vẫn tốt hơn một lượt từ chối mở.
+    Model không sinh được một câu đúng hình dạng thì lùi về **biến thể dọn trước** của kho -- câu
+    khác thật, thoả ADR-18 ngay từ cách nó được dựng. Câu ngoài kho thì không có gì để lùi: job
+    ném, BE trả 503 trước khi ghi lượt, học sinh không mất vòng nào và thử lại được. Bản trước lùi
+    về chính câu gốc kèm một cái đuôi, với lý do *"một lượt mở trên câu dọn trước vẫn tốt hơn một
+    lượt từ chối mở"* -- ADR-17 nói ngược lại: biến thể không phải bản sao của câu gốc.
 
     Args:
         ctx: Context job của arq. Không dùng.
@@ -1022,6 +1028,9 @@ async def generate_retry_question(ctx: dict, payload: dict) -> dict:
 
     Returns:
         Một RetryQuestionCompleted đã serialise.
+
+    Raises:
+        Exception: Khi cả model lẫn kho dọn trước không cho được một câu khác câu gốc.
 
     Side effects:
         Không có gì ngoài việc log. AGENT không ghi vào store nào của riêng nó.
@@ -1034,7 +1043,7 @@ async def generate_retry_question(ctx: dict, payload: dict) -> dict:
     try:
         question = await write_question(retry_brief(request), banned)
     except Exception:
-        logger.exception("model could not write round %d; using the bank", request.round_index)
+        logger.exception("model could not write round %d; trying the bank", request.round_index)
         return retry_question(request).model_dump(mode="json")
 
     return RetryQuestionCompleted(request_id=request.request_id, question=question).model_dump(

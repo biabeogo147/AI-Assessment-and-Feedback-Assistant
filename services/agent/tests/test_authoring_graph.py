@@ -67,16 +67,24 @@ def _two_right() -> GeneratedQuestion:
 class Scripted:
     """Một chat model trả lời bằng các câu hỏi xếp sẵn, có ghi lại các prompt."""
 
-    def __init__(self, answers: list[GeneratedQuestion]) -> None:
+    def __init__(self, answers: list[GeneratedQuestion | None]) -> None:
         self.answers = answers
         self.prompts: list[str] = []
 
     def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
-        """Trả về một runnable đưa lại câu hỏi xếp sẵn tiếp theo."""
+        """Trả về một runnable đưa lại câu hỏi xếp sẵn tiếp theo.
 
-        def answer(messages: object) -> GeneratedQuestion:
+        `None` là một lần model trả sai hình dạng: với `include_raw=True` nó ra như langchain
+        trả -- `parsed` rỗng, kèm `parsing_error`.
+        """
+
+        def answer(messages: object) -> object:
             self.prompts.append("\n".join(message.text() for message in messages))
-            return self.answers.pop(0)
+            question = self.answers.pop(0)
+            if not kwargs.get("include_raw"):
+                return question
+            error = None if question is not None else "options: Field required"
+            return {"raw": None, "parsed": question, "parsing_error": error}
 
         return RunnableLambda(answer)
 
@@ -121,6 +129,37 @@ async def test_a_model_that_never_complies_is_given_up_on(
 
 
 @pytest.mark.asyncio
+async def test_a_malformed_answer_is_asked_again_not_thrown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Backlog *Tool soạn câu trả sai hình dạng*: thiếu `options` là một lời phàn nàn, không phải
+    một exception thoát ra cho handler lùi về câu soạn sẵn."""
+    model = Scripted([None, _good()])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    question = await authoring.write_question("viết một câu")
+
+    assert question.stem == _good().stem
+    assert len(model.prompts) == 2
+    assert "sai hình dạng" in model.prompts[1]
+    assert "options: Field required" in model.prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_a_draft_question_the_model_cannot_write_fails_the_job(
+    on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Không câu soạn sẵn nào thay chỗ: job ném lỗi, BE ghi `last_fault` và hỏi lại có trần."""
+    monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([None] * 3),))
+    ask = DraftQuestionRequested(
+        request_id="r1", subject="Toán", grade="7", topic_scope="tỉ lệ thức", ordinal=1, of_total=5
+    )
+
+    with pytest.raises(ValueError, match="usable question"):
+        await handlers.write_draft_question({}, ask.model_dump(mode="json"))
+
+
+@pytest.mark.asyncio
 async def test_a_repeated_stem_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     """ADR-17: một lượt hỏi lại câu cũ là kiểm tra trí nhớ, không phải kiểm tra sự học."""
     repeat = _good(stem=ORIGIN.stem)
@@ -156,6 +195,21 @@ async def test_the_bank_catches_a_model_that_cannot_write_the_round(
     assert question["stem"] != ORIGIN.stem
     assert sum(1 for option in question["options"] if option["is_correct"]) == 1
     assert len(question["methods"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_a_round_off_the_bank_fails_rather_than_repeat_the_origin(
+    on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-17: không có biến thể thì job ném -- không trả câu gốc kèm một cái đuôi."""
+    monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([_two_right()] * 3),))
+    off_bank = ORIGIN.model_copy(update={"stem": "Một câu giáo viên tự viết, ngoài kho mock."})
+    ask = RetryQuestionRequested(
+        request_id="r1", origin=off_bank, wrong_option_label="B", round_index=1
+    )
+
+    with pytest.raises(ValueError, match="biến thể"):
+        await handlers.generate_retry_question({}, ask.model_dump(mode="json"))
 
 
 @pytest.mark.asyncio

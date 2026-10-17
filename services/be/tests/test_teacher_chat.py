@@ -1921,7 +1921,9 @@ async def test_a_draft_that_stops_short_says_it_stopped(stack) -> None:
     monkeypatch.setattr(teacher_chat, "run_task", agent)
     _outline_shown(monkeypatch, 3)
     await _teacher(maker, "GV-001")
-    # Câu thứ ba: chính job đã nổ, nên nó rời `pending` mà không mang theo câu nào.
+    # Câu thứ ba: chính job đã nổ, nên nó rời `pending` mà không mang theo câu nào. Job nổ nay
+    # được hỏi lại có trần (plan `backlog-tier-1`); trần một lần để ô hết lượt ngay trong lượt chat.
+    monkeypatch.setattr(drafting, "_MOST_ATTEMPTS", 1)
     _drafting_stack(
         http, monkeypatch, rings_for={1, 2}, ready_for={1, 2}, failed_for=frozenset({3})
     )
@@ -2912,6 +2914,31 @@ async def test_each_new_outline_in_a_thread_is_the_next_version(stack) -> None:
             )
         )
     assert [one["version"] for one in kept] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_a_revised_outline_with_an_empty_brief_keeps_the_earlier_one(stack) -> None:
+    """Backlog *Haiku để trống known*: dàn ý sửa không mang môn, khối, phạm vi thì lấy của dàn ý
+    trước -- *"oke"* sau đó dựng plan từ dàn ý, không lùi về plan của model."""
+    client, maker, monkeypatch = stack
+    first = _outline_step(
+        _outline_item(source_nodes=()), subject="Toán", grade="7", topic_scope="tỉ lệ thức"
+    )
+    second = _outline_step(_outline_item(source_nodes=()), subject="Toán")
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(first, second))
+
+    await client.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    await client.post("/api/teacher/chat/messages", json={"text": "câu 2 đổi đi"}, headers=TEACHER)
+
+    async with maker() as session:
+        kept = list(
+            await session.scalars(
+                select(TeacherTurn.tool_result)
+                .where(TeacherTurn.kind == "outline")
+                .order_by(TeacherTurn.sequence)
+            )
+        )
+    assert kept[1]["brief"] == {"subject": "Toán", "grade": "7", "topic_scope": "tỉ lệ thức"}
 
 
 @pytest.mark.asyncio

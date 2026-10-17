@@ -280,6 +280,9 @@ async def _assessments_of(session: AsyncSession, asking: Asking, class_id: str) 
         .join(SchoolClass, SchoolClass.id == Publication.class_id)
         .where(
             Publication.class_id == class_id,
+            # Bản đã thu hồi không còn là đề của lớp (ADR-02, thu hồi mềm): liệt kê nó thì lớp
+            # vừa hoàn tác rồi phát hành lại thấy hai đề cùng tên (thử tay case 10/11).
+            Publication.recalled_at.is_(None),
             SchoolClass.teacher_id == asking.teacher_id,
             Assessment.teacher_id == asking.teacher_id,
         )
@@ -982,6 +985,19 @@ def _part_text(every: list[IndexNode], units: list[tuple[int, list[str]]]) -> st
     return "\n\n".join(out)
 
 
+def _node_list(raw: str) -> list[int]:
+    """Các số node trong chữ model gửi, tách ở dấu phẩy **và** khoảng trắng. Hàm thuần.
+
+    Bỏ khoảng trắng rồi mới tách thì *"1 2"* thành nút 12, và nút ấy có thật thì đọc nhầm bài mà
+    không ai biết (review đợt 2, `draft-outline`). Một chỗ cho cả `read_section` lẫn
+    `create_draft` -- bản cũ sửa ở chỗ thứ nhất, quên chỗ thứ hai (plan `backlog-tier-1`).
+
+    Raises:
+        ValueError: Khi có một mảnh không phải số.
+    """
+    return sorted({int(one) for one in re.split(r"[,\s]+", raw.strip()) if one})
+
+
 async def _read_section(running: Running, args: dict) -> dict:
     """Chữ của một phạm vi tài liệu, gộp thành tối đa `questions` phần, trả phần thứ `part`.
 
@@ -1002,11 +1018,9 @@ async def _read_section(running: Running, args: dict) -> dict:
     every, refused = await _tree_of(running, args)
     if refused is not None:
         return refused
-    # Tách ở dấu phẩy **và** khoảng trắng: bỏ khoảng trắng rồi mới tách thì *"1 2"* thành nút 12, và
-    # nút ấy có thật thì đọc nhầm bài mà không ai biết (review đợt 2, `draft-outline`).
     raw = str(args.get("nodes") or "").strip()
     try:
-        scope = sorted({int(one) for one in re.split(r"[,\s]+", raw) if one})
+        scope = _node_list(raw)
         questions = int(str(args.get("questions") or "").strip())
         part = int(str(args.get("part") or "1").strip())
     except ValueError:
@@ -1075,9 +1089,8 @@ async def _document_scope(
     if found is None:
         return "", [], None, _refusal("tài liệu này chưa có mục lục")
     header, every = found
-    raw = str(args.get("nodes") or "").replace(" ", "")
     try:
-        nodes = sorted({int(one) for one in raw.split(",") if one}) if raw else []
+        nodes = _node_list(str(args.get("nodes") or ""))
     except ValueError:
         return "", [], None, _refusal("nodes là các số node cách nhau bằng dấu phẩy")
     if not nodes:

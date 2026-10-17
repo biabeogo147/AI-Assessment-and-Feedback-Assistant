@@ -306,9 +306,10 @@ async def test_a_replacement_whose_job_breaks_leaves_the_old_question(stack, mon
             await session.scalars(select(Question).where(Question.assessment_id == draft_id))
         )
 
+    # Job thay hỏng thì được hỏi lại (plan `backlog-tier-1`), câu cũ vẫn đứng đó trong lúc chờ.
     assert stems[1] == "Câu một cũ"
-    assert (row.status, row.replacing) == ("ready", False)
-    assert row.last_fault
+    assert (row.status, row.replacing) == ("pending", True)
+    assert row.last_fault == "model không soạn được câu này"
 
 
 @pytest.mark.asyncio
