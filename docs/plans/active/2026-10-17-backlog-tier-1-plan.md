@@ -204,6 +204,6 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 ## Status
 
 Pha 0–4 đã commit. Pha 5: review vòng 1 (13 Tier 1) sửa ở `98122e2`, vòng 2 (10) ở `3c3e8ac`, vòng 3
-(3 hồi quy) ở `d7af19b`, vòng 4 (2) ở `ed6352a`, vòng 5 (2) ở `e136202`, vòng 6 (1 hồi quy) sửa trong
-commit mang dòng Status này. Ca biên của regex đồng ý/xin sửa thuộc Tier 2 câu 5. Kế tiếp: review
-vòng 7 trên phần vừa sửa.
+(3) ở `d7af19b`, vòng 4 (2) ở `ed6352a`, vòng 5 (2) ở `e136202`, vòng 6 (1) ở `58a81a7`, vòng 7 (2)
+sửa trong commit mang dòng Status này: regex đồng ý/xin sửa viết lại và đi cùng một bộ 140 câu có
+nhãn (`services/agent/tests/test_revision_words.py`). Kế tiếp: review vòng 8.

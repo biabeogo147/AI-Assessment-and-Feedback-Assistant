@@ -1282,21 +1282,30 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 
 # Lời **không** xin sửa: *"không cần sửa gì"*, *"ko đổi gì nữa"* -- bỏ đi trước khi tìm `_REVISES`,
 # như `_NO_BOOK` với chữ *sách* (review code pha 5, plan `backlog-tier-1`).
-# Chỉ khi động từ **đứng cuối ý** -- theo sau là *gì/nữa/cả/hết*, một tiểu từ cuối câu
-# (*nhé/nha/nhe/ạ/đâu*) hay một dấu câu: *"không cần thêm câu hình học"* là lời xin bỏ một mục,
-# không phải lời không xin sửa (review code vòng 2).
+#
+# Chỉ khi động từ **đứng cuối ý**: *"không cần thêm câu hình học"* là lời xin bỏ một mục. Cuối ý là
+# một trong ba hình dạng sau động từ (hay hai động từ liền nhau, *"sửa thêm"*):
+#   - *gì/nữa/cả/hết/đâu* ngay sau động từ (*"không cần sửa gì nữa"*);
+#   - một tiểu từ cuối câu thật, có thể kéo dài (*nhé, nha, nhen, nhaa, ạ*), *luôn/đi* đứng trước
+#     cũng được (*"khỏi sửa luôn nha"*);
+#   - chuỗi tiểu từ bất kỳ rồi hết câu hay một dấu câu (*"không cần sửa luôn cả"*).
+# *luôn/đi* trơn hay đứng giữa câu, trước *cả/hết*: lời xin sửa (*"sao không bỏ luôn cả câu 3?"*).
+# *"sao không …"* là lời gợi ý sửa, không phải lời phủ định. `\b` sau tiểu từ: *nha* không ăn đầu
+# chữ *nhanh*.
+#
+# Năm vòng review (pha 5) liền ra ca biên mới, nên regex này đi cùng một bộ câu có nhãn
+# (`tests/test_revision_words.py`): sửa regex là chạy lại cả bộ. Ca biên còn lại là Tier 2 câu 5.
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
+_END_PARTICLE = r"(?:nh[éeaá]+n?|ạ+)"
+_INNER_PARTICLE = r"(?:gì[iì]*|nữa|cả|hết+|đâu)"
+_LONG_PARTICLE = r"(?:luôn|đi)"
+_ANY_PARTICLE = rf"(?:{_END_PARTICLE}|{_INNER_PARTICLE}|{_LONG_PARTICLE}|thêm)"
 _NO_CHANGE = re.compile(
-    # *"sửa thêm"*: hai động từ liền nhau vẫn là một lời (review code vòng 5).
-    rf"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
+    rf"(?<!\bsao\s)\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
     rf"(?:\s+{_CHANGE_VERB})?"
-    # Tiểu từ cuối câu cũng là cuối ý: *"không cần sửa nhé em"* (review code vòng 3, 5). Riêng
-    # *"luôn"*, *"đi"* hay đứng giữa câu -- *"sao không đổi luôn câu 3"* là lời xin sửa -- nên hai
-    # tiếng ấy chỉ tính khi sau chúng là cuối ý thật (review code vòng 4).
-    # *"luôn"*/*"đi"* đứng trước một tiểu từ cuối câu cũng được: *"khỏi sửa luôn nha"* (vòng 6).
-    # `\b` sau tiểu từ: *"nha"* không được ăn đầu chữ *"nhanh"*.
-    r"(?:(?:\s+(?:luôn|đi))*(?:\s+(?:gì|nữa|cả|hết|đâu|nhé|nha|nhe|ạ)\b)+(?:\s+(?:luôn|đi))*"
-    r"|(?:\s+(?:luôn|đi))*(?=\s*(?:[,.!?;]|$)))"
+    rf"(?:(?:\s+{_INNER_PARTICLE}\b)+(?:\s+{_ANY_PARTICLE}\b)*"
+    rf"|(?:\s+{_LONG_PARTICLE}\b)*(?:\s+{_END_PARTICLE}\b)+(?:\s+{_ANY_PARTICLE}\b)*"
+    rf"|(?:\s+{_ANY_PARTICLE}\b)*(?=\s*(?:[,.!?;:)]|$)))"
     rf"|\bkhông\s+có\s+gì\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}\b",
     re.IGNORECASE,
 )
