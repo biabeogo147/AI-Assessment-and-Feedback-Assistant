@@ -99,10 +99,12 @@ _NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times)|[{}$\s]")
 _NODE_NUMBER = re.compile(r"(?<![a-z])nodes?\s*(?:số\s*)?[:#=]?\s*\[?\s*\d", re.IGNORECASE)
 
 
-# Chỗ nối giữa các vế của một công thức gộp: dấu phẩy, chấm phẩy, khoảng trắng LaTeX, `\quad`, và
-# chữ trong `\text{…}` (*"với"*, *"và"*). Mục buộc phải viết `$a = bq + r,\ 0 \le r < b$` trong một
-# cặp `$` (`validate`), còn lời thì tự nhiên viết *"$a = bq + r$ với $0 \le r < b$"*.
-_JOINT = re.compile(r"\\q?quad|\\text\{[^{}]*\}|\\[ ;]|[,;]")
+# Chỗ nối giữa các vế của một công thức gộp: dấu phẩy, chấm phẩy, khoảng trắng LaTeX (`\ `, `\,`,
+# `\:`, `\;`), `\quad`, và chữ trong `\text{…}` (*"với"*, *"và"*). Mục buộc phải viết
+# `$a = bq + r,\ 0 \le r < b$` trong một cặp `$` (`validate`), còn lời thì tự nhiên viết
+# *"$a = bq + r$ với $0 \le r < b$"*. Dấu phẩy, chấm phẩy **giữa hai chữ số** thì không tách:
+# `2,5` là số thập phân, `\{1;2;3\}` là một tập hợp (review của bản sửa này).
+_JOINT = re.compile(r"\\q?quad|\\text\{[^{}]*\}|\\[ ,:;]|(?<!\d)[,;]|[,;](?!\d)")
 
 
 def _flat(formula: str) -> str:
@@ -117,12 +119,14 @@ def _shown(formula: str, flat: str) -> bool:
     Thử tay 17/10/2026 (quay GIF, sau plan `backlog-tier-1`): luật *một cặp `$`* của pha 6 làm mục
     ghi điều kiện chung một cặp với biểu thức, lời thì tách hai cặp có chữ ở giữa, nên phép so cả
     chuỗi không khớp và dàn ý bị trả về ba lần. Đủ **mọi** vế mới tính -- nêu một nửa là thiếu.
+    Mọi vế phải dài từ ba ký tự: một vế như `2` hay `r` khớp với bất kỳ chữ nào của lời, kể cả
+    *"Câu 1–3"*, nên công thức có vế ngắn chỉ được so nguyên vẹn.
     """
     if _flat(formula) in flat:
         return True
     parts = [one for one in (_flat(part) for part in _JOINT.split(formula)) if one]
     return (
-        len(parts) > 1 and any(len(one) >= 3 for one in parts) and all(one in flat for one in parts)
+        len(parts) > 1 and all(len(one) >= 3 for one in parts) and all(one in flat for one in parts)
     )
 
 

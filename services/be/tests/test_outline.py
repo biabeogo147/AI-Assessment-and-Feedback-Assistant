@@ -111,12 +111,38 @@ def test_a_message_in_kriky_s_own_words_passes() -> None:
 _SPLIT = [_item(formulas=("$a = bq + r,\\ 0 \\le r < b$",))]
 
 
-def test_a_formula_the_message_splits_around_a_word_still_counts() -> None:
-    """Thử tay 17/10/2026 (quay GIF): mục gộp điều kiện vào một cặp `$` như `validate` đòi, lời tách
-    hai cặp có *"với"* ở giữa -- vẫn là công thức ấy, không trả dàn ý về."""
-    said = "**Câu 1:** phép chia có dư $a = b\\cdot q + r$ với $0 \\le r < b$. Bạn thấy ổn không?"
+@pytest.mark.parametrize(
+    ("formula", "said"),
+    [
+        ("$a = bq + r,\\ 0 \\le r < b$", "$a = b\\cdot q + r$ với $0 \\le r < b$"),
+        ("$x + y = 5;\\; x - y = 1$", "$x+y=5$ và $x-y=1$"),
+        ("$x + y = 5 \\quad x - y = 1$", "$x+y=5$ và $x-y=1$"),
+        ("$x + y = 5 \\text{ và } x - y = 1$", "$x+y=5$ và $x-y=1$"),
+        ("$x + y = 5,\\, x - y = 1$", "$x+y=5$ và $x-y=1$"),
+    ],
+)
+def test_a_formula_the_message_splits_around_a_word_still_counts(formula: str, said: str) -> None:
+    """Thử tay 17/10/2026 (quay GIF): mục gộp các vế vào một cặp `$` như `validate` đòi, lời tách
+    thành nhiều cặp có chữ ở giữa -- vẫn là công thức ấy, không trả dàn ý về."""
+    message = f"**Câu 1:** hệ thức {said}. Bạn thấy ổn không?"
 
-    assert check_message(said, _SPLIT) is None
+    assert check_message(message, [_item(formulas=(formula,))]) is None
+
+
+@pytest.mark.parametrize(
+    ("formula", "said"),
+    [
+        # Vế ngắn (`2`, `3\}`) khớp với chữ nào cũng được: tập hợp phải so nguyên vẹn.
+        ("$A = \\{0;1;2;3;4\\}$", "$A = \\{0;1;2;4\\}$"),
+        # Dấu phẩy thập phân không phải chỗ nối: `2,5` không phải `25`.
+        ("$m = 2,5\\ \\text{kg}$", "$m = 25$"),
+    ],
+)
+def test_a_short_or_decimal_part_is_not_a_joint(formula: str, said: str) -> None:
+    message = f"**Câu 1–3:** {said}. Bạn thấy ổn không?"
+    items = [_item(questions=3, formulas=(formula,))]
+
+    assert "công thức nào của mục 1" in (check_message(message, items) or "")
 
 
 def test_half_a_formula_in_the_message_is_still_missing() -> None:
