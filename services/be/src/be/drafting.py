@@ -127,10 +127,10 @@ def _gist(stem: str) -> frozenset[str]:
 
 
 async def _stems(session: AsyncSession, assessment_id: str) -> list[str]:
-    """Mọi stem đã có trong đề nháp, theo đúng cách đã lưu, **theo thứ tự câu**.
+    """Mọi stem đã có trong đề nháp, theo đúng cách đã lưu, theo thứ tự câu.
 
-    Thứ tự là có chủ ý (review code pha 6, plan `backlog-tier-1`): AGENT chỉ nêu cho model những câu
-    **cuối** của danh sách, và câu vừa vào đề -- thứ một lần thử lại phải tránh -- là câu cuối.
+    AGENT nêu cả danh sách cho model (plan `backlog-tier-1`, pha 6); thứ tự câu chỉ để brief đọc
+    như chính đề, và để hai lần gửi cùng một đề ra cùng một brief.
     """
     written = await session.scalars(
         select(Question.stem)

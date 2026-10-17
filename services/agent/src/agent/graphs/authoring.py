@@ -325,10 +325,6 @@ async def write_question(brief: str, banned: frozenset[str] = frozenset()) -> Ge
     return final["question"]
 
 
-# Bao nhiêu câu đã có được nêu trong brief: đủ cho một đề mười câu, không làm brief phình.
-_MOST_WRITTEN_SHOWN = 10
-
-
 def _already_written(request: DraftQuestionRequested) -> list[str]:
     """Các câu đã có trong đề, để model không viết lại đúng bài ấy. Hàm thuần.
 
@@ -343,9 +339,10 @@ def _already_written(request: DraftQuestionRequested) -> list[str]:
     Returns:
         Các dòng thêm vào brief; rỗng khi đề chưa có câu nào.
     """
-    # Mười câu **cuối**: BE gửi theo thứ tự câu, và câu gần nhất là câu một job soạn thêm hay một
-    # lần thử lại dễ trùng nhất (review code pha 6) -- mười câu đầu của một đề dài bỏ sót đúng nó.
-    written = [stem for stem in request.banned_stems if stem.strip()][-_MOST_WRITTEN_SHOWN:]
+    # Mọi câu, không cắt: câu đã gây trùng có thể nằm ở bất kỳ đâu trong đề (một ô soạn thêm trùng
+    # câu 1), nên cắt mười câu đầu hay mười câu cuối đều bỏ sót được đúng nó (review code vòng 12,
+    # 13). Đề có trần 50 câu, nên danh sách dài nhất là 49 dòng.
+    written = [stem for stem in request.banned_stems if stem.strip()]
     if not written:
         return []
     return [
@@ -392,15 +389,16 @@ def draft_brief(request: DraftQuestionRequested) -> str:
                 f"Mục này có {request.item_parts} câu; đây là câu thứ {request.item_part}. "
                 "Cùng kiến thức nhưng khác cách hỏi hoặc số liệu với các câu kia của mục."
             )
-        if request.other_items:
-            lines.append("Các câu khác của đề lo những kiến thức sau, đừng hỏi sang:")
-            lines += [f"  · {knowledge}" for knowledge in request.other_items]
+        # *"Bám đúng … trên"* đứng ngay sau mục của câu này, trước mọi danh sách phải tránh: đứng
+        # sau chúng thì *"trên"* trỏ vào kiến thức hay câu cũ phải tránh, như thể giáo viên đã
+        # duyệt chúng (review code vòng 12, 13).
         lines.append(
             "Bám đúng kiến thức, công thức và cách làm trên: giáo viên đã duyệt chúng trước khi "
             "câu được soạn."
         )
-        # Sau câu *"Bám đúng … trên"*, không trước: đứng trước thì *"trên"* trỏ vào các câu phải
-        # tránh, như thể giáo viên đã duyệt chúng (review code pha 6).
+        if request.other_items:
+            lines.append("Các câu khác của đề lo những kiến thức sau, đừng hỏi sang:")
+            lines += [f"  · {knowledge}" for knowledge in request.other_items]
         lines += _already_written(request)
         return "\n".join(lines)
     lines += [

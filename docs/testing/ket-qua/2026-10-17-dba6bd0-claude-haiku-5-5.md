@@ -8,8 +8,8 @@
 
   Case 01 và lượt soạn của case 02 chạy trên code gốc. Bước thêm của case 02 (17:27), case 03 và lần
   chạy đầu của case 04 chạy sau bản sửa thứ nhất. Lần chạy lại case 04, case 07, ca 16 và khối ĐÃ
-  PHÁT HÀNH chạy sau cả hai bản sửa. Cả hai bản sửa commit ở `05bec8e`; ba chỗ review code tìm ra
-  trong chúng sửa ở commit kế (danh sách câu đã có, xem *Sửa trong buổi*), sau khi thử tay đã xong.
+  PHÁT HÀNH chạy sau cả hai bản sửa. Cả hai bản sửa commit ở `05bec8e`; các chỗ hai vòng review code tìm
+  ra trong chúng sửa ở hai commit kế (xem *Sửa trong buổi*), sau khi thử tay đã xong.
   **Model:** `anthropic/claude-haiku-5-5`, `thinking=disabled`, `effort=low` (dòng `model=` trong log
   AGENT mỗi lần khởi động).
 - **So với:** `2026-10-17-e8f7f9d-claude-haiku-5-5.md`, cùng model. Code khác ở plan
@@ -40,7 +40,7 @@
 
 | Case | Kết quả | Một dòng |
 | --- | --- | --- |
-| 01 Xin đề mơ hồ | **Đạt** | Thẻ ba câu (khối, số câu, phạm vi), trả lời qua `Khác…`, gửi gộp một tin; dàn ý 5 câu cấp số cộng (một mục) |
+| 01 Xin đề mơ hồ | **Chấp nhận được** | Thẻ ba câu (khối, số câu, phạm vi), trả lời qua `Khác…`, gửi gộp một tin; dàn ý 5 câu cấp số cộng (một mục). Câu hỏi lại mở bằng *"Được cô, mình soạn đề cho các em."* — bảng rẽ: câu kiểu *"mình sẽ soạn ngay"* trong câu hỏi lại là chấp nhận được |
 | 02 Đề không tài liệu | **Không đạt** | Dàn ý 3 mục; *"được rồi, soạn đi nhé"* ra plan; nhưng 4/5 câu — bảng rẽ: *dừng ở 4/5 là không đạt tiêu chí 5/5*. Ô 4 `failed` sau 3 lần vì gần trùng câu 3; lưới chặn đúng, gốc ở brief (sửa 1). Câu kết nói đúng 4/5 |
 | 03 Sửa dàn ý | **Chấp nhận được** | Bản 2 đổi đúng câu 3 (bài vé xem phim); câu 1–2 và câu 4 diễn đạt lại cùng ý (câu 4 bỏ *"theo tham số…"*); *"oke, soạn đi"* ra 4/4 |
 | 04 Đề theo sách | **Không đạt** trên `dba6bd0` | Dàn ý bị trả về 7 lần (sửa 2). Chạy lại sau bản sửa: **chấp nhận được** — hỏi lại *bài nào* một lần, đọc đủ 5 phần, dàn ý 5 mục mỗi mục nêu bài nguồn, 5/5 câu, đề mang tên tệp; **lệch kịch bản**: gõ *"cả chương 1, rải đều các bài"* thay cho `cả chương luôn` |
@@ -48,16 +48,17 @@
 | 16 Pha 2 ở tab mới | **Đạt** | Đầu màn `2 câu · 10 phút`; tab mới có dòng nhắc và *Làm tiếp lượt đang mở*; câu 1 sáng lựa chọn đã lưu; hộp nộp đếm đúng, *Quay lại làm tiếp* không nộp; `rounds_used` mỗi câu tăng 1. Lệch ở bước 3, xem *Ghi chép* |
 | Khối ĐÃ PHÁT HÀNH (đề seed) | **Đạt** | `Mở 16:20 · 17/10`, `Hết giờ thu hồi lúc 16:20 · 17/10` — giờ +07:00 (seed mở 09:20 UTC), khớp màn học sinh |
 
-**Tổng:** 2 đạt · 2 chấp nhận được · 2 không đạt trên 6 case (04 chạy lại sau bản sửa: chấp nhận
+**Tổng:** 1 đạt · 3 chấp nhận được · 2 không đạt trên 6 case (04 chạy lại sau bản sửa: chấp nhận
 được). Có thêm khối ĐÃ PHÁT HÀNH, đạt. Hai ca không đạt vì hai lỗi Tier 1, cả hai đã sửa trong buổi.
 Các mục kiểm của plan:
 
 - không câu mock nào vào đề: 17 câu model soạn, đọc từ database; mọi lần hỏng đều có lý do trong
   log — **đạt**;
-- không hai câu gần trùng trong một đề: lưới chặn 5 job (02: 3, 03: 1, 07: 1) — **đạt**;
-- *"oke"* sau dàn ý ra plan — **đạt ở mọi ca, nhưng chỉ case 03 qua `_approved_plan`**. 4 trên 7
-  dàn ý lưu `brief` rỗng (01, 04 lần hai, 07 cả hai bản): Haiku để trống `known`, và bản vá pha 1
-  chỉ lấp từ dàn ý **trước**. Ở 04 và 07, plan là của model, đúng nhờ model (Tier 2 câu 24);
+- không hai câu gần trùng trong một đề: lưới gần trùng chặn 3 job (02, ô 4), lưới trùng nguyên văn có từ trước chặn 2
+  (03 ô 1, 07 ô 3, cả hai ở lô đầu khi đề còn rỗng) — **đạt**;
+- *"oke"* sau dàn ý ra plan — **đạt ở mọi ca, nhưng chỉ case 02 và 03 qua `_approved_plan`**. 4
+  trên 7 dàn ý lưu `brief` rỗng (01, 04 lần hai, 07 cả hai bản): Haiku để trống `known`, và bản vá
+  pha 1 chỉ lấp từ một dàn ý trước có `brief`, mà ở các đoạn chat ấy không có. Ở 04 và 07, plan là của model, đúng nhờ model (Tier 2 câu 24);
 - xin 5 câu sau một lượt hỏi lại vẫn ra 5 (01, 04) — **đạt**;
 - câu biến thể pha 2 khác câu gốc — **đạt**.
 
@@ -70,9 +71,11 @@ Các mục kiểm của plan:
      ra lại câu ấy.
    - Sửa (`05bec8e`): `authoring._already_written` đưa tối đa 10 đề bài đã có (`banned_stems`) vào
      brief, kèm lời dặn không viết lại.
-   - Review code tìm ra ba chỗ, sửa ở commit kế: `_stems` không có `order_by` và brief lấy mười câu
-     **đầu**, nên đề dài có thể bỏ sót đúng câu vừa vào đề (nay theo `order_index`, mười câu cuối);
-     danh sách đứng trước *"Bám đúng … trên"* nên chữ *trên* trỏ vào nó (nay xuống cuối brief).
+   - Hai vòng review code (12, 13) tìm ra hai chỗ, sửa ở hai commit kế:
+     - brief nêu mười câu **đầu** (vòng 12 đổi thành mười câu cuối, vòng 13 chỉ ra cắt kiểu nào cũng
+       bỏ sót được đúng câu gây trùng): nay nêu **mọi** câu đã có, tối đa 49 vì đề có trần 50;
+     - các danh sách phải tránh đứng trước *"Bám đúng … trên"*, nên chữ *trên* trỏ vào chúng: nay
+       câu ấy đứng ngay sau mục của câu này, trước cả hai danh sách.
    - Sau bản sửa, case 03 và 07 mỗi case có một ô trùng ở lần đầu và ra câu khác ở lần thứ hai;
      case 04 không ô nào phải thử lại.
 2. **Dàn ý bị trả về 7 lần trong một lượt** (lần chạy đầu của case 04, 403 nghìn token).
@@ -96,7 +99,8 @@ Các mục kiểm của plan:
      `OUTLINE_REFUSED`. `_RETRYABLE` chỉ có `retry`.
    - Panel ghi *4 câu* mà đánh số Câu 1, 2, 3, **5** (ảnh 02d): `order_index` giữ khe của ô hỏng.
    - Tier 2 câu 22: soạn lại ô hỏng tại chỗ, hay coi là câu soạn thêm và bỏ ô hỏng.
-2. **Dàn ý đầu của đoạn chat lưu `brief` rỗng** (01, 04, 07), xem mục kiểm thứ ba ở trên. Tier 2
+2. **Dàn ý lưu `brief` rỗng khi không có dàn ý trước nào để lấp** (01, 04, 07), xem mục kiểm thứ ba
+   ở trên. Tier 2
    câu 24.
 3. **Hai câu cùng dạng trong một mục** (case 07): câu 3 và 4 đều là $A\setminus B$ của hai tập hữu
    hạn, khác số. Gốc có lẽ là bản 2 tự đổi công thức mục 3–4 sang phép hiệu; lưới gần trùng không

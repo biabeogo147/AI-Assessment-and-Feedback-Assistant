@@ -353,16 +353,21 @@ def test_a_question_is_shown_the_questions_already_in_the_paper(on_an_item: bool
 
 
 @pytest.mark.parametrize("on_an_item", [True, False])
-def test_a_long_paper_shows_its_last_questions_after_the_teachers_brief(on_an_item: bool) -> None:
-    """Review code pha 6 (plan `backlog-tier-1`): BE gửi câu theo thứ tự, câu gần nhất là câu dễ
-    trùng nhất, nên một đề mười hai câu nêu mười câu **cuối**. Và danh sách đứng sau những câu
-    *"… trên"* của brief, để chữ *trên* không trỏ vào các câu phải tránh."""
+def test_a_long_paper_shows_every_question_after_the_teachers_brief(on_an_item: bool) -> None:
+    """Review code vòng 12, 13 (plan `backlog-tier-1`): câu đã gây trùng nằm ở đâu cũng được (một ô
+    soạn thêm trùng câu 1), nên đề mười hai câu nêu cả mười hai, không cắt đầu hay cuối. Và các danh
+    sách phải tránh đứng sau những câu *"… trên"* của brief, để chữ *trên* không trỏ vào chúng."""
     stems = tuple(f"Câu đã có số {n}: tính $ {n} + {n} $." for n in range(1, 13))
-    item = {"item_knowledge": "Tỉ lệ thức", "item_approach": "Nhân chéo"} if on_an_item else {}
+    item = (
+        {"item_knowledge": "Tỉ lệ thức", "item_approach": "Nhân chéo", "other_items": ("Luỹ thừa",)}
+        if on_an_item
+        else {}
+    )
 
     brief = draft_brief(_asked(banned_stems=stems, **item))
 
-    assert stems[0] not in brief and stems[1] not in brief
-    assert all(stem in brief for stem in stems[2:])
+    assert all(stem in brief for stem in stems)
     above = "Bám đúng kiến thức" if on_an_item else "phạm vi trên"
     assert brief.index(above) < brief.index("Không viết lại bài nào")
+    if on_an_item:
+        assert brief.index(above) < brief.index("đừng hỏi sang")
