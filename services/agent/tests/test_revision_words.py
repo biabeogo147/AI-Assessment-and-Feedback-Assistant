@@ -1,6 +1,6 @@
 """Bộ câu có nhãn cho lời giáo viên ngay sau một dàn ý: *xin sửa* hay *không xin sửa*.
 
-Plan `backlog-tier-1`, pha 5: bảy vòng review liền nhau đều ra một ca biên mới của `_NO_CHANGE` /
+Plan `backlog-tier-1`, pha 5: chín vòng review liền nhau đều ra một ca biên mới của `_NO_CHANGE` /
 `_REVISES`, và mỗi lần sửa một câu lại làm hỏng một câu khác. Bộ này gom mọi câu các vòng ấy đã thử
 -- sửa regex là chạy lại cả bộ, nên một lần sửa không còn âm thầm làm sai một câu cũ.
 
@@ -16,6 +16,11 @@ from contracts import NextStepCompleted, NextStepRequested, PlanStep, TurnRecord
 
 # Lời không xin sửa: plan soạn đi tiếp.
 AGREES = (
+    # *"gì thêm"* có chữ khác theo sau, không dấu phẩy (vòng 9).
+    "không cần sửa gì thêm soạn đi",
+    "không đổi gì thêm soạn luôn",
+    "không cần sửa gì thêm em",
+    "ok không cần chỉnh sửa gì thêm cảm ơn em",
     # *"không sao"* đứng trước không phải *"sao không …"* (vòng 8).
     "không sao không cần sửa đâu",
     "ko sao ko cần sửa",
@@ -122,6 +127,9 @@ AGREES = (
 
 # Lời xin sửa: plan soạn bị giữ lại.
 REVISES = (
+    # *"gì thêm"* rồi tân ngữ là lời xin thêm câu (vòng 9).
+    "không cần sửa gì thêm 1 câu hình học",
+    "không cần sửa gì thêm cho cô 2 câu",
     # Lời không xin sửa rồi xin thêm câu, không dấu phẩy (vòng 8).
     "không cần sửa nhé thêm 1 câu hình học",
     "không cần sửa ạ thêm 1 câu hình học",

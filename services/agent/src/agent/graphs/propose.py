@@ -1294,11 +1294,16 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 # câu 3?"*). *"sao không …"* là lời gợi ý sửa, không phải lời phủ định. `\b` sau tiểu từ: *nha*
 # không ăn đầu chữ *nhanh*.
 #
-# Bảy vòng review (pha 5) liền ra ca biên mới, nên regex này đi cùng một bộ câu có nhãn
+# Chín vòng review (pha 5) liền ra ca biên mới, nên regex này đi cùng một bộ câu có nhãn
 # (`tests/test_revision_words.py`): sửa regex là chạy lại cả bộ. Ca biên còn lại là Tier 2 câu 5.
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
 _END_PARTICLE = r"(?:nh[éeaá]+n?|ạ+)"
-_INNER_PARTICLE = r"(?:gì[iì]*|nữa|cả|hết+|đâu)"
+# *"gì thêm"* là *"gì nữa"*: *gì* mang theo *thêm* dù có chữ khác theo sau (*"không cần sửa gì thêm
+# soạn đi"*), trừ khi sau *thêm* là tân ngữ -- *"gì thêm 1 câu"* là lời xin thêm câu (vòng 9).
+_INNER_PARTICLE = (
+    r"(?:gì[iì]*(?:\s+thêm\b(?!\s+(?:\d|một|hai|ba|vài|mấy|câu|cho|phần|bài)))?"
+    r"|nữa|cả|hết+|đâu)"
+)
 _LONG_PARTICLE = r"(?:luôn|đi)"
 # *thêm* ở đuôi chỉ khi nó cũng là cuối ý (*"không chỉnh sửa gì thêm"*): theo sau là hết câu, dấu
 # câu, hay một tiểu từ khác -- *"không cần sửa nhé thêm 1 câu"* là lời xin thêm câu (vòng 8).
