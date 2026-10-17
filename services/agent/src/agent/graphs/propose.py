@@ -1198,7 +1198,8 @@ def _count_revised(request: NextStepRequested) -> bool:
     `backlog-tier-1`).
     """
     since = _since_plan(request)
-    # Duyệt ngược **mọi** lời giáo viên tới lời đầu tiên mang một con số: *"thêm 2 câu"* rồi
+    # Duyệt ngược **mọi** lời giáo viên tới lời đầu tiên mang một con số hay một lời *soạn thêm*:
+    # *"thêm 2 câu"* rồi
     # *"câu 3 khó hơn nhé"* vẫn là dàn ý đã sửa -- chỉ xét lời cuối thì đọc ra tổng 2 (review code
     # vòng 3).
     for at in range(len(since) - 1, -1, -1):
@@ -1281,8 +1282,9 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 
 # Lời **không** xin sửa: *"không cần sửa gì"*, *"ko đổi gì nữa"* -- bỏ đi trước khi tìm `_REVISES`,
 # như `_NO_BOOK` với chữ *sách* (review code pha 5, plan `backlog-tier-1`).
-# Chỉ khi động từ **đứng cuối ý** -- theo sau là *gì/nữa/cả/hết* hay một dấu câu: *"không cần thêm
-# câu hình học"* là lời xin bỏ một mục, không phải lời không xin sửa (review code vòng 2).
+# Chỉ khi động từ **đứng cuối ý** -- theo sau là *gì/nữa/cả/hết*, một tiểu từ cuối câu
+# (*nhé/nha/nhe/ạ/đâu*) hay một dấu câu: *"không cần thêm câu hình học"* là lời xin bỏ một mục,
+# không phải lời không xin sửa (review code vòng 2).
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
 _NO_CHANGE = re.compile(
     # *"sửa thêm"*: hai động từ liền nhau vẫn là một lời (review code vòng 5).
@@ -1291,7 +1293,9 @@ _NO_CHANGE = re.compile(
     # Tiểu từ cuối câu cũng là cuối ý: *"không cần sửa nhé em"* (review code vòng 3, 5). Riêng
     # *"luôn"*, *"đi"* hay đứng giữa câu -- *"sao không đổi luôn câu 3"* là lời xin sửa -- nên hai
     # tiếng ấy chỉ tính khi sau chúng là cuối ý thật (review code vòng 4).
-    r"(?:(?:\s+(?:gì|nữa|cả|hết|đâu|nhé|nha|nhe|ạ))+(?:\s+(?:luôn|đi))*"
+    # *"luôn"*/*"đi"* đứng trước một tiểu từ cuối câu cũng được: *"khỏi sửa luôn nha"* (vòng 6).
+    # `\b` sau tiểu từ: *"nha"* không được ăn đầu chữ *"nhanh"*.
+    r"(?:(?:\s+(?:luôn|đi))*(?:\s+(?:gì|nữa|cả|hết|đâu|nhé|nha|nhe|ạ)\b)+(?:\s+(?:luôn|đi))*"
     r"|(?:\s+(?:luôn|đi))*(?=\s*(?:[,.!?;]|$)))"
     rf"|\bkhông\s+có\s+gì\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}\b",
     re.IGNORECASE,

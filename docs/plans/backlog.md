@@ -1279,7 +1279,8 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | **`_COUNT_SAID` đọc *"2 câu cuối khó hơn nhé"* thành tổng 2** -- có từ trước, review code vòng 4 | Tier 4: lời nói về một phần của đề hay về tổng là chuyện đọc hiểu, regex không đủ; đo trên bench trước khi đổi |
 | ~~**`_NO_CHANGE` vòng 4 bắt cả tiểu từ cuối câu thật phải có dấu câu theo sau**: *"không cần sửa nhé em"* bị giữ như lời xin sửa; *"không cần sửa thêm"* cũng vậy -- review code vòng 5~~ | **Đã làm: chỉ *luôn/đi* cần cuối ý; nhận hai động từ liền nhau** (plan `backlog-tier-1`, pha 5) |
 | ~~**Docstring `_count_revised` không nói tới lời *soạn thêm* không con số** -- review code vòng 5~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
-| **Phân biệt *đồng ý* với *xin sửa* dàn ý bằng regex không bao giờ kín**: bốn vòng review liền (pha 5) đều ra một ca biên mới của `_NO_CHANGE`/`_REVISES` | Tier 2 câu 5 (lời đồng ý dàn ý): nút *Soạn theo dàn ý này* do BE dựng thay cho regex. Từ nay ca biên của regex này xếp vào câu 5, không vào Tier 1 |
+| **Phân biệt *đồng ý* với *xin sửa* dàn ý bằng regex không bao giờ kín**: bốn vòng review liền (pha 5) đều ra một ca biên mới của `_NO_CHANGE`/`_REVISES` | Tier 2 câu 5 (lời đồng ý dàn ý): nút *Soạn theo dàn ý này* do BE dựng thay cho regex. Từ nay ca biên của regex này xếp vào câu 5, không vào Tier 1. Đã biết còn lọt: *"không đổi nhé câu 3 sang tự luận"*, *"không thêm nha câu hình học"* (tiểu từ chen giữa câu) |
+| ~~**`_NO_CHANGE` vòng 5 bỏ sót *"luôn"/"đi"* đứng trước tiểu từ cuối câu**: *"khỏi sửa luôn nha"* bị giữ như lời xin sửa; *"nha"* ăn đầu chữ *"nhanh"* -- review code vòng 6~~ | **Đã làm; so ~90 câu với bản trước: không câu nào từ đúng thành sai** (plan `backlog-tier-1`, pha 5) |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 

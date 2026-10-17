@@ -791,6 +791,10 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
         ("không cần sửa nhé :)", False),
         ("không cần sửa thêm, soạn luôn", False),
         ("không cần sửa nhé nhưng câu 3 khó hơn", True),
+        # *luôn* trước một tiểu từ cuối câu; *nha* không ăn đầu chữ *nhanh* (vòng 6).
+        ("không cần sửa luôn nhé", False),
+        ("khỏi sửa luôn nha", False),
+        ("sao không sửa nhanh câu 3", True),
     ],
 )
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
