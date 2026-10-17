@@ -1,6 +1,6 @@
 # ADR-32 — Hỏi lại tối đa ba câu một lượt
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-10-17
 
 ## Bối cảnh
@@ -43,5 +43,16 @@ bỏ nó thì lượt sau model hỏi lại đúng câu ấy.
 
 ## Nơi luật này đang được thi hành
 
-Plan thi hành: `docs/plans/active/2026-10-17-assessment-title-and-multi-question-plan.md`. Bảng điền
-khi plan đóng.
+Plan thi hành: `docs/plans/completed/2026-10-17-assessment-title-and-multi-question-plan.md`. Thử tay: `docs/testing/ket-qua/2026-10-17-e8f7f9d-claude-haiku-5-5.md` (case 01).
+
+| Luật | Nơi thi hành |
+| --- | --- |
+| Tối đa ba câu, mỗi câu nhãn, câu hỏi, nút; chỉ với `ask_clarify` | `packages/contracts` `ClarifyQuestion`, `MOST_CLARIFY_QUESTIONS`, validator của `NextStepCompleted` |
+| Model nêu các câu; quá ba hay ít lựa chọn thì hỏi lại một lần | AGENT `propose._Proposal.asked`, `_choose` (`_TooManyQuestions`, `_FewChoices` từng câu theo `_choices_wanted`); prompt `_CORE`, skill `soan-de` |
+| Câu về một dòng (ADR-23) thì một lượt một câu | BE `teacher_chat._questions_of` (giữ câu có lựa chọn gọi tên dòng) |
+| Các câu sống trong lượt hỏi, F5 ra lại thẻ; model đọc lại chúng | `tool_result.questions` của lượt `assistant`; AGENT `_asked_back` |
+| Từng câu, không bỏ câu, tóm tắt, gửi gộp *"Nhãn: trả lời · …"* | FE `ClarifySteps.tsx`, `Chat.tsx` (`questionsOf`, `aloud`, `Voiced`); Figma `Clarify request` `629:20`, `629:46` |
+| Test | contracts `test_teacher_plan.py`; AGENT `test_propose_graph.py`; BE `test_teacher_chat.py`; FE `clarify-steps.test.tsx` |
+
+Chưa thi hành: lựa chọn chưa gửi mất khi F5 (cố ý); `·` trong chữ tự ghi làm tin gộp mơ hồ
+(backlog).

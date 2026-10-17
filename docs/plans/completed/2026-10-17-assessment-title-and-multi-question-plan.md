@@ -83,11 +83,19 @@ Người dùng chốt:
 - [x] 16. Vitest. Commit.
 
 ### Pha 6 — Tài liệu, review, thử tay, đóng
-- [ ] 17. `teacher-surface.md`, `huong-dan.md`, case 01, 02, 04; case mới `15-doi-ten-de.md`.
-- [ ] 18. Một subagent review code của cả plan. Sửa theo.
-- [ ] 19. Thử tay 01, 02, 04, 15 trên Haiku 5.5; ảnh chụp; biên bản.
-- [ ] 20. Một subagent review ảnh chụp và biên bản. Sửa theo; đóng plan; bảng *Nơi thi hành* của
-  ADR-31, ADR-32. Commit.
+- [x] 17. `teacher-surface.md`, `huong-dan.md`, case 01, 02, 04; case mới `15-doi-ten-de.md`.
+- [x] 18. Một subagent review code của cả plan. Sửa theo: tám trên chín điểm (`e8f7f9d`) — dấu ngoặc
+  trong tên giáo viên gõ, câu về dòng giữ đúng câu, lượt nhiều câu không lời mở, lần hỏi lại giữ lần
+  nhiều lựa chọn hơn, mức lựa chọn theo số dòng, `clipped` không bỏ từ đã vừa, nhãn trùng đánh số,
+  gửi hỏng giữ câu trả lời. Điểm thứ chín (`·` trong chữ tự ghi) vào backlog.
+- [x] 19. Thử tay 01, 02, 04, 15 trên Haiku 5.5; ảnh chụp; biên bản. Giữa buổi người dùng chỉ ra
+  thẻ hỏi lại **không có avatar Kriky** (có từ `e6debbb`): sửa trong buổi — FE `Voiced`, artboard
+  `3 · Kriky hỏi lại` (`69:159`) và `3b` (`585:3061`) thêm khung `Kriky turn — hỏi lại`, đo bằng nhau
+  (hàng avatar 40, cách thẻ 6, thẻ 820). Người dùng thêm luật: mọi thay đổi FE kết thúc bằng trình
+  duyệt + một subagent chấm ảnh (`services/fe/AGENTS.md`).
+- [x] 20. Một subagent review ảnh chụp và biên bản. Sửa theo (case 02 hạ xuống không đạt, đáp án sai
+  ở case 04, tiêu đề panel bẻ trong ngoặc, phần chưa thử của case 15); đóng plan; bảng *Nơi thi
+  hành* của ADR-31, ADR-32. Commit.
 
 ## Validation Checks
 
@@ -100,4 +108,7 @@ Người dùng chốt:
 
 ## Status
 
-Đang làm pha 6.
+Đóng 17/10/2026. Kết quả thử tay: `docs/testing/ket-qua/2026-10-17-e8f7f9d-claude-haiku-5-5.md` — 01 chấp nhận được, 02 không đạt (hai câu ngân hàng trùng
+số liệu), 04 không đạt (bài nguồn gộp cuối dàn ý, phương án rác), 15 đạt một phần. Phần của plan —
+thẻ nhiều câu, tên đề, đổi tên — chạy đúng; các lỗi không đạt là lỗi model và đường soạn câu, đã vào
+backlog (*Lộ ra khi thử tay plan tên đề và hỏi nhiều câu*).

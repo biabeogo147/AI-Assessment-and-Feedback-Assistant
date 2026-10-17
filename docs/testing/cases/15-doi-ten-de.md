@@ -59,7 +59,7 @@ B2. Bấm `Hoàn tác`. Panel về nội dung đề; đọc tiêu đề panel.
 ## Đạt khi
 
 - **A1:** tiêu đề thành ô nhập viền màu nhấn, bên phải bộ đếm `40/60` (tên tệp 40 ký tự), `Lưu`,
-  `Huỷ`. Nút `Đóng` vẫn đó.
+  `Huỷ`. `Đóng` ẩn lúc đang sửa (variant `rename`, `626:2730`).
 - **A2:** tiêu đề về nguyên tên cũ; truy vấn bên dưới chưa đổi.
 - **A3:** ô chỉ giữ **60** ký tự đầu của chuỗi dán, bộ đếm `60/60`.
 - **A4:** tiêu đề panel đọc `Kiểm tra 15 phút — Số tự nhiên`; **mọi** thẻ `Đã tạo đề` của đoạn

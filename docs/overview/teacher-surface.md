@@ -306,6 +306,12 @@ nhận (ADR-05, ADR-10).
   và màn hình lấy chúng từ đúng cái response **không bao giờ** có chúng; nên thẻ này có thể chưa từng
   hiện lần nào, chứ không phải chỉ mất sau khi tải lại.
 
+**Thẻ hỏi lại mở lượt thì mang avatar.** Câu hỏi lại là tiêu đề thẻ, nên lượt Kriky cuối được gấp
+vào thẻ cho khỏi hiện hai lần; khi không còn gì của Kriky đứng trên nó, thẻ đứng dưới hàng avatar,
+cách 6 — artboard `3 · Kriky hỏi lại` (`69:159`) và `3b` (`585:3061`), khung `Kriky turn — hỏi lại`.
+Lượt có bước tra cứu trước câu hỏi thì avatar đã ở trên khối bước: một lượt, một avatar. Trước
+17/10/2026 thẻ đứng trần và Kriky biến mất đúng lúc đang hỏi.
+
 ### Hỏi nhiều câu một lượt — từng câu, rồi tóm tắt
 
 [ADR-32](../decisions/adr-32-hoi-lai-nhieu-cau.md): khi Kriky cần 2–3 điều cùng lúc, thẻ hỏi lại hiện

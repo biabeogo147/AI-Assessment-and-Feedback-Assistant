@@ -160,6 +160,10 @@ describe("thẻ hỏi lại nhiều câu", () => {
 
     await waitFor(() => expect(screen.getByText("Câu 1/3 · Khối")).toBeTruthy());
     expect(document.querySelectorAll(".clarify.several")).toHaveLength(1);
+    // Lượt chỉ gồm câu hỏi lại: thẻ mở lượt, nên mang hàng avatar của Kriky (artboard 3).
+    const card = document.querySelector(".clarify.several");
+    expect(card?.closest(".voice")?.querySelector(".who .face")).toBeTruthy();
+    expect(document.querySelectorAll(".who")).toHaveLength(1);
   });
 
   it("lượt hỏi nhiều câu đã qua hiện lời mở cùng các câu, đánh số", async () => {

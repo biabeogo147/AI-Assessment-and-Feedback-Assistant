@@ -447,6 +447,12 @@ export default function Chat({
     last.kind === "assistant" &&
     last.text === asked.text;
   const drawn = (folded ? turns.slice(0, -1) : turns).map(aloud);
+  // Thẻ hỏi lại **mở** một lượt Kriky khi không có gì của Kriky đứng ngay trên nó — lượt chỉ gồm
+  // câu hỏi lại, mà câu ấy vừa được gấp vào thẻ. Khi ấy thẻ mang hàng avatar của lượt (artboard
+  // `3 · Kriky hỏi lại`, `69:159`); thiếu nó thì Kriky biến mất đúng lúc đang hỏi. Lượt có bước
+  // tra cứu trước câu hỏi thì avatar đã ở trên khối bước: một lượt, một avatar.
+  const before = drawn[drawn.length - 1];
+  const opensTurn = before === undefined || before.kind === "teacher" || before.kind === "notice";
 
   return (
     <div
@@ -516,28 +522,31 @@ export default function Chat({
                 />
               ),
             )}
-            {asked !== null && pending === null && asked.questions && (
-              <ClarifySteps
-                key={`${asked.text}\n${asked.questions.map((one) => one.text).join("\n")}`}
-                lead={asked.text}
-                questions={asked.questions}
-                other={OTHER}
-                kept={answersBack}
-                onSend={(said, answers) => {
-                  setAnswersBack(answers);
-                  void send(said, "card");
-                }}
-              />
-            )}
-            {asked !== null && pending === null && !asked.questions && (
-              <Clarify
-                // Câu hỏi mới thì thẻ mới: một ô "Khác" đang mở của câu trước không được sống
-                // sang câu sau.
-                key={`${asked.text}\n${asked.choices.join("\n")}`}
-                asked={asked}
-                written={otherBack}
-                onPick={(one) => void send(one, "card")}
-              />
+            {asked !== null && pending === null && (
+              <Voiced shown={opensTurn}>
+                {asked.questions ? (
+                  <ClarifySteps
+                    key={`${asked.text}\n${asked.questions.map((one) => one.text).join("\n")}`}
+                    lead={asked.text}
+                    questions={asked.questions}
+                    other={OTHER}
+                    kept={answersBack}
+                    onSend={(said, answers) => {
+                      setAnswersBack(answers);
+                      void send(said, "card");
+                    }}
+                  />
+                ) : (
+                  <Clarify
+                    // Câu hỏi mới thì thẻ mới: một ô "Khác" đang mở của câu trước không được
+                    // sống sang câu sau.
+                    key={`${asked.text}\n${asked.choices.join("\n")}`}
+                    asked={asked}
+                    written={otherBack}
+                    onPick={(one) => void send(one, "card")}
+                  />
+                )}
+              </Voiced>
             )}
             {pending !== null && (
               <div className="exchange said">
@@ -1123,6 +1132,25 @@ function Turnful({
             />
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Một thẻ đứng dưới hàng avatar của Kriky, cùng nhịp 6 với `Turnful`, khi nó mở lượt; không thì
+ * thẻ đứng trần dưới lượt đã có avatar.
+ *
+ * @param shown - Thẻ có mở một lượt Kriky không.
+ * @param children - Thẻ.
+ */
+function Voiced({ shown, children }: { shown: boolean; children: React.ReactNode }) {
+  if (!shown) return <>{children}</>;
+  return (
+    <div className="exchange">
+      <div className="voice">
+        <Who />
+        <div className="turn-body">{children}</div>
       </div>
     </div>
   );

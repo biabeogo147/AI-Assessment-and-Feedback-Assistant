@@ -1,6 +1,6 @@
 # ADR-31 — Tên đề kiểm tra: tối đa 60 ký tự, giáo viên đổi được
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-10-17
 
 ## Bối cảnh
@@ -46,5 +46,15 @@ một cái nhãn; một đề hai tên ở hai chỗ trên cùng màn hình là 
 
 ## Nơi luật này đang được thi hành
 
-Plan thi hành: `docs/plans/active/2026-10-17-assessment-title-and-multi-question-plan.md`. Bảng điền
-khi plan đóng.
+Plan thi hành: `docs/plans/completed/2026-10-17-assessment-title-and-multi-question-plan.md`. Thử tay: `docs/testing/ket-qua/2026-10-17-e8f7f9d-claude-haiku-5-5.md` (case 02, 04, 15).
+
+| Luật | Nơi thi hành |
+| --- | --- |
+| Trần 60, cắt ở ranh giới từ kèm `…`, bỏ ngoặc bọc cả tên | `services/be/src/be/titles.py` (`MOST_TITLE`, `clipped`) |
+| Đề sách mang tên tệp; đề không sách mang phạm vi bỏ `(tr. …)` | `titles.default_title`, gọi từ `teacher_tools._create_draft` |
+| Giáo viên đổi tên khi đề chưa duyệt; trống 400, quá 60 bị từ chối 422, không cắt | `teacher_routes.rename_assessment` (`PATCH /teacher/assessments/{id}`, cùng `editable` với `edit_question`) |
+| Mọi chỗ hiện tên hiện tại, kể cả thẻ cũ và lịch sử gửi AGENT | `teacher_chat._current_titles` + `_titled` (khi đọc lại đoạn chat và khi dựng `history`) |
+| Ô đổi tên, ẩn khi đề đã duyệt; thẻ tên một dòng cắt `…` | FE `Panel.tsx` (`MOST_TITLE`), `ActionCard` `.what`; Figma `Panel title` `626:2736`, `Action result card` `626:2737` |
+| Test | `services/be/tests/test_assessment_title.py`, `test_document_tools.py`; FE `teacher.test.tsx` (*đổi tên đề*) |
+
+Chưa thi hành: ô đổi tên không báo khi chữ chạm trần mà cụt giữa từ (backlog).

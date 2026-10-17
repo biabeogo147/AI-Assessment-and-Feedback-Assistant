@@ -16,10 +16,10 @@ Adds to the root contract. Constraints only.
 - Colours come from `tokens.css`, which mirrors the Figma collection. No raw hex in a component.
 - Teacher class names must not collide with any top-level class in `tokens.css`. A second rule of
   the same name adds to the first, it does not replace it.
-- The design file is the other half of a screen, not a sketch that came before it. Changing a screen
-  means changing its artboard on `Screen — Student` or `Screen — Teacher` of Figma
-  `mOe2ZmrqOq1Uix45v6PNGD` in the same change set, and naming the moved artboards in the commit.
-  What the artboards MEAN is written in `docs/overview/teacher-surface.md`, never re-derived.
-- Then prove the two agree by measurement, not by eye: read position, size, padding, gap, radius,
-  fill and font off the Figma node, read the computed style of the same element in a running
-  browser, compare. Every style defect shipped here was invisible to a glance, obvious to a ruler.
+- The design file is the other half of a screen. Changing a screen changes its artboard on `Screen —
+  Student` or `Screen — Teacher` of Figma `mOe2ZmrqOq1Uix45v6PNGD` in the same change set, named in the
+  commit. What the artboards MEAN is written in `docs/overview/teacher-surface.md`, never re-derived.
+- Prove the two agree by a ruler, not a glance: position, size, padding, gap, radius, fill and font of
+  the Figma node against the computed style of the same element in a running browser.
+- Every FE change, refactors included, ends in the browser: screenshot each state it can reach and have
+  one subagent grade the shots against the artboards. Vitest reads the DOM; it never sees the screen.

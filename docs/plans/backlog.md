@@ -1189,6 +1189,25 @@ ghi ở đây.
 | **Tên đoạn chat chép lời dặn**: *"Soạn đề toán lớp 6 chương 1 (từ chối? không) — tiêu đề: Soạn"* | `naming.py` trên Haiku; chưa đo lại |
 | **"Cả chương" mà chỉ đọc một phần chương** (04): `read_section` với `nodes` 1, 3, 6, 17 do model chọn, bỏ bốn bài, mà lời dàn ý vẫn nói *"lấy từ bài 1 đến thứ tự thực hiện các phép tính"* | Model chọn nút; `_read_before_outline` chỉ đòi đọc hết phạm vi **đã gọi**, không đối chiếu với phạm vi giáo viên nói |
 
+## Lộ ra khi thử tay plan tên đề và hỏi nhiều câu
+
+Ghi ngày 17/10/2026, plan `2026-10-17-assessment-title-and-multi-question-plan.md`. Biên bản:
+`docs/testing/ket-qua/2026-10-17-e8f7f9d-claude-haiku-5-5.md`. Thẻ hỏi lại thiếu avatar Kriky đã sửa
+trong buổi, không ghi ở đây.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Nút của câu hỏi phạm vi là *loại* phạm vi** (01): *"Một chương đang học"*, *"Một chủ đề cụ thể"* — không bấm được thành một phạm vi | `_answers` bỏ tên mục và câu hỏi, không nhận ra một *loại*; luật skill chưa nói nút phạm vi phải là tên một phần kiến thức |
+| **Hai ô cùng một mục lấy cùng một bài từ ngân hàng** (02): câu 3 và 4 đều $\frac{x}{6}=\frac{4}{9}$, chỉ khác chữ | Đường lấy câu ngân hàng không loại câu đã dùng trong đề; lưới *"đề trùng một câu đã có"* chỉ chặn câu model viết |
+| **Lời dàn ý gộp bài nguồn ở cuối** (04) thay vì nêu theo từng mục | ADR-30 chỉ đối chiếu nhẹ lời dàn ý; `source_nodes` từng mục vẫn đúng, chỉ chữ không nói |
+| **Phương án rác `$4\,volume$`** (04, câu 3) do job soạn câu viết, và đáp án đánh dấu theo đó sai | Không lưới nào soi chữ không phải toán trong phương án số |
+| **Tên đoạn chat là lời trợ lý** (04): *"Bạn gửi kèm sách hoặc chụp các trang chương 1 Toán 6 giúp mì…"* | Cùng gốc với dòng *"Tên đoạn chat chép lời dặn"* ở trên (`naming.py` trên Haiku) |
+| **Tên giáo viên gõ bị cụt giữa từ ở 60** (15): *"…cách ghi số và lũy thừ"* — `maxLength` dừng ô, chỉ bộ đếm `60/60` báo | Tên hệ thống cắt ở ranh giới từ kèm `…`; ô nhập chưa nói gì khi chạm trần. Một dòng nhắc dưới ô, hay chặn `Lưu` khi chữ dán vào dài hơn |
+| **Tiêu đề panel bẻ dòng giữa `(tr6-` / `28)`** (04) | `h2` xuống dòng ở dấu gạch; cần không bẻ trong ngoặc (gạch nối không ngắt hay `white-space` cho cụm ngoặc) — đổi chữ hiển thị, nên đi cùng Figma |
+| **Lời mở lượt soạn chép nguyên ví dụ trong prompt** (02, 04): *"Được, mình soạn đề ngay."* | Ví dụ nằm trong `propose._CORE`; lời model nhưng đọc như câu cố định (ADR-30). Bỏ ví dụ nguyên văn, hay cho nhiều ví dụ |
+| **Hàng đoạn chat bị vạch chia ngăn rail cắt ngang** (ảnh 04–15) | Có thể đúng ý ngăn cuộn; chưa đối chiếu artboard rail |
+| **Câu trả lời tự ghi chứa `·` làm tin gộp mơ hồ** (review code pha 6): *"Phạm vi: tỉ lệ thức · dãy tỉ số"* | Nhẹ; chưa thấy ở lần chạy nào. Sửa: thay ` · ` trong chữ tự ghi, hay nói khuôn gộp cho model ở `_asked_back` |
+
 ## Lộ ra khi viết chương 7 của báo cáo
 
 Ghi ngày 16/10/2026, plan `2026-10-16-report-service-chapter-plan.md`. Ba subagent khảo sát
