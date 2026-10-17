@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã chốt
 - **Ngày:** 2026-09-10
+- **Sửa:** 2026-10-17 — hai dòng *chưa có ở backend* và *bị chặn* cuối mục thi hành đã cũ. Xem
+  *Hậu ký 17/10/2026* ở cuối. Phần trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -78,3 +80,17 @@ trước khi sửa một trong hai.
 - **Chưa có ở backend**: `packages/contracts` không có trường thời gian nào, kể cả của pha 1.
 - **Bị chặn**: một đồng hồ chạy xuyên qua nhiều lượt là trạng thái có nhớ, mà
   [ADR-09](adr-09-ket-qua-cham-la-tam-thoi.md) xoá mọi thứ sau một giờ. Xem `docs/plans/backlog.md`.
+
+## Hậu ký 17/10/2026
+
+Hai dòng cuối của mục thi hành đúng vào ngày viết, và sai từ khi pha 2 có backend (plan
+`backlog-tier-1` ghi lại):
+
+- **Backend đã có hai đồng hồ.** `Publication` mang `phase2_minutes_per_question` và
+  `remediation_deadline`; `be/remediation.py` tính độ dài lượt (`round_budget_minutes`) và giờ kết
+  thúc đã cắt theo hạn (`round_ends_at`); `RemediationRound.ends_at` lưu nó. `save_round_answer` từ
+  chối một lựa chọn sau `ends_at` -- lượt **DỪNG** -- còn `submit_round` vẫn nhận nộp và chấm phần
+  đã lưu trước đó (test `test_a_stopped_round_is_marked_on_what_was_saved_before_it_stopped`).
+- **Không còn bị ADR-09 chặn.** Trạng thái bài làm nằm ở Postgres, không ở kết quả job của arq
+  ([ADR-21](adr-21-trang-thai-bai-lam-la-ben.md)), nên một đồng hồ xuyên nhiều lượt không mất sau
+  một giờ.

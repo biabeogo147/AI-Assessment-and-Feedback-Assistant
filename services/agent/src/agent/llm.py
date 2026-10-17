@@ -1,8 +1,9 @@
 """Module duy nhất trong AGENT biết model của ai đang trả lời.
 
 Mọi handler đều xin một runnable rồi viết prompt cho nó. Không handler nào gọi tên
-OpenAI, Gemini hay bất kỳ ai, nên đổi provider là sửa hai dòng trong `.env` thay vì
-một thay đổi rải ra ba handler. Đó cũng là thứ làm cho bộ test miễn phí: một test
+OpenAI, Gemini, Claude hay bất kỳ ai, nên đổi provider là sửa vài dòng trong `.env`
+(`docs/local-development.md`, *Bật model thật*) thay vì một thay đổi rải ra mọi
+handler. Đó cũng là thứ làm cho bộ test miễn phí: một test
 thay cái builder ở đây và không có gì chạm tới network.
 
 Hai điều trong đây dễ làm sai và tốn công debug:

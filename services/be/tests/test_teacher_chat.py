@@ -2270,8 +2270,10 @@ async def test_a_turn_that_outlived_its_lock_does_not_wipe_the_next_ones(stack) 
         a = await teacher_chat._hold_the_thread(session, thread, 600)
         assert a is not None
 
-        # Rồi A sống lâu hơn cửa sổ, nên B giành được: khoá nay là của B.
-        b = datetime.now(UTC)
+        # Rồi A sống lâu hơn cửa sổ, nên B giành được: khoá nay là của B. Mốc của B cách A hẳn một
+        # giây: trên Windows đồng hồ nhảy theo nhịp 15,6 ms, hai lần `now()` liền nhau ra cùng một
+        # giá trị và thẻ của B trùng thẻ của A -- test chập chờn (plan `backlog-tier-1`).
+        b = a + timedelta(seconds=1)
         await session.execute(
             update(TeacherConversation)
             .where(TeacherConversation.id == thread)
@@ -2893,6 +2895,28 @@ async def test_a_message_that_drifts_from_its_outline_goes_back_to_the_model(sta
     told = agent.asked[1]["history"][-1]
     assert told["tool_name"] == "outline" and "Câu 1" in told["tool_result"]["error"]
     assert reply.json()["text"] == good.text
+
+
+@pytest.mark.asyncio
+async def test_a_refused_outline_still_counts_the_tokens_it_spent(stack) -> None:
+    """Review đợt 3 (plan `backlog-tier-1`): lượt dàn ý bị trả về không thành dòng nào, nên token
+    của nó từng mất khỏi sổ. Nay nó cộng vào dòng được ghi kế tiếp."""
+    client, maker, monkeypatch = stack
+    drifted = NextStepCompleted(
+        request_id="x",
+        kind="outline",
+        text="Mình soạn hai câu về đọc số tự nhiên nhé.",
+        outline=(_outline_item(source_nodes=()),),
+        model_tokens=7,
+    )
+    good = _outline_step(_outline_item(source_nodes=())).model_copy(update={"model_tokens": 5})
+    monkeypatch.setattr(teacher_chat, "run_task", ScriptedAgent(drifted, good))
+
+    await client.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+
+    async with maker() as session:
+        row = await session.scalar(select(TeacherTurn).where(TeacherTurn.kind == "outline"))
+    assert row.model_tokens == 12
 
 
 @pytest.mark.asyncio

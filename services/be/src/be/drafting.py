@@ -535,8 +535,22 @@ async def replace(
     Raises:
         HTTPException: 409 khi nội dung của đề đã khoá (ADR-01).
     """
-    brief = await session.get(DraftBrief, assessment_id)
-    assessment = await session.get(Assessment, assessment_id)
+    # Cùng khoá như `fire`, cùng thứ tự đề rồi brief: thay câu cũng đọc-sửa-ghi `brief.outline`, và
+    # một `fire` đua cùng lúc từng làm mất mục của bên kia. Hai đường ghi khoá như nhau thì chúng đi
+    # nối nhau, nên commit đầu của `fire` không còn thua `IntegrityError` và cuộn mất dàn ý vừa
+    # nối (review đợt 3, plan `backlog-tier-1`).
+    assessment = await session.scalar(
+        select(Assessment)
+        .where(Assessment.id == assessment_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    brief = await session.scalar(
+        select(DraftBrief)
+        .where(DraftBrief.assessment_id == assessment_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if brief is None or assessment is None:
         return 0
     assert_editable(assessment)

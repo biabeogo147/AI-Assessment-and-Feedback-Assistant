@@ -122,6 +122,12 @@ describe("thẻ hỏi lại nhiều câu", () => {
     );
   });
 
+  it("chữ tự ghi có dấu · thì thành dấu phẩy, cho tin gộp một nghĩa", () => {
+    expect(merged(QUESTIONS, ["Khối 7", "5 câu", "tỉ lệ thức · dãy tỉ số"])).toBe(
+      "Khối: Khối 7 · Số câu: 5 câu · Phạm vi: tỉ lệ thức, dãy tỉ số",
+    );
+  });
+
   it("đọc lại sau F5: lượt hỏi nhiều câu đã lưu ra lại thẻ nhiều câu", async () => {
     Element.prototype.scrollIntoView = vi.fn();
     const stored = {
@@ -166,7 +172,7 @@ describe("thẻ hỏi lại nhiều câu", () => {
     expect(document.querySelectorAll(".who")).toHaveLength(1);
   });
 
-  it("lượt hỏi nhiều câu đã qua hiện lời mở cùng các câu, đánh số", async () => {
+  it("lượt hỏi nhiều câu đã qua hiện lời mở cùng các câu, đánh số, kèm nhãn", async () => {
     Element.prototype.scrollIntoView = vi.fn();
     const turn = (kind: string, text: string, tool_result = {}) => ({
       kind,
@@ -205,8 +211,9 @@ describe("thẻ hỏi lại nhiều câu", () => {
 
     render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
 
-    await waitFor(() => expect(screen.getByText("Đề dành cho khối nào?")).toBeTruthy());
-    expect(screen.getByText("Phần nào?")).toBeTruthy();
+    // Nhãn đi cùng câu, cho tin gộp *"Khối: Khối 7 · …"* bên dưới đối được (plan `backlog-tier-1`).
+    await waitFor(() => expect(screen.getByText(/Khối: Đề dành cho khối nào\?/)).toBeTruthy());
+    expect(screen.getByText(/Phạm vi: Phần nào\?/)).toBeTruthy();
     expect(document.querySelectorAll(".clarify.several")).toHaveLength(0);
   });
 });

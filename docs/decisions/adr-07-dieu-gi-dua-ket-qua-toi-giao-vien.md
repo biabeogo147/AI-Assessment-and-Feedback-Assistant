@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã chốt (việc gỡ ngưỡng khỏi luồng học sinh: chưa thi hành)
 - **Ngày:** 2026-09-06
+- **Sửa:** 2026-10-17 — mục thi hành trỏ vào code đã xoá. Xem *Hậu ký 17/10/2026* ở cuối.
+  Phần trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -82,3 +84,13 @@ chính sách thì phải chấm lại toàn bộ.
 - **Việc gỡ khỏi luồng học sinh: chưa thi hành ở đâu cả.** `services/be/src/be/review_policy.py:65`
   vẫn áp ngưỡng cho **mọi** kết quả, không có nhánh nào biết tới pha nào. Mọi dòng ở trên là nơi luật
   gốc đang chạy; phần gỡ ra thì chưa có chỗ nào.
+
+## Hậu ký 17/10/2026
+
+Ngày 09/10/2026 đường chấm bài cũ (`POST /api/submissions` → task `grade_submission` →
+`decide_review`) bị xoá khỏi code, cùng `ReviewReason`, `GradingRequested`, `GradingCompleted` và
+`REVIEW_CONFIDENCE_THRESHOLD`. Mục *Nơi luật này đang được thi hành* ở trên vì thế trỏ vào hư không:
+`review_policy.py`, `routes.py:123`, `test_review_policy.py` không còn. Không gì đưa một kết quả
+chấm tới giáo viên theo ngưỡng nữa -- chấm trắc nghiệm là việc của BE và không có độ tin cậy nào
+để so ([ADR-20](adr-20-cham-trac-nghiem-thuoc-be.md)). Phần *gỡ khỏi luồng học sinh* nay đúng theo
+cách đơn giản nhất: luồng ấy không còn tồn tại. Ghi lại theo plan `backlog-tier-1`.

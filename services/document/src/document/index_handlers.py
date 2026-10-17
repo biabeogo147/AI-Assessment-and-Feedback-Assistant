@@ -4,7 +4,7 @@ D3).
 Chạy trên `document.index_worker`, queue riêng -- không phải worker OCR (D4). Thứ tự là hợp đồng:
 cây vào Mongo **trước**, `DocumentProbed(READY)` rời service **sau** (*"chunk trước, `state` sau"*).
 
-Ba cách kết thúc khác `READY`, mỗi cái một lý do:
+Bốn cách kết thúc khác `READY`, mỗi cái một lý do:
 
 - **Kho nội dung hay Redis chập chờn** → `Retry`, như mọi job khác của service này; lần thử cuối
   thì gửi `FAILED` thay vì chết im (`_retry_or_give_up`). Một lần chạy lại
@@ -47,7 +47,8 @@ async def index_document(ctx: dict, payload: dict) -> dict:
 
     Args:
         ctx: Context worker của arq: `store`, `reader`, `redis`, và hai chat model `banner_model`,
-            `summary_model` (`None` khi không có khoá OpenAI).
+            `summary_model` (`None` khi Model Provider của mô hình ấy chưa được cấu hình --
+            `BANNER_PROVIDER`/`SUMMARY_PROVIDER` chọn OpenAI hay Claude).
         payload: `DocumentIndexRequested` đã serialise.
 
     Returns:

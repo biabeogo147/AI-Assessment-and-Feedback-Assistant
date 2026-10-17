@@ -26,9 +26,13 @@ import typing
 from collections.abc import Mapping, Sequence
 
 import pytest
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableLambda
 
 import agent.handlers as handlers
 from agent import llm
+from agent.graphs.propose import _Proposal
 from agent.worker import WorkerSettings
 from contracts import (
     EXPLAIN_TURN_TASK,
@@ -70,6 +74,40 @@ _QUESTION = GeneratedQuestion(
     ),
     learning_objective="Tính đơn điệu của hàm bậc ba",
 )
+
+# Câu biến thể khác câu gốc: `validate_retry` từ chối một câu lặp lại `_QUESTION`.
+_VARIANT = _QUESTION.model_copy(
+    update={"stem": "Cho hàm số y = x³ − 12x. Hàm số nghịch biến trên khoảng nào?"}
+)
+
+# Thứ model giả trả cho từng schema mà handler xin qua `with_structured_output`.
+_SHAPED: dict[str, object] = {
+    "GeneratedQuestion": _VARIANT,
+    "_Proposal": _Proposal(known="", kind="say", text="Lớp 12A đang học đạo hàm."),
+}
+
+
+# Tên schema mỗi lần một handler xin `with_structured_output` -- bằng chứng đường thật đã chạy.
+_ASKED: list[str] = []
+
+
+class _Structured(GenericFakeChatModel):
+    """Model giả **có** `with_structured_output` (plan `backlog-tier-1`).
+
+    `GenericFakeChatModel` không có nó, nên lượt *mô hình bật* từng làm ba task ném
+    `NotImplementedError` rồi rơi về nội dung dọn trước -- tức đường chạy thật của chúng chưa
+    bao giờ bị soi. Model này trả đúng hình dạng `include_raw=True` của provider thật.
+    """
+
+    def with_structured_output(self, schema, *, include_raw: bool = False, **kwargs):  # noqa: D102
+        _ASKED.append(schema.__name__)
+        made = _SHAPED[schema.__name__]
+        if include_raw:
+            return RunnableLambda(
+                lambda _: {"raw": AIMessage(content=""), "parsed": made, "parsing_error": None}
+            )
+        return RunnableLambda(lambda _: made)
+
 
 # Một payload tối thiểu cho mỗi task. Dựng tại chỗ chứ không import từ tệp test khác: một ràng buộc
 # ngầm giữa hai tệp không liên quan là thứ sẽ gãy vào lúc không ai ngờ.
@@ -252,14 +290,11 @@ async def test_no_registered_task_returns_a_verdict(
     qua đó thì không có mặt trong giá trị trả về.
     """
     monkeypatch.setattr(llm, "enabled", lambda: model_on)
+    _ASKED.clear()
     if model_on:
-        # Model giả của `conftest.py` không có `with_structured_output`; từ khi
-        # `write_draft_question` thôi lùi về câu soạn sẵn, lỗi ấy làm job ném thay vì trả về.
-        # Thay đúng bước viết câu bằng một câu thật để soi phần còn lại của đường chạy thật.
-        async def wrote(brief: str, banned: frozenset[str]) -> GeneratedQuestion:
-            return _QUESTION
-
-        monkeypatch.setattr(handlers, "write_question", wrote)
+        # Model giả biết `with_structured_output`, nên cả ba task có schema chạy đường thật.
+        fake = _Structured(messages=iter(["nội dung giả cho test"] * 1000))
+        monkeypatch.setattr(llm, "chat_models", lambda: (fake,))
     rung: list[tuple[str, object]] = []
     ctx: dict = {"redis": _Loa(rung)}
 
@@ -273,6 +308,10 @@ async def test_no_registered_task_returns_a_verdict(
         await handlers.ring_bell(ctx)
         heard = {chỗ for channel, message in rung for chỗ in _verdicts_in([channel, message])}
         assert not heard, f"task {name} rung một quyết định ra Redis: {sorted(heard)}"
+
+    if model_on:
+        # Soạn câu, câu biến thể và propose đều đã đi qua schema, không rơi về đường dọn sẵn.
+        assert set(_ASKED) == {"GeneratedQuestion", "_Proposal"}, _ASKED
 
 
 def test_no_message_agent_returns_declares_a_verdict_field() -> None:

@@ -1,4 +1,5 @@
-# BE và AGENT dùng chung một conda environment, nên không gì chặn một lần import
+# Bốn service Python (be, agent, document, ingest) dùng chung một conda environment, nên
+# không gì chặn một lần import
 # chéo lúc chạy. import-linter là cơ chế ranh giới duy nhất còn lại, nên nó chạy ở
 # đây thay vì chạy khi nhớ ra.
 #

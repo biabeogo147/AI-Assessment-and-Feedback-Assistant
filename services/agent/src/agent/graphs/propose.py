@@ -9,10 +9,12 @@ tool chỉ hẹn làm được ở pha 2. Model phải thấy cả hai — nó n
 trong plan — nhưng phải phân biệt được chúng, vì gọi một tool ghi ngay lượt này sẽ bị BE
 từ chối và tiêu một vòng để phát hiện lại đúng điều ấy.
 
-Hai node, và node thứ hai là một lần gọi structured duy nhất. Nó nhỏ hơn graph soạn
-đề một cách có chủ ý -- ở đây không có loop tự check, vì thứ được sinh ra không phải
-nội dung ai cũng xác thực được. Một đề nghị thì hoặc được BE thực thi hoặc bị BE từ
-chối, và BE là phía duy nhất biết được là cái nào.
+Hai node, và node thứ hai là một lần gọi structured. Nó nhỏ hơn graph soạn đề một cách có
+chủ ý: không có loop tự check nhiều vòng, vì một đề nghị thì hoặc được BE thực thi hoặc bị BE
+từ chối, và BE là phía duy nhất biết được là cái nào. Có **một** phép kiểm phía AGENT với một
+lần gọi lại: đề nghị hỏng hình dạng theo những luật AGENT tự biết (`_Flawed`: plan thiếu bước,
+dàn ý không đếm câu, quá ba câu hỏi, câu tham số ít nút, plan soạn ngay sau lời xin sửa dàn ý)
+thì model được hỏi lại đúng một lần kèm lý do.
 
 Thứ module này cẩn thận với là prompt. Model đang chọn từ một danh sách tool nó chưa
 từng thấy và đọc dữ liệu nó không tự lấy, nên cả hai phải tới dưới dạng nó làm việc

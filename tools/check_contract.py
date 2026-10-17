@@ -199,7 +199,11 @@ def _fail(check: str, detail: str) -> str:
 
 
 def check_env_example_has_no_orphans() -> str | None:
-    """Mọi biến trong .env.example phải được Settings của một service đọc tới.
+    """Mọi biến trong .env.example phải được Settings của một service đọc tới -- và ngược lại.
+
+    Chiều ngược (plan `backlog-tier-1`): một trường `config.py` đọc mà `.env.example` không khai
+    là một núm vặn không ai biết có. `DEV_IDENTITY_HEADER` đã sống như vậy từ lâu, và ba núm của
+    `document` cũng thế.
 
     Returns:
         None khi check đạt, ngược lại là một thông báo thất bại.
@@ -235,6 +239,13 @@ def check_env_example_has_no_orphans() -> str | None:
         return _fail(
             "env-example",
             f"{orphans} declared but no config.py reads them. Wire them up or delete them.",
+        )
+    hidden = sorted(readable - declared)
+    if hidden:
+        return _fail(
+            "env-example",
+            f"{hidden} are read by a config.py but .env.example does not declare them. "
+            "Declare each with its default and one line on what it does.",
         )
     return None
 
@@ -427,6 +438,26 @@ def _code_only(source: str) -> list[str]:
     return ["".join(chars) for chars in blanked]
 
 
+def assessments_made_past_empty(source: str) -> list[int]:
+    """Các dòng tạo `Assessment(...)` với một `state=` khác `AssessmentState.EMPTY`.
+
+    Args:
+        source: Mã nguồn Python.
+
+    Returns:
+        Số dòng của từng lời gọi như thế; rỗng khi không có.
+    """
+    return [
+        node.lineno
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Assessment"
+        for keyword in node.keywords
+        if keyword.arg == "state" and ast.unparse(keyword.value) != "AssessmentState.EMPTY"
+    ]
+
+
 def check_no_tool_changes_an_assessment_state() -> str | None:
     """Trợ lý viết nội dung; giáo viên quyết nội dung đó có được phát hành hay không.
 
@@ -450,6 +481,11 @@ def check_no_tool_changes_an_assessment_state() -> str | None:
     Nghĩa là một docstring được phép gọi tên luật mà nó đang giải thích, kể cả có dấu ngoặc đơn, và
     một tên hàm nằm trong string literal thì không bị tính.
 
+    Đường vòng thứ ba là constructor: `Assessment(state=AssessmentState.APPROVED)` tạo thẳng một
+    đề đã duyệt mà không qua `.state =` nào. Một lượt đọc AST bắt nó -- grep từng dòng không thấy
+    được một lời gọi trải nhiều dòng. Tool tạo đề chỉ được mang state đầu, `EMPTY` (plan
+    `backlog-tier-1`).
+
     Returns:
         None khi file tool sạch, ngược lại là một thông báo thất bại kèm mọi dòng vi phạm.
     """
@@ -457,11 +493,13 @@ def check_no_tool_changes_an_assessment_state() -> str | None:
     if not tools.exists():
         return _fail("tools-decide-nothing", f"{tools} is missing; the check cannot run")
 
+    source = tools.read_text(encoding="utf-8")
     offenders = [
         f"{tools.name}:{number}"
-        for number, line in enumerate(_code_only(tools.read_text(encoding="utf-8")), 1)
+        for number, line in enumerate(_code_only(source), 1)
         if LIFECYCLE_VERBS.search(line)
     ]
+    offenders += [f"{tools.name}:{number}" for number in assessments_made_past_empty(source)]
 
     if offenders:
         return _fail(
@@ -2191,8 +2229,145 @@ def check_kriky_says_nothing_fixed() -> str | None:
     )
 
 
+# Thư viện mở một cổng HTTP. `document` nhận việc qua queue và trả lời qua queue, nên không file
+# nào của nó được import một trong số này (`services/document/AGENTS.md`).
+HTTP_SERVERS = frozenset(
+    {"fastapi", "starlette", "uvicorn", "flask", "aiohttp.web", "http.server", "socketserver"}
+)
+
+
+def http_servers_imported(source: str) -> list[int]:
+    """Các dòng import một thư viện mở cổng HTTP (`HTTP_SERVERS`), hay một module con của nó.
+
+    Args:
+        source: Mã nguồn Python.
+
+    Returns:
+        Số dòng của từng import như thế; rỗng khi không có.
+    """
+
+    def serving(name: str) -> bool:
+        return any(name == one or name.startswith(f"{one}.") for one in HTTP_SERVERS)
+
+    lines = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import) and any(serving(alias.name) for alias in node.names):
+            lines.append(node.lineno)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            names = [node.module, *(f"{node.module}.{alias.name}" for alias in node.names)]
+            if any(serving(name) for name in names):
+                lines.append(node.lineno)
+    return lines
+
+
+def check_document_opens_no_port() -> str | None:
+    """`document` không mở cổng HTTP nào: việc tới qua queue, lời đáp đi qua queue.
+
+    Luật này từng chỉ sống trong `services/document/AGENTS.md` và docstring của worker (plan
+    `backlog-tier-1`). Một server nhỏ để *"xem trạng thái OCR"* là thứ dễ thêm nhất, và là đúng thứ
+    biến `document` thành một service thứ hai mà BE phải biết địa chỉ.
+
+    Returns:
+        None khi không file nào của `document` import một thư viện server, ngược lại là một thông
+        báo thất bại kèm từng dòng.
+    """
+    root = REPO_ROOT / "services" / "document" / "src"
+    offenders = [
+        f"{path.relative_to(REPO_ROOT).as_posix()}:{line}"
+        for path in sorted(root.rglob("*.py"))
+        for line in http_servers_imported(path.read_text(encoding="utf-8"))
+    ]
+    if offenders:
+        return _fail(
+            "document-opens-no-port",
+            f"{offenders} import an HTTP server library. DOCUMENT takes work from a queue and "
+            "answers on a queue; a port makes it a second service BE has to find.",
+        )
+    return None
+
+
+# Chữ của máy trong một `reason`: tên tool hay khoá tham số (snake_case), và bốn tham số một chữ
+# của các tool đọc tài liệu.
+MACHINE_WORDS = re.compile(r"\b[a-z]+_[a-z_]+\b|\b(?:nodes?|part|questions)\b")
+
+
+def _literal_text(node: ast.AST) -> str:
+    """Phần chữ cố định của một biểu thức chuỗi: hằng, f-string (bỏ chỗ điền), phép nối `+`."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            one.value
+            for one in node.values
+            if isinstance(one, ast.Constant) and isinstance(one.value, str)
+        )
+    if isinstance(node, ast.BinOp):
+        return _literal_text(node.left) + _literal_text(node.right)
+    return ""
+
+
+def reasons_for_the_model_only(source: str) -> list[int]:
+    """Các dòng có một lời từ chối mà `reason` chở chữ của máy và không kèm `said`.
+
+    Lời từ chối là một dict mang khoá `"reason"`, hay một lời gọi `_refusal(reason)` một tham số.
+
+    Args:
+        source: Mã nguồn Python.
+
+    Returns:
+        Số dòng của từng lời từ chối như thế; rỗng khi không có.
+    """
+    lines = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Dict) and None not in node.keys:
+            keys = [key.value if isinstance(key, ast.Constant) else None for key in node.keys]
+            if (
+                "reason" in keys
+                and "said" not in keys
+                and MACHINE_WORDS.search(_literal_text(node.values[keys.index("reason")]))
+            ):
+                lines.append(node.lineno)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_refusal"
+            and len(node.args) == 1
+            and MACHINE_WORDS.search(_literal_text(node.args[0]))
+        ):
+            lines.append(node.lineno)
+    return lines
+
+
+def check_a_refusal_the_teacher_reads_names_no_tool() -> str | None:
+    """Lời từ chối của tool giáo viên chở tên tool hay tên tham số thì phải kèm `said`.
+
+    `reason` là chữ cho model sửa lời gọi, nên nó được gọi tên tool. Dòng `✕` của khối bước in
+    `said` trước `reason`, nên một `reason` như thế không kèm `said` là tên tool hiện lên màn
+    hình giáo viên (luật 7). Plan `backlog-tier-1` rà tay mọi chỗ; check này giữ cho một tool viết
+    sau không quên.
+
+    Returns:
+        None khi mọi lời từ chối như thế có `said`, ngược lại là một thông báo thất bại.
+    """
+    tools = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_tools.py"
+    offenders = [
+        f"{tools.name}:{line}"
+        for line in reasons_for_the_model_only(tools.read_text(encoding="utf-8"))
+    ]
+    if offenders:
+        return _fail(
+            "refusal-said",
+            f"refusals at {offenders} name a tool or an argument in `reason` with no `said`. "
+            "The step's x-line prints `said` first; give the teacher a sentence without the "
+            "machine words.",
+        )
+    return None
+
+
 CHECKS = (
     check_the_content_reader_only_reads,
+    check_document_opens_no_port,
+    check_a_refusal_the_teacher_reads_names_no_tool,
     check_env_example_has_no_orphans,
     check_agent_and_document_hold_no_database_credentials,
     check_one_process_builds_the_schema_and_the_rest_only_check_it,

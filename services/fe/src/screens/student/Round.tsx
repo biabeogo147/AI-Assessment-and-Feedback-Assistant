@@ -33,6 +33,7 @@ export default function Round({
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     api
@@ -89,6 +90,12 @@ export default function Round({
   }
 
   const item = round.items[current];
+  const unanswered = round.items.filter((one) => !chosen[one.round_item_id]).length;
+  // Độ dài lượt, không phải thời gian còn lại -- còn lại là việc của `TimeCard` ngay bên phải.
+  // Bản cũ trong `sessionStorage` có thể chưa mang `started_at`: khi ấy bỏ con số còn hơn đoán.
+  const minutes = round.started_at
+    ? Math.round((new Date(round.ends_at).getTime() - new Date(round.started_at).getTime()) / 60000)
+    : null;
 
   async function choose(label: string) {
     if (round === null) return;
@@ -110,6 +117,8 @@ export default function Round({
     } catch (cause) {
       setError((cause as Error).message);
       setBusy(false);
+      // Dải báo lỗi nằm sau hộp, nên để hộp mở là che mất lời giải thích (như `Sitting`).
+      setConfirming(false);
     }
   }
 
@@ -119,12 +128,8 @@ export default function Round({
       <main className="page two-column">
         <section>
           <div className="muted">
-            Làm lại dạng bài sai · {round.items.length} câu ·{" "}
-            {Math.max(
-              1,
-              Math.round((new Date(round.ends_at).getTime() - Date.now()) / 60000),
-            )}{" "}
-            phút
+            Làm lại dạng bài sai · {round.items.length} câu
+            {minutes !== null ? ` · ${minutes} phút` : ""}
           </div>
           <h1 style={{ fontSize: "var(--type-heading)", margin: "4px 0 20px" }}>
             Câu {item.origin_order} — Lượt làm lại thứ {round.index} / tối đa 3
@@ -181,11 +186,67 @@ export default function Round({
             </div>
           </div>
 
-          <button className="btn-commit" type="button" disabled={busy} onClick={submit}>
+          <button
+            className="btn-commit"
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+          >
             Nộp bài
           </button>
         </aside>
       </main>
+
+      {/* Nộp lượt là một cửa một chiều như nộp bài pha 1 (artboard 22b, cùng khuôn `Sitting`):
+          lượt đã nộp không sửa lại được, và mỗi câu chỉ có ba lượt (ADR-17). */}
+      {confirming ? (
+        <div className="scrim">
+          <div className="dialog gate">
+            <h2 style={{ fontSize: "var(--type-heading)" }}>Nộp lượt này?</h2>
+            <p style={{ margin: "16px 0", lineHeight: 1.25, color: "var(--ink-muted)" }}>
+              Nộp là kết thúc lượt làm lại. Bạn không sửa được câu nào trong lượt này nữa.
+            </p>
+
+            <div className="panel-card plain" style={{ padding: "12px 14px" }}>
+              <div className="stat">
+                <span className="key">Đã trả lời</span>
+                <span className="value">
+                  {round.items.length - unanswered} trên {round.items.length} câu
+                </span>
+              </div>
+              <div className="stat">
+                <span className="key">Chưa trả lời</span>
+                <span className="value">
+                  {unanswered === 0 ? "không còn câu nào" : `${unanswered} câu`}
+                </span>
+              </div>
+              <div className="stat">
+                <span className="key">Sau khi nộp</span>
+                <span className="value">câu làm đúng được 0,5 điểm</span>
+              </div>
+            </div>
+
+            {unanswered > 0 ? (
+              <div className="warn-strip">
+                Còn <strong>{unanswered} câu</strong> chưa trả lời. Câu bỏ trống tính là sai.
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                className="btn-dialog quiet"
+                type="button"
+                onClick={() => setConfirming(false)}
+              >
+                Quay lại làm tiếp
+              </button>
+              <button className="btn-dialog" type="button" disabled={busy} onClick={submit}>
+                Nộp bài
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

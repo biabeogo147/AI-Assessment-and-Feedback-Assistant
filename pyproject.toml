@@ -62,7 +62,8 @@ testpaths = [
 # ---------------------------------------------------------------------------
 # Thi hành ranh giới giữa các service.
 #
-# Ba service dùng chung một conda environment, nên không gì chặn một lần import
+# Bốn service Python (be, agent, document, ingest) dùng chung một conda environment, nên
+# không gì chặn một lần import
 # chéo lúc chạy. Mấy contract này là cơ chế duy nhất giữ cho ranh giới còn sống,
 # nên chúng chạy từ một hook của pre-commit thay vì chạy khi nhớ ra.
 # ---------------------------------------------------------------------------

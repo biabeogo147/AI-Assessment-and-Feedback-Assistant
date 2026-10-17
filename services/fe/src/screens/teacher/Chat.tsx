@@ -39,13 +39,16 @@ interface Question {
 
 /**
  * Lời của một lượt hỏi nhiều câu **đã qua** (ADR-32), như nó hiện trong đoạn chat: lời mở rồi các
- * câu, đánh số. Thẻ chỉ sống ở lượt cuối; lượt cũ chỉ vẽ lời mở thì không ai biết câu trả lời gộp
- * bên dưới trả lời câu nào — và lời mở có thể rỗng.
+ * câu, đánh số, **kèm nhãn**. Thẻ chỉ sống ở lượt cuối; lượt cũ chỉ vẽ lời mở thì không ai biết câu
+ * trả lời gộp bên dưới trả lời câu nào — và lời mở có thể rỗng. Tin gộp viết *"Khối: Khối 7 · …"*,
+ * nên nhãn phải có ở đây để đối được (review code, plan `backlog-tier-1`).
  */
 function aloud(turn: Turn): Turn {
   const several = questionsOf(turn);
   if (several.length === 0) return turn;
-  const listed = several.map((one, index) => `${index + 1}. ${one.text}`).join("\n");
+  const listed = several
+    .map((one, index) => `${index + 1}. ${one.label ? `${one.label}: ` : ""}${one.text}`)
+    .join("\n");
   return { ...turn, text: turn.text.trim() === "" ? listed : `${turn.text}\n\n${listed}` };
 }
 

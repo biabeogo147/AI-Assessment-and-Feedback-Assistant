@@ -164,6 +164,8 @@ export interface RoundItem {
 export interface OpenRound {
   round_id: string;
   index: number;
+  /** Lúc lượt mở. Đầu màn in `ends_at − started_at` -- độ dài lượt, không phải thời gian còn lại. */
+  started_at: string;
   ends_at: string;
   items: RoundItem[];
 }
@@ -370,6 +372,8 @@ export interface PublishedTo {
   phase2_minutes_per_question: number;
   remediation_deadline: string;
   withdrawable_until: string;
+  /** Còn thu hồi được không, theo đồng hồ của BE -- FE không tự so giờ máy mình. */
+  recallable: boolean;
 }
 
 export interface Publications {
@@ -404,8 +408,8 @@ export interface TeacherDocument {
   /**
    * Vì sao không dùng được, bằng một câu tiếng Việt. Rỗng khi không có gì sai.
    *
-   * Chip **không** in chuỗi này — nó in một nhãn cố định theo `state`, vì `fault` có sáu giá
-   * trị và chúng là chẩn đoán chứ không phải nhãn. `fault` đi vào `title`, nên rê chuột vẫn
+   * Chip **không** in chuỗi này — nó in một nhãn cố định theo `state`, vì `fault` là một câu
+   * chẩn đoán cho mỗi cách hỏng (số câu mọc theo code), không phải nhãn. `fault` đi vào `title`, nên rê chuột vẫn
    * phân biệt được *ảnh scan* với *không có trang nào*.
    */
   fault: string;
@@ -1013,9 +1017,9 @@ export const teacher = {
  * Đọc lượt nói tiếp theo của trợ lý ngay khi nó về tới.
  *
  * Server-sent events chỉ làm câu trả lời *cảm giác* nhanh hơn, không phải nguồn
- * sự thật: BE lưu lượt nói trước khi chunk đầu tiên rời đi, nên mất kết nối thì
- * mất phần chạy chữ, không bao giờ mất tin nhắn. Nơi gọi sẽ tải lại lịch sử sau
- * đó chứ không tin vào thứ nó tự ghép ở đây.
+ * sự thật: BE stream chữ trong lúc model viết và chỉ lưu lượt khi model xong, ngay
+ * trước `done`. Nơi gọi tải lại lịch sử sau đó chứ không tin vào thứ nó tự ghép ở
+ * đây -- mất kết nối giữa chừng thì lượt có thể chưa được lưu.
  *
  * @param attemptId - Cuộc trò chuyện của ai.
  * @param onChunk - Được gọi với từng mảnh, theo đúng thứ tự.
@@ -1039,6 +1043,15 @@ export async function streamReply(
     // thất bại về tới đây chứ không về dưới dạng một status code.
     if (name === "error") throw new Error(data || "Trợ lý chưa trả lời được.");
   }
+}
+
+/**
+ * Nối một danh sách theo cách nói tiếng Việt: *"a và b"*, *"a, b và c"* — không phải *"a và b và
+ * c"* (review ảnh, plan `backlog-tier-1`). Một chỗ cho mọi màn hình đọc tên lên.
+ */
+export function listed(names: string[]): string {
+  if (names.length < 3) return names.join(" và ");
+  return `${names.slice(0, -1).join(", ")} và ${names[names.length - 1]}`;
 }
 
 /** Định dạng một mốc thời gian ISO theo đúng cách mọi màn hình hiện nó: `HH:MM · DD/MM`. */

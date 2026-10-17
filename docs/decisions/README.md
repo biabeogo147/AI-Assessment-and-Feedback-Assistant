@@ -51,15 +51,18 @@ Phần lớn luật ở đây hiện chỉ được thi hành trong **file thi�
 
 <https://www.figma.com/design/mOe2ZmrqOq1Uix45v6PNGD>
 
-Trang `Screen — Chat` chứa mười hai artboard: tám artboard theo luồng chat từ lúc mở tới lúc phát
-hành xong, ba màn hình quản lý vật thể (lớp học, chi tiết lớp, kết quả bài kiểm tra), và một màn cho
-hộp thoại lời giải của một câu.
+Trang `Screen — Teacher` (`12:2`, tên cũ `Screen — Chat`) chứa các artboard **đánh số 1–15, cộng
+`3b`**: luồng chat từ lúc mở tới lúc phát hành xong, các màn quản lý vật thể (lớp học, chi tiết lớp,
+kết quả bài kiểm tra), hộp lời giải, xoá đoạn chat, sửa và xoá một câu trong panel. Cạnh chúng là
+các khung *Đã duyệt …*, mỗi khung ghi một quyết định thiết kế kèm ngày.
 
-Trang `Screen — Student` chứa mười hai artboard của bề mặt học sinh, **đánh số 13…24 theo đúng thứ
-tự luồng nghiệp vụ**: danh sách bài, làm bài, kết quả *đã nộp cần chữa*, hover trên điểm 0, màn hỏi
-trợ lý và làm lại dạng bài sai, hộp lời giải đầy đủ, cổng bắt đầu lượt ở hai ca (thường và **sắp hết
-hạn**), làm câu của một lượt, kết quả *đã hoàn thành*, hover trên điểm 0,5, và màn hỏi trợ lý ở hình
-dạng **bài đã kết thúc** — đọc lại được, không nhắn thêm được. Hai màn kết quả là **hai artboard riêng** cho hai hình dạng
+Trang `Screen — Student` (`278:2`) chứa các artboard của bề mặt học sinh, **đánh số 13–25 theo đúng
+thứ tự luồng nghiệp vụ, cộng `13b`, `18b`, `22b`**: danh sách bài và hộp xác nhận bắt đầu, làm bài,
+hộp xác nhận nộp bài, kết quả *đã nộp cần chữa*, hover trên điểm 0, màn hỏi trợ lý và làm lại dạng
+bài sai (cả ca đang có lượt chữa mở), hộp lời giải đầy đủ, cổng bắt đầu lượt ở hai ca (thường và
+**sắp hết hạn**), làm câu của một lượt và hộp xác nhận nộp lượt, kết quả *đã hoàn thành*, hover
+trên điểm 0,5, và màn hỏi trợ lý ở hình dạng **bài đã kết thúc** — đọc lại được, không nhắn thêm
+được. Số `13`–`15` trùng với số bên giáo viên: gọi một artboard thì gọi kèm tên trang. Hai màn kết quả là **hai artboard riêng** cho hai hình dạng
 dữ liệu, không phải hai state của một. Tất cả chạy Density mode `Student` và không có rail.
 
 Trang `Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp

@@ -7,14 +7,18 @@ import KrikyText from "../../KrikyText";
  * Câu trả lời gộp của một lượt hỏi nhiều câu (ADR-32): *"Khối: Khối 7 · Số câu: 5 câu"*.
  *
  * Nhãn đi kèm từng câu trả lời để model không phải đoán câu trả lời nào của câu hỏi nào, và giáo
- * viên đọc lại bong bóng của mình hiểu ngay.
+ * viên đọc lại bong bóng của mình hiểu ngay. ` · ` là dấu ngăn câu: chữ giáo viên tự ghi mà có
+ * ` · ` (*"tỉ lệ thức · dãy tỉ số"*) thì đổi thành dấu phẩy, cho tin gộp chỉ đọc được một cách
+ * (review code, plan `backlog-tier-1`).
  *
  * @param questions - Các câu, theo thứ tự hỏi.
  * @param answers - Câu trả lời của từng câu, cùng thứ tự.
  * @returns Một câu để gửi đi như lời giáo viên.
  */
 export function merged(questions: ClarifyQuestion[], answers: string[]): string {
-  return questions.map((one, at) => `${one.label}: ${answers[at]}`).join(" · ");
+  return questions
+    .map((one, at) => `${one.label}: ${answers[at].replace(/\s*·\s*/g, ", ")}`)
+    .join(" · ");
 }
 
 /**

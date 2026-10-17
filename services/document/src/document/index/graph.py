@@ -9,9 +9,10 @@ Thẳng chứ không rẽ, vì mọi nhánh *"nếu hỏng thì sao"* đã nằm
 chương mang nhãn số (D6); một lời tóm tắt hỏng thì nút ấy không có tóm tắt. Không bước nào làm hỏng
 cả cây vì một model ngoài -- tài liệu vẫn *sẵn sàng*, chỉ kém hơn, và `IndexHeader` nói kém ở đâu.
 
-Thứ duy nhất làm job chạy lại là kho nội dung không với tới được (`ContentStoreUnavailable`), và
-thứ duy nhất làm job bỏ cuộc mà không báo gì là bản thô đã bị đọc lại giữa chừng (`RawChanged`) --
-lần đọc mới tự đẩy job dựng cây của nó.
+Thứ duy nhất làm job chạy lại là kho nội dung không với tới được (`ContentStoreUnavailable`).
+Hai thứ làm job dừng mà không báo `FAILED`: bản thô bị đọc lại giữa chừng (`RawChanged` -- người
+gọi chạy lại trên bản mới, hay để lô OCR cuối giao job sau), và không có bản thô nào
+(`NothingToIndex` -- phép suy *đứng quá lâu* của BE là lưới). Xem `index_handlers`.
 
 **Phụ thuộc đi vào qua `Deps`**, không qua import: test thay Jev, model và kho bằng bản giả mà không
 chạm mạng, đúng cách `agent/llm.py` cho bộ test của AGENT miễn phí.
@@ -82,8 +83,10 @@ class Deps:
         settings: Setting của worker.
         read_file: Đọc byte của tệp từ object storage, theo khoá.
         jev: Hỏi Jev cho một danh sách `state`; trả `JevRun`. `None` khi không có khoá Jev.
-        read_banner: Đọc một ảnh banner; `None` khi không có khoá OpenAI.
-        summarise: Tóm tắt `(tiêu đề, nội dung)`; `None` khi không có khoá OpenAI.
+        read_banner: Đọc một ảnh banner; `None` khi Model Provider của `BANNER_MODEL` chưa được
+            cấu hình.
+        summarise: Tóm tắt `(tiêu đề, nội dung)`; `None` khi Model Provider của `SUMMARY_MODEL`
+            chưa được cấu hình.
         tell: Báo `services/ingest` rằng job vẫn sống -- giữ chip khỏi *xử lý hỏng* (D3,
             `document-agent-hierarchy`).
     """

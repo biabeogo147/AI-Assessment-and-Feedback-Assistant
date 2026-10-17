@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   isoWithOffset,
+  listed,
   moment,
   teacher,
   type ClassResult,
@@ -514,8 +515,14 @@ export default function PublishSettings({
                   từng in giờ UTC (plan `backlog-tier-1`). */}
               <span className="when">{ruleOne(form.rules, one)}</span>
               <span className="when">{ruleTwo(form.rules, one)}</span>
+              {/* Qua giờ mở thì dòng này nói đã hết giờ, không nói *"được tới"* ngay trên hộp đỏ
+                  báo không hoàn tác được nữa (review ảnh, plan `backlog-tier-1`). */}
               <span className="when">
-                Thu hồi được tới {moment(one.withdrawable_until)}
+                {/* Chỉ một `false` tường minh mới nói hết giờ: một BE chưa gửi trường này thì
+                    giữ câu cũ, không báo hết giờ cho một đề còn thu hồi được. */}
+                {one.recallable !== false
+                  ? `Thu hồi được tới ${moment(one.withdrawable_until)}`
+                  : `Hết giờ thu hồi lúc ${moment(one.withdrawable_until)}`}
               </span>
             </div>
           ))}
@@ -748,7 +755,7 @@ function Confirm({
 }) {
   const landing = preview.classes.filter((one) => one.published);
   const first = landing[0];
-  const names = landing.map((one) => one.class_name || one.class_id).join(" và ");
+  const names = listed(landing.map((one) => one.class_name || one.class_id));
   const refused = preview.classes.filter((one) => !one.published);
 
   return (

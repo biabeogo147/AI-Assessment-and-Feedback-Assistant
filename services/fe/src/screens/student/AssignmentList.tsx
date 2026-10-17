@@ -43,6 +43,10 @@ const ACTION_LABEL: Record<string, string> = {
 export default function AssignmentList({ me }: { me: Me }) {
   const [rows, setRows] = useState<Assignment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bài đang chờ xác nhận bắt đầu (artboard 13b). Chỉ `start`: `continue` vào lại một bài mà
+  // đồng hồ đã chạy, không mở cửa nào mới.
+  const [starting, setStarting] = useState<Assignment | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api
@@ -52,8 +56,13 @@ export default function AssignmentList({ me }: { me: Me }) {
   }, []);
 
   async function act(row: Assignment, action: string) {
+    if (action === "start" && starting === null) {
+      setStarting(row);
+      return;
+    }
     try {
       if (action === "start" || action === "continue") {
+        setBusy(true);
         const attempt = await api.startAttempt(row.assignment_id);
         go(`/attempt/${attempt.attempt_id}`);
       } else if (action === "result") {
@@ -63,6 +72,8 @@ export default function AssignmentList({ me }: { me: Me }) {
       }
     } catch (cause) {
       setError((cause as Error).message);
+      setStarting(null);
+      setBusy(false);
     }
   }
 
@@ -116,6 +127,54 @@ export default function AssignmentList({ me }: { me: Me }) {
           Bài đóng quá 30 ngày không hiện ở đây nữa.
         </p>
       </main>
+
+      {/* Bắt đầu là cửa một chiều thứ nhất của học sinh: đồng hồ chạy và không ai dừng được. Cùng
+          khuôn với hộp nộp bài (`Sitting`), đọc lại đúng ba con số hàng này đang hiện. */}
+      {starting !== null ? (
+        <div className="scrim">
+          <div className="dialog gate">
+            <h2 style={{ fontSize: "var(--type-heading)" }}>Bắt đầu làm bài?</h2>
+            <p style={{ margin: "16px 0", lineHeight: 1.25, color: "var(--ink-muted)" }}>
+              Bắt đầu là đồng hồ chạy. Đóng trang hay mất mạng thì đồng hồ vẫn chạy, không dừng lại
+              được.
+            </p>
+
+            <div className="panel-card plain" style={{ padding: "12px 14px" }}>
+              <div className="stat">
+                <span className="key">Bài</span>
+                <span className="value">{starting.title}</span>
+              </div>
+              <div className="stat">
+                <span className="key">Số câu</span>
+                <span className="value">{starting.question_count} câu</span>
+              </div>
+              <div className="stat">
+                <span className="key">Thời gian làm</span>
+                <span className="value">{starting.phase1_minutes} phút</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                className="btn-dialog quiet"
+                type="button"
+                disabled={busy}
+                onClick={() => setStarting(null)}
+              >
+                Để sau
+              </button>
+              <button
+                className="btn-dialog"
+                type="button"
+                disabled={busy}
+                onClick={() => act(starting, "start")}
+              >
+                Bắt đầu làm bài
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

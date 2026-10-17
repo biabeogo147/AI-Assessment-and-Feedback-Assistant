@@ -39,6 +39,27 @@ import MathText from "../../MathText";
 /** Trần của tên đề, đúng `be/titles.MOST_TITLE` (ADR-31). BE là chỗ thi hành; đây chỉ chặn gõ quá. */
 const MOST_TITLE = 60;
 
+/** Cụm ngoặc dài hơn chừng này thì được gãy như chữ thường: giữ nguyên dòng thì nó tràn panel. */
+const KEPT_PARENS = 20;
+
+/**
+ * Tên đề với mỗi cụm **ngắn** trong ngoặc giữ trên một dòng: dấu gạch là chỗ trình duyệt được bẻ,
+ * nên *"(tr6-28)"* từng gãy thành *"(tr6-"* / *"28)"* (thử tay 04, plan `backlog-tier-1`).
+ */
+function keepingParens(title: string) {
+  return title
+    .split(/(\([^()]*\))/)
+    .map((part, index) =>
+      index % 2 === 1 && part.length <= KEPT_PARENS ? (
+        <span className="keep" key={index}>
+          {part}
+        </span>
+      ) : (
+        part
+      ),
+    );
+}
+
 export default function Panel({
   assessmentId,
   onClose,
@@ -240,7 +261,7 @@ export default function Panel({
       <div className="panel-head">
         {naming === null ? (
           <div className="title-row">
-            <h2>{paper.title}</h2>
+            <h2>{keepingParens(paper.title)}</h2>
             {/* Đổi tên đi cùng khoá nội dung (ADR-31, ADR-01): đề đã duyệt thì không có nút. */}
             {!locked && (
               <button
@@ -293,6 +314,13 @@ export default function Panel({
             >
               Huỷ
             </button>
+          </div>
+        )}
+        {/* Chạm trần thì ô dừng nhận chữ mà không nói gì -- tên gõ cụt giữa từ (case 15). Dòng nhắc
+            là variant `chạm trần` của `Panel title`. */}
+        {naming !== null && naming.length >= MOST_TITLE && (
+          <div className="title-hint">
+            Tên đề tối đa {MOST_TITLE} ký tự. Bớt vài chữ để tên không bị cụt giữa từ.
           </div>
         )}
         <div className="meta">

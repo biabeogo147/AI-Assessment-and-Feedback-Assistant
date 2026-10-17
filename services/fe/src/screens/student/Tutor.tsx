@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   api,
+  listed,
   moment,
   streamReply,
   type ChatHistory,
@@ -92,9 +93,9 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   /**
    * Xin lượt nói tiếp theo của trợ lý và để nó tự chạy chữ ra.
    *
-   * Câu trả lời đã được lưu ở phía server trước khi chunk đầu tiên về tới, nên
-   * thứ màn hình tin là lần tải lại ở cuối; phần chữ chạy theo stream chỉ là thứ
-   * nó hiện ra trong lúc chờ.
+   * BE lưu câu trả lời khi model xong, ngay trước `done`, nên thứ màn hình tin là
+   * lần tải lại ở cuối; phần chữ chạy theo stream chỉ là thứ nó hiện ra trong lúc
+   * chờ.
    */
   const pull = useCallback(async () => {
     setStreaming("");
@@ -175,11 +176,10 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   // Lời chào gọi tên mọi câu làm sai, nên nếu đọc bất kỳ tin nhắn nào thì một
   // trong số đó sẽ bị đánh dấu "đang hỏi" trước khi có ai hỏi gì.
   // "câu 5 và câu 6" — cùng một cách nói ở hộp tiến độ và ở cửa vào lượt, vì
-  // chúng đang gọi tên cùng một tập.
-  const openList = panel.items
-    .filter((item) => !item.closed)
-    .map((item) => `câu ${item.order}`)
-    .join(" và ");
+  // chúng đang gọi tên cùng một tập. Ba câu trở lên thì `listed` nối bằng phẩy.
+  const openList = listed(
+    panel.items.filter((item) => !item.closed).map((item) => `câu ${item.order}`),
+  );
   // Lời cảnh báo ở cửa đếm bằng phút, nên nó phải nêu đúng con số mà học sinh
   // đối chiếu được với đồng hồ, chứ không nói chung chung là "đã gần".
   const minutesLeft = Math.max(

@@ -317,6 +317,9 @@ class RoundOpenOut(BaseModel):
 
     round_id: str
     index: int
+    # Đầu màn lượt chữa in **độ dài** lượt (`ends_at − started_at`), không phải thời gian còn lại:
+    # *"6 câu · 29 phút"* đọc như lượt dài 29 phút (review ảnh, plan `backlog-tier-1`).
+    started_at: datetime
     ends_at: datetime
     items: list[RoundItemOut]
 
@@ -1718,9 +1721,11 @@ async def stream_reply(
 ) -> StreamingResponse:
     """Stream lượt tiếp theo của trợ lý, từng chữ một.
 
-    Lượt đó được đi xin, được **lưu**, rồi mới được stream. Server-sent event là chất xúc
-    tác cho cảm giác về câu trả lời, không phải một nguồn sự thật thứ hai: một lần mất kết
-    nối làm mất phần hoạt ảnh, không bao giờ làm mất message.
+    Lượt đó được xin AGENT; chữ chạy ra **trong lúc** model viết, và lượt chỉ được **lưu** khi
+    model đã xong, ngay trước event `done`. Server-sent event là chất xúc tác cho cảm giác về câu
+    trả lời, không phải một nguồn sự thật thứ hai: lịch sử đọc lại sau cùng mới là bản đúng. Mất
+    kết nối **trước** `done` thì lượt có thể không được lưu -- học sinh hỏi lại, chứ không thấy
+    một câu nửa chừng (sửa docstring cũ nói *"lưu rồi mới stream"*, plan `backlog-tier-1`).
 
     Args:
         attempt_id: Attempt nào.
@@ -2021,7 +2026,13 @@ async def start_round(
         )
 
     await session.commit()
-    return RoundOpenOut(round_id=rnd.id, index=rnd.index, ends_at=_aware(rnd.ends_at), items=items)
+    return RoundOpenOut(
+        round_id=rnd.id,
+        index=rnd.index,
+        started_at=_aware(rnd.started_at),
+        ends_at=_aware(rnd.ends_at),
+        items=items,
+    )
 
 
 async def _owned_round(
@@ -2089,6 +2100,7 @@ async def read_round(
     return RoundOpenOut(
         round_id=rnd.id,
         index=rnd.index,
+        started_at=_aware(rnd.started_at),
         ends_at=_aware(rnd.ends_at),
         items=[
             RoundItemOut(

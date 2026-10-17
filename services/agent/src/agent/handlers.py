@@ -1,12 +1,13 @@
 """Các handler soạn nội dung.
 
-Mọi handler ở đây đều là **mock**. Không có lời gọi model nào: mỗi handler trả về nội
-dung dọn trước, tất định, để luồng hai pha chạy được từ đầu tới cuối và để một test
-khẳng định được cùng một điều hai lần. Thứ có thật là hình dạng của đầu ra, và sự kỷ
-luật về những gì vắng mặt trong đó.
+Mỗi handler có hai đường. `LLM_ENABLED=false` thì nó trả nội dung dọn trước, tất định, để
+luồng hai pha chạy được từ đầu tới cuối mà không gọi model nào và một test khẳng định được
+cùng một điều hai lần. Bật model thì nó gọi model qua `agent.llm`; model hỏng thì job **ném**
+-- không lùi về nội dung dọn trước, vì nội dung ấy từng lọt vào đề thật (plan `backlog-tier-1`).
+Hai đường chung một hình dạng đầu ra, và sự kỷ luật về những gì vắng mặt trong đó.
 
-Ba luật sống sót qua việc đổi sang model thật, và các test canh chúng chứ không canh
-bất kỳ câu chữ nào được sinh ra bên dưới:
+Ba luật đi qua cả hai đường, và các test canh chúng chứ không canh bất kỳ câu chữ nào được
+sinh ra bên dưới:
 
   - Không handler nào trả về điểm, một dấu chấm điểm, một hạn vào, hay "học sinh giờ
     đã hiểu". AGENT viết nội dung; BE kết luận (ADR-06, ADR-20).

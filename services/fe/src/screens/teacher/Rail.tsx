@@ -302,8 +302,8 @@ export type ChipState = "processing" | "ready" | "no_text_layer" | "failed";
  * Chip nói gì ở mỗi trạng thái.
  *
  * Nhãn là **cố định theo trạng thái** — trừ `processing` đã có tiến độ, xem `say` — không phải
- * `fault` từ API. `fault` có sáu giá trị và
- * chúng là chẩn đoán — *"Tệp PDF này không có trang nào"*, *"Không mở được tệp PDF này"* — chứ
+ * `fault` từ API. `fault` là một câu chẩn đoán cho **mỗi** cách hỏng — của `document`, cộng
+ * phép suy 300 s ở BE — nên số câu mọc theo code, và — *"Tệp PDF này không có trang nào"*, *"Không mở được tệp PDF này"* — chứ
  * không phải nhãn; in thẳng lên một cột rộng 165px thì chúng xuống dòng và chip phình lên.
  * `fault` không mất: nó đi vào `title` của chip.
  *

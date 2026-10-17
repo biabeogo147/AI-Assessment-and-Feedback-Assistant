@@ -276,6 +276,36 @@ async def test_reading_the_publications_gives_back_the_six_parameters(stack) -> 
     assert only["phase2_minutes_per_question"] == 5
     # Thu hồi được tới lúc nào là con số giáo viên cần, nên nó được nêu ra chứ không để họ suy.
     assert only["withdrawable_until"] == only["opens_at"]
+    # Giờ mở còn ba tiếng nữa: còn thu hồi được, theo đồng hồ của BE (plan `backlog-tier-1`).
+    assert only["recallable"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_publication_past_its_opening_is_no_longer_recallable(stack) -> None:
+    """Review ảnh (plan `backlog-tier-1`): qua giờ mở thì khối ĐÃ PHÁT HÀNH không được ghi *"Thu
+    hồi được tới …"* -- BE nói hết rồi, FE không tự so giờ."""
+    client, maker = stack
+    paper = await _paper(maker)
+    morning = await _class_id(maker, "12A")
+    opens = datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=5)
+    async with maker() as session:
+        session.add(
+            Publication(
+                assessment_id=paper,
+                class_id=morning,
+                opens_at=opens,
+                closes_at=opens + timedelta(minutes=45),
+                phase1_minutes=15,
+                phase2_minutes_per_question=5,
+                remediation_deadline=opens + timedelta(hours=8),
+                published_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+    answer = await client.get(f"/api/teacher/assessments/{paper}/publications", headers=TEACHER)
+
+    assert answer.json()["classes"][0]["recallable"] is False
 
 
 @pytest.mark.asyncio

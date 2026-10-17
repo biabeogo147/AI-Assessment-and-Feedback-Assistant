@@ -1,7 +1,9 @@
 # ADR-20 — Chấm trắc nghiệm là việc của BE, không phải của AGENT
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đã thi hành
 - **Ngày:** 2026-09-11
+- **Sửa:** 2026-10-17 — trạng thái và phần *Hệ quả* đã cũ. Xem *Hậu ký 17/10/2026* ở cuối. Phần
+  trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -74,3 +76,12 @@ soạn sẵn thay vì để agent tự nghĩ.
 - Kế hoạch thi hành: `docs/plans/active/2026-09-11-core-two-phase-backend-plan.md`.
 - Figma không có bề mặt nào chứng minh hay phản đối luật này — chấm ở đâu là thứ học sinh không nhìn
   thấy. Bằng chứng duy nhất trên màn là **không có trạng thái chờ chấm** giữa màn `14` và màn `15`.
+
+## Hậu ký 17/10/2026
+
+- **Đã thi hành.** BE chấm trắc nghiệm: `be/scoring.py` (`mark_for_phase_one`, `mark_after_round`),
+  gọi từ `student_routes` lúc nộp pha 1 và lúc nộp một lượt chữa. Không lời gọi AGENT nào nằm giữa
+  việc nộp và điểm.
+- **Hai message đã gỡ, nhưng không theo điều kiện ADR nêu.** *Hệ quả* dặn gỡ `GradingRequested` và
+  `GradingCompleted` *"ngay khi UC-05 chốt hình dạng"*. Chúng bị xoá ngày 09/10/2026 cùng cả đường
+  chấm bài cũ, trong khi UC-05 chưa bao giờ được thiết kế. Ghi lại theo plan `backlog-tier-1`.

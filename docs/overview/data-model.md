@@ -178,7 +178,7 @@ không có gì xảy ra và cũng không có lỗi nào. Trong lúc chưa có mi
 ## Dữ liệu mẫu
 
 `be/seed.py` tạo lớp 12A, ba học sinh, và bài *Kiểm tra 15 phút — Hàm số* sáu câu đã phát hành — đúng
-câu chuyện mà mười hai artboard trong Figma kể. Nó chỉ chạy khi database chưa có lớp nào. Từ
+câu chuyện mà các artboard trong Figma kể. Nó chỉ chạy khi database chưa có lớp nào. Từ
 13/10/2026 nó cũng chép sáu câu ấy vào ngân hàng câu hỏi của `GV-001`, vì đề đã phát hành tức đã qua
 duyệt (ADR-28); database dựng trước ngày ấy thì không có, và đề seed đã qua giờ mở nên không bỏ duyệt
 để chép lại được.

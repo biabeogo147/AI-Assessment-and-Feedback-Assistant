@@ -14,12 +14,12 @@ Adds to the root contract. Constraints only.
 - BE grades. `student_routes.py` compares the chosen option against the approved question's own
   correct one and `scoring.py` turns that into a mark, both inside the submit request -- never over
   a queue and never by a model.
-- `advance` in `assessment_state.py` is the only function allowed to change `Assessment.state`, and
-  every path that writes a question calls `assert_editable` first.
+- Only `advance` and `withdraw` (`assessment_state.py`) change `Assessment.state`; every path
+  that writes a question first checks `assert_editable` (HTTP refusal) or `editable()` (quiet skip).
 - A class and an assessment each name their owner. Scope every teacher query by `teacher_id`, and
   answer "not yours" exactly as "does not exist" (ADR-22).
 - A turn locks its conversation: `_hold_the_thread` before any write, released in `finally`.
 - Enqueue by the task-name constants from `contracts`. Never `import agent`.
 - BE is the only service the frontend calls. Do not add a second public entry point.
-- `main.py` holds one Redis pool for the process lifetime; clients poll once per second, so opening a
-  pool per request exhausts connections.
+- `main.py` holds one Redis pool for the process lifetime; every request that enqueues a job or
+  listens on a channel borrows it, so opening a pool per request exhausts connections.

@@ -120,6 +120,7 @@ function heldBy(
   opens: string,
   closes: string,
   deadline: string,
+  recallable = true,
 ) {
   return {
     class_id: classId,
@@ -131,6 +132,7 @@ function heldBy(
     phase2_minutes_per_question: 5,
     remediation_deadline: deadline,
     withdrawable_until: opens,
+    recallable,
   };
 }
 
@@ -2133,6 +2135,36 @@ describe("đổi tên đề (ADR-31)", () => {
       expect(screen.getByRole("heading", { name: "Kiểm tra chương I" })).toBeTruthy(),
     );
     expect(calls.filter((one) => one.method === "PATCH")).toHaveLength(1);
+  });
+
+  it("chạm trần 60 thì có dòng nhắc; cụm trong ngoặc của tiêu đề không gãy", async () => {
+    // Plan `backlog-tier-1`: ô dừng nhận chữ ở 60 mà không nói gì (case 15); "(tr6-28)" gãy ở
+    // dấu gạch (thử tay 04).
+    serving("has_questions");
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+    fireEvent.click(await screen.findByText("Đổi tên"));
+    const box = screen.getByLabelText("Tên đề");
+
+    fireEvent.change(box, { target: { value: "x".repeat(59) } });
+    expect(screen.queryByText(/Tên đề tối đa 60 ký tự/)).toBeNull();
+    fireEvent.change(box, { target: { value: "x".repeat(60) } });
+    expect(screen.getByText(/Tên đề tối đa 60 ký tự/)).toBeTruthy();
+
+    fireEvent.change(box, { target: { value: "Đề Kết nối tri thức (tr6-28)" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    const heading = await screen.findByRole("heading", { name: "Đề Kết nối tri thức (tr6-28)" });
+    expect(heading.querySelector(".keep")?.textContent).toBe("(tr6-28)");
+
+    // Cụm ngoặc dài thì gãy như chữ thường: giữ nguyên dòng thì nó tràn panel (review ảnh pha 4).
+    fireEvent.click(screen.getByText("Đổi tên"));
+    fireEvent.change(screen.getByLabelText("Tên đề"), {
+      target: { value: "Đề (Kết nối tri thức Lớp 6 tập 1 trang 6-28)" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Tên đề"), { key: "Enter" });
+    const long = await screen.findByRole("heading", {
+      name: "Đề (Kết nối tri thức Lớp 6 tập 1 trang 6-28)",
+    });
+    expect(long.querySelector(".keep")).toBeNull();
   });
 
   it("đề đã duyệt không có nút Đổi tên — cùng khoá nội dung (ADR-01)", async () => {
@@ -4781,6 +4813,30 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     expect(said).toContain(one);
     expect(said).toContain(two);
     // Thu hồi được tới **giờ mở**, và con số ấy do BE nêu riêng chứ không do FE suy ra.
+    expect(said).toContain(`Thu hồi được tới ${moment(OPENS)}`);
+  });
+
+  it("qua giờ mở thì dòng thu hồi nói đã hết giờ, theo cờ của BE", async () => {
+    // Plan `backlog-tier-1` (review ảnh): *"Thu hồi được tới 10:46"* từng in ngay trên hộp đỏ báo
+    // không hoàn tác được nữa. Còn hay hết là BE nói (`recallable`), FE không so giờ máy mình.
+    serveForm({}, [heldBy("c1", "12A", OPENS, CLOSES, ENDS, false)]);
+    const { container } = await open();
+
+    await waitFor(() => expect(container.querySelector(".published-to")).toBeTruthy());
+    const said = container.querySelector(".published-row")?.textContent ?? "";
+    expect(said).toContain(`Hết giờ thu hồi lúc ${moment(OPENS)}`);
+    expect(said).not.toContain("Thu hồi được tới");
+  });
+
+  it("BE chưa gửi cờ thu hồi thì giữ câu cũ, không báo hết giờ", async () => {
+    // Review ảnh pha 4: thiếu trường thì `undefined` từng đọc như hết giờ.
+    const row: Record<string, unknown> = heldBy("c1", "12A", OPENS, CLOSES, ENDS);
+    delete row.recallable;
+    serveForm({}, [row as ReturnType<typeof heldBy>]);
+    const { container } = await open();
+
+    await waitFor(() => expect(container.querySelector(".published-to")).toBeTruthy());
+    const said = container.querySelector(".published-row")?.textContent ?? "";
     expect(said).toContain(`Thu hồi được tới ${moment(OPENS)}`);
   });
 

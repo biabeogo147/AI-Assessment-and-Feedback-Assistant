@@ -10,7 +10,7 @@ vào kho nội dung y như nó nằm trong tệp, chia trang và khối. Vẫn l
 *chữ của một trang là gì, chia khối ra sao, chuẩn hoá thế nào*.
 
 Không có lời gọi model nào ở đây và sẽ không bao giờ có. Đây là phép đếm, không phải phép đọc
-hiểu: việc cắt chương và phân loại đoạn thuộc plan sau.
+hiểu: cắt chương và xếp cấp tiêu đề là việc của `document.index` (dựng cây mục lục).
 """
 
 import logging
@@ -191,6 +191,8 @@ def _probe_pdf(raw: bytes) -> Finding:
         return Finding(DocumentState.NO_TEXT_LAYER, 0, "Tệp PDF này không có trang nào.")
 
     if with_text / pages < _MIN_READABLE_PAGE_RATIO:
+        # Câu này không bao giờ tới giáo viên: PDF có trang mà không chữ là bản scan, và
+        # `ocr_handlers._scan_pages` đưa nó sang đường OCR thay vì gửi phán quyết này về.
         return Finding(
             DocumentState.NO_TEXT_LAYER,
             pages,

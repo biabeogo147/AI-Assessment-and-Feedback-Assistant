@@ -168,3 +168,11 @@ def test_no_real_option_means_no_buttons_not_a_lone_other() -> None:
     `unbiased-model-text`)."""
     assert _buttons(()) == []
     assert _buttons(("Khác", " ")) == []
+
+
+def test_an_outline_after_the_question_closes_it() -> None:
+    """Review đợt 3 (plan `backlog-tier-1`): model hỏi về lớp rồi nêu dàn ý mà không cần câu trả
+    lời -- câu hỏi đã qua, câu giáo viên gõ sau dàn ý không phải lời đáp câu hỏi ấy."""
+    stored = [*_ASKED_CLASS_NOW, _turn("teacher"), _turn("outline")]
+
+    assert _rows_in_play(stored, "lớp chuyên") == {}

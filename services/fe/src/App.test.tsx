@@ -9,7 +9,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { countdown, moment } from "./api";
+import { countdown, listed, moment } from "./api";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
@@ -170,9 +170,34 @@ describe("the tutoring screen", () => {
     // Việc báo cáo sống lâu hơn `Attempt`: nó không chặn gì cả (ADR-19).
     expect(screen.getByText(/Báo cáo Trợ lý giải thích khó hiểu/)).toBeTruthy();
   });
+
+  it("names three open questions the way a person would", async () => {
+    // Plan `backlog-tier-1` (review ảnh): "câu 1 và câu 2 và câu 3" -> "câu 1, câu 2 và câu 3".
+    const one = PANEL.items[0];
+    const three = [1, 2, 3].map((order) => ({ ...one, question_id: `q${order}`, order }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const body = String(url).includes("/chat")
+          ? { attempt_id: "a1", locked: false, messages: [] }
+          : { ...PANEL, open_count: 3, items: three };
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
+    render(<Tutor me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getAllByText(/câu 1, câu 2 và câu 3/).length).toBeGreaterThan(0));
+    expect(screen.queryByText(/câu 1 và câu 2/)).toBeNull();
+  });
 });
 
 describe("formatting", () => {
+  it("joins names the way Vietnamese says them", () => {
+    expect(listed(["12A"])).toBe("12A");
+    expect(listed(["12A", "12B"])).toBe("12A và 12B");
+    expect(listed(["12A", "12B", "12C"])).toBe("12A, 12B và 12C");
+  });
+
   it("writes an instant the way every screen writes it", () => {
     expect(moment("2026-09-15T22:00:00")).toBe("22:00 · 15/9");
   });
@@ -234,6 +259,50 @@ describe("the one-way doors", () => {
     // Con số lấy từ đúng cái chỗ mà dải điều hướng lấy, không phải từ một câu
     // ai đó gõ tay vào.
     expect(screen.getAllByText(/2 câu/).length).toBeGreaterThan(0);
+  });
+
+  it("asks before starting phase 1, and reads back the row it starts", async () => {
+    // Plan `backlog-tier-1`: bắt đầu là đồng hồ chạy và không ai dừng được -- cửa một chiều thứ
+    // nhất của học sinh từng là một nút trơn.
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(`${init?.method ?? "GET"} ${url}`);
+        return new Response(
+          JSON.stringify([
+            {
+              assignment_id: "as2",
+              attempt_id: null,
+              title: "Bài tập tuần 6 — Lượng giác",
+              subject: "Toán",
+              question_count: 8,
+              phase1_minutes: 20,
+              opens_at: "2026-09-15T11:00:00+00:00",
+              closes_at: "2026-09-15T14:00:00+00:00",
+              remediation_deadline: "2026-09-16T16:00:00+00:00",
+              status: "đang-mở",
+              wrong_count: null,
+              actions: ["start"],
+            },
+          ]),
+          { status: 200 },
+        );
+      }),
+    );
+    render(<AssignmentList me={ME} />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeTruthy());
+    screen.getByRole("button", { name: "Bắt đầu" }).click();
+
+    await waitFor(() => expect(screen.getByText("Bắt đầu làm bài?")).toBeTruthy());
+    expect(calls.some((call) => call.startsWith("POST"))).toBe(false);
+    expect(screen.getByText("8 câu")).toBeTruthy();
+    expect(screen.getByText("20 phút")).toBeTruthy();
+
+    screen.getByRole("button", { name: "Để sau" }).click();
+    await waitFor(() => expect(screen.queryByText("Bắt đầu làm bài?")).toBeNull());
+    expect(calls.some((call) => call.startsWith("POST"))).toBe(false);
   });
 });
 
@@ -356,6 +425,7 @@ describe("a round open in another tab", () => {
   const ROUND = {
     round_id: "r1",
     index: 1,
+    started_at: "2098-12-31T23:55:00+00:00",
     ends_at: "2099-01-01T00:00:00+00:00",
     items: [
       {
@@ -396,6 +466,32 @@ describe("a round open in another tab", () => {
     expect(screen.queryByText("Không đọc được lượt này.")).toBeNull();
     await waitFor(() => expect(container.querySelector(".option.chosen")).toBeTruthy());
     expect(container.querySelector(".option.chosen")?.textContent).toContain("(2; +∞)");
+  });
+
+  it("names the round's length, and asks before handing it in", async () => {
+    // Plan `backlog-tier-1`: đầu màn từng in thời gian *còn lại* như thể là độ dài lượt; nộp lượt
+    // là cửa một chiều mà từng không có cổng.
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(`${init?.method ?? "GET"} ${url}`);
+        return new Response(
+          JSON.stringify(
+            String(url).endsWith("/rounds/r1") ? ROUND : { open_round_id: "r1", items: [] },
+          ),
+          { status: 200 },
+        );
+      }),
+    );
+    render(<Round me={ME} attemptId="a1" roundId="r1" />);
+
+    await waitFor(() => expect(screen.getByText(/1 câu · 5 phút/)).toBeTruthy());
+    screen.getByRole("button", { name: "Nộp bài" }).click();
+
+    await waitFor(() => expect(screen.getByText("Nộp lượt này?")).toBeTruthy());
+    expect(calls.some((call) => call.includes("/submit"))).toBe(false);
+    expect(screen.getByText("1 trên 1 câu")).toBeTruthy();
   });
 
   it("offers to go back into the open round instead of a greyed-out new one", async () => {

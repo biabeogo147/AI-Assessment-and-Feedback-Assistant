@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã mở rộng bởi ADR-18 (luật *vắng mặt về cấu trúc*: chưa thi hành)
 - **Ngày:** 2026-09-06
+- **Sửa:** 2026-10-17 — mục thi hành trỏ vào code đã xoá. Xem *Hậu ký 17/10/2026* ở cuối.
+  Phần trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -83,3 +85,13 @@ dạy giáo viên lo lắng nhầm chỗ.
   xét đã bị thay bằng luồng học sinh thật, và `services/be/tests/test_core_flow.py` có test quét mọi
   response của học sinh để chắc ba trường ấy không lọt ra. Đường `/api/submissions` vẫn trả hình
   dạng cũ, nhưng không màn hình nào gọi nó nữa.
+
+## Hậu ký 17/10/2026
+
+Ngày 09/10/2026 đường chấm bài cũ (`POST /api/submissions` → task `grade_submission` →
+`decide_review`) bị xoá khỏi code, cùng `ReviewReason`, `GradingRequested`, `GradingCompleted` và
+`REVIEW_CONFIDENCE_THRESHOLD`. Bốn loại nghi ngờ của ADR này sống trong `ReviewReason`, nên mục *Nơi luật này đang
+được thi hành* ở trên trỏ vào code đã xoá (`contracts/enums.py`, `review_policy.py`), kể cả đường
+`/api/submissions` mà nó nói *"vẫn trả hình dạng cũ"*. Phần còn sống là luật về điều học sinh
+**không** được thấy: test quét response của học sinh trong `services/be/tests/test_core_flow.py`
+vẫn chạy. Ghi lại theo plan `backlog-tier-1`.

@@ -6,7 +6,13 @@ không dùng được trên máy dev này).
 
 import pytest
 
-from check_contract import codes_without_a_plan, comment_blocks
+from check_contract import (
+    assessments_made_past_empty,
+    codes_without_a_plan,
+    comment_blocks,
+    http_servers_imported,
+    reasons_for_the_model_only,
+)
 
 _SLUGS = {"document-agent-hierarchy", "unbiased-model-text"}
 
@@ -84,3 +90,34 @@ def test_typescript_comments_are_blocks_and_urls_are_not() -> None:
         "/** Lối Khác (`unbiased-model-text` T3). */\n"
     )
     assert _bad(source, ".tsx") == [(2, "plan 4b")]
+
+
+def test_a_tool_may_only_make_an_empty_paper() -> None:
+    """Plan `backlog-tier-1`: `Assessment(state=APPROVED)` là đường vòng qua ADR-01 mà grep
+    `.state =` không thấy -- nhất là khi lời gọi trải nhiều dòng."""
+    made = "x = Assessment(\n    title='a',\n    state=AssessmentState.APPROVED,\n)\n"
+    empty = "x = Assessment(title='a', state=AssessmentState.EMPTY)\n"
+
+    assert assessments_made_past_empty(made) == [1]
+    assert assessments_made_past_empty(empty) == []
+
+
+def test_a_server_import_in_any_form_is_caught() -> None:
+    """Plan `backlog-tier-1`: luật *`document` không mở cổng* nay có lưới."""
+    assert http_servers_imported("import uvicorn") == [1]
+    assert http_servers_imported("from fastapi import FastAPI") == [1]
+    assert http_servers_imported("from http import server") == [1]
+    assert http_servers_imported("from aiohttp import web") == [1]
+    assert http_servers_imported("import httpx\nfrom http import HTTPStatus") == []
+
+
+def test_a_refusal_naming_a_tool_must_carry_words_for_the_teacher() -> None:
+    """Plan `backlog-tier-1`: `reason` chở `list_class` mà không `said` thì dòng ✕ in tên tool."""
+    bare = 'x = {"found": False, "reason": "thiếu class_id; gọi list_class"}'
+    said = 'x = {"found": False, "reason": "gọi list_class", "said": "Kriky chưa chọn lớp nào"}'
+    plain = 'x = {"found": False, "reason": "không có lớp nào như vậy"}'
+
+    assert reasons_for_the_model_only(bare) == [1]
+    assert reasons_for_the_model_only(said) == []
+    assert reasons_for_the_model_only(plain) == []
+    assert reasons_for_the_model_only('_refusal(f"part phải từ 1 đến {n}")') == [1]

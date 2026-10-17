@@ -1,10 +1,10 @@
 """Tài liệu của giáo viên: tải lên, và liệt kê.
 
-**Giới hạn của vòng này phải nói ngay, vì nhìn vào màn hình thì không thấy.** Tải lên được,
-liệt kê được, hiện trên rail được, đính vào ô soạn được. Thứ **chưa** có là việc tài liệu
-thật sự giới hạn phạm vi ra đề: nội dung nó chưa đi vào prompt của AGENT ở bất cứ đâu. Đọc
-PDF, cắt đoạn, nhồi ngữ cảnh là một phần lớn hơn hẳn, và nó nằm ngoài vòng này. Nên đây mới
-là cái vỏ, và `docs/plans/backlog.md` giữ món nợ đó.
+Module này lo **tải lên và liệt kê**: cất byte, đẩy job đọc tệp, đọc lại trạng thái. Nội dung
+tài liệu đi vào việc ra đề ở chỗ khác -- Kriky đọc mục lục và từng phần qua các tool đọc tài liệu
+(`teacher_tools`: `list_chapters`, `get_chapter`, `read_section`), và dàn ý soạn theo sách trỏ về
+các nút ấy (ADR-29). Docstring cũ ở đây nói nội dung *"chưa đi vào prompt ở bất cứ đâu"*, đúng ở
+vòng đầu và sai từ khi có đường đọc ấy (plan `backlog-tier-1`).
 
 Byte **không** nằm trong database nữa: chúng ở MinIO, và `documents.storage_key` là khoá.
 Lần chuyển ấy xảy ra vì `services/document` -- service sẽ đọc tệp -- không có credential

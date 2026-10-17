@@ -936,7 +936,9 @@ button:disabled {
   color: var(--ink-muted);
 }
 
+/* Cột nhãn không co: một giá trị dài (tên bài) từng ép nhãn hẹp lại, cột giá trị lệch dòng. */
 .stat .key {
+  flex: none;
   width: 96px;
 }
 

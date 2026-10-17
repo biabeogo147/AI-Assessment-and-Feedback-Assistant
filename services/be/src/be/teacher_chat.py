@@ -997,7 +997,12 @@ def _rows_in_play(stored: list[TeacherTurn], said: str) -> dict:
     Returns:
         Kết quả tool để dựng lại nút, hay `{}` khi không câu hỏi về dòng nào còn mở.
     """
-    asked = next((turn for turn in reversed(stored) if turn.kind == "assistant"), None)
+    # Một dàn ý hay một plan đứng sau câu hỏi là câu hỏi ấy đã qua: model đã đi tiếp mà không cần
+    # câu trả lời (review đợt 3, plan `backlog-tier-1`).
+    last = next(
+        (turn for turn in reversed(stored) if turn.kind in {"assistant", "outline", "plan"}), None
+    )
+    asked = last if last is not None and last.kind == "assistant" else None
     shown = [one for one in (asked.choices if asked is not None else None) or [] if one]
     rows = [one for one in shown if one != OTHER_CHOICE]
     if not rows:
@@ -1264,6 +1269,14 @@ def vet_plan(steps: tuple[PlanStep, ...], allowed: tuple[ToolSpec, ...]) -> str 
                 logger.info("step %d sent an argument outside the spec: %s", index, key)
                 continue
             found = REFERENCE.match(value.strip())
+            if found is None and key.endswith("_id") and value.strip().isdigit():
+                # Mọi id là uuid, không bao giờ là số trần: `"1"` là model viết số bước thay cho
+                # tham chiếu `{1.assessment_id}` -- chạy thì bước ấy đọc "không có đề nào như vậy"
+                # (plan `backlog-tier-1`).
+                return (
+                    f"bước {index} gửi {key}={value}: id là chuỗi trong kết quả một bước trước, "
+                    f"viết là {{k.{key}}}, không phải số thứ tự bước"
+                )
             if found is None:
                 # Trông như tham chiếu mà sai khuôn thì là lỗi của model, không phải chữ
                 # của giáo viên -- cùng một luật `resolve_args` dùng lúc chạy, và phép
@@ -2443,6 +2456,10 @@ async def _go(
     # nó nêu tám lần, tám lần gọi model cho cùng một câu thông báo. Lần thứ hai là dừng.
     stuck = ""
     refused = ""
+    # Token của những lượt gọi model không thành dòng nào (dàn ý hay plan bị trả về): chúng vẫn
+    # tốn, nên cộng vào dòng được ghi kế tiếp thay vì mất khỏi sổ (review đợt 3, plan
+    # `backlog-tier-1`).
+    owed = 0
     while taken < allowed:
         taken += 1
         if asyncio.get_running_loop().time() >= deadline:
@@ -2493,7 +2510,7 @@ async def _go(
                 position,
                 history[-1],
                 duration_ms=spent_ms,
-                model_tokens=step.model_tokens,
+                model_tokens=step.model_tokens + owed,
                 choices=buttons,
                 more_choices=offered_more if asking_back else 0,
             )
@@ -2540,6 +2557,7 @@ async def _go(
                 # Cùng mẫu với plan bị từ chối: một lý do đã về model mà nó vẫn nêu lại dàn ý ấy
                 # thì nó đang kẹt -- dừng ở lần hai (plan `backlog-tier-1`).
                 stuck = OUTLINE_REFUSED
+                owed += step.model_tokens
                 reason = str(shown.get("error", ""))
                 if reason == refused:
                     logger.warning("same outline refusal twice for %s", asking.teacher_code)
@@ -2553,7 +2571,7 @@ async def _go(
                 position,
                 history[-1],
                 duration_ms=spent_ms,
-                model_tokens=step.model_tokens,
+                model_tokens=step.model_tokens + owed,
             )
             yield TurnEvent(kind="say", text=shown.text, conversation_id=thread)
             if began == 0:
@@ -2584,6 +2602,7 @@ async def _go(
                     TurnRecord(kind="tool_result", tool_name="plan", tool_result={"error": guarded})
                 )
                 stuck = PLAN_REFUSED
+                owed += step.model_tokens
                 if guarded == refused:
                     logger.warning("same drafting refusal twice for %s", asking.teacher_code)
                     break
@@ -2602,8 +2621,9 @@ async def _go(
                         position,
                         history[-1],
                         duration_ms=spent_ms,
-                        model_tokens=step.model_tokens,
+                        model_tokens=step.model_tokens + owed,
                     )
+                    owed = 0
                     yield TurnEvent(kind="say", text=step.text, conversation_id=thread)
 
                 # Plan được **lưu** trước khi phát đi. `bước k/n` phải dựng lại được sau
@@ -2619,7 +2639,15 @@ async def _go(
                         },
                     )
                 )
-                position = await _record(session, thread, position, history[-1])
+                # Plan không kèm lời thì token của lượt nêu nó nằm ở đây, không thì đã ở lời trên.
+                position = await _record(
+                    session,
+                    thread,
+                    position,
+                    history[-1],
+                    model_tokens=owed + (0 if step.text else step.model_tokens),
+                )
+                owed = 0
                 yield TurnEvent(
                     kind="plan",
                     total=len(plan),
@@ -2634,6 +2662,7 @@ async def _go(
             logger.warning("refused a plan for %s: %s", asking.teacher_code, wrong)
             why = wrong
             stuck = PLAN_REFUSED
+            owed += step.model_tokens
             if bound and attached is not None and "create_draft" in wrong:
                 why = f"{wrong}; {_BOOK_SCOPE_MISSING.format(filename=attached.filename)}"
                 stuck = BOOK_SCOPE_MISSING.format(filename=attached.filename)
@@ -2660,8 +2689,9 @@ async def _go(
             position,
             history[-1],
             duration_ms=spent_ms,
-            model_tokens=step.model_tokens,
+            model_tokens=step.model_tokens + owed,
         )
+        owed = 0
         # Bước tra cứu cũng hiện **lúc đang chạy** (`kriky-writes-every-word`): đọc sách mất mười
         # mấy giây, và trước đây màn hình đứng im suốt lúc ấy rồi bật ra cả khối khi lượt xong.
         # Không `index`/`total`: `bước k/n` đếm bước của plan (ADR-25), và plan chưa có.
@@ -2740,7 +2770,7 @@ async def _go(
         if not stuck:
             logger.warning("tool loop hit %d steps for %s", allowed, asking.teacher_code)
         history.append(TurnRecord(kind="notice", text=stuck or CEILING_REACHED))
-        await _record(session, thread, position, history[-1])
+        await _record(session, thread, position, history[-1], model_tokens=owed)
         yield TurnEvent(kind="notice", text=history[-1].text, conversation_id=thread)
         if began == 0:
             await _name_the_thread(session, request, settings, thread, said.text)

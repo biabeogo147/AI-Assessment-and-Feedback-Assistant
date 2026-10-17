@@ -4,9 +4,10 @@ Thứ tự bị ép bởi phụ thuộc, không bởi sở thích:
 
 1. `render` -- PDF thành ảnh (`document/pdf.py`).
 2. `layout` -- ảnh thành khối có nhãn, hộp bao, thứ tự đọc.
-3. `detect` một lần cho **cả trang**, rồi gán từng dòng vào khối chứa tâm của nó. Gọi detector
-   trên từng khối sẽ rẻ hơn một chút và sai ở mép: một dòng vắt qua biên khối bị cắt làm đôi.
-4. `recognize` cho mọi khối có chữ -- kể cả khối `FORMULA`.
+3. `detect` một lần cho **cả trang**. Gọi detector trên từng khối sẽ rẻ hơn một chút và sai ở
+   mép: một dòng vắt qua biên khối bị cắt làm đôi.
+4. `recognize` cho mọi dòng của trang.
+5. `assign` -- gán từng dòng, cùng chữ của nó, vào khối chứa tâm của dòng.
 
 **Công thức không được đọc ở đây nữa** (người dùng chốt 11/10/2026). Benchmark 50 trang cho thấy
 PP-FormulaNet trên CPU không cứu được: trên 58 công thức nhãn vàng, layout làm hỏng 24 và model

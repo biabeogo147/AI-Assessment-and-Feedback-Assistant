@@ -1,7 +1,10 @@
-"""Hai message của vòng xử lý tài liệu, cộng bốn trạng thái mà màn hình phải nói được.
+"""Năm message của vòng xử lý tài liệu, cộng bốn trạng thái mà màn hình phải nói được.
 
-Vòng việc đi hai chiều và vì thế có hai message: BE giao một tệp cho `services/document` đọc,
-rồi `services/document` giao kết quả về cho BE ghi. Không bên nào gọi HTTP sang bên nào, và
+Vòng việc đi hai chiều: BE giao một tệp cho `services/document` đọc (`DocumentProbeRequested`),
+`services/document` tự chia việc OCR và dựng cây cho chính nó (`DocumentPagesRequested`,
+`DocumentIndexRequested`), báo tiến độ (`DocumentProgress`), rồi giao kết quả về
+(`DocumentProbed`) cho `services/ingest` ghi. Docstring cũ nói *"hai message"* từ vòng đầu
+(plan `backlog-tier-1`). Không bên nào gọi HTTP sang bên nào, và
 không bên nào đọc database của bên nào -- payload chở đủ mọi thứ, đúng như
 `DraftQuestionRequested` làm cho AGENT.
 
@@ -99,7 +102,7 @@ class DocumentProbeRequested(BaseModel):
 
 
 class DocumentProbed(BaseModel):
-    """Kết quả `services/document` giao về cho BE ghi.
+    """Kết quả `services/document` giao về cho `services/ingest` ghi vào database.
 
     `page_count` là `None` khi con số không tồn tại, không phải khi nó chưa biết -- `.txt` và
     `.md` không có trang. Một số `0` ở đây hợp lệ về kiểu và sai về nghĩa, và

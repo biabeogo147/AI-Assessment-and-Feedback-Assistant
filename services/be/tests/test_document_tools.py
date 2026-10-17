@@ -421,3 +421,28 @@ def test_a_numbering_that_carries_its_own_dot_gets_no_second_one() -> None:
 
     assert node_label(_node(2, "MÔ TẢ TẬP HỢP", 1, 3, "1.")) == "1. MÔ TẢ TẬP HỢP (tr. 5–7)"
     assert node_label(_node(1, "Tập hợp", 0, 2, "Bài 1")) == "Bài 1. Tập hợp (tr. 4–6)"
+
+
+def test_a_bare_number_for_an_id_is_refused_before_anything_runs() -> None:
+    """Plan `backlog-tier-1`: `"1"` thay cho `{1.assessment_id}` từng lọt `vet_plan` -- id là uuid,
+    không bao giờ là số trần, nên đó là số bước viết nhầm chỗ."""
+    asking = Asking(teacher_id="t", teacher_code="GV-001", full_name="Cô Lan")
+    catalog = catalog_for(asking, PHASE_WORK, documents=True)
+    spec = next(one for one in catalog if one.name == "start_drafting")
+    args = {name: "5" for name in spec.arguments}
+
+    bare = (
+        PlanStep(
+            tool_name="create_draft",
+            args={"subject": "Toán", "grade": "12", "topic_scope": "Hàm số"},
+            title="Tạo đề trống",
+        ),
+        PlanStep(tool_name="start_drafting", args={**args, "assessment_id": "1"}, title="Soạn"),
+    )
+    linked = (
+        bare[0],
+        bare[1].model_copy(update={"args": {**args, "assessment_id": "{1.assessment_id}"}}),
+    )
+
+    assert "assessment_id=1" in (vet_plan(bare, catalog) or "")
+    assert vet_plan(linked, catalog) is None

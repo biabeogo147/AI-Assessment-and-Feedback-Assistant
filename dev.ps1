@@ -89,8 +89,9 @@ switch ($Task) {
         # thứ seed lại được. BE phải TẮT lúc chạy lệnh này.
         Invoke-Step 'reset database' { & $Python -m be.reset_db }
         # Bản thô trong kho nội dung trỏ về `documents.id` của database vừa xoá, nên giữ nó lại
-        # là giữ trang mồ côi. Xoá qua `docker exec` chứ không qua `be.reset_db`: BE không giữ
-        # khoá Mongo (plan 3b, D1). Tên database là mặc định của MONGO_DATABASE.
+        # là giữ trang mồ côi. Xoá qua `docker exec` chứ không qua `be.reset_db`: BE chỉ ĐỌC kho
+        # nội dung (`content_reader`, check `the-content-reader-only-reads`), không xoá gì trong
+        # đó. Tên database là mặc định của MONGO_DATABASE.
         Invoke-Step 'reset content store' { docker exec aiafa-mongo mongosh --quiet aiafa_content --eval 'db.dropDatabase()' }
     }
 

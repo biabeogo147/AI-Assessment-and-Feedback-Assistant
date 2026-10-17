@@ -1125,7 +1125,11 @@ async def publish(
     teacher: Teacher = Depends(current_teacher),
     session: AsyncSession = Depends(get_session),
 ) -> PublishResult:
-    """Phát hành một đề cho một hoặc nhiều lớp, mỗi lớp một bộ hạn riêng.
+    """Phát hành một đề cho một hoặc nhiều lớp, **cùng một** bộ giờ cho mọi lớp của lần gửi.
+
+    `PublishRequest` chở một `schedule`; mỗi lớp một bộ giờ riêng là việc còn chờ (backlog, dòng
+    *Mỗi lớp một bộ giờ riêng*). Docstring cũ nói *"mỗi lớp một bộ hạn riêng"*, trái với code bên
+    dưới (plan `backlog-tier-1`).
 
     **Từ chối đề chưa duyệt**, và đây là chỗ dòng *"Teacher approves an assessment before
     release"* trong bảng Invariants của `AGENTS.md` chuyển từ đúng-về-chữ sang
@@ -1435,6 +1439,9 @@ class PublishedTo(BaseModel):
         remediation_deadline: Mốc tuyệt đối kết thúc pha 2, UTC.
         withdrawable_until: Thu hồi được tới lúc nào. Bằng `opens_at`, nêu riêng vì đó là con số
             giáo viên cần biết chứ không phải suy ra.
+        recallable: Còn thu hồi được không, theo đồng hồ **của BE**. Qua giờ mở mà dòng vẫn ghi
+            *"Thu hồi được tới …"* thì nó nói ngược hộp đỏ ngay dưới (review ảnh, plan
+            `backlog-tier-1`); FE không tự so giờ máy mình.
     """
 
     class_id: str
@@ -1446,6 +1453,7 @@ class PublishedTo(BaseModel):
     phase2_minutes_per_question: int
     remediation_deadline: datetime
     withdrawable_until: datetime
+    recallable: bool
 
 
 class Publications(BaseModel):
@@ -2057,6 +2065,7 @@ async def publications_of(
 
     named = await _classes_of(session, asking)
     live = await _live_publications(session, assessment_id)
+    now = _now()
     rows = []
     for row in sorted(
         live, key=lambda one: named[one.class_id].name if one.class_id in named else ""
@@ -2074,6 +2083,7 @@ async def publications_of(
                 phase2_minutes_per_question=row.phase2_minutes_per_question,
                 remediation_deadline=deadline,
                 withdrawable_until=aware(row.opens_at),
+                recallable=now < aware(row.opens_at),
             )
         )
     return Publications(assessment_id=assessment_id, classes=tuple(rows))

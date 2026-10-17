@@ -1751,6 +1751,8 @@
 
 .teacher .panel-head h2 {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--type-heading);
   font-weight: 600;
   line-height: 1.5;
@@ -1811,6 +1813,19 @@
 
 .teacher .panel-head .count {
   flex: none;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/* Cụm trong ngoặc của tên đề không gãy ở dấu gạch (`keepingParens`). */
+.teacher .panel-head h2 .keep {
+  white-space: nowrap;
+}
+
+/* Dòng nhắc khi tên chạm trần 60 -- variant `chạm trần` của `Panel title`; cách hàng 6 là
+   `gap` của `.panel-head`. */
+.teacher .panel-head .title-hint {
   color: var(--ink-muted);
   font-size: var(--type-caption);
   line-height: 1.5;

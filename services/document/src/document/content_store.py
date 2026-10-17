@@ -78,8 +78,8 @@ class RawChanged(RuntimeError):
     """Bản thô mà cây được dựng trên đó đã bị **đọc lại** trong lúc dựng.
 
     Cây trỏ vào khối bằng `(page, block)`; sau một lần đọc lại, những con trỏ ấy trỏ vào chữ khác.
-    Không chạy lại: lần đọc mới tự đẩy một job dựng cây của nó (review Task 2,
-    `document-agent-hierarchy`).
+    Người bắt (`index_handlers`) chạy lại trên bản mới khi lần đọc mới đã xong, còn đang đọc thì
+    bỏ -- lô OCR cuối sẽ giao job dựng cây của nó (review Task 2, `document-agent-hierarchy`).
     """
 
 

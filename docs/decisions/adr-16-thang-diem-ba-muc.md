@@ -1,7 +1,9 @@
 # ADR-16 — Mỗi câu có ba mức điểm, và 0,5 nghĩa là hiểu sau khi được dạy
 
-- **Trạng thái:** đã chốt (đã có bề mặt ở Figma, chưa có ở backend)
+- **Trạng thái:** đã chốt (đã có bề mặt ở Figma và ở backend)
 - **Ngày:** 2026-09-10
+- **Sửa:** 2026-10-17 — nợ màu của mức 0,5 đã trả ở ADR-12, và các dòng *chưa có ở backend* đã cũ.
+  Xem *Hậu ký 17/10/2026* ở cuối. Phần trên giữ nguyên làm lịch sử.
 
 ## Bối cảnh
 
@@ -87,3 +89,15 @@ buộc mà không rõ để làm gì.
   biệt 0,5 do chữa được với 0,5 do chấm một nửa.
 - **Chưa có ở backend**: `services/agent/src/agent/handlers.py` chỉ sinh 1,0 hoặc 0,0.
 - **Bị chặn**: xem `docs/plans/backlog.md`.
+
+## Hậu ký 17/10/2026
+
+Ba chỗ của ADR này đã cũ (plan `backlog-tier-1` ghi lại):
+
+- **Mức 0,5 đã có cách thể hiện.** [ADR-12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md), mục thi hành,
+  ghi cách `Score mark` (`279:19`) đi đúng luật: mức 0,5 **không xin token mới**, dùng `ink/default`,
+  và ba mức phân biệt bằng tròn đầy / nửa / rỗng nên bỏ màu đi vẫn đọc được. FE theo đúng như thế
+  (`.mark.half`, `tokens.css`).
+- **Backend đã chấm ba mức.** `be/scoring.py` (`MARK_REMEDIATED = 0.5`, `mark_after_round`) chấm
+  lượt chữa; `QuestionOutcome.mark` là sổ điểm chỉ tăng. Hai dòng về `contracts/messages.py` và
+  `agent/handlers.py` nói về đường chấm bài cũ, đã xoá ngày 09/10/2026.

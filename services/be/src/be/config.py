@@ -31,13 +31,11 @@ class Settings(BaseSettings):
         document_stale_after_seconds: Một tài liệu đứng ở `processing` bao lâu thì
             coi là job đã chết. Áp **lúc đọc**, không ghi gì -- một process đi canh
             những process đã chết thì cũng chết được y như vậy.
-        job_result_ttl_seconds: arq giữ kết quả còn đọc được bao lâu sau khi job
-            xong.
         minio_endpoint: Host và port của object storage, **không kèm scheme** --
             SDK minio nhận scheme qua `minio_secure` chứ không qua chuỗi này.
         minio_access_key: Tên truy cập của object storage.
         minio_secret_key: Khoá bí mật của object storage. Cố ý **không** đặt tên có
-            chữ `password`: `check_agent_holds_no_database_credentials` khớp chữ ấy
+            chữ `password`: `check_agent_and_document_hold_no_database_credentials` khớp chữ ấy
             không phân biệt hoa thường, và một ngày nào đó module này bị đọc từ một
             service khác thì cái tên là thứ duy nhất đứng giữa.
         minio_bucket: Bucket giữ byte tài liệu. Phải hợp lệ với DNS -- chữ thường,
@@ -96,7 +94,6 @@ class Settings(BaseSettings):
     agent_queue_name: str = "aiafa:grading"
     document_queue_name: str = "aiafa:document"
     document_stale_after_seconds: int = 300
-    job_result_ttl_seconds: int = 3600
     database_url: str = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa"
     minio_endpoint: str = "127.0.0.1:9000"
     minio_access_key: str = "aiafa"
