@@ -785,7 +785,10 @@ export default function Chat({
               .then((answered: Answered) => {
                 if (hereNow.current === asked) setTurns(answered.turns);
               })
-              .catch((cause: Error) => setTrouble(cause.message));
+              .catch((cause: Error) => {
+                // Lỗi đọc lại đoạn cũ cũng không thuộc màn hình đoạn mới.
+                if (hereNow.current === asked) setTrouble(cause.message);
+              });
           }}
         />
       )}

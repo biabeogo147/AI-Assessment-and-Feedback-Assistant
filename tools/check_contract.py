@@ -2245,13 +2245,15 @@ HTTP_SERVERS = frozenset(
         "starlette",
         "uvicorn",
         "flask",
-        "aiohttp",
+        # `aiohttp.web` chứ không cả `aiohttp`: client của nó gọi ra ngoài, không mở cổng nào.
+        "aiohttp.web",
         "http.server",
         "socketserver",
         "wsgiref",
         "tornado",
         "hypercorn",
-        "prometheus_client",
+        "prometheus_client.start_http_server",
+        "asyncio.start_server",
     }
 )
 # Lời gọi mở một cổng mà không cần import thư viện server nào (`asyncio.start_server`).
@@ -2280,13 +2282,29 @@ def http_servers_imported(source: str) -> list[int]:
             names = [node.module, *(f"{node.module}.{alias.name}" for alias in node.names)]
             if any(serving(name) for name in names):
                 lines.append(node.lineno)
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr in SERVER_CALLS
-        ):
+        elif isinstance(node, ast.Call) and _opens_a_port(node.func):
             lines.append(node.lineno)
     return lines
+
+
+def _opens_a_port(func: ast.expr) -> bool:
+    """Lời gọi mở cổng: `asyncio.start_server(...)`, `loop.create_server(...)`, `web.run_app(...)`,
+    hay lời gọi trần `start_server(...)` sau `from asyncio import start_server`. Chỉ xét đối tượng
+    gọi là `asyncio`, `web` hay một `loop` -- `self.start_server()` của một lớp tự viết thì không
+    (review code vòng 2, plan `backlog-tier-1`)."""
+    if isinstance(func, ast.Name):
+        return func.id in SERVER_CALLS
+    if not isinstance(func, ast.Attribute) or func.attr not in SERVER_CALLS:
+        return False
+    owner = func.value
+    name = (
+        owner.id
+        if isinstance(owner, ast.Name)
+        else owner.attr
+        if isinstance(owner, ast.Attribute)
+        else ""
+    )
+    return name in {"asyncio", "web"} or "loop" in name
 
 
 def check_document_opens_no_port() -> str | None:
@@ -2321,17 +2339,28 @@ MACHINE_WORDS = re.compile(r"\b[a-z]+_[a-z_]+\b|\b(?:nodes?|part|questions)\b")
 
 
 def _literal_text(node: ast.AST) -> str:
-    """Phần chữ cố định của một biểu thức chuỗi: hằng, f-string (bỏ chỗ điền), phép nối `+`."""
+    """Chữ của một biểu thức chuỗi: hằng, f-string, phép nối `+`.
+
+    Chỗ điền của f-string được đọc bằng **mã nguồn** của nó: `{step.tool_name}` đưa một tên tool
+    lên màn hình, và `step.tool_name` khớp `MACHINE_WORDS` (review code vòng 2, plan
+    `backlog-tier-1` -- bỏ chỗ điền thì lưới không thấy gì ở `teacher_chat.py`).
+    """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.JoinedStr):
         return "".join(
             one.value
-            for one in node.values
             if isinstance(one, ast.Constant) and isinstance(one.value, str)
+            else ast.unparse(one.value)
+            if isinstance(one, ast.FormattedValue)
+            else ""
+            for one in node.values
         )
     if isinstance(node, ast.BinOp):
         return _literal_text(node.left) + _literal_text(node.right)
+    if isinstance(node, ast.IfExp):
+        # `a if … else b`: một trong hai nhánh lên màn hình, nên soi cả hai.
+        return _literal_text(node.body) + " " + _literal_text(node.orelse)
     return ""
 
 

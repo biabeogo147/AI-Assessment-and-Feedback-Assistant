@@ -337,7 +337,14 @@ def _read_before_outline(step: NextStepCompleted, request: NextStepRequested) ->
         # Chỉ các lần đọc **cùng phạm vi** với lần cuối (cùng tham số, trừ `part`): đọc trọn mục B
         # rồi ngó phần 1 của mục A thì dàn ý trỏ vào B không bắt đọc tiếp A (review code pha 5).
         def scope(call: TurnRecord) -> dict:
-            return {key: value for key, value in call.tool_args.items() if key != "part"}
+            # Chuẩn hoá: `"1, 2"` và `"2,1"` là cùng một phạm vi (review code vòng 2).
+            return {
+                key: frozenset(int(one) for one in re.findall(r"\d+", str(value)))
+                if key == "nodes"
+                else str(value).strip()
+                for key, value in call.tool_args.items()
+                if key != "part"
+            }
 
         same = [at for at, call in enumerate(calls) if calls and scope(call) == scope(calls[-1])]
         read = {int(node) for at in same if at < len(done) for node in done[at].get("nodes") or ()}
@@ -498,6 +505,14 @@ class _UncountedOutline(_Flawed):
         if flaw.startswith("replace"):
             self.hint = (
                 "Dàn ý thay câu chỉ có đúng một mục, mục ấy một câu: chỉ cho câu bị thay. Nêu lại."
+            )
+        elif wanted and "known says" in flaw:
+            # Con số là của **model** (`known`), không phải lời giáo viên: nói đúng nguồn, để model
+            # tự xét lại cả `known` khi giáo viên vừa đổi số câu (review code vòng 2).
+            n = wanted.group(1)
+            self.hint = (
+                f"Bạn ghi question_count={n} trong known mà tổng số câu của dàn ý khác {n}. Nêu "
+                "lại dàn ý đủ đúng số câu giáo viên xin, và sửa known nếu giáo viên vừa đổi số câu."
             )
         elif wanted:
             n = wanted.group(1)
@@ -1162,19 +1177,32 @@ def _count_said(request: NextStepRequested) -> int | None:
     một dàn ý là lời sửa dàn ý ấy, không phải tổng mới: gặp nó thì không đối chiếu nữa -- BE vẫn
     chặn quá mười câu (review code pha 5, plan `backlog-tier-1`).
     """
-    since = _since_plan(request)
-    for at in range(len(since) - 1, -1, -1):
-        turn = since[at]
+    if _count_revised(request):
+        return None
+    for turn in reversed(_since_plan(request)):
         if turn.kind != "teacher" or _REPLACES.search(turn.text):
             continue
-        if (_ADDS.search(turn.text) or _TRIMS.search(turn.text)) and any(
-            earlier.kind == "outline" for earlier in since[:at]
-        ):
-            return None
         said = _COUNT_SAID.findall(_GRADE_NUMBER.sub("", turn.text))
         if said:
             return int(said[-1])
     return None
+
+
+def _count_revised(request: NextStepRequested) -> bool:
+    """Lời giáo viên gần nhất kể từ plan là *"thêm/bớt N câu"* nói **sau** một dàn ý. Hàm thuần.
+
+    Khi ấy tổng mới là dàn ý cũ cộng trừ lời sửa -- không con số nào đã ghi (lời giáo viên trước
+    đó, hay `known` của model) còn là tổng đúng (review code vòng 2, plan `backlog-tier-1`).
+    """
+    since = _since_plan(request)
+    for at in range(len(since) - 1, -1, -1):
+        turn = since[at]
+        if turn.kind != "teacher":
+            continue
+        return bool(_ADDS.search(turn.text) or _TRIMS.search(turn.text)) and any(
+            earlier.kind == "outline" for earlier in since[:at]
+        )
+    return False
 
 
 # *"lớp 7"*, *"khối 11"*: số ấy là khối, không phải số câu (`_count_said`).
@@ -1204,6 +1232,8 @@ def _miscounted(step: NextStepCompleted, known: str, request: NextStepRequested)
     if str(step.tool_args.get("for") or "") == "replace":
         if len(step.outline) != 1 or total != 1:
             return f"replace outline has {len(step.outline)} item(s), {total} question(s)"
+        return ""
+    if _count_revised(request):
         return ""
     found = _COUNT_IN_KNOWN.search(known)
     if found:
@@ -1242,9 +1272,13 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 
 # Lời **không** xin sửa: *"không cần sửa gì"*, *"ko đổi gì nữa"* -- bỏ đi trước khi tìm `_REVISES`,
 # như `_NO_BOOK` với chữ *sách* (review code pha 5, plan `backlog-tier-1`).
+# Chỉ khi động từ **đứng cuối ý** -- theo sau là *gì/nữa/cả/hết* hay một dấu câu: *"không cần thêm
+# câu hình học"* là lời xin bỏ một mục, không phải lời không xin sửa (review code vòng 2).
+_CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
 _NO_CHANGE = re.compile(
-    r"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?"
-    r"(?:sửa|đổi|thay|thêm|bớt|bỏ)(?:\s+gì)?(?:\s+(?:nữa|cả|hết))?\b",
+    rf"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
+    r"(?:(?:\s+(?:gì|nữa|cả|hết))+|(?=\s*(?:[,.!?;]|$)))"
+    rf"|\bkhông\s+có\s+gì\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}\b",
     re.IGNORECASE,
 )
 

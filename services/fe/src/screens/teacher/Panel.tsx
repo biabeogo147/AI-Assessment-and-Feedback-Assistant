@@ -84,9 +84,10 @@ export default function Panel({
   const [naming, setNaming] = useState<string | null>(null);
 
   useEffect(() => {
-    // `Chat` dựng một panel mới cho mỗi đề (`key`), nên đổi đề là gỡ panel cũ -- cờ `current`
-    // chặn lời đáp muộn của panel đã gỡ. Các lệnh dọn bên dưới là lưới phòng hờ cho một nơi
-    // dựng `Panel` không có `key` (review ảnh pha 5, plan `backlog-tier-1`).
+    // `Chat` dựng một panel mới cho mỗi đề (`key`), nên đổi đề là gỡ panel cũ: lời đáp muộn của
+    // các thao tác (đổi tên, duyệt, lưu, xoá) rơi vào một panel đã gỡ và bị bỏ. Cờ `current` chỉ
+    // canh lần tải đề dưới đây. Các lệnh dọn là lưới phòng hờ cho một nơi dựng `Panel` không có
+    // `key` (review ảnh pha 5, review code vòng 2, plan `backlog-tier-1`).
     let current = true;
     setPaper(null);
     // Hộp xoá của đề trước không được mọc lại trên đề này: xác nhận lúc ấy là gửi id câu của

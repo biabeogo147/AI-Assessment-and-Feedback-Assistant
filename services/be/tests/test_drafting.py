@@ -357,8 +357,8 @@ async def test_two_jobs_writing_the_same_problem_in_other_words_yield_one_questi
 
 def test_a_gist_keeps_only_expressions_with_numbers() -> None:
     stem = r"Cho $x$, $\frac{x}{6} = \frac{4}{9}$, $u_n=u_1+(n-1)d$ và $2^{10}$ với $3x^2 + 5$."
-    # Chỉ số $u_1$ và số mũ ($x^2$, $2^{10}$) không tính là số liệu, nên $2^{10}$ chỉ còn một số.
-    assert drafting._gist(stem) == frozenset({r"\frac{x}{6}=\frac{4}{9}", "3x^2+5"})
+    # $2^{10}$ là số liệu cụ thể; chỉ số $u_1$ và số mũ $x^2$ của một chữ thì không.
+    assert drafting._gist(stem) == frozenset({r"\frac{x}{6}=\frac{4}{9}", "2^{10}", "3x^2+5"})
 
 
 def test_a_braced_script_is_not_a_number_either() -> None:
@@ -366,6 +366,14 @@ def test_a_braced_script_is_not_a_number_either() -> None:
     trong ngoặc là số liệu, trong khi $x^2-1$ thì không -- cùng một biểu thức, hai cách viết."""
     stem = r"Cho $x^{2}-1$, $x^2-1$, $u_{10}+u_{2}$ và $x^{2}-5x+6$."
     assert drafting._gist(stem) == frozenset({"x^{2}-5x+6"})
+
+
+def test_a_power_of_a_number_keeps_its_exponent() -> None:
+    r"""Review code vòng 2 (plan `backlog-tier-1`): bỏ số mũ của mọi cơ số làm lưới mất trọn bài lũy
+    thừa lớp 6–7 -- $5^{3}\cdot 5^{4}$ là số liệu."""
+    assert drafting._gist(r"Tính $5^{3}\cdot 5^{4}$ và $3^5:3^2$.") == frozenset(
+        {r"5^{3}\cdot5^{4}", "3^5:3^2"}
+    )
 
 
 @pytest.mark.asyncio

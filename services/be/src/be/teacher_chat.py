@@ -695,9 +695,11 @@ async def _filled_brief(
     dàn ý gần nhất có giá trị; dàn ý cho đề đã có (*thêm*, *thay*) thì lấy cả từ chính đề ấy.
     Model ghi giá trị nào thì giá trị ấy thắng.
 
-    Chỉ các dàn ý **sau lượt `plan` gần nhất**: một plan đã chạy là đề trước đã soạn, và dàn ý
-    trước nó là của đề khác -- *"soạn thêm một đề mới lớp 8"* từng được lấp khối 7 của đề cũ
-    (review code pha 5, plan `backlog-tier-1`).
+    Chỉ các dàn ý **cùng đề** (`assessment_id`, rỗng là đề mới), và chỉ **sau lần `create_draft`
+    thành công gần nhất**: đề trước đã được tạo thì dàn ý trước nó là của đề khác -- *"soạn thêm
+    một đề mới lớp 8"* từng được lấp khối 7 của đề cũ (review code pha 5). Một plan mà
+    `create_draft` hỏng không tạo đề nào, nên không phải mốc; và dàn ý *soạn thêm cho đề X* không
+    cho dàn ý đề mới mượn (review code vòng 2, plan `backlog-tier-1`).
 
     Args:
         session: Session của database.
@@ -711,21 +713,26 @@ async def _filled_brief(
     if all(brief.values()):
         return brief
     filled = dict(brief)
-    last_plan = await session.scalar(
-        select(func.max(TeacherTurn.sequence)).where(
-            TeacherTurn.conversation_id == thread, TeacherTurn.kind == "plan"
+    made = await session.execute(
+        select(TeacherTurn.sequence, TeacherTurn.tool_result).where(
+            TeacherTurn.conversation_id == thread,
+            TeacherTurn.kind == "tool_result",
+            TeacherTurn.tool_name == "create_draft",
         )
     )
+    since = max((at for at, result in made if (result or {}).get("created") is True), default=-1)
     earlier = await session.scalars(
         select(TeacherTurn.tool_result)
         .where(
             TeacherTurn.conversation_id == thread,
             TeacherTurn.kind == "outline",
-            TeacherTurn.sequence > (last_plan if last_plan is not None else -1),
+            TeacherTurn.sequence > since,
         )
         .order_by(TeacherTurn.sequence.desc())
     )
     for result in earlier:
+        if str((result or {}).get("assessment_id") or "") != paper:
+            continue
         before = (result or {}).get("brief") or {}
         for key in _BRIEF_KEYS:
             if not filled[key] and str(before.get(key) or "").strip():

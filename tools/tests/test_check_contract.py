@@ -113,9 +113,14 @@ def test_a_server_import_in_any_form_is_caught() -> None:
     assert http_servers_imported("from fastapi import FastAPI") == [1]
     assert http_servers_imported("from http import server") == [1]
     assert http_servers_imported("from aiohttp import web") == [1]
-    assert http_servers_imported("import aiohttp") == [1]
     assert http_servers_imported("from prometheus_client import start_http_server") == [1]
     assert http_servers_imported("server = await asyncio.start_server(handle, port=8001)") == [1]
+    # Review code vòng 2: client không mở cổng; một lớp tự viết có `start_server` cũng không.
+    assert http_servers_imported("from aiohttp import ClientSession") == []
+    assert http_servers_imported("import aiohttp") == []
+    assert http_servers_imported("self.start_server()") == []
+    assert http_servers_imported("from asyncio import start_server\nstart_server(h)") == [1, 2]
+    assert http_servers_imported("await loop.create_server(p, port=1)") == [1]
     assert http_servers_imported("import httpx\nfrom http import HTTPStatus") == []
 
 
@@ -131,5 +136,10 @@ def test_a_refusal_naming_a_tool_must_carry_words_for_the_teacher() -> None:
     assert reasons_for_the_model_only('_refusal(f"part phải từ 1 đến {n}")') == [1]
     # Review code pha 5: khoá `error` của vòng chạy bước, và dict có `**rest`, cũng được soi.
     assert reasons_for_the_model_only('x = {"error": f"tool {t} chạy không xong"}') == []
+    # Review code vòng 2: tên tool trong chỗ điền cũng là chữ của máy.
+    assert reasons_for_the_model_only('x = {"error": f"tool {step.tool_name} hỏng"}') == [1]
+    assert (
+        reasons_for_the_model_only('x = {"error": f"tool {step.tool_name}", "said": "Hỏng"}') == []
+    )
     assert reasons_for_the_model_only('x = {"error": "không có tool nào tên create_draft"}') == [1]
     assert reasons_for_the_model_only('x = {**base, "reason": "gọi list_class trước"}') == [1]

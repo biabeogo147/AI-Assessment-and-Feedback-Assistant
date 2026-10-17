@@ -387,6 +387,26 @@ async def test_a_drafting_plan_held_back_twice_stops_the_turn_too(stack) -> None
 
 
 @pytest.mark.asyncio
+async def test_a_tool_called_out_of_turn_tells_the_teacher_without_its_name(stack) -> None:
+    """Review code vòng 2 (plan `backlog-tier-1`): `error` chở tên tool cho model; dòng ✕ in
+    `said` -- không tên tool."""
+    client, _, monkeypatch = stack
+    out_of_turn = NextStepCompleted(
+        request_id="x", kind="call_tool", tool_name="create_draft", tool_args={}
+    )
+    said = NextStepCompleted(request_id="x", kind="say", text="Mình chưa tạo được đề.")
+    agent = ScriptedAgent(out_of_turn, said)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await client.post("/api/teacher/chat/messages", json={"text": "tạo đề"}, headers=TEACHER)
+
+    told = agent.asked[1]["history"][-1]["tool_result"]
+    assert "create_draft" in told["error"]
+    assert told["said"] == teacher_chat._SAID_NOT_NOW
+    assert "_" not in told["said"]
+
+
+@pytest.mark.asyncio
 async def test_a_lookup_between_two_refusals_lets_the_model_try_again(stack) -> None:
     """Một bước tra cứu chạy được giữa hai lần từ chối là model đang xoay xở, không phải kẹt: lý
     do cũ quên đi, lần từ chối sau không dừng lượt."""
@@ -2990,9 +3010,20 @@ async def test_a_revised_outline_with_an_empty_brief_keeps_the_earlier_one(stack
 
 
 @pytest.mark.asyncio
-async def test_an_outline_after_a_finished_plan_does_not_borrow_the_old_paper(stack) -> None:
-    """Review code pha 5 (plan `backlog-tier-1`): một plan đã chạy giữa hai dàn ý là hai đề khác
-    nhau -- dàn ý của *"đề mới lớp 8"* không được lấp khối 7 của đề trước."""
+@pytest.mark.parametrize(
+    ("created", "grade"),
+    [
+        # Đề trước đã tạo xong: dàn ý *"đề mới lớp 8"* không được lấp khối 7 (review code pha 5).
+        (True, ""),
+        # `create_draft` hỏng, chưa có đề nào: dàn ý nêu lại vẫn mượn được (review code vòng 2).
+        (False, "7"),
+    ],
+)
+async def test_an_outline_after_a_paper_was_made_does_not_borrow_the_old_brief(
+    stack, created: bool, grade: str
+) -> None:
+    """Plan `backlog-tier-1`: mốc là lần `create_draft` **thành công** gần nhất, không phải mọi
+    plan đã chạy."""
     client, maker, monkeypatch = stack
     first = _outline_step(
         _outline_item(source_nodes=()), subject="Toán", grade="7", topic_scope="tỉ lệ thức"
@@ -3006,17 +3037,24 @@ async def test_an_outline_after_a_finished_plan_does_not_borrow_the_old_paper(st
         last = await session.scalar(
             select(func.max(TeacherTurn.sequence)).where(TeacherTurn.conversation_id == thread)
         )
-        session.add(
-            TeacherTurn(
-                conversation_id=thread,
-                sequence=last + 1,
-                kind="plan",
-                text="",
-                tool_name="",
-                tool_result={"steps": ["Tạo đề", "Soạn"], "total": 2},
-                created_at=datetime.now(UTC),
+        for offset, (kind, name, result) in enumerate(
+            (
+                ("plan", "", {"steps": ["Tạo đề", "Soạn"], "total": 2}),
+                ("tool_result", "create_draft", {"created": created, "assessment_id": "p9"}),
+            ),
+            start=1,
+        ):
+            session.add(
+                TeacherTurn(
+                    conversation_id=thread,
+                    sequence=last + offset,
+                    kind=kind,
+                    text="",
+                    tool_name=name,
+                    tool_result=result,
+                    created_at=datetime.now(UTC),
+                )
             )
-        )
         await session.commit()
     await client.post(
         "/api/teacher/chat/messages",
@@ -3032,7 +3070,43 @@ async def test_an_outline_after_a_finished_plan_does_not_borrow_the_old_paper(st
                 .order_by(TeacherTurn.sequence)
             )
         )
-    assert kept[1]["brief"] == {"subject": "Toán", "grade": "", "topic_scope": ""}
+    assert kept[1]["brief"]["grade"] == grade
+
+
+@pytest.mark.asyncio
+async def test_a_new_paper_outline_does_not_borrow_from_an_outline_for_another_paper(stack) -> None:
+    """Review code vòng 2 (plan `backlog-tier-1`): dàn ý *soạn thêm cho đề X* rồi *"thôi, đề mới"*
+    -- dàn ý đề mới không thừa hưởng phạm vi của đề X."""
+    _, maker, _ = stack
+    teacher = await _teacher(maker, "GV-001")
+    async with maker() as session:
+        thread = TeacherConversation(
+            teacher_id=teacher.id, started_at=datetime.now(UTC), title="Soạn đề"
+        )
+        session.add(thread)
+        await session.flush()
+        session.add(
+            TeacherTurn(
+                conversation_id=thread.id,
+                sequence=0,
+                kind="outline",
+                text="Dàn ý.",
+                tool_name="",
+                tool_result={
+                    "for": "more",
+                    "assessment_id": "X",
+                    "brief": {"subject": "Toán", "grade": "7", "topic_scope": "tỉ lệ thức"},
+                },
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+        filled = await teacher_chat._filled_brief(
+            session, thread.id, "", {"subject": "Toán", "grade": "8", "topic_scope": ""}
+        )
+
+    assert filled == {"subject": "Toán", "grade": "8", "topic_scope": ""}
 
 
 @pytest.mark.asyncio

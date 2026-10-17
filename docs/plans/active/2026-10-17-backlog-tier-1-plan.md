@@ -203,6 +203,5 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 
 ## Status
 
-Pha 0–4 đã commit (`c93a482`, `53a8724`, `6bc8daf`, `0fe3a4c`, `6e30e8a`). Pha 5, vòng review 1: 15
-phát hiện, 13 Tier 1 đã sửa (chờ commit), #3 phần định nghĩa *gần trùng* và #14 sang Tier 2. Kế
-tiếp: commit vòng 1, rồi review lại.
+Pha 0–4 đã commit. Pha 5: review vòng 1 (15 phát hiện, 13 Tier 1) đã sửa ở `98122e2`; review vòng 2
+(10 phát hiện Tier 1, một sang Tier 2) sửa trong commit mang dòng Status này. Kế tiếp: review vòng 3.

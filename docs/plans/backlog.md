@@ -1261,6 +1261,16 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | **Lưới gần trùng báo nhầm hai câu khác ý cùng mở bằng một hàm cụ thể** (*"Cho hàm số $y=x^3-3x+2$"* đồng biến / cực đại): câu sau thử lại tới `failed` -- review code pha 5 | Tier 2: *gần trùng* nghĩa là gì (cùng gist **và** cùng phần chữ hỏi?) là quyết định |
 | **Hộp nộp lượt in cứng *"câu làm đúng được 0,5 điểm"*** (`Round.tsx`): bản sao FE của `scoring.MARK_REMEDIATED` -- review code pha 5 | Tier 2: thêm một trường BE, hay bỏ dòng ấy (artboard 22b đang vẽ nó) |
 | ~~**`onApproved` của panel cũ đọc lại đoạn chat cũ rồi vẽ lên đoạn chat mới** khi lời đáp về sau một cú chuyển đoạn -- review ảnh pha 5~~ | **Đã làm: bỏ lời đáp khi đoạn chat đã đổi (`hereNow`); chưa có test riêng** (plan `backlog-tier-1`, pha 5) |
+| ~~**Lưới `refusal-said` không đọc chỗ điền f-string hay `a if … else b`**: tên tool trong `{step.tool_name}` lọt -- review code vòng 2~~ | **Đã làm: đọc mã nguồn chỗ điền và cả hai nhánh; test BE cho `said` của tool gọi sai lượt** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_NO_CHANGE` sai hai chiều**: *"không cần thay đổi gì"* vẫn bị chặn, *"không cần thêm câu hình học"* lọt -- review code vòng 2~~ | **Đã làm: động từ phải đứng cuối ý** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_filled_brief` lấp chéo giữa đề X (*soạn thêm*) và đề mới; mốc là mọi plan kể cả plan `create_draft` hỏng** -- review code vòng 2~~ | **Đã làm: chỉ dàn ý cùng `assessment_id`, mốc là `create_draft` thành công** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_BRACED_SCRIPT` làm lưới gần trùng mất bài lũy thừa có cơ số là số** ($5^{3}\cdot5^{4}$) -- review code vòng 2~~ | **Đã làm: chỉ bỏ chỉ số/số mũ của một chữ** (plan `backlog-tier-1`, pha 5) |
+| ~~**Hint số câu nói *"Giáo viên xin N"* cả khi N từ `known`; `known` vẫn đối chiếu sau lời *thêm/bớt*** -- review code vòng 2~~ | **Đã làm: hint theo nguồn; `_count_revised`** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_read_before_outline` so phạm vi bằng chuỗi thô** (`"1, 2"` khác `"1,2"`) -- review code vòng 2~~ | **Đã làm: chuẩn hoá `nodes`** (plan `backlog-tier-1`, pha 5) |
+| ~~**`http_servers_imported` báo nhầm client `aiohttp`, `self.start_server()`; sót `from asyncio import start_server`** -- review code vòng 2~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**Status của plan nằm trong commit mà vẫn ghi *chờ commit*** -- review code vòng 2~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**`onApproved`: lỗi đọc lại đoạn cũ vẫn hiện trên đoạn mới; comment `Panel` nói sai cơ chế** -- review code vòng 2~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| **Bỏ một dàn ý đề mới rồi nêu dàn ý đề mới khác, không plan nào ở giữa**: dàn ý sau vẫn mượn môn/khối/phạm vi của dàn ý trước -- review code vòng 2 | Tier 2: hai dàn ý đề mới liền nhau là *sửa* hay *đề khác* là quyết định nghĩa |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 

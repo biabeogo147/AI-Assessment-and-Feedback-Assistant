@@ -411,9 +411,10 @@ async def test_a_miscounted_outline_is_asked_again(
 
     assert sum(item.questions for item in step.outline) == 6
     assert len(model.prompts) == 2
-    # Lần hỏi lại nói số câu đúng (review code pha 5): hint rỗng thì model không biết sai ở đâu.
-    assert "Giáo viên xin 6 câu" in model.prompts[1]
-    assert "Giáo viên xin 6 câu" not in model.prompts[0]
+    # Lần hỏi lại nói số câu đúng (review code pha 5), theo đúng nguồn của nó: 6 là con số model
+    # ghi trong `known`, không phải lời giáo viên (review code vòng 2).
+    assert "question_count=6 trong known" in model.prompts[1]
+    assert "question_count=6 trong known" not in model.prompts[0]
 
 
 _DRAFTED = TurnRecord(
@@ -773,6 +774,10 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
         ("không cần sửa gì, soạn đi", False),
         ("ok không đổi gì nữa, soạn luôn nhé", False),
         ("không cần sửa, nhưng câu 3 khó hơn nhé", True),
+        # Review code vòng 2: cả hai chiều.
+        ("không cần thay đổi gì, soạn đi", False),
+        ("không có gì cần sửa, soạn đi", False),
+        ("không cần thêm câu hình học", True),
     ],
 )
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
@@ -820,3 +825,41 @@ def test_a_count_after_a_grade_or_a_revision_is_not_the_total(
         for text in said
     )
     assert bool(_miscounted(_counted(total), "topic_scope=chương 1", _asked(*turns))) is wrong
+
+
+def test_a_count_in_known_is_set_aside_after_the_teacher_adds_questions() -> None:
+    """Review code vòng 2 (plan `backlog-tier-1`): *"thêm 2 câu"* sau dàn ý 5 câu, model ra 7 câu mà
+    `known` còn ghi 5 -- đối chiếu với `known` là kéo dàn ý về 5 và mất lời sửa của giáo viên."""
+    asked = _asked(
+        TurnRecord(kind="teacher", text="soạn 5 câu"),
+        TurnRecord(kind="outline", text="Dàn ý."),
+        TurnRecord(kind="teacher", text="thêm 2 câu hình học"),
+    )
+    assert _miscounted(_counted(7), "question_count=5 «5 câu»", asked) == ""
+
+
+def test_the_same_scope_spelled_differently_is_still_the_same_scope() -> None:
+    """Review code vòng 2 (plan `backlog-tier-1`): phần 2 gửi `nodes="4, 3"` trong khi phần 1 là
+    `"3,4"` -- vẫn một phạm vi, nên nút đọc ở phần 1 vẫn tính và AGENT bắt đọc phần 4."""
+    outline = NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+    )
+    turns = [TurnRecord(kind="teacher", text="x")]
+    for part, spelled, nodes in ((1, "3,4", [1, 2]), (2, "4, 3", [5, 6]), (3, " 3,4 ", [7, 8])):
+        asked = {"document_id": "book", "nodes": spelled, "questions": "5", "part": str(part)}
+        turns += [
+            TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked),
+            TurnRecord(
+                kind="tool_result",
+                tool_name="read_section",
+                tool_result={"found": True, "part": part, "parts": 5, "more": True, "nodes": nodes},
+            ),
+        ]
+
+    step = _read_before_outline(outline, _with_book(*turns))
+
+    assert (step.kind, step.tool_name) == ("call_tool", "read_section")
+    assert step.tool_args["part"] == "4"
