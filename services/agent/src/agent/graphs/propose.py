@@ -529,7 +529,8 @@ _WANTED = re.compile(r"(?:says|asked for) (\d+)")
 
 class _PlanOverRevision(_Flawed):
     """Model nêu plan soạn ngay sau lời giáo viên **xin sửa** dàn ý: plan ấy soạn theo dàn ý cũ mà
-    giáo viên vừa xin đổi (backlog *Plan soạn … sau một lời xin sửa dàn ý vẫn qua cổng*; cổng BE chỉ
+    giáo viên vừa xin đổi (plan `backlog-tier-1`, pha 3: *Plan soạn … sau một lời xin sửa dàn ý vẫn
+    qua cổng*; cổng BE chỉ
     đòi một dàn ý ở lượt ngay trước, plan `backlog-tier-1`)."""
 
     hint = (
@@ -1227,7 +1228,8 @@ def _miscounted(step: NextStepCompleted, known: str, request: NextStepRequested)
 
     Đối chiếu với chính thứ model đã ghi: `question_count=N` trong `known` (quy trình `soan-de` bắt
     ghi nó). `known` không có số câu -- Haiku hay để trống nó từ lượt thứ hai -- thì đối chiếu với
-    số câu giáo viên đã nói kể từ plan gần nhất (backlog *Mất số câu sau một lượt hỏi lại*: xin 5
+    số câu giáo viên đã nói kể từ plan gần nhất (plan `backlog-tier-1`, pha 1: *Mất số câu sau một
+    lượt hỏi lại*: xin 5
     câu, hỏi lại một lượt, dàn ý ra 10). Không ai nói thì không đối chiếu -- BE vẫn chặn quá mười
     câu. Thay câu thì đúng một mục một câu, vì dàn ý ấy chỉ dành cho đúng câu bị thay.
 

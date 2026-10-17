@@ -979,7 +979,8 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
 
     Model hỏng thì job **hỏng**, không lùi về câu soạn sẵn: câu ấy là một trong sáu câu Toán cố
     định, không theo môn hay phạm vi giáo viên xin, và nó đúng hình dạng nên qua mọi phép kiểm
-    của BE -- chỉ mắt giáo viên chặn được (backlog *Câu dọn trước lọt vào đề nháp*, 3/21 job lần
+    của BE -- chỉ mắt giáo viên chặn được (plan `backlog-tier-1`, pha 1: *Câu dọn trước lọt vào đề
+    nháp*, 3/21 job lần
     chạy 17/10/2026). BE nhận job hỏng thì ghi `last_fault` và hỏi lại có trần.
 
     Args:

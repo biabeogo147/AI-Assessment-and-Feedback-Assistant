@@ -798,7 +798,7 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
     ],
 )
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
-    """Backlog *Plan soạn … sau một lời xin sửa dàn ý vẫn qua cổng* (plan `backlog-tier-1`): cổng BE
+    """Plan `backlog-tier-1`, pha 3: *Plan soạn … sau một lời xin sửa dàn ý vẫn qua cổng*. Cổng BE
     chỉ đòi một dàn ý ở lượt ngay trước, nên plan soạn theo dàn ý cũ đi lọt."""
     from agent.graphs.propose import _drafts_over_a_revision
 
