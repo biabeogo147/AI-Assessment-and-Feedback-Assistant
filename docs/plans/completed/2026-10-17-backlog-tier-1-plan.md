@@ -151,21 +151,21 @@ Người dùng chốt (17/10):
   ý, đồng ý, xin sửa, đếm câu, câu mock/trùng) + luồng học sinh pha 2: mở lượt, đóng tab, mở tab mới
   làm tiếp, nộp (ca mới `16-pha-2-tab-moi.md` trong `docs/testing/cases/`). Ảnh chụp; biên bản
   `docs/testing/ket-qua/2026-10-<dd>-<commit>-claude-haiku-5-5.md` có chi phí thật.
-- [ ] 29. **Một subagent chấm ảnh + biên bản.** Phát hiện → backlog + artifact theo tier; còn Tier 1 thì quay
+- [x] 29. **Một subagent chấm ảnh + biên bản.** Phát hiện → backlog + artifact theo tier; còn Tier 1 thì quay
   lại pha 5.
 
 ### Pha 7 — Tier 5: dọn backlog + artifact
-- [ ] 30. `backlog.md`: xoá các dòng Tier 5 *Đóng* (bằng chứng ghi trong commit message, không giữ lại
+- [x] 30. `backlog.md`: xoá các dòng Tier 5 *Đóng* (bằng chứng ghi trong commit message, không giữ lại
   trong file); gạch-và-xoá các dòng Tier 1 đã làm; viết lại mục *Luồng học sinh* (`backlog:174-192`);
   sửa vật chặn sai; gom năm dòng vào một mục *Khi có process/BE thứ hai*; sửa các ghi chép sai
   (biên bản 17/10, *Khối ĐÃ PHÁT HÀNH* là BE, *mốc đạt chưa ai chốt*, ghi chú 30/09
   `class_assessments`). Gộp các dòng trùng gốc. Mục *đã đóng* cũ (gạch ngang) bỏ hẳn.
-- [ ] 31. Artifact: xoá bảng Tier 1 đã xong (giữ một dòng tổng *đã làm ở plan này*), Tier 5 thay bằng các
+- [x] 31. Artifact: xoá bảng Tier 1 đã xong (giữ một dòng tổng *đã làm ở plan này*), Tier 5 thay bằng các
   dòng còn phải dọn (nếu còn); Tier 2–4 cập nhật dòng đã đổi; ngày as-of.
-- [ ] 32. Rác file: liệt kê file thừa trong repo (`git status`, file không còn ai tham chiếu, kết quả
+- [x] 32. Rác file: liệt kê file thừa trong repo (`git status`, file không còn ai tham chiếu, kết quả
   bench cũ trong thư mục đã commit) — **báo danh sách cho người dùng trước khi xoá**. Scratchpad
   không thuộc repo, không đụng.
-- [ ] 33. Đóng plan (Status, `completed/`), `.\dev.ps1 check`, commit.
+- [x] 33. Đóng plan (Status, `completed/`), `.\dev.ps1 check`, commit.
 
 ## Decision Records
 
@@ -203,10 +203,19 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 
 ## Status
 
-Pha 0–5 đã commit. Pha 5: mười một vòng review; vòng 1–10 ra 37 phát hiện Tier 1, sửa ở `98122e2`,
-`3c3e8ac`, `d7af19b`, `ed6352a`, `e136202`, `58a81a7`, `f7b3d0d`, `110d0f7`, `95b07f3`, `f5d0ddc`;
-vòng 11 không còn Tier 1 (audit backtracking toàn bộ `_NO_CHANGE` trên chuỗi tới 2 000 ký tự).
-Pha 6: thử tay 17/10 17:20–17:55, biên bản `2026-10-17-dba6bd0-claude-haiku-5-5.md` (4 đạt, 2 chấp
-nhận được, ~0,12–0,16 USD). Hai Tier 1 mới (brief không nêu câu đã có; dàn ý trả về 7 lần), sửa
-trong buổi và commit cùng biên bản. Kế tiếp: việc 29 (subagent chấm ảnh + biên bản), rồi một vòng
-review code cho hai bản sửa ấy (pha 5).
+Đóng 17/10/2026. Kết quả thử tay: `docs/testing/ket-qua/2026-10-17-dba6bd0-claude-haiku-5-5.md`.
+
+- Pha 0–4: `c93a482`, `53a8724`, `6bc8daf`, `0fe3a4c`, `6e30e8a`.
+- Pha 5: mười một vòng review; vòng 1–10 ra 37 phát hiện Tier 1, sửa ở `98122e2`, `3c3e8ac`,
+  `d7af19b`, `ed6352a`, `e136202`, `58a81a7`, `f7b3d0d`, `110d0f7`, `95b07f3`, `f5d0ddc`; vòng 11
+  không còn Tier 1 (audit backtracking toàn bộ `_NO_CHANGE` trên chuỗi tới 2 000 ký tự). Đóng ở
+  `dba6bd0`.
+- Pha 6: thử tay 17/10 17:20–17:55 trên Haiku 5.5, ~0,12–0,16 USD. Hai Tier 1 mới (brief không nêu
+  câu đã có; dàn ý bị trả về 7 lần) sửa trong buổi (`05bec8e`). Chấm ảnh + biên bản hạ phán: 1 đạt ·
+  3 chấp nhận được · 2 không đạt, hai ca không đạt đều vì hai lỗi đã sửa. Review code vòng 12–16 trên
+  hai bản sửa (`1b22020`, `df09f92`, `c169ed5`, `a9f2a62`); vòng 16 không còn Tier 1.
+- Pha 7: `backlog.md` 1 388 → 764 dòng; artifact bỏ bảng Tier 1 và Tier 5, mỗi phần còn một đoạn tổng
+  kết. Rác file: chỉ `lock_probe2.db` (không track), người dùng cho xoá.
+
+Còn mở, chờ người dùng quyết: Tier 2 câu 22 (soạn lại ô `failed`), 23 (câu thay có giữ bài cũ), 24
+(`brief` rỗng khi không có dàn ý trước) cùng các câu Tier 2 cũ; xem artifact *Backlog theo tier*.
