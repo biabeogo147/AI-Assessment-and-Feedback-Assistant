@@ -40,7 +40,7 @@
 
 | Case | Kết quả | Một dòng |
 | --- | --- | --- |
-| 01 Xin đề mơ hồ | **Chấp nhận được** | Thẻ ba câu (khối, số câu, phạm vi), trả lời qua `Khác…`, gửi gộp một tin; dàn ý 5 câu cấp số cộng (một mục). Câu hỏi lại mở bằng *"Được cô, mình soạn đề cho các em."* — bảng rẽ: câu kiểu *"mình sẽ soạn ngay"* trong câu hỏi lại là chấp nhận được nếu không có khối bước, không thẻ — lượt ấy không có |
+| 01 Xin đề mơ hồ | **Chấp nhận được** | Thẻ ba câu (khối, số câu, phạm vi), trả lời qua `Khác…`, gửi gộp một tin; dàn ý 5 câu cấp số cộng (một mục). Câu hỏi lại mở bằng *"Được cô, mình soạn đề cho các em."* — bảng rẽ: câu kiểu *"mình sẽ soạn ngay"* trong câu hỏi lại là chấp nhận được nếu không có khối bước, không thẻ kết quả — lượt ấy không có (chỉ thẻ hỏi lại) |
 | 02 Đề không tài liệu | **Không đạt** | Dàn ý 3 mục; *"được rồi, soạn đi nhé"* ra plan; nhưng 4/5 câu — bảng rẽ: *dừng ở 4/5 là không đạt tiêu chí 5/5*. Ô 4 `failed` sau 3 lần vì gần trùng câu 3; lưới chặn đúng, gốc ở brief (sửa 1). Câu kết nói đúng 4/5 |
 | 03 Sửa dàn ý | **Chấp nhận được** | Bản 2 đổi đúng câu 3 (bài vé xem phim); câu 1–2 và câu 4 diễn đạt lại cùng ý (câu 4 bỏ *"theo tham số…"*); *"oke, soạn đi"* ra 4/4 |
 | 04 Đề theo sách | **Không đạt** trên `dba6bd0` | Dàn ý bị trả về 7 lần (sửa 2). Chạy lại sau bản sửa: **chấp nhận được** — hỏi lại *bài nào* một lần, đọc đủ 5 phần, dàn ý 5 mục mỗi mục nêu bài nguồn, 5/5 câu, đề mang tên tệp; **lệch kịch bản**: gõ *"cả chương 1, rải đều các bài"* thay cho `cả chương luôn` |
@@ -73,8 +73,8 @@ Các mục kiểm của plan:
      brief, kèm lời dặn không viết lại.
    - Hai vòng review code (12, 13) tìm ra hai chỗ, sửa ở hai commit kế:
      - brief nêu mười câu **đầu** (vòng 12 đổi thành mười câu cuối, vòng 13 chỉ ra cắt kiểu nào cũng
-       bỏ sót được đúng câu gây trùng): nay nêu **mọi** câu đã có, tối đa 50 (đề có trần 50; thay một câu trong đề
-       đầy thì câu đang bị thay vẫn có trong danh sách);
+       bỏ sót được đúng câu gây trùng): nay nêu **mọi** câu đã có, tối đa 50 (đề có trần 50; thay
+       một câu trong đề đầy thì câu đang bị thay vẫn có trong danh sách);
      - các danh sách phải tránh đứng trước *"Bám đúng … trên"*, nên chữ *trên* trỏ vào chúng: nay
        câu ấy đứng ngay sau mục của câu này, trước cả hai danh sách.
    - Sau bản sửa, case 03 và 07 mỗi case có một ô trùng ở lần đầu và ra câu khác ở lần thứ hai;
