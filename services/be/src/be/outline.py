@@ -58,8 +58,20 @@ def validate(
         if len(item.formulas) > _MOST_FORMULAS:
             return f"mục {index} có quá {_MOST_FORMULAS} công thức"
         for formula in item.formulas:
-            if len(formula) > _MOST_FORMULA or not _FORMULA.match(formula.strip()):
-                return f"mục {index}: mỗi công thức là một biểu thức trong một cặp $, như $a+b$"
+            if len(formula) > _MOST_FORMULA:
+                return f"mục {index}: một công thức dài quá {_MOST_FORMULA} ký tự"
+            if not _FORMULA.match(formula.strip()):
+                # Nêu đúng công thức hỏng và cách sửa. Thử tay 17/10/2026 (plan `backlog-tier-1`,
+                # pha 6): lời chung *"mỗi công thức là một biểu thức trong một cặp $"* không chỉ
+                # chỗ nào sai, model viết lại cả dàn ý, sửa mục này thì hỏng mục khác, bảy lần
+                # liền -- *"Nếu $a<b$ và $b<c$ thì $a<c$"*, *"$a=bq+r$, $0\le r<b$"*.
+                return (
+                    f'mục {index}: công thức "{formula.strip()[:80]}" không phải một biểu thức '
+                    "trong đúng một cặp $. Mỗi phần tử của formulas là một cặp $ bao cả công "
+                    "thức, không có chữ nào ngoài cặp $ (không *Nếu*, *và*, *với*, dấu phẩy): "
+                    "viết điều kiện bằng ký hiệu trong cùng cặp $, như "
+                    "$a<b,\\ b<c \\Rightarrow a<c$, hoặc tách thành hai phần tử"
+                )
         if known is None and item.source_nodes:
             return f"mục {index} trỏ về tài liệu, nhưng đề này không có tài liệu"
         if known is not None:

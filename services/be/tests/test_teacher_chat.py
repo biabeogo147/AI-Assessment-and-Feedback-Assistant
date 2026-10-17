@@ -2964,6 +2964,31 @@ async def test_an_outline_refused_twice_for_the_same_reason_stops_the_turn(stack
 
 
 @pytest.mark.asyncio
+async def test_an_outline_refused_for_changing_reasons_stops_at_the_third(stack) -> None:
+    """Thử tay 17/10/2026 (pha 6 plan `backlog-tier-1`): lời trả về xen kẽ *mục 2*, *mục 3* thì
+    luật *cùng lý do hai lần* không bắt, và lượt chạy tới bảy lần gọi model."""
+    client, _, monkeypatch = stack
+    loose = "Nếu $a<b$ thì $a<c$"
+
+    def broken(where: int) -> NextStepCompleted:
+        items = [_outline_item(questions=1, source_nodes=()) for _ in range(3)]
+        items[where] = _outline_item(questions=1, source_nodes=(), formulas=(loose,))
+        return NextStepCompleted(
+            request_id="x", kind="outline", text="Mình đề xuất 3 câu nhé?", outline=tuple(items)
+        )
+
+    agent = ScriptedAgent(*[broken(1 + n % 2) for n in range(20)])
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn 3 câu"}, headers=TEACHER
+    )
+
+    assert reply.json()["text"] == notices.OUTLINE_REFUSED
+    assert len(agent.asked) == 3
+
+
+@pytest.mark.asyncio
 async def test_each_new_outline_in_a_thread_is_the_next_version(stack) -> None:
     client, maker, monkeypatch = stack
     bookless = _outline_step(_outline_item(source_nodes=()))

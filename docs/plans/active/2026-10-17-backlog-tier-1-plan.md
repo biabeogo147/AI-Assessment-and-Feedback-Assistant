@@ -147,7 +147,7 @@ Người dùng chốt (17/10):
   review không ra Tier 1 nào.
 
 ### Pha 6 — Thử tay trên model thật (Haiku 5.5, đã cho phép)
-- [ ] 28. `db-reset`, khởi động lại BE/AGENT/worker, kiểm `model=` trong log. Case 01, 02, 03, 04, 07 (dàn
+- [x] 28. `db-reset`, khởi động lại BE/AGENT/worker, kiểm `model=` trong log. Case 01, 02, 03, 04, 07 (dàn
   ý, đồng ý, xin sửa, đếm câu, câu mock/trùng) + luồng học sinh pha 2: mở lượt, đóng tab, mở tab mới
   làm tiếp, nộp (ca mới `16-pha-2-tab-moi.md` trong `docs/testing/cases/`). Ảnh chụp; biên bản
   `docs/testing/ket-qua/2026-10-<dd>-<commit>-claude-haiku-5-5.md` có chi phí thật.
@@ -205,5 +205,8 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 
 Pha 0–5 đã commit. Pha 5: mười một vòng review; vòng 1–10 ra 37 phát hiện Tier 1, sửa ở `98122e2`,
 `3c3e8ac`, `d7af19b`, `ed6352a`, `e136202`, `58a81a7`, `f7b3d0d`, `110d0f7`, `95b07f3`, `f5d0ddc`;
-vòng 11 không còn Tier 1 (audit backtracking toàn bộ `_NO_CHANGE` trên chuỗi tới 2 000 ký tự). Kế
-tiếp: pha 6, thử tay trên Haiku 5.5.
+vòng 11 không còn Tier 1 (audit backtracking toàn bộ `_NO_CHANGE` trên chuỗi tới 2 000 ký tự).
+Pha 6: thử tay 17/10 17:20–17:55, biên bản `2026-10-17-dba6bd0-claude-haiku-5-5.md` (4 đạt, 2 chấp
+nhận được, ~0,12–0,16 USD). Hai Tier 1 mới (brief không nêu câu đã có; dàn ý trả về 7 lần), sửa
+trong buổi và commit cùng biên bản. Kế tiếp: việc 29 (subagent chấm ảnh + biên bản), rồi một vòng
+review code cho hai bản sửa ấy (pha 5).

@@ -60,6 +60,14 @@ def test_an_item_a_teacher_cannot_review_is_refused(overrides: dict[str, object]
     assert validate([_item(**overrides)], {2}) is not None
 
 
+def test_a_loose_formula_is_named_in_the_refusal() -> None:
+    """Thử tay 17/10/2026: lời chung không chỉ chỗ sai, model sửa mục này thì hỏng mục khác."""
+    refusal = validate([_item(), _item(formulas=("Nếu $a<b$ và $b<c$ thì $a<c$",))], {2}) or ""
+
+    assert refusal.startswith("mục 2:")
+    assert "Nếu $a<b$ và $b<c$ thì $a<c$" in refusal
+
+
 def test_a_book_outline_must_say_which_lesson_and_only_real_ones() -> None:
     assert "source_nodes" in (validate([_item(source_nodes=())], {2}) or "")
     assert "[99]" in (validate([_item(source_nodes=(2, 99))], {2}) or "")

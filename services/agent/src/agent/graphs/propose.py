@@ -86,13 +86,14 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
   câu bạn nói với giáo viên trước khi bắt tay, ví dụ "Được, mình soạn đề ngay."
 - outline: đề xuất DÀN Ý đề cho giáo viên duyệt, TRƯỚC khi soạn câu hỏi. Mỗi mục trong outline:
   questions (mục phủ bao nhiêu câu), knowledge (kiến thức câu kiểm, viết lại gọn và sạch), formulas
-  (công thức sẽ dùng, mỗi công thức một cặp $), approach (dạng câu và các bước giải), source_nodes
-  (số node của bài nguồn; rỗng khi không có tài liệu). Hai câu chung một mục thì cùng kiến thức,
-  khác cách hỏi. Mỗi lần tối đa 10 câu. text là CẢ LỜI bạn trình bày dàn ý cho giáo viên, bằng
-  Markdown và bằng lời của bạn: mỗi mục nêu số câu của nó (**Câu k** hay **Câu k–m**, đánh số từ câu
-  đầu tiên của dàn ý), kiến thức, ít nhất một công thức của mục trong cặp $ khi mục có công thức,
-  cách làm, và bài nguồn khi có sách -- gọi bằng tên bài, không bao giờ bằng số node. Công thức là
-  bạn đề xuất, đừng gọi là công thức của sách.
+  (công thức sẽ dùng: mỗi phần tử đúng một cặp $ bao cả công thức, không chữ nào ngoài cặp $ --
+  "$a<b,\ b<c \Rightarrow a<c$", không phải "Nếu $a<b$ và $b<c$ thì $a<c$"), approach (dạng câu
+  và các bước giải), source_nodes (số node của bài nguồn; rỗng khi không có tài liệu). Hai câu
+  chung một mục thì cùng kiến thức, khác cách hỏi. Mỗi lần tối đa 10 câu. text là CẢ LỜI bạn
+  trình bày dàn ý cho giáo viên, bằng Markdown và bằng lời của bạn: mỗi mục nêu số câu của nó
+  (**Câu k** hay **Câu k–m**, đánh số từ câu đầu tiên của dàn ý), kiến thức, ít nhất một công
+  thức của mục trong cặp $ khi mục có công thức, cách làm, và bài nguồn khi có sách -- gọi bằng
+  tên bài, không bao giờ bằng số node. Công thức là bạn đề xuất, đừng gọi là công thức của sách.
   Kết bằng một câu hỏi bạn tự viết, xin giáo viên đồng ý hay nói chỗ cần đổi. Lời phải khớp đúng
   các mục trong outline, vì các mục mới là thứ được soạn. tool_args: for = new (đề mới), more
   (soạn thêm cho đề đang có) hoặc replace (thay một câu: một mục một câu, kèm question = số câu
@@ -1397,7 +1398,8 @@ class _OutlineItem(BaseModel):
     questions: int = Field(description="Mục này phủ bao nhiêu câu.")
     knowledge: str = Field(description="Kiến thức câu kiểm, viết lại sạch bằng lời của bạn.")
     formulas: tuple[str, ...] = Field(
-        description="Công thức sẽ dùng, mỗi công thức một cặp $. Rỗng khi không có công thức."
+        description="Công thức sẽ dùng, mỗi phần tử đúng một cặp $ bao cả công thức, không chữ "
+        "nào ngoài cặp $ (không 'Nếu', 'và', 'với'). Rỗng khi không có công thức."
     )
     approach: str = Field(description="Dạng câu và các bước giải dự kiến.")
     source_nodes: tuple[int, ...] = Field(

@@ -335,3 +335,18 @@ async def test_a_broken_document_is_not_something_to_wait_for(monkeypatch) -> No
 
     assert "Hỏng.pdf -- KHÔNG đọc được" in prompts[0]
     assert "chờ" not in prompts[0].split("Hỏng.pdf")[1].split("\n")[0]
+
+
+@pytest.mark.parametrize("on_an_item", [True, False])
+def test_a_question_is_shown_the_questions_already_in_the_paper(on_an_item: bool) -> None:
+    """Thử tay 17/10/2026 (plan `backlog-tier-1`, case 02): ô 4 bị trả về ba lần vì gần trùng câu 3,
+    và cả ba lần model viết lại đúng bài ấy -- brief chưa từng cho nó thấy các câu đã có."""
+    already = r"Tìm số x thỏa mãn tỉ lệ thức $\frac{x}{12}=\frac{5}{8}$."
+    item = {"item_knowledge": "Tỉ lệ thức", "item_approach": "Nhân chéo"} if on_an_item else {}
+
+    brief = draft_brief(_asked(banned_stems=(already,), **item))
+    fresh = draft_brief(_asked(**item))
+
+    assert already in brief
+    assert "Không viết lại bài nào" in brief
+    assert "Không viết lại bài nào" not in fresh

@@ -133,6 +133,10 @@ logger = logging.getLogger(__name__)
 # vì mỗi bước ở đây là một tool **ghi**: một plan năm mươi bước `create_draft` lọt qua sẽ để
 # lại năm mươi đề rỗng mang tên giáo viên, và không có đường nào xoá chúng.
 _MOST_STEPS = 8
+# Số lần một lượt chịu trả dàn ý về cho model sửa, lý do gì cũng tính (thử tay 17/10/2026, pha 6
+# của plan `backlog-tier-1`): một dàn ý đọc sách mang theo cả phần sách đã đọc, nên mỗi lần gọi lại
+# là vài chục nghìn token, mà giáo viên vẫn chưa thấy gì.
+_MOST_OUTLINE_REFUSALS = 3
 
 router = APIRouter(prefix="/api", tags=["teacher-chat"])
 
@@ -2480,6 +2484,7 @@ async def _go(
     # nó nêu tám lần, tám lần gọi model cho cùng một câu thông báo. Lần thứ hai là dừng.
     stuck = ""
     refused = ""
+    outlines_refused = 0
     # Token của những lượt gọi model không thành dòng nào (dàn ý hay plan bị trả về): chúng vẫn
     # tốn, nên cộng vào dòng được ghi kế tiếp thay vì mất khỏi sổ (review đợt 3, plan
     # `backlog-tier-1`).
@@ -2585,6 +2590,15 @@ async def _go(
                 reason = str(shown.get("error", ""))
                 if reason == refused:
                     logger.warning("same outline refusal twice for %s", asking.teacher_code)
+                    break
+                # Lý do đổi mỗi lần cũng là kẹt: thử tay 17/10/2026 (pha 6), lời trả về xen kẽ
+                # *mục 2* rồi *mục 3* nên luật *cùng lý do hai lần* không bắt, bảy lượt gọi model,
+                # mỗi lượt gần 40 nghìn token. Lần thứ ba bị trả về là dừng, lý do gì cũng vậy.
+                outlines_refused += 1
+                if outlines_refused >= _MOST_OUTLINE_REFUSALS:
+                    logger.warning(
+                        "outline refused %d times for %s", outlines_refused, asking.teacher_code
+                    )
                     break
                 refused = reason
                 continue

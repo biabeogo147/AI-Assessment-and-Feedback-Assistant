@@ -325,6 +325,35 @@ async def write_question(brief: str, banned: frozenset[str] = frozenset()) -> Ge
     return final["question"]
 
 
+# Bao nhiêu câu đã có được nêu trong brief: đủ cho một đề mười câu, không làm brief phình.
+_MOST_WRITTEN_SHOWN = 10
+
+
+def _already_written(request: DraftQuestionRequested) -> list[str]:
+    """Các câu đã có trong đề, để model không viết lại đúng bài ấy. Hàm thuần.
+
+    Thử tay 17/10/2026 (plan `backlog-tier-1`, case 02): ô 4 bị BE trả về ba lần vì gần trùng câu 3,
+    và cả ba lần model viết lại đúng $\\frac{x}{12}=\\frac{5}{8}$, chỉ đổi lời dẫn. `banned_stems`
+    tới AGENT mà chỉ dùng để so trùng nguyên văn **sau** khi viết; model không được thấy chúng, nên
+    lần thử lại không biết phải tránh bài nào.
+
+    Args:
+        request: Job soạn câu; `banned_stems` là các câu đã có lúc job được đẩy đi.
+
+    Returns:
+        Các dòng thêm vào brief; rỗng khi đề chưa có câu nào.
+    """
+    written = [stem for stem in request.banned_stems if stem.strip()][:_MOST_WRITTEN_SHOWN]
+    if not written:
+        return []
+    return [
+        "",
+        "Đề đã có những câu dưới đây. Không viết lại bài nào trong số này -- cùng biểu thức, cùng "
+        "số liệu mà đổi lời dẫn vẫn là trùng; dùng biểu thức và số liệu khác:",
+        *(f"  · {stem}" for stem in written),
+    ]
+
+
 def draft_brief(request: DraftQuestionRequested) -> str:
     """Mô tả đúng một câu hỏi mà job này viết.
 
@@ -364,11 +393,13 @@ def draft_brief(request: DraftQuestionRequested) -> str:
         if request.other_items:
             lines.append("Các câu khác của đề lo những kiến thức sau, đừng hỏi sang:")
             lines += [f"  · {knowledge}" for knowledge in request.other_items]
+        lines += _already_written(request)
         lines.append(
             "Bám đúng kiến thức, công thức và cách làm trên: giáo viên đã duyệt chúng trước khi "
             "câu được soạn."
         )
         return "\n".join(lines)
+    lines += _already_written(request)
     lines += [
         "",
         "Mỗi câu trong bộ phải hỏi một khía cạnh khác nhau của phạm vi trên.",
