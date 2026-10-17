@@ -119,6 +119,15 @@ _SPLIT = [_item(formulas=("$a = bq + r,\\ 0 \\le r < b$",))]
         ("$x + y = 5 \\quad x - y = 1$", "$x+y=5$ và $x-y=1$"),
         ("$x + y = 5 \\text{ và } x - y = 1$", "$x+y=5$ và $x-y=1$"),
         ("$x + y = 5,\\, x - y = 1$", "$x+y=5$ và $x-y=1$"),
+        # Vế ngắn (`a`, `b)`) của danh sách biến hay khoảng kiểu Việt Nam không làm hỏng phép tách.
+        ("$f'(x) \\ge 0,\\ \\forall x \\in (a; b)$", "$f'(x) \\ge 0$ với $\\forall x \\in (a; b)$"),
+        (
+            "$\\frac{a+b}{2} \\ge \\sqrt{ab},\\ a, b \\ge 0$",
+            "$\\frac{a+b}{2} \\ge \\sqrt{ab}$ với $a, b \\ge 0$",
+        ),
+        ("$x, y > 0,\\ x+y=1$", "$x+y=1$ với $x, y > 0$"),
+        # Toàn vế ngắn thì chỉ so nguyên vẹn được, và `\ ` chỉ là cách viết.
+        ("$a,\\ b,\\ c,\\ d \\ge 0$", "$a, b, c, d \\ge 0$"),
     ],
 )
 def test_a_formula_the_message_splits_around_a_word_still_counts(formula: str, said: str) -> None:
@@ -132,10 +141,13 @@ def test_a_formula_the_message_splits_around_a_word_still_counts(formula: str, s
 @pytest.mark.parametrize(
     ("formula", "said"),
     [
-        # Vế ngắn (`2`, `3\}`) khớp với chữ nào cũng được: tập hợp phải so nguyên vẹn.
+        # Chấm phẩy giữa hai chữ số không phải chỗ nối: tập hợp phải so nguyên vẹn.
         ("$A = \\{0;1;2;3;4\\}$", "$A = \\{0;1;2;4\\}$"),
+        ("$A = \\{100;200;300\\}$", "$A = \\{100;2000;300\\}$"),
         # Dấu phẩy thập phân không phải chỗ nối: `2,5` không phải `25`.
         ("$m = 2,5\\ \\text{kg}$", "$m = 25$"),
+        # Vế dài phải phủ phần lớn công thức: `d \ge 0` không thay được cho `a, b, c, d \ge 0`.
+        ("$a, b, c, d \\ge 0$", "$d \\ge 0$"),
     ],
 )
 def test_a_short_or_decimal_part_is_not_a_joint(formula: str, said: str) -> None:
