@@ -1166,7 +1166,7 @@ ghi case thấy nó.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Haiku để trống `known` từ lượt thứ hai** (03, 04, 07): dàn ý lưu `brief` rỗng, nên *"oke"* lùi về plan của model thay vì plan dựng từ dàn ý (`_approved_plan`), và `_miscounted` không còn gì để so | Chưa sửa. Hướng: dàn ý mới mang `brief` của dàn ý trước khi `known` rỗng, hoặc BE ghi `brief` từ `create_draft` đầu tiên của đoạn chat |
-| **Tool soạn câu trả sai hình dạng rồi câu mock vào đề** (05, 1/24 job): thiếu `options`, `methods` là chuỗi JSON; `write_draft_question` lùi về câu soạn sẵn (*"Giới hạn của (x² − 1)/(x − 1)…"*), câu ấy thay câu 3 của đề lớp 7 và bước báo *"đã thay câu 3"* | Hai việc: đường ép tool của Claude chưa `strict`; và lùi về mock khi model thật hỏng là đưa một câu lạc đề vào đề thật — với mọi provider |
+| **Tool soạn câu trả sai hình dạng rồi câu mock vào đề** (05, 1/24 job): thiếu `options`, `methods` là chuỗi JSON; `write_draft_question` lùi về câu soạn sẵn (*"Giới hạn của (x² − 1)/(x − 1)…"*), câu ấy thay câu 3 của đề lớp 7 và bước báo *"đã thay câu 3"* | Hai việc: đường ép tool của Claude chưa `strict`; và lùi về mock khi model thật hỏng là đưa một câu lạc đề vào đề thật — với mọi provider. **Người dùng chốt 17/10/2026: để backlog, chưa sửa; cùng ngày gỡ hoãn — làm ở plan `2026-10-17-backlog-tier-1-plan.md`.** Hướng sửa khi tới lượt: tool `strict`, bỏ đường lùi về câu soạn sẵn trong `write_draft_question` — ô hỏng thì báo hỏng (`last_fault`), không thay bằng câu khác |
 | **Hai câu cùng mục trùng nhau** (02, 06, 07): job bám ví dụ trong `formulas`, bỏ lời dặn *"khác cách hỏi hoặc số liệu"*; `banned_stems` chỉ bắt chữ trùng y | Chưa sửa. Mốc gpt-4o-mini không thấy vì dàn ý của nó ít khi gộp câu vào một mục |
 | **Dàn ý một mục cho cả đề** (01, 03, 07, 08, 13): `Câu 1–N` một mục | Đúng `outline.validate`; chưa có luật về số mục |
 | **`_read_before_outline` để lọt dàn ý đọc dở** (04): đọc phần 3/5 xong, dàn ý chỉ trỏ nút phần 1–2, nên không giao nút phần vừa đọc và AGENT thôi bắt đọc tiếp | Điều kiện *"dàn ý trỏ vào phạm vi ấy"* so với phần **cuối**, không với cả phạm vi đã gọi |
@@ -1207,6 +1207,23 @@ trong buổi, không ghi ở đây.
 | **Lời mở lượt soạn chép nguyên ví dụ trong prompt** (02, 04): *"Được, mình soạn đề ngay."* | Ví dụ nằm trong `propose._CORE`; lời model nhưng đọc như câu cố định (ADR-30). Bỏ ví dụ nguyên văn, hay cho nhiều ví dụ |
 | **Hàng đoạn chat bị vạch chia ngăn rail cắt ngang** (ảnh 04–15) | Có thể đúng ý ngăn cuộn; chưa đối chiếu artboard rail |
 | **Câu trả lời tự ghi chứa `·` làm tin gộp mơ hồ** (review code pha 6): *"Phạm vi: tỉ lệ thức · dãy tỉ số"* | Nhẹ; chưa thấy ở lần chạy nào. Sửa: thay ` · ` trong chữ tự ghi, hay nói khuôn gộp cho model ở `_asked_back` |
+
+## Lộ ra khi review code `/code-review high` (17/10/2026)
+
+Phạm vi: 66 commit từ upstream, chủ yếu ADR-31 (tên đề) và ADR-32 (hỏi lại nhiều câu), sau commit
+`be30d34`. Chưa chạy verifier; người dùng dặn ghi hết, chưa sửa.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Ô đổi tên sống sang đề khác** (`Panel.tsx:66`): effect theo `assessmentId` dọn `paper`, `erasing` nhưng không dọn `naming` — đang gõ tên đề A, mở đề B, Enter thì **B bị đổi tên** | Không bị chặn. Dọn `naming` cùng chỗ dọn `erasing`, thêm một vitest |
+| **Enter gửi PATCH đổi tên nhiều lần** (`Panel.tsx:257`): phím Enter không xét `working`, chỉ nút `Lưu` khoá — hai PATCH, hai lần đọc lại đoạn chat, có thể một 409 đỏ dù đã đổi xong | Không bị chặn. Chặn `rename()` khi `working` |
+| **`clipped()` ra tên rỗng** (`titles.py:36`): `_unquoted` bóc `""` hay `“ ”` thành rỗng, `_create_draft` chỉ xét chuỗi thô — đề lưu với tên rỗng, thẻ *Đã tạo đề ""* | Không bị chặn. Rỗng thì lùi về `default_title` |
+| **`_TooManyQuestions` đếm cả câu trống** (`propose.py:1769`): bốn câu, một câu trống — ba câu hợp lệ vẫn bị hỏi lại model, tốn một lượt gọi | Không bị chặn. Đếm câu đã qua `asked()` |
+| **Mức lựa chọn tối thiểu theo số dòng áp cho mọi câu** (`propose.py:1772`): kết quả tool gần nhất có 2 lớp thì câu hỏi tham số (*Khối*, *Số câu*) 2 nút cũng lọt, trái luật ≥ 3 nút cho tham số | Bản sửa theo review pha 6 đi quá đà. Cần phân biệt câu về dòng (lựa chọn khớp `candidates`) với câu về tham số |
+| **Tên đề lồng trong danh sách không đổi theo** (`teacher_chat.py:1516`): `_titled` chỉ thay `title` cấp ngoài, kết quả như `class_assessments` (`assessments: [{assessment_id, title}]`) giữ tên cũ trong lịch sử gửi AGENT. Đường lộ: hoàn tác phát hành → đổi tên → phát hành lại | Review pha 6 cho rằng đề đã phát hành không đổi tên được; đường hoàn tác làm điều đó sai. Đi đệ quy theo `assessment_id` |
+| **Phép ghép *lời mở + câu hỏi* chép ở hai nơi** (`teacher_chat.py:916` và `propose.py:1360`) | Hai bản có thể lệch; hợp đồng chỉ soi hình dạng. Một hàm dùng chung trong `contracts` |
+| **Lượt hỏi nhiều câu đã qua không hiện nhãn** (`Chat.tsx:45`, `aloud`): FE vẽ *"1. câu hỏi"*, model thấy *"1. nhãn: câu hỏi (lựa chọn: …)"*; tin gộp *"Khối: Khối 7 · …"* dùng nhãn mà phía trên không có, nhãn đánh số *"Khối (2)"* càng khó đối | Đổi chữ hiển thị — đi cùng Figma (`Clarify request`, lượt đã qua) |
+| **Hai dòng `# TODO: Cần xem lại` trong `propose.py` chưa stage** (dòng 58, 1573) | Không phải lỗi: ghi chú riêng của người dùng, cố ý không commit — stage bằng script bỏ hai dòng ấy. Ghi để `git add` thẳng file không lỡ tay |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 
