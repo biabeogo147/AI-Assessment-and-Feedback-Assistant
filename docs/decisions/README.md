@@ -39,6 +39,8 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đang thi hành (đường ghi; đường đọc chưa có) |
 | [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; job chỉ nhận mục của nó, không chữ tài liệu thô (hậu ký 17/10/2026: lời dàn ý do Kriky viết, ADR-30) | đã chốt, đang thi hành |
 | [30](adr-30-loi-kriky-do-model-viet.md) | Mọi lời Kriky do model viết, bằng Markdown; dàn ý gồm lời và các mục, BE đối chiếu nhẹ; ngoại lệ: thông báo khi model không trả lời được, và phần tử giao diện | đã chốt, đang thi hành (trừ khung học sinh) |
+| [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại | đã chốt, chưa thi hành |
+| [32](adr-32-hoi-lai-nhieu-cau.md) | Hỏi lại tối đa ba câu một lượt, mỗi câu một bộ nút; không bỏ câu; tóm tắt rồi gửi gộp một tin | đã chốt, chưa thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.
