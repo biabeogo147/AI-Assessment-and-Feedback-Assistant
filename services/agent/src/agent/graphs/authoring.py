@@ -118,6 +118,23 @@ def _faults(question: GeneratedQuestion, banned: frozenset[str]) -> list[str]:
     return faults
 
 
+# Cột `questions.learning_objective` và `bank_questions.learning_objective` là `String(160)`
+# (`schema/models.py`). Thử tay 17/10/2026 (`kriky-writes-every-word`): Haiku 5.5 chép cả mục dàn ý
+# vào đây, 168 ký tự, và `harvest` của BE gãy cả lượt -- các câu còn lại treo `pending`. Không ai
+# đọc chữ này trên màn (form sửa không có ô cho nó), nên cắt gọn ở đây rẻ hơn mọi lần hỏi lại model.
+_MOST_OBJECTIVE = 160
+
+
+def _clipped(text: str) -> str:
+    """Chữ vừa cột `learning_objective`: cắt ở ranh giới từ, kèm `…`. Hàm thuần."""
+    text = text.strip()
+    if len(text) <= _MOST_OBJECTIVE:
+        return text
+    head = text[: _MOST_OBJECTIVE - 1]
+    cut = head.rsplit(" ", 1)[0] if " " in head else head
+    return cut.rstrip(" ,;:.") + "…"
+
+
 def _unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
     r"""Trả lại dấu gạch chéo mà bộ giải mã JSON đã nuốt của mọi chữ trong một câu hỏi.
 
@@ -143,7 +160,8 @@ def _unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
             # `learning_objective` dễ bị quên vì giáo viên không nhìn thấy nó, và chính vì
             # thế nó là field **cần** nhất ở đây: form sửa không có ô nào cho nó, nên nếu
             # hỏng thì không ai sửa được bằng tay. Nó đi vào báo cáo (ADR-17).
-            "learning_objective": restore_latex_escapes(question.learning_objective),
+            # Và nó phải vừa cột của nó (`_MOST_OBJECTIVE`).
+            "learning_objective": _clipped(restore_latex_escapes(question.learning_objective)),
             "options": tuple(
                 option.model_copy(
                     update={

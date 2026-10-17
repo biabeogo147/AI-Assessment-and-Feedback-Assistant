@@ -261,3 +261,16 @@ async def test_json_an_mat_dau_gach_cheo_thi_duoc_dung_lai(
         + [one.body for one in question.methods]
     )
     assert not any(ch in everything for ch in "\x08\x09\x0c"), "không còn byte hỏng nào sót"
+
+
+@pytest.mark.parametrize("length", [160, 168, 400])
+def test_a_learning_objective_always_fits_its_column(length: int) -> None:
+    """Thử tay 17/10/2026 (`kriky-writes-every-word`): 168 ký tự làm `harvest` của BE gãy cả
+    lượt."""
+    words = ("Thứ tự thực hiện các phép tính trong biểu thức có nhiều lớp ngoặc " * 10)[:length]
+    question = _mangled().model_copy(update={"learning_objective": words})
+
+    kept = authoring._unmangled(question).learning_objective
+
+    assert len(kept) <= 160
+    assert kept == words.strip() if length <= 160 else kept.endswith("…")
