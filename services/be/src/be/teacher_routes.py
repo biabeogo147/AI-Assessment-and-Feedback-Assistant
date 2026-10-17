@@ -76,6 +76,7 @@ from be.publication_wording import (
 from be.question_bank import file_approved, in_bank
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
+from be.titles import MOST_TITLE, tidy
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod, TurnRecord
 from schema.models import (
     Answer,
@@ -1471,6 +1472,81 @@ async def who_am_i(teacher: Teacher = Depends(current_teacher)) -> TeacherMe:
     return TeacherMe(
         teacher_id=teacher.id, full_name=teacher.full_name, teacher_code=teacher.teacher_code
     )
+
+
+class TitleChange(BaseModel):
+    """Tên mới giáo viên gõ cho một đề (ADR-31).
+
+    Attributes:
+        title: Tên mới, tối đa `MOST_TITLE` ký tự sau khi dọn khoảng trắng.
+    """
+
+    title: str
+
+
+class AssessmentName(BaseModel):
+    """Tên của một đề sau khi đổi.
+
+    Attributes:
+        assessment_id: Đề nào.
+        title: Tên đã lưu.
+    """
+
+    assessment_id: str
+    title: str
+
+
+@router.patch("/teacher/assessments/{assessment_id}", response_model=AssessmentName)
+async def rename_assessment(
+    assessment_id: str,
+    wanted: TitleChange,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> AssessmentName:
+    """Đổi tên một đề (ADR-31).
+
+    Cùng khoá với nội dung câu hỏi (ADR-01): đề đã duyệt hay đã phát hành thì phải hoàn tác trước.
+    Tên quá trần bị **từ chối**, không bị cắt: chữ giáo viên gõ chỉ giáo viên sửa. Mọi chỗ khác đọc
+    tên lúc hiện -- kể cả thẻ cũ trong đoạn chat (`teacher_chat._current_titles`) --, nên đổi ở
+    đây là đổi ở mọi chỗ.
+
+    Args:
+        assessment_id: Đề nào.
+        wanted: Tên mới.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Tên đã lưu.
+
+    Raises:
+        HTTPException: 404 khi đề không tồn tại hoặc thuộc về người khác (ADR-22); 409 khi đề đã
+            khoá nội dung; 400 khi tên trống; 422 khi tên dài hơn `MOST_TITLE` ký tự.
+
+    Side effects:
+        Cập nhật một row và commit.
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id)
+    if not editable(assessment):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Đề đang ở trạng thái {readable(state_of(assessment))} nên không đổi tên được. "
+                "Hoàn tác việc duyệt trước đã."
+            ),
+        )
+    named = tidy(wanted.title)
+    if not named:
+        raise HTTPException(status_code=400, detail="tên đề không được để trống")
+    if len(named) > MOST_TITLE:
+        raise HTTPException(
+            status_code=422, detail=f"tên đề tối đa {MOST_TITLE} ký tự, tên này {len(named)}"
+        )
+    assessment.title = named
+    await session.commit()
+    logger.info("teacher %s renamed draft %s", asking.teacher_code, assessment_id)
+    return AssessmentName(assessment_id=assessment_id, title=named)
 
 
 @router.get("/teacher/assessments/{assessment_id}", response_model=AssessmentDetail)

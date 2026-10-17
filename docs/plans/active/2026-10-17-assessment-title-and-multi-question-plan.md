@@ -49,12 +49,12 @@ Người dùng chốt:
 - [x] 2. ADR-31 tên đề; ADR-32 hỏi lại nhiều câu; index `docs/decisions/README.md`. Commit.
 
 ### Pha 2 — Tên đề ở BE
-- [ ] 3. `be/titles.py`: tên mặc định (tên tệp bỏ đuôi khi có sách; không thì phạm vi bỏ `(tr. …)`),
+- [x] 3. `be/titles.py`: tên mặc định (tên tệp bỏ đuôi khi có sách; không thì phạm vi bỏ `(tr. …)`),
   cắt ở ranh giới từ kèm `…`, trần 60. `_create_draft` dùng nó.
-- [ ] 4. `PATCH /teacher/assessments/{id}`: 404 (ADR-22), 409 đề đã duyệt, 400 trống, 422 quá 60.
-- [ ] 5. Tên hiện tại thay `title` của mọi `tool_result` có `assessment_id` khi đọc lại đoạn chat và
+- [x] 4. `PATCH /teacher/assessments/{id}`: 404 (ADR-22), 409 đề đã duyệt, 400 trống, 422 quá 60.
+- [x] 5. Tên hiện tại thay `title` của mọi `tool_result` có `assessment_id` khi đọc lại đoạn chat và
   khi dựng lịch sử gửi AGENT.
-- [ ] 6. Test. Commit.
+- [x] 6. Test. Commit.
 
 ### Pha 3 — Tên đề ở FE
 - [ ] 7. Figma: panel *đang đổi tên*; `Action result card` tên một dòng cắt `…`. Đo bằng nhau.
@@ -94,4 +94,4 @@ Người dùng chốt:
 
 ## Status
 
-Đang làm pha 2.
+Đang làm pha 3.

@@ -58,6 +58,7 @@ from be.drafting import (
 from be.identity import Asking
 from be.outline import MOST_QUESTIONS_ASKED
 from be.resolve import Candidate, capped, classes_with_counts, normalise
+from be.titles import clipped, default_title
 from be.toc import heading, parts, scope_of, title_path
 from contracts import DocumentState, IndexNode, PlanStep, ToolSpec
 from schema.models import (
@@ -503,12 +504,18 @@ async def _create_draft(running: Running, args: dict) -> dict:
         return refused
 
     scope = str(args["topic_scope"]).strip()
+    # Đề theo sách mang tên tệp sách (ADR-31): phạm vi của nó là cả chuỗi nhãn bài kèm số trang.
+    book = await session.get(Document, document_id) if document_id else None
     draft = Assessment(
         teacher_id=asking.teacher_id,
         # Một cái tên mà giáo viên đổi lại được sau, nên tự suy ra một cái thì không
         # tốn gì mà lại tiết kiệm được một vòng hỏi đáp về chuyện hình thức. Cắt ngắn
-        # chứ không từ chối, cũng vì đúng lý do đó.
-        title=str(args.get("title") or f"Đề {scope}").strip()[:160],
+        # chứ không từ chối, cũng vì đúng lý do đó -- tối đa 60 ký tự (ADR-31).
+        title=(
+            clipped(str(args["title"]))
+            if str(args.get("title") or "").strip() and book is None
+            else default_title(scope, book.filename if book is not None else "")
+        ),
         subject=str(args["subject"]).strip(),
         grade=str(args["grade"]).strip(),
         state=AssessmentState.EMPTY,

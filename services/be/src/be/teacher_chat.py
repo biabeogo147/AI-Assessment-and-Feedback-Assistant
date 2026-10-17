@@ -115,6 +115,7 @@ from contracts import (
     TurnRecord,
 )
 from schema.models import (
+    Assessment,
     DraftBrief,
     DraftItem,
     Question,
@@ -1443,7 +1444,34 @@ def _shrunk(turn: TeacherTurn, latest_outline: int | None, kept_reads: set[int])
     return result
 
 
-def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
+async def _current_titles(session: AsyncSession, turns: list[TeacherTurn]) -> dict[str, str]:
+    """Tên **hiện tại** của mọi đề các bước này nhắc tới (ADR-31), một truy vấn cho cả đoạn chat.
+
+    Kết quả một bước ghi tên đề lúc bước ấy chạy. Giáo viên đổi tên rồi thì thẻ cũ, dòng bước cũ và
+    lịch sử gửi AGENT phải đọc tên mới -- hai tên cho một đề trên cùng màn hình là hai đề.
+    """
+    ids = {
+        str((turn.tool_result or {}).get("assessment_id"))
+        for turn in turns
+        if isinstance(turn.tool_result, dict)
+        and (turn.tool_result or {}).get("assessment_id")
+        and "title" in (turn.tool_result or {})
+    }
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Assessment.id, Assessment.title).where(Assessment.id.in_(ids))
+    )
+    return {one: title for one, title in rows.all()}
+
+
+def _titled(result: dict, titles: dict[str, str]) -> dict:
+    """Một kết quả bước mang tên hiện tại của đề nó nhắc tới (ADR-31). Hàm thuần."""
+    found = titles.get(str(result.get("assessment_id") or ""))
+    return {**result, "title": found} if found is not None and "title" in result else result
+
+
+def _as_records(turns: list[TeacherTurn], titles: dict[str, str] | None = None) -> list[TurnRecord]:
     """Biến các bước đã lưu thành phần history mà AGENT đọc.
 
     Chỉ phần đuôi được gửi đi. Lý do xem ở `_HISTORY_STEPS`, và lưu ý là chỗ bị cắt là
@@ -1455,10 +1483,13 @@ def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
 
     Args:
         turns: Các bước đã lưu, cũ nhất trước.
+        titles: Tên hiện tại của các đề (`_current_titles`), để Kriky gọi đề đúng tên giáo viên vừa
+            đặt.
 
     Returns:
         `_HISTORY_STEPS` bước cuối trong số đó, dưới dạng record của contract.
     """
+    titles = titles or {}
     outlines = [turn.sequence for turn in turns if turn.kind == "outline"]
     latest_outline = outlines[-1] if outlines else None
     # Chữ đọc sau dàn ý mới nhất còn đang chờ thành dàn ý; giữ tối đa `MOST_QUESTIONS_ASKED` phần
@@ -1477,7 +1508,7 @@ def _as_records(turns: list[TeacherTurn]) -> list[TurnRecord]:
             text=turn.text,
             tool_name=turn.tool_name,
             tool_args=turn.tool_args or {},
-            tool_result=_shrunk(turn, latest_outline, kept_reads),
+            tool_result=_titled(_shrunk(turn, latest_outline, kept_reads), titles),
         )
         for turn in turns[-_HISTORY_STEPS:]
     ]
@@ -1619,13 +1650,13 @@ def _client_result(tool_name: str, result: dict) -> dict:
     return _without_text(result) if tool_name == "read_section" else result
 
 
-def _visible(turn: TeacherTurn) -> Turn:
+def _visible(turn: TeacherTurn, titles: dict[str, str] | None = None) -> Turn:
     """Chiếu một bước đã lưu sang đúng thứ client được xem.
 
     Chữ một phần đọc (`read_section`) không tới client: màn hình không vẽ nó, và mười phần một lượt
-    là cả trăm nghìn ký tự đi mỗi lần tải lại đoạn chat.
+    là cả trăm nghìn ký tự đi mỗi lần tải lại đoạn chat. Tên đề là tên hiện tại (`titles`, ADR-31).
     """
-    result = _client_result(turn.tool_name, turn.tool_result or {})
+    result = _titled(_client_result(turn.tool_name, turn.tool_result or {}), titles or {})
     return Turn(
         kind=turn.kind,
         text=turn.text,
@@ -1640,7 +1671,9 @@ def _visible(turn: TeacherTurn) -> Turn:
     )
 
 
-def _read_back(conversation_id: str, stored: "list[TeacherTurn]") -> "Answered":
+def _read_back(
+    conversation_id: str, stored: "list[TeacherTurn]", titles: dict[str, str] | None = None
+) -> "Answered":
     """Dựng câu trả lời cho một lần **đọc lại** một đoạn chat.
 
     Chỗ duy nhất quyết việc các phương án của một câu hỏi lại có còn được bày ra hay không.
@@ -1650,6 +1683,7 @@ def _read_back(conversation_id: str, stored: "list[TeacherTurn]") -> "Answered":
     Args:
         conversation_id: Đoạn nào.
         stored: Mọi bước của đoạn, theo thứ tự.
+        titles: Tên hiện tại của các đề (`_current_titles`).
 
     Returns:
         Câu trả lời. `kind` là "say" và `text` rỗng, vì đọc không phải một lượt.
@@ -1661,7 +1695,7 @@ def _read_back(conversation_id: str, stored: "list[TeacherTurn]") -> "Answered":
         conversation_id=conversation_id,
         choices=list(last.choices or []) if last else [],
         more_choices=last.more_choices if last else 0,
-        turns=[_visible(turn) for turn in stored],
+        turns=[_visible(turn, titles) for turn in stored],
     )
 
 
@@ -1682,12 +1716,15 @@ async def _rendered(session: AsyncSession, conversation_id: str, since: int) -> 
     Returns:
         Các bước của lượt này, theo thứ tự.
     """
-    rows = await session.scalars(
-        select(TeacherTurn)
-        .where(TeacherTurn.conversation_id == conversation_id, TeacherTurn.sequence >= since)
-        .order_by(TeacherTurn.sequence)
+    rows = list(
+        await session.scalars(
+            select(TeacherTurn)
+            .where(TeacherTurn.conversation_id == conversation_id, TeacherTurn.sequence >= since)
+            .order_by(TeacherTurn.sequence)
+        )
     )
-    return [_visible(turn) for turn in rows]
+    titles = await _current_titles(session, rows)
+    return [_visible(turn, titles) for turn in rows]
 
 
 class TurnEvent(BaseModel):
@@ -2222,7 +2259,7 @@ async def _go(
     position = stored[-1].sequence + 1 if stored else 0
     began = position
 
-    history = _as_records(stored)
+    history = _as_records(stored, await _current_titles(session, stored))
     history.append(TurnRecord(kind="teacher", text=said.text))
     # Chip đang đính, khi nó thuộc giáo viên và đã sẵn sàng; không thì như chưa đính
     # (`draft-from-document`). Chip của câu này, khi nó là của giáo viên -- **kể cả** khi tài liệu
@@ -2926,7 +2963,7 @@ async def read_conversation(
         if thread is None:
             raise HTTPException(status_code=404, detail="không tìm thấy đoạn chat này")
         stored = await _stored_turns(session, thread)
-        return _read_back(thread, list(stored))
+        return _read_back(thread, stored, await _current_titles(session, stored))
 
     # Có chủ đích không dùng `_conversation`: hàm đó mở một luồng mới khi chưa có luồng
     # nào, và một GET mà ghi dữ liệu là một GET mà một lần prefetch của browser, một cú dò
@@ -2937,7 +2974,7 @@ async def read_conversation(
         return Answered(kind="say", text="", turns=[])
 
     stored = await _stored_turns(session, thread)
-    return _read_back(thread, list(stored))
+    return _read_back(thread, stored, await _current_titles(session, stored))
 
 
 class ConversationRead(BaseModel):

@@ -224,6 +224,8 @@ async def test_a_draft_freezes_its_book_its_chapters_and_the_tree_it_read(stack)
     # Phiên bản cây là `built_at` **đọc từ kho**, đúng tới mili giây (review B2,
     # `draft-from-document`).
     assert frozen.index_built_at.replace(tzinfo=UTC) == _BUILT
+    # Đề theo sách mang tên tệp sách (ADR-31), không phải chuỗi nhãn bài của phạm vi.
+    assert made["title"] == "Đề SGK Toán 6"
 
 
 @pytest.mark.asyncio
