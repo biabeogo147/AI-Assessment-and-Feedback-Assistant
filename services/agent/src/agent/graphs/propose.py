@@ -554,6 +554,13 @@ def _choices_wanted(request: NextStepRequested) -> int:
     return 3
 
 
+def _choices_in(step: NextStepCompleted) -> int:
+    """Tổng số lựa chọn một lượt hỏi lại bày ra, một câu hay nhiều câu (ADR-32). Hàm thuần."""
+    if step.questions:
+        return sum(len(one.choices) for one in step.questions)
+    return len(step.choices)
+
+
 def _nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
@@ -1693,7 +1700,16 @@ async def _choose(state: ProposeState) -> dict:
     )
     if agreed.kind == "plan":
         return {"step": agreed}
-    if proposal.kind in {"say", "ask_clarify", "outline"} and not proposal.text.strip():
+    # Lượt hỏi lại mà mọi chữ nằm trong các câu là một lượt có chữ (review pha 6): `asked()` gộp
+    # một câu duy nhất vào `text`, còn nhiều câu thì FE vẽ chúng, không cần lời mở.
+    questioned = proposal.kind == "ask_clarify" and any(
+        one.text.strip() or one.label.strip() for one in proposal.questions
+    )
+    if (
+        proposal.kind in {"say", "ask_clarify", "outline"}
+        and not proposal.text.strip()
+        and not questioned
+    ):
         # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
         # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần. Dàn ý cũng vậy
         # từ ADR-30: lời trình bày dàn ý là lời Kriky viết, không còn khuôn BE dựng thay.
@@ -1750,7 +1766,9 @@ async def _choose(state: ProposeState) -> dict:
         step = step.model_copy(update={"questions": kept})
         if len(proposal.questions) > MOST_CLARIFY_QUESTIONS:
             raise _TooManyQuestions(f"{len(proposal.questions)} questions", step)
-        few = [one.label for one in kept if len(one.choices) < 3]
+        # Cùng mức với câu hỏi một câu: chỉ có hai lớp thì đòi ba là mời model bịa lớp thứ ba.
+        wanted = _choices_wanted(state["request"])
+        few = [one.label for one in kept if len(one.choices) < wanted]
         if few:
             raise _FewChoices(f"too few choices for {few}", step)
     elif step.kind == "ask_clarify":
@@ -1815,7 +1833,7 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
             if (
                 isinstance(again, _FewChoices)
                 and isinstance(first, _FewChoices)
-                and len(first.step.choices) > len(again.step.choices)
+                and _choices_in(first.step) > _choices_in(again.step)
             ):
                 better = first.step
             final = {"step": better}

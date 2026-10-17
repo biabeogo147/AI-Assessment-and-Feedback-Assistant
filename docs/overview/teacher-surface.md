@@ -306,6 +306,21 @@ nhận (ADR-05, ADR-10).
   và màn hình lấy chúng từ đúng cái response **không bao giờ** có chúng; nên thẻ này có thể chưa từng
   hiện lần nào, chứ không phải chỉ mất sau khi tải lại.
 
+### Hỏi nhiều câu một lượt — từng câu, rồi tóm tắt
+
+[ADR-32](../decisions/adr-32-hoi-lai-nhieu-cau.md): khi Kriky cần 2–3 điều cùng lúc, thẻ hỏi lại hiện
+**từng câu một** — variant `nhiều câu — câu k/n` (`629:20`): lời mở, dòng `Câu k/n · nhãn`, câu hỏi,
+các nút của riêng câu ấy, `Khác…`, rồi `‹ Câu trước` / `Câu sau ›`. **Không bỏ câu**: `Câu sau` tắt
+tới khi câu đang xem có câu trả lời; nút đã chọn mang màu nhấn như variant `đã chọn`. Câu cuối mời
+`Xem lại ›` sang variant `nhiều câu — tóm tắt` (`629:46`): mỗi câu một hàng `nhãn / lựa chọn / Sửa`
+(bấm để quay lại câu ấy), `‹ Câu trước` và nút `Gửi`. `Gửi` đi **một** tin gộp
+*"Khối: Khối 7 · Số câu: 5 câu · Phạm vi: tỉ lệ thức"*. Một câu duy nhất vẫn là thẻ cũ.
+Các câu sống trong `tool_result.questions` của lượt hỏi, nên F5 ra lại thẻ — nhưng lựa chọn chưa gửi
+thì mất. `Gửi` hỏng (BE lỗi, hết giờ) thì thẻ mở lại ở màn tóm tắt với đủ câu trả lời cũ. Model để
+lời mở trống thì thẻ không có tiêu đề. Lượt hỏi đã qua hiện trong đoạn chat là lời mở cùng các câu,
+đánh số, để câu trả lời gộp bên dưới đọc được. Đo ở mode `Teacher`, 820 rộng: `câu k/n` 365/366, các phần y 16/55/84/117 trùng; `tóm tắt`
+316/318 (hàng 61,5/62, nút `Gửi` 32,5/33) — lệch do làm tròn dòng.
+
 ## Avatar `Kriky state` đổi theo pha của lượt
 
 Không phải trang trí. Năm variant, pha nào variant ấy:
@@ -712,6 +727,17 @@ Lời từ chối hiện **ngay dưới ô gõ**, không đẩy lên dòng chung
 và không nói nó nói về câu nào, mà panel có thể đang hiện mười thẻ. Chữ gõ ở ô là **LaTeX nguồn**,
 không phải công thức đã dựng hình — giáo viên thấy đúng thứ sẽ được lưu, và đúng thứ phép kiểm sẽ
 đọc.
+
+## Tên đề: tối đa 60 ký tự, đổi ở tiêu đề panel
+
+[ADR-31](../decisions/adr-31-ten-de-kiem-tra.md). Hệ thống đặt tên đề nháp: đề theo sách là `Đề <tên
+tệp>`, đề không sách là `Đề <phạm vi>` bỏ số trang, cắt ở 60 ký tự kèm `…`. Giáo viên đổi tên ngay ở
+tiêu đề panel — component `Panel title` (`626:2736`): nút chữ `Đổi tên` cạnh `Đóng`, **chỉ khi đề chưa
+duyệt**; bấm thì tiêu đề thành ô nhập viền nhấn (tối đa 60, đếm `x/60`, `Lưu`, `Huỷ`; Enter lưu, Esc
+huỷ). Tên cũ dài hơn 60 thì ô điền sẵn 60 ký tự đầu. Lưu xong panel đọc lại đề **và đoạn chat đọc
+lại**: thẻ kết quả và dòng bước cũ đọc tên hiện tại của đề, không tên lúc tạo. Trên thẻ, tên đề một
+dòng cắt `…` (variant `đã-tạo-đề — tên dài`, `626:2737`), rê chuột thấy đủ tên. Đo ở mode `Teacher`:
+hàng sửa 431×37 (ô 330/330,5), hàng xem tên 345/346,1, thẻ tên dài 660×57/56,5.
 
 ## Đầu panel thôi đếm *đã kiểm*, và thẻ câu có nút `Xoá`
 

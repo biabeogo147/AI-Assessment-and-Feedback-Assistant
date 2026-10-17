@@ -19,7 +19,7 @@ from be.db import bind_sessions
 from be.seed import seed_if_empty
 from be.teacher_chat import router as chat_router
 from be.teacher_routes import router as teacher_router
-from be.titles import MOST_TITLE, clipped, default_title
+from be.titles import MOST_TITLE, clipped, default_title, tidy
 from schema.ddl import prepare_schema
 from schema.models import (
     Assessment,
@@ -56,6 +56,24 @@ def test_a_long_name_is_cut_at_a_word_and_never_passes_the_cap(length: int) -> N
     if len(words.strip()) > MOST_TITLE:
         assert named.endswith("…")
         assert words.startswith(named[:-1])
+
+
+def test_a_word_that_fits_is_kept_when_the_cut_falls_on_a_space() -> None:
+    """Review pha 6: ký tự thứ 60 là khoảng trắng thì 59 ký tự đầu đã trọn từ."""
+    head = "a" * 54 + " bcde"
+    assert len(head) == MOST_TITLE - 1
+
+    assert clipped(head + " fgh ijk") == head + "…"
+
+
+def test_quotes_are_dropped_only_when_they_wrap_the_whole_name() -> None:
+    assert clipped('"Đề tỉ lệ thức"') == "Đề tỉ lệ thức"
+    assert clipped('Ôn tập chương "Số nguyên"') == 'Ôn tập chương "Số nguyên"'
+
+
+def test_tidying_a_teacher_name_only_folds_whitespace() -> None:
+    """Review pha 6: chữ giáo viên gõ chỉ giáo viên sửa -- dấu ngoặc ở cuối là của tên."""
+    assert tidy('  Ôn tập   chương "Số nguyên"\n') == 'Ôn tập chương "Số nguyên"'
 
 
 # ------------------------------------------------------------------ route đổi tên + đọc lại

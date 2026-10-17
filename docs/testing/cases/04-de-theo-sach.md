@@ -63,8 +63,9 @@ oke
    `part` 1, 2, … liên tiếp, phần cuối `more` = false.
 4. **Lượt 2:** không câu mở cố định, bước `Tạo đề trống` → `Soạn câu hỏi` (cùng tên lúc chạy)
    với dòng `— đã soạn 5/5 câu`, một thẻ
-   `Đã tạo đề "<tên>"` có `Chưa duyệt · chưa phát hành`. Bấm thẻ: panel có 5 câu, câu k bám kiến
-   thức của mục chứa câu k, toán dựng hình.
+   `Đã tạo đề "Đề Kết nối tri thức Lớp 6 tập 1 (tr6-28)"` có `Chưa duyệt · chưa phát hành` — đề
+   theo sách mang **tên tệp** bỏ đuôi (ADR-31), một dòng trên thẻ. Bấm thẻ: panel có 5 câu, câu k
+   bám kiến thức của mục chứa câu k, toán dựng hình; tiêu đề panel cùng tên ấy.
 5. **Truy vấn B:** `dung_sach` = t, `scope_nodes` không rỗng, 5 mục dàn ý mỗi mục có `source_nodes`;
    5 hàng `draft_items` `ready`, `outline_item` không rỗng.
 6. **Truy vấn C** (trong vòng 1 giờ sau lượt 2): mỗi job in `item_knowledge`, không job nào có `focus_`.
@@ -77,6 +78,7 @@ oke
 - Một mục không nêu bài nguồn, hay nêu bài không có trong `labels` của truy vấn A.
 - Không đọc mục lục, không đọc bài, đọc quá 5 phần, hay dừng đọc khi còn `more` = true.
 - Lượt 2 ra dàn ý mới, hỏi lại, mở hai đề, hay số câu khác 5 mà câu kết không nói đúng.
+- Tên đề không phải tên tệp (vd `Đề <nhãn bài> (tr. 6–28)`), hay vỡ hai dòng trên thẻ.
 - Truy vấn C có `focus_`; một câu hỏi chứa đoạn chữ OCR lỗi.
 - Vi phạm một trong tám luật chung của `huong-dan.md`.
 

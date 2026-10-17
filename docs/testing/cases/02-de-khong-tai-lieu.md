@@ -67,6 +67,8 @@ Lượt 2:
   hàng có dải sáng lúc chạy; dòng dưới bước soạn kết thúc ở `đã soạn 5/5 câu`.
 - Câu kết không khen câu hỏi, không nói số khác 5 (luật 2, 3); thẻ `Đã tạo đề "<tên>"` với dòng
   `Chưa duyệt · chưa phát hành`.
+- **Tên đề** (ADR-31): bắt đầu `Đề `, tối đa 60 ký tự, không mang `(tr. …)`; quá 60 thì cắt ở ranh
+  giới từ kèm `…`. Trên thẻ, tên nằm một dòng — dài quá bề ngang thẻ thì cắt `…`, rê chuột thấy đủ.
 - Bấm thẻ mở panel: 5 câu trắc nghiệm, toán dựng hình. **Bám dàn ý**: với từng câu `i` trong panel,
   tìm mục dàn ý có khoảng `Câu a–b` chứa `i`; câu ấy kiểm đúng kiến thức của mục, giải được bằng
   công thức và cách làm mục nêu. Hai câu chung một mục thì khác số liệu hoặc cách hỏi.
@@ -92,7 +94,8 @@ Lượt 2:
 ## Ghi lại
 
 - Nguyên văn cả lời dàn ý (dàn ý đầu, và dàn ý kế nếu có), câu hỏi lại nếu có, câu kết lượt 2.
-- **Tên đề trên thẻ**, nguyên văn — case 05 và 09 dùng nó. Hệ thống đặt `Đề <phạm vi Kriky ghi>`
-  khi plan dựng từ dàn ý, nên tên đổi theo lần chạy.
+- **Tên đề trên thẻ**, nguyên văn — case 05 và 09 dùng nó — và độ dài của nó. Hệ thống đặt `Đề
+  <phạm vi Kriky ghi>` khi plan dựng từ dàn ý (hay tên Kriky gửi kèm), cắt ở 60, nên tên đổi theo
+  lần chạy. Lấy tên đủ từ truy vấn ở *Chuẩn bị*, không chép từ thẻ khi thẻ đã cắt `…`.
 - Bảng năm dòng: câu `i` · mục dàn ý chứa nó · câu có bám mục không (có / lệch, một dòng vì sao).
 - Kết quả hai truy vấn database, và dòng kết quả của bước soạn (`đã soạn k/5 câu`).

@@ -29,23 +29,30 @@ export function merged(questions: ClarifyQuestion[], answers: string[]): string 
  * @param lead - Lời mở của Kriky, Markdown.
  * @param questions - Hai tới ba câu, mỗi câu nút của riêng nó.
  * @param other - Chữ của lối tự ghi (`Khác`).
- * @param onSend - Gửi câu trả lời gộp.
+ * @param kept - Các câu trả lời của một lần gửi vừa hỏng: thẻ mở lại ở màn tóm tắt với chúng,
+ *   không bắt chọn lại từ đầu.
+ * @param onSend - Gửi câu trả lời gộp, kèm từng câu trả lời.
  */
 export default function ClarifySteps({
   lead,
   questions,
   other,
+  kept,
   onSend,
 }: {
   lead: string;
   questions: ClarifyQuestion[];
   other: string;
-  onSend: (said: string) => void;
+  kept?: string[] | null;
+  onSend: (said: string, answers: string[]) => void;
 }) {
   const total = questions.length;
+  const restored = kept != null && kept.length === total && kept.every((one) => one !== "");
   // Câu đang xem; `total` là màn tóm tắt.
-  const [at, setAt] = useState(0);
-  const [answers, setAnswers] = useState<string[]>(() => questions.map(() => ""));
+  const [at, setAt] = useState(restored ? total : 0);
+  const [answers, setAnswers] = useState<string[]>(() =>
+    restored ? [...kept] : questions.map(() => ""),
+  );
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -69,7 +76,7 @@ export default function ClarifySteps({
           {questions.map((one, index) => (
             <button
               className="answer"
-              key={one.label}
+              key={index}
               type="button"
               onClick={() => show(index)}
             >
@@ -88,7 +95,7 @@ export default function ClarifySteps({
           <button
             className="send-all"
             type="button"
-            onClick={() => onSend(merged(questions, answers))}
+            onClick={() => onSend(merged(questions, answers), answers)}
           >
             Gửi
           </button>
@@ -104,9 +111,12 @@ export default function ClarifySteps({
   const said = draft.trim();
   return (
     <div className="clarify several">
-      <h3>
-        <KrikyText inline>{lead}</KrikyText>
-      </h3>
+      {/* Model có thể để mọi chữ trong các câu: không lời mở thì không tiêu đề rỗng. */}
+      {lead.trim() !== "" && (
+        <h3>
+          <KrikyText inline>{lead}</KrikyText>
+        </h3>
+      )}
       <span className="step-of">
         Câu {at + 1}/{total} · {asked.label}
       </span>

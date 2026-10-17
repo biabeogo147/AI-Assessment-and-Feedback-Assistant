@@ -584,6 +584,46 @@ async def test_a_question_back_with_several_questions_is_kept_and_read_back(stac
     ]
 
 
+def test_a_question_about_a_row_keeps_the_question_that_names_a_row() -> None:
+    """Review pha 6: câu về dòng đứng thứ hai vẫn là câu được giữ -- nút nhãn lớp không được
+    nằm dưới *"Bao nhiêu câu?"*."""
+    step = NextStepCompleted(
+        request_id="x",
+        kind="ask_clarify",
+        text="Mình cần biết:",
+        questions=(
+            _SO_CAU,
+            ClarifyQuestion(label="Lớp", text="Lớp nào?", choices=("12A", "12B", "12C")),
+        ),
+    )
+
+    text, choices, several = teacher_chat._questions_of(
+        step, True, {"12A": "12A (3 học sinh)", "12B": "12B (0 học sinh)"}
+    )
+
+    assert text == "Mình cần biết:\n\nLớp nào?"
+    assert choices == ("12A", "12B", "12C")
+    assert several == []
+
+
+def test_blank_or_repeated_labels_are_numbered() -> None:
+    """Câu trả lời gộp *"Nhãn: trả lời"* chỉ đọc được khi mỗi nhãn trỏ về một câu."""
+    step = NextStepCompleted(
+        request_id="x",
+        kind="ask_clarify",
+        text="",
+        questions=(
+            ClarifyQuestion(label="Khối", text="Khối nào?", choices=("Khối 6", "Khối 7")),
+            ClarifyQuestion(label="Khối", text="Khối nữa?", choices=("Khối 8", "Khối 9")),
+            ClarifyQuestion(label=" ", text="Bao nhiêu câu?", choices=("5 câu", "10 câu")),
+        ),
+    )
+
+    _, _, several = teacher_chat._questions_of(step, False, {})
+
+    assert [one["label"] for one in several] == ["Khối", "Khối (2)", "Câu 3"]
+
+
 @pytest.mark.asyncio
 async def test_a_question_about_a_row_keeps_one_question_with_be_labels(stack) -> None:
     """ADR-32 + ADR-23: nút về một dòng là mọi nhãn BE dựng, và chúng chỉ trả lời được một câu."""

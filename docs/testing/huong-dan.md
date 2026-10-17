@@ -84,8 +84,9 @@ dòng kết quả đổi sau F5 là trượt.
 **Kriky làm được gì** (để không chờ nó làm thứ nó không có): tra lớp (`list_class`, `get_class`),
 tra đề và kết quả lớp (`list_assessment`, `class_assessment_summary`), đọc tài liệu
 (`list_documents`, `list_chapters`, `get_chapter`, `read_section`), mở và soạn đề (`create_draft`,
-`start_drafting`), thay một câu (`replace_question`). Duyệt, bỏ duyệt, phát hành, hoàn tác, sửa chữ
-và xoá câu là **nút trên panel**, không qua chat. Mọi đề đi qua **dàn ý** giáo viên đã thấy và đồng
+`start_drafting`), thay một câu (`replace_question`). Duyệt, bỏ duyệt, phát hành, hoàn tác, sửa chữ,
+xoá câu và đổi tên đề là **nút trên panel**, không qua chat. Khi thiếu dữ kiện, Kriky hỏi lại tối đa
+**3 câu** một lượt, mỗi câu nút riêng, đi từng câu rồi gửi gộp một tin (ADR-32). Mọi đề đi qua **dàn ý** giáo viên đã thấy và đồng
 ý (ADR-29); mỗi lần xin tối đa **10 câu**.
 
 **Một lời dàn ý đạt** ([ADR-30](../decisions/adr-30-loi-kriky-do-model-viet.md)) khi đó là lời Kriky
@@ -122,13 +123,15 @@ Mọi file trong `cases/` theo đúng bảy mục này, đúng thứ tự:
 
 ## Thứ tự chạy
 
-Thứ tự: **01–08, 11, 12, 09, 10, 13, 14**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở case 10
+Thứ tự: **01–08, 11, 12, 09, 10, 13, 14, 15**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở case 10
 chỉ thu hồi mềm: bản phát hành cho 12A còn lại với `recalled_at`, và `list_assessment` vẫn liệt
 kê nó, nên 12A sẽ có hai đề thay vì một. Bốn chuỗi nối nhau:
 
 - **02 → 05 → 09 → 10**: cùng một đề không tài liệu — soạn, thay câu 3, sửa / duyệt / xoá câu,
   phát hành rồi hoàn tác. Case 05 quay lại đúng đoạn chat của case 02.
-- **04 → 06 → 14**: cùng một đề theo sách — soạn, soạn thêm, F5 và đổi đoạn chat.
+- **04 → 06 → 14 → 15**: cùng một đề theo sách — soạn, soạn thêm, F5 và đổi đoạn chat, đổi tên.
+  Case 15 chạy **sau cùng**: các case khác lọc database theo tên đề, đổi tên giữa chừng thì chúng
+  hụt.
 - **13 sau 04**: tệp scan cũng lên *sẵn sàng*, tải trước case 04 thì thư viện có hai cuốn.
 - 01, 03, 07, 08, 11, 12: mỗi case một đoạn chat mới, không dựa vào đề của case nào.
 

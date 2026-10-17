@@ -1679,3 +1679,59 @@ def test_the_questions_asked_go_back_into_history_so_the_merged_answer_reads() -
     assert said.startswith("Mình cần biết thêm:")
     assert "1. Khối: Khối nào? (lựa chọn: Khối 6; Khối 7)" in said
     assert "2. Số câu: Bao nhiêu câu?" in said
+
+
+@pytest.mark.asyncio
+async def test_several_questions_with_no_lead_are_still_something_to_say(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review pha 6: mọi chữ nằm trong các câu thì lượt vẫn có chữ -- không hỏi lại, không lùi về
+    thông báo hệ thống."""
+    model = Scripted([_Proposal(kind="ask_clarify", text="", questions=(_KHOI, _SO_CAU))])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mai mình cần một cái đề"))
+
+    assert len(model.prompts) == 1
+    assert (step.kind, step.text, step.notice) == ("ask_clarify", "", False)
+    assert len(step.questions) == 2
+
+
+@pytest.mark.asyncio
+async def test_too_few_choices_twice_keeps_the_attempt_with_more_choices(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review pha 6: lần nào bày nhiều lựa chọn hơn thì lần ấy đi tiếp, cả khi lượt có nhiều câu."""
+    two = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu"))
+    one = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu",))
+    model = Scripted([_several(_KHOI, two), _several(_KHOI, one)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mai mình cần một cái đề"))
+
+    assert step.questions[1].choices == ("5 câu", "10 câu")
+
+
+@pytest.mark.asyncio
+async def test_two_classes_are_enough_choices_for_each_of_several_questions(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review pha 6: chỉ có hai lớp thì đòi ba lựa chọn là mời model bịa lớp thứ ba."""
+    history = (
+        TurnRecord(kind="teacher", text="lớp 12 thế nào"),
+        TurnRecord(kind="tool_call", tool_name="list_class", tool_args={"name": "12"}),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="list_class",
+            tool_result={"candidates": [{"name": "12A"}, {"name": "12B"}], "more": 0},
+        ),
+    )
+    lop = _Question(label="Lớp", text="Lớp nào?", choices=("12A", "12B"))
+    so_cau = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu"))
+    model = Scripted([_several(lop, so_cau)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("x").model_copy(update={"history": history}))
+
+    assert len(model.prompts) == 1
+    assert [one.label for one in step.questions] == ["Lớp", "Số câu"]

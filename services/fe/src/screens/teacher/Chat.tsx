@@ -37,6 +37,18 @@ interface Question {
   questions?: ClarifyQuestion[];
 }
 
+/**
+ * Lời của một lượt hỏi nhiều câu **đã qua** (ADR-32), như nó hiện trong đoạn chat: lời mở rồi các
+ * câu, đánh số. Thẻ chỉ sống ở lượt cuối; lượt cũ chỉ vẽ lời mở thì không ai biết câu trả lời gộp
+ * bên dưới trả lời câu nào — và lời mở có thể rỗng.
+ */
+function aloud(turn: Turn): Turn {
+  const several = questionsOf(turn);
+  if (several.length === 0) return turn;
+  const listed = several.map((one, index) => `${index + 1}. ${one.text}`).join("\n");
+  return { ...turn, text: turn.text.trim() === "" ? listed : `${turn.text}\n\n${listed}` };
+}
+
 /** Các câu của một lượt hỏi nhiều câu, đọc từ `tool_result` đã lưu; rỗng khi không phải. */
 function questionsOf(turn: Turn | undefined): ClarifyQuestion[] {
   const raw = turn?.kind === "assistant" ? turn.tool_result?.questions : undefined;
@@ -135,6 +147,8 @@ export default function Chat({
   // Câu đã ghi ở ô "Khác" của một lượt vừa hỏng: thẻ hỏi lại hiện lại với ô ấy mở sẵn và
   // chữ ấy trong đó. `null` khi không có gì để trả.
   const [otherBack, setOtherBack] = useState<string | null>(null);
+  // Các câu trả lời của thẻ nhiều câu vừa gửi hỏng: thẻ mở lại ở màn tóm tắt với chúng.
+  const [answersBack, setAnswersBack] = useState<string[] | null>(null);
   const [documents, setDocuments] = useState<TeacherDocument[]>([]);
   const [threads, setThreads] = useState<TeacherConversation[]>([]);
   // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
@@ -180,6 +194,7 @@ export default function Chat({
     setTurns([]);
     setAsked(null);
     setOtherBack(null);
+    setAnswersBack(null);
     // Tệp đính thuộc về câu đang gõ, và câu đang gõ vừa bị xoá cùng màn hình. Đứng **sau**
     // guard ở trên có chủ ý: guard bắt đúng một ca — route vừa gọi tên đoạn mà lượt đầu
     // vừa tạo ra — và ở ca ấy `send` đã dọn rồi, nên dọn lần nữa chỉ là dọn một chỗ trống.
@@ -318,6 +333,7 @@ export default function Chat({
       const whole = await teacher.conversation(thread ?? undefined);
       setTurns(whole.turns);
       setAsked(questionIn(whole));
+      setAnswersBack(null);
     } catch (cause) {
       if (from === "composer") {
         setText(trimmed);
@@ -430,7 +446,7 @@ export default function Chat({
     last !== undefined &&
     last.kind === "assistant" &&
     last.text === asked.text;
-  const drawn = folded ? turns.slice(0, -1) : turns;
+  const drawn = (folded ? turns.slice(0, -1) : turns).map(aloud);
 
   return (
     <div
@@ -506,7 +522,11 @@ export default function Chat({
                 lead={asked.text}
                 questions={asked.questions}
                 other={OTHER}
-                onSend={(said) => void send(said, "card")}
+                kept={answersBack}
+                onSend={(said, answers) => {
+                  setAnswersBack(answers);
+                  void send(said, "card");
+                }}
               />
             )}
             {asked !== null && pending === null && !asked.questions && (

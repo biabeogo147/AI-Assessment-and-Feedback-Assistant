@@ -74,7 +74,36 @@ describe("thẻ hỏi lại nhiều câu", () => {
     fireEvent.click(screen.getByText("Gửi"));
 
     expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend).toHaveBeenCalledWith("Khối: Khối 7 · Số câu: 5 câu · Phạm vi: Tỉ lệ thức");
+    expect(onSend).toHaveBeenCalledWith("Khối: Khối 7 · Số câu: 5 câu · Phạm vi: Tỉ lệ thức", [
+      "Khối 7",
+      "5 câu",
+      "Tỉ lệ thức",
+    ]);
+  });
+
+  it("gửi hỏng thì thẻ mở lại ở màn tóm tắt với các câu trả lời cũ", () => {
+    const onSend = vi.fn();
+    render(
+      <ClarifySteps
+        lead="Mình cần biết thêm ba điều:"
+        questions={QUESTIONS}
+        other="Khác"
+        kept={["Khối 7", "Khác: 12 câu", "Hàm số"]}
+        onSend={onSend}
+      />,
+    );
+
+    expect(screen.getByText("Kiểm tra lại trước khi gửi")).toBeTruthy();
+    expect(screen.getByText("Khác: 12 câu")).toBeTruthy();
+    fireEvent.click(screen.getByText("Gửi"));
+    expect(onSend.mock.calls[0][0]).toBe("Khối: Khối 7 · Số câu: Khác: 12 câu · Phạm vi: Hàm số");
+  });
+
+  it("không lời mở thì không tiêu đề rỗng", () => {
+    render(<ClarifySteps lead="" questions={QUESTIONS} other="Khác" onSend={vi.fn()} />);
+
+    expect(document.querySelector(".clarify h3")).toBeNull();
+    expect(screen.getByText("Câu 1/3 · Khối")).toBeTruthy();
   });
 
   it("lối Khác… ghi một câu trả lời riêng cho câu đang xem", () => {
@@ -131,5 +160,49 @@ describe("thẻ hỏi lại nhiều câu", () => {
 
     await waitFor(() => expect(screen.getByText("Câu 1/3 · Khối")).toBeTruthy());
     expect(document.querySelectorAll(".clarify.several")).toHaveLength(1);
+  });
+
+  it("lượt hỏi nhiều câu đã qua hiện lời mở cùng các câu, đánh số", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const turn = (kind: string, text: string, tool_result = {}) => ({
+      kind,
+      text,
+      tool_name: "",
+      tool_result,
+      entity_kind: "",
+      entity_id: "",
+      choices: [],
+      more_choices: 0,
+      model_tokens: 0,
+      duration_ms: 0,
+    });
+    const stored = {
+      kind: "say",
+      text: "",
+      conversation_id: "c1",
+      choices: [],
+      more_choices: 0,
+      turns: [
+        turn("teacher", "soạn đề"),
+        turn("assistant", "", { questions: QUESTIONS }),
+        turn("teacher", "Khối: Khối 7 · Số câu: 5 câu · Phạm vi: Hàm số"),
+        turn("assistant", "Được, mình lên dàn ý nhé."),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(url.startsWith("/api/teacher/chat") ? stored : []),
+        }),
+      ),
+    );
+
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+
+    await waitFor(() => expect(screen.getByText("Đề dành cho khối nào?")).toBeTruthy());
+    expect(screen.getByText("Phần nào?")).toBeTruthy();
+    expect(document.querySelectorAll(".clarify.several")).toHaveLength(0);
   });
 });

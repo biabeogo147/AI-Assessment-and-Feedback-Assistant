@@ -878,7 +878,7 @@ def _choices(proposed: tuple[str, ...], offered: list[str], named: dict[str, str
 
 
 def _questions_of(
-    step: NextStepCompleted, about_a_row: bool
+    step: NextStepCompleted, about_a_row: bool, named: dict[str, str]
 ) -> tuple[str, tuple[str, ...], list[dict]]:
     """Lời, nút và các câu của một câu hỏi lại, sau luật một-lượt-một-câu-về-dòng (ADR-32). Hàm
     thuần.
@@ -886,11 +886,17 @@ def _questions_of(
     Nhiều câu thì mỗi câu một bộ nút, dựng như nút của một câu hỏi về **tham số** (`_choices` không
     có `offered`). Câu hỏi về một **dòng** -- có `candidates` đang được hỏi -- thì một lượt chỉ một
     câu: nút phải là mọi nhãn BE dựng (ADR-23), và các nhãn ấy chỉ trả lời được một câu. Giữ câu
-    đầu, gộp lời mở với nó; các câu sau bỏ, model hỏi lại ở lượt sau.
+    có lựa chọn gọi đúng một dòng -- không thì câu đầu --, gộp lời mở với nó; các câu khác bỏ, model
+    hỏi lại ở lượt sau. Giữ câu đầu một cách mù quáng thì *"Bao nhiêu câu?"* mang nút *"12A (3 học
+    sinh)"* (review pha 6).
+
+    Nhãn trống hay trùng được đánh số: câu trả lời gộp *"Nhãn: trả lời"* chỉ đọc được khi mỗi nhãn
+    trỏ về một câu.
 
     Args:
         step: Đề nghị model vừa nêu.
         about_a_row: Lượt này có `candidates` đang được hỏi không.
+        named: Tên trỏ về từng dòng đang được hỏi (`_named`).
 
     Returns:
         `(lời, nút model đề xuất, các câu đã dựng nút)`; các câu rỗng khi lượt là một câu hỏi.
@@ -898,14 +904,24 @@ def _questions_of(
     if not step.questions:
         return step.text, step.choices, []
     if about_a_row:
-        first = step.questions[0]
+        first = next(
+            (
+                one
+                for one in step.questions
+                if any(_spaced(choice) in named for choice in one.choices)
+            ),
+            step.questions[0],
+        )
         lead = step.text.strip()
         joined = f"{lead}\n\n{first.text}" if lead and lead != first.text else first.text
         return joined, first.choices, []
-    several = [
-        {"label": one.label, "text": one.text, "choices": _choices(one.choices, [], {})}
-        for one in step.questions
-    ]
+    several, seen = [], set()
+    for index, one in enumerate(step.questions, start=1):
+        label = one.label.strip() or f"Câu {index}"
+        if label in seen:
+            label = f"{label} ({index})"
+        seen.add(label)
+        several.append({"label": label, "text": one.text, "choices": _choices(one.choices, [], {})})
     return step.text, (), several
 
 
@@ -2379,7 +2395,7 @@ async def _go(
             # như vậy từ trước; từ khi có cột trong database thì nó còn sống qua cả F5 — nên
             # chỗ chặn phải là đây, nơi duy nhất biết `step.kind`.
             asking_back = step.kind == "ask_clarify"
-            asked_text, asked_choices, several = _questions_of(step, bool(offered))
+            asked_text, asked_choices, several = _questions_of(step, bool(offered), offered_named)
             # `unbiased-model-text` T3: câu hỏi về một dòng giữ nhãn BE, câu hỏi về tham số lấy chữ
             # model đề xuất -- xem `_choices`. "Khác" do FE vẽ, không nằm trong nút.
             buttons = _choices(asked_choices, offered, offered_named) if asking_back else []
@@ -2403,13 +2419,13 @@ async def _go(
                 choices=buttons,
                 more_choices=offered_more if asking_back else 0,
             )
-            if asking_back and offered and step.choices:
+            if asking_back and offered and asked_choices:
                 # Câu hỏi về một dòng: bao nhiêu chữ model viết khớp đúng một dòng, tức được đưa
                 # lên đầu; phần còn lại bị bỏ, nút vẫn là mọi nhãn BE.
                 logger.info(
                     "%d of %d model-written choice(s) named a row for %s",
-                    sum(_spaced(one) in offered_named for one in step.choices),
-                    len(step.choices),
+                    sum(_spaced(one) in offered_named for one in asked_choices),
+                    len(asked_choices),
                     asking.teacher_code,
                 )
             yield TurnEvent(
