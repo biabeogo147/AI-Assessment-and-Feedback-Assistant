@@ -403,13 +403,13 @@ async def test_the_timing_rules_read_identically_in_every_payload(stack) -> None
     for answer in (form, confirm, record):
         assert answer.json()["rules"]["recall"] == RECALL_RULE
 
-    # Nơi thứ tư: đường đọc. Nó phải in **cùng** câu mà biên bản vừa in, không phải một câu
-    # tương đương — nếu ai in lại bằng chữ khác ở đó thì dòng này đỏ.
+    # Nơi thứ tư: đường đọc. Nó chở **cùng khuôn** và số thô; FE điền khuôn bằng giờ địa phương
+    # (đường này không có offset của người đọc, câu dựng ở BE sẽ in UTC -- plan `backlog-tier-1`).
     reread = await client.get(f"/api/teacher/assessments/{paper}/publications", headers=TEACHER)
     assert reread.status_code == 200
     assert reread.json()["rules"] == form.json()["rules"]
-    assert reread.json()["classes"][0]["phase_one_note"] == filled["phase_one_note"]
-    assert reread.json()["classes"][0]["phase_two_note"] == filled["phase_two_note"]
+    assert "phase_one_note" not in reread.json()["classes"][0]
+    assert reread.json()["classes"][0]["closes_at"] == filled["closes_at"]
 
 
 @pytest.mark.asyncio

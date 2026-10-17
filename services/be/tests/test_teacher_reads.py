@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
 from be.db import bind_sessions
-from be.publication_wording import phase_one_note, phase_two_note
+from be.publication_wording import PHASE_ONE, PHASE_TWO, phase_one_note, phase_two_note
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
 from be.teacher_routes import router as assessment_router
@@ -314,9 +314,9 @@ async def test_a_recalled_publication_reads_as_if_it_never_happened(stack) -> No
 async def test_the_read_path_prints_the_same_two_sentences_as_everywhere_else(stack) -> None:
     """ADR-03 đòi ba nơi giống hệt nhau từng chữ. Đường đọc này là nơi **thứ tư**.
 
-    Nó không so hai response với nhau — hai bản sao của cùng một lỗi vẫn bằng nhau. Nó dựng lại câu
-    bằng chính hàm trong `publication_wording` và so với thứ endpoint trả về, nên nếu ai đó in lại
-    câu luật bằng chữ khác ở đây thì dòng này đỏ.
+    Từ plan `backlog-tier-1` đường đọc chở **khuôn** chứ không chở câu đã điền: nó không có offset
+    của người đọc, và câu dựng ở đây từng in giờ UTC. FE điền khuôn bằng giờ địa phương -- nên chữ
+    vẫn một nguồn khi khuôn trả về đúng là `PHASE_ONE`/`PHASE_TWO` của `publication_wording`.
     """
     client, maker = stack
     paper = await _paper(maker)
@@ -342,10 +342,13 @@ async def test_the_read_path_prints_the_same_two_sentences_as_everywhere_else(st
     answer = await client.get(f"/api/teacher/assessments/{paper}/publications", headers=TEACHER)
 
     only = answer.json()["classes"][0]
-    assert only["phase_one_note"] == phase_one_note(closes, 15)
-    assert only["phase_two_note"] == phase_two_note(deadline, 5)
+    assert "phase_one_note" not in only
+    assert (only["phase1_minutes"], only["phase2_minutes_per_question"]) == (15, 5)
+    rules = answer.json()["rules"]
+    assert (rules["phase_one_form"], rules["phase_two_form"]) == (PHASE_ONE, PHASE_TWO)
     # Và cùng ba câu luật chưa điền số mà biểu mẫu trả về.
-    assert "--:--" in answer.json()["rules"]["phase_one"]
+    assert rules["phase_one"] == phase_one_note()
+    assert rules["phase_two"] == phase_two_note()
 
 
 @pytest.mark.asyncio

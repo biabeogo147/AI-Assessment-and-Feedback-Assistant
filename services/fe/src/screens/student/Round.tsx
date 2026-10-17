@@ -13,10 +13,11 @@ import MathText from "../../MathText";
  * đề, chỗ gọi tên câu gốc và cho biết đây là lượt thứ mấy, cùng cái mức trần đi
  * kèm theo đó (ADR-17).
  *
- * Lượt này được đọc lại từ nơi nó đã được tạo ra chứ không request lại, vì mở một
- * lượt chính là tiêu một lượt: reload không được phép làm học sinh mất một trong
- * ba lượt của mình. Đồng hồ là đồng hồ của server, và khi nó về không thì lượt bị
- * dừng, không phải được gia hạn (ADR-15).
+ * Lượt này được **đọc lại** chứ không mở lại, vì mở một lượt chính là tiêu một lượt:
+ * reload không được phép làm học sinh mất một trong ba lượt của mình. Bản trong
+ * `sessionStorage` vẽ ngay; bản đọc từ server (`GET /rounds/{id}`) là bản đúng, có cả lựa
+ * chọn đã lưu -- tab mới hay máy khác chỉ có bản ấy (plan `backlog-tier-1`). Đồng hồ là đồng
+ * hồ của server, và khi nó về không thì lượt bị dừng, không phải được gia hạn (ADR-15).
  */
 export default function Round({
   me,
@@ -43,8 +44,29 @@ export default function Round({
   }, [attemptId, roundId]);
 
   useEffect(() => {
+    let current = true;
     const cached = window.sessionStorage.getItem(`round:${roundId}`);
     if (cached) setRound(JSON.parse(cached) as OpenRound);
+    api
+      .round(roundId)
+      .then((stored) => {
+        if (!current) return;
+        setRound(stored);
+        // Lựa chọn đã lưu ở lần trước (tab khác, trước F5) sáng lại. Lựa chọn vừa bấm ở tab này
+        // trong lúc chờ lời đáp thắng (review ảnh pha 2): ghi đè thì nó biến mất khỏi màn dù đã lưu.
+        const saved = Object.fromEntries(
+          stored.items
+            .filter((one) => one.chosen_label !== null)
+            .map((one) => [one.round_item_id, one.chosen_label as string]),
+        );
+        setChosen((picked) => ({ ...saved, ...picked }));
+      })
+      .catch((cause: Error) => {
+        if (current && !cached) setError(cause.message);
+      });
+    return () => {
+      current = false;
+    };
   }, [roundId]);
 
   if (round === null) {

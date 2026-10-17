@@ -1822,30 +1822,6 @@
   line-height: 1.5;
 }
 
-/*
- * Chip nguồn. Bo tròn hẳn (999) để nó không bị đọc nhầm thành một nút.
- */
-.teacher .source-chip {
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--sunken);
-  color: var(--ink-muted);
-  font-size: var(--type-caption);
-  font-weight: 600;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
-.teacher .source-chip.checked {
-  background: var(--state-settled-surface);
-  color: var(--state-settled);
-}
-
-.teacher .source-chip.unchecked {
-  background: var(--state-needs-human-surface);
-  color: var(--state-needs-human);
-}
-
 /* Vùng cuộn duy nhất của panel; đầu và chân panel đứng yên. */
 .teacher .panel-questions {
   flex: 1;
@@ -1899,10 +1875,6 @@
   font-size: var(--type-caption);
   font-weight: 600;
   line-height: 1.5;
-}
-
-.teacher .qcard .top .source-chip {
-  padding: 3px 8px;
 }
 
 .teacher .qcard .spacer {

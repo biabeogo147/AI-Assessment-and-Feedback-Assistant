@@ -31,6 +31,7 @@ Hệ thống chấm; lỗi sai tra từ distractor đã chọn
 Với mỗi câu sai: hệ thống giải thích lỗi, Student hỏi lại đến khi hiểu
         ↓
 Student bấm Làm bài mới; đồng hồ lượt bắt đầu chạy
+(đóng tab hay đổi máy giữa lượt: "Làm tiếp lượt đang mở" đọc lại đúng lượt ấy, kể cả lựa chọn đã lưu)
         ↓
 Student làm câu biến thể của chính câu đó
         ↓

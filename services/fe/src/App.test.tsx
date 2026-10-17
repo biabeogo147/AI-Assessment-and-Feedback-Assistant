@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { countdown, moment } from "./api";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
+import Round from "./screens/student/Round";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
 
@@ -346,5 +347,86 @@ describe("asking for the opening turn", () => {
     await new Promise((resolve) => setTimeout(resolve, 600));
 
     expect(streams).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("a round open in another tab", () => {
+  // Plan `backlog-tier-1`: câu của lượt chỉ sống trong `sessionStorage` của tab đã mở nó, nên tab
+  // mới thấy "Không đọc được lượt này", còn nút xin lượt mới thì xám (BE trả 409).
+  const ROUND = {
+    round_id: "r1",
+    index: 1,
+    ends_at: "2099-01-01T00:00:00+00:00",
+    items: [
+      {
+        round_item_id: "i1",
+        origin_question_id: "q4",
+        origin_order: 4,
+        order: 1,
+        stem: "Cho hàm số y = x³ − 12x. Hàm số nghịch biến trên khoảng nào?",
+        options: [
+          { option_id: "A", label: "A", text: "(−2; 2)" },
+          { option_id: "B", label: "B", text: "(2; +∞)" },
+        ],
+        chosen_label: "B",
+      },
+    ],
+  };
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it("reads the round back from the server, with the choice already saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        new Response(
+          JSON.stringify(
+            String(url).endsWith("/rounds/r1") ? ROUND : { open_round_id: "r1", items: [] },
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const { container } = render(<Round me={ME} attemptId="a1" roundId="r1" />);
+
+    await waitFor(() => expect(screen.getByText(/nghịch biến/)).toBeTruthy());
+    expect(screen.queryByText("Không đọc được lượt này.")).toBeNull();
+    await waitFor(() => expect(container.querySelector(".option.chosen")).toBeTruthy());
+    expect(container.querySelector(".option.chosen")?.textContent).toContain("(2; +∞)");
+  });
+
+  it("offers to go back into the open round instead of a greyed-out new one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        new Response(
+          JSON.stringify(
+            String(url).includes("/chat")
+              ? { attempt_id: "a1", locked: false, messages: [] }
+              : {
+                  attempt_id: "a1",
+                  state: "cần-chữa",
+                  deadline: "2099-01-01T00:00:00+00:00",
+                  minutes_per_question: 5,
+                  round_budget_minutes: 10,
+                  open_count: 1,
+                  can_start_round: false,
+                  warn_cut: false,
+                  open_round_id: "r1",
+                  items: [],
+                },
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    render(<Tutor me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText("Làm tiếp lượt đang mở")).toBeTruthy());
+    expect(screen.queryByText(/Làm bài mới/)).toBeNull();
   });
 });

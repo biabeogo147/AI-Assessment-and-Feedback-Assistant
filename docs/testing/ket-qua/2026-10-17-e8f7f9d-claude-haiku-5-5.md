@@ -25,7 +25,7 @@
 | Case | Kết quả | Lý do |
 | --- | --- | --- |
 | 01 Xin đề mơ hồ | **Chấp nhận được** | Thẻ ba câu, không bỏ câu, tóm tắt, gửi gộp một tin, dàn ý 5 câu cấp số cộng; nút câu 3 là *loại* phạm vi, không phải giá trị |
-| 02 Đề không tài liệu | **Không đạt** | Tên đề 36 ký tự, không số trang; nhưng câu 3 và câu 4 cùng một bài $\frac{x}{6}=\frac{4}{9}$, cả hai từ ngân hàng — trượt *"khác số liệu hoặc cách hỏi"* |
+| 02 Đề không tài liệu | **Không đạt** | Tên đề 36 ký tự, không số trang; nhưng câu 3 và câu 4 cùng một bài $\frac{x}{6}=\frac{4}{9}$, do model viết (nhãn *ngân hàng* trên panel là chữ bịa) — trượt *"khác số liệu hoặc cách hỏi"* |
 | 04 Đề theo sách | **Không đạt** | Tên đề đúng tên tệp; nhưng bài nguồn gộp ở cuối lời dàn ý thay vì nêu từng mục, và câu 3 có phương án rác `4 volume` kèm đáp án sai |
 | 15 Đổi tên đề | **Đạt** (một phần) | Ô 60 ký tự, thẻ cũ + dòng bước + panel đổi theo không cần F5, đã duyệt thì không đổi được, Kriky nói tên mới; chỉ một thẻ cũ vì 06 không chạy |
 
@@ -76,7 +76,7 @@ biết thêm:"*
 - Bám dàn ý: năm ô `ready`, `ban` = 1; câu 1, 2 → mục 0; 3, 4 → mục 1; 5 → mục 2 — đúng kiến thức.
 - Vì sao **không đạt**: câu 3 *"Tìm số hạng chưa biết $x$ trong tỉ lệ thức
   $\frac{x}{6}=\frac{4}{9}$"* và câu 4 *"Tìm số x biết $\frac{x}{6}=\frac{4}{9}$. Giá trị của x là:"*
-  cùng số liệu và cùng cách hỏi, chỉ khác chữ; cả hai mang nhãn *Lấy từ ngân hàng câu hỏi*. *Đạt
+  cùng số liệu và cùng cách hỏi, chỉ khác chữ. Cả hai mang nhãn *Lấy từ ngân hàng câu hỏi* trên panel, nhưng nhãn ấy là **chữ bịa** chọn theo hash id (`invented-not-from-be.ts`, đã gỡ trong plan `backlog-tier-1`): hệ thống chưa có đường đọc ngân hàng nào, hai câu do model viết. *(Sửa sau review tranh luận 17/10.)* *Đạt
   khi* của case đòi hai câu chung một mục khác số liệu hoặc cách hỏi. (Bản đầu biên bản ghi *chấp
   nhận được*; review ảnh chỉ ra là quá nhẹ.)
 

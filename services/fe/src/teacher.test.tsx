@@ -131,9 +131,22 @@ function heldBy(
     phase2_minutes_per_question: 5,
     remediation_deadline: deadline,
     withdrawable_until: opens,
-    phase_one_note: `NOTE-MỘT-${name}-TỪ-BE`,
-    phase_two_note: `NOTE-HAI-${name}-TỪ-BE`,
   };
+}
+
+/**
+ * Hai câu luật của một lớp đã phát hành, như màn hình phải điền: khuôn của BE, **giờ địa
+ * phương** của máy chạy test (plan `backlog-tier-1`: câu BE dựng sẵn trên đường đọc từng in UTC).
+ */
+function ruledFor(closes: string, deadline: string): [string, string] {
+  const pad = (one: number) => String(one).padStart(2, "0");
+  const hm = (at: Date) => `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  const shut = new Date(closes);
+  const last = new Date(shut.getTime() + 15 * 60_000);
+  return [
+    `Vào tham gia tới hết ${hm(shut)} - có thể nộp lúc ${hm(last)}, và không dừng người đang làm.`,
+    `Chữa bài tới hết ${hm(new Date(deadline))} - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị DỪNG.`,
+  ];
 }
 
 /**
@@ -2072,6 +2085,39 @@ describe("đổi tên đề (ADR-31)", () => {
     expect(calls.some((one) => one.method === "PATCH")).toBe(false);
   });
 
+  it("mở đề khác khi ô đổi tên đang mở: ô đóng, Enter không đổi tên đề mới", async () => {
+    // Plan `backlog-tier-1`: tên gõ dở của đề A còn sống khi mở đề B, và Enter đổi tên B.
+    const calls = serving("has_questions");
+    const { rerender } = render(
+      <Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />,
+    );
+    fireEvent.click(await screen.findByText("Đổi tên"));
+    fireEvent.change(screen.getByLabelText("Tên đề"), { target: { value: "Tên của đề A" } });
+
+    rerender(<Panel assessmentId="p2" onClose={() => undefined} onApproved={() => undefined} />);
+
+    await waitFor(() => expect(screen.queryByLabelText("Tên đề")).toBeNull());
+    expect(calls.some((one) => one.method === "PATCH")).toBe(false);
+  });
+
+  it("Enter lúc đang gửi, hay lúc bộ gõ đang ghép dấu, không gửi thêm lần nào", async () => {
+    const calls = serving("has_questions");
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+    fireEvent.click(await screen.findByText("Đổi tên"));
+    const box = screen.getByLabelText("Tên đề");
+    fireEvent.change(box, { target: { value: "Kiểm tra chương I" } });
+
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    expect(calls.filter((one) => one.method === "PATCH")).toHaveLength(0);
+    fireEvent.keyDown(box, { key: "Enter" });
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Kiểm tra chương I" })).toBeTruthy(),
+    );
+    expect(calls.filter((one) => one.method === "PATCH")).toHaveLength(1);
+  });
+
   it("đề đã duyệt không có nút Đổi tên — cùng khoá nội dung (ADR-01)", async () => {
     serving("approved");
     const { container } = render(
@@ -2761,8 +2807,8 @@ describe("xoá một câu khỏi đề (ADR-28)", () => {
   }
 
   it("dòng tổng đã kiểm / chưa kiểm không còn dưới tên đề", async () => {
-    // Duyệt đề là đã kiểm mọi câu, nên dòng ấy không còn đếm điều gì. Chip trên từng câu thì
-    // **ở lại**: người dùng dặn giữ nguyên mọi phần giao diện khác.
+    // Duyệt đề là đã kiểm mọi câu, nên dòng ấy không còn đếm điều gì. Chip nguồn trên từng câu
+    // cũng đã gỡ (17/10/2026, Tier 2 câu 1 = A): nó là chữ bịa theo hash id.
     serving("has_questions", false);
     mount();
     await openErase(1);
@@ -2771,7 +2817,7 @@ describe("xoá một câu khỏi đề (ADR-28)", () => {
     expect(document.querySelector(".panel-head .provenance")).toBeNull();
     expect(screen.queryByText(/câu thêm mới đã kiểm/)).toBeNull();
     expect(screen.queryByText(/câu chưa kiểm/)).toBeNull();
-    expect(document.querySelector(".qcard .source-chip")).not.toBeNull();
+    expect(document.querySelector(".qcard .source-chip")).toBeNull();
   });
 
   it("Xoá đứng ngay sau Sửa, cùng kiểu, và biến mất cùng Sửa khi đề đã duyệt", async () => {
@@ -2952,8 +2998,8 @@ describe("sửa chữ của một câu", () => {
     openTang("Phương án");
     expect(screen.getByLabelText("Phương án A")).toBeTruthy();
     expect(screen.getByText("Đang sửa")).toBeTruthy();
-    // Chip nguồn **ở lại**: biết câu này lấy từ đâu là thứ cần nhất đúng lúc đang sửa nó.
-    expect(document.querySelector(".qcard.editing .source-chip")).not.toBeNull();
+    // Chip nguồn đã gỡ (Tier 2 câu 1 = A): nó là chữ bịa, cả lúc xem lẫn lúc sửa.
+    expect(document.querySelector(".qcard.editing .source-chip")).toBeNull();
   });
 
   it("đề đã duyệt thì không có nút Sửa nào (ADR-01)", async () => {
@@ -4712,11 +4758,11 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     // Tham số thô: giờ mở và phút làm bài. Hai câu luật của BE **không** nói hai thứ này
     // (câu pha 1 nói giờ đóng và mốc nộp cuối), nên chúng phải được nêu riêng.
     expect(said).toContain(`Mở ${moment(OPENS)} · làm bài 15 phút`);
-    // Hai câu LUẬT, nguyên văn của BE. Khớp nguyên chuỗi chứ không `toContain` một mẩu:
-    // một phép khớp chuỗi con ở đây sống sót được cả một cú đảo hai con số, vì "15 phút"
-    // là chuỗi con của "15 phút/câu".
-    expect(said).toContain("NOTE-MỘT-12A-TỪ-BE");
-    expect(said).toContain("NOTE-HAI-12A-TỪ-BE");
+    // Hai câu LUẬT: khuôn của BE, số điền bằng giờ ĐỊA PHƯƠNG. Khớp nguyên câu chứ không một
+    // mẩu: một phép khớp chuỗi con sống sót được cả một cú đảo hai con số.
+    const [one, two] = ruledFor(CLOSES, ENDS);
+    expect(said).toContain(one);
+    expect(said).toContain(two);
     // Thu hồi được tới **giờ mở**, và con số ấy do BE nêu riêng chứ không do FE suy ra.
     expect(said).toContain(`Thu hồi được tới ${moment(OPENS)}`);
   });
@@ -4812,8 +4858,9 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     for (const [at, row] of [...container.querySelectorAll(".published-row")].entries()) {
       const lop = at === 0 ? "12A" : "12B";
       expect(row.textContent).toContain(`làm bài 15 phút`);
-      expect(row.textContent).toContain(`NOTE-MỘT-${lop}-TỪ-BE`);
-      expect(row.textContent).toContain(`NOTE-HAI-${lop}-TỪ-BE`);
+      expect(row.textContent).toContain(lop);
+      expect(row.textContent).toContain(ruledFor(CLOSES, ENDS)[0]);
+      expect(row.textContent).toContain(ruledFor(CLOSES, ENDS)[1]);
     }
   });
 
@@ -4978,9 +5025,12 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     expect(rows[1].textContent).toContain(`Mở ${moment(late)}`);
     for (const [at, row] of rows.entries()) {
       const lop = at === 0 ? "12A" : "12B";
+      // 12B đóng muộn hơn (fixture: đóng = hạn chữa), nên câu luật của nó mang số của chính nó.
+      const [one, two] = at === 0 ? ruledFor(CLOSES, ENDS) : ruledFor(ENDS, ENDS);
       expect(row.textContent).toContain("làm bài 15 phút");
-      expect(row.textContent).toContain(`NOTE-MỘT-${lop}-TỪ-BE`);
-      expect(row.textContent).toContain(`NOTE-HAI-${lop}-TỪ-BE`);
+      expect(row.textContent).toContain(lop);
+      expect(row.textContent).toContain(one);
+      expect(row.textContent).toContain(two);
     }
   });
 

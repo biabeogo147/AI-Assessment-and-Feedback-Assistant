@@ -490,7 +490,10 @@ một bản nháp rỗng, và nó chôn mất nháp thật khi component mount l
 `publish-form` chỉ nói lớp nào **đang giữ** đề, không nói giữ với **giờ nào**. Câu trả lời nằm ở
 `GET /publications`, một endpoint đã có từ trước mà **không chỗ nào trong FE gọi** — `teacher.publications`
 là code chết trong `api.ts`. Nay biểu mẫu dựng từ nó một khối `ĐÃ PHÁT HÀNH`, **một khối năm dòng
-cho mỗi lớp**.
+cho mỗi lớp**. Hai câu luật trong khối do **FE** điền từ khuôn `rules.phase_one_form` /
+`phase_two_form` bằng giờ địa phương, như biểu mẫu lúc đang gõ: `GET /publications` không có offset của
+người đọc, và câu BE dựng sẵn ở đó từng in giờ UTC (*"tới hết 03:00"* cho một đề đóng 10:00 giờ Việt
+Nam; plan `backlog-tier-1`).
 
 **Đã khoá thì không dựng ô nhập nào.** Luật này thay cho luật cũ (*"năm ô khoá, mang giá trị đã
 phát hành"*), và lý do là **cấu trúc** chứ không phải hiển thị: năm cái ô chỉ diễn tả được **một**
@@ -750,9 +753,11 @@ hàng sửa 431×37 (ô 330/330,5), hàng xem tên 345/346,1, thẻ tên dài 66
 [ADR-28](../decisions/adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) chốt **duyệt đề là đã kiểm mọi
 câu**, nên dòng tổng *"N câu ngân hàng · x câu thêm mới đã kiểm · y câu chưa kiểm"* dưới tên đề bị gỡ:
 sau luật ấy nó không còn đếm điều gì. Đầu panel còn hai hàng -- tên đề và dòng meta -- cao **86**.
-Chip nguồn trên **từng câu** thì ở lại, vẫn là chữ bịa theo hash id (`invented-not-from-be.ts`), vì
-người dùng dặn giữ nguyên mọi phần giao diện khác; món nợ ấy ở `docs/plans/backlog.md`. Hàm
-`Provenance` và CSS `.provenance` đã xoá.
+Chip nguồn trên **từng câu** ở lại tới 17/10/2026 rồi cũng gỡ (plan `backlog-tier-1`, người dùng chọn
+gỡ ngay): nó là chữ bịa theo hash id, và đã lừa cả biên bản thử tay 17/10 (*"cả hai từ ngân hàng"*).
+Thẻ câu nay chỉ còn `Câu k` ở đầu; component `Question card` (`267:30`) và `Question card — đang sửa ·
+ba tầng` (`531:182`) bỏ instance `Source citation`. Chip thật chờ cột nguồn trên `Question` (plan P1 ở
+artifact *Backlog theo tier*).
 
 Nút **`Xoá`** đứng ngay sau `Sửa`, cùng kiểu chữ (`.qcard .edit`), cùng điều kiện hiện: đề đã duyệt
 thì cả hai biến mất (thuộc tính `Sửa được` của `Question card`, `267:30`). Thẻ đang sửa không có nó.

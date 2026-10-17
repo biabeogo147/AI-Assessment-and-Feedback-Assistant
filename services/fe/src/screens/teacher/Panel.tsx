@@ -7,7 +7,6 @@ import {
   type TeacherQuestion,
 } from "../../api";
 import Editing from "./Editing";
-import { provenanceOf } from "./invented-not-from-be";
 import PublishSettings from "./PublishSettings";
 import Veil from "./Veil";
 import MathText from "../../MathText";
@@ -64,15 +63,29 @@ export default function Panel({
   const [naming, setNaming] = useState<string | null>(null);
 
   useEffect(() => {
+    // Đề trước đã đóng: lời đáp đến muộn của nó không được vẽ lên đề này.
+    let current = true;
     setPaper(null);
     // Hộp xoá của đề trước không được mọc lại trên đề này: xác nhận lúc ấy là gửi id câu của
     // đề cũ lên đường của đề mới.
     setErasing(null);
     setEraseRefused("");
+    // Cùng lý do cho ô đổi tên (plan `backlog-tier-1`): tên gõ dở của đề A còn mở khi mở đề B
+    // thì Enter đổi tên **đề B**. Lỗi và hộp lời giải của đề trước cũng không theo sang.
+    setNaming(null);
+    setTrouble(null);
+    setSolving(null);
     teacher
       .assessment(assessmentId)
-      .then(setPaper)
-      .catch((cause: Error) => setTrouble(cause.message));
+      .then((found) => {
+        if (current) setPaper(found);
+      })
+      .catch((cause: Error) => {
+        if (current) setTrouble(cause.message);
+      });
+    return () => {
+      current = false;
+    };
   }, [assessmentId]);
 
   /** Lưu tên mới. Trống hay y như cũ thì không gửi gì: BE từ chối tên trống, nhưng để nó từ chối
@@ -254,7 +267,10 @@ export default function Panel({
               value={naming}
               onChange={(event) => setNaming(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") void rename();
+                // Đang gửi thì Enter không gửi lần nữa; đang gõ dấu (bộ gõ tiếng Việt) thì Enter
+                // là của bộ gõ, không phải lệnh lưu.
+                if (event.key === "Enter" && !working && !event.nativeEvent.isComposing)
+                  void rename();
                 // Esc là đường huỷ: tên gõ dở bỏ đi, tên cũ ở lại.
                 if (event.key === "Escape") setNaming(null);
               }}
@@ -534,7 +550,6 @@ function QuestionCard({
   onSave: (edited: QuestionEdit) => Promise<string>;
   onErase: () => void;
 }) {
-  const source = provenanceOf(question.question_id);
   const [editing, setEditing] = useState<QuestionEdit | null>(null);
   const [refused, setRefused] = useState("");
   const [saving, setSaving] = useState(false);
@@ -543,7 +558,6 @@ function QuestionCard({
     return (
       <Editing
         question={question}
-        source={source}
         draft={editing}
         refused={refused}
         saving={saving}
@@ -567,7 +581,6 @@ function QuestionCard({
     <div className="qcard">
       <div className="top">
         <span className="num">Câu {question.order}</span>
-        <span className={`source-chip ${source.tone}`}>{source.label}</span>
         <span className="spacer" />
         {/* *Sửa* và *Xoá* sống chung một điều kiện: đề đã duyệt thì cả hai biến mất (ADR-01).
             Thẻ đang sửa (`Editing`) không có *Xoá*, như Figma vẽ. */}

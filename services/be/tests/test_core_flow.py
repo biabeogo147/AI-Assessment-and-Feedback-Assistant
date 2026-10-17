@@ -269,6 +269,42 @@ async def _finish_phase_one(client: AsyncClient, attempt: dict) -> None:
 
 
 @pytest.mark.asyncio
+async def test_an_open_round_reads_back_in_a_new_tab(client: AsyncClient) -> None:
+    """Plan `backlog-tier-1`: câu của lượt chỉ sống ở `sessionStorage` của một tab, nên tab mới
+    không đọc được lượt mà cũng không xin được lượt mới (409). Đọc lại ra đúng câu, đúng lựa
+    chọn đã lưu, không lộ đáp án; người khác 404; lượt đã nộp 409."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    rnd = (await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)).json()
+    first = rnd["items"][0]
+    await client.put(
+        f"/api/rounds/{rnd['round_id']}/answers/{first['round_item_id']}",
+        json={"label": "B"},
+        headers=STUDENT,
+    )
+
+    again = await client.get(f"/api/rounds/{rnd['round_id']}", headers=STUDENT)
+
+    assert again.status_code == 200
+    body = again.json()
+    assert [one["round_item_id"] for one in body["items"]] == [
+        one["round_item_id"] for one in rnd["items"]
+    ]
+    assert [one["stem"] for one in body["items"]] == [one["stem"] for one in rnd["items"]]
+    assert body["items"][0]["chosen_label"] == "B"
+    assert body["items"][0]["origin_order"] == first["origin_order"]
+    assert body["ends_at"] == rnd["ends_at"]
+    assert all("is_correct" not in option for one in body["items"] for option in one["options"])
+
+    stranger = await client.get(f"/api/rounds/{rnd['round_id']}", headers=OTHER_STUDENT)
+    assert stranger.status_code == 404
+
+    await client.post(f"/api/rounds/{rnd['round_id']}/submit", headers=STUDENT)
+    done = await client.get(f"/api/rounds/{rnd['round_id']}", headers=STUDENT)
+    assert done.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_a_round_lifts_a_wrong_question_to_half_credit(client: AsyncClient) -> None:
     """Làm đúng lượt làm lại thì chốt câu đó ở 0.5, không bao giờ ở 1.0."""
     submitted = await _start_and_submit(client, correct_count=4)

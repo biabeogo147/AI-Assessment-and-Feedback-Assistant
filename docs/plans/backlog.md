@@ -40,7 +40,7 @@ code.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Nguồn câu hỏi và trạng thái kiểm là **chữ bịa** | `Question` không có cột nào nói nguồn hay việc đã kiểm, và `drafting._write` không nối `DraftItem` với `Question` — nên ngay cả *"do model viết"* cũng không truy được. Cần **một** cột nguồn và một đường ghi nó; *đã kiểm* không còn là một cột mà đọc từ trạng thái của đề (ADR-28: duyệt là đã kiểm mọi câu). Dòng tổng *"x câu thêm mới đã kiểm · y câu chưa kiểm"* gỡ ở plan `2026-10-13-question-bank-write-path-plan.md`; chip trên từng câu vẫn bịa |
+| ~~Nguồn câu hỏi và trạng thái kiểm là **chữ bịa**~~ | **Chip đã gỡ 17/10/2026 (người dùng chọn A); nguồn thật vẫn chờ cột nguồn — plan P1** (plan `backlog-tier-1`, pha 2). `Question` không có cột nào nói nguồn hay việc đã kiểm, và `drafting._write` không nối `DraftItem` với `Question` — nên ngay cả *"do model viết"* cũng không truy được. Cần **một** cột nguồn và một đường ghi nó; *đã kiểm* không còn là một cột mà đọc từ trạng thái của đề (ADR-28: duyệt là đã kiểm mọi câu). Dòng tổng *"x câu thêm mới đã kiểm · y câu chưa kiểm"* gỡ ở plan `2026-10-13-question-bank-write-path-plan.md`; chip trên từng câu vẫn bịa |
 | Nội dung tài liệu **chưa** đi vào prompt của AGENT | Cần đọc PDF, cắt đoạn, nhồi ngữ cảnh — một phần lớn hơn hẳn việc tải lên, và nó đổi cả thứ AGENT nhận, nên nó xứng một ADR riêng. Việc **tải lên** thì đã trả xong, và màn hình nay nói thẳng rằng nội dung chưa được dùng |
 | Bốn đích đến trên rail trơ | Bốn artboard kia chưa dựng |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
@@ -184,7 +184,7 @@ Dưới đây là những gì đã nêu ra và cố ý chưa làm.
 | Bật lại confidence của chẩn đoán | Chưa cần, và bật lại hôm nay sẽ hỏng — xem dưới |
 | Ba dòng invariant trong `AGENTS.md` cần chỉnh lời | Chặn bởi câu hỏi cổng duyệt ở trên |
 | Dữ liệu để giải thích *vì sao 0,5* | Không bị chặn. Cần một trường mới trong contract |
-| Hai tab hoặc tải lại trang giữa pha 2 | Không bị chặn. Chưa quyết vòng đếm và đồng hồ ứng xử ra sao |
+| ~~Hai tab hoặc tải lại trang giữa pha 2~~ | **Đã sửa 17/10/2026: GET /rounds/{id} đọc lại lượt đang mở, FE nút Làm tiếp lượt đang mở; ADR-15/21 đã quyết đồng hồ** (plan `backlog-tier-1`, pha 2). Không bị chặn. Chưa quyết vòng đếm và đồng hồ ứng xử ra sao |
 | Màn hình học sinh trên điện thoại | Không bị chặn. Quyết định phạm vi — xem dưới |
 | Bắt đổi mật khẩu ở lần đăng nhập đầu | Không bị chặn. Không có màn hình nào để đặt nó vào |
 | Cách thể hiện mức 0,5 bằng màu | **Chưa quyết định nghiệp vụ.** ADR-12 mới khoá hai trạng thái đáp án |
@@ -681,7 +681,7 @@ phẩm, không phải về code. Tác hại hiện tại chỉ là rác trong b�
 | `start_drafting` gọi thẳng không qua plan, bị ADR-25 từ chối, mất một lượt model | Cùng hợp đồng trên |
 | Model đánh dấu sai đáp án đúng, và đáp án đúng không nằm trong bốn phương án | Chất lượng model sinh ra; đường sửa đi qua prompt |
 | Model viết *"định thức"* cho một bài tích phân, và `\bigint` — một lệnh không có thật | Cùng trên |
-| Chip nguồn câu hỏi vẫn là chữ bịa (`invented-not-from-be.ts`) | Chờ BE có cột nguồn; nợ đã khai báo, có check giữ nó ở một file. Từ ADR-28 phần *đã kiểm / chưa kiểm* của chip suy được từ trạng thái đề, nhưng plan ngân hàng giữ nguyên giao diện nên chip chưa đổi |
+| ~~Chip nguồn câu hỏi vẫn là chữ bịa (`invented-not-from-be.ts`)~~ | **Chip đã gỡ 17/10/2026** (plan `backlog-tier-1`, pha 2). Chờ BE có cột nguồn; nợ đã khai báo, có check giữ nó ở một file. Từ ADR-28 phần *đã kiểm / chưa kiểm* của chip suy được từ trạng thái đề, nhưng plan ngân hàng giữ nguyên giao diện nên chip chưa đổi |
 
 Đã làm trong đợt này nhưng đáng ghi lại vì nó mở rộng phạm vi ADR-26: chữ Kriky nói trong khung chat
 (`propose.py` → `_Proposal.text` → `MathText`) đi **cùng một ống JSON** với đề bài, và trước đợt này
@@ -1144,7 +1144,7 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 | **Dàn ý không công thức, câu lệch mục** (02, 07, 08): 0/5 mục có công thức; câu 2 *"vận tốc 120 km / 2 giờ"* dưới mục tỉ lệ thức, câu 4 tỉ số đơn dưới mục dãy tỉ số | Trùng mục *"Dàn ý chung chung"* ở trên; nay có số đo trên trình duyệt |
 | **Tên đề là chuỗi nhãn bài kèm trang, bị cắt** (04): *"Đề Bài 1. TẬP HỢP (tr. 5–9), CÁCH GHI SỐ TỰ NHIÊN (tr. 9–13), …, P"* | `_create_draft` đặt `Đề <topic_scope>`, mà `topic_scope` của đề theo sách là chuỗi nhãn |
 | **`read_section` đọc nhầm nút** (06): xin 2 câu số La Mã, Kriky đọc nút 4 (Hệ thập phân) và dàn ý ghi `Theo: 1. HỆ THẬP PHÂN` | Model chọn nút; chưa có luật đối chiếu chủ đề với nhãn nút |
-| **Khối ĐÃ PHÁT HÀNH in giờ theo UTC** (10): đóng 20:00 hiện *"Vào tham gia tới hết 13:00"*, hạn chữa 22:00 hiện *"Chữa bài tới hết 15:00"*; dòng *"Mở 19:00"* cùng khối thì đúng | Lỗi FE hiển thị; database đúng giờ |
+| ~~**Khối ĐÃ PHÁT HÀNH in giờ theo UTC** (10): đóng 20:00 hiện *"Vào tham gia tới hết 13:00"*, hạn chữa 22:00 hiện *"Chữa bài tới hết 15:00"*; dòng *"Mở 19:00"* cùng khối thì đúng~~ | **Đã sửa 17/10/2026: lỗi ở BE (đường đọc không có offset); FE điền khuôn bằng giờ địa phương, BE thôi gửi câu dựng sẵn** (plan `backlog-tier-1`, pha 2). Lỗi FE hiển thị; database đúng giờ |
 | **Kết quả lớp dừng ở bước tra lớp** (12): *"bài kiểm tra 15 phút hàm số của 12A các em làm thế nào rồi"* → chỉ `list_class` rồi *"Lớp 12A có 3 học sinh."* | Cùng kiểu ca bench `tra-lop-ket-qua` 2/6; log cho thấy model tự chọn `say`, không phải lùi về mock |
 | **Tệp đang xử lý thì Kriky nói "chưa thấy tài liệu"** (13) thay vì nói tệp đang được đọc và nhờ chờ | Prompt có dòng *đang xử lý*; model không theo |
 
@@ -1215,8 +1215,8 @@ Phạm vi: 66 commit từ upstream, chủ yếu ADR-31 (tên đề) và ADR-32 (
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Ô đổi tên sống sang đề khác** (`Panel.tsx:66`): effect theo `assessmentId` dọn `paper`, `erasing` nhưng không dọn `naming` — đang gõ tên đề A, mở đề B, Enter thì **B bị đổi tên** | Không bị chặn. Dọn `naming` cùng chỗ dọn `erasing`, thêm một vitest |
-| **Enter gửi PATCH đổi tên nhiều lần** (`Panel.tsx:257`): phím Enter không xét `working`, chỉ nút `Lưu` khoá — hai PATCH, hai lần đọc lại đoạn chat, có thể một 409 đỏ dù đã đổi xong | Không bị chặn. Chặn `rename()` khi `working` |
+| ~~**Ô đổi tên sống sang đề khác** (`Panel.tsx:66`): effect theo `assessmentId` dọn `paper`, `erasing` nhưng không dọn `naming` — đang gõ tên đề A, mở đề B, Enter thì **B bị đổi tên**~~ | **Đã sửa 17/10/2026** (plan `backlog-tier-1`, pha 2). Không bị chặn. Dọn `naming` cùng chỗ dọn `erasing`, thêm một vitest |
+| ~~**Enter gửi PATCH đổi tên nhiều lần** (`Panel.tsx:257`): phím Enter không xét `working`, chỉ nút `Lưu` khoá — hai PATCH, hai lần đọc lại đoạn chat, có thể một 409 đỏ dù đã đổi xong~~ | **Đã sửa 17/10/2026: xét working và isComposing** (plan `backlog-tier-1`, pha 2). Không bị chặn. Chặn `rename()` khi `working` |
 | **`clipped()` ra tên rỗng** (`titles.py:36`): `_unquoted` bóc `""` hay `“ ”` thành rỗng, `_create_draft` chỉ xét chuỗi thô — đề lưu với tên rỗng, thẻ *Đã tạo đề ""* | Không bị chặn. Rỗng thì lùi về `default_title` |
 | **`_TooManyQuestions` đếm cả câu trống** (`propose.py:1769`): bốn câu, một câu trống — ba câu hợp lệ vẫn bị hỏi lại model, tốn một lượt gọi | Không bị chặn. Đếm câu đã qua `asked()` |
 | **Mức lựa chọn tối thiểu theo số dòng áp cho mọi câu** (`propose.py:1772`): kết quả tool gần nhất có 2 lớp thì câu hỏi tham số (*Khối*, *Số câu*) 2 nút cũng lọt, trái luật ≥ 3 nút cho tham số | Bản sửa theo review pha 6 đi quá đà. Cần phân biệt câu về dòng (lựa chọn khớp `candidates`) với câu về tham số |
@@ -1224,6 +1224,18 @@ Phạm vi: 66 commit từ upstream, chủ yếu ADR-31 (tên đề) và ADR-32 (
 | **Phép ghép *lời mở + câu hỏi* chép ở hai nơi** (`teacher_chat.py:916` và `propose.py:1360`) | Hai bản có thể lệch; hợp đồng chỉ soi hình dạng. Một hàm dùng chung trong `contracts` |
 | **Lượt hỏi nhiều câu đã qua không hiện nhãn** (`Chat.tsx:45`, `aloud`): FE vẽ *"1. câu hỏi"*, model thấy *"1. nhãn: câu hỏi (lựa chọn: …)"*; tin gộp *"Khối: Khối 7 · …"* dùng nhãn mà phía trên không có, nhãn đánh số *"Khối (2)"* càng khó đối | Đổi chữ hiển thị — đi cùng Figma (`Clarify request`, lượt đã qua) |
 | **Hai dòng `# TODO: Cần xem lại` trong `propose.py` chưa stage** (dòng 58, 1573) | Không phải lỗi: ghi chú riêng của người dùng, cố ý không commit — stage bằng script bỏ hai dòng ấy. Ghi để `git add` thẳng file không lỡ tay |
+
+## Lộ ra khi làm plan Tier 1 (17/10/2026)
+
+Plan `2026-10-17-backlog-tier-1-plan.md`. Mỗi dòng có tier ở artifact *Backlog theo tier*. Lỗi do chính
+plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Đầu màn lượt chữa ghi *"6 câu · 29 phút"*** (`Round.tsx:122-127`): con số là thời gian **còn lại** (`ends_at` − giờ máy) mà đọc như độ dài của lượt (6 × 5 = 30) — review ảnh pha 2 | Tier 1. Ghi *"còn 29 phút"* hay tính độ dài từ giờ bắt đầu; đổi chữ đi cùng Figma (artboard lượt chữa) |
+| **Ô tóm tắt câu phải làm lại lặp *"và"***: *"câu 1 và câu 2 và câu 3 …"*, trong khi lời chào ngay trên viết *"câu 1, câu 2, …, và câu 6"* — review ảnh pha 2 | Tier 1. Dùng chung hàm nối của lời chào |
+| **Dòng *"Thu hồi được tới 10:46"* vẫn in khi đã qua giờ mở** (khối ĐÃ PHÁT HÀNH), ngay trên hộp đỏ nói đã qua giờ mở — review ảnh pha 2 | Tier 1. Qua `opens_at` thì ghi *"Đã qua hạn thu hồi"* hay bỏ dòng; đổi chữ đi cùng Figma |
+| **Câu luật pha 1 bẻ dòng để lại *"làm."* một mình; câu luật dùng ` - `, tiêu đề dùng `—`** — review ảnh pha 2 | Tier 1 hạng thấp: chữ của `publication_wording` (ADR-03, một nguồn), chỉ đáng khi đổi câu luật |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 

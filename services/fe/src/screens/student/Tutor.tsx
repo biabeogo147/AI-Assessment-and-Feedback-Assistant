@@ -204,7 +204,10 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
           <div className="banner slim">
             {locked
               ? "Bài đã kết thúc. Em vẫn đọc lại được phần chữa và báo cáo chỗ khó hiểu, nhưng không nhắn thêm được nữa."
-              : "Phần này không tính giờ. Hỏi đến khi hiểu rồi hãy bấm làm bài mới."}
+              : panel.open_round_id
+                ? // Lời nhắc khớp chữ trên nút (review ảnh pha 2, artboard `18b`).
+                  "Phần này không tính giờ. Em đang có một lượt làm lại chưa nộp: bấm làm tiếp lượt đang mở."
+                : "Phần này không tính giờ. Hỏi đến khi hiểu rồi hãy bấm làm bài mới."}
           </div>
 
           <ErrorStrip message={error} />
@@ -258,7 +261,18 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
               ⚑ Báo cáo Trợ lý giải thích khó hiểu
             </button>
             ) : null}
-            {locked ? null : (
+            {locked ? null : panel.open_round_id ? (
+              // Đang có một lượt mở (tab khác, trước F5): vào lại đúng lượt ấy. Xin lượt mới là
+              // 409, nên trước đây nút xám đi và học sinh kẹt tới hết hạn (plan `backlog-tier-1`,
+              // artboard `18b`, `634:618`).
+              <button
+                className="btn-cta"
+                type="button"
+                onClick={() => go(`/round/${attemptId}/${panel.open_round_id}`)}
+              >
+                Làm tiếp lượt đang mở
+              </button>
+            ) : (
               <button
                 className="btn-cta"
                 type="button"

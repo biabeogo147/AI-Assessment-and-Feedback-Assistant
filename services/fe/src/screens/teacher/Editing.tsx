@@ -135,8 +135,6 @@ function Field({
  * thấy đúng thứ sẽ được lưu, và thứ ấy đúng là thứ `validate_question` sẽ kiểm.
  *
  * @param question - Câu hỏi gốc, để lấy số câu.
- * @param source - Chip nguồn câu hỏi. Nó **ở lại** lúc đang sửa: biết câu này lấy từ đâu là
- *   thứ cần nhất đúng lúc đang sửa nó, không phải thứ bỏ đi được.
  * @param draft - Bản đang gõ.
  * @param refused - Lời từ chối của BE, hoặc chuỗi rỗng.
  * @param saving - Đang gửi; hai nút phải khoá để không lưu hai lần.
@@ -217,7 +215,6 @@ function TangHead({
 
 export default function Editing({
   question,
-  source,
   draft,
   refused,
   saving,
@@ -226,7 +223,6 @@ export default function Editing({
   onSave,
 }: {
   question: TeacherQuestion;
-  source: { tone: string; label: string };
   draft: QuestionEdit;
   refused: string;
   saving: boolean;
@@ -266,7 +262,6 @@ export default function Editing({
     <div className="qcard editing">
       <div className="top">
         <span className="num">Câu {question.order}</span>
-        <span className={`source-chip ${source.tone}`}>{source.label}</span>
         <span className="spacer" />
         <span className="edit-mark">Đang sửa</span>
       </div>

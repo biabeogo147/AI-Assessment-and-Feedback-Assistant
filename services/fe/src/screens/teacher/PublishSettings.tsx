@@ -509,10 +509,11 @@ export default function PublishSettings({
                   và đó đúng là cách diễn đạt thứ hai: nó trình bày giờ đóng như mốc KẾT
                   THÚC, bỏ mất mốc nộp cuối mà ADR-03 dành cả tài liệu để bắt phải có, và
                   bỏ luôn chữ **DỪNG** — phần duy nhất của câu pha 2 nói về một thứ học
-                  sinh sắp mất. `publications` đã chở sẵn hai câu ấy từ `publication_wording`
-                  và cho tới giờ không chỗ nào đọc chúng. */}
-              <span className="when">{one.phase_one_note}</span>
-              <span className="when">{one.phase_two_note}</span>
+                  sinh sắp mất. Khuôn là của BE (`rules.phase_*_form`); số điền ở đây bằng giờ
+                  **địa phương**, như biểu mẫu đang gõ -- câu BE dựng sẵn trên đường đọc này
+                  từng in giờ UTC (plan `backlog-tier-1`). */}
+              <span className="when">{ruleOne(form.rules, one)}</span>
+              <span className="when">{ruleTwo(form.rules, one)}</span>
               <span className="when">
                 Thu hồi được tới {moment(one.withdrawable_until)}
               </span>
@@ -908,6 +909,34 @@ function lastSubmission(closes: string, minutes: string): string {
   // giờ địa phương, cùng cách `isoWithOffset` ở trên giữ nó.
   const pad = (one: number) => String(one).padStart(2, "0");
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
+/**
+ * Câu luật pha 1 của một lớp **đã** phát hành, giờ địa phương.
+ *
+ * @param rules - Khuôn của BE.
+ * @param one - Lớp và sáu tham số đã đặt.
+ * @returns Câu đã điền.
+ */
+function ruleOne(rules: TimingRules, one: PublishedTo): string {
+  return fill(rules.phase_one_form, {
+    closes: clock(one.closes_at),
+    last: clock(lastSubmission(one.closes_at, String(one.phase1_minutes))),
+  });
+}
+
+/**
+ * Câu luật pha 2 của một lớp **đã** phát hành, giờ địa phương.
+ *
+ * @param rules - Khuôn của BE.
+ * @param one - Lớp và sáu tham số đã đặt.
+ * @returns Câu đã điền.
+ */
+function ruleTwo(rules: TimingRules, one: PublishedTo): string {
+  return fill(rules.phase_two_form, {
+    deadline: clock(one.remediation_deadline),
+    rate: String(one.phase2_minutes_per_question),
+  });
 }
 
 /**

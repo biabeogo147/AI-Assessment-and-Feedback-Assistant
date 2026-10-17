@@ -516,10 +516,10 @@ def check_drafting_reads_no_document_text() -> str | None:
 def check_invented_data_lives_in_one_file() -> str | None:
     """Thứ màn hình nói mà backend không biết là đúng thì chỉ được sống ở một chỗ.
 
-    Panel của giáo viên in một chip nguồn cho mỗi câu hỏi -- *"Lấy từ ngân hàng câu hỏi"*,
-    *"Thêm mới · chưa kiểm"*. `Question` có năm cột và không cột nào nói nguồn hay trạng thái kiểm,
-    nên mấy cái chip ấy không suy ra được từ bất cứ dữ liệu nào: chúng là chữ **bịa**, nhận vào có
-    chủ ý để dựng được màn hình, và ghi nợ trong `docs/plans/backlog.md`.
+    Panel của giáo viên từng in một chip nguồn cho mỗi câu hỏi -- *"Lấy từ ngân hàng câu hỏi"*,
+    *"Thêm mới · chưa kiểm"* -- chọn theo hash id: `Question` không có cột nguồn nào, nên chúng là
+    chữ **bịa**. Chip đã gỡ 17/10/2026 (plan `backlog-tier-1`); check ở lại để mấy chuỗi ấy không
+    quay về một component nào trước khi BE có nguồn thật.
 
     Một món nợ như vậy trả được chừng nào nó còn nằm một chỗ. Sao chép chuỗi ấy sang một component
     thứ hai là lúc nó thôi là món nợ và thành một **luật của sản phẩm**: ngày BE biết nguồn thật,

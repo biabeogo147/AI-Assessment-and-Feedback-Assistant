@@ -11,6 +11,9 @@
  *
  * - **Con số trên huy hiệu Bảng theo dõi.** Chưa có đường đếm nào trả về nó.
  *
+ * Chip nguồn trên từng câu (*"Lấy từ ngân hàng câu hỏi"*, *"Thêm mới · đã kiểm"*) từng nằm ở đây,
+ * chọn theo hash id; đã **gỡ** 17/10/2026 thay vì giữ tới khi có cột nguồn (plan `backlog-tier-1`).
+ *
  * Danh sách đoạn chat từng nằm ở đây và nay đã **thật**: `teacher_conversations`
  * chứa nhiều luồng, và `GET /api/teacher/conversations` trả chúng kèm tiêu đề do
  * model đặt. Một món nợ của `backlog.md` được trả.
@@ -25,7 +28,7 @@ export const DASHBOARD_WAITING = 3;
 /**
  * Ba gợi ý mở đầu.
  *
- * Khác ba món trên ở chỗ **không bịa đặt gì**: đây là chữ sẵn để điền vào ô
+ * Khác món trên ở chỗ **không bịa đặt gì**: đây là chữ sẵn để điền vào ô
  * nhập, không phải một khẳng định về trạng thái của hệ thống. Nó nằm đây vì
  * thiết kế ghi đúng ba câu này, và chúng thuộc về thiết kế chứ không thuộc về
  * dữ liệu.
@@ -35,46 +38,3 @@ export const OPENERS = [
   "Thêm 5 câu mức vận dụng vào đề này",
   "Lớp 12A câu nào sai nhiều nhất?",
 ];
-
-/**
- * Nguồn của một câu hỏi, và việc nó đã được kiểm hay chưa.
- *
- * **Đây là chỗ nặng nhất trong file này.** Hai món trên chỉ là chữ chưa có dữ liệu;
- * món này thì nói với giáo viên một điều mà hệ thống **không biết là đúng**. `Question`
- * có năm cột và không cột nào nói nguồn hay trạng thái kiểm; `drafting._write` còn
- * không nối `DraftItem` với `Question`, nên ngay cả *"do model viết"* cũng không truy
- * được. Ba cái chip dưới đây không suy ra được từ bất cứ cột nào.
- *
- * Nhận vào với ba điều kiện, và đây là điều kiện thứ nhất: đúng **một** module chứa
- * nó, và tên module tự tố cáo. Điều kiện thứ hai là `tools/check_contract.py` làm
- * build đỏ nếu nó bị sao chép sang chỗ thứ hai. Thứ ba là một dòng trong
- * `docs/plans/backlog.md` và một dòng trong mục *Nơi luật này đang được thi hành* của
- * ADR-04 ghi rằng FE hiện **giả vờ** thi hành nó.
- *
- * Nhãn chọn theo id chứ không theo thứ tự hay ngẫu nhiên, vì một chip nhảy sang màu
- * khác sau mỗi lần tải lại trang sẽ dạy giáo viên rằng mấy cái chip này vô nghĩa — mà
- * điều đó thì đúng, chỉ là không nên dạy bằng cách ấy.
- */
-export interface Provenance {
-  label: string;
-  /** `""` cho ngân hàng, `"checked"` cho đã kiểm, `"unchecked"` cho chưa kiểm. */
-  tone: "" | "checked" | "unchecked";
-}
-
-const PROVENANCES: Provenance[] = [
-  { label: "Lấy từ ngân hàng câu hỏi", tone: "" },
-  { label: "Thêm mới · đã kiểm", tone: "checked" },
-  { label: "Thêm mới · chưa kiểm", tone: "unchecked" },
-];
-
-/**
- * Chip nguồn của một câu hỏi. **Bịa, một cách có kiểm soát.**
- *
- * @param questionId - Id của câu hỏi, dùng làm hạt giống.
- * @returns Một trong ba nhãn, cố định theo id.
- */
-export function provenanceOf(questionId: string): Provenance {
-  let seed = 0;
-  for (const ch of questionId) seed = (seed * 31 + ch.charCodeAt(0)) % 9973;
-  return PROVENANCES[seed % PROVENANCES.length];
-}

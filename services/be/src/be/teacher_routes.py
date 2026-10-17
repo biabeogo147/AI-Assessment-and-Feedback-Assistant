@@ -1414,8 +1414,10 @@ class PublishedTo(BaseModel):
     *đang giữ* đề, không nói giữ với giờ nào. Giáo viên muốn biết "12A mở lúc mấy giờ" sẽ chỉ
     còn cách đi hỏi học sinh.
 
-    Hai câu note gọi **đúng** hai hàm trong `publication_wording`, không in lại bằng chữ khác --
-    nên luật *"ba nơi giống hệt nhau từng chữ"* của ADR-03 nay là bốn nơi mà vẫn một nguồn.
+    **Không** chở câu luật đã điền: đường đọc này không có offset của người đọc, nên câu dựng ở BE
+    in giờ UTC -- khối ĐÃ PHÁT HÀNH từng nói *"tới hết 01:30"* cho một đề đóng 08:30 giờ Việt Nam
+    (plan `backlog-tier-1`). FE điền khuôn `rules.phase_one_form`/`phase_two_form` bằng giờ địa
+    phương, đúng như biểu mẫu đang gõ -- chữ vẫn một nguồn (ADR-03), chỉ chỗ điền số là ở FE.
 
     Attributes:
         class_id: Lớp nào.
@@ -1428,8 +1430,6 @@ class PublishedTo(BaseModel):
         remediation_deadline: Mốc tuyệt đối kết thúc pha 2, UTC.
         withdrawable_until: Thu hồi được tới lúc nào. Bằng `opens_at`, nêu riêng vì đó là con số
             giáo viên cần biết chứ không phải suy ra.
-        phase_one_note: Câu luật pha 1, đã điền số.
-        phase_two_note: Câu luật pha 2, đã điền số, và nó ngược lại câu trên.
     """
 
     class_id: str
@@ -1441,8 +1441,6 @@ class PublishedTo(BaseModel):
     phase2_minutes_per_question: int
     remediation_deadline: datetime
     withdrawable_until: datetime
-    phase_one_note: str
-    phase_two_note: str
 
 
 class Publications(BaseModel):
@@ -2071,8 +2069,6 @@ async def publications_of(
                 phase2_minutes_per_question=row.phase2_minutes_per_question,
                 remediation_deadline=deadline,
                 withdrawable_until=aware(row.opens_at),
-                phase_one_note=phase_one_note(closes_at, row.phase1_minutes),
-                phase_two_note=phase_two_note(deadline, row.phase2_minutes_per_question),
             )
         )
     return Publications(assessment_id=assessment_id, classes=tuple(rows))

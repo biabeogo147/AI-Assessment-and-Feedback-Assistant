@@ -2051,6 +2051,63 @@ async def _owned_round(
     return rnd, attempt
 
 
+@router.get("/rounds/{round_id}", response_model=RoundOpenOut)
+async def read_round(
+    round_id: str,
+    student: Student = Depends(current_student),
+    session: AsyncSession = Depends(get_session),
+) -> RoundOpenOut:
+    """Đọc lại một lượt chữa lỗi **đang mở**: câu, phương án, lựa chọn đã lưu.
+
+    Trước đây câu của lượt chỉ sống trong response của `start_round` và `sessionStorage` của
+    đúng tab ấy: đóng tab hay mở tab khác là *"Không đọc được lượt này"*, mà xin lượt mới thì
+    409 vì lượt cũ chưa nộp -- học sinh kẹt tới hết hạn (plan `backlog-tier-1`). Lượt đã ghi bền
+    trong database (ADR-21), nên đọc lại là đọc đúng thứ đã ghi; không có câu mới nào sinh ra.
+
+    Args:
+        round_id: Lượt nào.
+        student: Người gọi.
+        session: Session của database.
+
+    Returns:
+        Lượt ấy, đúng hình dạng `start_round` trả -- đã bỏ phần đáp án.
+
+    Raises:
+        HTTPException: 404 khi lượt không tồn tại hay không phải của người gọi; 409 khi lượt đã
+            nộp.
+    """
+    rnd, _ = await _owned_round(session, round_id, student)
+    if rnd.submitted_at is not None:
+        raise HTTPException(status_code=409, detail="Lượt này đã nộp")
+    items = sorted(rnd.items, key=lambda one: one.order_index)
+    origins = {
+        found.id: found.order_index
+        for found in await session.scalars(
+            select(Question).where(Question.id.in_([one.origin_question_id for one in items]))
+        )
+    }
+    return RoundOpenOut(
+        round_id=rnd.id,
+        index=rnd.index,
+        ends_at=_aware(rnd.ends_at),
+        items=[
+            RoundItemOut(
+                round_item_id=one.id,
+                origin_question_id=one.origin_question_id,
+                origin_order=origins.get(one.origin_question_id, 0),
+                order=one.order_index,
+                stem=one.stem,
+                options=[
+                    OptionOut(option_id=option["label"], label=option["label"], text=option["text"])
+                    for option in one.options
+                ],
+                chosen_label=one.chosen_label,
+            )
+            for one in items
+        ],
+    )
+
+
 @router.put("/rounds/{round_id}/answers/{item_id}", response_model=SavedOut)
 async def save_round_answer(
     round_id: str,

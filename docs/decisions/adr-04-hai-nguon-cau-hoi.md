@@ -107,3 +107,12 @@ in *"Thêm mới · đã kiểm"* hay *"Lấy từ ngân hàng câu hỏi"*. `do
 
 **Nơi thi hành:** xem mục cùng tên của ADR-28. Dòng *"Chưa có ở backend: không có model QuestionBank
 nào"* ở trên đã hết đúng từ 13/10/2026: bảng `bank_questions` có mặt.
+
+## Hậu ký 17/10/2026
+
+**Chip bịa đã gỡ.** Người dùng chọn gỡ ngay thay vì giữ tới khi có cột nguồn (plan
+`2026-10-17-backlog-tier-1-plan.md`): chip theo hash id đã lừa chính biên bản thử tay 17/10 — hai câu
+gần trùng do model viết được ghi là *"cả hai từ ngân hàng"*. Panel không còn in nguồn của câu nào;
+`provenanceOf` và CSS `.source-chip` đã xoá, `Question card` trên Figma bỏ instance `Source citation`.
+Luật hai nguồn giữ nguyên; FE **không** còn *giả vờ* thi hành nó — nó chưa thi hành gì cả, tới khi
+`Question` có cột nguồn. `Source citation` (`84:35`) ở lại làm component cho ngày ấy.

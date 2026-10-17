@@ -370,8 +370,6 @@ export interface PublishedTo {
   phase2_minutes_per_question: number;
   remediation_deadline: string;
   withdrawable_until: string;
-  phase_one_note: string;
-  phase_two_note: string;
 }
 
 export interface Publications {
@@ -637,6 +635,8 @@ export const api = {
     call<OpenRound>("student", `/attempts/${attemptId}/rounds`, {
       method: "POST",
     }),
+  /** Đọc lại một lượt đang mở -- câu và lựa chọn đã lưu -- cho tab mới hay sau F5. */
+  round: (roundId: string) => call<OpenRound>("student", `/rounds/${roundId}`),
   saveRoundAnswer: (roundId: string, itemId: string, label: string) =>
     call<{ saved_at: string }>(
       "student",
