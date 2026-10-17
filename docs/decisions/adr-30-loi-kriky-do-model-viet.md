@@ -1,6 +1,6 @@
 # ADR-30 — Lời Kriky do model viết, bằng Markdown
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đang thi hành (trừ khung kèm học của học sinh, xem bảng cuối)
 - **Ngày:** 2026-10-17
 
 ## Bối cảnh
@@ -34,11 +34,14 @@ Thử tay 15–16/10/2026 cho thấy các câu ấy đọc ra máy móc — cùn
   câu (ADR-29).
 - **BE đối chiếu nhẹ lời với các mục** trước khi in: lời nhắc tới **Câu m** — câu đầu của mỗi mục;
   lời không nhắc câu nào ngoài khoảng của dàn ý; mỗi mục có công thức thì lời có ít nhất một công thức
-  của nó; và lời có một câu hỏi. Lệch thì lý do về model và model viết lại trong cùng lượt; lệch mãi
+  của nó; lời có một câu hỏi; và lời không in số node — định danh máy, bài nguồn gọi bằng tên (thêm
+  sau thử tay 17/10/2026). Lệch thì lý do về model và model viết lại trong cùng lượt; lệch mãi
   thì lượt chạm trần bước, và đó là ngoại lệ 1. Kiến thức, cách làm và tên bài **không** cần giống
   từng chữ.
 - **Ngoại lệ 1 — khi model không trả lời được**: model hỏng hai lần liền, lượt chạm trần bước, lượt
-  gãy giữa chừng, không với tới AGENT, hay đoạn chat đang chạy một việc khác. Lúc ấy hệ thống nói,
+  gãy giữa chừng, không với tới AGENT, đoạn chat đang chạy một việc khác, hay model nêu lại một plan
+  sau khi đã nghe **cùng một lý do từ chối** hai lần liền — nó đã có lý do mà không sửa được, nên
+  hỏi tiếp chỉ tốn lời gọi (thêm sau thử tay 17/10/2026). Lúc ấy hệ thống nói,
   bằng một **thông báo hệ thống** hiện khác lời Kriky — không avatar, không giọng của Kriky. Chế độ
   demo không model (`LLM_ENABLED=false`) nói bằng nội dung soạn sẵn như trước.
 - **Ngoại lệ 2 — phần tử giao diện**: tên bước, dòng kết quả của bước, thẻ kết quả, nhãn nút hỏi lại
@@ -80,4 +83,18 @@ bịa của ADR-23, và lỗi khối bước kể một việc khác việc đã
 
 ## Nơi luật này đang được thi hành
 
-Plan thi hành: `docs/plans/active/2026-10-17-kriky-writes-every-word-plan.md`. Bảng điền khi plan đóng.
+Plan thi hành: `docs/plans/completed/2026-10-17-kriky-writes-every-word-plan.md` (đóng 17/10/2026,
+sau một lượt thử tay mười ca trên Claude Haiku 5.5 —
+`docs/testing/ket-qua/2026-10-17-02ba28a-claude-haiku-5-5.md`).
+
+| Luật | Sống ở | Test canh |
+|---|---|---|
+| Code không đặt câu cố định vào lời Kriky; câu hệ thống chỉ đi dưới `kind="notice"` | `be/notices.py`; `teacher_chat._go`; `propose`; `handlers.propose_next_step`, `report_plan` | `check_kriky_says_nothing_fixed` (`tools/check_contract.py`), `test_a_fixed_sentence_in_kriky_s_mouth_is_caught` |
+| Model hỏng, chạm trần, không kể lại được, plan cứ bị từ chối → thông báo hệ thống | `be/notices.py`; `handlers._MODEL_DOWN`, `propose._UNCLEAR` (`notice=True`); `teacher_chat._go` (`stuck`, `refused`) | `test_a_model_that_breaks_gives_a_system_notice_not_the_mock`, `test_the_ceiling_streams_a_notice_not_kriky_s_words`, `test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck`, `test_the_turn_survives_a_model_that_cannot_tell_what_happened` |
+| Thông báo là một lượt riêng, không avatar; model đọc nó như ghi chú, nó không làm mất lời duyệt dàn ý | contracts `TurnRecord.kind`, `NextStepCompleted.notice`; FE `Chat.blocks`, `Notice`, `voiced`; `propose._compose`, `_approved_plan`; `teacher_chat._shown_outline` | `test_a_notice_from_the_agent_is_stored_as_a_system_notice`, *"thông báo hệ thống là một dòng riêng…"*, *"lượt đang chạy chỉ có thông báo hệ thống…"*, `test_a_system_notice_in_history_reads_as_a_note_not_as_kriky_s_words`, `test_an_agreement_retyped_after_a_system_notice_still_drafts` |
+| Lời dàn ý là lời model; BE đối chiếu nhẹ năm tiêu chí, kể cả không in số node | `be/outline.check_message`; `teacher_chat.outline_turn` | `test_a_message_in_kriky_s_own_words_passes`, `test_a_message_that_drifts_from_its_items_goes_back_to_the_model`, `test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored` |
+| Lời mở plan là lời model, không thì không có | `propose._approved_plan`, `_choose` | `test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan` |
+| Câu hỏi sai điều sau danh sách tài liệu: hỏi model lại kèm lý do, không đè chữ | `propose._which_book`, `_asks_which_book`, `_WrongQuestion.hint` | `test_a_question_right_after_the_library_asks_which_document`, `test_a_question_still_off_the_second_time_keeps_the_model_s_words`, `test_a_question_about_which_document_is_told_apart` |
+| Mọi lời Kriky dựng Markdown, toán dựng y như `MathText`, không HTML thô | FE `KrikyText` (`inline` → `span.line`) | `kriky-text.test.tsx` |
+| Phần tử giao diện tất định: tên bước một nguồn, lúc chạy như sau F5 | FE `ActionCard.STEP_TITLE`, `titleOf`, `stepFor`; BE `TurnEvent.tool_name`, `result` | `test_a_lookup_before_the_plan_shows_while_it_runs`, *"bước tra cứu trước plan hiện lúc đang chạy…"* |
+| **Chưa thi hành:** khung kèm học của học sinh — model hỏng thì `explain` vẫn lùi về lời giảng soạn sẵn | `handlers.explain` | — (đổi nó cần sửa hợp đồng và màn học sinh; ghi ở mục *Ngoài phạm vi* của plan) |

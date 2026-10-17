@@ -90,7 +90,7 @@ thử trên trình duyệt).
 | Luật | Sống ở | Test canh |
 |---|---|---|
 | Mọi đề qua một dàn ý đã hiện ở lượt ngay trước, chưa dùng, đúng việc, đúng sách, đúng đề | `teacher_chat._shown_outline`, `guard_drafting`; `teacher_tools._start_drafting` từ chối khi không có dàn ý | `test_no_question_is_drafted_before_the_teacher_has_seen_an_outline`, `test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once`, `test_an_outline_from_before_the_last_teacher_message_is_not_an_approval`, `test_drafting_without_an_outline_seen_is_refused` |
-| BE dựng chữ dàn ý, gọi công thức là của Kriky — còn chạy tới khi ADR-30 thi hành (hậu ký 17/10/2026) | `be/outline.render`, nhánh `outline` của `teacher_chat._go` | `test_the_outline_shown_is_what_be_rendered_from_stored_items`, `test_the_outline_shown_is_the_one_be_rendered_and_stored` (đổi theo ADR-30 trong plan `kriky-writes-every-word`, xem bảng của ADR-30) |
+| ~~BE dựng chữ dàn ý, gọi công thức là của Kriky~~ — thôi áp dụng 17/10/2026: lời dàn ý là lời model, BE đối chiếu nhẹ (ADR-30) | `be/outline.check_message` (`render` đã gỡ) | xem bảng của ADR-30 |
 | Job chỉ nhận mục của nó, không chữ tài liệu thô | `drafting.fire`, `drafting.item_fields`; agent `authoring.draft_brief` | `test_a_job_receives_exactly_its_outline_item`, `check_drafting_reads_no_document_text` |
 | Thay câu giữ câu cũ tới khi câu mới đạt; thay câu theo luật xoá ADR-28 | `drafting.replace`, `harvest`, `drop_question`; `teacher_tools._replace_question` | `test_a_replaced_question_stays_until_its_successor_lands`, `test_a_replacement_whose_job_breaks_leaves_the_old_question`, `test_a_replacement_step_says_whether_the_question_changed` |
 | Mười câu mỗi lần | `be/outline.validate`, `teacher_tools.MOST_QUESTIONS_ASKED` | `test_more_than_ten_questions_in_one_go_is_refused` |
@@ -104,7 +104,7 @@ Viết khi mở plan `kriky-writes-every-word`. Một luật đổi, các luật
   bằng Markdown, kết bằng câu hỏi xin đồng ý của chính nó
   ([ADR-30](adr-30-loi-kriky-do-model-viet.md)); khuôn *"Công thức Kriky đề xuất / Cách làm / Theo"*
   và câu kết cố định bị bỏ. Lời và các mục là hai trường của cùng một lượt dàn ý; **job vẫn chỉ nhận
-  các mục**, nên *"job chỉ nhận mục của nó, không chữ tài liệu thô"* đứng nguyên. Tới lúc ấy, code vẫn
-  chạy theo luật cũ.
+  các mục**, nên *"job chỉ nhận mục của nó, không chữ tài liệu thô"* đứng nguyên. Thi hành từ
+  17/10/2026 (plan `kriky-writes-every-word`).
 - **Thứ thay cho phép chứng minh từng chữ là phép đối chiếu nhẹ của ADR-30.**
 - **Công thức vẫn là của Kriky**, nhưng luật ấy nay nằm trong prompt dàn ý, không trong khuôn của BE.

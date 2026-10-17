@@ -62,16 +62,12 @@ Lượt 1:
 
 Lượt 2:
 
-- Một câu mở ngắn, rồi `Dàn ý — 5 câu (bản 1)`; các mục `Câu k · …` (hay `Câu k–m · …`) cộng lại
-  đúng 5, mỗi mục có `Cách làm:`, kiến thức đều thuộc cấp số cộng lớp 11 (số hạng tổng quát,
-  công sai, tổng $n$ số hạng đầu…).
-- Không có dòng `Theo:` (không có sách). Có `Công thức Kriky đề xuất:` thì công thức được dựng
-  hình, vd $u_n = u_1 + (n-1)d$.
-- Kết bằng đúng câu: `Bạn đồng ý với dàn ý này chứ? Muốn đổi câu nào, cứ nói, ví dụ: "câu 2 đổi
-  sang …". Câu hỏi chỉ được soạn sau khi bạn đồng ý.`
+- Một lời dàn ý đạt (`huong-dan.md`, *Một lời dàn ý đạt*) cho 5 câu, kiến thức đều thuộc cấp số
+  cộng lớp 11 (số hạng tổng quát, công sai, tổng $n$ số hạng đầu…); công thức dựng hình, vd
+  $u_n = u_1 + (n-1)d$. Không nêu bài nguồn nào (không có sách).
 - Không khối bước, không thẻ.
 
-Cả hai lượt qua bảy luật chung. Database, sau lượt 2:
+Cả hai lượt qua tám luật chung. Database, sau lượt 2:
 
 ```
 docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) from assessments;"
@@ -90,7 +86,7 @@ docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, kind, jso
 - Lượt 2 vẫn hỏi lại, hay hỏi xác nhận điều giáo viên vừa nói.
 - Lượt 2 chạy plan soạn, hay có câu "đã soạn xong" (luật 2, 4).
 - Dàn ý không phải 5 câu, hay có mục ngoài cấp số cộng (vd cấp số nhân, hàm số).
-- Nút là câu hỏi hay tên mục; Markdown, `$` nguyên văn, UUID hay tên tool trên màn hình.
+- Nút là câu hỏi hay tên mục; ký tự Markdown hay `$` nguyên văn, UUID hay tên tool trên màn hình.
 
 ## Ghi lại
 

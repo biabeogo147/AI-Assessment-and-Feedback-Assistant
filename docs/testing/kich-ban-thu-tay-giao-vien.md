@@ -24,7 +24,7 @@ tốn lượt gọi nào — chúng chạy qua nút bấm, không qua chat.
 
 ## Chuẩn bị và luật soi mọi lượt
 
-Đã dời sang `huong-dan.md` cùng thư mục (15/10/2026): các bước chuẩn bị, bảy luật soi mọi lượt Kriky
+Đã dời sang `huong-dan.md` cùng thư mục (15/10/2026): các bước chuẩn bị, tám luật soi mọi lượt Kriky
 và hai luật khối bước dùng chung cho file này lẫn bộ ca cố định trong `cases/`.
 
 ---
@@ -466,8 +466,8 @@ sách `cases/04`, thay một câu `cases/05`, soạn thêm `cases/06`, đồng �
    lược trong một đoạn.
 
 Và **một lỗi chưa sửa, đáng để ý nếu gặp**: nếu Kriky trả về một plan **không có bước nào**, màn
-hình sẽ vẽ một khối bước rỗng rồi nói *"Mình tra mãi mà chưa ra câu trả lời gọn cho câu này"* —
-câu của mức trần 8 bước, trong khi vòng lặp mới đi một bước. Hiếm, nhưng nếu bạn thấy câu ấy sau
+hình sẽ vẽ một khối bước rỗng rồi hiện thông báo hệ thống *"Kriky tra mãi mà chưa ra câu trả lời gọn
+cho câu này"* — câu của mức trần 8 bước, trong khi vòng lặp mới đi một bước. Hiếm, nhưng nếu bạn thấy câu ấy sau
 đúng **một** bước thì bạn vừa gặp nó.
 
 ---

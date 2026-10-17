@@ -61,13 +61,13 @@ này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mớ
 
 ## Đạt khi
 
-1. Lượt 1 kết bằng một dàn ý `Dàn ý — 2 câu (bản N)`, `N` lớn hơn bản cuối của case 04, có mục
-   `Câu 6–7 · …` (hoặc `Câu 6 · …` và `Câu 7 · …`) nói về số La Mã, mỗi mục có `Cách làm:` và
-   `Theo: …` trỏ về mục số La Mã (nhãn trùng một dòng `labels` của `read_section`, vd `2. SỐ LA
-   MÂ (tr. 10–13)`). Câu kết là câu đồng ý cố định của ADR-29.
-   Lượt này không có bước soạn nào chạy.
-2. Lượt 2: khối bước **một** bước — lúc chạy `Soạn thêm câu hỏi`, khi lượt xong `Soạn câu hỏi` —
-   (không `Tạo đề trống`), dòng dưới ghi
+1. Lượt 1 kết bằng một lời dàn ý đạt (`huong-dan.md`) cho 2 câu, mục `Câu 6–7` (hoặc `Câu 6` và
+   `Câu 7`) nói về số La Mã, bài nguồn là mục số La Mã (gần chữ một dòng `labels` của
+   `read_section`, vd `2. SỐ LA MÂ (tr. 10–13)`). Database: hàng `outline` mới có `version` lớn hơn
+   bản cuối của case 04. Kriky đọc lại sách thì các bước mang tên `Xem mục lục` / `Đọc sách — phần
+   k/n: …` ngay lúc chạy. Lượt này không có bước soạn nào chạy.
+2. Lượt 2: khối bước **một** bước `Soạn câu hỏi` (cùng tên lúc chạy; không `Tạo đề trống`), dòng
+   dưới ghi
    `đã soạn 7/7 câu` — `_count_questions` đếm cả đề, không chỉ 2 câu mới.
 3. Thẻ cuối `Đã tạo đề "<tên>"` — **cùng tên** đề case 04 — với `Chưa duyệt · chưa phát hành`.
    Bấm thẻ: panel có 7 câu; câu 6, 7 về số La Mã; câu 1–5 cùng chữ như trước.
@@ -90,11 +90,11 @@ này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mớ
 - Câu hỏi được soạn ngay lượt 1, trước khi giáo viên đồng ý dàn ý.
 - Thẻ cuối mang tên khác đề case 04, hay hai thẻ `Đã tạo đề` ở lượt 2.
 - Câu 6, 7 không phải số La Mã, hay trùng ý một câu cũ.
-- Dàn ý thiếu `Theo:` dù đề theo sách; hay bất kỳ dòng nào trong bảy luật chung bị phạm.
+- Dàn ý không nêu bài nguồn dù đề theo sách; hay bất kỳ dòng nào trong tám luật chung bị phạm.
 
 ## Ghi lại
 
-- Nguyên văn dàn ý lượt 1 (cả dòng `Dàn ý — …`, các dòng `Câu …`, `Theo:`), và mọi câu hỏi lại
+- Nguyên văn trọn lời dàn ý lượt 1, và mọi câu hỏi lại
   trước nó cùng câu đã gõ trả lời (theo bảng *Nếu Kriky rẽ*).
 - Tên các bước trong khối lượt 2 và dòng `đã soạn k/n câu`; nguyên văn câu kể của Kriky.
 - Đề bài câu 6 và 7 trên panel.

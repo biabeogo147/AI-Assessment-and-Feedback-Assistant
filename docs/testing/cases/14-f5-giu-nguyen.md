@@ -16,12 +16,12 @@ một dàn ý đang chờ, hôm sau gõ "oke" thì lời đồng ý vẫn đư�
 - Bấm thẻ `Đã tạo đề` cuối (case 06) để mở panel: địa chỉ thành `…/chat/<CID>/de/<id>`.
 - **Chụp S0**, trước mọi thao tác. Mở (chevron) **mọi** khối `Đã làm n bước`, rồi ghi từ trên xuống:
   câu giáo viên; với mỗi lượt Kriky: câu mở, header khối, từng bước (dấu, tên, dòng `— …`), câu
-  kết hoặc lời dàn ý, chữ thẻ. Dàn ý: dòng `Dàn ý — N câu (bản k)` và mọi dòng `Câu …` / `Theo:`.
+  kết hoặc trọn lời dàn ý, chữ thẻ.
   Panel: số câu, chữ đầu của từng câu. Cùng lúc chạy (Git Bash):
 
   ```
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*), max(sequence) from teacher_turns where conversation_id = '<CID>';"
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, tool_result->>'version' ban, tool_result->>'for' viec, substring(text from 'Dàn ý — [^)]*\)') dong_dau, json_array_length((tool_result->'items')::json) muc from teacher_turns where conversation_id = '<CID>' and kind = 'outline' order by sequence;"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, tool_result->>'version' ban, tool_result->>'for' viec, left(text, 60) dau, json_array_length((tool_result->'items')::json) muc from teacher_turns where conversation_id = '<CID>' and kind = 'outline' order by sequence;"
   ```
 
 ## Lời chat
@@ -36,7 +36,7 @@ truy vấn đếm.
 à còn thiếu lũy thừa, thêm 1 câu về lũy thừa nữa nhé
 ```
 
-Khi lượt 1 ra dàn ý `Câu 8 · …`: chụp lời dàn ý (S3), **đóng hẳn tab**, mở tab mới
+Khi lượt 1 ra dàn ý có mục `Câu 8`: chụp lời dàn ý (S3), **đóng hẳn tab**, mở tab mới
 `http://127.0.0.1:5173/#/teacher`, bấm đoạn `<CID>` trên rail, so với S3. Rồi lượt 2:
 
 ```
@@ -53,22 +53,21 @@ Không gõ `đề mới`, `đề khác`, `đề nữa`.
 | Kriky làm gì | Trả lời / phán | Vì sao |
 | --- | --- | --- |
 | Sau F5 khối bước thu còn `Đã làm n bước` | Bấm chevron. Đạt | Khối tự thu lúc lượt xong; nấc mở không được nhớ |
-| Bước đọc sách hiện `Một bước nữa`, không dòng `— …` | Ghi lại. Lệch đã biết, không trượt | `STEP_TITLE` (`ActionCard.tsx`) chưa có tên cho tool đọc sách |
-| Bước soạn đang chạy ghi `Soạn câu hỏi theo dàn ý` / `Soạn thêm câu hỏi`, xong lượt thành `Soạn câu hỏi` | Lệch đã biết, không trượt | Lúc chạy là `title` của plan; xong lượt FE đọc lại từ database, tên lấy từ `STEP_TITLE`. Đổi lúc lượt xong, **không** phải lúc F5 |
+| Bước đọc sách hiện `Một bước nữa`, hay tên, dòng `— …` của một bước khác giữa lúc chạy và sau F5 | Không đạt | Mọi tool có tên trong `STEP_TITLE` (`ActionCard.tsx`), và lúc chạy FE đặt tên bằng đúng bảng ấy (`kriky-writes-every-word`) |
 | Quay lại từ rail mà panel đóng | Bấm thẻ cuối. Đạt | Panel đi theo route; rail mở `#/teacher/chat/<CID>` không kèm `/de/` |
 | Lượt 1 đọc bài trước dàn ý | Đạt, đợi dàn ý | `_read_before_outline` bắt đọc chữ trước dàn ý có sách |
 | Lượt 1 hỏi lại bài nào | Gõ `Bài 6 trong sách ấy`. Chấp nhận được | Không chứa cụm đổi việc; `_right_purpose` vẫn dò thấy câu `thêm 1 câu` |
 | Lượt 1 hỏi khía cạnh của câu lũy thừa (nút: khái niệm / cách tính / ứng dụng) | Gõ `câu tính giá trị lũy thừa thôi`. Chấp nhận được | Một lượt thừa; câu đáp không chứa cụm đổi việc |
-| Dàn ý `Câu 1 · …` | Không đạt, không gõ `oke`, ghi lại | `for=new`: `oke` sẽ mở đề thứ hai (xem case 06) |
-| Dàn ý 2 câu trở lên | Gõ `chỉ 1 câu lũy thừa thôi`, rồi lại đóng tab trước `oke` | Chấp nhận được nếu bản kế đúng `Câu 8` |
+| Dàn ý `Câu 1` | Không đạt, không gõ `oke`, ghi lại | `for=new`: `oke` sẽ mở đề thứ hai (xem case 06) |
+| Dàn ý 2 câu trở lên | Gõ `chỉ 1 câu lũy thừa thôi`, rồi lại đóng tab trước `oke` | Chấp nhận được nếu dàn ý kế đúng `Câu 8` |
 | Mở lại tab mà dàn ý biến mất, khác chữ, hay có thẻ hỏi lại | Không đạt, dừng | Đọc lại không ghi gì; màn hình phải là thứ database giữ |
 | Sau `oke` ra dàn ý mới hay hỏi lại | Không đạt. Chạy truy vấn đếm, ghi lại | `_shown_outline` chỉ đòi dàn ý là lượt ngay trước; F5 không thêm hàng nào |
 
 ## Đạt khi
 
-1. **S1 = S0 = S2** từng chữ: cùng số lượt, cùng thứ tự; mọi dàn ý cùng dòng `Dàn ý — N câu
-   (bản k)` và cùng dòng `Câu …`, `Theo:`; mọi khối cùng header, cùng số bước, cùng dấu `✓`, cùng
-   dòng kết quả; cùng thẻ; câu mở `Được, mình soạn theo dàn ý ngay.` và câu kể ở đúng chỗ cũ.
+1. **S1 = S0 = S2** từng chữ: cùng số lượt, cùng thứ tự; mọi lời dàn ý cùng chữ; mọi khối cùng
+   header, cùng số bước, cùng tên bước, cùng dấu `✓`, cùng dòng kết quả; cùng thẻ; câu mở (nếu có)
+   và câu kể ở đúng chỗ cũ.
 2. Khối lượt 2 của case 04 vẫn `Tạo đề trống` `— đề "<tên>"` → `Soạn câu hỏi` `— đã soạn 5/5
    câu`, **không** thành 7/7: con số là của lượt ấy, không đếm lại. Khối lượt 2 case 06 là
    `Soạn câu hỏi` `— đã soạn 7/7 câu`. Không dòng nào thành `— N câu bắt đầu soạn`.
@@ -76,27 +75,28 @@ Không gõ `đề mới`, `đề khác`, `đề nữa`.
    `Chưa duyệt · chưa phát hành`; không thẻ hỏi lại nào hiện ra.
 4. Sau A1 panel mở lại tự động, 7 câu, cùng chữ như S0; sau A2 bấm thẻ cuối ra cùng 7 câu.
 5. Truy vấn đếm cho cùng `count`, `max` ở S0, sau A1, sau A2: đọc lại không ghi hàng nào.
-6. Các dòng `Dàn ý — …` trên màn, từ trên xuống, trùng `dong_dau` theo `sequence`; `bản` tăng dần
-   1, 2, … không sót bản nào (cả bản bị sửa vẫn còn trên màn).
-7. Phần B: lời dàn ý `Dàn ý — 1 câu (bản k)`, `k` = bản cuối + 1, mục `Câu 8 · …` lũy thừa có
-   `Cách làm:` và `Theo:` trỏ mục lũy thừa (nhãn trùng một dòng `labels` của `read_section`). Mở lại tab: dàn ý y S3 và là lượt cuối trên màn.
-8. Sau `oke`: câu mở `Được, mình soạn theo dàn ý ngay.`, **một** bước soạn (không `Tạo đề
+6. Các lời dàn ý trên màn, từ trên xuống, mở đầu đúng như cột `dau` theo `sequence`; `ban` tăng
+   dần 1, 2, … không sót bản nào (cả bản bị sửa vẫn còn trên màn).
+7. Phần B: một lời dàn ý đạt (`huong-dan.md`), `ban` = bản cuối + 1, một mục `Câu 8` lũy thừa, bài
+   nguồn là mục lũy thừa (gần chữ một dòng `labels` của `read_section`). Mở lại tab: dàn ý y S3 và
+   là lượt cuối trên màn.
+8. Sau `oke`: không câu mở cố định, **một** bước soạn (không `Tạo đề
    trống`), `— đã soạn 8/8 câu`, thẻ `Đã tạo đề "<tên>"`. F5: khối ấy y nguyên, panel 8 câu, câu
    1–7 cùng chữ S0. Truy vấn dàn ý: hàng mới `viec` = `more`, `muc` = 1.
 
 ## Không đạt khi
 
-- Một dàn ý mất, đổi chữ, đổi `(bản k)`, hay đổi chỗ với một lượt khác sau F5 hay sau rail.
+- Một dàn ý mất, đổi chữ, hay đổi chỗ với một lượt khác sau F5 hay sau rail.
 - Một bước mất, thêm, đổi dấu; dòng `— đã soạn …` đổi số; một thẻ mất hay hiện hai lần.
 - Đoạn chat trắng khi quay lại từ rail; panel mở lại ra số câu khác đề.
 - Truy vấn đếm đổi sau F5 hay sau rail.
 - Sau khi mở lại tab, `oke` không được nhận là đồng ý (dàn ý mới, hỏi lại, không soạn).
 - Lượt 2 phần B mở đề mới, hay câu 1–7 đổi chữ.
-- Vi phạm một trong bảy luật chung của `huong-dan.md`.
+- Vi phạm một trong tám luật chung của `huong-dan.md`.
 
 ## Ghi lại
 
 - S0 và mọi chỗ S1, S2 khác S0 (chép nguyên văn hai phía). Không khác thì ghi "trùng".
-- Tên mọi bước trong mỗi khối sau F5, đánh dấu cái nào là lệch đã biết (`Một bước nữa`, tên soạn).
+- Tên mọi bước trong mỗi khối lúc chạy và sau F5; đánh dấu chỗ nào khác nhau.
 - Đầu ra hai truy vấn ở S0, sau A1, sau A2, và sau phần B.
 - Phần B: nguyên văn dàn ý, nhánh bảng đã xảy ra, khối bước và câu kể lượt 2, chữ câu 8 trên panel.

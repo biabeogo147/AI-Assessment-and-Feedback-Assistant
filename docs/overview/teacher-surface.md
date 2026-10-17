@@ -57,15 +57,28 @@ Nhịp: **6** giữa avatar và phần đầu tiên, **20** giữa các phần v
 lượt thiếu phần nào — dữ liệu thật thường không có câu mở đầu, và khi đó avatar giới thiệu thẳng khối
 bước.
 
-### Lượt dàn ý — lời Kriky, chữ của BE
+**Mọi lời Kriky do model viết, bằng Markdown** ([ADR-30](../decisions/adr-30-loi-kriky-do-model-viet.md)).
+Câu mở đầu, câu kết, lời dàn ý và câu hỏi lại dựng bằng `KrikyText` (component `Kriky text —
+Markdown`, `616:23`): đậm, danh sách, tiêu đề nhỏ, bảng; toán trong `$…$` dựng y như `MathText`. Không
+HTML thô, ảnh hiện thành chữ alt. Code không đặt câu nào vào miệng Kriky — `check_kriky_says_nothing_fixed`
+giữ luật ấy.
+
+**Thông báo hệ thống không phải lời Kriky.** Khi model không có mặt để nói — các trường hợp của
+ngoại lệ 1 trong ADR-30 — lượt ra một dòng `notice` (component `System notice`,
+`619:20`): **không avatar**, nền chìm, chữ nhạt cỡ nhãn, dấu `!` ở đầu, chữ trơn không Markdown. Nó
+cắt khối của Kriky và đứng dưới những gì Kriky đã làm, nên khối bước của một plan đã chạy vẫn ở nguyên
+trên nó. Câu của chúng sống ở `be/notices.py`; lượt sau model đọc lại chúng như ghi chú hệ thống.
+
+### Lượt dàn ý — lời Kriky, mục cho job
 
 Từ [ADR-29](../decisions/adr-29-dan-y-de-truoc-khi-soan.md) mọi đề đi qua một **dàn ý** trước khi soạn:
 lượt ấy (`kind: "outline"`) vẽ **đúng như một câu Kriky nói** — cùng `Message turn` (Vai=agent), cùng
-`MathText`, không thẻ mới, không nút duyệt. Khác một điều: chữ do **BE dựng** từ các mục đã lưu
-(`be/outline.render`) — lời mở của Kriky, *"Dàn ý — N câu (bản v)"*, mỗi mục một khối *"Câu a–b ·
-kiến thức / Công thức Kriky đề xuất / Cách làm / Theo: bài"*, rồi câu hỏi đồng ý cố định. Giáo viên
-duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau. Sau F5 lượt dàn ý dựng lại đúng chữ
-ấy (`spoken()` coi `outline` là lời trợ lý). Bước *"Thay một câu"* có dòng kết quả riêng: *"đã thay câu
+`KrikyText`, không thẻ mới, không nút duyệt. Từ ADR-30 dàn ý là **hai trường**: lời Kriky tự viết cho
+giáo viên (Markdown — mỗi mục nêu `Câu k`, kiến thức, công thức, cách làm, bài nguồn khi có sách, rồi
+một câu hỏi xin đồng ý của chính nó), và các mục có cấu trúc — thứ duy nhất đi vào job. BE **đối chiếu
+nhẹ** hai thứ (`be/outline.check_message`, tiêu chí ở ADR-30); lệch thì trả lý do cho model sửa
+trong cùng lượt. Giáo viên duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau.
+Sau F5 lượt dàn ý dựng lại đúng lời ấy (`spoken()` coi `outline` là lời trợ lý). Bước *"Thay một câu"* có dòng kết quả riêng: *"đã thay câu
 N"*, hay *"câu N giữ nguyên: câu mới soạn không đạt"* — câu cũ ở lại khi câu mới không qua ADR-18.
 
 ### Luật quan trọng nhất: thẻ mọc cho kết quả còn đứng vững
@@ -104,7 +117,10 @@ thu gọn được nhưng không bao giờ mất."* Giáo viên đứng trước
 > **`đang chạy` nay chạy thật.** FE gửi lượt qua `POST /teacher/chat/messages/stream` và vẽ
 > theo đúng thứ tự sự kiện nhận được: `say` → `plan` → `step_started` → `step_done` →
 > `progress` → `report`. `n` của `bước k/n` lấy từ **plan**, nói được vì plan có trước khi chạy;
-> số câu đã soạn là dòng kết quả của bước đang chạy. Khi lượt xong, màn hình **đọc lại cả đoạn
+> số câu đã soạn là dòng kết quả của bước đang chạy. Bước **tra cứu** của pha lên plan (*"Xem thư
+> viện tài liệu"*, *"Xem mục lục"*, *"Mở một chương"*, *"Đọc sách — phần k/n: …"*) cũng phát
+> `step_*`, mang tên tool và kết quả đã bỏ chữ sách, nên nó hiện **lúc đang chạy** đúng như sau F5 —
+> và không vào `bước k/n`, không làm khối thành `Dừng ở bước k`. Khi lượt xong, màn hình **đọc lại cả đoạn
 > từ database** — thứ ở lại phải là thứ database đang giữ, nếu không một lần F5 cho ra một màn
 > hình khác. Vì thế khối tự thu lại lúc xong: nó được dựng lại từ dữ liệu, không phải được
 > chuyển trạng thái.
@@ -785,7 +801,9 @@ lại: cách gõ thì sửa được bằng mắt, còn một đề hai đáp á
 
 Phía màn hình, một component **`MathText`** thay cho `{text}` ở **mọi** chỗ chữ của model lên màn
 hình, cả bề mặt giáo viên lẫn bề mặt học sinh: đề bài, phương án, lời giải, **nhãn lỗi**, và **bong
-bóng chat** của cả hai bên.
+bóng chat** của cả hai bên. Từ ADR-30 lời Kriky trong bong bóng (cả trợ lý của học sinh) đi qua
+`KrikyText`: nó tách cụm toán bằng đúng khuôn `MathText.MATH` **trước** khi đọc Markdown, nên toán
+dựng y như cũ.
 
 Hai nhóm cuối suýt bị bỏ sót, và bỏ sót chúng thì đợt này làm mọi thứ **tệ hơn trước**: ba prompt
 `propose`, `reporting`, `explain` sinh ra lời kể trong khung chat, và chúng vừa đổi từ *cấm LaTeX*

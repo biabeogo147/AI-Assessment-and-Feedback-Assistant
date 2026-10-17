@@ -1138,7 +1138,7 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Câu mở của lượt dàn ý chép lại một dàn ý giả** (case 03, 06, 14): model viết cả dàn ý vào `text`, BE in `text` rồi in dàn ý thật — màn hình có hai dàn ý, cái đầu sai số bản (*"(bản 1)"*) hay sai số câu (*"Câu 1"* thay vì *"Câu 8"*) | Chưa sửa. Hướng: BE cắt `text` của lượt `outline` về một câu mở, hay từ chối `text` có dòng `Dàn ý —` |
+| ~~**Câu mở của lượt dàn ý chép lại một dàn ý giả** (case 03, 06, 14): model viết cả dàn ý vào `text`, BE in `text` rồi in dàn ý thật~~ | **Hết lý do** 17/10/2026 (`kriky-writes-every-word`, ADR-30): lời Kriky nay **là** cả dàn ý, BE không dựng bản thứ hai; `outline.check_message` trả lại lời nhắc câu ngoài dàn ý (*"Câu 1"* thay vì *"Câu 8"*) |
 | **Nút hỏi lại không phải giá trị bấm được** (01, 08, 13): *"khối 6, 7, 8, 9"*, *"số câu từ 1 đến 10"*, *"Mình chỉ soạn 1 lần 12 câu."* (trái với trần vừa nói), *"Môn học là Lịch sử"* | `_answers` chỉ bỏ câu hỏi và tên mục trần; chưa có luật cho nút gộp cả dải giá trị |
 | **Mất số câu sau một lượt hỏi lại** (04): xin 5 câu, sau khi Kriky hỏi bài nào và giáo viên đáp *"cả chương luôn"*, dàn ý ra 10 câu | `_miscounted` chỉ đối chiếu với `known` của chính lượt ấy, mà `known` đã mất số 5 |
 | **Dàn ý không công thức, câu lệch mục** (02, 07, 08): 0/5 mục có công thức; câu 2 *"vận tốc 120 km / 2 giờ"* dưới mục tỉ lệ thức, câu 4 tỉ số đơn dưới mục dãy tỉ số | Trùng mục *"Dàn ý chung chung"* ở trên; nay có số đo trên trình duyệt |
@@ -1172,6 +1172,22 @@ ghi case thấy nó.
 | **`_read_before_outline` để lọt dàn ý đọc dở** (04): đọc phần 3/5 xong, dàn ý chỉ trỏ nút phần 1–2, nên không giao nút phần vừa đọc và AGENT thôi bắt đọc tiếp | Điều kiện *"dàn ý trỏ vào phạm vi ấy"* so với phần **cuối**, không với cả phạm vi đã gọi |
 | **Hỏi lại hai lần với tệp scan một trang, một `get_chapter` sai id tài liệu** (13) | Chưa sửa |
 | **Tóm tắt nút cây mở bằng "Phần này"** (mục lục SGK dựng trên Haiku) | Prompt tóm tắt cấm; Haiku không theo |
+
+## Lộ ra khi thử tay plan lời Kriky do model viết
+
+Ghi ngày 17/10/2026, plan `2026-10-17-kriky-writes-every-word-plan.md`. Biên bản:
+`docs/testing/ket-qua/2026-10-17-02ba28a-claude-haiku-5-5.md`. Bốn lỗi sửa ngay trong buổi (160 ký tự
+của `learning_objective`, thẻ hỏi lại dính chữ, plan bị từ chối lặp lại, số node trong lời dàn ý) không
+ghi ở đây.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Câu mock vào đề nay 3/21 job** (02, 06, 07) — dòng *"Tool soạn câu trả sai hình dạng"* ở trên, tần suất tăng từ 1/24 | Như dòng trên. Đây là lỗi nặng nhất của lần chạy: ba trên năm ca có soạn câu không đạt vì nó |
+| **Dàn ý sửa không tách mục gộp** (03): sửa câu 3 của mục `Câu 3–4` thì câu 4 thành cùng dạng | Chưa có luật; `_right_purpose` không biết câu nào trong mục bị đổi |
+| **Lời đồng ý không thành plan khi `brief` rỗng, và model bịa một nút "xác nhận soạn đề"** (04, lần chạy dở): lời ấy *đáp* dàn ý, nên lượt sau BE chặn mọi plan soạn vì *"chưa thấy dàn ý"* | Gốc là dòng *"Haiku để trống `known`"* ở trên |
+| **BE trả dàn ý về năm lần vì công thức sai khuôn `$…$`** (04, lượt chạy lại): mỗi lần một lời gọi model với ngữ cảnh lớn dần | Khuôn `outline.validate` đúng; chưa có dừng sớm như với plan bị từ chối lặp lại |
+| **Tên đoạn chat chép lời dặn**: *"Soạn đề toán lớp 6 chương 1 (từ chối? không) — tiêu đề: Soạn"* | `naming.py` trên Haiku; chưa đo lại |
+| **"Cả chương" mà chỉ đọc một phần chương** (04): `read_section` với `nodes` 1, 3, 6, 17 do model chọn, bỏ bốn bài, mà lời dàn ý vẫn nói *"lấy từ bài 1 đến thứ tự thực hiện các phép tính"* | Model chọn nút; `_read_before_outline` chỉ đòi đọc hết phạm vi **đã gọi**, không đối chiếu với phạm vi giáo viên nói |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 

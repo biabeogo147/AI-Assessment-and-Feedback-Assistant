@@ -100,7 +100,7 @@ Không có model nào chạy, nên "rẽ" ở đây là panel hay BE đi khác.
 - Đề còn `Sửa`/`Xoá` khi đã duyệt; hay `Lưu` của bước 2 làm đổi câu khác ngoài câu 1.
 - Duyệt lại sinh dòng kho thứ sáu (bản trùng) thay vì ghi đè.
 - Kết thúc case mà Q-đề không phải `approved` (case 10 không chạy được).
-- Bất kỳ luật nào trong bảy luật chung bị phá trên phần chat còn hiện.
+- Bất kỳ luật nào trong tám luật chung bị phá trên phần chat còn hiện.
 
 ## Ghi lại
 

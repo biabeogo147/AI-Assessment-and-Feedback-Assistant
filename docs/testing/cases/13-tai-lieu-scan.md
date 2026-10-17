@@ -66,10 +66,10 @@ Dừng ở dàn ý, **không** gõ đồng ý: soạn câu theo sách đã có �
 2. **Lượt 1** là một lượt Kriky, không khối bước, không dàn ý, không thẻ đề. Câu trả lời nói tệp
    vừa tải **đang được xử lý / chưa đọc được**, và nhờ chờ tệp sẵn sàng rồi nhắn lại. Không nói tệp
    hỏng, không kể nội dung trang.
-3. **Lượt 2**: khối `Đã làm n bước` (n ≥ 2; bước đọc sách có thể mang tên `Một bước nữa`), rồi
-   `Dàn ý — 3 câu (bản 1)`, kết bằng *"Bạn đồng ý với dàn ý này chứ? … Câu hỏi chỉ được soạn sau
-   khi bạn đồng ý."* Không bước `Tạo đề trống`, không thẻ đề.
-4. **Mọi mục có `Theo:`** trỏ một nút của tệp scan: `Bài 1. TẬP HỢP` hoặc `Chương I. …`, trang
+3. **Lượt 2**: khối `Đã làm n bước` (n ≥ 2; các bước mang tên `Xem mục lục`, `Đọc sách — phần
+   k/n: …`, cả lúc đang chạy), rồi một lời dàn ý đạt (`huong-dan.md`) cho 3 câu. Không bước
+   `Tạo đề trống`, không thẻ đề.
+4. **Mọi mục nêu bài nguồn** là một nút của tệp scan: `Bài 1. TẬP HỢP` hoặc `Chương I. …`, trang
    `(tr. 5)` hoặc `(tr. 1)`. Kiến thức các mục nằm trong Bài 1: tập hợp, phần tử, cách mô tả
    một tập hợp, kí hiệu thuộc / không thuộc. Không mục nào về cách ghi số, số La Mã, phép tính.
 5. **Truy vấn A**: `scan-mot-trang.pdf`, `ready`, `page_count` = 1, `fault` rỗng.
@@ -81,9 +81,9 @@ Dừng ở dàn ý, **không** gõ đồng ý: soạn câu theo sách đã có �
 - Chip đứng im tới khi F5, hay F5 mới thấy chip đổi.
 - Lượt 1 có dàn ý, thẻ đề, hay câu nói đã đọc / đã soạn từ trang ấy.
 - Lượt 1 bảo tệp không đọc được, hay im lặng về tệp như không có chip.
-- Lượt 2 có `Theo:` trỏ cuốn của case 04, hay kiến thức vượt khỏi Bài 1.
+- Lượt 2 nêu bài nguồn của cuốn case 04, hay kiến thức vượt khỏi Bài 1.
 - Lượt 2 nói đã đọc *"cả chương I"* hay kể nhiều bài trong khi tệp chỉ có một trang.
-- Vi phạm một trong bảy luật chung của `huong-dan.md`.
+- Vi phạm một trong tám luật chung của `huong-dan.md`.
 
 ## Ghi lại
 

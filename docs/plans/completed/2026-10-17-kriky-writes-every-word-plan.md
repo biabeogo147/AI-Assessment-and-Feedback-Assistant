@@ -101,9 +101,20 @@ gọi model thật (ước 0,05–0,08 USD).
   `BOOK_*` thay câu trần chung (N5).
 
 ### Pha 6 — Tài liệu, thử tay, đóng
-- [ ] 20. `teacher-surface.md`, `huong-dan.md`, case 01–07, 13, 14.
-- [ ] 21. Thử tay 01–08, 13, 14 trên Haiku 5.5; ảnh chụp; biên bản cạnh 16/10.
-- [ ] 22. Subagent review biên bản, ảnh, code; sửa; đóng plan.
+- [x] 20. `teacher-surface.md`, `huong-dan.md`, case 01–07, 13, 14.
+  Thêm: `huong-dan.md` luật 8 và định nghĩa *Một lời dàn ý đạt*; case 08, 11, 12 bỏ dòng *lùi về mock*;
+  `backlog.md` dòng *dàn ý giả* hết lý do.
+- [x] 21. Thử tay 01–08, 13, 14 trên Haiku 5.5; ảnh chụp; biên bản cạnh 16/10.
+  `docs/testing/ket-qua/2026-10-17-02ba28a-claude-haiku-5-5.md`: 3 đạt · 2 chấp nhận được · 5 không đạt —
+  ba ca vì câu mock (backlog), ba ca vì số node trong lời (hồi quy của plan, sửa `377847c`). Sửa trong
+  buổi: `b443289` (160 ký tự, người dùng chọn), `02ba28a` (thẻ hỏi lại, plan bị từ chối lặp lại),
+  `377847c`. Lần chạy đầu bỏ dở khi máy khởi động lại; chạy lại từ `db-reset`.
+- [x] 22. Subagent review biên bản, ảnh, code; sửa; đóng plan.
+  Review không mục chặn. Sửa: phán case 03 → Không đạt, 08 → Chấp nhận được; token không đếm lần
+  gọi bị trả về; code chạy trên working tree trước commit; case 04 đọc thiếu chương (backlog);
+  ADR-30 năm tiêu chí, ngoại lệ 1 thêm *cùng lý do từ chối hai lần*, trạng thái, hàng *explain chưa
+  thi hành*; `teacher-surface` dẫn sang ADR-30; `toLines` gỡ `p` trong mục danh sách lỏng;
+  `_NODE_NUMBER` bắt thêm *node số*, `source_nodes`; test nhánh `guard_drafting` và reset `refused`.
 
 ## Validation Checks
 
@@ -127,4 +138,4 @@ gọi model thật (ước 0,05–0,08 USD).
 
 ## Status
 
-Đang làm pha 6.
+Đóng 17/10/2026. Kết quả thử tay: `docs/testing/ket-qua/2026-10-17-02ba28a-claude-haiku-5-5.md`.

@@ -41,30 +41,28 @@ oke
 | Hỏi môn, khối hay dạng câu | Gõ `toán lớp 6, trắc nghiệm nhé`. Chấp nhận được nếu một lần | Môn không đọc ra được từ tên tệp, nhưng câu đã nói "toán" |
 | Hỏi xác nhận "soạn 5 câu chương 1 nhé?" trước khi có dàn ý | Gõ `ừ đúng rồi`. Chấp nhận được | Điểm yếu đã đo: hỏi xác nhận dù đủ dữ kiện |
 | Gọi danh sách tài liệu dù đã có chip, rồi đọc đúng tệp | Không trả lời gì. Chấp nhận được | Thừa một bước, kết quả không đổi |
-| Dàn ý có mục **thiếu** dòng `Theo:` | Ghi lại, vẫn gõ `oke` cho case sau. Không đạt | BE từ chối dàn ý có sách mà mục không trỏ bài (`outline.validate`); thiếu `Theo` là dàn ý không gắn sách |
-| `Theo:` của mọi mục chỉ là `Chương I. …` | Gõ `oke`. Chấp nhận được, ghi lại | Nhãn thật, nhưng không trỏ tới bài |
+| Lời dàn ý có mục **không nêu** bài nguồn | Ghi lại, vẫn gõ `oke` cho case sau. Không đạt | BE từ chối mục không có `source_nodes` (`outline.validate`) nhưng không soi bài nguồn trong lời (ADR-30, đối chiếu nhẹ): thiếu là giáo viên không biết câu theo bài nào |
+| Bài nguồn của mọi mục chỉ là `Chương I. …` | Gõ `oke`. Chấp nhận được, ghi lại | Nhãn thật, nhưng không trỏ tới bài |
 | Năm mục cùng một bài (vd chỉ Bài 1) | Gõ `oke`. Chấp nhận được nếu truy vấn A cho thấy đã đọc hết các phần | Chia câu là lựa chọn sư phạm của giáo viên; sửa được bằng "câu 2 đổi sang …" |
 | Truy vấn A: chỉ có `part` 1 trong khi `parts` > 1, `more` = true | Không đạt | `_read_before_outline` phải đọc tiếp tới hết phạm vi trước khi nêu dàn ý |
-| Sau `oke` ra dàn ý `(bản 2)` hay hỏi lại | Gõ `oke` thêm một lần, ghi lại. Không đạt | `oke` khớp khuôn đồng ý: phải ra plan dựng từ dàn ý (`_approved_plan`) |
+| Sau `oke` ra dàn ý mới hay hỏi lại | Gõ `oke` thêm một lần, ghi lại. Không đạt | `oke` khớp khuôn đồng ý: phải ra plan dựng từ dàn ý (`_approved_plan`) |
 | Bước soạn ghi `dừng ở 4/5 câu` | Chấp nhận được nếu câu kết nói đúng con số đó | Job có thể hỏng sau khi thử lại; ghi `last_fault` |
 | Dàn ý tổng khác 5 câu (lần chạy 15/10/2026: 10 câu sau một lượt hỏi lại) | **Không đạt.** Gõ `mình cần 5 câu thôi nhé`, đợi bản kế đúng 5 câu rồi mới `oke` — để case 06, 14 vẫn chạy được | Lượt hỏi lại làm model mất số câu; `_miscounted` chỉ so với `known` của lượt ấy |
 
 ## Đạt khi
 
-1. **Lượt 1** là một lượt Kriky: khối `Đã làm n bước` (n ≥ 2), rồi lời dàn ý `Dàn ý — 5 câu (bản 1)`,
-   kết bằng *"Bạn đồng ý với dàn ý này chứ? … Câu hỏi chỉ được soạn sau khi bạn đồng ý."* Không bước
-   `Tạo đề trống`, không thẻ đề. Các bước đọc sách có thể hiện tên `Một bước nữa` (FE chưa đặt tên
-   cho tool đọc sách): ghi lại, không tính trượt.
-2. **Mọi mục có dòng `Theo:`** với nhãn bài hay mục **trong chương I** của tệp, dạng
-   `<tên> (tr. a–b)`, và nhãn lẫn trang **trùng chữ** với một dòng `labels` của truy vấn A. Nhãn
-   dựng từ cây mục lục OCR nên có thể thiếu số bài hay sai dấu (đã thấy `CÁCH GHI SỐ TỰ NHIÊN
-   (tr. 9–13)`, `2. SỐ LA MÂ (tr. 10–13)`): so với `labels`, không so với tên in trong sách. Mỗi
-   mục có `Cách làm:`; tổng câu là 5.
+1. **Lượt 1** là một lượt Kriky: khối `Đã làm n bước` (n ≥ 2), rồi một lời dàn ý đạt
+   (`huong-dan.md`) cho 5 câu. Mở khối ra: các bước mang tên `Xem mục lục`, `Đọc sách` với dòng
+   `— phần k/n: …` (có thể thêm `Xem thư viện tài liệu`, `Mở một chương`), và **lúc lượt đang
+   chạy** các bước ấy đã hiện đúng tên và dòng ấy. Không bước `Tạo đề trống`, không thẻ đề.
+2. **Mọi mục nêu bài nguồn** là bài hay mục **trong chương I** của tệp, gần chữ một dòng `labels`
+   của truy vấn A. Nhãn dựng từ cây mục lục OCR nên có thể thiếu số bài hay sai dấu (đã thấy
+   `CÁCH GHI SỐ TỰ NHIÊN (tr. 9–13)`, `2. SỐ LA MÂ (tr. 10–13)`): so với `labels`, không so với tên
+   in trong sách.
 3. **Truy vấn A:** đúng một `list_chapters` (có thể thêm `get_chapter`), rồi 1–5 `read_section` với
    `part` 1, 2, … liên tiếp, phần cuối `more` = false.
-4. **Lượt 2:** câu mở *"Được, mình soạn theo dàn ý ngay."*, bước `Tạo đề trống` → bước soạn
-   (`Soạn câu hỏi` khi lượt xong; lúc chạy là *"Soạn câu hỏi theo dàn ý"*) với dòng
-   `— đã soạn 5/5 câu`, một thẻ
+4. **Lượt 2:** không câu mở cố định, bước `Tạo đề trống` → `Soạn câu hỏi` (cùng tên lúc chạy)
+   với dòng `— đã soạn 5/5 câu`, một thẻ
    `Đã tạo đề "<tên>"` có `Chưa duyệt · chưa phát hành`. Bấm thẻ: panel có 5 câu, câu k bám kiến
    thức của mục chứa câu k, toán dựng hình.
 5. **Truy vấn B:** `dung_sach` = t, `scope_nodes` không rỗng, 5 mục dàn ý mỗi mục có `source_nodes`;
@@ -76,11 +74,11 @@ oke
 ## Không đạt khi
 
 - Lượt 1 đã soạn câu, có thẻ đề, hay không có dàn ý.
-- Một mục không có `Theo:`, hay `Theo:` trỏ bài không có trong `labels` của truy vấn A.
+- Một mục không nêu bài nguồn, hay nêu bài không có trong `labels` của truy vấn A.
 - Không đọc mục lục, không đọc bài, đọc quá 5 phần, hay dừng đọc khi còn `more` = true.
 - Lượt 2 ra dàn ý mới, hỏi lại, mở hai đề, hay số câu khác 5 mà câu kết không nói đúng.
 - Truy vấn C có `focus_`; một câu hỏi chứa đoạn chữ OCR lỗi.
-- Vi phạm một trong bảy luật chung của `huong-dan.md`.
+- Vi phạm một trong tám luật chung của `huong-dan.md`.
 
 ## Ghi lại
 

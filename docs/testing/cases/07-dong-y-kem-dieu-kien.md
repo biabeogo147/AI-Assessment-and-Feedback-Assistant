@@ -26,7 +26,7 @@ Lượt 1:
 Soạn cho mình 4 câu Toán lớp 10, phần mệnh đề với tập hợp nhé
 ```
 
-Lượt 2 (sau khi `Dàn ý — 4 câu (bản 1)` hiện):
+Lượt 2 (sau khi dàn ý đầu tiên hiện):
 
 ```
 ok nhưng câu 2 đổi sang tìm giao, hợp của 2 khoảng trên trục số đi
@@ -34,7 +34,7 @@ ok nhưng câu 2 đổi sang tìm giao, hợp của 2 khoảng trên trục số
 
 Chạy lại truy vấn `count(*)` ở trên: phải bằng số ghi lúc chuẩn bị.
 
-Lượt 3 (sau khi `Dàn ý — 4 câu (bản 2)` hiện):
+Lượt 3 (sau khi dàn ý thứ hai hiện):
 
 ```
 ok, soạn đi
@@ -47,11 +47,11 @@ ok, soạn đi
 | Kriky làm gì | Trả lời / phán | Vì sao |
 |---|---|---|
 | Lượt 1 hỏi lại dù đã đủ môn, khối, phạm vi, số câu | Gõ `Toán 10, mệnh đề và tập hợp, 4 câu nha`. Chấp nhận được | Điểm yếu đã đo; không phải điều case này soi |
-| Lượt 1 ra dàn ý một mục `Câu 1–4 · …` | Vẫn gõ lượt 2 y nguyên. Chấp nhận được nếu bản 2 tách đúng câu 2 ra | Dàn ý không sách có lúc chung chung |
+| Lượt 1 ra dàn ý một mục `Câu 1–4` | Vẫn gõ lượt 2 y nguyên. Chấp nhận được nếu bản 2 tách đúng câu 2 ra | Dàn ý không sách có lúc chung chung |
 | Sau lượt 2 hiện khối bước `Tạo đề trống` / `Soạn câu hỏi`, hay thẻ `Đã tạo đề` | Dừng case. **Không đạt — nặng nhất** | Soạn theo bản 1 mà giáo viên vừa xin đổi; đúng lỗi đã sửa ở review đợt 6 |
 | Sau lượt 2 chỉ nói *"mình đã ghi nhận, sẽ đổi câu 2"*, không nêu dàn ý | Gõ `gửi lại dàn ý mình xem đã`. **Không đạt** (ghi tiếp để biết nó có tự hồi không) | Giáo viên không thấy bản 2 thì không có gì để duyệt |
 | Sau lượt 2 hỏi lại câu 2 dạng gì | Gõ `trắc nghiệm như mấy câu kia`. Chấp nhận được nếu sau đó ra bản 2 | Hỏi một lần là hợp lý; hỏi vòng là không |
-| Bản 2 chỉ có một mục `Câu 2 · …` | **Không đạt** | Sửa dàn ý là nêu lại ĐỦ mọi mục (skill `soan-de` bước 3) |
+| Bản 2 chỉ có một mục `Câu 2` | **Không đạt** | Sửa dàn ý là nêu lại ĐỦ mọi mục (skill `soan-de` bước 3) |
 | Bản 2 câu 2 không đổi (giống bản 1) | **Không đạt** | Bỏ qua đúng điều giáo viên nói |
 | Bản 2 đổi cả câu khác: chỉ khác chữ, cùng kiến thức | Chấp nhận được | Diễn đạt lại không đổi đề |
 | Bản 2 đổi kiến thức của câu 1, 3 hay 4 | **Không đạt** | "chỉ sửa đúng chỗ họ nói" — giáo viên đã chấp nhận các câu ấy |
@@ -60,12 +60,11 @@ ok, soạn đi
 
 ## Đạt khi
 
-- Lượt 1: một lời có `Dàn ý — 4 câu (bản 1)`, các mục `Câu k · …` cộng đủ 4 câu, kết bằng câu
-  *"Bạn đồng ý với dàn ý này chứ? … Câu hỏi chỉ được soạn sau khi bạn đồng ý."* Không khối bước.
-- Lượt 2: **không** khối bước, **không** thẻ `Đã tạo đề`; một dàn ý mới `Dàn ý — 4 câu (bản 2)`,
-  nêu đủ mọi mục; mục chứa câu 2 nói về giao, hợp của hai khoảng; các câu còn lại cùng kiến thức
+- Lượt 1: một lời dàn ý đạt (`huong-dan.md`) cho 4 câu. Không khối bước.
+- Lượt 2: **không** khối bước, **không** thẻ `Đã tạo đề`; một lời dàn ý đạt mới (database: hàng
+  `outline` `version` = 2), nêu đủ mọi mục; mục chứa câu 2 nói về giao, hợp của hai khoảng; các câu còn lại cùng kiến thức
   với bản 1. `count(*)` của `draft_briefs` không tăng.
-- Lượt 3: khối bước `Tạo đề trống` → `Soạn câu hỏi` (tên khi lượt xong; `bước k/2`, n cố định), dòng đếm
+- Lượt 3: khối bước `Tạo đề trống` → `Soạn câu hỏi` (cùng tên lúc chạy; `bước k/2`, n cố định), dòng đếm
   tới `đã soạn 4/4 câu`, một thẻ `Đã tạo đề "<tên>"` với `Chưa duyệt · chưa phát hành`.
 - Panel: 4 câu, câu 2 hỏi giao hoặc hợp của hai khoảng (vd $[1;5)$ và $(3;+\infty)$), toán
   dựng hình.
@@ -75,7 +74,7 @@ ok, soạn đi
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select a.title, b.question_count, i->>'version' as ban, i->>'knowledge' as kien_thuc from draft_briefs b join assessments a on a.id = b.assessment_id, json_array_elements(b.outline::json) i where b.created_at = (select max(created_at) from draft_briefs);"
   ```
 
-- Bảy luật chung của `huong-dan.md` đúng ở cả ba lượt.
+- Tám luật chung của `huong-dan.md` đúng ở cả ba lượt.
 
 ## Không đạt khi
 
@@ -90,7 +89,7 @@ ok, soạn đi
 ## Ghi lại
 
 - Nguyên văn hai dàn ý (bản 1, bản 2), đủ từng mục — để so mục nào đã đổi.
-- Nguyên văn lời Kriky ngay sau lượt 2 (phần mở trước `Dàn ý — …`) và câu mở của lượt 3.
+- Nguyên văn trọn lời Kriky ngay sau lượt 2, và câu mở của lượt 3 nếu có.
 - Ba con số `count(*)`: lúc chuẩn bị, sau lượt 2, sau lượt 3.
 - Kết quả truy vấn đề cuối (tên đề, `question_count`, `ban`, `kien_thuc` từng mục).
 - Chữ câu 2 trên panel.

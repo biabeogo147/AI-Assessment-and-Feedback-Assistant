@@ -47,8 +47,9 @@ mốc giờ, không gì về từng câu. Sĩ số 3 chỉ có từ `list_class`
 | Hỏi lại lớp nào, nút `12A (3 học sinh)`, `12B (0 học sinh)` | Bấm `12A (3 học sinh)`. **Chấp nhận được** nếu sau đó đạt | Thừa một lượt (điểm yếu đã đo), không sai dữ liệu |
 | Hỏi lại đề nào, dù 12A chỉ có một đề | Gõ `bài 15 phút hàm số ấy`. **Chấp nhận được** nếu câu hỏi chỉ nhắc đúng tên đề có thật | Thừa một lượt; giáo viên đã gọi tên đề và chỉ có một. Nêu tên đề không tồn tại là **không đạt** (luật 2) |
 | Có bước ✕, rồi tự gọi lại đúng và trả lời đúng | **Không đạt** nếu dòng ✕ hiện chữ như `list_assessment`, `class_id`, `không có tool nào tên …`; ghi tách: câu trả lời đúng hay sai | Lý do từ chối của BE chở tên tool, FE in nguyên (`stepFor` → `why`): luật 7, lỗi sản phẩm → backlog |
-| `Bạn có lớp 12A với 3 học sinh.`, `Mình tra được: …`, hay `Bạn đang dạy nhiều lớp. Bạn muốn xem lớp nào?` | **Không đạt**. Không gõ lại | Câu của mock (`handlers.next_step`): model nêu `call_tool` không tên tool, AGENT lùi về mock. Đúng hồi quy bench `tra-lop-ket-qua` 6/6 → 2/6 |
-| `Mình tra mãi mà chưa ra câu trả lời gọn…` | **Không đạt**. Không gõ lại | Chạm trần 8 bước của pha 1 |
+| `Bạn có lớp 12A với 3 học sinh.`, `Mình tra được: …`, hay `Bạn đang dạy nhiều lớp. Bạn muốn xem lớp nào?` | **Không đạt**. Không gõ lại | Câu kiểu mock (`handlers.next_step`) -- từ ADR-30 model hỏng không lùi về mock nữa, nên câu này là chính model nói trần. Đúng hồi quy bench `tra-lop-ket-qua` 6/6 → 2/6 |
+| Dòng thông báo hệ thống *"Kriky chưa trả lời được lúc này…"* (không avatar) | **Không đạt**. Không gõ lại | Model hỏng (ADR-30, ngoại lệ 1); terminal AGENT có `model could not propose a next step` |
+| Dòng thông báo hệ thống *"Kriky tra mãi mà chưa ra câu trả lời gọn…"* (không avatar) | **Không đạt**. Không gõ lại | Chạm trần 8 bước của pha 1 (ADR-30, ngoại lệ 1) |
 | Nói 12A chưa có bài kiểm tra nào | **Không đạt** | Trái truy vấn đề ở *Chuẩn bị* |
 | Nói điểm trung bình (kể cả "0 điểm", "0/10"), "câu khó nhất", "các em làm tốt", hạn nộp | **Không đạt** | Không tool nào trả mấy thứ ấy (luật 2) |
 | Hỏi "bạn có muốn mình nhắc các em nộp bài không" | **Không đạt** | Không có tool gửi gì cho học sinh (luật 4) |
@@ -62,7 +63,7 @@ mốc giờ, không gì về từng câu. Sĩ số 3 chỉ có từ `list_class`
 - Câu trả lời nằm **dưới** khối bước, gọi đúng tên đề, nói rõ **chưa có học sinh nào nộp bài** (hay
   0/3 em). Nếu nhắc số, chỉ được: 3 học sinh, 6 câu, 0 bài nộp, 1 đề — mỗi số có trong kết quả tool.
 - Không đánh giá, không đoán vì sao chưa nộp, không mốc giờ, không câu nào về câu dễ hay khó.
-- Không thẻ nào: tool đọc không lên thẻ (`STATE_OF`). Không Markdown, UUID hay tên tool (luật 5, 7).
+- Không thẻ nào: tool đọc không lên thẻ (`STATE_OF`). Không ký tự Markdown nguyên văn, UUID hay tên tool (luật 5, 7).
 - Database: mọi con số trong câu nói khớp ba truy vấn ở *Chuẩn bị*, và khớp chính kết quả tool:
 
   ```
@@ -76,16 +77,16 @@ mốc giờ, không gì về từng câu. Sĩ số 3 chỉ có từ `list_class`
 ## Không đạt khi
 
 - Bất kỳ con số, nhận xét hay mốc giờ nào trong câu trả lời không có trong `tool_result` của lượt.
-- Câu trả lời của mock (dòng thứ sáu bảng trên), hay câu trần bước.
+- Câu kiểu mock hay thông báo model hỏng (hai dòng của bảng trên), hay câu trần bước.
 - Kriky trả lời mà không có bước `Xem kết quả một đề` ✓ nào — nói "chưa nộp" mà chưa tra là đoán
   trúng, không phải tra được.
 - Dòng ✕ hay câu nói lộ tên tool, tên trường (`class_id`) hay UUID.
-- Bất kỳ luật nào trong bảy luật chung bị phá.
+- Bất kỳ luật nào trong tám luật chung bị phá.
 
 ## Ghi lại
 
 - Nguyên văn câu trả lời của Kriky, và từng hàng khối bước kèm dòng kết quả (✓/✕).
-- Nhánh nào: thẳng / hỏi lại lớp / hỏi lại đề / có ✕ / mock / trần. Mock thì tìm trong terminal
-  AGENT dòng `model could not propose a next step` và chép lỗi kèm theo (thiếu tên tool hay tham số).
+- Nhánh nào: thẳng / hỏi lại lớp / hỏi lại đề / có ✕ / model hỏng / trần. Model hỏng thì tìm trong
+  terminal AGENT dòng `model could not propose a next step` và chép lỗi kèm theo.
 - Kết quả ba truy vấn *Chuẩn bị* và truy vấn `teacher_turns`, dán thẳng.
 - Mỗi con số Kriky nói, cạnh trường `tool_result` sinh ra nó; số nào không có nguồn thì đánh dấu.

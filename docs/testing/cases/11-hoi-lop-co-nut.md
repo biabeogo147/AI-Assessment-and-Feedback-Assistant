@@ -73,7 +73,7 @@ Lượt 2:
 - Không một chữ nào về 12B. Khối bước (nếu có) gồm các hàng tra lớp/đề như `Xem các đề của lớp`,
   `Xem kết quả một đề`, tất cả `✓`.
 
-Cả hai lượt qua bảy luật chung. Database, sau lượt 2:
+Cả hai lượt qua tám luật chung. Database, sau lượt 2:
 
 ```
 docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, kind, tool_name, tool_args->>'name' as ten, choices, left(text, 70) from teacher_turns where conversation_id = (select id from teacher_conversations order by started_at desc limit 1) order by sequence;"
@@ -93,7 +93,7 @@ docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, kind, too
 - Lượt 2 đưa điểm, tỉ lệ, nhận xét học lực không có trong database; nói đề chưa phát hành; nêu đề
   không có ở truy vấn thứ hai.
 - Có thẻ `Đã tạo đề`, bước `Tạo đề trống`, dàn ý, hay bước `✕`.
-- Markdown, `$` nguyên văn, UUID (kể cả `class_id`) hay tên tool trên màn hình.
+- Ký tự Markdown hay `$` nguyên văn, UUID (kể cả `class_id`) hay tên tool trên màn hình.
 
 ## Ghi lại
 

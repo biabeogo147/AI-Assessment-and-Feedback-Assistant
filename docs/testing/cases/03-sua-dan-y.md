@@ -54,16 +54,13 @@ Trước khi gõ lượt 3, **chép nguyên văn cả bản 1 và bản 2** vào
 
 ## Đạt khi
 
-1. Lượt 1: một lời có `Dàn ý — 4 câu (bản 1)`, các mục phủ đủ Câu 1–4, kết bằng câu
-   "Bạn đồng ý với dàn ý này chứ? …". Không khối bước nào.
-2. Lượt 2: một lời có `Dàn ý — 4 câu (bản 2)`, nêu lại **đủ** mục (không chỉ mục 3). Không khối
-   bước nào.
+1. Lượt 1: một lời dàn ý đạt (`huong-dan.md`) phủ đủ Câu 1–4. Không khối bước nào.
+2. Lượt 2: một lời dàn ý đạt mới, nêu lại **đủ** mục (không chỉ mục 3). Không khối bước nào.
 3. Đối chiếu từng mục bản 1 với bản 2:
-   - `Câu 3 · …` là bài toán thực tế mua vé xem phim (người lớn, trẻ em), cách làm có lập hệ hai
+   - Mục `Câu 3` là bài toán thực tế mua vé xem phim (người lớn, trẻ em), cách làm có lập hệ hai
      ẩn rồi giải; công thức (nếu có) trong `$…$` và dựng hình.
-   - Câu 1, 2, 4: dòng kiến thức, `Công thức Kriky đề xuất`, `Cách làm` cùng ý với bản 1 (y hệt
-     chữ là tốt nhất).
-4. Lượt 3: khối bước `Tạo đề trống` → `Soạn câu hỏi` (tên khi lượt xong), dòng dưới bước soạn đếm tới
+   - Câu 1, 2, 4: kiến thức, công thức, cách làm cùng ý với bản 1 (y hệt chữ là tốt nhất).
+4. Lượt 3: khối bước `Tạo đề trống` → `Soạn câu hỏi` (cùng tên lúc chạy), dòng dưới bước soạn đếm tới
    "đã soạn 4/4 câu"; thẻ `Đã tạo đề "<tên>"` với `Chưa duyệt · chưa phát hành`.
 5. Bấm thẻ, panel: đúng 4 câu; câu 3 là bài vé xem phim giải bằng lập hệ; câu 1, 2, 4 khớp kiến
    thức mục tương ứng của bản 2.
@@ -87,11 +84,12 @@ Trước khi gõ lượt 3, **chép nguyên văn cả bản 1 và bản 2** vào
 
 - Lượt 2 có khối bước, hay bất kỳ câu hỏi nào ra trước lượt 3.
 - Bản 2 chỉ nêu mục 3, hay viết lại cả đề (câu 1, 2, 4 đổi kiến thức, dạng hoặc cách làm).
-- Bản 2 khác 4 câu, hay tiêu đề không ghi `(bản 2)`.
+- Bản 2 khác 4 câu, hay database không có hàng `outline` `ban` = 2.
 - Câu 3 trên panel không phải bài vé xem phim, hay câu 1, 2, 4 trên panel theo bản 1 khác bản 2.
 - `draft_briefs.outline` có mục `version` = 1, hay `soan_theo` khác 2.
 - Kriky nói "đã soạn xong 4 câu" trong khi khối bước dừng ở `k/4`; hay khen câu hỏi nó không đọc.
-- Vi phạm bất kỳ luật chung nào của `huong-dan.md` (Markdown, `$` nguyên văn, UUID, tên tool).
+- Vi phạm bất kỳ luật chung nào của `huong-dan.md` (ký tự Markdown hay `$` nguyên văn, UUID, tên
+  tool, câu cố định dưới avatar Kriky).
 
 ## Ghi lại
 

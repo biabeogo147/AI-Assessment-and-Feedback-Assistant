@@ -24,7 +24,8 @@ Mọi lần chạy bộ ca bắt đầu từ cùng một chỗ, nên không bỏ
 2. Sáu terminal: `.\dev.ps1 be`, `agent`, `ingest`, `document`, `index`, `fe`
    (`docs/local-development.md`). Thiếu `ingest`, `document` hay `index` thì tài liệu treo ở
    *Đang xử lý…* mãi mà không báo gì.
-3. Model là **`gpt-4o-mini`**, không model nào khác.
+3. Model là **`gpt-4o-mini`** hoặc **`claude-haiku-5-5`** (`.env` dev, kiểm dòng `model=` trong log
+   khởi động AGENT); model khác phải xin phép. Ghi model vào tên biên bản.
 4. Mở **`http://127.0.0.1:5173/#/teacher`** — `127.0.0.1`, không `localhost`.
 5. **Thêm lớp 12B** (case 11 cần hai lớp khớp chữ *"12"*; chưa có màn hình hay tool tạo lớp):
 
@@ -50,7 +51,7 @@ Mọi lần chạy bộ ca bắt đầu từ cùng một chỗ, nên không bỏ
 
 ## Luật áp cho **mọi** lượt Kriky trả lời
 
-Mỗi lần Kriky nói, soi đủ bảy dòng — chúng không phụ thuộc case nào.
+Mỗi lần Kriky nói, soi đủ tám dòng — chúng không phụ thuộc case nào.
 
 | # | Phải đúng | Sai thì trông thế nào |
 |---|---|---|
@@ -60,7 +61,8 @@ Mỗi lần Kriky nói, soi đủ bảy dòng — chúng không phụ thuộc ca
 | 4 | **Không hứa việc nó không làm được.** Kriky không có tool duyệt, bỏ duyệt, phát hành, xoá câu | *"để mình duyệt giúp bạn nhé"* |
 | 5 | **Markdown được dựng** (ADR-30): đậm, gạch đầu dòng, bảng hiện thành định dạng | Dấu sao, dấu `#`, dấu `\|` hay dấu huyền nguyên văn trên màn hình |
 | 6 | **Toán là LaTeX trong cặp `$`**, và màn hình **dựng hình** nó | `$\frac{1}{2}$` nguyên văn trên màn — cụm ấy không dựng được |
-| 7 | **Không định danh máy nào lọt ra màn hình** | Một chuỗi UUID, hay tên tool như `start_drafting` |
+| 7 | **Không định danh máy nào lọt ra màn hình** | Một chuỗi UUID, tên tool như `start_drafting`, hay số node như *"(node 5)"* |
+| 8 | **Lời Kriky là lời model viết; câu cố định chỉ là thông báo hệ thống** (ADR-30): dòng riêng, không avatar, nền chìm, dấu `!` | Một câu dọn trước (*"Mình chưa dựng được các bước…"*, *"Được, mình soạn theo dàn ý ngay."*) dưới avatar Kriky; hay thông báo hệ thống mang avatar |
 
 Luật 6 từng bị lật một lần: hợp đồng là ADR-26 — prompt soạn câu **bắt** model viết `$y = x^3$`, và
 `MathText` dựng hình phần giữa hai dấu `$`. Thấy dấu đô la trên màn nghĩa là cụm ấy không dựng
@@ -85,6 +87,21 @@ tra đề và kết quả lớp (`list_assessment`, `class_assessment_summary`),
 `start_drafting`), thay một câu (`replace_question`). Duyệt, bỏ duyệt, phát hành, hoàn tác, sửa chữ
 và xoá câu là **nút trên panel**, không qua chat. Mọi đề đi qua **dàn ý** giáo viên đã thấy và đồng
 ý (ADR-29); mỗi lần xin tối đa **10 câu**.
+
+**Một lời dàn ý đạt** ([ADR-30](../decisions/adr-30-loi-kriky-do-model-viet.md)) khi đó là lời Kriky
+**tự viết**, Markdown dựng hình, và:
+
+- mỗi mục nêu số câu của nó — `Câu k` hay `Câu k–m` — cộng lại đúng số câu đã xin, và không nhắc
+  câu nào ngoài dàn ý;
+- mỗi mục nói kiến thức và cách làm; mục có công thức thì công thức dựng hình;
+- đề theo sách thì mỗi mục nêu bài hay mục nguồn, gần chữ một dòng `labels` của `read_section`
+  (nhãn dựng từ cây OCR, có thể thiếu số bài hay sai dấu);
+- kết bằng một câu hỏi xin giáo viên đồng ý hay sửa, do Kriky tự viết.
+
+Chữ không cố định: hai lần chạy khác chữ, khác cách trình bày vẫn đạt. Màn hình không còn dòng
+`Dàn ý — N câu (bản k)`: số bản và tổng câu đọc ở database (`tool_result->>'version'`, `->>'total'`
+của hàng `outline`). Sau lời đồng ý, lượt soạn không có câu mở cố định — có lời mở thì là lời Kriky
+viết lúc nêu plan, không thì khối bước đứng ngay dưới avatar.
 
 ---
 
