@@ -203,6 +203,6 @@ Các thay đổi mà `AGENTS.md` (*Planning Requirements*) đòi phải có plan
 
 ## Status
 
-Pha 0–4 đã commit. Pha 5: review vòng 1 (13 Tier 1) sửa ở `98122e2`, vòng 2 (10 Tier 1) ở `3c3e8ac`,
-vòng 3 (3 Tier 1, đều là hồi quy của vòng 2) sửa trong commit mang dòng Status này. Kế tiếp: review
-vòng 4.
+Pha 0–4 đã commit. Pha 5: review vòng 1 (13 Tier 1) sửa ở `98122e2`, vòng 2 (10) ở `3c3e8ac`, vòng 3
+(3 hồi quy) ở `d7af19b`, vòng 4 (2) sửa trong commit mang dòng Status này. Kế tiếp: review vòng 5
+trên đúng phần vừa sửa.

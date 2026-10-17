@@ -782,6 +782,9 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
         ("ok không cần sửa nhé", False),
         ("không cần sửa đâu, soạn đi", False),
         ("oke ko cần sửa ạ", False),
+        # Tiểu từ giữa câu thì không phải cuối ý (review code vòng 4).
+        ("sao không đổi luôn câu 3 sang tự luận?", True),
+        ("ok không cần sửa luôn", False),
     ],
 )
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:

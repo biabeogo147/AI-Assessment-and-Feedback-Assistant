@@ -1189,9 +1189,11 @@ def _count_said(request: NextStepRequested) -> int | None:
 
 
 def _count_revised(request: NextStepRequested) -> bool:
-    """Lời giáo viên gần nhất kể từ plan là *"thêm/bớt N câu"* nói **sau** một dàn ý. Hàm thuần.
+    """Lời giáo viên **gần nhất mang một con số** kể từ plan là *"thêm/bớt N câu"* nói **sau** một
+    dàn ý. Hàm thuần.
 
-    Khi ấy tổng mới là dàn ý cũ cộng trừ lời sửa -- không con số nào đã ghi (lời giáo viên trước
+    Lời không con số (*"câu 3 khó hơn nhé"*) và lời thay câu thì bỏ qua, duyệt tiếp về trước. Khi
+    ấy tổng mới là dàn ý cũ cộng trừ lời sửa -- không con số nào đã ghi (lời giáo viên trước
     đó, hay `known` của model) còn là tổng đúng (review code vòng 2, plan `backlog-tier-1`).
     """
     since = _since_plan(request)
@@ -1283,8 +1285,11 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
 _NO_CHANGE = re.compile(
     rf"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
-    # Tiểu từ cuối câu cũng là cuối ý: *"ok không cần sửa nhé"* (review code vòng 3).
-    r"(?:(?:\s+(?:gì|nữa|cả|hết|đâu|nhé|nha|nhe|ạ|đi|luôn))+|(?=\s*(?:[,.!?;]|$)))"
+    # Tiểu từ cuối câu cũng là cuối ý: *"ok không cần sửa nhé"* (review code vòng 3) -- nhưng chỉ
+    # khi sau nó là cuối ý thật: *"luôn"*, *"đi"* hay đứng giữa câu, *"sao không đổi luôn câu 3"*
+    # là lời xin sửa (review code vòng 4).
+    r"(?:(?:\s+(?:gì|nữa|cả|hết))+"
+    r"|(?:\s+(?:đâu|nhé|nha|nhe|ạ|đi|luôn))*(?=\s*(?:[,.!?;]|$)))"
     rf"|\bkhông\s+có\s+gì\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}\b",
     re.IGNORECASE,
 )
