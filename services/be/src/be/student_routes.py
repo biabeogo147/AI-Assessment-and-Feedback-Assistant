@@ -2181,6 +2181,9 @@ async def submit_round(
     rnd, attempt = await _owned_round(session, round_id, student)
     if rnd.submitted_at is not None:
         raise HTTPException(status_code=409, detail="Lượt này đã nộp")
+    # Không kiểm `ends_at` hay hạn pha 2, và đó là cố ý (ADR-15, plan `backlog-tier-1`): lượt hết
+    # giờ thì **DỪNG** ở `save_round_answer`, còn nộp là cách đóng lượt đã dừng. Mọi lựa chọn ở
+    # đây đều được lưu trước `ends_at`, nên chấm chúng là chấm đúng phần em làm kịp.
 
     outcomes = await _outcomes(session, attempt.id)
     now = _now()

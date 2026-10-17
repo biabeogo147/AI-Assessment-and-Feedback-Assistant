@@ -175,7 +175,12 @@ async def _owned(
     query = select(Assessment).where(
         Assessment.id == assessment_id, Assessment.teacher_id == asking.teacher_id
     )
-    found = await session.scalar(query.with_for_update() if lock else query)
+    # `populate_existing` cùng khoá: đề đã nằm trong identity map từ lần `_owned` trước của cùng
+    # request thì khoá được lấy mà thuộc tính vẫn là bản cũ -- một đường đua duyệt/phát hành đọc
+    # `state` cũ rồi ghi đè (review ngân hàng, plan `backlog-tier-1`; mẫu ở `question_bank.py`).
+    found = await session.scalar(
+        query.with_for_update().execution_options(populate_existing=True) if lock else query
+    )
     if found is None:
         raise HTTPException(status_code=404, detail=_NO_SUCH)
     return found

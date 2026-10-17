@@ -134,3 +134,30 @@ async def test_nobody_listening_means_nothing_is_published(
 
     assert redis.published == []
     assert reply["text"]
+
+
+@pytest.mark.asyncio
+async def test_a_piece_that_never_went_out_is_not_saved(
+    on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review chương 7 (plan `backlog-tier-1`): `publish` ném ở mảnh thứ hai thì học sinh chỉ thấy
+    mảnh đầu -- lời lưu lại cũng chỉ được có mảnh đầu."""
+
+    class Flaky(Recorder):
+        async def publish(self, channel: str, piece: str) -> None:
+            if self.published:
+                raise ConnectionError("redis went away")
+            await super().publish(channel, piece)
+
+    async def talks(request, publish):
+        await publish("Ở câu 5, ")
+        await publish("lỗi của em là ")
+        return "Ở câu 5, lỗi của em là nhầm tiệm cận."
+
+    monkeypatch.setattr(handlers, "speak", talks)
+    redis = Flaky()
+
+    reply = await handlers.explain({"redis": redis}, REQUEST.model_dump(mode="json"))
+
+    assert redis.published == ["Ở câu 5, "]
+    assert reply["text"] == "Ở câu 5, "

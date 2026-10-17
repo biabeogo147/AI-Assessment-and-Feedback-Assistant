@@ -71,6 +71,25 @@ def test_quotes_are_dropped_only_when_they_wrap_the_whole_name() -> None:
     assert clipped('Ôn tập chương "Số nguyên"') == 'Ôn tập chương "Số nguyên"'
 
 
+def test_a_renamed_paper_is_renamed_inside_lists_too() -> None:
+    """Review code 17/10 (plan `backlog-tier-1`): `list_assessment` lồng tên đề trong danh sách."""
+    result = {
+        "found": True,
+        "assessments": [
+            {"assessment_id": "p1", "title": "Tên cũ"},
+            {"assessment_id": "p2", "title": "Đề khác"},
+        ],
+    }
+    named: set[str] = set()
+    teacher_chat._named_papers(result, named)
+
+    renamed = teacher_chat._titled(result, {"p1": "Tên mới"})
+
+    assert named == {"p1", "p2"}
+    assert [one["title"] for one in renamed["assessments"]] == ["Tên mới", "Đề khác"]
+    assert result["assessments"][0]["title"] == "Tên cũ", "không sửa tại chỗ kết quả đã lưu"
+
+
 def test_tidying_a_teacher_name_only_folds_whitespace() -> None:
     """Review pha 6: chữ giáo viên gõ chỉ giáo viên sửa -- dấu ngoặc ở cuối là của tên."""
     assert tidy('  Ôn tập   chương "Số nguyên"\n') == 'Ôn tập chương "Số nguyên"'
@@ -194,3 +213,27 @@ async def test_the_history_sent_to_the_agent_carries_the_current_name(stack) -> 
         )
 
     assert records[-1].tool_result["title"] == "Đề mới"
+
+
+@pytest.mark.asyncio
+async def test_a_locked_read_sees_the_state_another_session_just_wrote(stack) -> None:
+    """Review ngân hàng (plan `backlog-tier-1`): `_owned` lấy khoá mà đọc thuộc tính từ identity map
+    thì một đường đua duyệt/phát hành đọc `state` cũ. `populate_existing` đọc lại từ database."""
+    from be.identity import Asking
+    from be.teacher_routes import _owned
+
+    _, maker, _ = stack
+    async with maker() as reader:
+        mine = await reader.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        asking = Asking.of(mine)
+        before = await reader.get(Assessment, "open")
+        assert before.state == AssessmentState.HAS_QUESTIONS
+
+        async with maker() as writer:
+            other = await writer.get(Assessment, "open")
+            other.state = AssessmentState.APPROVED
+            await writer.commit()
+
+        again = await _owned(reader, asking, "open")
+
+    assert again.state == AssessmentState.APPROVED

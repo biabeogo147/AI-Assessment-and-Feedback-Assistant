@@ -375,14 +375,27 @@ async def fire(
         chi tiết: `harvest` đọc đúng con số ấy để biết ô nào đã cũ so với vòng này,
         nên một `fire` không cập nhật nó sẽ làm `harvest` xoá sai row.
     """
-    brief = await session.get(DraftBrief, assessment_id)
+    # Khoá đề và brief trước khi đọc-sửa-ghi `brief.outline` và `question_count`: hai lần `fire`
+    # đua nhau (soạn thêm trong lúc xoá câu) thì lần sau đọc bản cũ và làm mất mục dàn ý của lần
+    # trước (review ngân hàng, plan `backlog-tier-1`). Thứ tự khoá đề rồi brief, như mọi đường khác.
+    assessment = await session.scalar(
+        select(Assessment)
+        .where(Assessment.id == assessment_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    brief = await session.scalar(
+        select(DraftBrief)
+        .where(DraftBrief.assessment_id == assessment_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if brief is None:
         # Không có brief nghĩa là chưa thống nhất được gì, và một bộ đề mới nêu
         # được nửa yêu cầu thì tốt nhất là đừng soạn.
         logger.warning("nothing queued for %s: no brief", assessment_id)
         return 0
 
-    assessment = await session.get(Assessment, assessment_id)
     if assessment is None:
         logger.warning("nothing queued for %s: no such assessment", assessment_id)
         return 0

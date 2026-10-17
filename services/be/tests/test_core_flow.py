@@ -334,6 +334,42 @@ async def test_a_round_lifts_a_wrong_question_to_half_credit(client: AsyncClient
 
 
 @pytest.mark.asyncio
+async def test_a_stopped_round_is_marked_on_what_was_saved_before_it_stopped(
+    client: AsyncClient,
+) -> None:
+    """ADR-15 (plan `backlog-tier-1`): hết giờ thì lượt **DỪNG** -- không lưu thêm lựa chọn nào,
+    nhưng nộp vẫn được, và chỉ phần đã lưu trước `ends_at` được chấm. `submit_round` không kiểm
+    giờ là đúng: nộp là cách đóng một lượt đã dừng."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    rnd = (
+        await client.post(f"/api/attempts/{submitted['attempt_id']}/rounds", headers=STUDENT)
+    ).json()
+    first, second = rnd["items"]
+    await client.put(
+        f"/api/rounds/{rnd['round_id']}/answers/{first['round_item_id']}",
+        json={"label": "B"},
+        headers=STUDENT,
+    )
+
+    maker = await _sessionmaker()
+    async with maker() as session:
+        row = await session.get(RemediationRound, rnd["round_id"])
+        row.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+
+    late = await client.put(
+        f"/api/rounds/{rnd['round_id']}/answers/{second['round_item_id']}",
+        json={"label": "B"},
+        headers=STUDENT,
+    )
+    verdict = await client.post(f"/api/rounds/{rnd['round_id']}/submit", headers=STUDENT)
+
+    assert late.status_code == 409
+    assert verdict.status_code == 200
+    assert sorted(row["outcome"] for row in verdict.json()["per_question"]) == ["sai", "đúng"]
+
+
+@pytest.mark.asyncio
 async def test_three_wrong_rounds_close_the_question_at_zero(client: AsyncClient) -> None:
     """ADR-17 chặn việc chữa bài ở ba vòng, và vòng thứ tư bị từ chối."""
     submitted = await _start_and_submit(client, correct_count=5)

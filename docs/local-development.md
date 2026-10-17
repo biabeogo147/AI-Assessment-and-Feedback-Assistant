@@ -237,6 +237,12 @@ hàng trong bảng `publications` về gần hiện tại rồi tải lại màn
 soạn sẵn, tất định. Cái chạy thật là ranh giới, hợp đồng và luật chấm điểm. Bật model thật ở mục
 dưới.
 
+Lượt chữa bài (giai đoạn 2) trên mock chỉ mở được với **câu gốc có trong kho biến thể**
+(`_VARIANT_BANK`, `agent/handlers.py`) — tức các câu của đề seed. Câu ngoài kho thì mock không có
+biến thể nào để đưa, và AGENT không còn lùi về *câu gốc + một đuôi* (ADR-17, plan
+`backlog-tier-1`): học sinh thấy *"Chưa soạn được câu cho lượt này"*, lượt không bị tính. Demo pha 2
+với đề tự soạn thì bật model thật.
+
 ### Bật model thật: OpenAI hay Claude
 
 Chọn bằng `.env`, rồi khởi động lại worker đọc nó (`agent`, `index`) -- worker không tự nạp lại.

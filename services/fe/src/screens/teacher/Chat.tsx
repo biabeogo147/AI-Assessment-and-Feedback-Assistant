@@ -150,6 +150,8 @@ export default function Chat({
   // Các câu trả lời của thẻ nhiều câu vừa gửi hỏng: thẻ mở lại ở màn tóm tắt với chúng.
   const [answersBack, setAnswersBack] = useState<string[] | null>(null);
   const [documents, setDocuments] = useState<TeacherDocument[]>([]);
+  // Số thứ tự của lần đọc thư viện gần nhất (`readDocuments`).
+  const documentsAsked = useRef(0);
   const [threads, setThreads] = useState<TeacherConversation[]>([]);
   // Đoạn chat đang mở, kể cả khi route chưa biết tên nó: bấm *Đoạn chat mới* rồi gửi câu
   // đầu thì id chỉ có sau khi BE trả lời.
@@ -222,10 +224,7 @@ export default function Chat({
   }, [conversationId, fresh]);
 
   useEffect(() => {
-    teacher
-      .documents()
-      .then(setDocuments)
-      .catch((cause: Error) => setTrouble(cause.message));
+    void readDocuments().catch((cause: Error) => setTrouble(cause.message));
     teacher
       .conversations()
       .then(setThreads)
@@ -242,10 +241,23 @@ export default function Chat({
   useEffect(() => {
     const stop = new AbortController();
     void teacher.watchDocuments(() => {
-      teacher.documents().then(setDocuments).catch(() => undefined);
+      void readDocuments().catch(() => undefined);
     }, stop.signal);
     return () => stop.abort();
   }, []);
+
+  /**
+   * Đọc lại thư viện, và chỉ lấy lời đáp của **lần đọc mới nhất**.
+   *
+   * Lần đọc lúc mở màn và các lần đọc theo tiếng hích của kênh chạy song song; về lệch thứ tự
+   * thì một danh sách cũ đè lên danh sách mới -- chip đứng ở *đang xử lý* dù tài liệu đã *sẵn
+   * sàng* (review kênh SSE, plan `backlog-tier-1`).
+   */
+  async function readDocuments(): Promise<void> {
+    const mine = ++documentsAsked.current;
+    const found = await teacher.documents();
+    if (mine === documentsAsked.current) setDocuments(found);
+  }
 
   // Lượt mới đẩy dòng xuống đáy. Chỉ khi có lượt mới, không phải ở mọi render: cuộn lên đọc
   // lại một câu cũ mà bị giật xuống đáy là cách chắc chắn nhất để không ai đọc lại được gì.

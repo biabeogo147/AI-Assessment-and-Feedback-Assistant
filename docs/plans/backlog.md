@@ -726,7 +726,8 @@ phải F5.
 FE nay tự nối lại, giãn 3 s → 30 s, coi kênh câm quá 40 s là chết, và đọc lại danh sách ngay khi
 kênh nghe được. Câu hỏi *nói ra hay im lặng* được trả bằng **im lặng**: không có gì mới trên màn
 hình, nên không qua Figma. Còn lại: các lần `GET` danh sách chạy song song có thể về lệch thứ tự,
-và bản cũ hơn có thể đè bản mới (`Chat.tsx`, gọi `listDocuments` không có thẻ thứ tự).
+và bản cũ hơn có thể đè bản mới (`Chat.tsx`, gọi `listDocuments` không có thẻ thứ tự). **Đã trả 17/10/2026**
+(plan `backlog-tier-1`, pha 3): `readDocuments` chỉ nhận lời đáp của lần đọc mới nhất.
 
 ## Ba món nợ còn lại của plan 2a
 
@@ -1096,8 +1097,8 @@ phạm vi plan ấy, chờ người dùng quyết có sửa không.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Lần `_owned` thứ hai của route duyệt -- và của route xoá câu, cùng khuôn -- không đọc lại state** (`teacher_routes.py`, ngay sau `harvest`); lần `assert_editable` thứ hai của route xoá vì thế kiểm trên state cũ. Comment nói *"đọc lại cũng là đọc lại sự thật"*, nhưng session để `expire_on_commit=False` và câu `SELECT … FOR UPDATE` không có `populate_existing`: hàng bị khoá, còn object trả về vẫn là bản trong identity map. Review đo được bằng probe: phiên khác đổi state rồi commit, lần đọc lại vẫn thấy state cũ. Khe chỉ mở trong lúc `harvest` vừa commit: hai lần duyệt chạy đua ghi hai bước biên bản; duyệt và phát hành chen nhau có thể kéo `PUBLISHED → APPROVED` đi vòng qua `withdraw`. `question_bank.file_approved` đã tự đọc lại câu bằng `populate_existing` nên ngân hàng không chép bản cũ | Sửa là một dòng (`populate_existing` trong `_owned` khi `lock=True`), chữa cả hai route -- chờ người dùng duyệt vì đụng mọi route dùng `_owned` |
-| **Xoá câu đua với *"soạn thêm"* từ chat.** `drafting.fire` không khoá hàng đề (`FOR UPDATE`). Nếu `fire` chèn một ô mới sau khi route xoá đã chọn các ô cần dồn, đề có một lỗ số; tệ hơn, route xoá trừ `brief.question_count` từ con số `fire` vừa ghi, rồi `harvest` coi ô mới là cũ và xoá nó. Khe rất hẹp: giáo viên phải bấm Xoá trên panel đúng lúc một lượt chat đang mở job | Cho `fire` khoá hàng đề như các route ghi; chờ người dùng duyệt vì đụng đường soạn đề |
+| ~~**Lần `_owned` thứ hai của route duyệt -- và của route xoá câu, cùng khuôn -- không đọc lại state** (`teacher_routes.py`, ngay sau `harvest`); lần `assert_editable` thứ hai của route xoá vì thế kiểm trên state cũ. Comment nói *"đọc lại cũng là đọc lại sự thật"*, nhưng session để `expire_on_commit=False` và câu `SELECT … FOR UPDATE` không có `populate_existing`: hàng bị khoá, còn object trả về vẫn là bản trong identity map. Review đo được bằng probe: phiên khác đổi state rồi commit, lần đọc lại vẫn thấy state cũ. Khe chỉ mở trong lúc `harvest` vừa commit: hai lần duyệt chạy đua ghi hai bước biên bản; duyệt và phát hành chen nhau có thể kéo `PUBLISHED → APPROVED` đi vòng qua `withdraw`. `question_bank.file_approved` đã tự đọc lại câu bằng `populate_existing` nên ngân hàng không chép bản cũ~~ | **Đã làm: `_owned` khoá hàng với `populate_existing`, lần đọc sau đọc lại từ database; test hai session** (plan `backlog-tier-1`, pha 3). Sửa là một dòng (`populate_existing` trong `_owned` khi `lock=True`), chữa cả hai route -- chờ người dùng duyệt vì đụng mọi route dùng `_owned` |
+| ~~**Xoá câu đua với *"soạn thêm"* từ chat.** `drafting.fire` không khoá hàng đề (`FOR UPDATE`). Nếu `fire` chèn một ô mới sau khi route xoá đã chọn các ô cần dồn, đề có một lỗ số; tệ hơn, route xoá trừ `brief.question_count` từ con số `fire` vừa ghi, rồi `harvest` coi ô mới là cũ và xoá nó. Khe rất hẹp: giáo viên phải bấm Xoá trên panel đúng lúc một lượt chat đang mở job~~ | **Đã làm: `fire` khoá Assessment và DraftBrief (`with_for_update`, `populate_existing`)** (plan `backlog-tier-1`, pha 3). Cho `fire` khoá hàng đề như các route ghi; chờ người dùng duyệt vì đụng đường soạn đề |
 
 **Hoãn có chủ ý** (người dùng chốt phạm vi *chỉ đường ghi*):
 
@@ -1152,10 +1153,10 @@ Ghi ngày 15/10/2026, plan `2026-10-15-manual-browser-test-cases-plan.md`. Biên
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Plan soạn model tự nêu ngay sau một lời **xin sửa** dàn ý vẫn qua cổng, với dàn ý cũ (cổng chỉ đòi dàn ý ở lượt ngay trước) | Case 03, 07 đều ra bản 2 đúng, nên chưa thấy |
+| ~~Plan soạn model tự nêu ngay sau một lời **xin sửa** dàn ý vẫn qua cổng, với dàn ý cũ (cổng chỉ đòi dàn ý ở lượt ngay trước)~~ | **Đã làm, mức nhắc lại: `_PlanOverRevision` trả plan về model một lần; lần hai vẫn hỏng thì plan đi qua -- chặn cứng cần BE đọc lời đồng ý (Tier 2 câu 5)** (plan `backlog-tier-1`, pha 3). Case 03, 07 đều ra bản 2 đúng, nên chưa thấy |
 | ~~`list_assessment` không lọc bản phát hành đã thu hồi: sau khi hoàn tác ở case 10, 12A sẽ có hai đề~~ | **Đã sửa 17/10/2026: lọc recalled_at** (plan `backlog-tier-1`, pha 1). Thứ tự chạy đã đưa 11, 12 lên trước 09–10 để tránh |
-| Lý do của bước `✕` in thẳng `reason` / `error`, có thể lộ tên tool (luật 7) | Lần chạy này không có bước `✕` nào |
-| Chữ *"sách"* trong lời phủ định (*"ko cần sách"*) vẫn mở thư viện (`_BOOK_WORDS`) | Case 02, 08 đã bỏ cụm ấy; giáo viên thật vẫn có thể gõ |
+| ~~Lý do của bước `✕` in thẳng `reason` / `error`, có thể lộ tên tool (luật 7)~~ | **Đã làm: lời từ chối mang thêm `said` cho giáo viên, FE in `said` trước; mới phủ các chỗ từ chối của `teacher_tools`** (plan `backlog-tier-1`, pha 3). Lần chạy này không có bước `✕` nào |
+| ~~Chữ *"sách"* trong lời phủ định (*"ko cần sách"*) vẫn mở thư viện (`_BOOK_WORDS`)~~ | **Đã làm: `_NO_BOOK` bỏ cụm phủ định (không/ko/k/hok) trước khi dò chữ sách** (plan `backlog-tier-1`, pha 3). Case 02, 08 đã bỏ cụm ấy; giáo viên thật vẫn có thể gõ |
 
 ## Lộ ra khi chạy bộ ca thử tay trên Claude Haiku 5.5
 
@@ -1169,7 +1170,7 @@ ghi case thấy nó.
 | ~~**Tool soạn câu trả sai hình dạng rồi câu mock vào đề** (05, 1/24 job): thiếu `options`, `methods` là chuỗi JSON; `write_draft_question` lùi về câu soạn sẵn (*"Giới hạn của (x² − 1)/(x − 1)…"*), câu ấy thay câu 3 của đề lớp 7 và bước báo *"đã thay câu 3"*~~ | **Đã sửa 17/10/2026: sai hình dạng thành lời phàn nàn cho model viết lại; hết lượt thì job hỏng, BE hỏi lại có trần, không câu soạn sẵn nào vào đề — chờ thử tay** (plan `backlog-tier-1`, pha 1). Hai việc: đường ép tool của Claude chưa `strict`; và lùi về mock khi model thật hỏng là đưa một câu lạc đề vào đề thật — với mọi provider. **Người dùng chốt 17/10/2026: để backlog, chưa sửa; cùng ngày gỡ hoãn — làm ở plan `2026-10-17-backlog-tier-1-plan.md`.** Hướng sửa khi tới lượt: tool `strict`, bỏ đường lùi về câu soạn sẵn trong `write_draft_question` — ô hỏng thì báo hỏng (`last_fault`), không thay bằng câu khác |
 | **Hai câu cùng mục trùng nhau** (02, 06, 07): job bám ví dụ trong `formulas`, bỏ lời dặn *"khác cách hỏi hoặc số liệu"*; `banned_stems` chỉ bắt chữ trùng y | Chưa sửa. Mốc gpt-4o-mini không thấy vì dàn ý của nó ít khi gộp câu vào một mục |
 | **Dàn ý một mục cho cả đề** (01, 03, 07, 08, 13): `Câu 1–N` một mục | Đúng `outline.validate`; chưa có luật về số mục |
-| **`_read_before_outline` để lọt dàn ý đọc dở** (04): đọc phần 3/5 xong, dàn ý chỉ trỏ nút phần 1–2, nên không giao nút phần vừa đọc và AGENT thôi bắt đọc tiếp | Điều kiện *"dàn ý trỏ vào phạm vi ấy"* so với phần **cuối**, không với cả phạm vi đã gọi |
+| ~~**`_read_before_outline` để lọt dàn ý đọc dở** (04): đọc phần 3/5 xong, dàn ý chỉ trỏ nút phần 1–2, nên không giao nút phần vừa đọc và AGENT thôi bắt đọc tiếp~~ | **Đã làm: lấy hợp mọi nút đã đọc trong lượt** (plan `backlog-tier-1`, pha 3). Điều kiện *"dàn ý trỏ vào phạm vi ấy"* so với phần **cuối**, không với cả phạm vi đã gọi |
 | **Hỏi lại hai lần với tệp scan một trang, một `get_chapter` sai id tài liệu** (13) | Chưa sửa |
 | **Tóm tắt nút cây mở bằng "Phần này"** (mục lục SGK dựng trên Haiku) | Prompt tóm tắt cấm; Haiku không theo |
 
@@ -1185,7 +1186,7 @@ ghi ở đây.
 | ~~**Câu mock vào đề nay 3/21 job** (02, 06, 07) — dòng *"Tool soạn câu trả sai hình dạng"* ở trên, tần suất tăng từ 1/24~~ | **Đã sửa cùng dòng trên — chờ thử tay** (plan `backlog-tier-1`, pha 1). Như dòng trên. Đây là lỗi nặng nhất của lần chạy: ba trên năm ca có soạn câu không đạt vì nó |
 | **Dàn ý sửa không tách mục gộp** (03): sửa câu 3 của mục `Câu 3–4` thì câu 4 thành cùng dạng | Chưa có luật; `_right_purpose` không biết câu nào trong mục bị đổi |
 | ~~**Lời đồng ý không thành plan khi `brief` rỗng, và model bịa một nút "xác nhận soạn đề"** (04, lần chạy dở): lời ấy *đáp* dàn ý, nên lượt sau BE chặn mọi plan soạn vì *"chưa thấy dàn ý"*~~ | **Đã sửa code cùng dòng trên — chờ thử tay** (plan `backlog-tier-1`, pha 1). Gốc là dòng *"Haiku để trống `known`"* ở trên |
-| **BE trả dàn ý về năm lần vì công thức sai khuôn `$…$`** (04, lượt chạy lại): mỗi lần một lời gọi model với ngữ cảnh lớn dần | Khuôn `outline.validate` đúng; chưa có dừng sớm như với plan bị từ chối lặp lại |
+| ~~**BE trả dàn ý về năm lần vì công thức sai khuôn `$…$`** (04, lượt chạy lại): mỗi lần một lời gọi model với ngữ cảnh lớn dần~~ | **Đã làm: cùng lý do hai lần liền thì dừng, thông báo `OUTLINE_REFUSED`** (plan `backlog-tier-1`, pha 3). Khuôn `outline.validate` đúng; chưa có dừng sớm như với plan bị từ chối lặp lại |
 | **Tên đoạn chat chép lời dặn**: *"Soạn đề toán lớp 6 chương 1 (từ chối? không) — tiêu đề: Soạn"* | `naming.py` trên Haiku; chưa đo lại |
 | **"Cả chương" mà chỉ đọc một phần chương** (04): `read_section` với `nodes` 1, 3, 6, 17 do model chọn, bỏ bốn bài, mà lời dàn ý vẫn nói *"lấy từ bài 1 đến thứ tự thực hiện các phép tính"* | Model chọn nút; `_read_before_outline` chỉ đòi đọc hết phạm vi **đã gọi**, không đối chiếu với phạm vi giáo viên nói |
 
@@ -1217,10 +1218,10 @@ Phạm vi: 66 commit từ upstream, chủ yếu ADR-31 (tên đề) và ADR-32 (
 | --- | --- |
 | ~~**Ô đổi tên sống sang đề khác** (`Panel.tsx:66`): effect theo `assessmentId` dọn `paper`, `erasing` nhưng không dọn `naming` — đang gõ tên đề A, mở đề B, Enter thì **B bị đổi tên**~~ | **Đã sửa 17/10/2026** (plan `backlog-tier-1`, pha 2). Không bị chặn. Dọn `naming` cùng chỗ dọn `erasing`, thêm một vitest |
 | ~~**Enter gửi PATCH đổi tên nhiều lần** (`Panel.tsx:257`): phím Enter không xét `working`, chỉ nút `Lưu` khoá — hai PATCH, hai lần đọc lại đoạn chat, có thể một 409 đỏ dù đã đổi xong~~ | **Đã sửa 17/10/2026: xét working và isComposing** (plan `backlog-tier-1`, pha 2). Không bị chặn. Chặn `rename()` khi `working` |
-| **`clipped()` ra tên rỗng** (`titles.py:36`): `_unquoted` bóc `""` hay `“ ”` thành rỗng, `_create_draft` chỉ xét chuỗi thô — đề lưu với tên rỗng, thẻ *Đã tạo đề ""* | Không bị chặn. Rỗng thì lùi về `default_title` |
-| **`_TooManyQuestions` đếm cả câu trống** (`propose.py:1769`): bốn câu, một câu trống — ba câu hợp lệ vẫn bị hỏi lại model, tốn một lượt gọi | Không bị chặn. Đếm câu đã qua `asked()` |
-| **Mức lựa chọn tối thiểu theo số dòng áp cho mọi câu** (`propose.py:1772`): kết quả tool gần nhất có 2 lớp thì câu hỏi tham số (*Khối*, *Số câu*) 2 nút cũng lọt, trái luật ≥ 3 nút cho tham số | Bản sửa theo review pha 6 đi quá đà. Cần phân biệt câu về dòng (lựa chọn khớp `candidates`) với câu về tham số |
-| **Tên đề lồng trong danh sách không đổi theo** (`teacher_chat.py:1516`): `_titled` chỉ thay `title` cấp ngoài, kết quả như `class_assessments` (`assessments: [{assessment_id, title}]`) giữ tên cũ trong lịch sử gửi AGENT. Đường lộ: hoàn tác phát hành → đổi tên → phát hành lại | Review pha 6 cho rằng đề đã phát hành không đổi tên được; đường hoàn tác làm điều đó sai. Đi đệ quy theo `assessment_id` |
+| ~~**`clipped()` ra tên rỗng** (`titles.py:36`): `_unquoted` bóc `""` hay `“ ”` thành rỗng, `_create_draft` chỉ xét chuỗi thô — đề lưu với tên rỗng, thẻ *Đã tạo đề ""*~~ | **Đã làm: rỗng thì lùi về `default_title`** (plan `backlog-tier-1`, pha 3). Không bị chặn. Rỗng thì lùi về `default_title` |
+| ~~**`_TooManyQuestions` đếm cả câu trống** (`propose.py:1769`): bốn câu, một câu trống — ba câu hợp lệ vẫn bị hỏi lại model, tốn một lượt gọi~~ | **Đã làm: chỉ đếm câu đã qua `asked()`** (plan `backlog-tier-1`, pha 3). Không bị chặn. Đếm câu đã qua `asked()` |
+| ~~**Mức lựa chọn tối thiểu theo số dòng áp cho mọi câu** (`propose.py:1772`): kết quả tool gần nhất có 2 lớp thì câu hỏi tham số (*Khối*, *Số câu*) 2 nút cũng lọt, trái luật ≥ 3 nút cho tham số~~ | **Đã làm: chỉ áp cho câu về dòng, câu tham số vẫn ≥ 3** (plan `backlog-tier-1`, pha 3). Bản sửa theo review pha 6 đi quá đà. Cần phân biệt câu về dòng (lựa chọn khớp `candidates`) với câu về tham số |
+| ~~**Tên đề lồng trong danh sách không đổi theo** (`teacher_chat.py:1516`): `_titled` chỉ thay `title` cấp ngoài, kết quả như `class_assessments` (`assessments: [{assessment_id, title}]`) giữ tên cũ trong lịch sử gửi AGENT. Đường lộ: hoàn tác phát hành → đổi tên → phát hành lại~~ | **Đã làm: `_named_papers`/`_titled` đệ quy vào danh sách lồng** (plan `backlog-tier-1`, pha 3). Review pha 6 cho rằng đề đã phát hành không đổi tên được; đường hoàn tác làm điều đó sai. Đi đệ quy theo `assessment_id` |
 | **Phép ghép *lời mở + câu hỏi* chép ở hai nơi** (`teacher_chat.py:916` và `propose.py:1360`) | Hai bản có thể lệch; hợp đồng chỉ soi hình dạng. Một hàm dùng chung trong `contracts` |
 | **Lượt hỏi nhiều câu đã qua không hiện nhãn** (`Chat.tsx:45`, `aloud`): FE vẽ *"1. câu hỏi"*, model thấy *"1. nhãn: câu hỏi (lựa chọn: …)"*; tin gộp *"Khối: Khối 7 · …"* dùng nhãn mà phía trên không có, nhãn đánh số *"Khối (2)"* càng khó đối | Đổi chữ hiển thị — đi cùng Figma (`Clarify request`, lượt đã qua) |
 | **Hai dòng `# TODO: Cần xem lại` trong `propose.py` chưa stage** (dòng 58, 1573) | Không phải lỗi: ghi chú riêng của người dùng, cố ý không commit — stage bằng script bỏ hai dòng ấy. Ghi để `git add` thẳng file không lỡ tay |
@@ -1236,6 +1237,7 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | **Ô tóm tắt câu phải làm lại lặp *"và"***: *"câu 1 và câu 2 và câu 3 …"*, trong khi lời chào ngay trên viết *"câu 1, câu 2, …, và câu 6"* — review ảnh pha 2 | Tier 1. Dùng chung hàm nối của lời chào |
 | **Dòng *"Thu hồi được tới 10:46"* vẫn in khi đã qua giờ mở** (khối ĐÃ PHÁT HÀNH), ngay trên hộp đỏ nói đã qua giờ mở — review ảnh pha 2 | Tier 1. Qua `opens_at` thì ghi *"Đã qua hạn thu hồi"* hay bỏ dòng; đổi chữ đi cùng Figma |
 | **Câu luật pha 1 bẻ dòng để lại *"làm."* một mình; câu luật dùng ` - `, tiêu đề dùng `—`** — review ảnh pha 2 | Tier 1 hạng thấp: chữ của `publication_wording` (ADR-03, một nguồn), chỉ đáng khi đổi câu luật |
+| **Không lưới nào giữ `reason` khỏi tên tool hay tên tham số**: pha 3 thêm `said` cho mọi lời từ chối của `teacher_tools` đang chở tên tool/tham số (rà tay), nhưng một tool hay một lời từ chối viết sau này chỉ có `reason` thì dòng ✕ lại in chữ cho model | Tier 1 (dòng 18, pha 4). Một lưới ở `check_contract`: `reason` chứa tên tool hay khoá tham số mà không kèm `said` thì đỏ |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 
@@ -1266,7 +1268,7 @@ mục đã có ở trên thì không ghi lại: ADR-20 ghi trạng thái cũ, nh
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **`submit_round` không kiểm giờ kết thúc của lượt hay hạn giai đoạn 2** (`be/student_routes.py:2095`), trong khi `save_round_answer` có kiểm (`:2082`). Chương 04 của báo cáo (`04:116`) hứa *"hết hạn thì dừng"* | Chưa làm |
+| ~~**`submit_round` không kiểm giờ kết thúc của lượt hay hạn giai đoạn 2** (`be/student_routes.py:2095`), trong khi `save_round_answer` có kiểm (`:2082`). Chương 04 của báo cáo (`04:116`) hứa *"hết hạn thì dừng"*~~ | **Không phải lỗi: đúng ADR-15 (phần đã lưu trước `ends_at` được chấm); thêm test và comment** (plan `backlog-tier-1`, pha 3). Chưa làm |
 | **Câu biến thể giữ cấu trúc của câu gốc (ADR-17):** ngoài các phép kiểm chung, chỉ có phép so đề bài; không gì so cấu trúc | Đã có dòng *"chưa ép"* trong `AGENTS.md`; chưa làm |
 | **Đóng tab giữa một lượt hội thoại thì lượt ấy không có lời kể lại** (ADR-25) | Chưa làm |
 | **Chương 04 (`04:121-123`) nói giáo viên xem được báo cáo *"giải thích chưa rõ"* của học sinh**, nhưng `backend` chỉ có đường ghi `file_report`; không api hay tool nào đọc bảng `reports` | Chưa làm |
@@ -1320,4 +1322,4 @@ cáo. Bốn giới hạn mà mục ấy nêu (giờ kết thúc của một lư�
 | **"Hàm" mang hai nghĩa trong chương 07.** Từ lượt viết lại mục Agent, phần của graph gọi là *hàm*, theo mục *Graph* của từ điển; *hàm nhận job* (chỗ worker gọi vào) cũng là "hàm". Đã ghi ở *Những chỗ đã biết là còn sai* của `rules.md` | Người dùng giữ *hàm nhận job* và sẽ tự chọn chữ khác |
 | **Docstring của `agent` nói sai về chính code:** `handlers.py:3-6` (*"mọi handler đều là mock, không có lời gọi model nào"*), `:125-128` (`backend` từ chối câu đóng thế — thực ra câu ấy lọt, xem *Nội dung dọn trước đi tới người dùng* ở trên), `graphs/propose.py:12-15` (*"không có loop tự check"* — có phép kiểm và một lần gọi lại), `worker.py:91-94` (*"một job là một lần gọi model"* — propose có thể gọi hai lần, cộng Jev). Review lượt viết lại mục Agent tìm ra | Không bị chặn; chưa làm |
 | **Docstring của `document` cũ sau commit `d6c82d4`** (tóm tắt và đọc tên chương chọn được OpenAI hay Claude): `index/graph.py:85-86` và `index_handlers.py:49-50` vẫn viết *"khi không có khoá OpenAI"*, nay đúng ra là khi Model Provider của mô hình ấy chưa được cấu hình. Review lượt viết lại mục Document tìm ra | Không bị chặn; chưa làm |
-| **Phát một mảnh chữ hỏng giữa lúc trả lời học sinh thì câu được lưu khác chữ em đã thấy.** `handlers.explain` ghi mảnh vào danh sách *trước* khi phát (`said.append` rồi `redis.publish`, `handlers.py:1062-1078`), nên khi lần phát hỏng, nhánh "hỏng giữa chừng" trả về cả mảnh chưa tới màn hình. Review lượt viết lại mục Agent tìm ra | Không bị chặn; chưa làm |
+| ~~**Phát một mảnh chữ hỏng giữa lúc trả lời học sinh thì câu được lưu khác chữ em đã thấy.** `handlers.explain` ghi mảnh vào danh sách *trước* khi phát (`said.append` rồi `redis.publish`, `handlers.py:1062-1078`), nên khi lần phát hỏng, nhánh "hỏng giữa chừng" trả về cả mảnh chưa tới màn hình. Review lượt viết lại mục Agent tìm ra~~ | **Đã làm: phát trước rồi mới ghi; test mảnh không ra tới màn hình thì không lưu** (plan `backlog-tier-1`, pha 3). Không bị chặn; chưa làm |

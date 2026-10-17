@@ -823,6 +823,23 @@ describe("một lượt của Kriky", () => {
     expect(step.result).toBe("— bước 1 chạy không xong");
   });
 
+  it("dòng ✕ in câu cho giáo viên, không in tên tool của lời từ chối", () => {
+    // Plan `backlog-tier-1`: `reason` viết cho model (*"gọi list_class để lấy id"*); BE kèm `said`.
+    const step = stepFor(
+      blank({
+        kind: "tool_result",
+        tool_name: "get_class",
+        tool_result: {
+          found: false,
+          reason: "thiếu class_id; gọi list_class để lấy id trước",
+          said: "Kriky chưa chọn lớp nào",
+        },
+      }),
+    );
+    expect(step.mark).toBe("failed");
+    expect(step.result).toBe("— Kriky chưa chọn lớp nào");
+  });
+
   it("một bước ném exception cho thẻ THẤT BẠI, không phải thẻ đề trống", () => {
     const turns = [
       blank({
@@ -5691,6 +5708,56 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
     render(<Chat conversationId={null} fresh={true} openPaper={null} />);
   }
 
+  it("lần đọc cũ về muộn không đè lên lần đọc mới", async () => {
+    // Plan `backlog-tier-1` (review kênh SSE): lần đọc lúc mở màn về SAU lần đọc theo tiếng hích,
+    // mang danh sách cũ — chip quay về "Đang xử lý…" dù tài liệu đã sẵn sàng.
+    // Ép kiểu ở chỗ khởi tạo: `nudge` được gán trong closure, nên TS sẽ thu hẹp nó về `null`.
+    let nudge = null as (() => void) | null;
+    let reads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.startsWith("/api/teacher/documents/stream")) {
+          const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(": mở\n\n"));
+              nudge = () => controller.enqueue(new TextEncoder().encode("data: 1\n\n"));
+            },
+          });
+          return Promise.resolve({ ok: true, body });
+        }
+        let out: unknown = [];
+        let wait = 0;
+        if (url.startsWith("/api/teacher/documents")) {
+          reads += 1;
+          // Lần đầu: cũ và chậm. Lần sau: mới và nhanh.
+          out = reads === 1 ? [paper("processing")] : [paper("ready")];
+          wait = reads === 1 ? 80 : 0;
+        }
+        return new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                json: () => Promise.resolve(out),
+                text: () => Promise.resolve(""),
+              }),
+            wait,
+          ),
+        );
+      }),
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+    show();
+    await waitFor(() => expect(nudge).not.toBeNull());
+    nudge?.();
+    await waitFor(() => expect(reads).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(screen.queryByText("Đang xử lý…")).toBeNull();
+    expect(screen.getByText("SGK Giải tích 12.pdf")).toBeTruthy();
+  });
+
   it("mỗi trạng thái nói đúng câu của nó, và sẵn sàng thì không nói gì", async () => {
     for (const [state, say] of [
       ["processing", "Đang xử lý…"],
@@ -5787,7 +5854,7 @@ describe("rail: chip tài liệu bốn trạng thái", () => {
 
   it("nghe một tiếng hích thì đọc lại danh sách", async () => {
     const { reads, push } = rail(
-      [[paper("processing")], [paper("ready")]],
+      [[paper("processing")], [paper("processing")], [paper("ready")]],
       "open",
     );
     show();

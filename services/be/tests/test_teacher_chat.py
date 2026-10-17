@@ -2896,6 +2896,30 @@ async def test_a_message_that_drifts_from_its_outline_goes_back_to_the_model(sta
 
 
 @pytest.mark.asyncio
+async def test_an_outline_refused_twice_for_the_same_reason_stops_the_turn(stack) -> None:
+    """Review code 17/10 (plan `backlog-tier-1`): dàn ý bị trả về cũng dừng ở lần hai như plan --
+    không gọi model tới trần cho cùng một lời từ chối."""
+    client, _, monkeypatch = stack
+    drifted = NextStepCompleted(
+        request_id="x",
+        kind="outline",
+        text="Mình soạn hai câu về đọc số tự nhiên nhé.",
+        outline=(_outline_item(source_nodes=()),),
+    )
+    agent = ScriptedAgent(*[drifted for _ in range(20)])
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER
+    )
+
+    body = reply.json()
+    assert body["text"] == notices.OUTLINE_REFUSED
+    assert body["turns"][-1]["kind"] == "notice"
+    assert len(agent.asked) == 2
+
+
+@pytest.mark.asyncio
 async def test_each_new_outline_in_a_thread_is_the_next_version(stack) -> None:
     client, maker, monkeypatch = stack
     bookless = _outline_step(_outline_item(source_nodes=()))

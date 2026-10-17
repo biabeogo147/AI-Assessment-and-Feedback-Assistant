@@ -108,9 +108,13 @@ function refusal(result: Record<string, unknown>): boolean {
   );
 }
 
-/** Câu BE viết cho một việc không xảy ra: `reason` của tool, hoặc `error` của vòng chạy. */
+/**
+ * Câu BE viết cho một việc không xảy ra. `said` trước: khi `reason` chở tên tool hay tên tham số
+ * cho model sửa lời gọi, BE viết kèm một câu cho giáo viên (plan `backlog-tier-1`). Không có thì
+ * `reason` của tool, hoặc `error` của vòng chạy.
+ */
 function why(result: Record<string, unknown>): string {
-  return String(result.reason ?? result.error ?? "");
+  return String(result.said ?? result.reason ?? result.error ?? "");
 }
 
 /** `— ` đứng trước dòng kết quả, đúng như thiết kế; chuỗi rỗng thì vẫn rỗng. */

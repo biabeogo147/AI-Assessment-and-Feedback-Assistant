@@ -1727,7 +1727,7 @@ async def test_two_classes_are_enough_choices_for_each_of_several_questions(
         ),
     )
     lop = _Question(label="Lớp", text="Lớp nào?", choices=("12A", "12B"))
-    so_cau = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu"))
+    so_cau = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu", "15 câu"))
     model = Scripted([_several(lop, so_cau)])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
@@ -1735,3 +1735,64 @@ async def test_two_classes_are_enough_choices_for_each_of_several_questions(
 
     assert len(model.prompts) == 1
     assert [one.label for one in step.questions] == ["Lớp", "Số câu"]
+
+
+@pytest.mark.asyncio
+async def test_a_parameter_question_still_needs_three_choices_beside_two_classes(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review code 17/10 (plan `backlog-tier-1`): mức theo số dòng chỉ áp cho câu về dòng; câu
+    *Số câu* hai nút cạnh câu *Lớp* vẫn bị hỏi lại."""
+    history = (
+        TurnRecord(kind="teacher", text="lớp 12 thế nào"),
+        TurnRecord(kind="tool_call", tool_name="list_class", tool_args={"name": "12"}),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="list_class",
+            tool_result={"candidates": [{"name": "12A"}, {"name": "12B"}], "more": 0},
+        ),
+    )
+    lop = _Question(label="Lớp", text="Lớp nào?", choices=("12A", "12B"))
+    thin = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu"))
+    full = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu", "15 câu"))
+    model = Scripted([_several(lop, thin), _several(lop, full)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("x").model_copy(update={"history": history}))
+
+    assert len(model.prompts) == 2
+    assert step.questions[1].choices == ("5 câu", "10 câu", "15 câu")
+
+
+@pytest.mark.asyncio
+async def test_a_blank_extra_question_is_not_a_fourth_question(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review code 17/10: ba câu thật cộng một câu trống không phải lý do hỏi lại model."""
+    blank = _Question(label="", text="", choices=())
+    model = Scripted([_several(_KHOI, _SO_CAU, _PHAM_VI, blank)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mai mình cần một cái đề"))
+
+    assert len(model.prompts) == 1
+    assert [one.label for one in step.questions] == ["Khối", "Số câu", "Phạm vi"]
+
+
+@pytest.mark.parametrize(
+    ("said", "mentions"),
+    [
+        ("soạn đề theo sách này nhé", True),
+        ("ko cần sách đâu, cứ soạn 5 câu", False),
+        ("không dùng tài liệu, soạn 5 câu tỉ lệ thức", False),
+        ("khỏi sách nhé", False),
+        ("hok cần sgk", False),
+        ("danh sách lớp 12A", False),
+    ],
+)
+def test_a_teacher_turning_the_book_down_is_not_asking_for_one(said: str, mentions: bool) -> None:
+    """Plan `backlog-tier-1`: *"ko cần sách"* từng mở thư viện (`_BOOK_WORDS` không đọc phủ
+    định)."""
+    from agent.graphs.propose import _mentions_book
+
+    assert _mentions_book(_asked(said)) is mentions

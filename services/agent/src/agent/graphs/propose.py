@@ -202,6 +202,13 @@ _BOOK_WORDS = re.compile(
     re.IGNORECASE,
 )
 _NOT_A_BOOK = re.compile(r"danh\s+sách", re.IGNORECASE)
+# Lời **từ chối** sách: *"ko cần sách"*, *"không dùng tài liệu"*, *"khỏi sách nhé"*. Giáo viên Việt
+# gõ tắt *ko*, *k*, *hok* rất thường; bỏ cả cụm trước khi tìm chữ sách (plan `backlog-tier-1`).
+_NO_BOOK = re.compile(
+    r"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|dùng\s+|lấy\s+|theo\s+|có\s+)?"
+    r"(?:sách|tài liệu|tệp|file|giáo trình|sgk|cuốn|quyển)\b",
+    re.IGNORECASE,
+)
 
 
 def _mentions_book(request: NextStepRequested) -> bool:
@@ -224,6 +231,7 @@ def _mentions_book(request: NextStepRequested) -> bool:
             continue
         # NFC trước khi tìm: macOS gửi chữ có dấu dạng phân rã, "sách" phân rã không khớp (ADR-23).
         said = _NOT_A_BOOK.sub(" ", unicodedata.normalize("NFC", turn.text))
+        said = _NO_BOOK.sub(" ", said)
         if _BOOK_WORDS.search(said):
             return True
     return False
@@ -320,11 +328,12 @@ def _read_before_outline(step: NextStepCompleted, request: NextStepRequested) ->
         done = [turn.tool_result for turn in current if turn.kind == "tool_result"]
         last = done[-1] if done else {}
         sources = {node for item in step.outline for node in item.source_nodes}
-        read = {int(node) for node in last.get("nodes") or ()}
-        if calls:
-            read |= {
-                int(node) for node in re.findall(r"\d+", str(calls[-1].tool_args.get("nodes")))
-            }
+        # **Cả** phạm vi đã đọc trong lượt -- mọi phần, mọi lời gọi --, không chỉ phần cuối: đọc
+        # phần 3/5 xong mà dàn ý trỏ nút của phần 1–2 thì so với phần cuối không giao nhau, và
+        # AGENT thôi bắt đọc tiếp dù còn hai phần (thử tay 17/10, case 04; plan `backlog-tier-1`).
+        read = {int(node) for result in done for node in result.get("nodes") or ()}
+        for call in calls:
+            read |= {int(node) for node in re.findall(r"\d+", str(call.tool_args.get("nodes")))}
         if (
             last.get("found") is True
             and last.get("more") is True
@@ -469,6 +478,17 @@ class _UncountedOutline(_Flawed):
     câu 2"* ra dàn ý nêu lại cả đề."""
 
 
+class _PlanOverRevision(_Flawed):
+    """Model nêu plan soạn ngay sau lời giáo viên **xin sửa** dàn ý: plan ấy soạn theo dàn ý cũ mà
+    giáo viên vừa xin đổi (backlog *Plan soạn … sau một lời xin sửa dàn ý vẫn qua cổng*; cổng BE chỉ
+    đòi một dàn ý ở lượt ngay trước, plan `backlog-tier-1`)."""
+
+    hint = (
+        "Giáo viên vừa xin SỬA dàn ý, chưa đồng ý soạn. Đừng nêu plan soạn: nêu lại dàn ý đã sửa "
+        "đúng lời giáo viên (kind=outline), rồi chờ giáo viên đồng ý."
+    )
+
+
 class _WrongQuestion(_Flawed):
     """Model hỏi lại ngay sau danh sách tài liệu mà không hỏi tài liệu nào -- nút của câu hỏi là các
     tài liệu (`_which_book`, `kriky-writes-every-word`)."""
@@ -559,6 +579,25 @@ def _choices_in(step: NextStepCompleted) -> int:
     if step.questions:
         return sum(len(one.choices) for one in step.questions)
     return len(step.choices)
+
+
+def _row_names(request: NextStepRequested) -> set[str]:
+    """Tên các dòng (`candidates`) của kết quả tool gần nhất kể từ plan gần nhất, gộp khoảng trắng,
+    không phân biệt hoa thường. Hàm thuần."""
+    for turn in reversed(request.history):
+        if turn.kind == "plan":
+            break
+        if turn.kind == "tool_result":
+            listed = turn.tool_result.get("candidates")
+            if isinstance(listed, list):
+                names = set()
+                for one in listed:
+                    if isinstance(one, dict):
+                        for key in ("name", "label"):
+                            if one.get(key):
+                                names.add(" ".join(str(one[key]).split()).casefold())
+                return names
+    return set()
 
 
 def _nfc(text: str) -> str:
@@ -1122,6 +1161,28 @@ def _miscounted(step: NextStepCompleted, known: str, request: NextStepRequested)
     if said is not None and said != total:
         return f"outline totals {total}, the teacher asked for {said}"
     return ""
+
+
+# Lời xin sửa dàn ý: *"câu 2 đổi sang tự luận"*, *"thêm một câu hình học"*, *"oke nhưng câu 3 khó
+# hơn"*. Lời đồng ý trọn câu (`_AGREES`) thì không phải.
+_REVISES = re.compile(
+    r"\b(?:đổi|sửa|thay|bỏ|thêm|bớt|chuyển|khó hơn|dễ hơn|nhưng|thay vì)\b", re.IGNORECASE
+)
+
+
+def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested) -> bool:
+    """Plan có soạn câu, mà lời giáo viên sau dàn ý gần nhất là lời xin sửa. Hàm thuần."""
+    if not any(one.tool_name in {"start_drafting", "replace_question"} for one in step.steps):
+        return False
+    after: list[TurnRecord] = []
+    for turn in reversed(request.history):
+        if turn.kind == "outline":
+            break
+        after.append(turn)
+    else:
+        return False
+    said = [turn.text for turn in after if turn.kind == "teacher"]
+    return bool(said) and not _AGREES.match(said[0]) and bool(_REVISES.search(said[0]))
 
 
 def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
@@ -1778,6 +1839,8 @@ async def _choose(state: ProposeState) -> dict:
         lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
         if lacking:
             raise _IncompletePlan(lacking, step)
+        if _drafts_over_a_revision(step, state["request"]):
+            raise _PlanOverRevision("plan drafts right after the teacher asked to change", step)
     if step.kind == "outline":
         miscounted = _miscounted(step, proposal.known, request)
         if miscounted:
@@ -1789,11 +1852,26 @@ async def _choose(state: ProposeState) -> dict:
             for one in step.questions
         )
         step = step.model_copy(update={"questions": kept})
-        if len(proposal.questions) > MOST_CLARIFY_QUESTIONS:
-            raise _TooManyQuestions(f"{len(proposal.questions)} questions", step)
-        # Cùng mức với câu hỏi một câu: chỉ có hai lớp thì đòi ba là mời model bịa lớp thứ ba.
+        # Đếm câu **thật** -- câu trống đã bị `asked()` bỏ: ba câu hợp lệ cộng một câu trống không
+        # phải lý do hỏi lại model (review code 17/10, plan `backlog-tier-1`).
+        real = sum(1 for one in proposal.questions if one.text.strip() or one.label.strip())
+        if real > MOST_CLARIFY_QUESTIONS:
+            raise _TooManyQuestions(f"{real} questions", step)
+        # Câu về **dòng** (lựa chọn gọi tên một `candidate`) theo số dòng có thật -- chỉ có hai lớp
+        # thì đòi ba là mời model bịa lớp thứ ba. Câu về **tham số** vẫn đòi ba (review code 17/10:
+        # bản trước áp số dòng cho mọi câu, nên *Khối* hai nút cũng lọt).
+        rows = _row_names(state["request"])
         wanted = _choices_wanted(state["request"])
-        few = [one.label for one in kept if len(one.choices) < wanted]
+        few = [
+            one.label
+            for one in kept
+            if len(one.choices)
+            < (
+                wanted
+                if any(" ".join(choice.split()).casefold() in rows for choice in one.choices)
+                else 3
+            )
+        ]
         if few:
             raise _FewChoices(f"too few choices for {few}", step)
     elif step.kind == "ask_clarify":

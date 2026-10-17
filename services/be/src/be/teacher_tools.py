@@ -228,7 +228,11 @@ async def _get_class(running: Running, args: dict) -> dict:
     """
     wanted = str(args.get("class_id") or "").strip()
     if not wanted:
-        return {"found": False, "reason": "thiếu class_id; gọi list_class để lấy id trước"}
+        return {
+            "found": False,
+            "reason": "thiếu class_id; gọi list_class để lấy id trước",
+            "said": _SAID_NO_CLASS,
+        }
 
     # Lọc ngay trong danh sách đã thuộc về giáo viên này, nên một id của người khác đọc
     # ra **giống hệt** một id không tồn tại (ADR-22).
@@ -254,7 +258,11 @@ async def _list_assessment(running: Running, args: dict) -> dict:
     """
     wanted = str(args.get("class_id") or "").strip()
     if not wanted:
-        return {"found": False, "reason": "thiếu class_id; gọi list_class để lấy id trước"}
+        return {
+            "found": False,
+            "reason": "thiếu class_id; gọi list_class để lấy id trước",
+            "said": _SAID_NO_CLASS,
+        }
 
     listed = await _assessments_of(running.session, running.asking, wanted)
     return {"found": True, "assessments": listed}
@@ -339,6 +347,7 @@ async def _class_assessment_summary(running: Running, args: dict) -> dict:
                 "không tìm thấy lớp hoặc đề trong danh sách của bạn; "
                 "hãy gọi list_assessment với class_id để lấy đúng assessment_id"
             ),
+            "said": "không tìm thấy lớp hoặc đề ấy trong danh sách của bạn",
         }
 
     publication = await session.scalar(
@@ -435,6 +444,8 @@ _BRIEF_FIELDS = ("subject", "grade", "topic_scope")
 # viên nói -- và `String(n)` không được thi hành trên SQLite, nên một bộ test không phát
 # hiện ra chuyện này giúp chúng ta được.
 _FIELD_CAPS = {"subject": 64, "grade": 16, "difficulty": 64}
+# Tên mỗi trường trên màn hình giáo viên (`said`, plan `backlog-tier-1`).
+_FIELD_SAID = {"subject": "môn", "grade": "khối", "difficulty": "độ khó"}
 
 # Nói y một câu cho một đề nháp không có ở đó và một đề nháp của người khác (ADR-22).
 _NO_SUCH_DRAFT = {
@@ -475,6 +486,7 @@ async def _create_draft(running: Running, args: dict) -> dict:
             "created": False,
             "missing": missing,
             "reason": "chưa đủ thông tin để soạn đề; hãy hỏi giáo viên những mục còn thiếu",
+            "said": "chưa đủ thông tin để soạn đề",
         }
 
     # **Không có số câu ở đây, và không có mức trần ở đây.** Một đề trống chưa có số câu
@@ -500,6 +512,10 @@ async def _create_draft(running: Running, args: dict) -> dict:
                 "mấy mục này dài quá mức lưu được: "
                 + ", ".join(f"{field} tối đa {_FIELD_CAPS[field]} ký tự" for field in too_long)
             ),
+            "said": "mấy mục này dài quá mức lưu được: "
+            + ", ".join(
+                f"{_FIELD_SAID[field]} tối đa {_FIELD_CAPS[field]} ký tự" for field in too_long
+            ),
         }
 
     document_id, scope_nodes, built_at, refused = await _document_scope(running, args)
@@ -509,16 +525,16 @@ async def _create_draft(running: Running, args: dict) -> dict:
     scope = str(args["topic_scope"]).strip()
     # Đề theo sách mang tên tệp sách (ADR-31): phạm vi của nó là cả chuỗi nhãn bài kèm số trang.
     book = await session.get(Document, document_id) if document_id else None
+    fallback = default_title(scope, book.filename if book is not None else "")
+    invented = clipped(str(args["title"])) if str(args.get("title") or "").strip() else ""
     draft = Assessment(
         teacher_id=asking.teacher_id,
         # Một cái tên mà giáo viên đổi lại được sau, nên tự suy ra một cái thì không
         # tốn gì mà lại tiết kiệm được một vòng hỏi đáp về chuyện hình thức. Cắt ngắn
         # chứ không từ chối, cũng vì đúng lý do đó -- tối đa 60 ký tự (ADR-31).
-        title=(
-            clipped(str(args["title"]))
-            if str(args.get("title") or "").strip() and book is None
-            else default_title(scope, book.filename if book is not None else "")
-        ),
+        # Tên model gửi mà dọn xong rỗng (chỉ có cặp ngoặc `""`) thì lùi về tên tự đặt: một đề tên
+        # rỗng là thẻ *Đã tạo đề ""* (review code 17/10, plan `backlog-tier-1`).
+        title=invented if invented and book is None else fallback,
         subject=str(args["subject"]).strip(),
         grade=str(args["grade"]).strip(),
         state=AssessmentState.EMPTY,
@@ -588,6 +604,7 @@ async def _start_drafting(running: Running, args: dict) -> dict:
         return {
             "started": False,
             "reason": "chưa có dàn ý nào giáo viên đã xem cho lần soạn này; nêu dàn ý trước",
+            "said": "Kriky chưa nêu dàn ý cho lần soạn này",
         }
     if args.get("question_count") in (None, ""):
         # Số câu là tổng của dàn ý đã xem -- BE biết, không phải đoán.
@@ -606,6 +623,7 @@ async def _start_drafting(running: Running, args: dict) -> dict:
             "started": False,
             "unreadable": ["question_count"],
             "reason": "question_count phải là một con số, ví dụ 10",
+            "said": "số câu Kriky gửi không đọc được",
         }
 
     if not 1 <= wanted <= _MOST_QUESTIONS:
@@ -658,6 +676,7 @@ async def _start_drafting(running: Running, args: dict) -> dict:
         return {
             "started": False,
             "reason": "chưa soạn được câu nào; có thể đề chưa có brief, hoặc hàng đợi đang hỏng",
+            "said": "chưa soạn được câu nào; bạn thử lại sau ít phút",
         }
     # `title` đi theo vì **thẻ kết quả đọc nó**. Một thẻ `Đã tạo đề` trần không nói đề nào,
     # và nó là cửa duy nhất vào panel của chính cái đề ấy -- giáo viên bấm vào một cái tên
@@ -700,6 +719,7 @@ async def _replace_question(running: Running, args: dict) -> dict:
         return {
             "started": False,
             "reason": "chưa có dàn ý thay câu nào giáo viên đã xem; nêu dàn ý trước",
+            "said": "Kriky chưa nêu dàn ý cho câu cần thay",
         }
     try:
         number = int(str(args.get("question_number") or "").strip())
@@ -708,6 +728,7 @@ async def _replace_question(running: Running, args: dict) -> dict:
             "started": False,
             "unreadable": ["question_number"],
             "reason": "question_number phải là số của câu, ví dụ 3",
+            "said": "số thứ tự câu Kriky gửi không đọc được",
         }
     if number != running.outline.get("first"):
         meant = running.outline.get("first")
@@ -951,7 +972,11 @@ async def _get_chapter(running: Running, args: dict) -> dict:
     try:
         wanted = int(str(args.get("node") or "").strip())
     except ValueError:
-        return {"found": False, "reason": "node phải là một số lấy từ list_chapters"}
+        return {
+            "found": False,
+            "reason": "node phải là một số lấy từ list_chapters",
+            "said": _SAID_NO_SUCH_PART,
+        }
     if not any(node.ordinal == wanted for node in every):
         return {"found": False, "reason": "tài liệu không có mục nào như vậy"}
     return _listed([node for node in every if node.parent_ordinal == wanted], every)
@@ -983,6 +1008,13 @@ def _part_text(every: list[IndexNode], units: list[tuple[int, list[str]]]) -> st
                 body = body[:keep] + "\n[… phần sau của mục này không đọc trong lượt này]"
         out.append(f"## {title_path(every, ordinal)}\n{body}")
     return "\n\n".join(out)
+
+
+# Lời cho **giáo viên** khi `reason` chở tên tool hay tên tham số (`said`, plan `backlog-tier-1`):
+# dòng `✕` của khối bước in `said` trước, nên chữ ấy là chữ của người đọc màn hình, còn `reason` vẫn
+# là chữ cho model sửa lời gọi. Tên tool trên màn hình là mặt trong của hệ thống (luật 7).
+_SAID_NO_CLASS = "Kriky chưa chọn lớp nào"
+_SAID_NO_SUCH_PART = "Kriky trỏ tới một mục không có trong mục lục"
 
 
 def _node_list(raw: str) -> list[int]:
@@ -1024,14 +1056,23 @@ async def _read_section(running: Running, args: dict) -> dict:
         questions = int(str(args.get("questions") or "").strip())
         part = int(str(args.get("part") or "1").strip())
     except ValueError:
-        return {"found": False, "reason": "nodes, questions, part phải là số"}
+        return {
+            "found": False,
+            "reason": "nodes, questions, part phải là số",
+            "said": _SAID_NO_SUCH_PART,
+        }
     known = {node.ordinal for node in every}
     if not scope or any(one not in known for one in scope):
-        return {"found": False, "reason": "nodes phải là số node lấy từ list_chapters/get_chapter"}
+        return {
+            "found": False,
+            "reason": "nodes phải là số node lấy từ list_chapters/get_chapter",
+            "said": _SAID_NO_SUCH_PART,
+        }
     if not 1 <= questions <= MOST_QUESTIONS_ASKED:
         return {
             "found": False,
             "reason": f"questions là số câu giáo viên xin, 1 đến {MOST_QUESTIONS_ASKED}",
+            "said": f"số câu phải từ 1 đến {MOST_QUESTIONS_ASKED}",
         }
     try:
         document_id = str(args.get("document_id") or "").strip()
@@ -1043,7 +1084,11 @@ async def _read_section(running: Running, args: dict) -> dict:
         return {"found": False, "reason": "phạm vi này không có chữ nào đọc được"}
     grouped = parts([sum(len(text) for text in texts) for _, texts in units], questions)
     if not 1 <= part <= len(grouped):
-        return {"found": False, "reason": f"part phải từ 1 đến {len(grouped)}"}
+        return {
+            "found": False,
+            "reason": f"part phải từ 1 đến {len(grouped)}",
+            "said": f"phạm vi này chỉ có {len(grouped)} phần để đọc",
+        }
     chosen = [units[index] for index in grouped[part - 1]]
     by_ordinal = {node.ordinal: node for node in every}
     return {
@@ -1057,8 +1102,13 @@ async def _read_section(running: Running, args: dict) -> dict:
     }
 
 
-def _refusal(reason: str) -> dict:
-    return {"created": False, "missing": [], "reason": reason}
+def _refusal(reason: str, said: str = "") -> dict:
+    """Lời từ chối của `create_draft`: `reason` cho model, `said` cho giáo viên khi `reason` chở tên
+    tool hay tên tham số."""
+    refused: dict = {"created": False, "missing": [], "reason": reason}
+    if said:
+        refused["said"] = said
+    return refused
 
 
 async def _document_scope(
@@ -1092,7 +1142,12 @@ async def _document_scope(
     try:
         nodes = _node_list(str(args.get("nodes") or ""))
     except ValueError:
-        return "", [], None, _refusal("nodes là các số node cách nhau bằng dấu phẩy")
+        return (
+            "",
+            [],
+            None,
+            _refusal("nodes là các số node cách nhau bằng dấu phẩy", _SAID_NO_SUCH_PART),
+        )
     if not nodes:
         # **Không** tự hiểu là cả cuốn (review B5, `draft-from-document`): một model nêu plan ngay
         # mà bỏ qua mục lục sẽ gửi `topic_scope="chương 1"` không kèm `nodes`, và đề rải câu khắp
@@ -1103,13 +1158,19 @@ async def _document_scope(
             [],
             None,
             _refusal(
-                "thiếu nodes: gọi list_chapters rồi gửi số node phạm vi (cả cuốn thì mọi chương)"
+                "thiếu nodes: gọi list_chapters rồi gửi số node phạm vi (cả cuốn thì mọi chương)",
+                "Kriky chưa chọn chương nào trong sách",
             ),
         )
     known = {node.ordinal for node in every}
     unknown = [one for one in nodes if one not in known]
     if unknown:
-        return "", [], None, _refusal(f"tài liệu không có mục {unknown}; gọi list_chapters")
+        return (
+            "",
+            [],
+            None,
+            _refusal(f"tài liệu không có mục {unknown}; gọi list_chapters", _SAID_NO_SUCH_PART),
+        )
     # `built_at` **của cây đọc từ Mongo**, không phải giờ hiện tại: `fire` so đúng giá trị này để
     # biết cây có bị dựng lại giữa chừng không (review B2, `draft-from-document`).
     return owned.id, nodes, header.built_at, None

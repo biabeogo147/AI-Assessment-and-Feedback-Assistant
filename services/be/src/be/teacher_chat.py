@@ -76,6 +76,7 @@ from be.notices import (
     BOOK_NOT_READY,
     BOOK_SCOPE_MISSING,
     CEILING_REACHED,
+    OUTLINE_REFUSED,
     PLAN_REFUSED,
     REPORT_MISSING,
     TURN_BROKE,
@@ -1552,13 +1553,9 @@ async def _current_titles(session: AsyncSession, turns: list[TeacherTurn]) -> di
     Kết quả một bước ghi tên đề lúc bước ấy chạy. Giáo viên đổi tên rồi thì thẻ cũ, dòng bước cũ và
     lịch sử gửi AGENT phải đọc tên mới -- hai tên cho một đề trên cùng màn hình là hai đề.
     """
-    ids = {
-        str((turn.tool_result or {}).get("assessment_id"))
-        for turn in turns
-        if isinstance(turn.tool_result, dict)
-        and (turn.tool_result or {}).get("assessment_id")
-        and "title" in (turn.tool_result or {})
-    }
+    ids: set[str] = set()
+    for turn in turns:
+        _named_papers(turn.tool_result, ids)
     if not ids:
         return {}
     rows = await session.execute(
@@ -1567,10 +1564,37 @@ async def _current_titles(session: AsyncSession, turns: list[TeacherTurn]) -> di
     return {one: title for one, title in rows.all()}
 
 
+def _named_papers(value: object, into: set[str]) -> None:
+    """Gom id của mọi đề mang tên trong một kết quả bước, kể cả lồng trong danh sách. Hàm thuần.
+
+    `list_assessment` trả `assessments: [{assessment_id, title}]`: chỉ nhìn cấp ngoài thì tên lồng
+    giữ nguyên tên cũ sau khi giáo viên đổi tên (review code 17/10, plan `backlog-tier-1`).
+    """
+    if isinstance(value, dict):
+        if value.get("assessment_id") and "title" in value:
+            into.add(str(value["assessment_id"]))
+        for inner in value.values():
+            _named_papers(inner, into)
+    elif isinstance(value, list):
+        for inner in value:
+            _named_papers(inner, into)
+
+
 def _titled(result: dict, titles: dict[str, str]) -> dict:
-    """Một kết quả bước mang tên hiện tại của đề nó nhắc tới (ADR-31). Hàm thuần."""
-    found = titles.get(str(result.get("assessment_id") or ""))
-    return {**result, "title": found} if found is not None and "title" in result else result
+    """Một kết quả bước mang tên hiện tại của mọi đề nó nhắc tới, ở mọi cấp (ADR-31). Hàm thuần."""
+
+    def renamed(value: object) -> object:
+        if isinstance(value, dict):
+            out = {key: renamed(inner) for key, inner in value.items()}
+            found = titles.get(str(value.get("assessment_id") or ""))
+            if found is not None and "title" in value:
+                out["title"] = found
+            return out
+        if isinstance(value, list):
+            return [renamed(inner) for inner in value]
+        return value
+
+    return renamed(result)
 
 
 def _as_records(turns: list[TeacherTurn], titles: dict[str, str] | None = None) -> list[TurnRecord]:
@@ -2513,6 +2537,14 @@ async def _go(
                 history.append(
                     TurnRecord(kind="tool_result", tool_name="outline", tool_result=shown)
                 )
+                # Cùng mẫu với plan bị từ chối: một lý do đã về model mà nó vẫn nêu lại dàn ý ấy
+                # thì nó đang kẹt -- dừng ở lần hai (plan `backlog-tier-1`).
+                stuck = OUTLINE_REFUSED
+                reason = str(shown.get("error", ""))
+                if reason == refused:
+                    logger.warning("same outline refusal twice for %s", asking.teacher_code)
+                    break
+                refused = reason
                 continue
             history.append(shown)
             position = await _record(

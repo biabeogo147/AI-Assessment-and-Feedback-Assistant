@@ -30,6 +30,11 @@ PLAN_REFUSED = (
     "Kriky chưa dựng được các bước cho việc này. Bạn thử nói lại cụ thể hơn: việc gì, cho lớp hay "
     "đề nào."
 )
+# Dàn ý bị BE trả về cùng một lý do hai lần liền (plan `backlog-tier-1`): model đang kẹt như với
+# plan, nên lượt dừng thay vì gọi model tới trần cho cùng một lời từ chối.
+OUTLINE_REFUSED = (
+    "Kriky chưa nêu được dàn ý cho đề này. Bạn thử nói lại cụ thể hơn: phạm vi, số câu, dạng câu."
+)
 BOOK_SCOPE_MISSING = (
     "Đoạn chat này đang soạn theo tài liệu {filename}, nên Kriky cần biết chương hay bài nào trong "
     "đó. Bạn nói tên chương, bài nhé. Muốn soạn đề không theo tài liệu thì mở một đoạn chat mới."

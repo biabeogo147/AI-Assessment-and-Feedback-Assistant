@@ -1079,8 +1079,11 @@ async def explain(ctx: dict, payload: dict) -> dict:
     said: list[str] = []
 
     async def publish(piece: str) -> None:
-        said.append(piece)
+        # Phát trước, ghi sau: một mảnh mà `publish` ném ra thì học sinh chưa thấy, nên nó không
+        # được nằm trong lời lưu lại khi lượt gãy giữa chừng (review chương 7, plan
+        # `backlog-tier-1`).
         await redis.publish(channel, piece)
+        said.append(piece)
 
     try:
         text = await speak(request, publish if channel and redis is not None else None)

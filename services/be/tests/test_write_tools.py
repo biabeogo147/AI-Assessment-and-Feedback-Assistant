@@ -995,3 +995,61 @@ async def test_replacing_a_question_needs_the_outline_seen_for_that_question(
 
     assert answer["started"] is False
     assert reason in answer["reason"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invented", ['""', "“ ”", "   "])
+async def test_a_title_that_cleans_up_to_nothing_falls_back_to_the_default(
+    stack, invented: str
+) -> None:
+    """Review code 17/10 (plan `backlog-tier-1`): tên model gửi chỉ có cặp ngoặc thì dọn xong
+    rỗng, và đề mang tên rỗng -- thẻ *Đã tạo đề ""*. Lùi về tên tự đặt (ADR-31)."""
+    maker, queue = stack
+
+    async with maker() as session:
+        asking = await _asking(session)
+        answer = await execute(
+            session,
+            asking,
+            "create_draft",
+            {**_FULL, "title": invented},
+            pool=queue,
+            phase=PHASE_WORK,
+        )
+        draft = await session.get(Assessment, answer["assessment_id"])
+
+    assert draft is not None
+    assert draft.title == "Đề đạo hàm của đa thức"
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_written_for_the_model_carries_words_for_the_teacher(stack) -> None:
+    """Plan `backlog-tier-1`: `reason` chở tên tool cho model sửa lời gọi; dòng `✕` trên màn in
+    `said` -- không tên tool, không tên tham số."""
+    maker, _ = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        refused = await execute(session, asking, "get_class", {})
+
+    assert "list_class" in refused["reason"]
+    assert refused["said"] == "Kriky chưa chọn lớp nào"
+    assert "_" not in refused["said"]
+
+
+@pytest.mark.asyncio
+async def test_a_field_too_long_is_named_in_the_teachers_words(stack) -> None:
+    """Plan `backlog-tier-1`: tên trường (`grade`) là chữ cho model; giáo viên đọc *"khối"*."""
+    maker, queue = stack
+    async with maker() as session:
+        asking = await _asking(session)
+        refused = await execute(
+            session,
+            asking,
+            "create_draft",
+            {**_FULL, "grade": "lớp 12 ban khoa học tự nhiên"},
+            pool=queue,
+            phase=PHASE_WORK,
+        )
+
+    assert "grade" in refused["reason"]
+    assert refused["said"] == "mấy mục này dài quá mức lưu được: khối tối đa 16 ký tự"

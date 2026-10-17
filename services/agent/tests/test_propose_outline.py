@@ -515,6 +515,33 @@ def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
     assert step.tool_args == {**asked, "part": "2"}
 
 
+def test_an_outline_after_part_three_that_points_at_part_one_still_reads_on() -> None:
+    """Thử tay 17/10 (case 04, plan `backlog-tier-1`): đọc phần 1–3/5, dàn ý trỏ nút của phần 1 --
+    so với phần **cuối** thì không giao nhau và AGENT thôi bắt đọc tiếp."""
+    outline = NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+    )
+    turns = [TurnRecord(kind="teacher", text="x")]
+    for part, nodes in ((1, [1, 2]), (2, [3, 4]), (3, [5, 6])):
+        asked = {"document_id": "book", "nodes": "0", "questions": "5", "part": str(part)}
+        turns += [
+            TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked),
+            TurnRecord(
+                kind="tool_result",
+                tool_name="read_section",
+                tool_result={"found": True, "part": part, "parts": 5, "more": True, "nodes": nodes},
+            ),
+        ]
+
+    step = _read_before_outline(outline, _with_book(*turns))
+
+    assert (step.kind, step.tool_name) == ("call_tool", "read_section")
+    assert step.tool_args["part"] == "4"
+
+
 def _read_part(more: bool, nodes: str, read: list[int]) -> tuple[TurnRecord, TurnRecord]:
     asked = {"document_id": "book", "nodes": nodes, "questions": "5", "part": "1"}
     return (
@@ -723,3 +750,35 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
     )
 
     assert _brief_in(known) == {"topic_scope": "tỉ lệ thức", "subject": "Toán"}
+
+
+@pytest.mark.parametrize(
+    ("said", "held"),
+    [
+        ("câu 2 đổi sang tự luận nhé", True),
+        ("oke nhưng câu 3 khó hơn", True),
+        ("thêm một câu hình học", True),
+        ("oke", False),
+        ("được rồi, soạn đi nhé", False),
+    ],
+)
+def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
+    """Backlog *Plan soạn … sau một lời xin sửa dàn ý vẫn qua cổng* (plan `backlog-tier-1`): cổng BE
+    chỉ đòi một dàn ý ở lượt ngay trước, nên plan soạn theo dàn ý cũ đi lọt."""
+    from agent.graphs.propose import _drafts_over_a_revision
+
+    plan = NextStepCompleted(
+        request_id="r1",
+        kind="plan",
+        text="Mình soạn.",
+        steps=(
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "p1", "question_count": "2"},
+                title="Soạn câu hỏi",
+            ),
+        ),
+    )
+    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+
+    assert _drafts_over_a_revision(plan, _agreed(kept, said)) is held
