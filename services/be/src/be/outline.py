@@ -99,10 +99,31 @@ _NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times)|[{}$\s]")
 _NODE_NUMBER = re.compile(r"(?<![a-z])nodes?\s*(?:số\s*)?[:#=]?\s*\[?\s*\d", re.IGNORECASE)
 
 
+# Chỗ nối giữa các vế của một công thức gộp: dấu phẩy, chấm phẩy, khoảng trắng LaTeX, `\quad`, và
+# chữ trong `\text{…}` (*"với"*, *"và"*). Mục buộc phải viết `$a = bq + r,\ 0 \le r < b$` trong một
+# cặp `$` (`validate`), còn lời thì tự nhiên viết *"$a = bq + r$ với $0 \le r < b$"*.
+_JOINT = re.compile(r"\\q?quad|\\text\{[^{}]*\}|\\[ ;]|[,;]")
+
+
 def _flat(formula: str) -> str:
     """Một công thức bỏ những gì chỉ là cách viết, để so mà không vấp."""
     plain = formula.replace("\\dfrac", "\\frac").replace("\\tfrac", "\\frac")
     return _NOISE.sub("", plain)
+
+
+def _shown(formula: str, flat: str) -> bool:
+    """Lời (đã `_flat`) có nêu công thức này không: nguyên vẹn, hay đủ mọi vế khi lời tách nó ra.
+
+    Thử tay 17/10/2026 (quay GIF, sau plan `backlog-tier-1`): luật *một cặp `$`* của pha 6 làm mục
+    ghi điều kiện chung một cặp với biểu thức, lời thì tách hai cặp có chữ ở giữa, nên phép so cả
+    chuỗi không khớp và dàn ý bị trả về ba lần. Đủ **mọi** vế mới tính -- nêu một nửa là thiếu.
+    """
+    if _flat(formula) in flat:
+        return True
+    parts = [one for one in (_flat(part) for part in _JOINT.split(formula)) if one]
+    return (
+        len(parts) > 1 and any(len(one) >= 3 for one in parts) and all(one in flat for one in parts)
+    )
 
 
 def check_message(text: str, items: Sequence[OutlineItem], *, first: int = 1) -> str | None:
@@ -151,7 +172,7 @@ def check_message(text: str, items: Sequence[OutlineItem], *, first: int = 1) ->
         return f"lời nhắc Câu {stray[0]}, ngoài dàn ý ({span})"
     flat = _flat(text)
     for index, item in enumerate(items, start=1):
-        if item.formulas and not any(_flat(one) in flat for one in item.formulas):
+        if item.formulas and not any(_shown(one, flat) for one in item.formulas):
             return f"lời chưa có công thức nào của mục {index}; nêu ít nhất một, trong cặp $"
     if "?" not in text:
         return "lời chưa hỏi giáo viên có đồng ý dàn ý không"

@@ -108,6 +108,23 @@ def test_a_message_in_kriky_s_own_words_passes() -> None:
     assert check_message(said, _TWO) is None
 
 
+_SPLIT = [_item(formulas=("$a = bq + r,\\ 0 \\le r < b$",))]
+
+
+def test_a_formula_the_message_splits_around_a_word_still_counts() -> None:
+    """Thử tay 17/10/2026 (quay GIF): mục gộp điều kiện vào một cặp `$` như `validate` đòi, lời tách
+    hai cặp có *"với"* ở giữa -- vẫn là công thức ấy, không trả dàn ý về."""
+    said = "**Câu 1:** phép chia có dư $a = b\\cdot q + r$ với $0 \\le r < b$. Bạn thấy ổn không?"
+
+    assert check_message(said, _SPLIT) is None
+
+
+def test_half_a_formula_in_the_message_is_still_missing() -> None:
+    said = "**Câu 1:** phép chia có dư $a = bq + r$. Bạn thấy ổn không?"
+
+    assert "công thức nào của mục 1" in (check_message(said, _SPLIT) or "")
+
+
 @pytest.mark.parametrize(
     ("said", "why"),
     [
