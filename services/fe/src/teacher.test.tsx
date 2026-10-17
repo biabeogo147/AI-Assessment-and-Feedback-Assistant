@@ -2013,6 +2013,95 @@ function paper(state: string) {
   };
 }
 
+describe("đổi tên đề (ADR-31)", () => {
+  /** Stub `fetch`: đề ở trạng thái cho trước; PATCH đổi tên thì các lần đọc sau trả tên mới. */
+  function serving(state: string) {
+    const calls: { url: string; method: string; body: string }[] = [];
+    let title = "Kiểm tra 15 phút — Hàm số";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method, body: String(init?.body ?? "") });
+        if (method === "PATCH") title = JSON.parse(String(init?.body)).title;
+        const body = url.includes("/publish-form")
+          ? FORM
+          : method === "PATCH"
+            ? { assessment_id: "p1", title }
+            : { ...paper(state), title };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    return calls;
+  }
+
+  it("đề chưa duyệt: đổi tên ở tiêu đề panel, Enter lưu, đoạn chat đọc lại", async () => {
+    const calls = serving("has_questions");
+    const reread = vi.fn();
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={reread} />);
+
+    fireEvent.click(await screen.findByText("Đổi tên"));
+    const box = screen.getByLabelText("Tên đề") as HTMLInputElement;
+    expect(box.value).toBe("Kiểm tra 15 phút — Hàm số");
+    expect(box.maxLength).toBe(60);
+    fireEvent.change(box, { target: { value: "Kiểm tra chương I" } });
+    expect(screen.getByText("17/60")).toBeTruthy();
+    fireEvent.keyDown(box, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Kiểm tra chương I" })).toBeTruthy(),
+    );
+    const patched = calls.find((one) => one.method === "PATCH");
+    expect(patched?.url).toBe("/api/teacher/assessments/p1");
+    expect(JSON.parse(patched?.body ?? "{}")).toEqual({ title: "Kiểm tra chương I" });
+    // Thẻ cũ trong đoạn chat đọc tên hiện tại, nên đoạn chat phải đọc lại.
+    expect(reread).toHaveBeenCalled();
+  });
+
+  it("Esc huỷ: không gửi gì, tên cũ ở lại", async () => {
+    const calls = serving("has_questions");
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+
+    fireEvent.click(await screen.findByText("Đổi tên"));
+    const box = screen.getByLabelText("Tên đề");
+    fireEvent.change(box, { target: { value: "Tên gõ dở" } });
+    fireEvent.keyDown(box, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Tên đề")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Kiểm tra 15 phút — Hàm số" })).toBeTruthy();
+    expect(calls.some((one) => one.method === "PATCH")).toBe(false);
+  });
+
+  it("đề đã duyệt không có nút Đổi tên — cùng khoá nội dung (ADR-01)", async () => {
+    serving("approved");
+    const { container } = render(
+      <Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />,
+    );
+
+    await waitFor(() => expect(container.querySelector(".publish-settings")).toBeTruthy());
+    expect(screen.queryByText("Đổi tên")).toBeNull();
+  });
+
+  it("thẻ kết quả in tên đề một dòng, rê chuột thấy đủ tên", () => {
+    const long =
+      "Đề Bài 1. TẬP HỢP (tr. 5–9), CÁCH GHI SỐ TỰ NHIÊN (tr. 9–13), THỨ TỰ TRONG TẬP HỢP CÁC SỐ";
+    const { container } = render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: "create_draft",
+          tool_result: { created: true, assessment_id: "p1", title: long },
+        })}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+
+    const what = container.querySelector(".action-card .head .what") as HTMLElement;
+    expect(what.getAttribute("title")).toBe(`Đã tạo đề "${long}"`);
+  });
+});
+
 describe("chân panel đề", () => {
   /** Stub `fetch` trả về một đề ở trạng thái cho trước, và ghi lại mọi lời gọi. */
   function serving(state: string) {

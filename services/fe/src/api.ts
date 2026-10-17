@@ -892,6 +892,14 @@ export const teacher = {
     ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
+  // Đổi tên một đề chưa duyệt (ADR-31). BE từ chối tên trống, quá 60 ký tự, hay đề đã khoá; mọi
+  // chỗ khác đọc tên lúc hiện, nên đổi ở đây là đổi cả thẻ cũ trong đoạn chat.
+  renameAssessment: (assessmentId: string, title: string) =>
+    call<{ assessment_id: string; title: string }>(
+      "teacher",
+      `/teacher/assessments/${assessmentId}`,
+      { method: "PATCH", body: JSON.stringify({ title }) },
+    ),
   publications: (assessmentId: string) =>
     call<Publications>(
       "teacher",

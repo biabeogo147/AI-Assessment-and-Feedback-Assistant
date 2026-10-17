@@ -1542,9 +1542,14 @@
   background: var(--answer-incorrect);
 }
 
-/* Chip đẩy về mép phải của dòng đầu đề: `.what` giãn ra lấp chỗ trống giữa hai thứ. */
+/* Chip đẩy về mép phải của dòng đầu đề: `.what` giãn ra lấp chỗ trống giữa hai thứ. Tên đề
+ * dài thì một dòng, cắt `…` (ADR-31) -- chip không bị đẩy xuống. */
 .teacher .action-card .head .what {
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .teacher .action-card .safety {
@@ -1661,6 +1666,55 @@
   font-family: inherit;
   font-size: var(--type-caption);
   font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Đổi tên đề (ADR-31), component `Panel title` (`626:2736`). Nút chữ cùng kiểu `Đóng`. */
+.teacher .panel-head .rename,
+.teacher .panel-head .save,
+.teacher .panel-head .cancel {
+  flex: none;
+  padding: 5px 0 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .panel-head .cancel {
+  color: var(--ink-muted);
+}
+
+.teacher .panel-head .title-row.naming {
+  align-items: center;
+}
+
+.teacher .panel-head .title-row.naming .save,
+.teacher .panel-head .title-row.naming .cancel {
+  padding: 0;
+}
+
+.teacher .panel-head .title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .panel-head .count {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
   line-height: 1.5;
 }
 

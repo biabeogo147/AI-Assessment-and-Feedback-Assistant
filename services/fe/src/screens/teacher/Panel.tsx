@@ -32,10 +32,14 @@ import MathText from "../../MathText";
  *
  * @param assessmentId - Đề nào.
  * @param onClose - Đóng panel, quay về đoạn chat.
- * @param onApproved - Dòng lượt nói phải đọc lại. Gọi sau **cả ba** việc ghi của panel:
- *   duyệt, bỏ duyệt, và phát hành — cả ba đều để lại một biên bản trong đoạn chat.
+ * @param onApproved - Dòng lượt nói phải đọc lại. Gọi sau mọi việc ghi của panel: duyệt, bỏ
+ *   duyệt, phát hành — cả ba để lại một biên bản trong đoạn chat — và đổi tên đề, vì thẻ cũ
+ *   trong đoạn chat đọc tên hiện tại (ADR-31).
  *   `approve` ghi một bước vào hội thoại (ADR-01 đòi thế), và bước đó phải hiện ra.
  */
+/** Trần của tên đề, đúng `be/titles.MOST_TITLE` (ADR-31). BE là chỗ thi hành; đây chỉ chặn gõ quá. */
+const MOST_TITLE = 60;
+
 export default function Panel({
   assessmentId,
   onClose,
@@ -56,6 +60,8 @@ export default function Panel({
   const [erasing, setErasing] = useState<TeacherQuestion | null>(null);
   const [eraseRefused, setEraseRefused] = useState("");
   const [eraseBusy, setEraseBusy] = useState(false);
+  // Tên đang gõ ở ô đổi tên, hay `null` khi không đổi tên (ADR-31).
+  const [naming, setNaming] = useState<string | null>(null);
 
   useEffect(() => {
     setPaper(null);
@@ -68,6 +74,28 @@ export default function Panel({
       .then(setPaper)
       .catch((cause: Error) => setTrouble(cause.message));
   }, [assessmentId]);
+
+  /** Lưu tên mới. Trống hay y như cũ thì không gửi gì: BE từ chối tên trống, nhưng để nó từ chối
+   *  ở đây là đổi một cú Enter vô hại thành một câu lỗi đỏ. */
+  async function rename() {
+    const wanted = (naming ?? "").trim();
+    if (wanted === "" || wanted === paper?.title) {
+      setNaming(null);
+      return;
+    }
+    setWorking(true);
+    try {
+      await teacher.renameAssessment(assessmentId, wanted);
+      setPaper(await teacher.assessment(assessmentId));
+      setNaming(null);
+      setTrouble(null);
+      onApproved();
+    } catch (cause) {
+      setTrouble((cause as Error).message);
+    } finally {
+      setWorking(false);
+    }
+  }
 
   async function approve() {
     setWorking(true);
@@ -197,12 +225,60 @@ export default function Panel({
   return (
     <aside className="panel">
       <div className="panel-head">
-        <div className="title-row">
-          <h2>{paper.title}</h2>
-          <button className="close" type="button" onClick={onClose}>
-            Đóng
-          </button>
-        </div>
+        {naming === null ? (
+          <div className="title-row">
+            <h2>{paper.title}</h2>
+            {/* Đổi tên đi cùng khoá nội dung (ADR-31, ADR-01): đề đã duyệt thì không có nút. */}
+            {!locked && (
+              <button
+                className="rename"
+                type="button"
+                // Tên cũ đặt trước trần 60 có thể dài hơn: điền 60 ký tự đầu, giáo viên thấy
+                // chữ bị bớt ngay trong ô -- điền nguyên thì `Lưu` chắc chắn bị BE từ chối.
+                onClick={() => setNaming(paper.title.slice(0, MOST_TITLE))}
+              >
+                Đổi tên
+              </button>
+            )}
+            <button className="close" type="button" onClick={onClose}>
+              Đóng
+            </button>
+          </div>
+        ) : (
+          <div className="title-row naming">
+            <input
+              className="title-input"
+              aria-label="Tên đề"
+              autoFocus
+              maxLength={MOST_TITLE}
+              value={naming}
+              onChange={(event) => setNaming(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void rename();
+                // Esc là đường huỷ: tên gõ dở bỏ đi, tên cũ ở lại.
+                if (event.key === "Escape") setNaming(null);
+              }}
+            />
+            <span className="count">
+              {naming.length}/{MOST_TITLE}
+            </span>
+            <button
+              className="save"
+              type="button"
+              disabled={working}
+              onClick={() => void rename()}
+            >
+              Lưu
+            </button>
+            <button
+              className="cancel"
+              type="button"
+              onClick={() => setNaming(null)}
+            >
+              Huỷ
+            </button>
+          </div>
+        )}
         <div className="meta">
           {paper.question_count} câu · {paper.subject} {paper.grade}
           {paper.topic_scope !== "" && ` · ${paper.topic_scope}`}

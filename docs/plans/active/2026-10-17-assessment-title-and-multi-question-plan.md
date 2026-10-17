@@ -57,10 +57,14 @@ Người dùng chốt:
 - [x] 6. Test. Commit.
 
 ### Pha 3 — Tên đề ở FE
-- [ ] 7. Figma: panel *đang đổi tên*; `Action result card` tên một dòng cắt `…`. Đo bằng nhau.
-- [ ] 8. `teacher.renameAssessment`; ô đổi tên ở panel (Enter lưu, Esc huỷ, tối đa 60, ẩn khi đã
+- [x] 7. Figma: panel *đang đổi tên*; `Action result card` tên một dòng cắt `…`. Đo bằng nhau.
+  Component `Panel title` (`626:2736`, hai variant `xem` / `đang đổi tên`); `Action result card`
+  ba variant có tên đề cắt một dòng, thêm `đã-tạo-đề — tên dài` (`626:2737`). Đo ở mode Teacher: hàng
+  sửa 431×37 (ô 330/330,5), hàng xem tên 345/346,1, thẻ 660×57/56,5, tên 428 — lệch dưới 1px do làm
+  tròn dòng.
+- [x] 8. `teacher.renameAssessment`; ô đổi tên ở panel (Enter lưu, Esc huỷ, tối đa 60, ẩn khi đã
   duyệt); lưu xong đọc lại đoạn chat. Lưới CSS ở thẻ, `title` = tên đủ.
-- [ ] 9. Vitest. Commit.
+- [x] 9. Vitest. Commit.
 
 ### Pha 4 — Nhiều câu hỏi: hợp đồng, AGENT, BE
 - [ ] 10. Contracts `ClarifyQuestion{label, text, choices}`, `NextStepCompleted.questions` (0 hoặc 2–3,
@@ -94,4 +98,4 @@ Người dùng chốt:
 
 ## Status
 
-Đang làm pha 3.
+Đang làm pha 4.

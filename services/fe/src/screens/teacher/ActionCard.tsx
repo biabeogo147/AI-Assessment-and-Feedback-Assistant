@@ -552,7 +552,11 @@ function Card({
             xảy ra, và nó đã tới tay học sinh chưa. Tách làm hai dòng là xé một câu làm đôi,
             và trên một thẻ chỉ còn hai thành phần thì dòng thừa ấy càng rõ. */}
         <span className="dot" aria-hidden="true" />
-        <span className="what">{head}</span>
+        {/* Một dòng, cắt `…` (ADR-31): tên đề cũ, đặt trước trần 60 ký tự, vẫn có thể dài. Rê
+            chuột thì thấy đủ. */}
+        <span className="what" title={head}>
+          {head}
+        </span>
         {safety !== undefined && <span className="safety">{safety}</span>}
       </div>
       {actions.length > 0 && (
