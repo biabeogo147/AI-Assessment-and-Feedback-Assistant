@@ -778,6 +778,10 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
         ("không cần thay đổi gì, soạn đi", False),
         ("không có gì cần sửa, soạn đi", False),
         ("không cần thêm câu hình học", True),
+        # Tiểu từ cuối câu (review code vòng 3).
+        ("ok không cần sửa nhé", False),
+        ("không cần sửa đâu, soạn đi", False),
+        ("oke ko cần sửa ạ", False),
     ],
 )
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
@@ -810,6 +814,14 @@ def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bo
         # Sau một dàn ý, *"thêm 2 câu"* sửa dàn ý ấy: không đối chiếu với 2.
         (("soạn 5 câu", "@outline", "thêm 2 câu hình học"), 7, False),
         (("soạn 5 câu", "@outline", "bớt 1 câu"), 4, False),
+        # Một lời sửa khác sau *"thêm 2 câu"*: tổng vẫn là dàn ý đã sửa (review code vòng 3).
+        (
+            ("soạn 5 câu", "@outline", "thêm 2 câu hình học", "@outline", "câu 3 khó hơn nhé"),
+            7,
+            False,
+        ),
+        # Giáo viên nói lại tổng sau lời *thêm*: lời sau thắng.
+        (("soạn 5 câu", "@outline", "thêm 2 câu", "@outline", "à thôi 6 câu thôi"), 7, True),
         # Không có dàn ý trước thì *"soạn thêm 3 câu"* vẫn là số câu xin.
         (("soạn thêm 3 câu",), 5, True),
     ],

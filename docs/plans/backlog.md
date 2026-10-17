@@ -1270,7 +1270,10 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | ~~**`http_servers_imported` báo nhầm client `aiohttp`, `self.start_server()`; sót `from asyncio import start_server`** -- review code vòng 2~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
 | ~~**Status của plan nằm trong commit mà vẫn ghi *chờ commit*** -- review code vòng 2~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
 | ~~**`onApproved`: lỗi đọc lại đoạn cũ vẫn hiện trên đoạn mới; comment `Panel` nói sai cơ chế** -- review code vòng 2~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
-| **Bỏ một dàn ý đề mới rồi nêu dàn ý đề mới khác, không plan nào ở giữa**: dàn ý sau vẫn mượn môn/khối/phạm vi của dàn ý trước -- review code vòng 2 | Tier 2: hai dàn ý đề mới liền nhau là *sửa* hay *đề khác* là quyết định nghĩa |
+| **Bỏ một dàn ý đề mới rồi nêu dàn ý đề mới khác, không plan nào ở giữa**: dàn ý sau vẫn mượn môn/khối/phạm vi của dàn ý trước -- review code vòng 2 | Tier 2: hai dàn ý đề mới liền nhau là *sửa* hay *đề khác* là quyết định nghĩa. Rộng hơn một chút (review code vòng 3): dàn ý đề mới B bỏ dở → *soạn thêm cho X* → dàn ý đề mới D thì D mượn của B, vì plan *soạn thêm* không tạo đề mới nên không phải mốc |
+| ~~**`_count_revised` chỉ xét lời giáo viên cuối**: *"thêm 2 câu"* rồi *"câu 3 khó hơn nhé"* kéo dàn ý 7 câu về 2 -- review code vòng 3, Nặng~~ | **Đã làm: duyệt ngược tới lời đầu tiên mang con số** (plan `backlog-tier-1`, pha 5) |
+| ~~**`_NO_CHANGE` quên tiểu từ cuối câu**: *"ok không cần sửa nhé"* bị giữ lại như lời xin sửa -- review code vòng 3~~ | **Đã làm** (plan `backlog-tier-1`, pha 5) |
+| ~~**Lưới `document-opens-no-port` thu hẹp quá tay**: lọt `get_running_loop().create_server`, `prometheus_client.start_http_server` -- review code vòng 3~~ | **Đã làm: mọi đối tượng gọi trừ `self`/`cls`** (plan `backlog-tier-1`, pha 5) |
 
 ## Lộ ra khi viết chương 7 của báo cáo
 

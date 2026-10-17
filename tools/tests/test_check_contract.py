@@ -121,6 +121,14 @@ def test_a_server_import_in_any_form_is_caught() -> None:
     assert http_servers_imported("self.start_server()") == []
     assert http_servers_imported("from asyncio import start_server\nstart_server(h)") == [1, 2]
     assert http_servers_imported("await loop.create_server(p, port=1)") == [1]
+    # Review code vòng 3: các đường mở cổng mà bản thu hẹp làm lọt.
+    assert http_servers_imported("import prometheus_client") == []
+    assert http_servers_imported("prometheus_client.start_http_server(8000)") == [1]
+    assert http_servers_imported("from prometheus_client import start_wsgi_server") == [1]
+    assert http_servers_imported("from prometheus_client.exposition import start_http_server") == [
+        1
+    ]
+    assert http_servers_imported("await asyncio.get_running_loop().create_server(p)") == [1]
     assert http_servers_imported("import httpx\nfrom http import HTTPStatus") == []
 
 

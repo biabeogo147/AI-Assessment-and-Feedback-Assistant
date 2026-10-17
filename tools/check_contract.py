@@ -2253,11 +2253,15 @@ HTTP_SERVERS = frozenset(
         "tornado",
         "hypercorn",
         "prometheus_client.start_http_server",
+        "prometheus_client.start_wsgi_server",
+        "prometheus_client.exposition",
         "asyncio.start_server",
     }
 )
 # Lời gọi mở một cổng mà không cần import thư viện server nào (`asyncio.start_server`).
-SERVER_CALLS = frozenset({"start_server", "create_server", "start_http_server", "run_app"})
+SERVER_CALLS = frozenset(
+    {"start_server", "create_server", "start_http_server", "start_wsgi_server", "run_app"}
+)
 
 
 def http_servers_imported(source: str) -> list[int]:
@@ -2288,23 +2292,18 @@ def http_servers_imported(source: str) -> list[int]:
 
 
 def _opens_a_port(func: ast.expr) -> bool:
-    """Lời gọi mở cổng: `asyncio.start_server(...)`, `loop.create_server(...)`, `web.run_app(...)`,
-    hay lời gọi trần `start_server(...)` sau `from asyncio import start_server`. Chỉ xét đối tượng
-    gọi là `asyncio`, `web` hay một `loop` -- `self.start_server()` của một lớp tự viết thì không
-    (review code vòng 2, plan `backlog-tier-1`)."""
+    """Lời gọi mở cổng: `asyncio.start_server(...)`,
+    `asyncio.get_running_loop().create_server(...)`, `web.run_app(...)`,
+    `prometheus_client.start_http_server(...)`, hay lời gọi trần sau một import.
+    Mọi đối tượng gọi đều tính, **trừ** `self`/`cls` -- một lớp tự viết có hàm cùng tên (review code
+    vòng 2); chỉ nhận vài đối tượng quen thì lọt `get_running_loop().create_server` (vòng 3, plan
+    `backlog-tier-1`)."""
     if isinstance(func, ast.Name):
         return func.id in SERVER_CALLS
     if not isinstance(func, ast.Attribute) or func.attr not in SERVER_CALLS:
         return False
     owner = func.value
-    name = (
-        owner.id
-        if isinstance(owner, ast.Name)
-        else owner.attr
-        if isinstance(owner, ast.Attribute)
-        else ""
-    )
-    return name in {"asyncio", "web"} or "loop" in name
+    return not (isinstance(owner, ast.Name) and owner.id in {"self", "cls"})
 
 
 def check_document_opens_no_port() -> str | None:

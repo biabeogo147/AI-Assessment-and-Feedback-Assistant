@@ -1195,13 +1195,19 @@ def _count_revised(request: NextStepRequested) -> bool:
     đó, hay `known` của model) còn là tổng đúng (review code vòng 2, plan `backlog-tier-1`).
     """
     since = _since_plan(request)
+    # Duyệt ngược **mọi** lời giáo viên tới lời đầu tiên mang một con số: *"thêm 2 câu"* rồi
+    # *"câu 3 khó hơn nhé"* vẫn là dàn ý đã sửa -- chỉ xét lời cuối thì đọc ra tổng 2 (review code
+    # vòng 3).
     for at in range(len(since) - 1, -1, -1):
         turn = since[at]
-        if turn.kind != "teacher":
+        if turn.kind != "teacher" or _REPLACES.search(turn.text):
             continue
-        return bool(_ADDS.search(turn.text) or _TRIMS.search(turn.text)) and any(
+        if (_ADDS.search(turn.text) or _TRIMS.search(turn.text)) and any(
             earlier.kind == "outline" for earlier in since[:at]
-        )
+        ):
+            return True
+        if _COUNT_SAID.search(_GRADE_NUMBER.sub("", turn.text)):
+            return False
     return False
 
 
@@ -1277,7 +1283,8 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
 _NO_CHANGE = re.compile(
     rf"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
-    r"(?:(?:\s+(?:gì|nữa|cả|hết))+|(?=\s*(?:[,.!?;]|$)))"
+    # Tiểu từ cuối câu cũng là cuối ý: *"ok không cần sửa nhé"* (review code vòng 3).
+    r"(?:(?:\s+(?:gì|nữa|cả|hết|đâu|nhé|nha|nhe|ạ|đi|luôn))+|(?=\s*(?:[,.!?;]|$)))"
     rf"|\bkhông\s+có\s+gì\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}\b",
     re.IGNORECASE,
 )
