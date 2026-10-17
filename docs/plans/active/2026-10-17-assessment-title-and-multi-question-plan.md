@@ -75,10 +75,12 @@ Người dùng chốt:
 - [x] 13. Test. Commit.
 
 ### Pha 5 — Nhiều câu hỏi: FE
-- [ ] 14. Figma `Clarify request`: *nhiều câu — câu k/n*, *nhiều câu — tóm tắt*. Đo bằng nhau.
-- [ ] 15. Thẻ nhiều câu: `Câu k/n`, câu trước/câu sau, không bỏ câu, `Khác…` từng câu, tóm tắt, gửi
+- [x] 14. Figma `Clarify request`: *nhiều câu — câu k/n*, *nhiều câu — tóm tắt*. Đo bằng nhau.
+  `629:20` câu k/n: 366/365px, các phần y 16/55/84/117 trùng; `629:46` tóm tắt: 318/316 sau khi chỉnh
+  đệm hàng 11/15 (Figma tính viền vào bố cục) — hàng 62/61,5, nút Gửi 33/32,5, lệch do làm tròn.
+- [x] 15. Thẻ nhiều câu: `Câu k/n`, câu trước/câu sau, không bỏ câu, `Khác…` từng câu, tóm tắt, gửi
   gộp một lần. Một câu duy nhất vẫn là thẻ cũ.
-- [ ] 16. Vitest. Commit.
+- [x] 16. Vitest. Commit.
 
 ### Pha 6 — Tài liệu, review, thử tay, đóng
 - [ ] 17. `teacher-surface.md`, `huong-dan.md`, case 01, 02, 04; case mới `15-doi-ten-de.md`.
@@ -98,4 +100,4 @@ Người dùng chốt:
 
 ## Status
 
-Đang làm pha 5.
+Đang làm pha 6.

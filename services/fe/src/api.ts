@@ -422,6 +422,16 @@ export interface Approval {
 }
 
 /**
+ * Một câu của một lượt hỏi lại nhiều câu (ADR-32). Lượt `assistant` ấy chở chúng trong
+ * `tool_result.questions`, nên đọc lại sau F5 vẫn có.
+ */
+export interface ClarifyQuestion {
+  label: string;
+  text: string;
+  choices: string[];
+}
+
+/**
  * Một dòng trong hội thoại của giáo viên.
  *
  * `kind` là `"teacher"`, `"assistant"`, `"outline"` (dàn ý đề, lời Kriky — vẽ như lời trợ lý),

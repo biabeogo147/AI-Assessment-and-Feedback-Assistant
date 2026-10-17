@@ -4,6 +4,7 @@ import { go } from "../../App";
 import {
   teacher,
   type Answered,
+  type ClarifyQuestion,
   type TeacherConversation,
   type TeacherDocument,
   type Turn,
@@ -17,6 +18,7 @@ import { readNumber, writeNumber } from "./remember";
 import Split from "./Split";
 import Steps, { type Step } from "./Steps";
 import Veil from "./Veil";
+import ClarifySteps from "./ClarifySteps";
 import MathText from "../../MathText";
 import KrikyText from "../../KrikyText";
 
@@ -31,6 +33,21 @@ interface Question {
   text: string;
   choices: string[];
   more_choices: number;
+  /** Hai tới ba câu của một lượt hỏi nhiều câu (ADR-32); không có thì là thẻ hỏi lại một câu. */
+  questions?: ClarifyQuestion[];
+}
+
+/** Các câu của một lượt hỏi nhiều câu, đọc từ `tool_result` đã lưu; rỗng khi không phải. */
+function questionsOf(turn: Turn | undefined): ClarifyQuestion[] {
+  const raw = turn?.kind === "assistant" ? turn.tool_result?.questions : undefined;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((one): one is ClarifyQuestion => typeof one === "object" && one !== null)
+    .map((one) => ({
+      label: String(one.label ?? ""),
+      text: String(one.text ?? ""),
+      choices: Array.isArray(one.choices) ? one.choices.map(String) : [],
+    }));
 }
 
 /**
@@ -55,11 +72,14 @@ const OTHER = "Khác";
  * @returns Câu hỏi đang chờ, hoặc `null` khi không có phương án thật nào.
  */
 function questionIn(answered: Answered): Question | null {
+  const last = answered.turns[answered.turns.length - 1];
+  const several = questionsOf(last);
+  if (several.length >= 2)
+    return { text: last.text, choices: [], more_choices: 0, questions: several };
   const choices = answered.choices.filter(
     (one) => one.trim().toLowerCase() !== OTHER.toLowerCase(),
   );
   if (choices.length === 0) return null;
-  const last = answered.turns[answered.turns.length - 1];
   return {
     text: last === undefined ? "" : last.text,
     choices,
@@ -304,7 +324,11 @@ export default function Chat({
       } else {
         setAsked(question);
         // Một nút là một chuỗi của thẻ, bấm lại được; chỉ câu tự ghi mới cần được giữ hộ.
-        if (question !== null && !question.choices.includes(trimmed))
+        if (
+          question !== null &&
+          !question.questions &&
+          !question.choices.includes(trimmed)
+        )
           setOtherBack(trimmed);
       }
       let late = "Kriky chưa trả lời kịp. Chữ bạn gõ vẫn còn ở ô nhập.";
@@ -476,7 +500,16 @@ export default function Chat({
                 />
               ),
             )}
-            {asked !== null && pending === null && (
+            {asked !== null && pending === null && asked.questions && (
+              <ClarifySteps
+                key={`${asked.text}\n${asked.questions.map((one) => one.text).join("\n")}`}
+                lead={asked.text}
+                questions={asked.questions}
+                other={OTHER}
+                onSend={(said) => void send(said, "card")}
+              />
+            )}
+            {asked !== null && pending === null && !asked.questions && (
               <Clarify
                 // Câu hỏi mới thì thẻ mới: một ô "Khác" đang mở của câu trước không được sống
                 // sang câu sau.

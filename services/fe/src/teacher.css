@@ -1458,6 +1458,104 @@
   color: var(--surface);
 }
 
+/*
+ * Thẻ hỏi nhiều câu (ADR-32): variant `nhiều câu — câu k/n` (`629:20`) và `nhiều câu — tóm tắt`
+ * (`629:46`) của `Clarify request`. Nút đã chọn mang màu nhấn như variant `đã chọn`.
+ */
+.teacher .clarify .step-of {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .clarify .question {
+  margin: 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .clarify .choice.picked {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+.teacher .clarify .pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.teacher .clarify .pager button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .clarify .pager button:disabled {
+  color: var(--ink-faint);
+}
+
+.teacher .clarify .pager .send-all {
+  padding: 8px 14px;
+  border-radius: var(--radius-chip);
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.teacher .clarify .answers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teacher .clarify .answer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: inherit;
+  text-align: left;
+}
+
+.teacher .clarify .answer .what {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.teacher .clarify .answer .label {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .clarify .answer .value {
+  color: var(--ink);
+  font-size: var(--type-body);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .clarify .answer .edit {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 /* ------------------------------------------------------- thẻ kết quả hành động */
 
 /*
