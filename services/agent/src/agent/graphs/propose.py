@@ -1288,20 +1288,28 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 #   - *gì/nữa/cả/hết/đâu* ngay sau động từ (*"không cần sửa gì nữa"*);
 #   - một tiểu từ cuối câu thật, có thể kéo dài (*nhé, nha, nhen, nhaa, ạ*), *luôn/đi* đứng trước
 #     cũng được (*"khỏi sửa luôn nha"*);
-#   - chuỗi tiểu từ bất kỳ rồi hết câu hay một dấu câu (*"không cần sửa luôn cả"*).
-# *luôn/đi* trơn hay đứng giữa câu, trước *cả/hết*: lời xin sửa (*"sao không bỏ luôn cả câu 3?"*).
-# *"sao không …"* là lời gợi ý sửa, không phải lời phủ định. `\b` sau tiểu từ: *nha* không ăn đầu
-# chữ *nhanh*.
+#   - chuỗi tiểu từ bất kỳ rồi hết câu hay một dấu câu (*"không cần sửa luôn cả"*, *"khỏi sửa đi"*).
+# Sau hai hình dạng đầu, đuôi nhận thêm tiểu từ và một *thêm* cuối ý (`_TRAILING_MORE`).
+# *luôn/đi* **giữa câu**, trước *cả/hết* rồi một chữ khác, là lời xin sửa (*"sao không bỏ luôn cả
+# câu 3?"*). *"sao không …"* là lời gợi ý sửa, không phải lời phủ định. `\b` sau tiểu từ: *nha*
+# không ăn đầu chữ *nhanh*.
 #
-# Năm vòng review (pha 5) liền ra ca biên mới, nên regex này đi cùng một bộ câu có nhãn
+# Bảy vòng review (pha 5) liền ra ca biên mới, nên regex này đi cùng một bộ câu có nhãn
 # (`tests/test_revision_words.py`): sửa regex là chạy lại cả bộ. Ca biên còn lại là Tier 2 câu 5.
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
 _END_PARTICLE = r"(?:nh[éeaá]+n?|ạ+)"
 _INNER_PARTICLE = r"(?:gì[iì]*|nữa|cả|hết+|đâu)"
 _LONG_PARTICLE = r"(?:luôn|đi)"
-_ANY_PARTICLE = rf"(?:{_END_PARTICLE}|{_INNER_PARTICLE}|{_LONG_PARTICLE}|thêm)"
+# *thêm* ở đuôi chỉ khi nó cũng là cuối ý (*"không chỉnh sửa gì thêm"*): theo sau là hết câu, dấu
+# câu, hay một tiểu từ khác -- *"không cần sửa nhé thêm 1 câu"* là lời xin thêm câu (vòng 8).
+_TRAILING_MORE = (
+    rf"thêm(?=\s*(?:[,.!?;:)]|$)|\s+(?:{_END_PARTICLE}|{_INNER_PARTICLE}|{_LONG_PARTICLE})\b)"
+)
+_ANY_PARTICLE = rf"(?:{_END_PARTICLE}|{_INNER_PARTICLE}|{_LONG_PARTICLE}|{_TRAILING_MORE})"
 _NO_CHANGE = re.compile(
-    rf"(?<!\bsao\s)\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
+    # *"sao không …"* là lời gợi ý sửa, trừ *"không sao không cần sửa"* (vòng 8).
+    r"(?<!(?<!\bkhông\s)(?<!\bko\s)\bsao\s)"
+    rf"\b(?:không|ko|k|hok|hông|khỏi|chẳng|chả)\s+(?:cần\s+|phải\s+)?{_CHANGE_VERB}"
     rf"(?:\s+{_CHANGE_VERB})?"
     rf"(?:(?:\s+{_INNER_PARTICLE}\b)+(?:\s+{_ANY_PARTICLE}\b)*"
     rf"|(?:\s+{_LONG_PARTICLE}\b)*(?:\s+{_END_PARTICLE}\b)+(?:\s+{_ANY_PARTICLE}\b)*"
