@@ -83,7 +83,8 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
   khác cách hỏi. Mỗi lần tối đa 10 câu. text là CẢ LỜI bạn trình bày dàn ý cho giáo viên, bằng
   Markdown và bằng lời của bạn: mỗi mục nêu số câu của nó (**Câu k** hay **Câu k–m**, đánh số từ câu
   đầu tiên của dàn ý), kiến thức, ít nhất một công thức của mục trong cặp $ khi mục có công thức,
-  cách làm, và bài nguồn khi có sách. Công thức là bạn đề xuất, đừng gọi là công thức của sách.
+  cách làm, và bài nguồn khi có sách -- gọi bằng tên bài, không bao giờ bằng số node. Công thức là
+  bạn đề xuất, đừng gọi là công thức của sách.
   Kết bằng một câu hỏi bạn tự viết, xin giáo viên đồng ý hay nói chỗ cần đổi. Lời phải khớp đúng
   các mục trong outline, vì các mục mới là thứ được soạn. tool_args: for = new (đề mới), more
   (soạn thêm cho đề đang có) hoặc replace (thay một câu: một mục một câu, kèm question = số câu

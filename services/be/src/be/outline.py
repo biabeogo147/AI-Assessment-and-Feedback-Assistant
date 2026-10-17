@@ -79,6 +79,10 @@ _QUESTION_NUMBER = re.compile(
 # Những thứ hai cách viết cùng một công thức hay khác nhau (review pha 4): ngoặc nhóm, cỡ ngoặc,
 # kiểu dựng, dấu nhân. `a^2` và `a^{2}`, `\dfrac` và `\frac`, `(n-1)d` và `(n-1) \cdot d` là một.
 _NOISE = re.compile(r"\\(?:left|right|displaystyle|cdot|times)|[{}$\s]")
+# Số node là định danh máy (luật 7 của bộ thử tay): *"(node 1, 3, 6, 17)"*, *"node 5"*. Thử tay
+# 17/10/2026 (`kriky-writes-every-word`): từ khi Kriky tự viết lời dàn ý, model chép `source_nodes`
+# vào lời ở cả ba lượt dàn ý theo sách -- trước ADR-30, dòng `Theo:` BE dựng in nhãn bài, không số.
+_NODE_NUMBER = re.compile(r"\bnodes?\s*[:#]?\s*\d", re.IGNORECASE)
 
 
 def _flat(formula: str) -> str:
@@ -91,13 +95,14 @@ def check_message(text: str, items: Sequence[OutlineItem], *, first: int = 1) ->
     """Lời Kriky trình bày dàn ý có khớp các mục không -- **đối chiếu nhẹ** (ADR-30). Hàm thuần.
 
     Nhẹ có chủ ý (ADR-30): lời được diễn đạt lại, nên chỉ bắt những lệch làm giáo viên duyệt nhầm
-    một đề khác -- sai đánh số, mất hẳn công thức. Bốn tiêu chí:
+    một đề khác -- sai đánh số, mất hẳn công thức, lộ định danh máy. Năm tiêu chí:
 
     - lời nhắc tới **Câu m** -- câu đầu của mỗi mục -- nên giáo viên đọc được câu nào hỏi gì;
     - lời không nhắc câu nào **sau** câu cuối của dàn ý. Câu trước câu đầu thì được: soạn thêm hay
       thay câu nói về câu đã có của đề (*"đề đang có câu 1–5"*);
     - mỗi mục có công thức thì lời có ít nhất **một** công thức của nó;
-    - lời có ít nhất một câu hỏi, để giáo viên biết mình đang được hỏi ý.
+    - lời có ít nhất một câu hỏi, để giáo viên biết mình đang được hỏi ý;
+    - lời không in số node: bài nguồn gọi bằng tên của nó.
 
     Kiến thức, cách làm và tên bài không bị so: lời được diễn đạt lại.
 
@@ -136,6 +141,8 @@ def check_message(text: str, items: Sequence[OutlineItem], *, first: int = 1) ->
             return f"lời chưa có công thức nào của mục {index}; nêu ít nhất một, trong cặp $"
     if "?" not in text:
         return "lời chưa hỏi giáo viên có đồng ý dàn ý không"
+    if _NODE_NUMBER.search(text):
+        return "lời in số node: giáo viên không đọc được số ấy, gọi bài nguồn bằng tên bài"
     return None
 
 

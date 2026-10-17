@@ -111,6 +111,16 @@ def test_a_message_in_kriky_s_own_words_passes() -> None:
         ),
         ("Câu 1: $a + b \\cdot c$. Câu 2–3: $a^m : a^n = a^{m-n}$.", "hỏi"),
         ("   ", "trống"),
+        # Thử tay 17/10/2026: số node chép từ `source_nodes` vào lời (luật 7).
+        (
+            "Câu 1: $a + b \\cdot c$. Câu 2–3: $a^m : a^n = a^{m-n}$. Bài nguồn: mục 2 (node 5). "
+            "Ổn chứ?",
+            "số node",
+        ),
+        (
+            "Câu 1: $a + b \\cdot c$. Câu 2–3: $a^m : a^n = a^{m-n}$ (nodes 14, 15). Ổn chứ?",
+            "số node",
+        ),
     ],
 )
 def test_a_message_that_drifts_from_its_items_goes_back_to_the_model(said: str, why: str) -> None:
