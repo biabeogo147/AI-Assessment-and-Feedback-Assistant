@@ -366,6 +366,8 @@ async def test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck(stack
     body = reply.json()
     assert body["text"] == notices.PLAN_REFUSED
     assert body["turns"][-1]["kind"] == "notice"
+    # Cùng một lý do hai lần liền là dừng: không gọi model tới trần cho cùng một câu thông báo.
+    assert len(agent.asked) == 2
 
 
 @pytest.mark.asyncio

@@ -2275,8 +2275,11 @@ async def _go(
 
     # ---------------------------------------------------------------- pha 1: lên plan
     # Thông báo cho mức trần khi bước cuối là một plan bị từ chối: nói đúng chỗ vướng thay cho câu
-    # trần chung (review pha 5, `kriky-writes-every-word`).
+    # trần chung (review pha 5, `kriky-writes-every-word`). Và lý do từ chối lần trước: model nghe
+    # cùng một lý do hai lần liền mà vẫn nêu lại plan ấy thì nó đang kẹt -- thử tay 17/10/2026 thấy
+    # nó nêu tám lần, tám lần gọi model cho cùng một câu thông báo. Lần thứ hai là dừng.
     stuck = ""
+    refused = ""
     while taken < allowed:
         taken += 1
         if asyncio.get_running_loop().time() >= deadline:
@@ -2403,6 +2406,9 @@ async def _go(
                     TurnRecord(kind="tool_result", tool_name="plan", tool_result={"error": guarded})
                 )
                 stuck = PLAN_REFUSED
+                if guarded == refused:
+                    break
+                refused = guarded
                 continue
             step = step.model_copy(update={"steps": guarded[0]})
             outline = guarded[1]
@@ -2458,9 +2464,13 @@ async def _go(
             history.append(
                 TurnRecord(kind="tool_result", tool_name="plan", tool_result={"error": why})
             )
+            if why == refused:
+                break
+            refused = why
             continue
 
         stuck = ""
+        refused = ""
         history.append(
             TurnRecord(kind="tool_call", tool_name=step.tool_name, tool_args=step.tool_args)
         )

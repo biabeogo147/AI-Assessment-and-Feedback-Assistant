@@ -131,4 +131,28 @@ describe("KrikyText", () => {
     expect(container.querySelector("p, ul, li, h1")).toBeNull();
     expect(container.querySelector("strong")?.textContent).toBe("khối");
   });
+
+  it("lời trong một dòng giữ mỗi đoạn, mỗi mục trên một dòng riêng, mục có dấu của nó", () => {
+    // Thử tay 17/10/2026: gỡ thẳng danh sách làm các mục dính liền nhau trong tiêu đề thẻ.
+    const { container } = render(
+      <h3>
+        <KrikyText inline>{"Bạn cho mình biết:\n\n- **Khối** nào?\n- Số câu?\n\n1. Một\n2. Hai"}</KrikyText>
+      </h3>,
+    );
+    const shown = [...container.querySelectorAll(".line")];
+    expect(shown.map((one) => one.textContent)).toEqual([
+      "Bạn cho mình biết:",
+      "Khối nào?",
+      "Số câu?",
+      "Một",
+      "Hai",
+    ]);
+    expect(shown.map((one) => one.getAttribute("data-marker"))).toEqual([
+      null,
+      "•",
+      "•",
+      "1.",
+      "2.",
+    ]);
+  });
 });

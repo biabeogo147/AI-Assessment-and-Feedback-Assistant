@@ -741,6 +741,24 @@ button:disabled {
   font-weight: 600;
 }
 
+/*
+ * Lời trong một dòng (tiêu đề thẻ hỏi lại, `KrikyText inline`): mỗi đoạn, mỗi mục một dòng, cùng cỡ
+ * chữ của dòng chứa nó; mục danh sách có dấu của nó, như danh sách của lời Kriky thường.
+ */
+.kriky-text .line {
+  display: block;
+  white-space: pre-line;
+}
+
+.kriky-text .line[data-marker]::before {
+  content: attr(data-marker) " ";
+}
+
+/* Cùng nhịp với lời Kriky thường: 8px giữa các khối (`> * + *`), 4px giữa hai mục (`li + li`). */
+.kriky-text .line[data-marker] + .line[data-marker] {
+  margin-top: 4px;
+}
+
 /* Lời chat không có tiêu đề lớn: mọi cấp tiêu đề là chữ thân đậm. */
 .kriky-text h1,
 .kriky-text h2,

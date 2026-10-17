@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { drawn, pieces } from "./MathText";
@@ -21,8 +20,10 @@ import { drawn, pieces } from "./MathText";
  * `dangerouslySetInnerHTML`, như ở `MathText`.
  *
  * @param children - Lời Kriky, đúng như API trả.
- * @param inline - Lời nằm trong một phần tử dòng (tiêu đề thẻ hỏi lại): chỉ giữ định dạng trong
- *   dòng, vì một `<h3>` không được chứa đoạn văn, danh sách hay tiêu đề.
+ * @param inline - Lời nằm trong một phần tử dòng (tiêu đề thẻ hỏi lại): một `<h3>` không được chứa
+ *   đoạn văn, danh sách hay tiêu đề, nên mỗi đoạn, mỗi mục, mỗi tiêu đề thành một `span.line` đứng
+ *   riêng một dòng, mục danh sách mang dấu `•` hay số của nó (`toLines`). Gỡ thẳng chúng thì các mục
+ *   dính liền nhau: *"nhé:**Khối** nào?…)**Số câu**…"* (thử tay 17/10/2026).
  */
 export default function KrikyText({
   children,
@@ -67,14 +68,12 @@ export default function KrikyText({
       );
     },
   };
-  if (inline) components.p = ({ children: inside }) => <>{inside as ReactNode}</>;
-
   const Wrap = inline ? "span" : "div";
   return (
     <Wrap className="kriky-text">
       <Markdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[withMath]}
+        rehypePlugins={inline ? [withMath, toLines] : [withMath]}
         components={components}
         allowedElements={inline ? INLINE : undefined}
         unwrapDisallowed={inline}
@@ -92,7 +91,10 @@ const HOLE = /\uE000(\d+)\uE001/g;
 const STRAY = /[\uE000\uE001]/g;
 
 /** Phần tử giữ được khi lời nằm trong một dòng; mọi thứ khác bị gỡ, chữ bên trong ở lại. */
-const INLINE = ["p", "strong", "em", "del", "code", "span", "a", "br"];
+const INLINE = ["strong", "em", "del", "code", "span", "a", "br"];
+
+/** Khối thành một dòng khi lời nằm trong một dòng (`toLines`). */
+const LINES = new Set(["p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote"]);
 
 interface HastNode {
   type: string;
@@ -113,6 +115,40 @@ function withMath() {
   return (tree: HastNode) => {
     fill(tree);
   };
+}
+
+/**
+ * Plugin rehype cho lời trong một dòng: mỗi khối thành `span.line`, và mục danh sách mang
+ * `data-marker` — `•` cho danh sách gạch đầu dòng, `k.` cho danh sách đánh số (tính từ `start`).
+ * Danh sách bọc ngoài bị gỡ sau đó (`unwrapDisallowed`), các dòng ở lại.
+ */
+function toLines() {
+  return (tree: HastNode) => {
+    lines(tree);
+  };
+}
+
+function lines(node: HastNode): void {
+  for (const child of node.children ?? []) {
+    if (child.type !== "element") continue;
+    if (child.tagName === "ul" || child.tagName === "ol") {
+      const start = Number(child.properties?.start ?? 1);
+      let index = 0;
+      for (const item of child.children ?? []) {
+        if (item.type !== "element" || item.tagName !== "li") continue;
+        item.properties = {
+          ...item.properties,
+          dataMarker: child.tagName === "ol" ? `${start + index}.` : "•",
+        };
+        index += 1;
+      }
+    }
+    lines(child);
+    if (child.tagName !== undefined && LINES.has(child.tagName)) {
+      child.tagName = "span";
+      child.properties = { ...child.properties, className: ["line"] };
+    }
+  }
 }
 
 function fill(node: HastNode): void {
