@@ -64,10 +64,12 @@ from contracts.index import (
     node_key,
 )
 from contracts.teacher_chat import (
+    MOST_CLARIFY_QUESTIONS,
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
     REPORT_PLAN_TASK,
     AttachedDocument,
+    ClarifyQuestion,
     ConversationNameCompleted,
     ConversationNameRequested,
     NextStepCompleted,
@@ -132,6 +134,8 @@ __all__ = [
     "NextStepCompleted",
     "NextStepRequested",
     "OutlineItem",
+    "ClarifyQuestion",
+    "MOST_CLARIFY_QUESTIONS",
     "AttachedDocument",
     "RetryQuestionCompleted",
     "RetryQuestionRequested",

@@ -43,6 +43,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from agent import llm, skill_router, skills
 from agent.latex_escapes import restore_latex_escapes
 from contracts import (
+    MOST_CLARIFY_QUESTIONS,
+    ClarifyQuestion,
     NextStepCompleted,
     NextStepRequested,
     OutlineItem,
@@ -73,7 +75,11 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
   "bạn có cần…", "mình đặt tên nhé?" — KHÔNG BAO GIỜ là ask_clarify: nó không lấp một chỗ trống
   nào, nó chỉ bắt giáo viên gõ thêm một lượt. Nếu bạn định hỏi một câu mà câu trả lời "tuỳ bạn"
   cũng xong việc, thì đừng hỏi, cứ làm. Hỏi thì kèm ít nhất 3 lựa chọn trong choices; hệ thống tự
-  thêm "Khác". Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở.
+  thêm "Khác". Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở. Cần hỏi 2 hoặc 3 điều cùng
+  lúc thì dùng questions — mỗi điều một câu, có label ngắn (1–3 chữ, như "Khối", "Số câu"), text là
+  câu hỏi, choices ít nhất 3 lựa chọn của riêng điều ấy; khi ấy text của bạn là một câu mở ngắn và
+  choices để trống. Giáo viên trả lời cả mấy câu trong một tin, dạng "Khối: Khối 7 · Số câu: 5 câu".
+  Hỏi về một lớp, một tài liệu hay một mục thì chỉ hỏi một câu.
 - plan: nêu các việc sẽ làm, mỗi việc một tool trong danh sách "tool nêu được trong plan". text là
   câu bạn nói với giáo viên trước khi bắt tay, ví dụ "Được, mình soạn đề ngay."
 - outline: đề xuất DÀN Ý đề cho giáo viên duyệt, TRƯỚC khi soạn câu hỏi. Mỗi mục trong outline:
@@ -473,6 +479,16 @@ class _WrongQuestion(_Flawed):
     )
 
 
+class _TooManyQuestions(_Flawed):
+    """Model hỏi hơn `MOST_CLARIFY_QUESTIONS` câu một lượt (ADR-32). Đề nghị mang theo đã giữ đủ
+    trần -- lần hai vẫn vậy thì ba câu đầu đi tiếp."""
+
+    hint = (
+        f"Một lượt hỏi lại có nhiều nhất {MOST_CLARIFY_QUESTIONS} câu. Gộp hay bỏ bớt câu, giữ "
+        "những điều giáo viên thật sự phải trả lời."
+    )
+
+
 class _FewChoices(_Flawed):
     """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (`unbiased-model-text` T3: ít nhất
     3)."""
@@ -845,7 +861,7 @@ def _which_book(step: NextStepCompleted, request: NextStepRequested) -> NextStep
     last = spoken[-1] if spoken else None
     if last is None or last.kind != "tool_result" or last.tool_name != "list_documents":
         return step
-    if _asks_which_book(step.text, listed):
+    if _asks_which_book(" ".join([step.text, *(one.text for one in step.questions)]), listed):
         return step
     raise _WrongQuestion("asked something else right after listing the documents", step)
 
@@ -1215,6 +1231,21 @@ def _unmangled(proposal: "_Proposal") -> "_Proposal":
     )
 
 
+class _Question(BaseModel):
+    """Một câu của một lượt hỏi lại nhiều câu (ADR-32), dưới hình dạng model trả lời được."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(
+        description="Nhãn ngắn 1–3 chữ của điều được hỏi, như Khối, Số câu, Phạm vi."
+    )
+    text: str = Field(description="Câu hỏi.")
+    choices: tuple[str, ...] = Field(
+        default=(),
+        description="Ít nhất 3 câu trả lời ngắn giáo viên có thể bấm cho riêng câu này.",
+    )
+
+
 class _Proposal(BaseModel):
     """Đúng những gì model được hỏi -- và không gì khác.
 
@@ -1282,9 +1313,45 @@ class _Proposal(BaseModel):
             "trong kết quả tool. Không đánh dấu lựa chọn nào là nên chọn. Các kind khác để trống."
         ),
     )
+    # ADR-32: hỏi 2–3 điều cùng lúc, mỗi điều một bộ nút. Đứng sau `choices`: một câu hỏi vẫn là
+    # đường thường gặp, và hai đường đặt cạnh nhau để model thấy chúng loại trừ nhau.
+    questions: tuple[_Question, ...] = Field(
+        default=(),
+        description=(
+            "Chỉ với ask_clarify, khi cần hỏi 2 hoặc 3 điều cùng lúc: mỗi điều một câu. Khi dùng "
+            "questions thì text là một câu mở ngắn và choices để trống. Hỏi một điều thì để trống."
+        ),
+    )
     tool_name: str = ""
     tool_args: tuple[_Argument, ...] = ()
     steps: tuple[_Step, ...] = ()
+
+    def asked(self) -> tuple[tuple[ClarifyQuestion, ...], str, tuple[str, ...]]:
+        """Các câu, lời mở và nút của một lượt hỏi lại, đã quy về hợp đồng (ADR-32). Hàm thuần.
+
+        Hai câu trở lên đi thành `questions` (tối đa `MOST_CLARIFY_QUESTIONS`, phần dư bỏ --
+        `_choose` đã hỏi lại model khi có dư). Một câu thì là câu hỏi lại thường: lời mở và câu hỏi
+        gộp làm `text`, nút của câu thành `choices`.
+
+        Returns:
+            `(questions, text, choices)`.
+        """
+        made = tuple(
+            ClarifyQuestion(
+                label=_nfc(one.label).strip() or "Câu hỏi",
+                text=_nfc(one.text).strip() or _nfc(one.label).strip() or "?",
+                choices=tuple(_nfc(choice) for choice in one.choices),
+            )
+            for one in self.questions
+            if one.text.strip() or one.label.strip()
+        )
+        if len(made) >= 2:
+            return made[:MOST_CLARIFY_QUESTIONS], _nfc(self.text), ()
+        if len(made) == 1:
+            lead = _nfc(self.text).strip()
+            joined = f"{lead}\n\n{made[0].text}" if lead and lead != made[0].text else made[0].text
+            return (), joined, made[0].choices or tuple(_nfc(one) for one in self.choices)
+        return (), _nfc(self.text), tuple(_nfc(one) for one in self.choices)
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
         """Biến câu trả lời của model thành message BE đọc.
@@ -1307,10 +1374,13 @@ class _Proposal(BaseModel):
         # NFC cho mọi chữ model viết (`unbiased-model-text` T3): gpt-4o-mini có lúc trả "ứ" ở dạng
         # phân rã -- "ư" + dấu sắc rời (run-57) -- và chữ ấy không khớp nhãn BE, lời giáo viên hay
         # `bind_book`, dù in ra trông y hệt.
+        questions, text, choices = (
+            self.asked() if self.kind == "ask_clarify" else ((), _nfc(self.text), ())
+        )
         return NextStepCompleted(
             request_id=request_id,
             kind=self.kind,
-            text=_nfc(self.text),
+            text=text,
             tool_name=self.tool_name,
             tool_args={argument.param: _nfc(argument.value) for argument in self.tool_args},
             steps=tuple(
@@ -1323,7 +1393,8 @@ class _Proposal(BaseModel):
             )
             if self.kind == "plan"
             else (),
-            choices=tuple(_nfc(one) for one in self.choices) if self.kind == "ask_clarify" else (),
+            choices=choices,
+            questions=questions,
             outline=tuple(
                 OutlineItem(
                     questions=item.questions,
@@ -1478,7 +1549,7 @@ def _compose(state: ProposeState) -> dict:
         if turn.kind == "teacher":
             messages.append(HumanMessage(turn.text))
         elif turn.kind == "assistant":
-            messages.append(AIMessage(turn.text))
+            messages.append(AIMessage(_asked_back(turn)))
         elif turn.kind == "tool_call":
             args = json.dumps(turn.tool_args, ensure_ascii=False, sort_keys=True)
             messages.append(AIMessage(f"Mình xin gọi {turn.tool_name} với {args}."))
@@ -1496,6 +1567,27 @@ def _compose(state: ProposeState) -> dict:
         messages.append(HumanMessage(f"(Ghi chú của hệ thống: {state['hint']})"))
 
     return {"messages": messages}
+
+
+def _asked_back(turn: TurnRecord) -> str:
+    """Lời của một lượt Kriky trong lịch sử, kèm các câu nếu đó là lượt hỏi nhiều câu (ADR-32).
+    Hàm thuần.
+
+    Câu trả lời gộp của giáo viên (*"Khối: Khối 7 · Số câu: 5 câu"*) chỉ đọc được khi model thấy lại
+    chính các câu nó đã hỏi; lời mở một mình không nói câu nào hỏi gì.
+    """
+    asked = (turn.tool_result or {}).get("questions")
+    if not isinstance(asked, list) or not asked:
+        return turn.text
+    lines = [turn.text.strip()] if turn.text.strip() else []
+    for index, one in enumerate(asked, start=1):
+        if not isinstance(one, dict):
+            continue
+        choices = "; ".join(str(choice) for choice in one.get("choices") or [])
+        lines.append(
+            f"{index}. {one.get('label', '')}: {one.get('text', '')} (lựa chọn: {choices})"
+        )
+    return "\n".join(lines)
 
 
 def _outline_items(turn: TurnRecord) -> str:
@@ -1649,7 +1741,19 @@ async def _choose(state: ProposeState) -> dict:
         miscounted = _miscounted(step, proposal.known)
         if miscounted:
             raise _UncountedOutline(miscounted, step)
-    if step.kind == "ask_clarify":
+    if step.kind == "ask_clarify" and step.questions:
+        # ADR-32: mỗi câu một bộ nút, cùng lưới với câu hỏi thường -- từng câu đủ lựa chọn thật.
+        kept = tuple(
+            one.model_copy(update={"choices": _answers(one.choices, one.text)})
+            for one in step.questions
+        )
+        step = step.model_copy(update={"questions": kept})
+        if len(proposal.questions) > MOST_CLARIFY_QUESTIONS:
+            raise _TooManyQuestions(f"{len(proposal.questions)} questions", step)
+        few = [one.label for one in kept if len(one.choices) < 3]
+        if few:
+            raise _FewChoices(f"too few choices for {few}", step)
+    elif step.kind == "ask_clarify":
         # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`_answers`) -- bấm
         # chúng là gửi đi một thứ không trả lời gì.
         answers = _answers(step.choices, step.text)

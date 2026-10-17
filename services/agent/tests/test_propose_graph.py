@@ -25,6 +25,7 @@ from agent.graphs.propose import (
     _asks_which_book,
     _choices_wanted,
     _Proposal,
+    _Question,
     _Step,
     propose,
 )
@@ -1589,3 +1590,92 @@ async def test_the_prompt_is_where_adr_23_reaches_the_real_model(
     assert "choices" in prompt
     # Và `more` có một đường ra, không chỉ một lời thừa nhận.
     assert "more" in prompt and "name" in prompt
+
+
+# ------------------------------------------------------------------ hỏi nhiều câu (ADR-32)
+
+_KHOI = _Question(
+    label="Khối", text="Đề dành cho khối nào?", choices=("Khối 6", "Khối 7", "Khối 8")
+)
+_SO_CAU = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu", "15 câu"))
+_PHAM_VI = _Question(label="Phạm vi", text="Phần nào?", choices=("Tỉ lệ thức", "Hàm số", "Đạo hàm"))
+
+
+def _several(*questions: _Question) -> _Proposal:
+    return _Proposal(kind="ask_clarify", text="Mình cần biết thêm mấy điều:", questions=questions)
+
+
+@pytest.mark.asyncio
+async def test_two_or_three_things_are_asked_as_questions_each_with_its_buttons(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    model = Scripted([_several(_KHOI, _SO_CAU, _PHAM_VI)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mai mình cần một cái đề"))
+
+    assert step.kind == "ask_clarify"
+    assert step.text == "Mình cần biết thêm mấy điều:"
+    assert step.choices == ()
+    assert [one.label for one in step.questions] == ["Khối", "Số câu", "Phạm vi"]
+    assert step.questions[1].choices == ("5 câu", "10 câu", "15 câu")
+
+
+@pytest.mark.asyncio
+async def test_a_question_among_several_with_too_few_choices_is_asked_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    thin = _Question(label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "Khác"))
+    model = Scripted([_several(_KHOI, thin), _several(_KHOI, _SO_CAU)])
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mai mình cần một cái đề"))
+
+    assert len(model.prompts) == 2
+    assert step.questions[1].choices == ("5 câu", "10 câu", "15 câu")
+
+
+@pytest.mark.asyncio
+async def test_more_than_three_questions_is_asked_again_with_the_reason(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    extra = _Question(label="Độ khó", text="Mức độ?", choices=("Dễ", "Vừa", "Khó"))
+    model = Scripted([_several(_KHOI, _SO_CAU, _PHAM_VI, extra)] * 2)
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("mai mình cần một cái đề"))
+
+    assert len(model.prompts) == 2
+    assert "nhiều nhất 3 câu" in model.prompts[1]
+    # Lần hai vẫn bốn câu thì ba câu đầu đi tiếp: hợp đồng không nhận quá trần.
+    assert [one.label for one in step.questions] == ["Khối", "Số câu", "Phạm vi"]
+
+
+def test_a_single_question_in_the_list_is_an_ordinary_question_back() -> None:
+    step = _several(_KHOI).completed(request_id="r1", model_tokens=0)
+
+    assert step.questions == ()
+    assert step.text == "Mình cần biết thêm mấy điều:\n\nĐề dành cho khối nào?"
+    assert step.choices == ("Khối 6", "Khối 7", "Khối 8")
+
+
+def test_the_questions_asked_go_back_into_history_so_the_merged_answer_reads() -> None:
+    """Câu trả lời gộp chỉ đọc được khi model thấy lại chính các câu nó đã hỏi."""
+    from agent.graphs.propose import _asked_back
+
+    turn = TurnRecord(
+        kind="assistant",
+        text="Mình cần biết thêm:",
+        tool_result={
+            "questions": [
+                {"label": "Khối", "text": "Khối nào?", "choices": ["Khối 6", "Khối 7"]},
+                {"label": "Số câu", "text": "Bao nhiêu câu?", "choices": ["5 câu"]},
+            ]
+        },
+    )
+
+    said = _asked_back(turn)
+
+    assert said.startswith("Mình cần biết thêm:")
+    assert "1. Khối: Khối nào? (lựa chọn: Khối 6; Khối 7)" in said
+    assert "2. Số câu: Bao nhiêu câu?" in said

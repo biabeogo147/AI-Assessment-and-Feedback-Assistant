@@ -40,6 +40,7 @@ from contracts import (
     NAME_CONVERSATION_TASK,
     REPORT_PLAN_TASK,
     BlockRef,
+    ClarifyQuestion,
     ConversationNameCompleted,
     DocumentState,
     DraftQuestionCompleted,
@@ -541,6 +542,78 @@ async def test_the_options_are_written_by_be_not_by_the_model(stack) -> None:
     assert body["more_choices"] == 0
     # Câu hỏi thì vẫn là lời của model. Nó viết câu hỏi; BE viết các câu trả lời.
     assert body["text"] == "Bạn muốn xem lớp nào?"
+
+
+_KHOI = ClarifyQuestion(label="Khối", text="Khối nào?", choices=("Khối 6", "Khối 7", "Khối 8"))
+_SO_CAU = ClarifyQuestion(
+    label="Số câu", text="Bao nhiêu câu?", choices=("5 câu", "10 câu", "Khác")
+)
+
+
+@pytest.mark.asyncio
+async def test_a_question_back_with_several_questions_is_kept_and_read_back(stack) -> None:
+    """ADR-32: các câu lưu cùng lượt hỏi, đọc lại sau F5 còn nguyên, mỗi câu nút của riêng nó;
+    "Khác" không thành nút (FE tự vẽ lối ấy)."""
+    client, _, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(
+            request_id="x",
+            kind="ask_clarify",
+            text="Mình cần biết thêm hai điều:",
+            questions=(_KHOI, _SO_CAU),
+        )
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn đề"}, headers=TEACHER
+    )
+    read = await client.get(
+        f"/api/teacher/chat?conversation_id={reply.json()['conversation_id']}", headers=TEACHER
+    )
+
+    body = reply.json()
+    assert body["kind"] == "ask_clarify"
+    assert body["text"] == "Mình cần biết thêm hai điều:"
+    assert body["choices"] == []
+    last = read.json()["turns"][-1]
+    assert last["kind"] == "assistant"
+    assert last["tool_result"]["questions"] == [
+        {"label": "Khối", "text": "Khối nào?", "choices": ["Khối 6", "Khối 7", "Khối 8"]},
+        {"label": "Số câu", "text": "Bao nhiêu câu?", "choices": ["5 câu", "10 câu"]},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_question_about_a_row_keeps_one_question_with_be_labels(stack) -> None:
+    """ADR-32 + ADR-23: nút về một dòng là mọi nhãn BE dựng, và chúng chỉ trả lời được một câu."""
+    client, maker, monkeypatch = stack
+    async with maker() as session:
+        mine = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        session.add(SchoolClass(teacher_id=mine.id, name="12B"))
+        await session.commit()
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="list_class", tool_args={}),
+        NextStepCompleted(
+            request_id="x",
+            kind="ask_clarify",
+            text="Mình cần biết:",
+            questions=(
+                ClarifyQuestion(label="Lớp", text="Lớp nào?", choices=("12A", "12B", "12C")),
+                _SO_CAU,
+            ),
+        ),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "lớp 12 thế nào"}, headers=TEACHER
+    )
+
+    body = reply.json()
+    assert body["text"] == "Mình cần biết:\n\nLớp nào?"
+    assert body["choices"][:2] == ["12A (3 học sinh)", "12B (0 học sinh)"]
+    assert body["turns"][-1]["tool_result"] == {}
 
 
 @pytest.mark.asyncio

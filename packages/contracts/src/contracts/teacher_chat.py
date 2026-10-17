@@ -115,6 +115,27 @@ class OutlineItem(BaseModel):
     source_nodes: tuple[int, ...] = ()
 
 
+class ClarifyQuestion(BaseModel):
+    """Một câu của một lượt hỏi lại nhiều câu (ADR-32).
+
+    Attributes:
+        label: Nhãn ngắn của điều được hỏi -- *"Khối"*, *"Số câu"* --, đi đầu câu trả lời gộp
+            *"Khối: Khối 7 · Số câu: 5 câu"*.
+        text: Câu hỏi.
+        choices: Các câu trả lời bấm được. BE dựng nút từ chúng như với một câu hỏi lại thường.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    choices: tuple[str, ...] = ()
+
+
+# Trần số câu một lượt hỏi lại (ADR-32).
+MOST_CLARIFY_QUESTIONS = 3
+
+
 class TurnRecord(BaseModel):
     """Một việc đã xảy ra trong cuộc hội thoại này.
 
@@ -242,6 +263,10 @@ class NextStepCompleted(BaseModel):
     choices: tuple[str, ...] = ()
     steps: tuple[PlanStep, ...] = ()
     outline: tuple[OutlineItem, ...] = ()
+    # Hỏi lại nhiều câu một lượt (ADR-32): 2 tới `MOST_CLARIFY_QUESTIONS` câu, chỉ với
+    # `ask_clarify`. Khi có, `text` là lời mở của Kriky và `choices` rỗng -- mỗi câu chở nút của
+    # riêng nó.
+    questions: tuple[ClarifyQuestion, ...] = ()
     # `say` này là thông báo của **hệ thống**, không phải lời Kriky (ADR-30, ngoại lệ 1,
     # `kriky-writes-every-word`): model không trả lời được, nên AGENT nói một câu cố định, và BE lưu
     # nó thành lượt `notice`. Chỉ đi với `say`.
@@ -282,6 +307,12 @@ class NextStepCompleted(BaseModel):
             raise ValueError("only kind='outline' may carry outline items")
         if self.notice and self.kind != "say":
             raise ValueError("only kind='say' may be a system notice")
+        if self.questions and self.kind != "ask_clarify":
+            raise ValueError("only kind='ask_clarify' may carry questions")
+        if self.questions and not 2 <= len(self.questions) <= MOST_CLARIFY_QUESTIONS:
+            raise ValueError(f"questions are 2 to {MOST_CLARIFY_QUESTIONS}, or none")
+        if self.questions and self.choices:
+            raise ValueError("with questions, each question carries its own choices")
         return self
 
 

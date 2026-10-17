@@ -121,3 +121,29 @@ def test_only_a_say_is_a_system_notice() -> None:
     assert NextStepCompleted(request_id="r1", kind="say", text="x", notice=True).notice
     with pytest.raises(ValidationError):
         NextStepCompleted(request_id="r1", kind="ask_clarify", text="x?", notice=True)
+
+
+def test_a_question_back_carries_two_to_three_questions_or_none() -> None:
+    """ADR-32: tối đa ba câu một lượt; một câu thì là câu hỏi lại thường, không phải danh sách."""
+    from contracts import ClarifyQuestion
+
+    one = ClarifyQuestion(label="Khối", text="Khối nào?", choices=("Khối 6", "Khối 7", "Khối 8"))
+    asked = NextStepCompleted(
+        request_id="r1", kind="ask_clarify", text="Cho mình biết:", questions=(one, one)
+    )
+    assert len(asked.questions) == 2
+    for wrong in ((one,), (one, one, one, one)):
+        with pytest.raises(ValidationError):
+            NextStepCompleted(request_id="r1", kind="ask_clarify", text="x", questions=wrong)
+
+
+def test_only_a_question_back_carries_questions_and_each_brings_its_own_choices() -> None:
+    from contracts import ClarifyQuestion
+
+    one = ClarifyQuestion(label="Khối", text="Khối nào?", choices=("Khối 6", "Khối 7", "Khối 8"))
+    with pytest.raises(ValidationError):
+        NextStepCompleted(request_id="r1", kind="say", text="x", questions=(one, one))
+    with pytest.raises(ValidationError):
+        NextStepCompleted(
+            request_id="r1", kind="ask_clarify", text="x", choices=("a",), questions=(one, one)
+        )

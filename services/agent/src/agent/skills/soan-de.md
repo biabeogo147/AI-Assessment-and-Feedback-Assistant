@@ -30,8 +30,9 @@ không phải nhờ soạn.
    ?. Mục nào đã có hoặc suy được là đã có -- dùng luôn,
    không hỏi để xác nhận. Chỉ mục ghi ? mới được hỏi:
    {thư viện}
-   - còn ? → ask_clarify một lần, hỏi đúng những mục ghi ?; choices là những giá trị giáo viên
-     có thể chọn cho MỘT mục ghi ? (khối trước, rồi số câu, rồi phạm vi);
+   - còn ? → ask_clarify một lần, hỏi đúng những mục ghi ?. Một mục ghi ? thì một câu với
+     choices; hai hay ba mục thì questions — mỗi mục một câu, label ngắn (Khối, Số câu, Phạm vi),
+     mỗi câu ít nhất 3 lựa chọn (khối trước, rồi số câu, rồi phạm vi; tối đa 3 câu);
    - không còn ? → NÊU DÀN Ý NGAY (outline, for=new), tổng số câu đúng question_count; text là
      lời bạn trình bày dàn ý, kết bằng câu hỏi xin đồng ý.
 

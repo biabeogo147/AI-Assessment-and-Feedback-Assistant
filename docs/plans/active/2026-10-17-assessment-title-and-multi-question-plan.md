@@ -67,12 +67,12 @@ Người dùng chốt:
 - [x] 9. Vitest. Commit.
 
 ### Pha 4 — Nhiều câu hỏi: hợp đồng, AGENT, BE
-- [ ] 10. Contracts `ClarifyQuestion{label, text, choices}`, `NextStepCompleted.questions` (0 hoặc 2–3,
+- [x] 10. Contracts `ClarifyQuestion{label, text, choices}`, `NextStepCompleted.questions` (0 hoặc 2–3,
   chỉ `ask_clarify`).
-- [ ] 11. AGENT: `_Proposal.questions`, prompt và skill `soan-de`, lưới từng câu, `_compose`.
-- [ ] 12. BE `_go`: nút từng câu; câu về một dòng (ADR-23) chỉ một câu; lưu `tool_result.questions`;
+- [x] 11. AGENT: `_Proposal.questions`, prompt và skill `soan-de`, lưới từng câu, `_compose`.
+- [x] 12. BE `_go`: nút từng câu; câu về một dòng (ADR-23) chỉ một câu; lưu `tool_result.questions`;
   sự kiện `clarify` và `Answered` chở `questions`.
-- [ ] 13. Test. Commit.
+- [x] 13. Test. Commit.
 
 ### Pha 5 — Nhiều câu hỏi: FE
 - [ ] 14. Figma `Clarify request`: *nhiều câu — câu k/n*, *nhiều câu — tóm tắt*. Đo bằng nhau.
@@ -98,4 +98,4 @@ Người dùng chốt:
 
 ## Status
 
-Đang làm pha 4.
+Đang làm pha 5.
