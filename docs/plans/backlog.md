@@ -736,6 +736,29 @@ plan sinh ra và đã sửa trong cùng pha thì không ghi ở đây.
 | **Phép đối chiếu công thức trong lời dàn ý (`outline._shown`) còn hở** -- review ec7606d, khi quay GIF 17/10: đơn vị trong ngoặc `$v = \frac{s}{t}\ (\text{m/s})$` bị trả về oan; tập nghiệm số âm `\{-1; -2\}` với lời `\{-1\}` lọt (vế `-2` quá ngắn); `\begin{array}{l}` và `&` của `cases` có điều kiện dính vào vế; `x=1` khớp chuỗi con của `x=12`; `_NODE_NUMBER` ba `\s*` liền nhau chạy bậc ba với lời toàn dấu cách | Tier 4: đối chiếu **nhẹ** (ADR-30), chưa thấy ở dàn ý thật. Hướng sửa đã thử trên nháp: thêm `\(\s*\text\{…\}\s*\)`, `&`, `\begin{array}{…}` vào `_WORDED_JOINT`; `[,;](?!-?\d++…)`; gộp `\s*` của `_NODE_NUMBER` |
 | **Lời model lệch nhẹ ở thử tay pha 6**: nút *Khối 6–9* và *Số học/Hình học/Đại số* khi giáo viên dạy lớp 11 (01); *"Đề có 4 câu, mỗi câu một mục"* khi chỉ có 3 mục (03 bản 1); `\text{tổng tiền}` trong công thức (03 bản 2); câu kết *"đề thiếu câu sẽ không dùng được"* (02); bản 2 tự đổi công thức mục 3–4 sang $A\setminus B$ không ai xin, nên câu 3 và 4 cùng phép hiệu (07) -- chấm ảnh pha 6 | Tier 4: hành vi model, chỉ ghi |
 
+## Lộ ra khi quay GIF đoạn chat cho báo cáo
+
+Ghi ngày 17/10/2026: một đoạn chat dài trên Claude Haiku 5.5, quay để gửi kèm báo cáo (lượt quay 3,
+chat `f4ddf101`; lượt quay 4, chat `09876a00`). Người dùng dặn để nguyên các lỗi trong GIF, cải tiến
+sau rồi báo cáo lại. Lỗi
+`check_message` lộ ở lượt quay 1 đã sửa (`e8bd5f5` tới `ec7606d`), không ghi ở đây. Hai lỗi đã có lặp
+lại nên không ghi lại: nút của câu hỏi phạm vi là *loại* phạm vi, và lời dàn ý gộp bài nguồn ở cuối
+(mục *Lộ ra khi thử tay plan tên đề và hỏi nhiều câu*).
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Panel đề không đọc lại khi Kriky soạn thêm vào chính đề đang mở**: *"Thêm cho mình 2 câu về luỹ thừa nữa nhé"*, 7/7 xong mà panel vẫn ghi *5 câu*, phải đóng rồi mở lại -- `Panel.tsx` chỉ tải đề khi `assessmentId` đổi | Tier 1: không gì chặn. `Chat` báo panel đọc lại khi một lượt soạn vào đề ấy xong |
+| **Khối bước đang chạy lớn dần xuống dưới ô nhập**: dòng chỉ cuộn xuống đáy khi `turns.length` hay `pending` đổi (`Chat.tsx`, effect *"Lượt mới đẩy dòng xuống đáy"*), không khi `live` thêm một bước, nên giáo viên không thấy Kriky đang làm gì nếu không tự cuộn. Khi quay GIF phải cuộn bằng JS | Tier 1: bám đáy khi `live` đổi, nhưng chỉ lúc dòng đang ở đáy -- giữ ý của comment ấy (không giật người đang đọc lại câu cũ) |
+| **Chữ OCR rác của mục lục hiện thẳng ra dòng chi tiết bước**: *"PHÉP CỘN@"*, *"sỐ"*, tên bài in hoa toàn bộ -- tên nút cây Lớp 6 tập 1 lấy nguyên từ OCR | Tier 3 P6 (đọc tài liệu): cùng gốc với tiêu đề OCR rác ở dòng *Cây Lớp 10 tập 1* (mục *Soạn đề: lỗi lộ ra khi thử tay plan 4c T5*); đo trên cây vàng trước khi sửa tên nút |
+| **Khoá đáp án trái với chính lời giải** (lượt quay 4, câu 5): cả hai cách giải tính ra 23 000 đồng, cách 1 còn tự ghi *"phương án A là đáp án đúng cần kiểm lại"*, mà khoá là *B. 27 000 đồng*; nhãn lỗi của A lại là *"Bỏ qua thứ tự thực hiện phép tính"* -- `authoring._faults` chỉ đếm số phương án đúng, nhãn lỗi và số cách giải, không đối chiếu kết luận của lời giải với phương án khoá | Tier 2: đối chiếu thế nào là quyết định -- so số cuối của mỗi cách giải với phương án khoá chỉ đúng cho câu tính, câu chữ cần cách khác. Một lưới rẻ trước: lời giải nhắc tên một phương án khác phương án khoá thì trả về. Tới lúc ấy cổng duyệt của giáo viên là lưới duy nhất |
+| **Dàn ý bị trả về đủ ba lần vì model gửi lại đúng một lỗi** (lượt quay 4, lần thử 3): lần 1 đúng luật (lời của *Câu 3* không nêu công thức nào), lần 2 và 3 mục 1 ghi `"$x \in A$, $y \notin A$"` -- hai cặp `$` trong một phần tử -- dù lời từ chối dặn rõ cách sửa, rồi `OUTLINE_REFUSED` | Tier 4: lưới đúng, hành vi model. Trong bốn lần đợt quay tới được bước dàn ý, một lần dừng vì lỗi này (một lần khác vì lỗi `check_message` đã sửa) |
+| **Thẻ kết quả của lượt soạn lại hay soạn thêm vẫn ghi *"Đã tạo đề …"*** dù không tạo đề nào | Tier 2: chữ của thẻ theo loại plan (*tạo / soạn thêm / soạn lại*), đổi cùng artboard `Action result card` |
+| **Lời dàn ý thay câu và câu soạn lại lệch số liệu**: dàn ý thay câu 5 hứa *"đáp án đúng là 23 000 đồng cho trường hợp 3 quyển vở và 2 cây bút"*, câu soạn ra là 4 vở và 3 bút (33 000) vì brief cấm đề bài của câu bị thay | Tier 2 câu 23 (dòng *Thay một câu* ở mục *Lộ ra khi làm plan Tier 1*): đây là ca thật của nó |
+| **Thẻ hỏi lại nhiều câu dựng nút cho mọi câu cùng lúc**, nên nút phạm vi không biết khối giáo viên sắp chọn: *"Số hữu tỉ"*, *"Phương trình bậc nhất"* rồi giáo viên chọn khối 6 (lượt quay 4, lần thử 4) | Tier 4: giới hạn của thẻ nhiều câu (ADR-32) cộng hành vi model. Nút phạm vi nên là phạm vi chung, hay câu phạm vi chỉ hỏi sau khi biết khối |
+| **Tên đề chép cả phần trang của tên tệp**: *"Đề Kết nối tri thức Lớp 6 tập 1 (tr6-28)"* | Tier 4: tên đề theo sách (ADR-31) lấy nguyên tên tài liệu; chỉ ghi |
+| **Xưng hô lẫn *bạn* với *cô***: prompt dặn gọi giáo viên là *"bạn"* (`propose._CORE`), Haiku có lúc viết *"Được cô"*, tức đoán giới tính. Lượt quay 4: 2/2 lần liền khi lời giáo viên có *"cho các em"*, bỏ cụm ấy thì 3/3 lần gọi *bạn* | Tier 4: hành vi model, chỉ ghi. Còn lặp thì thêm một luật soát lời |
+| **Câu kết gọi sai đề**: soạn thêm 2 câu luỹ thừa vào đề chương 1, câu kết gọi nó là *"đề luỹ thừa"*; lượt quay 4: *"soạn xong đủ 7/7 câu về luỹ thừa"* | Tier 4: hành vi model, chỉ ghi |
+
 ## Lộ ra khi viết chương 7 của báo cáo
 
 Ghi ngày 16/10/2026, plan `2026-10-16-report-service-chapter-plan.md`. Ba subagent khảo sát

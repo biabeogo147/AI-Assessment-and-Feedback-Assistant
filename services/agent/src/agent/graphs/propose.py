@@ -57,6 +57,7 @@ from contracts import (
 
 logger = logging.getLogger(__name__)
 
+# TODO: Cần xem lại
 # Câu *"Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở"* ở dưới không còn bao giờ bắn: từ
 # 13/10/2026 lối "Khác" mở ô cho giáo viên ghi, và câu họ ghi -- không phải chữ "Khác" -- tới đây.
 # Nó **được giữ nguyên văn** vì đo ra prompt nhạy theo đúng chỗ ấy (`unbiased-model-text`, sau T5):
@@ -1802,6 +1803,7 @@ def _compose(state: ProposeState) -> dict:
             if items:
                 messages.append(HumanMessage(items))
         else:
+            # TODO: Cần xem lại
             messages.append(HumanMessage(_describe_result(turn)))
     if state.get("hint"):
         messages.append(HumanMessage(f"(Ghi chú của hệ thống: {state['hint']})"))
