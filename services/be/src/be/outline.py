@@ -126,7 +126,7 @@ def _flat(formula: str) -> str:
 
 
 def _shown(formula: str, flat: str) -> bool:
-    """Lời (đã `_flat`) có nêu công thức này không: nguyên vẹn, hay đủ mọi vế khi lời tách nó ra.
+    r"""Lời (đã `_flat`) có nêu công thức này không: nguyên vẹn, hay đủ mọi vế khi lời tách nó ra.
 
     Thử tay 17/10/2026 (quay GIF, sau plan `backlog-tier-1`): luật *một cặp `$`* của pha 6 làm mục
     ghi điều kiện chung một cặp với biểu thức, lời thì tách hai cặp có chữ ở giữa, nên phép so cả
