@@ -57,4 +57,4 @@ Plan thi hành: `docs/plans/completed/2026-10-17-assessment-title-and-multi-ques
 | Ô đổi tên, ẩn khi đề đã duyệt; thẻ tên một dòng cắt `…` | FE `Panel.tsx` (`MOST_TITLE`), `ActionCard` `.what`; Figma `Panel title` `626:2736`, `Action result card` `626:2737` |
 | Test | `services/be/tests/test_assessment_title.py`, `test_document_tools.py`; FE `teacher.test.tsx` (*đổi tên đề*) |
 
-Chưa thi hành: ô đổi tên không báo khi chữ chạm trần mà cụt giữa từ (backlog).
+Đã thi hành 17/10/2026 (plan `backlog-tier-1`, pha 4): ô đổi tên nhắc khi chữ chạm trần.

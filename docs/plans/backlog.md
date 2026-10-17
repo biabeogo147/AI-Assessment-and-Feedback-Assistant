@@ -27,8 +27,8 @@ thành ADR, không phải những **tính năng** chưa dựng.
 | Cột hoặc khối thống kê điểm ngay trên **danh sách lớp** | Không còn bị hạ tầng chặn — xem dưới. Thiếu thiết kế: gộp qua nhiều đề thế nào, và đặt ở đâu |
 | Sắp xếp danh sách lớp theo trung bình / cao nhất / thấp nhất | Cùng vật chặn |
 
-Thống kê điểm **của một bài kiểm tra trong một lớp** thì đã có — artboard
-`11 · Kết quả bài kiểm tra trong lớp`. Cái còn nợ ở đây là thống kê **gộp theo lớp** hiện trên chính
+Thống kê điểm **của một bài kiểm tra trong một lớp** thì đã được thiết kế — artboard
+`11 · Kết quả bài kiểm tra trong lớp` ở Figma; FE chưa có màn này. Cái còn nợ ở đây là thống kê **gộp theo lớp** hiện trên chính
 hàng của bảng danh sách lớp, tức là gộp qua nhiều bài kiểm tra.
 
 Hai dòng này từng ghi *bị chặn bởi hạ tầng*: [ADR-09](../decisions/adr-09-ket-qua-cham-la-tam-thoi.md)
@@ -105,11 +105,12 @@ kèm đạo cụ cần **≥64px** để đạo cụ đạt ~16px. Hai hướng,
 
 Mô hình hai pha ([ADR-14](../decisions/adr-14-hai-pha-lam-bai.md) …
 [ADR-21](../decisions/adr-21-trang-thai-bai-lam-la-ben.md)) đã chạy trên database: pha 1, lượt chữa
-pha 2 có trần ba vòng, điểm ba mức và lý do được 0,5 đều có thật. Còn lại ba việc cố ý chưa làm.
+pha 2 có trần ba vòng, điểm ba mức và lý do được 0,5 đều có thật. Còn lại bốn việc cố ý chưa làm.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Cổng duyệt cho câu luyện tập | **Chưa quyết định nghiệp vụ** — xem dưới |
+| Cổng duyệt cho câu luyện tập | **Chưa quyết định nghiệp vụ** — xem dưới. Khi chốt thì chỉnh luôn dòng Invariants của `AGENTS.md` nói về câu luyện tập |
+| Bật lại confidence của chẩn đoán | Chưa cần, và bật lại hôm nay sẽ hỏng — xem dưới |
 | Bắt đổi mật khẩu ở lần đăng nhập đầu | Không bị chặn. Không có màn hình nào để đặt nó vào — xem dưới |
 | Phát hiện sớm một lời giải sai | **Chưa quyết định nghiệp vụ** — xem dưới |
 
@@ -130,6 +131,27 @@ Ba đường đã nêu và chưa chọn:
 - `x'` chỉ được lấy từ ngân hàng câu hỏi **đã kiểm**, không sinh mới.
 - Giáo viên duyệt sẵn **bộ câu chữa cho từng lỗi** ngay lúc duyệt đề, rồi hệ thống chỉ chọn trong đó.
 - Giữ nguyên, và chấp nhận rằng cổng số một có một lỗ.
+
+### Vì sao chưa bật lại confidence của chẩn đoán
+
+[ADR-08](../decisions/adr-08-bon-loai-nghi-ngo.md) đã thu hẹp: đúng/sai là phép so xác định, thứ từng
+cần giữ lại là **chẩn đoán**. Đợt này bỏ hẳn confidence của chẩn đoán khỏi luồng học sinh.
+
+Bật lại hôm nay thì hỏng ngay, và hỏng theo **hai** đường chứ không phải một.
+
+`services/agent/src/agent/handlers.py` trả `confidence = 0.55` khi `student_explanation` là `None`;
+ngưỡng là `0.7` và phép so là **bao gồm**
+([ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md)). Pha 1 của mô hình mới không thu
+lời giải thích, nên điều kiện đó đúng với **mọi câu của mọi học sinh** — một lớp 40 em làm bài 10 câu
+sinh ra 400 mục chờ giáo viên, và pha 2 không khởi động cho ai.
+
+Đường thứ hai độc lập với ngưỡng: nếu pha 1 gửi **chuỗi rỗng** thay vì `None`, cùng file trả
+`confidence = 0.30` **và** `has_sufficient_evidence = False`, và luật *thiếu căn cứ* của ADR-07 đẩy
+kết quả vào hàng đợi mà không hề so ngưỡng. Gỡ mỗi điều kiện ngưỡng là chưa đủ. (Phần code của cả
+hai đường đã bị xoá 09/10/2026; ràng buộc trên là ràng buộc của **thiết kế**, còn nguyên.)
+
+Việc cần làm trước khi bật lại không phải chỉnh ngưỡng, mà là **định nghĩa lại confidence đo cái gì**
+khi phần chấm đã xác định — rồi mới tới việc pha 1 gửi `None` hay chuỗi rỗng.
 
 ### Lời giải sai bị khuếch đại, và chưa có cách phát hiện sớm
 
@@ -510,17 +532,19 @@ Số đo nằm ở `Status` của plan ấy và ở `data/results/run-6/pageinde
 | **Cây vàng chỉ có một cuốn**, và luật lẫn ngưỡng đều chỉnh trên chính cuốn ấy | Cần cây vàng của một cuốn khác (một tập khác của bộ KNTT, và một tài liệu không phải SGK) để so Jev với luật cho công bằng |
 | D1 hứa *"dùng luật khi số thứ tự đi lùi"* -- chưa làm; `Numbering.value` chưa ai đọc | **Tier 3 P6 (đọc tài liệu): một bước mới của assemble, cần đo trên cây vàng** (plan `backlog-tier-1`, pha 4). Một bước trong `assemble`: tiêu đề cùng cấp mà số nhỏ hơn số trước nó thì hỏi lại luật |
 | Thứ OCR không đọc ra thì không cây nào có: tên Bài 10 (trang 39), hai mục Bài 21 (trang 100–101), *Hoạt động thực hành trải nghiệm* (banner không có chữ CHƯƠNG) | Một cổng thứ hai cho luna: trang mở bài (có hộp *KHÁI NIỆM, THUẬT NGỮ*) mà không có `doc_title` -- đọc tên bài trên ảnh. Dải mục màu đỏ (*"1. HÌNH CÓ TRỤC ĐỐI XỨNG..."*) thì PP-DocLayout không thấy khối nào |
+| Mẫu riêng cho bộ KNTT trong luật: watermark *"KẾT NỐI TRI THỨC"*, nhãn hoạt động, `[IL1]` cho lỗi OCR | Overfit có chủ ý cho bộ sách đang dùng; một bộ sách khác cần đo lại. Phạm vi *chỉ bộ KNTT* chưa chốt |
 | `LLM_TIMEOUT_SECONDS` dùng chung với AGENT | **Không làm** (17/10/2026): chưa trần nào cần khác. Tách một biến riêng nếu luna hay tóm tắt cần trần khác |
 | *"1.1"* là bài tập chỉ khi tài liệu đi qua OCR -- một SGK **có** text layer thì *"1.1. Cho hai tập hợp"* thành mục cấp 2 | **Tier 3 P6: cần đo trên cây vàng trước khi tin** (plan `backlog-tier-1`, pha 4). Phân biệt theo hình dạng (*"1.1."* có chấm cuối, theo sau là câu chữ thường) thay vì theo nguồn đọc |
 | Một khe hẹp: lô OCR cuối của một lần đọc mới giao job dựng cây **trong lúc** job cũ còn chạy thì bị id cố định từ chối, và job cũ bỏ vì bản thô đang đọc dở | **Tier 3 P6: đổi id job dựng cây** (plan `backlog-tier-1`, pha 4). Không ai dựng cây; chip ra *xử lý hỏng* sau 300 s. Hướng: id theo `raw.started_at` thay vì theo tài liệu |
 | Một đơn vị đọc dài hơn 1 500 ký tự không bị cắt, nên chunk vượt trần | **Tier 3 P6: cắt theo câu khi ghi kho** (plan `backlog-tier-1`, pha 4). Khối text layer lớn; cắt theo câu khi cần |
 | `except Exception` ở bước banner và tóm tắt che cả lỗi lập trình (chỉ còn `logger.exception`) | **Tier 3 P6: đếm lần hỏng vào IndexHeader là đổi schema của kho** (plan `backlog-tier-1`, pha 4). Đếm số lần hỏng vào `IndexHeader` để thấy được từ dữ liệu |
-| Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật. *Plan 4c T4 đổi tiêu chí (bỏ ví dụ chương): Jev thuần 120 nút, thắng luật 0 lần ở 0,8; cuốn thứ hai (Lớp 10 tập 1, chưa có cây vàng) lộ `"a. Mệnh đề"` OCR thành `"2. Mệnh để"` bị Jev xếp cấp 3 -- ứng viên cho `letter_case`* | Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/pageindex_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |
+| Lượt Jev thứ hai không chạy khi đóng plan: trên SGK Jev thuần ra 138 nút cho 91, ở ngưỡng 0,8 nó thắng luật đúng một lần và lần ấy sai -- cây hiện nay là cây của luật. *Plan 4c T4 đổi tiêu chí (bỏ ví dụ chương): Jev thuần 120 nút, thắng luật 0 lần ở 0,8; cuốn thứ hai (Lớp 10 tập 1, chưa có cây vàng) lộ `"a. Mệnh đề"` OCR thành `"2. Mệnh để"` bị Jev xếp cấp 3 -- ứng viên cho `letter_case`. `usage` của Jev bằng nhau trước và sau khi đổi tiêu chí (626 495 token), tức nó chỉ đếm `state` -- con số ~1 270 token của criteria chưa kiểm được* | **Lượt Jev thứ hai chờ người dùng duyệt** (plan hứa báo số thật trước lượt ấy). Thiết kế câu hỏi mới ($0,026 một lượt trên Lớp 6 tập 1): bỏ số khỏi state (`page` thành *đầu / giữa / cuối sách*, `numbering` thành loại nhãn bằng chữ), thêm `letter_case`, `level_3` chỉ nhận một nhãn số **và** chữ in hoa toàn bộ, criteria ngắn lại; đo lại bằng `tools/pageindex_bench`, và cần cây vàng thứ hai để luật không được chấm trên chính cuốn đã chỉnh nó |
 
 ## Khi có process hay BE thứ hai
 
-Những thứ dưới đây **chưa phải nợ**: chúng đúng với một process `document` và một BE, như hôm nay.
-Chúng thành lỗi đúng vào ngày chạy cái thứ hai, nên ghi gom một chỗ để lượt ấy đọc một lần.
+Những thứ dưới đây **chưa gặp hay chưa đo**, và phần lớn chỉ đau khi có cái thứ hai (process
+`document`, BE). Ghi gom một chỗ để lượt ấy đọc một lần. Hai dòng đau được ngay với một process --
+trang OCR quá 120 s, và năm tab là năm connection -- nhưng chưa ai gặp.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
@@ -551,7 +575,7 @@ nền của test. Đáng làm cùng lúc với BE thứ hai, không trước.
 rồi đọc `rowcount` — không có lưới trong `pytest`, vì sqlite không tái hiện được cách Postgres phân xử
 hai câu `UPDATE` cùng giành một hàng. Nó đã được đo bằng tay trên Postgres thật (40 lượt × 4 session,
 đúng một người thắng mỗi lượt; bản đọc-rồi-ghi đối chứng cho `[1, 4]`), và phép đo ấy ghi trong Status
-của plan. Nhưng một phép đo bằng tay không chạy lại ở mỗi `check`: hồi quy ở đây sẽ đi qua cổng mà
+của `completed/2026-10-10-one-turn-per-conversation-plan.md`. Nhưng một phép đo bằng tay không chạy lại ở mỗi `check`: hồi quy ở đây sẽ đi qua cổng mà
 không ai thấy. Dựng một lưới thật đòi cho bộ test chạy trên Postgres, cùng một việc với món đồng hồ ở
 trên.
 
@@ -580,6 +604,19 @@ Ghi ngày 13/10/2026, gpt-4o-mini. Ca nào có số A/B thì đo 24 lần với 
 | **Câu hỏi lại bày *"Chương 1/2/3"* khi không có sách**, và môn khác Toán (*"Ngữ văn"*, *"Vật lý"*) khi chưa có phạm vi (18/50, plan 4c T3) -- **hệ quả của T3**, không phải lỗi cũ: trước T3 lựa chọn model viết bị bỏ hết, nên không thành nút. Chưa đo riêng *"Chương N"* | Môn khác: chờ người dùng quyết hệ thống có hứa soạn môn khác không. *"Chương N"*: chưa đo |
 | **Ngay sau `list_documents` (không chip), model hỏi lại thay vì đọc mục lục** -- hồi quy của T2b/T3, **đã chặn bằng code** trong plan 4c. Gọi `list_chapters` đúng cuốn: bản cũ 17 rồi 10/24 (ab run-14, run-15; nhiễu lớn), bản stage 4/24 (ab-staged run-3), trước luật 1--4/24 (run-83, run-87); sau `_misfiled_read` (model nêu `ask_clarify` mà điền `list_chapters` của một tài liệu trong danh sách -- 16/24 ở run-88) 17/24 (run-90) và 22/24 (run-97, ca `tai-lieu-sau-thu-vien` trong `cases.json`). Câu hỏi còn lại hỏi *"Bạn soạn theo tài liệu nào?"* cho khớp nút (`_which_book`, chỉ ngay sau danh sách); bấm tên cuốn thì code đọc mục lục (`_picked_book_first`, 24/24); đề theo tài liệu chưa đọc mục lục thì đọc trước (`_toc_first`). Còn lại: giáo viên nhắc một cuốn **không có** trong thư viện thì câu của model (*"chưa có sách lớp 11…"*) bị thay bằng câu hỏi tài liệu, nút là các cuốn khác -- chưa đo; gõ một câu không trùng tên tài liệu nào thì model có thể soạn đề không sách | Hướng (i) của review T5 -- chỉ một tài liệu hợp thì đọc mục lục luôn -- là chọn hộ, chờ người dùng duyệt. Ca *cuốn không có trong thư viện* cần đo trước khi quyết `_which_book` |
 | **Cây Lớp 10 tập 1** (đường thật, không có số A/B): trang mục lục thành ba chương cấp 1, *"Chương IV VECTƠ"* phủ tr. 5--23 nuốt Chương I; tiêu đề OCR rác ở mở đầu chương; 2/5 cổng banner; Bài 6 lên cấp 1; số trang in đọc nhầm (*"tr. 74--722"*). **Hậu quả thấy được**, thử tay T5: *"Lấy cuốn Toán 10 mình mới tải lên, ra 8 câu phần vectơ"* → model chọn đúng nút *"Chương IV. VECTƠ"*, nhưng nút ấy là nội dung Chương I -- cả 8 câu bám mục *mệnh đề, tập hợp* (node 8--16) | Gốc ở OCR chữ trang trí và cổng banner (plan 3c); cần cây vàng thứ hai để đo |
+
+## Còn treo khi đóng plan 4c
+
+Ghi ngày 13/10/2026, khi đóng `2026-10-12-unbiased-model-text-plan.md`. Mỗi dòng chờ người dùng
+quyết, không phải lỗi đã biết cách sửa.
+
+Người dùng quyết ngày 14/10/2026 (`2026-10-14-document-debts-and-comment-codes-plan.md`): năm dòng
+đã gỡ -- đọc mục lục khi chỉ một tài liệu hợp **giữ nguyên** (agent quyết, kể cả khi nó hỏi lại);
+luật mã trong comment, tên cache `ocr_bench`, thẻ hỏi lại giữ chữ ô chính, Figma theo code đã làm.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **BE tự kiểm "đã đọc mục lục"** trước khi mở đề theo tài liệu. ADR-27 (đoạn thêm từ plan 4c) chỉ thi hành ở AGENT (`propose._toc_first`, `_picked_book_first`); BE vẫn nhận `nodes` model bịa nếu một đề nghị đi vòng qua `_choose` -- hiện chưa đường nào làm thế | Người dùng 14/10/2026: **chưa làm** khi chưa có lỗi thật -- lưới ở AGENT đủ cho tới khi có một đề nghị đi vòng qua `_choose` |
 
 ## Lộ ra khi làm plan ngân hàng câu hỏi
 
@@ -723,7 +760,7 @@ thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **ADR ghi trạng thái cũ:** ADR-15, 16, 18, 21, 27 vẫn ghi *"chưa thi hành"* hay *"chưa có ở backend"*; ADR-23:114 trỏ `propose._SYSTEM`, nay là `_CORE`; ADR-25 (sửa 10/10) định bỏ job kể lại, code vẫn chạy nó; ADR-27 nói Jev là bộ định tuyến của `document`, đã bị thay ngày 12/10; ADR-29:68 nói lời đồng ý đọc bằng mô hình, thực ra bằng regex | Sửa một ADR là sửa lịch sử, nên đường đúng là một dòng hậu ký có ngày. Đã có hậu ký 17/10/2026 cho ADR-15, 16, 23, 27, 29 (plan `backlog-tier-1`, pha 4); còn ADR-18, 21, 25 |
+| **ADR ghi trạng thái cũ:** ADR-15, 16, 18, 21, 27 vẫn ghi *"chưa thi hành"* hay *"chưa có ở backend"*; ADR-23:114 trỏ `propose._SYSTEM`, nay là `_CORE`; ADR-25 (sửa 10/10) định bỏ job kể lại, code vẫn chạy nó; ADR-27 nói Jev là bộ định tuyến của `document`, đã bị thay ngày 12/10; ADR-29:68 nói lời đồng ý đọc bằng mô hình, thực ra bằng regex | Sửa một ADR là sửa lịch sử, nên đường đúng là một dòng hậu ký có ngày. Đã có hậu ký 17/10/2026 cho ADR-15, 16, 29 (plan `backlog-tier-1`, pha 4); còn ADR-18, 21, 23, 25, 27 |
 | **ERD chưa vẽ**, dù điều kiện cũ trong `architecture.md` (*"khi có Postgres"*) đã đạt | Chưa quyết có cần: `data-model.md` đang nói hai mươi hai bảng bằng bảng và lời |
 
 ### Báo cáo

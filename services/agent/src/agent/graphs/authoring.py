@@ -207,8 +207,9 @@ async def _write(state: WriteState) -> dict:
     """Hỏi model một câu hỏi, kèm theo chuyện lần trước đã sai ở đâu.
 
     Câu trả về **sai hình dạng** không ném ra ngoài: nó thành một lời phàn nàn và loop hỏi lại
-    (backlog *Tool soạn câu trả sai hình dạng rồi câu mock vào đề*). Trước đây lỗi giải mã thoát
-    khỏi graph, và handler lùi về một câu Toán soạn sẵn -- câu lạc đề vào đề thật của giáo viên.
+    (plan `backlog-tier-1`, pha 1: *Tool soạn câu trả sai hình dạng rồi câu mock vào đề*). Trước
+    đây lỗi giải mã thoát khỏi graph, và handler lùi về một câu Toán soạn sẵn -- câu lạc đề vào đề
+    thật của giáo viên.
 
     Args:
         state: Mang theo brief và mọi lời phàn nàn về lần thử trước.

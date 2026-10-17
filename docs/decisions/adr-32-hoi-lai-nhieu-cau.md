@@ -54,5 +54,5 @@ Plan thi hành: `docs/plans/completed/2026-10-17-assessment-title-and-multi-ques
 | Từng câu, không bỏ câu, tóm tắt, gửi gộp *"Nhãn: trả lời · …"* | FE `ClarifySteps.tsx`, `Chat.tsx` (`questionsOf`, `aloud`, `Voiced`); Figma `Clarify request` `629:20`, `629:46` |
 | Test | contracts `test_teacher_plan.py`; AGENT `test_propose_graph.py`; BE `test_teacher_chat.py`; FE `clarify-steps.test.tsx` |
 
-Chưa thi hành: lựa chọn chưa gửi mất khi F5 (cố ý); `·` trong chữ tự ghi làm tin gộp mơ hồ
-(backlog).
+Chưa thi hành: lựa chọn chưa gửi mất khi F5 (cố ý). `·` trong chữ tự ghi làm tin gộp mơ hồ: đã thi
+hành 17/10/2026, tin gộp đổi `·` trong chữ tự ghi thành dấu phẩy (plan `backlog-tier-1`, pha 4).

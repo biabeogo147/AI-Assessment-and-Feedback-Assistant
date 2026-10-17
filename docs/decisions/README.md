@@ -75,10 +75,11 @@ hạn giữ kết quả một giờ — nay đã có ADR-07 và ADR-09.
 
 Còn lại, và cố ý chưa viết:
 
-- **Ba luật của mô hình hai pha chưa ai quyết**, cả ba nằm ở `docs/plans/backlog.md`: câu luyện tập
-  có qua cổng duyệt không; `confidence` đo cái gì khi phần chấm đã xác định — chẩn đoán có độ tin cậy
-  đã **bỏ khỏi đợt này**, ghi nợ để làm sau; và vòng đếm cùng đồng hồ ứng xử ra sao khi học sinh mở
-  hai tab. Mức điểm 0,5 thì đã hết là câu hỏi: ADR-16 chốt nó **không được cấp màu mới**, phân biệt
+- **Hai luật của mô hình hai pha chưa ai quyết**, cả hai nằm ở `docs/plans/backlog.md`: câu luyện tập
+  có qua cổng duyệt không; và `confidence` đo cái gì khi phần chấm đã xác định — chẩn đoán có độ tin
+  cậy đã **bỏ khỏi đợt này**, ghi nợ để làm sau. Vòng đếm và đồng hồ khi học sinh mở hai tab thì đã có
+  chỗ đứng: trạng thái lượt nằm ở database (ADR-21), và lượt đang mở đọc lại được ở tab mới (plan
+  `backlog-tier-1`, pha 2). Mức điểm 0,5 thì đã hết là câu hỏi: ADR-16 chốt nó **không được cấp màu mới**, phân biệt
   bằng hình tròn đầy / nửa / rỗng.
 - **Hạn lưu trữ dài hạn của bài làm** — ADR-21 chốt trạng thái bài làm là bền, nhưng *bền tới bao
   giờ* thì chưa ai quyết. Một học kỳ, một năm, hay tới khi giáo viên xoá lớp: ba câu trả lời khác
