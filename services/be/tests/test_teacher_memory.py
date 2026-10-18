@@ -242,7 +242,11 @@ async def test_two_steps_cannot_claim_the_same_position(stack) -> None:
     _, maker, _ = stack
 
     async with maker() as session:
-        conversation = TeacherConversation(teacher_id="whoever", started_at=datetime.now(UTC))
+        # Một giáo viên có thật: Postgres thi hành khoá ngoại, sqlite thì không (plan
+        # `postgres-test-run`), và test này nói về ràng buộc unique, không về khoá ngoại.
+        owner = await session.scalar(select(Teacher.id).where(Teacher.teacher_code == "GV-001"))
+        assert owner is not None
+        conversation = TeacherConversation(teacher_id=owner, started_at=datetime.now(UTC))
         session.add(conversation)
         await session.flush()
 

@@ -471,6 +471,22 @@ Trên Windows, AGENT **không** shutdown graceful: arq đăng ký signal handler
 
 Cách duy nhất biết hàng rào còn sống là thử phá: thêm `import be` vào `services/agent/src/agent/worker.py`, chạy `.\dev.ps1 check`, xác nhận nó fail, rồi hoàn tác.
 
+### Chạy test BE trên Postgres
+
+`.\dev.ps1 test` chạy test BE trên sqlite trong bộ nhớ, mà sqlite mặc định không thi hành khoá ngoại,
+và không bao giờ thi hành `String(n)` hay `FOR UPDATE`. Trước một thay đổi chạm schema, khoá hàng hay
+khoá ngoại, chạy thêm trên Postgres của docker, bằng một database **riêng** tên kết thúc bằng `_test`
+(`services/be/tests/conftest.py`, plan `postgres-test-run`):
+
+```powershell
+docker exec aiafa-postgres psql -U aiafa -d postgres -c "CREATE DATABASE aiafa_test OWNER aiafa;"   # một lần
+D:\Anaconda\envs\AI-Assessment-and-Feedback-Assistant\python.exe -m pytest services/be/tests --postgres-url=postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa_test
+```
+
+Mỗi engine của test xoá rồi dựng lại schema `public` của database ấy, nên database nào tên không kết
+thúc bằng `_test` -- `aiafa` của máy dev, `aiafa_fe` -- đều bị từ chối. Chỉ cho `services/be/tests`:
+phiên thu thêm test ở thư mục khác thì dừng ngay. Không có tuỳ chọn thì không gì đổi.
+
 ## Chẩn đoán sự cố
 
 **`.\dev.ps1` không chạy, báo script bị chặn.** Chạy `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`. Cần lặp lại ở mỗi terminal mới.

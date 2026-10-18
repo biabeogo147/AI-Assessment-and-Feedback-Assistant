@@ -61,6 +61,9 @@ async def stack(monkeypatch):
 
     @event.listens_for(engine.sync_engine, "connect")
     def _foreign_keys(connection, _record) -> None:
+        # Chỉ sqlite cần bật; Postgres luôn thi hành khoá ngoại (plan `postgres-test-run`).
+        if engine.dialect.name != "sqlite":
+            return
         cursor = connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
