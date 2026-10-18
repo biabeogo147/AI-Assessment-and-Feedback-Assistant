@@ -43,7 +43,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 | `2026-10-18-teacher-rail-screens-plan.md` | 18 | xong 18/10 |
 | `2026-10-18-question-bank-into-draft-plan.md` | 17 | xong 18/10 |
 | `2026-10-18-dashboard-review-queue-plan.md` | 19, 21 | xong 18/10 |
-| `…-results-xlsx-export-plan.md` | 20 | chưa viết |
+| `2026-10-18-results-xlsx-export-plan.md` | 20 | xong 19/10 |
 | `…-sign-in-and-accounts-plan.md` | 22 | chưa viết |
 
 ### 23 việc
@@ -84,7 +84,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 - [x] 6. Đợt 4, cụm màn rail: việc 18.
 - [x] 7. Đợt 4, cụm ngân hàng: việc 17.
 - [x] 8. Đợt 4, cụm bảng theo dõi: việc 19, 21.
-- [ ] 9. Đợt 4, cụm xuất bảng điểm: việc 20.
+- [x] 9. Đợt 4, cụm xuất bảng điểm: việc 20.
 - [ ] 10. Đợt 4, cụm đăng nhập: việc 22.
 - [ ] 11. Cuối batch:
   - roadmap có 23 việc *Xong*; `backlog.md` và artifact backlog cập nhật;

@@ -93,3 +93,4 @@ sai hết, một điều không xảy ra.
   lại bằng `openpyxl`: đủ đầu cột, điểm từng câu, tổng, hai em chưa nộp để trống. Vite từng phục vụ
   `teacher.css` cũ hơn đĩa một lần sửa (watcher bỏ lỡ một lần ghi); chạm file thì đọc lại. 3 vitest.
 - Pha 3, đóng plan 18/10/2026: hậu ký ADR-22, `teacher-surface.md`; roadmap việc 20 *Xong*.
+  Commit `05e3626` (BE), `899d64c` (FE). Roadmap rev 254.
