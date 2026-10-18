@@ -22,7 +22,8 @@ cùng dựng là hai process cùng tin mình đúng về một schema chỉ mộ
 khởi động được **trước** API, nên nó sẽ dựng theo bản metadata nó đang có.
 """
 
-from sqlalchemy import inspect, text
+from sqlalchemy import Table, UniqueConstraint, inspect, text
+from sqlalchemy.engine import Inspector
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from schema.models import Base
@@ -50,9 +51,44 @@ class SchemaDrifted(RuntimeError):
     """
 
 
-# Lệnh dựng lại. Nằm trong chuỗi lỗi vì một thông báo nói "schema lệch" mà không nói phải
-# làm gì là một thông báo bắt người ta đi tìm.
-_HOW_TO_FIX = ".\\dev.ps1 db-reset"
+# Hai đường sửa. Nằm trong chuỗi lỗi vì một thông báo nói "schema lệch" mà không nói phải làm gì là
+# một thông báo bắt người ta đi tìm. `ALTER` đứng trước: DB dev nay giữ dữ liệu thử tay, và
+# `db-reset` xoá sạch nó (plan `wave-3-draft-panel`).
+_HOW_TO_FIX = (
+    "Giữ dữ liệu thì ALTER theo docs/local-development.md, mục *Database cũ hơn model*; "
+    "dữ liệu bỏ được thì dựng lại bằng: .\\dev.ps1 db-reset"
+)
+
+
+def _model_uniques(table: Table) -> set[tuple[str, ...]]:
+    """Mọi bộ cột model khai là unique trên một bảng: constraint và index unique.
+
+    Cột `unique=True` không cần nhánh riêng: SQLAlchemy đã đổi nó thành một `UniqueConstraint`,
+    hay một `Index` unique khi cột có thêm `index=True`. Bộ cột đã sắp, vì database không giữ thứ
+    tự khai và hai phía phải so được với nhau.
+    """
+    found = {
+        tuple(sorted(column.name for column in one.columns))
+        for one in table.constraints
+        if isinstance(one, UniqueConstraint)
+    }
+    found |= {
+        tuple(sorted(column.name for column in one.columns)) for one in table.indexes if one.unique
+    }
+    return found
+
+
+def _database_uniques(looker: Inspector, name: str) -> set[tuple[str, ...]]:
+    """Mọi bộ cột database đang giữ unique trên một bảng: constraint và index unique.
+
+    Index không mang tên cột (index trên biểu thức) bị bỏ qua: model không khai index nào như thế.
+    """
+    found = {tuple(sorted(one["column_names"])) for one in looker.get_unique_constraints(name)}
+    for one in looker.get_indexes(name):
+        columns = [column for column in one["column_names"] if column]
+        if one.get("unique") and columns:
+            found.add(tuple(sorted(columns)))
+    return found
 
 
 async def check_schema(engine: AsyncEngine) -> None:
@@ -64,14 +100,26 @@ async def check_schema(engine: AsyncEngine) -> None:
     Đúng chuyện đã xảy ra: `assessments` thiếu `teacher_id`, nên mọi lần tạo đề đều ném, và
     trên màn hình nó đọc ra như lỗi của khung chat.
 
-    Chỉ kiểm **cột còn thiếu**, không kiểm kiểu hay index: đó là phần `create_all` không
-    cứu được, và cũng là phần một người đọc thông báo sửa được bằng một lệnh.
+    Kiểm **cột còn thiếu** và **ràng buộc unique lệch**, không kiểm kiểu hay index thường: đó là
+    phần `create_all` không cứu được mà sai thì sai dữ liệu. Unique so theo **bộ cột**, hai chiều
+    (plan `wave-3-draft-panel`):
+
+    - model có mà database thiếu: một `UniqueConstraint("assessment_id", "order_index")` thêm sau
+      khi bảng đã có thì chỉ có hiệu lực với ai xoá volume, và luật *"database phân xử"* chỉ đứng
+      trên giấy;
+    - database còn mà model đã bỏ: `teacher_conversations.teacher_id` từng chặn mọi lần mở đoạn
+      chat thứ hai, dưới dạng một `IntegrityError` không ai đoán ra.
+
+    So bộ cột chứ không so tên: tên do database tự đặt khi model không đặt. Partial index chỉ so
+    bộ cột, không so điều kiện `WHERE` -- hai index cùng bộ cột khác điều kiện là ca chưa có trong
+    model nào.
 
     Args:
         engine: Engine để soi.
 
     Raises:
-        SchemaDrifted: Khi một bảng của model có cột mà database không có.
+        SchemaDrifted: Khi một bảng của model có cột mà database không có, hoặc khi bộ ràng buộc
+            unique của hai bên khác nhau.
 
     Side effects:
         Đọc catalog của database.
@@ -88,7 +136,10 @@ async def check_schema(engine: AsyncEngine) -> None:
             columns = {one["name"] for one in looker.get_columns(name)}
             for column in table.columns:
                 if column.name not in columns:
-                    gaps.append(f"{name}.{column.name}")
+                    gaps.append(f"thiếu cột {name}.{column.name}")
+            wanted, held = _model_uniques(table), _database_uniques(looker, name)
+            gaps += [f"thiếu unique {name}({', '.join(one)})" for one in sorted(wanted - held)]
+            gaps += [f"thừa unique {name}({', '.join(one)})" for one in sorted(held - wanted)]
         return gaps
 
     async with engine.begin() as connection:
@@ -96,9 +147,7 @@ async def check_schema(engine: AsyncEngine) -> None:
 
     if gaps:
         raise SchemaDrifted(
-            "database lệch so với model, thiếu: "
-            + ", ".join(sorted(gaps))
-            + f". Dữ liệu local bỏ được, nên dựng lại bằng: {_HOW_TO_FIX}"
+            "database lệch so với model: " + "; ".join(sorted(gaps)) + f". {_HOW_TO_FIX}"
         )
 
 

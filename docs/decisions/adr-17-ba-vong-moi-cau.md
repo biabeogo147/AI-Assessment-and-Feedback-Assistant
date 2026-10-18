@@ -106,3 +106,10 @@ mình còn mấy lần.
   trên đây, *giữ nguyên dạng đề và cách làm*, không được kiểm ở đâu cả.
 - `docs/overview/business-workflows.md` Workflow 5 và `use-case-specification.md` UC-06 đã viết lại
   theo trần ba vòng, và `Mastery` trong glossary đã được ghi rõ là không còn quyết định gì.
+
+## Hậu ký 18/10/2026
+
+Câu *"`check_schema` chỉ soi cột còn thiếu, không soi index"* ở mục Hệ quả đã thôi đúng.
+`check_schema` nay so cả bộ cột của mọi ràng buộc unique, kể cả partial index
+`uq_one_open_round_per_attempt`, hai chiều (plan `wave-3-draft-panel`, việc 16). Database dựng
+trước index ấy giờ làm process dừng lúc khởi động, thay vì để hai tab cùng mở được hai lượt.

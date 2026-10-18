@@ -412,6 +412,19 @@ bay ra giữa lúc chuyển route sẽ mang sai vai, và triệu chứng là m�
 thêm cột, không bỏ constraint. Một `500` kèm *"column ... does not exist"*, hay một `IntegrityError`
 bất ngờ, gần như luôn là chuyện này.
 
+`check_schema` bắt được chuyện này lúc khởi động: nó so cột còn thiếu và bộ cột của mọi ràng buộc
+unique, cả unique model khai mà database thiếu lẫn unique database còn giữ mà model đã bỏ. Lệch thì
+BE và ingest dừng ngay, và câu lỗi gọi tên từng chỗ lệch (*"thiếu cột …"*, *"thiếu unique …"*,
+*"thừa unique …"*). Mẫu sửa cho hai chiều unique, giữ dữ liệu:
+
+```sql
+-- thiếu unique: thêm lại đúng bộ cột câu lỗi nêu (partial index thì kèm điều kiện của model)
+ALTER TABLE <bảng> ADD CONSTRAINT <tên> UNIQUE (<cột>, ...);
+CREATE UNIQUE INDEX uq_one_open_round_per_attempt ON rounds (attempt_id) WHERE submitted_at IS NULL;
+-- thừa unique: tên do Postgres đặt, nên tra bằng \d <bảng> trước
+ALTER TABLE <bảng> DROP CONSTRAINT <tên>;   -- hay: DROP INDEX <tên>;
+```
+
 Rẻ nhất là dựng một database mới rồi trỏ `DATABASE_URL` sang đó:
 
 ```powershell
