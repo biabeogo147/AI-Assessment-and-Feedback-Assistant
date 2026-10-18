@@ -64,7 +64,7 @@ hàng` `655:3974`, `19b · Thêm câu từ ngân hàng — hộp chọn` `655:42
 - [x] 8. Vitest; chụp, đo so với 19, 19b, 18; subagent chấm.
 
 ### Pha 3 — đóng
-- [ ] 9. Tài liệu, hậu ký; roadmap việc 17 *Xong*; backlog; tick plan tổng; plan sang `completed/`.
+- [x] 9. Tài liệu, hậu ký; roadmap việc 17 *Xong*; backlog; tick plan tổng; plan sang `completed/`.
 
 ## Decision Records
 
@@ -123,4 +123,6 @@ bản ngân hàng, ngược điều người dùng chốt cho màn 22b.
   sách; regex bỏ dấu viết bằng escape; nút chính tắt `opacity: 1`; `source` là `"kriky" | "bank"`. Test
   *đề đã duyệt* từng xanh vì chờ `.panel` (có sẵn lúc đang tải); nay chờ tên đề. Thêm 4 vitest (từ
   chối rồi đọc lại, khoá khi đang bận, ngân hàng trống và lỗi tải, đề đang soạn ẩn nút); 304 xanh.
-
+- Pha 3, đóng plan 18/10/2026: commit `f1996df` (BE, schema), `23bac07` (FE). Roadmap việc 17 *Xong*
+  (rev 252). Backlog: chân panel của đề trống lệch Figma 18 (có từ trước; artifact backlog Tier 1).
+  Dữ liệu thử trên DB dev: 2 câu ngân hàng đã vào đề `f2b811fc`.
