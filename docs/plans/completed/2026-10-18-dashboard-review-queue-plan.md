@@ -114,7 +114,7 @@ Cả ba màn đều **chỉ đọc**. Sửa lời giải chỉ làm ở *Ngân h
 - [x] 14. Vitest; chụp, đo so với Figma; subagent chấm.
 
 ### Pha 3 — đóng
-- [ ] 15. ADR-34, ADR-35, các hậu ký, `data-model.md`, `teacher-surface.md`; roadmap việc 19, 21
+- [x] 15. ADR-34, ADR-35, các hậu ký, `data-model.md`, `teacher-surface.md`; roadmap việc 19, 21
   *Xong*; backlog; tick plan tổng; plan sang `completed/`.
 
 ## Decision Records
@@ -177,3 +177,7 @@ reason: một câu là một câu cho mọi lớp. Tính sớm theo lớp đầu
   - `role` của lượt chat là `"student" | "assistant"`.
 
   BE bỏ mục 0% khỏi *5 mục cao nhất*. 10 vitest; tổng 313.
+- Pha 3, đóng plan 18/10/2026: commit `43a0c70` (BE, schema), `1b27f3c` (FE, tài liệu). Roadmap việc
+  19, 21 *Xong* (rev 253). Backlog: BE treo khi tự nạp lại (`docs/plans/backlog.md`, artifact backlog
+  Tier 1). Kèm theo commit FE: `test_publishing` so khuôn câu luật bỏ phần ngày -- chạy gần nửa đêm từng
+  đỏ vì hạn chữa rơi sang ngày hôm sau.
