@@ -7,6 +7,7 @@ import {
   type QuestionEdit,
   type TeacherQuestion,
 } from "../../api";
+import BankPicker from "./BankPicker";
 import Editing from "./Editing";
 import PublishSettings from "./PublishSettings";
 import Veil from "./Veil";
@@ -93,6 +94,8 @@ export default function Panel({
   // Hộp xoá đề trống đang mở, và lời từ chối của BE cho lần xoá ấy (ADR-33).
   const [erasingPaper, setErasingPaper] = useState(false);
   const [paperRefused, setPaperRefused] = useState("");
+  // Hộp *Thêm câu từ ngân hàng* đang mở (việc 17, plan `question-bank-into-draft`).
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     // `Chat` dựng một panel mới cho mỗi đề (`key`), nên đổi đề là gỡ panel cũ: lời đáp muộn của
@@ -112,6 +115,7 @@ export default function Panel({
     setSolving(null);
     setErasingPaper(false);
     setPaperRefused("");
+    setPicking(false);
     teacher
       .assessment(assessmentId)
       .then((found) => {
@@ -176,6 +180,13 @@ export default function Panel({
   // Ô đang soạn lại không còn là *chưa soạn được*: thẻ của nó nói *Đang soạn lại*, và đầu panel
   // không được nói ngược thẻ (review pha 1).
   const failed = slots.filter((one) => !one.redrafting).length;
+  // Một lần đọc lại vừa nói đề thôi nhận câu (vừa duyệt ở tab khác, có câu bắt đầu soạn): đóng hộp
+  // chọn, đừng để nó mời một cú bấm BE sẽ từ chối.
+  const bankShut = paper !== null && !paper.bank_pick_open;
+  useEffect(() => {
+    if (bankShut) setPicking(false);
+  }, [bankShut]);
+
   useEffect(() => {
     if (stillDrafting === 0) return;
     let current = true;
@@ -377,6 +388,10 @@ export default function Panel({
   // của BE bằng một biến riêng. Thứ còn chặn là giờ mở, và câu chặn tới từ
   // `publish-form.undo_blocked`.
   const locked = paper.state === "approved" || paper.state === "published";
+  const empty = paper.questions.length === 0 && slots.length === 0;
+  // Nút lấy câu từ ngân hàng (việc 17) theo cờ của BE, như *Xoá đề* theo `erasable`: hai cửa từ
+  // chối của BE (đề đã khoá, còn câu đang soạn) là luật của BE, không phải của màn hình.
+  const offersBank = paper.bank_pick_open;
 
   return (
     <aside className="panel">
@@ -469,18 +484,31 @@ export default function Panel({
         </div>
       </div>
 
-      <div className="panel-questions">
+      {/* `open`: đệm dưới bằng dải mờ, để nút lấy câu từ ngân hàng không nhạt đi khi đã cuộn tới
+          cuối. Chỉ panel đề còn mở -- đề đã khoá có tấm trượt phát hành, vùng câu chỉ còn ~100. */}
+      <div className={`panel-questions ${locked ? "" : "open"}`}>
         {/*
           Một panel trống phải nói vì sao nó trống. Thẻ kết quả trong chat vừa báo *"đã đặt
           chỗ cho 10 câu"* còn panel hiện *"0 câu"* — hai con số đúng cả hai (một cái là số
           đã xin, một cái là số đã viết xong) nhưng đọc cạnh nhau thì như mâu thuẫn, và một
           khoảng trắng cao nửa mét không giải thích gì cả.
         */}
-        {paper.questions.length === 0 && slots.length === 0 && (
-          <div className="panel-empty">
-            {paper.still_drafting > 0
-              ? `Đang soạn ${paper.still_drafting} câu. Mở lại sau một lát.`
-              : "Chưa có câu hỏi nào trong đề này."}
+        {empty && (
+          <div className={`panel-empty ${offersBank ? "start" : ""}`}>
+            <span>
+              {paper.still_drafting > 0
+                ? `Đang soạn ${paper.still_drafting} câu. Mở lại sau một lát.`
+                : "Chưa có câu hỏi nào trong đề này."}
+            </span>
+            {/* Đề trống (artboard 18, `653:2846`): nút ngân hàng đứng giữa, kèm lời mời nhắn Kriky. */}
+            {offersBank && (
+              <>
+                <button className="from-bank" type="button" onClick={() => setPicking(true)}>
+                  ＋ Thêm câu từ ngân hàng
+                </button>
+                <span className="hint">Hoặc nhắn cho Kriky để soạn câu mới vào đề này.</span>
+              </>
+            )}
           </div>
         )}
         {/* Câu và ô hỏng chung một dãy, theo `order` của BE: ô hỏng đứng đúng chỗ của nó, nên
@@ -512,6 +540,12 @@ export default function Panel({
               />
             ),
           )}
+        {/* Nút lấy câu từ ngân hàng, cuối danh sách câu (artboard 19). */}
+        {offersBank && !empty && (
+          <button className="from-bank wide" type="button" onClick={() => setPicking(true)}>
+            ＋ Thêm câu từ ngân hàng
+          </button>
+        )}
       </div>
 
       {/* Đọc **một** thứ: đề đã khoá hay chưa. Điều kiện này từng là `publishing && locked`
@@ -606,6 +640,25 @@ export default function Panel({
             </button>
           </div>
         </Veil>
+      )}
+
+      {picking && (
+        <BankPicker
+          assessmentId={assessmentId}
+          onClose={() => setPicking(false)}
+          onAdded={(fresh) => {
+            // Một lần đọc lại lặng lẽ đang bay mang đề **trước** lần thêm: đếm như mọi lần ghi khác.
+            writes.current += 1;
+            setPaper(fresh);
+            setTrouble(null);
+            setPicking(false);
+          }}
+          onRefused={() => {
+            // BE từ chối vì đề vừa đổi ở nơi khác: đọc lại để nút và các thẻ nói đúng, như hộp xoá câu.
+            writes.current += 1;
+            teacher.assessment(assessmentId).then(setPaper, () => undefined);
+          }}
+        />
       )}
 
       {erasingPaper && (
@@ -734,9 +787,12 @@ function _note(state: string): string {
  * Câu đã có bản trong ngân hàng thì nói bản ấy **ở lại** -- điều trái trực giác, và là lý do
  * hộp này tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Cả hai nói chuyện dồn số, vì số câu
  * là thứ giáo viên dùng để gọi tên câu.
+  *
+ * Lời dẫn *đã lưu* đúng cho cả hai chiều của `in_bank`: câu đã duyệt từng chép vào kho, và câu lấy
+ * từ kho ra (việc 17) -- *"từ lần duyệt trước"* chỉ đúng với chiều thứ nhất.
  */
 const _ERASE_SAVED =
-  "Câu này đã lưu vào ngân hàng câu hỏi từ lần duyệt trước. Xoá ở đây chỉ gỡ nó khỏi đề này — bản trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.";
+  "Câu này có bản trong ngân hàng câu hỏi. Xoá ở đây chỉ gỡ nó khỏi đề này — bản trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.";
 const _ERASE_FRESH =
   "Câu này chưa có trong ngân hàng câu hỏi, nên xoá rồi thì không lấy lại được. Các câu sau dồn số lên.";
 
@@ -863,6 +919,11 @@ function QuestionCard({
     <div className="qcard">
       <div className="top">
         <span className="num">Câu {question.order}</span>
+        {/* Nguồn thật của câu (`Source chip` `654:25`, ADR-04): BE nói, không suy. Thẻ đang sửa
+            không có chip, như Figma vẽ. */}
+        <span className="source-chip">
+          {question.source === "bank" ? "Từ ngân hàng" : "Kriky soạn"}
+        </span>
         <span className="spacer" />
         {/* *Sửa* và *Xoá* sống chung một điều kiện: đề đã duyệt thì cả hai biến mất (ADR-01).
             Thẻ đang sửa (`Editing`) không có *Xoá*, như Figma vẽ. */}

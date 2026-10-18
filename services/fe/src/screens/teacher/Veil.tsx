@@ -16,15 +16,18 @@ import { useEffect, type ReactNode } from "react";
  * @param onClose - Đóng hộp. Dùng cho cả `Esc` lẫn cú bấm ra ngoài, nên nó phải là đường
  *   **huỷ**, không phải đường xác nhận.
  * @param wide - Hộp rộng 680 thay vì 460. Lời giải cần chỗ; một hộp xác nhận thì không.
+ * @param className - Class thêm cho hộp có khung riêng, như hộp chọn câu ngân hàng (`picker`).
  * @param children - Ruột của hộp.
  */
 export default function Veil({
   onClose,
   wide = false,
+  className = "",
   children,
 }: {
   onClose: () => void;
   wide?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -38,7 +41,7 @@ export default function Veil({
   return (
     <div className="veil" role="dialog" aria-modal="true" onClick={onClose}>
       <div
-        className={wide ? "confirm wide" : "confirm"}
+        className={["confirm", wide ? "wide" : "", className].filter(Boolean).join(" ")}
         onClick={(event) => event.stopPropagation()}
       >
         {children}

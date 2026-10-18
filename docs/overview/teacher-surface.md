@@ -763,19 +763,19 @@ câu**, nên dòng tổng *"N câu ngân hàng · x câu thêm mới đã kiểm
 sau luật ấy nó không còn đếm điều gì. Đầu panel còn hai hàng -- tên đề và dòng meta -- cao **86**.
 Chip nguồn trên **từng câu** ở lại tới 17/10/2026 rồi cũng gỡ (plan `backlog-tier-1`, người dùng chọn
 gỡ ngay): nó là chữ bịa theo hash id, và đã lừa cả biên bản thử tay 17/10 (*"cả hai từ ngân hàng"*).
-Thẻ câu nay chỉ còn `Câu k` ở đầu; component `Question card` (`267:30`) và `Question card — đang sửa ·
-ba tầng` (`531:182`) bỏ instance `Source citation`. Chip thật chờ cột nguồn trên `Question` (plan P1 ở
-artifact *Backlog theo tier*).
+Từ 18/10/2026 chip trở lại, **thật**: `Source chip` (`654:25`) đọc `QuestionRead.source` -- xem mục
+*Thêm câu từ ngân hàng* dưới đây. Thẻ đang sửa vẫn không có chip, như Figma vẽ.
 
 Nút **`Xoá`** đứng ngay sau `Sửa`, cùng kiểu chữ (`.qcard .edit`), cùng điều kiện hiện: đề đã duyệt
 thì cả hai biến mất (thuộc tính `Sửa được` của `Question card`, `267:30`). Thẻ đang sửa không có nó.
 Bấm `Xoá` **không xoá gì**: nó mở hộp `Consequence dialog — xoá câu khỏi đề` (`592:3180`), artboard
 **`15 · Xoá một câu khỏi đề — đề từng duyệt rồi bỏ duyệt`** (`594:2550`).
 
-- **Hai lời dẫn, theo `in_bank` của BE.** Câu đã có bản trong ngân hàng thì hộp nói bản ấy **ở lại**
+- **Hai lời dẫn, theo `in_bank` của BE.** Câu có bản trong ngân hàng thì hộp nói bản ấy **ở lại**
   -- đây là điều trái trực giác, và là lý do hộp tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Cả
-  hai nói các câu sau dồn số lên. `in_bank` **không** phải nguồn *"Lấy từ ngân hàng câu hỏi"*: câu ấy
-  rút từ kho ra, còn đây là câu đã chép vào kho -- nên hộp đọc `in_bank`, không đọc chip.
+  hai nói các câu sau dồn số lên. Từ việc 17, `in_bank` gộp hai chiều -- câu đã duyệt từng chép vào
+  kho, và câu lấy từ kho ra --, nên lời dẫn là *"Câu này có bản trong ngân hàng câu hỏi…"*, đúng cho
+  cả hai; hộp vẫn đọc `in_bank`, không đọc chip.
 - **Lời từ chối của BE ở trong hộp** (`.confirm .refused`), và hộp không đóng: còn câu đang soạn,
   câu cuối của đề, đề đã có lượt làm bài, đề vừa bị duyệt ở nơi khác. Đóng hộp là giấu lý do; đang xoá thì hộp cũng không đóng
   được (`Esc`, bấm ra ngoài, `Giữ lại` đều khoá). Bị từ chối thì panel vẫn đọc lại đề, vì BE thu
@@ -835,6 +835,37 @@ nháp trống — hộp xác nhận`** (`653:3095`):
 27, hai nút cao 40 cách nhau 16, căn phải -- đúng Figma. Hộp căn giữa màn hình (y 386,5); artboard
 18b từng đặt nó ở y 349, nay đã dời về giữa cho khớp. Artboard 18 và 18b nay có thêm *Đổi tên* ở đầu
 panel như code (ADR-31).
+
+## Thêm câu từ ngân hàng — chip nguồn thật, và một hộp chọn
+
+Việc 17 (plan `question-bank-into-draft`): giáo viên lấy câu từ ngân hàng của mình vào đề đang mở, ngay
+trên panel. Artboard **`19 · Panel — chip nguồn và nút thêm câu từ ngân hàng`** (`655:3974`), **`19b ·
+Thêm câu từ ngân hàng — hộp chọn`** (`655:4222`), và đề trống ở artboard 18 (`653:2846`):
+
+- **Chip nguồn** (`Source chip`, `654:25`) đứng ngay sau *Câu k*, khe 8: *Kriky soạn* hay *Từ ngân
+  hàng*, theo `QuestionRead.source` của BE (ADR-04). Một nhãn xám, không phải nút: nền `--sunken`, chữ
+  `--ink-muted` 11/500, bo 4, cao 19.
+- **Nút *＋ Thêm câu từ ngân hàng*** (`Button` secondary): cuối danh sách câu, cả bề ngang, chữ canh
+  trái; ở đề trống thì đứng giữa khối *"Chưa có câu hỏi nào…"* / *"Hoặc nhắn cho Kriky…"*, ôm chữ.
+  Chỉ hiện khi BE bật `bank_pick_open` (đề còn sửa được **và** không còn câu đang soạn -- hai cửa
+  từ chối của route), như *Xoá đề* theo `erasable`: màn hình không tự suy luật ấy. Một lần đọc lại tắt
+  cờ khi hộp đang mở thì hộp đóng.
+- **Hộp chọn** (`Bank picker`, `655:39`): ô tìm lọc **tại chỗ**, không phân biệt dấu (*"tiem can"* ra
+  *"Tiệm cận"*); mỗi hàng (`Bank row`, `655:38`) có đề bài và *"mục kiến thức · tên đề gốc"*. Ba trạng
+  thái hàng: chưa chọn, đã chọn (nền `--accent-surface`, ô đánh dấu đặc), đã có trong đề (mờ 55%,
+  *"đã có trong đề này"*, không chọn được). Câu vào cuối đề **theo thứ tự bấm**. *"Đã chọn n câu"* bên
+  trái; *Đóng* (ghost) và *Thêm n câu vào đề* bên phải.
+- **BE từ chối thì lời của BE ở trong hộp**, hộp ở lại, và panel đọc lại đề -- lời từ chối thường nói
+  đề vừa đổi ở nơi khác. Thêm xong thì hộp đóng và panel vẽ đề BE vừa trả. Đang thêm thì `Esc`, bấm ra
+  ngoài và *Đóng* đều khoá.
+
+**Đo trên trình duyệt ngày 18/10/2026**, so với artboard 18, 19, 19b (density Teacher): hộp chọn
+**640 × 535** ở (400, 183) -- canh giữa như mọi hộp; artboard 19b từng đặt ở y 138, nay đã dời --,
+padding 24, bo 14, bóng 0 12 32 / 16%; ô tìm 592 × 40; danh sách cao 332; hàng **60**, cách nhau 8; ô
+đánh dấu 16; hàng nút 40. Chip *Từ ngân hàng* **85 × 19**, *Kriky soạn* 69 × 19. Khối đề trống cao
+**158**, đệm 32, khe 12, nút 198 × 40. Đệm dưới của vùng câu ở **panel đề còn mở** nay **56**, bằng
+dải mờ: cuộn tới cuối thì nút không nằm trong dải mờ. Đề đã khoá (tấm trượt phát hành để lại ~100 cho
+vùng câu) và màn 22b giữ 20.
 
 ## Các màn của rail — trang đọc, chữ của BE
 

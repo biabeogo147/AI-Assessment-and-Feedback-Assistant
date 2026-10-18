@@ -1438,6 +1438,8 @@ class AssessmentDetail(BaseModel):
             vẽ chúng **giữa** các câu, nên số câu là số theo vị trí (plan `wave-3-draft-panel`).
         erasable: Đề xoá được không (ADR-33): chỉ đề trống. Panel chỉ hiện link *Xoá đề* khi cờ
             này bật, không tự suy từ `state` hay số câu.
+        bank_pick_open: Lấy câu từ ngân hàng vào đề được không (việc 17): đề còn sửa được và không
+            còn câu đang soạn -- đúng hai cửa của `add_from_bank`. Panel chỉ hiện nút khi cờ bật.
     """
 
     assessment_id: str
@@ -1453,6 +1455,7 @@ class AssessmentDetail(BaseModel):
     questions: tuple[QuestionRead, ...] = ()
     failed_slots: tuple[SlotRead, ...] = ()
     erasable: bool = False
+    bank_pick_open: bool = False
 
 
 class PublishedTo(BaseModel):
@@ -1714,6 +1717,7 @@ async def assessment_detail(
     )
 
     brief = await session.get(DraftBrief, assessment_id)
+    drafting = await pending_count(session, assessment_id)
     return AssessmentDetail(
         assessment_id=assessment_id,
         title=assessment.title,
@@ -1721,7 +1725,7 @@ async def assessment_detail(
         grade=assessment.grade,
         state=state_of(assessment),
         question_count=len(questions),
-        still_drafting=await pending_count(session, assessment_id),
+        still_drafting=drafting,
         topic_scope=brief.topic_scope if brief is not None else "",
         difficulty=brief.difficulty if brief is not None else "",
         conversation_id=await conversation_of(session, asking, assessment_id) or "",
@@ -1731,6 +1735,7 @@ async def assessment_detail(
             for order, redrafting in await troubled_slots(session, assessment_id)
         ),
         erasable=not await why_not_erasable(session, assessment),
+        bank_pick_open=editable(assessment) and drafting == 0,
     )
 
 

@@ -2062,6 +2062,8 @@ describe("tải một tài liệu lên", () => {
 /** Một đề đủ để panel vẽ được, ở trạng thái gọi tên. */
 function paper(state: string) {
   return {
+    // Như `bank_pick_open` của BE: đề còn sửa được, không câu nào đang soạn.
+    bank_pick_open: state === "empty" || state === "has_questions",
     assessment_id: "p1",
     title: "Kiểm tra 15 phút — Hàm số",
     subject: "Toán",
@@ -2089,6 +2091,7 @@ function paper(state: string) {
         ],
         methods: [{ title: "Cách 1", body: "Đạo hàm từng hạng tử." }],
         in_bank: false,
+        source: "kriky",
       },
     ],
   };
@@ -2910,8 +2913,8 @@ describe("xoá một câu khỏi đề (ADR-28)", () => {
   }
 
   it("dòng tổng đã kiểm / chưa kiểm không còn dưới tên đề", async () => {
-    // Duyệt đề là đã kiểm mọi câu, nên dòng ấy không còn đếm điều gì. Chip nguồn trên từng câu
-    // cũng đã gỡ (17/10/2026, Tier 2 câu 1 = A): nó là chữ bịa theo hash id.
+    // Duyệt đề là đã kiểm mọi câu, nên dòng ấy không còn đếm điều gì. Chip nguồn từng là chữ bịa
+    // theo hash id và đã gỡ (17/10/2026); nay nó trở lại, đọc `source` thật của BE (việc 17).
     serving("has_questions", false);
     mount();
     await openErase(1);
@@ -2920,7 +2923,9 @@ describe("xoá một câu khỏi đề (ADR-28)", () => {
     expect(document.querySelector(".panel-head .provenance")).toBeNull();
     expect(screen.queryByText(/câu thêm mới đã kiểm/)).toBeNull();
     expect(screen.queryByText(/câu chưa kiểm/)).toBeNull();
-    expect(document.querySelector(".qcard .source-chip")).toBeNull();
+    expect(
+      [...document.querySelectorAll(".qcard .source-chip")].map((one) => one.textContent),
+    ).toEqual(["Kriky soạn", "Kriky soạn"]);
   });
 
   it("Xoá đứng ngay sau Sửa, cùng kiểu, và biến mất cùng Sửa khi đề đã duyệt", async () => {
@@ -7173,5 +7178,267 @@ describe("các màn của rail, phần hai (việc 18, plan `teacher-rail-screen
     await waitFor(() =>
       expect(container.querySelector(".refused")?.textContent).toBe("Thân câu trống."),
     );
+  });
+});
+
+describe("thêm câu từ ngân hàng (việc 17, plan `question-bank-into-draft`)", () => {
+  const ROWS = [
+    {
+      bank_id: "b1",
+      stem: "Đạo hàm của y = x³?",
+      learning_objective: "Đạo hàm",
+      from_title: "Đề tuần 3 — Đạo hàm",
+      in_this_paper: false,
+    },
+    {
+      bank_id: "b2",
+      stem: "Tiệm cận của y = 1/x?",
+      learning_objective: "Tiệm cận",
+      from_title: "Đề tuần 2",
+      in_this_paper: false,
+    },
+    {
+      bank_id: "b3",
+      stem: "Đạo hàm của y = x² + 3x là gì?",
+      learning_objective: "Đạo hàm",
+      from_title: "Kiểm tra 15 phút — Hàm số",
+      in_this_paper: true,
+    },
+  ];
+
+  /** Đề `body`; POST trả `added` hoặc một lời từ chối 409. */
+  function serving(body: Record<string, unknown>, added: unknown = null, refuse = "") {
+    const calls: { url: string; method: string; body: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method, body: String(init?.body ?? "") });
+        if (method === "POST" && refuse) {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ detail: refuse }),
+          });
+        }
+        const answer = url.endsWith("/bank-picker")
+          ? { questions: ROWS }
+          : url.includes("/publish-form")
+            ? FORM
+            : method === "POST"
+            ? added
+            : body;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
+      }),
+    );
+    return calls;
+  }
+
+  function mount() {
+    return render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+  }
+
+  it("chip nguồn đọc `source` của BE", async () => {
+    const body = paper("has_questions");
+    const bank = { ...body.questions[0], question_id: "q2", order: 2, source: "bank", in_bank: true };
+    serving({ ...body, question_count: 2, questions: [body.questions[0], bank] });
+    const { container } = mount();
+
+    await screen.findByText("Từ ngân hàng");
+    expect([...container.querySelectorAll(".source-chip")].map((one) => one.textContent)).toEqual([
+      "Kriky soạn",
+      "Từ ngân hàng",
+    ]);
+  });
+
+  it("chọn hai câu theo thứ tự bấm, thêm vào đề, panel vẽ đề BE trả về", async () => {
+    const body = paper("has_questions");
+    const added = {
+      ...body,
+      question_count: 3,
+      questions: [
+        body.questions[0],
+        { ...body.questions[0], question_id: "q2", order: 2, stem: ROWS[1].stem, source: "bank" },
+        { ...body.questions[0], question_id: "q3", order: 3, stem: ROWS[0].stem, source: "bank" },
+      ],
+    };
+    const calls = serving(body, added);
+    const { container } = mount();
+
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    await screen.findByText("Tiệm cận của y = 1/x?");
+    // Câu đã có trong đề: mờ, ghi rõ, không chọn được.
+    const taken = container.querySelector(".picker-row.taken") as HTMLElement;
+    expect(taken.textContent).toContain("đã có trong đề này");
+    expect((taken.querySelector("input") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Thêm vào đề" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    fireEvent.click(screen.getByText("Tiệm cận của y = 1/x?"));
+    fireEvent.click(screen.getByText("Đạo hàm của y = x³?"));
+    expect(screen.getByText("Đã chọn 2 câu")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Thêm 2 câu vào đề" }));
+
+    await waitFor(() => expect(container.querySelector(".picker")).toBeNull());
+    const sent = calls.find((one) => one.method === "POST");
+    expect(sent?.url).toBe("/api/teacher/assessments/p1/bank-questions");
+    expect(JSON.parse(sent?.body ?? "{}")).toEqual({ bank_ids: ["b2", "b1"] });
+    expect(container.querySelectorAll(".qcard")).toHaveLength(3);
+  });
+
+  it("ô tìm lọc tại chỗ, không phân biệt dấu", async () => {
+    serving(paper("has_questions"));
+    const { container } = mount();
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    await screen.findByText("Tiệm cận của y = 1/x?");
+
+    fireEvent.change(screen.getByLabelText("Tìm câu trong ngân hàng"), {
+      target: { value: "tiem can" },
+    });
+    expect(container.querySelectorAll(".picker-row")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Tìm câu trong ngân hàng"), {
+      target: { value: "tích phân" },
+    });
+    expect(screen.getByText("Không có câu nào khớp “tích phân”.")).toBeTruthy();
+  });
+
+  it("BE từ chối thì lời của BE hiện trong hộp, hộp ở lại", async () => {
+    serving(paper("has_questions"), null, "Còn 2 câu đang soạn. Đợi soạn xong rồi thêm.");
+    const { container } = mount();
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    fireEvent.click(await screen.findByText("Tiệm cận của y = 1/x?"));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm 1 câu vào đề" }));
+
+    await waitFor(() =>
+      expect(container.querySelector(".picker .refused")?.textContent).toBe(
+        "Còn 2 câu đang soạn. Đợi soạn xong rồi thêm.",
+      ),
+    );
+    expect(container.querySelector(".picker")).toBeTruthy();
+  });
+
+  it("đề trống mời lấy từ ngân hàng hay nhắn Kriky; đề đã duyệt và đề đang soạn thì không", async () => {
+    const empty = { ...paper("empty"), question_count: 0, questions: [] };
+    serving(empty);
+    const first = mount();
+    await screen.findByText("Hoặc nhắn cho Kriky để soạn câu mới vào đề này.");
+    expect(first.container.querySelector(".panel-empty.start .from-bank")).toBeTruthy();
+    first.unmount();
+
+    serving({ ...empty, still_drafting: 2, bank_pick_open: false });
+    const second = mount();
+    await screen.findByText("Đang soạn 2 câu. Mở lại sau một lát.");
+    expect(second.container.querySelector(".from-bank")).toBeNull();
+    second.unmount();
+
+    // Chờ đề tải xong -- `.panel` có ngay từ lúc chờ, nên chờ nó là kiểm một màn chưa có gì.
+    serving({ ...paper("approved"), bank_pick_open: false });
+    const third = mount();
+    await screen.findByText("Kiểm tra 15 phút — Hàm số");
+    expect(third.container.querySelector(".from-bank")).toBeNull();
+    third.unmount();
+
+    // Đề có câu mà còn câu đang soạn: BE nói chưa nhận câu, nút cuối danh sách không hiện.
+    serving({ ...paper("has_questions"), still_drafting: 1, bank_pick_open: false });
+    const fourth = mount();
+    await screen.findByText("Đạo hàm của y = x² + 3x là gì?");
+    expect(fourth.container.querySelector(".from-bank")).toBeNull();
+  });
+
+  it("BE từ chối thì panel đọc lại đề, và hộp đóng khi đề thôi nhận câu", async () => {
+    let shut = false;
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push(`${method} ${url}`);
+        if (method === "POST") {
+          shut = true;
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ detail: "Đề đã duyệt nên không thêm câu được." }),
+          });
+        }
+        const answer = url.endsWith("/bank-picker")
+          ? { questions: ROWS }
+          : url.includes("/publish-form")
+            ? FORM
+            : { ...paper(shut ? "approved" : "has_questions"), bank_pick_open: !shut };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
+      }),
+    );
+    const { container } = mount();
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    fireEvent.click(await screen.findByText("Tiệm cận của y = 1/x?"));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm 1 câu vào đề" }));
+
+    // Đọc lại sau lời từ chối: đề nay đã duyệt, nên hộp đóng và nút biến mất.
+    await waitFor(() => expect(container.querySelector(".picker")).toBeNull());
+    expect(calls.filter((one) => one === "GET /api/teacher/assessments/p1").length).toBe(2);
+    expect(container.querySelector(".from-bank")).toBeNull();
+  });
+
+  it("đang thêm thì Esc và Đóng không đóng hộp", async () => {
+    let release: () => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET").toUpperCase() === "POST") {
+          return new Promise((done) => {
+            release = () =>
+              done({ ok: true, json: () => Promise.resolve(paper("has_questions")) });
+          });
+        }
+        const answer = url.endsWith("/bank-picker") ? { questions: ROWS } : paper("has_questions");
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
+      }),
+    );
+    const { container } = mount();
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    fireEvent.click(await screen.findByText("Tiệm cận của y = 1/x?"));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm 1 câu vào đề" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    const dialog = container.querySelector(".picker") as HTMLElement;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đóng" }));
+    expect(container.querySelector(".picker")).toBeTruthy();
+    release();
+    await waitFor(() => expect(container.querySelector(".picker")).toBeNull());
+  });
+
+  it("ngân hàng trống, hay không tải được, thì hộp nói ra", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("/bank-picker")
+            ? { ok: true, json: () => Promise.resolve({ questions: [] }) }
+            : { ok: true, json: () => Promise.resolve(paper("has_questions")) },
+        ),
+      ),
+    );
+    const first = mount();
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    expect(
+      await screen.findByText("Ngân hàng còn trống. Câu vào đây khi bạn duyệt một đề."),
+    ).toBeTruthy();
+    first.unmount();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("/bank-picker")
+            ? { ok: false, status: 500, json: () => Promise.resolve({ detail: "BE đang hỏng." }) }
+            : { ok: true, json: () => Promise.resolve(paper("has_questions")) },
+        ),
+      ),
+    );
+    mount();
+    fireEvent.click(await screen.findByText("＋ Thêm câu từ ngân hàng"));
+    expect(await screen.findByText("BE đang hỏng.")).toBeTruthy();
   });
 });

@@ -116,3 +116,20 @@ gần trùng do model viết được ghi là *"cả hai từ ngân hàng"*. Pan
 `provenanceOf` và CSS `.source-chip` đã xoá, `Question card` trên Figma bỏ instance `Source citation`.
 Luật hai nguồn giữ nguyên; FE **không** còn *giả vờ* thi hành nó — nó chưa thi hành gì cả, tới khi
 `Question` có cột nguồn. `Source citation` (`84:35`) ở lại làm component cho ngày ấy.
+
+## Hậu ký 18/10/2026
+
+**Hai nguồn nay có thật trong dữ liệu.** Việc 17 của đợt tất định (plan
+`2026-10-18-question-bank-into-draft-plan.md`) thêm `questions.source` (`kriky` / `bank`) và
+`questions.bank_question_id`: giáo viên lấy câu từ ngân hàng của mình vào một đề còn mở, ngay trên
+panel. Câu ấy là một **bản chép** (`Answer.option_id` trỏ vào phương án của chính câu trong đề), nhớ
+dòng ngân hàng nó chép từ; sửa ở hai bên không đổi bên kia.
+
+**Chip trở lại, đọc từ BE.** Thẻ câu in `Source chip` (`654:25`, hai variant *Kriky soạn* / *Từ ngân
+hàng*) theo `QuestionRead.source` -- không còn hash id nào. Chip ấy **hai** nấc, không ba: nấc *đã kiểm*
+/ *chưa kiểm* đã thành trạng thái của cả đề từ hậu ký 13/10/2026, nên chip chỉ nói nguồn. `Source
+citation` (`84:35`) ba variant không dùng nữa. Màu xám trung tính cho cả hai nấc: một nhãn, không phải
+một lời gọi chú ý.
+
+**Còn chưa thi hành:** Kriky rút câu từ ngân hàng khi soạn (chạm AGENT, đang khoá).
+

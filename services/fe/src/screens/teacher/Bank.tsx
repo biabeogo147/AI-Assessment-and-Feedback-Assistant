@@ -190,5 +190,6 @@ function asQuestion(one: BankDetail): TeacherQuestion {
     options: one.options,
     methods: one.methods,
     in_bank: true,
+    source: "bank",
   };
 }

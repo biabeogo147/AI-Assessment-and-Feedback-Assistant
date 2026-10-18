@@ -119,3 +119,23 @@ Dựng ở plan `2026-10-13-question-bank-write-path-plan.md`.
   artboard 6, 7, 8, 12, 14.
 - **Chưa thi hành:** đường đọc (Kriky rút câu từ ngân hàng); việc sửa bản trong ngân hàng; chip nguồn
   thật trên từng câu.
+
+## Hậu ký 18/10/2026
+
+Hai đường đọc và một đường ghi ngược đã có; chip nguồn thật đã có.
+
+- **Màn *Ngân hàng câu hỏi*** (việc 18, plan `teacher-rail-screens`): đọc và sửa **bản trong ngân
+  hàng**; câu trong đề không đổi. Câu hỏi *"ghi đè sẽ va với việc sửa trong ngân hàng"* ở mục Hệ quả
+  vẫn mở: duyệt lại đề gốc đè bản đã sửa (`docs/plans/backlog.md`, chờ người dùng).
+- **Lấy câu từ ngân hàng vào đề còn mở** (việc 17, plan `question-bank-into-draft`):
+  `POST /api/teacher/assessments/{id}/bank-questions` chép câu thành `Question` mang `source="bank"`,
+  `bank_question_id`, và một ô `draft_items` đã `ready` để lần soạn thêm nối tiếp số; câu đã có trong
+  đề -- lấy vào trước đó, hay chính đề này là nơi câu được duyệt -- bị bỏ qua.
+  `GET .../bank-picker` cho hộp chọn (artboard 19b). Luật *"lấy từ ngân hàng sang đề mới thì lúc duyệt
+  không sinh thêm một bản trùng"* nay đứng trong `question_bank.file_approved`: câu `bank` bị bỏ qua.
+  Test ở `services/be/tests/test_bank_into_draft.py`.
+- **Hộp xoá câu** đọc `in_bank` gộp cả hai chiều -- câu đã duyệt từng chép vào kho, và câu lấy từ kho
+  ra --, nên lời dẫn *"đã lưu từ lần duyệt trước"* đổi thành *"Câu này có bản trong ngân hàng câu
+  hỏi…"*, cùng ở `Consequence dialog` (`592:3180`).
+- **Còn chưa thi hành:** Kriky rút câu từ ngân hàng khi soạn.
+

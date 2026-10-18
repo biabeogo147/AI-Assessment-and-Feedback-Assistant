@@ -29,7 +29,7 @@ hàng` `655:3974`, `19b · Thêm câu từ ngân hàng — hộp chọn` `655:42
 | `packages/schema/src/schema/models.py` | hai cột |
 | `services/be/src/be/teacher_routes.py`, `question_bank.py` (`choose`, `take_into`, `picker`) | route, `source`, duyệt |
 | `services/be/tests/test_bank_into_draft.py` (mới) | test BE |
-| `services/fe/src/api.ts`, `screens/teacher/Panel.tsx`, `BankPicker.tsx` (mới), `teacher.css`, `teacher.test.tsx` | FE |
+| `services/fe/src/api.ts`, `screens/teacher/Panel.tsx`, `BankPicker.tsx` (mới), `Veil.tsx` (`className`), `Bank.tsx`, `teacher.css`, `teacher.test.tsx` | FE |
 | `docs/overview/data-model.md`, `teacher-surface.md`, `docs/decisions/adr-04-*`, `adr-28-*`, `README.md` | tài liệu |
 
 ## Ordered Tasks
@@ -58,10 +58,10 @@ hàng` `655:3974`, `19b · Thêm câu từ ngân hàng — hộp chọn` `655:42
   không tạo bản ngân hàng thứ hai.
 
 ### Pha 2 — FE
-- [ ] 6. `Source chip` trên thẻ câu (`Kriky soạn` / `Từ ngân hàng`), theo `654:25`.
-- [ ] 7. Nút *Thêm câu từ ngân hàng* (cuối danh sách câu, và trong đề trống), chỉ khi đề còn mở; hộp
+- [x] 6. `Source chip` trên thẻ câu (`Kriky soạn` / `Từ ngân hàng`), theo `654:25`.
+- [x] 7. Nút *Thêm câu từ ngân hàng* (cuối danh sách câu, và trong đề trống), chỉ khi đề còn mở; hộp
   chọn theo `655:4222`; thêm xong thì panel đọc lại.
-- [ ] 8. Vitest; chụp, đo so với 19, 19b, 18; subagent chấm.
+- [x] 8. Vitest; chụp, đo so với 19, 19b, 18; subagent chấm.
 
 ### Pha 3 — đóng
 - [ ] 9. Tài liệu, hậu ký; roadmap việc 17 *Xong*; backlog; tick plan tổng; plan sang `completed/`.
@@ -107,3 +107,20 @@ bản ngân hàng, ngược điều người dùng chốt cho màn 22b.
   mà không có ô từng nhận quá trần); `QuestionRead.source` là `Literal`; docstring duyệt và `in_bank`.
   Thêm 5 test: vượt trần, ô hỏng của đề trống, xoá câu ngân hàng (dòng ở lại, brief bớt một, hộp chọn
   mở lại), hộp chọn không lộ ngân hàng người khác, sửa câu giữ `source`. 14 test.
+- Pha 2: chip nguồn (`Source chip` `654:25`) đọc `source`; nút thêm câu cuối danh sách (chữ canh trái)
+  và giữa đề trống (artboard 18, một khối dọc đệm 32 khe 12); hộp chọn `BankPicker` (lọc tại chỗ, bỏ
+  dấu; ba trạng thái hàng; câu vào theo thứ tự bấm); `Veil` nhận `className`. Câu dẫn hộp xoá câu đổi
+  thành *"Câu này có bản trong ngân hàng câu hỏi…"*, đúng cho cả hai chiều của `in_bank`; Figma
+  `592:3157`, `592:3173` theo. Đệm dưới `.panel-questions` 20 → 56 bằng dải mờ: nút cuối từng nhạt như
+  chưa bấm được. Figma 19b: hộp chọn dời về giữa (y 183) như mọi hộp của app. 6 vitest mới, 301 xanh.
+  Chụp trên Chrome headless, dữ liệu dev thật -- đã thêm 2 câu ngân hàng vào đề `f2b811fc` --, đề trống
+  bằng lời đáp chặn qua CDP; subagent chấm hai lượt, đạt. Một lần so nhầm hộp xoá với variant ở trang
+  Components (density mặc định 20/16/14); bản dùng trên artboard 15 là 18/14/13, khớp.
+- Review FE pha 2, sửa: cờ `AssessmentDetail.bank_pick_open` của BE (đề sửa được và không còn câu đang
+  soạn) thay cho phép suy ở FE, theo tiền lệ `erasable`; hộp đóng khi một lần đọc lại tắt cờ; BE từ
+  chối thì panel đọc lại đề (`onRefused`); đệm 56 chỉ cho panel đề còn mở (`.panel-questions.open`) --
+  đề đã khoá và màn 22b về 20; ARIA: mỗi hàng một `div role="listitem"`, câu báo trống ra ngoài danh
+  sách; regex bỏ dấu viết bằng escape; nút chính tắt `opacity: 1`; `source` là `"kriky" | "bank"`. Test
+  *đề đã duyệt* từng xanh vì chờ `.panel` (có sẵn lúc đang tải); nay chờ tên đề. Thêm 4 vitest (từ
+  chối rồi đọc lại, khoá khi đang bận, ngân hàng trống và lỗi tải, đề đang soạn ẩn nút); 304 xanh.
+

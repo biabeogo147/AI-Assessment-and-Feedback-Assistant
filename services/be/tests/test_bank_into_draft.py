@@ -294,6 +294,7 @@ async def test_an_empty_draft_gets_questions_from_the_bank(stack) -> None:
     assert [one["order"] for one in answer.json()["questions"]] == [1]
     assert answer.json()["state"] == "has_questions"
     assert answer.json()["erasable"] is False
+    assert answer.json()["bank_pick_open"] is True
 
 
 @pytest.mark.asyncio
@@ -433,6 +434,8 @@ async def test_an_approved_paper_refuses_a_bank_pick(stack) -> None:
     ).status_code == 200
 
     assert (await _take(http, draft, [only])).status_code == 409
+    detail = await http.get(f"/api/teacher/assessments/{draft}", headers=TEACHER)
+    assert detail.json()["bank_pick_open"] is False
 
 
 @pytest.mark.asyncio
@@ -448,6 +451,9 @@ async def test_a_paper_still_being_drafted_refuses_a_bank_pick(stack) -> None:
 
     assert refused.status_code == 409
     assert "đang soạn" in refused.json()["detail"]
+    # Cờ của panel nói cùng điều ấy, để nút không hứa một việc BE sẽ từ chối.
+    detail = await http.get(f"/api/teacher/assessments/{draft}", headers=TEACHER)
+    assert detail.json()["bank_pick_open"] is False
 
 
 @pytest.mark.asyncio

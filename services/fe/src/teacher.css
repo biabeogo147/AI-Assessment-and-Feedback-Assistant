@@ -1868,6 +1868,13 @@
   mask-image: linear-gradient(to bottom, black calc(100% - 56px), transparent);
 }
 
+/* Panel đề còn mở: đệm dưới bằng dải mờ (56), để thứ cuối cùng -- nút lấy câu từ ngân hàng --
+ * đứng trọn trên dải mờ khi đã cuộn tới cuối, không nhạt đi như chưa bấm được (chấm ảnh việc 17).
+ * Không áp cho đề đã khoá (tấm trượt phát hành để lại ~100 cho vùng câu) và màn 22b. */
+.teacher .panel-questions.open {
+  padding-bottom: 56px;
+}
+
 .teacher .panel-questions::-webkit-scrollbar {
   display: none;
 }
@@ -3031,6 +3038,219 @@
   color: var(--ink-muted);
   font-size: var(--type-label);
   line-height: 1.5;
+}
+
+/* Đề trống còn sửa được (artboard 18, `panel-empty` của `653:2846`): một khối dọc canh giữa, đệm
+ * 32, khe 12 -- câu giải thích, nút ngân hàng ôm chữ, lời mời nhắn Kriky. */
+.teacher .panel-empty.start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  text-align: center;
+}
+
+/* Dòng tự động như hai chữ của artboard 18 (16 và 14), không 1,5 của panel: khối giữ cao 158. */
+.teacher .panel-empty.start > span {
+  line-height: 1.25;
+}
+
+.teacher .panel-empty .hint {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+}
+
+/* `Source chip` (`654:25`): nền chìm, chữ mực nhạt, bo 4 -- một nhãn, không phải một nút. */
+.teacher .qcard .source-chip {
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* `Button` secondary của Figma, cao 40: ôm chữ ở đề trống (18), cả bề ngang dưới danh sách câu (19). */
+.teacher .from-bank {
+  flex: none;
+  height: 40px;
+  padding: 9px 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+/* Dưới danh sách câu, chữ canh trái cách mép 16 như artboard 19; ở đề trống nút ôm chữ. */
+.teacher .from-bank.wide {
+  text-align: left;
+}
+
+/* ------------------------------------------------------- hộp chọn câu ngân hàng */
+
+/* `Bank picker` (`655:39`): 640, padding 24, bo 14, bóng 0 12 32 / 16%, không viền. */
+.teacher .confirm.picker {
+  gap: 16px;
+  width: 640px;
+  padding: 24px;
+  border: none;
+  box-shadow: 0 12px 32px rgb(26 31 43 / 16%);
+}
+
+.teacher .picker-search {
+  height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .picker-search::placeholder {
+  color: var(--ink-faint);
+}
+
+/* Năm hàng 60 cách nhau 8 thì vừa 332, như Figma; hơn nữa thì cuộn trong hộp. */
+.teacher .picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 332px;
+  overflow-y: auto;
+}
+
+.teacher .picker-empty {
+  padding: 12px 0;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+}
+
+/* `Bank row` (`655:38`): ba trạng thái -- chưa chọn, đã chọn (nền accent-surface), đã có trong đề
+ * (mờ 55%, không chọn được). */
+.teacher .picker-row {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 60px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.teacher .picker-row.chosen {
+  background: var(--accent-surface);
+}
+
+.teacher .picker-row.taken {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Ô đánh dấu thật nằm dưới ô vẽ: bàn phím và trình đọc màn hình vẫn dùng được. */
+.teacher .picker-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.teacher .picker-row .box {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-chip);
+  background: var(--surface);
+  color: var(--surface);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.teacher .picker-row.chosen .box {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.teacher .picker-row input:focus-visible + .box {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.teacher .picker-row .text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.teacher .picker-row .stem {
+  color: var(--ink);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .picker-row .meta {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.teacher .picker-actions .count {
+  flex: 1;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  font-weight: 500;
+}
+
+.teacher .picker-actions .btn {
+  height: 40px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .picker-actions .btn.primary {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+/* `opacity: 1`: `button:disabled` của `tokens.css` làm mờ thêm một nửa, và nền `--sunken` đã là
+ * trạng thái tắt. */
+.teacher .picker-actions .btn.primary:disabled {
+  background: var(--sunken);
+  color: var(--ink-faint);
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------- thanh kéo dọc */

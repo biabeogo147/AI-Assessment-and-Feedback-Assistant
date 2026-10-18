@@ -12,7 +12,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [01](adr-01-vong-doi-de-kiem-tra.md) | Vòng đời đề kiểm tra có bốn trạng thái (hậu ký 13/10/2026: xoá câu không đổi trạng thái; 18/10/2026: đề trống xoá được) | đã mở rộng bởi ADR-02, ADR-18 |
 | [02](adr-02-phat-hanh-va-cua-so-thu-hoi.md) | Chỉ giáo viên phát hành; phát hành có sáu tham số (hậu ký 18/10/2026: thu hồi chỉ trước giờ mở) | đã mở rộng bởi ADR-15 |
 | [03](adr-03-ranh-gioi-cua-vao.md) | Giờ đóng chặn việc vào làm, không chặn việc nộp (hậu ký 18/10/2026: chữ câu luật mới, in ngày khi mốc khác ngày giờ mở) | đã chốt (phạm vi: pha 1) |
-| [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi (hậu ký 13/10/2026: duyệt đề là đã kiểm mọi câu) | đã chốt (trừ câu luyện tập) |
+| [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi (hậu ký 13/10/2026: duyệt đề là đã kiểm mọi câu; 18/10/2026: `questions.source`, chip nguồn thật) | đã chốt (trừ câu luyện tập) |
 | [05](adr-05-ba-cong-teacher-in-the-loop.md) | Ba cổng teacher-in-the-loop | đã chốt (cổng 1 có ngoại lệ) |
 | [06](adr-06-agent-phat-bang-chung.md) | Agent phát bằng chứng, không quyết định | đã chốt |
 | [07](adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) | Ngưỡng, thứ tự ưu tiên lý do, và phép so bao gồm | đã chốt (ngưỡng tạm gỡ khỏi luồng học sinh) |
@@ -36,7 +36,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [25](adr-25-hai-pha-mot-luot-chat.md) | Một lượt chat có hai pha: lên plan, rồi thực hiện plan | đang thi hành (hậu ký 18/10/2026: job kể lại vẫn chạy) |
 | [26](adr-26-chu-sai-cu-phap-di-toi-giao-vien.md) | Chữ sai cú pháp đi tới giáo viên, và giáo viên nhìn thấy chỗ sai | đã chốt |
 | [27](adr-27-tai-lieu-di-vao-ngu-canh-ra-de.md) | Tài liệu đi vào ngữ cảnh ra đề để cung cấp kiến thức (hậu ký 12/10/2026: lọc bài tập chỉ còn cho pha 2; hậu ký 15/10/2026: *mỗi câu một mục* nhường cho ADR-29) | đã chốt, đang thi hành (hậu ký 18/10/2026: qua dàn ý của ADR-29) |
-| [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đang thi hành (đường ghi; đường đọc chưa có) |
+| [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đang thi hành (đường ghi, màn ngân hàng, lấy câu vào đề; Kriky rút câu thì chưa) |
 | [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; job chỉ nhận mục của nó, không chữ tài liệu thô (hậu ký 17/10/2026: lời dàn ý do Kriky viết, ADR-30) | đã chốt, đang thi hành (hậu ký 18/10/2026: lời đồng ý đọc bằng regex; ô câu hỏng soạn lại được) |
 | [30](adr-30-loi-kriky-do-model-viet.md) | Mọi lời Kriky do model viết, bằng Markdown; dàn ý gồm lời và các mục, BE đối chiếu nhẹ; ngoại lệ: thông báo khi model không trả lời được, và phần tử giao diện | đã chốt, đang thi hành (trừ khung học sinh) |
 | [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại (hậu ký 18/10/2026: bỏ khoảng trang của tên tệp) | đã chốt, đang thi hành |

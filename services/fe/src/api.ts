@@ -229,11 +229,27 @@ export interface TeacherQuestion {
   options: TeacherOption[];
   methods: Method[];
   /**
-   * Câu đã có bản trong ngân hàng câu hỏi -- đề từng được duyệt khi có câu này (ADR-28).
-   * Hộp xoá câu đọc nó để nói đúng điều sắp xảy ra. **Không** phải nguồn *"Lấy từ ngân
-   * hàng câu hỏi"*: câu ấy rút từ kho ra, còn đây là câu đã được chép vào kho.
+   * Câu có bản trong ngân hàng câu hỏi: đề từng được duyệt khi có câu này (ADR-28), hay câu lấy
+   * từ ngân hàng ra. Hộp xoá câu đọc nó để nói đúng điều sắp xảy ra.
    */
   in_bank: boolean;
+  /** Câu từ đâu tới (ADR-04, việc 17). Chip nguồn trên thẻ đọc nó. */
+  source: "kriky" | "bank";
+}
+
+/** Một câu trong hộp *Thêm câu từ ngân hàng* (artboard 19b, plan `question-bank-into-draft`). */
+export interface PickerRow {
+  bank_id: string;
+  stem: string;
+  learning_objective: string;
+  /** Tên đề câu được duyệt cùng: dòng phụ của hàng. */
+  from_title: string;
+  /** Câu đã có trong đề đang mở: hàng mờ, không chọn được. */
+  in_this_paper: boolean;
+}
+
+export interface BankPicker {
+  questions: PickerRow[];
 }
 
 /** Chữ của một câu, như giáo viên vừa sửa. Đủ bộ, không từng mảnh. */
@@ -270,6 +286,8 @@ export interface AssessmentDetail {
   failed_slots: FailedSlot[];
   /** Đề xoá được không -- chỉ đề trống (ADR-33). BE quyết; panel chỉ hiện link khi cờ bật. */
   erasable: boolean;
+  /** Lấy câu từ ngân hàng được không (việc 17). BE quyết; panel chỉ hiện nút khi cờ bật. */
+  bank_pick_open: boolean;
 }
 
 /** Ba câu luật, cùng string mà biểu mẫu, biên bản và trang phát hành trả về (ADR-03). */
@@ -1107,6 +1125,15 @@ export const teacher = {
     ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
+  // Ngân hàng nhìn từ một đề đang mở, và chép các câu đã chọn vào cuối đề (việc 17). BE trả lại cả
+  // đề, nên panel vẽ ngay mà không đọc thêm lần nào.
+  bankPicker: (assessmentId: string) =>
+    call<BankPicker>("teacher", `/teacher/assessments/${assessmentId}/bank-picker`),
+  addFromBank: (assessmentId: string, bankIds: string[]) =>
+    call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}/bank-questions`, {
+      method: "POST",
+      body: JSON.stringify({ bank_ids: bankIds }),
+    }),
   // Các màn của rail (plan `teacher-rail-screens`). Chỉ đọc, trừ sửa bản ngân hàng.
   classes: () => call<ClassList>("teacher", "/teacher/classes"),
   classDetail: (classId: string) => call<ClassDetail>("teacher", `/teacher/classes/${classId}`),
