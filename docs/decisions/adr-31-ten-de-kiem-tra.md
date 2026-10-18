@@ -58,3 +58,11 @@ Plan thi hành: `docs/plans/completed/2026-10-17-assessment-title-and-multi-ques
 | Test | `services/be/tests/test_assessment_title.py`, `test_document_tools.py`; FE `teacher.test.tsx` (*đổi tên đề*) |
 
 Đã thi hành 17/10/2026 (plan `backlog-tier-1`, pha 4): ô đổi tên nhắc khi chữ chạm trần.
+
+## Hậu ký 18/10/2026
+
+**Tên đề theo sách bỏ khoảng trang của tên tệp.** Tên tệp *"Kết nối tri thức Lớp 6 tập 1 (tr6-28).pdf"*
+từng cho tên đề *"Đề Kết nối tri thức Lớp 6 tập 1 (tr6-28)"* — số trang của một bản cắt, không phải
+của đề. `titles.default_title` nay bỏ cụm ngoặc mở bằng *tr* rồi một chữ số khỏi cả tên tệp, như
+đã bỏ khỏi phạm vi (quay GIF 17/10/2026, plan `wave-2-time-marks-titles`). Ngoặc khác giữ nguyên: *"(trọn
+bộ)"* không phải số trang. Luật còn lại của ADR không đổi: đề sách mang tên tệp, tối đa 60 ký tự.

@@ -42,6 +42,24 @@ def test_a_book_draft_is_named_after_the_book_file() -> None:
     ) == ("Đề SGK 6")
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        # Tên tệp thật trong `data/` (thử tay 17/10/2026: tên đề chép cả "(tr6-28)").
+        "Kết nối tri thức Lớp 6 tập 1 (tr6-28).pdf",
+        "Kết nối tri thức Lớp 6 tập 1 (tr 6-28).pdf",
+        "Kết nối tri thức Lớp 6 tập 1 (Tr. 6–28).pdf",
+    ],
+)
+def test_a_book_draft_drops_the_page_range_of_the_file_name(filename: str) -> None:
+    assert default_title("", filename) == "Đề Kết nối tri thức Lớp 6 tập 1"
+
+
+def test_a_bracket_that_is_not_a_page_range_stays() -> None:
+    # *"(trọn bộ)"* không phải số trang: ngoặc chỉ bị bỏ khi *tr* đi liền một chữ số.
+    assert default_title("", "Toán 9 (trọn bộ).pdf") == "Đề Toán 9 (trọn bộ)"
+
+
 def test_a_bookless_draft_keeps_its_scope_without_page_numbers() -> None:
     assert default_title("Bài 1. TẬP HỢP (tr. 5–9)") == "Đề Bài 1. TẬP HỢP"
 

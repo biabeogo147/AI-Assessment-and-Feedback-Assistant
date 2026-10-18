@@ -12,8 +12,10 @@ import re
 # cột chat hẹp lại, nên 60.
 MOST_TITLE = 60
 
-# Số trang cuối một nhãn bài: *"Bài 1. TẬP HỢP (tr. 5–9)"*. Tên đề không cần nó.
-_PAGES = re.compile(r"\s*\(tr\.[^)]*\)")
+# Số trang cuối một nhãn bài hay một tên tệp: *"Bài 1. TẬP HỢP (tr. 5–9)"*, *"Kết nối tri thức
+# Lớp 6 tập 1 (tr6-28).pdf"*. Tên đề không cần nó (plan `wave-2-time-marks-titles`): một cụm
+# ngoặc mở bằng *tr* rồi một chữ số, có hay không dấu chấm và khoảng trắng.
+_PAGES = re.compile(r"\s*\(tr\.?\s*\d[^)]*\)", re.IGNORECASE)
 
 
 # Cặp ngoặc model hay bọc quanh cả tên nó đặt.
@@ -60,11 +62,11 @@ def default_title(scope: str, filename: str = "") -> str:
         filename: Tên tệp sách khi đề soạn từ sách; rỗng khi không.
 
     Returns:
-        `"Đề " + tên tệp bỏ đuôi` khi có sách, không thì `"Đề " + phạm vi` bỏ số trang; tối đa
-        `MOST_TITLE` ký tự.
+        `"Đề " + tên tệp bỏ đuôi và số trang` khi có sách, không thì `"Đề " + phạm vi` bỏ số
+        trang; tối đa `MOST_TITLE` ký tự.
     """
     name = tidy(filename)
     if name:
         stem = name.rsplit(".", 1)[0] if "." in name else name
-        return clipped(f"Đề {stem}")
+        return clipped(f"Đề {_PAGES.sub('', stem)}")
     return clipped(f"Đề {_PAGES.sub('', scope)}")
