@@ -37,7 +37,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 | --- | --- | --- |
 | `2026-10-18-figma-all-waves-plan.md` | Figma của việc 3, 4, 7, 8, 10, 11, 12, 14, 15, 17–22 | xong 18/10, người dùng đã duyệt |
 | `2026-10-18-wave-1-small-fixes-plan.md` | 1–6, 11 | xong 18/10 |
-| `…-wave-2-time-marks-titles-plan.md` | 7–10 | chưa viết |
+| `2026-10-18-wave-2-time-marks-titles-plan.md` | 7–10 | xong 18/10 |
 | `…-wave-3-draft-panel-plan.md` | 16, 12, 13, 14, 15 | chưa viết |
 | `…-postgres-test-run-plan.md` | 23 | chưa viết |
 | `…-teacher-rail-screens-plan.md` | 18 | chưa viết |
@@ -78,7 +78,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 
 - [x] 1. Figma của cả bốn đợt (`2026-10-18-figma-all-waves-plan.md`). **Dừng chờ người dùng review.**
 - [x] 2. Đợt 1: việc 1–6, cộng việc 11 (cùng `Chat.tsx`).
-- [ ] 3. Đợt 2: việc 7–10.
+- [x] 3. Đợt 2: việc 7–10.
 - [ ] 4. Đợt 3: việc 16, 12, 13, 14, 15.
 - [ ] 5. Đợt 4, cụm Postgres: việc 23.
 - [ ] 6. Đợt 4, cụm màn rail: việc 18.

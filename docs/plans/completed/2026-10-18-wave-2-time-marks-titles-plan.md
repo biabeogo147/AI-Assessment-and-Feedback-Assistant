@@ -95,7 +95,7 @@ Làm việc 7–10 của `2026-10-18-deterministic-batch-master-plan.md`. Figma 
   subagent chấm so với 16b.
 
 ### Pha 5 — đóng
-- [ ] 14. Roadmap: việc 7–10 sang *Xong*. Backlog ghi đã làm. Tick plan tổng; plan này sang
+- [x] 14. Roadmap: việc 7–10 sang *Xong*. Backlog ghi đã làm. Tick plan tổng; plan này sang
   `completed/`.
 
 ## Decision Records
@@ -146,3 +146,5 @@ hai bên; test BE có ca múi giờ Việt Nam lệch ngày UTC, vitest có ca h
   - subagent review: lỗi mạng hay nộp hỏng từng bị coi như 409 và đẩy học sinh đi (`ApiError`
     mang status); chưa dừng thì hỏi lại có giới hạn; biên `>`; test FE bằng fake timers với
     `ends_at` cố định; ca BE hai lượt; banner cao 38px như artboard; hậu ký đủ bốn nhánh.
+- Pha 5 xong 18/10/2026: roadmap việc 7–10 *Xong* (rev 246); backlog và artifact backlog (rev 137)
+  ghi đã làm; mục lục ADR ghi hậu ký ADR-02, 03, 15, 31. Plan đóng.

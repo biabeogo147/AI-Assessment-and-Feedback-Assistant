@@ -10,8 +10,8 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | ADR | Quyết định | Trạng thái |
 | --- | --- | --- |
 | [01](adr-01-vong-doi-de-kiem-tra.md) | Vòng đời đề kiểm tra có bốn trạng thái (hậu ký 13/10/2026: xoá câu không đổi trạng thái) | đã mở rộng bởi ADR-02, ADR-18 |
-| [02](adr-02-phat-hanh-va-cua-so-thu-hoi.md) | Chỉ giáo viên phát hành; phát hành có sáu tham số | đã mở rộng bởi ADR-15 |
-| [03](adr-03-ranh-gioi-cua-vao.md) | Giờ đóng chặn việc vào làm, không chặn việc nộp | đã chốt (phạm vi: pha 1) |
+| [02](adr-02-phat-hanh-va-cua-so-thu-hoi.md) | Chỉ giáo viên phát hành; phát hành có sáu tham số (hậu ký 18/10/2026: thu hồi chỉ trước giờ mở) | đã mở rộng bởi ADR-15 |
+| [03](adr-03-ranh-gioi-cua-vao.md) | Giờ đóng chặn việc vào làm, không chặn việc nộp (hậu ký 18/10/2026: chữ câu luật mới, in ngày khi mốc khác ngày giờ mở) | đã chốt (phạm vi: pha 1) |
 | [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi (hậu ký 13/10/2026: duyệt đề là đã kiểm mọi câu) | đã chốt (trừ câu luyện tập) |
 | [05](adr-05-ba-cong-teacher-in-the-loop.md) | Ba cổng teacher-in-the-loop | đã chốt (cổng 1 có ngoại lệ) |
 | [06](adr-06-agent-phat-bang-chung.md) | Agent phát bằng chứng, không quyết định | đã chốt |
@@ -23,7 +23,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md) | Một số màu và hình ảnh mang nghĩa nghiệp vụ cố định | đã chốt |
 | [13](adr-13-lop-va-tai-khoan-hoc-sinh.md) | Giáo viên tạo lớp; tài khoản học sinh sinh từ CSV | đã chốt (mật khẩu một lần: chưa thi hành) |
 | [14](adr-14-hai-pha-lam-bai.md) | Bài kiểm tra có hai pha; nộp bài không phải điểm kết thúc | đã chốt (Figma xong, backend chưa) |
-| [15](adr-15-thoi-gian-pha-hai.md) | Hai đồng hồ ở pha 2; phần giải thích không tính giờ | đã chốt, đang thi hành (hậu ký 17/10/2026: backend đã có hai đồng hồ) |
+| [15](adr-15-thoi-gian-pha-hai.md) | Hai đồng hồ ở pha 2; phần giải thích không tính giờ | đã chốt, đang thi hành (hậu ký 17/10/2026: backend đã có hai đồng hồ; 18/10/2026: hết giờ lượt chữa thì màn hỏi BE rồi về màn xem điểm) |
 | [16](adr-16-thang-diem-ba-muc.md) | Ba mức điểm; 0,5 nghĩa là hiểu sau khi được dạy | đã chốt, đang thi hành (hậu ký 17/10/2026) |
 | [17](adr-17-ba-vong-moi-cau.md) | Ba vòng cho mỗi câu; biến thể sinh từ chính câu đó | đã chốt (Figma xong, backend chưa) |
 | [18](adr-18-cau-hoi-phai-kem-loi-giai.md) | Câu hỏi phải kèm lời giải nhiều cách và nhiễu gắn lỗi | đã chốt, đang thi hành (hậu ký 18/10/2026: `validate_question`) |
@@ -39,7 +39,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đang thi hành (đường ghi; đường đọc chưa có) |
 | [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; job chỉ nhận mục của nó, không chữ tài liệu thô (hậu ký 17/10/2026: lời dàn ý do Kriky viết, ADR-30) | đã chốt, đang thi hành (hậu ký 18/10/2026: lời đồng ý đọc bằng regex) |
 | [30](adr-30-loi-kriky-do-model-viet.md) | Mọi lời Kriky do model viết, bằng Markdown; dàn ý gồm lời và các mục, BE đối chiếu nhẹ; ngoại lệ: thông báo khi model không trả lời được, và phần tử giao diện | đã chốt, đang thi hành (trừ khung học sinh) |
-| [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại | đã chốt, đang thi hành |
+| [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại (hậu ký 18/10/2026: bỏ khoảng trang của tên tệp) | đã chốt, đang thi hành |
 | [32](adr-32-hoi-lai-nhieu-cau.md) | Hỏi lại tối đa ba câu một lượt, mỗi câu một bộ nút; không bỏ câu; tóm tắt rồi gửi gộp một tin | đã chốt, đang thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
