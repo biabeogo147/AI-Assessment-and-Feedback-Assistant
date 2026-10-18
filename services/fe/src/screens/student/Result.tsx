@@ -100,6 +100,14 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
           </button>
         </div>
 
+        {/* Artboard 16b: màn này vừa được lượt chữa tự nộp vì hết giờ. Cờ của BE, nên còn nguyên sau
+            F5 (plan `wave-2-time-marks-titles`). */}
+        {result.last_round_ran_out ? (
+          <div className="banner ran-out" role="status" style={{ marginBottom: 20 }}>
+            Lượt chữa vừa rồi đã hết giờ nên được nộp luôn. Câu bỏ trống trong lượt ấy tính là sai.
+          </div>
+        ) : null}
+
         {stillOpen ? (
           <div className="banner" style={{ marginBottom: 20 }}>
             Bạn có thể nâng điểm các câu sai bằng cách{" "}

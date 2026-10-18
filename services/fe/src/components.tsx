@@ -68,8 +68,9 @@ export function ScoreMark({ mark, tip }: { mark: number; tip?: ReactNode }) {
 /**
  * Một đồng hồ đếm ngược tới mốc thời gian do server quyết định.
  *
- * Nó là trang trí, không phải thứ cưỡng chế: về không thì không thay đổi gì, và
- * BE từ chối một câu trả lời muộn bất kể đồng hồ này đang hiện gì (ADR-15).
+ * Nó không quyết gì: về không thì nó chỉ báo `onExpire`, và màn hình gọi nó phải **hỏi BE**
+ * trước khi làm gì tiếp; BE từ chối một câu trả lời muộn bất kể đồng hồ này đang hiện gì (ADR-15,
+ * plan `wave-2-time-marks-titles`).
  *
  * @param endsAt - Mốc thời gian ISO mà đồng hồ chạy tới.
  * @param onExpire - Được gọi đúng một lần khi đồng hồ về không.
@@ -97,13 +98,13 @@ export function Countdown({ endsAt, onExpire }: { endsAt: string; onExpire?: () 
  *
  * @param endsAt - Lúc đồng hồ dừng.
  */
-export function TimeCard({ endsAt }: { endsAt: string }) {
+export function TimeCard({ endsAt, onExpire }: { endsAt: string; onExpire?: () => void }) {
   return (
     <div className="time-card">
       <span className="muted" style={{ flex: 1 }}>
         Còn lại
       </span>
-      <Countdown endsAt={endsAt} />
+      <Countdown endsAt={endsAt} onExpire={onExpire} />
     </div>
   );
 }

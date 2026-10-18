@@ -94,3 +94,22 @@ Hai dòng cuối của mục thi hành đúng vào ngày viết, và sai từ kh
 - **Không còn bị ADR-09 chặn.** Trạng thái bài làm nằm ở Postgres, không ở kết quả job của arq
   ([ADR-21](adr-21-trang-thai-bai-lam-la-ben.md)), nên một đồng hồ xuyên nhiều lượt không mất sau
   một giờ.
+
+## Hậu ký 18/10/2026
+
+**Hết giờ lượt chữa thì màn hình tự rời màn làm bài**, nhưng chỉ khi BE trả lời. Đồng hồ của màn
+lượt về 0 thì FE đọc lại lượt (`GET /rounds/{id}`), và lời đáp của BE quyết bước kế:
+
+- `stopped` (`now > ends_at` theo đồng hồ của BE, cùng biên với chỗ `save_round_answer` thôi nhận
+  câu): FE nộp phần đã lưu rồi về màn xem điểm. Ở đó `last_round_ran_out` hiện thông báo *"Lượt
+  chữa vừa rồi đã hết giờ nên được nộp luôn"* (artboard `16b`). Cờ ấy chỉ nói về lượt nộp gần
+  nhất, và bật khi lượt ấy nộp sau `ends_at`.
+- 409 (lượt đã nộp ở tab khác): FE về thẳng màn xem điểm.
+- chưa dừng (đồng hồ máy chạy nhanh hơn BE): FE ở lại. `ends_at` không bao giờ đổi, nên đồng hồ
+  không tự bắn lần nữa; FE hỏi lại sau `max(1 giây, ends_at − giờ máy)`, tối đa năm lần.
+- không nói được với BE, hay nộp hỏng vì lỗi khác 409: FE ở lại, hiện lời lỗi; nút *Nộp bài* vẫn
+  còn.
+
+Luật của ADR không đổi: BE vẫn là chỗ dừng lượt và từ chối câu trả lời muộn. Dòng *"A countdown is
+decoration"* của `services/fe/AGENTS.md` đổi thành *"A countdown never decides: at zero the screen
+asks BE, and only BE's answer moves it."* (Tier 2 câu 18, plan `wave-2-time-marks-titles`).

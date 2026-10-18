@@ -67,6 +67,25 @@ describe("the score sheet", () => {
     expect(screen.getAllByText(/có thể nâng điểm/).length).toBe(2);
   });
 
+  it("says the last remediation round ran out, when BE says so", async () => {
+    // Artboard 16b (plan `wave-2-time-marks-titles`): màn này vừa được lượt chữa tự nộp vì hết giờ.
+    stubFetch({ ...resultPayload("cần-chữa", "chưa-chữa"), last_round_ran_out: true });
+    render(<Result me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    expect(screen.getByRole("status").textContent).toBe(
+      "Lượt chữa vừa rồi đã hết giờ nên được nộp luôn. Câu bỏ trống trong lượt ấy tính là sai.",
+    );
+  });
+
+  it("says nothing about a round when none ran out", async () => {
+    stubFetch(resultPayload("cần-chữa", "chưa-chữa"));
+    render(<Result me={ME} attemptId="a1" />);
+
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    expect(screen.queryByText(/đã hết giờ nên được nộp luôn/)).toBeNull();
+  });
+
   it("promises nothing about a zero once the deadline has passed", async () => {
     stubFetch(resultPayload("hết-hạn-chữa", "chưa-chữa"));
     render(<Result me={ME} attemptId="a1" />);
@@ -495,6 +514,98 @@ describe("a round open in another tab", () => {
     expect(calls.some((call) => call.includes("/submit"))).toBe(false);
     expect(screen.getByText("1 trên 1 câu")).toBeTruthy();
     expect(screen.getByText("câu làm đúng được 0,75 điểm")).toBeTruthy();
+  });
+
+  describe("at zero", () => {
+    // Tier 2 câu 18 (plan `wave-2-time-marks-titles`): đồng hồ về 0 thì màn hình hỏi lại BE, và chỉ
+    // lời đáp của BE dời màn. `ends_at` cố định như BE thật: BE không bao giờ gia hạn một lượt.
+    afterEach(() => {
+      vi.useRealTimers();
+      window.location.hash = "";
+    });
+
+    /**
+     * Dựng một BE giả cho lượt `r1` đã sắp hết giờ.
+     *
+     * @param read - Lời đáp của lần đọc lượt thứ `n` (đếm từ 1): `stopped` hay một status lỗi.
+     * @param submitStatus - Status của lần nộp.
+     */
+    function stubRound(read: (n: number) => boolean | number, submitStatus = 200) {
+      const calls: string[] = [];
+      const endsAt = new Date(Date.now() + 500).toISOString();
+      window.location.hash = "#/round/a1/r1";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          calls.push(`${init?.method ?? "GET"} ${url}`);
+          const reply = (body: object, status = 200) =>
+            new Response(JSON.stringify(body), { status });
+          if (url.endsWith("/submit")) {
+            const body =
+              submitStatus === 200 ? { round_id: "r1", per_question: [] } : { detail: "BE đang bận" };
+            return reply(body, submitStatus);
+          }
+          if (url.endsWith("/rounds/r1")) {
+            const answer = read(calls.filter((one) => one === "GET /api/rounds/r1").length);
+            return typeof answer === "number"
+              ? reply({ detail: "Lượt này đã nộp" }, answer)
+              : reply({ ...ROUND, ends_at: endsAt, stopped: answer });
+          }
+          return reply({ open_round_id: "r1", items: [] });
+        }),
+      );
+      return calls;
+    }
+
+    const reads = (calls: string[]) => calls.filter((one) => one === "GET /api/rounds/r1").length;
+    const submits = (calls: string[]) => calls.filter((one) => one.endsWith("/submit")).length;
+
+    it("hands in and leaves only once BE says the round stopped", async () => {
+      vi.useFakeTimers();
+      const calls = stubRound((n) => n > 1);
+      render(<Round me={ME} attemptId="a1" roundId="r1" />);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      // Hỏi lại trước, nộp sau: lần đọc thứ hai mới nói lượt đã dừng.
+      expect(reads(calls)).toBe(2);
+      expect(calls.at(-1)).toBe("POST /api/rounds/r1/submit");
+      expect(window.location.hash).toBe("#/attempt/a1/result");
+    });
+
+    it("stays, and asks again only a bounded number of times, while BE says it runs", async () => {
+      vi.useFakeTimers();
+      const calls = stubRound(() => false);
+      render(<Round me={ME} attemptId="a1" roundId="r1" />);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(reads(calls)).toBe(2);
+      // Lần đầu khi mở màn, một lần khi về 0, rồi năm lần hỏi lại cách nhau một giây; thế là thôi.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(reads(calls)).toBe(7);
+      expect(submits(calls)).toBe(0);
+      expect(window.location.hash).toBe("#/round/a1/r1");
+    });
+
+    it("goes to the score sheet when BE says the round was handed in elsewhere", async () => {
+      vi.useFakeTimers();
+      const calls = stubRound((n) => (n > 1 ? 409 : false));
+      render(<Round me={ME} attemptId="a1" roundId="r1" />);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(submits(calls)).toBe(0);
+      expect(window.location.hash).toBe("#/attempt/a1/result");
+    });
+
+    it("stays and says so when BE cannot be reached or refuses the hand-in", async () => {
+      vi.useFakeTimers();
+      const calls = stubRound((n) => n > 1, 500);
+      render(<Round me={ME} attemptId="a1" roundId="r1" />);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(submits(calls)).toBe(1);
+      expect(window.location.hash).toBe("#/round/a1/r1");
+      expect(screen.getByText("BE đang bận")).toBeTruthy();
+    });
   });
 
   it("offers to go back into the open round instead of a greyed-out new one", async () => {

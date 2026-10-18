@@ -374,6 +374,57 @@ async def test_a_stopped_round_is_marked_on_what_was_saved_before_it_stopped(
 
 
 @pytest.mark.asyncio
+async def test_a_round_that_ran_out_says_so_to_the_screen(client: AsyncClient) -> None:
+    """Tier 2 câu 18 (plan `wave-2-time-marks-titles`): đồng hồ của màn hình về 0 thì nó hỏi lại
+    đường đọc lượt; chỉ `stopped` của BE cho nó nộp rồi chuyển đi. Màn xem điểm biết lượt cuối đã
+    hết giờ (`last_round_ran_out`) để báo cho học sinh, kể cả sau F5."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    rnd = (await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)).json()
+
+    running = (await client.get(f"/api/rounds/{rnd['round_id']}", headers=STUDENT)).json()
+    assert rnd["stopped"] is False and running["stopped"] is False
+
+    maker = await _sessionmaker()
+    async with maker() as session:
+        row = await session.get(RemediationRound, rnd["round_id"])
+        row.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+
+    stopped = (await client.get(f"/api/rounds/{rnd['round_id']}", headers=STUDENT)).json()
+    assert stopped["stopped"] is True
+    before = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    assert before["last_round_ran_out"] is False
+
+    await client.post(f"/api/rounds/{rnd['round_id']}/submit", headers=STUDENT)
+    after = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    assert after["last_round_ran_out"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_round_handed_in_on_time_does_not_read_as_ran_out(client: AsyncClient) -> None:
+    """Cờ nói về lượt nộp **gần nhất**: lượt trước hết giờ, lượt sau nộp kịp, thì màn xem điểm thôi
+    báo hết giờ (plan `wave-2-time-marks-titles`)."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    first = (await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)).json()
+    maker = await _sessionmaker()
+    async with maker() as session:
+        row = await session.get(RemediationRound, first["round_id"])
+        row.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+    await client.post(f"/api/rounds/{first['round_id']}/submit", headers=STUDENT)
+    ran_out = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    assert ran_out["last_round_ran_out"] is True
+
+    second = (await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)).json()
+    await client.post(f"/api/rounds/{second['round_id']}/submit", headers=STUDENT)
+    after = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+
+    assert after["last_round_ran_out"] is False
+
+
+@pytest.mark.asyncio
 async def test_three_wrong_rounds_close_the_question_at_zero(client: AsyncClient) -> None:
     """ADR-17 chặn việc chữa bài ở ba vòng, và vòng thứ tư bị từ chối."""
     submitted = await _start_and_submit(client, correct_count=5)

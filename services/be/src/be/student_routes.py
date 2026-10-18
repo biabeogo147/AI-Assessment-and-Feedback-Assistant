@@ -192,6 +192,10 @@ class ResultOut(BaseModel):
     submitted_at: datetime | None
     remediation_deadline: datetime
     items: list[ResultItemOut]
+    # Lượt chữa nộp gần nhất được nộp **sau** hết giờ (`submitted_at > ends_at`, cùng biên với chỗ
+    # `save_round_answer` thôi nhận câu): màn xem điểm báo *"Lượt chữa vừa rồi đã hết giờ nên được
+    # nộp luôn"* (artboard 16b). Suy từ cột có sẵn, không cột mới (plan `wave-2-time-marks-titles`).
+    last_round_ran_out: bool = False
 
 
 class ChosenOut(BaseModel):
@@ -326,6 +330,11 @@ class RoundOpenOut(BaseModel):
     # Mức điểm của một câu làm đúng trong lượt chữa (ADR-16). Hộp nộp lượt in con số này; trước
     # đó FE in cứng *"0,5 điểm"*, một bản sao của luật điểm (plan `wave-2-time-marks-titles`).
     mark_when_right: float = MARK_REMEDIATED
+    # Lượt đã hết giờ theo đồng hồ **của BE**, cùng biên với `save_round_answer` (`now > ends_at`):
+    # đúng giây `ends_at` BE còn nhận câu, nên chưa gọi là dừng. Đồng hồ của màn hình về 0 thì hỏi
+    # lại đường đọc lượt, và chỉ cờ này cho phép màn hình nộp rồi chuyển đi (Tier 2 câu 18, plan
+    # `wave-2-time-marks-titles`).
+    stopped: bool = False
 
 
 class RoundResultItemOut(BaseModel):
@@ -977,9 +986,11 @@ async def attempt_result(
         .order_by(RemediationRound.index)
     )
     history: dict[str, list[RoundOut]] = {}
+    last_done: RemediationRound | None = None
     for rnd in rounds:
         if rnd.submitted_at is None:
             continue
+        last_done = rnd
         for item in rnd.items:
             history.setdefault(item.origin_question_id, []).append(
                 RoundOut(index=rnd.index, stem=item.stem, outcome=item.outcome or "chưa-trả-lời")
@@ -1007,6 +1018,8 @@ async def attempt_result(
         submitted_at=_aware(attempt.submitted_at),
         remediation_deadline=_aware(publication.remediation_deadline),
         items=items,
+        last_round_ran_out=last_done is not None
+        and _aware(last_done.submitted_at) > _aware(last_done.ends_at),
     )
 
 
@@ -2106,6 +2119,7 @@ async def read_round(
         index=rnd.index,
         started_at=_aware(rnd.started_at),
         ends_at=_aware(rnd.ends_at),
+        stopped=_now() > _aware(rnd.ends_at),
         items=[
             RoundItemOut(
                 round_item_id=one.id,

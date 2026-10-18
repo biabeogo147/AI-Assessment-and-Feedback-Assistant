@@ -95,6 +95,8 @@ export interface AttemptResult {
   submitted_at: string | null;
   remediation_deadline: string;
   items: ResultItem[];
+  /** Lượt chữa nộp gần nhất đã chạm hết giờ: màn xem điểm báo điều ấy (artboard 16b). */
+  last_round_ran_out?: boolean;
 }
 
 export interface RemediationItem {
@@ -173,6 +175,8 @@ export interface OpenRound {
    * bản lượt lưu trong `sessionStorage` từ trước 18/10/2026 không có nó; BE luôn gửi.
    */
   mark_when_right?: number;
+  /** Lượt đã hết giờ theo đồng hồ của BE. Chỉ cờ này cho màn hình nộp rồi chuyển đi khi về 0. */
+  stopped?: boolean;
 }
 
 export interface RoundVerdict {
@@ -535,6 +539,22 @@ function formHeaders(role: Role): HeadersInit {
 }
 
 /**
+ * Một lời từ chối của BE: câu tiếng Việt của nó, cộng status.
+ *
+ * Status đi kèm vì có chỗ phải phân biệt *BE đã trả lời "không"* với *không nói được với BE*:
+ * màn lượt chữa chỉ rời đi khi BE nói lượt đã nộp (409), không phải khi mạng chập (plan
+ * `wave-2-time-marks-titles`).
+ */
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/**
  * Gửi một request và biến thất bại thành một lỗi đáng hiện ra.
  *
  * @param role - Bề mặt nào đang gọi. Nó quyết định header actor, và nó được
@@ -542,7 +562,7 @@ function formHeaders(role: Role): HeadersInit {
  * @param path - Path nằm dưới `/api`.
  * @param init - Tuỳ chọn cho fetch; header actor được thêm ở đây.
  * @returns Body đã parse.
- * @throws Error mang `detail` của BE khi response không ok, vì mọi lời từ chối
+ * @throws ApiError mang `detail` của BE khi response không ok, vì mọi lời từ chối
  *   trong API này đều tự giải thích bằng tiếng Việt, và câu đó có ích cho học
  *   sinh hơn một status code.
  */
@@ -565,7 +585,7 @@ async function call<T>(
     } catch {
       /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
     }
-    throw new Error(detail);
+    throw new ApiError(detail, response.status);
   }
   return (await response.json()) as T;
 }
@@ -598,7 +618,7 @@ async function silent(
   } catch {
     /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
   }
-  throw new Error(detail);
+  throw new ApiError(detail, response.status);
 }
 
 export const api = {

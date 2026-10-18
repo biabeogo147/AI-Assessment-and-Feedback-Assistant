@@ -69,22 +69,24 @@ Làm việc 7–10 của `2026-10-18-deterministic-batch-master-plan.md`. Figma 
   Hậu ký ADR-31.
 
 ### Pha 4 — hết giờ lượt chữa (việc 10)
-- [ ] 9. BE:
-  - `RoundOpenOut` thêm `stopped: bool` (`now >= ends_at`);
-  - `ResultOut` thêm `last_round_ran_out: bool`: lượt nộp gần nhất có `submitted_at >= ends_at`,
+- [x] 9. BE:
+  - `RoundOpenOut` thêm `stopped: bool` (`now > ends_at`, cùng biên với `save_round_answer`; plan
+    viết `>=`, review pha 4 chỉ ra hai biên lệch nhau đúng giây `ends_at`);
+  - `ResultOut` thêm `last_round_ran_out: bool`: lượt nộp gần nhất có `submitted_at > ends_at`,
     tính từ cột có sẵn.
   - Test cả hai.
-- [ ] 10. FE: `TimeCard` nhận `onExpire`. `Round.tsx` về 0 thì đọc lại lượt (`api.round`):
+- [x] 10. FE: `TimeCard` nhận `onExpire`. `Round.tsx` về 0 thì đọc lại lượt (`api.round`):
   - `stopped` thì nộp rồi về `/attempt/{id}/result`;
   - lượt đã nộp ở tab khác (409) thì về thẳng màn xem điểm;
-  - BE nói chưa dừng thì ở lại, đồng hồ đọc lại `ends_at`.
-- [ ] 11. `Result.tsx`: `last_round_ran_out` thì hiện thông báo của artboard 16b phía trên dòng
+  - BE nói chưa dừng thì ở lại, hỏi lại sau `max(1 giây, ends_at − giờ máy)`, tối đa năm lần;
+  - không nói được với BE hay nộp hỏng vì lỗi khác 409 thì ở lại, hiện lời lỗi.
+- [x] 11. `Result.tsx`: `last_round_ran_out` thì hiện thông báo của artboard 16b phía trên dòng
   *"Bạn có thể nâng điểm…"*.
-- [ ] 12. `services/fe/AGENTS.md`: thay dòng *"A countdown is decoration. Reaching zero changes
+- [x] 12. `services/fe/AGENTS.md`: thay dòng *"A countdown is decoration. Reaching zero changes
   nothing: BE refuses a late answer."* bằng *"A countdown never decides: at zero the screen asks BE,
   and only BE's answer moves it."* Giữ đúng số dòng (25/25). Decision record ở dưới. Hậu ký
   ADR-15.
-- [ ] 13. Vitest:
+- [x] 13. Vitest:
   - về 0 mà BE nói đã dừng thì nộp và chuyển màn;
   - BE nói chưa dừng thì không;
   - màn xem điểm có thông báo khi cờ bật.
@@ -136,3 +138,11 @@ hai bên; test BE có ca múi giờ Việt Nam lệch ngày UTC, vitest có ca h
     sách file của plan nhưng cùng một luật) và trên Figma (`76:8`, `76:29`, `11:43`, `505:48`, `560:3`);
     ca thử tay `cases/10`; fixture FE; kiểu `mark_when_right` tuỳ chọn; test múi giờ; mốc không múi
     giờ; comment mang slug plan.
+- Pha 4 xong 18/10/2026:
+  - thử trên Chrome headless với API giả (chặn `/api` bằng CDP, không ghi gì vào DB dev): về 0 thì
+    đọc lại lượt, nộp, về `#/attempt/a1/result`, thông báo đúng chữ; hộp nộp lượt in *"0,5 điểm"*
+    BE gửi (pha 1). Chưa rút `ends_at` trong DB dev như task 13 viết: lượt chữa thật nằm trong bài
+    làm của học sinh seed, và API giả thử được cùng nhánh mà không chạm dữ liệu;
+  - subagent review: lỗi mạng hay nộp hỏng từng bị coi như 409 và đẩy học sinh đi (`ApiError`
+    mang status); chưa dừng thì hỏi lại có giới hạn; biên `>`; test FE bằng fake timers với
+    `ends_at` cố định; ca BE hai lượt; banner cao 38px như artboard; hậu ký đủ bốn nhánh.

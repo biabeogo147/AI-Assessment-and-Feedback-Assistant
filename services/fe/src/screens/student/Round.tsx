@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, type Me, type OpenRound } from "../../api";
+import { ApiError, api, type Me, type OpenRound } from "../../api";
 import { go } from "../../App";
 import { ErrorStrip, TimeCard, TopBar } from "../../components";
 import MathText from "../../MathText";
+
+// Đồng hồ về 0 mà BE nói lượt chưa dừng thì hỏi lại bấy nhiêu lần, rồi thôi: lệch đồng hồ thật chỉ
+// vài giây, còn hỏi mãi là một vòng gọi BE không ai dừng (plan `wave-2-time-marks-titles`).
+const ASKS_AFTER_ZERO = 5;
 
 /**
  * Màn 21 — trả lời các câu hỏi của một lượt làm lại.
@@ -69,6 +73,48 @@ export default function Round({
       current = false;
     };
   }, [roundId]);
+
+  // Đồng hồ về 0 thì **hỏi BE**, không tự quyết (Tier 2 câu 18, plan `wave-2-time-marks-titles`):
+  // - BE nói lượt đã dừng thì nộp phần đã lưu rồi về màn xem điểm;
+  // - BE nói lượt đã nộp (409, tab khác) thì về thẳng màn ấy;
+  // - BE nói chưa dừng (đồng hồ máy chạy nhanh hơn BE) thì ở lại và hỏi lại sau, tối đa
+  //   `ASKS_AFTER_ZERO` lần: `ends_at` không đổi nên đồng hồ không tự bắn lần nữa;
+  // - không nói được với BE thì ở lại, báo lỗi; nút *Nộp bài* vẫn còn đó.
+  const asks = useRef(0);
+  const later = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(later.current), []);
+  const onExpire = useCallback(async () => {
+    const result = `/attempt/${attemptId}/result`;
+    let fresh: OpenRound;
+    try {
+      fresh = await api.round(roundId);
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 409) go(result);
+      else setError((cause as Error).message);
+      return;
+    }
+    if (!fresh.stopped) {
+      setRound(fresh);
+      if (asks.current < ASKS_AFTER_ZERO) {
+        asks.current += 1;
+        const wait = Math.max(1000, Date.parse(fresh.ends_at) - Date.now());
+        later.current = window.setTimeout(() => void onExpire(), wait);
+      }
+      return;
+    }
+    try {
+      await api.submitRound(roundId);
+    } catch (cause) {
+      if (!(cause instanceof ApiError && cause.status === 409)) {
+        setError((cause as Error).message);
+        return;
+      }
+    }
+    window.sessionStorage.removeItem(`round:${roundId}`);
+    go(result);
+  }, [attemptId, roundId]);
+  // Một hàm **ổn định** cho đồng hồ: một hàm mới mỗi lần vẽ thì `Countdown` dựng lại bộ đếm mỗi lần.
+  const expire = useCallback(() => void onExpire(), [onExpire]);
 
   if (round === null) {
     return (
@@ -164,7 +210,7 @@ export default function Round({
         </section>
 
         <aside style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <TimeCard endsAt={round.ends_at} />
+          <TimeCard endsAt={round.ends_at} onExpire={expire} />
 
           <div>
             <div className="label-caps">CÂU CÒN PHẢI LÀM LẠI TRONG LƯỢT NÀY</div>

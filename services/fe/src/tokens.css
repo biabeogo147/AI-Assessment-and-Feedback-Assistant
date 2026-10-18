@@ -864,6 +864,14 @@ button:disabled {
   font-weight: 600;
 }
 
+/* Lượt chữa vừa hết giờ (artboard 16b): cùng hộp sunken, thêm viền line/strong như `Time status`
+   *sắp bị cắt*, để nó đọc là một điều vừa xảy ra chứ không phải một lời nhắc thường trực. Padding
+   bớt 1px cho viền, để hộp vẫn cao 38px như artboard. */
+.banner.ran-out {
+  border: 1px solid var(--line-strong);
+  padding: 9px 13px;
+}
+
 /*
  * Dải trên màn hình kèm học là dải thấp hơn: một caption trong một hộp 31px,
  * không phải cái ghi chú 38px mà bảng điểm chở.
