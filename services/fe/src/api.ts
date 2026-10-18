@@ -696,10 +696,17 @@ async function silent(
  * @param role - Ai đang gọi.
  * @param path - Đường dẫn, không gồm `/api`.
  * @param fallback - Tên tệp khi BE không gửi tên, hay tên không giải mã được.
+ * @param init - Phần còn lại của request, cho tệp dựng từ một thân gửi lên (tệp mật khẩu, việc 22,
+ *   plan `sign-in-and-accounts`). Header thì luôn là của `headers(role)`: JSON và vai.
  * @throws ApiError mang câu của BE khi bị từ chối.
  */
-async function download(role: Role, path: string, fallback: string): Promise<void> {
-  const response = await fetch(`/api${path}`, { headers: headers(role) });
+async function download(
+  role: Role,
+  path: string,
+  fallback: string,
+  init: RequestInit = {},
+): Promise<void> {
+  const response = await fetch(`/api${path}`, { ...init, headers: headers(role) });
   if (!response.ok) {
     noticeSignedOut(role, response);
     throw await refusal(response);
@@ -965,6 +972,28 @@ export interface StudentRow {
   student_id: string;
   full_name: string;
   student_code: string;
+  /** Trống ở em có từ trước việc 22, tới lần *Đặt lại mật khẩu* đầu tiên. */
+  username: string | null;
+}
+
+/**
+ * Một dòng của bảng xem trước khi thêm học sinh (Figma 28b, việc 22, plan `sign-in-and-accounts`).
+ * `username` là tên **sẽ** cấp; `duplicate` khi lớp -- hay dòng trên của loạt này -- đã có em cùng
+ * họ tên.
+ */
+export interface RosterRow {
+  full_name: string;
+  username: string;
+  note: "new" | "duplicate";
+}
+
+/** Một tài khoản vừa tạo hay vừa đặt lại mật khẩu: mật khẩu rõ, **chỉ lần này** (Figma 28c, 10b). */
+export interface RosterAccount {
+  student_id: string;
+  full_name: string;
+  student_code: string;
+  username: string;
+  password: string;
 }
 
 export interface ClassDetail {
@@ -1311,6 +1340,49 @@ export const teacher = {
   // Các màn của rail (plan `teacher-rail-screens`). Chỉ đọc, trừ sửa bản ngân hàng.
   classes: () => call<ClassList>("teacher", "/teacher/classes"),
   classDetail: (classId: string) => call<ClassDetail>("teacher", `/teacher/classes/${classId}`),
+  /**
+   * Bảng xem trước khi thêm học sinh (việc 22, plan `sign-in-and-accounts`, Figma 28b), từ các tên
+   * đã gõ. Không ghi gì ở BE.
+   */
+  rosterPreview: (classId: string, names: string[]) =>
+    call<{ rows: RosterRow[] }>("teacher", `/teacher/classes/${classId}/roster/preview`, {
+      method: "POST",
+      body: JSON.stringify({ names }),
+    }),
+  /** Như `rosterPreview`, từ một tệp `.csv`/`.xlsx` một cột họ tên. `FormData`, không `Content-Type`. */
+  rosterPreviewFile: (classId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return call<{ rows: RosterRow[] }>(
+      "teacher",
+      `/teacher/classes/${classId}/roster/preview-file`,
+      { method: "POST", body: form, headers: formHeaders("teacher") },
+    );
+  },
+  /**
+   * Tạo tài khoản (Figma 28c). BE tính lại mọi thứ và chỉ tạo dòng mới hay dòng trùng đã xác nhận;
+   * mật khẩu rõ chỉ có trong lời đáp này.
+   */
+  rosterCreate: (classId: string, rows: { full_name: string; confirmed: boolean }[]) =>
+    call<{ accounts: RosterAccount[]; skipped: number }>(
+      "teacher",
+      `/teacher/classes/${classId}/roster`,
+      { method: "POST", body: JSON.stringify({ rows }) },
+    ),
+  // Tệp mật khẩu dựng từ chính các dòng đang hiện -- BE không giữ mật khẩu nào (Decision 3 của plan
+  // `sign-in-and-accounts`).
+  rosterPasswords: (classId: string, rows: RosterAccount[]) =>
+    download("teacher", `/teacher/classes/${classId}/roster/passwords.xlsx`, "mat-khau.xlsx", {
+      method: "POST",
+      body: JSON.stringify({
+        rows: rows.map(({ full_name, username, password }) => ({ full_name, username, password })),
+      }),
+    }),
+  /** *Đặt lại mật khẩu* (Figma 10b): mật khẩu mới một lần; BE đóng mọi phiên cũ của em. */
+  resetPassword: (classId: string, studentId: string) =>
+    call<RosterAccount>("teacher", `/teacher/classes/${classId}/students/${studentId}/password`, {
+      method: "POST",
+    }),
   papers: () => call<PaperList>("teacher", "/teacher/assessments"),
   // Bảng điểm `.xlsx` của một đề trong một lớp (việc 20). Chỉ tác giả; BE từ chối người khác.
   exportResults: (classId: string, assessmentId: string) =>

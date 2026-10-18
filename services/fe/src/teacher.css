@@ -3561,9 +3561,27 @@
   --cols: minmax(0, 1fr) 150px 150px 150px 90px 12px;
 }
 
-/* Cột mã đứng đúng chỗ của Figma (x 876); chỗ của cột tên đăng nhập (việc 22) để trống. */
+/* Artboard 10: họ tên 536 ở 1440, mã ở x 876, tên đăng nhập ở x 1040, *Đặt lại mật khẩu* canh phải. */
 .teacher .board-table.class-students {
-  --cols: 536px 140px minmax(0, 1fr);
+  --cols: minmax(0, 1fr) 140px 180px 140px;
+}
+
+/* *Đặt lại mật khẩu* (việc 22, plan `sign-in-and-accounts`): chữ accent 13, không khung. */
+.teacher .board-row .reset-password {
+  justify-self: end;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.teacher .board-row .reset-password:disabled {
+  opacity: 1;
+  color: var(--ink-faint);
 }
 
 /* `Class progress popover` (`665:62`): thẻ trắng viền line bo 8, padding 12/14, rộng 300. */
@@ -4120,6 +4138,7 @@
 /* Nút *Xuất bảng điểm (.xlsx)* của màn 11 (`Button` primary, artboard 11): 40 cao, đứng giữa hàng
  * tiêu đề -- dưới link quay về (18 + 8) và giữa hàng tiêu đề 56 (8). Con số 34 giả định đầu trang
  * **có** link quay về, như màn 11 luôn có. */
+/* Cùng một nút cho *Thêm học sinh* của màn 10 (việc 22, `sign-in-and-accounts`): 125 × 40 ở x 1275. */
 .teacher .board-head .board-export {
   flex: none;
   height: 40px;
@@ -4326,7 +4345,8 @@
   line-height: 1.5;
 }
 
-/* Hai tab SĐT / Email: rãnh `--sunken` 38 cao, đệm 3, khe 4; tab đang chọn nền trắng, chữ đậm. */
+/* Hai tab SĐT / Email: rãnh `--sunken` 38 cao, đệm 3, khe 4; tab đang chọn nền trắng, chữ đậm. Hộp
+ * *Thêm học sinh* dùng lại đúng khuôn này (`sign-tabs roster-tabs`, Figma 28). */
 .teacher .sign-tabs {
   display: flex;
   gap: 4px;
@@ -4452,3 +4472,271 @@
   font-weight: 500;
   line-height: 1.5;
 }
+
+/* Hộp *Thêm học sinh* và hộp mật khẩu (`Roster import`, Figma 28 / 28b / 28c / 10b): 760, đệm 28, khe
+ * 16, bo 14, đổ bóng như hộp đăng nhập. */
+.teacher .roster {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 760px;
+  max-height: calc(100vh - 64px);
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(26 31 43 / 16%);
+}
+
+.teacher .roster h2 {
+  margin: 0;
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .roster-hint {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 17px;
+}
+
+.teacher .roster-lead {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+/* Ô gõ tên: 156 cao, đệm 12, mỗi dòng cách nhau 22 như artboard 28. */
+.teacher .roster-names {
+  height: 156px;
+  padding: 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 22px;
+  resize: none;
+}
+
+.teacher .roster-names:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Tab tải tệp (Figma 28d): cùng chỗ 156 với ô gõ tên, viền đứt, nút chọn tệp và tên tệp ở giữa. */
+.teacher .roster-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 156px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher .roster-file-name {
+  color: var(--ink);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .roster-file-name.none {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+}
+
+.teacher .roster-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.teacher .roster-actions .note {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.teacher .roster-actions .note.refused {
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  font-weight: 400;
+}
+
+.teacher .roster-primary,
+.teacher .roster-quiet {
+  flex: none;
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .roster-primary {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.teacher .roster-primary:hover {
+  background: var(--accent-hover);
+}
+
+.teacher .roster-primary:disabled {
+  background: var(--sunken);
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+.teacher .roster-quiet {
+  background: none;
+  color: var(--accent);
+}
+
+.teacher .roster-quiet.bordered {
+  padding: 0 15px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.teacher .roster-quiet:disabled {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+/* Bảng của hộp: viền `--line` bo 8; đầu bảng `--sunken` 33 cao, dòng 38, đệm 14, khe cột 16. */
+.teacher .roster-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.teacher .roster-table.check {
+  --cols: minmax(0, 1fr) 140px 180px 90px;
+}
+
+.teacher .roster-table.passwords {
+  --cols: minmax(0, 1fr) 140px 140px;
+}
+
+/* Danh sách dài (trên 8 dòng) cuộn trong bảng, đầu bảng đứng yên. Ngắn thì không cuộn: một vùng cuộn
+ * cắt mất tooltip của dòng cuối, mà Figma 28b vẽ tooltip ấy thò ra dưới bảng. */
+.teacher .roster-body.long {
+  max-height: 304px;
+  overflow-y: auto;
+}
+
+.teacher .roster-row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  column-gap: 16px;
+  height: 38px;
+  padding: 9px 14px;
+  color: var(--ink);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .roster-row.head {
+  height: 33px;
+  padding: 8px 14px;
+  border-radius: 7px 7px 0 0;
+  background: var(--sunken);
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.teacher .roster-row .name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher .roster-row .mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.teacher .roster-row .fresh {
+  color: var(--ink-muted);
+}
+
+.teacher .roster-row .twin {
+  font-weight: 500;
+}
+
+.teacher .roster-row .mid {
+  display: flex;
+  justify-content: center;
+}
+
+/* Ô *Xác nhận*: 16 bo 4. Tắt (dòng mới) thì nền `--sunken` viền `--line`; bật thì trắng viền đậm. */
+.teacher .roster-check {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  appearance: none;
+  cursor: pointer;
+}
+
+.teacher .roster-check:checked {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 14px 14px no-repeat;
+}
+
+.teacher .roster-check:disabled {
+  border-color: var(--line);
+  background: var(--sunken);
+  opacity: 1;
+  cursor: default;
+}
+
+/* Rê chuột lên ô của dòng trùng: *"Xác nhận thêm học sinh"* (`Tooltip`, Figma 28b), 6 dưới ô. */
+.teacher .roster-tip {
+  position: relative;
+  display: block;
+}
+
+.teacher .roster-tip[data-tip]:hover::after,
+.teacher .roster-tip[data-tip]:focus-within::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 6px);
+  left: 50%;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 17px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+

@@ -1,6 +1,9 @@
-import { moment, teacher } from "../../api";
+import { useState } from "react";
+
+import { moment, teacher, type RosterAccount, type StudentRow } from "../../api";
 import { go } from "../../App";
 import { BoardHead, BoardWaiting, classLabel, NONE, useBoard } from "./Board";
+import Roster, { Passwords } from "./Roster";
 
 /**
  * Màn 10 · *Chi tiết lớp* (`183:874`), plan `teacher-rail-screens`, việc 18.
@@ -8,13 +11,48 @@ import { BoardHead, BoardWaiting, classLabel, NONE, useBoard } from "./Board";
  * Hai bảng: các đề đã phát hành cho lớp (chặng theo giờ BE, mở lúc, đóng lúc, đã nộp), và học sinh.
  * Bấm một đề là sang kết quả của đề ấy trong lớp này (màn 11).
  *
- * Cột *Tên đăng nhập*, nút *Đặt lại mật khẩu* và *Thêm học sinh* thuộc việc 22 (đăng nhập); dòng phụ
- * không có *năm học* vì không dữ liệu nào chở nó (Decision 1 của plan).
+ * Cột *Tên đăng nhập*, nút *Đặt lại mật khẩu* và *Thêm học sinh* có từ việc 22 (plan
+ * `sign-in-and-accounts`): thêm học sinh mở hộp ba bước (`Roster`), đặt lại mật khẩu thì đặt ngay và
+ * hiện mật khẩu mới một lần (10b). Dòng phụ không có *năm học* vì không dữ liệu nào chở nó.
  *
  * @param classId - Lớp nào.
  */
 export default function ClassDetail({ classId }: { classId: string }) {
-  const { data, trouble } = useBoard(() => teacher.classDetail(classId), classId);
+  const { data, trouble, setData } = useBoard(() => teacher.classDetail(classId), classId);
+  const [adding, setAdding] = useState(false);
+  const [reset, setReset] = useState<RosterAccount | null>(null);
+  // Em đang được đặt lại mật khẩu. Trong lúc chờ, mọi nút *Đặt lại mật khẩu* đều khoá: một hộp mật
+  // khẩu một lúc, và cú bấm thứ hai không được nuốt im lặng (review pha 4).
+  const [resetting, setResetting] = useState<string | null>(null);
+  const [refused, setRefused] = useState("");
+
+  /** Đọc lại lớp sau khi thêm học sinh hay cấp tên đăng nhập: bảng phía sau hộp phải đúng. */
+  function reread() {
+    void teacher
+      .classDetail(classId)
+      .then(setData)
+      .catch((cause: Error) => setRefused(`Chưa đọc lại được danh sách lớp: ${cause.message}`));
+  }
+
+  /**
+   * *Đặt lại mật khẩu* (10b): BE đặt ngay và trả mật khẩu mới một lần; hộp mật khẩu hiện nó.
+   *
+   * @param one - Em nào. Em chưa có tên đăng nhập thì BE cấp luôn, nên màn đọc lại lớp.
+   */
+  function resetPassword(one: StudentRow) {
+    if (resetting !== null) return;
+    setResetting(one.student_id);
+    setRefused("");
+    teacher
+      .resetPassword(classId, one.student_id)
+      .then((account) => {
+        setReset(account);
+        if (one.username === null) reread();
+      })
+      .catch((cause: Error) => setRefused(cause.message))
+      .finally(() => setResetting(null));
+  }
+
   const back = { label: "Danh sách lớp học", to: "/teacher/lop" };
 
   if (data === null) {
@@ -32,7 +70,17 @@ export default function ClassDetail({ classId }: { classId: string }) {
         back={back}
         title={classLabel(data.name)}
         sub={[`${data.student_count} học sinh`, data.courses].filter(Boolean).join(" · ")}
+        action={
+          <button className="board-export" type="button" onClick={() => setAdding(true)}>
+            Thêm học sinh
+          </button>
+        }
       />
+      {refused !== "" && (
+        <p className="refused" role="alert">
+          {refused}
+        </p>
+      )}
 
       <h2 className="board-section">Bài kiểm tra đã phát hành cho lớp này</h2>
       <div className="board-table class-papers" role="table">
@@ -84,14 +132,48 @@ export default function ClassDetail({ classId }: { classId: string }) {
         <div className="board-row head" role="row">
           <span>HỌ TÊN</span>
           <span>MÃ HỌC SINH</span>
+          <span>TÊN ĐĂNG NHẬP</span>
+          <span />
         </div>
+        {data.students.length === 0 && (
+          <div className="board-row empty" role="row">
+            Lớp này chưa có học sinh nào.
+          </div>
+        )}
         {data.students.map((one) => (
           <div className="board-row" role="row" key={one.student_id}>
             <span className="name">{one.full_name}</span>
             <span className="code">{one.student_code}</span>
+            <span className={one.username === null ? "cell-faint" : "code"}>
+              {one.username ?? NONE}
+            </span>
+            <button
+              className="reset-password"
+              type="button"
+              disabled={resetting !== null}
+              onClick={() => resetPassword(one)}
+            >
+              Đặt lại mật khẩu
+            </button>
           </div>
         ))}
       </div>
+
+      {adding && (
+        <Roster
+          classId={classId}
+          name={data.name}
+          onCreated={reread}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {reset !== null && (
+        <Passwords
+          title={`Đã đặt lại mật khẩu cho ${reset.full_name}`}
+          accounts={[reset]}
+          onClose={() => setReset(null)}
+        />
+      )}
     </div>
   );
 }

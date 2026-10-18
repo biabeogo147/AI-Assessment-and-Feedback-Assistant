@@ -118,9 +118,9 @@ Figma đã duyệt 18/10/2026:
 - [x] 14. Vitest; chụp, đo so với 26, 26b, 27; subagent chấm.
 
 ### Pha 4 — FE giáo viên: thêm học sinh
-- [ ] 15. Chi tiết lớp: cột tên đăng nhập, *Đặt lại mật khẩu*, *Thêm học sinh*.
-- [ ] 16. Ba bước 28, 28b, 28c; hộp đặt lại mật khẩu.
-- [ ] 17. Vitest; chụp, đo; subagent chấm.
+- [x] 15. Chi tiết lớp: cột tên đăng nhập, *Đặt lại mật khẩu*, *Thêm học sinh*.
+- [x] 16. Ba bước 28, 28b, 28c; hộp đặt lại mật khẩu.
+- [x] 17. Vitest; chụp, đo; subagent chấm.
 
 ### Pha 5 — FE học sinh
 - [ ] 18. Màn đăng nhập 12; *Đăng xuất*; bỏ `ACTOR` hẳn.
@@ -204,3 +204,8 @@ mẫu cho bốn tài khoản demo.
   - đăng xuất hỏng thì nói ra, phiên còn;
   - focus vào ô đầu, nền `inert` (`useInert` trong `Veil.tsx`);
   - hai tab là `radiogroup`.
+- 19/10/2026: Pha 4 xong. Figma: thêm 28d `711:5287` (tab tải tệp). Chấm ảnh 10, 10b, 28, 28b,
+  28c, 28d khớp 1–2px. Review sửa: nền `inert` và focus ở mọi bước; không tạo được em nào thì ở lại
+  bước 2; khoá mọi *Đặt lại mật khẩu* khi một lần đang chạy; ô chọn tệp chọn lại được cùng tệp; đọc
+  lại lớp hỏng thì nói ra. Chờ người dùng: *Đặt lại mật khẩu* chạy ngay, không hỏi lại (đúng Figma
+  10b đã duyệt).

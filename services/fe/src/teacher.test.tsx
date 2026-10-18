@@ -6747,7 +6747,7 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
     expect(window.location.hash).toBe("#/teacher/lop/c12a");
   });
 
-  it("chi tiết lớp: hai bảng, không cột tên đăng nhập (việc 22), bấm đề sang kết quả", async () => {
+  it("chi tiết lớp: hai bảng, có cột tên đăng nhập (việc 22), bấm đề sang kết quả", async () => {
     serving({
       "/teacher/classes/c12a": {
         class_id: "c12a",
@@ -6777,8 +6777,8 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
           },
         ],
         students: [
-          { student_id: "s1", full_name: "Nguyễn Minh Anh", student_code: "1204" },
-          { student_id: "s2", full_name: "Trần Gia Bảo", student_code: "1205" },
+          { student_id: "s1", full_name: "Nguyễn Minh Anh", student_code: "1204", username: "anhnm" },
+          { student_id: "s2", full_name: "Trần Gia Bảo", student_code: "1205", username: "baotg" },
         ],
       },
     });
@@ -6786,7 +6786,8 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
 
     expect(await screen.findByRole("heading", { name: "Lớp 12A" })).toBeTruthy();
     expect(screen.getByText("2 học sinh · Toán 12")).toBeTruthy();
-    expect(container.textContent).not.toContain("TÊN ĐĂNG NHẬP");
+    expect(container.textContent).toContain("TÊN ĐĂNG NHẬP");
+    expect(screen.getByText("anhnm")).toBeTruthy();
     expect(container.querySelector(".phase.live")?.textContent).toBe("Đang mở");
     fireEvent.click(screen.getByText("Đề 15 phút — Hàm số"));
     expect(window.location.hash).toBe("#/teacher/lop/c12a/de/p1");
