@@ -616,6 +616,58 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
     expect(document.querySelectorAll(".exchange .who")).toHaveLength(0);
   });
 
+  it("lượt đang chạy có bước rồi kết bằng thông báo: avatar trên khối bước, thẻ dưới nó", async () => {
+    // Artboard 16 (`652:3468`, plan `wave-3-draft-panel`): dàn ý bị trả về tới trần sau hai bước
+    // tra cứu. Avatar thuộc về các bước Kriky đã làm; thông báo đứng dưới, không avatar riêng.
+    Element.prototype.scrollIntoView = vi.fn();
+    const empty = { kind: "say", text: "", conversation_id: "c1", choices: [], more_choices: 0, turns: [] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/teacher/chat/messages/stream") {
+          const frames = [
+            { kind: "step_started", tool_name: "list_documents", conversation_id: "c1" },
+            { kind: "step_done", tool_name: "list_documents", conversation_id: "c1" },
+            { kind: "step_started", tool_name: "list_classes", conversation_id: "c1" },
+            { kind: "step_done", tool_name: "list_classes", conversation_id: "c1" },
+            {
+              kind: "notice",
+              text: "Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!",
+              conversation_id: "c1",
+            },
+          ]
+            .map((one) => `data: ${JSON.stringify(one)}\n\n`)
+            .join("");
+          return {
+            ok: true,
+            body: new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(frames));
+              },
+            }),
+          };
+        }
+        const body = url.startsWith("/api/teacher/chat") ? empty : [];
+        return { ok: true, json: async () => body };
+      }),
+    );
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    fireEvent.change(screen.getByLabelText("Nhắn cho Kriky"), { target: { value: "soạn đề" } });
+    fireEvent.click(screen.getByText("Gửi"));
+
+    const notice = await waitFor(() => {
+      const found = document.querySelector(".system-notice");
+      expect(found?.textContent).toContain("Bạn hãy thử lại nhé!");
+      return found as Element;
+    });
+    const who = document.querySelectorAll(".exchange .who");
+    expect(who).toHaveLength(1);
+    expect(notice.closest(".voice")).toBeNull();
+    const steps = document.querySelector(".steps-block") as Element;
+    expect(who[0].compareDocumentPosition(steps) & 4).toBe(4);
+    expect(steps.compareDocumentPosition(notice) & 4).toBe(4);
+  });
+
   it("vẫn chỉ MỘT avatar khi lượt có cả câu mở đầu lẫn câu kết", async () => {
     // Đây là hình dạng đầy đủ của một lượt hai pha: Kriky nói trước khi bắt tay, chạy plan,
     // rồi kể lại. Bản trước dựng avatar lần thứ hai cho câu kết, nên cùng một người nói

@@ -65,7 +65,10 @@ giữ luật ấy.
 
 **Thông báo hệ thống không phải lời Kriky.** Khi model không có mặt để nói — các trường hợp của
 ngoại lệ 1 trong ADR-30 — lượt ra một dòng `notice` (component `System notice`,
-`619:20`): **không avatar**, nền chìm, chữ nhạt cỡ nhãn, dấu `!` ở đầu, chữ trơn không Markdown. Nó
+`619:20`): **không avatar**, thẻ trắng viền line, vòng `!` trung tính (nền chìm, chữ ink/muted) ở
+đầu, chữ cỡ nhãn trơn không Markdown, không dòng nguồn (vẽ lại 18/10/2026, artboard `16 · Dàn ý bị trả
+về tới trần` `652:3468`, plan `wave-3-draft-panel`). Lượt có bước thì avatar Kriky vẫn đứng trên khối
+bước, kể cả khi lượt kết bằng thông báo. Nó
 cắt khối của Kriky và đứng dưới những gì Kriky đã làm, nên khối bước của một plan đã chạy vẫn ở nguyên
 trên nó. Câu của chúng sống ở `be/notices.py`; lượt sau model đọc lại chúng như ghi chú hệ thống.
 

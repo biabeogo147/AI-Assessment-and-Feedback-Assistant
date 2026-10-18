@@ -1151,7 +1151,8 @@ export function grow(before: Live | null, event: TurnEvent): Live {
  * Một thông báo của hệ thống trên dòng hội thoại — component `System notice` (`619:20`).
  *
  * Model không có mặt để nói (hỏng, chạm trần bước, không kể lại được), nên câu này **không** mang
- * giọng Kriky: không avatar, chữ nhạt trên nền chìm, chữ trơn không Markdown (ADR-30, ngoại lệ 1).
+ * giọng Kriky: không avatar, thẻ trắng viền mảnh, vòng `!` trung tính, chữ trơn không Markdown (ADR-30,
+ * ngoại lệ 1; vẽ lại theo plan `wave-3-draft-panel`).
  *
  * @param text - Câu của `be/notices.py`, hoặc của AGENT khi model hỏng.
  */

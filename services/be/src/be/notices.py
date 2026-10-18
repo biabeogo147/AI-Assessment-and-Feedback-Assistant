@@ -33,9 +33,9 @@ PLAN_REFUSED = (
 # Dàn ý bị BE trả về cùng một lý do hai lần liền, hay bị trả về lần thứ ba vì bất kỳ lý do gì (plan
 # `backlog-tier-1`, pha 5 và 6): model đang kẹt như với plan, nên lượt dừng thay vì gọi model tới
 # trần.
-OUTLINE_REFUSED = (
-    "Kriky chưa nêu được dàn ý cho đề này. Bạn thử nói lại cụ thể hơn: phạm vi, số câu, dạng câu."
-)
+# Không bảo giáo viên *"nói lại cụ thể hơn"*: lỗi nằm ở model, không ở lời giáo viên (người dùng
+# chốt 18/10/2026, plan `wave-3-draft-panel`, việc 14).
+OUTLINE_REFUSED = "Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"
 BOOK_SCOPE_MISSING = (
     "Đoạn chat này đang soạn theo tài liệu {filename}, nên Kriky cần biết chương hay bài nào trong "
     "đó. Bạn nói tên chương, bài nhé. Muốn soạn đề không theo tài liệu thì mở một đoạn chat mới."

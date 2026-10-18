@@ -63,7 +63,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 | 11 | Tài liệu vừa tải không tự đính vào đoạn chat (`Chat.tsx` `take()`) | 2 |
 | 12 | Nút *Soạn lại* cho ô hỏng; đánh số câu theo vị trí | 3 |
 | 13 | Hai lưới lúc thu hoạch: lời giải *"chọn X"* lệch phương án khoá; hai phương án trùng thì giữ một | 3 |
-| 14 | Làm lại thẻ báo `OUTLINE_REFUSED`; chữ giữ nguyên | 3 |
+| 14 | Làm lại thẻ báo `OUTLINE_REFUSED`; chữ đổi theo buổi review Figma (xem dưới) | 3 |
 | 15 | Đề trống: xoá được; đoạn chat đã có đề trống thì BE dùng lại | 3 |
 | 16 | `check_schema` kiểm cả `UniqueConstraint` | 3 (kéo lên từ 4) |
 | 17 | Thêm câu từ ngân hàng trên panel phải; cột nguồn; chip nguồn thật | 4 |

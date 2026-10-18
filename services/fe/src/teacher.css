@@ -892,24 +892,38 @@
 }
 
 /*
- * Thông báo hệ thống (ADR-30, ngoại lệ 1) — `System notice` (`619:20`). Không avatar và không
- * thụt theo cột lời Kriky: đây không phải Kriky nói. Nền chìm, chữ nhạt, cỡ nhãn.
+ * Thông báo hệ thống (ADR-30, ngoại lệ 1) — `System notice` (`619:20`), vẽ lại 18/10/2026 cho dễ đọc
+ * (plan `wave-3-draft-panel`, việc 14). Không avatar và không thụt theo cột lời Kriky: đây không
+ * phải Kriky nói. Thẻ trắng viền line, vòng `!` **trung tính** (sunken + ink/muted): cùng component
+ * chở cả lỗi lẫn *đang chạy việc khác*, nên nó không mang màu lỗi (ADR-12). Viền của Figma nằm
+ * **ngoài** padding 12/16 (thẻ cao 46), nên ở đây padding giữ nguyên 12/16.
  */
 .teacher .system-notice {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--sunken);
-  color: var(--ink-muted);
+  background: var(--surface);
+  color: var(--ink);
   font-size: var(--type-label);
   line-height: 1.5;
 }
 
 .teacher .system-notice .mark {
-  color: var(--ink-faint);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
   font-weight: 600;
+  line-height: 16px;
 }
 
 /*

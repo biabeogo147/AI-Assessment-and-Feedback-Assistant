@@ -62,7 +62,7 @@ Mỗi lần Kriky nói, soi đủ tám dòng — chúng không phụ thuộc cas
 | 5 | **Markdown được dựng** (ADR-30): đậm, gạch đầu dòng, bảng hiện thành định dạng | Dấu sao, dấu `#`, dấu `\|` hay dấu huyền nguyên văn trên màn hình |
 | 6 | **Toán là LaTeX trong cặp `$`**, và màn hình **dựng hình** nó | `$\frac{1}{2}$` nguyên văn trên màn — cụm ấy không dựng được |
 | 7 | **Không định danh máy nào lọt ra màn hình** | Một chuỗi UUID, tên tool như `start_drafting`, hay số node như *"(node 5)"* |
-| 8 | **Lời Kriky là lời model viết; câu cố định chỉ là thông báo hệ thống** (ADR-30): dòng riêng, không avatar, nền chìm, dấu `!` | Một câu dọn trước (*"Mình chưa dựng được các bước…"*, *"Được, mình soạn theo dàn ý ngay."*) dưới avatar Kriky; hay thông báo hệ thống mang avatar |
+| 8 | **Lời Kriky là lời model viết; câu cố định chỉ là thông báo hệ thống** (ADR-30): dòng riêng, không avatar, thẻ trắng viền mảnh, vòng `!` nền chìm | Một câu dọn trước (*"Mình chưa dựng được các bước…"*, *"Được, mình soạn theo dàn ý ngay."*) dưới avatar Kriky; hay thông báo hệ thống mang avatar |
 
 Luật 6 từng bị lật một lần: hợp đồng là ADR-26 — prompt soạn câu **bắt** model viết `$y = x^3$`, và
 `MathText` dựng hình phần giữa hai dấu `$`. Thấy dấu đô la trên màn nghĩa là cụm ấy không dựng

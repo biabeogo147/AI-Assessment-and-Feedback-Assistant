@@ -95,12 +95,12 @@ Làm việc 16, 12, 13, 14, 15 của `2026-10-18-deterministic-batch-master-plan
   *"chọn a = 2"* không bị bắt. Hậu ký ADR-18; sửa docstring `validate_question`.
 
 ### Pha 3 — thẻ báo (việc 14)
-- [ ] 11. `notices.OUTLINE_REFUSED` = *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*.
-- [ ] 12. `Notice` (`Chat.tsx`) và `.system-notice` (`teacher.css`) theo `619:20`: nền surface, viền
+- [x] 11. `notices.OUTLINE_REFUSED` = *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*.
+- [x] 12. `Notice` (`Chat.tsx`) và `.system-notice` (`teacher.css`) theo `619:20`: nền surface, viền
   line/default, vòng `!` trung tính (sunken + ink/muted), không dòng nguồn. Kiểm avatar Kriky đứng
   trên khối bước khi lượt có bước rồi kết bằng thông báo, cả lúc đang chạy lẫn sau F5 (artboard
   16); thiếu thì sửa `voiced()`/`blocks()`.
-- [ ] 13. Test BE theo chữ mới; vitest avatar cộng thẻ. Trình duyệt: AGENT mock không chạm được
+- [x] 13. Test BE theo chữ mới; vitest avatar cộng thẻ. Trình duyệt: AGENT mock không chạm được
   trần dàn ý, nên dựng lượt bằng API giả (CDP) như Đợt 2; chụp, đo so với `652:3468`.
 
 ### Pha 4 — đề trống: xoá và dùng lại (việc 15)
@@ -176,3 +176,6 @@ dời chỗ vì gộp cũng bị bắt, và lần thử lại là một câu s�
   `_CHOSEN` bắt nhầm giả định, cảnh báo, tên điểm, kể nhiều nhãn (nay chỉ xét lần chọn cuối của mỗi
   lời giải, bỏ qua chữ *nếu/hay/nên/thể/dễ/thường/không* đứng trước, nhận nhãn bọc `**`/`$`, chuẩn
   hoá NFC); tên hàm trong plan; test nhãn dời chỗ vì gộp.
+- Pha 3 xong 18/10/2026: avatar trên khối bước khi lượt kết bằng thông báo đã đúng sẵn, cả lúc đang
+  chạy lẫn sau F5 (nay có test cho ca đang chạy). Thẻ báo đo trên Chrome headless: 820 × 46, vòng `!`
+  20 × 20 cách mép 17/13, cách khối bước 20 -- đúng artboard 16. Viền của Figma nằm ngoài padding.
