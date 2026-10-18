@@ -21,7 +21,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [10](adr-10-pham-vi-dot-dau.md) | Chỉ giáo viên, chỉ desktop, chat là dòng lệnh | đã chốt |
 | [11](adr-11-bo-assessment-type.md) | Bỏ `AssessmentType` khỏi contract | đã chốt |
 | [12](adr-12-mau-va-hinh-anh-ma-hoa-luat.md) | Một số màu và hình ảnh mang nghĩa nghiệp vụ cố định | đã chốt |
-| [13](adr-13-lop-va-tai-khoan-hoc-sinh.md) | Giáo viên tạo lớp; tài khoản học sinh sinh từ CSV | đã chốt (mật khẩu một lần: chưa thi hành) |
+| [13](adr-13-lop-va-tai-khoan-hoc-sinh.md) | Giáo viên tạo lớp; tài khoản học sinh sinh từ CSV (hậu ký 19/10/2026: mật khẩu một lần đã thi hành, không bắt đổi lần đầu, mã do hệ thống cấp) | đã mở rộng bởi ADR-36 (tạo lớp: chưa có đường) |
 | [14](adr-14-hai-pha-lam-bai.md) | Bài kiểm tra có hai pha; nộp bài không phải điểm kết thúc | đã chốt (Figma xong, backend chưa) |
 | [15](adr-15-thoi-gian-pha-hai.md) | Hai đồng hồ ở pha 2; phần giải thích không tính giờ | đã chốt, đang thi hành (hậu ký 17/10/2026: backend đã có hai đồng hồ; 18/10/2026: hết giờ lượt chữa thì màn hỏi BE rồi về màn xem điểm) |
 | [16](adr-16-thang-diem-ba-muc.md) | Ba mức điểm; 0,5 nghĩa là hiểu sau khi được dạy | đã chốt, đang thi hành (hậu ký 17/10/2026) |
@@ -44,6 +44,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [33](adr-33-chi-de-trong-moi-xoa-duoc.md) | Chỉ đề trống mới xoá được, và xoá cứng; một đoạn chat dùng lại đề trống của nó | đã chốt, đang thi hành |
 | [34](adr-34-hang-doi-review-va-diem-gop.md) | Hàng đợi *Cần bạn xem* (báo cáo gom theo đề; tỉ lệ sai ≥ 70%, trên 20 bài, sau giai đoạn 2) và điểm gộp theo lớp quy về thang 10 | đã chốt, đang thi hành |
 | [35](adr-35-sua-loi-giai-sau-phat-hanh.md) | Câu trong đề đã phát hành không bao giờ sửa; sửa lời giải là sửa bản trong ngân hàng | đã chốt, đang thi hành |
+| [36](adr-36-dang-nhap-va-tai-khoan.md) | Đăng nhập bằng phiên cookie, mỗi vai một cookie; giáo viên tự đăng ký; giáo viên phát tài khoản học sinh, dòng trùng tên phải xác nhận | đã chốt, đang thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.

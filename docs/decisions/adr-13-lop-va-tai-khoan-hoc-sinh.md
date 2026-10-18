@@ -1,6 +1,7 @@
 # ADR-13 — Lớp và tài khoản học sinh do giáo viên tạo
 
-- **Trạng thái:** đã chốt (phần *mật khẩu chỉ hiện một lần*: đã chốt, chưa thi hành)
+- **Trạng thái:** đã mở rộng bởi ADR-36 (hậu ký 19/10/2026: mật khẩu chỉ hiện một lần đã thi hành;
+  khoá theo mã học sinh đã bị thay; giáo viên chưa tạo được lớp)
 - **Ngày:** 2026-09-07
 
 ## Bối cảnh
@@ -107,3 +108,29 @@ thứ hai — nếu để hai thứ song song thì khoá định danh mất tác
 sẽ tạo → xác nhận → thẻ kết quả) và hộp kết quả của *Đặt lại mật khẩu*. Chừng nào chưa dựng, luật
 *"chỉ hiện một lần"* mới chỉ đúng theo nghĩa **không nơi nào hiện nó cả** — đó là lý do trạng thái của
 ADR ghi phần này là *chưa thi hành*.
+
+## Hậu ký 19/10/2026
+
+Việc 22 (plan `2026-10-18-sign-in-and-accounts-plan.md`, [ADR-36](adr-36-dang-nhap-va-tai-khoan.md))
+dựng phần còn thiếu ở trên.
+
+- **Mật khẩu chỉ hiện một lần, nay đã thi hành ở cả hai chỗ.** Hộp *Đã tạo N tài khoản* (Figma 28c) và
+  hộp *Đặt lại mật khẩu* (10b). BE chỉ giữ `scrypt` của mật khẩu. Tệp `.xlsx` mật khẩu dựng từ chính
+  các dòng đang hiện mà FE gửi lên, và không được lưu. **Chỗ lệch:** *bản tải về* chỉ có ở hộp 28c.
+  Hộp 10b, một em một mật khẩu, không có nút xuất, đúng Figma 10b người dùng đã duyệt.
+- **Khoá theo mã học sinh đã bị thay.** Gạch đầu dòng thứ ba của *Quyết định* và đoạn *Khoá theo mã học
+  sinh* của *Vì sao* không còn đúng. Giáo viên không nhập mã: hệ thống cấp mã. Một em mới cùng họ tên
+  với một em đã có trong lớp hiện là *Trùng tên trong lớp*, và chỉ được tạo khi giáo viên xác nhận.
+  Nỗi lo của đoạn ấy, một em hai tài khoản, nay do giáo viên chặn ở bước xem trước (ADR-36).
+- **Không bắt đổi mật khẩu ở lần đăng nhập đầu.** Người dùng chốt ngày 18/10/2026. Mật khẩu phát ra là
+  ngẫu nhiên, dạng `k7m-pq4-xd`; học sinh quên thì giáo viên đặt lại.
+- **Tệp nhập không có cột mã.** Mã học sinh do hệ thống cấp, là số thứ tự tăng dần trên toàn hệ thống.
+  Đây là chỗ khác với phương án *CSV kèm cột mã tuỳ chọn* của buổi chốt trước. Người dùng chốt lại ở
+  buổi review Figma 18/10/2026.
+- **Màn đăng nhập của học sinh** (Figma 12 `659:5676`) và nút *Đăng xuất* trên `Student top bar` nay
+  chạy thật: mỗi màn vẫn trả lời *ai đang đăng nhập*, và thoát được ngay tại chỗ.
+- **Giáo viên vẫn chưa tạo được lớp.** Lớp đến từ seed; nút *Tạo lớp* chờ người dùng chốt
+  (`docs/plans/backlog.md`).
+- Mục *Vẫn chưa có ở backend* phía trên đã cũ từ trước việc 22: `packages/contracts/.../messages.py` bị
+  xoá ngày 09/10/2026, và `api.ts` thôi gán `"stu-demo"`. Không còn `student_id` nào trong contract
+  để luật *student_id là mã học sinh* áp vào.

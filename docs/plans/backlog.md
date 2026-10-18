@@ -21,6 +21,12 @@ thành ADR, không phải những **tính năng** chưa dựng.
 | Thẻ sửa ba tầng lệch Figma `531:181` | Không bị chặn. Code: khoảng cách 8, đầu tầng 17; Figma: 6 và 15. Có từ trước việc 18; thẻ dùng chung cho panel đề và màn 22b nên sửa một chỗ là đổi cả hai, chờ người dùng duyệt |
 | Chân panel của đề trống lệch Figma 18 | Không bị chặn, có từ trước việc 17: code in dòng *"Bạn duyệt xong mới phát hành được…"* mà Figma không vẽ, và nút *Duyệt đề* lúc tắt nhạt hơn (`button:disabled { opacity: .5 }` của `tokens.css` chồng lên `.panel-foot .cta:disabled`, nền `#F8F8F7` so với `#F2F2EF`). Chờ người dùng chọn bên đúng |
 | BE treo sau khi tự nạp lại code | Không bị chặn. `uvicorn --reload` trên Windows thỉnh thoảng gãy với `OSError: [WinError 10038]` khi tắt tiến trình con, rồi không lên lại; gặp ba lần ngày 18/10/2026. Khởi động lại tay thì chạy. Chưa rõ do kết nối SSE đang mở hay do `--timeout-graceful-shutdown 5` |
+| Vite dev phục vụ bản cũ của một module vừa sửa | Không bị chặn. Gặp hai lần (18 và 19/10/2026): `teacher.css` cũ, rồi `Veil.tsx` thiếu export mới, nên màn trắng với `SyntaxError`, cho tới khi `touch` file. Chưa rõ vì sao HMR bỏ sót (ổ `D:`, watcher của Windows?) |
+| Giới hạn số lần thử đăng nhập | Không bị chặn, ngoài phạm vi việc 22 ([ADR-36](../decisions/adr-36-dang-nhap-va-tai-khoan.md)). Hiện đoán mật khẩu không bị chậm lại: `scrypt` chạy ngoài event loop nên không làm BE đứng, nhưng cũng không chặn ai. Cần một bộ đếm theo tên đăng nhập và theo IP |
+| Quên mật khẩu, đổi mật khẩu của giáo viên; đăng nhập Google thật | Ngoài phạm vi việc 22 (ADR-36). Quên mật khẩu cần một kênh gửi (email hay SMS) mà hệ thống chưa có; nút Google hiện chỉ là giao diện |
+| Trần 1 MB của tệp danh sách lớp kiểm **sau** khi nhận hết tệp | Chặn bởi chỗ triển khai: Starlette đã nhận và ghi tệp ra đĩa trước khi route đọc; trần thật đặt ở proxy |
+| Cookie phiên chưa có cờ `Secure` | Chặn bởi chỗ triển khai: máy dev chạy http. Bật khi BE đứng sau HTTPS (ADR-36) |
+| *Đặt lại mật khẩu* chạy ngay, không hỏi lại | **Chưa quyết** (19/10/2026): đúng Figma 10b đã duyệt, nhưng một cú bấm nhầm đổi mật khẩu và đẩy em ấy ra khỏi bài đang làm. Review pha 4 của việc 22 hỏi có thêm một bước xác nhận không |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
 | Mỗi lớp một bộ giờ riêng | **Đã bác**, không phải việc chưa làm: ngày 06/10/2026 chốt phát hành là một việc với một khung giờ. Schema vẫn cho phép vì `Publication` khoá theo `(đề, lớp)` |
 | `services/fe` nay là tên sai | **Không làm** (17/10/2026): không người dùng nào chạm tới. Nó phục vụ **hai** bề mặt; đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` |
@@ -169,19 +175,20 @@ Kênh phát hiện duy nhất là [ADR-19](../decisions/adr-19-bao-cao-giai-thic
 **không chặn ai**. Chấp nhận có chủ đích ở đợt này; khi có hàng đợi review thật thì đây là ứng viên
 đầu tiên được nối vào.
 
-### Không có màn đăng nhập nên không có chỗ bắt đổi mật khẩu
+### Không bắt đổi mật khẩu lần đầu (đã chốt)
 
 [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md) để mật khẩu ban đầu đi trên **giấy in** từ
 tay giáo viên. Ai nhặt được tờ giấy cũng đăng nhập được. Cách chặn thông thường là bắt đổi mật khẩu ở
 lần đăng nhập đầu, nhưng đợt thiết kế học sinh cố ý bỏ qua màn đăng nhập nên không có chỗ đặt nó.
 
-Đây là **lỗ hổng đã biết**, không phải chuyện chưa ai nghĩ tới. Cột *trạng thái tài khoản* trên màn
-`Chi tiết lớp` — phân biệt *chưa đăng nhập lần nào* với *đang hoạt động* — hiện là dấu vết duy nhất
-trong sản phẩm cho thấy lần đăng nhập đầu có ý nghĩa riêng.
+Đây là **lỗ hổng đã biết**, không phải chuyện chưa ai nghĩ tới.
 
 **Chốt 18/10/2026 (người dùng):** không bắt đổi mật khẩu lần đầu. Học sinh đăng nhập bằng tên chuẩn
 hoá cộng mật khẩu sinh ngẫu nhiên; giáo viên chỉ nhập tên (gõ tay, hay tải `.csv`/`.xlsx`). Lỗ hổng
-tờ giấy in ở trên vì thế được chấp nhận có chủ đích. Việc 22 của đợt tất định; ADR-13 cần hậu ký.
+tờ giấy in ở trên vì thế được chấp nhận có chủ đích.
+
+**Đã làm 19/10/2026** (việc 22, plan `sign-in-and-accounts`): màn đăng nhập của cả hai vai, mật khẩu
+chỉ hiện một lần, hậu ký ADR-13 và [ADR-36](../decisions/adr-36-dang-nhap-va-tai-khoan.md).
 
 ## Nút Thu hồi chưa biết lúc nào phải biến mất
 
@@ -841,7 +848,7 @@ cáo. Bốn giới hạn mà mục ấy nêu (giờ kết thúc của một lư�
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Đoạn mở chương 07 (`07:4-7`, người dùng viết) dùng "service" lần đầu mà không in đậm, không chú thích** (`rules.md` §3); ba dòng `07:4-6` có khoảng trắng cuối dòng, `07:4` có hai dấu cách liền nhau | Phần người dùng viết; chỉ báo, không sửa |
-| **Báo cáo chưa chỗ nào nói rằng chưa có đăng nhập.** `backend` xác định người gọi bằng header `X-Actor` do màn hình tự khai (`be/identity.py:1-8`, `be/config.py:53-58`); phần kiểm quyền phía sau là thật. Review đề nghị thêm thành giới hạn thứ năm của mục backend | Chưa quyết có thêm không |
+| **Báo cáo chưa chỗ nào nói rằng chưa có đăng nhập.** `backend` xác định người gọi bằng header `X-Actor` do màn hình tự khai (`be/identity.py:1-8`, `be/config.py:53-58`); phần kiểm quyền phía sau là thật. Review đề nghị thêm thành giới hạn thứ năm của mục backend | Chưa quyết có thêm không. **Tiền đề đã đổi** 19/10/2026: việc 22 có đăng nhập bằng cookie phiên, `X-Actor` chỉ còn cho test khi cờ dev bật (ADR-36). Chỉ báo, báo cáo là phần người dùng viết |
 | **Docstring đầu `be/content_reader.py` (`:1-6`) nói `backend` đọc đoạn chữ của tài liệu *"để job soạn câu có kiến thức của mục mình"*,** trái với `check_drafting_reads_no_document_text` (`tools/check_contract.py:529`): job soạn câu chỉ nhận mục dàn ý | **Đã làm** 18/10/2026 (đợt tất định việc 5) |
 | **"Hàm" mang hai nghĩa trong chương 07.** Từ lượt viết lại mục Agent, phần của graph gọi là *hàm*, theo mục *Graph* của từ điển; *hàm nhận job* (chỗ worker gọi vào) cũng là "hàm". Đã ghi ở *Những chỗ đã biết là còn sai* của `rules.md` | Người dùng giữ *hàm nhận job* và sẽ tự chọn chữ khác |
 
@@ -860,7 +867,7 @@ chuyển từ bảng *Mười hai chỗ hở* của artifact ấy (bảng đã x
 | **Kriky chưa trả lời câu hỏi về nội dung một bài từ sách** (cần đọc một đoạn, `get_chunk`), và **pha 2 không nhận nội dung tài liệu nào** cho tới khi có cách lọc bài tập (hậu ký ADR-27). Soạn đề theo sách thì đã có từ plan 4b | Hoãn: chạm document và AGENT. Công thức chưa đọc được là plan 3d, ở mục *sympy kiểm công thức* |
 | **Mastery của học sinh** | Chưa thiết kế, và cần lịch sử làm bài đủ dài. Thống kê gộp theo lớp thì làm ở việc 19 |
 | **Hàng đợi review không nằm trên tuyến.** `decide_review` và `ReviewReason` bị xoá ngày 09/10/2026 cùng đường chấm cũ (hậu ký ADR-07, ADR-08), nên loại `ANOMALY` cũng không còn trong code | Việc 19 của đợt: hàng đợi trên màn *Bảng theo dõi*, chứa báo cáo *giải thích chưa rõ* (ADR-19) và câu có tỉ lệ sai bất thường |
-| **Không tạo được lớp hay tài khoản học sinh**: dữ liệu lớp đến từ seed; `list_class` + `get_class` chỉ đọc lớp đã có | Việc 18 (màn *Danh sách lớp học*) và 22 (tài khoản học sinh) của đợt |
+| **Không tạo được lớp hay tài khoản học sinh**: dữ liệu lớp đến từ seed; `list_class` + `get_class` chỉ đọc lớp đã có | Việc 18 (màn *Danh sách lớp học*) và 22 (tài khoản học sinh) của đợt. **Tài khoản đã làm** 19/10/2026 (việc 22); tạo lớp vẫn chưa, chờ nút *Tạo lớp* |
 | **BE không có worker chạy nền**: giữa một lượt, job xong chỉ được thu hoạch ở *lần quan sát kế tiếp* -- chuông tiến độ, hay một lần đọc đề | Chưa cần: hai đường ấy cắt được độ trễ. Vì vậy Pha A tới Pha D của đường ghi ra cùng một lần release |
 
 ### Lộ ra khi làm đợt 2 và đợt 3 (18/10/2026)

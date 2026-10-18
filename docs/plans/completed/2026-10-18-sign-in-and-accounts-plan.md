@@ -77,10 +77,10 @@ Figma đã duyệt 18/10/2026:
 | Đường dẫn | Việc |
 | --- | --- |
 | `packages/schema/src/schema/models.py` | cột, bảng `sessions` |
-| `services/be/src/be/accounts.py`, `account_routes.py`, `roster.py` (mới), `identity.py`, `main.py`, `seed.py` | BE |
-| `services/be/tests/test_accounts.py`, `test_roster.py` (mới) | test BE |
-| `services/fe/src/api.ts`, `App.tsx`, `screens/teacher/Rail.tsx`, `Account.tsx`, `Roster.tsx` (mới), `ClassDetail.tsx`, `screens/student/*`, `teacher.css`, `tokens.css`, test | FE |
-| `services/fe/AGENTS.md`, `.env.example`, `docs/local-development.md`, ADR | tài liệu |
+| `services/be/src/be/accounts.py`, `account_routes.py`, `roster.py` (mới), `identity.py`, `main.py`, `seed.py`, `reset_db.py`, `config.py`, `results_export.py`, `teacher_reads.py` | BE |
+| `services/be/tests/test_accounts.py`, `test_roster.py` (mới), `conftest.py` | test BE |
+| `services/fe/src/api.ts`, `App.tsx`, `components.tsx`, `screens/teacher/Rail.tsx`, `Chat.tsx`, `Veil.tsx`, `Account.tsx`, `Roster.tsx` (mới), `ClassDetail.tsx`, `screens/student/SignIn.tsx` (mới), `teacher.css`, `tokens.css`, test | FE |
+| `services/fe/AGENTS.md`, `.env.example`, `docs/local-development.md`, `docs/overview/data-model.md`, `architecture.md`, `teacher-surface.md`, ADR | tài liệu |
 
 ## Ordered Tasks
 
@@ -127,7 +127,7 @@ Figma đã duyệt 18/10/2026:
 - [x] 19. Vitest; chụp, đo; subagent chấm.
 
 ### Pha 6 — đóng
-- [ ] 20. ADR-36, hậu ký ADR-13, `services/fe/AGENTS.md`, `.env.example`, tài liệu; roadmap việc 22
+- [x] 20. ADR-36, hậu ký ADR-13, `services/fe/AGENTS.md`, `.env.example`, tài liệu; roadmap việc 22
   *Xong*; tick plan tổng; plan sang `completed/`.
 
 ## Decision Records
@@ -214,3 +214,23 @@ mẫu cho bốn tài khoản demo.
   chưa được). Chấm ảnh 12 và dải trên 13 khớp 0–2px. Review sửa: đăng xuất hỏng thì nói ra;
   `streamReply` báo 401; em khác vào thì về `#/` ngay trong nhịp ấy và bỏ các lượt chữa đã chép
   (`round:*`); focus về ô mật khẩu sau lời từ chối; tài liệu `X-Actor` nói phải bật cờ.
+- 19/10/2026: Pha 6 xong, plan đóng.
+  - Tài liệu: ADR-36; hậu ký ADR-13, trạng thái *đã mở rộng bởi ADR-36*; `teacher-surface.md`.
+  - Backlog có sáu mục mới: giới hạn số lần thử đăng nhập; cờ `Secure`; *Đặt lại mật khẩu* không hỏi
+    lại; Vite phục vụ module cũ; quên / đổi mật khẩu và Google thật; trần 1 MB kiểm sau khi nhận tệp.
+  - Artifact: roadmap việc 22 *Xong* (rev 255), *Backlog theo tier* rev 147.
+- Kiểm (lần cuối 19/10/2026):
+  - `.\dev.ps1 test`: 1826 pytest, 346 vitest xanh;
+  - `.\dev.ps1 typecheck`, `.\dev.ps1 check` (26) xanh;
+  - pytest BE trên `aiafa_test` xanh;
+  - `check_schema` qua khi BE khởi động lại sau ALTER.
+  - Đầu cuối trên BE dev, qua Chrome headless:
+    - giáo viên đăng nhập bằng email (trình duyệt) và bằng SĐT (`curl`); menu; đăng xuất;
+    - thêm học sinh có dòng trùng; mật khẩu hiện một lần; đặt lại mật khẩu;
+    - học sinh đăng nhập, sai rồi đúng, rồi đăng xuất.
+  - Học sinh đăng nhập bằng một tài khoản **vừa tạo**: chỉ kiểm bằng pytest (`test_roster.py`), chưa kiểm
+    trên trình duyệt. Đăng ký giáo viên mới: chỉ kiểm bằng pytest và vitest, chưa tạo tài khoản thật
+    trên DB dev.
+- Chờ người dùng:
+  - *Đặt lại mật khẩu* có thêm bước xác nhận không;
+  - nút *Tạo lớp*.

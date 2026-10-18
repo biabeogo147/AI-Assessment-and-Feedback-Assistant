@@ -903,8 +903,9 @@ Việc 20 (plan `results-xlsx-export`). Nút *Xuất bảng điểm (.xlsx)* (`B
 học sinh*, *Họ tên*, *Câu 1*…*Câu N*, *Tổng*, rồi mỗi học sinh của lớp một dòng theo mã.
 
 - **Em chưa nộp để trống, không ghi 0.** Hai sự thật khác nhau.
-- **Tải qua `fetch`**, không qua một link thường: header actor không đi theo `<a href>`. Tên tệp lấy từ
-  `filename*` UTF-8, nên tên tiếng Việt của đề ở nguyên.
+- **Tải qua `fetch`**, không qua một link thường: một tệp bị từ chối phải hiện được câu của BE trên màn,
+  không phải một trang lỗi trong tab mới. Tên tệp lấy từ `filename*` UTF-8, nên tên tiếng Việt của đề ở
+  nguyên.
 - **BE từ chối thì câu của BE hiện ngay dưới đầu màn**; nút mở lại.
 - Chỉ tác giả của đề xuất được (ADR-22). Họ tên mở đầu bằng `=` không thành công thức trong Excel.
 
@@ -935,6 +936,39 @@ qua CDP chép từ Figma:
   và 166);
 - màn 25: hai cột 676 và 400, khe 24;
 - hộp đọc đoạn chat 680 × 363 (Figma 369).
+
+## Đăng nhập, tài khoản, và thêm học sinh — mật khẩu chỉ hiện một lần
+
+Việc 22 (plan `sign-in-and-accounts`, [ADR-36](../decisions/adr-36-dang-nhap-va-tai-khoan.md)).
+Artboard **26** `659:5160`, **26b** `659:5311`, **26c** `709:5249`, **27** `659:5460`, **28**
+`660:5367`, **28b** `660:5512`, **28c** `660:5677`, **28d** `711:5287`, **10** `183:874`, **10b**
+`707:5377`.
+
+- **Chưa đăng nhập thì chỉ có hộp đăng nhập.** Màn mở đầu đứng sau màn che, hộp không đóng được và
+  không lời gọi nào đi ra. Rail còn nút và bốn đích đến, thay hai ngăn bằng một dòng nhắc; góc dưới
+  ghi *Đăng nhập*. Hai tab *Số điện thoại* / *Email*; *Chưa có tài khoản? Tạo tài khoản* đổi sang hộp
+  26b, gồm bốn ô bắt buộc. Lời từ chối của BE nằm ngay trên nút (26c). Nút Google chỉ là giao diện.
+- **Ô tài khoản ở góc dưới rail** có avatar (chữ đầu của họ và tên, bỏ *Cô* / *Thầy*) và họ tên. Bấm
+  thì mở menu 228 rộng, cách ô 6. Năm mục; chỉ *Đăng xuất* bấm được, bốn mục kia vẽ `--ink-faint`.
+- **Phiên hết giữa chừng không xoá việc đang dở.** Một 401 ở bất cứ lời gọi nào, kể cả lượt chat và
+  kênh thư viện, phủ hộp đăng nhập lên màn đang đứng. Đăng nhập lại đúng người thì làm tiếp. Người khác
+  vào thì màn dựng lại ở màn mở đầu.
+- **Hộp thêm học sinh rộng 760, ba bước, không đóng bằng `Esc`.**
+  - Bước 1 nhập: gõ tên, mỗi dòng một em, hay tải `.csv` / `.xlsx` (vùng viền đứt, 28d).
+  - Bước 2 xem trước: cột *Xác nhận* chỉ bật ở dòng *Trùng tên trong lớp*. Rê chuột hay focus vào ô thì
+    hiện *"Xác nhận thêm học sinh"*. Hàng nút ghi *Sẽ tạo N tài khoản · M học sinh cần xác nhận*.
+  - Bước 3 mật khẩu, kèm *Xuất file Excel (.xlsx)*.
+
+  Mỗi bước tự focus sẵn, và phần nền là `inert`: không thì Tab đi xuyên màn che, và một Enter ở chỗ
+  khác làm mất mật khẩu chỉ hiện một lần.
+- **Màn 10** có nút *Thêm học sinh*, cột *Tên đăng nhập* (em có trước việc 22 hiện —), và *Đặt lại
+  mật khẩu* canh phải. Bấm là đặt ngay: hộp 10b hiện mật khẩu mới một lần, không có nút xuất tệp.
+
+**Đo trên trình duyệt ngày 19/10/2026**, so với các artboard trên, ở density Teacher:
+- hộp 26, 26b, 26c cao 472, 483, 505 ở x 510, đúng Figma;
+- hộp 28, 28b, 28c, 10b cao 398, 304, 302, 264 ở x 340, đúng Figma;
+- menu tài khoản 228 × 195 ở y 635;
+- bảng học sinh của màn 10 có cột mã ở x 876, tên đăng nhập ở x 1040.
 
 ## Hàng đoạn chat — một hộp, hai việc
 
