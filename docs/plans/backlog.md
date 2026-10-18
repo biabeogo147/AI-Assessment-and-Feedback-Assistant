@@ -16,7 +16,7 @@ thành ADR, không phải những **tính năng** chưa dựng.
 | --- | --- |
 | Bốn đích đến trên rail trơ | Bốn artboard kia chưa dựng. Con số trên huy hiệu *Bảng theo dõi* là chữ bịa (`invented-not-from-be.ts`, `DASHBOARD_WAITING`), nên rail không mời bấm |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
-| Mỗi lớp một bộ giờ riêng | `Publication` khoá theo `(đề, lớp)` nên schema **đã** cho phép; thiếu bề mặt. Figma chưa vẽ |
+| Mỗi lớp một bộ giờ riêng | **Đã bác**, không phải việc chưa làm: ngày 06/10/2026 chốt phát hành là một việc với một khung giờ. Schema vẫn cho phép vì `Publication` khoá theo `(đề, lớp)` |
 | `services/fe` nay là tên sai | **Không làm** (17/10/2026): không người dùng nào chạm tới. Nó phục vụ **hai** bề mặt; đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` |
 
 ## Màn hình Danh sách lớp học
@@ -111,7 +111,7 @@ pha 2 có trần ba vòng, điểm ba mức và lý do được 0,5 đều có t
 | --- | --- |
 | Cổng duyệt cho câu luyện tập | **Chưa quyết định nghiệp vụ** — xem dưới. Khi chốt thì chỉnh luôn dòng Invariants của `AGENTS.md` nói về câu luyện tập |
 | Bật lại confidence của chẩn đoán | Chưa cần, và bật lại hôm nay sẽ hỏng — xem dưới |
-| Bắt đổi mật khẩu ở lần đăng nhập đầu | Không bị chặn. Không có màn hình nào để đặt nó vào — xem dưới |
+| Bắt đổi mật khẩu ở lần đăng nhập đầu | **Không làm** (người dùng, 18/10/2026) — xem dưới |
 | Phát hiện sớm một lời giải sai | **Chưa quyết định nghiệp vụ** — xem dưới |
 
 ### Câu luyện tập chưa qua cổng duyệt nào
@@ -173,6 +173,10 @@ lần đăng nhập đầu, nhưng đợt thiết kế học sinh cố ý bỏ q
 Đây là **lỗ hổng đã biết**, không phải chuyện chưa ai nghĩ tới. Cột *trạng thái tài khoản* trên màn
 `Chi tiết lớp` — phân biệt *chưa đăng nhập lần nào* với *đang hoạt động* — hiện là dấu vết duy nhất
 trong sản phẩm cho thấy lần đăng nhập đầu có ý nghĩa riêng.
+
+**Chốt 18/10/2026 (người dùng):** không bắt đổi mật khẩu lần đầu. Học sinh đăng nhập bằng tên chuẩn
+hoá cộng mật khẩu sinh ngẫu nhiên; giáo viên chỉ nhập tên (gõ tay, hay tải `.csv`/`.xlsx`). Lỗ hổng
+tờ giấy in ở trên vì thế được chấp nhận có chủ đích. Việc 22 của đợt tất định; ADR-13 cần hậu ký.
 
 ## Nút Thu hồi chưa biết lúc nào phải biến mất
 
@@ -329,6 +333,10 @@ Chưa làm vì xoá là thao tác **không đảo ngược được**, nên theo
 phải một tool — và nó cần ít nhất một hộp xác nhận. Nó cũng cần biết một đề `EMPTY` khác gì một đề
 giáo viên đang cố ý soạn dở: `created_at` cũ bao lâu thì được coi là rác là một quyết định về sản
 phẩm, không phải về code. Tác hại hiện tại chỉ là rác trong bảng, không ai thấy, nên nó chờ được.
+
+**Chốt 18/10/2026 (người dùng):** giáo viên xoá được một đề trống. Đoạn chat đã có đề trống thì
+`create_draft` dùng lại đề ấy thay vì mở đề mới -- chỉ đề **chưa có câu**, nên không trộn hai bộ câu
+như lý do *không idempotent* ở trên lo. Việc 15 của đợt tất định.
 
 ## Lỗi từ đợt khảo sát 05/10/2026 chưa làm
 
@@ -638,7 +646,7 @@ tiết ở mục *Status* của plan.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Plan chỉ có `create_draft` không qua cổng duyệt.** Cổng ADR-29 chỉ xét plan có `start_drafting` hay `replace_question`; thử tay lượt ba, model chép lại một plan hỏng của lượt trước và mở một **đề trống mới** cho lời xin *"soạn thêm 2 câu"* | **Chờ người dùng quyết**: chặn nó là bỏ khả năng mở đề trống bằng chat (đề trống vẫn thêm câu tay được ở panel) |
+| **Plan chỉ có `create_draft` không qua cổng duyệt.** Cổng ADR-29 chỉ xét plan có `start_drafting` hay `replace_question`; thử tay lượt ba, model chép lại một plan hỏng của lượt trước và mở một **đề trống mới** cho lời xin *"soạn thêm 2 câu"* | **Không chặn** (người dùng, 18/10/2026): đề trống là chỗ để thêm câu sau. Đoạn chat đã có đề trống thì BE dùng lại đề ấy thay vì mở đề mới, và panel thêm câu từ ngân hàng được cả khi đề trống -- việc 15 và 17 của đợt tất định. Hôm nay panel **chưa** thêm câu tay được |
 | **`tra-lop-ket-qua` tụt 6/6 → 2/6** -- hồi quy ngoài luồng dàn ý: model nêu `call_tool` không tên tool hay không tham số khi tra kết quả lớp | Chưa rõ gốc: prompt `_CORE` dài thêm việc thứ năm là nghi vấn đầu. Cần đo riêng ca ấy trên bản trước plan và bản hiện tại |
 | **Dàn ý chung chung.** Thử tay: năm mục cùng ghi *"tỉ lệ thức"*, công thức thiếu hay lặp y nhau giữa các mục, nên câu 1, 3, 4 ra cùng một dạng. Dàn ý theo sách (đọc `read_section`) cụ thể hơn hẳn. Lần chạy mốc 15/10 (02, 07, 08): 0/5 mục có công thức, câu lệch mục | Một luật prompt (*mỗi mục một kiến thức khác nhau, công thức của riêng mục*) và một ca bench chấm độ khác nhau giữa các mục -- chưa làm, cần đo trước khi tin |
 | **`vuot-tran-12-cau` 0/6**: xin 12 câu thì model nêu dàn ý 10 câu thay vì nói trần 10 câu một lần | BE vẫn chặn quá 10 nên không hỏng dữ liệu; giáo viên chỉ không được nói vì sao. Sửa bằng một lời BE thêm khi tổng dàn ý thấp hơn số xin, hay luật prompt |
@@ -752,8 +760,8 @@ lại nên không ghi lại: nút của câu hỏi phạm vi là *loại* phạm
 | **Chữ OCR rác của mục lục hiện thẳng ra dòng chi tiết bước**: *"PHÉP CỘN@"*, *"sỐ"*, tên bài in hoa toàn bộ -- tên nút cây Lớp 6 tập 1 lấy nguyên từ OCR | Tier 3 P6 (đọc tài liệu): cùng gốc với tiêu đề OCR rác ở dòng *Cây Lớp 10 tập 1* (mục *Soạn đề: lỗi lộ ra khi thử tay plan 4c T5*); đo trên cây vàng trước khi sửa tên nút |
 | **Khoá đáp án trái với chính lời giải** (lượt quay 4, câu 5): cả hai cách giải tính ra 23 000 đồng, cách 1 còn tự ghi *"phương án A là đáp án đúng cần kiểm lại"*, mà khoá là *B. 27 000 đồng*; nhãn lỗi của A lại là *"Bỏ qua thứ tự thực hiện phép tính"* -- `authoring._faults` chỉ đếm số phương án đúng, nhãn lỗi và số cách giải, không đối chiếu kết luận của lời giải với phương án khoá | Tier 2: đối chiếu thế nào là quyết định -- so số cuối của mỗi cách giải với phương án khoá chỉ đúng cho câu tính, câu chữ cần cách khác. Một lưới rẻ trước: lời giải nhắc tên một phương án khác phương án khoá thì trả về. Tới lúc ấy cổng duyệt của giáo viên là lưới duy nhất |
 | **Dàn ý bị trả về đủ ba lần vì model gửi lại đúng một lỗi** (lượt quay 4, lần thử 3): lần 1 đúng luật (lời của *Câu 3* không nêu công thức nào), lần 2 và 3 mục 1 ghi `"$x \in A$, $y \notin A$"` -- hai cặp `$` trong một phần tử -- dù lời từ chối dặn rõ cách sửa, rồi `OUTLINE_REFUSED` | Tier 4: lưới đúng, hành vi model. Trong bốn lần đợt quay tới được bước dàn ý, một lần dừng vì lỗi này (một lần khác vì lỗi `check_message` đã sửa) |
-| **Thẻ kết quả của lượt soạn lại hay soạn thêm vẫn ghi *"Đã tạo đề …"*** dù không tạo đề nào | Tier 2: chữ của thẻ theo loại plan (*tạo / soạn thêm / soạn lại*), đổi cùng artboard `Action result card` |
-| **Lời dàn ý thay câu và câu soạn lại lệch số liệu**: dàn ý thay câu 5 hứa *"đáp án đúng là 23 000 đồng cho trường hợp 3 quyển vở và 2 cây bút"*, câu soạn ra là 4 vở và 3 bút (33 000) vì brief cấm đề bài của câu bị thay | Tier 2 câu 23 (dòng *Thay một câu* ở mục *Lộ ra khi làm plan Tier 1*): đây là ca thật của nó |
+| **Thẻ kết quả của lượt soạn lại hay soạn thêm vẫn ghi *"Đã tạo đề …"*** dù không tạo đề nào | **Giữ nguyên** (người dùng, 18/10/2026, Tier 2 câu 26): đúng thiết kế bốn đầu đề chốt 06/10, như dòng *Mục dàn ý của câu đã bị thay* ở mục *Lộ ra khi làm plan dàn ý đề* |
+| **Lời dàn ý thay câu và câu soạn lại lệch số liệu**: dàn ý thay câu 5 hứa *"đáp án đúng là 23 000 đồng cho trường hợp 3 quyển vở và 2 cây bút"*, câu soạn ra là 4 vở và 3 bút (33 000) vì brief cấm đề bài của câu bị thay | **Giữ nguyên** (người dùng, 18/10/2026, Tier 2 câu 23): brief vẫn cấm đề bài của câu bị thay. Chỗ lệch là lời dàn ý hứa số liệu cũ, tức hành vi model -- hoãn cùng đợt khoá AGENT |
 | **Thẻ hỏi lại nhiều câu dựng nút cho mọi câu cùng lúc**, nên nút phạm vi không biết khối giáo viên sắp chọn: *"Số hữu tỉ"*, *"Phương trình bậc nhất"* rồi giáo viên chọn khối 6 (lượt quay 4, lần thử 4) | Tier 4: giới hạn của thẻ nhiều câu (ADR-32) cộng hành vi model. Nút phạm vi nên là phạm vi chung, hay câu phạm vi chỉ hỏi sau khi biết khối |
 | **Tên đề chép cả phần trang của tên tệp**: *"Đề Kết nối tri thức Lớp 6 tập 1 (tr6-28)"* | Tier 4: tên đề theo sách (ADR-31) lấy nguyên tên tài liệu; chỉ ghi |
 | **Xưng hô lẫn *bạn* với *cô***: prompt dặn gọi giáo viên là *"bạn"* (`propose._CORE`), Haiku có lúc viết *"Được cô"*, tức đoán giới tính. Lượt quay 4: 2/2 lần liền khi lời giáo viên có *"cho các em"*, bỏ cụm ấy thì 3/3 lần gọi *bạn* | Tier 4: hành vi model, chỉ ghi. Còn lặp thì thêm một luật soát lời |
@@ -822,3 +830,21 @@ cáo. Bốn giới hạn mà mục ấy nêu (giờ kết thúc của một lư�
 | **Báo cáo chưa chỗ nào nói rằng chưa có đăng nhập.** `backend` xác định người gọi bằng header `X-Actor` do màn hình tự khai (`be/identity.py:1-8`, `be/config.py:53-58`); phần kiểm quyền phía sau là thật. Review đề nghị thêm thành giới hạn thứ năm của mục backend | Chưa quyết có thêm không |
 | **Docstring đầu `be/content_reader.py` (`:1-6`) nói `backend` đọc đoạn chữ của tài liệu *"để job soạn câu có kiến thức của mục mình"*,** trái với `check_drafting_reads_no_document_text` (`tools/check_contract.py:483`): job soạn câu chỉ nhận mục dàn ý | Không bị chặn; chưa làm |
 | **"Hàm" mang hai nghĩa trong chương 07.** Từ lượt viết lại mục Agent, phần của graph gọi là *hàm*, theo mục *Graph* của từ điển; *hàm nhận job* (chỗ worker gọi vào) cũng là "hàm". Đã ghi ở *Những chỗ đã biết là còn sai* của `rules.md` | Người dùng giữ *hàm nhận job* và sẽ tự chọn chữ khác |
+
+## Chốt đợt tất định (18/10/2026)
+
+Người dùng khoá AGENT và document cho đợt này. Lộ trình 23 việc nằm ở artifact *Pipeline E2E của
+Kriky*, mục *Đợt tất định*. Dưới đây là những gì **hoãn** vì chạm AGENT hay document, và những chỗ hở
+chuyển từ bảng *Mười hai chỗ hở* của artifact ấy (bảng đã xoá) mà file này chưa ghi.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Dàn ý bị trả về tới trần** (`_MOST_OUTLINE_REFUSALS` = 3, `teacher_chat.py`). Hướng người dùng chốt: *"nâng trần lên 5, và khi chạy 3 lần bị lỗi thì lịch sử conversation gửi llm bỏ đi các dàn ý lỗi. có thể llm bị bias do dàn ý lỗi."* | Hoãn: đổi thứ model đọc, tức hành vi model. Thẻ báo `OUTLINE_REFUSED` (chưa đẹp) thì làm lại ngay ở việc 14 của đợt; chữ thông báo giữ nguyên |
+| **Tắt retry của SDK** (`agent/llm.py`, dòng *Check `timeout-order`* ở mục *Lộ ra khi viết chương 7*) | Hoãn: chạm AGENT |
+| **Nút *Soạn theo dàn ý này*** (dòng *Phân biệt đồng ý với xin sửa* ở mục *Lộ ra khi làm plan Tier 1*) | Hoãn: BE phải chép logic dựng plan của `propose.py` |
+| **Luật dàn ý ở BE**: tối đa 2 câu một mục, dàn ý đề mới thiếu môn/khối/phạm vi, hai dàn ý đề mới liền nhau | Hoãn: prompt không nêu các luật này, nên BE từ chối dễ dẫn tới `OUTLINE_REFUSED`; đổi prompt cùng lúc là việc của AGENT |
+| **Kriky chưa trả lời câu hỏi về nội dung một bài từ sách** (cần đọc một đoạn, `get_chunk`), và **pha 2 không nhận nội dung tài liệu nào** cho tới khi có cách lọc bài tập (hậu ký ADR-27). Soạn đề theo sách thì đã có từ plan 4b | Hoãn: chạm document và AGENT. Công thức chưa đọc được là plan 3d, ở mục *sympy kiểm công thức* |
+| **Mastery của học sinh** | Chưa thiết kế, và cần lịch sử làm bài đủ dài. Thống kê gộp theo lớp thì làm ở việc 19 |
+| **Hàng đợi review không nằm trên tuyến.** `decide_review` và `ReviewReason` bị xoá ngày 09/10/2026 cùng đường chấm cũ (hậu ký ADR-07, ADR-08), nên loại `ANOMALY` cũng không còn trong code | Việc 19 của đợt: hàng đợi trên màn *Bảng theo dõi*, chứa báo cáo *giải thích chưa rõ* (ADR-19) và câu có tỉ lệ sai bất thường |
+| **Không tạo được lớp hay tài khoản học sinh**: dữ liệu lớp đến từ seed; `list_class` + `get_class` chỉ đọc lớp đã có | Việc 18 (màn *Danh sách lớp học*) và 22 (tài khoản học sinh) của đợt |
+| **BE không có worker chạy nền**: giữa một lượt, job xong chỉ được thu hoạch ở *lần quan sát kế tiếp* -- chuông tiến độ, hay một lần đọc đề | Chưa cần: hai đường ấy cắt được độ trễ. Vì vậy Pha A tới Pha D của đường ghi ra cùng một lần release |
