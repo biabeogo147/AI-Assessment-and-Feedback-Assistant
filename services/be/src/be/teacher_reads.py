@@ -17,12 +17,9 @@ cả đề đã phát hành, không đổi (người dùng chốt 18/10/2026).
 """
 
 import logging
-import re
-import unicodedata
 from collections import defaultdict
 from datetime import UTC, datetime
 from statistics import median
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
@@ -34,7 +31,7 @@ from be.agent_gateway import AgentError, validate_question
 from be.db import get_session
 from be.identity import Asking, current_teacher
 from be.remediation import attempt_state
-from be.results_export import ResultLine, build_workbook
+from be.results_export import ResultLine, attachment, build_workbook
 from be.teacher_chat import conversation_of
 from be.teacher_routes import QuestionEdit
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod
@@ -52,6 +49,7 @@ from schema.models import (
     RemediationRound,
     Report,
     SchoolClass,
+    Student,
     Teacher,
     aware,
 )
@@ -300,6 +298,8 @@ class StudentRow(BaseModel):
     student_id: str
     full_name: str
     student_code: str
+    # Trống ở học sinh có trước việc 22 (`sign-in-and-accounts`), tới lần *Đặt lại mật khẩu* đầu.
+    username: str | None
 
 
 class ClassDetail(BaseModel):
@@ -309,6 +309,12 @@ class ClassDetail(BaseModel):
     courses: str
     papers: tuple[PaperInClass, ...]
     students: tuple[StudentRow, ...]
+
+
+def _roster_order(student: Student) -> tuple[int, int, str]:
+    """Thứ tự trong lớp: mã số (việc 22) theo giá trị, `10` sau `9`; rồi mã cũ `HS2026-…`."""
+    code = student.student_code
+    return (0, int(code), code) if code.isdigit() else (1, 0, code)
 
 
 async def _owned_class(session: AsyncSession, asking: Asking, class_id: str) -> SchoolClass:
@@ -333,7 +339,7 @@ async def class_detail(
     now = _now()
     school_class = await _owned_class(session, asking, class_id)
     published = await _live_publications(session, asking, [class_id])
-    students = sorted(school_class.students, key=lambda one: one.student_code)
+    students = sorted(school_class.students, key=_roster_order)
     done = await _submitted(
         session, [paper.id for _, paper in published], [one.id for one in students], [class_id]
     )
@@ -356,7 +362,12 @@ async def class_detail(
             for publication, paper in published
         ),
         students=tuple(
-            StudentRow(student_id=one.id, full_name=one.full_name, student_code=one.student_code)
+            StudentRow(
+                student_id=one.id,
+                full_name=one.full_name,
+                student_code=one.student_code,
+                username=one.username,
+            )
             for one in students
         ),
     )
@@ -660,7 +671,7 @@ async def results_xlsx(
             .order_by(Question.order_index)
         )
     )
-    students = sorted(school_class.students, key=lambda one: one.student_code)
+    students = sorted(school_class.students, key=_roster_order)
     done = await _submitted(session, [assessment_id], [one.id for one in students], [class_id])
     states = await _outcomes(session, [one.id for one in done.values()])
     lines = []
@@ -675,25 +686,7 @@ async def results_xlsx(
         lines.append(ResultLine(student.student_code, student.full_name, marks))
     data = build_workbook(school_class.name, len(questions), lines)
     name = f"Bảng điểm - {paper.title} - {school_class.name}.xlsx"
-    # `filename` ASCII cho trình duyệt cũ, `filename*` UTF-8 cho tên tiếng Việt (RFC 6266, RFC
-    # 5987). Bản ASCII bỏ dấu rồi thay mọi ký tự lạ -- một `"` hay một dấu xuống dòng trong tên đề
-    # phá cả header (review pha 1).
-    plain = re.sub(
-        r"[^A-Za-z0-9 ._-]",
-        "_",
-        unicodedata.normalize("NFKD", name.replace("đ", "d").replace("Đ", "D"))
-        .encode("ascii", "ignore")
-        .decode(),
-    )
-    return Response(
-        content=data,
-        media_type=_XLSX,
-        headers={
-            "Content-Disposition": (
-                f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name, safe='')}"
-            )
-        },
-    )
+    return Response(content=data, media_type=_XLSX, headers=attachment(name))
 
 
 # -------------------------------------------------------------- màn 23 · Bài làm của một học sinh

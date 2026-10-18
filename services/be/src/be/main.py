@@ -12,6 +12,7 @@ from be.content_reader import bind_reader, create_reader
 from be.db import bind_sessions, create_engine
 from be.db import get_session as _session_dependency
 from be.queue import create_queue_pool
+from be.roster import router as roster_router
 from be.routes import router
 from be.seed import give_sample_sign_in, seed_if_empty
 from be.storage import bind_store, create_store
@@ -154,3 +155,4 @@ app.include_router(teacher_assessment_router)
 app.include_router(teacher_document_router)
 app.include_router(teacher_reads_router)
 app.include_router(teacher_board_router)
+app.include_router(roster_router)
