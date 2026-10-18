@@ -42,7 +42,7 @@ lại đúng string đó ở cả ba chỗ -- xem `publication_wording`.
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,7 +61,7 @@ from be.assessment_state import (
 )
 from be.config import Settings, get_settings
 from be.db import get_session
-from be.drafting import drop_question, harvest, pending_count
+from be.drafting import drop_question, harvest, pending_count, redraft_slot, troubled_slots
 from be.identity import Asking, current_teacher
 from be.publication_wording import (
     FAULT_CLOSES_BEFORE_OPENS,
@@ -379,6 +379,10 @@ async def approve(
             detail="Đề chưa có câu hỏi nào nên không duyệt được. Soạn câu hỏi trước đã.",
         )
 
+    # Ô hỏng không theo đề vào trạng thái đã duyệt: giáo viên duyệt những câu mình thấy, và một
+    # đề đã khoá mà mang lỗ số thì học sinh đọc *Câu 5* ngay sau *Câu 3* (plan
+    # `wave-3-draft-panel`, việc 12). Cùng commit với state.
+    await _drop_failed_slots(session, assessment_id)
     advance(assessment, AssessmentState.APPROVED)
     # Duyệt là giáo viên đã kiểm mọi câu, nên chính lần duyệt chép chúng vào ngân hàng (ADR-28).
     # Cùng một commit với state: một đề đã duyệt mà ngân hàng thiếu câu của nó là một sự thật
@@ -1384,6 +1388,18 @@ class QuestionRead(BaseModel):
     in_bank: bool
 
 
+class SlotRead(BaseModel):
+    """Một ô panel phải vẽ dù chưa có câu (component `Failed slot`, `652:3635`).
+
+    Attributes:
+        order: Vị trí trên đề -- cùng dãy số với `QuestionRead.order`, nên câu và ô xếp chung.
+        redrafting: Ô đang soạn lại (variant *đang soạn lại*); False là ô hỏng, chờ *Thử lại*.
+    """
+
+    order: int
+    redrafting: bool
+
+
 class AssessmentDetail(BaseModel):
     """Một đề, đủ để vẽ cả panel bên phải.
 
@@ -1405,6 +1421,8 @@ class AssessmentDetail(BaseModel):
             nó, nên một link trỏ thẳng vào đề cần con số này để về đúng chỗ. Rỗng khi đề
             không sinh ra từ đoạn chat nào -- đề seed, hoặc đề tạo bằng tay.
         questions: Các câu, đã sắp theo thứ tự.
+        failed_slots: Các ô đã hỏng ít nhất một lần mà chưa có câu, đúng vị trí của chúng. Panel
+            vẽ chúng **giữa** các câu, nên số câu là số theo vị trí (plan `wave-3-draft-panel`).
     """
 
     assessment_id: str
@@ -1418,6 +1436,7 @@ class AssessmentDetail(BaseModel):
     difficulty: str = ""
     conversation_id: str = ""
     questions: tuple[QuestionRead, ...] = ()
+    failed_slots: tuple[SlotRead, ...] = ()
 
 
 class PublishedTo(BaseModel):
@@ -1650,7 +1669,52 @@ async def assessment_detail(
         difficulty=brief.difficulty if brief is not None else "",
         conversation_id=await conversation_of(session, asking, assessment_id) or "",
         questions=questions,
+        failed_slots=tuple(
+            SlotRead(order=order, redrafting=redrafting)
+            for order, redrafting in await troubled_slots(session, assessment_id)
+        ),
     )
+
+
+@router.post("/teacher/assessments/{assessment_id}/slots/{order}/redraft", status_code=202)
+async def redraft(
+    assessment_id: str,
+    order: int,
+    request: Request,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Soạn lại một câu đã hỏng -- nút *Thử lại* của `Failed slot` (việc 12).
+
+    Đi thẳng từ panel, không qua chat: đây là bấm lại một việc đã có mục dàn ý, không phải một yêu
+    cầu mới cần model hiểu (plan `wave-3-draft-panel`). Panel đọc lại đề sau cú bấm, nên route trả
+    202 không thân.
+
+    Args:
+        assessment_id: Đề nào.
+        order: Vị trí của câu hỏng.
+        request: Mang theo pool của queue.
+        teacher: Người gọi.
+        session: Session của database.
+        settings: Settings của process.
+
+    Raises:
+        HTTPException: 404 khi đề không tồn tại hay thuộc người khác (ADR-22); 409 khi đề đã khoá
+            nội dung hay vị trí ấy không có câu hỏng; 503 khi queue không nhận việc.
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id)
+    assert_editable(assessment)
+    if not await redraft_slot(
+        session, request.app.state.queue_pool, settings, assessment_id, order
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail="Kriky chưa nhận được việc soạn lại lúc này. Bạn thử lại sau một lát nhé.",
+        )
+    logger.info("teacher %s redrafts position %d of %s", asking.teacher_code, order, assessment_id)
+    return Response(status_code=202)
 
 
 class OptionEdit(BaseModel):
@@ -1879,6 +1943,40 @@ async def edit_question(
             for one in sorted(fresh.methods, key=lambda one: one.order_index)
         ),
     )
+
+
+async def _drop_failed_slots(session: AsyncSession, assessment_id: str) -> int:
+    """Bỏ mọi ô hỏng chưa có câu, rồi dồn số câu sau chúng lên (lúc duyệt, việc 12).
+
+    Đi từ ô **cao nhất** xuống: dồn ô thấp trước thì vị trí của các ô cao hơn đã đổi dưới tay.
+
+    Args:
+        session: Session của database. Không commit ở đây.
+        assessment_id: Đề nào.
+
+    Returns:
+        Đã bỏ bao nhiêu ô.
+
+    Side effects:
+        Xoá các `DraftItem` hỏng, dồn `Question.order_index` và `DraftItem.ordinal`, và bớt
+        `brief.question_count` cho khớp số ô -- như `delete_question`.
+    """
+    holes = [order for order, _ in await troubled_slots(session, assessment_id)]
+    for order in sorted(holes, reverse=True):
+        slot = await session.scalar(
+            select(DraftItem).where(
+                DraftItem.assessment_id == assessment_id, DraftItem.ordinal == order
+            )
+        )
+        if slot is None:
+            continue
+        await session.delete(slot)
+        await session.flush()
+        await _close_the_gap(session, assessment_id, order)
+    brief = await session.get(DraftBrief, assessment_id)
+    if brief is not None and holes:
+        brief.question_count = max(1, brief.question_count - len(holes))
+    return len(holes)
 
 
 async def _close_the_gap(session: AsyncSession, assessment_id: str, gone: int) -> None:

@@ -6356,3 +6356,97 @@ describe("rail không bịa con số", () => {
     expect(container.querySelector(".rail .destination .badge")).toBeNull();
   });
 });
+
+describe("ô câu soạn hỏng (việc 12, plan `wave-3-draft-panel`)", () => {
+  /** Đề ba câu ở vị trí 1, 2, 4; vị trí 3 hỏng. Sau cú *Thử lại*, BE nói ô đang soạn lại. */
+  function serving() {
+    const calls: { url: string; method: string }[] = [];
+    let redrafting = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method });
+        if (method === "POST") redrafting = true;
+        const base = paper("has_questions");
+        const one = base.questions[0];
+        const body = {
+          ...base,
+          question_count: 3,
+          still_drafting: redrafting ? 1 : 0,
+          questions: [1, 2, 4].map((order) => ({ ...one, question_id: `q${order}`, order })),
+          failed_slots: [{ order: 3, redrafting }],
+        };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    return calls;
+  }
+
+  it("ô hỏng đứng đúng vị trí giữa các câu, và đầu panel đếm theo vị trí", async () => {
+    serving();
+    const { container } = render(
+      <Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />,
+    );
+
+    await screen.findByText("Chưa soạn được");
+    const numbers = [...container.querySelectorAll(".qcard .num")].map((one) => one.textContent);
+    expect(numbers).toEqual(["Câu 1", "Câu 2", "Câu 3", "Câu 4"]);
+    expect(container.querySelector(".qcard.slot .num")?.textContent).toBe("Câu 3");
+    expect(container.querySelector(".meta")?.textContent).toContain(
+      "4 câu · 1 câu chưa soạn được · Toán 12",
+    );
+    expect(
+      screen.getByText("Kriky gặp gián đoạn khi đang soạn câu này, bạn hãy thử lại nhé!"),
+    ).toBeTruthy();
+  });
+
+  it("Thử lại gọi BE đúng vị trí, rồi ô sang đang soạn lại", async () => {
+    const calls = serving();
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+
+    await screen.findByText("Đang soạn lại");
+    expect(calls.filter((one) => one.method === "POST").map((one) => one.url)).toEqual([
+      "/api/teacher/assessments/p1/slots/3/redraft",
+    ]);
+    const busy = screen.getByRole("button", { name: "Đang soạn…" }) as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
+  });
+});
+
+describe("ô câu soạn hỏng: lời từ chối của BE (plan `wave-3-draft-panel`)", () => {
+  it("BE từ chối Thử lại thì panel nói lý do, đọc lại đề, và nút bấm được lại", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push(`${method} ${url}`);
+        if (method === "POST") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ detail: "Câu 3 không phải một câu soạn hỏng." }),
+          });
+        }
+        const body = {
+          ...paper("has_questions"),
+          failed_slots: [{ order: 3, redrafting: false }],
+        };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+
+    await screen.findByText("Câu 3 không phải một câu soạn hỏng.");
+    await waitFor(() =>
+      expect(calls.filter((one) => one.startsWith("GET")).length).toBeGreaterThanOrEqual(2),
+    );
+    const again = screen.getByRole("button", { name: "Thử lại" }) as HTMLButtonElement;
+    expect(again.disabled).toBe(false);
+  });
+});

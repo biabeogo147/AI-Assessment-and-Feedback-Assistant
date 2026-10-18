@@ -3062,3 +3062,62 @@
 .teacher .split-x:hover i {
   opacity: 1;
 }
+
+/*
+ * Ô câu Kriky chưa soạn được -- component `Failed slot` (`652:3635`), plan `wave-3-draft-panel`.
+ * Cùng khung với `qcard` (padding 13/15 cộng viền 1 = 14/16 của Figma), nét đứt vì chỗ này chưa có
+ * câu. Chip đỏ họ `answer/incorrect`: hệ thống không làm được việc (ADR-12).
+ */
+.teacher .qcard.slot {
+  border-style: dashed;
+}
+
+.teacher .slot-chip {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--answer-incorrect-surface);
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.teacher .slot-chip.redrafting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--state-processing-surface);
+  color: var(--state-processing);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .slot-chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.teacher .slot-says {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+/* Nút secondary 41px của Figma: 9/15 cộng viền 1 = 10/16. */
+.teacher .slot-retry {
+  padding: 9px 15px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Nút tắt giữ màu, chỉ mờ đi 0,45 như variant *đang soạn lại* (`652:3623`). */
+.teacher .slot-retry:disabled {
+  opacity: 0.45;
+}

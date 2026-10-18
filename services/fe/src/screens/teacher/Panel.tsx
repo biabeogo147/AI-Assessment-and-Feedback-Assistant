@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   teacher,
   type AssessmentDetail,
+  type FailedSlot,
   type QuestionEdit,
   type TeacherQuestion,
 } from "../../api";
@@ -161,6 +162,11 @@ export default function Panel({
   // lại khi chúng xong. Còn câu đang soạn thì đọc lại sau ít giây; lần đọc ấy cũng là một lần thu
   // hoạch ở BE (review plan `wave-1-small-fixes`).
   const stillDrafting = paper?.still_drafting ?? 0;
+  // Ô hỏng và ô đang soạn lại, theo vị trí (plan `wave-3-draft-panel`).
+  const slots = paper?.failed_slots ?? [];
+  // Ô đang soạn lại không còn là *chưa soạn được*: thẻ của nó nói *Đang soạn lại*, và đầu panel
+  // không được nói ngược thẻ (review pha 1).
+  const failed = slots.filter((one) => !one.redrafting).length;
   useEffect(() => {
     if (stillDrafting === 0) return;
     let current = true;
@@ -208,6 +214,25 @@ export default function Panel({
       setTrouble((cause as Error).message);
     } finally {
       setWorking(false);
+    }
+  }
+
+  /**
+   * Soạn lại một câu đã hỏng (nút *Thử lại*, việc 12 của plan `wave-3-draft-panel`). Đọc lại ngay
+   * để ô sang *đang soạn lại*; từ đó `still_drafting` lớn hơn 0 nên panel tự đọc lại tới khi câu về.
+   *
+   * @param order - Vị trí của ô hỏng.
+   */
+  async function redraft(order: number) {
+    writes.current += 1;
+    try {
+      await teacher.redraft(assessmentId, order);
+      setPaper(await teacher.assessment(assessmentId));
+      setTrouble(null);
+    } catch (cause) {
+      setTrouble((cause as Error).message);
+      // Tab khác đã bấm trước (409) hay đề vừa đổi: đọc lại để ô nói đúng trạng thái của nó.
+      teacher.assessment(assessmentId).then(setPaper, () => undefined);
     }
   }
 
@@ -390,8 +415,12 @@ export default function Panel({
             Tên đề tối đa {MOST_TITLE} ký tự. Bớt vài chữ để tên không bị cụt giữa từ.
           </div>
         )}
+        {/* Đếm theo **vị trí**, cả ô hỏng: panel vẽ ô ấy giữa các câu, nên *"9 câu"* trên một
+            dãy đánh số tới 10 là hai con số nói ngược nhau (artboard 17, `652:3636`). */}
         <div className="meta">
-          {paper.question_count} câu · {paper.subject} {paper.grade}
+          {paper.question_count + slots.length} câu
+          {failed > 0 && ` · ${failed} câu chưa soạn được`} · {paper.subject}{" "}
+          {paper.grade}
           {paper.topic_scope !== "" && ` · ${paper.topic_scope}`}
         </div>
       </div>
@@ -403,26 +432,42 @@ export default function Panel({
           đã xin, một cái là số đã viết xong) nhưng đọc cạnh nhau thì như mâu thuẫn, và một
           khoảng trắng cao nửa mét không giải thích gì cả.
         */}
-        {paper.questions.length === 0 && (
+        {paper.questions.length === 0 && slots.length === 0 && (
           <div className="panel-empty">
             {paper.still_drafting > 0
               ? `Đang soạn ${paper.still_drafting} câu. Mở lại sau một lát.`
               : "Chưa có câu hỏi nào trong đề này."}
           </div>
         )}
-        {paper.questions.map((one) => (
-          <QuestionCard
-            key={one.question_id}
-            question={one}
-            editable={!locked}
-            onSolve={() => setSolving(one)}
-            onSave={(edited) => save(one.question_id, edited)}
-            onErase={() => {
-              setEraseRefused("");
-              setErasing(one);
-            }}
-          />
-        ))}
+        {/* Câu và ô hỏng chung một dãy, theo `order` của BE: ô hỏng đứng đúng chỗ của nó, nên
+            *Câu 5* không đứng ngay sau *Câu 3* mà không ai nói câu 4 đi đâu. */}
+        {[
+          ...paper.questions.map((one) => ({ order: one.order, question: one })),
+          ...slots.map((one) => ({ order: one.order, slot: one })),
+        ]
+          .sort((a, b) => a.order - b.order)
+          .map((one) =>
+            "question" in one ? (
+              <QuestionCard
+                key={one.question.question_id}
+                question={one.question}
+                editable={!locked}
+                onSolve={() => setSolving(one.question)}
+                onSave={(edited) => save(one.question.question_id, edited)}
+                onErase={() => {
+                  setEraseRefused("");
+                  setErasing(one.question);
+                }}
+              />
+            ) : (
+              <FailedSlotCard
+                key={`slot-${one.order}`}
+                slot={one.slot}
+                editable={!locked}
+                onRedraft={() => redraft(one.order)}
+              />
+            ),
+          )}
       </div>
 
       {/* Đọc **một** thứ: đề đã khoá hay chưa. Điều kiện này từng là `publishing && locked`
@@ -615,6 +660,69 @@ const _ERASE_SAVED =
   "Câu này đã lưu vào ngân hàng câu hỏi từ lần duyệt trước. Xoá ở đây chỉ gỡ nó khỏi đề này — bản trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.";
 const _ERASE_FRESH =
   "Câu này chưa có trong ngân hàng câu hỏi, nên xoá rồi thì không lấy lại được. Các câu sau dồn số lên.";
+
+/**
+ * Một câu Kriky chưa soạn được -- component `Failed slot` (`652:3635`), việc 12 của plan
+ * `wave-3-draft-panel`.
+ *
+ * Nét đứt, vì chỗ này chưa có câu; chip *Chưa soạn được* họ `answer/incorrect` vì hệ thống không
+ * làm được việc (ADR-12). Không ghi số lần đã thử: giáo viên cần biết bấm gì, không cần biết máy đã
+ * thử mấy lần (review Figma 18/10/2026).
+ *
+ * @param slot - Ô nào, và đang soạn lại hay còn hỏng.
+ * @param editable - Đề còn mở. Đề đã duyệt thì không còn ô hỏng nào (BE bỏ chúng lúc duyệt); cờ này
+ *   là lưới phòng hờ.
+ * @param onRedraft - Bấm *Thử lại*.
+ */
+function FailedSlotCard({
+  slot,
+  editable,
+  onRedraft,
+}: {
+  slot: FailedSlot;
+  editable: boolean;
+  onRedraft: () => Promise<void>;
+}) {
+  // Bận từ cú bấm tới lúc BE trả lời; sau đó `slot.redrafting` của lần đọc lại nói tiếp.
+  const [asking, setAsking] = useState(false);
+  const busy = slot.redrafting || asking;
+  return (
+    <div className="qcard slot">
+      <div className="top">
+        <span className="num">Câu {slot.order}</span>
+        <span className="spacer" />
+        {slot.redrafting ? (
+          <span className="slot-chip redrafting">
+            <span className="dot" aria-hidden="true" />
+            Đang soạn lại
+          </span>
+        ) : (
+          <span className="slot-chip">Chưa soạn được</span>
+        )}
+      </div>
+      <div className="slot-says">
+        {slot.redrafting
+          ? "Kriky đang soạn lại câu này. Các câu khác vẫn sửa và xoá được."
+          : "Kriky gặp gián đoạn khi đang soạn câu này, bạn hãy thử lại nhé!"}
+      </div>
+      {editable && (
+        <div>
+          <button
+            className="slot-retry"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setAsking(true);
+              void onRedraft().finally(() => setAsking(false));
+            }}
+          >
+            {busy ? "Đang soạn…" : "Thử lại"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Một câu hỏi trong panel.

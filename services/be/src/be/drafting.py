@@ -29,6 +29,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -419,10 +420,14 @@ async def fire(
     # chính là thứ mà cái khoá đó sinh ra để chặn.
     assert_editable(assessment)
 
+    # `populate_existing`: session để `expire_on_commit=False`, nên một ô đã nạp trước đó (như ở
+    # `redraft_slot`) mang trạng thái cũ nếu một `fire` khác vừa bắn nó (review pha 1).
     rows = {
         row.ordinal: row
         for row in await session.scalars(
-            select(DraftItem).where(DraftItem.assessment_id == assessment_id)
+            select(DraftItem)
+            .where(DraftItem.assessment_id == assessment_id)
+            .execution_options(populate_existing=True)
         )
     }
 
@@ -1091,6 +1096,91 @@ async def _refire(
             row.attempts,
             row.last_fault,
         )
+
+
+async def troubled_slots(session: AsyncSession, assessment_id: str) -> list[tuple[int, bool]]:
+    """Những ô panel phải vẽ dù chưa có câu: ô đã hỏng, và ô đang soạn lại sau khi hỏng.
+
+    Một ô vào danh sách khi vị trí của nó **chưa có câu** và ô ấy đã hỏng ít nhất một lần
+    (`last_fault` có chữ). Chỉ ô `pending` -- có job đang chạy -- là *đang soạn lại*. `failed` là ô
+    *hỏng*, và `retry` cũng vậy: một ô `retry` còn nằm lại là ô mà queue đã không nhận lúc bắn lại,
+    không ai bắn nó nữa, nên vẽ nó *đang soạn lại* là hứa một việc không chạy (review pha 1). Ô
+    đang soạn lần đầu không vào: panel chưa bao giờ vẽ chúng, và việc này không đổi điều ấy (plan
+    `wave-3-draft-panel`, Decision *ô đang soạn lại*).
+
+    Args:
+        session: Session của database.
+        assessment_id: Đề nháp nào.
+
+    Returns:
+        `(vị trí, đang soạn lại)` của từng ô, theo vị trí tăng dần.
+    """
+    written = set(
+        await session.scalars(
+            select(Question.order_index).where(Question.assessment_id == assessment_id)
+        )
+    )
+    rows = await session.scalars(
+        select(DraftItem)
+        .where(
+            DraftItem.assessment_id == assessment_id,
+            DraftItem.status.in_(("failed", "pending", "retry")),
+            DraftItem.last_fault != "",
+        )
+        .order_by(DraftItem.ordinal)
+    )
+    return [(row.ordinal, row.status == "pending") for row in rows if row.ordinal not in written]
+
+
+async def redraft_slot(
+    session: AsyncSession, pool: object, settings: Settings, assessment_id: str, ordinal: int
+) -> bool:
+    """Soạn lại một ô đã hỏng, theo đúng mục dàn ý của nó -- nút *Thử lại* trên panel (việc 12).
+
+    Ô được trả lại đủ `_MOST_ATTEMPTS` lượt: `attempts` về 0 rồi `fire` tăng nó lên 1 khi bắn job.
+    Không có đường nào khác hồi một ô `failed`: `fire` để yên ô ấy, nên trước nút này một câu hỏng
+    là hỏng tới lúc duyệt (plan `wave-3-draft-panel`).
+
+    Args:
+        session: Session của database. Hàm này tự commit.
+        pool: Pool của arq, hoặc None.
+        settings: Settings của process.
+        assessment_id: Đề nháp nào. Bên gọi đã kiểm chủ đề và đề còn sửa được.
+        ordinal: Vị trí của ô.
+
+    Returns:
+        True khi job **của ô này** đã vào queue; False khi queue không nhận, và ô về lại `failed`.
+        Đọc trạng thái của chính ô sau `fire`, không đọc số job `fire` trả về: `fire(wanted=0)`
+        bắn mọi ô `retry` của đề, nên một số dương có thể là job của ô khác (review pha 1).
+
+    Raises:
+        HTTPException: 409 khi vị trí ấy không có ô hỏng nào -- đã có câu, đang soạn, hay chưa
+            từng có ô. Một ô `retry` bị queue bỏ rơi cũng là ô hỏng, và *Thử lại* nhận nó.
+    """
+    row = await session.scalar(
+        select(DraftItem)
+        .where(DraftItem.assessment_id == assessment_id, DraftItem.ordinal == ordinal)
+        .with_for_update()
+    )
+    if row is None or row.status not in ("failed", "retry"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Câu {ordinal} không phải một câu soạn hỏng nên không thử lại được.",
+        )
+    row.status = "retry"
+    row.attempts = 0
+    await session.commit()
+
+    await fire(session, pool, settings, assessment_id, wanted=0)
+    row = await session.get(DraftItem, row.id, populate_existing=True)
+    if row is not None and row.status == "pending":
+        return True
+    # Queue không nhận: trả ô về đúng chỗ cũ, đủ lượt đã tiêu, để *Thử lại* còn bấm được.
+    if row is not None and row.status == "retry":
+        row.status = "failed"
+        row.attempts = _MOST_ATTEMPTS
+        await session.commit()
+    return False
 
 
 async def pending_count(session: AsyncSession, assessment_id: str) -> int:

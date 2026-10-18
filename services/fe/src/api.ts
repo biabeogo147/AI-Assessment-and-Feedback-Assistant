@@ -244,6 +244,15 @@ export interface QuestionEdit {
   methods: Method[];
 }
 
+/**
+ * Một ô panel vẽ dù chưa có câu (component `Failed slot`): đã hỏng, hay đang soạn lại sau khi hỏng.
+ * `order` cùng dãy số với `TeacherQuestion.order`, nên câu và ô xếp chung (plan `wave-3-draft-panel`).
+ */
+export interface FailedSlot {
+  order: number;
+  redrafting: boolean;
+}
+
 /** Một đề, đủ để vẽ cả panel bên phải. `state` là nguồn duy nhất cho *sửa được hay không*. */
 export interface AssessmentDetail {
   assessment_id: string;
@@ -258,6 +267,7 @@ export interface AssessmentDetail {
   /** Đoạn chat đã sinh ra đề. Rỗng với đề seed hoặc đề tạo tay — panel vẫn mở được. */
   conversation_id: string;
   questions: TeacherQuestion[];
+  failed_slots: FailedSlot[];
 }
 
 /** Ba câu luật, cùng string mà biểu mẫu, biên bản và trang phát hành trả về (ADR-03). */
@@ -931,6 +941,12 @@ export const teacher = {
     ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
+  // Soạn lại một câu đã hỏng -- nút *Thử lại* của ô hỏng. BE bắn lại đúng mục dàn ý của ô; nơi
+  // gọi đọc lại đề để thấy ô sang *đang soạn lại* (plan `wave-3-draft-panel`).
+  redraft: (assessmentId: string, order: number) =>
+    silent("teacher", `/teacher/assessments/${assessmentId}/slots/${order}/redraft`, {
+      method: "POST",
+    }),
   // Đổi tên một đề chưa duyệt (ADR-31). BE từ chối tên trống, quá 60 ký tự, hay đề đã khoá; mọi
   // chỗ khác đọc tên lúc hiện, nên đổi ở đây là đổi cả thẻ cũ trong đoạn chat.
   renameAssessment: (assessmentId: string, title: string) =>

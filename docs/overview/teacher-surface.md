@@ -234,8 +234,8 @@ tiên nó sống trong nhãn nút (`Xem đề` thay vì `Duyệt đề`); nút b
 không có cổng duyệt nào cả**. Cổng thật ở chân panel, nơi duy nhất đọc được trạng thái **hiện tại**
 của đề, chứ không phải một con số đóng băng trong một biên bản cũ.
 
-**Nút mời một việc làm bằng lời nói thì điền sẵn ô nhập.** `Thêm câu hỏi` và `Thử lại` không có
-endpoint nào để gọi — thêm câu hỏi là một câu nói với Kriky, không phải một nút trên REST. Hai nút ấy
+**Nút mời một việc làm bằng lời nói thì điền sẵn ô nhập.** `Thêm câu hỏi` và `Thử lại` **trên thẻ**
+không có endpoint nào để gọi (khác *Thử lại* của ô câu hỏng trên panel, xem mục *Ô câu soạn hỏng*) — thêm câu hỏi là một câu nói với Kriky, không phải một nút trên REST. Hai nút ấy
 đặt con trỏ vào ô nhập và viết sẵn câu mở đầu; giáo viên sửa rồi gửi. Nút nào mời một việc **có** cổng
 thì đi thẳng tới cổng ấy — và với *"mở đề"* thì cổng ấy là **chính cái thẻ**.
 
@@ -787,6 +787,29 @@ nút `Giữ lại` 72,6 × 40 và `Xoá câu` 85,5 × 40 (Figma 73 và 86), các
 *"đã lưu"* cao **202**, đúng bằng Figma; lời từ chối 11px màu `answer/incorrect` (140, 58, 58), cách
 lời dẫn và hàng nút 12; lớp phủ 45%. Lệch còn lại có từ trước, ở mọi hộp thoại: Figma có bóng đổ, code
 không.
+
+## Ô câu soạn hỏng — đúng vị trí, và một nút *Thử lại* có endpoint
+
+Một câu Kriky hỏng hết ba lượt từng để lại một lỗ trên panel: *Câu 1, 2, 3, 5*, không ai nói câu 4 đi
+đâu. Nay BE gửi `failed_slots` cùng dãy số với các câu, và panel vẽ ô ấy **giữa** các câu theo
+component `Failed slot` (`652:3635`), artboard **`17 · Ô câu soạn hỏng — Soạn lại`** (`652:3636`), plan
+`wave-3-draft-panel`, việc 12:
+
+- **Hai variant.** *Hỏng*: chip *Chưa soạn được* họ `answer/incorrect` (ADR-12: hệ thống không làm được
+  việc), lời *"Kriky gặp gián đoạn khi đang soạn câu này, bạn hãy thử lại nhé!"*, nút secondary *Thử
+  lại*. *Đang soạn lại*: chip teal có chấm, lời *"Kriky đang soạn lại câu này. Các câu khác vẫn sửa và
+  xoá được."*, nút tắt *Đang soạn…* mờ 0,45. Không ghi số lần đã thử.
+- ***Thử lại* này có endpoint** (`POST …/slots/{order}/redraft`), không điền ô nhập như nút cùng tên
+  trên thẻ `tạo-thất-bại`: mục dàn ý của ô đã được giáo viên xem, nên soạn lại không cần model hiểu
+  thêm câu nào. Ô đang soạn lại là ô có job chạy, nên panel tự đọc lại sau 4 giây như mọi lúc còn câu
+  đang soạn.
+- **Đầu panel đếm theo vị trí**: *"10 câu · 1 câu chưa soạn được · Toán 12 · Chương Hàm số"*. Ô đang
+  soạn lại không vào phần *chưa soạn được*, để đầu panel không nói ngược thẻ.
+- **Duyệt bỏ ô hỏng và dồn số**: đề đã khoá không mang lỗ số.
+
+**Đo trên trình duyệt ngày 18/10/2026**, so với artboard 17 (density Teacher): thẻ cao **145,5**
+(Figma 146), nét đứt, padding 13/15 cộng viền 1; chip *Chưa soạn được* **103 × 19,75** (Figma 105 × 20);
+nút *Thử lại* **75 × 39,5** (Figma 76 × 40); chữ 11/13 như các thẻ câu bên cạnh.
 
 ## Hàng đoạn chat — một hộp, hai việc
 

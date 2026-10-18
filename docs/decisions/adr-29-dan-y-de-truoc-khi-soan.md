@@ -117,3 +117,13 @@ còn `_REVISES` và `_NO_CHANGE` nhận lời xin sửa để chặn việc so�
 review của plan `backlog-tier-1` đều ra một ca biên mới của hai regex ấy; nút *Soạn theo dàn ý này*
 (Tier 2 câu 5) là đường thay, đã hoãn cùng đợt khoá AGENT. Hệ quả mục ấy nêu vẫn đúng: đọc nhầm thì
 sửa được, và cổng duyệt đề vẫn đứng trước học sinh. Ghi lại theo plan `wave-1-small-fixes`.
+
+**Ô câu soạn hỏng** (plan `wave-3-draft-panel`, việc 12). Một mục dàn ý mà job hỏng hết ba lượt
+từng để lại một lỗ trên đề: panel hiện *Câu 1, 2, 3, 5*, và không có đường nào soạn lại mục ấy.
+Nay:
+
+- `AssessmentDetail.failed_slots` mang ô hỏng đúng vị trí, nên panel vẽ nó **giữa** các câu và số
+  câu là số theo vị trí;
+- nút *Thử lại* (`POST …/slots/{order}/redraft`) soạn lại đúng mục dàn ý của ô, với đủ ba lượt
+  mới. Nút đi thẳng từ panel, không qua model: mục dàn ý đã được giáo viên xem;
+- duyệt thì ô hỏng bị bỏ và số câu dồn lên, nên đề đã khoá không mang lỗ số.

@@ -52,28 +52,30 @@ Làm việc 16, 12, 13, 14, 15 của `2026-10-18-deterministic-batch-master-plan
   vào plan này rồi chạy theo thứ tự của plan tổng.
 
 ### Pha 1 — ô hỏng và *Thử lại* (việc 12)
-- [ ] 3. BE đọc: `AssessmentDetail.failed_slots: tuple[SlotRead, ...]` (`order`, `redrafting`).
+- [x] 3. BE đọc: `AssessmentDetail.failed_slots: tuple[SlotRead, ...]` (`order`, `redrafting`).
   - Một ô vào danh sách khi vị trí của nó chưa có câu và ô `failed`, hoặc ô đang
     `pending`/`retry` mà đã hỏng ít nhất một lần (`last_fault` có chữ). Ô thứ hai là variant
     *đang soạn lại*.
   - Ô đang soạn lần đầu không vào: panel hôm nay không vẽ chúng, và việc này không đổi điều ấy.
-- [ ] 4. BE ghi: `POST /teacher/assessments/{id}/slots/{order}/redraft`.
+- [x] 4. BE ghi: `POST /teacher/assessments/{id}/slots/{order}/redraft`.
   - Chỉ tác giả (404 như mọi đường ADR-22), chỉ đề còn sửa được (409), chỉ ô `failed` chưa có câu
     (409 khác).
   - Đặt `status="retry"`, `attempts=0`, rồi `fire(wanted=0)`. `fire` tăng `attempts` lên 1 nên ô
     có lại đủ ba lượt.
-  - Trả `AssessmentDetail`, như đường sửa câu.
-- [ ] 5. Duyệt: ô `failed` bị xoá và số câu dồn lên (`_close_the_gap`, đi từ ô cao nhất xuống),
+  - Trả 202 không thân; panel đọc lại đề ngay sau cú bấm. Queue không nhận thì ô về `failed` và
+    route trả 503.
+- [x] 5. Duyệt: ô `failed` bị xoá và số câu dồn lên (`_close_the_gap`, đi từ ô cao nhất xuống),
   trong cùng commit với state. Đề duyệt không còn lỗ số. Hậu ký ADR-29 (đánh số theo vị trí).
-- [ ] 6. FE:
+- [x] 6. FE:
   - `api.ts`: `failed_slots`, `api.redraft`;
   - `Panel.tsx`: câu và ô hỏng xếp chung theo `order`; `FailedSlot` theo `652:3635`: nét đứt,
     chip *Chưa soạn được* họ `answer/incorrect`, lời *"Kriky gặp gián đoạn khi đang soạn câu này,
     bạn hãy thử lại nhé!"*, nút *Thử lại*. Variant *đang soạn lại*: chip *● Đang soạn lại*, lời
     *"Kriky đang soạn lại câu này. Các câu khác vẫn sửa và xoá được."*, nút tắt *Đang soạn…*;
   - đầu panel: *"{câu + ô hỏng} câu · {n} câu chưa soạn được · …"* như artboard 17;
-  - đang có ô *đang soạn lại* thì panel đọc lại lặng lẽ sau 4 giây, cùng cơ chế của Đợt 1.
-- [ ] 7. Test BE: danh sách ô; redraft từ chối ô không hỏng, đề đã duyệt, người khác; redraft
+  - ô *đang soạn lại* là ô `pending`, nên `still_drafting > 0` và panel tự đọc lại sau 4 giây
+    bằng đúng cơ chế của Đợt 1; không thêm gì.
+- [x] 7. Test BE: danh sách ô; redraft từ chối ô không hỏng, đề đã duyệt, người khác; redraft
   bắn đúng một job và đặt lại lượt; duyệt bỏ ô hỏng và dồn số. Vitest: ô hỏng đúng vị trí, nút gọi
   BE, đầu panel đếm đúng. Trình duyệt: chụp hai variant, đo so với `652:3636`.
 
@@ -164,3 +166,9 @@ dời chỗ vì gộp cũng bị bắt, và lần thử lại là một câu s�
 - Pha 0 xong 18/10/2026: phép đối chiếu mới chạy trên Postgres dev trước khi khởi động lại BE; 13
   bảng có unique, hai bên khớp từng bộ cột, không cần ALTER nào. Hậu ký ADR-17 (câu *"không soi
   index"* đã sai).
+- Pha 1 xong 18/10/2026: thử trên Chrome headless (API của một đề giả qua CDP, phần còn lại BE
+  thật); ô hỏng và ô đang soạn lại khớp artboard 17 trong vòng 0,5–2 px. Subagent review: ô `retry`
+  không job từng bị vẽ *đang soạn lại* mãi (nay là *hỏng*, và *Thử lại* nhận nó); `redraft_slot`
+  đọc trạng thái của chính ô sau `fire`; `fire` nạp lại ô (`populate_existing`); JSDoc lạc chỗ; nút
+  tắt mờ 0,45 như Figma; đầu panel không đếm ô đang soạn lại là *chưa soạn được*; 409 thì đọc lại;
+  thêm test hai lỗ, mục dàn ý, 503, ca lỗi FE; `teacher-surface.md` có mục *Ô câu soạn hỏng*.
