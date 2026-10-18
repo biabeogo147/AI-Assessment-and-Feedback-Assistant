@@ -118,7 +118,12 @@ class SchoolClass(Base):
 
 
 class Student(Base):
-    """Một tài khoản học sinh, mà người thật tra theo mã học sinh của em."""
+    """Một tài khoản học sinh, mà người thật tra theo mã học sinh của em.
+
+    Đăng nhập bằng `username` và mật khẩu do giáo viên phát (việc 22, plan `sign-in-and-accounts`).
+    Cả hai có thể trống ở dòng cũ hơn việc 22: em ấy chưa đăng nhập được cho tới khi giáo viên đặt
+    lại mật khẩu. `password_hash` không bao giờ rời BE.
+    """
 
     __tablename__ = "students"
 
@@ -126,18 +131,31 @@ class Student(Base):
     class_id: Mapped[str] = mapped_column(ForeignKey("classes.id"))
     full_name: Mapped[str] = mapped_column(String(128))
     student_code: Mapped[str] = mapped_column(String(32), unique=True)
+    # *Lê Kim Tính* → `tinhlk`; trùng trên toàn hệ thống thì thêm số (`be.accounts.usernames_for`).
+    username: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     school_class: Mapped[SchoolClass] = relationship(back_populates="students")
 
 
 class Teacher(Base):
-    """Một tài khoản giáo viên."""
+    """Một tài khoản giáo viên.
+
+    Giáo viên tự đăng ký bằng SĐT **và** email, đăng nhập bằng một trong hai (việc 22, plan
+    `sign-in-and-accounts`).
+    Ba cột có thể trống ở dòng cũ hơn việc 22. `password_hash` không bao giờ rời BE.
+    """
 
     __tablename__ = "teachers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     full_name: Mapped[str] = mapped_column(String(128))
     teacher_code: Mapped[str] = mapped_column(String(32), unique=True)
+    # Chỉ chữ số, đã bỏ dấu cách và dấu chấm (`be.accounts.normal_phone`).
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
+    # Chữ thường.
+    email: Mapped[str | None] = mapped_column(String(254), unique=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     classes: Mapped[list[SchoolClass]] = relationship(back_populates="teacher")
     assessments: Mapped[list[Assessment]] = relationship(back_populates="teacher")
@@ -580,6 +598,30 @@ class Report(Base):
     # Đánh dấu **theo đề**: một cú bấm đặt cột cho mọi báo cáo chưa xem của đề ấy, và báo cáo đến
     # sau thì đưa đề vào lại hàng đợi (người dùng chốt 18/10/2026). Không chặn gì (ADR-19).
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AccountSession(Base):
+    """Một lần đăng nhập còn hiệu lực (việc 22, plan `sign-in-and-accounts`).
+
+    Cookie mang một token ngẫu nhiên; bảng này chỉ giữ **SHA-256** của nó, nên một bản sao
+    database không mở được phiên nào. Mỗi phiên thuộc đúng một vai -- `teacher_id` hay
+    `student_id`, không bao giờ cả hai -- vì mỗi vai một cookie, để giáo viên và học sinh cùng
+    đăng nhập trong một trình duyệt (người dùng chốt 18/10/2026). Đăng xuất là xoá dòng.
+    """
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    role: Mapped[str] = mapped_column(String(16))
+    teacher_id: Mapped[str | None] = mapped_column(
+        ForeignKey("teachers.id", ondelete="CASCADE"), nullable=True
+    )
+    student_id: Mapped[str | None] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class TeacherConversation(Base):

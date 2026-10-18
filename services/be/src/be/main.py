@@ -6,13 +6,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from be.account_routes import router as account_router
 from be.config import get_settings
 from be.content_reader import bind_reader, create_reader
 from be.db import bind_sessions, create_engine
 from be.db import get_session as _session_dependency
 from be.queue import create_queue_pool
 from be.routes import router
-from be.seed import seed_if_empty
+from be.seed import give_sample_sign_in, seed_if_empty
 from be.storage import bind_store, create_store
 from be.student_routes import router as student_router
 from be.teacher_board import router as teacher_board_router
@@ -114,6 +115,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async for session in _session_dependency():
         if await seed_if_empty(session):
             logger.info("seeded the demo class, roster and published assessment")
+            # Mật khẩu mẫu là mật khẩu ai cũng biết (`docs/local-development.md`): chỉ đặt ở máy
+            # dev, nơi cờ danh tính dev bật (review pha 1-2 của `sign-in-and-accounts`).
+            if settings.dev_identity_enabled:
+                await give_sample_sign_in(session)
 
     # Một queue chết không được phép kéo pha 1 chết theo. Làm một đề, nộp nó và
     # đọc điểm sàn không hề chạm tới AGENT (ADR-20), còn ADR-16 gọi điểm đó là
@@ -142,6 +147,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(router)
+app.include_router(account_router)
 app.include_router(student_router)
 app.include_router(teacher_router)
 app.include_router(teacher_assessment_router)

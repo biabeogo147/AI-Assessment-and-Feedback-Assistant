@@ -16,7 +16,7 @@ import logging
 
 from be.config import get_settings
 from be.db import bind_sessions, create_engine, get_session
-from be.seed import seed_if_empty
+from be.seed import give_sample_sign_in, seed_if_empty
 from be.storage import create_store
 from schema.ddl import reset_schema
 
@@ -41,6 +41,7 @@ async def main() -> None:
         async for session in get_session():
             if await seed_if_empty(session):
                 logger.info("seeded the demo class, roster and published assessment")
+                await give_sample_sign_in(session)
         # Hàng trước, object sau -- **ngược** với đường ghi, và cố ý. Đường ghi chọn
         # "object mồ côi rẻ hơn hàng trỏ vào hư không"; cùng một ưu tiên ấy, trên đường
         # xoá, bắt phải bỏ hàng trước: hỏng giữa chừng thì còn lại rác dọn được, chứ

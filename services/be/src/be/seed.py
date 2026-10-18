@@ -7,13 +7,21 @@ người review sẽ phải giữ hai bộ dữ liệu mẫu trong đầu mới 
 một chỗ khác biệt.
 
 Chạy một lần: nếu đã có một lớp tồn tại thì hàm này không làm gì.
+
+Thông tin đăng nhập mẫu (việc 22, plan `sign-in-and-accounts`) đi riêng, trong
+`give_sample_sign_in`: băm `scrypt` tốn thời gian thật, và hàng trăm test seed lớp demo không cần
+đăng nhập. BE gọi nó ngay sau một lần seed, khi cờ danh tính dev bật; database đã có từ trước việc
+22 thì chạy `python -m be.seed` một lần. Giá trị ghi ở
+`docs/local-development.md`.
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from be.accounts import hash_password
 from be.question_bank import file_approved
 from schema.models import (
     AnswerOption,
@@ -127,6 +135,16 @@ _STUDENTS = (
     ("Lê Thu Hà", "HS2026-1206"),
 )
 
+# Đăng nhập mẫu của dữ liệu demo -- chỉ cho máy dev, ghi ở `docs/local-development.md`.
+# (mã giáo viên, số điện thoại, email, mật khẩu)
+SAMPLE_TEACHER = ("GV-001", "0912345001", "lan.pham@example.com", "demo-gv-001")
+# (mã học sinh, tên đăng nhập theo luật của `be.accounts.username_base`, mật khẩu)
+SAMPLE_STUDENTS = (
+    ("HS2026-1204", "anhnm", "demo-hs-1204"),
+    ("HS2026-1205", "baotg", "demo-hs-1205"),
+    ("HS2026-1206", "halt", "demo-hs-1206"),
+)
+
 
 async def seed_if_empty(session: AsyncSession) -> bool:
     """Tạo một lần lớp demo, danh sách lớp và đề đã phát hành.
@@ -214,3 +232,54 @@ async def seed_if_empty(session: AsyncSession) -> bool:
 
     await session.commit()
     return True
+
+
+async def give_sample_sign_in(session: AsyncSession) -> int:
+    """Đặt thông tin đăng nhập mẫu cho các tài khoản demo **chưa có** (việc 22).
+
+    Chỉ chạm tài khoản demo theo mã, và chỉ khi chưa có mật khẩu: một tài khoản đã đăng nhập được
+    thì giữ nguyên, nên chạy lại bao nhiêu lần cũng vậy.
+
+    Args:
+        session: Session của database.
+
+    Returns:
+        Số tài khoản vừa được đặt.
+
+    Side effects:
+        Ghi `phone`/`email`/`password_hash` của GV-001 và `username`/`password_hash` của ba học
+        sinh demo, rồi commit.
+    """
+    given = 0
+    code, phone, email, password = SAMPLE_TEACHER
+    teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == code))
+    if teacher is not None and teacher.password_hash is None:
+        teacher.phone, teacher.email = phone, email
+        teacher.password_hash = hash_password(password)
+        given += 1
+    for code, username, password in SAMPLE_STUDENTS:
+        student = await session.scalar(select(Student).where(Student.student_code == code))
+        if student is not None and student.password_hash is None:
+            student.username = username
+            student.password_hash = hash_password(password)
+            given += 1
+    await session.commit()
+    return given
+
+
+async def _main() -> None:
+    """`python -m be.seed`: đặt đăng nhập mẫu cho database dev đã có từ trước việc 22."""
+    from be.config import get_settings
+    from be.db import bind_sessions, create_engine, get_session
+
+    engine = create_engine(get_settings())
+    try:
+        bind_sessions(engine)
+        async for session in get_session():
+            print(f"đã đặt đăng nhập mẫu cho {await give_sample_sign_in(session)} tài khoản")
+    finally:
+        await engine.dispose()
+
+
+if __name__ == "__main__":
+    asyncio.run(_main())

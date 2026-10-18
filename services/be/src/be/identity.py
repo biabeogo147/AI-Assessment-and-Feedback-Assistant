@@ -1,19 +1,22 @@
 """Ai đang gọi, và điều đó cho họ chạm vào những gì.
 
-ADR-10 để màn hình sign-in ra ngoài vòng đầu, nhưng "một học sinh chỉ thấy phần
-việc của chính mình" là một luật, không phải một tiện lợi. Nên hai nửa được tách
-ra: phần phân quyền bên dưới là thứ thật và sẽ không bị viết lại, còn phần chứng
-minh danh tính chỉ là một header và chỉ hoạt động khi `dev_identity_enabled` bật.
+Hai nửa tách nhau: phần phân quyền bên dưới là thứ thật và không bị viết lại, còn phần chứng minh
+danh tính có hai đường (việc 22, ADR-36):
 
-Header đọc là `X-Actor: student:HS2026-1204` hoặc `X-Actor: teacher:GV-001`.
+- **cookie phiên** (`aiafa_teacher`, `aiafa_student`), do `be.account_routes` đặt khi đăng nhập --
+  đường duy nhất của trình duyệt;
+- **header `X-Actor`** (`student:HS2026-1204`, `teacher:GV-001`), chỉ khi `dev_identity_enabled`
+  bật **và** request không mang cookie của vai ấy. Còn lại cho test và lệnh `curl` khi dev; cookie
+  luôn thắng, nên một trình duyệt đã đăng nhập không bao giờ bị một header đổi danh tính.
 """
 
 from dataclasses import dataclass
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from be.accounts import STUDENT_COOKIE, TEACHER_COOKIE, holder
 from be.config import get_settings
 from be.db import get_session
 from schema.models import Student, Teacher
@@ -84,61 +87,79 @@ def _parse(raw: str | None) -> tuple[str, str]:
     return role, code
 
 
+# Một câu cho cả "chưa đăng nhập" lẫn "phiên đã hết": người dùng làm cùng một việc -- đăng nhập lại.
+_SIGN_IN = "Bạn cần đăng nhập."
+
+
 async def current_student(
     session: AsyncSession = Depends(get_session),
+    token: str | None = Cookie(default=None, alias=STUDENT_COOKIE),
     x_actor: str | None = Header(default=None, alias="X-Actor"),
 ) -> Student:
     """Phân giải học sinh đang tạo ra request này.
 
     Args:
         session: Session của database.
-        x_actor: Header danh tính đứng thay.
+        token: Cookie phiên của học sinh.
+        x_actor: Header danh tính khi dev, chỉ đọc khi không có cookie.
 
     Returns:
         Dòng Student.
 
     Raises:
-        HTTPException: 401 khi danh tính không có, sai dạng, bị tắt, hoặc mã không
-            thuộc về ai; 403 khi một giáo viên gọi một route của học sinh.
+        HTTPException: 401 khi chưa đăng nhập, phiên hết hạn, header sai dạng hay mã không thuộc
+            về ai; 403 khi header khai một giáo viên trên route của học sinh.
     """
-    if not get_settings().dev_identity_enabled:
-        raise HTTPException(status_code=401, detail="Sign-in is not available yet.")
+    if token:
+        found = await holder(session, token, "student")
+        if not isinstance(found, Student):
+            raise HTTPException(status_code=401, detail=_SIGN_IN)
+        return found
+    if not get_settings().dev_identity_enabled or x_actor is None:
+        raise HTTPException(status_code=401, detail=_SIGN_IN)
 
     role, code = _parse(x_actor)
     if role != "student":
         raise HTTPException(status_code=403, detail="This is a student route.")
 
-    found = await session.scalar(select(Student).where(Student.student_code == code))
-    if found is None:
+    student = await session.scalar(select(Student).where(Student.student_code == code))
+    if student is None:
         raise HTTPException(status_code=401, detail=f"No student {code}")
-    return found
+    return student
 
 
 async def current_teacher(
     session: AsyncSession = Depends(get_session),
+    token: str | None = Cookie(default=None, alias=TEACHER_COOKIE),
     x_actor: str | None = Header(default=None, alias="X-Actor"),
 ) -> Teacher:
     """Phân giải giáo viên đang tạo ra request này.
 
     Args:
         session: Session của database.
-        x_actor: Header danh tính đứng thay.
+        token: Cookie phiên của giáo viên.
+        x_actor: Header danh tính khi dev, chỉ đọc khi không có cookie.
 
     Returns:
         Dòng Teacher.
 
     Raises:
-        HTTPException: 401 khi danh tính không có, sai dạng, bị tắt, hoặc không biết
-            là ai; 403 khi một học sinh gọi một route của giáo viên.
+        HTTPException: 401 khi chưa đăng nhập, phiên hết hạn, header sai dạng hay không biết là
+            ai; 403 khi header khai một học sinh trên route của giáo viên.
     """
-    if not get_settings().dev_identity_enabled:
-        raise HTTPException(status_code=401, detail="Sign-in is not available yet.")
+    if token:
+        found = await holder(session, token, "teacher")
+        if not isinstance(found, Teacher):
+            raise HTTPException(status_code=401, detail=_SIGN_IN)
+        return found
+    if not get_settings().dev_identity_enabled or x_actor is None:
+        raise HTTPException(status_code=401, detail=_SIGN_IN)
 
     role, code = _parse(x_actor)
     if role != "teacher":
         raise HTTPException(status_code=403, detail="This is a teacher route.")
 
-    found = await session.scalar(select(Teacher).where(Teacher.teacher_code == code))
-    if found is None:
+    teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == code))
+    if teacher is None:
         raise HTTPException(status_code=401, detail=f"No teacher {code}")
-    return found
+    return teacher

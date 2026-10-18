@@ -22,7 +22,7 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 
 ## Các bảng, theo nhóm
 
-> **Con số trong tiêu đề cũ đã lệch.** `models.py` có **22** `__tablename__` (13/10/2026, thêm `bank_questions`); tài liệu này từng nói
+> **Con số trong tiêu đề cũ đã lệch.** `models.py` có **23** `__tablename__` (19/10/2026, thêm `sessions`); tài liệu này từng nói
 > mười ba. Đợt 06/10/2026 chỉ bổ sung hai bảng nháp bên dưới — những bảng còn thiếu
 > (`pregenerated_items`, `question_outcomes`, …) là món nợ của một đợt rà soát riêng, ghi ra đây
 > để nó không nằm im. `documents` đã được trả ngày 08/10/2026, vì đợt ấy đổi hình dạng của nó.
@@ -32,11 +32,13 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
 | `classes` | một lớp giáo viên tạo, `teacher_id`, tên | [ADR-13](../decisions/adr-13-lop-va-tai-khoan-hoc-sinh.md) và [ADR-22](../decisions/adr-22-de-co-tac-gia.md): lớp thuộc giáo viên, không thuộc nhà trường. **`name` không unique** — tên lớp không phải định danh |
-| `students` | họ tên, mã học sinh, thuộc lớp nào | `student_code` là khoá con người dùng; **không có cột mật khẩu** |
-| `teachers` | họ tên, mã giáo viên | |
+| `students` | họ tên, mã học sinh, thuộc lớp nào, `username`, `password_hash` | `student_code` là khoá con người dùng; mã mới là số thứ tự 1 → N trên toàn hệ thống. `username` **unique toàn hệ thống**, vì học sinh đăng nhập không chọn lớp. Hai cột trống ở dòng có trước việc 22 |
+| `teachers` | họ tên, mã giáo viên, `phone`, `email`, `password_hash` | `phone` (chỉ chữ số) và `email` (chữ thường) đều unique; đăng nhập bằng một trong hai |
+| `sessions` | một lần đăng nhập còn hạn: `token_hash`, `role`, `teacher_id` **hoặc** `student_id`, `expires_at` | chỉ giữ SHA-256 của token trong cookie, nên một bản sao database không mở được phiên nào. Đăng xuất, hay *Đặt lại mật khẩu* của học sinh, là xoá dòng |
 
-Chưa có bảng nào cho mật khẩu hay phiên đăng nhập: đợt này dùng header `X-Actor` thay cho đăng nhập,
-và lỗ ADR-13 về mật khẩu ban đầu **vẫn nguyên**.
+Đăng nhập thật có từ việc 22 (plan `sign-in-and-accounts`, ADR-36). Mật khẩu chỉ được cất dưới dạng
+`scrypt$n$r$p$muối$băm`; mật khẩu rõ của học sinh hiện cho giáo viên đúng một lần, rồi không còn ở
+đâu cả. Header `X-Actor` còn được nhận khi `DEV_IDENTITY_ENABLED` bật và request không mang cookie.
 
 ### Ngoài Postgres — kho nội dung (MongoDB, `aiafa_content`)
 

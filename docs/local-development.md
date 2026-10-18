@@ -222,6 +222,19 @@ Chưa có màn đăng nhập (ADR-10), nên FE tự xưng danh bằng header `X-
 mã trong `ACTOR` của `services/fe/src/api.ts` để vào vai học sinh khác — phân quyền là thật, chỉ cách
 chứng minh danh tính là tạm.
 
+**Đăng nhập mẫu** (việc 22). BE đặt sẵn cho dữ liệu demo, chỉ để dùng trên máy dev:
+
+| Vai | Đăng nhập | Mật khẩu |
+| --- | --- | --- |
+| Giáo viên `GV-001` | `0912345001` hoặc `lan.pham@example.com` | `demo-gv-001` |
+| Nguyễn Minh Anh `HS2026-1204` | `anhnm` | `demo-hs-1204` |
+| Trần Gia Bảo `HS2026-1205` | `baotg` | `demo-hs-1205` |
+| Lê Thu Hà `HS2026-1206` | `halt` | `demo-hs-1206` |
+
+Database dựng trước việc 22 thì chạy ALTER ở mục *Database cũ hơn model*, rồi một lần
+`python -m be.seed` (trong `services/be`) để đặt các giá trị trên. Lệnh chỉ chạm tài khoản demo **chưa
+có** mật khẩu, nên chạy lại không đổi gì.
+
 Đi hết luồng lõi:
 
 1. **Bài của tôi** — hàng đầu là bài đã phát hành, nút *Bắt đầu*.
@@ -439,6 +452,19 @@ một-lượt-một-đoạn cần:
 ALTER TABLE teacher_conversations DROP CONSTRAINT teacher_conversations_teacher_id_key;
 ALTER TABLE teacher_conversations ADD COLUMN title VARCHAR(120) NOT NULL DEFAULT '';
 ALTER TABLE teacher_conversations ADD COLUMN running_since TIMESTAMPTZ;
+```
+
+Đăng nhập (việc 22) thêm năm cột; bảng `sessions` thì `create_all` tự tạo:
+
+```sql
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS email VARCHAR(254);
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS teachers_phone_key ON teachers (phone);
+CREATE UNIQUE INDEX IF NOT EXISTS teachers_email_key ON teachers (email);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS username VARCHAR(64);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS students_username_key ON students (username);
 ```
 
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) **đã bị gỡ** ngày
