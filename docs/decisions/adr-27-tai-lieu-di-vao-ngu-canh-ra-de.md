@@ -202,7 +202,7 @@ trả lời: giáo viên không chọn trong nhiều cách chia, họ sửa th�
 
 Hai chỗ đã cũ:
 - **Jev không còn là bộ định tuyến của `services/document`.** Mục *quyết định kỹ thuật đi kèm* ghi
-  vậy; từ plan 3c, Jev chỉ xếp vai trò và cấp cho từng ứng viên đề mục khi dựng cây mục lục
+  vậy; từ plan 3c (`document-agent-hierarchy`), Jev chỉ xếp vai trò và cấp cho từng ứng viên đề mục khi dựng cây mục lục
   (`services/document/src/document/index/jev.py`).
 - **Trạng thái *"chưa thi hành"*.** Phần còn hiệu lực sau hai hậu ký 12/10 và 15/10 đang chạy: tài
   liệu tới Kriky qua `list_chapters` / `get_chapter` / `read_section`, Kriky tới dàn ý, dàn ý tới job

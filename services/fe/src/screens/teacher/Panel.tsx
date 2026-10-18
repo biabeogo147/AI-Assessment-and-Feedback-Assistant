@@ -116,7 +116,7 @@ export default function Panel({
   }, [assessmentId]);
 
   // Đếm các lần ghi của chính panel (đổi tên, duyệt, lưu, xoá, bỏ duyệt). Một lần đọc lại lặng lẽ
-  // bắt đầu **trước** một lần ghi mà về **sau** nó thì mang đề cũ; đếm để bỏ lời đáp ấy (review đợt 1).
+  // bắt đầu **trước** một lần ghi mà về **sau** nó thì mang đề cũ; đếm để bỏ lời đáp ấy (review plan `wave-1-small-fixes`).
   const writes = useRef(0);
   // Giá trị `revision` lúc panel dựng: `Chat` dựng panel mới cho mỗi đề với số đã tăng sẵn, và số
   // ấy không phải một lượt mới.
@@ -159,7 +159,7 @@ export default function Panel({
 
   // Lượt chat có thể xong khi BE còn câu đang soạn (*"còn N câu đang chạy"*), và không lượt nào báo
   // lại khi chúng xong. Còn câu đang soạn thì đọc lại sau ít giây; lần đọc ấy cũng là một lần thu
-  // hoạch ở BE (review đợt 1).
+  // hoạch ở BE (review plan `wave-1-small-fixes`).
   const stillDrafting = paper?.still_drafting ?? 0;
   useEffect(() => {
     if (stillDrafting === 0) return;

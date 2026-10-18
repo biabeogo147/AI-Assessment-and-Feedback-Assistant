@@ -112,7 +112,8 @@ Viết khi mở plan `kriky-writes-every-word`. Một luật đổi, các luật
 ## Hậu ký 18/10/2026
 
 Mục *Hệ quả* nói *"oke"* được đọc **bằng model**. Thực ra lời đồng ý dàn ý được đọc bằng regex ở
-AGENT: `_REVISES` và `_NO_CHANGE` trong `services/agent/src/agent/graphs/propose.py`. Bốn vòng
+AGENT (`services/agent/src/agent/graphs/propose.py`): `_AGREES` nhận lời đồng ý (`_approved_plan`),
+còn `_REVISES` và `_NO_CHANGE` nhận lời xin sửa để chặn việc soạn. Bốn vòng
 review của plan `backlog-tier-1` đều ra một ca biên mới của hai regex ấy; nút *Soạn theo dàn ý này*
 (Tier 2 câu 5) là đường thay, đã hoãn cùng đợt khoá AGENT. Hệ quả mục ấy nêu vẫn đúng: đọc nhầm thì
 sửa được, và cổng duyệt đề vẫn đứng trước học sinh. Ghi lại theo plan `wave-1-small-fixes`.

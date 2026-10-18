@@ -313,7 +313,7 @@ export default function Chat({
    * bánh xe, vuốt, phím hay thanh tìm kiếm —, vì `scrollIntoView` ở trên chỉ kéo xuống: thôi bám. Về
    * lại cách đáy dưới 48px thì bám tiếp. Không đo *"cách đáy bao xa"* để tắt cờ: sự kiện cuộn của
    * chính `scrollIntoView` tới muộn, khối bước lớn thêm trong lúc chờ, và phép đo ra *"không ở đáy"*
-   * dù không ai cuộn (thử tay đợt 1, 18/10/2026). Nội dung co lại làm trình duyệt kẹp `scrollTop`
+   * dù không ai cuộn (thử tay plan `wave-1-small-fixes`, 18/10/2026). Nội dung co lại làm trình duyệt kẹp `scrollTop`
    * xuống, nhưng lúc ấy dòng đang ở đáy, nên phép thử thứ hai bật cờ lại ngay.
    */
   function onStreamScroll(event: React.UIEvent<HTMLDivElement>) {
@@ -503,8 +503,8 @@ export default function Chat({
       return;
     }
     try {
-      // Tài liệu vừa tải chỉ vào thư viện, không tự đính vào đoạn chat đang mở (đợt tất định việc
-      // 11, Tier 2 câu 8): chip Lớp 6 từng tự đính vào đoạn chat của một đề lớp 7. Muốn soạn theo
+      // Tài liệu vừa tải chỉ vào thư viện, không tự đính vào đoạn chat đang mở (plan
+      // `wave-1-small-fixes`, Tier 2 câu 8): chip Lớp 6 từng tự đính vào đoạn chat của một đề lớp 7. Muốn soạn theo
       // nó thì kéo chip vào ô nhập.
       const saved = await teacher.upload(file);
       setDocuments((before) => [saved, ...before]);

@@ -122,7 +122,8 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
 
 Dòng *Trạng thái* ghi *"chưa có ở backend"* đã cũ. BE ép luật này ở
 `services/be/src/be/agent_gateway.py`, hàm `validate_question`: đúng một phương án đúng, mỗi phương
-án nhiễu một nhãn lỗi, và ít nhất hai cách giải. Hàm ấy chạy ở ba chỗ: lúc thu hoạch một câu soạn
-xong (`drafting.harvest`), lúc giáo viên sửa một câu (`teacher_routes`), và lúc dựng câu luyện tập
-của pha 2 (`student_routes`). Câu thiếu lời giải không vào được đề nào. Ghi lại theo plan
+án nhiễu một nhãn lỗi, và ít nhất hai cách giải. Hàm ấy chạy ở bốn chỗ: lúc thu hoạch một câu soạn
+xong (`drafting.harvest`), lúc giáo viên sửa một câu (`teacher_routes`), và hai đường dựng câu luyện
+tập của pha 2 — đường dựng sẵn (`student_routes._harvest`) và đường xin ngay lúc mở lượt
+(`agent_gateway.ask_for_retry_question`). Câu thiếu lời giải không vào được đề nào. Ghi lại theo plan
 `wave-1-small-fixes` (đợt tất định 18/10/2026).

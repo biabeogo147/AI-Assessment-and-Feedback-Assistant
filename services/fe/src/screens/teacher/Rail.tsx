@@ -446,7 +446,7 @@ function weight(bytes: number): string {
  * Một đích đến của dải điều hướng. Chưa đích nào có màn hình, nên chưa đích nào bấm được.
  *
  * Không có huy hiệu số: con số *"3"* trên *Bảng theo dõi* từng là chữ bịa, không đường nào đếm nó,
- * và đã gỡ 18/10/2026 (đợt tất định việc 3).
+ * và đã gỡ 18/10/2026 (plan `wave-1-small-fixes`).
  *
  * @param icon - Hình 12×12.
  * @param label - Chữ.

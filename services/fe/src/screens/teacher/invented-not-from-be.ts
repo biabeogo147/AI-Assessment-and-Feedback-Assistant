@@ -2,15 +2,15 @@
  * Mọi thứ màn hình giáo viên hiện ra mà **BE không có**.
  *
  * Tên file tự tố cáo, và đó là chủ ý: mỗi `import` của nó đều in ra dòng chữ ấy
- * ngay trong file đi mượn. `AGENTS.md:7-8` cấm một màn hình *suy ra* một luật từ
- * dữ liệu; chỗ này nặng hơn một bậc — nó **phát minh** ra thứ BE không có cột
- * nào để lưu. Nên nó bị dồn vào đúng một module, và khi BE có thật thì chỗ phải
- * sửa là một chỗ chứ không phải một cuộc đi tìm.
+ * ngay trong file đi mượn. `services/fe/AGENTS.md` cấm một màn hình *suy ra* một luật
+ * từ dữ liệu; chữ BE không có cột nào để lưu còn nặng hơn một bậc — nó là **phát minh**.
+ * Thứ như vậy, nếu còn, phải dồn vào đúng module này, để khi BE có thật thì chỗ phải
+ * sửa là một chỗ chứ không phải một cuộc đi tìm. `tools/check_contract.py` canh điều ấy.
  *
  * Nay chỉ còn ba gợi ý mở đầu, và chúng không khẳng định gì về hệ thống.
  *
  * Con số *"3"* trên huy hiệu *Bảng theo dõi* từng nằm ở đây, không đường nào đếm nó; đã **gỡ**
- * 18/10/2026 (đợt tất định việc 3) cùng huy hiệu. Chip nguồn trên từng câu (*"Lấy từ ngân hàng
+ * 18/10/2026 cùng huy hiệu (plan `wave-1-small-fixes`). Chip nguồn trên từng câu (*"Lấy từ ngân hàng
  * câu hỏi"*, *"Thêm mới · đã kiểm"*) từng nằm ở đây, chọn theo hash id; đã **gỡ** 17/10/2026 thay
  * vì giữ tới khi có cột nguồn (plan `backlog-tier-1`).
  *

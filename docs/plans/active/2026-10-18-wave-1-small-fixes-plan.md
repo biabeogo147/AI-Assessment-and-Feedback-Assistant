@@ -150,3 +150,4 @@ Làm việc 1–6 của `2026-10-18-deterministic-batch-master-plan.md`. Đây l
   Thêm ba test: lượt cũ có bước soạn vào đề đang mở, đề mở giữa lượt, và tự đọc lại khi còn câu
   đang soạn.
 - Pha 3 và 4: code xong, check và vitest (268) xanh, commit. Subagent review hai pha này **đang chạy khi phiên chạm giới hạn sử dụng**: phiên sau đọc kết quả và sửa theo trước khi sang Pha 5 (roadmap, đóng plan).
+- Review Pha 3–4 (đọc sau khi phiên mở lại): sửa ADR-29 (lời đồng ý đọc bằng `_AGREES`), ADR-18 (bốn chỗ gọi), ADR-25 (lý do hoãn đúng dòng backlog), ADR-27 (slug plan 3c), docstring `invented-not-from-be.ts` (dẫn đúng `services/fe/AGENTS.md`), mã task trong comment và tên `describe` thay bằng slug plan, bảng mục lục ADR cập nhật trạng thái 15, 16, 18, 21, 25, 27, 29, số dòng `check_contract.py:529` ở backlog.

@@ -1943,7 +1943,7 @@ describe("rail: khi BE từ chối", () => {
 
 describe("tải một tài liệu lên", () => {
   it("tệp vừa tải lên chỉ vào thư viện, không tự đính vào đoạn chat đang mở", async () => {
-    // Đợt tất định việc 11 (Tier 2 câu 8): bản trước đính luôn tệp vừa tải vào câu đang gõ, và
+    // Plan `wave-1-small-fixes` (Tier 2 câu 8): bản trước đính luôn tệp vừa tải vào câu đang gõ, và
     // chip Lớp 6 đã đính vào đoạn chat của một đề lớp 7. Muốn soạn theo tệp thì kéo chip vào ô nhập.
     const saved = {
       document_id: "d1",
@@ -6121,7 +6121,7 @@ describe("api: chip tài liệu trong body của một lượt", () => {
   });
 });
 
-describe("dòng chat và panel đi theo lượt đang chạy (đợt tất định việc 1, 2)", () => {
+describe("dòng chat và panel đi theo lượt đang chạy", () => {
   const EMPTY = { kind: "say", text: "", conversation_id: "c1", choices: [], more_choices: 0, turns: [] };
 
   /** Một khung SSE chỉ có `data`, như BE gửi. */
@@ -6315,7 +6315,7 @@ describe("dòng chat và panel đi theo lượt đang chạy (đợt tất đị
   }, 15000);
 });
 
-describe("rail không bịa con số (đợt tất định việc 3)", () => {
+describe("rail không bịa con số", () => {
   it("Bảng theo dõi không mang huy hiệu số nào", async () => {
     Element.prototype.scrollIntoView = vi.fn();
     vi.stubGlobal(

@@ -232,6 +232,7 @@ commit riêng) nhưng lượt không có câu kết, và nếu là lượt đầ
 ## Hậu ký 18/10/2026
 
 Lời sửa 10/10/2026 định bỏ job kể lại như một bước cứng. Code **vẫn chạy** nó: BE gửi
-`PlanReportRequested` (`teacher_chat.py`) và AGENT trả lời trong `graphs/reporting.py`. Gỡ nó chạm
-AGENT, mà đợt tất định 18/10/2026 khoá AGENT, nên việc ấy hoãn và đã ghi ở `docs/plans/backlog.md`.
+`PlanReportRequested` (`teacher_chat.py`) và AGENT trả lời trong `graphs/reporting.py`. Việc gỡ nằm ở
+`docs/plans/backlog.md`, mục *Hai món nợ còn hiệu lực của plan hai pha*, chờ plan 4 (Jev và skill); nó
+chạm AGENT, nên cũng nằm ngoài đợt tất định 18/10/2026, đợt khoá AGENT.
 Tới lúc ấy, đoạn sửa 10/10 mô tả hướng đi, không mô tả code. Ghi lại theo plan `wave-1-small-fixes`.
