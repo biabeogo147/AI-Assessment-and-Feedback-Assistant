@@ -123,8 +123,8 @@ Figma đã duyệt 18/10/2026:
 - [x] 17. Vitest; chụp, đo; subagent chấm.
 
 ### Pha 5 — FE học sinh
-- [ ] 18. Màn đăng nhập 12; *Đăng xuất*; bỏ `ACTOR` hẳn.
-- [ ] 19. Vitest; chụp, đo; subagent chấm.
+- [x] 18. Màn đăng nhập 12; *Đăng xuất*; bỏ `ACTOR` hẳn.
+- [x] 19. Vitest; chụp, đo; subagent chấm.
 
 ### Pha 6 — đóng
 - [ ] 20. ADR-36, hậu ký ADR-13, `services/fe/AGENTS.md`, `.env.example`, tài liệu; roadmap việc 22
@@ -209,3 +209,8 @@ mẫu cho bốn tài khoản demo.
   bước 2; khoá mọi *Đặt lại mật khẩu* khi một lần đang chạy; ô chọn tệp chọn lại được cùng tệp; đọc
   lại lớp hỏng thì nói ra. Chờ người dùng: *Đặt lại mật khẩu* chạy ngay, không hỏi lại (đúng Figma
   10b đã duyệt).
+- 19/10/2026: Pha 5 xong. `ACTOR` bỏ hẳn; mặc định `dev_identity_enabled` lật sang tắt (Decision 4),
+  test bật trong `conftest.py`. Figma: thêm 12b `713:830` (sai mật khẩu), 13b `714:836` (đăng xuất
+  chưa được). Chấm ảnh 12 và dải trên 13 khớp 0–2px. Review sửa: đăng xuất hỏng thì nói ra;
+  `streamReply` báo 401; em khác vào thì về `#/` ngay trong nhịp ấy và bỏ các lượt chữa đã chép
+  (`round:*`); focus về ô mật khẩu sau lời từ chối; tài liệu `X-Actor` nói phải bật cờ.

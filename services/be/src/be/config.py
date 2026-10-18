@@ -48,12 +48,13 @@ class Settings(BaseSettings):
         database_url: URL SQLAlchemy async của kho giữ state của Attempt. ADR-21
             làm state đó bền, nên đây không phải tuỳ chọn trong bất kỳ môi trường
             nào mà học sinh có thể quay lại ngày mai.
-        dev_identity_header: Tên của header đứng thay cho việc đăng nhập trong
-            lúc chưa có màn hình sign-in. Request tự khai mình là
+        dev_identity_header: Tên của header danh tính dev. Request tự khai mình là
             "student:<code>" hoặc "teacher:<code>".
-        dev_identity_enabled: Header đó có được tôn trọng hay không. False là giá
-            trị an toàn; plan đã đưa nó vào yêu cầu rằng sign-in thật phải tắt
-            cái này vĩnh viễn.
+        dev_identity_enabled: Header đó có được nhận hay không -- chỉ khi request không
+            mang cookie phiên của vai ấy (việc 22, plan `sign-in-and-accounts`, ADR-36).
+            Mặc định **tắt**: một cài đặt thiếu biến này không được nhận một danh tính tự
+            khai, vì mã `GV-00n` và mã học sinh `1, 2, 3…` đều đoán được (Decision 4 của
+            plan). Bật thì BE cũng đặt đăng nhập mẫu cho một database rỗng.
         agent_job_timeout_seconds: BE chờ một job của AGENT bao lâu trước khi bỏ
             cuộc. Phải trùm hết một job trọn vẹn, kể cả mọi lần thử mà vòng retry
             bên trong AGENT làm -- `tools/check_contract.py` ép điều đó, vì không
@@ -103,7 +104,7 @@ class Settings(BaseSettings):
     mongo_url: str = "mongodb://127.0.0.1:27017"
     mongo_database: str = "aiafa_content"
     dev_identity_header: str = "X-Actor"
-    dev_identity_enabled: bool = True
+    dev_identity_enabled: bool = False
     agent_job_timeout_seconds: int = 70
     stream_silence_timeout_seconds: float = 25.0
     max_tool_steps: int = 8

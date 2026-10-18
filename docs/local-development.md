@@ -218,11 +218,11 @@ Mở `http://localhost:5173`. Lần chạy đầu, BE tự tạo dữ liệu m�
 thiết kế: lớp 12A, học sinh **Nguyễn Minh Anh** (`HS2026-1204`), và bài **Kiểm tra 15 phút — Hàm số**
 sáu câu, đã phát hành.
 
-Chưa có màn đăng nhập (ADR-10), nên FE tự xưng danh bằng header `X-Actor: student:HS2026-1204`. Đổi
-mã trong `ACTOR` của `services/fe/src/api.ts` để vào vai học sinh khác — phân quyền là thật, chỉ cách
-chứng minh danh tính là tạm.
+Cả hai bề mặt có màn đăng nhập (việc 22, [ADR-36](decisions/adr-36-dang-nhap-va-tai-khoan.md)):
+`#/` là học sinh, `#/teacher` là giáo viên. Mỗi vai một cookie phiên, nên một trình duyệt đăng nhập
+được cả hai cùng lúc.
 
-**Đăng nhập mẫu** (việc 22). BE đặt sẵn cho dữ liệu demo, chỉ để dùng trên máy dev:
+**Đăng nhập mẫu** của dữ liệu demo, chỉ để dùng trên máy dev:
 
 | Vai | Đăng nhập | Mật khẩu |
 | --- | --- | --- |
@@ -231,9 +231,12 @@ chứng minh danh tính là tạm.
 | Trần Gia Bảo `HS2026-1205` | `baotg` | `demo-hs-1205` |
 | Lê Thu Hà `HS2026-1206` | `halt` | `demo-hs-1206` |
 
-Database dựng trước việc 22 thì chạy ALTER ở mục *Database cũ hơn model*, rồi một lần
-`python -m be.seed` (trong `services/be`) để đặt các giá trị trên. Lệnh chỉ chạm tài khoản demo **chưa
-có** mật khẩu, nên chạy lại không đổi gì.
+Ba đường có các giá trị trên:
+- `.\dev.ps1 db-reset` luôn đặt chúng;
+- BE tự seed một database rỗng lúc khởi động, nhưng **chỉ** đặt chúng khi `DEV_IDENTITY_ENABLED=true`;
+- database có sẵn (kể cả database dựng trước việc 22, sau ALTER ở mục *Database cũ hơn model*) thì
+  chạy một lần `python -m be.seed` trong `services/be`. Lệnh chỉ chạm tài khoản demo **chưa có** mật
+  khẩu, nên chạy lại không đổi gì.
 
 Đi hết luồng lõi:
 
@@ -280,6 +283,10 @@ một workspace, không thì API đòi header `anthropic-workspace-id` ở mọi
 nghĩa là ảnh phần trên trang sách được gửi sang Anthropic.
 
 ### Gọi thẳng API, không qua giao diện
+
+Các lệnh dưới đây xưng danh bằng header `X-Actor`, mà BE chỉ nhận khi `DEV_IDENTITY_ENABLED=true`
+(mặc định tắt, Decision 4 của plan `sign-in-and-accounts`). Đặt biến ấy trong `.env` hay trong shell
+trước khi chạy BE. Trình duyệt không cần nó: trình duyệt đi bằng cookie phiên.
 
 ```powershell
 $h = @{ "X-Actor" = "student:HS2026-1204"; "Content-Type" = "application/json" }

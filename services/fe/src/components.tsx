@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { countdown, type Me } from "./api";
 import { go } from "./App";
@@ -10,8 +10,16 @@ import { go } from "./App";
  * lời được "ai đang đăng nhập" và cho một đường ra ngay tại đó. Cao 57px, brand
  * cỡ 16 semibold, danh tính cỡ 14 muted — số đo lấy từ file design, không phải
  * từ cảm nhận.
+ *
+ * `me` trống ở màn đăng nhập (12): chưa có ai để gọi tên, nên không có danh tính và không có nút
+ * *Đăng xuất*. Nút ấy chạy thật từ việc 22 (plan `sign-in-and-accounts`), qua `StudentSession`.
  */
-export function TopBar({ me }: { me: Me }) {
+export function TopBar({ me }: { me: Me | null }) {
+  const { signOut } = useContext(StudentSession);
+  const [busy, setBusy] = useState(false);
+  // Đăng xuất hỏng thì phiên còn sống: trên máy dùng chung (ADR-13) em không được tưởng là đã ra
+  // (review pha 5 của `sign-in-and-accounts`).
+  const [refused, setRefused] = useState(false);
   return (
     <header className="topbar">
       <span className="mark" aria-hidden />
@@ -24,19 +32,47 @@ export function TopBar({ me }: { me: Me }) {
         Kriky
       </button>
       <span className="spacer" />
-      <span className="identity">
-        <span className="who">{me.full_name}</span>
-        <span>·</span>
-        <span>Lớp {me.class_name}</span>
-        <span>·</span>
-        <span className="code">{me.student_code}</span>
-      </span>
-      <button className="btn-signout" type="button">
-        Đăng xuất
-      </button>
+      {me !== null && (
+        <>
+          <span className="identity">
+            <span className="who">{me.full_name}</span>
+            <span>·</span>
+            <span>Lớp {me.class_name}</span>
+            <span>·</span>
+            <span className="code">{me.student_code}</span>
+          </span>
+          {refused && (
+            <span className="signout-refused" role="alert">
+              Chưa đăng xuất được, hãy thử lại.
+            </span>
+          )}
+          <button
+            className="btn-signout"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setRefused(false);
+              signOut()
+                .catch(() => setRefused(true))
+                .finally(() => setBusy(false));
+            }}
+          >
+            Đăng xuất
+          </button>
+        </>
+      )}
     </header>
   );
 }
+
+/**
+ * Phiên của học sinh (việc 22, plan `sign-in-and-accounts`): `App.tsx` đặt, nút *Đăng xuất* của
+ * `TopBar` đọc. Ngoài cổng phiên (test dựng một màn lẻ) thì đăng xuất không làm gì.
+ */
+export const StudentSession = createContext<{ signOut: () => Promise<void> }>({
+  signOut: () => Promise.resolve(),
+});
 
 /**
  * Điểm của một câu hỏi, ở một trong ba mức của ADR-16.

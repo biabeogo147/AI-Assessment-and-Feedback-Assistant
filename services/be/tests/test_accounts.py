@@ -342,3 +342,11 @@ async def test_signing_in_sweeps_expired_sessions(stack):
     await http.post("/api/teacher/sign-in", json={"login": phone, "password": password})
     async with maker() as session:
         assert len((await session.scalars(select(AccountSession))).all()) == 1
+
+
+def test_dev_identity_is_off_unless_asked(monkeypatch):
+    """Một cài đặt thiếu biến không nhận danh tính tự khai (Decision 4, `sign-in-and-accounts`)."""
+    from be.config import Settings
+
+    monkeypatch.delenv("DEV_IDENTITY_ENABLED", raising=False)
+    assert Settings(_env_file=None).dev_identity_enabled is False

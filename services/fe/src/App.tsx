@@ -3,9 +3,11 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import "./tokens.css";
 import "./teacher.css";
 import { ApiError, api, onSignedOut, teacher, type Me, type TeacherMe } from "./api";
+import { StudentSession } from "./components";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
+import SignIn from "./screens/student/SignIn";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
 import { SessionContext } from "./screens/teacher/Account";
@@ -276,22 +278,32 @@ function Settle({ paper }: { paper: string }) {
 }
 
 /**
- * Phần giao diện dành cho học sinh.
+ * Phần giao diện dành cho học sinh, sau cổng phiên (việc 22, plan `sign-in-and-accounts`).
  *
- * Danh tính được lấy một lần rồi truyền xuống, vì mọi màn hình đều mang dải tên,
- * lớp và mã học sinh mà ADR-13 đòi phải có trên một máy nhiều học sinh dùng
- * chung.
+ * Chưa đăng nhập thì màn 12. Đăng nhập xong thì `me` truyền xuống, vì mọi màn hình đều mang dải
+ * tên, lớp và mã học sinh mà ADR-13 đòi phải có trên một máy nhiều học sinh dùng chung.
  */
 function Student() {
   const route = useRoute();
-  const [me, setMe] = useState<Me | null>(null);
+  // `null`: đang hỏi BE; `"out"`: BE nói chưa đăng nhập (việc 22, plan `sign-in-and-accounts`).
+  const [me, setMe] = useState<Me | "out" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Em đăng nhập gần nhất trong tab này: phiên hết rồi vào lại đúng em ấy thì về lại **route** đang
+  // đứng (màn đọc lại từ BE); một em khác vào thì về *Bài của tôi*, màn của em trước không phải của em.
+  const [last, setLast] = useState<string | null>(null);
+  // Đang chờ hash đổi về `#/` sau khi một em khác vào: `hashchange` tới ở một nhịp sau, và trong nhịp
+  // ấy em mới không được vẽ một màn theo id của em trước (review pha 5).
+  const [home, setHome] = useState(false);
+  if (home && route === "/") setHome(false);
 
   useEffect(() => {
     api
       .me()
       .then(setMe)
-      .catch((cause: Error) => setError(cause.message));
+      .catch((cause: Error) =>
+        cause instanceof ApiError && cause.status === 401 ? setMe("out") : setError(cause.message),
+      );
+    return onSignedOut("student", () => setMe("out"));
   }, []);
 
   if (error !== null) {
@@ -306,7 +318,57 @@ function Student() {
   if (me === null) {
     return <div className="page">Đang tải…</div>;
   }
+  if (me === "out") {
+    return (
+      <SignIn
+        onSignedIn={(who) => {
+          if (last !== null && who.student_id !== last) {
+            forgetRounds();
+            setHome(true);
+            go("/");
+          }
+          setLast(who.student_id);
+          setMe(who);
+        }}
+      />
+    );
+  }
+  if (me.student_id !== last) setLast(me.student_id);
 
+  return (
+    <StudentSession.Provider
+      value={{
+        signOut: () =>
+          api.signOut().then(() => {
+            forgetRounds();
+            setLast(null);
+            setMe("out");
+            go("/");
+          }),
+      }}
+    >
+      <StudentRoutes me={me} route={home ? "/" : route} key={me.student_id} />
+    </StudentSession.Provider>
+  );
+}
+
+/**
+ * Bỏ các lượt chữa đã chép vào `sessionStorage` (`round:{id}`, `Tutor.tsx`). Khoá không mang tên em,
+ * nên khi em khác vào trên cùng tab mà không bỏ, nút Back vẽ ngay câu hỏi lượt chữa của em trước dưới
+ * tên em sau (review pha 5).
+ */
+function forgetRounds(): void {
+  try {
+    for (const key of Object.keys(window.sessionStorage)) {
+      if (key.startsWith("round:")) window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    /* trình duyệt chặn bộ nhớ: không có gì để bỏ */
+  }
+}
+
+/** Các màn của học sinh theo route, khi đã đăng nhập. */
+function StudentRoutes({ me, route }: { me: Me; route: string }) {
   const attempt = /^\/attempt\/([^/]+)$/.exec(route);
   if (attempt) return <Sitting me={me} attemptId={attempt[1]} />;
 

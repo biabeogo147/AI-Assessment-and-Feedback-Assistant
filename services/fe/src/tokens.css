@@ -322,6 +322,12 @@ button:disabled {
   border: 1px solid var(--line-strong);
 }
 
+/* Đăng xuất hỏng (việc 22, `sign-in-and-accounts`): một câu caption đỏ ngay trước nút. */
+.signout-refused {
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+}
+
 .btn-signout {
   background: var(--sunken);
   color: var(--ink);
@@ -961,4 +967,96 @@ button:disabled {
   border-radius: var(--radius);
   padding: 10px 14px;
   font-size: var(--type-caption);
+}
+
+/* ---------------------------- màn 12 · đăng nhập của học sinh (việc 22, plan `sign-in-and-accounts`) */
+
+/* Thẻ 420 đứng giữa phần dưới dải trên (Figma `659:5676`: main đệm 32 40, thẻ canh giữa). */
+.student-sign-in-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 57px);
+  padding: var(--page-pad-y) var(--page-pad-x);
+}
+
+.student-sign-in {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 420px;
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(26 31 43 / 16%);
+}
+
+.student-sign-in h1 {
+  margin: 0;
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Nhãn 12 `Medium` trên ô 41 (chữ 14, dòng 21, đệm 9 12), khe 4. */
+.student-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.student-field > span {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.student-field input {
+  height: 41px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.student-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.student-sign-in .refused {
+  margin: 0;
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.student-sign-in-button {
+  height: 41px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.student-sign-in-button:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.student-sign-in .note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 1.5;
 }

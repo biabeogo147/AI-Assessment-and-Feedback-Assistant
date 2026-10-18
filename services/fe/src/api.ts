@@ -538,42 +538,27 @@ export interface TeacherConversation {
 }
 
 /**
- * Danh tính của học sinh trong lúc màn đăng nhập học sinh chưa có (Pha 5 của plan
- * `sign-in-and-accounts` bỏ hẳn nó).
- *
- * Giáo viên **không** còn ở đây: từ việc 22 trình duyệt chứng minh danh tính bằng cookie phiên
- * `HttpOnly` mà BE đặt khi đăng nhập, và `fetch` cùng nguồn tự gửi nó. BE còn nhận `X-Actor` chỉ
- * khi request không mang cookie của vai ấy và cờ dev bật -- đường của test và `curl`.
- */
-export const ACTOR = {
-  student: "student:HS2026-1204",
-} as const;
-
-/**
  * Bề mặt nào đang gọi. Vai được chọn **tại chỗ khai tên endpoint** ở dưới, không suy từ route
- * đang mở: một request bay ra giữa lúc chuyển route sẽ mang sai vai. Từ việc 22 vai còn quyết
- * định **ai bị đưa về màn đăng nhập** khi BE trả 401 (`onSignedOut`).
+ * đang mở: một request bay ra giữa lúc chuyển route sẽ mang sai vai.
+ *
+ * Từ việc 22 (plan `sign-in-and-accounts`) không header nào chở danh tính: trình duyệt chứng minh
+ * bằng cookie phiên `HttpOnly` -- mỗi vai một cookie -- mà BE đặt khi đăng nhập, và `fetch` cùng
+ * nguồn tự gửi nó. Vai chỉ còn quyết định **ai bị đưa về màn đăng nhập** khi BE trả 401
+ * (`onSignedOut`).
  */
 type Role = "student" | "teacher";
 
-function headers(role: Role): HeadersInit {
-  return role === "student"
-    ? { "Content-Type": "application/json", "X-Actor": ACTOR.student }
-    : { "Content-Type": "application/json" };
-}
+const JSON_HEADERS: HeadersInit = { "Content-Type": "application/json" };
 
 /**
- * Header cho một request mang `FormData`.
+ * Header cho một request mang `FormData`: **không** có gì, kể cả `Content-Type`.
  *
- * Khác `headers` ở đúng một chỗ, và chỗ đó là lý do nó tồn tại: **không** có
- * `Content-Type`. Một upload multipart cần một boundary, mà boundary thì do
- * trình duyệt sinh ra lúc gửi; khai tay `multipart/form-data` sẽ gửi đi một
- * content type không có boundary, và server đọc được một body rỗng mà không có
- * lỗi nào ở giữa.
+ * Một upload multipart cần một boundary, mà boundary thì do trình duyệt sinh ra lúc gửi; khai tay
+ * `multipart/form-data` sẽ gửi đi một content type không có boundary, và server đọc được một body
+ * rỗng mà không có lỗi nào ở giữa. Rỗng mà vẫn khai, vì `call` dùng `JSON_HEADERS` khi nơi gọi
+ * không đưa header nào.
  */
-function formHeaders(role: Role): HeadersInit {
-  return role === "student" ? { "X-Actor": ACTOR.student } : {};
-}
+const FORM_HEADERS: HeadersInit = {};
 
 /** Kênh báo *phiên của vai này đã hết* -- một 401 ở bất cứ lời gọi nào (việc 22). */
 const signedOut = new EventTarget();
@@ -633,10 +618,10 @@ async function refusal(response: Response): Promise<ApiError> {
 /**
  * Gửi một request và biến thất bại thành một lỗi đáng hiện ra.
  *
- * @param role - Bề mặt nào đang gọi. Nó quyết định header actor, và nó được
- *   khai ngay cạnh tên endpoint để không thể gắn nhầm trong im lặng.
+ * @param role - Bề mặt nào đang gọi. Nó quyết định ai bị đưa về màn đăng nhập khi BE trả 401,
+ *   và nó được khai ngay cạnh tên endpoint để không thể gắn nhầm trong im lặng.
  * @param path - Path nằm dưới `/api`.
- * @param init - Tuỳ chọn cho fetch; header actor được thêm ở đây.
+ * @param init - Tuỳ chọn cho fetch; không đưa header thì là `JSON_HEADERS`.
  * @returns Body đã parse.
  * @throws ApiError mang `detail` của BE khi response không ok, vì mọi lời từ chối
  *   trong API này đều tự giải thích bằng tiếng Việt, và câu đó có ích cho học
@@ -651,7 +636,7 @@ async function call<T>(
     ...init,
     // Nơi gọi đưa header thì nó SỞ HỮU cả bộ, không phải trộn thêm: đường upload
     // tồn tại chính vì nó cần BỎ `Content-Type`, mà trộn thì không bỏ được gì.
-    headers: init.headers ?? headers(role),
+    headers: init.headers ?? JSON_HEADERS,
   });
   if (!response.ok) {
     noticeSignedOut(role, response);
@@ -678,7 +663,7 @@ async function silent(
 ): Promise<void> {
   const response = await fetch(`/api${path}`, {
     ...init,
-    headers: init.headers ?? headers(role),
+    headers: init.headers ?? JSON_HEADERS,
   });
   if (response.ok) return;
   noticeSignedOut(role, response);
@@ -697,7 +682,7 @@ async function silent(
  * @param path - Đường dẫn, không gồm `/api`.
  * @param fallback - Tên tệp khi BE không gửi tên, hay tên không giải mã được.
  * @param init - Phần còn lại của request, cho tệp dựng từ một thân gửi lên (tệp mật khẩu, việc 22,
- *   plan `sign-in-and-accounts`). Header thì luôn là của `headers(role)`: JSON và vai.
+ *   plan `sign-in-and-accounts`). Header thì luôn là `JSON_HEADERS`.
  * @throws ApiError mang câu của BE khi bị từ chối.
  */
 async function download(
@@ -706,7 +691,7 @@ async function download(
   fallback: string,
   init: RequestInit = {},
 ): Promise<void> {
-  const response = await fetch(`/api${path}`, { ...init, headers: headers(role) });
+  const response = await fetch(`/api${path}`, { ...init, headers: JSON_HEADERS });
   if (!response.ok) {
     noticeSignedOut(role, response);
     throw await refusal(response);
@@ -731,6 +716,14 @@ async function download(
 
 export const api = {
   me: () => call<Me>("student", "/me"),
+  /**
+   * Đăng nhập học sinh (Figma 12) bằng tên đăng nhập và mật khẩu giáo viên phát. BE đặt cookie
+   * phiên; lời đáp không có thân, nên người gọi đọc `me()` ngay sau.
+   */
+  signIn: (username: string, password: string) =>
+    silent("student", "/sign-in", { method: "POST", body: JSON.stringify({ username, password }) }),
+  /** Đăng xuất học sinh: BE xoá phiên và cookie. */
+  signOut: () => silent("student", "/sign-out", { method: "POST" }),
   assignments: () => call<Assignment[]>("student", "/me/assignments"),
   startAttempt: (assignmentId: string) =>
     call<Attempt>("student", `/assignments/${assignmentId}/attempts`, {
@@ -899,7 +892,7 @@ async function streamTurn(
 ): Promise<void> {
   const response = await fetch("/api/teacher/chat/messages/stream", {
     method: "POST",
-    headers: headers("teacher"),
+    headers: JSON_HEADERS,
     body: JSON.stringify({
       text,
       conversation_id: into.conversationId ?? null,
@@ -1264,7 +1257,7 @@ export const teacher = {
       const opened = Date.now();
       try {
         const response = await fetch("/api/teacher/documents/stream", {
-          headers: headers("teacher"),
+          headers: JSON_HEADERS,
           signal: dial.signal,
         });
         if (response.status === 401) {
@@ -1306,7 +1299,7 @@ export const teacher = {
     return call<TeacherDocument>("teacher", "/teacher/documents", {
       method: "POST",
       body: form,
-      headers: formHeaders("teacher"),
+      headers: FORM_HEADERS,
     });
   },
   // Sửa chữ của một câu. Gửi **cả câu** chứ không từng mảnh: ADR-18 là một luật về quan hệ
@@ -1356,7 +1349,7 @@ export const teacher = {
     return call<{ rows: RosterRow[] }>(
       "teacher",
       `/teacher/classes/${classId}/roster/preview-file`,
-      { method: "POST", body: form, headers: formHeaders("teacher") },
+      { method: "POST", body: form, headers: FORM_HEADERS },
     );
   },
   /**
@@ -1560,9 +1553,11 @@ export async function streamReply(
   onChunk: (text: string) => void,
 ): Promise<void> {
   const response = await fetch(`/api/attempts/${attemptId}/chat/stream`, {
-    headers: headers("student"),
+    headers: JSON_HEADERS,
   });
   if (!response.ok || response.body === null) {
+    // 401 là phiên vừa hết: về màn đăng nhập như mọi lời gọi khác (review pha 5).
+    noticeSignedOut("student", response);
     throw new Error("Trợ lý chưa trả lời được.");
   }
 

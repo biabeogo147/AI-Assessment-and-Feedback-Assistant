@@ -12,7 +12,7 @@ Adds to the root contract. Constraints only.
 - Keep the proxy rather than adding CORS to BE. One origin is why no credentials or preflight logic
   exists anywhere in this project.
 - SSE is an accelerant, never a source of truth: reload the stored history after a stream ends.
-- `ACTOR` in `api.ts` is the stand-in for sign-in. One constant, one call site to delete.
+- Identity is the session cookie BE sets at sign-in. No request carries `X-Actor`, and no screen keeps who-is-signed-in in storage or the URL.
 - Colours come from `tokens.css`, which mirrors the Figma collection. No raw hex in a component.
 - Teacher class names must not collide with any top-level class in `tokens.css`. A second rule of
   the same name adds to the first, it does not replace it.

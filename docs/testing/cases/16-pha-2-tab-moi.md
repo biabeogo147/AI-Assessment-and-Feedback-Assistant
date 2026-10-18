@@ -12,7 +12,7 @@ Học sinh mở một lượt làm lại, chọn đáp án, rồi đóng tab gi�
 ## Chuẩn bị
 
 - `db-reset`, khởi động lại BE và AGENT (`model=` trong log AGENT là model của lần chạy).
-- Đăng nhập học sinh `HS2026-1204` (header dev mặc định của FE). Làm bài pha 1, cố ý sai **ít nhất
+- Đăng nhập học sinh `HS2026-1204` (tên đăng nhập `anhnm`, mật khẩu ở `docs/local-development.md`). Làm bài pha 1, cố ý sai **ít nhất
   hai câu**, nộp. Chép `<attempt>` từ địa chỉ `#/attempt/<attempt>/…`.
 
 ## Lời chat

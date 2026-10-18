@@ -92,6 +92,8 @@ Không có model; nhánh rẽ là của màn hình và đồng hồ.
 - **Chặn đề chưa duyệt ở BE** (sau B8, PowerShell; `<CLASS>` lấy bằng `docker exec aiafa-postgres
   psql -U aiafa -d aiafa -Atc "select id from classes where name = '12A';"`):
 
+  BE phải chạy với `DEV_IDENTITY_ENABLED=true` thì mới nhận header `X-Actor` (việc 22).
+
   ```
   $h = @{ "X-Actor" = "teacher:GV-001"; "Content-Type" = "application/json" }
   $b = '{"schedule":{"opens_at":"2030-01-01T08:00:00+07:00","closes_at":"2030-01-01T09:00:00+07:00","phase1_minutes":15,"phase2_minutes_per_question":3,"remediation_deadline":"2030-01-01T12:00:00+07:00"},"class_ids":["<CLASS>"],"preview":true}'

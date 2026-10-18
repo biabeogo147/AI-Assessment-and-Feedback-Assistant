@@ -19,6 +19,7 @@ ngoài thư mục này thì phiên dừng ngay: test của `packages/schema` ch�
 (`sqlite_master`, `DROP INDEX`) để giả database lệch, và `services/ingest` không thuộc việc này.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,10 @@ _LOCK_TIMEOUT = "10s"
 _HERE = Path(__file__).parent
 
 _real_create = sa_asyncio.create_async_engine
+
+# Test gọi BE bằng `X-Actor` (Decision 1 của plan `sign-in-and-accounts`), mà mặc định của BE nay
+# tắt header ấy (Decision 4). Đặt trước mọi lần `get_settings()`: settings được cache theo process.
+os.environ["DEV_IDENTITY_ENABLED"] = "true"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
