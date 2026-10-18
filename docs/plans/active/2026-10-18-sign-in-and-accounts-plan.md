@@ -112,10 +112,10 @@ Figma đã duyệt 18/10/2026:
 - [x] 11. Test.
 
 ### Pha 3 — FE giáo viên: đăng nhập
-- [ ] 12. Ô tài khoản và menu; hộp đăng nhập (SĐT / email, Google chỉ giao diện); hộp đăng ký;
+- [x] 12. Ô tài khoản và menu; hộp đăng nhập (SĐT / email, Google chỉ giao diện); hộp đăng ký;
   đăng xuất.
-- [ ] 13. `api.ts` thôi gửi `X-Actor` ở các đường của giáo viên.
-- [ ] 14. Vitest; chụp, đo so với 26, 26b, 27; subagent chấm.
+- [x] 13. `api.ts` thôi gửi `X-Actor` ở các đường của giáo viên.
+- [x] 14. Vitest; chụp, đo so với 26, 26b, 27; subagent chấm.
 
 ### Pha 4 — FE giáo viên: thêm học sinh
 - [ ] 15. Chi tiết lớp: cột tên đăng nhập, *Đặt lại mật khẩu*, *Thêm học sinh*.
@@ -196,3 +196,11 @@ mẫu cho bốn tài khoản demo.
   khẩu mang `Cache-Control: no-store`; đăng nhập dọn phiên hết hạn; mật khẩu mẫu chỉ đặt khi cờ dev
   bật; Decision 4. Còn lại, có ghi lý do: cookie chưa `Secure` (máy dev chạy http); trần 1 MB của
   tệp tải lên được kiểm sau khi Starlette đã nhận hết tệp -- trần thật đặt ở proxy khi triển khai.
+- 19/10/2026: Pha 3 xong. Figma: canh giữa hộp 26b (`659:5311`), vẽ thêm 26c `709:5249` (đăng nhập sai,
+  lời từ chối ngay trên nút). Subagent chấm ảnh 26, 26b, 26c, 27 khớp trong 1–2px. Review sửa:
+  - lượt chat và kênh thư viện cũng báo 401;
+  - phiên hết giữa chừng thì cây giữ nguyên dưới hộp đăng nhập, người khác vào thì về màn mở đầu;
+  - lượt chat chạy dở không kéo màn sau khi đã tháo;
+  - đăng xuất hỏng thì nói ra, phiên còn;
+  - focus vào ô đầu, nền `inert` (`useInert` trong `Veil.tsx`);
+  - hai tab là `radiogroup`.

@@ -10,6 +10,7 @@ import {
   type Turn,
   type TurnEvent,
 } from "../../api";
+import { SignIn, useSession } from "./Account";
 import ActionCard, { byTheTeacher, cardTurns, stepFor, titleOf } from "./ActionCard";
 import { OPENERS } from "./invented-not-from-be";
 import Panel from "./Panel";
@@ -168,6 +169,9 @@ export default function Chat({
   aside?: React.ReactNode;
 }) {
   const viewing = view !== undefined;
+  // Chưa đăng nhập (việc 22): màn mở đầu đứng sau hộp đăng nhập, và không lời gọi nào đi ra --
+  // mọi route giáo viên sẽ trả 401. `App.tsx` dựng lại cả cây khi phiên đổi, nên đọc một lần là đủ.
+  const { out } = useSession();
   // `viewing` lúc **này**, cho một lượt chat đang chạy dở khi giáo viên bấm sang màn rail: lượt ấy
   // chạy tiếp tới cuối, và không được tô một đoạn chat hay kéo giáo viên về đoạn ấy (review pha 2).
   const viewingNow = useRef(viewing);
@@ -235,6 +239,15 @@ export default function Chat({
   openNow.current = openPaper;
   // Tăng khi một lượt vừa xong đã ghi vào đúng đề đang mở, để `Panel` đọc lại đề.
   const [paperRevision, setPaperRevision] = useState(0);
+  // Màn còn đứng không. Một lượt chạy dở khi giáo viên đăng xuất xong về sau khi màn đã tháo; nó
+  // không được kéo màn của người kế tiếp sang đoạn chat của mình (review pha 3, việc 22).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Đổi route thì đổi hội thoại. `live` cắt một câu trả lời về muộn của đoạn chat vừa rời
   // đi: không có nó, bấm nhanh qua hai đoạn sẽ vẽ lịch sử của đoạn đầu lên đoạn sau.
@@ -261,7 +274,7 @@ export default function Chat({
     loaded.current = null;
     // Màn của rail không có đoạn chat nào để đọc: tải đoạn mới nhất chỉ để vứt đi là một lời gọi
     // thừa, và lỗi của nó sẽ hiện trên một màn không liên quan.
-    if (fresh || viewing) return;
+    if (fresh || viewing || out) return;
     teacher
       .conversation(conversationId ?? undefined)
       .then((answered: Answered) => {
@@ -275,15 +288,16 @@ export default function Chat({
     return () => {
       live = false;
     };
-  }, [conversationId, fresh, viewing]);
+  }, [conversationId, fresh, viewing, out]);
 
   useEffect(() => {
+    if (out) return;
     void readDocuments().catch((cause: Error) => setTrouble(cause.message));
     teacher
       .conversations()
       .then(setThreads)
       .catch((cause: Error) => setTrouble(cause.message));
-  }, []);
+  }, [out]);
 
   // Thư viện đổi **sau** lúc tải lên: một tài liệu đi từ `đang xử lý` sang `sẵn sàng` hay
   // `không đọc được chữ` vài giây sau, và không lời gọi nào của màn hình này gây ra việc ấy.
@@ -293,12 +307,13 @@ export default function Chat({
   // Kênh chỉ **hích**; mỗi tiếng hích là một lần đọc lại danh sách. Đọc lại thay vì nghe dữ
   // liệu là thứ làm nó tự lành: một tiếng hích mất đi thì tiếng sau sửa luôn.
   useEffect(() => {
+    if (out) return;
     const stop = new AbortController();
     void teacher.watchDocuments(() => {
       void readDocuments().catch(() => undefined);
     }, stop.signal);
     return () => stop.abort();
-  }, []);
+  }, [out]);
 
   /**
    * Đọc lại thư viện, và chỉ lấy lời đáp của **lần đọc mới nhất**.
@@ -406,6 +421,7 @@ export default function Chat({
       // Giáo viên đã sang một màn rail trong lúc lượt chạy: lượt đã ghi vào database, chỉ đọc lại
       // danh sách đoạn chat. Không đánh dấu đã tải, không vẽ lượt: màn đang hiện không phải đoạn ấy, và
       // đánh dấu thì lần quay lại đoạn ấy không tải gì, câu gửi kế tiếp mở một đoạn mới (review FE).
+      if (!mounted.current) return;
       if (viewingNow.current) {
         setScope(null);
         teacher
@@ -607,7 +623,8 @@ export default function Chat({
         conversations={threads}
         current={here}
         documents={documents}
-        starting={fresh}
+        // Chưa đăng nhập thì cột giữa là màn mở đầu của một đoạn mới, nên nút ấy sáng (Figma 26).
+        starting={fresh || out}
         onOpen={(thread) => go(`/teacher/chat/${thread}`)}
         onUpload={() => picker.current?.click()}
         onRename={(thread, title) => void rename(thread, title)}
@@ -925,6 +942,7 @@ export default function Chat({
         />
       )}
 
+      {out && <SignIn />}
       {erasing !== null && (
         <Veil onClose={() => setErasing(null)}>
           <h3>Xoá đoạn chat này?</h3>

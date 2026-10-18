@@ -4151,3 +4151,304 @@
   line-height: 1.5;
 }
 
+
+/* ----------------------------------------------- đăng nhập (việc 22, plan `sign-in-and-accounts`) */
+
+/* Rail lúc chưa đăng nhập (Figma 26): một dòng nhắc thay cho hai ngăn, 11 `--ink-faint`. */
+.rail .lists-hint {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 14px;
+}
+
+/* Ô tài khoản ở góc dưới rail (`Account`, Figma 26/27): 228 × 44, dán đáy nhờ `.lists` co giãn. */
+.rail .account-box {
+  position: relative;
+  flex: none;
+}
+
+.rail .account {
+  display: flex;
+  align-items: center;
+  flex: none;
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Chưa đăng nhập: icon 12 + chữ accent, đệm 12, khe 8. */
+.rail .account.signed-out {
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--accent);
+}
+
+/* Đã đăng nhập: avatar 28 + họ tên, đệm 10, khe 10. Menu mở thì ô mang nền `--sunken` của Figma 27. */
+.rail .account-box .account {
+  gap: 10px;
+  padding: 0 10px;
+  color: var(--ink);
+}
+
+.rail .account-box .account:hover,
+.rail .account-box .account[aria-expanded="true"] {
+  background: var(--sunken);
+}
+
+.rail .account .icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.rail .account .avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-surface);
+  color: var(--accent);
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.rail .account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Menu tài khoản (`Account menu` `659:5590`): 228 rộng, mép dưới cách ô 6, đệm dọc 6. */
+.rail .account-menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(26 31 43 / 14%);
+}
+
+/* Một mục: 36 cao, đệm 8 14, khe 8. Bốn mục chưa có vẽ `--ink-faint`, không bấm được. */
+.rail .account-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.rail .account-item[aria-disabled="true"] {
+  cursor: default;
+}
+
+.rail .account-item .icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.rail .account-item.sign-out {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.rail .account-item.sign-out .icon {
+  color: var(--ink-muted);
+}
+
+.rail .account-item.sign-out:hover {
+  background: var(--sunken);
+}
+
+/* Vòng focus bàn phím nằm **trong** menu: vòng mặc định tràn 2-3px ra ngoài viền menu và đè vạch
+ * ngăn (chấm ảnh pha 3 của `sign-in-and-accounts`). */
+.rail .account-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.rail .account-rule {
+  height: 1px;
+  background: var(--line);
+}
+
+/* Đăng xuất hỏng (BE chưa xoá được phiên): câu của BE dưới mục, phiên vẫn còn. */
+.rail .account-refused {
+  margin: 0;
+  padding: 0 14px 4px;
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/* Hộp đăng nhập / tạo tài khoản (`Sign-in dialog`, Figma 26 `659:5160`, 26b `659:5311`): 420, đệm
+ * 28, khe 16, bo 14, đổ bóng thay viền. Đứng trên `.veil` của mọi hộp thoại. */
+.teacher .sign-in {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 420px;
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(26 31 43 / 16%);
+}
+
+.teacher .sign-in h2 {
+  margin: 0;
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Hai tab SĐT / Email: rãnh `--sunken` 38 cao, đệm 3, khe 4; tab đang chọn nền trắng, chữ đậm. */
+.teacher .sign-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--sunken);
+}
+
+.teacher .sign-tabs button {
+  flex: 1;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.teacher .sign-tabs button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Một ô: nhãn 11 `Medium` trên ô nhập 40, khe 4. */
+.teacher .sign-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Dòng 17 chứ không 1,5 (16,5): Figma làm tròn hộp chữ lên 17, và bốn ô của 26b cách nhau đúng 77. */
+.teacher .sign-field > span {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.teacher .sign-field input {
+  height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .sign-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Lời từ chối của BE, ngay trên nút chính (Figma 26c `709:5249`). Dòng 17 như nhãn ô. */
+.teacher .sign-in .refused {
+  margin: 0;
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 17px;
+}
+
+.teacher .sign-primary,
+.teacher .sign-google {
+  height: 40px;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.teacher .sign-primary {
+  border: none;
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.teacher .sign-primary:hover {
+  background: var(--accent-hover);
+}
+
+/* Đang gửi thì khoá, nhưng không mờ thêm như `button:disabled` của `tokens.css`. */
+.teacher .sign-primary:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.teacher .sign-google {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+/* Dòng *hoặc*: hai đường 1px `--line` hai bên, khe 12, chữ 11 `--ink-faint`. */
+.teacher .sign-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 17px;
+}
+
+.teacher .sign-or > span {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.teacher .sign-switch {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 500;
+  line-height: 1.5;
+}

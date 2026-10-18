@@ -1,13 +1,14 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 
 import "./tokens.css";
 import "./teacher.css";
-import { api, teacher, type Me } from "./api";
+import { ApiError, api, onSignedOut, teacher, type Me, type TeacherMe } from "./api";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
+import { SessionContext } from "./screens/teacher/Account";
 import Chat from "./screens/teacher/Chat";
 import Bank, { BankEditor } from "./screens/teacher/Bank";
 import Dashboard, { BoardQuestion, BoardReports } from "./screens/teacher/Dashboard";
@@ -48,9 +49,9 @@ export function go(route: string): void {
  * sinh chỉ để rồi vứt kết quả đi, và trên một BE chưa có dữ liệu học sinh thì
  * màn hình giáo viên hiện ra một câu lỗi của người khác.
  *
- * Hai vai không chia sẻ state nào. Đó là chủ ý: `ACTOR` trong `api.ts` nói hai
- * người này là hai phiên khác nhau, và một `me` dùng chung sẽ là chỗ đầu tiên
- * điều đó bị quên.
+ * Hai vai không chia sẻ state nào. Đó là chủ ý: mỗi vai một cookie phiên (việc 22), hai
+ * người này là hai phiên khác nhau, và một `me` dùng chung sẽ là chỗ đầu tiên điều đó bị
+ * quên.
  */
 export default function App() {
   const route = useRoute();
@@ -70,6 +71,74 @@ export default function App() {
  * những gì nó ghi ra lại hiện ở chỗ khác.
  */
 function Teacher() {
+  // `null`: đang hỏi BE; `"out"`: BE nói chưa đăng nhập (việc 22, plan `sign-in-and-accounts`).
+  const [me, setMe] = useState<TeacherMe | "out" | null>(null);
+  const [fault, setFault] = useState<string | null>(null);
+  // Người đăng nhập gần nhất **trong tab này**. Phiên hết giữa chừng thì cây giữ nguyên dưới hộp
+  // đăng nhập -- câu đang sửa, chữ đang gõ còn đó -- và đăng nhập lại đúng người ấy là làm tiếp.
+  // Người khác vào thì dựng lại từ đầu, ở màn mở đầu: route của người trước không phải của họ.
+  const [last, setLast] = useState<string | null>(null);
+
+  useEffect(() => {
+    teacher
+      .me()
+      .then(setMe)
+      .catch((cause: Error) =>
+        cause instanceof ApiError && cause.status === 401 ? setMe("out") : setFault(cause.message),
+      );
+    // Phiên hết hạn hay bị đóng giữa lúc đang dùng: mọi lời gọi giáo viên nhận 401 đều đưa về đây.
+    return onSignedOut("teacher", () => setMe("out"));
+  }, []);
+
+  if (fault !== null) {
+    return (
+      <div className="page">
+        <div className="error" role="alert">
+          {fault}
+        </div>
+      </div>
+    );
+  }
+  if (me === null) return null;
+
+  const out = me === "out";
+  // Nhớ người vừa vào (cập nhật trong lúc vẽ, mẫu *state suy ra* của React: không qua một lần vẽ
+  // thừa với key cũ).
+  if (!out && me.teacher_id !== last) setLast(me.teacher_id);
+  return (
+    <SessionContext.Provider
+      value={{
+        me: out ? null : me,
+        out,
+        signedIn: (who) => {
+          // Người khác với người trước trong tab này: về màn mở đầu, route cũ là của người kia.
+          if (last !== null && who.teacher_id !== last) go("/teacher");
+          setMe(who);
+        },
+        // Đăng xuất **hỏng** thì phiên còn sống: ném lại để menu nói ra, không giả vờ đã ra.
+        signOut: () =>
+          teacher.signOut().then(() => {
+            setLast(null);
+            setMe("out");
+            go("/teacher");
+          }),
+      }}
+    >
+      {/* Dựng lại cả cây chỉ khi **người** đổi: các màn đọc dữ liệu một lần lúc mở, và dữ liệu ấy
+          là của người trước. Phiên hết rồi đăng nhập lại cùng người thì cây giữ nguyên. */}
+      <Fragment key={last ?? "out"}>
+        {out && last === null ? (
+          <Chat conversationId={null} fresh={false} openPaper={null} />
+        ) : (
+          <TeacherRoutes />
+        )}
+      </Fragment>
+    </SessionContext.Provider>
+  );
+}
+
+/** Các màn giáo viên theo route, khi đã đăng nhập. */
+function TeacherRoutes() {
   const route = useRoute();
 
   // Màn trống sau khi bấm *Đoạn chat mới*. Là một route vì nếu không thì cú bấm ấy không

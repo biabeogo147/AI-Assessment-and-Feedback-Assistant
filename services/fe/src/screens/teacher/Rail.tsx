@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { type TeacherConversation, type TeacherDocument } from "../../api";
+import { AccountCell, useSession } from "./Account";
 import { readFlag, readNumber, writeFlag, writeNumber } from "./remember";
 
 /** Chiều cao ngăn tài liệu, nhớ lại giữa các lần mở. Thiết kế vẽ 225. */
@@ -88,6 +89,7 @@ export default function Rail({
   const [documentsOpen, setDocumentsOpen] = useState(() =>
     readPaneOpen("documents"),
   );
+  const { out } = useSession();
   const dragging = useRef(false);
   // Chiều cao **đang kéo tới**, cập nhật ngay trong `pointermove`. State thì không đủ:
   // `pointermove` cuối và `pointerup` rơi vào cùng một task, React chưa render lại, nên
@@ -165,6 +167,12 @@ export default function Rail({
         ))}
       </div>
 
+      {out ? (
+        // Chưa đăng nhập (Figma 26): không có đoạn chat hay tài liệu nào của ai để liệt kê.
+        <div className="lists">
+          <p className="lists-hint">Đăng nhập để thấy các đoạn chat và tài liệu của bạn.</p>
+        </div>
+      ) : (
       <div className="lists">
         <Pane
           title="ĐOẠN CHAT"
@@ -291,6 +299,8 @@ export default function Rail({
           ))}
         </Pane>
       </div>
+      )}
+      <AccountCell />
     </nav>
   );
 }

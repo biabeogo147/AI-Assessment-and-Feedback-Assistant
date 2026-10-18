@@ -538,27 +538,28 @@ export interface TeacherConversation {
 }
 
 /**
- * Đứng thay cho màn hình đăng nhập, thứ mà ADR-10 để ra ngoài vòng đầu.
+ * Danh tính của học sinh trong lúc màn đăng nhập học sinh chưa có (Pha 5 của plan
+ * `sign-in-and-accounts` bỏ hẳn nó).
  *
- * BE phân quyền thật dựa trên giá trị này; chỉ phần chứng minh danh tính là tạm.
- * Nó nằm trong đúng một constant, để ngày đăng nhập thật xuất hiện thì chỉ có
- * đúng một chỗ phải sửa.
- *
- * Hai khoá vì một app phục vụ hai bề mặt. Vai được chọn **tại chỗ khai tên
- * endpoint** ở dưới, không suy từ route đang mở: một request bay ra giữa lúc
- * chuyển route sẽ mang sai vai, và triệu chứng là một 403 ở rất xa nguyên nhân.
- * Chọn tại chỗ khai thì một dòng gắn sai vai là một dòng không chạy được ngay
- * lần đầu — `/api/teacher/*` vốn trả 403 với actor học sinh.
+ * Giáo viên **không** còn ở đây: từ việc 22 trình duyệt chứng minh danh tính bằng cookie phiên
+ * `HttpOnly` mà BE đặt khi đăng nhập, và `fetch` cùng nguồn tự gửi nó. BE còn nhận `X-Actor` chỉ
+ * khi request không mang cookie của vai ấy và cờ dev bật -- đường của test và `curl`.
  */
 export const ACTOR = {
   student: "student:HS2026-1204",
-  teacher: "teacher:GV-001",
 } as const;
 
-type Role = keyof typeof ACTOR;
+/**
+ * Bề mặt nào đang gọi. Vai được chọn **tại chỗ khai tên endpoint** ở dưới, không suy từ route
+ * đang mở: một request bay ra giữa lúc chuyển route sẽ mang sai vai. Từ việc 22 vai còn quyết
+ * định **ai bị đưa về màn đăng nhập** khi BE trả 401 (`onSignedOut`).
+ */
+type Role = "student" | "teacher";
 
 function headers(role: Role): HeadersInit {
-  return { "Content-Type": "application/json", "X-Actor": ACTOR[role] };
+  return role === "student"
+    ? { "Content-Type": "application/json", "X-Actor": ACTOR.student }
+    : { "Content-Type": "application/json" };
 }
 
 /**
@@ -571,7 +572,29 @@ function headers(role: Role): HeadersInit {
  * lỗi nào ở giữa.
  */
 function formHeaders(role: Role): HeadersInit {
-  return { "X-Actor": ACTOR[role] };
+  return role === "student" ? { "X-Actor": ACTOR.student } : {};
+}
+
+/** Kênh báo *phiên của vai này đã hết* -- một 401 ở bất cứ lời gọi nào (việc 22). */
+const signedOut = new EventTarget();
+
+/**
+ * Nghe 401 của một vai: phiên hết hạn hay bị đóng giữa lúc đang dùng thì màn hình phải về màn
+ * đăng nhập, không đứng yên với một câu lỗi ở một góc.
+ *
+ * @param role - Vai cần nghe.
+ * @param then - Gọi mỗi lần một lời gọi của vai ấy nhận 401.
+ * @returns Hàm thôi nghe, cho cleanup của `useEffect`.
+ */
+export function onSignedOut(role: Role, then: () => void): () => void {
+  const heard = () => then();
+  signedOut.addEventListener(role, heard);
+  return () => signedOut.removeEventListener(role, heard);
+}
+
+/** Một response 401 thì báo cho vai của nó. Gọi ở mọi đường đọc lỗi. */
+function noticeSignedOut(role: Role, response: Response): void {
+  if (response.status === 401) signedOut.dispatchEvent(new Event(role));
 }
 
 /**
@@ -630,7 +653,10 @@ async function call<T>(
     // tồn tại chính vì nó cần BỎ `Content-Type`, mà trộn thì không bỏ được gì.
     headers: init.headers ?? headers(role),
   });
-  if (!response.ok) throw await refusal(response);
+  if (!response.ok) {
+    noticeSignedOut(role, response);
+    throw await refusal(response);
+  }
   return (await response.json()) as T;
 }
 
@@ -655,14 +681,15 @@ async function silent(
     headers: init.headers ?? headers(role),
   });
   if (response.ok) return;
+  noticeSignedOut(role, response);
   throw await refusal(response);
 }
 
 /**
  * Tải một tệp BE dựng (bảng điểm `.xlsx`, việc 20, plan `results-xlsx-export`) về máy giáo viên.
  *
- * Qua `fetch` chứ không qua một link thường: header actor không đi theo một `<a href>`, nên BE sẽ
- * thấy một người lạ. Tên tệp lấy từ `filename*` UTF-8 của `Content-Disposition`, để tên tiếng Việt
+ * Qua `fetch` chứ không qua một link thường: một tệp bị từ chối phải hiện được câu của BE trên
+ * màn, không phải một trang lỗi trong tab mới. Tên tệp lấy từ `filename*` UTF-8 của `Content-Disposition`, để tên tiếng Việt
  * của đề ở nguyên; giải mã hỏng thì lấy `fallback` -- tệp đã tải xong, một tên lạ không đáng một
  * câu lỗi.
  *
@@ -673,7 +700,10 @@ async function silent(
  */
 async function download(role: Role, path: string, fallback: string): Promise<void> {
   const response = await fetch(`/api${path}`, { headers: headers(role) });
-  if (!response.ok) throw await refusal(response);
+  if (!response.ok) {
+    noticeSignedOut(role, response);
+    throw await refusal(response);
+  }
   const named = /filename\*=UTF-8''([^;]+)/.exec(response.headers.get("Content-Disposition") ?? "");
   let name = fallback;
   try {
@@ -862,7 +892,7 @@ async function streamTurn(
 ): Promise<void> {
   const response = await fetch("/api/teacher/chat/messages/stream", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Actor": ACTOR.teacher },
+    headers: headers("teacher"),
     body: JSON.stringify({
       text,
       conversation_id: into.conversationId ?? null,
@@ -875,6 +905,10 @@ async function streamTurn(
     signal,
   });
   if (!response.ok || response.body === null) {
+    // 401 ở đây là phiên vừa hết giữa lúc đang soạn: về hộp đăng nhập như mọi lời gọi khác
+    // (review pha 3 của `sign-in-and-accounts`), kèm câu của BE thay cho một *"Lỗi 401"*.
+    noticeSignedOut("teacher", response);
+    if (!response.ok) throw await refusal(response);
     throw new Error(`Lỗi ${response.status}`);
   }
 
@@ -1130,6 +1164,20 @@ export interface BankDetail {
 
 export const teacher = {
   me: () => call<TeacherMe>("teacher", "/teacher/me"),
+  /**
+   * Đăng nhập bằng SĐT **hoặc** email (Figma 26). BE đặt cookie phiên; lời đáp không có thân,
+   * nên người gọi đọc `me()` ngay sau.
+   */
+  signIn: (login: string, password: string) =>
+    silent("teacher", "/teacher/sign-in", {
+      method: "POST",
+      body: JSON.stringify({ login, password }),
+    }),
+  /** Tạo tài khoản rồi đăng nhập luôn (Figma 26b). Cả SĐT lẫn email đều bắt buộc. */
+  signUp: (account: { full_name: string; phone: string; email: string; password: string }) =>
+    silent("teacher", "/teacher/sign-up", { method: "POST", body: JSON.stringify(account) }),
+  /** Đăng xuất: BE xoá phiên và cookie. */
+  signOut: () => silent("teacher", "/teacher/sign-out", { method: "POST" }),
   documents: () => call<TeacherDocument[]>("teacher", "/teacher/documents"),
   /**
    * Nghe kênh thư viện và gọi `onChange` mỗi lần có gì đó đổi.
@@ -1139,9 +1187,9 @@ export const teacher = {
    * pub/sub của Redis không giữ lịch sử, nên một khung chở dữ liệu mà mất đi là một chip sai
    * vĩnh viễn, còn một tiếng hích mất đi thì tiếng sau sửa luôn.
    *
-   * Dùng `fetch` chứ không `EventSource`: `EventSource` không gửi được header tuỳ ý, mà cả
-   * ứng dụng này xưng danh bằng `X-Actor`. Đẩy danh tính vào query string là đẩy nó vào mọi
-   * access log.
+   * Dùng `fetch` chứ không `EventSource`: khi còn header `X-Actor`, `EventSource` không gửi
+   * được nó; nay cookie phiên đi theo cả hai, nhưng `fetch` còn cho đọc status -- một 401 phải
+   * đưa về hộp đăng nhập chứ không nối lại mãi (việc 22, plan `sign-in-and-accounts`).
    *
    * Không ném khi kênh gãy, mà **nối lại**, mãi tới khi `signal` huỷ. Byte **đầu tiên** của mỗi
    * lần nối -- BE gửi khung `: mở` ngay sau khi đã subscribe -- làm `onChange` chạy một lần: tiếng
@@ -1190,6 +1238,10 @@ export const teacher = {
           headers: headers("teacher"),
           signal: dial.signal,
         });
+        if (response.status === 401) {
+          noticeSignedOut("teacher", response);
+          return;
+        }
         if (response.ok && response.body) {
           for await (const _ of sseFrames(response.body, alive, dial.signal)) {
             if (dial.signal.aborted) break;

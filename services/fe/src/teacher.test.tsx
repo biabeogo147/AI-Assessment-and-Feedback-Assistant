@@ -28,7 +28,7 @@ import StudentWork from "./screens/teacher/StudentWork";
 import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
 import Steps from "./screens/teacher/Steps";
-import { ACTOR, moment, teacher, type TurnEvent } from "./api";
+import { moment, teacher, type TurnEvent } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -6800,6 +6800,8 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
 
   it("route của màn rail đi qua hash: App vẽ đúng màn, panel ngân hàng ở cột phải", async () => {
     serving({
+      // `App` hỏi phiên trước khi vẽ màn giáo viên nào (việc 22).
+      "/teacher/me": { teacher_id: "t1", full_name: "Phạm Thu Lan", teacher_code: "GV-001" },
       "/teacher/classes": CLASSES,
       "/teacher/bank": { approvals: 0, questions: [] },
       "/teacher/bank/b1": {
@@ -7859,7 +7861,8 @@ describe("xuất bảng điểm .xlsx (việc 20, plan `results-xlsx-export`)", 
     await waitFor(() => expect(named).toEqual(["Bảng điểm.xlsx"]));
     const sent = calls.find((one) => one.url.endsWith(".xlsx"));
     expect(sent?.url).toBe("/api/teacher/classes/c12a/assessments/p1/results.xlsx");
-    expect((sent?.headers as Record<string, string>)["X-Actor"]).toBe(ACTOR.teacher);
+    // Giáo viên chứng minh danh tính bằng cookie phiên (việc 22), không bằng header.
+    expect((sent?.headers as Record<string, string>)["X-Actor"]).toBeUndefined();
     click.mockRestore();
   });
 

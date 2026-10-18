@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, type RefObject } from "react";
 
 /**
  * Màn che và cái hộp đứng trên nó — khuôn chung của mọi hộp thoại bề mặt giáo viên.
@@ -48,4 +48,34 @@ export default function Veil({
       </div>
     </div>
   );
+}
+
+/**
+ * Cho mọi thứ **ngoài** một hộp thoại thôi nhận focus và cú bấm (`inert`) trong lúc hộp mở.
+ *
+ * Màn che chỉ chặn chuột. Không có hook này thì Tab đi xuyên qua nó: tới ô nhắn chat phía sau hộp
+ * đăng nhập, hay tới *Đặt lại mật khẩu* của em khác phía sau hộp mật khẩu -- và bấm Enter ở đó là
+ * mất mật khẩu chỉ hiện một lần của em trước (review pha 3, 4 của `sign-in-and-accounts`).
+ *
+ * Đi từ hộp lên tới `body`, đánh dấu anh em của từng tầng; chỉ bỏ dấu những gì chính nó đã đánh.
+ *
+ * @param dialog - Phần tử màn che của hộp.
+ */
+export function useInert(dialog: RefObject<HTMLElement>): void {
+  useEffect(() => {
+    const marked: Element[] = [];
+    for (
+      let node: HTMLElement | null = dialog.current;
+      node !== null && node !== document.body && node.parentElement !== null;
+      node = node.parentElement
+    ) {
+      for (const one of node.parentElement.children) {
+        if (one !== node && !one.hasAttribute("inert")) {
+          one.setAttribute("inert", "");
+          marked.push(one);
+        }
+      }
+    }
+    return () => marked.forEach((one) => one.removeAttribute("inert"));
+  }, [dialog]);
 }
