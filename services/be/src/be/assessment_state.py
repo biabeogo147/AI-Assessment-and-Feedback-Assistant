@@ -195,18 +195,19 @@ def may_withdraw(opens_at: datetime, now: datetime) -> bool:
     thành không đảo ngược được là **học sinh đã có thể nhìn thấy đề**, không phải thao
     tác của giáo viên.
 
-    Mốc là **bao gồm**: đúng giây giờ mở vẫn thu hồi được. Cùng kiểu bao gồm mà ADR-03
-    dùng cho giờ đóng, và cùng một lý do -- một luật "tới hết" mà loại trừ đúng cái mốc
-    nó nêu tên thì không ai đoán đúng được.
+    Mốc là **loại trừ**: đúng giây giờ mở thì đã hết thu hồi, vì đúng giây ấy học sinh đã vào
+    làm được (`student_routes` mở bài khi `now >= opens_at`). Bản trước cho thu hồi cả ở giây
+    đó, tức có một giây vừa có học sinh trong bài vừa còn lấy đề lại được (Tier 2 câu 11, plan
+    `wave-2-time-marks-titles`; hậu ký ADR-02).
 
     Args:
         opens_at: Giờ mở của lần phát hành đó, đã tz-aware.
         now: Bây giờ, đã tz-aware.
 
     Returns:
-        True khi chưa qua giờ mở.
+        True khi chưa tới giờ mở.
     """
-    return now <= opens_at
+    return now < opens_at
 
 
 def withdraw(assessment: Assessment, *, still_held: int) -> None:

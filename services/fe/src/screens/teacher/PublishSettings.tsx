@@ -399,11 +399,11 @@ export default function PublishSettings({
 
   // Hai câu luật, điền bằng số đang gõ. Khuôn tới từ BE; chỗ này chỉ thay chỗ trống.
   const phaseOneLive = fill(form.rules.phase_one_form, {
-    closes: clock(closesAt),
-    last: clock(lastSubmission(closesAt, minutes)),
+    closes: clock(closesAt, opensAt),
+    last: clock(lastSubmission(closesAt, minutes), opensAt),
   });
   const phaseTwoLive = fill(form.rules.phase_two_form, {
-    deadline: clock(deadline),
+    deadline: clock(deadline, opensAt),
     rate: perQuestion === "" ? "--" : perQuestion,
   });
 
@@ -509,7 +509,7 @@ export default function PublishSettings({
                   Bản trước tự viết `Làm bài 14:21 → 17:25 · 15 phút` / `Chữa bài tới …`,
                   và đó đúng là cách diễn đạt thứ hai: nó trình bày giờ đóng như mốc KẾT
                   THÚC, bỏ mất mốc nộp cuối mà ADR-03 dành cả tài liệu để bắt phải có, và
-                  bỏ luôn chữ **DỪNG** — phần duy nhất của câu pha 2 nói về một thứ học
+                  bỏ luôn chữ *bị dừng* — phần duy nhất của câu pha 2 nói về một thứ học
                   sinh sắp mất. Khuôn là của BE (`rules.phase_*_form`); số điền ở đây bằng giờ
                   **địa phương**, như biểu mẫu đang gõ -- câu BE dựng sẵn trên đường đọc này
                   từng in giờ UTC (plan `backlog-tier-1`). */}
@@ -765,9 +765,10 @@ function Confirm({
             từng lớp" — và nó đứng ngay trên dòng luật của BE nói "cho tới hết giờ mở", cộng
             dòng `Thu hồi` in đúng **một** giờ. Ba chỗ, hai câu chuyện: đo được trên trình
             duyệt ngày 06/10/2026. Một lần phát hành có một khung giờ (ADR-02, sửa đổi cùng
-            ngày), nên "từng lớp" không còn thứ gì để chỉ tới. */}
+            ngày), nên "từng lớp" không còn thứ gì để chỉ tới. Từ 18/10/2026 cả ba nói *"tới trước
+            giờ mở"*: đúng giây giờ mở học sinh đã vào được (plan `wave-2-time-marks-titles`). */}
         <p className="lead">
-          Đề sẽ hiển thị cho {heads} học sinh của lớp {names}. Bạn còn thu hồi được cho tới giờ
+          Đề sẽ hiển thị cho {heads} học sinh của lớp {names}. Bạn còn thu hồi được tới trước giờ
           mở.
         </p>
 
@@ -783,7 +784,7 @@ function Confirm({
               <Line label="Hạn chữa" value={`tới hết ${moment(first.remediation_deadline ?? "")}`} />
               <Line
                 label="Thu hồi"
-                value={`được cho tới ${moment(first.withdrawable_until ?? "")}`}
+                value={`được tới trước ${moment(first.withdrawable_until ?? "")}`}
               />
             </>
           )}
@@ -848,20 +849,28 @@ function Outcome({ classes }: { classes: ClassResult[] }) {
 }
 
 /**
- * Một mốc `datetime-local` đọc thành `HH:MM`, hoặc chỗ trống.
+ * Một mốc đọc thành `HH:MM`, thêm ` · DD/MM` khi nó rơi vào ngày khác ngày giờ mở, hoặc chỗ trống.
  *
  * `--:--` là chỗ trống của BE (`publication_wording._BLANK`), không phải một chuỗi chọn
  * đại ở đây: biểu mẫu lúc chưa gõ gì phải ra **đúng** câu mà BE dựng khi không có tham số
- * nào, nếu không thì hai bên đã là hai câu khác nhau ngay từ trạng thái rỗng.
+ * nào, nếu không thì hai bên đã là hai câu khác nhau ngay từ trạng thái rỗng. Phép thêm ngày
+ * cũng là bản thứ hai của `publication_wording._clock`: hạn chữa *"14:25"* mà thật ra là hôm
+ * sau thì đọc như trước cả giờ mở (plan `wave-2-time-marks-titles`).
  *
- * @param local - Giá trị của một `input[type=datetime-local]`, hoặc chuỗi rỗng.
- * @returns `HH:MM`, hoặc `--:--`.
+ * @param local - Một mốc `datetime-local` hay ISO, hoặc chuỗi rỗng.
+ * @param opens - Giờ mở để so ngày, theo giờ địa phương; rỗng thì không so.
+ * @returns `HH:MM`, `HH:MM · DD/MM`, hoặc `--:--`.
  */
-function clock(local: string): string {
+function clock(local: string, opens = ""): string {
   if (local === "") return "--:--";
   const at = new Date(local);
   if (Number.isNaN(at.getTime())) return "--:--";
-  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+  const pad = (one: number) => String(one).padStart(2, "0");
+  const time = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  const start = opens === "" ? null : new Date(opens);
+  if (start === null || Number.isNaN(start.getTime()) || start.toDateString() === at.toDateString())
+    return time;
+  return `${time} · ${pad(at.getDate())}/${pad(at.getMonth() + 1)}`;
 }
 
 /**
@@ -927,8 +936,8 @@ function lastSubmission(closes: string, minutes: string): string {
  */
 function ruleOne(rules: TimingRules, one: PublishedTo): string {
   return fill(rules.phase_one_form, {
-    closes: clock(one.closes_at),
-    last: clock(lastSubmission(one.closes_at, String(one.phase1_minutes))),
+    closes: clock(one.closes_at, one.opens_at),
+    last: clock(lastSubmission(one.closes_at, String(one.phase1_minutes)), one.opens_at),
   });
 }
 
@@ -941,7 +950,7 @@ function ruleOne(rules: TimingRules, one: PublishedTo): string {
  */
 function ruleTwo(rules: TimingRules, one: PublishedTo): string {
   return fill(rules.phase_two_form, {
-    deadline: clock(one.remediation_deadline),
+    deadline: clock(one.remediation_deadline, one.opens_at),
     rate: String(one.phase2_minutes_per_question),
   });
 }

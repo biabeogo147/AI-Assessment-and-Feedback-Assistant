@@ -4,7 +4,7 @@ Ba luật gặp nhau ở đây và chúng **đối nhau**, nên mỗi luật c�
 
 - ADR-03: giờ đóng là hạn **vào**. Ai đã vào rồi thì làm đủ thời gian của mình.
 - ADR-15: hạn pha 2 thì **cắt giữa chừng**, ngược hẳn luật trên.
-- ADR-02: thu hồi được **cho tới hết giờ mở**, và sau đó thì không.
+- ADR-02: thu hồi được **tới trước giờ mở**, và từ giờ mở thì không (hậu ký 18/10/2026).
 
 Thứ đáng kiểm nhất không phải từng luật mà là chỗ chúng chạm nhau: một đề phát hành cho
 nhiều lớp với hạn lệch nhau, thu hồi một lớp mà **không** làm lớp khác mất bài, và lời văn
@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
+from be.assessment_state import may_withdraw
 from be.db import bind_sessions
 from be.publication_wording import (
     FAULT_CLOSES_BEFORE_OPENS,
@@ -807,13 +808,19 @@ async def test_the_filled_in_notes_match_the_sentence_adr_03_pinned_on_figma(sta
 
     closes = opens + timedelta(hours=2)
     last_submission = closes + timedelta(minutes=15)
+
+    def hm(moment: datetime) -> str:
+        # Cùng luật với `publication_wording._clock`: khác ngày giờ mở thì in thêm ngày. Giờ
+        # chạy test có thể đẩy một mốc qua nửa đêm, nên câu mong đợi tính theo luật, không ghi cứng.
+        return f"{moment:%H:%M}" if moment.date() == opens.date() else f"{moment:%H:%M · %d/%m}"
+
     expected_one = (
-        f"Vào tham gia tới hết {closes:%H:%M} - có thể nộp lúc "
-        f"{last_submission:%H:%M}, và không dừng người đang làm."
+        f"Vào làm bài tới hết {hm(closes)} — nộp muộn nhất lúc "
+        f"{hm(last_submission)}, và không dừng người đang làm."
     )
     expected_two = (
-        f"Chữa bài tới hết {opens + timedelta(hours=8):%H:%M} - mỗi lượt "
-        "5 phút một câu, và hết hạn thì lượt đang làm bị DỪNG."
+        f"Chữa bài tới hết {hm(opens + timedelta(hours=8))} — mỗi lượt "
+        "5 phút một câu; hết hạn thì lượt đang làm bị dừng."
     )
 
     for answer in (confirm, record):
@@ -825,7 +832,7 @@ async def test_the_filled_in_notes_match_the_sentence_adr_03_pinned_on_figma(sta
     # bộ số của ví dụ trong ADR-03. Dấu gạch là gạch **ngắn** -- bản đầu tôi viết gạch dài,
     # và nó lọt qua mọi test vì mọi test đều dựng lại câu bằng chính hằng số sai đó.
     assert phase_one_note(datetime(2026, 10, 1, 18, 0, tzinfo=UTC), 15) == (
-        "Vào tham gia tới hết 18:00 - có thể nộp lúc 18:15, và không dừng người đang làm."
+        "Vào làm bài tới hết 18:00 — nộp muộn nhất lúc 18:15, và không dừng người đang làm."
     )
 
     # Giờ nộp cuối là một phép tính, nên nó phải KHÁC giờ đóng — nếu bằng nhau thì
@@ -1105,9 +1112,9 @@ async def test_the_note_is_written_in_the_timezone_the_teacher_typed(stack) -> N
     shown = answer.json()["classes"][0]
     # Giáo viên gõ 08:45 và 09:00 giờ Việt Nam, nên câu luật phải nói đúng hai con số đó.
     assert shown["phase_one_note"] == (
-        "Vào tham gia tới hết 08:45 - có thể nộp lúc 09:00, và không dừng người đang làm."
+        "Vào làm bài tới hết 08:45 — nộp muộn nhất lúc 09:00, và không dừng người đang làm."
     )
-    assert shown["phase_two_note"].startswith("Chữa bài tới hết 22:00 - ")
+    assert shown["phase_two_note"].startswith("Chữa bài tới hết 22:00 — ")
     # Mà thứ **lưu** xuống vẫn là UTC.
     assert shown["opens_at"].endswith("Z") or "+00:00" in shown["opens_at"]
 
@@ -1257,3 +1264,48 @@ async def test_the_form_says_the_undo_is_shut_before_the_teacher_presses_it(stac
     refused = await client.post(f"/api/teacher/assessments/{paper}/unapprove", headers=TEACHER)
     assert refused.status_code == 409
     assert refused.json()["detail"] == said
+
+
+def test_withdrawing_stops_at_the_opening_second_itself() -> None:
+    """Đúng giây giờ mở học sinh đã vào được (`now >= opens_at`), nên thu hồi phải dừng **trước**
+    giây ấy, không tại nó (hậu ký ADR-02, plan `wave-2-time-marks-titles`)."""
+    opens = datetime(2026, 10, 20, 7, 30, tzinfo=UTC)
+
+    assert may_withdraw(opens, opens - timedelta(seconds=1)) is True
+    assert may_withdraw(opens, opens) is False
+    assert may_withdraw(opens, opens + timedelta(seconds=1)) is False
+
+
+def test_a_deadline_on_another_day_prints_its_date() -> None:
+    """Hạn chữa *"14:25"* mà thật ra là hôm sau thì đọc như trước cả giờ mở 17:25 (Tier 2 câu
+    17, plan `wave-2-time-marks-titles`). Khác ngày giờ mở thì in thêm ngày; cùng ngày thì chỉ
+    giờ."""
+    opens = datetime(2026, 10, 6, 17, 25, tzinfo=UTC)
+
+    assert phase_two_note(datetime(2026, 10, 7, 14, 25, tzinfo=UTC), 5, opens) == (
+        "Chữa bài tới hết 14:25 · 07/10 — mỗi lượt 5 phút một câu; hết hạn thì lượt đang làm "
+        "bị dừng."
+    )
+    assert phase_two_note(datetime(2026, 10, 6, 22, 0, tzinfo=UTC), 5, opens).startswith(
+        "Chữa bài tới hết 22:00 — "
+    )
+    # Pha 1 cùng luật: đóng 23:50, làm 15 phút thì bài cuối nộp 00:05 hôm sau.
+    late = datetime(2026, 10, 6, 23, 50, tzinfo=UTC)
+    assert phase_one_note(late, 15, opens) == (
+        "Vào làm bài tới hết 23:50 — nộp muộn nhất lúc 00:05 · 07/10, và không dừng người đang làm."
+    )
+
+
+def test_the_day_is_the_teachers_day_not_the_utc_day() -> None:
+    """Mở 06:00 giờ Việt Nam là 23:00 UTC **hôm trước**; hạn chữa 22:00 cùng ngày Việt Nam thì vẫn
+    là cùng ngày với giờ mở, nên không in ngày. So ngày theo múi giờ của mốc (giờ giáo viên đang
+    đọc), không theo UTC (plan `wave-2-time-marks-titles`)."""
+    hanoi = timezone(timedelta(hours=7))
+    opens = datetime(2026, 10, 20, 6, 0, tzinfo=hanoi).astimezone(UTC)
+
+    assert phase_two_note(datetime(2026, 10, 20, 22, 0, tzinfo=hanoi), 5, opens).startswith(
+        "Chữa bài tới hết 22:00 — "
+    )
+    assert phase_two_note(datetime(2026, 10, 21, 7, 0, tzinfo=hanoi), 5, opens).startswith(
+        "Chữa bài tới hết 07:00 · 21/10 — "
+    )

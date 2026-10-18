@@ -929,9 +929,13 @@ async def _publish_one(
         # thì nó không nói gì cả -- đúng loại hiểu nhầm mà ADR-03 dành cả tài liệu để
         # ngăn. Không test nào thấy được, vì mọi test đều gửi UTC nên giờ hiện trùng giờ
         # gửi. Offset đi kèm request chính là múi giờ người gửi đang đọc.
-        phase_one_note=phase_one_note(aware(wanted.closes_at), wanted.phase1_minutes),
+        phase_one_note=phase_one_note(
+            aware(wanted.closes_at), wanted.phase1_minutes, aware(wanted.opens_at)
+        ),
         phase_two_note=phase_two_note(
-            aware(wanted.remediation_deadline), wanted.phase2_minutes_per_question
+            aware(wanted.remediation_deadline),
+            wanted.phase2_minutes_per_question,
+            aware(wanted.opens_at),
         ),
     )
     # Phép kiểm này chạy **trước** nhánh preview, và thứ tự đó là cả điều khoản của

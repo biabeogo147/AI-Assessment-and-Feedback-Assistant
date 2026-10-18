@@ -177,3 +177,12 @@ một con số dựng sẵn.
   **Hệ quả** vẫn chưa làm được mà không bắt FE tự so đồng hồ, tức tự cài lại `may_withdraw`.
   (`withdrawable_until` của `PublishedTo` là một **mốc**, không phải một lời phán; so nó với đồng hồ
   vẫn là FE tự quyết.) Xem `docs/plans/backlog.md`.
+
+## Hậu ký 18/10/2026
+
+**Thu hồi được tới trước giờ mở, không tại giờ mở.** `assessment_state.may_withdraw` từng bao gồm
+đúng giây giờ mở, trong khi học sinh vào làm được từ chính giây ấy (`student_routes`: chưa mở khi
+`now < opens_at`). Có một giây vừa có học sinh trong bài vừa còn lấy đề lại được. Nay
+`may_withdraw` là `now < opens_at`, có test đúng biên, và `RECALL_RULE` nói *"tới trước giờ mở"*
+(Tier 2 câu 11, plan `wave-2-time-marks-titles`). Luật của ADR không đổi: cái làm phát hành thành
+không đảo ngược được vẫn là lúc học sinh đã có thể thấy đề.

@@ -78,3 +78,12 @@ nhìn thấy.
   `phase1_minutes`.
 - **Chưa có ở backend**: không có trường giờ mở hay giờ đóng nào trong `packages/contracts` — và sẽ
   không có, vì phát hành không đi qua hàng đợi.
+
+## Hậu ký 18/10/2026
+
+Chữ của hai câu luật đổi, nghĩa giữ nguyên (plan `wave-2-time-marks-titles`, Figma đã duyệt): *"Vào
+làm bài tới hết 18:00 — nộp muộn nhất lúc 18:15, và không dừng người đang làm."* *"Có thể nộp lúc"*
+đọc như một giờ duy nhất được nộp; *"nộp muộn nhất lúc"* nói đúng một hạn. Câu pha 2 viết *"bị dừng"*
+thường thay *"bị DỪNG"*. Mốc nào rơi vào ngày khác ngày giờ mở thì in thêm ngày (*"14:25 · 07/10"*),
+vì một hạn chữa bài chỉ ghi giờ có thể đọc như trước cả giờ mở. Câu trích ở mục *Nơi luật này đang
+được thi hành* phía trên là chữ cũ; nguồn duy nhất của chữ vẫn là `publication_wording.py`.

@@ -316,7 +316,7 @@ Mốc của dòng thứ ba là **giờ nộp cuối** = giờ đóng + phút là
 nằm **giữa** hai mốc ấy: nó phải bị chặn.
 
 **Soi kỹ hai câu luật ngay trên.** Khi cửa sổ vô lý, chúng vẫn in ra một câu đọc xuôi tai
-(*"Vào tham gia tới hết 08:00 - có thể nộp lúc 08:15"*) — đó là lý do lời từ chối phải đứng **cạnh**
+(*"Vào làm bài tới hết 08:00 — nộp muộn nhất lúc 08:15"*) — đó là lý do lời từ chối phải đứng **cạnh**
 chúng chứ không đợi tới sau cú bấm.
 
 **Sai nếu:** nút vẫn sáng và chỉ bị chặn sau khi bấm; hoặc câu từ chối khác chữ với câu BE trả về.

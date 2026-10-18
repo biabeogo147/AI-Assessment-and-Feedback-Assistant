@@ -60,23 +60,23 @@ Không có model; nhánh rẽ là của màn hình và đồng hồ.
 ## Đạt khi
 
 - **B1:** năm ô thời gian/phút **trống**, không chip nào có ✓, nút `Phát hành đề` khoá. Hai câu
-  luật in chỗ trống: `Vào tham gia tới hết --:-- - có thể nộp lúc --:--, …` và
-  `Chữa bài tới hết --:-- - mỗi lượt -- phút một câu, …`. Có nút `Hoàn tác` trên nút chính.
-- **B2:** hai câu luật điền số đang gõ (`… tới hết H+1:00 - có thể nộp lúc H+1:15, …`); nút vẫn
+  luật in chỗ trống: `Vào làm bài tới hết --:-- — nộp muộn nhất lúc --:--, …` và
+  `Chữa bài tới hết --:-- — mỗi lượt -- phút một câu; …`. Có nút `Hoàn tác` trên nút chính.
+- **B2:** hai câu luật điền số đang gõ (`… tới hết H+1:00 — nộp muộn nhất lúc H+1:15, …`; mốc nào sang ngày khác giờ mở thì có thêm ` · DD/MM`); nút vẫn
   khoá vì chưa có lớp; chưa có dòng đỏ.
 - **B3:** **ngay khi bấm chip**, chưa cần bấm gì thêm: dòng đỏ `giờ mở phải ở tương lai` hiện dưới
   hai câu luật, nút vẫn khoá.
 - **B4:** dòng đỏ biến mất, nút `Phát hành đề` sáng.
 - **B5:** hộp `Phát hành đề kiểm tra?`, câu mở `Đề sẽ hiển thị cho 3 học sinh của lớp 12A. Bạn còn
-  thu hồi được cho tới giờ mở.` Các dòng: `Đề` = `4 câu · <tên đề>`; `Lớp` = `12A · 3 học sinh`;
+  thu hồi được tới trước giờ mở.` Các dòng: `Đề` = `4 câu · <tên đề>`; `Lớp` = `12A · 3 học sinh`;
   `Thời gian` = `mở H:00 · <ngày> · đóng H+1:00 · <ngày>`; `Hạn chữa` = `tới hết H+3:00 · …`;
-  `Thu hồi` = `được cho tới H:00 · …`. Ba câu luật cùng số, câu cuối `Thu hồi được cho tới hết giờ
+  `Thu hồi` = `được tới trước H:00 · …`. Ba câu luật cùng số, câu cuối `Thu hồi được tới trước giờ
   mở. …`. Nút `Phát hành cho 3 học sinh`. Sau `Xem lại cài đặt`: publications vẫn **0 dòng** —
   xem trước không ghi gì.
 - **B6–B7:** dưới biểu mẫu có hàng kết quả `12A` cùng câu pha 1; khối `ĐÃ PHÁT HÀNH` năm dòng:
   `12A · 3 học sinh`, `Mở H:00 · … · làm bài 15 phút`, hai câu luật, `Thu hồi được tới H:00 · …`.
   Chip 12A khoá. Thẻ trong chat thành `Đã phát hành` (không tên lớp) với dòng
-  `Thu hồi được cho tới giờ mở, sau giờ mở thì không`. DB: `state = published`; một dòng 12A,
+  `Thu hồi được tới trước giờ mở, từ giờ mở thì không`. DB: `state = published`; một dòng 12A,
   `mo` = H:00 đúng ngày, `phase1_minutes = 15`, `recalled_at` rỗng.
 - **B8:** panel về nội dung đề, 4 câu, nút `Sửa` hiện lại; chân panel `Bạn duyệt xong mới phát
   hành được. Học sinh chưa nhìn thấy đề này.` + `Duyệt đề` — không còn biểu mẫu phát hành nào.

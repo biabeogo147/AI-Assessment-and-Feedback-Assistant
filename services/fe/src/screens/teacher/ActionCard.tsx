@@ -408,7 +408,7 @@ const HEAD: Record<CardState, (named: string) => string> = {
 const SAFETY: Record<CardState, string> = {
   drafted: "Chưa duyệt · chưa phát hành",
   approved: "Chưa phát hành cho học sinh",
-  published: "Thu hồi được cho tới giờ mở, sau giờ mở thì không",
+  published: "Thu hồi được tới trước giờ mở, từ giờ mở thì không",
   failed: "Chưa có gì được thay đổi",
 };
 

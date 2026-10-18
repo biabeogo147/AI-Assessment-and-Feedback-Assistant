@@ -57,10 +57,13 @@ _BLANK_RATE = "--"
 # Hàm ở dưới điền vào chính chúng, và biểu mẫu nhận đúng chúng qua API rồi điền con số
 # đang gõ. Nhờ thế đổi một chữ ở đây là đổi ở cả bốn chỗ ADR-03 đòi phải giống nhau; và
 # không chỗ nào còn hiện một câu luật nói sai số ngay cạnh ô nhập số ấy.
-PHASE_ONE = "Vào tham gia tới hết {closes} - có thể nộp lúc {last}, và không dừng người đang làm."
+#
+# Chữ chốt 18/10/2026 (plan `wave-2-time-marks-titles`, Figma đã duyệt): *"Vào làm bài"* thay
+# *"Vào tham gia"*, *"nộp muộn nhất lúc"* thay *"có thể nộp lúc"* (đọc như một giờ duy nhất được
+# nộp), dấu *—* thay *" - "*, và *"bị dừng"* viết thường như mọi chữ khác.
+PHASE_ONE = "Vào làm bài tới hết {closes} — nộp muộn nhất lúc {last}, và không dừng người đang làm."
 PHASE_TWO = (
-    "Chữa bài tới hết {deadline} - mỗi lượt {rate} phút một câu, và hết hạn thì lượt đang "
-    "làm bị DỪNG."
+    "Chữa bài tới hết {deadline} — mỗi lượt {rate} phút một câu; hết hạn thì lượt đang làm bị dừng."
 )
 
 # Ba lý do một bộ sáu tham số không dùng được.
@@ -82,27 +85,46 @@ FAULT_PHASE_TWO_TOO_EARLY = "hạn pha 2 phải sau giờ nộp cuối của pha
 # Cửa sổ thu hồi (ADR-02). Không có số nào để điền: nó nói về giờ mở, mà giờ mở đã được
 # nêu ra riêng dưới dạng `withdrawable_until`.
 RECALL_RULE = (
-    "Thu hồi được cho tới hết giờ mở. Sau giờ mở, khi học sinh đã có thể vào làm, phát "
-    "hành không lấy lại được nữa."
+    "Thu hồi được tới trước giờ mở. Từ giờ mở, khi học sinh đã có thể vào làm, phát hành "
+    "không lấy lại được nữa."
 )
 
 
-def _clock(moment: datetime | None) -> str:
+def _clock(moment: datetime | None, opens_at: datetime | None = None) -> str:
     """Một mốc thời gian theo cách giáo viên đọc nó, hoặc một chỗ trống.
 
-    Chỉ giờ và phút, đúng như câu trên Figma: ngày đã nằm ở chỗ khác trên biểu mẫu, và
-    một câu luật dài thêm mười ký tự ngày tháng là một câu ít ai đọc hết.
+    Giờ và phút; thêm ngày khi mốc rơi vào **ngày khác** ngày giờ mở. Một hạn chữa bài
+    *"14:25"* mà thật ra là 14:25 hôm sau thì đọc như trước cả giờ mở 17:25 (Tier 2 câu 17, plan
+    `wave-2-time-marks-titles`). Cùng ngày thì không thêm: câu luật dài thêm mười ký tự là câu ít
+    ai đọc hết. Hai mốc so ngày theo múi giờ của chính chúng -- người gọi đưa vào giờ giáo viên
+    đang đọc, như số giờ.
 
     Args:
         moment: Mốc cần viết ra, hoặc None khi biểu mẫu chưa có giờ nào.
+        opens_at: Giờ mở của lần phát hành, mốc để so ngày; None thì không so.
 
     Returns:
-        Dạng `HH:MM`, hoặc `--:--`.
+        Dạng `HH:MM`, `HH:MM · DD/MM`, hoặc `--:--`.
     """
-    return _BLANK if moment is None else moment.strftime("%H:%M")
+    if moment is None:
+        return _BLANK
+    # Một mốc không múi giờ thì không đổi được sang múi của nó; so ngày thô (không người gọi nào
+    # hôm nay đưa mốc không múi giờ vào: `teacher_routes` gắn múi trước).
+    other = (
+        opens_at
+        if opens_at is None or moment.tzinfo is None
+        else opens_at.astimezone(moment.tzinfo)
+    )
+    if other is not None and moment.date() != other.date():
+        return moment.strftime("%H:%M · %d/%m")
+    return moment.strftime("%H:%M")
 
 
-def phase_one_note(closes_at: datetime | None = None, phase1_minutes: int | None = None) -> str:
+def phase_one_note(
+    closes_at: datetime | None = None,
+    phase1_minutes: int | None = None,
+    opens_at: datetime | None = None,
+) -> str:
     """Luật của pha 1, kèm hai con số thật của lớp này.
 
     Con số thứ hai là một **phép tính**: giờ đóng cộng thời gian làm bài, tức giờ mà bài
@@ -118,6 +140,7 @@ def phase_one_note(closes_at: datetime | None = None, phase1_minutes: int | None
     Args:
         closes_at: Hạn **vào** của lớp này, hoặc None khi chưa ai gõ giờ nào.
         phase1_minutes: Thời gian làm bài tính từ lúc học sinh vào, hoặc None.
+        opens_at: Giờ mở, để in thêm ngày cho mốc rơi vào ngày khác; None thì chỉ in giờ.
 
     Returns:
         Câu luật của pha 1, đúng khuôn trên Figma.
@@ -127,25 +150,29 @@ def phase_one_note(closes_at: datetime | None = None, phase1_minutes: int | None
         if closes_at is None or phase1_minutes is None
         else closes_at + timedelta(minutes=phase1_minutes)
     )
-    return PHASE_ONE.format(closes=_clock(closes_at), last=_clock(last_submission))
+    return PHASE_ONE.format(
+        closes=_clock(closes_at, opens_at), last=_clock(last_submission, opens_at)
+    )
 
 
 def phase_two_note(
-    remediation_deadline: datetime | None = None, minutes_per_question: int | None = None
+    remediation_deadline: datetime | None = None,
+    minutes_per_question: int | None = None,
+    opens_at: datetime | None = None,
 ) -> str:
     """Luật của pha 2, kèm hai con số thật của lớp này.
 
-    Chữ **DỪNG** viết hoa, sao đúng từ Figma, và lý do nó viết hoa đáng giữ lại: đó là
-    phần duy nhất của câu nói về một thứ học sinh **sắp mất**. Pha 1 không dừng ai giữa
-    chừng, pha 2 thì dừng — hai luật đối nhau, và chữ viết hoa là chỗ sự đối nhau ấy nhìn
-    thấy được.
+    *"bị dừng"* là phần duy nhất của câu nói về một thứ học sinh **sắp mất**: pha 1 không
+    dừng ai giữa chừng, pha 2 thì dừng. Chữ ấy từng viết hoa để sự đối nhau nhìn thấy được;
+    đọc lên như hét, nên từ 18/10/2026 nó viết thường, và dấu *;* tách nó khỏi phần nhịp lượt.
 
     Args:
         remediation_deadline: Mốc tuyệt đối kết thúc pha 2.
         minutes_per_question: Một **tỉ lệ**, không phải một khoảng (ADR-15).
+        opens_at: Giờ mở, để in thêm ngày khi hạn chữa sang ngày khác; None thì chỉ in giờ.
 
     Returns:
         Câu luật của pha 2, đúng khuôn trên Figma.
     """
     rate = _BLANK_RATE if minutes_per_question is None else str(minutes_per_question)
-    return PHASE_TWO.format(deadline=_clock(remediation_deadline), rate=rate)
+    return PHASE_TWO.format(deadline=_clock(remediation_deadline, opens_at), rate=rate)

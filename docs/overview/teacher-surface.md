@@ -513,16 +513,21 @@ theo dòng chứ không theo ô. Năm dòng mỗi lớp:
 |---|---|---|
 | `12A · 3 học sinh` | lớp, sĩ số | FE |
 | `Mở 14:21 · 06/10 · làm bài 15 phút` | **tham số** mà hai câu luật không nói | FE |
-| `Vào tham gia tới hết … - có thể nộp lúc …` | **luật** pha 1 | `phase_one_note` của BE |
-| `Chữa bài tới hết … - mỗi lượt … và … bị DỪNG.` | **luật** pha 2 | `phase_two_note` của BE |
+| `Vào làm bài tới hết … — nộp muộn nhất lúc …` | **luật** pha 1 | `phase_one_note` của BE |
+| `Chữa bài tới hết … — mỗi lượt …; … bị dừng.` | **luật** pha 2 | `phase_two_note` của BE |
 | `Thu hồi được tới 14:21 · 06/10` | cửa lùi | FE |
+
+**Chữ câu luật đổi 18/10/2026** (plan `wave-2-time-marks-titles`, Figma đã duyệt): *"Vào làm bài
+tới hết"*, *"nộp muộn nhất lúc"*, dấu *—*, *"bị dừng"* viết thường. **Mốc nào rơi vào ngày khác ngày
+giờ mở thì in thêm ngày** — *"Chữa bài tới hết 14:25 · 07/10"* —, cả ở BE (`publication_wording._clock`)
+lẫn ở biểu mẫu (`PublishSettings.clock`); cùng ngày thì chỉ giờ.
 
 **Hai dòng giữa là chữ của BE, nguyên văn.** ADR-03 đòi câu giải thích xuất hiện ở *"cả ba nơi: lúc
 đang chọn giờ, lúc xác nhận, và trong biên bản sau khi phát hành"*, và *"giống hệt nhau từng chữ —
 ba cách diễn đạt cho một luật là ba luật"*. Đây là nơi thứ ba. Bản đầu của khối này tự viết
 `Làm bài 14:21 → 17:25 · 15 phút`, và đó đúng là cách diễn đạt thứ hai: nó trình bày giờ đóng như
 mốc **kết thúc**, bỏ mất mốc nộp cuối mà ADR-03 dành cả tài liệu để bắt phải có, và bỏ luôn chữ
-**DỪNG** — phần duy nhất của câu pha 2 nói về một thứ học sinh sắp mất. `publications` đã chở sẵn
+*bị dừng* (khi ấy viết hoa) — phần duy nhất của câu pha 2 nói về một thứ học sinh sắp mất. `publications` đã chở sẵn
 hai câu ấy **theo từng lớp** từ `publication_wording`, và cho tới đợt này không chỗ nào đọc chúng.
 
 Dòng thứ hai nêu **tham số thô**, không nêu luật: giờ mở và phút làm bài là hai thứ hai câu kia
@@ -625,7 +630,7 @@ button"* y hệt dù đã chọn hay chưa. Đây là nút quyết định **ai 
 
 **Cửa sổ thời gian vô lý bị chặn TRƯỚC cú bấm, bằng đúng lời của BE.** Biểu mẫu từng nhận mở-20:00 /
 đóng-08:00 rồi vẫn sáng nút, và câu luật ngay dưới in ra *"Vào tham gia tới hết 08:00 - có thể nộp
-lúc 08:15"* bằng giọng khẳng định. Cổng thật vẫn ở `_schedule_fault`; biểu mẫu chỉ nói sớm hơn, và
+lúc 08:15"* (chữ cũ của câu luật) bằng giọng khẳng định. Cổng thật vẫn ở `_schedule_fault`; biểu mẫu chỉ nói sớm hơn, và
 mượn nguyên ba hằng `FAULT_*` qua payload thay vì viết lại — ADR-03 đòi mọi nơi nói giống hệt nhau,
 và một lời từ chối cũng là một nơi nói ra luật ấy. `check_the_form_fills_the_slots_the_wording_declares`
 giữ việc mượn ấy; ba test giữ ba phép so, trong đó mốc *giờ nộp cuối* có test riêng vì nó là con số

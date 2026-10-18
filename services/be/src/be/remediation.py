@@ -33,7 +33,7 @@ def round_ends_at(now: datetime, budget_minutes: int, deadline: datetime) -> dat
 
     Returns:
         Mốc nào đến trước giữa lúc hết ngân sách và lúc đến hạn. Đây là chỗ "hết
-        hạn thì lượt đang làm bị DỪNG" trở thành một con số thay vì một câu nói.
+        hạn thì lượt đang làm bị dừng" trở thành một con số thay vì một câu nói.
     """
     return min(now + timedelta(minutes=budget_minutes), deadline)
 

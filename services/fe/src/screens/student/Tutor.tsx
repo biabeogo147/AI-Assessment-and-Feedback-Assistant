@@ -488,7 +488,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
             {panel.warn_cut ? (
               <div className="warn-strip">
                 Còn {minutesLeft} phút tới hạn làm lại. Lượt này {panel.round_budget_minutes} phút,
-                nên có thể bị <strong>DỪNG</strong> giữa chừng.
+                nên có thể bị <strong>dừng</strong> giữa chừng.
               </div>
             ) : null}
 

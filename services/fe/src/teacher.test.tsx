@@ -41,14 +41,14 @@ const FORM = {
     { class_id: "c2", name: "12B", student_count: 32, published: false },
   ],
   rules: {
-    phase_one: "Vào tham gia tới hết --:--",
+    phase_one: "Vào làm bài tới hết --:--",
     phase_two: "Chữa bài tới hết --:--",
-    recall: "Thu hồi được cho tới hết giờ mở.",
+    recall: "Thu hồi được tới trước giờ mở. Từ giờ mở, khi học sinh đã có thể vào làm, phát hành không lấy lại được nữa.",
     // Khuôn, sao đúng từ `publication_wording.PHASE_ONE` / `PHASE_TWO`.
     phase_one_form:
-      "Vào tham gia tới hết {closes} - có thể nộp lúc {last}, và không dừng người đang làm.",
+      "Vào làm bài tới hết {closes} — nộp muộn nhất lúc {last}, và không dừng người đang làm.",
     phase_two_form:
-      "Chữa bài tới hết {deadline} - mỗi lượt {rate} phút một câu, và hết hạn thì lượt đang làm bị DỪNG.",
+      "Chữa bài tới hết {deadline} — mỗi lượt {rate} phút một câu; hết hạn thì lượt đang làm bị dừng.",
     // Ba lời từ chối, sao đúng từ `publication_wording.FAULT_*`. Biểu mẫu mượn chúng để
     // nói TRƯỚC cú bấm, nên chúng phải là chữ của BE chứ không phải chữ viết lại ở FE.
     opens_in_the_past: "giờ mở phải ở tương lai",
@@ -140,14 +140,18 @@ function heldBy(
  * Hai câu luật của một lớp đã phát hành, như màn hình phải điền: khuôn của BE, **giờ địa
  * phương** của máy chạy test (plan `backlog-tier-1`: câu BE dựng sẵn trên đường đọc từng in UTC).
  */
-function ruledFor(closes: string, deadline: string): [string, string] {
+function ruledFor(closes: string, deadline: string, opens: string): [string, string] {
   const pad = (one: number) => String(one).padStart(2, "0");
-  const hm = (at: Date) => `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  // Khác ngày giờ mở thì in thêm ngày (plan `wave-2-time-marks-titles`), như `clock` của màn hình.
+  const start = new Date(opens).toDateString();
+  const hm = (at: Date) =>
+    `${pad(at.getHours())}:${pad(at.getMinutes())}` +
+    (at.toDateString() === start ? "" : ` · ${pad(at.getDate())}/${pad(at.getMonth() + 1)}`);
   const shut = new Date(closes);
   const last = new Date(shut.getTime() + 15 * 60_000);
   return [
-    `Vào tham gia tới hết ${hm(shut)} - có thể nộp lúc ${hm(last)}, và không dừng người đang làm.`,
-    `Chữa bài tới hết ${hm(new Date(deadline))} - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị DỪNG.`,
+    `Vào làm bài tới hết ${hm(shut)} — nộp muộn nhất lúc ${hm(last)}, và không dừng người đang làm.`,
+    `Chữa bài tới hết ${hm(new Date(deadline))} — mỗi lượt 5 phút một câu; hết hạn thì lượt đang làm bị dừng.`,
   ];
 }
 
@@ -3582,7 +3586,7 @@ describe("câu luật trên biểu mẫu nói đúng số đang gõ", () => {
       (one) => one.textContent,
     );
     expect(rules[0]).toBe(
-      "Vào tham gia tới hết --:-- - có thể nộp lúc --:--, và không dừng người đang làm.",
+      "Vào làm bài tới hết --:-- — nộp muộn nhất lúc --:--, và không dừng người đang làm.",
     );
     expect(rules[1]).toContain("mỗi lượt -- phút một câu");
   });
@@ -3598,7 +3602,7 @@ describe("câu luật trên biểu mẫu nói đúng số đang gõ", () => {
     type("Làm bài", "15");
 
     expect(container.querySelectorAll(".rules div")[0].textContent).toBe(
-      "Vào tham gia tới hết 18:00 - có thể nộp lúc 18:15, và không dừng người đang làm.",
+      "Vào làm bài tới hết 18:00 — nộp muộn nhất lúc 18:15, và không dừng người đang làm.",
     );
   });
 
@@ -3610,7 +3614,22 @@ describe("câu luật trên biểu mẫu nói đúng số đang gõ", () => {
     type("Phút mỗi câu", "5");
 
     expect(container.querySelectorAll(".rules div")[1].textContent).toBe(
-      "Chữa bài tới hết 22:00 - mỗi lượt 5 phút một câu, và hết hạn thì lượt đang làm bị DỪNG.",
+      "Chữa bài tới hết 22:00 — mỗi lượt 5 phút một câu; hết hạn thì lượt đang làm bị dừng.",
+    );
+  });
+
+  it("hạn chữa rơi vào ngày khác giờ mở thì câu in thêm ngày", async () => {
+    // Tier 2 câu 17 (plan `wave-2-time-marks-titles`): mở 17:25, hạn chữa 14:25 hôm sau mà câu
+    // chỉ in *"14:25"* thì đọc như hạn trước cả giờ mở.
+    serving();
+    const { container } = await mount();
+
+    type("Mở lúc", "2026-09-15T17:25");
+    type("Hạn chữa xong", "2026-09-16T14:25");
+    type("Phút mỗi câu", "5");
+
+    expect(container.querySelectorAll(".rules div")[1].textContent).toBe(
+      "Chữa bài tới hết 14:25 · 16/09 — mỗi lượt 5 phút một câu; hết hạn thì lượt đang làm bị dừng.",
     );
   });
 
@@ -3622,8 +3641,9 @@ describe("câu luật trên biểu mẫu nói đúng số đang gõ", () => {
     type("Đóng lúc", "2026-09-15T23:50");
     type("Làm bài", "20");
 
+    // Chưa gõ giờ mở thì không có ngày để so, nên chỉ giờ.
     expect(container.querySelectorAll(".rules div")[0].textContent).toContain(
-      "có thể nộp lúc 00:10",
+      "nộp muộn nhất lúc 00:10",
     );
   });
 
@@ -4800,12 +4820,14 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     expect(said).toContain(`Mở ${moment(OPENS)} · làm bài 15 phút`);
     // Hai câu LUẬT: khuôn của BE, số điền bằng giờ ĐỊA PHƯƠNG. Khớp nguyên câu chứ không một
     // mẩu: một phép khớp chuỗi con sống sót được cả một cú đảo hai con số.
-    const [one, two] = ruledFor(CLOSES, ENDS);
+    const [one, two] = ruledFor(CLOSES, ENDS, OPENS);
     expect(said).toContain(one);
     expect(said).toContain(two);
     // Chữ cứng, không tính lại: `CLOSES` là 02:30 UTC, tức 09:30 giờ Việt Nam (TZ ghim trong
     // `vite.config.ts`). Một bản in giờ UTC thì ra 02:30 và đỏ ở đây.
-    expect(said).toContain("Vào tham gia tới hết 09:30");
+    expect(said).toContain("Vào làm bài tới hết 09:30");
+    // Hạn chữa 22:00 ngày 08/10, giờ mở 08:00 ngày 07/10: khác ngày nên câu in thêm ngày.
+    expect(said).toContain("Chữa bài tới hết 22:00 · 08/10 — ");
     // Thu hồi được tới **giờ mở**, và con số ấy do BE nêu riêng chứ không do FE suy ra.
     expect(said).toContain(`Thu hồi được tới ${moment(OPENS)}`);
   });
@@ -4926,8 +4948,8 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
       const lop = at === 0 ? "12A" : "12B";
       expect(row.textContent).toContain(`làm bài 15 phút`);
       expect(row.textContent).toContain(lop);
-      expect(row.textContent).toContain(ruledFor(CLOSES, ENDS)[0]);
-      expect(row.textContent).toContain(ruledFor(CLOSES, ENDS)[1]);
+      expect(row.textContent).toContain(ruledFor(CLOSES, ENDS, OPENS)[0]);
+      expect(row.textContent).toContain(ruledFor(CLOSES, ENDS, OPENS)[1]);
     }
   });
 
@@ -5093,7 +5115,7 @@ describe("cài đặt phát hành đọc lại giờ đã đặt, và khoá lạ
     for (const [at, row] of rows.entries()) {
       const lop = at === 0 ? "12A" : "12B";
       // 12B đóng muộn hơn (fixture: đóng = hạn chữa), nên câu luật của nó mang số của chính nó.
-      const [one, two] = at === 0 ? ruledFor(CLOSES, ENDS) : ruledFor(ENDS, ENDS);
+      const [one, two] = at === 0 ? ruledFor(CLOSES, ENDS, OPENS) : ruledFor(ENDS, ENDS, late);
       expect(row.textContent).toContain("làm bài 15 phút");
       expect(row.textContent).toContain(lop);
       expect(row.textContent).toContain(one);
