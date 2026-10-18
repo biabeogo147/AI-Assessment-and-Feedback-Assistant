@@ -14,7 +14,11 @@ thành ADR, không phải những **tính năng** chưa dựng.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Bốn đích đến trên rail trơ | Bốn màn chưa dựng: đợt tất định việc 18 (Figma đã duyệt 18/10/2026). Huy hiệu số bịa trên *Bảng theo dõi* đã gỡ 18/10/2026 (việc 3) |
+| *Bảng theo dõi* chỉ có đầu trang | Ba đích đến kia đã dẫn tới màn thật (việc 18, 18/10/2026); thân màn này là việc 19 |
+| Nút *Tạo lớp* (artboard 9) | **Chưa quyết** (18/10/2026): chưa thuộc việc nào của đợt tất định, và BE chưa có đường tạo lớp. Màn 9 cố ý không vẽ nút |
+| Bản sửa ở ngân hàng mất khi đề gốc được duyệt lại | **Chưa quyết** (18/10/2026): `file_approved` ghi bản ngân hàng theo `question_id`, nên bỏ duyệt rồi duyệt lại đề gốc đè lên bản giáo viên đã sửa ở màn 22b |
+| Ngân hàng không gộp câu trùng nội dung | Chưa cần: hai đề có cùng một câu cho hai dòng ngân hàng (thấy trên DB dev, đề seed và đề mock). Gộp thì phải chọn bản sửa nào thắng |
+| Thẻ sửa ba tầng lệch Figma `531:181` | Không bị chặn. Code: khoảng cách 8, đầu tầng 17; Figma: 6 và 15. Có từ trước việc 18; thẻ dùng chung cho panel đề và màn 22b nên sửa một chỗ là đổi cả hai, chờ người dùng duyệt |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
 | Mỗi lớp một bộ giờ riêng | **Đã bác**, không phải việc chưa làm: ngày 06/10/2026 chốt phát hành là một việc với một khung giờ. Schema vẫn cho phép vì `Publication` khoá theo `(đề, lớp)` |
 | `services/fe` nay là tên sai | **Không làm** (17/10/2026): không người dùng nào chạm tới. Nó phục vụ **hai** bề mặt; đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` |
@@ -28,7 +32,7 @@ thành ADR, không phải những **tính năng** chưa dựng.
 | Sắp xếp danh sách lớp theo trung bình / cao nhất / thấp nhất | Cùng vật chặn |
 
 Thống kê điểm **của một bài kiểm tra trong một lớp** thì đã được thiết kế — artboard
-`11 · Kết quả bài kiểm tra trong lớp` ở Figma; FE chưa có màn này. Cái còn nợ ở đây là thống kê **gộp theo lớp** hiện trên chính
+`11 · Kết quả bài kiểm tra trong lớp` ở Figma, dựng 18/10/2026 (việc 18). Cái còn nợ ở đây là thống kê **gộp theo lớp** hiện trên chính
 hàng của bảng danh sách lớp, tức là gộp qua nhiều bài kiểm tra.
 
 Hai dòng này từng ghi *bị chặn bởi hạ tầng*: [ADR-09](../decisions/adr-09-ket-qua-cham-la-tam-thoi.md)
@@ -53,7 +57,6 @@ không — đặc biệt là độ dài tên lớp và cách đặt tên.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | Xuất bảng điểm ra file | Không bị chặn. Chưa dựng vì chưa quyết định dạng file và ai được xuất |
-| Màn hình xem bài làm của một học sinh | Không bị chặn. Chevron ở mỗi hàng đã trỏ tới đó nhưng đích chưa dựng |
 | Đánh dấu bài **cần giáo viên xem lại** ngay trên bảng điểm | Đã dựng rồi gỡ đi — xem dưới |
 
 ### Vì sao "cần xem lại" bị gỡ khỏi bảng điểm

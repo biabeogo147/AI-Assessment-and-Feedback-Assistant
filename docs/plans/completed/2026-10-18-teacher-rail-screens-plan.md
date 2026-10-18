@@ -182,3 +182,6 @@ reason: artboard 21 vẽ một dòng mỗi đề với *"12A, 12B"*; một trang
   dòng 1,5 (hai dòng 67 như 22b); chữ đầu cột lấn 10 vào khe cột về phía không canh, vì trình duyệt
   dựng *"HỌC SINH NỘP BÀI"* rộng 110,4 trong cột 110 (Figma 108). Figma: đầu popover giãn 4%, component
   `665:63` về cỡ 11 như bản dùng.
+- Pha 5, đóng plan 18/10/2026: commit `9b07717`. Roadmap việc 18 *Xong* (rev 251). Backlog: nút *Tạo
+  lớp*, bản sửa ngân hàng bị đè khi duyệt lại (artifact backlog Tier 2 câu 28, 29, *Chưa quyết*), thẻ
+  sửa ba tầng lệch Figma (Tier 1), ngân hàng không gộp câu trùng nội dung.

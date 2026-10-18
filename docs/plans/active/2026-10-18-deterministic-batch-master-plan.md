@@ -40,7 +40,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 | `2026-10-18-wave-2-time-marks-titles-plan.md` | 7–10 | xong 18/10 |
 | `2026-10-18-wave-3-draft-panel-plan.md` | 16, 12, 13, 14, 15 | xong 18/10 |
 | `2026-10-18-postgres-test-run-plan.md` | 23 | xong 18/10 |
-| `…-teacher-rail-screens-plan.md` | 18 | chưa viết |
+| `2026-10-18-teacher-rail-screens-plan.md` | 18 | xong 18/10 |
 | `…-question-bank-into-draft-plan.md` | 17 | chưa viết |
 | `…-dashboard-review-queue-plan.md` | 19, 21 | chưa viết |
 | `…-results-xlsx-export-plan.md` | 20 | chưa viết |
@@ -81,7 +81,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 - [x] 3. Đợt 2: việc 7–10.
 - [x] 4. Đợt 3: việc 16, 12, 13, 14, 15.
 - [x] 5. Đợt 4, cụm Postgres: việc 23.
-- [ ] 6. Đợt 4, cụm màn rail: việc 18.
+- [x] 6. Đợt 4, cụm màn rail: việc 18.
 - [ ] 7. Đợt 4, cụm ngân hàng: việc 17.
 - [ ] 8. Đợt 4, cụm bảng theo dõi: việc 19, 21.
 - [ ] 9. Đợt 4, cụm xuất bảng điểm: việc 20.
