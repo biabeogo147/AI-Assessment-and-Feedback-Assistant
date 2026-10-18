@@ -86,7 +86,7 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 - [x] 8. Đợt 4, cụm bảng theo dõi: việc 19, 21.
 - [x] 9. Đợt 4, cụm xuất bảng điểm: việc 20.
 - [x] 10. Đợt 4, cụm đăng nhập: việc 22.
-- [ ] 11. Cuối batch:
+- [x] 11. Cuối batch:
   - roadmap có 23 việc *Xong*; `backlog.md` và artifact backlog cập nhật;
   - plan này chuyển sang `completed/`;
   - báo người dùng review một lần.
@@ -232,3 +232,8 @@ Số ADR mới chốt lúc viết; nếu số đã có người dùng thì lấy
 
 - 18/10/2026: roadmap rev 233 và artifact backlog rev 133 đã cập nhật theo quyết định của người dùng.
   `backlog.md` có mục *Chốt đợt tất định* (chưa commit, vào commit đầu của batch). Bắt đầu plan Figma.
+- 19/10/2026: batch xong, plan đóng.
+  - 23 việc *Xong* trên roadmap (rev 255).
+  - `backlog.md` và artifact *Backlog theo tier* (rev 147) đã cập nhật.
+  - 38 commit từ đầu batch, commit nào cũng có đuôi `Plan:`; `git status` sạch.
+  - Báo người dùng review một lần.
