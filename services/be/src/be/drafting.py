@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from be.agent_gateway import collect_result, enqueue_task, validate_question
-from be.assessment_state import AssessmentState, advance, assert_editable, editable
+from be.assessment_state import AssessmentState, advance, assert_editable, editable, state_of
 from be.config import Settings
 from be.question_bank import release
 from contracts import (
@@ -1298,6 +1298,73 @@ async def redraft_slot(
         row.attempts = _MOST_ATTEMPTS
         await session.commit()
     return False
+
+
+async def why_not_erasable(session: AsyncSession, assessment: Assessment) -> str:
+    """Vì sao đề này không xoá được, hay chuỗi rỗng khi xoá được (ADR-33).
+
+    Chỉ **đề trống** mới xoá được: state `EMPTY`, không câu nào, không ô **đang soạn** nào. Một đề
+    đã có câu mang công của giáo viên và có thể đã vào ngân hàng (ADR-28); một ô đang soạn
+    (`pending`, `retry`) là một job đang bay hay sắp bay, sẽ về ghi vào một đề không còn. Ô `failed`
+    thì không chặn: đề mà mọi job đều hỏng vẫn là đề trống, và nó chính là loại rác cần xoá (review
+    pha 4) -- `drop_failed_slots_of_empty` dọn chúng trước. Một phép cho ba chỗ: route xoá, cờ
+    `erasable` của panel, và `teacher_tools` chọn đề trống mà dùng lại (plan `wave-3-draft-panel`,
+    việc 15). Ở đây chứ không ở `teacher_routes`, vì `teacher_tools` không import được module ấy
+    (`teacher_routes` → `teacher_chat` → `teacher_tools`).
+
+    Args:
+        session: Session của database.
+        assessment: Đề cần xét.
+
+    Returns:
+        Câu từ chối tiếng Việt, hay `""`.
+    """
+    if state_of(assessment) is not AssessmentState.EMPTY:
+        return "Đề đã có câu hỏi nên không xoá được. Chỉ đề trống mới xoá được."
+    questions = (
+        await session.scalar(
+            select(func.count())
+            .select_from(Question)
+            .where(Question.assessment_id == assessment.id)
+        )
+        or 0
+    )
+    if questions:
+        return "Đề đã có câu hỏi nên không xoá được. Chỉ đề trống mới xoá được."
+    slots = (
+        await session.scalar(
+            select(func.count())
+            .select_from(DraftItem)
+            .where(
+                DraftItem.assessment_id == assessment.id,
+                DraftItem.status.in_(("pending", "retry")),
+            )
+        )
+        or 0
+    )
+    if slots:
+        return "Kriky đang soạn câu cho đề này nên chưa xoá được. Đợi soạn xong rồi xoá nhé."
+    return ""
+
+
+async def drop_failed_slots_of_empty(session: AsyncSession, assessment_id: str) -> None:
+    """Xoá mọi ô `failed` của một đề trống, trước khi xoá đề hay dùng lại nó (ADR-33).
+
+    Đề trống không có câu nào, nên không có số nào để dồn: ô hỏng chỉ là sổ sách của một lần soạn
+    đã bỏ. Để lại thì lần dùng lại soạn tiếp **sau** chúng (`fire` bắt đầu từ ô cao nhất), còn lần
+    xoá vướng khoá ngoại.
+
+    Args:
+        session: Session của database. Không commit ở đây.
+        assessment_id: Đề trống nào; bên gọi đã kiểm `why_not_erasable`.
+    """
+    for row in await session.scalars(
+        select(DraftItem).where(
+            DraftItem.assessment_id == assessment_id, DraftItem.status == "failed"
+        )
+    ):
+        await session.delete(row)
+    await session.flush()
 
 
 async def pending_count(session: AsyncSession, assessment_id: str) -> int:

@@ -48,12 +48,14 @@ from be.config import Settings, get_settings
 from be.content_reader import ContentUnavailable, get_reader
 from be.drafting import (
     _MOST_QUESTIONS,
+    drop_failed_slots_of_empty,
     fire,
     harvest,
     pending_count,
     rebrief,
     replace,
     too_many,
+    why_not_erasable,
 )
 from be.identity import Asking
 from be.outline import MOST_QUESTIONS_ASKED
@@ -65,11 +67,13 @@ from schema.models import (
     Assessment,
     Attempt,
     Document,
+    DraftBrief,
     Publication,
     Question,
     QuestionOutcome,
     SchoolClass,
     Student,
+    TeacherTurn,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,6 +126,9 @@ class Running:
         outline: Dàn ý giáo viên đã xem mà bước này soạn theo (ADR-29, `draft-outline`) -- chính
             `tool_result` của lượt dàn ý, do cổng duyệt của vòng lượt tìm ra. `None` khi lượt
             không có dàn ý nào hợp lệ; tool soạn câu từ chối khi ấy.
+        conversation_id: Đoạn chat đang chạy lượt này. `create_draft` dùng lại đề trống của chính
+            đoạn ấy thay vì mở đề trống thứ hai (plan `wave-3-draft-panel`, việc 15). `None` ở các
+            đường gọi không thuộc đoạn chat nào (test, công cụ).
     """
 
     session: AsyncSession
@@ -129,6 +136,7 @@ class Running:
     pool: object
     settings: Settings
     outline: dict | None = None
+    conversation_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -527,21 +535,39 @@ async def _create_draft(running: Running, args: dict) -> dict:
     book = await session.get(Document, document_id) if document_id else None
     fallback = default_title(scope, book.filename if book is not None else "")
     invented = clipped(str(args["title"])) if str(args.get("title") or "").strip() else ""
-    draft = Assessment(
-        teacher_id=asking.teacher_id,
-        # Một cái tên mà giáo viên đổi lại được sau, nên tự suy ra một cái thì không
-        # tốn gì mà lại tiết kiệm được một vòng hỏi đáp về chuyện hình thức. Cắt ngắn
-        # chứ không từ chối, cũng vì đúng lý do đó -- tối đa 60 ký tự (ADR-31).
-        # Tên model gửi mà dọn xong rỗng (chỉ có cặp ngoặc `""`) thì lùi về tên tự đặt: một đề tên
-        # rỗng là thẻ *Đã tạo đề ""* (review code 17/10, plan `backlog-tier-1`).
-        title=invented if invented and book is None else fallback,
-        subject=str(args["subject"]).strip(),
-        grade=str(args["grade"]).strip(),
-        state=AssessmentState.EMPTY,
-        created_at=datetime.now(UTC),
-    )
-    session.add(draft)
-    await session.flush()
+    # Một cái tên mà giáo viên đổi lại được sau, nên tự suy ra một cái thì không tốn gì mà lại tiết
+    # kiệm được một vòng hỏi đáp về chuyện hình thức. Cắt ngắn chứ không từ chối, cũng vì đúng lý do
+    # đó -- tối đa 60 ký tự (ADR-31). Tên model gửi mà dọn xong rỗng (chỉ có cặp ngoặc `""`) thì lùi
+    # về tên tự đặt: một đề tên rỗng là thẻ *Đã tạo đề ""* (review code 17/10, plan
+    # `backlog-tier-1`).
+    title = invented if invented and book is None else fallback
+
+    # Đoạn chat đã có một đề trống thì dùng lại đề ấy, không mở đề trống thứ hai (người dùng chốt
+    # 18/10/2026, plan `wave-3-draft-panel`, việc 15): hai đề trống trong một đoạn chat là hai thẻ
+    # *Đã tạo đề* cho một việc, và đề trống nào cũng phải đi xoá tay.
+    draft = await _empty_draft_of(running)
+    reused = draft is not None
+    if draft is None:
+        draft = Assessment(
+            teacher_id=asking.teacher_id,
+            title=title,
+            subject=str(args["subject"]).strip(),
+            grade=str(args["grade"]).strip(),
+            state=AssessmentState.EMPTY,
+            created_at=datetime.now(UTC),
+        )
+        session.add(draft)
+        await session.flush()
+    else:
+        draft.title = title
+        draft.subject = str(args["subject"]).strip()
+        draft.grade = str(args["grade"]).strip()
+        # Dàn ý và ô hỏng của lần trước không theo sang yêu cầu mới: lần soạn sau đánh số từ 1, và
+        # `rebrief` thay phần còn lại của brief.
+        await drop_failed_slots_of_empty(session, draft.id)
+        old = await session.get(DraftBrief, draft.id)
+        if old is not None:
+            old.outline = []
 
     # `question_count=0`: đề vừa mở thì chưa ai xin câu nào. `start_drafting` ghi đè con số
     # thật khi giáo viên nói rõ muốn bao nhiêu.
@@ -556,12 +582,62 @@ async def _create_draft(running: Running, args: dict) -> dict:
         index_built_at=built_at,
     )
 
-    logger.info("teacher %s opened draft %s", asking.teacher_code, draft.id)
+    logger.info(
+        "teacher %s %s draft %s", asking.teacher_code, "reused" if reused else "opened", draft.id
+    )
     return {
         "created": True,
         "assessment_id": draft.id,
         "title": draft.title,
+        **({"reused": True} if reused else {}),
     }
+
+
+async def _empty_draft_of(running: Running) -> Assessment | None:
+    """Đề trống mới nhất của đoạn chat đang chạy, nếu có (việc 15, plan `wave-3-draft-panel`).
+
+    Tìm qua các bước `create_draft` của **chính đoạn ấy** (`entity_kind/entity_id`, cùng dữ liệu mà
+    `conversation_of` đọc) -- chỉ bước tạo đề, để một bước tra cứu có nhắc tới một đề không kéo đề
+    ấy vào đoạn này --, chỉ đề của giáo viên đang hỏi, và chỉ đề còn xoá được theo
+    `why_not_erasable`: một đề đã có câu hay đang soạn thì không còn là đề trống để ghi đè.
+
+    Đề được chọn bị **khoá hàng** rồi kiểm lại: một lần xoá từ panel chen vào giữa lúc chọn và lúc
+    ghi thì lượt này mở đề mới thay vì ghi lên một hàng vừa mất (review pha 4).
+
+    Args:
+        running: Lượt đang chạy; `conversation_id` rỗng thì không có gì để dùng lại.
+
+    Returns:
+        Đề trống ấy, hay `None`.
+    """
+    if not running.conversation_id:
+        return None
+    session = running.session
+    candidates = list(
+        await session.scalars(
+            select(Assessment)
+            .join(TeacherTurn, TeacherTurn.entity_id == Assessment.id)
+            .where(
+                TeacherTurn.conversation_id == running.conversation_id,
+                TeacherTurn.tool_name == "create_draft",
+                TeacherTurn.entity_kind == "assessment",
+                Assessment.teacher_id == running.asking.teacher_id,
+                Assessment.state == AssessmentState.EMPTY,
+            )
+            .order_by(Assessment.created_at.desc(), Assessment.id)
+            .distinct()
+        )
+    )
+    for one in candidates:
+        locked = await session.scalar(
+            select(Assessment)
+            .where(Assessment.id == one.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if locked is not None and not await why_not_erasable(session, locked):
+            return locked
+    return None
 
 
 async def _start_drafting(running: Running, args: dict) -> dict:
@@ -1558,6 +1634,7 @@ async def execute(
     settings: Settings | None = None,
     phase: int = PHASE_PLAN,
     outline: dict | None = None,
+    conversation_id: str | None = None,
 ) -> dict:
     """Chạy một tool thay mặt giáo viên này.
 
@@ -1582,6 +1659,7 @@ async def execute(
             plan, tức mặc định **không ghi được gì**: một caller quên nói mình đang ở pha
             nào thì bị từ chối, chứ không lặng lẽ được cấp quyền ghi.
         outline: Dàn ý đã xem cho bước soạn câu (`Running.outline`).
+        conversation_id: Đoạn chat đang chạy (`Running.conversation_id`).
 
     Returns:
         Kết quả của tool, đã được tóm tắt sẵn.
@@ -1604,6 +1682,7 @@ async def execute(
             pool=pool,
             settings=settings or get_settings(),
             outline=outline,
+            conversation_id=conversation_id,
         ),
         args,
     )

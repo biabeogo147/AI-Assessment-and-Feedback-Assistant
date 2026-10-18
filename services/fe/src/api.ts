@@ -268,6 +268,8 @@ export interface AssessmentDetail {
   conversation_id: string;
   questions: TeacherQuestion[];
   failed_slots: FailedSlot[];
+  /** Đề xoá được không -- chỉ đề trống (ADR-33). BE quyết; panel chỉ hiện link khi cờ bật. */
+  erasable: boolean;
 }
 
 /** Ba câu luật, cùng string mà biểu mẫu, biên bản và trang phát hành trả về (ADR-03). */
@@ -478,6 +480,12 @@ export interface Turn {
   more_choices: number;
   model_tokens: number;
   duration_ms: number;
+  /**
+   * Đề mà bước này nói tới đã bị xoá (chỉ đề trống mới xoá được, ADR-33). Thẻ cũ đọc cờ này để
+   * thôi mời mở một đề không còn (plan `wave-3-draft-panel`). Tuỳ chọn vì lượt đang chạy do FE
+   * dựng từ sự kiện SSE, và một đề vừa tạo trong lượt ấy thì chưa thể đã xoá.
+   */
+  entity_gone?: boolean;
 }
 
 /**
@@ -941,6 +949,10 @@ export const teacher = {
     ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
+  // Xoá cứng một đề nháp **trống** (ADR-33, plan `wave-3-draft-panel`). BE từ chối đề còn câu hay
+  // ô đang soạn; nơi gọi đọc lại đoạn chat để thẻ cũ thành *"Đề trống này đã xoá"*.
+  eraseDraft: (assessmentId: string) =>
+    silent("teacher", `/teacher/assessments/${assessmentId}`, { method: "DELETE" }),
   // Soạn lại một câu đã hỏng -- nút *Thử lại* của ô hỏng. BE bắn lại đúng mục dàn ý của ô; nơi
   // gọi đọc lại đề để thấy ô sang *đang soạn lại* (plan `wave-3-draft-panel`).
   redraft: (assessmentId: string, order: number) =>

@@ -280,7 +280,8 @@ class BankQuestion(Base):
     khoá ngoại.
 
     Môn và khối đọc qua `assessment_id`, không chép sang: một sự thật nằm ở hai nơi là hai sự
-    thật. Đề không bao giờ bị xoá, nên con trỏ ấy không mồ côi. `options` và `methods` là JSON
+    thật. Đề có câu không bao giờ bị xoá -- chỉ đề trống mới xoá được (ADR-33), và đề trống chưa
+    từng có dòng ngân hàng nào --, nên con trỏ ấy không mồ côi. `options` và `methods` là JSON
     cùng hình dạng với `RoundItem`, vì dòng này không bao giờ bị trả lời -- không `Answer` nào
     trỏ vào một phương án của nó.
     """

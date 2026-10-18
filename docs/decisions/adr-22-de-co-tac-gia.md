@@ -69,3 +69,9 @@ ra thành lời một cách nhiệt tình.
 - **Chưa thi hành:** luật *không tìm thấy nói giống hệt không được phép* chưa có chỗ nào chạy, vì chưa
   có endpoint hay tool nào của giáo viên để từ chối. Nó sẽ được thi hành cùng `resolve_class` ở
   ADR-23 và cùng executor của tool.
+
+## Hậu ký 18/10/2026
+
+Đường xoá đề trống ([ADR-33](adr-33-chi-de-trong-moi-xoa-duoc.md)) đi qua cùng `_owned`: đề của người
+khác đọc ra 404, không phải 403, đúng như mọi đường khác của ADR này. `create_draft` dùng lại đề trống
+chỉ trong số đề của chính giáo viên đang hỏi.

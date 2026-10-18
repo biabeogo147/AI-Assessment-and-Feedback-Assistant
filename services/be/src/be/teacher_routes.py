@@ -61,7 +61,15 @@ from be.assessment_state import (
 )
 from be.config import Settings, get_settings
 from be.db import get_session
-from be.drafting import drop_question, harvest, pending_count, redraft_slot, troubled_slots
+from be.drafting import (
+    drop_failed_slots_of_empty,
+    drop_question,
+    harvest,
+    pending_count,
+    redraft_slot,
+    troubled_slots,
+    why_not_erasable,
+)
 from be.identity import Asking, current_teacher
 from be.publication_wording import (
     FAULT_CLOSES_BEFORE_OPENS,
@@ -1423,6 +1431,8 @@ class AssessmentDetail(BaseModel):
         questions: Các câu, đã sắp theo thứ tự.
         failed_slots: Các ô đã hỏng ít nhất một lần mà chưa có câu, đúng vị trí của chúng. Panel
             vẽ chúng **giữa** các câu, nên số câu là số theo vị trí (plan `wave-3-draft-panel`).
+        erasable: Đề xoá được không (ADR-33): chỉ đề trống. Panel chỉ hiện link *Xoá đề* khi cờ
+            này bật, không tự suy từ `state` hay số câu.
     """
 
     assessment_id: str
@@ -1437,6 +1447,7 @@ class AssessmentDetail(BaseModel):
     conversation_id: str = ""
     questions: tuple[QuestionRead, ...] = ()
     failed_slots: tuple[SlotRead, ...] = ()
+    erasable: bool = False
 
 
 class PublishedTo(BaseModel):
@@ -1583,6 +1594,46 @@ async def rename_assessment(
     return AssessmentName(assessment_id=assessment_id, title=named)
 
 
+@router.delete("/teacher/assessments/{assessment_id}", status_code=204)
+async def erase_empty_draft(
+    assessment_id: str,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Xoá **cứng** một đề nháp trống -- link *Xoá đề* ở đầu panel (ADR-33, việc 15).
+
+    Xoá cứng, không `deleted_at`: người dùng chốt ở buổi review Figma 18/10/2026. Lượt chat cũ vẫn
+    giữ `entity_id` của đề; đọc lại thì BE gắn `entity_gone`, và thẻ *Đã tạo đề* cũ nói *"Đề trống
+    này đã xoá"* thay vì mở một đề không còn.
+
+    Args:
+        assessment_id: Đề nào.
+        teacher: Người gọi.
+        session: Session của database.
+
+    Raises:
+        HTTPException: 404 khi đề không tồn tại hay thuộc người khác (ADR-22); 409 khi đề không
+            còn trống.
+
+    Side effects:
+        Xoá các ô hỏng, brief, rồi đề, trong một giao dịch.
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id)
+    refused = await why_not_erasable(session, assessment)
+    if refused:
+        raise HTTPException(status_code=409, detail=refused)
+    await drop_failed_slots_of_empty(session, assessment_id)
+    brief = await session.get(DraftBrief, assessment_id)
+    if brief is not None:
+        await session.delete(brief)
+        await session.flush()
+    await session.delete(assessment)
+    await session.commit()
+    logger.info("teacher %s erased empty draft %s", asking.teacher_code, assessment_id)
+    return Response(status_code=204)
+
+
 @router.get("/teacher/assessments/{assessment_id}", response_model=AssessmentDetail)
 async def assessment_detail(
     assessment_id: str,
@@ -1673,6 +1724,7 @@ async def assessment_detail(
             SlotRead(order=order, redrafting=redrafting)
             for order, redrafting in await troubled_slots(session, assessment_id)
         ),
+        erasable=not await why_not_erasable(session, assessment),
     )
 
 

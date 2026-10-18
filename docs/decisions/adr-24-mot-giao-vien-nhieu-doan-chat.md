@@ -107,3 +107,10 @@ nên một cái tên model đặt sai là một đoạn chat mất tích — gi�
   màn hình, và hộp xác nhận nói thẳng với giáo viên rằng họ sẽ không mở lại được.
 - **Lưu trữ.** Danh sách trả về mọi đoạn, không phân trang. Một giáo viên dùng một năm sẽ có vài
   trăm hàng, và lúc ấy rail cần một đường tìm kiếm chứ không phải một danh sách dài hơn.
+
+## Hậu ký 18/10/2026
+
+**Một đoạn chat dùng lại đề trống của nó** ([ADR-33](adr-33-chi-de-trong-moi-xoa-duoc.md), plan
+`wave-3-draft-panel`). `create_draft` tìm đề trống mới nhất mà chính đoạn chat đang chạy đã nhắc tới,
+qua cùng `TeacherTurn.entity_kind/entity_id` mà `conversation_of` đọc, và ghi yêu cầu mới lên đó thay
+vì mở đề thứ hai. Đề trống của đoạn khác không bị đụng: mỗi đoạn là một việc.

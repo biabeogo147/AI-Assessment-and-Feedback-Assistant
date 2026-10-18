@@ -204,6 +204,9 @@ class Turn(BaseModel):
     more_choices: int = 0
     model_tokens: int = 0
     duration_ms: int = 0
+    # Đề mà bước này nói tới đã bị xoá (chỉ đề trống mới xoá được, ADR-33). Thẻ *Đã tạo đề* cũ đọc
+    # cờ này để nói *"Đề trống này đã xoá"* thay vì mở một đề không còn (plan `wave-3-draft-panel`).
+    entity_gone: bool = False
 
 
 class Answered(BaseModel):
@@ -1598,6 +1601,9 @@ async def _current_titles(session: AsyncSession, turns: list[TeacherTurn]) -> di
     ids: set[str] = set()
     for turn in turns:
         _named_papers(turn.tool_result, ids)
+        # Cả đề mà bước **nói về**, có tên hay không: thiếu trong kết quả là đề đã xoá (`_visible`).
+        if turn.entity_kind == "assessment" and turn.entity_id:
+            ids.add(turn.entity_id)
     if not ids:
         return {}
     rows = await session.execute(
@@ -1823,8 +1829,16 @@ def _visible(turn: TeacherTurn, titles: dict[str, str] | None = None) -> Turn:
 
     Chữ một phần đọc (`read_section`) không tới client: màn hình không vẽ nó, và mười phần một lượt
     là cả trăm nghìn ký tự đi mỗi lần tải lại đoạn chat. Tên đề là tên hiện tại (`titles`, ADR-31).
+    `titles` cũng nói đề nào còn: `_current_titles` gom mọi `entity_id` về đề, nên một đề vắng mặt
+    là đề đã xoá (ADR-33). Không có `titles` thì không nói gì về chuyện còn hay mất.
     """
     result = _titled(_client_result(turn.tool_name, turn.tool_result or {}), titles or {})
+    gone = (
+        titles is not None
+        and turn.entity_kind == "assessment"
+        and bool(turn.entity_id)
+        and turn.entity_id not in titles
+    )
     return Turn(
         kind=turn.kind,
         text=turn.text,
@@ -1836,6 +1850,7 @@ def _visible(turn: TeacherTurn, titles: dict[str, str] | None = None) -> Turn:
         more_choices=turn.more_choices,
         model_tokens=turn.model_tokens,
         duration_ms=turn.duration_ms,
+        entity_gone=gone,
     )
 
 
@@ -2745,6 +2760,7 @@ async def _go(
                 pool=getattr(request.app.state, "queue_pool", None),
                 settings=settings,
                 phase=PHASE_PLAN,
+                conversation_id=thread,
             )
         except UnknownTool:
             # Trả về cho model dưới dạng dữ liệu, không phải dưới dạng một exception. Cách
@@ -2907,6 +2923,7 @@ async def _go(
                     settings=settings,
                     phase=PHASE_WORK,
                     outline=outline if step_of_plan.tool_name in _DRAFTING_TOOLS else None,
+                    conversation_id=thread,
                 )
             except UnknownTool:
                 held["result"] = {

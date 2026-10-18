@@ -9,7 +9,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 
 | ADR | Quyết định | Trạng thái |
 | --- | --- | --- |
-| [01](adr-01-vong-doi-de-kiem-tra.md) | Vòng đời đề kiểm tra có bốn trạng thái (hậu ký 13/10/2026: xoá câu không đổi trạng thái) | đã mở rộng bởi ADR-02, ADR-18 |
+| [01](adr-01-vong-doi-de-kiem-tra.md) | Vòng đời đề kiểm tra có bốn trạng thái (hậu ký 13/10/2026: xoá câu không đổi trạng thái; 18/10/2026: đề trống xoá được) | đã mở rộng bởi ADR-02, ADR-18 |
 | [02](adr-02-phat-hanh-va-cua-so-thu-hoi.md) | Chỉ giáo viên phát hành; phát hành có sáu tham số (hậu ký 18/10/2026: thu hồi chỉ trước giờ mở) | đã mở rộng bởi ADR-15 |
 | [03](adr-03-ranh-gioi-cua-vao.md) | Giờ đóng chặn việc vào làm, không chặn việc nộp (hậu ký 18/10/2026: chữ câu luật mới, in ngày khi mốc khác ngày giờ mở) | đã chốt (phạm vi: pha 1) |
 | [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi (hậu ký 13/10/2026: duyệt đề là đã kiểm mọi câu) | đã chốt (trừ câu luyện tập) |
@@ -30,9 +30,9 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt (nửa học sinh xong; giáo viên chưa) |
 | [20](adr-20-cham-trac-nghiem-thuoc-be.md) | Chấm trắc nghiệm là việc của BE, không của AGENT | đã chốt, chưa thi hành |
 | [21](adr-21-trang-thai-bai-lam-la-ben.md) | Trạng thái bài làm là bền; hạn một giờ chỉ áp cho job | đã chốt, đang thi hành (hậu ký 18/10/2026: bài làm ở Postgres) |
-| [22](adr-22-de-co-tac-gia.md) | Đề và lớp có tác giả; của người khác đọc ra như không tồn tại | đã chốt, đang thi hành |
+| [22](adr-22-de-co-tac-gia.md) | Đề và lớp có tác giả; của người khác đọc ra như không tồn tại (hậu ký 18/10/2026: đường xoá đề trống) | đã chốt, đang thi hành |
 | [23](adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) | Không phân định được thì hỏi lại; lựa chọn đến từ dữ liệu | đã mở rộng bởi ADR-25 |
-| [24](adr-24-mot-giao-vien-nhieu-doan-chat.md) | Một giáo viên nhiều đoạn chat; biên bản rơi vào đoạn đã tạo ra đề | đã chốt, đang thi hành |
+| [24](adr-24-mot-giao-vien-nhieu-doan-chat.md) | Một giáo viên nhiều đoạn chat; biên bản rơi vào đoạn đã tạo ra đề (hậu ký 18/10/2026: đoạn chat dùng lại đề trống của nó) | đã chốt, đang thi hành |
 | [25](adr-25-hai-pha-mot-luot-chat.md) | Một lượt chat có hai pha: lên plan, rồi thực hiện plan | đang thi hành (hậu ký 18/10/2026: job kể lại vẫn chạy) |
 | [26](adr-26-chu-sai-cu-phap-di-toi-giao-vien.md) | Chữ sai cú pháp đi tới giáo viên, và giáo viên nhìn thấy chỗ sai | đã chốt |
 | [27](adr-27-tai-lieu-di-vao-ngu-canh-ra-de.md) | Tài liệu đi vào ngữ cảnh ra đề để cung cấp kiến thức (hậu ký 12/10/2026: lọc bài tập chỉ còn cho pha 2; hậu ký 15/10/2026: *mỗi câu một mục* nhường cho ADR-29) | đã chốt, đang thi hành (hậu ký 18/10/2026: qua dàn ý của ADR-29) |
@@ -41,6 +41,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [30](adr-30-loi-kriky-do-model-viet.md) | Mọi lời Kriky do model viết, bằng Markdown; dàn ý gồm lời và các mục, BE đối chiếu nhẹ; ngoại lệ: thông báo khi model không trả lời được, và phần tử giao diện | đã chốt, đang thi hành (trừ khung học sinh) |
 | [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại (hậu ký 18/10/2026: bỏ khoảng trang của tên tệp) | đã chốt, đang thi hành |
 | [32](adr-32-hoi-lai-nhieu-cau.md) | Hỏi lại tối đa ba câu một lượt, mỗi câu một bộ nút; không bỏ câu; tóm tắt rồi gửi gộp một tin | đã chốt, đang thi hành |
+| [33](adr-33-chi-de-trong-moi-xoa-duoc.md) | Chỉ đề trống mới xoá được, và xoá cứng; một đoạn chat dùng lại đề trống của nó | đã chốt, đang thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.

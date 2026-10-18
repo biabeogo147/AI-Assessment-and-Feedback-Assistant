@@ -814,6 +814,28 @@ component `Failed slot` (`652:3635`), artboard **`17 · Ô câu soạn hỏng �
 (Figma 146), nét đứt, padding 13/15 cộng viền 1; chip *Chưa soạn được* **103 × 19,75** (Figma 105 × 20);
 nút *Thử lại* **75 × 39,5** (Figma 76 × 40); chữ 11/13 như các thẻ câu bên cạnh.
 
+## Đề nháp trống — link *Xoá đề*, và thẻ cũ nói đề đã xoá
+
+Chỉ đề trống mới xoá được, và xoá là xoá cứng ([ADR-33](../decisions/adr-33-chi-de-trong-moi-xoa-duoc.md),
+plan `wave-3-draft-panel`, việc 15). Artboard **`18 · Đề nháp trống`** (`653:2846`) và **`18b · Xoá đề
+nháp trống — hộp xác nhận`** (`653:3095`):
+
+- **Link *Xoá đề*** đứng ở đầu panel, ngay trước *Đóng*, cùng kiểu chữ với *Đổi tên* (`.panel-head
+  .rename`). Nó chỉ hiện khi BE gửi `erasable`: panel không tự suy *trống* từ `state` hay số câu.
+- **Hộp xác nhận** (`Consequence dialog — xoá đề nháp trống`, `652:3899`) chỉ có câu hỏi *"Xoá đề nháp
+  "{tên}"?"* và hai nút *Giữ lại* / *Xoá đề*: đề trống không có gì để mất, nên không có lời dẫn. BE từ
+  chối (đề vừa có câu, hay Kriky đang soạn) thì lời từ chối hiện trong hộp và hộp ở lại.
+- **Xoá xong thì panel đóng và đoạn chat đọc lại.** Thẻ *Đã tạo đề* cũ thành variant `tạo-đề-trống —
+  đã xoá` (`652:3900`): đầu đề giữ nguyên, câu an toàn *"Đề trống này đã xoá"*, không nút, không mở
+  được -- BE gắn `entity_gone` lên bước ấy khi đọc lại.
+- **Đoạn chat không mở đề trống thứ hai**: `create_draft` dùng lại đề trống của chính đoạn ấy, nên
+  hai thẻ *Đã tạo đề* trong một đoạn cùng trỏ một đề.
+
+**Đo trên trình duyệt ngày 18/10/2026**, so với artboard 18b: hộp **460 × 127**, tiêu đề 18/600 cao
+27, hai nút cao 40 cách nhau 16, căn phải -- đúng Figma. Hộp căn giữa màn hình (y 386,5); artboard
+18b từng đặt nó ở y 349, nay đã dời về giữa cho khớp. Artboard 18 và 18b nay có thêm *Đổi tên* ở đầu
+panel như code (ADR-31).
+
 ## Hàng đoạn chat — một hộp, hai việc
 
 Cả hàng **từng là một `<button>`**. Nó phải hết là thế từ đợt chốt chặng A, và lý do là cơ học chứ

@@ -37,6 +37,8 @@ import MathText from "../../MathText";
  *   duyệt, phát hành — cả ba để lại một biên bản trong đoạn chat — và đổi tên đề, vì thẻ cũ
  *   trong đoạn chat đọc tên hiện tại (ADR-31).
  *   `approve` ghi một bước vào hội thoại (ADR-01 đòi thế), và bước đó phải hiện ra.
+ * @param onErased - Đề trống vừa bị xoá (ADR-33): đóng panel, và đoạn chat đọc lại để thẻ cũ
+ *   nói *"Đề trống này đã xoá"*.
  */
 /** Trần của tên đề, đúng `be/titles.MOST_TITLE` (ADR-31). BE là chỗ thi hành; đây chỉ chặn gõ quá. */
 const MOST_TITLE = 60;
@@ -67,11 +69,13 @@ export default function Panel({
   revision = 0,
   onClose,
   onApproved,
+  onErased = onClose,
 }: {
   assessmentId: string;
   revision?: number;
   onClose: () => void;
   onApproved: () => void;
+  onErased?: () => void;
 }) {
   const [paper, setPaper] = useState<AssessmentDetail | null>(null);
   const [trouble, setTrouble] = useState<string | null>(null);
@@ -86,6 +90,9 @@ export default function Panel({
   const [eraseBusy, setEraseBusy] = useState(false);
   // Tên đang gõ ở ô đổi tên, hay `null` khi không đổi tên (ADR-31).
   const [naming, setNaming] = useState<string | null>(null);
+  // Hộp xoá đề trống đang mở, và lời từ chối của BE cho lần xoá ấy (ADR-33).
+  const [erasingPaper, setErasingPaper] = useState(false);
+  const [paperRefused, setPaperRefused] = useState("");
 
   useEffect(() => {
     // `Chat` dựng một panel mới cho mỗi đề (`key`), nên đổi đề là gỡ panel cũ: lời đáp muộn của
@@ -103,6 +110,8 @@ export default function Panel({
     setNaming(null);
     setTrouble(null);
     setSolving(null);
+    setErasingPaper(false);
+    setPaperRefused("");
     teacher
       .assessment(assessmentId)
       .then((found) => {
@@ -215,6 +224,27 @@ export default function Panel({
     } finally {
       setWorking(false);
     }
+  }
+
+  /**
+   * Xoá cứng đề trống này (link *Xoá đề*, ADR-33, việc 15 của plan `wave-3-draft-panel`). Bị từ
+   * chối thì hộp ở lại kèm lý do, và panel đọc lại đề: một câu vừa về là đề thôi trống.
+   */
+  async function erasePaper() {
+    setPaperRefused("");
+    setEraseBusy(true);
+    writes.current += 1;
+    try {
+      await teacher.eraseDraft(assessmentId);
+    } catch (cause) {
+      setPaperRefused((cause as Error).message);
+      setEraseBusy(false);
+      teacher.assessment(assessmentId).then(setPaper, () => undefined);
+      return;
+    }
+    setEraseBusy(false);
+    setErasingPaper(false);
+    onErased();
   }
 
   /**
@@ -364,6 +394,20 @@ export default function Panel({
                 onClick={() => setNaming(paper.title.slice(0, MOST_TITLE))}
               >
                 Đổi tên
+              </button>
+            )}
+            {/* Chỉ đề trống mới xoá được (ADR-33); BE nói đề nào, panel không tự suy (artboard 18,
+                `653:2846`). */}
+            {paper.erasable && (
+              <button
+                className="rename"
+                type="button"
+                onClick={() => {
+                  setPaperRefused("");
+                  setErasingPaper(true);
+                }}
+              >
+                Xoá đề
               </button>
             )}
             <button className="close" type="button" onClick={onClose}>
@@ -559,6 +603,41 @@ export default function Panel({
               onClick={() => void erase(erasing)}
             >
               Xoá câu
+            </button>
+          </div>
+        </Veil>
+      )}
+
+      {erasingPaper && (
+        // `Consequence dialog — xoá đề nháp trống` (`652:3899`): chỉ câu hỏi và hai nút -- đề trống
+        // không có gì để mất, nên không có lời dẫn (review Figma 18/10/2026).
+        <Veil
+          onClose={() => {
+            if (!eraseBusy) setErasingPaper(false);
+          }}
+        >
+          <h3>Xoá đề nháp “{paper.title}”?</h3>
+          {paperRefused !== "" && (
+            <p className="refused" role="alert">
+              {paperRefused}
+            </p>
+          )}
+          <div className="confirm-actions">
+            <button
+              className="btn"
+              type="button"
+              disabled={eraseBusy}
+              onClick={() => setErasingPaper(false)}
+            >
+              Giữ lại
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={eraseBusy}
+              onClick={() => void erasePaper()}
+            >
+              Xoá đề
             </button>
           </div>
         </Veil>

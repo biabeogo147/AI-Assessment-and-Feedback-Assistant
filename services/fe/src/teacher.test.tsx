@@ -6502,3 +6502,118 @@ describe("ô câu soạn hỏng: lời từ chối của BE (plan `wave-3-draft-
     expect(again.disabled).toBe(false);
   });
 });
+
+describe("đề nháp trống: xoá được (việc 15, ADR-33, plan `wave-3-draft-panel`)", () => {
+  /** Đề trống `p1`; `erasable` là lời BE. DELETE trả 204 hay 409 tuỳ `refuse`. */
+  function serving(erasable: boolean, refuse = false) {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push(`${method} ${url}`);
+        if (method === "DELETE") {
+          return Promise.resolve(
+            refuse
+              ? {
+                  ok: false,
+                  status: 409,
+                  json: () => Promise.resolve({ detail: "Đề đã có câu hỏi nên không xoá được." }),
+                }
+              : { ok: true, status: 204, json: () => Promise.resolve(null) },
+          );
+        }
+        const body = {
+          ...paper("empty"),
+          question_count: 0,
+          questions: [],
+          failed_slots: [],
+          erasable,
+        };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    return calls;
+  }
+
+  it("link Xoá đề chỉ hiện khi BE nói đề xoá được", async () => {
+    serving(false);
+    const { unmount } = render(
+      <Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />,
+    );
+    await screen.findByText("Chưa có câu hỏi nào trong đề này.");
+    expect(screen.queryByRole("button", { name: "Xoá đề" })).toBeNull();
+    unmount();
+
+    serving(true);
+    render(<Panel assessmentId="p1" onClose={() => undefined} onApproved={() => undefined} />);
+    expect(await screen.findByRole("button", { name: "Xoá đề" })).toBeTruthy();
+  });
+
+  it("hộp xác nhận hỏi đúng tên đề; Xoá đề gọi DELETE rồi báo đoạn chat", async () => {
+    const calls = serving(true);
+    const erased = vi.fn();
+    render(
+      <Panel
+        assessmentId="p1"
+        onClose={() => undefined}
+        onApproved={() => undefined}
+        onErased={erased}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Xoá đề" }));
+    expect(
+      screen.getByRole("heading", { name: "Xoá đề nháp “Kiểm tra 15 phút — Hàm số”?" }),
+    ).toBeTruthy();
+    const dialog = screen.getByRole("heading", { level: 3 }).parentElement as HTMLElement;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xoá đề" }));
+
+    await waitFor(() => expect(erased).toHaveBeenCalled());
+    expect(calls).toContain("DELETE /api/teacher/assessments/p1");
+  });
+
+  it("BE từ chối thì hộp ở lại, kèm lý do", async () => {
+    serving(true, true);
+    const erased = vi.fn();
+    render(
+      <Panel
+        assessmentId="p1"
+        onClose={() => undefined}
+        onApproved={() => undefined}
+        onErased={erased}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Xoá đề" }));
+    const dialog = screen.getByRole("heading", { level: 3 }).parentElement as HTMLElement;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xoá đề" }));
+
+    expect(await screen.findByText("Đề đã có câu hỏi nên không xoá được.")).toBeTruthy();
+    expect(erased).not.toHaveBeenCalled();
+  });
+
+  it("thẻ Đã tạo đề của đề đã xoá nói đã xoá, không nút, không mở được", () => {
+    const opened = vi.fn();
+    const { container } = render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: "create_draft",
+          tool_result: { created: true, assessment_id: "p1", title: "Đề 15 phút" },
+          entity_kind: "assessment",
+          entity_id: "p1",
+          entity_gone: true,
+        })}
+        onOpen={opened}
+        onCompose={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Đã tạo đề "Đề 15 phút"')).toBeTruthy();
+    expect(screen.getByText("Đề trống này đã xoá")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Thêm câu hỏi" })).toBeNull();
+    fireEvent.click(container.querySelector(".action-card") as Element);
+    expect(opened).not.toHaveBeenCalled();
+  });
+});

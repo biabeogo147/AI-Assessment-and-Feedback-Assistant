@@ -104,22 +104,22 @@ Làm việc 16, 12, 13, 14, 15 của `2026-10-18-deterministic-batch-master-plan
   trần dàn ý, nên dựng lượt bằng API giả (CDP) như Đợt 2; chụp, đo so với `652:3468`.
 
 ### Pha 4 — đề trống: xoá và dùng lại (việc 15)
-- [ ] 14. `DELETE /teacher/assessments/{id}`, 204:
+- [x] 14. `DELETE /teacher/assessments/{id}`, 204:
   - chỉ tác giả (404); chỉ đề `EMPTY`, không câu, không ô soạn nào (409 với lý do);
   - xoá cứng `DraftBrief` rồi `Assessment` trong một giao dịch. Lượt chat cũ giữ `entity_id`.
-- [ ] 15. Lượt chat đọc lại: `TurnRead` thêm `entity_gone: bool` khi `entity_kind="assessment"` mà
+- [x] 15. Lượt chat đọc lại: `Turn` thêm `entity_gone: bool` khi `entity_kind="assessment"` mà
   đề không còn. `ActionCard` đọc cờ ấy: đầu đề giữ *Đã tạo đề …*, câu an toàn *"Đề trống này đã
   xoá"*, không nút, không mở được (variant `652:3900`).
-- [ ] 16. Panel: link *Xoá đề* cạnh *Đóng* chỉ khi đề trống (`state=EMPTY`, không câu, không ô);
+- [x] 16. Panel: link *Xoá đề* cạnh *Đóng* chỉ khi BE nói xoá được (`AssessmentDetail.erasable`);
   hộp xác nhận theo `652:3899` (*"Xoá đề nháp "{tên}"?"*, *Giữ lại* / *Xoá đề*); xoá xong thì đóng
   panel và đọc lại đoạn chat.
-- [ ] 17. `create_draft` dùng lại đề trống mới nhất của **đoạn chat đang chạy**:
+- [x] 17. `create_draft` dùng lại đề trống mới nhất của **đoạn chat đang chạy**:
   - `Running` thêm `conversation_id`; `teacher_chat` truyền đoạn đang chạy vào `execute`;
   - tìm qua `TeacherTurn.entity_kind/entity_id` của đoạn ấy, chỉ đề còn `EMPTY`, không câu, không ô;
   - ghi tên, môn, khối mới lên đề ấy rồi `rebrief`; kết quả mang `reused: true` cùng id cũ.
-- [ ] 18. ADR-33 *chỉ đề trống mới xoá được*; hậu ký ADR-01, ADR-22, ADR-24; sửa docstring
+- [x] 18. ADR-33 *chỉ đề trống mới xoá được*; hậu ký ADR-01, ADR-22, ADR-24; sửa docstring
   `BankQuestion` *"Đề không bao giờ bị xoá"*. `data-model.md` ghi đường xoá.
-- [ ] 19. Test BE: xoá đề có câu, có ô, đã duyệt, của người khác đều bị từ chối; xoá xong lượt cũ
+- [x] 19. Test BE: xoá đề có câu, có ô, đã duyệt, của người khác đều bị từ chối; xoá xong lượt cũ
   mang `entity_gone`; `create_draft` lần hai trong cùng đoạn chat trả cùng id, đoạn khác thì đề
   mới. Vitest: link chỉ hiện ở đề trống, hộp xác nhận, thẻ *đã xoá*. Trình duyệt: hộp, thẻ.
 
@@ -179,3 +179,14 @@ dời chỗ vì gộp cũng bị bắt, và lần thử lại là một câu s�
 - Pha 3 xong 18/10/2026: avatar trên khối bước khi lượt kết bằng thông báo đã đúng sẵn, cả lúc đang
   chạy lẫn sau F5 (nay có test cho ca đang chạy). Thẻ báo đo trên Chrome headless: 820 × 46, vòng `!`
   20 × 20 cách mép 17/13, cách khối bước 20 -- đúng artboard 16. Viền của Figma nằm ngoài padding.
+- Pha 4 xong 18/10/2026:
+  - thử trên Chrome headless (API của đề giả `ZZ` và lượt chat qua CDP): link *Xoá đề*, hộp 460 × 127
+    đúng 18b, xoá xong panel đóng và thẻ cũ thành *"Đề trống này đã xoá"*, không mở được;
+  - luồng AGENT mock thật trên Postgres dev (đoạn chat thử mới `b940806a`): `create_draft` chạy truy
+    vấn `_empty_draft_of` (DISTINCT + ORDER BY) không lỗi, ba câu về, panel đọc `erasable=false`;
+  - subagent review: thêm mục *Đề nháp trống* vào `teacher-surface.md`; đề trống chỉ còn ô hỏng nay
+    xoá được (ô `failed` không chặn, xoá cùng đề; dùng lại thì dọn chúng) -- chỗ plan viết *"không ô
+    soạn nào"* nay là *"không ô đang soạn"*; `_empty_draft_of` chỉ đọc bước `create_draft` và khoá
+    hàng rồi kiểm lại; thêm test ô hỏng, dọn dàn ý, hai đề trống, `entity_gone` qua route đọc chat;
+  - Figma: artboard 18 và 18b thêm *Đổi tên* ở đầu panel (`677:4818`, `677:4819`); hộp 18b
+    (`653:3172`) dời về giữa màn hình (y 349 → 386,5) cho khớp code.

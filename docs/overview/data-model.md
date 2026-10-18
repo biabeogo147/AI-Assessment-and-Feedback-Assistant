@@ -61,7 +61,7 @@ Xoá tài liệu ở Postgres **chưa** xoá bản thô ở đây (BE không gi�
 
 | Bảng | Giữ gì | Ghi chú |
 | --- | --- | --- |
-| `assessments` | `teacher_id`, tiêu đề, môn, khối, `state` | `state` là vòng đời ADR-01 với **bốn** giá trị: `empty` → `has_questions` → `approved` → `published`. `teacher_id` là tác giả (ADR-22) |
+| `assessments` | `teacher_id`, tiêu đề, môn, khối, `state` | `state` là vòng đời ADR-01 với **bốn** giá trị: `empty` → `has_questions` → `approved` → `published`. `teacher_id` là tác giả (ADR-22). Chỉ đề `empty` không câu, không ô soạn mới xoá được, và xoá là xoá **cứng** cùng brief của nó (ADR-33); lượt chat cũ giữ `entity_id`, và BE đọc ra `entity_gone` |
 | `questions` | đề bài, thứ tự, mục tiêu học tập | `order_index` là số câu học sinh nhìn thấy. Xoá một câu (chỉ khi đề còn sửa được) dồn số các câu sau **cùng** `draft_items.ordinal` của chúng, để lần soạn thêm không mở ra sau một lỗ (ADR-28) |
 | `options` | nhãn, nội dung, `is_correct`, `error_label` | `error_label` là ánh xạ nhiễu→lỗi của ADR-18, `null` ở đúng một dòng mỗi câu |
 | `methods` | các cách giải | ADR-18 đòi nhiều hơn một |

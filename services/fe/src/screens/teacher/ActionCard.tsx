@@ -476,9 +476,14 @@ export default function ActionCard({
   // một nấc thứ năm: đầu đề vẫn là `Đã tạo đề`, chỉ khác câu an toàn và một cái nút. Figma
   // gọi nó là variant `tạo-đề-trống`, cùng một nấc với `đã-tạo-đề`.
   const empty = state === "drafted" && turn.tool_name === "create_draft";
+  // Đề trống ấy đã bị xoá (ADR-33, variant `tạo-đề-trống — đã xoá` `652:3900`): đầu đề giữ *Đã tạo
+  // đề*, câu an toàn nói đề đã xoá, không nút, không mở được -- mở là mở một đề không còn.
+  const gone = turn.entity_gone === true;
 
   const actions =
-    state === "failed"
+    gone
+      ? []
+      : state === "failed"
       ? [{ label: "Thử lại", onClick: () => onCompose(""), primary: true }]
       : empty
         ? [
@@ -492,10 +497,12 @@ export default function ActionCard({
 
   return (
     <Card
-      onOpen={paper === "" ? undefined : () => onOpen(paper)}
+      onOpen={paper === "" || gone ? undefined : () => onOpen(paper)}
       tone={state === "failed" ? "refused" : state === "published" ? "settled" : ""}
       head={HEAD[state](named)}
-      safety={empty ? "Đề trống, chưa phát hành được" : SAFETY[state]}
+      safety={
+        gone ? "Đề trống này đã xoá" : empty ? "Đề trống, chưa phát hành được" : SAFETY[state]
+      }
       actions={actions}
     />
   );

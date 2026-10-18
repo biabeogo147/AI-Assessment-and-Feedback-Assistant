@@ -109,3 +109,9 @@ có đường xoá; [ADR-28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) quyết 
 **Nơi thi hành:** `teacher_routes.delete_question` gọi `assert_editable` trước và sau lần thu hoạch, và
 từ chối câu cuối; test `test_the_last_question_cannot_be_deleted` và
 `test_an_approved_paper_refuses_a_delete` trong `services/be/tests/test_delete_question.py`.
+
+## Hậu ký 18/10/2026
+
+**Đề trống xoá được** ([ADR-33](adr-33-chi-de-trong-moi-xoa-duoc.md), plan `wave-3-draft-panel`).
+Vòng đời bốn trạng thái không đổi: xoá không phải một cạnh, mà là một đề **ở `trống`** rời khỏi bảng.
+Chỉ trạng thái `trống`, không câu, không ô soạn; đề ở mọi trạng thái khác vẫn không xoá được.

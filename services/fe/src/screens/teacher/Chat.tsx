@@ -533,6 +533,34 @@ export default function Chat({
   const before = drawn[drawn.length - 1];
   const opensTurn = before === undefined || before.kind === "teacher" || before.kind === "notice";
 
+  /** Đóng panel, về lại đoạn chat đang mở. */
+  function backToChat() {
+    go(here === null ? "/teacher" : `/teacher/chat/${here}`);
+  }
+
+  /** Đọc lại đúng đoạn đang mở, sau một việc ghi của panel (duyệt, xoá đề trống, …). */
+  function reread() {
+    // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
+    // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
+    // hành động vừa rồi chỉ xuất hiện sau một lần F5.
+    //
+    // Đọc lại **đúng đoạn đang mở**. Bản trước gọi không id, mà không id nghĩa là
+    // *đoạn đang chạy* — nên duyệt một đề mở từ một đoạn cũ sẽ ghi lượt của đoạn
+    // khác đè lên màn hình.
+    // Lời đáp về sau khi giáo viên đã sang đoạn chat khác thì bỏ: vẽ nó là ghi lượt
+    // của đoạn cũ lên màn hình đoạn mới (review ảnh pha 5, plan `backlog-tier-1`).
+    const asked = here;
+    teacher
+      .conversation(asked ?? undefined)
+      .then((answered: Answered) => {
+        if (hereNow.current === asked) setTurns(answered.turns);
+      })
+      .catch((cause: Error) => {
+        // Lỗi đọc lại đoạn cũ cũng không thuộc màn hình đoạn mới.
+        if (hereNow.current === asked) setTrouble(cause.message);
+      });
+  }
+
   return (
     <div
       className="teacher"
@@ -825,32 +853,16 @@ export default function Chat({
           key={openPaper}
           assessmentId={openPaper}
           revision={paperRevision}
-          onClose={() =>
-            go(here === null ? "/teacher" : `/teacher/chat/${here}`)
-          }
+          onClose={backToChat}
           // Không còn `onPublish` lẫn `onUnpublish`. Cả hai là đường đi và đường về của
           // một hậu tố route `/phat-hanh` đã bỏ: panel đọc nấc từ `state`, nên duyệt xong
           // là biểu mẫu hiện ra và hoàn tác xong là nó biến mất, không cú điều hướng nào.
-          onApproved={() => {
-            // `approve` ghi một bước vào hội thoại (ADR-01 đòi thế với bỏ duyệt, và duyệt đi
-            // cùng cặp), nên dòng lượt nói phải đọc lại — nếu không, thẻ kết quả của chính
-            // hành động vừa rồi chỉ xuất hiện sau một lần F5.
-            //
-            // Đọc lại **đúng đoạn đang mở**. Bản trước gọi không id, mà không id nghĩa là
-            // *đoạn đang chạy* — nên duyệt một đề mở từ một đoạn cũ sẽ ghi lượt của đoạn
-            // khác đè lên màn hình.
-            // Lời đáp về sau khi giáo viên đã sang đoạn chat khác thì bỏ: vẽ nó là ghi lượt
-            // của đoạn cũ lên màn hình đoạn mới (review ảnh pha 5, plan `backlog-tier-1`).
-            const asked = here;
-            teacher
-              .conversation(asked ?? undefined)
-              .then((answered: Answered) => {
-                if (hereNow.current === asked) setTurns(answered.turns);
-              })
-              .catch((cause: Error) => {
-                // Lỗi đọc lại đoạn cũ cũng không thuộc màn hình đoạn mới.
-                if (hereNow.current === asked) setTrouble(cause.message);
-              });
+          onApproved={reread}
+          // Đề trống vừa xoá (ADR-33): về đoạn chat, và đọc lại để thẻ *Đã tạo đề* cũ nói *"Đề
+          // trống này đã xoá"* (plan `wave-3-draft-panel`).
+          onErased={() => {
+            reread();
+            backToChat();
           }}
         />
       )}
