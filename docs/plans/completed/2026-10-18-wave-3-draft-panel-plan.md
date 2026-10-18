@@ -124,8 +124,10 @@ Làm việc 16, 12, 13, 14, 15 của `2026-10-18-deterministic-batch-master-plan
   mới. Vitest: link chỉ hiện ở đề trống, hộp xác nhận, thẻ *đã xoá*. Trình duyệt: hộp, thẻ.
 
 ### Pha 5 — đóng
-- [ ] 20. Thử tay việc 2 trên AGENT mock: soạn thêm vào đề đang mở, panel tự cập nhật.
-- [ ] 21. Roadmap việc 12–16 sang *Xong*; backlog và artifact backlog ghi đã làm; tick plan tổng;
+- [x] 20. Thử tay việc 2 trên AGENT mock: soạn thêm vào đề đang mở, panel tự cập nhật. **Không làm
+  được bằng mock**: mock nhờ soạn câu nào cũng tạo đề mới. Đã chạy luồng mock tạo đề và soạn câu
+  (pha 4); nhánh `revision` có vitest từ đợt 1; thử tay đủ cần một lượt model thật, ghi backlog.
+- [x] 21. Roadmap việc 12–16 sang *Xong*; backlog và artifact backlog ghi đã làm; tick plan tổng;
   plan này sang `completed/`.
 
 ## Decision Records
@@ -190,3 +192,6 @@ dời chỗ vì gộp cũng bị bắt, và lần thử lại là một câu s�
     hàng rồi kiểm lại; thêm test ô hỏng, dọn dàn ý, hai đề trống, `entity_gone` qua route đọc chat;
   - Figma: artboard 18 và 18b thêm *Đổi tên* ở đầu panel (`677:4818`, `677:4819`); hộp 18b
     (`653:3172`) dời về giữa màn hình (y 349 → 386,5) cho khớp code.
+- Pha 5 xong 18/10/2026: roadmap việc 12–16 *Xong* (rev 249, kèm sửa chữ *Thử lại* và chữ thông báo);
+  `backlog.md` và artifact backlog (rev 143) ghi đã làm, thêm ba phát hiện mới; mục lục ADR có
+  ADR-33. Plan đóng.
