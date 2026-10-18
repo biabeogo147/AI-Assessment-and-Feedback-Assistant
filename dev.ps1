@@ -96,7 +96,14 @@ switch ($Task) {
     }
 
     'be' {
-        & $Python -m uvicorn be.main:app --reload --host 127.0.0.1 --port 8000
+        # Chỉ theo dõi code BE chạy: không có --reload-dir thì uvicorn theo cả repo, và sửa một
+        # test của AGENT cũng làm BE nạp lại. --timeout-graceful-shutdown vì kênh SSE của mỗi tab
+        # không tự đóng, nên không có trần thì process cũ đứng mãi ở "Waiting for connections to
+        # close" và BE thôi trả lời (đo 12/10/2026).
+        & $Python -m uvicorn be.main:app --reload `
+            --reload-dir "$RepoRoot\services\be\src" --reload-dir "$RepoRoot\packages\contracts\src" `
+            --reload-dir "$RepoRoot\packages\schema\src" `
+            --timeout-graceful-shutdown 3 --host 127.0.0.1 --port 8000
     }
 
     'ingest' {

@@ -598,7 +598,7 @@ cầu…"*. Gặp hai lần trong một buổi.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Cho uvicorn đóng kênh khi tắt (`timeout_graceful_shutdown`), hoặc stream tự kết thúc khi app tắt | **Tier 3: đi cùng mục BE kẹt khi --reload; sửa dev.ps1 cần plan riêng** (plan `backlog-tier-1`, pha 4). Không chặn gì. Ngoài phạm vi plan 4a. Chạy BE bằng compound PyCharm (không `--reload`) thì không gặp |
+| Cho uvicorn đóng kênh khi tắt (`timeout_graceful_shutdown`), hoặc stream tự kết thúc khi app tắt | **Đã làm** 18/10/2026 (đợt tất định việc 6): `dev.ps1 be` có `--timeout-graceful-shutdown 3` và `--reload-dir` chỉ cho `services/be/src`, `packages/contracts/src`, `packages/schema/src`. Chưa đo trên một tab đang mở: BE chạy nền không console thì uvicorn trên Windows không dừng được process con (`CTRL_C_EVENT`), nên phép đo phải làm trong terminal thật |
 
 ## Soạn đề: lỗi lộ ra khi thử tay plan 4c T5
 

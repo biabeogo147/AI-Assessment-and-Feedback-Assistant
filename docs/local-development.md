@@ -84,6 +84,11 @@ job một lúc) và một worker dựng cây mục lục (plan 3c, chờ mạng 
 .\dev.ps1 fe         # terminal 6 - http://localhost:5173
 ```
 
+`.\dev.ps1 be` tự nạp lại khi sửa `services/be/src`, `packages/contracts/src` hay
+`packages/schema/src`, và chỉ ba thư mục ấy: sửa test hay service khác thì BE không nạp lại. Lúc nạp lại,
+process cũ chờ các kênh SSE đang mở tối đa 3 giây rồi tắt hẳn, nên một tab giáo viên đang mở không làm
+BE kẹt. AGENT và các worker thì không tự nạp lại: sửa code của chúng thì khởi động lại terminal ấy.
+
 **Thiếu `ingest`, `document` hoặc `index` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
 tài liệu đứng ở *đang xử lý* rồi năm phút sau đổi sang *xử lý hỏng*. Không lỗi nào hiện ra,
 vì không có gì sai — chỉ là không có ai làm việc.
