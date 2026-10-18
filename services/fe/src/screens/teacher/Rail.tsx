@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { type TeacherConversation, type TeacherDocument } from "../../api";
-import { DASHBOARD_WAITING } from "./invented-not-from-be";
 import { readFlag, readNumber, writeFlag, writeNumber } from "./remember";
 
 /** Chiều cao ngăn tài liệu, nhớ lại giữa các lần mở. Thiết kế vẽ 225. */
@@ -149,11 +148,7 @@ export default function Rail({
           </span>
           Đoạn chat mới
         </button>
-        <Destination
-          icon={<Dashboard />}
-          label="Bảng theo dõi"
-          badge={DASHBOARD_WAITING}
-        />
+        <Destination icon={<Dashboard />} label="Bảng theo dõi" />
         <Destination icon={<Classes />} label="Danh sách lớp học" />
         <Destination icon={<Papers />} label="Các bài kiểm tra" />
         <Destination icon={<Bank />} label="Ngân hàng câu hỏi" />
@@ -450,24 +445,17 @@ function weight(bytes: number): string {
 /**
  * Một đích đến của dải điều hướng. Chưa đích nào có màn hình, nên chưa đích nào bấm được.
  *
+ * Không có huy hiệu số: con số *"3"* trên *Bảng theo dõi* từng là chữ bịa, không đường nào đếm nó,
+ * và đã gỡ 18/10/2026 (đợt tất định việc 3).
+ *
  * @param icon - Hình 12×12.
  * @param label - Chữ.
- * @param badge - Con số chờ, nếu có.
  */
-function Destination({
-  icon,
-  label,
-  badge,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  badge?: number;
-}) {
+function Destination({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <div className="destination">
       <span className="icon">{icon}</span>
       <span className="label">{label}</span>
-      {badge !== undefined && <span className="badge">{badge}</span>}
     </div>
   );
 }

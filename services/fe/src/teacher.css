@@ -212,16 +212,6 @@
   flex: 1;
 }
 
-.rail .destination .badge {
-  padding: 2px 7px;
-  border-radius: var(--radius-chip);
-  background: var(--state-needs-human-surface);
-  color: var(--state-needs-human);
-  font-size: var(--type-caption);
-  font-weight: 600;
-  line-height: 1.5;
-}
-
 /*
  * Vạch chọn: 3×28 ở mép trái, không phải một nền đổi màu.
  *

@@ -6314,3 +6314,23 @@ describe("dòng chat và panel đi theo lượt đang chạy (đợt tất đị
     expect(reads()).toBe(2);
   }, 15000);
 });
+
+describe("rail không bịa con số (đợt tất định việc 3)", () => {
+  it("Bảng theo dõi không mang huy hiệu số nào", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const body = url.startsWith("/api/teacher/chat") ? SPOKEN : [];
+        return { ok: true, json: async () => body };
+      }),
+    );
+    const { container } = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    await waitFor(() => expect(screen.getByText("Đã tạo xong đề.")).toBeTruthy());
+    const dashboard = [...container.querySelectorAll(".rail .destination")].find((one) =>
+      one.textContent?.includes("Bảng theo dõi"),
+    ) as HTMLElement;
+    expect(dashboard.textContent).toBe("Bảng theo dõi");
+    expect(container.querySelector(".rail .destination .badge")).toBeNull();
+  });
+});
