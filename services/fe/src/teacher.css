@@ -228,6 +228,7 @@
  */
 @media (hover: hover) {
   .rail .new-chat:hover:not([aria-current]),
+  .rail .destination:hover:not([aria-current]),
   .rail .conversation:hover:not([aria-current]) {
     background: var(--surface);
   }
@@ -3134,4 +3135,469 @@
 /* Nút tắt giữ màu, chỉ mờ đi 0,45 như variant *đang soạn lại* (`652:3623`). */
 .teacher .slot-retry:disabled {
   opacity: 0.45;
+}
+
+/*
+ * Các màn của rail (plan `teacher-rail-screens`, việc 18). Số đo từ artboard 9 (`180:753`) và 10
+ * (`183:874`): cột giữa padding 32/40/24, các khối cách nhau 24; tiêu đề 24/600; bảng trắng viền
+ * line bo 8; đầu bảng 11/600 ink/faint padding 10/16; hàng 44 padding 12/16, cột cách nhau 24.
+ */
+.teacher .center.viewing {
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-y: auto;
+}
+
+.teacher .board {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Bảng cuối của một màn kéo tới đáy cột giữa, như mọi artboard rail (bảng dừng ở y 876). */
+.teacher .board-table.fill {
+  flex: 1;
+}
+
+.teacher .board-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.teacher .board-head .titles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Link quay về cách tiêu đề 8 (`title-block` của artboard 10), tiêu đề cách dòng phụ 4. */
+.teacher .board-head .crumb {
+  margin-bottom: 4px;
+}
+
+.teacher .board-head h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--type-display);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.teacher .board-head .sub {
+  min-height: 18px;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+  line-height: 1.4;
+}
+
+.teacher .board-head .crumb {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  line-height: 1.4;
+}
+
+/* Tiêu đề mục cách bảng của nó 8 (artboard 10): gap 24 của `.board` trừ 16. */
+.teacher .board-section {
+  margin: 0 0 -16px;
+  color: var(--ink);
+  font-size: var(--type-heading);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.teacher .board-wait {
+  padding: 24px 16px;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+}
+
+.teacher .board-wait.trouble {
+  color: var(--answer-incorrect);
+}
+
+.teacher .board-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher .board-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  column-gap: 24px;
+  /* 44 + vạch 1 của Figma: `min-height` tính cả viền trên (border-box), nên 44 từng ra 44,6. */
+  min-height: 45px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--type-body);
+  line-height: 1.4;
+}
+
+/* Đầu bảng canh đáy, như `table-head` của Figma: chữ một dòng đứng ngang dòng cuối của chữ hai dòng. */
+/* Dòng 15 và giãn chữ 4% như `table-head`: đầu một dòng cao 35, hai dòng 50 (artboard 9, 21). Hai
+ * số ấy của Figma **gồm** viền trong của thẻ, nên đệm trên là 9 chứ không 10 (chấm ảnh). */
+.teacher .board-row.head {
+  align-items: end;
+  min-height: 0;
+  padding: 9px 16px 10px;
+  border-top: none;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 15px;
+}
+
+/* Chữ đầu cột được lấn 10px vào khe cột 24, về phía không canh: trình duyệt dựng chữ in hoa giãn 4%
+ * rộng hơn Figma, và *"HỌC SINH NỘP BÀI"* (Figma 108 trong cột 110) từng ngắt sau *"NỘP"* (chấm ảnh,
+ * artboard 9). Mép canh của chữ không dời. */
+.teacher .board-row.head > span:not(.num) {
+  margin-right: -10px;
+}
+
+.teacher .board-row.head > span.num {
+  margin-left: -10px;
+}
+
+.teacher .board-row.empty {
+  display: block;
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+}
+
+.teacher .board-row.open-able {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .teacher .board-row.open-able:hover {
+    background: var(--accent-surface);
+  }
+}
+
+.teacher .board-row .name {
+  font-weight: 600;
+}
+
+/* `cell-*`, không `.muted`/`.faint`: hai tên ấy là class cấp đầu của `tokens.css`, và `.faint` ở đó
+ * đặt cỡ caption -- ô *"—"* từng in 11 thay vì 14 (review FE, luật tên class của `services/fe/AGENTS.md`). */
+.teacher .board-row .cell-muted {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+}
+
+.teacher .board-row .cell-faint,
+.teacher .board-row .chevron {
+  color: var(--ink-faint);
+}
+
+.teacher .board-row .chevron {
+  text-align: right;
+}
+
+.teacher .board-row .num {
+  text-align: right;
+}
+
+.teacher .board-row .code {
+  color: var(--ink-muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: var(--type-label);
+}
+
+.teacher .board-row .phase {
+  font-size: var(--type-label);
+}
+
+.teacher .board-row .phase.live {
+  color: var(--state-processing);
+}
+
+.teacher .board-row .phase.over {
+  color: var(--ink-faint);
+}
+
+/* Cột của từng bảng, đo từ artboard 9 và 10. */
+.teacher .board-table.classes {
+  --cols: minmax(0, 1fr) 100px 64px 90px 100px 110px 120px 12px;
+}
+
+.teacher .board-table.class-papers {
+  --cols: minmax(0, 1fr) 150px 150px 150px 90px 12px;
+}
+
+/* Cột mã đứng đúng chỗ của Figma (x 876); chỗ của cột tên đăng nhập (việc 22) để trống. */
+.teacher .board-table.class-students {
+  --cols: 536px 140px minmax(0, 1fr);
+}
+
+/* `Class progress popover` (`665:62`): thẻ trắng viền line bo 8, padding 12/14, rộng 300. */
+.teacher .board-row .progress {
+  position: relative;
+}
+
+/* Canh mép phải với ô được rê, như Figma (`665:62` đứng dưới ô *chưa nộp bài*, mép phải trùng ô). */
+.teacher .progress-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 300px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(26 31 43 / 14%);
+  text-align: left;
+}
+
+.teacher .progress-popover .pop-head {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+.teacher .progress-popover .pop-row {
+  display: flex;
+  gap: 12px;
+  color: var(--ink);
+  font-size: var(--type-label);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.teacher .progress-popover .pop-row span:first-child {
+  flex: 1;
+}
+
+.teacher .progress-popover .pop-row .num {
+  font-size: var(--type-body);
+}
+
+/* Cột của các màn 21, 11, 22, 22b, 23 (plan `teacher-rail-screens`), đo từ artboard. */
+.teacher .board-table.papers {
+  --cols: minmax(0, 1fr) 150px 140px 200px 130px 12px;
+}
+
+.teacher .board-table.results {
+  --cols: minmax(0, 1fr) 90px 110px 120px 130px 150px 12px;
+}
+
+.teacher .board-table.bank {
+  --cols: minmax(0, 1fr) 200px 120px 12px;
+}
+
+/* Cột cuối 12px để trống: ba cột số đứng đúng chỗ của artboard 23 (EM CHỌN x 940). */
+.teacher .board-table.work {
+  --cols: minmax(0, 1fr) 140px 140px 80px 12px;
+}
+
+/* Tên đề một dòng, cắt `…` (ADR-31). Mọi hàng cao 46 + vạch như artboard 21, kể cả hàng có
+ * *"Mở … / chữa tới …"*: ô hai dòng (37) đứng trong hàng 46 nên đệm dọc chỉ còn 4. */
+.teacher .board-table.papers .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher .board-table.papers .board-row:not(.head) {
+  min-height: 47px;
+  padding-block: 4px;
+}
+
+/* Hàng ngân hàng 46 + vạch (artboard 22); câu dài thì hàng cao theo chữ, dòng 1,5 như hàng của 22b
+ * (hai dòng: 67). */
+.teacher .board-table.bank .board-row:not(.head) {
+  min-height: 47px;
+  line-height: 1.5;
+}
+
+/* Hàng bài làm 61 + vạch (artboard 23): ô câu hai dòng theo dòng 1,5 của Figma. */
+.teacher .board-table.work .board-row:not(.head) {
+  min-height: 62px;
+}
+
+.teacher .board-row .phase.strong {
+  font-weight: 500;
+}
+
+.teacher .board-row .when {
+  display: flex;
+  flex-direction: column;
+}
+
+.teacher .board-row .small,
+.teacher .board-row .small-row {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .board-row .small-row {
+  font-size: var(--type-label);
+}
+
+.teacher .board-row .muted-body {
+  color: var(--ink-muted);
+}
+
+.teacher .board-row .act {
+  color: var(--accent);
+  font-size: var(--type-label);
+  font-weight: 600;
+  text-align: right;
+}
+
+.teacher .board-row.head .sorted {
+  color: var(--ink);
+}
+
+.teacher .board-row .stem-cell {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+
+.teacher .board-row .stem-cell .small {
+  font-weight: 600;
+}
+
+.teacher .board-row.chosen {
+  background: var(--accent-surface);
+}
+
+/* Bốn thẻ số và biểu đồ phân bố (artboard 11): thẻ 244 × 90, cách nhau 16; biểu đồ 572 × 196. */
+.teacher .result-top {
+  display: grid;
+  grid-template-columns: minmax(0, 504px) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.teacher .stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.teacher .stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 90px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher .stat-label {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+.teacher .stat-value {
+  color: var(--ink);
+  font-size: var(--type-display);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.teacher .stat-note {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.4;
+}
+
+.teacher .chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 196px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.teacher .chart-head {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+.teacher .chart-empty {
+  color: var(--ink-muted);
+  font-size: var(--type-label);
+}
+
+.teacher .bars {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.teacher .bar-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  text-align: center;
+}
+
+.teacher .bar {
+  display: block;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.teacher .bar-count,
+.teacher .bar-mark {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 1.4;
+}
+
+/* Nhãn trục cách đáy cột 12, như artboard 11 (cột đáy 296, nhãn 308). */
+.teacher .bar-mark {
+  margin-top: 8px;
+}
+
+/* Màn 23: bốn thẻ trên hai hàng rộng (542 × 90). */
+.teacher .stat-tiles.wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Màn 22b: panel phải sửa câu ngân hàng, cùng khung với panel đề (420, đầu 86, chân 70). */
+.teacher .bank-editor .qcard .edit-title {
+  color: var(--ink);
+  font-size: var(--type-label);
+  font-weight: 600;
 }

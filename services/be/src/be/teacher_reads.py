@@ -67,6 +67,10 @@ _OPEN = "Đang mở"
 _REMEDIATING = "Đang chữa bài"
 _OVER = "Đã kết thúc"
 
+# Mã của từng chặng, đi cùng nhãn: FE chọn màu và quyết dòng *"chữa tới"* theo mã, không theo chữ
+# -- đổi chữ nhãn thì màn hình không lặng lẽ sai (review FE, plan `teacher-rail-screens`).
+_PHASE_CODE = {_NOT_YET: "not_yet", _OPEN: "open", _REMEDIATING: "remediating", _OVER: "over"}
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -281,6 +285,7 @@ class PaperInClass(BaseModel):
     assessment_id: str
     title: str
     status: str
+    phase: str
     opens_at: datetime
     closes_at: datetime
     submitted: int
@@ -338,6 +343,7 @@ async def class_detail(
                 assessment_id=paper.id,
                 title=paper.title,
                 status=_phase_of(publication, now),
+                phase=_PHASE_CODE[_phase_of(publication, now)],
                 opens_at=aware(publication.opens_at),
                 closes_at=aware(publication.closes_at),
                 submitted=sum(1 for (aid, _sid) in done if aid == paper.id),
@@ -360,6 +366,8 @@ class PaperRow(BaseModel):
 
     Attributes:
         status: Nhãn theo vòng đời và giờ BE (Decision 3).
+        phase: Mã chặng của nhãn (`not_yet`, `open`, `remediating`, `over`); rỗng khi đề chưa phát
+            hành.
         classes: Tên các lớp đang giữ đề (chưa thu hồi), theo tên.
         first_class_id: Lớp đầu theo tên **trong số lớp đã qua giờ mở** -- *Xem kết quả* mở lớp ấy
             (Decision 4), để không mở ra một màn kết quả trống; rỗng khi chưa lớp nào mở.
@@ -373,6 +381,7 @@ class PaperRow(BaseModel):
     assessment_id: str
     title: str
     status: str
+    phase: str
     classes: tuple[str, ...]
     first_class_id: str
     opens_at: datetime | None
@@ -441,11 +450,13 @@ async def list_papers(
             key=lambda pair: pair[1],
         )
         phases = [_phase_of(p, now) for p, _ in mine]
+        status = _paper_status(paper, phases, paper.id in drafting)
         rows.append(
             PaperRow(
                 assessment_id=paper.id,
                 title=paper.title,
-                status=_paper_status(paper, phases, paper.id in drafting),
+                status=status,
+                phase=_PHASE_CODE.get(status, ""),
                 classes=tuple(name for _, name in mine),
                 first_class_id=next(
                     (p.class_id for p, _ in mine if _phase_of(p, now) != _NOT_YET), ""
@@ -489,8 +500,9 @@ class ResultRow(BaseModel):
 class ClassResults(BaseModel):
     """Kết quả một đề trong một lớp (màn 11, `205:1000`).
 
-    `distribution[k]` là số bài có tổng điểm trong [k, k+1), với bài đạt trọn `question_count` vào ô
-    cuối. Thống kê chỉ tính bài đã nộp; rỗng khi chưa ai nộp.
+    `distribution` có `question_count` ô: ô `k` đếm bài có tổng điểm trong [k, k+1), và bài trọn
+    điểm gộp vào ô cuối -- như artboard 11 (thang 10, ô 0..9). Thống kê chỉ tính bài đã nộp; rỗng
+    khi chưa ai nộp.
     """
 
     assessment_id: str
@@ -584,9 +596,9 @@ async def class_results(
         )
     rows.sort(key=lambda one: (-one.mark, one.full_name))
     marks = [one.mark for one in rows]
-    bins = [0] * (question_count + 1)
+    bins = [0] * max(question_count, 1)
     for mark in marks:
-        bins[min(int(mark), question_count)] += 1
+        bins[min(int(mark), len(bins) - 1)] += 1
     return ClassResults(
         assessment_id=assessment_id,
         title=paper.title,
@@ -623,6 +635,7 @@ class StudentWork(BaseModel):
 
     Attributes:
         state: `attempt_state` của bài; `None` khi em chưa nộp.
+        note: Chữ của trạng thái ấy, **cùng bảng** với cột ghi chú của màn 11; rỗng khi chưa nộp.
         rounds_done: Số lượt chữa đã nộp.
         reports: Số lần em báo *giải thích chưa rõ* trong bài này (ADR-19).
     """
@@ -637,6 +650,7 @@ class StudentWork(BaseModel):
     question_count: int
     submitted_at: datetime | None
     state: str | None
+    note: str
     mark: float
     first_try: int
     rounds_done: int
@@ -705,6 +719,12 @@ async def student_work(
             or 0
         )
 
+    state = (
+        attempt_state(outcomes, True, aware(publication.remediation_deadline), now)
+        if attempt
+        else None
+    )
+
     def shown(option: AnswerOption | None) -> str:
         return f"{option.label}. {option.text}" if option is not None else ""
 
@@ -732,11 +752,8 @@ async def student_work(
         class_name=school_class.name,
         question_count=len(questions),
         submitted_at=aware(attempt.submitted_at) if attempt else None,
-        state=(
-            attempt_state(outcomes, True, aware(publication.remediation_deadline), now)
-            if attempt
-            else None
-        ),
+        state=state,
+        note=_NOTES.get(state or "", ""),
         mark=round(sum(one.mark for one in outcomes.values()), 2),
         first_try=sum(1 for one in outcomes.values() if one.reason == "đúng-ngay"),
         rounds_done=rounds,

@@ -150,11 +150,28 @@ export default function Chat({
   conversationId,
   fresh,
   openPaper,
+  view,
+  place = null,
+  aside,
 }: {
   conversationId: string | null;
   fresh: boolean;
   openPaper: string | null;
+  /**
+   * Một màn của rail vẽ ở cột giữa thay cho dòng hội thoại (plan `teacher-rail-screens`). Có nó thì
+   * không tải lượt chat, không composer; rail giữ nguyên.
+   */
+  view?: React.ReactNode;
+  /** Đích đến của rail đang mở, cho variant `đang chọn`. */
+  place?: string | null;
+  /** Panel phải của một màn rail (màn 22b sửa câu ngân hàng), đứng đúng chỗ panel đề. */
+  aside?: React.ReactNode;
 }) {
+  const viewing = view !== undefined;
+  // `viewing` lúc **này**, cho một lượt chat đang chạy dở khi giáo viên bấm sang màn rail: lượt ấy
+  // chạy tiếp tới cuối, và không được tô một đoạn chat hay kéo giáo viên về đoạn ấy (review pha 2).
+  const viewingNow = useRef(viewing);
+  viewingNow.current = viewing;
   const [turns, setTurns] = useState<Turn[]>([]);
   // Lượt đang chạy, dựng từ các sự kiện SSE. Nó **không** phải nguồn của màn hình sau khi
   // lượt xong: lúc đó cả đoạn được đọc lại từ database.
@@ -242,7 +259,9 @@ export default function Chat({
     // trên thấy hai giá trị bằng nhau, kết luận "đã có sẵn trên màn hình" và trả về sớm,
     // để lại một màn trắng. Chọn một đoạn khác thì lại chạy, nên lỗi trông như ngẫu nhiên.
     loaded.current = null;
-    if (fresh) return;
+    // Màn của rail không có đoạn chat nào để đọc: tải đoạn mới nhất chỉ để vứt đi là một lời gọi
+    // thừa, và lỗi của nó sẽ hiện trên một màn không liên quan.
+    if (fresh || viewing) return;
     teacher
       .conversation(conversationId ?? undefined)
       .then((answered: Answered) => {
@@ -256,7 +275,7 @@ export default function Chat({
     return () => {
       live = false;
     };
-  }, [conversationId, fresh]);
+  }, [conversationId, fresh, viewing]);
 
   useEffect(() => {
     void readDocuments().catch((cause: Error) => setTrouble(cause.message));
@@ -384,6 +403,17 @@ export default function Chat({
         stop.signal,
       );
 
+      // Giáo viên đã sang một màn rail trong lúc lượt chạy: lượt đã ghi vào database, chỉ đọc lại
+      // danh sách đoạn chat. Không đánh dấu đã tải, không vẽ lượt: màn đang hiện không phải đoạn ấy, và
+      // đánh dấu thì lần quay lại đoạn ấy không tải gì, câu gửi kế tiếp mở một đoạn mới (review FE).
+      if (viewingNow.current) {
+        setScope(null);
+        teacher
+          .conversations()
+          .then(setThreads)
+          .catch(() => undefined);
+        return;
+      }
       setHere(thread);
       // Tệp đính thuộc về **câu vừa gửi**, nên nó chết ở đây. Không đặt trong `finally`:
       // lượt hỏng thì chữ được trả lại ô nhập, và tệp phải trở về cùng chữ ấy — giữ lại
@@ -587,6 +617,8 @@ export default function Chat({
           )
         }
         onNew={() => go("/teacher/moi")}
+        place={place}
+        onGo={go}
       />
       <Split
         side="left"
@@ -596,6 +628,17 @@ export default function Chat({
         onWidth={setRailWidth}
         onSettle={(width) => keepWidth(RAIL, width)}
       />
+      {viewing ? (
+        <main className="center viewing">
+          {/* Lỗi của phần rail (đọc thư viện, đoạn chat) vẫn phải nói ra ở màn rail. */}
+          {trouble !== null && (
+            <div className="trouble" role="alert">
+              {trouble}
+            </div>
+          )}
+          {view}
+        </main>
+      ) : (
       <main
         className={`center ${talking ? "talking" : "empty"} ${openPaper !== null ? "with-panel" : ""}`}
       >
@@ -833,6 +876,21 @@ export default function Chat({
           }}
         />
       </main>
+      )}
+
+      {aside !== undefined && (
+        <>
+          <Split
+            side="right"
+            min={PAPER.min}
+            max={PAPER.max}
+            label="Kéo để đổi bề rộng panel"
+            onWidth={setPanelWidth}
+            onSettle={(width) => keepWidth(PAPER, width)}
+          />
+          {aside}
+        </>
+      )}
 
       {openPaper !== null && (
         <Split

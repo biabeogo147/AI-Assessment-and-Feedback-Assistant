@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import "./tokens.css";
 import "./teacher.css";
@@ -9,6 +9,13 @@ import Round from "./screens/student/Round";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
 import Chat from "./screens/teacher/Chat";
+import Bank, { BankEditor } from "./screens/teacher/Bank";
+import { BoardHead } from "./screens/teacher/Board";
+import ClassDetail from "./screens/teacher/ClassDetail";
+import ClassResults from "./screens/teacher/ClassResults";
+import Classes from "./screens/teacher/Classes";
+import Papers from "./screens/teacher/Papers";
+import StudentWork from "./screens/teacher/StudentWork";
 
 /**
  * Đọc route hiện tại từ hash của location.
@@ -90,12 +97,79 @@ function Teacher() {
     );
   }
 
+  // Các màn của rail (plan `teacher-rail-screens`): cột giữa vẽ màn ấy, rail giữ nguyên.
+  const board = boardFor(route);
+  if (board !== null) {
+    return (
+      <Chat
+        conversationId={null}
+        fresh={false}
+        openPaper={null}
+        view={board.view}
+        place={board.place}
+        aside={board.aside}
+      />
+    );
+  }
+
   // Link cũ `#/teacher/de/{id}`: không biết đoạn chat nào, nên hỏi BE rồi chuyển. Giữ nó
   // sống vì một bookmark hay một tab mở từ hôm qua không có lỗi gì.
   const bare = /^\/teacher\/de\/([^/]+?)(?:\/phat-hanh)?$/.exec(route);
   if (bare) return <Settle paper={bare[1]} />;
 
   return <Chat conversationId={null} fresh={false} openPaper={null} />;
+}
+
+/**
+ * Màn của rail ứng với một route, cùng đích đến của rail cần sáng lên; `null` khi route không phải
+ * một màn rail (plan `teacher-rail-screens`).
+ *
+ * @param route - Route hiện tại.
+ */
+function boardFor(
+  route: string,
+): { view: ReactNode; place: string; aside?: ReactNode } | null {
+  // Màn *Bảng theo dõi* là việc 19; tới lúc ấy nó chỉ có đầu trang.
+  if (route === "/teacher/theo-doi") {
+    return { view: <BoardHead title="Bảng theo dõi" sub="" />, place: "theo-doi" };
+  }
+  if (route === "/teacher/lop") return { view: <Classes />, place: "lop" };
+  if (route === "/teacher/de-kiem-tra") return { view: <Papers />, place: "de-kiem-tra" };
+  if (route === "/teacher/ngan-hang") return { view: <Bank key="bank" />, place: "ngan-hang" };
+
+  const bank = /^\/teacher\/ngan-hang\/([^/]+)$/.exec(route);
+  if (bank) {
+    return {
+      view: <Bank key="bank" open={bank[1]} />,
+      place: "ngan-hang",
+      aside: <BankEditor key={bank[1]} bankId={bank[1]} />,
+    };
+  }
+  const student = /^\/teacher\/lop\/([^/]+)\/de\/([^/]+)\/hs\/([^/]+)$/.exec(route);
+  if (student) {
+    const [, classId, assessmentId, studentId] = student;
+    return {
+      view: (
+        <StudentWork
+          key={student[0]}
+          classId={classId}
+          assessmentId={assessmentId}
+          studentId={studentId}
+        />
+      ),
+      place: "lop",
+    };
+  }
+  const results = /^\/teacher\/lop\/([^/]+)\/de\/([^/]+)$/.exec(route);
+  if (results) {
+    return {
+      view: <ClassResults key={results[0]} classId={results[1]} assessmentId={results[2]} />,
+      place: "lop",
+    };
+  }
+  const inClass = /^\/teacher\/lop\/([^/]+)$/.exec(route);
+  if (inClass) return { view: <ClassDetail key={inClass[1]} classId={inClass[1]} />, place: "lop" };
+  return null;
 }
 
 /**

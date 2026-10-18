@@ -830,6 +830,164 @@ async function streamTurn(
   }
 }
 
+// ---------------------------------------------------------------- các màn của rail giáo viên
+// Plan `teacher-rail-screens` (việc 18). Mọi nhãn, mọi con số phụ thuộc giờ hay vòng đời đề đều do BE
+// dựng (`be/teacher_reads.py`); các màn chỉ vẽ.
+
+/** Ba con số tiến độ của một đề đang mở trong một lớp -- một dòng của popover. */
+export interface PaperProgress {
+  assessment_id: string;
+  title: string;
+  not_submitted: number;
+  phase_one: number;
+  phase_two: number;
+}
+
+/** Một dòng của màn *Danh sách lớp học*. Ba cột tiến độ là `null` khi lớp không có đề đang mở. */
+export interface ClassRow {
+  class_id: string;
+  name: string;
+  student_count: number;
+  /** *Khối / môn*, suy từ các đề đã phát hành cho lớp; rỗng khi lớp chưa nhận đề nào. */
+  courses: string;
+  open_count: number;
+  not_submitted: number | null;
+  phase_one: number | null;
+  phase_two: number | null;
+  by_paper: PaperProgress[];
+}
+
+export interface ClassList {
+  classes: ClassRow[];
+  student_total: number;
+}
+
+export interface PaperInClass {
+  assessment_id: string;
+  title: string;
+  status: string;
+  /** Mã chặng của nhãn: `not_yet`, `open`, `remediating`, `over`. */
+  phase: string;
+  opens_at: string;
+  closes_at: string;
+  submitted: number;
+  student_count: number;
+}
+
+export interface StudentRow {
+  student_id: string;
+  full_name: string;
+  student_code: string;
+}
+
+export interface ClassDetail {
+  class_id: string;
+  name: string;
+  student_count: number;
+  courses: string;
+  papers: PaperInClass[];
+  students: StudentRow[];
+}
+
+/** Một đề trên màn *Các bài kiểm tra*. `status` là nhãn BE dựng theo vòng đời và giờ BE. */
+export interface PaperRow {
+  assessment_id: string;
+  title: string;
+  status: string;
+  /** Mã chặng khi đề đã phát hành; rỗng khi chưa. */
+  phase: string;
+  classes: string[];
+  first_class_id: string;
+  opens_at: string | null;
+  remediation_deadline: string | null;
+  recallable: boolean;
+  shows_results: boolean;
+  conversation_id: string;
+}
+
+export interface PaperList {
+  papers: PaperRow[];
+  running: number;
+}
+
+export interface ResultRow {
+  student_id: string;
+  full_name: string;
+  /** Tổng điểm, trên thang `question_count` (ADR-16). */
+  mark: number;
+  first_try: number;
+  minutes: number;
+  submitted_at: string;
+  note: string;
+}
+
+export interface ClassResults {
+  assessment_id: string;
+  title: string;
+  class_id: string;
+  class_name: string;
+  question_count: number;
+  submitted: number;
+  student_count: number;
+  closes_at: string;
+  highest: number | null;
+  mean: number | null;
+  median: number | null;
+  lowest: number | null;
+  /** `question_count` ô: ô `k` đếm bài trong [k, k+1), bài trọn điểm gộp vào ô cuối. */
+  distribution: number[];
+  rows: ResultRow[];
+}
+
+export interface WorkItem {
+  order: number;
+  stem: string;
+  chosen: string;
+  correct: string;
+  mark: number;
+}
+
+export interface StudentWork {
+  student_id: string;
+  full_name: string;
+  student_code: string;
+  assessment_id: string;
+  title: string;
+  class_id: string;
+  class_name: string;
+  question_count: number;
+  submitted_at: string | null;
+  state: string | null;
+  /** Chữ của trạng thái giai đoạn 2, cùng bảng với ghi chú của màn kết quả; rỗng khi chưa nộp. */
+  note: string;
+  mark: number;
+  first_try: number;
+  rounds_done: number;
+  reports: number;
+  items: WorkItem[];
+}
+
+export interface BankRow {
+  bank_id: string;
+  stem: string;
+  learning_objective: string;
+  course: string;
+}
+
+export interface BankList {
+  questions: BankRow[];
+  approvals: number;
+}
+
+export interface BankDetail {
+  bank_id: string;
+  stem: string;
+  learning_objective: string;
+  course: string;
+  options: TeacherOption[];
+  methods: Method[];
+}
+
 export const teacher = {
   me: () => call<TeacherMe>("teacher", "/teacher/me"),
   documents: () => call<TeacherDocument[]>("teacher", "/teacher/documents"),
@@ -949,6 +1107,28 @@ export const teacher = {
     ),
   assessment: (assessmentId: string) =>
     call<AssessmentDetail>("teacher", `/teacher/assessments/${assessmentId}`),
+  // Các màn của rail (plan `teacher-rail-screens`). Chỉ đọc, trừ sửa bản ngân hàng.
+  classes: () => call<ClassList>("teacher", "/teacher/classes"),
+  classDetail: (classId: string) => call<ClassDetail>("teacher", `/teacher/classes/${classId}`),
+  papers: () => call<PaperList>("teacher", "/teacher/assessments"),
+  classResults: (classId: string, assessmentId: string) =>
+    call<ClassResults>(
+      "teacher",
+      `/teacher/classes/${classId}/assessments/${assessmentId}/results`,
+    ),
+  studentWork: (classId: string, assessmentId: string, studentId: string) =>
+    call<StudentWork>(
+      "teacher",
+      `/teacher/classes/${classId}/assessments/${assessmentId}/students/${studentId}`,
+    ),
+  bank: () => call<BankList>("teacher", "/teacher/bank"),
+  bankQuestion: (bankId: string) => call<BankDetail>("teacher", `/teacher/bank/${bankId}`),
+  // Sửa **bản trong ngân hàng**; câu đã nằm trong đề giữ nguyên (người dùng chốt 18/10/2026).
+  editBankQuestion: (bankId: string, question: QuestionEdit) =>
+    call<BankDetail>("teacher", `/teacher/bank/${bankId}`, {
+      method: "PATCH",
+      body: JSON.stringify(question),
+    }),
   // Xoá cứng một đề nháp **trống** (ADR-33, plan `wave-3-draft-panel`). BE từ chối đề còn câu hay
   // ô đang soạn; nơi gọi đọc lại đoạn chat để thẻ cũ thành *"Đề trống này đã xoá"*.
   eraseDraft: (assessmentId: string) =>

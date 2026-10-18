@@ -103,10 +103,11 @@ File này là bức tranh toàn cảnh. Mỗi đợt hay cụm có plan riêng, 
 
 1. Chạy `.\dev.ps1 check` và `.\dev.ps1 test`, cộng `.\dev.ps1 typecheck` nếu FE đổi.
 2. BE đổi: khởi động lại BE (sau ALTER thì cả ingest).
-3. FE đổi:
-   - đo bằng thước so với Figma (`services/fe/AGENTS.md`);
-   - chụp mọi trạng thái với tới được;
-   - một subagent chấm ảnh.
+3. FE đổi (mọi thay đổi, kể cả một dòng CSS và kể cả sửa sau review -- người dùng nhắc lại 18/10):
+   - thử tay trên trình duyệt, đo bằng thước so với Figma (`services/fe/AGENTS.md`);
+   - chụp mọi trạng thái với tới được, **sau lần sửa cuối**;
+   - một subagent so ảnh với Figma; browser và Figma phải giống nhau -- lệch thì sửa bên sai rồi
+     chụp lại.
 4. Một subagent review diff của pha, đọc code thật.
 5. Sửa theo review.
 6. Commit với đuôi `Plan: <file>.md`, Co-Authored-By và Claude-Session; nêu node Figma đã chạm.

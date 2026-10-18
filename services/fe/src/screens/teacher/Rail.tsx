@@ -31,9 +31,9 @@ const PANE_KEY = (which: string) => `kriky.teacher.pane-open.${which}`;
  * dùng chung nên mỗi màn hình phải trả lời được *"ai đang đăng nhập"*. Thiết kế của giáo
  * viên không đặt câu hỏi đó ở đâu cả.
  *
- * Bốn đích đến vẫn trơ, và trơ một cách lộ liễu: chúng là bốn artboard chưa dựng, nên
- * chúng là `div` chứ không `button` — một `button` hứa một việc không xảy ra. Danh sách
- * đoạn chat thì **thật** từ đợt này, và ngăn tài liệu đã thật từ đợt trước.
+ * Bốn đích đến dẫn tới màn thật từ 18/10/2026 (plan `teacher-rail-screens`): chúng là nút, và
+ * đích ứng với route đang mở sáng lên (`place`). Danh sách đoạn chat và ngăn tài liệu thì thật từ
+ * trước.
  *
  * @param conversations - Các đoạn chat, mới nói nhất trước. BE đã sắp sẵn.
  * @param current - Đoạn đang mở, để tô hàng của nó.
@@ -63,6 +63,8 @@ export default function Rail({
   onRename,
   onDelete,
   onUpload,
+  place = null,
+  onGo = () => undefined,
 }: {
   conversations: TeacherConversation[];
   current: string | null;
@@ -73,6 +75,10 @@ export default function Rail({
   onRename: (conversationId: string, title: string) => void;
   onDelete: (conversationId: string) => void;
   onUpload: () => void;
+  /** Đích đến đang mở (`theo-doi`, `lop`, `de-kiem-tra`, `ngan-hang`), hay `null` khi đang ở chat. */
+  place?: string | null;
+  /** Đi tới một đích đến, bằng route (plan `teacher-rail-screens`). */
+  onGo?: (route: string) => void;
 }) {
   // Hàng nào đang mở menu `⋯`, nếu có. Ở đây chứ không trong từng hàng: *chỉ một menu mở
   // một lúc* là một luật giữa các hàng.
@@ -148,10 +154,15 @@ export default function Rail({
           </span>
           Đoạn chat mới
         </button>
-        <Destination icon={<Dashboard />} label="Bảng theo dõi" />
-        <Destination icon={<Classes />} label="Danh sách lớp học" />
-        <Destination icon={<Papers />} label="Các bài kiểm tra" />
-        <Destination icon={<Bank />} label="Ngân hàng câu hỏi" />
+        {PLACES.map((one) => (
+          <Destination
+            key={one.place}
+            icon={one.icon}
+            label={one.label}
+            here={place === one.place}
+            onGo={() => onGo(`/teacher/${one.place}`)}
+          />
+        ))}
       </div>
 
       <div className="lists">
@@ -442,21 +453,46 @@ function weight(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
 }
 
+/** Bốn đích đến của rail, theo thứ tự của Figma, cùng đoạn route của từng cái. */
+const PLACES = [
+  { place: "theo-doi", label: "Bảng theo dõi", icon: <Dashboard /> },
+  { place: "lop", label: "Danh sách lớp học", icon: <Classes /> },
+  { place: "de-kiem-tra", label: "Các bài kiểm tra", icon: <Papers /> },
+  { place: "ngan-hang", label: "Ngân hàng câu hỏi", icon: <Bank /> },
+];
+
 /**
- * Một đích đến của dải điều hướng. Chưa đích nào có màn hình, nên chưa đích nào bấm được.
+ * Một đích đến của dải điều hướng: một nút dẫn tới màn của nó (plan `teacher-rail-screens`).
  *
  * Không có huy hiệu số: con số *"3"* trên *Bảng theo dõi* từng là chữ bịa, không đường nào đếm nó,
  * và đã gỡ 18/10/2026 (plan `wave-1-small-fixes`).
  *
  * @param icon - Hình 12×12.
  * @param label - Chữ.
+ * @param here - Đang ở màn này: variant `đang chọn` của `Rail destination`.
+ * @param onGo - Đi tới màn này.
  */
-function Destination({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Destination({
+  icon,
+  label,
+  here,
+  onGo,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  here: boolean;
+  onGo: () => void;
+}) {
   return (
-    <div className="destination">
+    <button
+      className="destination"
+      type="button"
+      aria-current={here ? "page" : undefined}
+      onClick={onGo}
+    >
       <span className="icon">{icon}</span>
       <span className="label">{label}</span>
-    </div>
+    </button>
   );
 }
 

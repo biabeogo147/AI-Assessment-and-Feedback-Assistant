@@ -215,6 +215,7 @@ function TangHead({
 
 export default function Editing({
   question,
+  title,
   draft,
   refused,
   saving,
@@ -223,6 +224,8 @@ export default function Editing({
   onSave,
 }: {
   question: TeacherQuestion;
+  /** Chữ đầu thẻ thay cho *"Câu N"*: màn ngân hàng (22b) sửa một câu không thuộc đề nào. */
+  title?: string;
   draft: QuestionEdit;
   refused: string;
   saving: boolean;
@@ -261,9 +264,13 @@ export default function Editing({
   return (
     <div className="qcard editing">
       <div className="top">
-        <span className="num">Câu {question.order}</span>
+        {title === undefined ? (
+          <span className="num">Câu {question.order}</span>
+        ) : (
+          <span className="edit-title">{title}</span>
+        )}
         <span className="spacer" />
-        <span className="edit-mark">Đang sửa</span>
+        {title === undefined && <span className="edit-mark">Đang sửa</span>}
       </div>
 
       <div className="tang">

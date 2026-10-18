@@ -221,8 +221,9 @@ async def test_class_results_give_the_four_numbers_and_the_distribution(stack) -
     assert body["submitted"] == 3
     assert body["highest"] == count and body["lowest"] == 0
     assert body["median"] == count - 0.5
-    assert len(body["distribution"]) == count + 1
-    assert body["distribution"][count] == 1 and body["distribution"][0] == 1
+    # N ô như artboard 11: bài trọn điểm gộp vào ô cuối, không có ô riêng.
+    assert len(body["distribution"]) == count
+    assert body["distribution"][count - 1] == 2 and body["distribution"][0] == 1
     assert [one["mark"] for one in body["rows"]] == [count, count - 0.5, 0]
     assert body["rows"][0]["first_try"] == count
     assert body["rows"][0]["note"] == "Đã chữa xong"
@@ -394,6 +395,7 @@ async def test_a_half_mark_falls_in_the_bin_below(stack) -> None:
     ).json()
 
     assert body["distribution"][count - 1] == 1 and sum(body["distribution"]) == 1
+    assert body["rows"][0]["note"] == "Còn câu chữa"
 
 
 @pytest.mark.asyncio

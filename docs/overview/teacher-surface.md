@@ -836,6 +836,35 @@ nháp trống — hộp xác nhận`** (`653:3095`):
 18b từng đặt nó ở y 349, nay đã dời về giữa cho khớp. Artboard 18 và 18b nay có thêm *Đổi tên* ở đầu
 panel như code (ADR-31).
 
+## Các màn của rail — trang đọc, chữ của BE
+
+Bốn đích đến của rail dẫn tới màn thật từ 18/10/2026 (plan `teacher-rail-screens`, việc 18):
+*Danh sách lớp học* (artboard 9, `180:753`) → *Chi tiết lớp* (10, `183:874`) → *Kết quả bài kiểm tra
+trong lớp* (11, `205:1000`) → *Bài làm của một học sinh* (23, `656:4089`); *Các bài kiểm tra* (21,
+`655:4929`); *Ngân hàng câu hỏi* (22, `655:5226`) cùng panel sửa một câu (22b, `666:5816`). *Bảng theo
+dõi* (20) là việc 19.
+
+- **Cùng một khung với đoạn chat.** Rail giữ nguyên; cột giữa vẽ màn ấy thay cho dòng hội thoại
+  (`Chat` nhận `view`), không ô nhập. Panel 22b đứng đúng chỗ panel đề (`aside`).
+- **Mọi nhãn và mọi con số là của BE** (`be/teacher_reads.py`): chặng của một đề ở một lớp (*Chưa tới
+  giờ mở*, *Đang mở*, *Đang chữa bài*, *Đã kết thúc*), *đề đang mở* và ba cột tiến độ của màn 9, ghi
+  chú giai đoạn 2 của màn 11 và màn 23 (một bảng chữ), hành động *Xem kết quả* / *Mở đoạn chat* của
+  màn 21. Màn chọn màu theo **mã chặng** BE gửi kèm nhãn (`phase`), không theo chữ: đang diễn ra thì
+  teal (`state/processing`), đã xong thì nhạt. Đề chưa tới giờ mở trên màn 10 không mở được: chưa có
+  kết quả nào để xem.
+- **Ô không có gì để đếm ghi *"—"***, không *"0"*: lớp không có đề đang mở, đề chưa ai nộp.
+- **Màn 22b chỉ sửa bản trong ngân hàng.** Dùng lại thẻ sửa ba tầng của panel đề; chân panel nói câu
+  trong đề đã phát hành không đổi.
+- **Cố ý khác Figma:** không nút *Tạo lớp* (chưa có đường tạo lớp); không cột *Tên đăng nhập*, nút
+  *Đặt lại mật khẩu*, *Thêm học sinh* (việc 22); không nút *Xuất bảng điểm* (việc 20); giờ in
+  `HH:MM · DD/MM` như mọi màn, không *"hôm nay"*.
+
+**Đo trên trình duyệt ngày 18/10/2026:** tiêu đề (300, 32) 24/600, bảng y 111,8 (Figma 112); đầu bảng
+dòng 15, giãn chữ 4% (một dòng 35, hai dòng 50); hàng 45 ở màn 9, 10, 11, 47 ở màn 21, 22 (kể cả ô hai
+dòng *"Mở … / chữa tới …"*), 62 ở màn 23 -- đều là hàng Figma cộng vạch; bảng cuối kéo tới đáy (y 876);
+popover (769, 202) 300 × 70 (Figma 770, 202); bốn thẻ số màn 11 và biểu đồ đúng từng px, nhãn trục
+cách đáy cột 12; panel 22b x 1020 rộng 420.
+
 ## Hàng đoạn chat — một hộp, hai việc
 
 Cả hàng **từng là một `<button>`**. Nó phải hết là thế từ đợt chốt chặng A, và lý do là cơ học chứ
