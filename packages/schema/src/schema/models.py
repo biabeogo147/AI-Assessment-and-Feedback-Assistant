@@ -240,6 +240,13 @@ class Question(Base):
         nullable=True,
     )
 
+    # Giáo viên đã xem câu này ở hàng đợi *tỉ lệ sai cao* (việc 19, plan
+    # `dashboard-review-queue`): câu rời hàng đợi mãi, kể cả khi tỉ lệ còn đổi về sau (đề phát hành
+    # thêm cho một lớp mới). Tỉ lệ chỉ tính khi đề đã hết giai đoạn 2.
+    wrong_rate_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     assessment: Mapped[Assessment] = relationship(back_populates="questions")
     options: Mapped[list[AnswerOption]] = relationship(
         back_populates="question", order_by="AnswerOption.label"
@@ -569,6 +576,10 @@ class Report(Base):
     attempt_id: Mapped[str] = mapped_column(ForeignKey("attempts.id"))
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Giáo viên đã đọc báo cáo này ở *Bảng theo dõi* (việc 21, plan `dashboard-review-queue`).
+    # Đánh dấu **theo đề**: một cú bấm đặt cột cho mọi báo cáo chưa xem của đề ấy, và báo cáo đến
+    # sau thì đưa đề vào lại hàng đợi (người dùng chốt 18/10/2026). Không chặn gì (ADR-19).
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TeacherConversation(Base):

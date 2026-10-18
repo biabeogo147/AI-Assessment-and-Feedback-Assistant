@@ -15,6 +15,7 @@ from be.routes import router
 from be.seed import seed_if_empty
 from be.storage import bind_store, create_store
 from be.student_routes import router as student_router
+from be.teacher_board import router as teacher_board_router
 from be.teacher_chat import router as teacher_router
 from be.teacher_documents import router as teacher_document_router
 from be.teacher_reads import router as teacher_reads_router
@@ -146,3 +147,4 @@ app.include_router(teacher_router)
 app.include_router(teacher_assessment_router)
 app.include_router(teacher_document_router)
 app.include_router(teacher_reads_router)
+app.include_router(teacher_board_router)
