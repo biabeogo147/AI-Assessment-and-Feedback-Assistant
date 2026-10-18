@@ -108,3 +108,11 @@ Viết khi mở plan `kriky-writes-every-word`. Một luật đổi, các luật
   17/10/2026 (plan `kriky-writes-every-word`).
 - **Thứ thay cho phép chứng minh từng chữ là phép đối chiếu nhẹ của ADR-30.**
 - **Công thức vẫn là của Kriky**, nhưng luật ấy nay nằm trong prompt dàn ý, không trong khuôn của BE.
+
+## Hậu ký 18/10/2026
+
+Mục *Hệ quả* nói *"oke"* được đọc **bằng model**. Thực ra lời đồng ý dàn ý được đọc bằng regex ở
+AGENT: `_REVISES` và `_NO_CHANGE` trong `services/agent/src/agent/graphs/propose.py`. Bốn vòng
+review của plan `backlog-tier-1` đều ra một ca biên mới của hai regex ấy; nút *Soạn theo dàn ý này*
+(Tier 2 câu 5) là đường thay, đã hoãn cùng đợt khoá AGENT. Hệ quả mục ấy nêu vẫn đúng: đọc nhầm thì
+sửa được, và cổng duyệt đề vẫn đứng trước học sinh. Ghi lại theo plan `wave-1-small-fixes`.

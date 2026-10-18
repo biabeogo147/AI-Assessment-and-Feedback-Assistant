@@ -14,7 +14,7 @@ thành ADR, không phải những **tính năng** chưa dựng.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Bốn đích đến trên rail trơ | Bốn artboard kia chưa dựng. Con số trên huy hiệu *Bảng theo dõi* là chữ bịa (`invented-not-from-be.ts`, `DASHBOARD_WAITING`), nên rail không mời bấm |
+| Bốn đích đến trên rail trơ | Bốn màn chưa dựng: đợt tất định việc 18 (Figma đã duyệt 18/10/2026). Huy hiệu số bịa trên *Bảng theo dõi* đã gỡ 18/10/2026 (việc 3) |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
 | Mỗi lớp một bộ giờ riêng | **Đã bác**, không phải việc chưa làm: ngày 06/10/2026 chốt phát hành là một việc với một khung giờ. Schema vẫn cho phép vì `Publication` khoá theo `(đề, lớp)` |
 | `services/fe` nay là tên sai | **Không làm** (17/10/2026): không người dùng nào chạm tới. Nó phục vụ **hai** bề mặt; đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` |
@@ -792,7 +792,7 @@ thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **ADR ghi trạng thái cũ:** ADR-15, 16, 18, 21, 27 vẫn ghi *"chưa thi hành"* hay *"chưa có ở backend"*; ADR-23:114 trỏ `propose._SYSTEM`, nay là `_CORE`; ADR-25 (sửa 10/10) định bỏ job kể lại, code vẫn chạy nó; ADR-27 nói Jev là bộ định tuyến của `document`, đã bị thay ngày 12/10; ADR-29:68 nói lời đồng ý đọc bằng mô hình, thực ra bằng regex | Sửa một ADR là sửa lịch sử, nên đường đúng là một dòng hậu ký có ngày. Đã có hậu ký 17/10/2026 cho ADR-15, 16 (plan `backlog-tier-1`, pha 4); còn ADR-18, 21, 23, 25, 27, 29 (hậu ký 17/10 của ADR-29 thuộc plan `kriky-writes-every-word`, không nói tới chỗ đọc lời đồng ý) |
+| **ADR ghi trạng thái cũ:** ADR-15, 16, 18, 21, 27 vẫn ghi *"chưa thi hành"* hay *"chưa có ở backend"*; ADR-23:114 trỏ `propose._SYSTEM`, nay là `_CORE`; ADR-25 (sửa 10/10) định bỏ job kể lại, code vẫn chạy nó; ADR-27 nói Jev là bộ định tuyến của `document`, đã bị thay ngày 12/10; ADR-29:68 nói lời đồng ý đọc bằng mô hình, thực ra bằng regex | **Đã làm** 18/10/2026 (đợt tất định việc 5): hậu ký có ngày cho ADR-18, 21, 23, 25, 27, 29 |
 | **ERD chưa vẽ**, dù điều kiện cũ trong `architecture.md` (*"khi có Postgres"*) đã đạt | Chưa quyết có cần: `data-model.md` đang nói hai mươi hai bảng bằng bảng và lời |
 
 ### Báo cáo
@@ -828,7 +828,7 @@ cáo. Bốn giới hạn mà mục ấy nêu (giờ kết thúc của một lư�
 | --- | --- |
 | **Đoạn mở chương 07 (`07:4-7`, người dùng viết) dùng "service" lần đầu mà không in đậm, không chú thích** (`rules.md` §3); ba dòng `07:4-6` có khoảng trắng cuối dòng, `07:4` có hai dấu cách liền nhau | Phần người dùng viết; chỉ báo, không sửa |
 | **Báo cáo chưa chỗ nào nói rằng chưa có đăng nhập.** `backend` xác định người gọi bằng header `X-Actor` do màn hình tự khai (`be/identity.py:1-8`, `be/config.py:53-58`); phần kiểm quyền phía sau là thật. Review đề nghị thêm thành giới hạn thứ năm của mục backend | Chưa quyết có thêm không |
-| **Docstring đầu `be/content_reader.py` (`:1-6`) nói `backend` đọc đoạn chữ của tài liệu *"để job soạn câu có kiến thức của mục mình"*,** trái với `check_drafting_reads_no_document_text` (`tools/check_contract.py:483`): job soạn câu chỉ nhận mục dàn ý | Không bị chặn; chưa làm |
+| **Docstring đầu `be/content_reader.py` (`:1-6`) nói `backend` đọc đoạn chữ của tài liệu *"để job soạn câu có kiến thức của mục mình"*,** trái với `check_drafting_reads_no_document_text` (`tools/check_contract.py:483`): job soạn câu chỉ nhận mục dàn ý | **Đã làm** 18/10/2026 (đợt tất định việc 5) |
 | **"Hàm" mang hai nghĩa trong chương 07.** Từ lượt viết lại mục Agent, phần của graph gọi là *hàm*, theo mục *Graph* của từ điển; *hàm nhận job* (chỗ worker gọi vào) cũng là "hàm". Đã ghi ở *Những chỗ đã biết là còn sai* của `rules.md` | Người dùng giữ *hàm nhận job* và sẽ tự chọn chữ khác |
 
 ## Chốt đợt tất định (18/10/2026)

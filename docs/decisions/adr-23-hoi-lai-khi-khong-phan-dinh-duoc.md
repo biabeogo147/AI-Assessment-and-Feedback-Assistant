@@ -174,3 +174,9 @@ lối Khác là để ghi"*, `test_agent_be_and_fe_agree_on_the_other_choice`. `
 (câu mở sau chữ "Khác", T5) là code chết từ ngày ấy, xoá hẳn 15/10/2026 (`draft-outline`).
 `test_the_options_are_written_by_be_not_by_the_model` vẫn đúng: ba lớp model bịa không lớp nào khớp
 đúng một tên, nên nút là nhãn BE.
+
+## Hậu ký 18/10/2026
+
+Mục *Nơi luật này đang được thi hành* trỏ `propose.py` — `_SYSTEM`. Tên ấy đã đổi: lời dặn nay nằm
+trong `_CORE` (`services/agent/src/agent/graphs/propose.py`), dòng *"Không đoán khi một cái tên có
+thể trỏ tới nhiều thứ. Hỏi lại…"*. Luật không đổi. Ghi lại theo plan `wave-1-small-fixes`.

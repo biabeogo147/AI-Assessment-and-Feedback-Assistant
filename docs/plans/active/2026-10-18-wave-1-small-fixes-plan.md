@@ -70,14 +70,14 @@ Làm việc 1–6 của `2026-10-18-deterministic-batch-master-plan.md`. Đây l
   Chụp các trạng thái; một subagent chấm ảnh với artboard `4`, `5`, `2`.
 
 ### Pha 3 — huy hiệu bịa (việc 3)
-- [ ] 10. `Rail.tsx`: bỏ `badge={DASHBOARD_WAITING}` và import. `invented-not-from-be.ts`: bỏ
+- [x] 10. `Rail.tsx`: bỏ `badge={DASHBOARD_WAITING}` và import. `invented-not-from-be.ts`: bỏ
   `DASHBOARD_WAITING` và đoạn docstring nói về nó. Giữ prop `badge` của `Destination` nếu nó còn chỗ
   dùng thật (việc 19 có thể cần), không thì bỏ luôn. Sửa `backlog.md:17`.
-- [ ] 11. Vitest: rail không có huy hiệu. Trình duyệt: chụp rail; một subagent so với rail của
+- [x] 11. Vitest: rail không có huy hiệu. Trình duyệt: chụp rail; một subagent so với rail của
   artboard `5`.
 
 ### Pha 4 — hậu ký ADR và docstring (việc 5)
-- [ ] 12. Hậu ký có ngày 18/10/2026, không sửa câu cũ:
+- [x] 12. Hậu ký có ngày 18/10/2026, không sửa câu cũ:
   - ADR-18: trạng thái *"chưa có ở backend"* đã cũ. BE ép ở `agent_gateway.validate_question`:
     một đáp án đúng, nhãn lỗi cho mỗi phương án nhiễu, ít nhất hai cách giải. Hàm này chạy lúc thu
     hoạch, lúc giáo viên sửa câu và lúc dựng câu luyện tập;
@@ -91,9 +91,9 @@ Làm việc 1–6 của `2026-10-18-deterministic-batch-master-plan.md`. Đây l
     dàn ý → job (ADR-29) và `check_drafting_reads_no_document_text` thi hành phần còn hiệu lực;
   - ADR-29:68: lời đồng ý dàn ý được đọc bằng regex (`propose._REVISES`, `_NO_CHANGE`), không bằng
     model.
-- [ ] 13. `content_reader.py:1-6`: BE đọc đoạn chữ cho tool `read_section` của Kriky lúc nêu dàn ý.
+- [x] 13. `content_reader.py:1-6`: BE đọc đoạn chữ cho tool `read_section` của Kriky lúc nêu dàn ý.
   Job soạn câu không bao giờ nhận đoạn chữ (ADR-29, `check_drafting_reads_no_document_text`).
-- [ ] 14. Ghi đã làm ở `backlog.md`: dòng *ADR ghi trạng thái cũ*, dòng *Docstring đầu
+- [x] 14. Ghi đã làm ở `backlog.md`: dòng *ADR ghi trạng thái cũ*, dòng *Docstring đầu
   `be/content_reader.py`*.
 
 ### Pha 5 — đóng
@@ -149,3 +149,4 @@ Làm việc 1–6 của `2026-10-18-deterministic-batch-master-plan.md`. Đây l
 
   Thêm ba test: lượt cũ có bước soạn vào đề đang mở, đề mở giữa lượt, và tự đọc lại khi còn câu
   đang soạn.
+- Pha 3 và 4: code xong, check và vitest (268) xanh, commit. Subagent review hai pha này **đang chạy khi phiên chạm giới hạn sử dụng**: phiên sau đọc kết quả và sửa theo trước khi sang Pha 5 (roadmap, đóng plan).

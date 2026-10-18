@@ -117,3 +117,12 @@ chẩn đoán do máy đoán. Nhưng nó **không phải không sai**, và mục
   từ *nên* thành **phải**.
 - **Đang bị vi phạm ở code**: `services/agent/src/agent/handlers.py` vẫn suy `misconception_code` từ
   mã phương án chứ không tra một ánh xạ đã soạn. Sửa code chưa lên lịch; xem `docs/plans/backlog.md`.
+
+## Hậu ký 18/10/2026
+
+Dòng *Trạng thái* ghi *"chưa có ở backend"* đã cũ. BE ép luật này ở
+`services/be/src/be/agent_gateway.py`, hàm `validate_question`: đúng một phương án đúng, mỗi phương
+án nhiễu một nhãn lỗi, và ít nhất hai cách giải. Hàm ấy chạy ở ba chỗ: lúc thu hoạch một câu soạn
+xong (`drafting.harvest`), lúc giáo viên sửa một câu (`teacher_routes`), và lúc dựng câu luyện tập
+của pha 2 (`student_routes`). Câu thiếu lời giải không vào được đề nào. Ghi lại theo plan
+`wave-1-small-fixes` (đợt tất định 18/10/2026).

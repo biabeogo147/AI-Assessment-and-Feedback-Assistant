@@ -197,3 +197,16 @@ Tài liệu vẫn **cung cấp kiến thức và giới hạn phạm vi**, đún
 tới Kriky, Kriky tới dàn ý, dàn ý tới job. Luật *hỏi bằng tên chương và bài*, *phạm vi đóng băng* và
 *pha 2 không nhận tài liệu* giữ nguyên. Mục *"nhiều cách chia"* đang hoãn ở `backlog.md` được dàn ý
 trả lời: giáo viên không chọn trong nhiều cách chia, họ sửa thẳng một cách chia hiện rõ.
+
+## Hậu ký 18/10/2026
+
+Hai chỗ đã cũ:
+- **Jev không còn là bộ định tuyến của `services/document`.** Mục *quyết định kỹ thuật đi kèm* ghi
+  vậy; từ plan 3c, Jev chỉ xếp vai trò và cấp cho từng ứng viên đề mục khi dựng cây mục lục
+  (`services/document/src/document/index/jev.py`).
+- **Trạng thái *"chưa thi hành"*.** Phần còn hiệu lực sau hai hậu ký 12/10 và 15/10 đang chạy: tài
+  liệu tới Kriky qua `list_chapters` / `get_chapter` / `read_section`, Kriky tới dàn ý, dàn ý tới job
+  (ADR-29). Job soạn câu không nhận chữ tài liệu thô — `check_drafting_reads_no_document_text` trong
+  `tools/check_contract.py` canh điều ấy; pha 2 không nhận nội dung tài liệu nào.
+
+Ghi lại theo plan `wave-1-small-fixes` (đợt tất định 18/10/2026).

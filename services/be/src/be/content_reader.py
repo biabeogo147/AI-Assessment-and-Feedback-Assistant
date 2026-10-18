@@ -3,7 +3,9 @@
 
 Kho nội dung (MongoDB) do `services/document` ghi: bản thô (`mongo-content-store`) và cây mục lục
 (`document-agent-hierarchy`). BE đọc cây để tool của Kriky khớp lời giáo viên với chương, bài thật,
-và đọc đoạn để job soạn câu có kiến thức của mục mình. Ghi thì không bao giờ:
+và đọc đoạn cho tool `read_section`, để Kriky đọc phần sách trước khi nêu dàn ý. Job soạn câu
+**không bao giờ** nhận đoạn chữ: nó chỉ nhận mục dàn ý của nó (ADR-29,
+`check_drafting_reads_no_document_text`). Ghi thì không bao giờ:
 `tools/check_contract.py` cho `pymongo` vào BE **chỉ** ở module này, và đỏ khi module này gọi một
 hàm ghi.
 

@@ -71,3 +71,11 @@ nhiều lượt, một lượt có nhiều câu sinh ra.
 - Kế hoạch thi hành: `docs/plans/active/2026-09-11-core-two-phase-backend-plan.md`.
 - `docs/plans/backlog.md`, mục *Luồng học sinh — mô hình hai pha*, ghi đúng mâu thuẫn mà ADR này giải
   quyết. Mục đó phải được cập nhật khi core lên, không để lại một lời cảnh báo đã hết hiệu lực.
+
+## Hậu ký 18/10/2026
+
+Trạng thái *"đã chốt, chưa thi hành"* và mục *Nơi luật này đang được thi hành* (*"Chưa ở đâu cả"*)
+đã cũ. Từ plan `core-two-phase-backend` (nay ở `docs/plans/completed/`), bài làm, câu trả lời,
+điểm từng câu và các lượt chữa nằm trong Postgres: bảng `attempts`, `answers`, `question_outcomes`,
+`rounds`, `round_items` (`packages/schema/src/schema/models.py`). Kết quả không còn sống một giờ
+trong Redis. Ghi lại theo plan `wave-1-small-fixes` (đợt tất định 18/10/2026).
