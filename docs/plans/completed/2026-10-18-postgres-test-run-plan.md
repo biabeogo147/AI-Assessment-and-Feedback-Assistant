@@ -42,7 +42,7 @@ theo yêu cầu, và mọi lỗi chỉ Postgres thấy được sửa. Đứng t
   buộc unique test muốn kiểm. Dùng giáo viên seed `GV-001`. Lỗi của test, không của code.
 
 ### Pha 3 — đóng
-- [ ] 5. `docs/local-development.md` có mục chạy test trên Postgres. Roadmap việc 23 *Xong*; backlog;
+- [x] 5. `docs/local-development.md` có mục chạy test trên Postgres. Roadmap việc 23 *Xong*; backlog;
   tick plan tổng; plan sang `completed/`.
 
 ## Decision Records
@@ -68,3 +68,6 @@ dòng lệnh chỉ bật khi gõ ra, và URL trỏ `aiafa` bị từ chối.
 - 18/10/2026, lần chạy đủ: 634 test BE trên `aiafa_test`, 633 qua, 1 đỏ (task 4). Không lỗi nào của
   code: khoá hàng, khoá ngoại, `String(n)` và các truy vấn mới của đợt 3 (`_empty_draft_of`, DISTINCT
   + ORDER BY) đều qua trên Postgres. 22 file test có DB đều dựng engine theo khuôn conftest đổi được.
+- Subagent review: phép đổi engine là toàn phiên, nay phiên thu test ngoài `services/be/tests` thì
+  dừng; chỉ nhận database `*_test` (thay vì cấm riêng `aiafa`); `lock_timeout` 10 s cho `DROP SCHEMA`;
+  tài liệu không ghi kết quả lần chạy. Roadmap việc 23 *Xong* (rev 250). Plan đóng.

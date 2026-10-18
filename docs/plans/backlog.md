@@ -591,6 +591,11 @@ của `completed/2026-10-10-one-turn-per-conversation-plan.md`. Nhưng một ph�
 không ai thấy. Dựng một lưới thật đòi cho bộ test chạy trên Postgres, cùng một việc với món đồng hồ ở
 trên.
 
+**Một nửa đã làm** 18/10/2026 (đợt tất định việc 23, plan `postgres-test-run`): bộ test BE chạy được
+trên Postgres (`--postgres-url`, database `aiafa_test`). Phép đo hai session giành cùng một hàng của
+`_hold_the_thread` vẫn chưa thành test: nó cần hai kết nối chạy song song, một bộ test khác hẳn khuôn
+một-engine-một-test hiện có.
+
 ## BE kẹt khi `--reload` nạp lại lúc một tab đang mở
 
 Đo ngày 12/10/2026, trong plan 4a: `.\dev.ps1 be` chạy uvicorn `--reload` không `--reload-dir`, nên nó theo dõi thư mục đang đứng -- **cả repo** khi
