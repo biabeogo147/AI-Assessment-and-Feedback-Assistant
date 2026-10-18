@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   teacher,
@@ -30,6 +30,7 @@ import MathText from "../../MathText";
  * nên một cái URL không được quyền kể một nấc khác với cái BE đang giữ.
  *
  * @param assessmentId - Đề nào.
+ * @param revision - Tăng mỗi khi một lượt chat vừa ghi vào đề này; mỗi lần tăng là một lần đọc lại.
  * @param onClose - Đóng panel, quay về đoạn chat.
  * @param onApproved - Dòng lượt nói phải đọc lại. Gọi sau mọi việc ghi của panel: duyệt, bỏ
  *   duyệt, phát hành — cả ba để lại một biên bản trong đoạn chat — và đổi tên đề, vì thẻ cũ
@@ -62,10 +63,12 @@ function keepingParens(title: string) {
 
 export default function Panel({
   assessmentId,
+  revision = 0,
   onClose,
   onApproved,
 }: {
   assessmentId: string;
+  revision?: number;
   onClose: () => void;
   onApproved: () => void;
 }) {
@@ -112,6 +115,62 @@ export default function Panel({
     };
   }, [assessmentId]);
 
+  // Đếm các lần ghi của chính panel (đổi tên, duyệt, lưu, xoá, bỏ duyệt). Một lần đọc lại lặng lẽ
+  // bắt đầu **trước** một lần ghi mà về **sau** nó thì mang đề cũ; đếm để bỏ lời đáp ấy (review đợt 1).
+  const writes = useRef(0);
+  // Giá trị `revision` lúc panel dựng: `Chat` dựng panel mới cho mỗi đề với số đã tăng sẵn, và số
+  // ấy không phải một lượt mới.
+  const shownRevision = useRef(revision);
+
+  /**
+   * Đọc lại đề mà không dọn gì: cùng một đề, nên hộp thoại hay ô đổi tên đang mở vẫn đúng, và màn
+   * hình không nháy rỗng. Hộp lời giải đang mở theo câu mới cùng id, hay đóng khi câu ấy đã bị thay.
+   */
+  function quietly(alive: () => boolean) {
+    const mark = writes.current;
+    teacher
+      .assessment(assessmentId)
+      .then((found) => {
+        if (!alive() || writes.current !== mark) return;
+        setPaper(found);
+        setSolving((open) =>
+          open === null
+            ? null
+            : (found.questions.find((one) => one.question_id === open.question_id) ?? null),
+        );
+      })
+      .catch((cause: Error) => {
+        if (alive() && writes.current === mark) setTrouble(cause.message);
+      });
+  }
+
+  // Một lượt chat vừa soạn vào chính đề này (`revision` tăng), nên đọc lại cho thấy câu mới (quay
+  // GIF 17/10/2026: 7/7 câu xong mà panel vẫn ghi 5 câu).
+  useEffect(() => {
+    if (revision === shownRevision.current) return;
+    shownRevision.current = revision;
+    let current = true;
+    quietly(() => current);
+    return () => {
+      current = false;
+    };
+    // `assessmentId` cố ý không có ở đây: đổi đề là việc của effect trên.
+  }, [revision]);
+
+  // Lượt chat có thể xong khi BE còn câu đang soạn (*"còn N câu đang chạy"*), và không lượt nào báo
+  // lại khi chúng xong. Còn câu đang soạn thì đọc lại sau ít giây; lần đọc ấy cũng là một lần thu
+  // hoạch ở BE (review đợt 1).
+  const stillDrafting = paper?.still_drafting ?? 0;
+  useEffect(() => {
+    if (stillDrafting === 0) return;
+    let current = true;
+    const later = window.setTimeout(() => quietly(() => current), 4000);
+    return () => {
+      current = false;
+      window.clearTimeout(later);
+    };
+  }, [paper, stillDrafting]);
+
   /** Lưu tên mới. Trống hay y như cũ thì không gửi gì: BE từ chối tên trống, nhưng để nó từ chối
    *  ở đây là đổi một cú Enter vô hại thành một câu lỗi đỏ. */
   async function rename() {
@@ -120,6 +179,7 @@ export default function Panel({
       setNaming(null);
       return;
     }
+    writes.current += 1;
     setWorking(true);
     try {
       await teacher.renameAssessment(assessmentId, wanted);
@@ -135,6 +195,7 @@ export default function Panel({
   }
 
   async function approve() {
+    writes.current += 1;
     setWorking(true);
     try {
       await teacher.approve(assessmentId);
@@ -165,6 +226,7 @@ export default function Panel({
     questionId: string,
     edited: QuestionEdit,
   ): Promise<string> {
+    writes.current += 1;
     try {
       await teacher.editQuestion(assessmentId, questionId, edited);
       setPaper(await teacher.assessment(assessmentId));
@@ -188,6 +250,7 @@ export default function Panel({
     // nội dung, và trình đọc màn hình không đọc lại -- lần bấm thứ hai trông như không có gì.
     setEraseRefused("");
     setEraseBusy(true);
+    writes.current += 1;
     try {
       await teacher.deleteQuestion(assessmentId, question.question_id);
     } catch (cause) {
@@ -218,6 +281,7 @@ export default function Panel({
    * không có đường bỏ duyệt nào, nên nút ấy dẫn tới hư không.
    */
   async function undo() {
+    writes.current += 1;
     setWorking(true);
     try {
       await teacher.unapprove(assessmentId);

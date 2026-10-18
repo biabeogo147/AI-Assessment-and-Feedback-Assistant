@@ -102,6 +102,24 @@ function questionIn(answered: Answered): Question | null {
   };
 }
 
+/** Các bước ghi câu vào một đề; cùng bộ với `_DRAFT_RESULTS` của BE (`teacher_chat.py`). */
+const WRITES_A_PAPER = new Set(["create_draft", "start_drafting", "replace_question"]);
+
+/**
+ * Một dãy lượt có bước nào ghi vào đề `paper` không.
+ *
+ * @param fresh - Các lượt mới của lượt vừa chạy.
+ * @param paper - Đề đang mở trong panel, hoặc `null` khi không mở đề nào.
+ * @returns `true` khi panel của đề ấy phải đọc lại.
+ */
+function wroteInto(fresh: Turn[], paper: string | null): boolean {
+  if (paper === null) return false;
+  return fresh.some(
+    (one) =>
+      one.kind === "tool_result" && WRITES_A_PAPER.has(one.tool_name) && one.entity_id === paper,
+  );
+}
+
 /**
  * Bề mặt chat của giáo viên: artboard `1 · Bắt đầu` và `2 · Kèm tài liệu`.
  *
@@ -189,6 +207,17 @@ export default function Chat({
 
   const picker = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  // Người đọc có đang ở đáy dòng không. Ref chứ không state: nó đổi theo từng lần cuộn, và không
+  // gì cần vẽ lại khi nó đổi.
+  const atBottom = useRef(true);
+  // `scrollTop` của lần cuộn trước: cuộn **lên** chỉ có thể là người đọc, vì `scrollIntoView` ở
+  // dưới chỉ kéo xuống.
+  const lastTop = useRef(0);
+  // Đề đang mở, đọc **lúc lượt xong**, không lúc gửi: giáo viên có thể mở hay đổi đề giữa lượt.
+  const openNow = useRef(openPaper);
+  openNow.current = openPaper;
+  // Tăng khi một lượt vừa xong đã ghi vào đúng đề đang mở, để `Panel` đọc lại đề.
+  const [paperRevision, setPaperRevision] = useState(0);
 
   // Đổi route thì đổi hội thoại. `live` cắt một câu trả lời về muộn của đoạn chat vừa rời
   // đi: không có nó, bấm nhanh qua hai đoạn sẽ vẽ lịch sử của đoạn đầu lên đoạn sau.
@@ -269,7 +298,30 @@ export default function Chat({
   // lại một câu cũ mà bị giật xuống đáy là cách chắc chắn nhất để không ai đọc lại được gì.
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
+    atBottom.current = true;
   }, [turns.length, pending]);
+
+  // Khối bước đang chạy lớn dần, nên bám theo nó — nhưng chỉ khi người đọc vẫn ở đáy. Đang cuộn
+  // lên đọc lại thì để yên, cùng lý do với effect trên (quay GIF 17/10/2026: khối bước lớn xuống
+  // dưới ô nhập, giáo viên không thấy Kriky đang làm gì).
+  useEffect(() => {
+    if (live !== null && atBottom.current) bottom.current?.scrollIntoView({ block: "end" });
+  }, [live]);
+
+  /**
+   * Bám đáy hay không, đọc từ chính các lần cuộn. `scrollTop` giảm là người đọc vừa kéo lên — bằng
+   * bánh xe, vuốt, phím hay thanh tìm kiếm —, vì `scrollIntoView` ở trên chỉ kéo xuống: thôi bám. Về
+   * lại cách đáy dưới 48px thì bám tiếp. Không đo *"cách đáy bao xa"* để tắt cờ: sự kiện cuộn của
+   * chính `scrollIntoView` tới muộn, khối bước lớn thêm trong lúc chờ, và phép đo ra *"không ở đáy"*
+   * dù không ai cuộn (thử tay đợt 1, 18/10/2026). Nội dung co lại làm trình duyệt kẹp `scrollTop`
+   * xuống, nhưng lúc ấy dòng đang ở đáy, nên phép thử thứ hai bật cờ lại ngay.
+   */
+  function onStreamScroll(event: React.UIEvent<HTMLDivElement>) {
+    const box = event.currentTarget;
+    if (box.scrollTop < lastTop.current - 1) atBottom.current = false;
+    if (box.scrollHeight - box.scrollTop - box.clientHeight < 48) atBottom.current = true;
+    lastTop.current = box.scrollTop;
+  }
 
   /**
    * Gửi một câu của giáo viên và chạy một lượt.
@@ -288,6 +340,8 @@ export default function Chat({
     if (trimmed === "" || pending !== null) return;
 
     const question = asked;
+    // Số lượt đang có: các lượt sau mốc này là của lượt sắp chạy.
+    const seen = turns.length;
     setPending(trimmed);
     if (from === "composer") setText("");
     setOtherBack(null);
@@ -352,7 +406,12 @@ export default function Chat({
       setTurns(whole.turns);
       setAsked(questionIn(whole));
       setAnswersBack(null);
+      // Panel chỉ tự tải đề khi đổi đề, nên một lượt soạn thêm vào chính đề đang mở phải báo nó.
+      if (wroteInto(whole.turns.slice(seen), openNow.current)) setPaperRevision((n) => n + 1);
     } catch (cause) {
+      // BE ghi từng bước ngay khi xong, nên một lượt gãy giữa chừng vẫn có thể đã soạn vào đề đang
+      // mở; không còn lượt nào để đọc, nên báo panel đọc lại cho chắc.
+      if (openNow.current !== null) setPaperRevision((n) => n + 1);
       if (from === "composer") {
         setText(trimmed);
       } else {
@@ -444,9 +503,11 @@ export default function Chat({
       return;
     }
     try {
+      // Tài liệu vừa tải chỉ vào thư viện, không tự đính vào đoạn chat đang mở (đợt tất định việc
+      // 11, Tier 2 câu 8): chip Lớp 6 từng tự đính vào đoạn chat của một đề lớp 7. Muốn soạn theo
+      // nó thì kéo chip vào ô nhập.
       const saved = await teacher.upload(file);
       setDocuments((before) => [saved, ...before]);
-      setScope(saved);
       setTrouble(null);
     } catch (cause) {
       setTrouble((cause as Error).message);
@@ -511,7 +572,7 @@ export default function Chat({
         className={`center ${talking ? "talking" : "empty"} ${openPaper !== null ? "with-panel" : ""}`}
       >
         {talking ? (
-          <div className="stream">
+          <div className="stream" onScroll={onStreamScroll}>
             {blocks(drawn).map((block, index) =>
               "said" in block ? (
                 <div className="exchange said" key={index}>
@@ -763,6 +824,7 @@ export default function Chat({
           // `backlog-tier-1`).
           key={openPaper}
           assessmentId={openPaper}
+          revision={paperRevision}
           onClose={() =>
             go(here === null ? "/teacher" : `/teacher/chat/${here}`)
           }

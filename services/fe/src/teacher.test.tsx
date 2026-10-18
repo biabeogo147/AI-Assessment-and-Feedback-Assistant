@@ -1942,9 +1942,9 @@ describe("rail: khi BE từ chối", () => {
 });
 
 describe("tải một tài liệu lên", () => {
-  it("tệp vừa tải lên hiện trên rail, và dải dưới ô nhập nói đúng việc đã xảy ra", async () => {
-    // Dải này từng in "Đổi phạm vi", và chữ ấy hứa một việc không xảy ra: thân request gửi
-    // đi đúng ba field và không có `document_id` nào, chưa đoạn code nào mở tệp ra đọc.
+  it("tệp vừa tải lên chỉ vào thư viện, không tự đính vào đoạn chat đang mở", async () => {
+    // Đợt tất định việc 11 (Tier 2 câu 8): bản trước đính luôn tệp vừa tải vào câu đang gõ, và
+    // chip Lớp 6 đã đính vào đoạn chat của một đề lớp 7. Muốn soạn theo tệp thì kéo chip vào ô nhập.
     const saved = {
       document_id: "d1",
       filename: "de-cuong.pdf",
@@ -1988,25 +1988,11 @@ describe("tải một tài liệu lên", () => {
     });
 
     await waitFor(() =>
-      expect(container.querySelector(".scope-strip")).toBeTruthy(),
-    );
-    // Dải chỉ nói **tên tệp**. Chữ "Đã tải lên" bị bỏ: rail đã đẩy tệp vừa lên đầu danh
-    // sách, nên câu ấy kể lại một việc màn hình vừa nói — và nó là nghĩa thứ hai nhét vào
-    // cùng một biến, thứ làm cho không luật dọn nào đúng được.
-    expect(container.querySelector(".scope-strip .what")?.textContent).toBe(
-      "de-cuong.pdf",
-    );
-    expect(screen.queryByText("Đã tải lên: de-cuong.pdf")).toBeNull();
-    expect(screen.queryByText("Đổi phạm vi")).toBeNull();
-    // Tải lên có **một** cửa: cái icon cạnh nhãn TÀI LIỆU. Dải này không phải một cửa thứ
-    // hai — hai cửa cho cùng một việc thì cửa nào cũng thành chỗ phải đoán. Nút duy nhất
-    // trên dải là đường lùi, và nó mang đúng một chữ.
-    expect(screen.queryByText("Tải tệp khác")).toBeNull();
-    expect(
-      [...container.querySelectorAll(".scope-strip button")].map(
-        (one) => one.textContent,
+      expect(container.querySelector(".pane.documents")?.textContent).toContain(
+        "de-cuong.pdf",
       ),
-    ).toEqual(["Bỏ"]);
+    );
+    expect(container.querySelector(".scope-strip")).toBeNull();
   });
 });
 
@@ -2627,6 +2613,11 @@ describe("tài liệu thuộc về giáo viên, không thuộc đoạn chat", ()
     expect((container.querySelector(".composer-bar") as HTMLElement).className).not.toContain(
       "dropping",
     );
+    // Dải chỉ nói tên tệp, và nút duy nhất trên nó là đường lùi: tải lên có một cửa, cái icon cạnh
+    // nhãn TÀI LIỆU.
+    expect(
+      [...container.querySelectorAll(".scope-strip button")].map((one) => one.textContent),
+    ).toEqual(["Bỏ"]);
   });
 
   /**
@@ -6128,4 +6119,198 @@ describe("api: chip tài liệu trong body của một lượt", () => {
     expect(bodies[0]).toMatchObject({ conversation_id: "c1", document_id: "d1" });
     expect(bodies[1].document_id).toBeNull();
   });
+});
+
+describe("dòng chat và panel đi theo lượt đang chạy (đợt tất định việc 1, 2)", () => {
+  const EMPTY = { kind: "say", text: "", conversation_id: "c1", choices: [], more_choices: 0, turns: [] };
+
+  /** Một khung SSE chỉ có `data`, như BE gửi. */
+  function frame(event: Record<string, unknown>) {
+    return new TextEncoder().encode(`data: ${JSON.stringify({ conversation_id: "c1", ...event })}\n\n`);
+  }
+
+  /**
+   * Stub `fetch` cho một lượt: kênh stream để mở, test tự đẩy khung qua `push` và đóng bằng `end`.
+   * Lần đọc đoạn chat sau stream trả `after`.
+   */
+  function serving(after: unknown[], before: unknown[] = [], papers: unknown[] = []) {
+    const calls: string[] = [];
+    let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let streamed = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        if (url === "/api/teacher/chat/messages/stream") {
+          streamed = true;
+          return {
+            ok: true,
+            body: new ReadableStream<Uint8Array>({
+              start(c) {
+                controller = c;
+              },
+            }),
+          };
+        }
+        if (url.startsWith("/api/teacher/assessments/")) {
+          const next = papers.length > 1 ? papers.shift() : (papers[0] ?? paper("drafted"));
+          return { ok: true, json: async () => next };
+        }
+        const body = url.startsWith("/api/teacher/chat")
+          ? streamed
+            ? { ...EMPTY, turns: [...before, ...after] }
+            : { ...EMPTY, turns: before }
+          : [];
+        return { ok: true, json: async () => body };
+      }),
+    );
+    return {
+      calls,
+      push: (event: Record<string, unknown>) => controller?.enqueue(frame(event)),
+      end: () => {
+        controller?.enqueue(frame({ kind: "done", text: "", ended_as: "say" }));
+        controller?.close();
+      },
+      opened: () => controller !== null,
+    };
+  }
+
+  function sendOne() {
+    fireEvent.change(screen.getByLabelText("Nhắn cho Kriky"), { target: { value: "soạn thêm 2 câu" } });
+    fireEvent.click(screen.getByText("Gửi"));
+  }
+
+  /**
+   * Giả vị trí cuộn của dòng chat, đi từ đáy tới `fromBottom` px trên đáy.
+   */
+  function scrollTo(stream: HTMLElement, fromBottom: number) {
+    Object.defineProperty(stream, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(stream, "clientHeight", { configurable: true, value: 600 });
+    // Từ đáy trước, rồi tới chỗ cần: cuộn lên là `scrollTop` giảm, như khi người đọc kéo.
+    Object.defineProperty(stream, "scrollTop", { configurable: true, value: 1400 });
+    fireEvent.scroll(stream);
+    Object.defineProperty(stream, "scrollTop", { configurable: true, value: 1400 - fromBottom });
+    fireEvent.scroll(stream);
+  }
+
+  it("khối bước chỉ kéo dòng xuống khi người đọc đang ở đáy", async () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    const run = serving([]);
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    sendOne();
+    await waitFor(() => expect(run.opened()).toBe(true));
+    const stream = document.querySelector(".stream") as HTMLElement;
+
+    scrollTo(stream, 500);
+    const before = scrolled.mock.calls.length;
+    const drawn = stream.innerHTML;
+    run.push({ kind: "plan", total: 2, titles: ["Tạo đề trống", "Soạn câu"] });
+    run.push({ kind: "step_started", title: "Tạo đề trống", index: 1, total: 2 });
+    // Khối bước đã lớn lên trên màn hình mà dòng không bị kéo xuống.
+    await waitFor(() => expect(stream.innerHTML).not.toBe(drawn));
+    expect(scrolled.mock.calls.length).toBe(before);
+
+    scrollTo(stream, 10);
+    run.push({ kind: "step_done", title: "Tạo đề trống", index: 1, total: 2 });
+    await waitFor(() => expect(scrolled.mock.calls.length).toBeGreaterThan(before));
+    run.end();
+  });
+
+  it("sự kiện cuộn tới muộn, khi khối bước đã lớn thêm, không làm dòng thôi bám đáy", async () => {
+    // Thử tay đợt 1: `scrollIntoView` sinh ra một `scroll` tới sau khi khối bước đã lớn thêm hơn
+    // 48px, phép đo ra *"không ở đáy"* dù không ai cuộn, và khối bước chui xuống dưới ô nhập.
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    const run = serving([]);
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    sendOne();
+    await waitFor(() => expect(run.opened()).toBe(true));
+    const stream = document.querySelector(".stream") as HTMLElement;
+    Object.defineProperty(stream, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(stream, "clientHeight", { configurable: true, value: 600 });
+    Object.defineProperty(stream, "scrollTop", { configurable: true, value: 1200 });
+    fireEvent.scroll(stream);
+    const before = scrolled.mock.calls.length;
+    run.push({ kind: "plan", total: 2, titles: ["Tạo đề trống", "Soạn câu"] });
+    await waitFor(() => expect(scrolled.mock.calls.length).toBeGreaterThan(before));
+    run.end();
+  });
+
+  it("lượt vừa soạn vào đề đang mở làm panel đọc lại đề ấy", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const run = serving([
+      blank({ kind: "teacher", text: "soạn thêm 2 câu" }),
+      blank({ kind: "tool_result", tool_name: "start_drafting", entity_kind: "assessment", entity_id: "a1" }),
+    ]);
+    render(<Chat conversationId="c1" fresh={false} openPaper="a1" />);
+    const reads = () => run.calls.filter((one) => one === "/api/teacher/assessments/a1").length;
+    await waitFor(() => expect(reads()).toBe(1));
+    sendOne();
+    await waitFor(() => expect(run.opened()).toBe(true));
+    run.end();
+    await waitFor(() => expect(reads()).toBe(2));
+  });
+
+  it("lượt soạn vào một đề khác thì panel không đọc lại", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const run = serving([
+      blank({ kind: "teacher", text: "soạn đề mới" }),
+      blank({ kind: "tool_result", tool_name: "create_draft", entity_kind: "assessment", entity_id: "a2" }),
+    ]);
+    render(<Chat conversationId="c1" fresh={false} openPaper="a1" />);
+    const reads = () => run.calls.filter((one) => one === "/api/teacher/assessments/a1").length;
+    await waitFor(() => expect(reads()).toBe(1));
+    sendOne();
+    await waitFor(() => expect(run.opened()).toBe(true));
+    run.end();
+    await waitFor(() => expect(run.calls.filter((one) => one.startsWith("/api/teacher/chat?")).length).toBeGreaterThan(1));
+    expect(reads()).toBe(1);
+  });
+
+  it("một bước soạn vào đề đang mở từ lượt CŨ không làm panel đọc lại sau lượt mới", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const old = [
+      blank({ kind: "teacher", text: "soạn đề" }),
+      blank({ kind: "tool_result", tool_name: "start_drafting", entity_kind: "assessment", entity_id: "a1" }),
+    ];
+    const run = serving([blank({ kind: "teacher", text: "lớp 12A thế nào" }), blank({ kind: "assistant", text: "ổn" })], old);
+    render(<Chat conversationId="c1" fresh={false} openPaper="a1" />);
+    const reads = () => run.calls.filter((one) => one === "/api/teacher/assessments/a1").length;
+    await waitFor(() => expect(reads()).toBe(1));
+    sendOne();
+    await waitFor(() => expect(run.opened()).toBe(true));
+    run.end();
+    await waitFor(() => expect(run.calls.filter((one) => one.startsWith("/api/teacher/chat?")).length).toBeGreaterThan(1));
+    expect(reads()).toBe(1);
+  });
+
+  it("đề được mở GIỮA lượt vẫn được đọc lại khi lượt soạn vào nó xong", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const run = serving([
+      blank({ kind: "teacher", text: "soạn thêm 2 câu" }),
+      blank({ kind: "tool_result", tool_name: "start_drafting", entity_kind: "assessment", entity_id: "a1" }),
+    ]);
+    const view = render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+    sendOne();
+    await waitFor(() => expect(run.opened()).toBe(true));
+    view.rerender(<Chat conversationId="c1" fresh={false} openPaper="a1" />);
+    const reads = () => run.calls.filter((one) => one === "/api/teacher/assessments/a1").length;
+    await waitFor(() => expect(reads()).toBe(1));
+    run.end();
+    await waitFor(() => expect(reads()).toBe(2));
+  });
+
+  it("panel còn câu đang soạn thì tự đọc lại tới khi soạn xong", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const drafting = { ...paper("drafted"), still_drafting: 1 };
+    const run = serving([], [], [drafting, paper("drafted")]);
+    render(<Chat conversationId="c1" fresh={false} openPaper="a1" />);
+    const reads = () => run.calls.filter((one) => one === "/api/teacher/assessments/a1").length;
+    await waitFor(() => expect(reads()).toBe(1));
+    await waitFor(() => expect(reads()).toBe(2), { timeout: 6000 });
+    // Soạn xong rồi thì thôi hỏi.
+    await new Promise((done) => setTimeout(done, 4500));
+    expect(reads()).toBe(2);
+  }, 15000);
 });
