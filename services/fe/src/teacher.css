@@ -3821,3 +3821,299 @@
   font-size: var(--type-label);
   font-weight: 600;
 }
+
+/* ------------------------------------------------------------ Bảng theo dõi (plan `dashboard-review-queue`) */
+
+/* Màn 20 xếp mọi khối cách nhau 16 (artboard 20), không 24 như các màn rail khác. */
+.teacher .board.dashboard {
+  gap: 16px;
+}
+
+/* Đầu một phần của màn 20 (`section-head`): tên 13/600, mô tả 11 nhạt. Phần thứ hai đệm trên 8
+ * (`section-head` cao 40, chữ ở y 8): bảng hàng đợi cách nó 24. */
+.teacher .board-part {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.teacher .board-part ~ .board-part {
+  padding-top: 8px;
+}
+
+.teacher .board-part h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.teacher .board-part p {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 1.25;
+}
+
+/* Hàng đợi: `Review item row` (`657:46`), cột 150 / FILL / 160 / 130 / 12; hàng 46 như màn 21. */
+.teacher .board-table.queue {
+  --cols: 150px minmax(0, 1fr) 160px 130px 12px;
+}
+
+.teacher .board-table.queue .board-row:not(.head) {
+  min-height: 47px;
+  padding-block: 4px;
+  line-height: 1.5;
+}
+
+.teacher .board-table.queue .kind {
+  font-size: var(--type-label);
+  font-weight: 500;
+}
+
+.teacher .board-table.queue .what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.teacher .board-table.queue .what .name {
+  overflow: hidden;
+  font-size: var(--type-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Điểm gộp: `Class stat row` (`657:55`), cột 272 / 120 / 100 / 100 / 100 / 220 / 12. */
+.teacher .board-table.class-stats {
+  --cols: minmax(0, 1fr) 120px 100px 100px 100px 220px 12px;
+}
+
+/* Hàng 46 + vạch như `Class stat row`. */
+.teacher .board-table.class-stats .board-row:not(.head) {
+  min-height: 47px;
+  line-height: 1.5;
+}
+
+/* Hai biểu đồ cạnh nhau, khe 24 (`charts` `666:5644`). */
+.teacher .board-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 24px;
+}
+
+.teacher .board-charts .chart-card {
+  height: auto;
+}
+
+/* `flex: none`: `.bars` của màn 11 giãn theo thẻ, còn thẻ ở đây cao theo nội dung (201). */
+.teacher .board-charts .bars {
+  flex: none;
+  height: 115px;
+}
+
+.teacher .bars-axis {
+  display: flex;
+  gap: 6px;
+}
+
+.teacher .bars-axis .bar-mark {
+  flex: 1;
+  margin-top: 0;
+  text-align: center;
+}
+
+/* Biểu đồ mục kiến thức: nhãn 120, thanh, phần trăm 40, khe 10; hàng 15 cách nhau 8. */
+.teacher .chart-card .objective-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teacher .chart-card .objective {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 15px;
+}
+
+.teacher .chart-card .objective .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacher .chart-card .objective .track {
+  height: 12px;
+  border-radius: 2px;
+  background: var(--sunken);
+}
+
+.teacher .chart-card .objective .fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.teacher .chart-card .objective .count {
+  text-align: right;
+}
+
+/* Màn 25: trái 676, phải 400, khe 24 (`body` `657:4594`). Màn 29: một cột cả bề ngang. */
+.teacher .board-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  align-items: start;
+  gap: 24px;
+}
+
+.teacher .board-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Không giãn chữ: nhãn cột của artboard 25 và 29 để khoảng cách chữ 0, khác đầu bảng. */
+.teacher .board-column .column-head,
+.teacher .board-card .column-head {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 17px;
+}
+
+/* Thẻ báo cáo và thẻ câu (`report` `657:4654`): trắng, viền, bo 8, đệm 12/16, khe 6. */
+.teacher .board-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  /* Đệm 12/16 **trong** viền, như `report` của Figma (viền vẽ ngoài khung đệm): thẻ câu cao 92. */
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* Dòng 20 và 17, như chữ 13 và 11 dòng 150% của Figma sau khi làm tròn. */
+.teacher .board-card .lead {
+  color: var(--ink);
+  font-size: var(--type-label);
+  line-height: 20px;
+}
+
+.teacher .board-card .byline,
+.teacher .board-card .small {
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 17px;
+}
+
+/* `byline`, không `who`: `.teacher .who` là hàng avatar của đoạn chat. */
+.teacher .board-card .byline {
+  font-weight: 500;
+}
+
+/* Dấu đúng cách chữ phương án 6, cộng lề trái của glyph ✓ là 9 như Figma. */
+.teacher .board-card .right-mark {
+  margin-left: 6px;
+}
+
+.teacher .board-card .link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 17px;
+  cursor: pointer;
+}
+
+/* Hàng nút của màn 25 và 29: nút cao 40, khe 12 (`actions` `657:4647`). */
+.teacher .board-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.teacher .board-actions .btn {
+  height: 40px;
+  padding: 9px 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.teacher .board-actions .btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.teacher .board-actions .btn:disabled {
+  background: var(--sunken);
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+/* Hộp đọc đoạn chat (artboard 25b, `699:5916`): khuôn `wide` của hộp lời giải (680, đệm 28), cộng
+ * trần chiều cao để đoạn chat dài cuộn trong hộp. */
+.teacher .confirm.chat-read {
+  max-height: calc(100vh - 80px);
+}
+
+.teacher .chat-meta {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  line-height: 17px;
+}
+
+.teacher .chat-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.teacher .chat-line {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--sunken);
+}
+
+.teacher .chat-line.student {
+  background: var(--accent-surface);
+}
+
+.teacher .chat-line .byline {
+  color: var(--ink-faint);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.teacher .chat-line .said {
+  color: var(--ink);
+  font-size: var(--type-label);
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+

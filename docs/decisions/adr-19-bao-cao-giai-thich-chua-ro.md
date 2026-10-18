@@ -87,3 +87,17 @@ lí.
   `Báo cáo giải thích chưa rõ` `<<extend>>` `Chữa bài sau khi nộp (pha 2)`, không có association từ
   Teacher — vì chỗ Teacher đọc báo cáo chưa tồn tại.
 - **Bị chặn**: xem `docs/plans/backlog.md`.
+
+## Hậu ký 18/10/2026
+
+**Nửa giáo viên đã có.** Việc 21 (plan `2026-10-18-dashboard-review-queue-plan.md`):
+- báo cáo vào hàng đợi *Cần bạn xem* trên *Bảng theo dõi*, **một dòng mỗi đề** -- báo cáo gắn với cả
+  lượt làm bài, đúng như mục thi hành ở trên ([ADR-34](adr-34-hang-doi-review-va-diem-gop.md));
+- màn của đề cho đọc từng báo cáo: học sinh, lớp, giờ, lời ghi, các câu em ấy làm sai ở lần đầu;
+- từ đó mở được **cả đoạn chat** hỏi trợ lý của lượt ấy, trong một hộp chỉ đọc;
+- *đánh dấu đã xem* theo đề (`reports.resolved_at`), không chặn gì.
+
+Câu *"giáo viên sửa lời giải đã lưu"* ở mục *Vì sao* được thi hành ở ngân hàng, không ở đề đã phát hành:
+xem [ADR-35](adr-35-sua-loi-giai-sau-phat-hanh.md). Hệ quả *"nó cần một chỗ khác, và chỗ đó chưa tồn tại"*
+nay đã có chỗ. Dòng *"Chưa có ở backend: không endpoint, không model"* ở trên hết đúng từ trước: model
+`Report` và route nộp báo cáo của học sinh đã có, nay có thêm các route đọc của giáo viên.

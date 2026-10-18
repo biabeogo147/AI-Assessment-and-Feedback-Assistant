@@ -107,6 +107,15 @@ export const NONE = "—";
  * Tên một lớp như Figma in: *"Lớp 12A"* cho tên bắt đầu bằng khối, nguyên văn cho tên tự đặt
  * (*"Ôn thi HSG 12"*, artboard 9).
  */
+export function classesLabel(names: string[]): string {
+  if (names.length === 0) return "";
+  // *"Lớp 12A, 12B"* như Figma khi mọi tên là tên theo khối; có một tên tự đặt thì mỗi tên một nhãn.
+  return names.every((one) => classLabel(one) !== one)
+    ? `Lớp ${names.join(", ")}`
+    : names.map(classLabel).join(", ");
+}
+
+/** Nhãn hiển thị của một lớp: tên theo khối có chữ *Lớp*, tên tự đặt giữ nguyên. */
 export function classLabel(name: string): string {
   return /^\d/.test(name) ? `Lớp ${name}` : name;
 }

@@ -23,6 +23,7 @@ import ClassDetail from "./screens/teacher/ClassDetail";
 import ClassResults from "./screens/teacher/ClassResults";
 import Classes from "./screens/teacher/Classes";
 import Papers from "./screens/teacher/Papers";
+import Dashboard, { BoardQuestion, BoardReports } from "./screens/teacher/Dashboard";
 import StudentWork from "./screens/teacher/StudentWork";
 import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
@@ -7442,3 +7443,346 @@ describe("thêm câu từ ngân hàng (việc 17, plan `question-bank-into-draft
     expect(await screen.findByText("BE đang hỏng.")).toBeTruthy();
   });
 });
+
+describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () => {
+  afterEach(() => {
+    window.location.hash = "";
+  });
+
+  function serving(routes: Record<string, unknown>) {
+    const calls: { url: string; method: string; body: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method, body: String(init?.body ?? "") });
+        if (method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 204,
+            json: () => Promise.reject(new Error("204")),
+          });
+        }
+        const body = routes[url.replace(/^\/api/, "")] ?? [];
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    return calls;
+  }
+
+  const BOARD = {
+    queue: [
+      {
+        kind: "reports",
+        assessment_id: "p1",
+        question_id: "",
+        title: "Kiểm tra 15 phút",
+        meta: "3 học sinh",
+        figure: "3 lượt báo cáo",
+      },
+      {
+        kind: "wrong_rate",
+        assessment_id: "p2",
+        question_id: "q3",
+        title: "Câu 3 · Đạo hàm của y = sin 2x?",
+        meta: "Đề tuần 3",
+        figure: "72% bài sai",
+      },
+    ],
+    classes: [
+      {
+        class_id: "c1",
+        name: "12A",
+        papers: 4,
+        mean: 7.2,
+        highest: 10,
+        lowest: 2.5,
+        weakest: "Cực trị (38% bài sai)",
+      },
+    ],
+    objectives: [{ learning_objective: "Cực trị", percent: 38 }],
+  };
+
+  it("hàng đợi: hai loại dòng cùng trọng lượng, mỗi loại dẫn tới màn của nó", async () => {
+    serving({ "/teacher/board": BOARD });
+    const { container } = render(<Dashboard />);
+
+    await screen.findByText("2 việc cần bạn xem · 1 lớp có đề đã hết hạn chữa");
+    const rows = [...container.querySelectorAll(".board-table.queue .board-row")];
+    expect(rows[1].textContent).toContain("Giải thích chưa rõ");
+    expect(rows[1].textContent).toContain("Xem báo cáo");
+    expect(rows[2].textContent).toContain("Tỉ lệ sai cao");
+    fireEvent.click(rows[1]);
+    expect(window.location.hash).toBe("#/teacher/theo-doi/bao-cao/p1");
+    fireEvent.click(rows[2]);
+    expect(window.location.hash).toBe("#/teacher/theo-doi/cau/q3");
+    // Điểm gộp in thang 10 một chữ số lẻ; bấm lớp sang chi tiết lớp.
+    const stat = container.querySelectorAll(".board-table.class-stats .board-row")[1];
+    expect(stat.textContent).toContain("7,2");
+    expect(stat.textContent).toContain("10,0");
+    fireEvent.click(stat);
+    expect(window.location.hash).toBe("#/teacher/lop/c1");
+  });
+
+  it("hàng đợi rỗng là tin tốt, không vẽ như lỗi; chưa đề nào hết hạn thì không có biểu đồ", async () => {
+    serving({ "/teacher/board": { queue: [], classes: [], objectives: [] } });
+    const { container } = render(<Dashboard />);
+
+    expect(await screen.findByText("Không có việc nào cần bạn xem.")).toBeTruthy();
+    expect(container.querySelector(".board-wait.trouble")).toBeNull();
+    expect(container.querySelector(".board-charts")).toBeNull();
+    expect(screen.getByText("Chưa có đề nào hết hạn chữa bài.")).toBeTruthy();
+  });
+
+  it("báo cáo của một đề: đánh dấu đã xem gửi đúng các báo cáo đang hiện", async () => {
+    const calls = serving({
+      "/teacher/board/reports/p1": {
+        assessment_id: "p1",
+        title: "Kiểm tra 15 phút",
+        classes: ["12A"],
+        reporters: 2,
+        reports: [
+          {
+            report_id: "r1",
+            student: "Anh",
+            class_name: "12A",
+            created_at: "2026-10-18T07:35:00+00:00",
+            note: "Em chưa hiểu.",
+            wrong: [2, 6],
+          },
+          {
+            report_id: "r2",
+            student: "Bảo",
+            class_name: "12A",
+            created_at: "2026-10-18T07:50:00+00:00",
+            note: "",
+            wrong: [],
+          },
+        ],
+        questions: [
+          { question_id: "q6", order: 6, stem: "Câu sáu?", wrong_by: 1, bank_id: "b6" },
+          { question_id: "q2", order: 2, stem: "Câu hai?", wrong_by: 1, bank_id: "" },
+        ],
+      },
+    });
+    const { container } = render(<BoardReports assessmentId="p1" />);
+
+    await screen.findByText("2 lượt báo cáo chưa xem · Lớp 12A");
+    expect(screen.getByText("“Em chưa hiểu.”")).toBeTruthy();
+    expect(screen.getByText("Không ghi gì thêm.")).toBeTruthy();
+    expect(screen.getByText("Làm sai: Câu 2, Câu 6")).toBeTruthy();
+    // Câu chưa có bản ngân hàng thì không có nút sửa.
+    expect(screen.getAllByText("Chỉnh sửa trong Ngân hàng câu hỏi ›")).toHaveLength(1);
+    fireEvent.click(screen.getByText("Chỉnh sửa trong Ngân hàng câu hỏi ›"));
+    expect(window.location.hash).toBe("#/teacher/ngan-hang/b6");
+
+    fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã xem" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/teacher/theo-doi"));
+    const sent = calls.find((one) => one.method === "POST");
+    expect(sent?.url).toBe("/api/teacher/board/reports/p1/seen");
+    expect(JSON.parse(sent?.body ?? "{}")).toEqual({ report_ids: ["r1", "r2"] });
+    expect(container.querySelector(".refused")).toBeNull();
+  });
+
+  it("hộp đọc đoạn chat: chỉ đọc, đóng bằng nút Đóng", async () => {
+    serving({
+      "/teacher/board/reports/p1": {
+        assessment_id: "p1",
+        title: "Kiểm tra 15 phút",
+        classes: ["12A"],
+        reporters: 1,
+        reports: [
+          {
+            report_id: "r1",
+            student: "Anh",
+            class_name: "12A",
+            created_at: "2026-10-18T07:35:00+00:00",
+            note: "",
+            wrong: [6],
+          },
+        ],
+        questions: [],
+      },
+      "/teacher/board/chat/r1": {
+        student: "Anh",
+        title: "Kiểm tra 15 phút",
+        class_name: "12A",
+        messages: [
+          { role: "assistant", text: "Chào em.", created_at: "2026-10-18T07:30:00+00:00" },
+          { role: "student", text: "Em chưa hiểu.", created_at: "2026-10-18T07:31:00+00:00" },
+        ],
+      },
+    });
+    const { container } = render(<BoardReports assessmentId="p1" />);
+    fireEvent.click(await screen.findByText("Mở hội thoại hỏi trợ lý ›"));
+
+    await screen.findByText("Hội thoại hỏi trợ lý — Anh");
+    const lines = [...container.querySelectorAll(".chat-line")];
+    expect(lines.map((one) => one.classList.contains("student"))).toEqual([false, true]);
+    expect(container.querySelector(".chat-read textarea, .chat-read input")).toBeNull();
+    fireEvent.click(within(container.querySelector(".chat-read") as HTMLElement).getByText("Đóng"));
+    expect(container.querySelector(".chat-read")).toBeNull();
+  });
+
+  it("câu có tỉ lệ sai cao: tỉ lệ từng phương án, đã xem thì về Bảng theo dõi", async () => {
+    const calls = serving({
+      "/teacher/board/questions/q3": {
+        question_id: "q3",
+        assessment_id: "p2",
+        order: 3,
+        title: "Đề tuần 3",
+        stem: "Đạo hàm của y = sin 2x?",
+        methods: [{ title: "Cách 1", body: "Hàm hợp." }],
+        options: [
+          { label: "A", text: "2cos 2x", is_correct: true, error_label: null, percent: 28 },
+          { label: "B", text: "cos 2x", is_correct: false, error_label: "quên hệ số", percent: 68 },
+        ],
+        unanswered: 4,
+        submitted: 25,
+        wrong_percent: 72,
+        classes: ["12A", "12B"],
+        bank_id: "b3",
+        seen: false,
+      },
+    });
+    render(<BoardQuestion questionId="q3" />);
+
+    await screen.findByText("72% bài sai ở lần làm đầu · 25 bài · Lớp 12A, 12B");
+    expect(screen.getByText(/✓ đúng · 28% chọn/)).toBeTruthy();
+    expect(screen.getByText(/68% chọn — quên hệ số/)).toBeTruthy();
+    expect(screen.getByText("Bỏ trống · 4%")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã xem" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/teacher/theo-doi"));
+    expect(calls.some((one) => one.method === "POST" && one.url.endsWith("/questions/q3/seen"))).toBe(
+      true,
+    );
+  });
+
+  /** Stub có thể từ chối POST, và trả lỗi cho một đường GET. */
+  function refusing(routes: Record<string, unknown>, failing = "", refuse = "") {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const path = url.replace(/^\/api/, "");
+        const method = (init?.method ?? "GET").toUpperCase();
+        if ((method === "POST" && refuse) || path === failing) {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: () => Promise.resolve({ detail: refuse || "BE đang hỏng." }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(routes[path] ?? []) });
+      }),
+    );
+  }
+
+  const QUESTION = {
+    question_id: "q3",
+    assessment_id: "p2",
+    order: 3,
+    title: "Đề tuần 3",
+    stem: "Câu ba?",
+    methods: [],
+    options: [{ label: "A", text: "x", is_correct: true, error_label: null, percent: 100 }],
+    unanswered: 0,
+    submitted: 21,
+    wrong_percent: 71,
+    classes: ["Ôn thi HSG 12"],
+    bank_id: "",
+    seen: true,
+  };
+
+  it("tải lỗi thì câu của BE đứng ở chỗ bảng; Enter trên một hàng mở nó", async () => {
+    refusing({}, "/teacher/board");
+    const first = render(<Dashboard />);
+    await waitFor(() =>
+      expect(first.container.querySelector(".board-wait.trouble")?.textContent).toBe(
+        "BE đang hỏng.",
+      ),
+    );
+    first.unmount();
+
+    serving({ "/teacher/board": BOARD });
+    const { container } = render(<Dashboard />);
+    await screen.findByText("Xem báo cáo");
+    fireEvent.keyDown(container.querySelectorAll(".board-table.queue .board-row")[1], {
+      key: "Enter",
+    });
+    expect(window.location.hash).toBe("#/teacher/theo-doi/bao-cao/p1");
+  });
+
+  it("câu đã xem: nút khoá và ghi Đã xem; không có bản ngân hàng thì không có nút sửa", async () => {
+    refusing({ "/teacher/board/questions/q3": QUESTION });
+    render(<BoardQuestion questionId="q3" />);
+
+    const done = await screen.findByRole("button", { name: "Đã xem" });
+    expect((done as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Chỉnh sửa trong Ngân hàng câu hỏi" })).toBeNull();
+    // Tên lớp tự đặt giữ nguyên, không thành *"Lớp Ôn thi HSG 12"*.
+    expect(screen.getByText("71% bài sai ở lần làm đầu · 21 bài · Ôn thi HSG 12")).toBeTruthy();
+  });
+
+  it("đánh dấu đã xem bị từ chối thì lời của BE hiện, nút mở lại, màn ở nguyên", async () => {
+    refusing(
+      { "/teacher/board/questions/q3": { ...QUESTION, seen: false, bank_id: "b3" } },
+      "",
+      "Không tìm thấy câu này trong các đề của bạn.",
+    );
+    const { container } = render(<BoardQuestion questionId="q3" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Đánh dấu đã xem" }));
+
+    await waitFor(() =>
+      expect(container.querySelector(".refused")?.textContent).toBe(
+        "Không tìm thấy câu này trong các đề của bạn.",
+      ),
+    );
+    expect(
+      (screen.getByRole("button", { name: "Đánh dấu đã xem" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(window.location.hash).toBe("");
+  });
+
+  it("không còn báo cáo nào thì màn nói ra; hộp đọc đoạn chat đóng bằng Esc, chat rỗng có lời", async () => {
+    refusing({
+      "/teacher/board/reports/p9": {
+        assessment_id: "p9",
+        title: "Đề đã xem hết",
+        classes: [],
+        reporters: 0,
+        reports: [],
+        questions: [],
+      },
+    });
+    const first = render(<BoardReports assessmentId="p9" />);
+    expect(await screen.findByText("Không còn báo cáo nào chưa xem ở đề này.")).toBeTruthy();
+    first.unmount();
+
+    refusing({
+      "/teacher/board/reports/p1": {
+        assessment_id: "p1",
+        title: "Kiểm tra",
+        classes: ["12A"],
+        reporters: 1,
+        reports: [
+          {
+            report_id: "r1",
+            student: "Anh",
+            class_name: "12A",
+            created_at: "2026-10-18T07:35:00+00:00",
+            note: "",
+            wrong: [],
+          },
+        ],
+        questions: [],
+      },
+      "/teacher/board/chat/r1": { student: "Anh", title: "Kiểm tra", class_name: "12A", messages: [] },
+    });
+    const { container } = render(<BoardReports assessmentId="p1" />);
+    fireEvent.click(await screen.findByText("Mở hội thoại hỏi trợ lý ›"));
+    expect(await screen.findByText("Em ấy chưa hỏi trợ lý câu nào.")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(container.querySelector(".chat-read")).toBeNull();
+  });
+});
+

@@ -95,3 +95,15 @@ Ngày 09/10/2026 đường chấm bài cũ (`POST /api/submissions` → task `gr
 `/api/submissions` mà nó nói *"vẫn trả hình dạng cũ"*. Phần còn sống là luật về điều học sinh
 **không** được thấy: test quét response của học sinh trong `services/be/tests/test_core_flow.py`
 vẫn chạy. Ghi lại theo plan `backlog-tier-1`.
+
+## Hậu ký 18/10/2026
+
+Hai luật của ADR này giờ có một chỗ đứng thật: hàng đợi *Cần bạn xem* trên *Bảng theo dõi*
+([ADR-34](adr-34-hang-doi-review-va-diem-gop.md)).
+- **Cùng trọng lượng.** Hai loại dòng, *giải thích chưa rõ* và *tỉ lệ sai cao*, không tô màu loại, không
+  xếp nặng nhẹ. Thứ tự là báo cáo mới nhất trước, rồi tới câu theo tên đề.
+- **Hàng đợi rỗng là tin tốt.** Màn ghi *"Không có việc nào cần bạn xem."* bằng chữ thường, không vẽ
+  như lỗi tải.
+
+`ReviewReason` vẫn không có trong code (hậu ký 17/10/2026). Hai loại dòng là `ReviewItem.kind` của
+`be/teacher_board.py`, không phải bốn `ReviewReason`.

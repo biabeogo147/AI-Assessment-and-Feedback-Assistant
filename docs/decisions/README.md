@@ -15,8 +15,8 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [04](adr-04-hai-nguon-cau-hoi.md) | Câu hỏi chỉ có hai nguồn; tài liệu là phạm vi (hậu ký 13/10/2026: duyệt đề là đã kiểm mọi câu; 18/10/2026: `questions.source`, chip nguồn thật) | đã chốt (trừ câu luyện tập) |
 | [05](adr-05-ba-cong-teacher-in-the-loop.md) | Ba cổng teacher-in-the-loop | đã chốt (cổng 1 có ngoại lệ) |
 | [06](adr-06-agent-phat-bang-chung.md) | Agent phát bằng chứng, không quyết định | đã chốt |
-| [07](adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) | Ngưỡng, thứ tự ưu tiên lý do, và phép so bao gồm | đã chốt (ngưỡng tạm gỡ khỏi luồng học sinh) |
-| [08](adr-08-bon-loai-nghi-ngo.md) | Bốn loại nghi ngờ; thứ vắng mặt với học sinh là *chẩn đoán* | đã mở rộng bởi ADR-18 |
+| [07](adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md) | Ngưỡng, thứ tự ưu tiên lý do, và phép so bao gồm (hậu ký 18/10/2026: ngưỡng tỉ lệ sai của hàng đợi là chuyện khác, ADR-34) | đã chốt (ngưỡng tạm gỡ khỏi luồng học sinh) |
+| [08](adr-08-bon-loai-nghi-ngo.md) | Bốn loại nghi ngờ; thứ vắng mặt với học sinh là *chẩn đoán* (hậu ký 18/10/2026: hàng đợi cùng trọng lượng, rỗng là tin tốt) | đã mở rộng bởi ADR-18 |
 | [09](adr-09-ket-qua-cham-la-tam-thoi.md) | Kết quả chấm chỉ sống một giờ | đã chốt |
 | [10](adr-10-pham-vi-dot-dau.md) | Chỉ giáo viên, chỉ desktop, chat là dòng lệnh | đã chốt |
 | [11](adr-11-bo-assessment-type.md) | Bỏ `AssessmentType` khỏi contract | đã chốt |
@@ -27,7 +27,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [16](adr-16-thang-diem-ba-muc.md) | Ba mức điểm; 0,5 nghĩa là hiểu sau khi được dạy | đã chốt, đang thi hành (hậu ký 17/10/2026) |
 | [17](adr-17-ba-vong-moi-cau.md) | Ba vòng cho mỗi câu; biến thể sinh từ chính câu đó (hậu ký 18/10/2026: `check_schema` soi cả unique) | đã chốt (Figma xong, backend chưa) |
 | [18](adr-18-cau-hoi-phai-kem-loi-giai.md) | Câu hỏi phải kèm lời giải nhiều cách và nhiễu gắn lỗi | đã chốt, đang thi hành (hậu ký 18/10/2026: `validate_question`; gộp phương án trùng, bắt lời giải chọn sai nhãn) |
-| [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt (nửa học sinh xong; giáo viên chưa) |
+| [19](adr-19-bao-cao-giai-thich-chua-ro.md) | Học sinh báo cáo chỗ Kriky giải thích chưa rõ | đã chốt, đang thi hành (hậu ký 18/10/2026: giáo viên đọc ở Bảng theo dõi) |
 | [20](adr-20-cham-trac-nghiem-thuoc-be.md) | Chấm trắc nghiệm là việc của BE, không của AGENT | đã chốt, chưa thi hành |
 | [21](adr-21-trang-thai-bai-lam-la-ben.md) | Trạng thái bài làm là bền; hạn một giờ chỉ áp cho job | đã chốt, đang thi hành (hậu ký 18/10/2026: bài làm ở Postgres) |
 | [22](adr-22-de-co-tac-gia.md) | Đề và lớp có tác giả; của người khác đọc ra như không tồn tại (hậu ký 18/10/2026: đường xoá đề trống) | đã chốt, đang thi hành |
@@ -42,6 +42,8 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại (hậu ký 18/10/2026: bỏ khoảng trang của tên tệp) | đã chốt, đang thi hành |
 | [32](adr-32-hoi-lai-nhieu-cau.md) | Hỏi lại tối đa ba câu một lượt, mỗi câu một bộ nút; không bỏ câu; tóm tắt rồi gửi gộp một tin | đã chốt, đang thi hành |
 | [33](adr-33-chi-de-trong-moi-xoa-duoc.md) | Chỉ đề trống mới xoá được, và xoá cứng; một đoạn chat dùng lại đề trống của nó | đã chốt, đang thi hành |
+| [34](adr-34-hang-doi-review-va-diem-gop.md) | Hàng đợi *Cần bạn xem* (báo cáo gom theo đề; tỉ lệ sai ≥ 70%, trên 20 bài, sau giai đoạn 2) và điểm gộp theo lớp quy về thang 10 | đã chốt, đang thi hành |
+| [35](adr-35-sua-loi-giai-sau-phat-hanh.md) | Câu trong đề đã phát hành không bao giờ sửa; sửa lời giải là sửa bản trong ngân hàng | đã chốt, đang thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.

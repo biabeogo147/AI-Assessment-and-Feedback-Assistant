@@ -65,7 +65,7 @@ Cả ba màn đều **chỉ đọc**. Sửa lời giải chỉ làm ở *Ngân h
 | `packages/schema/src/schema/models.py` | hai cột |
 | `services/be/src/be/teacher_board.py` (mới), `main.py` | route đọc, hai route *đã xem* |
 | `services/be/tests/test_teacher_board.py` (mới) | test BE |
-| `services/fe/src/api.ts`, `App.tsx` (`boardFor`), `screens/teacher/Dashboard.tsx`, `BoardReports.tsx`, `BoardQuestion.tsx` (mới), `teacher.css`, `teacher.test.tsx` | FE |
+| `services/fe/src/api.ts`, `App.tsx` (`boardFor`), `screens/teacher/Dashboard.tsx` (mới: màn 20, 25, 29, hộp đọc đoạn chat), `Board.tsx` (`classesLabel`), `teacher.css`, `teacher.test.tsx` | FE |
 | `docs/decisions/adr-34-*`, `adr-35-*` (mới), `adr-07`, `adr-08`, `adr-19`, `adr-28`, `README.md`, `docs/overview/data-model.md`, `teacher-surface.md` | tài liệu |
 
 ## Ordered Tasks
@@ -109,9 +109,9 @@ Cả ba màn đều **chỉ đọc**. Sửa lời giải chỉ làm ở *Ngân h
 - [x] 11. Test BE trên sqlite và `aiafa_test`.
 
 ### Pha 2 — FE
-- [ ] 12. Màn 20: hai bảng, hai biểu đồ. Hàng đợi rỗng là tin tốt, không vẽ như lỗi (ADR-08).
-- [ ] 13. Màn 25, màn 29, hộp đọc đoạn chat; route trong `boardFor`.
-- [ ] 14. Vitest; chụp, đo so với Figma; subagent chấm.
+- [x] 12. Màn 20: hai bảng, hai biểu đồ. Hàng đợi rỗng là tin tốt, không vẽ như lỗi (ADR-08).
+- [x] 13. Màn 25, màn 29, hộp đọc đoạn chat; route trong `boardFor`.
+- [x] 14. Vitest; chụp, đo so với Figma; subagent chấm.
 
 ### Pha 3 — đóng
 - [ ] 15. ADR-34, ADR-35, các hậu ký, `data-model.md`, `teacher-surface.md`; roadmap việc 19, 21
@@ -157,3 +157,23 @@ reason: một câu là một câu cho mọi lớp. Tính sớm theo lớp đầu
   dòng báo cáo không ghi lớp. 14 test, xanh trên sqlite và `aiafa_test`.
 - BE tự nạp lại (`--reload`) treo hai lần trong cụm này (`WinError 10038`, uvicorn trên Windows);
   khởi động lại tay. Ghi vào backlog.
+- Pha 2: `Dashboard.tsx` gồm màn 20, 25, 29 và hộp đọc đoạn chat; ba route trong `boardFor`. Chụp trên
+  Chrome headless, dữ liệu chặn qua CDP chép từ Figma, cộng một lượt dữ liệu dev thật (hàng đợi rỗng).
+  Chấm ảnh, sửa:
+  - `.who` trùng `.teacher .who` (hàng avatar của chat) nên đổi thành `.byline`;
+  - cột biểu đồ cao theo px (9,6 một điểm), vì `%` không ăn trong khung flex;
+  - mọi khối cách nhau 16;
+  - hàng 47, cột số của bảng lớp canh phải, bảng lớp cao theo nội dung;
+  - thẻ đệm 12/16 trong viền;
+  - nhãn cột không giãn chữ.
+
+  Figma: thanh tỉ lệ của màn 20 từng vẽ 6 px mỗi % (47% rộng 282 trên rãnh 326), nay vẽ theo tỉ lệ thật,
+  và rãnh có nền `--sunken` như code. Review FE, sửa:
+  - nhãn lỗi bọc `MathText`;
+  - *"Lớp …"* theo `classLabel` (`classesLabel`);
+  - lỗi tải trong hộp chat dùng `BoardWaiting`;
+  - màn 25 đọc lại khi *đã xem* bị từ chối;
+  - biểu đồ mục rỗng có lời;
+  - `role` của lượt chat là `"student" | "assistant"`.
+
+  BE bỏ mục 0% khỏi *5 mục cao nhất*. 10 vitest; tổng 313.

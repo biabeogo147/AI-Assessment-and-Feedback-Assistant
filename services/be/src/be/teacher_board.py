@@ -344,7 +344,8 @@ async def board(
         (
             ObjectiveRate(learning_objective=name, percent=_percent(wrong, total))
             for name, (wrong, total) in overall.items()
-            if total
+            # Mục không ai sai không phải một mục *sai nhiều nhất*: biểu đồ thà ngắn hơn năm cột.
+            if total and wrong
         ),
         key=lambda one: (-one.percent, one.learning_objective),
     )[:_TOP_OBJECTIVES]

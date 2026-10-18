@@ -10,7 +10,7 @@ import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
 import Chat from "./screens/teacher/Chat";
 import Bank, { BankEditor } from "./screens/teacher/Bank";
-import { BoardHead } from "./screens/teacher/Board";
+import Dashboard, { BoardQuestion, BoardReports } from "./screens/teacher/Dashboard";
 import ClassDetail from "./screens/teacher/ClassDetail";
 import ClassResults from "./screens/teacher/ClassResults";
 import Classes from "./screens/teacher/Classes";
@@ -129,9 +129,18 @@ function Teacher() {
 function boardFor(
   route: string,
 ): { view: ReactNode; place: string; aside?: ReactNode } | null {
-  // Màn *Bảng theo dõi* là việc 19; tới lúc ấy nó chỉ có đầu trang.
-  if (route === "/teacher/theo-doi") {
-    return { view: <BoardHead title="Bảng theo dõi" sub="" />, place: "theo-doi" };
+  // *Bảng theo dõi* và hai màn của hàng đợi (plan `dashboard-review-queue`).
+  if (route === "/teacher/theo-doi") return { view: <Dashboard />, place: "theo-doi" };
+  const reports = /^\/teacher\/theo-doi\/bao-cao\/([^/]+)$/.exec(route);
+  if (reports) {
+    return {
+      view: <BoardReports key={reports[1]} assessmentId={reports[1]} />,
+      place: "theo-doi",
+    };
+  }
+  const rated = /^\/teacher\/theo-doi\/cau\/([^/]+)$/.exec(route);
+  if (rated) {
+    return { view: <BoardQuestion key={rated[1]} questionId={rated[1]} />, place: "theo-doi" };
   }
   if (route === "/teacher/lop") return { view: <Classes />, place: "lop" };
   if (route === "/teacher/de-kiem-tra") return { view: <Papers />, place: "de-kiem-tra" };

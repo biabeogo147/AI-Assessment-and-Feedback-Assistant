@@ -896,6 +896,34 @@ dòng *"Mở … / chữa tới …"*), 62 ở màn 23 -- đều là hàng Figma
 popover (769, 202) 300 × 70 (Figma 770, 202); bốn thẻ số màn 11 và biểu đồ đúng từng px, nhãn trục
 cách đáy cột 12; panel 22b x 1020 rộng 420.
 
+## Bảng theo dõi — hàng đợi *Cần bạn xem* và điểm gộp theo lớp
+
+Việc 19 và 21 (plan `dashboard-review-queue`, [ADR-34](../decisions/adr-34-hang-doi-review-va-diem-gop.md),
+[ADR-35](../decisions/adr-35-sua-loi-giai-sau-phat-hanh.md)). Artboard **`20 · Bảng theo dõi`**
+(`657:3889`), **`25 · Báo cáo giải thích chưa rõ — một đề`** (`657:4265`), **`25b · Đọc đoạn chat hỏi
+trợ lý`** (`699:5826`), **`29 · Câu có tỉ lệ sai cao`** (`699:5667`):
+
+- **Hàng đợi hai loại dòng, cùng trọng lượng** (ADR-08): *Giải thích chưa rõ* một dòng mỗi đề, ghi số
+  học sinh, không ghi lớp; *Tỉ lệ sai cao* một dòng mỗi câu. Mọi ngưỡng là của BE. Rỗng thì ghi *"Không
+  có việc nào cần bạn xem."*, không vẽ như lỗi.
+- **Điểm gộp theo lớp** chỉ đề đã hết hạn chữa, quy về thang 10. Có hai biểu đồ: cột trung bình theo
+  lớp (thang cố định, 9,6 px một điểm, nên cột 7,2 cao như nhau ở mọi lần mở), và năm mục kiến thức sai
+  nhiều nhất. Bảng lớp bấm sang *Chi tiết lớp*.
+- **Màn 25 chỉ đọc.** Trái là các câu học sinh báo cáo làm sai, kèm *Chỉnh sửa trong Ngân hàng câu
+  hỏi ›* (mở 22b, ẩn khi câu chưa có bản). Phải là thẻ từng báo cáo, kèm *Mở hội thoại hỏi trợ lý ›*.
+  *Đánh dấu đã xem* gửi đúng các báo cáo đang hiện, rồi về Bảng theo dõi.
+- **Màn 29 chỉ đọc**: đề bài, cách giải, tỉ lệ chọn từng phương án ở lần đầu, cộng tỉ lệ bỏ trống.
+  Có hai nút: *Đánh dấu đã xem* (câu rời hàng đợi mãi) và *Chỉnh sửa trong Ngân hàng câu hỏi*.
+- **Hộp đọc đoạn chat** rộng 680, cùng khuôn với hộp lời giải. Lượt của Kriky nền `--sunken`, lượt
+  của học sinh nền `--accent-surface`. Không có ô nhập.
+
+**Đo trên trình duyệt ngày 18/10/2026**, so với artboard 20, 25, 29 (density Teacher), dữ liệu chặn
+qua CDP chép từ Figma:
+- màn 20: mọi khối cách nhau 16; hàng đợi và bảng lớp hàng 47; hai biểu đồ cao 202 và 166 (Figma 201
+  và 166);
+- màn 25: hai cột 676 và 400, khe 24;
+- hộp đọc đoạn chat 680 × 363 (Figma 369).
+
 ## Hàng đoạn chat — một hộp, hai việc
 
 Cả hàng **từng là một `<button>`**. Nó phải hết là thế từ đợt chốt chặng A, và lý do là cơ học chứ

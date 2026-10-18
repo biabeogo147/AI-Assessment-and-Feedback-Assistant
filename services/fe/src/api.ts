@@ -997,6 +997,93 @@ export interface BankList {
   approvals: number;
 }
 
+/** Một dòng của hàng đợi *Cần bạn xem* (màn 20, plan `dashboard-review-queue`). */
+export interface ReviewItem {
+  /** `reports`: giải thích chưa rõ, một dòng mỗi đề. `wrong_rate`: một dòng mỗi câu. */
+  kind: "reports" | "wrong_rate";
+  assessment_id: string;
+  /** Câu của dòng `wrong_rate`; rỗng ở dòng `reports`. */
+  question_id: string;
+  title: string;
+  meta: string;
+  /** Cột số liệu: *"3 lượt báo cáo"*, *"72% bài sai"*. */
+  figure: string;
+}
+
+/** Điểm gộp của một lớp, thang 10, chỉ đề đã hết hạn chữa. */
+export interface ClassStat {
+  class_id: string;
+  name: string;
+  papers: number;
+  mean: number | null;
+  highest: number | null;
+  lowest: number | null;
+  /** Mục kiến thức sai nhiều nhất, kèm tỉ lệ; rỗng khi chưa có bài. */
+  weakest: string;
+}
+
+export interface Board {
+  queue: ReviewItem[];
+  classes: ClassStat[];
+  objectives: { learning_objective: string; percent: number }[];
+}
+
+/** Một báo cáo trên màn 25. */
+export interface ReportCard {
+  report_id: string;
+  student: string;
+  class_name: string;
+  created_at: string;
+  note: string;
+  /** Số các câu em ấy làm sai ở lần đầu. */
+  wrong: number[];
+}
+
+export interface ReportedQuestion {
+  question_id: string;
+  order: number;
+  stem: string;
+  /** Bao nhiêu em báo cáo làm sai câu này. */
+  wrong_by: number;
+  /** Dòng ngân hàng của câu; rỗng thì không có nút sửa. */
+  bank_id: string;
+}
+
+export interface PaperReports {
+  assessment_id: string;
+  title: string;
+  classes: string[];
+  reporters: number;
+  reports: ReportCard[];
+  questions: ReportedQuestion[];
+}
+
+/** Màn 29: một câu có tỉ lệ sai cao, chỉ đọc. */
+export interface WrongRateQuestion {
+  question_id: string;
+  assessment_id: string;
+  order: number;
+  title: string;
+  stem: string;
+  methods: Method[];
+  options: (TeacherOption & { percent: number })[];
+  /** Tỉ lệ bài bỏ trống câu này, cùng mẫu số với các phương án. */
+  unanswered: number;
+  submitted: number;
+  wrong_percent: number;
+  classes: string[];
+  bank_id: string;
+  seen: boolean;
+}
+
+/** Hộp đọc đoạn chat hỏi trợ lý của lượt có báo cáo (artboard 25b). */
+export interface ReportChat {
+  student: string;
+  title: string;
+  class_name: string;
+  messages: { role: "student" | "assistant"; text: string; created_at: string }[];
+}
+
 export interface BankDetail {
   bank_id: string;
   stem: string;
@@ -1156,6 +1243,22 @@ export const teacher = {
       method: "PATCH",
       body: JSON.stringify(question),
     }),
+  // Bảng theo dõi (plan `dashboard-review-queue`). Chỉ đọc, trừ hai lần *đánh dấu đã xem*.
+  board: () => call<Board>("teacher", "/teacher/board"),
+  boardReports: (assessmentId: string) =>
+    call<PaperReports>("teacher", `/teacher/board/reports/${assessmentId}`),
+  // Chỉ các báo cáo màn hình đã hiện: một báo cáo đến trong lúc đang đọc thì ở lại.
+  seeReports: (assessmentId: string, reportIds: string[]) =>
+    silent("teacher", `/teacher/board/reports/${assessmentId}/seen`, {
+      method: "POST",
+      body: JSON.stringify({ report_ids: reportIds }),
+    }),
+  boardQuestion: (questionId: string) =>
+    call<WrongRateQuestion>("teacher", `/teacher/board/questions/${questionId}`),
+  seeQuestion: (questionId: string) =>
+    silent("teacher", `/teacher/board/questions/${questionId}/seen`, { method: "POST" }),
+  reportChat: (reportId: string) =>
+    call<ReportChat>("teacher", `/teacher/board/chat/${reportId}`),
   // Xoá cứng một đề nháp **trống** (ADR-33, plan `wave-3-draft-panel`). BE từ chối đề còn câu hay
   // ô đang soạn; nơi gọi đọc lại đoạn chat để thẻ cũ thành *"Đề trống này đã xoá"*.
   eraseDraft: (assessmentId: string) =>

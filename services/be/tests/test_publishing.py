@@ -382,9 +382,11 @@ async def test_the_timing_rules_read_identically_in_every_payload(stack) -> None
         """Bỏ số và chỗ trống đi, để so **khuôn** câu chứ không so giá trị.
 
         `--` cũng bị bỏ, vì biểu mẫu in `--:--` ở đúng chỗ mà hai payload kia in giờ: hai
-        bên khác nhau ở **giá trị**, và khuôn là thứ phải giống.
+        bên khác nhau ở **giá trị**, và khuôn là thứ phải giống. Ngày *" · DD/MM"* cũng là giá
+        trị: nó chỉ có khi mốc rơi sang ngày khác giờ mở (đợt 2, việc 8), nên chạy test gần nửa
+        đêm từng làm phép so đỏ (18/10/2026).
         """
-        return re.sub(r"\d+|-{2}", "#", sentence)
+        return re.sub(r"\d+|-{2}", "#", re.sub(r" · \d{1,2}/\d{1,2}", "", sentence))
 
     # Biểu mẫu nhận **cùng một câu**, chỉ với `--:--` ở chỗ số. Bản trước có một hằng số
     # nói chung chung cho biểu mẫu và một hàm điền số cho hai payload kia — hai câu khác

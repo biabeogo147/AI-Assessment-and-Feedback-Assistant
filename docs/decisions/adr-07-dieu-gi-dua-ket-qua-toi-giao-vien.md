@@ -94,3 +94,11 @@ Ngày 09/10/2026 đường chấm bài cũ (`POST /api/submissions` → task `gr
 chấm tới giáo viên theo ngưỡng nữa -- chấm trắc nghiệm là việc của BE và không có độ tin cậy nào
 để so ([ADR-20](adr-20-cham-trac-nghiem-thuoc-be.md)). Phần *gỡ khỏi luồng học sinh* nay đúng theo
 cách đơn giản nhất: luồng ấy không còn tồn tại. Ghi lại theo plan `backlog-tier-1`.
+
+## Hậu ký 18/10/2026
+
+**Một đường mới đưa một tín hiệu tới giáo viên, và nó không phải ngưỡng của ADR này.** *Bảng theo
+dõi* có hàng đợi *Cần bạn xem* ([ADR-34](adr-34-hang-doi-review-va-diem-gop.md)). Một câu vào hàng đợi
+khi ≥ 70% bài sai ở lần đầu, trên 20 bài, sau khi đề đã hết giai đoạn 2. Đây là ngưỡng trên **một câu
+qua nhiều bài**, không phải ngưỡng tin cậy trên **một kết quả chấm**. Nó không chặn học sinh nào, và
+không đụng tới luồng học sinh mà ADR này mô tả.

@@ -139,3 +139,8 @@ Hai đường đọc và một đường ghi ngược đã có; chip nguồn th�
   hỏi…"*, cùng ở `Consequence dialog` (`592:3180`).
 - **Còn chưa thi hành:** Kriky rút câu từ ngân hàng khi soạn.
 
+## Hậu ký 18/10/2026 (lần hai)
+
+**Màn đọc báo cáo dẫn tới ngân hàng, không tới đề.** Màn báo cáo và màn câu có tỉ lệ sai cao của *Bảng
+theo dõi* chỉ đọc. Nút *Chỉnh sửa trong Ngân hàng câu hỏi* mở bản ngân hàng của câu ở màn 22b, đọc
+theo cả hai chiều chép ([ADR-35](adr-35-sua-loi-giai-sau-phat-hanh.md)).

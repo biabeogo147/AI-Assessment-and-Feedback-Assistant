@@ -382,7 +382,8 @@ async def test_class_stats_count_only_finished_papers_on_a_ten_point_scale(stack
     assert (row["highest"], row["lowest"]) == (10.0, low)
     assert row["mean"] == round((10 + 10 / count) / 2, 1)
     assert row["weakest"].endswith("% bài sai)")
-    assert body["objectives"] and body["objectives"][0]["percent"] > 0
+    # Mục không ai sai không vào *5 mục cao nhất*.
+    assert body["objectives"] and all(one["percent"] > 0 for one in body["objectives"])
 
 
 @pytest.mark.asyncio
