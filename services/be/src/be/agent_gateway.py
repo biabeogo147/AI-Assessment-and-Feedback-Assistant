@@ -416,6 +416,10 @@ def validate_question(question: GeneratedQuestion) -> None:
     # bật ở B. `harvest()` chống trùng stem **giữa các câu**; không chỗ nào chống trùng
     # phương án **trong một câu**.
     #
+    # Câu soạn nháp tới đây đã qua `drafting.tidy_options`, nên với nó lưới này không còn bắn:
+    # phương án trùng đã được gộp (plan `wave-3-draft-panel`). Nó vẫn canh đường sửa tay và câu
+    # luyện tập.
+    #
     # So sau khi **gộp** các khoảng trắng liền nhau, cùng khuôn `validate_retry` đã dùng.
     # Không xoá hẳn khoảng trắng: `$ (1,8) $` và `$(1,8)$` dựng hình giống hệt nhau nên về
     # lý vẫn lọt, nhưng xoá hẳn thì `có 3 nghiệm` và `có 3nghiệm` thành một -- và hai cái

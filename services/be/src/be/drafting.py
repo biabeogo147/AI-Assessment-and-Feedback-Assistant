@@ -25,6 +25,7 @@ khi nó soạn trước một câu hỏi remediation.
 import asyncio
 import logging
 import re
+import unicodedata
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -43,6 +44,7 @@ from contracts import (
     WRITE_DRAFT_QUESTION_TASK,
     DraftQuestionCompleted,
     DraftQuestionRequested,
+    GeneratedOption,
     GeneratedQuestion,
 )
 from schema.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question
@@ -793,6 +795,106 @@ def _keep_the_old(row: DraftItem) -> None:
     )
 
 
+# Nhãn đánh lại sau khi gộp phương án trùng. Contract không chặn số phương án, nhưng một câu trắc
+# nghiệm quá mười phương án không có trên đề nào.
+_LABELS = "ABCDEFGHIJ"
+
+# Một câu trắc nghiệm đáng giữ có ít nhất ba phương án: gộp xong mà còn hai thì đó là câu đúng/sai
+# trá hình, và ô được thử lại (plan `wave-3-draft-panel`, việc 13).
+_FEWEST_OPTIONS = 3
+
+# Lời giải kết luận bằng một nhãn: *"chọn C"*, *"chọn đáp án C"*, *"đáp án là C"*, *"đáp án đúng
+# là C"*, *"đáp án: C"*. Nhãn phải là chữ hoa A–E đứng riêng, nên *"chọn a = 2"* hay *"ta chọn
+# x = 3"* không khớp. *"Đáp án A sai vì…"* không khớp vì thiếu *là* hay *:* -- nó nhắc một phương
+# án, không chọn.
+#
+# Nhãn được bọc `**…**`, `$…$` hay `(…)` vẫn khớp: model hay viết *"Chọn **C**"*. Nhãn đứng ngay
+# trước `=` hay `(` là tên điểm, tên biến (*"chọn A = 2"*, *"Chọn B(1;2)"*); nhãn nối tiếp *"và"*,
+# *"hoặc"*, dấu phẩy với một nhãn khác (*"đáp án: B và C đều sai"*) là kể, không chọn -- cả hai
+# không khớp.
+_CHOSEN = re.compile(
+    r"(?<!\w)(?i:chọn(?:\s+(?:đáp\s+án|phương\s+án))?|đáp\s+án(?:\s+đúng)?\s*(?:là|:))"
+    r"\s*:?\s*[(*$]*([A-E])[)*$]*(?!\w)(?!\s*[=(])(?!\s*(?:và|hoặc|,)\s*[A-E](?!\w))"
+)
+
+# Chữ đứng ngay trước *"chọn"* mà biến nó thành một giả định hay một lời cảnh báo, không phải một
+# kết luận: *"nếu chọn A thì…"*, *"học sinh hay chọn B vì…"*, *"không nên chọn A"* (review pha 2).
+_NOT_A_CONCLUSION = ("không", "nếu", "hay", "nên", "thể", "dễ", "thường")
+
+
+def tidy_options(question: GeneratedQuestion) -> GeneratedQuestion | None:
+    """Gộp các phương án cùng chữ, trước khi `validate_question` từ chối cả câu vì chúng (việc 13).
+
+    So chữ sau khi gộp khoảng trắng, đúng phép của `validate_question`. Trùng thì giữ một:
+    **phương án khoá luôn ở lại**, giữa hai phương án nhiễu thì giữ cái đứng trước; phương án ở lại
+    đứng ở chỗ của cái xuất hiện trước. Nhãn đánh lại A, B, C… theo thứ tự còn lại. Hàm thuần.
+
+    Một câu tốt từng mất cả lượt chỉ vì một phương án nhiễu lặp lại; nay nó mất phương án ấy thôi.
+
+    Args:
+        question: Câu AGENT trả về.
+
+    Returns:
+        Chính `question` khi không có gì trùng; một bản đã gộp; hoặc `None` khi gộp xong còn dưới
+        `_FEWEST_OPTIONS` phương án.
+    """
+    kept: list[GeneratedOption] = []
+    where: dict[str, int] = {}
+    for option in question.options:
+        body = " ".join(option.text.split())
+        if body not in where:
+            where[body] = len(kept)
+            kept.append(option)
+        elif option.is_correct and not kept[where[body]].is_correct:
+            kept[where[body]] = option
+    # Quá mười phương án thì không đánh lại nhãn được: để nguyên, `validate_question` từ chối câu có
+    # phương án trùng như trước.
+    if len(kept) == len(question.options) or len(kept) > len(_LABELS):
+        return question
+    if len(kept) < _FEWEST_OPTIONS:
+        return None
+    return question.model_copy(
+        update={
+            "options": tuple(
+                option.model_copy(update={"label": _LABELS[index]})
+                for index, option in enumerate(kept)
+            )
+        }
+    )
+
+
+def names_another_option(question: GeneratedQuestion) -> bool:
+    """Lời giải có kết luận chọn một phương án khác phương án khoá không (việc 13).
+
+    Ca thật, GIF lượt 4: hai cách giải cùng ra 23 000 đồng mà khoá B. 27 000 đồng -- học sinh làm
+    đúng bị chấm sai. Chạy **sau** `tidy_options`: nhãn dời chỗ vì gộp mà lời giải còn nói nhãn cũ
+    thì cũng bị bắt, và lần thử lại cho một câu sạch -- BE không sửa chữ lời giải của model
+    (Decision *lưới "chọn X"* của plan `wave-3-draft-panel`). Một lần nhắc đứng sau *"không"*
+    (*"không chọn A"*, *"nếu chọn A"*) không tính, và chỉ lần chọn cuối của mỗi lời giải được xét.
+    Hàm thuần.
+
+    Args:
+        question: Câu đã gộp phương án.
+
+    Returns:
+        True khi một lời giải chọn một nhãn không phải nhãn của phương án khoá.
+    """
+    locked = {option.label for option in question.options if option.is_correct}
+    for method in question.methods:
+        # NFC: chữ có dấu dựng được hai kiểu, và regex chỉ khớp một kiểu.
+        body = unicodedata.normalize("NFC", method.body)
+        concluded = [
+            found
+            for found in _CHOSEN.finditer(body)
+            if not body[: found.start()].rstrip().lower().endswith(_NOT_A_CONCLUSION)
+        ]
+        # Chỉ lần chọn **cuối** của mỗi lời giải: kết luận đứng ở cuối, còn các lần trước thường là
+        # bước loại trừ hay thử từng phương án.
+        if concluded and concluded[-1].group(1) not in locked:
+            return True
+    return False
+
+
 def _give_up_or_retry(row: DraftItem, why: str) -> None:
     """Đánh dấu một vị trí để thử lại, hoặc thôi không tiêu thêm vào nó nữa.
 
@@ -927,9 +1029,24 @@ async def harvest(
 
         try:
             question = DraftQuestionCompleted.model_validate(raw).question
+        except Exception:
+            _give_up_or_retry(row, "câu trả về sai hình dạng ADR-18")
+            continue
+        # Hai lưới của việc 13 (plan `wave-3-draft-panel`): gộp phương án trùng đứng **trước**
+        # `validate_question`, để một phương án lặp không bỏ cả câu; lưới *"chọn X"* đứng **sau**,
+        # trên nhãn đã đánh lại.
+        tidy = tidy_options(question)
+        if tidy is None:
+            _give_up_or_retry(row, "phương án trùng nhau, còn quá ít sau khi gộp")
+            continue
+        question = tidy
+        try:
             validate_question(question)
         except Exception:
             _give_up_or_retry(row, "câu trả về sai hình dạng ADR-18")
+            continue
+        if names_another_option(question):
+            _give_up_or_retry(row, "lời giải chọn phương án khác phương án khoá")
             continue
 
         if _comparable(question.stem) in seen:

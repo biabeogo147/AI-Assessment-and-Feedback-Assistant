@@ -80,17 +80,17 @@ Làm việc 16, 12, 13, 14, 15 của `2026-10-18-deterministic-batch-master-plan
   BE, đầu panel đếm đúng. Trình duyệt: chụp hai variant, đo so với `652:3636`.
 
 ### Pha 2 — hai lưới lúc thu hoạch (việc 13)
-- [ ] 8. `drafting._tidy_options(question)` chạy trong `harvest` **trước** `validate_question`:
+- [x] 8. `drafting.tidy_options(question)` chạy trong `harvest` **trước** `validate_question`:
   - so chữ phương án sau khi gộp khoảng trắng (cùng phép của `validate_question`);
   - trùng thì giữ một: phương án khoá luôn ở lại, giữa hai phương án nhiễu thì giữ cái đứng trước;
   - đánh lại nhãn A, B, C… theo thứ tự còn lại;
   - còn dưới 3 phương án thì `_give_up_or_retry` (*"phương án trùng, còn quá ít"*).
-- [ ] 9. `drafting._names_another_option(question)`: lời giải có *"chọn X"*, *"đáp án là X"*, *"đáp án
+- [x] 9. `drafting.names_another_option(question)`: lời giải có *"chọn X"*, *"đáp án là X"*, *"đáp án
   đúng là X"* (chữ thường hay hoa, X là một nhãn A–E viết hoa đứng riêng) mà X khác nhãn phương án
   khoá **sau khi đánh lại nhãn** → `_give_up_or_retry` (*"lời giải chọn phương án khác phương án
   khoá"*). Đánh lại nhãn làm lệch chữ *"chọn D"* của model thì cũng bị bắt và thử lại; đó là cái
   giá được chấp nhận, đổi lại không phải sửa chữ của model.
-- [ ] 10. Test với kết quả AGENT giả: trùng phương án nhiễu thì bỏ một và đánh lại nhãn; trùng với
+- [x] 10. Test với kết quả AGENT giả: trùng phương án nhiễu thì bỏ một và đánh lại nhãn; trùng với
   phương án khoá thì phương án khoá ở lại; còn 2 thì thử lại; *"Chọn B."* lệch khoá C thì thử lại;
   *"chọn a = 2"* không bị bắt. Hậu ký ADR-18; sửa docstring `validate_question`.
 
@@ -172,3 +172,7 @@ dời chỗ vì gộp cũng bị bắt, và lần thử lại là một câu s�
   đọc trạng thái của chính ô sau `fire`; `fire` nạp lại ô (`populate_existing`); JSDoc lạc chỗ; nút
   tắt mờ 0,45 như Figma; đầu panel không đếm ô đang soạn lại là *chưa soạn được*; 409 thì đọc lại;
   thêm test hai lỗ, mục dàn ý, 503, ca lỗi FE; `teacher-surface.md` có mục *Ô câu soạn hỏng*.
+- Pha 2 xong 18/10/2026. Subagent review: comment trong `harvest` nói sai thứ tự hai lưới; regex
+  `_CHOSEN` bắt nhầm giả định, cảnh báo, tên điểm, kể nhiều nhãn (nay chỉ xét lần chọn cuối của mỗi
+  lời giải, bỏ qua chữ *nếu/hay/nên/thể/dễ/thường/không* đứng trước, nhận nhãn bọc `**`/`$`, chuẩn
+  hoá NFC); tên hàm trong plan; test nhãn dời chỗ vì gộp.

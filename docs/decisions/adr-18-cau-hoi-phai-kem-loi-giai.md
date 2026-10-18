@@ -127,3 +127,17 @@ xong (`drafting.harvest`), lúc giáo viên sửa một câu (`teacher_routes`),
 tập của pha 2 — đường dựng sẵn (`student_routes._harvest`) và đường xin ngay lúc mở lượt
 (`agent_gateway.ask_for_retry_question`). Câu thiếu lời giải không vào được đề nào. Ghi lại theo plan
 `wave-1-small-fixes` (đợt tất định 18/10/2026).
+
+**Hai lưới lúc thu hoạch** (plan `wave-3-draft-panel`, việc 13), chỉ ở `drafting.harvest`, chạy
+quanh `validate_question`:
+
+- **Phương án trùng chữ thì gộp, không bỏ cả câu** (`tidy_options`, trước `validate_question`).
+  Phương án khoá luôn ở lại, nhãn đánh lại A, B, C…; gộp xong còn dưới ba phương án thì ô được thử
+  lại. Ba đường còn lại (sửa tay, hai đường câu luyện tập) vẫn từ chối câu có phương án trùng: ở
+  đường sửa tay giáo viên đang nhìn câu, còn câu luyện tập chưa có lần nào trùng.
+- **Lời giải chọn một phương án khác phương án khoá thì thử lại** (`names_another_option`, sau
+  `validate_question`). Bắt *"chọn X"*, *"đáp án là X"*, *"đáp án đúng là X"*, *"đáp án: X"* với X là
+  nhãn chữ hoa đứng riêng; *"không chọn X"* không tính. Ca thật ở GIF lượt 4: hai cách giải ra
+  23 000 đồng mà khoá B. 27 000 đồng. Lưới này chỉ bắt lời giải **nói ra** nhãn nó chọn; lời giải
+  ra một con số khác phương án khoá mà không nêu nhãn thì vẫn lọt (Tier 2 câu 25, phương án A, chưa
+  làm).
