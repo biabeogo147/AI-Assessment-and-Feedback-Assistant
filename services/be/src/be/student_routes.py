@@ -39,7 +39,7 @@ from be.agent_gateway import (
 from be.config import get_settings
 from be.db import get_session
 from be.identity import current_student
-from be.remediation import round_budget_minutes, round_ends_at, will_be_cut
+from be.remediation import attempt_state, round_budget_minutes, round_ends_at, will_be_cut
 from be.scoring import (
     MARK_REMEDIATED,
     MAX_ROUNDS_PER_QUESTION,
@@ -518,33 +518,6 @@ async def _outcomes(session: AsyncSession, attempt_id: str) -> dict[str, Questio
     return {row.question_id: row for row in rows}
 
 
-def _attempt_state(
-    outcomes: dict[str, QuestionOutcome],
-    submitted: bool,
-    deadline: datetime,
-    now: datetime,
-) -> str:
-    """Quyết định hình dạng nào của màn hình kết quả được áp dụng.
-
-    Args:
-        outcomes: Sổ điểm.
-        submitted: Pha 1 đã kết thúc hay chưa.
-        deadline: Hạn của pha 2.
-        now: Thời gian của server.
-
-    Returns:
-        "đang-làm", "cần-chữa", "đã-hoàn-thành" hoặc "hết-hạn-chữa". ADR-14 làm cho đây
-        là những hình dạng khác nhau, chứ không phải một hình dạng với các field rỗng.
-    """
-    if not submitted:
-        return "đang-làm"
-    if all(outcome.closed for outcome in outcomes.values()):
-        return "đã-hoàn-thành"
-    if now > deadline:
-        return "hết-hạn-chữa"
-    return "cần-chữa"
-
-
 def _attempt_payload(attempt: Attempt, assessment: Assessment, saved: dict[str, str]) -> AttemptOut:
     """Tạo hình dạng của một Attempt cho màn hình làm bài.
 
@@ -665,7 +638,7 @@ async def my_assignments(
         else:
             outcomes = await _outcomes(session, attempt.id)
             wrong_count = sum(1 for outcome in outcomes.values() if not outcome.closed)
-            status = _attempt_state(outcomes, True, deadline, now)
+            status = attempt_state(outcomes, True, deadline, now)
             actions = ["result", "remediate"] if status == "cần-chữa" else ["result"]
 
         rows.append(
@@ -1012,7 +985,7 @@ async def attempt_result(
     return ResultOut(
         attempt_id=attempt_id,
         title=assessment.title,
-        state=_attempt_state(outcomes, True, _aware(publication.remediation_deadline), _now()),
+        state=attempt_state(outcomes, True, _aware(publication.remediation_deadline), _now()),
         total_score=total([item.mark for item in items]),
         question_count=len(items),
         submitted_at=_aware(attempt.submitted_at),
@@ -1117,7 +1090,7 @@ async def remediation_panel(
 
     return RemediationOut(
         attempt_id=attempt_id,
-        state=_attempt_state(outcomes, True, deadline, now),
+        state=attempt_state(outcomes, True, deadline, now),
         deadline=deadline,
         minutes_per_question=publication.phase2_minutes_per_question,
         round_budget_minutes=budget,
@@ -1272,7 +1245,7 @@ async def _is_locked(session: AsyncSession, attempt: Attempt) -> bool:
     """
     publication = await _publication(session, attempt.assessment_id, attempt.class_id)
     outcomes = await _outcomes(session, attempt.id)
-    state = _attempt_state(
+    state = attempt_state(
         outcomes, attempt.submitted_at is not None, _aware(publication.remediation_deadline), _now()
     )
     return state in {"đã-hoàn-thành", "hết-hạn-chữa"}
@@ -2275,7 +2248,7 @@ async def submit_round(
     return RoundResultOut(
         round_id=round_id,
         per_question=results,
-        attempt_state=_attempt_state(outcomes, True, _aware(publication.remediation_deadline), now),
+        attempt_state=attempt_state(outcomes, True, _aware(publication.remediation_deadline), now),
     )
 
 

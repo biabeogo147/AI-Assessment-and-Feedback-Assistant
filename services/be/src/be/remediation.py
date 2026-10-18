@@ -7,7 +7,9 @@ số câu hỏi còn đang mở, nằm trong một hạn tuyệt đối do giáo
 hạn đến giữa vòng, vòng đó bị **dừng** (ADR-15).
 """
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta
+from typing import Protocol
 
 
 def round_budget_minutes(minutes_per_question: int, open_questions: int) -> int:
@@ -55,3 +57,40 @@ def will_be_cut(now: datetime, budget_minutes: int, deadline: datetime) -> bool:
         báo của cửa vào vòng.
     """
     return now + timedelta(minutes=budget_minutes) > deadline
+
+
+class Settled(Protocol):
+    """Thứ `attempt_state` cần biết về một câu: đã đóng hay chưa (`QuestionOutcome.closed`)."""
+
+    closed: bool
+
+
+def attempt_state(
+    outcomes: Mapping[str, Settled],
+    submitted: bool,
+    deadline: datetime,
+    now: datetime,
+) -> str:
+    """Quyết định hình dạng nào của màn hình kết quả được áp dụng.
+
+    Ở đây chứ không ở `student_routes`, vì màn tiến độ của giáo viên cũng cần đúng phép này: một bài
+    *xong giai đoạn 2* trên màn lớp phải là bài mà học sinh thấy *đã hoàn thành* (plan
+    `teacher-rail-screens`).
+
+    Args:
+        outcomes: Sổ điểm.
+        submitted: Pha 1 đã kết thúc hay chưa.
+        deadline: Hạn của pha 2.
+        now: Thời gian của server.
+
+    Returns:
+        "đang-làm", "cần-chữa", "đã-hoàn-thành" hoặc "hết-hạn-chữa". ADR-14 làm cho đây
+        là những hình dạng khác nhau, chứ không phải một hình dạng với các field rỗng.
+    """
+    if not submitted:
+        return "đang-làm"
+    if all(outcome.closed for outcome in outcomes.values()):
+        return "đã-hoàn-thành"
+    if now > deadline:
+        return "hết-hạn-chữa"
+    return "cần-chữa"

@@ -1,8 +1,13 @@
 """Ngân hàng câu hỏi của giáo viên: đường ghi (ADR-28).
 
 Câu vào ngân hàng **lúc đề được duyệt**, vì duyệt là giáo viên đã kiểm mọi câu trong đề. Không
-có đường ghi nào khác: không tool nào của Kriky, không route nào của panel ghi thẳng vào đây.
-Đường **đọc** -- Kriky rút câu từ ngân hàng khi soạn đề -- chưa có.
+tool nào của Kriky ghi vào đây. Từ 18/10/2026 có một đường ghi thứ hai, của chính giáo viên: màn
+*Ngân hàng câu hỏi* sửa **bản trong ngân hàng** (`teacher_reads.edit_bank_question`), câu trong đề
+không đổi. Đường đọc của màn ấy cũng ở `teacher_reads` (plan `teacher-rail-screens`). Kriky rút câu
+từ ngân hàng khi soạn đề thì chưa có (việc 17).
+
+**Một chỗ còn hở:** duyệt lại một đề ghi đè bản ngân hàng theo `question_id`, nên một bản đã sửa
+tay ở màn ngân hàng mất khi đề gốc được bỏ duyệt rồi duyệt lại. Chờ người dùng chốt (backlog).
 
 Ba luật, mỗi hàm một luật:
 
