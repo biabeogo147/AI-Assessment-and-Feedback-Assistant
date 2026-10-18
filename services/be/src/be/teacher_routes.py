@@ -41,6 +41,7 @@ lại đúng string đó ở cả ba chỗ -- xem `publication_wording`.
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
@@ -67,6 +68,7 @@ from be.drafting import (
     harvest,
     pending_count,
     redraft_slot,
+    too_many,
     troubled_slots,
     why_not_erasable,
 )
@@ -81,7 +83,7 @@ from be.publication_wording import (
     phase_one_note,
     phase_two_note,
 )
-from be.question_bank import file_approved, in_bank
+from be.question_bank import choose, file_approved, in_bank, picker, take_into
 from be.resolve import Candidate, classes_with_counts
 from be.teacher_chat import conversation_of, note_action
 from be.titles import MOST_TITLE, tidy
@@ -333,8 +335,8 @@ async def approve(
             nào từ state hiện tại sang `đã duyệt`.
 
     Side effects:
-        Thu hoạch mọi job đã xong vào đề, ghi state mới, chép mọi câu vào ngân hàng của giáo
-        viên (ADR-28), và ghi một bước vào hội thoại của giáo viên.
+        Thu hoạch mọi job đã xong vào đề, ghi state mới, chép mọi câu Kriky soạn vào ngân hàng
+        của giáo viên (ADR-28; câu lấy từ ngân hàng đã có bản), và ghi một bước vào hội thoại.
     """
     asking = Asking.of(teacher)
     assessment = await _owned(session, asking, assessment_id)
@@ -392,7 +394,8 @@ async def approve(
     # `wave-3-draft-panel`, việc 12). Cùng commit với state.
     await _drop_failed_slots(session, assessment_id)
     advance(assessment, AssessmentState.APPROVED)
-    # Duyệt là giáo viên đã kiểm mọi câu, nên chính lần duyệt chép chúng vào ngân hàng (ADR-28).
+    # Duyệt là giáo viên đã kiểm mọi câu, nên chính lần duyệt chép chúng vào ngân hàng (ADR-28) --
+    # trừ câu lấy từ ngân hàng ra, bản của nó đã có (việc 17).
     # Cùng một commit với state: một đề đã duyệt mà ngân hàng thiếu câu của nó là một sự thật
     # nửa vời, và lần thử lại duy nhất là bỏ duyệt rồi duyệt lại.
     filed = await file_approved(session, assessment)
@@ -1379,10 +1382,11 @@ class QuestionRead(BaseModel):
         learning_objective: Câu hỏi kiểm cái gì.
         options: Các phương án, đã sắp theo nhãn.
         methods: Các lời giải, đã sắp theo thứ tự.
-        in_bank: Câu đã có bản trong ngân hàng câu hỏi của giáo viên -- tức đề từng được duyệt
-            khi có câu này (ADR-28). Hộp xoá câu đọc nó để nói đúng điều sắp xảy ra. **Không**
-            phải nguồn *"Lấy từ ngân hàng câu hỏi"*: câu ấy là câu rút từ kho ra, còn đây là
-            câu đã được chép vào kho.
+        in_bank: Câu có bản trong ngân hàng câu hỏi của giáo viên: đề từng được duyệt khi có câu
+            này (ADR-28), hay câu lấy từ ngân hàng ra. Hộp xoá câu đọc nó để nói đúng điều sắp xảy
+            ra -- xoá trong đề không xoá ngân hàng.
+        source: Câu từ đâu tới: `kriky` (Kriky soạn) hay `bank` (giáo viên lấy từ ngân hàng, việc
+            17). Chip nguồn trên thẻ đọc cột này.
     """
 
     question_id: str
@@ -1394,6 +1398,7 @@ class QuestionRead(BaseModel):
     # Không mặc định: một chỗ dựng quên điền thì hộp xoá câu sẽ nói *"mất hẳn"* về một câu
     # đang nằm trong ngân hàng -- thà validation đỏ còn hơn.
     in_bank: bool
+    source: Literal["kriky", "bank"]
 
 
 class SlotRead(BaseModel):
@@ -1690,7 +1695,8 @@ async def assessment_detail(
         QuestionRead(
             question_id=row.id,
             order=row.order_index,
-            in_bank=row.id in banked,
+            in_bank=row.id in banked or row.bank_question_id is not None,
+            source=row.source,
             stem=row.stem,
             learning_objective=row.learning_objective,
             options=tuple(
@@ -1978,7 +1984,9 @@ async def edit_question(
     return QuestionRead(
         question_id=fresh.id,
         order=fresh.order_index,
-        in_bank=bool(await in_bank(session, assessment.teacher_id, [fresh.id])),
+        in_bank=bool(await in_bank(session, assessment.teacher_id, [fresh.id]))
+        or fresh.bank_question_id is not None,
+        source=fresh.source,
         stem=fresh.stem,
         learning_objective=fresh.learning_objective,
         options=tuple(
@@ -2193,6 +2201,148 @@ async def delete_question(
 
     await session.commit()
     logger.info("deleted question %d of %s; the bank keeps its copy if any", gone, assessment_id)
+
+
+class PickerRow(BaseModel):
+    """Một câu trong hộp *Thêm câu từ ngân hàng* (artboard 19b, plan `question-bank-into-draft`).
+
+    Attributes:
+        bank_id: Dòng ngân hàng.
+        stem: Đề bài.
+        learning_objective: Mục kiến thức.
+        from_title: Tên đề câu được duyệt cùng.
+        in_this_paper: Câu đã có trong đề đang mở; hộp chọn khoá dòng ấy (*"đã có trong đề này"*).
+    """
+
+    bank_id: str
+    stem: str
+    learning_objective: str
+    from_title: str
+    in_this_paper: bool
+
+
+class BankPicker(BaseModel):
+    """Ngân hàng của giáo viên, nhìn từ một đề đang mở.
+
+    Attributes:
+        questions: Mới duyệt trước.
+    """
+
+    questions: tuple[PickerRow, ...]
+
+
+class BankPick(BaseModel):
+    """Các câu giáo viên chọn trong hộp.
+
+    Attributes:
+        bank_ids: Dòng ngân hàng, theo thứ tự sẽ vào đề.
+    """
+
+    bank_ids: list[str] = Field(min_length=1, max_length=50)
+
+
+@router.get("/teacher/assessments/{assessment_id}/bank-picker", response_model=BankPicker)
+async def bank_picker(
+    assessment_id: str,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> BankPicker:
+    """Ngân hàng câu hỏi của giáo viên cho hộp chọn trên panel đề (việc 17).
+
+    Args:
+        assessment_id: Đề đang mở.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Mọi câu trong ngân hàng, mỗi câu kèm cờ *đã có trong đề này*.
+
+    Raises:
+        HTTPException: 404 khi đề không tồn tại hoặc thuộc về người khác (ADR-22).
+    """
+    assessment = await _owned(session, Asking.of(teacher), assessment_id, lock=False)
+    return BankPicker(
+        questions=tuple(
+            PickerRow(
+                bank_id=one.row.id,
+                stem=one.row.stem,
+                learning_objective=one.row.learning_objective,
+                from_title=one.from_title,
+                in_this_paper=one.in_this_paper,
+            )
+            for one in await picker(session, assessment)
+        )
+    )
+
+
+@router.post("/teacher/assessments/{assessment_id}/bank-questions", response_model=AssessmentDetail)
+async def add_from_bank(
+    assessment_id: str,
+    body: BankPick,
+    request: Request,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> AssessmentDetail:
+    """Chép các câu đã chọn từ ngân hàng vào cuối một đề còn mở (việc 17, ADR-28).
+
+    Câu vào đề là một **bản chép**: sửa ở ngân hàng sau đó không đổi câu đã nằm trong đề, và sửa
+    trong đề không đổi ngân hàng -- duyệt đề cũng không chép câu này vào kho lần nữa. Đề trống sang
+    *có câu* như khi câu Kriky soạn về tới.
+
+    Khuôn của `delete_question`: chặn đề đã khoá trước, thu hoạch, khoá lại rồi kiểm lại, và từ chối
+    khi còn ô đang soạn -- câu ngân hàng đứng sau ô cao nhất, nên một ô đang chạy hỏng hay xong lúc
+    ấy đều làm thứ tự lệch với điều giáo viên vừa thấy.
+
+    Args:
+        assessment_id: Đề nào.
+        body: Các câu đã chọn.
+        request: Mang theo pool của queue, thứ `harvest` cần.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+        settings: Cung cấp tên queue cho lần thu hoạch.
+
+    Returns:
+        Đề sau khi thêm, như `GET /teacher/assessments/{id}`.
+
+    Raises:
+        HTTPException: 404 khi đề hay một câu không thuộc giáo viên (ADR-22); 409 khi đề đã khoá
+            nội dung, còn câu đang soạn, hay tổng vượt trần một đề.
+
+    Side effects:
+        Thêm câu, phương án, lời giải và ô soạn, rồi commit.
+    """
+    asking = Asking.of(teacher)
+    assessment = await _owned(session, asking, assessment_id)
+    assert_editable(assessment)
+    landed = await harvest(session, request.app.state.queue_pool, settings, assessment_id)
+    if landed:
+        logger.info("harvested %d question(s) of %s before a bank pick", landed, assessment_id)
+    # `harvest` tự commit và nhả khoá hàng: lấy lại khoá, rồi kiểm lại như `delete_question`.
+    assessment = await _owned(session, asking, assessment_id)
+    assert_editable(assessment)
+
+    still_drafting = await pending_count(session, assessment_id)
+    if still_drafting:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Còn {still_drafting} câu đang soạn. Đợi soạn xong rồi thêm câu từ ngân hàng, "
+                "để các câu đứng đúng thứ tự."
+            ),
+        )
+    rows = await choose(session, assessment, body.bank_ids)
+    overflowing = await too_many(session, assessment_id, len(rows)) if rows else ""
+    if overflowing:
+        raise HTTPException(status_code=409, detail=f"Không thêm được: {overflowing}.")
+    # Đề trống còn ô hỏng: dọn như khi dùng lại đề trống, để câu đầu tiên là *Câu 1* chứ không đứng
+    # sau ba ô của một lần soạn đã bỏ (review pha 1).
+    if rows and not await why_not_erasable(session, assessment):
+        await drop_failed_slots_of_empty(session, assessment_id)
+    await take_into(session, assessment, rows)
+    await session.commit()
+    logger.info("took %d bank question(s) into %s", len(rows), assessment_id)
+    return await assessment_detail(assessment_id, request, teacher, session, settings)
 
 
 @router.get("/teacher/assessments/{assessment_id}/publications", response_model=Publications)

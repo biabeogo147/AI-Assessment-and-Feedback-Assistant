@@ -222,6 +222,23 @@ class Question(Base):
     order_index: Mapped[int] = mapped_column(Integer)
     stem: Mapped[str] = mapped_column(Text)
     learning_objective: Mapped[str] = mapped_column(String(160))
+    # **Câu từ đâu tới** (việc 17, plan `question-bank-into-draft`): `kriky` là câu Kriky soạn,
+    # `bank` là câu giáo viên lấy từ ngân hàng của mình -- một bản chép, không phải tham chiếu, vì
+    # `Answer.option_id` trỏ vào phương án của chính câu này (ADR-28). Chip nguồn trên panel đọc cột
+    # này, và duyệt bỏ qua câu `bank`: bản ngân hàng của nó đã có.
+    source: Mapped[str] = mapped_column(String(16), default="kriky", server_default="kriky")
+    # Dòng ngân hàng câu này chép từ, khi `source="bank"`; hộp chọn khoá câu đã có trong đề. Xoá
+    # dòng ngân hàng thì cột về `NULL`, câu trong đề ở lại. `use_alter`: `bank_questions` cũng trỏ
+    # về `questions`, nên hai bảng không dựng được theo một thứ tự nào mà khoá ngoại đứng sẵn.
+    bank_question_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "bank_questions.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_questions_bank_question_id",
+        ),
+        nullable=True,
+    )
 
     assessment: Mapped[Assessment] = relationship(back_populates="questions")
     options: Mapped[list[AnswerOption]] = relationship(

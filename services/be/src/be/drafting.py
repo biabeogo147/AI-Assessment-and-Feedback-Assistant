@@ -272,10 +272,18 @@ async def too_many(session: AsyncSession, assessment_id: str, wanted: int) -> st
     Returns:
         Câu từ chối, hoặc chuỗi rỗng khi tổng còn trong trần.
     """
-    rows = await session.scalars(
-        select(func.max(DraftItem.ordinal)).where(DraftItem.assessment_id == assessment_id)
+    # Số cao nhất của **ô hay câu**: đề seed có câu mà không có ô, và câu lấy từ ngân hàng đứng sau
+    # cả hai (`question_bank.take_into`) -- chỉ đếm ô thì đề ấy nhận quá trần (review việc 17).
+    start = max(
+        await session.scalar(
+            select(func.max(DraftItem.ordinal)).where(DraftItem.assessment_id == assessment_id)
+        )
+        or 0,
+        await session.scalar(
+            select(func.max(Question.order_index)).where(Question.assessment_id == assessment_id)
+        )
+        or 0,
     )
-    start = rows.one_or_none() or 0
     total = start + wanted
     if total <= _MOST_QUESTIONS:
         return ""
