@@ -4117,3 +4117,37 @@
   white-space: pre-wrap;
 }
 
+/* Nút *Xuất bảng điểm (.xlsx)* của màn 11 (`Button` primary, artboard 11): 40 cao, đứng giữa hàng
+ * tiêu đề -- dưới link quay về (18 + 8) và giữa hàng tiêu đề 56 (8). Con số 34 giả định đầu trang
+ * **có** link quay về, như màn 11 luôn có. */
+.teacher .board-head .board-export {
+  flex: none;
+  height: 40px;
+  margin-top: 34px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.teacher .board-head .board-export:disabled {
+  background: var(--sunken);
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+/* Lời từ chối của một màn rail, ngay dưới đầu màn (màn 11: xuất bảng điểm bị từ chối). Cùng kiểu với
+ * lời từ chối trong thẻ và trong hộp: 11, `answer/incorrect`. */
+.teacher .board > .refused {
+  margin: -16px 0 0;
+  color: var(--answer-incorrect);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+

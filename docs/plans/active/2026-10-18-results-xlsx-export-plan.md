@@ -42,12 +42,12 @@ dùng một bảng phẳng một dòng đầu.
 - [x] 3. Test: đủ cột; đúng điểm; em chưa nộp để trống; người khác 404; lần phát hành đã thu hồi 404.
 
 ### Pha 2 — FE
-- [ ] 4. Nút *Xuất bảng điểm (.xlsx)* trên đầu màn 11, theo artboard 11 (`205:1000`). Tải xong thì trình
+- [x] 4. Nút *Xuất bảng điểm (.xlsx)* trên đầu màn 11, theo artboard 11 (`205:1000`). Tải xong thì trình
   duyệt lưu tệp; lỗi thì câu của BE hiện dưới đầu màn.
-- [ ] 5. Vitest; chụp, đo so với artboard 11; subagent chấm.
+- [x] 5. Vitest; chụp, đo so với artboard 11; subagent chấm.
 
 ### Pha 3 — đóng
-- [ ] 6. Hậu ký ADR-22, `teacher-surface.md`; roadmap việc 20 *Xong*; tick plan tổng; plan sang
+- [x] 6. Hậu ký ADR-22, `teacher-surface.md`; roadmap việc 20 *Xong*; tick plan tổng; plan sang
   `completed/`.
 
 ## Decision Records
@@ -81,3 +81,15 @@ sai hết, một điều không xảy ra.
 
   8 test, xanh trên sqlite và `aiafa_test`; có test thứ tự theo mã thật sự, và test người có lớp
   riêng vẫn 404.
+- Pha 2: nút trên đầu màn 11 (179 × 40 ở (1221, 66), Figma 180 × 40 ở (1220, 66)); `api.download` tải
+  qua `fetch` có header actor. Review FE, sửa:
+  - `download` đặt sau `silent`, không chen giữa JSDoc của `formHeaders`;
+  - phần đọc lỗi gộp thành `refusal()` cho `call`, `silent`, `download`;
+  - thu hồi URL của blob sau một nhịp;
+  - giải mã tên hỏng thì dùng tên dự phòng;
+  - lời từ chối có kiểu (`.board > .refused`, 11, `answer/incorrect`).
+
+  Figma: artboard mới `11b · Xuất bảng điểm bị từ chối` (`705:4950`). Tệp thật tải từ DB dev, đọc
+  lại bằng `openpyxl`: đủ đầu cột, điểm từng câu, tổng, hai em chưa nộp để trống. Vite từng phục vụ
+  `teacher.css` cũ hơn đĩa một lần sửa (watcher bỏ lỡ một lần ghi); chạm file thì đọc lại. 3 vitest.
+- Pha 3, đóng plan 18/10/2026: hậu ký ADR-22, `teacher-surface.md`; roadmap việc 20 *Xong*.

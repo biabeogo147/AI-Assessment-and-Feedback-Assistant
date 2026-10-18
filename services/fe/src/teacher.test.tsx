@@ -28,7 +28,7 @@ import StudentWork from "./screens/teacher/StudentWork";
 import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
 import Steps from "./screens/teacher/Steps";
-import { moment, teacher, type TurnEvent } from "./api";
+import { ACTOR, moment, teacher, type TurnEvent } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -7786,3 +7786,135 @@ describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () =
   });
 });
 
+
+describe("xuất bảng điểm .xlsx (việc 20, plan `results-xlsx-export`)", () => {
+  const realCreate = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  afterEach(() => {
+    URL.createObjectURL = realCreate;
+    URL.revokeObjectURL = realRevoke;
+    vi.restoreAllMocks();
+  });
+
+  const RESULTS = {
+    assessment_id: "p1",
+    title: "Kiểm tra 15 phút",
+    class_id: "c12a",
+    class_name: "12A",
+    question_count: 2,
+    submitted: 0,
+    student_count: 3,
+    closes_at: "2026-10-18T02:15:00+00:00",
+    highest: null,
+    mean: null,
+    median: null,
+    lowest: null,
+    distribution: [],
+    rows: [],
+  };
+
+  function serving(refuse = "") {
+    const calls: { url: string; headers: HeadersInit | undefined }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, headers: init?.headers });
+        if (url.endsWith(".xlsx")) {
+          if (refuse) {
+            return Promise.resolve({
+              ok: false,
+              status: 404,
+              json: () => Promise.resolve({ detail: refuse }),
+            });
+          }
+          return Promise.resolve({
+            ok: true,
+            headers: new Headers({
+              "Content-Disposition":
+                "attachment; filename=\"x.xlsx\"; filename*=UTF-8''B%E1%BA%A3ng%20%C4%91i%E1%BB%83m.xlsx",
+            }),
+            blob: () => Promise.resolve(new Blob(["x"])),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESULTS) });
+      }),
+    );
+    return calls;
+  }
+
+  it("nút tải tệp qua fetch có header actor, tên tệp lấy từ filename* UTF-8", async () => {
+    const calls = serving();
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    const named: string[] = [];
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        named.push(this.download);
+      });
+    render(<ClassResults classId="c12a" assessmentId="p1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Xuất bảng điểm (.xlsx)" }));
+
+    await waitFor(() => expect(named).toEqual(["Bảng điểm.xlsx"]));
+    const sent = calls.find((one) => one.url.endsWith(".xlsx"));
+    expect(sent?.url).toBe("/api/teacher/classes/c12a/assessments/p1/results.xlsx");
+    expect((sent?.headers as Record<string, string>)["X-Actor"]).toBe(ACTOR.teacher);
+    click.mockRestore();
+  });
+
+  it("đang tải thì nút khoá; BE không gửi tên thì lấy tên dự phòng", async () => {
+    let release: () => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.endsWith(".xlsx")) {
+          return new Promise((done) => {
+            release = () =>
+              done({
+                ok: true,
+                headers: new Headers(),
+                blob: () => Promise.resolve(new Blob(["x"])),
+              });
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESULTS) });
+      }),
+    );
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    const named: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      named.push(this.download);
+    });
+    render(<ClassResults classId="c12a" assessmentId="p1" />);
+    const button = (await screen.findByRole("button", {
+      name: "Xuất bảng điểm (.xlsx)",
+    })) as HTMLButtonElement;
+
+    fireEvent.click(button);
+    await waitFor(() => expect(button.disabled).toBe(true));
+    release();
+
+    await waitFor(() => expect(named).toEqual(["bang-diem.xlsx"]));
+    await waitFor(() => expect(button.disabled).toBe(false));
+  });
+
+  it("BE từ chối thì câu của BE hiện dưới đầu màn, nút mở lại", async () => {
+    serving("Không tìm thấy đề này trong danh sách của bạn.");
+    const { container } = render(<ClassResults classId="c12a" assessmentId="p1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Xuất bảng điểm (.xlsx)" }));
+
+    await waitFor(() =>
+      expect(container.querySelector(".refused")?.textContent).toBe(
+        "Không tìm thấy đề này trong danh sách của bạn.",
+      ),
+    );
+    expect(
+      (screen.getByRole("button", { name: "Xuất bảng điểm (.xlsx)" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+  });
+});

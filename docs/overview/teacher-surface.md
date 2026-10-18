@@ -887,7 +887,7 @@ dõi* (20) là việc 19.
 - **Màn 22b chỉ sửa bản trong ngân hàng.** Dùng lại thẻ sửa ba tầng của panel đề; chân panel nói câu
   trong đề đã phát hành không đổi.
 - **Cố ý khác Figma:** không nút *Tạo lớp* (chưa có đường tạo lớp); không cột *Tên đăng nhập*, nút
-  *Đặt lại mật khẩu*, *Thêm học sinh* (việc 22); không nút *Xuất bảng điểm* (việc 20); giờ in
+  *Đặt lại mật khẩu*, *Thêm học sinh* (việc 22); giờ in
   `HH:MM · DD/MM` như mọi màn, không *"hôm nay"*.
 
 **Đo trên trình duyệt ngày 18/10/2026:** tiêu đề (300, 32) 24/600, bảng y 111,8 (Figma 112); đầu bảng
@@ -895,6 +895,18 @@ dòng 15, giãn chữ 4% (một dòng 35, hai dòng 50); hàng 45 ở màn 9, 10
 dòng *"Mở … / chữa tới …"*), 62 ở màn 23 -- đều là hàng Figma cộng vạch; bảng cuối kéo tới đáy (y 876);
 popover (769, 202) 300 × 70 (Figma 770, 202); bốn thẻ số màn 11 và biểu đồ đúng từng px, nhãn trục
 cách đáy cột 12; panel 22b x 1020 rộng 420.
+
+## Xuất bảng điểm `.xlsx` — một nút trên màn 11
+
+Việc 20 (plan `results-xlsx-export`). Nút *Xuất bảng điểm (.xlsx)* (`Button` primary, 180 × 40, đứng
+ở mép phải đầu màn 11, artboard `205:1000`) tải **một tệp**: một trang tính mang tên lớp, dòng đầu *Mã
+học sinh*, *Họ tên*, *Câu 1*…*Câu N*, *Tổng*, rồi mỗi học sinh của lớp một dòng theo mã.
+
+- **Em chưa nộp để trống, không ghi 0.** Hai sự thật khác nhau.
+- **Tải qua `fetch`**, không qua một link thường: header actor không đi theo `<a href>`. Tên tệp lấy từ
+  `filename*` UTF-8, nên tên tiếng Việt của đề ở nguyên.
+- **BE từ chối thì câu của BE hiện ngay dưới đầu màn**; nút mở lại.
+- Chỉ tác giả của đề xuất được (ADR-22). Họ tên mở đầu bằng `=` không thành công thức trong Excel.
 
 ## Bảng theo dõi — hàng đợi *Cần bạn xem* và điểm gộp theo lớp
 

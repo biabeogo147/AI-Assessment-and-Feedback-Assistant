@@ -591,6 +591,23 @@ export class ApiError extends Error {
 }
 
 /**
+ * Lời từ chối của BE, đọc từ một response không ok: `detail` tiếng Việt nếu có, không thì status.
+ * Một chỗ cho ba đường gọi (`call`, `silent`, `download`).
+ *
+ * @param response - Response không ok.
+ */
+async function refusal(response: Response): Promise<ApiError> {
+  let detail = `Lỗi ${response.status}`;
+  try {
+    const body = (await response.json()) as { detail?: string };
+    if (body.detail) detail = body.detail;
+  } catch {
+    /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
+  }
+  return new ApiError(detail, response.status);
+}
+
+/**
  * Gửi một request và biến thất bại thành một lỗi đáng hiện ra.
  *
  * @param role - Bề mặt nào đang gọi. Nó quyết định header actor, và nó được
@@ -613,16 +630,7 @@ async function call<T>(
     // tồn tại chính vì nó cần BỎ `Content-Type`, mà trộn thì không bỏ được gì.
     headers: init.headers ?? headers(role),
   });
-  if (!response.ok) {
-    let detail = `Lỗi ${response.status}`;
-    try {
-      const body = (await response.json()) as { detail?: string };
-      if (body.detail) detail = body.detail;
-    } catch {
-      /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
-    }
-    throw new ApiError(detail, response.status);
-  }
+  if (!response.ok) throw await refusal(response);
   return (await response.json()) as T;
 }
 
@@ -647,14 +655,41 @@ async function silent(
     headers: init.headers ?? headers(role),
   });
   if (response.ok) return;
-  let detail = `Lỗi ${response.status}`;
+  throw await refusal(response);
+}
+
+/**
+ * Tải một tệp BE dựng (bảng điểm `.xlsx`, việc 20, plan `results-xlsx-export`) về máy giáo viên.
+ *
+ * Qua `fetch` chứ không qua một link thường: header actor không đi theo một `<a href>`, nên BE sẽ
+ * thấy một người lạ. Tên tệp lấy từ `filename*` UTF-8 của `Content-Disposition`, để tên tiếng Việt
+ * của đề ở nguyên; giải mã hỏng thì lấy `fallback` -- tệp đã tải xong, một tên lạ không đáng một
+ * câu lỗi.
+ *
+ * @param role - Ai đang gọi.
+ * @param path - Đường dẫn, không gồm `/api`.
+ * @param fallback - Tên tệp khi BE không gửi tên, hay tên không giải mã được.
+ * @throws ApiError mang câu của BE khi bị từ chối.
+ */
+async function download(role: Role, path: string, fallback: string): Promise<void> {
+  const response = await fetch(`/api${path}`, { headers: headers(role) });
+  if (!response.ok) throw await refusal(response);
+  const named = /filename\*=UTF-8''([^;]+)/.exec(response.headers.get("Content-Disposition") ?? "");
+  let name = fallback;
   try {
-    const body = (await response.json()) as { detail?: string };
-    if (body.detail) detail = body.detail;
+    if (named) name = decodeURIComponent(named[1]);
   } catch {
-    /* một error body không phải JSON thì vẫn là lỗi; giữ lại phần status text */
+    /* `%` sai: giữ tên dự phòng */
   }
-  throw new ApiError(detail, response.status);
+  const href = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Thu hồi **sau** một nhịp: Firefox và Safari cũ huỷ lượt tải nếu URL mất ngay sau `click()`.
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
 export const api = {
@@ -1225,6 +1260,13 @@ export const teacher = {
   classes: () => call<ClassList>("teacher", "/teacher/classes"),
   classDetail: (classId: string) => call<ClassDetail>("teacher", `/teacher/classes/${classId}`),
   papers: () => call<PaperList>("teacher", "/teacher/assessments"),
+  // Bảng điểm `.xlsx` của một đề trong một lớp (việc 20). Chỉ tác giả; BE từ chối người khác.
+  exportResults: (classId: string, assessmentId: string) =>
+    download(
+      "teacher",
+      `/teacher/classes/${classId}/assessments/${assessmentId}/results.xlsx`,
+      "bang-diem.xlsx",
+    ),
   classResults: (classId: string, assessmentId: string) =>
     call<ClassResults>(
       "teacher",

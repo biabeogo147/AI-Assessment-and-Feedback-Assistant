@@ -75,3 +75,12 @@ ra thành lời một cách nhiệt tình.
 Đường xoá đề trống ([ADR-33](adr-33-chi-de-trong-moi-xoa-duoc.md)) đi qua cùng `_owned`: đề của người
 khác đọc ra 404, không phải 403, đúng như mọi đường khác của ADR này. `create_draft` dùng lại đề trống
 chỉ trong số đề của chính giáo viên đang hỏi.
+
+## Hậu ký 18/10/2026 (lần hai)
+
+**Chỉ tác giả xuất được bảng điểm.** Việc 20 (plan `2026-10-18-results-xlsx-export-plan.md`):
+`GET /api/teacher/classes/{id}/assessments/{aid}/results.xlsx` đi qua đúng cửa của màn kết quả
+(`teacher_reads._paper_in_class`): lớp của chính giáo viên, đề do chính họ soạn, lần phát hành chưa thu
+hồi. Thiếu một trong ba thì 404, cùng câu với thứ không tồn tại. Test ở
+`services/be/tests/test_results_export.py`, kể cả ca một giáo viên có lớp riêng gọi đề của người khác.
+

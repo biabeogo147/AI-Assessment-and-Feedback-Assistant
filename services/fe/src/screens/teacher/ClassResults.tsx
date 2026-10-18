@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { moment, teacher } from "../../api";
 import { go } from "../../App";
 import { BoardHead, BoardWaiting, classLabel, NONE, oneDecimal, useBoard, vn } from "./Board";
@@ -7,7 +9,8 @@ import { BoardHead, BoardWaiting, classLabel, NONE, oneDecimal, useBoard, vn } f
  *
  * Bốn thẻ số (cao nhất, trung bình, trung vị, thấp nhất), biểu đồ phân bố điểm, và mỗi bài đã nộp một
  * dòng, điểm cao trước. Điểm là tổng trên thang số câu (ADR-16: mỗi câu 1 / 0,5 / 0), nên dòng phụ
- * nói rõ thang. Nút *Xuất bảng điểm (.xlsx)* thuộc việc 20.
+ * nói rõ thang. Nút *Xuất bảng điểm (.xlsx)* (việc 20, plan `results-xlsx-export`) tải một tệp gồm
+ * mã học sinh, họ tên, điểm từng câu và tổng; lỗi thì câu của BE hiện ngay dưới đầu màn.
  *
  * @param classId - Lớp nào.
  * @param assessmentId - Đề nào.
@@ -23,6 +26,21 @@ export default function ClassResults({
     () => teacher.classResults(classId, assessmentId),
     `${classId}/${assessmentId}`,
   );
+  const [exporting, setExporting] = useState(false);
+  const [refused, setRefused] = useState("");
+
+  /** Tải bảng điểm; bị từ chối thì giữ câu của BE để hiện dưới đầu màn. */
+  async function exportSheet() {
+    setExporting(true);
+    setRefused("");
+    try {
+      await teacher.exportResults(classId, assessmentId);
+    } catch (cause) {
+      setRefused((cause as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (data === null) {
     return (
@@ -51,7 +69,22 @@ export default function ClassResults({
           `thang ${data.question_count} điểm`,
           `đóng lúc ${moment(data.closes_at)}`,
         ].join(" · ")}
+        action={
+          <button
+            className="board-export"
+            type="button"
+            disabled={exporting}
+            onClick={() => void exportSheet()}
+          >
+            Xuất bảng điểm (.xlsx)
+          </button>
+        }
       />
+      {refused !== "" && (
+        <p className="refused" role="alert">
+          {refused}
+        </p>
+      )}
 
       <div className="result-top">
         <div className="stat-tiles">
