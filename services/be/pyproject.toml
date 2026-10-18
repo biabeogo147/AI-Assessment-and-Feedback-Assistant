@@ -32,6 +32,9 @@ dependencies = [
     # Kho nội dung, **chỉ đọc**: mục lục và đoạn của tài liệu cho soạn đề (plan 4b). Cùng cận dưới
     # với `services/document`, nơi ghi kho này.
     "pymongo>=4.13",
+    # Bảng điểm `.xlsx` của màn 11 (việc 20, plan `results-xlsx-export`); việc 22 dùng lại nó để
+    # đọc danh sách lớp tải lên.
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]

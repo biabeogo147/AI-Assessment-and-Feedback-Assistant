@@ -17,11 +17,14 @@ cả đề đã phát hành, không đổi (người dùng chốt 18/10/2026).
 """
 
 import logging
+import re
+import unicodedata
 from collections import defaultdict
 from datetime import UTC, datetime
 from statistics import median
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +34,7 @@ from be.agent_gateway import AgentError, validate_question
 from be.db import get_session
 from be.identity import Asking, current_teacher
 from be.remediation import attempt_state
+from be.results_export import ResultLine, build_workbook
 from be.teacher_chat import conversation_of
 from be.teacher_routes import QuestionEdit
 from contracts import GeneratedOption, GeneratedQuestion, SolutionMethod
@@ -614,6 +618,81 @@ async def class_results(
         lowest=min(marks) if marks else None,
         distribution=tuple(bins) if marks else (),
         rows=tuple(rows),
+    )
+
+
+_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get("/teacher/classes/{class_id}/assessments/{assessment_id}/results.xlsx")
+async def results_xlsx(
+    class_id: str,
+    assessment_id: str,
+    teacher: Teacher = Depends(current_teacher),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Bảng điểm của một đề trong một lớp, thành tệp `.xlsx` (việc 20, plan `results-xlsx-export`).
+
+    Cùng cửa với màn 11 (`_paper_in_class`): chỉ giáo viên **tác giả** của đề, ở lớp của chính họ,
+    với lần phát hành chưa thu hồi (ADR-22). Mỗi học sinh của lớp một dòng theo mã học sinh; em chưa
+    nộp để trống các ô điểm. Như màn 11: danh sách là học sinh **đang** ở lớp, và bài lấy theo
+    `Attempt.class_id` -- em chuyển vào lớp mà làm bài ở lớp cũ có dòng trống, em đã chuyển đi không
+    có dòng.
+
+    Args:
+        class_id: Lớp nào.
+        assessment_id: Đề nào.
+        teacher: Được resolve từ header actor (ADR-13).
+        session: Session của database.
+
+    Returns:
+        Tệp, kèm `Content-Disposition` có tên tệp UTF-8.
+
+    Raises:
+        HTTPException: 404 khi lớp hay đề không thuộc giáo viên, hoặc đề chưa phát hành cho lớp.
+    """
+    asking = Asking.of(teacher)
+    school_class, paper, _ = await _paper_in_class(session, asking, class_id, assessment_id)
+    questions = list(
+        await session.scalars(
+            select(Question.id)
+            .where(Question.assessment_id == assessment_id)
+            .order_by(Question.order_index)
+        )
+    )
+    students = sorted(school_class.students, key=lambda one: one.student_code)
+    done = await _submitted(session, [assessment_id], [one.id for one in students], [class_id])
+    states = await _outcomes(session, [one.id for one in done.values()])
+    lines = []
+    for student in students:
+        attempt = done.get((assessment_id, student.id))
+        marks = None
+        if attempt is not None:
+            outcomes = states.get(attempt.id, {})
+            # Câu không có dòng sổ điểm thì trống, không 0 (Decision 1 của plan). Nộp bài ghi một
+            # dòng cho mọi câu (`student_routes`), nên ca này gần như không xảy ra.
+            marks = [outcomes[one].mark if one in outcomes else None for one in questions]
+        lines.append(ResultLine(student.student_code, student.full_name, marks))
+    data = build_workbook(school_class.name, len(questions), lines)
+    name = f"Bảng điểm - {paper.title} - {school_class.name}.xlsx"
+    # `filename` ASCII cho trình duyệt cũ, `filename*` UTF-8 cho tên tiếng Việt (RFC 6266, RFC
+    # 5987). Bản ASCII bỏ dấu rồi thay mọi ký tự lạ -- một `"` hay một dấu xuống dòng trong tên đề
+    # phá cả header (review pha 1).
+    plain = re.sub(
+        r"[^A-Za-z0-9 ._-]",
+        "_",
+        unicodedata.normalize("NFKD", name.replace("đ", "d").replace("Đ", "D"))
+        .encode("ascii", "ignore")
+        .decode(),
+    )
+    return Response(
+        content=data,
+        media_type=_XLSX,
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name, safe='')}"
+            )
+        },
     )
 
 
