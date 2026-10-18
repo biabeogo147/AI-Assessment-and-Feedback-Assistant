@@ -441,6 +441,8 @@ describe("a round open in another tab", () => {
         chosen_label: "B",
       },
     ],
+    // Không phải 0,5: hộp nộp lượt phải in số BE gửi, không một bản sao của luật điểm.
+    mark_when_right: 0.75,
   };
 
   afterEach(() => {
@@ -492,6 +494,7 @@ describe("a round open in another tab", () => {
     await waitFor(() => expect(screen.getByText("Nộp lượt này?")).toBeTruthy());
     expect(calls.some((call) => call.includes("/submit"))).toBe(false);
     expect(screen.getByText("1 trên 1 câu")).toBeTruthy();
+    expect(screen.getByText("câu làm đúng được 0,75 điểm")).toBeTruthy();
   });
 
   it("offers to go back into the open round instead of a greyed-out new one", async () => {

@@ -41,6 +41,7 @@ from be.db import get_session
 from be.identity import current_student
 from be.remediation import round_budget_minutes, round_ends_at, will_be_cut
 from be.scoring import (
+    MARK_REMEDIATED,
     MAX_ROUNDS_PER_QUESTION,
     MarkReason,
     mark_after_round,
@@ -322,6 +323,9 @@ class RoundOpenOut(BaseModel):
     started_at: datetime
     ends_at: datetime
     items: list[RoundItemOut]
+    # Mức điểm của một câu làm đúng trong lượt chữa (ADR-16). Hộp nộp lượt in con số này; trước
+    # đó FE in cứng *"0,5 điểm"*, một bản sao của luật điểm (plan `wave-2-time-marks-titles`).
+    mark_when_right: float = MARK_REMEDIATED
 
 
 class RoundResultItemOut(BaseModel):
@@ -450,7 +454,7 @@ async def _publication(session: AsyncSession, assessment_id: str, class_id: str)
     """
     found = await session.get(Publication, (assessment_id, class_id))
     # Một lần thu hồi đọc lên y như chưa bao giờ phát hành, và đó là toàn bộ ý nghĩa của
-    # việc thu hồi: ADR-02 cho phép lấy lại **cho tới hết giờ mở**, tức trước khi có học
+    # việc thu hồi: ADR-02 cho phép lấy lại **tới trước giờ mở**, tức trước khi có học
     # sinh nào vào được, nên với học sinh thì lần phát hành ấy chưa từng xảy ra. Hàng vẫn
     # ở lại với `recalled_at` đã đặt, vì nó là sổ sách của giáo viên -- nhưng sổ sách của
     # giáo viên không phải thứ học sinh được đọc.
@@ -2152,7 +2156,7 @@ async def save_round_answer(
         raise HTTPException(status_code=409, detail="Lượt đã nộp")
     now = _now()
     if now > _aware(rnd.ends_at):
-        raise HTTPException(status_code=409, detail="Lượt đã DỪNG vì hết giờ")
+        raise HTTPException(status_code=409, detail="Lượt đã dừng vì hết giờ")
 
     item = next((i for i in rnd.items if i.id == item_id), None)
     if item is None:

@@ -168,6 +168,11 @@ export interface OpenRound {
   started_at: string;
   ends_at: string;
   items: RoundItem[];
+  /**
+   * Mức điểm của một câu làm đúng trong lượt này (`scoring.MARK_REMEDIATED` của BE). Tuỳ chọn chỉ vì
+   * bản lượt lưu trong `sessionStorage` từ trước 18/10/2026 không có nó; BE luôn gửi.
+   */
+  mark_when_right?: number;
 }
 
 export interface RoundVerdict {

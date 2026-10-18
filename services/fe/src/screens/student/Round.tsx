@@ -220,10 +220,17 @@ export default function Round({
                   {unanswered === 0 ? "không còn câu nào" : `${unanswered} câu`}
                 </span>
               </div>
-              <div className="stat">
-                <span className="key">Sau khi nộp</span>
-                <span className="value">câu làm đúng được 0,5 điểm</span>
-              </div>
+              {/* Mức điểm do BE gửi: in cứng *0,5* là chép luật điểm của BE ra FE (plan
+                  `wave-2-time-marks-titles`). Bản cũ trong `sessionStorage` chưa có trường này
+                  thì bỏ cả dòng còn hơn đoán. */}
+              {round.mark_when_right === undefined ? null : (
+                <div className="stat">
+                  <span className="key">Sau khi nộp</span>
+                  <span className="value">
+                    câu làm đúng được {String(round.mark_when_right).replace(".", ",")} điểm
+                  </span>
+                </div>
+              )}
             </div>
 
             {unanswered > 0 ? (

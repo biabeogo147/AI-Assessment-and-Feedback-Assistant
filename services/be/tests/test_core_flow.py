@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from be import agent_gateway, student_routes
 from be import db as db_module
 from be.db import bind_sessions
+from be.scoring import MARK_REMEDIATED
 from be.seed import seed_if_empty
 from be.student_routes import router as student_router
 from contracts import GeneratedOption, GeneratedQuestion, RetryQuestionCompleted, SolutionMethod
@@ -295,6 +296,9 @@ async def test_an_open_round_reads_back_in_a_new_tab(client: AsyncClient) -> Non
     assert body["items"][0]["origin_order"] == first["origin_order"]
     assert body["ends_at"] == rnd["ends_at"]
     assert all("is_correct" not in option for one in body["items"] for option in one["options"])
+    # Hộp nộp lượt in mức điểm BE gửi, không một bản sao của luật điểm (plan
+    # `wave-2-time-marks-titles`): cả lúc mở lượt lẫn lúc đọc lại.
+    assert rnd["mark_when_right"] == body["mark_when_right"] == MARK_REMEDIATED
 
     stranger = await client.get(f"/api/rounds/{rnd['round_id']}", headers=OTHER_STUDENT)
     assert stranger.status_code == 404
