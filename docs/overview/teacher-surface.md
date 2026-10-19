@@ -14,7 +14,7 @@ thay thế file thiết kế. File Figma `mOe2ZmrqOq1Uix45v6PNGD` vẫn là ngu�
 kích thước, màu, nhịp. Chỗ này là nguồn cho **hành vi**: cái gì hiện ra lúc nào, và vì sao.
 
 Đọc kèm: `services/fe/AGENTS.md` (luật *Figma và code đổi cùng một change set*),
-[ADR-05](../decisions/adr-05-ba-cong-teacher-in-the-loop.md) (ba cổng),
+[ADR-05](../decisions/adr-05-ba-cong-teacher-in-the-loop.md) (cổng duyệt đề và cổng hỏi lại; cổng thứ hai đã bỏ, ADR-37),
 [ADR-23](../decisions/adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) (hỏi lại khi không phân định được).
 
 ## Một lượt của Kriky là một dãy khối, theo thứ tự agent trả về

@@ -1,6 +1,6 @@
 # ADR-23 — Không phân định được thì hỏi lại, và lựa chọn phải đến từ dữ liệu
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã mở rộng bởi ADR-25
 - **Ngày:** 2026-09-30
 
 ## Bối cảnh
@@ -180,3 +180,11 @@ lối Khác là để ghi"*, `test_agent_be_and_fe_agree_on_the_other_choice`. `
 Mục *Nơi luật này đang được thi hành* trỏ `propose.py` — `_SYSTEM`. Tên ấy đã đổi: lời dặn nay nằm
 trong `_CORE` (`services/agent/src/agent/graphs/propose.py`), dòng *"Không đoán khi một cái tên có
 thể trỏ tới nhiều thứ. Hỏi lại…"*. Luật không đổi. Ghi lại theo plan `wave-1-small-fixes`.
+
+## Hậu ký 19/10/2026
+
+`test_an_exact_name_wins_over_a_longer_one_containing_it` mà mục thi hành nhắc đã gỡ cùng `_find_class`
+(commit `f01370a`). `_list_class` trả mọi lớp khớp kèm `candidates`, rồi model hỏi lại, nên không còn
+thứ tự thử nào để canh. Các test khác của `services/be/tests/test_resolve.py` vẫn chạy, gồm
+`test_another_teachers_class_is_answered_as_if_it_did_not_exist`. Dòng trạng thái nay ghi *đã mở rộng
+bởi ADR-25*, khớp `README.md`.

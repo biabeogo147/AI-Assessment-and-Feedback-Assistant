@@ -1,6 +1,6 @@
 # ADR-27 — Tài liệu đi vào ngữ cảnh ra đề
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đang thi hành (qua dàn ý của ADR-29)
 - **Ngày:** 2026-10-07
 - **Sửa:** 2026-10-08 — cổng text layer thành **bất đồng bộ**, vì việc đọc tệp chuyển sang
   `services/document`. Luật không đổi ý; chỗ nó được thi hành thì đổi.
@@ -210,3 +210,10 @@ Hai chỗ đã cũ:
   `tools/check_contract.py` canh điều ấy; pha 2 không nhận nội dung tài liệu nào.
 
 Ghi lại theo plan `wave-1-small-fixes` (đợt tất định 18/10/2026).
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ ba
+là hỏi lại. Câu *"Ba cổng của ADR-05 vẫn là ba"* ở trên đọc là hai cổng. *Đang xử lý* vẫn không phải một
+cổng.

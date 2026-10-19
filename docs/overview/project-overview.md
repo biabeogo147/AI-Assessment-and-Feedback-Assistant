@@ -38,7 +38,7 @@ Học sinh làm lại, tối đa ba vòng mỗi câu
 Mỗi câu chốt 1 / 0,5 / 0. Bài kết thúc
 ```
 
-Trong vòng này, giáo viên giữ quyền kiểm soát ở ba điểm: duyệt đề trước khi phát hành, xử lý kết quả chấm có độ tin cậy thấp, và trả lời khi agent chưa đủ thông tin để làm.
+Trong vòng này, giáo viên giữ quyền kiểm soát ở hai điểm: duyệt đề trước khi phát hành, và trả lời khi agent chưa đủ thông tin để làm. Cổng xử lý kết quả chấm có độ tin cậy thấp đã bỏ: trắc nghiệm chấm bằng phép so, không có độ tin nào để chặn. Xem ADR-37.
 
 Cổng thứ nhất có **một ngoại lệ đã biết**: câu biến thể ở pha 2 do trợ lí sinh ra giữa lúc học sinh đang làm bài, nên không đi qua duyệt. Xem ADR-05 và `docs/plans/backlog.md`.
 
@@ -76,8 +76,8 @@ Teacher có thể:
 - Duyệt đề trước khi phát hành.
 - Phát hành đề cho một hoặc nhiều lớp. Đây là thẩm quyền riêng của Teacher; hệ thống không làm thay.
 - Xem kết quả làm bài của học sinh.
-- Xử lý bài chấm có confidence thấp.
-- Xác nhận hoặc chỉnh sửa điểm, lỗi sai và nhận xét.
+- Xem hàng đợi *Cần bạn xem*: báo cáo giải thích chưa rõ của học sinh, và câu nhiều em làm sai. Xem ADR-34.
+- Sửa lời giải của câu hỏi, ở bản trong ngân hàng câu hỏi. Xem ADR-35.
 
 ### Student
 
@@ -101,7 +101,6 @@ Hệ thống có thể:
 - Đánh giá câu trả lời ở pha 1, và lời học sinh nói trong hội thoại pha 2.
 - **Tra** lỗi sai từ distractor đã chọn — mỗi distractor được soạn kèm một lỗi, nên đây là tra cứu chứ không phải suy đoán. Xem ADR-18.
 - Sinh nhận xét.
-- Tính confidence.
 - Sinh câu biến thể của **chính câu học sinh làm sai**, giữ cấu trúc và lỗi cần kiểm. Xem ADR-17.
 
 Hệ thống không tự thay thế vai trò kiểm soát của giáo viên ở các điểm cần review.
@@ -113,7 +112,7 @@ Giai đoạn đầu tập trung vào bức tranh nghiệp vụ:
 - Teacher tạo, review và phát hành đề. Duyệt bao gồm cả lời giải và ánh xạ nhiễu sang lỗi.
 - Student làm bài và nộp bài. **Nộp bài kết thúc pha 1, không kết thúc bài kiểm tra.**
 - Hệ thống chấm bài và tra lỗi sai từ phương án nhiễu đã chọn.
-- Kết quả confidence thấp đi vào Teacher Review Queue.
+- Báo cáo giải thích chưa rõ và câu có tỉ lệ sai cao đi vào hàng đợi *Cần bạn xem* của Teacher. Hàng đợi không chặn học sinh. Xem ADR-34 và ADR-37.
 - Pha 2: hệ thống giải thích lỗi và sinh câu biến thể; học sinh làm lại cho tới khi chốt điểm.
 
 ## Ngoài phạm vi giai đoạn đầu
@@ -125,7 +124,6 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 - API contract.
 - Database schema.
 - AI prompt chain, tool calling hoặc model routing.
-- Công thức confidence chi tiết, và `confidence` đo cái gì khi phần chấm đã xác định.
 - Deployment, monitoring và runbook.
 
 ## Khái niệm nghiệp vụ chính
@@ -136,8 +134,8 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 - `Submission`: bài làm hoặc câu trả lời của học sinh.
 - `Feedback`: nhận xét hệ thống gửi lại cho học sinh hoặc giáo viên.
 - `Misconception`: hiểu nhầm khái niệm hoặc lỗi sai có tính lặp lại.
-- `Confidence`: mức độ hệ thống tin vào kết quả đánh giá.
-- `Teacher Review Queue`: nơi đưa các kết quả cần giáo viên xem xét.
+- `Confidence`: mức độ hệ thống tin vào một kết quả. Không dùng cho chấm bài: trắc nghiệm chấm bằng phép so nên không có độ tin. Xem ADR-37.
+- `Teacher Review Queue`: hàng đợi *Cần bạn xem* trên Bảng theo dõi, nhận báo cáo giải thích chưa rõ và câu có tỉ lệ sai cao. Không chặn học sinh. Xem ADR-34.
 - `Mastery`: mức độ thành thạo của học sinh với một mục tiêu học tập hoặc kỹ năng. **Không còn là điều kiện dừng** của vòng chữa bài — điều kiện dừng là số vòng. Xem ADR-17.
 - `Pha 1`: phần làm bài và nộp, có đồng hồ theo giờ mở, giờ đóng và thời gian làm bài.
 - `Pha 2`: phần chữa bài, bắt buộc, có đồng hồ riêng. Bài kiểm tra kết thúc ở cuối pha 2. Xem ADR-14.
@@ -158,11 +156,12 @@ Các nội dung sau chưa được thiết kế trong giai đoạn này:
 
 Teacher-in-the-loop không có nghĩa là giáo viên phải duyệt mọi hành động của AI.
 
-Trong giai đoạn đầu, giáo viên bắt buộc tham gia ở ba điểm — hai ở đầu ra, một ở đầu vào:
+Trong giai đoạn đầu, giáo viên bắt buộc tham gia ở hai điểm — một ở đầu ra, một ở đầu vào:
 
 - Duyệt đề trước khi phát hành cho học sinh.
-- Xử lý kết quả chấm có confidence thấp hoặc có dấu hiệu bất thường.
 - Trả lời khi agent chưa đủ thông tin để làm, thay vì để agent tự đoán.
+
+Cổng thứ hai từng có, *xử lý kết quả chấm có confidence thấp*, đã bỏ ngày 19/10/2026: không kết quả chấm nào chờ giáo viên. Xem [ADR-37](../decisions/adr-37-bo-cong-do-tin-thap.md).
 
 Chi tiết và ranh giới của từng cổng: [ADR-05](../decisions/adr-05-ba-cong-teacher-in-the-loop.md).
 

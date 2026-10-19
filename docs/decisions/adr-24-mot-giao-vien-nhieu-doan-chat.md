@@ -1,6 +1,6 @@
 # ADR-24 — Một giáo viên có nhiều đoạn chat, và biên bản rơi vào đoạn đã tạo ra đề
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-10-02
 
 ## Bối cảnh

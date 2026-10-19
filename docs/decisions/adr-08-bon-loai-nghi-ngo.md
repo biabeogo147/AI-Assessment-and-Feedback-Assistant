@@ -1,6 +1,6 @@
 # ADR-08 — Bốn loại nghi ngờ, và điều học sinh không được thấy
 
-- **Trạng thái:** đã mở rộng bởi ADR-18 (luật *vắng mặt về cấu trúc*: chưa thi hành)
+- **Trạng thái:** đã mở rộng bởi ADR-18; bốn loại nghi ngờ đã thay bởi ADR-37 (luật *vắng mặt*: đã thi hành)
 - **Ngày:** 2026-09-06
 - **Sửa:** 2026-10-17 — mục thi hành trỏ vào code đã xoá. Xem *Hậu ký 17/10/2026* ở cuối.
   Phần trên giữ nguyên làm lịch sử.
@@ -107,3 +107,20 @@ Hai luật của ADR này giờ có một chỗ đứng thật: hàng đợi *C�
 
 `ReviewReason` vẫn không có trong code (hậu ký 17/10/2026). Hai loại dòng là `ReviewItem.kind` của
 `be/teacher_board.py`, không phải bốn `ReviewReason`.
+
+## Hậu ký 19/10/2026
+
+**Bốn loại nghi ngờ `ReviewReason` đã thay bởi [ADR-37](adr-37-bo-cong-do-tin-thap.md)**, cùng cổng
+kết quả độ tin thấp mà chúng phục vụ. `ANOMALY`, component `Student result — chờ giáo viên` (`6:50`),
+và câu *"bốn control point của Workflow 4"* chỉ còn là lịch sử.
+
+Hai luật còn đứng, và đều đã thi hành:
+- **Vắng mặt.** Chẩn đoán không tới học sinh dưới dạng con số hay mã. `services/be/tests/test_core_flow.py`
+  có `test_student_payloads_carry_no_diagnosis_numbers`, quét `/api/me/assignments`, kết quả và lượt
+  chữa: không `confidence`, `misconception`, `review_reason`. Câu *"Chưa có test nào canh luật vắng
+  mặt"* và *"Đang bị vi phạm ở code"* ở mục thi hành trên đã cũ: đường `/api/submissions` và
+  `GradedResult` đã xoá.
+- **Cùng trọng lượng, rỗng là tin tốt**, áp cho hàng đợi *Cần bạn xem* (hậu ký 18/10/2026, ADR-34).
+
+Dòng `AGENTS.md` *"A low-confidence result is not shown to the Student before a Teacher handles it"*
+mà mục thi hành trên nhắc thì không còn trong `AGENTS.md`.

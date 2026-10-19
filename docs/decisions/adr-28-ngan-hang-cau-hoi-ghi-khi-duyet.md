@@ -1,6 +1,6 @@
 # ADR-28 — Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề
 
-- **Trạng thái:** đã chốt, đang thi hành (đường ghi; đường đọc chưa có)
+- **Trạng thái:** đã chốt, đang thi hành (Kriky rút câu từ ngân hàng: chưa có)
 - **Ngày:** 2026-10-13
 
 ## Bối cảnh

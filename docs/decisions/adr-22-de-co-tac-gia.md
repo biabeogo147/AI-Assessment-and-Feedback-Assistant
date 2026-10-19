@@ -1,6 +1,6 @@
 # ADR-22 — Đề có tác giả, và không tìm thấy nói giống hệt không được phép
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-09-30
 
 ## Bối cảnh

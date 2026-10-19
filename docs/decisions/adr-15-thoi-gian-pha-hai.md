@@ -1,6 +1,6 @@
 # ADR-15 — Thời gian ở pha 2: hai đồng hồ, và chỉ một trong hai chạy khi học sinh đang học
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-09-10
 - **Sửa:** 2026-10-17 — hai dòng *chưa có ở backend* và *bị chặn* cuối mục thi hành đã cũ. Xem
   *Hậu ký 17/10/2026* ở cuối. Phần trên giữ nguyên làm lịch sử.

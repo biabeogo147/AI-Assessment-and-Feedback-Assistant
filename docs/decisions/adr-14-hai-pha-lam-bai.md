@@ -86,3 +86,18 @@ sinh chọn không chữa vẫn là học sinh đã chọn, không phải học 
   `_harvest` (`services/be/src/be/student_routes.py:1458`) coi *câu trả lời đã mất* là một cái kết
   bình thường và xoá dòng ấy đi, rồi `_write_ahead` (`:1547`) đẩy lại job khi cần --- nên hạn pha 2
   cách đó nhiều ngày không còn là vấn đề.
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ
+ba là hỏi lại. Chữ *cổng thứ tư* ở mục Vì sao nghĩa là *thêm một cổng nữa*; lý do không đổi.
+
+Số dòng ở mục *Nơi luật này đang được thi hành* đã trôi; tra theo tên:
+- `services/be/src/be/scoring.py`: `MAX_ROUNDS_PER_QUESTION`, `MARK_CORRECT`, `MARK_REMEDIATED`,
+  `MARK_WRONG`, và `MarkReason.NOT_YET_REMEDIATED` / `MarkReason.ROUNDS_EXHAUSTED`;
+- `services/be/src/be/student_routes.py`: `start_attempt`, `submit_attempt`, `remediation_panel`,
+  `start_round`, `save_round_answer`, `submit_round`, `_harvest`, `_write_ahead`.
+
+Hạn một giờ của kết quả job nay đặt ở `keep_result` của `services/agent/src/agent/worker.py`, không ở
+`be/config.py`.

@@ -475,7 +475,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS students_username_key ON students (username);
 ```
 
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) **đã bị gỡ** ngày
-09/10/2026, cùng với hàng đợi review của giáo viên -- thứ chưa bao giờ được dựng. Việc chấm chạy
+09/10/2026, cùng với ý định đưa kết quả chấm vào một hàng đợi chặn -- thứ chưa bao giờ được dựng
+và nay đã bỏ (ADR-37). Hàng đợi *Cần bạn xem* của giáo viên (ADR-34) không chặn gì. Việc chấm chạy
 thẳng trong request nộp bài; xem ADR-20.
 
 OpenAPI đầy đủ có sẵn tại `http://localhost:8000/docs`, sinh tự động, không có bản viết tay nào cần

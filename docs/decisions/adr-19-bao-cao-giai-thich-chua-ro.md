@@ -1,6 +1,6 @@
 # ADR-19 — Học sinh báo cáo chỗ Kriky giải thích chưa rõ, và vì sao đó không phải cổng thứ tư
 
-- **Trạng thái:** đã chốt (nửa học sinh đã có ở Figma; phía giáo viên và backend chưa)
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh
@@ -101,3 +101,11 @@ Câu *"giáo viên sửa lời giải đã lưu"* ở mục *Vì sao* được t
 xem [ADR-35](adr-35-sua-loi-giai-sau-phat-hanh.md). Hệ quả *"nó cần một chỗ khác, và chỗ đó chưa tồn tại"*
 nay đã có chỗ. Dòng *"Chưa có ở backend: không endpoint, không model"* ở trên hết đúng từ trước: model
 `Report` và route nộp báo cáo của học sinh đã có, nay có thêm các route đọc của giáo viên.
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ ba
+là hỏi lại. Câu *"ADR-05 vẫn có ba cổng"* ở trên đọc là hai cổng. Báo cáo vẫn **không** phải một cổng;
+giáo viên đọc nó ở hàng đợi *Cần bạn xem* (hậu ký 18/10/2026,
+[ADR-34](adr-34-hang-doi-review-va-diem-gop.md)).

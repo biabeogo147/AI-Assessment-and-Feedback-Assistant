@@ -105,12 +105,12 @@ biệt này còn hiệu lực nhưng chưa có chỗ nào trong hệ thống di�
 
 ### Luồng chính
 
-1. System/AI nhận submission.
-2. System/AI so sánh với đáp án chuẩn và lời giải chuẩn.
+1. System nhận bài nộp.
+2. System (BE) so đáp án đã chọn với đáp án chuẩn, không qua AI. Xem ADR-20.
 3. Pha 1 không thu lời giải thích, nên bước này chỉ chạy với lời Student nói trong hội thoại pha 2.
 4. Hệ thống **tra** lỗi sai từ phương án nhiễu Student đã chọn. Mỗi nhiễu được soạn kèm một lỗi cụ thể, nên đây là tra cứu chứ không phải suy đoán. Xem ADR-18.
-5. System/AI tạo kết quả gồm điểm số, nhận xét, lỗi sai, misconception và confidence.
-6. System quyết định kết quả có cần Teacher review không.
+5. System tạo kết quả gồm điểm số và lỗi sai tra được.
+6. Kết quả tới Student ngay. Không có bước chờ Teacher review: chấm trắc nghiệm là phép so, không có độ tin nào để chặn. Xem ADR-20 và ADR-37.
 
 ### Nguyên tắc đánh giá
 
@@ -124,26 +124,26 @@ biệt này còn hiệu lực nhưng chưa có chỗ nào trong hệ thống di�
 
 ### Mục tiêu
 
-Đưa các kết quả có confidence thấp hoặc dấu hiệu bất thường cho Teacher xem xét.
+Đưa tới Teacher những việc cần chuyên môn của người, sau khi bài đã trả về: một lời giải học sinh thấy
+khó hiểu, hay một câu nhiều em làm sai. Hàng đợi là *Cần bạn xem* trên Bảng theo dõi. Xem ADR-34.
 
 ### Luồng chính
 
-1. System/AI hoàn thành đánh giá.
-2. System/AI tính confidence ở mức nghiệp vụ.
-3. Nếu confidence đủ cao, kết quả đi thẳng sang pha 2.
-4. Nếu confidence thấp, kết quả đi vào Teacher Review Queue. **Nhánh này không chặn pha 2**: Teacher chốt xong thì luồng hợp lại và học sinh vẫn chữa bài. Với luồng Student của mô hình hai pha, điều kiện ngưỡng hiện **tạm không áp** — xem ADR-07 và ADR-08.
-5. Teacher xem câu hỏi, đáp án chuẩn, bài làm, nhận xét AI và lý do cần review.
-6. Teacher xác nhận hoặc chỉnh sửa điểm, lỗi sai, misconception và feedback.
-7. Hệ thống lưu kết quả cuối cùng.
+1. Một dòng vào hàng đợi khi:
+   - Student báo cáo chỗ trợ lí giải thích chưa rõ (Workflow 5); một dòng mỗi đề;
+   - một câu có từ 70% bài sai ở lần làm đầu, trên 20 bài, sau khi đề đã hết giai đoạn 2 ở mọi lớp còn
+     giữ đề; một dòng mỗi câu.
+2. Teacher mở dòng: đọc các báo cáo cùng đoạn chat hỏi trợ lí, hoặc đọc câu kèm tỉ lệ chọn từng
+   phương án.
+3. Cần thì Teacher sửa lời giải ở bản trong ngân hàng câu hỏi. Câu trong đề đã phát hành không đổi.
+   Xem ADR-35.
+4. Dòng được đánh dấu đã xem thì rời hàng đợi. Báo cáo mới đến sau đưa đề vào lại.
 
 ### Điểm kiểm soát của Teacher
 
-Teacher bắt buộc review khi:
-
-- Confidence thấp.
-- Bài làm có mâu thuẫn, ví dụ đáp án đúng nhưng cách làm sai.
-- Hệ thống không đủ căn cứ để xác định lỗi.
-- Có trường hợp bất thường cần người có chuyên môn xem lại.
+Hàng đợi **không phải một cổng**: nó không chặn Student, không chặn lượt, không chặn điểm. Không kết
+quả chấm nào chờ Teacher. Cổng *kết quả độ tin thấp* từng có đã bỏ ngày 19/10/2026, vì trắc nghiệm
+chấm bằng phép so và chẩn đoán là tra cứu, nên không có độ tin nào để chặn. Xem ADR-37.
 
 ## Workflow 5 — Chữa bài (pha 2)
 
@@ -191,14 +191,13 @@ con số 0,5 nói rằng em làm lại đúng, mà không nói đúng cái gì.
 
 Student đánh dấu một câu hoặc một đoạn hội thoại là *giải thích chưa rõ*, ở hai thời điểm: ngay trước
 khi bấm nút làm bài mới, và sau khi bài của **chính em đó** kết thúc. Teacher xem được. Việc này
-**không chặn** ai — không chặn Student, không chặn lượt, không chặn điểm — nên nó không phải cổng
-teacher-in-the-loop thứ tư. Xem ADR-19.
+**không chặn** ai — không chặn Student, không chặn lượt, không chặn điểm — nên nó không phải một cổng
+teacher-in-the-loop. Teacher đọc báo cáo ở hàng đợi *Cần bạn xem* (Workflow 4). Xem ADR-19.
 
 ## Những điểm chưa chốt
 
 Các điểm sau được ghi nhận nhưng chưa thiết kế chi tiết trong Phase 1:
 
-- Công thức tính confidence, và `confidence` đo cái gì khi phần chấm đã xác định.
 - Câu biến thể có nên đi qua một cổng duyệt nào không.
 - Rubric chi tiết cho từng môn học hoặc từng loại bài.
 - Cách hệ thống quyết định khi nào giảm độ khó hoặc cung cấp gợi ý.

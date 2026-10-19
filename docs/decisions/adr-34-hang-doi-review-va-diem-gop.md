@@ -81,4 +81,4 @@ và một cú bấm không được nuốt một báo cáo giáo viên chưa t�
   - `25 · Báo cáo giải thích chưa rõ — một đề` (`657:4265`);
   - `25b · Đọc đoạn chat hỏi trợ lý` (`699:5826`);
   - `29 · Câu có tỉ lệ sai cao` (`699:5667`).
-- Plan `docs/plans/active/2026-10-18-dashboard-review-queue-plan.md`.
+- Plan `docs/plans/completed/2026-10-18-dashboard-review-queue-plan.md`.

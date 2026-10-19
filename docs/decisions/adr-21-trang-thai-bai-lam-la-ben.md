@@ -1,6 +1,6 @@
 # ADR-21 — Trạng thái bài làm là bền; hạn một giờ chỉ áp cho kết quả job
 
-- **Trạng thái:** đã chốt, chưa thi hành
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-09-11
 
 ## Bối cảnh
@@ -79,3 +79,9 @@ Trạng thái *"đã chốt, chưa thi hành"* và mục *Nơi luật này đang
 điểm từng câu và các lượt chữa nằm trong Postgres: bảng `attempts`, `answers`, `question_outcomes`,
 `rounds`, `round_items` (`packages/schema/src/schema/models.py`). Kết quả không còn sống một giờ
 trong Redis. Ghi lại theo plan `wave-1-small-fixes` (đợt tất định 18/10/2026).
+
+## Hậu ký 19/10/2026
+
+Dòng trạng thái nay là *đã chốt, đang thi hành* (hậu ký 18/10/2026). Hai tham chiếu ở mục thi hành đã
+trôi: `JOB_RESULT_TTL_SECONDS` vẫn ở `.env.example` nhưng không ở dòng 21, và plan
+`core-two-phase-backend` nay ở `docs/plans/completed/`.

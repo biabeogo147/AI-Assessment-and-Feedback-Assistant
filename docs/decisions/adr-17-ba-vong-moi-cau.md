@@ -1,6 +1,6 @@
 # ADR-17 — Ba vòng cho mỗi câu, và biến thể sinh ra từ chính câu đó
 
-- **Trạng thái:** đã chốt, và đã thi hành ở backend (cập nhật 2026-10-10)
+- **Trạng thái:** đã chốt, và đã thi hành ở backend (cập nhật 2026-10-10; lưới *giữ nguyên dạng đề*: chưa có)
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh
@@ -113,3 +113,20 @@ Câu *"`check_schema` chỉ soi cột còn thiếu, không soi index"* ở mục
 `check_schema` nay so cả bộ cột của mọi ràng buộc unique, kể cả partial index
 `uq_one_open_round_per_attempt`, hai chiều (plan `wave-3-draft-panel`, việc 16). Database dựng
 trước index ấy giờ làm process dừng lúc khởi động, thay vì để hai tab cùng mở được hai lượt.
+
+## Hậu ký 19/10/2026
+
+Số dòng ở mục Hệ quả và mục *Nơi luật này đang được thi hành* đã trôi; tra theo tên:
+- bộ đếm vòng: `QuestionOutcome.rounds_used` (`packages/schema/src/schema/models.py`); trần ba vòng:
+  `MAX_ROUNDS_PER_QUESTION` ở `services/be/src/be/scoring.py`;
+- lượt: `RemediationRound` (bảng `rounds`); `start_round`, `save_round_answer`, `submit_round` ở
+  `services/be/src/be/student_routes.py`;
+- sinh và kiểm biến thể: `ask_for_retry_question`, `validate_retry` ở `services/be/src/be/agent_gateway.py`;
+- `learning_objective` *chở theo để báo cáo*: docstring của câu soạn ra trong
+  `packages/contracts/src/contracts/authoring.py`;
+- hạn một giờ của kết quả job: `keep_result` ở `services/agent/src/agent/worker.py`, không ở
+  `be/config.py`.
+
+Gạch *câu đóng ở 0 điểm là một tín hiệu bị bỏ rơi* vẫn đúng. Hàng đợi *Cần bạn xem*
+([ADR-34](adr-34-hang-doi-review-va-diem-gop.md)) gom tỉ lệ sai của **một câu qua nhiều bài**, không
+báo từng em hết ba vòng.

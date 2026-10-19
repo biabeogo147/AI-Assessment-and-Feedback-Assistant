@@ -73,3 +73,18 @@ không thu hồi được nằm cạnh những dòng chữ trôi qua.
 - `AGENTS.md` bảng Invariants — hai trong ba dòng ở nhóm **chưa enforce** (low-confidence với học sinh,
   luyện tập giữ nguyên learning objective) thuộc nửa sau của vòng nghiệp vụ. Dòng thứ ba, *Teacher
   approves an assessment before release*, thuộc nửa đầu và chờ UC-02.
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ ba
+là hỏi lại. Câu *"làm ADR-05 đếm sai ba cổng"* ở trên đọc là hai cổng; `Consequence dialog` (`11:41`)
+nay là hộp của **cổng duyệt đề duy nhất** ở đầu ra.
+
+Hai câu khác ở trên cũng đã cũ:
+- Luật *kết quả low-confidence không hiện cho học sinh* (ADR-08) nay là luật *chẩn đoán vắng mặt*, đã
+  thi hành bằng `test_student_payloads_carry_no_diagnosis_numbers`. Màn demo `App.tsx` đã thay bằng
+  luồng học sinh thật.
+- Nhóm *chưa enforce* của `AGENTS.md` nay chỉ còn dòng về câu luyện tập (ADR-17). *Teacher approves an
+  assessment before release* đã tự động, canh bởi
+  `test_an_unapproved_assessment_cannot_be_published_over_http`.

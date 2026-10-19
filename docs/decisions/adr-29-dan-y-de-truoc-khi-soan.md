@@ -127,3 +127,9 @@ Nay:
 - nút *Thử lại* (`POST …/slots/{order}/redraft`) soạn lại đúng mục dàn ý của ô, với đủ ba lượt
   mới. Nút đi thẳng từ panel, không qua model: mục dàn ý đã được giáo viên xem;
 - duyệt thì ô hỏng bị bỏ và số câu dồn lên, nên đề đã khoá không mang lỗ số.
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ
+ba là hỏi lại. Câu *"Ba cổng vẫn là ba"* ở trên đọc là hai cổng. Dàn ý vẫn nằm ở cổng thứ ba (đầu vào).

@@ -1,6 +1,6 @@
 # ADR-06 — Agent phát bằng chứng, không đưa ra quyết định
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt (phần chấm bài và ngưỡng: hết đối tượng từ ADR-20 và ADR-37)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -69,3 +69,27 @@ cổng là bỏ toàn bộ dấu vết đúng lúc cần nó nhất.
   cuộc hội thoại nào, nên chưa có đầu ra nào để mà kiểm.
 - Figma `mOe2ZmrqOq1Uix45v6PNGD` — `Thinking` (`83:76`) năm luật; `Confidence meter` (`5:32`) không có màu;
   `Source citation` (`84:35`) luật tra ngược.
+
+## Hậu ký 19/10/2026
+
+**Lõi của luật vẫn đứng: AGENT phát nội dung, không phát quyết định.** Phần nói về *chấm bài* thì
+không còn đối tượng:
+- AGENT không chấm nữa. BE chấm trắc nghiệm bằng phép so ([ADR-20](adr-20-cham-trac-nghiem-thuoc-be.md)),
+  nên `score`, `confidence`, `misconception_code`, `feedback_text` không còn là đầu ra của AGENT.
+- Không còn ngưỡng nào để so: cổng kết quả độ tin thấp đã bỏ ([ADR-37](adr-37-bo-cong-do-tin-thap.md)).
+  Câu *"BE là nơi duy nhất so ngưỡng"* và hệ quả *"một kết quả đã chấm có thể đổi kết luận review khi
+  ai đó sửa `.env`"* chỉ còn là lịch sử.
+- Bốn `ReviewReason` ở mục Hệ quả không còn trong code (xem hậu ký 17/10/2026 của ADR-07 và ADR-08).
+
+Những phần còn thi hành: các bước của Kriky là bằng chứng (khối *Đã làm k bước* trong chat giáo viên),
+thất bại không thu gọn, và FE không hiện `confidence` ở bề mặt học sinh.
+
+Mục *Nơi luật này đang được thi hành* ở trên trỏ vào code đã xoá: `contracts/messages.py`
+(`GradingCompleted`), `review_policy.py` (`decide_review()`), đường chấm trong `be/routes.py` (tệp nay
+chỉ còn `/health`), và test `test_agent_emits_no_routing_decision`. Nơi thi hành nay:
+- `services/agent/tests/test_no_routing_decision.py` — `test_no_registered_task_returns_a_verdict`
+  gọi thật từng task đã đăng ký và soi khoá trả về; `test_no_message_agent_returns_declares_a_verdict_field`
+  soi kiểu message. Đây là dòng *AGENT emits no routing decision* của `AGENTS.md`.
+- `services/be/tests/test_core_flow.py` — `test_student_payloads_carry_no_diagnosis_numbers`.
+- Dòng `FE never applies its own confidence threshold` không còn trong `AGENTS.md`: FE không nhận
+  `confidence` nào để mà so.

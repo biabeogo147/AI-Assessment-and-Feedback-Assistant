@@ -5,8 +5,9 @@ Chỉ còn một endpoint ở đây: `/health`. Mọi đường nghiệp vụ n�
 
 Tệp này từng chở thêm `POST /api/submissions` và `GET /api/jobs/{id}` -- đường chấm bài đi
 qua hàng đợi, kèm quyết định đưa kết quả vào hàng đợi review của giáo viên. ADR-20 đã thay
-đường ấy bằng một phép so chạy thẳng trong `student_routes.submit_attempt`, và hàng đợi
-review thì chưa bao giờ được dựng: không màn hình, không chỗ giáo viên chốt lại. Giữ một
+đường ấy bằng một phép so chạy thẳng trong `student_routes.submit_attempt`. Hàng đợi chặn kết
+quả chấm thì chưa bao giờ được dựng và nay đã bỏ (ADR-37); hàng đợi *Cần bạn xem* của giáo
+viên (ADR-34) không chặn gì. Giữ một
 đường API không ai gọi là giữ một thứ mà người đọc code sẽ tưởng là luồng chính, nên nó đã
 được gỡ.
 """

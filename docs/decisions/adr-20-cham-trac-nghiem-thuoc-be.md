@@ -85,3 +85,18 @@ soạn sẵn thay vì để agent tự nghĩ.
 - **Hai message đã gỡ, nhưng không theo điều kiện ADR nêu.** *Hệ quả* dặn gỡ `GradingRequested` và
   `GradingCompleted` *"ngay khi UC-05 chốt hình dạng"*. Chúng bị xoá ngày 09/10/2026 cùng cả đường
   chấm bài cũ, trong khi UC-05 chưa bao giờ được thiết kế. Ghi lại theo plan `backlog-tier-1`.
+
+## Hậu ký 19/10/2026
+
+Mục *Nơi luật này đang được thi hành* ở trên (*"Chưa ở đâu cả"*) đã cũ; hậu ký 17/10/2026 chỉ ra nơi
+thi hành thật. `agent/handlers.py` không còn chấm. `POST /api/submissions` và `GET /api/jobs/{id}`
+trong `be/routes.py` đã gỡ ngày 09/10/2026; tệp ấy nay chỉ còn `/health`. Plan
+`core-two-phase-backend` nay ở `docs/plans/completed/`.
+
+Ba invariant mà mục Hệ quả nhắc chỉ còn một trong `AGENTS.md`: *AGENT emits no routing decision*,
+canh bởi `services/agent/tests/test_no_routing_decision.py`. Hai dòng *low confidence is flagged* và
+*a correct answer does not exempt* đã gỡ cùng đường chấm cũ.
+
+UC-05 mà mục Hệ quả nhắc nay là *Teacher xem hàng đợi Cần bạn xem*, không phải chỗ chốt kết quả chấm:
+không kết quả chấm nào chờ giáo viên ([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Chip `Đang chấm` không
+có trong FE; Figma màn học sinh `13` vẫn còn một dòng mang chip ấy.

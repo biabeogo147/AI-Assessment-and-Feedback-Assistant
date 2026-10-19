@@ -1,6 +1,6 @@
 # ADR-11 — Bỏ `AssessmentType` khỏi contract
 
-- **Trạng thái:** đã chốt (chỗ thu lời giải thích: đã có bề mặt ở Figma, contract chưa theo)
+- **Trạng thái:** đã chốt (hậu ký 19/10/2026: đã gỡ trọn)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -79,3 +79,16 @@ pydantic mặc định **bỏ qua** trường lạ, nên một client cũ vẫn 
 - Luật vẫn còn hiệu lực nằm ở `docs/overview/use-case-specification.md:255` và
   `docs/overview/business-workflows.md:76`, `91`; `business-workflows.md:86` là vế bù cho bài thường
   xuyên. Không dòng nào bị đụng tới trong lần gỡ này.
+
+## Hậu ký 19/10/2026
+
+Mục *Nơi luật này đang được thi hành* ở trên trỏ vào những tệp đã xoá ngày 09/10/2026 cùng đường chấm
+bài cũ: `contracts/enums.py`, `contracts/messages.py`, `contracts/tests/test_messages.py`,
+`agent/tests/test_handlers.py`. Luật đã thi hành trọn: `AssessmentType` không còn ở đâu trong code.
+`GradingRequested` cũng đã xoá, kéo theo `student_explanation`, nên vế *contract chưa theo* ở trạng
+thái cũ hết đối tượng.
+
+Hệ quả về ngưỡng của ADR-07 ở mục trên không còn: cổng ấy đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Luật *lời giải thích được hỏi ở pha 2, không ở ô nhập pha 1*
+nay nằm ở `docs/overview/business-workflows.md` (mục *Pha 1 không thu lời giải thích*) và
+`use-case-specification.md` (UC-03); các số dòng ở trên đã trôi.

@@ -116,12 +116,11 @@ kèm đạo cụ cần **≥64px** để đạo cụ đạt ~16px. Hai hướng,
 
 Mô hình hai pha ([ADR-14](../decisions/adr-14-hai-pha-lam-bai.md) …
 [ADR-21](../decisions/adr-21-trang-thai-bai-lam-la-ben.md)) đã chạy trên database: pha 1, lượt chữa
-pha 2 có trần ba vòng, điểm ba mức và lý do được 0,5 đều có thật. Còn lại bốn việc cố ý chưa làm.
+pha 2 có trần ba vòng, điểm ba mức và lý do được 0,5 đều có thật. Còn lại ba việc cố ý chưa làm.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | Cổng duyệt cho câu luyện tập | **Chưa quyết định nghiệp vụ** — xem dưới. Khi chốt thì chỉnh luôn dòng Invariants của `AGENTS.md` nói về câu luyện tập |
-| Bật lại confidence của chẩn đoán | Chưa cần, và bật lại hôm nay sẽ hỏng — xem dưới |
 | Bắt đổi mật khẩu ở lần đăng nhập đầu | **Không làm** (người dùng, 18/10/2026) — xem dưới |
 | Phát hiện sớm một lời giải sai | **Chưa quyết định nghiệp vụ** — xem dưới |
 
@@ -142,27 +141,6 @@ Ba đường đã nêu và chưa chọn:
 - `x'` chỉ được lấy từ ngân hàng câu hỏi **đã kiểm**, không sinh mới.
 - Giáo viên duyệt sẵn **bộ câu chữa cho từng lỗi** ngay lúc duyệt đề, rồi hệ thống chỉ chọn trong đó.
 - Giữ nguyên, và chấp nhận rằng cổng số một có một lỗ.
-
-### Vì sao chưa bật lại confidence của chẩn đoán
-
-[ADR-08](../decisions/adr-08-bon-loai-nghi-ngo.md) đã thu hẹp: đúng/sai là phép so xác định, thứ từng
-cần giữ lại là **chẩn đoán**. Đợt này bỏ hẳn confidence của chẩn đoán khỏi luồng học sinh.
-
-Bật lại hôm nay thì hỏng ngay, và hỏng theo **hai** đường chứ không phải một.
-
-`services/agent/src/agent/handlers.py` trả `confidence = 0.55` khi `student_explanation` là `None`;
-ngưỡng là `0.7` và phép so là **bao gồm**
-([ADR-07](../decisions/adr-07-dieu-gi-dua-ket-qua-toi-giao-vien.md)). Pha 1 của mô hình mới không thu
-lời giải thích, nên điều kiện đó đúng với **mọi câu của mọi học sinh** — một lớp 40 em làm bài 10 câu
-sinh ra 400 mục chờ giáo viên, và pha 2 không khởi động cho ai.
-
-Đường thứ hai độc lập với ngưỡng: nếu pha 1 gửi **chuỗi rỗng** thay vì `None`, cùng file trả
-`confidence = 0.30` **và** `has_sufficient_evidence = False`, và luật *thiếu căn cứ* của ADR-07 đẩy
-kết quả vào hàng đợi mà không hề so ngưỡng. Gỡ mỗi điều kiện ngưỡng là chưa đủ. (Phần code của cả
-hai đường đã bị xoá 09/10/2026; ràng buộc trên là ràng buộc của **thiết kế**, còn nguyên.)
-
-Việc cần làm trước khi bật lại không phải chỉnh ngưỡng, mà là **định nghĩa lại confidence đo cái gì**
-khi phần chấm đã xác định — rồi mới tới việc pha 1 gửi `None` hay chuỗi rỗng.
 
 ### Lời giải sai bị khuếch đại, và chưa có cách phát hiện sớm
 

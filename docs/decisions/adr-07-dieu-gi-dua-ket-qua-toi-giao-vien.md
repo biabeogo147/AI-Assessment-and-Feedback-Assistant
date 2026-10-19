@@ -1,6 +1,6 @@
 # ADR-07 — Điều gì đưa một kết quả chấm tới giáo viên
 
-- **Trạng thái:** đã chốt (việc gỡ ngưỡng khỏi luồng học sinh: chưa thi hành)
+- **Trạng thái:** đã thay bởi ADR-37
 - **Ngày:** 2026-09-06
 - **Sửa:** 2026-10-17 — mục thi hành trỏ vào code đã xoá. Xem *Hậu ký 17/10/2026* ở cuối.
   Phần trên giữ nguyên làm lịch sử.
@@ -102,3 +102,10 @@ dõi* có hàng đợi *Cần bạn xem* ([ADR-34](adr-34-hang-doi-review-va-die
 khi ≥ 70% bài sai ở lần đầu, trên 20 bài, sau khi đề đã hết giai đoạn 2. Đây là ngưỡng trên **một câu
 qua nhiều bài**, không phải ngưỡng tin cậy trên **một kết quả chấm**. Nó không chặn học sinh nào, và
 không đụng tới luồng học sinh mà ADR này mô tả.
+
+## Hậu ký 19/10/2026
+
+**ADR này đã thay bởi [ADR-37](adr-37-bo-cong-do-tin-thap.md).** Cổng kết quả độ tin thấp đã bỏ, nên
+ngưỡng 0.7, ba điều kiện, thứ tự lý do và phép so bao gồm không còn áp ở đâu. Toàn bộ phần trên giữ
+làm lịch sử. Một luồng sau này cần chặn kết quả trước học sinh thì mở ADR mới; ngưỡng ở đây không tự
+sống lại.

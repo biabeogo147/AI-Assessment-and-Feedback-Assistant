@@ -1,6 +1,6 @@
 # ADR-18 — Mỗi câu hỏi phải kèm lời giải nhiều cách, và mỗi phương án nhiễu gắn một lỗi
 
-- **Trạng thái:** đã chốt (chưa có ở backend)
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-09-10
 
 ## Bối cảnh
@@ -141,3 +141,9 @@ quanh `validate_question`:
   23 000 đồng mà khoá B. 27 000 đồng. Lưới này chỉ bắt lời giải **nói ra** nhãn nó chọn; lời giải
   ra một con số khác phương án khoá mà không nêu nhãn thì vẫn lọt (Tier 2 câu 25, phương án A, chưa
   làm).
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ
+ba là hỏi lại. Chữ *cả ba cổng người* ở mục thi hành đọc là cả hai cổng.

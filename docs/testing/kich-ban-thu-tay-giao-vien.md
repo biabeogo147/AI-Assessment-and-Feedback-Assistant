@@ -182,7 +182,7 @@ Bấm **Đoạn chat mới** → màn hình trắng. Bấm lại đoạn cũ tr�
 
 ---
 
-## Chặng D — panel đề và ba cổng của ADR-05 `[0]`
+## Chặng D — panel đề và các cổng của ADR-05 `[0]`
 
 ### D1. Mở panel từ thẻ
 
@@ -275,7 +275,8 @@ dưới mỗi ô dính sẽ có một dòng đỏ: *"Công thức có ký tự h
 **Phải thấy:** dòng ấy chỉ hiện ở ô thật sự có ký tự hỏng. Ô lời giải nhiều dòng **không** được
 báo chỉ vì nó xuống dòng. Và chữ trong ô nhập **không** đổi.
 
-Sửa tay theo dòng cảnh báo rồi **Lưu**: dòng đỏ biến mất và công thức dựng hình được.
+Hỏi Kriky cách viết lại, gõ lại công thức trong ô rồi **Lưu**: dòng đỏ biến mất và công thức dựng
+hình được.
 
 **Sai nếu:** một đề **vừa soạn mới** cũng có dòng đỏ ở nhiều ô. Câu mới phải sạch — AGENT dựng lại
 dấu gạch chéo trước khi lưu (ADR-26). Một hai chỗ sót là chuyện thường: hoặc từ điển lệnh thiếu một

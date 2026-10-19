@@ -109,3 +109,9 @@ và xuống dòng thật không bị báo. Đường sửa nay là nhờ Kriky v
 
 Nơi thi hành đã dời: `services/fe/src/screens/teacher/Editing.tsx` (`MANGLED`, dòng `.mangled` trong
 `Field`); không còn hàm `visible()`. Figma: node `mangled` (`493:17`) và artboard 14 (`532:1906`).
+
+## Hậu ký 19/10/2026
+
+ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
+([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ
+ba là hỏi lại. Chữ *ba cổng người* ở mục Vì sao đọc là hai cổng; lý do không đổi.

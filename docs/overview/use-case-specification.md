@@ -15,10 +15,10 @@ Diagram liên quan:
 
 | Actor | Vai trò |
 | --- | --- |
-| Teacher | Tạo yêu cầu, review đề, phát hành đề, xử lý kết quả chấm cần review. |
+| Teacher | Tạo yêu cầu, review đề, phát hành đề, xem hàng đợi *Cần bạn xem* và sửa lời giải trong ngân hàng câu hỏi. |
 | Student | Làm bài và nộp bài ở pha 1; chữa bài ở pha 2; báo cáo chỗ trợ lí giải thích chưa rõ. |
 
-Hệ thống nằm bên trong system boundary nên không được xem là actor trong Use Case Diagram. Các hành vi như sinh đề, chấm bài, kiểm tra confidence hoặc tạo câu luyện tập được mô tả như use case được `<<include>>` hoặc `<<extend>>` từ mục tiêu của Teacher và Student.
+Hệ thống nằm bên trong system boundary nên không được xem là actor trong Use Case Diagram. Các hành vi như sinh đề, chấm bài hoặc tạo câu luyện tập được mô tả như use case được `<<include>>` hoặc `<<extend>>` từ mục tiêu của Teacher và Student.
 
 ## Quy ước quan hệ trong Use Case Diagram
 
@@ -192,11 +192,13 @@ Mỗi câu chốt ở một trong ba mức: 1 khi đúng ngay ở pha 1, 0,5 khi
 được. Điểm chỉ đi lên, nên điểm ngay sau khi nộp là sàn chứ không phải kết quả. Xem
 [ADR-16](../decisions/adr-16-thang-diem-ba-muc.md).
 
-## UC-05 — Teacher xử lý bài cần review
+## UC-05 — Teacher xem hàng đợi *Cần bạn xem*
 
 ### Mục tiêu
 
-Teacher xem xét và chốt kết quả chấm khi hệ thống không đủ tự tin hoặc phát hiện tình huống bất thường.
+Teacher thấy những việc cần chuyên môn của mình sau khi bài đã trả về: báo cáo giải thích chưa rõ của
+Student, và câu nhiều em làm sai. Không kết quả chấm nào chờ Teacher chốt: cổng *kết quả độ tin thấp*
+từng nằm ở use case này đã bỏ. Xem [ADR-37](../decisions/adr-37-bo-cong-do-tin-thap.md).
 
 ### Actor chính
 
@@ -204,24 +206,28 @@ Teacher
 
 ### Điều kiện trước
 
-- Hệ thống đã tạo kết quả đánh giá cần Teacher review.
+- Teacher đã đăng nhập. Hàng đợi có thể rỗng.
 
 ### Luồng chính
 
-1. Teacher mở danh sách bài cần review.
-2. Teacher xem câu hỏi, đáp án chuẩn, bài làm, lời giải thích của Student và feedback do hệ thống đề xuất.
-3. Teacher xem lý do hệ thống yêu cầu review.
-4. Teacher xác nhận hoặc chỉnh sửa điểm.
-5. Teacher xác nhận hoặc chỉnh sửa lỗi sai, misconception và feedback.
-6. Hệ thống lưu kết quả cuối cùng.
+1. Teacher mở Bảng theo dõi. Hàng đợi *Cần bạn xem* liệt kê một dòng mỗi đề có báo cáo *chưa xem*, và
+   một dòng mỗi câu có từ 70% bài sai ở lần làm đầu, trên 20 bài, sau khi đề đã hết giai đoạn 2 ở mọi
+   lớp còn giữ đề. Hai loại dòng cùng trọng lượng. Xem
+   [ADR-34](../decisions/adr-34-hang-doi-review-va-diem-gop.md).
+2. Teacher mở một dòng: đọc báo cáo cùng đoạn chat hỏi trợ lí, hoặc đọc câu kèm tỉ lệ chọn từng phương
+   án.
+3. Cần thì Teacher sửa lời giải ở bản trong ngân hàng câu hỏi. Xem
+   [ADR-35](../decisions/adr-35-sua-loi-giai-sau-phat-hanh.md).
+4. Dòng được đánh dấu đã xem và rời hàng đợi. Báo cáo mới đến sau đưa đề vào lại.
 
 ### Quan hệ diagram
 
-- `Xử lý bài cần review` `<<extend>>` `Chấm bài và sinh feedback` khi confidence thấp hoặc có dấu hiệu bất thường.
+- Use Case Diagram chưa vẽ use case này. Business Workflows Swimlane có bước *Xem báo cáo trợ lí giải
+  thích chưa rõ* ở lane Teacher.
 
 ### Kết quả
 
-Kết quả cuối cùng được Teacher xác nhận và có thể hiển thị cho Student.
+Teacher biết lời giải nào cần viết lại và câu nào cần xem lại. Hàng đợi rỗng là tin tốt.
 
 ## UC-06 — Hệ thống tạo câu biến thể
 
@@ -290,12 +296,12 @@ Student
 
 - `Báo cáo giải thích chưa rõ` `<<extend>>` `Chữa bài sau khi nộp (pha 2)`.
 
-Đây **không** phải cổng teacher-in-the-loop thứ tư: nó không chặn Student, không chặn lượt, không chặn
+Đây **không** phải một cổng teacher-in-the-loop: nó không chặn Student, không chặn lượt, không chặn
 điểm và không chặn việc bài kết thúc. Cổng theo ADR-05 là chỗ hệ thống dừng lại chờ người; ở đây không
 có gì dừng lại. Xem [ADR-19](../decisions/adr-19-bao-cao-giai-thich-chua-ro.md).
 
-Diagram **không** vẽ association từ Teacher tới use case này. Teacher đọc được báo cáo, nhưng chỗ để
-đọc thì chưa tồn tại — nó không thuộc Teacher Review Queue, vốn dành cho việc có tính chặn.
+Diagram **không** vẽ association từ Teacher tới use case này. Teacher đọc báo cáo ở hàng đợi *Cần bạn
+xem* (UC-05), vốn cũng không chặn ai.
 
 ### Kết quả
 
@@ -305,13 +311,13 @@ Teacher có căn cứ để sửa lời giải đã lưu, và ngân hàng câu h
 
 - `Tạo đề nháp` diễn ra trước `Review và phát hành đề`, nhưng đây là thứ tự workflow nên được mô tả trong Activity Diagram và tài liệu workflow, không ghi như một quan hệ riêng trong Use Case Diagram.
 - Student nộp bài là điều kiện để hệ thống chấm, nhưng không biểu diễn bằng `<<include>>` vì đây là thứ tự workflow.
-- Kết quả confidence thấp hoặc có mâu thuẫn sẽ mở rộng sang use case Teacher xử lý bài cần review. Với luồng Student của mô hình hai pha, điều kiện ngưỡng hiện **tạm không áp**; xem ADR-07 và ADR-08.
+- Không use case nào chờ Teacher chốt kết quả chấm: cổng độ tin thấp đã bỏ (ADR-37). UC-05 không `<<extend>>` việc chấm bài.
 - `Làm câu biến thể` là `<<include>>` của UC-04 chứ không phải `<<extend>>`, vì pha 2 bắt buộc. Bắt buộc ở đây nghĩa là bắt buộc **thử**, không phải bắt buộc **đạt**.
 
 ## Nguyên tắc nghiệp vụ chung
 
 - Hệ thống không bao giờ tự phát hành đề. Chỉ Teacher phát hành. Xem ADR-02.
-- Confidence thấp cần Teacher review. Xem ADR-07 cho phạm vi hiện tại của luật này.
+- Không kết quả chấm nào chờ Teacher review. Teacher Review Queue chỉ nhận việc không chặn ai. Xem ADR-37.
 - **Mỗi phương án nhiễu phải gắn một lỗi cụ thể**, soạn cùng câu hỏi. Nhờ đó chẩn đoán là tra cứu chứ không phải suy đoán. Xem ADR-18.
 - **Mỗi câu hỏi phải kèm lời giải, và lời giải phải có nhiều hơn một cách làm.** Xem ADR-18.
 - Bài khó hoặc nhiều bước vẫn cần Student giải thích cách làm, nhưng chỗ hỏi là **hội thoại ở pha 2**, không phải ô nhập ở pha 1. Xem ADR-11.

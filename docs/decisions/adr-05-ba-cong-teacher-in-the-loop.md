@@ -1,6 +1,6 @@
 # ADR-05 — Có ba cổng teacher-in-the-loop, và cổng đầu vào có ranh giới cứng
 
-- **Trạng thái:** đã chốt (ngoại lệ ở cổng thứ nhất: chưa thi hành)
+- **Trạng thái:** đã chốt; cổng thứ hai đã bỏ bởi ADR-37 (ngoại lệ ở cổng thứ nhất: chưa thi hành)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -83,3 +83,27 @@ bị đẩy. Mọi lựa chọn phải nêu cái giá bằng cùng một ngữ p
 - [ADR-19](adr-19-bao-cao-giai-thich-chua-ro.md) thêm một kênh đưa việc tới giáo viên nhưng **không**
   thêm cổng thứ tư, vì nó không chặn ai. Ranh giới đó được giải thích trong chính ADR-19.
 - **Chưa có ở backend**: không có cổng nào trong ba cổng được thi hành bằng code.
+
+## Hậu ký 19/10/2026
+
+**Cổng thứ hai đã bỏ** ([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Không kết quả chấm nào chờ giáo viên
+trước khi tới học sinh: trắc nghiệm do BE chấm bằng phép so
+([ADR-20](adr-20-cham-trac-nghiem-thuoc-be.md)), không có độ tin cậy nào để chặn. Sản phẩm nay có **hai
+cổng**, giữ nguyên số thứ tự: cổng thứ nhất là duyệt đề trước khi phát hành (với ngoại lệ câu luyện tập
+ở trên), cổng thứ ba là Kriky hỏi lại khi chưa đủ thông tin. Không có cổng thứ hai. Ranh giới cứng của
+cổng hỏi lại giữ nguyên. Hàng đợi giáo viên vẫn có, là hàng đợi *Cần bạn xem*
+([ADR-34](adr-34-hang-doi-review-va-diem-gop.md)), và nó không chặn ai.
+
+Mục *Nơi luật này đang được thi hành* ở trên đã cũ ở hai câu:
+- *"`AGENTS.md` bảng Invariants — hai cổng đầu ra nằm ở nhóm chưa enforce"*: nay cổng duyệt đề là dòng
+  tự động *Teacher approves an assessment before release*, canh bởi
+  `test_an_unapproved_assessment_cannot_be_published_over_http`.
+- *"Chưa có ở backend"*: cổng duyệt đề thi hành ở BE (endpoint phát hành từ chối đề chưa duyệt).
+  Cổng hỏi lại thi hành theo [ADR-23](adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) và
+  [ADR-30](adr-30-loi-kriky-do-model-viet.md): lựa chọn là nhãn BE đọc từ dòng thật, canh bởi
+  `test_the_options_are_written_by_be_not_by_the_model`.
+
+Câu *"chưa câu luyện tập nào tồn tại để mà đi vòng qua cổng"* ở mục thi hành cũng đã sai.
+`ask_for_retry_question` (`services/be/src/be/agent_gateway.py`) đang sinh câu cho lượt chữa, nên
+ngoại lệ của cổng thứ nhất là một lỗ đang mở. Xem `docs/plans/backlog.md`, mục *Câu luyện tập chưa qua
+cổng duyệt nào*.

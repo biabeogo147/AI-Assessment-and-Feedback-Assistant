@@ -1,6 +1,6 @@
 # ADR-09 — Kết quả chấm là tạm thời
 
-- **Trạng thái:** đã chốt
+- **Trạng thái:** đã chốt; thu hẹp bởi ADR-21 (API 404: hết đối tượng, xem hậu ký 19/10/2026)
 - **Ngày:** 2026-09-06
 
 ## Bối cảnh
@@ -59,3 +59,19 @@ người ta tự đoán, và đoán về phía xấu.
 - **Chỗ vi phạm cũ ở FE đã biến mất cùng màn demo.** `api.ts` không còn poll job chấm bài, vì
   [ADR-20](adr-20-cham-trac-nghiem-thuoc-be.md) đưa việc chấm vào thẳng request nộp bài — không còn
   thời gian chờ nào để hiển thị nhầm thành lỗi.
+
+## Hậu ký 19/10/2026
+
+Mục *Nơi luật này đang được thi hành* ở trên đã cũ. Đường đọc kết quả job trả 404 (`GET /api/jobs/{id}`
+trong `services/be/src/be/routes.py`) đã gỡ ngày 09/10/2026 cùng đường chấm bài cũ; tệp ấy nay chỉ
+còn `/health`. Không API nào đưa kết quả một job tới
+người dùng nữa, nên hai luật *404* và *thông điệp lỗi phải xác nhận bài làm không mất* không còn đối
+tượng. Variant `het-han-404` của `Error state` (`6:75`) không màn nào dùng.
+
+Phần còn sống, đúng như ADR-21 đã thu hẹp:
+- Kết quả một job arq của AGENT hết hạn sau `JOB_RESULT_TTL_SECONDS` (`.env.example`, mặc định 3600),
+  đặt ở `keep_result` của `services/agent/src/agent/worker.py`. Đây vẫn là chỗ duy nhất giá trị ấy có
+  tác dụng.
+- BE đọc kết quả qua `services/be/src/be/agent_gateway.py`, và coi một câu trả lời đã hết hạn là chuyện
+  bình thường: `_harvest` trong `student_routes.py` xoá dòng đã mất, rồi `_write_ahead` đẩy lại job.
+- Bài làm, điểm và lượt chữa nằm trong Postgres, không hết hạn (ADR-21).

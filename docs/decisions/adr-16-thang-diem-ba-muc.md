@@ -1,6 +1,6 @@
 # ADR-16 — Mỗi câu có ba mức điểm, và 0,5 nghĩa là hiểu sau khi được dạy
 
-- **Trạng thái:** đã chốt (đã có bề mặt ở Figma và ở backend)
+- **Trạng thái:** đã chốt, đang thi hành
 - **Ngày:** 2026-09-10
 - **Sửa:** 2026-10-17 — nợ màu của mức 0,5 đã trả ở ADR-12, và các dòng *chưa có ở backend* đã cũ.
   Xem *Hậu ký 17/10/2026* ở cuối. Phần trên giữ nguyên làm lịch sử.
