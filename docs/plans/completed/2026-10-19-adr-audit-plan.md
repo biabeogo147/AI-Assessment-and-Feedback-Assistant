@@ -60,4 +60,4 @@ Một dev mới đọc `docs/decisions/` thì thấy đúng sản phẩm đang c
 
 ## Status
 
-Xong, chờ người dùng duyệt rồi commit.
+Xong. Commit `bbabbdd` ngày 19/10/2026.
