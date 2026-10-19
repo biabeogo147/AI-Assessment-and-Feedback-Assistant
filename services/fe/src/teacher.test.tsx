@@ -2966,7 +2966,7 @@ describe("xoá một câu khỏi đề (ADR-28)", () => {
 
     await openErase(1);
 
-    expect(screen.getByText(/bản trong ngân hàng vẫn giữ nguyên/)).toBeTruthy();
+    expect(screen.getByText("Xoá ở đây chỉ gỡ nó khỏi đề này — ngân hàng câu hỏi vẫn còn.")).toBeTruthy();
     expect(screen.queryByText(/chưa có trong ngân hàng câu hỏi/)).toBeNull();
   });
 
@@ -3767,31 +3767,27 @@ describe("ký tự điều khiển ẩn trong ô sửa", () => {
     return view;
   }
 
-  it("ký tự hỏng hiện ra bằng ký hiệu đọc được, và ô nhập vẫn giữ nguyên byte gốc", async () => {
+  it("ô có ký tự hỏng thì một câu ngắn nhờ Kriky, và ô nhập vẫn giữ nguyên byte gốc", async () => {
     // Chính sách đã chốt là *"giáo viên tự sửa tay"*. Đo được trên trình duyệt rằng nó
     // không đi được: 7 trong 12 ô chứa ký tự điều khiển, mà chúng VÔ HÌNH trong textarea.
-    // Giáo viên nhìn thấy `$rac{1}{6}$`, gõ thêm dấu gạch chéo vào trước, và vẫn hỏng.
+    // Câu báo nay ngắn và chỉ đường nhờ Kriky, không chép lại cả ô (người dùng chốt 19/10/2026).
     const data = mangled();
     const { container } = await open();
 
-    const note = container.querySelector(".mangled");
-    expect(note).not.toBeNull();
-    expect(note!.textContent).toContain("2 ký tự hỏng");
-    expect(note!.textContent).toContain("␌");
-    expect(note!.textContent).toContain("␉");
+    const notes = [...container.querySelectorAll(".mangled")];
+    expect(notes.length).toBe(1);
+    expect(notes[0].textContent).toBe(
+      "Công thức có ký tự hỏng. Bạn có thể hỏi Kriky cách viết lại cho đúng nhé!",
+    );
 
-    // Và đây là nửa quan trọng hơn: ô nhập KHÔNG bị đổi. Nếu đổi, ký hiệu sẽ theo nút
-    // Lưu xuống database và một lỗi hiển thị thành một lỗi dữ liệu.
+    // Và đây là nửa quan trọng hơn: ô nhập KHÔNG bị đổi. Nếu đổi, một lỗi hiển thị thành một lỗi
+    // dữ liệu.
     const stem = screen.getByLabelText("Đề bài") as HTMLTextAreaElement;
     expect(stem.value).toBe(data.questions[0].stem);
     expect(stem.value).toContain(String.fromCharCode(0x0c));
-
   });
 
-  it("DEL hiện ra ␡, không phải một ký hiệu vô nghĩa", async () => {
-    // Khối Control Pictures đặt ký hiệu của `c` tại `U+2400 + c` cho 0x00–0x1F, nhưng
-    // DEL (0x7F) nằm **riêng** ở U+2421. Bỏ ca riêng thì `0x2400 + 0x7f` ra `U+247F` —
-    // ký hiệu "khoanh số 12", vô nghĩa hoàn toàn trước mặt giáo viên.
+  it("DEL cũng là ký tự hỏng", async () => {
     const one = paper("has_questions");
     one.questions[0].stem = `Tính $x${String.fromCharCode(0x7f)}$`;
     one.questions[0].methods = [
@@ -3804,7 +3800,7 @@ describe("ký tự điều khiển ẩn trong ô sửa", () => {
     );
     const { container } = await open();
 
-    expect(container.querySelector(".mangled")!.textContent).toContain("␡");
+    expect(container.querySelectorAll(".mangled").length).toBe(1);
   });
 
   it("xuống dòng thật không bị gọi là ký tự hỏng", async () => {
@@ -6735,7 +6731,7 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
     expect(rows[2].textContent).not.toContain("null");
     fireEvent.mouseEnter(rows[1].children[4]);
     expect(container.querySelector(".progress-popover")?.textContent).toBe(
-      "HỌC SINH CHƯA NỘP BÀI · 2Đề 15 phút — Hàm số2",
+      "CHƯA NỘP BÀI · 2Đề 15 phút — Hàm số2",
     );
     fireEvent.mouseLeave(rows[1].children[4]);
     // Lớp không có đề đang mở: rê chuột không ra gì.
@@ -7638,7 +7634,10 @@ describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () =
         methods: [{ title: "Cách 1", body: "Hàm hợp." }],
         options: [
           { label: "A", text: "2cos 2x", is_correct: true, error_label: null, percent: 28 },
-          { label: "B", text: "cos 2x", is_correct: false, error_label: "quên hệ số", percent: 68 },
+          { label: "B", text: "cos 2x", is_correct: false, error_label: "quên hệ số", percent: 34 },
+          // Hoà với B: chỉ phương án đứng trước được bôi đỏ.
+          { label: "C", text: "−2cos 2x", is_correct: false, error_label: "nhầm dấu", percent: 34 },
+          { label: "D", text: "2sin 2x", is_correct: false, error_label: null, percent: 0 },
         ],
         unanswered: 4,
         submitted: 25,
@@ -7651,14 +7650,48 @@ describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () =
     render(<BoardQuestion questionId="q3" />);
 
     await screen.findByText("72% bài sai ở lần làm đầu · 25 bài · Lớp 12A, 12B");
-    expect(screen.getByText(/✓ đúng · 28% chọn/)).toBeTruthy();
-    expect(screen.getByText(/68% chọn — quên hệ số/)).toBeTruthy();
-    expect(screen.getByText("Bỏ trống · 4%")).toBeTruthy();
+    // Ba cột: phương án, tỉ lệ, ghi chú; phương án sai được chọn nhiều nhất bôi đỏ (19/10/2026).
+    const rows = [...document.querySelectorAll(".option-rate")].map((one) =>
+      [...one.children].map((cell) => cell.textContent),
+    );
+    expect(rows[0].slice(1)).toEqual(["28% chọn", "✓ đúng"]);
+    expect(rows.find((one) => one[2] === "quên hệ số")?.[1]).toBe("34% chọn");
+    expect(rows.at(-1)).toEqual(["Bỏ trống", "4% chọn", ""]);
+    const red = [...document.querySelectorAll(".option-rate.top-wrong")];
+    expect(red.length).toBe(1);
+    expect(red[0].textContent).toContain("quên hệ số");
+    expect(screen.getByRole("table", { name: "PHƯƠNG ÁN · TỈ LỆ CHỌN Ở LẦN LÀM ĐẦU" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã xem" }));
     await waitFor(() => expect(window.location.hash).toBe("#/teacher/theo-doi"));
     expect(calls.some((one) => one.method === "POST" && one.url.endsWith("/questions/q3/seen"))).toBe(
       true,
     );
+  });
+
+  it("không ai chọn sai thì không phương án nào bôi đỏ", async () => {
+    serving({
+      "/teacher/board/questions/q4": {
+        question_id: "q4",
+        assessment_id: "p2",
+        order: 1,
+        title: "Đề tuần 3",
+        stem: "1 + 1?",
+        methods: [{ title: "Cách 1", body: "Cộng." }],
+        options: [
+          { label: "A", text: "2", is_correct: true, error_label: null, percent: 100 },
+          { label: "B", text: "3", is_correct: false, error_label: "cộng nhầm", percent: 0 },
+        ],
+        unanswered: 0,
+        submitted: 25,
+        wrong_percent: 0,
+        classes: ["12A"],
+        bank_id: "b4",
+        seen: false,
+      },
+    });
+    render(<BoardQuestion questionId="q4" />);
+    await screen.findByText("100% chọn");
+    expect(document.querySelectorAll(".option-rate.top-wrong").length).toBe(0);
   });
 
   /** Stub có thể từ chối POST, và trả lỗi cho một đường GET. */

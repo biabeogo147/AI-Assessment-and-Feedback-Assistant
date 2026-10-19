@@ -76,8 +76,7 @@ Không có model nào chạy, nên "rẽ" ở đây là panel hay BE đi khác.
   `Đã tạo đề "<TÊN>"` · `Chưa duyệt · chưa phát hành`, vẫn **một** thẻ. Q-đề `has_questions`;
   Q-kho **y hệt** bước 3 (bỏ duyệt không đụng ngân hàng).
 - **Bước 5:** hộp tiêu đề `Xoá câu 2 khỏi đề?`, lời dẫn nguyên văn:
-  *Câu này đã lưu vào ngân hàng câu hỏi từ lần duyệt trước. Xoá ở đây chỉ gỡ nó khỏi đề này — bản
-  trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.* Hai nút `Giữ lại`, `Xoá câu`. Sau
+  *Xoá ở đây chỉ gỡ nó khỏi đề này — ngân hàng câu hỏi vẫn còn.* (từ 19/10/2026) Hai nút `Giữ lại`, `Xoá câu`. Sau
   `Giữ lại`: vẫn 5 câu, Q-câu như bước 2. Sau `Xoá câu`: hộp đóng, dòng meta đầu panel bắt đầu
   `4 câu ·`, thẻ đánh `Câu 1`–`Câu 4` liền; chữ câu 2 mới là chữ câu 3 cũ. Q-câu: 4 dòng
   `order_index` 1–4, `id` cũ của câu 3, 4, 5 nay ở 2, 3, 4. Q-kho: vẫn **5 dòng**, một dòng

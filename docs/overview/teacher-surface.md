@@ -772,10 +772,11 @@ Bấm `Xoá` **không xoá gì**: nó mở hộp `Consequence dialog — xoá c�
 **`15 · Xoá một câu khỏi đề — đề từng duyệt rồi bỏ duyệt`** (`594:2550`).
 
 - **Hai lời dẫn, theo `in_bank` của BE.** Câu có bản trong ngân hàng thì hộp nói bản ấy **ở lại**
-  -- đây là điều trái trực giác, và là lý do hộp tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Cả
-  hai nói các câu sau dồn số lên. Từ việc 17, `in_bank` gộp hai chiều -- câu đã duyệt từng chép vào
-  kho, và câu lấy từ kho ra --, nên lời dẫn là *"Câu này có bản trong ngân hàng câu hỏi…"*, đúng cho
-  cả hai; hộp vẫn đọc `in_bank`, không đọc chip.
+  -- đây là điều trái trực giác, và là lý do hộp tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Từ
+  19/10/2026 hai câu ngắn (người dùng chốt): *"Xoá ở đây chỉ gỡ nó khỏi đề này — ngân hàng câu hỏi
+  vẫn còn."* và *"Câu này chưa có trong ngân hàng câu hỏi — xoá rồi thì không lấy lại được."*. Từ việc
+  17, `in_bank` gộp hai chiều -- câu đã duyệt từng chép vào kho, và câu lấy từ kho ra --, nên câu thứ
+  nhất đúng cho cả hai; hộp vẫn đọc `in_bank`, không đọc chip.
 - **Lời từ chối của BE ở trong hộp** (`.confirm .refused`), và hộp không đóng: còn câu đang soạn,
   câu cuối của đề, đề đã có lượt làm bài, đề vừa bị duyệt ở nơi khác. Đóng hộp là giấu lý do; đang xoá thì hộp cũng không đóng
   được (`Esc`, bấm ra ngoài, `Giữ lại` đều khoá). Bị từ chối thì panel vẫn đọc lại đề, vì BE thu
@@ -839,8 +840,9 @@ panel như code (ADR-31).
 ## Thêm câu từ ngân hàng — chip nguồn thật, và một hộp chọn
 
 Việc 17 (plan `question-bank-into-draft`): giáo viên lấy câu từ ngân hàng của mình vào đề đang mở, ngay
-trên panel. Artboard **`19 · Panel — chip nguồn và nút thêm câu từ ngân hàng`** (`655:3974`), **`19b ·
-Thêm câu từ ngân hàng — hộp chọn`** (`655:4222`), và đề trống ở artboard 18 (`653:2846`):
+trên panel. Artboard **`19b · Thêm câu từ ngân hàng — hộp chọn`** (`655:4222`, mở từ nút cuối panel
+màn 6), **`19 · Panel — đã thêm một câu từ ngân hàng`** (`655:3974`, câu 7 mang chip *Từ ngân hàng*), và
+đề trống ở artboard 18 (`653:2846`):
 
 - **Chip nguồn** (`Source chip`, `654:25`) đứng ngay sau *Câu k*, khe 8: *Kriky soạn* hay *Từ ngân
   hàng*, theo `QuestionRead.source` của BE (ADR-04). Một nhãn xám, không phải nút: nền `--sunken`, chữ
@@ -878,7 +880,8 @@ dõi* (20) là việc 19.
 - **Cùng một khung với đoạn chat.** Rail giữ nguyên; cột giữa vẽ màn ấy thay cho dòng hội thoại
   (`Chat` nhận `view`), không ô nhập. Panel 22b đứng đúng chỗ panel đề (`aside`).
 - **Mọi nhãn và mọi con số là của BE** (`be/teacher_reads.py`): chặng của một đề ở một lớp (*Chưa tới
-  giờ mở*, *Đang mở*, *Đang chữa bài*, *Đã kết thúc*), *đề đang mở* và ba cột tiến độ của màn 9, ghi
+  giờ mở*, *Đang mở*, *Đang chữa bài*, *Đã kết thúc*), *đề đang mở* và ba cột tiến độ của màn 9
+  (*Chưa nộp bài*, *Xong giai đoạn 1*, *Xong giai đoạn 2*, đầu cột một dòng, cộng trên mọi đề đang mở), ghi
   chú giai đoạn 2 của màn 11 và màn 23 (một bảng chữ), hành động *Xem kết quả* / *Mở đoạn chat* của
   màn 21. Màn chọn màu theo **mã chặng** BE gửi kèm nhãn (`phase`), không theo chữ: đang diễn ra thì
   teal (`state/processing`), đã xong thì nhạt. Đề chưa tới giờ mở trên màn 10 không mở được: chưa có
@@ -926,6 +929,8 @@ trợ lý`** (`699:5826`), **`29 · Câu có tỉ lệ sai cao`** (`699:5667`):
   hỏi ›* (mở 22b, ẩn khi câu chưa có bản). Phải là thẻ từng báo cáo, kèm *Mở hội thoại hỏi trợ lý ›*.
   *Đánh dấu đã xem* gửi đúng các báo cáo đang hiện, rồi về Bảng theo dõi.
 - **Màn 29 chỉ đọc**: đề bài, cách giải, tỉ lệ chọn từng phương án ở lần đầu, cộng tỉ lệ bỏ trống.
+  Tỉ lệ là một bảng ba cột -- phương án 240, tỉ lệ 72 canh phải, ghi chú -- để các con số thẳng một
+  cột; phương án sai được chọn nhiều nhất nền `answer/incorrect-surface`, chữ `answer/incorrect`.
   Có hai nút: *Đánh dấu đã xem* (câu rời hàng đợi mãi) và *Chỉnh sửa trong Ngân hàng câu hỏi*.
 - **Hộp đọc đoạn chat** rộng 680, cùng khuôn với hộp lời giải. Lượt của Kriky nền `--sunken`, lượt
   của học sinh nền `--accent-surface`. Không có ô nhập.
@@ -946,8 +951,8 @@ Artboard **26** `659:5160`, **26b** `659:5311`, **26c** `709:5249`, **27** `659:
 
 - **Chưa đăng nhập thì chỉ có hộp đăng nhập.** Màn mở đầu đứng sau màn che, hộp không đóng được và
   không lời gọi nào đi ra. Rail còn nút và bốn đích đến, thay hai ngăn bằng một dòng nhắc; góc dưới
-  ghi *Đăng nhập*. Hai tab *Số điện thoại* / *Email*; *Chưa có tài khoản? Tạo tài khoản* đổi sang hộp
-  26b, gồm bốn ô bắt buộc. Lời từ chối của BE nằm ngay trên nút (26c). Nút Google chỉ là giao diện.
+  ghi *Đăng nhập*. **Một ô** *Số điện thoại hoặc email* (người dùng chốt 19/10/2026; có `@` thì BE
+  đọc là email); *Chưa có tài khoản? Tạo tài khoản* đổi sang hộp 26b, gồm bốn ô bắt buộc. Lời từ chối của BE nằm ngay trên nút (26c). Nút Google chỉ là giao diện.
 - **Ô tài khoản ở góc dưới rail** có avatar (chữ đầu của họ và tên, bỏ *Cô* / *Thầy*) và họ tên. Bấm
   thì mở menu 228 rộng, cách ô 6. Năm mục; chỉ *Đăng xuất* bấm được, bốn mục kia vẽ `--ink-faint`.
 - **Phiên hết giữa chừng không xoá việc đang dở.** Một 401 ở bất cứ lời gọi nào, kể cả lượt chat và

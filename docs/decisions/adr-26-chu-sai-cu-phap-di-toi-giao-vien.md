@@ -98,3 +98,14 @@ một lỗi ẩn, vì KaTeX cũng không dựng được nó.
   test; trong đó một test ghim rằng `textarea.value` **không** bị đổi.
 - Figma `mOe2ZmrqOq1Uix45v6PNGD`, component `Question card — đang sửa` (`468:2050`), node
   `mangled` (`493:17`).
+
+## Hậu ký 19/10/2026
+
+**Câu báo nay ngắn, không in lại ký hiệu.** Người dùng chốt ngày 19/10/2026: dưới ô có ký tự điều
+khiển chỉ còn một câu, *"Công thức có ký tự hỏng. Bạn có thể hỏi Kriky cách viết lại cho đúng nhé!"*.
+Bản in lại với `␈ ␉ ␌ ␡` (gạch đầu dòng *Phần không dựng lại được phải nhìn thấy được* ở trên) đã
+bỏ, vì nó chép lại cả ô và quá dài. Phần còn đứng: ký tự hỏng **được báo**, ô nhập **không bị đổi**,
+và xuống dòng thật không bị báo. Đường sửa nay là nhờ Kriky viết lại công thức.
+
+Nơi thi hành đã dời: `services/fe/src/screens/teacher/Editing.tsx` (`MANGLED`, dòng `.mangled` trong
+`Field`); không còn hàm `visible()`. Figma: node `mangled` (`493:17`) và artboard 14 (`532:1906`).

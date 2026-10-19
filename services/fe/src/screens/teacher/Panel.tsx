@@ -785,16 +785,15 @@ function _note(state: string): string {
  * Lời dẫn của hộp xoá câu, hai nhánh theo `in_bank` (ADR-28, Figma `592:3180`).
  *
  * Câu đã có bản trong ngân hàng thì nói bản ấy **ở lại** -- điều trái trực giác, và là lý do
- * hộp này tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Cả hai nói chuyện dồn số, vì số câu
- * là thứ giáo viên dùng để gọi tên câu.
+ * hộp này tồn tại; câu chưa có thì nói xoá là **mất hẳn**. Chuyện dồn số không còn trong lời dẫn
+ * (câu ngắn, người dùng chốt 19/10/2026): panel đọc lại đề sau khi xoá, nên số mới tự hiện.
   *
  * Lời dẫn *đã lưu* đúng cho cả hai chiều của `in_bank`: câu đã duyệt từng chép vào kho, và câu lấy
  * từ kho ra (việc 17) -- *"từ lần duyệt trước"* chỉ đúng với chiều thứ nhất.
  */
-const _ERASE_SAVED =
-  "Câu này có bản trong ngân hàng câu hỏi. Xoá ở đây chỉ gỡ nó khỏi đề này — bản trong ngân hàng vẫn giữ nguyên. Các câu sau dồn số lên.";
-const _ERASE_FRESH =
-  "Câu này chưa có trong ngân hàng câu hỏi, nên xoá rồi thì không lấy lại được. Các câu sau dồn số lên.";
+// Hai câu ngắn, người dùng chốt 19/10/2026 (Figma 15, `592:3157`, `592:3165`).
+const _ERASE_SAVED = "Xoá ở đây chỉ gỡ nó khỏi đề này — ngân hàng câu hỏi vẫn còn.";
+const _ERASE_FRESH = "Câu này chưa có trong ngân hàng câu hỏi — xoá rồi thì không lấy lại được.";
 
 /**
  * Một câu Kriky chưa soạn được -- component `Failed slot` (`652:3635`), việc 12 của plan

@@ -2024,13 +2024,6 @@
   flex-basis: 100%;
 }
 
-/* Bản in lại dùng font đều nét: ký hiệu `␌` phải đếm được so với chữ quanh nó, mà font
- * chữ thường thì mỗi ký tự một bề rộng. */
-.teacher .qcard .mangled .mangled-body {
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  word-break: break-all;
-}
-
 /* Lời từ chối đứng **ngay dưới ô gõ**, không đẩy lên dòng chung ở chân panel: ở đó nó xa
  * chỗ gõ và không nói nó nói về câu nào. */
 .teacher .qcard .refused {
@@ -3484,8 +3477,8 @@
 }
 
 /* Chữ đầu cột được lấn 10px vào khe cột 24, về phía không canh: trình duyệt dựng chữ in hoa giãn 4%
- * rộng hơn Figma, và *"HỌC SINH NỘP BÀI"* (Figma 108 trong cột 110) từng ngắt sau *"NỘP"* (chấm ảnh,
- * artboard 9). Mép canh của chữ không dời. */
+ * rộng hơn Figma, và đầu cột của màn 9 từng ngắt dòng vì thế (chấm ảnh, artboard 9). Mép canh của chữ
+ * không dời. */
 .teacher .board-row.head > span:not(.num) {
   margin-right: -10px;
 }
@@ -3553,8 +3546,9 @@
 }
 
 /* Cột của từng bảng, đo từ artboard 9 và 10. */
+/* Màn 9: cột *Lớp* 274 ở 1440, ba cột tiến độ 120 để đầu cột nằm một dòng (19/10/2026). */
 .teacher .board-table.classes {
-  --cols: minmax(0, 1fr) 100px 64px 90px 100px 110px 120px 12px;
+  --cols: minmax(0, 1fr) 100px 64px 90px 120px 120px 120px 12px;
 }
 
 .teacher .board-table.class-papers {
@@ -4039,10 +4033,6 @@
   font-weight: 500;
 }
 
-/* Dấu đúng cách chữ phương án 6, cộng lề trái của glyph ✓ là 9 như Figma. */
-.teacher .board-card .right-mark {
-  margin-left: 6px;
-}
 
 .teacher .board-card .link {
   padding: 0;
@@ -4345,8 +4335,9 @@
   line-height: 1.5;
 }
 
-/* Hai tab SĐT / Email: rãnh `--sunken` 38 cao, đệm 3, khe 4; tab đang chọn nền trắng, chữ đậm. Hộp
- * *Thêm học sinh* dùng lại đúng khuôn này (`sign-tabs roster-tabs`, Figma 28). */
+/* Hai tab: rãnh `--sunken` 38 cao, đệm 3, khe 4; tab đang chọn nền trắng, chữ đậm. Hộp đăng nhập thôi
+ * dùng nó từ 19/10/2026 (một ô SĐT hoặc email); nay chỉ hộp *Thêm học sinh* (`sign-tabs roster-tabs`,
+ * Figma 28). */
 .teacher .sign-tabs {
   display: flex;
   gap: 4px;
@@ -4740,3 +4731,45 @@
   pointer-events: none;
 }
 
+/* Màn 29: tỉ lệ chọn từng phương án thành ba cột -- phương án 240, tỉ lệ 72 canh phải, ghi chú -- để
+ * các con số thẳng một cột; phương án sai được chọn nhiều nhất bôi đỏ (artboard 29, 19/10/2026). */
+.teacher .option-rates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: stretch;
+}
+
+.teacher .option-rate {
+  display: grid;
+  grid-template-columns: 240px 72px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 16px;
+  padding: 3px 8px;
+  border-radius: var(--radius-chip);
+  color: var(--ink-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+.teacher .option-rate .option-name {
+  color: var(--ink);
+}
+
+.teacher .option-rate .option-share {
+  text-align: right;
+}
+
+.teacher .option-rate .option-note.right {
+  color: var(--answer-correct);
+}
+
+.teacher .option-rate.top-wrong {
+  background: var(--answer-incorrect-surface);
+  color: var(--answer-incorrect);
+  font-weight: 500;
+}
+
+.teacher .option-rate.top-wrong .option-name {
+  color: var(--answer-incorrect);
+}

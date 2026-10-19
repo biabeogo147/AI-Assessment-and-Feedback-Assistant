@@ -203,10 +203,10 @@ const SOON = [
 ];
 
 type Mode = "in" | "up";
-type Via = "phone" | "email";
 
 /**
- * Hộp đăng nhập và hộp tạo tài khoản giáo viên (Figma 26 `659:5160`, 26b `659:5311`).
+ * Hộp đăng nhập và hộp tạo tài khoản giáo viên (Figma 26 `659:5160`, 26b `659:5311`). Đăng nhập
+ * chỉ có **một** ô *Số điện thoại hoặc email*.
  *
  * Mở suốt lúc chưa đăng nhập và **không đóng được**: mọi màn giáo viên cần một người, nên không có
  * gì phía sau để quay về. Không có `Esc`, không bấm ra ngoài để đóng -- khác `Veil`.
@@ -218,7 +218,6 @@ type Via = "phone" | "email";
 export function SignIn() {
   const { signedIn } = useSession();
   const [mode, setMode] = useState<Mode>("in");
-  const [via, setVia] = useState<Via>("phone");
   const [login, setLogin] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -264,40 +263,17 @@ export function SignIn() {
     <div className="veil" role="dialog" aria-modal="true" aria-labelledby="sign-in-title" ref={veil}>
       <form className="sign-in" onSubmit={(event) => void submit(event)} noValidate>
         <h2 id="sign-in-title">{title}</h2>
+        {/* Đăng nhập: một ô cho cả hai (người dùng chốt 19/10/2026) -- có `@` thì BE đọc là email,
+            không thì là số điện thoại (`account_routes.teacher_sign_in`). */}
         {mode === "in" ? (
-          <>
-            <div className="sign-tabs" role="radiogroup" aria-label="Đăng nhập bằng">
-              {(
-                [
-                  ["phone", "Số điện thoại"],
-                  ["email", "Email"],
-                ] as const
-              ).map(([one, label]) => (
-                <button
-                  key={one}
-                  type="button"
-                  role="radio"
-                  aria-checked={via === one}
-                  onClick={() => {
-                    setVia(one);
-                    setLogin("");
-                    setRefused(null);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <Field
-              key={via}
-              label={via === "phone" ? "Số điện thoại" : "Email"}
-              type={via === "phone" ? "tel" : "email"}
-              value={login}
-              onChange={setLogin}
-              autoComplete="username"
-              autoFocus
-            />
-          </>
+          <Field
+            label="Số điện thoại hoặc email"
+            value={login}
+            onChange={setLogin}
+            autoComplete="username"
+            autoFocus
+            plain
+          />
         ) : (
           <>
             <Field label="Họ và tên" value={fullName} onChange={setFullName} autoComplete="name" autoFocus />
@@ -352,6 +328,7 @@ function Field({
   type = "text",
   autoComplete,
   autoFocus = false,
+  plain = false,
 }: {
   label: string;
   value: string;
@@ -359,6 +336,8 @@ function Field({
   type?: string;
   autoComplete?: string;
   autoFocus?: boolean;
+  /** Ô gõ SĐT hay email: bàn phím điện thoại không viết hoa chữ đầu, không tự sửa chính tả. */
+  plain?: boolean;
 }) {
   return (
     <label className="sign-field">
@@ -368,6 +347,9 @@ function Field({
         value={value}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
+        autoCapitalize={plain ? "none" : undefined}
+        autoCorrect={plain ? "off" : undefined}
+        spellCheck={plain ? false : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>

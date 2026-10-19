@@ -269,12 +269,11 @@ quả đúng, không phải một lần thử trượt. Bỏ qua mục này nế
 
 Một số câu soạn trước ngày 06/10/2026 mang ký tự điều khiển thay cho dấu gạch chéo của LaTeX —
 `0x0C` thay `\f` của `\frac`, `0x09` thay `\t` của `\times`. Chúng **vô hình** trong ô nhập, nên
-dưới mỗi ô dính sẽ có một dòng đỏ: *"N ký tự hỏng, không nhìn thấy được trong ô:"* kèm bản in lại
-với `␌ ␉ ␈ ␡` ở đúng chỗ.
+dưới mỗi ô dính sẽ có một dòng đỏ: *"Công thức có ký tự hỏng. Bạn có thể hỏi Kriky cách viết lại cho
+đúng nhé!"* (từ 19/10/2026; trước đó là một bản in lại với `␌ ␉ ␈ ␡`).
 
 **Phải thấy:** dòng ấy chỉ hiện ở ô thật sự có ký tự hỏng. Ô lời giải nhiều dòng **không** được
-báo chỉ vì nó xuống dòng. Và chữ trong ô nhập **không** đổi — ký hiệu chỉ ở dòng cảnh báo, vì nếu
-nó vào ô thì nút Lưu sẽ ghi ký hiệu xuống database.
+báo chỉ vì nó xuống dòng. Và chữ trong ô nhập **không** đổi.
 
 Sửa tay theo dòng cảnh báo rồi **Lưu**: dòng đỏ biến mất và công thức dựng hình được.
 

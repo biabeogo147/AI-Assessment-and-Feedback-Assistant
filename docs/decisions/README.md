@@ -34,7 +34,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [23](adr-23-hoi-lai-khi-khong-phan-dinh-duoc.md) | Không phân định được thì hỏi lại; lựa chọn đến từ dữ liệu | đã mở rộng bởi ADR-25 |
 | [24](adr-24-mot-giao-vien-nhieu-doan-chat.md) | Một giáo viên nhiều đoạn chat; biên bản rơi vào đoạn đã tạo ra đề (hậu ký 18/10/2026: đoạn chat dùng lại đề trống của nó) | đã chốt, đang thi hành |
 | [25](adr-25-hai-pha-mot-luot-chat.md) | Một lượt chat có hai pha: lên plan, rồi thực hiện plan | đang thi hành (hậu ký 18/10/2026: job kể lại vẫn chạy) |
-| [26](adr-26-chu-sai-cu-phap-di-toi-giao-vien.md) | Chữ sai cú pháp đi tới giáo viên, và giáo viên nhìn thấy chỗ sai | đã chốt |
+| [26](adr-26-chu-sai-cu-phap-di-toi-giao-vien.md) | Chữ sai cú pháp đi tới giáo viên, và giáo viên nhìn thấy chỗ sai (hậu ký 19/10/2026: một câu báo ngắn, bỏ bản in lại ký hiệu) | đã chốt |
 | [27](adr-27-tai-lieu-di-vao-ngu-canh-ra-de.md) | Tài liệu đi vào ngữ cảnh ra đề để cung cấp kiến thức (hậu ký 12/10/2026: lọc bài tập chỉ còn cho pha 2; hậu ký 15/10/2026: *mỗi câu một mục* nhường cho ADR-29) | đã chốt, đang thi hành (hậu ký 18/10/2026: qua dàn ý của ADR-29) |
 | [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đang thi hành (đường ghi, màn ngân hàng, lấy câu vào đề; Kriky rút câu thì chưa) |
 | [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; job chỉ nhận mục của nó, không chữ tài liệu thô (hậu ký 17/10/2026: lời dàn ý do Kriky viết, ADR-30) | đã chốt, đang thi hành (hậu ký 18/10/2026: lời đồng ý đọc bằng regex; ô câu hỏng soạn lại được) |
@@ -55,18 +55,26 @@ Phần lớn luật ở đây hiện chỉ được thi hành trong **file thi�
 
 <https://www.figma.com/design/mOe2ZmrqOq1Uix45v6PNGD>
 
-Trang `Screen — Teacher` (`12:2`, tên cũ `Screen — Chat`) chứa các artboard **đánh số 1–15, cộng
-`3b`**: luồng chat từ lúc mở tới lúc phát hành xong, các màn quản lý vật thể (lớp học, chi tiết lớp,
-kết quả bài kiểm tra), hộp lời giải, xoá đoạn chat, sửa và xoá một câu trong panel. Cạnh chúng là
-các khung *Đã duyệt …*, mỗi khung ghi một quyết định thiết kế kèm ngày.
+Hai trang màn hình xếp **mỗi hàng một chặng nghiệp vụ, trái sang phải theo thứ tự luồng**; biến thể
+`b`, `c`, `d` của một màn đứng ngay sau màn gốc (sắp lại ngày 19/10/2026). Số artboard là số lúc vẽ,
+không phải thứ tự luồng; code và tài liệu gọi artboard bằng số và node id, nên số không đổi.
 
-Trang `Screen — Student` (`278:2`) chứa các artboard của bề mặt học sinh, **đánh số 13–25 theo đúng
-thứ tự luồng nghiệp vụ, cộng `13b`, `18b`, `22b`**: danh sách bài và hộp xác nhận bắt đầu, làm bài,
-hộp xác nhận nộp bài, kết quả *đã nộp cần chữa*, hover trên điểm 0, màn hỏi trợ lý và làm lại dạng
-bài sai (cả ca đang có lượt chữa mở), hộp lời giải đầy đủ, cổng bắt đầu lượt ở hai ca (thường và
-**sắp hết hạn**), làm câu của một lượt và hộp xác nhận nộp lượt, kết quả *đã hoàn thành*, hover
-trên điểm 0,5, và màn hỏi trợ lý ở hình dạng **bài đã kết thúc** — đọc lại được, không nhắn thêm
-được. Số `13`–`15` trùng với số bên giáo viên: gọi một artboard thì gọi kèm tên trang. Hai màn kết quả là **hai artboard riêng** cho hai hình dạng
+Trang `Screen — Teacher` (`12:2`, tên cũ `Screen — Chat`):
+1. tài khoản giáo viên: 26, 26c, 26b, 27;
+2. lớp học: 9, 10, 11, 23 (kết quả một đề trong lớp, bài làm một học sinh), 28, 28d, 28b, 28c, 10b;
+3. luồng chat từ lúc mở tới lúc phát hành xong: 1, 2, 3, 3b, 4, 16, 5, 17, 6, 12, 14, 18, 18b, 19b
+   (hộp chọn câu, mở từ nút cuối panel màn 6), 19 (đề sau khi thêm), 7, 15 (xoá câu sau khi bỏ duyệt),
+   8, rồi 13 (xoá một đoạn chat);
+4. theo dõi: 20, 25, 25b, 29;
+5. bài kiểm tra và ngân hàng câu hỏi: 21, 22, 22b;
+6. các khung *Ghi chú* và *Đã duyệt …*, mỗi khung ghi một quyết định thiết kế kèm ngày.
+
+Trang `Screen — Student` (`278:2`):
+1. pha 1: 12, 12b (đăng nhập), 13, 13c (dải trên khi đăng xuất chưa được), 13b, 14, 15, 16, 17;
+2. pha 2: 18, 19, 20, 21, 22, 18b (hỏi trợ lý khi đang có lượt chữa mở), 22b, 16b, 23, 24, 25 — màn
+   hỏi trợ lý ở hình dạng **bài đã kết thúc** đọc lại được, không nhắn thêm được.
+
+Số `12`–`29` trùng giữa hai trang: gọi một artboard thì gọi kèm tên trang. Hai màn kết quả là **hai artboard riêng** cho hai hình dạng
 dữ liệu, không phải hai state của một. Tất cả chạy Density mode `Student` và không có rail.
 
 Trang `Components` chứa các component set, và **mô tả của từng component set là nơi nhiều luật nghiệp

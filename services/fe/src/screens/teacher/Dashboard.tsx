@@ -383,6 +383,15 @@ export function BoardQuestion({ questionId }: { questionId: string }) {
     }
   }
 
+  // Phương án sai được chọn nhiều nhất ở lần làm đầu; không ai chọn sai thì không phương án nào.
+  // Hoà thì lấy phương án đứng trước: một dòng đỏ, không hai.
+  const topWrong = data.options
+    .filter((one) => !one.is_correct && one.percent > 0)
+    .reduce<{ label: string; percent: number } | null>(
+      (best, one) => (best === null || one.percent > best.percent ? one : best),
+      null,
+    )?.label;
+
   return (
     <div className="board">
       <BoardHead
@@ -409,26 +418,35 @@ export function BoardQuestion({ questionId }: { questionId: string }) {
           ))}
         </div>
         <div className="board-card">
-          <span className="column-head">PHƯƠNG ÁN · TỈ LỆ CHỌN Ở LẦN LÀM ĐẦU</span>
-          {data.options.map((one) => (
-            <span className="byline" key={one.label}>
-              {one.label}. <MathText>{one.text}</MathText>
-              {one.is_correct ? (
-                <span className="right-mark">✓ đúng · {one.percent}% chọn</span>
-              ) : (
-                <>
-                  {` · ${one.percent}% chọn`}
-                  {one.error_label && (
-                    <>
-                      {" — "}
-                      <MathText>{one.error_label}</MathText>
-                    </>
-                  )}
-                </>
-              )}
-            </span>
-          ))}
-          {data.unanswered > 0 && <span className="byline">Bỏ trống · {data.unanswered}%</span>}
+          <span className="column-head" id="option-rates-head">
+            PHƯƠNG ÁN · TỈ LỆ CHỌN Ở LẦN LÀM ĐẦU
+          </span>
+          {/* Ba cột -- phương án, tỉ lệ canh phải, ghi chú -- để các con số thẳng một cột; phương án
+              sai được chọn nhiều nhất bôi đỏ (người dùng chốt 19/10/2026, artboard 29). */}
+          <div className="option-rates" role="table" aria-labelledby="option-rates-head">
+            {data.options.map((one) => (
+              <div
+                className={one.label === topWrong ? "option-rate top-wrong" : "option-rate"}
+                role="row"
+                key={one.label}
+              >
+                <span className="option-name">
+                  {one.label}. <MathText>{one.text}</MathText>
+                </span>
+                <span className="option-share">{one.percent}% chọn</span>
+                <span className={one.is_correct ? "option-note right" : "option-note"}>
+                  {one.is_correct ? "✓ đúng" : one.error_label && <MathText>{one.error_label}</MathText>}
+                </span>
+              </div>
+            ))}
+            {data.unanswered > 0 && (
+              <div className="option-rate" role="row">
+                <span className="option-name">Bỏ trống</span>
+                <span className="option-share">{data.unanswered}% chọn</span>
+                <span className="option-note" />
+              </div>
+            )}
+          </div>
         </div>
         {refused !== "" && (
           <p className="refused" role="alert">

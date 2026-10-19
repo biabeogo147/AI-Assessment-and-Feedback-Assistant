@@ -5,10 +5,11 @@ import { go } from "../../App";
 import { BoardHead, BoardWaiting, classLabel, NONE, useBoard } from "./Board";
 
 /** Ba cột tiến độ: khoá của `ClassRow`/`PaperProgress`, và chữ in hoa của đầu cột và popover. */
+// Chữ ngắn để đầu cột nằm một dòng (người dùng chốt 19/10/2026, artboard 9).
 const PROGRESS = [
-  { key: "not_submitted", head: "HỌC SINH CHƯA NỘP BÀI" },
-  { key: "phase_one", head: "HỌC SINH NỘP BÀI GIAI ĐOẠN 1" },
-  { key: "phase_two", head: "HỌC SINH HOÀN THÀNH GIAI ĐOẠN 2" },
+  { key: "not_submitted", head: "CHƯA NỘP BÀI" },
+  { key: "phase_one", head: "XONG GIAI ĐOẠN 1" },
+  { key: "phase_two", head: "XONG GIAI ĐOẠN 2" },
 ] as const;
 
 type Progress = (typeof PROGRESS)[number]["key"];

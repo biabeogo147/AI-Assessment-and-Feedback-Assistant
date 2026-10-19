@@ -137,6 +137,8 @@ Hai đường đọc và một đường ghi ngược đã có; chip nguồn th�
 - **Hộp xoá câu** đọc `in_bank` gộp cả hai chiều -- câu đã duyệt từng chép vào kho, và câu lấy từ kho
   ra --, nên lời dẫn *"đã lưu từ lần duyệt trước"* đổi thành *"Câu này có bản trong ngân hàng câu
   hỏi…"*, cùng ở `Consequence dialog` (`592:3180`).
+- **19/10/2026, lời dẫn rút gọn** (người dùng chốt): *"Xoá ở đây chỉ gỡ nó khỏi đề này — ngân hàng câu
+  hỏi vẫn còn."* và *"Câu này chưa có trong ngân hàng câu hỏi — xoá rồi thì không lấy lại được."*.
 - **Còn chưa thi hành:** Kriky rút câu từ ngân hàng khi soạn.
 
 ## Hậu ký 18/10/2026 (lần hai)
