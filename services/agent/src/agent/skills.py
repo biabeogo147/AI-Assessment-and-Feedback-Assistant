@@ -11,7 +11,7 @@ Mỗi skill là một file Markdown trong `agent/skills/`, đầu file là một
 
 Thân file là tiếng Việt: đó là lời dặn Kriky đọc. Luật an toàn **không** bao giờ nằm ở đây -- Jev
 chọn sai thì một skill vắng mặt, nên mọi luật mà vắng nó là nguy hiểm thuộc về lõi (`_CORE` của
-`graphs/propose.py`).
+`graphs/propose/prompt.py`).
 """
 
 from dataclasses import dataclass

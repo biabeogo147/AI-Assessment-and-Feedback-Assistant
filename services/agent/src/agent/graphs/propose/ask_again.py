@@ -1,0 +1,122 @@
+"""Các tín hiệu hỏi model lại đúng một lần (`_AskAgain` và họ hàng), kèm lý do cho lần hỏi lại."""
+
+import re
+
+from contracts import MOST_CLARIFY_QUESTIONS, NextStepCompleted
+
+
+class _AskAgain(ValueError):
+    """Một đề nghị hỏng theo kiểu hỏi lại model một lần thường là sửa được.
+
+    Attributes:
+        hint: Lý do nói với model ở lần hỏi lại, khi lệch có hệ thống -- một lần hỏi lại mù dễ ra
+            lại đúng câu cũ (review pha 5, `kriky-writes-every-word`). Rỗng thì hỏi lại y như lần
+            đầu.
+    """
+
+    hint = ""
+
+
+class _NothingToSay(_AskAgain):
+    """Model chọn `say`, `ask_clarify` hay `outline` mà để `text` rỗng."""
+
+
+class _Flawed(_AskAgain):
+    """Một đề nghị dùng được nhưng thiếu một thứ: mang nó theo, để lần hỏi lại hỏng thì còn nó.
+
+    Lưới hỏi lại không bao giờ được làm kết quả tệ hơn khi chưa có nó (review T2b,
+    `unbiased-model-text`): lần hai hỏng kiểu khác -- im lặng, provider lỗi -- thì giữ đề nghị lần
+    đầu. Lần hai cũng thiếu thì giữ lần hai cho plan, vì cả hai đều tới BE và BE tự xét; với câu hỏi
+    thì giữ lần có nhiều lựa chọn hơn (review T3: lần hai có thể còn ít hơn lần đầu).
+    """
+
+    def __init__(self, flaw: str, step: NextStepCompleted) -> None:
+        super().__init__(flaw)
+        self.step = step
+
+
+class _IncompletePlan(_Flawed):
+    """Model nêu plan mà một bước thiếu tham số bắt buộc của tool ấy.
+
+    Đo được khi `soan-de` bắt ghi giá trị bốn mục vào `known` (`unbiased-model-text` T2b): hỏi thừa
+    giảm từ 80/192 xuống 1/192, nhưng ~11/192 plan nêu `create_draft` không kèm tham số nào -- giá
+    trị đã nằm ở `known`, model không chép sang. BE `vet_plan` từ chối đúng những plan ấy, và giáo
+    viên nhận một lời từ chối cho một câu đã đủ ý. Hỏi lại ở đây rẻ hơn.
+    """
+
+
+class _NoOutline(_AskAgain):
+    """Model chọn `outline` mà không nêu mục nào, hay một mục không đọc được (`draft-outline`)."""
+
+
+class _UncountedOutline(_Flawed):
+    """Dàn ý có tổng câu khác số câu model vừa ghi trong `known`, hay dàn ý thay câu không phải đúng
+    một mục một câu (`draft-outline`). Đo ở bench run-98: *"6 câu"* ra dàn ý 4 mục × 2 câu; *"thay
+    câu 2"* ra dàn ý nêu lại cả đề.
+
+    Lần hỏi lại phải nói **số câu đúng** (review code pha 5, plan `backlog-tier-1`): hint rỗng thì
+    model không biết sai ở đâu, và lần hai ra đúng dàn ý ấy.
+    """
+
+    def __init__(self, flaw: str, step: NextStepCompleted) -> None:
+        super().__init__(flaw, step)
+        wanted = _WANTED.search(flaw)
+        if flaw.startswith("replace"):
+            self.hint = (
+                "Dàn ý thay câu chỉ có đúng một mục, mục ấy một câu: chỉ cho câu bị thay. Nêu lại."
+            )
+        elif wanted and "known says" in flaw:
+            # Con số là của **model** (`known`), không phải lời giáo viên: nói đúng nguồn, để model
+            # tự xét lại cả `known` khi giáo viên vừa đổi số câu (review code vòng 2).
+            n = wanted.group(1)
+            self.hint = (
+                f"Bạn ghi question_count={n} trong known mà tổng số câu của dàn ý khác {n}. Nêu "
+                "lại dàn ý đủ đúng số câu giáo viên xin, và sửa known nếu giáo viên vừa đổi số câu."
+            )
+        elif wanted:
+            n = wanted.group(1)
+            self.hint = (
+                f"Giáo viên xin {n} câu: tổng số câu của các mục trong dàn ý phải đúng {n}. "
+                "Nêu lại dàn ý."
+            )
+
+
+# Số câu đúng trong lý do của `_miscounted` (*"known says 5"*, *"the teacher asked for 5"*).
+_WANTED = re.compile(r"(?:says|asked for) (\d+)")
+
+
+class _PlanOverRevision(_Flawed):
+    """Model nêu plan soạn ngay sau lời giáo viên **xin sửa** dàn ý: plan ấy soạn theo dàn ý cũ mà
+    giáo viên vừa xin đổi (plan `backlog-tier-1`, pha 3: *Plan soạn … sau một lời xin sửa dàn ý vẫn
+    qua cổng*; cổng BE chỉ
+    đòi một dàn ý ở lượt ngay trước, plan `backlog-tier-1`)."""
+
+    hint = (
+        "Giáo viên vừa xin SỬA dàn ý, chưa đồng ý soạn. Đừng nêu plan soạn: nêu lại dàn ý đã sửa "
+        "đúng lời giáo viên (kind=outline), rồi chờ giáo viên đồng ý."
+    )
+
+
+class _WrongQuestion(_Flawed):
+    """Model hỏi lại ngay sau danh sách tài liệu mà không hỏi tài liệu nào -- nút của câu hỏi là các
+    tài liệu (`_which_book`, `kriky-writes-every-word`)."""
+
+    hint = (
+        "Câu hỏi vừa rồi không hợp: ngay sau danh sách tài liệu, các nút giáo viên bấm là tên tài "
+        "liệu, nên câu hỏi phải hỏi giáo viên soạn theo tài liệu nào. Viết lại câu hỏi ấy."
+    )
+
+
+class _TooManyQuestions(_Flawed):
+    """Model hỏi hơn `MOST_CLARIFY_QUESTIONS` câu một lượt (ADR-32). Đề nghị mang theo đã giữ đủ
+    trần -- lần hai vẫn vậy thì ba câu đầu đi tiếp."""
+
+    hint = (
+        f"Một lượt hỏi lại có nhiều nhất {MOST_CLARIFY_QUESTIONS} câu. Gộp hay bỏ bớt câu, giữ "
+        "những điều giáo viên thật sự phải trả lời."
+    )
+
+
+class _FewChoices(_Flawed):
+    """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (`unbiased-model-text` T3: ít nhất
+    3)."""

@@ -38,7 +38,7 @@ def test_a_step_refuses_an_argument_that_is_not_a_string() -> None:
     """Model chỉ trả về được chuỗi phẳng, nên `{k.field}` là một chuỗi chứ không phải một kiểu.
 
     BE là bên duy nhất giải tham chiếu ấy. Nếu `args` nhận object thì structured output của
-    nhà cung cấp từ chối cả schema, và chuyện đó đã được ghi ngay trong `propose.py`.
+    nhà cung cấp từ chối cả schema, và chuyện đó đã được ghi ngay trong `propose/proposal.py`.
     """
     with pytest.raises(ValidationError):
         PlanStep(tool_name="start_drafting", args={"question_count": 10}, title="Soạn câu hỏi")

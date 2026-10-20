@@ -9,7 +9,6 @@ import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from agent import llm
-from agent.graphs import propose as propose_module
 from agent.graphs.propose import (
     _AGREES,
     _CORE,
@@ -26,6 +25,7 @@ from agent.graphs.propose import (
     _right_purpose,
     _Step,
     propose,
+    read_order,
 )
 from contracts import (
     AttachedDocument,
@@ -279,7 +279,7 @@ def test_an_outline_after_reading_the_book_stays_an_outline() -> None:
 def test_a_bookless_outline_on_a_turn_that_names_a_book_opens_the_library(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(propose_module, "_opens_library", lambda request, chosen: True)
+    monkeypatch.setattr(read_order, "_opens_library", lambda request, chosen: True)
     outline = NextStepCompleted(
         request_id="r1",
         kind="outline",

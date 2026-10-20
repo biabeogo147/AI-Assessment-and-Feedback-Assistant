@@ -889,7 +889,10 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
         )
 
     faults = []
-    for file in sorted(graphs.glob("*.py")):
+    asking = []
+    # `rglob`: graph `propose` là một package từ 20/10/2026 (plan `split-propose-package`); quét
+    # nông thì `propose/choose.py` -- chỗ gọi model -- rơi khỏi check mà check vẫn xanh.
+    for file in sorted(graphs.rglob("*.py")):
         source = file.read_text(encoding="utf-8")
         tree = ast.parse(source)
 
@@ -906,6 +909,7 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
                 for inner in ast.walk(node)
             )
         ]
+        asking += [f"{file.relative_to(graphs).as_posix()}:{node.name}" for node in holders]
         for node in holders:
             called = {
                 inner.func.id
@@ -913,8 +917,15 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
                 if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
             }
             if not called & {"_unmangled", "restore_latex_escapes"}:
-                faults.append(f"{file.name}:{node.name}")
+                faults.append(f"{file.relative_to(graphs).as_posix()}:{node.name}")
 
+    if "propose/choose.py:_choose" not in asking:
+        return _fail(
+            "escape-repair-is-wired-in",
+            f"propose/choose.py:_choose is not among the functions under {graphs} that call "
+            f"with_structured_output ({asking}): the check no longer sees where Kriky's chat "
+            "asks the model. Point it at where that call lives now.",
+        )
     if faults:
         return _fail(
             "escape-repair-is-wired-in",
@@ -2216,16 +2227,28 @@ def check_kriky_says_nothing_fixed() -> str | None:
     """
     notices = _notice_names()
     agent = REPO_ROOT / "services" / "agent" / "src" / "agent"
+    # Graph `propose` là một package (plan `split-propose-package`): soi mọi file của nó, và một
+    # hằng chữ khai ở file này mà dùng ở file kia vẫn là câu cố định.
+    package = sorted((agent / "graphs" / "propose").rglob("*.py"))
+    if not package:
+        return _fail(
+            "kriky-says-nothing-fixed",
+            f"{agent / 'graphs' / 'propose'} has no Python file: the check would skip the graph "
+            "that speaks for Kriky. Point it at where propose lives now.",
+        )
+    shared = set().union(
+        *(_module_strings(ast.parse(one.read_text(encoding="utf-8"))) for one in package)
+    )
     files = (
-        (REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py", None),
-        (agent / "graphs" / "propose.py", None),
-        (agent / "graphs" / "reporting.py", None),
-        (agent / "handlers.py", {"propose_next_step", "report_plan"}),
+        (REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py", None, notices),
+        *((one, None, notices | shared) for one in package),
+        (agent / "graphs" / "reporting.py", None, notices),
+        (agent / "handlers.py", {"propose_next_step", "report_plan"}, notices),
     )
     bad = []
-    for path, within in files:
+    for path, within, known in files:
         where = path.relative_to(REPO_ROOT).as_posix()
-        found = fixed_kriky_words(path.read_text(encoding="utf-8"), notices, within)
+        found = fixed_kriky_words(path.read_text(encoding="utf-8"), known, within)
         bad += [f"{where}:{line} {what}" for line, what in found]
     if not bad:
         return None
