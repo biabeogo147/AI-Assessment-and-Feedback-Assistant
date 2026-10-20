@@ -37,7 +37,7 @@ Kết quả mỗi lần chạy ghi ở `ket-qua/<ngày>-<commit>-dau-cuoi-<model
 4. Mở `http://127.0.0.1:5173/#/teacher`, cửa sổ rộng ít nhất 1440 × 900. Dùng `127.0.0.1`, không
    `localhost` (`docs/local-development.md`).
 5. Ghi giờ bắt đầu. Chặng 4 đặt giờ theo đồng hồ thật, và chặng 8 phải chờ qua hạn chữa: cả vòng mất
-   khoảng 45 phút đồng hồ.
+   khoảng một giờ đồng hồ.
 6. Có sẵn một **cửa sổ ẩn danh** (hay một trình duyệt khác) cho học sinh. Giáo viên và học sinh mỗi vai
    một cookie (ADR-36), nhưng tách cửa sổ thì không bao giờ nhầm ai đang đăng nhập.
 7. Một tờ giấy (hay ghi chú riêng) để chép mật khẩu học sinh ở 2.4. **Không** ghi mật khẩu vào biên
@@ -237,9 +237,18 @@ Lượt xong thì ô nhắn mở lại.
 
 Kriky có thể hỏi lại (3b): mỗi câu một thẻ, nút riêng, đi từng câu, rồi tóm tắt và gửi gộp.
 
-**Làm:** chọn nút khớp với một trong *Khối 12*, *nhận biết và thông hiểu*, *không dùng tài liệu*, *lớp 12A*.
-Không nút nào khớp thì bấm *Khác…*, ô gõ hiện ra, gõ `Nhận biết và thông hiểu, không dùng tài liệu.` rồi
-gửi. Có nhiều câu thì sau câu cuối là thẻ tóm tắt; bấm gửi gộp. Chờ ô nhắn mở lại.
+**Làm:** trả lời theo đúng bộ dữ kiện này, câu nào hỏi gì thì lấy đúng ý ấy:
+
+| Kriky hỏi về | Trả lời |
+| --- | --- |
+| môn | *Toán* |
+| khối hay lớp | *Khối 12*, hay *12A* nếu hỏi lớp |
+| mức độ | *nhận biết và thông hiểu* |
+| tài liệu, sách | *không dùng tài liệu* |
+| dạng câu, số câu, thời gian | *trắc nghiệm*, *6 câu*, *15 phút* |
+
+Có nút mang đúng ý ấy thì bấm nút. Không có thì bấm *Khác…*: ô gõ hiện ra, gõ ý ấy (ví dụ `Nhận biết và
+thông hiểu, không dùng tài liệu.`) rồi gửi. Có nhiều câu thì sau câu cuối là thẻ tóm tắt; bấm gửi gộp. Chờ ô nhắn mở lại.
 
 Kriky có thể hỏi một điều lời nhắn đã nói, ví dụ *Đề này dành cho khối nào?* dù lời nhắn ghi *lớp 12*.
 Đó là chất lượng model (backlog Tier 4, *hỏi lại dù đủ mục*); trả lời rồi đi tiếp, ghi vào biên bản.
@@ -265,15 +274,16 @@ Ghi số lần vào biên bản, vì đó là chỉ số của lỗi; sáu lần
 - thẻ *Đã tạo đề "…"* có chip *Chưa duyệt · chưa phát hành*;
 - lời kết (ví dụ *Mình đã soạn xong đề "…" với đủ 6/6 câu hỏi…*) khớp số câu trên thẻ.
 
-Tên đề là tên **BE tự đặt** khi Kriky không truyền tên, thường là *Đề chương Hàm số*. Bước 3.4 đổi nó
-thành tên mang mã vòng.
+Tên đề là tên **BE tự đặt** khi Kriky không truyền tên, ví dụ *Đề chương Hàm số* hay *Đề Hàm số*. Bước
+3.4 đổi nó thành tên mang mã vòng.
 
 ### 3.4 Panel đề, đổi tên
 
 **Làm:** bấm vào chính thẻ *Đã tạo đề*.
 
 **Phải thấy (6):**
-- panel phải: tên đề, dòng *6 câu · Toán 12 · chương Hàm số*;
+- panel phải: tên đề, dòng *6 câu · Toán 12 · <phạm vi>*; phạm vi do Kriky ghi, ví dụ *Hàm số* hay
+  *chương Hàm số*;
 - mỗi câu một thẻ: *Câu k*, chip *Kriky soạn*, nút *Sửa* và *Xoá*, dòng *Lời giải · 2 cách*;
 - cuối danh sách là nút *＋ Thêm câu từ ngân hàng*;
 - chân panel: *Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.* và nút *Duyệt đề*.
@@ -364,13 +374,15 @@ khoá sai, ghi lại làm lỗi sản phẩm; vòng V1 đã gặp một câu nh�
 | Ô | Giá trị |
 | --- | --- |
 | Làm bài | `6` |
-| Mở lúc | `T + 3 phút` |
-| Đóng lúc | `T + 10 phút` |
+| Mở lúc | `T + 5 phút` |
+| Đóng lúc | `T + 30 phút` |
 | Phút mỗi câu | `2` |
-| Hạn chữa xong | `T + 30 phút` |
+| Hạn chữa xong | `T + 50 phút` |
 
-Luật của BE (`teacher_routes.py`): giờ mở phải ở tương lai; hạn chữa phải sau *giờ đóng + thời gian
-làm bài*.
+Giờ đóng để rộng vì Châu và Dũng phải **vào** làm bài trước giờ đóng, mà chặng 5 của Châu (hỏi trợ lý,
+chờ câu làm lại) mất 10–15 phút với người thật. Luật của BE (`teacher_routes.py`): giờ mở phải ở tương
+lai; hạn chữa phải sau *giờ đóng + thời gian làm bài*. Điền quá lâu tới mức giờ mở đã qua thì BE từ chối
+khi phát hành: đặt lại giờ mở rồi bấm lại.
 
 **Phải thấy:** khung vàng dưới form đọc lại đúng giờ: *Vào làm bài tới hết … — nộp muộn nhất lúc …, và không
 dừng người đang làm.* và *Chữa bài tới hết … — mỗi lượt 2 phút một câu; hết hạn thì lượt đang làm bị
@@ -386,7 +398,8 @@ cài đặt* và *Phát hành cho N học sinh*. *N* là sĩ số 12A sau 2.4.
 
 **Làm:** bấm *Phát hành cho N học sinh*.
 
-**Phải thấy:** panel ghi *ĐÃ PHÁT HÀNH*, *12A · N học sinh*, giờ mở và câu luật.
+**Phải thấy:** panel ghi *ĐÃ PHÁT HÀNH*, *12A · N học sinh*, giờ mở và câu luật; thẻ trong chat thành *Đã
+phát hành*, chip *Thu hồi được tới trước giờ mở, từ giờ mở thì không*.
 
 Chờ tới giờ mở trước khi sang chặng 5. Trong lúc chờ có thể làm 7.2.
 
@@ -472,7 +485,8 @@ lượt trợ lý, lời chào tính là một.
 
 **Làm:** bấm *⚑ Báo cáo Trợ lý giải thích khó hiểu*.
 
-**Phải thấy:** *Đã gửi báo cáo tới giáo viên.*
+**Phải thấy:** *Đã gửi báo cáo tới giáo viên.* Câu này hiện trong dải đỏ của thông báo lỗi; đó là lỗi đã
+biết (xem cuối file), không phải báo cáo hỏng.
 
 ### 5.7 Lượt làm lại
 
@@ -496,7 +510,12 @@ Nút *Để sau* và *Làm bài mới*.
 - cột phải *CÂU CÒN PHẢI LÀM LẠI TRONG LƯỢT NÀY*.
 
 **Làm:** tự giải hai câu, chọn đáp án đúng. Câu do model sinh: nếu có hai phương án cùng đúng về toán,
-chọn phương án được khoá (đọc trong database: `round_items`) và ghi lại làm lỗi sản phẩm; vòng V1 đã gặp.
+chọn phương án được khoá và ghi lại làm lỗi sản phẩm; vòng V1, V2 đã gặp. Phương án khoá đọc trong
+database:
+
+```
+docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select order_index, options from round_items order by round_id desc, order_index limit 4;"
+```
 Bấm *Nộp bài*.
 
 **Phải thấy (HS 22b):** hộp *Nộp lượt này?*, *Đã trả lời 2 trên 2 câu*, *Sau khi nộp câu làm đúng được 0,5
@@ -519,8 +538,12 @@ Bấm *Nộp bài*.
 **Làm:** cửa sổ ẩn danh, đăng nhập Dũng; *Bắt đầu* → *Bắt đầu làm bài*; chọn đúng cả sáu câu; *Nộp bài*
 → *Nộp bài*.
 
-**Phải thấy:** *Bài đã kết thúc · 6,0 trên 6 câu*; không có nút *Hỏi trợ lý và làm lại dạng bài sai*.
-Bấm *Đăng xuất*.
+**Phải thấy:** *Bài đã kết thúc · 6,0 trên 6 câu*; không có nút *Hỏi trợ lý và làm lại dạng bài sai*. Link
+*Xem lại phần chữa các câu sai* vẫn hiện dù em không sai câu nào: lỗi đã biết (xem cuối file). Bấm
+*Đăng xuất*.
+
+Dũng phải **vào** làm bài trước giờ đóng. Nếu chặng 5 kéo dài, cho Dũng làm ngay sau khi Châu nộp bài ở 5.4,
+rồi quay lại 5.5.
 
 Én không đăng nhập: em là học sinh *chưa nộp* ở chặng 7.
 
@@ -568,8 +591,10 @@ cần bạn xem.*
 theo lúc xem:
 - trước giờ mở: *Chưa tới giờ mở*, kèm *thu hồi được*;
 - trong giờ: *Đang mở*;
-- sau giờ đóng tới hạn chữa: *Đang chữa bài*, kèm *chữa tới …*;
+- sau giờ đóng tới hạn chữa: *Đang chữa bài*;
 - sau hạn chữa: *Đã kết thúc*.
+
+Cột *MỞ LÚC* ghi *Mở … · …*, và từ giờ mở tới hạn chữa thêm dòng *chữa tới …*.
 
 Lớp *12A*, *Mở … · …*, nút *Xem kết quả* từ giờ mở.
 
@@ -621,6 +646,8 @@ nên không có hàng ở đây.
 - bốn thẻ *ĐIỂM 5,0 / 6*, *ĐÚNG NGAY LẦN ĐẦU 4 / 6*, *LƯỢT CHỮA ĐÃ LÀM 1*, *GIẢI THÍCH CHƯA RÕ 1*;
 - bảng *CÂU*, *EM CHỌN*, *ĐÁP ÁN*, *ĐIỂM*: câu 1, 2 điểm 0,5, còn lại 1.
 
+Đề bài có công thức ở cột *CÂU* vỡ thành nhiều dòng (chữ, công thức, chữ): lỗi đã biết (xem cuối file).
+
 ### 7.7 Ngân hàng câu hỏi, sửa lời giải
 
 **Làm:** rail → *Ngân hàng câu hỏi*.
@@ -645,7 +672,7 @@ nên không có hàng ở đây.
 
 ## Chặng 8 — sau hạn chữa (Figma 20, 11, 21)
 
-**Làm:** chờ qua *Hạn chữa xong* (khoảng `T + 30 phút`). Mở lại *Bảng theo dõi*, *Các bài kiểm tra* và
+**Làm:** chờ qua *Hạn chữa xong* (khoảng `T + 50 phút`). Mở lại *Bảng theo dõi*, *Các bài kiểm tra* và
 màn 11.
 
 **Phải thấy:**
@@ -681,3 +708,10 @@ có chữ thì *Không đọc được chữ*.
 2. **Chưa có đường tạo lớp**: lớp chỉ đến từ seed (ADR-13, backlog Tier 2 câu 28).
 3. **Dàn ý bị từ chối vì công thức có chữ ngoài `$`** (3.3), và **câu model sinh có đáp án khoá sai hay
    hai phương án cùng đúng** (3.8, 5.7): chất lượng model, backlog Tier 4.
+4. Lỗi giao diện ghi ở backlog, mục *Lộ ra khi chạy kịch bản thử tay đầu-cuối*:
+   - công thức trong mục kiến thức hiện nguyên `$…$` (Ngân hàng, hộp thêm câu, biểu đồ ở Bảng theo dõi);
+   - link *Xem lại phần chữa các câu sai* hiện cả khi không sai câu nào (6);
+   - màn trống của đoạn chat ghi *Kriky sẽ tạo lớp…*;
+   - thanh trên của học sinh ghi mã trần, Figma ghi *Mã …* (5.1);
+   - đề bài có công thức vỡ dòng ở màn 23 (7.6);
+   - *Đã gửi báo cáo tới giáo viên.* hiện trong dải lỗi (5.6).

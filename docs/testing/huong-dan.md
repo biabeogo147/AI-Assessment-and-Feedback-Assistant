@@ -1,15 +1,15 @@
 # Thử tay trên trình duyệt — hướng dẫn chung
 
-Thư mục này là chỗ duy nhất của việc thử tay bề mặt giáo viên. Ba thứ sống ở đây:
+Thư mục này là chỗ duy nhất của việc thử tay trên trình duyệt. Ba thứ sống ở đây:
 
 | File | Dùng để |
 | --- | --- |
 | `cases/NN-<slug>.md` | **Bộ ca cố định.** Mỗi trường hợp đúng một case, gõ y nguyên văn mỗi lần chạy, để hai lần chạy so được với nhau và người xem hiểu dự án làm tốt tới đâu |
-| `kich-ban-thu-tay-giao-vien.md` | Danh sách soi lỗi giao diện từng nút, từng thẻ — chặng A–G. Chạy khi đổi FE |
-| `ket-qua/<ngày>-<commit>.md` | Biên bản mỗi lần chạy bộ ca cố định |
+| `kich-ban-thu-tay-giao-vien.md` | **Kịch bản đầu-cuối**: một vòng đời bài kiểm tra, từ giáo viên đăng nhập tới bảng điểm. Chạy khi đổi luồng hay FE; không `db-reset` |
+| `ket-qua/<ngày>-<commit>….md` | Biên bản mỗi lần chạy bộ ca cố định hay kịch bản đầu-cuối |
 
-Bộ ca và danh sách soi lỗi khác nhau ở câu hỏi chúng trả lời. Danh sách hỏi *"cái nút này còn đúng
-không?"*. Bộ ca hỏi *"một giáo viên thật nói chuyện với Kriky thì được gì, và lần này có tốt hơn lần
+Bộ ca và kịch bản đầu-cuối khác nhau ở câu hỏi chúng trả lời. Kịch bản hỏi *"luồng có đi hết không,
+màn nào cũng nối được màn sau không?"*. Bộ ca hỏi *"một giáo viên thật nói chuyện với Kriky thì được gì, và lần này có tốt hơn lần
 trước không?"*.
 
 ---
