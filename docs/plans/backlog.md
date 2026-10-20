@@ -714,8 +714,8 @@ Phạm vi: 66 commit từ upstream, chủ yếu ADR-31 (tên đề) và ADR-32 (
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Phép ghép *lời mở + câu hỏi* chép ở hai nơi** (`teacher_chat.py:916` và `propose.py:1360`) | **Tier 3 P4: một hàm dùng chung trong contracts là đổi contracts, cần plan** (plan `backlog-tier-1`, pha 4). Hai bản có thể lệch; hợp đồng chỉ soi hình dạng. Một hàm dùng chung trong `contracts` |
-| **Hai dòng `# TODO: Cần xem lại` trong `propose.py` chưa stage** (dòng 58, 1573) | Không phải lỗi: ghi chú riêng của người dùng, cố ý không commit — stage bằng script bỏ hai dòng ấy. Ghi để `git add` thẳng file không lỡ tay |
+| **Phép ghép *lời mở + câu hỏi* chép ở hai nơi** (`teacher_chat._questions_of` và `propose/proposal.py` `_Proposal.asked`) | **Tier 3 P4: một hàm dùng chung trong contracts là đổi contracts, cần plan** (plan `backlog-tier-1`, pha 4). Hai bản có thể lệch; hợp đồng chỉ soi hình dạng. Một hàm dùng chung trong `contracts` |
+| **Hai dòng `# TODO: Cần xem lại` của AGENT chưa stage**: một dòng trong `propose/prompt.py` (trên `_CORE`), một dòng trong `propose/compose.py` (`_compose`, nhánh `else`) | Không phải lỗi: ghi chú riêng của người dùng, cố ý không commit — stage bằng blob đã bỏ hai dòng ấy. Đã lỡ vào `abed4a2`, gỡ ở `5ef4b93` (20/10/2026). Ghi để `git add` thẳng file không lỡ tay |
 
 ## Lộ ra khi làm plan Tier 1 (17/10/2026)
 
@@ -776,7 +776,7 @@ thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Check `timeout-order` không tính mô hình dự phòng** (`agent/llm.py:106-107`: mỗi lần thử có thể chạy hai mô hình nối nhau) **và số lần thử lại mặc định của SDK OpenAI** (`max_retries` không đặt) | **Tier 2: tính đủ lần thử lại của SDK thì check đỏ (3 + 20 × 3 × 3 = 183 s so với 70 s); bỏ thử lại SDK hay nới ngân sách là quyết định** (plan `backlog-tier-1`, pha 4). Không bị chặn; chưa làm |
-| **Lời đồng ý dàn ý chỉ được đọc trong `agent`** (regex `_AGREES`, `graphs/propose.py:820-824`). `guard_drafting` chứng minh được dàn ý đã hiện ở lượt hội thoại ngay trước, không chứng minh được giáo viên đã đồng ý | Chưa quyết `backend` có cần tự đọc lời đồng ý không |
+| **Lời đồng ý dàn ý chỉ được đọc trong `agent`** (regex `_AGREES`, `graphs/propose/outline.py`). `guard_drafting` chứng minh được dàn ý đã hiện ở lượt hội thoại ngay trước, không chứng minh được giáo viên đã đồng ý | Chưa quyết `backend` có cần tự đọc lời đồng ý không |
 
 ### Luật chưa ép
 
@@ -839,7 +839,7 @@ chuyển từ bảng *Mười hai chỗ hở* của artifact ấy (bảng đã x
 | --- | --- |
 | **Dàn ý bị trả về tới trần** (`_MOST_OUTLINE_REFUSALS` = 3, `teacher_chat.py`). Hướng người dùng chốt: *"nâng trần lên 5, và khi chạy 3 lần bị lỗi thì lịch sử conversation gửi llm bỏ đi các dàn ý lỗi. có thể llm bị bias do dàn ý lỗi."* | Hoãn: đổi thứ model đọc, tức hành vi model. Thẻ báo `OUTLINE_REFUSED` (chưa đẹp) thì làm lại ngay ở việc 14 của đợt. **Thẻ đã làm** 18/10/2026 (plan `wave-3-draft-panel`): thẻ trắng viền mảnh, vòng `!` trung tính, chữ mới *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*; phần trần và lịch sử vẫn hoãn |
 | **Tắt retry của SDK** (`agent/llm.py`, dòng *Check `timeout-order`* ở mục *Lộ ra khi viết chương 7*) | Hoãn: chạm AGENT |
-| **Nút *Soạn theo dàn ý này*** (dòng *Phân biệt đồng ý với xin sửa* ở mục *Lộ ra khi làm plan Tier 1*) | Hoãn: BE phải chép logic dựng plan của `propose.py` |
+| **Nút *Soạn theo dàn ý này*** (dòng *Phân biệt đồng ý với xin sửa* ở mục *Lộ ra khi làm plan Tier 1*) | Hoãn: BE phải chép logic dựng plan của `propose/outline.py` (`_approved_plan`) |
 | **Luật dàn ý ở BE**: tối đa 2 câu một mục, dàn ý đề mới thiếu môn/khối/phạm vi, hai dàn ý đề mới liền nhau | Hoãn: prompt không nêu các luật này, nên BE từ chối dễ dẫn tới `OUTLINE_REFUSED`; đổi prompt cùng lúc là việc của AGENT |
 | **Kriky chưa trả lời câu hỏi về nội dung một bài từ sách** (cần đọc một đoạn, `get_chunk`), và **pha 2 không nhận nội dung tài liệu nào** cho tới khi có cách lọc bài tập (hậu ký ADR-27). Soạn đề theo sách thì đã có từ plan 4b | Hoãn: chạm document và AGENT. Công thức chưa đọc được là plan 3d, ở mục *sympy kiểm công thức* |
 | **Mastery của học sinh** | Chưa thiết kế, và cần lịch sử làm bài đủ dài. Thống kê gộp theo lớp thì làm ở việc 19 |
@@ -873,3 +873,18 @@ Plan `2026-10-20-end-to-end-manual-script-plan.md`. Biên bản:
 | **Lệch Figma: thanh trên của học sinh ghi mã trần** (*Kiều Minh Châu V3 · Lớp 12A · 12*), Figma HS 12–23 ghi *Mã 1204* | FE `components.tsx` hay Figma: chọn một bên rồi làm cho hai bên bằng nhau |
 | **Đề bài có công thức vỡ thành nhiều dòng ở màn bài làm của một học sinh** (23): *"Cho hàm số / y = f(x) / có đạo hàm…"*. `.stem-cell { display: flex; flex-direction: column }` (`teacher.css`) biến mỗi khúc của `MathText` thành một hàng | FE: bỏ `flex` khỏi ô đề bài, hay bọc `MathText` trong một khối |
 | **Câu báo thành công mang kiểu lỗi**: *"Đã gửi báo cáo tới giáo viên."* hiện qua `setError` (`Tutor.tsx`), tức dải đỏ `role="alert"` của `ErrorStrip` | FE: một dòng xác nhận riêng; đối chiếu Figma HS 17 |
+| **Kriky hỏi lại mà không có câu hỏi nào** (V6, sau khi sửa dàn ý): *"Mình soạn đề chương Hàm số lớp 12 cho bạn. Bạn cho mình biết thêm một điều nhé:"* rồi hết -- không câu hỏi, không nút, không ô *Khác…*. Ghi chú `known` của model ghi đủ bốn mục (lần hai còn tự ghi *"không có mục nào thiếu… không cần hỏi thêm"*) mà vẫn chọn `ask_clarify`, 0 lựa chọn, hai lần liền. Trong 10 lần hỏi lại hôm ấy, 4 lần `known` đủ mà vẫn hỏi; V5 cũng dính, nhẹ hơn (một nút *Khối 12* cho câu *"Đề này cho khối nào?"*) | Bốn lớp cùng để lọt: (1) model không theo luật *không còn ? → nêu dàn ý* của `soan-de.md`; (2) `_FewChoices` (`propose/ask_again.py`) hỏi lại **không `hint`**; (3) `graph.propose` hỏng lần hai vẫn giữ câu hỏi ít nút, tin rằng giáo viên tự ghi qua *Khác*; (4) FE `Chat.tsx` `questionIn` trả `null` khi 0 nút, nên không có ô *Khác*. Ba hướng chưa chọn: (A) `choose._choose` từ chối `ask_clarify` khi `known` đủ bốn mục, hỏi lại kèm lời nhắc nêu dàn ý; (B) cho `_FewChoices` một `hint`; (C) câu hỏi rỗng thành thông báo hệ thống, hay FE vẽ thẻ chỉ có *Khác*. Log AGENT không ghi câu trả lời thô của model, nên chưa biết model để trống `questions` hay `_answers` lọc mất lựa chọn |
+
+## Lộ ra khi chia `propose.py` thành package (20/10/2026)
+
+Plan `2026-10-20-split-propose-package-plan.md`: chia không đổi logic, nên các chỗ dưới chỉ ghi lại,
+không sửa. Subagent thiết kế đọc trọn file và thấy chúng.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Lượt `plan` tới model như một kết quả tool không tên**: nhánh `else` của `compose._compose` (chỗ TODO thứ hai của người dùng) dựng mọi lượt còn lại bằng `_describe_result`, nên lượt `kind="plan"` thành *"Kết quả của :"* kèm `{"steps", "total"}` -- BE lưu lượt plan không có `tool_name` (`teacher_chat._go`) | Tier 4: đổi thứ model đọc là hành vi model; đo trên bench trước khi đổi |
+| **Chuẩn hoá NFC không đồng đều**: `outline._count_said`, `outline._count_revised`, `plan_checks._drafts_over_a_revision` (và `handlers` gọi `_AGREES.search`) khớp chữ thô, trong khi `books._mentions_book`, `outline._approved_plan`, `outline._right_purpose` đưa về NFC trước. BE không chuẩn hoá chữ lưu, nên *"đổi"*, *"5 câu"* gõ từ bàn phím NFD (macOS, iOS) lọt khỏi `_REVISES`, `_COUNT_SAID` | Tier 2: một dòng `_nfc` mỗi chỗ, kèm test NFD |
+| **Lời mở của plan đã đồng ý bỏ qua bước sửa chữ**: `outline._approved_plan` lấy `proposal.text.strip()` thô, không qua `_unmangled` hay `_nfc` như mọi đường đi qua `_Proposal.completed` | Tier 2: `\frac` trong lời mở thành form-feed |
+| **`read_order._read_before_outline` ghép lời gọi với kết quả theo chỉ số**: một `read_section` không có kết quả làm lệch mọi cặp sau; `int(node)` trên node kết quả có thể ném `ValueError`, không phải `_AskAgain`, nên lượt gãy thành thông báo *model hỏng* | Tier 3 P6 (đọc tài liệu) |
+| **`_UncountedOutline` chọn lời nhắc bằng cách đọc chuỗi log tiếng Anh** mà `outline._miscounted` trả về (`startswith("replace")`, *"known says"*, `_WANTED`); từ khi chia, hai bên nằm ở hai file (`ask_again.py`, `outline.py`) | Tier 3: đổi chuỗi log là đổi lời nhắc mà không test nào đỏ; nên trả một giá trị có cấu trúc |
+| **`handlers.py` import `_AGREES` riêng tư** của `propose` (chế độ demo đọc lời đồng ý) | Tier 3: đưa thành tên công khai, hay một hàm `agrees(text)` |

@@ -188,3 +188,8 @@ thể trỏ tới nhiều thứ. Hỏi lại…"*. Luật không đổi. Ghi l�
 thứ tự thử nào để canh. Các test khác của `services/be/tests/test_resolve.py` vẫn chạy, gồm
 `test_another_teachers_class_is_answered_as_if_it_did_not_exist`. Dòng trạng thái nay ghi *đã mở rộng
 bởi ADR-25*, khớp `README.md`.
+
+## Hậu ký 20/10/2026 (đường dẫn)
+
+Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
+`graphs/propose/`. `_CORE` nay nằm ở `propose/prompt.py`; tên hàm và luật không đổi.

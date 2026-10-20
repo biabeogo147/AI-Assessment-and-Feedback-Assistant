@@ -1,6 +1,6 @@
 # Plan — chia `propose.py` thành package `propose/`, không đổi logic
 
-- **Mở:** 20/10/2026
+- **Mở:** 20/10/2026 · **Đóng:** 20/10/2026 (`615b153`)
 
 ## Context
 

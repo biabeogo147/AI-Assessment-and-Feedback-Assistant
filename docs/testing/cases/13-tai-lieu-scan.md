@@ -47,7 +47,7 @@ Dừng ở dàn ý, **không** gõ đồng ý: soạn câu theo sách đã có �
 | --- | --- | --- |
 | Chip đã *sẵn sàng* trước khi kịp gửi lượt 1 | Bỏ lượt 2, chấm lượt 1 theo *Đạt khi* 3–4. Ghi lại | Lượt 1 không còn đo được nhánh *đang xử lý* |
 | Lượt 1: hỏi môn hay khối, **có** nói tệp đang xử lý | Gõ `toán 6`. Chấp nhận được | Câu hỏi lại vô hại nếu đã nói thật về tệp |
-| Lượt 1: hỏi lại hay hứa soạn mà **không** nhắc tệp | Không đạt | Prompt có dòng *đang xử lý, chưa đọc được* (`propose.py`) |
+| Lượt 1: hỏi lại hay hứa soạn mà **không** nhắc tệp | Không đạt | Prompt có dòng *đang xử lý, chưa đọc được* (`propose/compose.py`) |
 | Lượt 1: nêu dàn ý không sách, hay soạn đề | Không đạt | *"đừng soạn đề không tài liệu thay cho nó"*; `create_draft` bị gỡ khỏi lượt này |
 | Lượt 1: nói *"mình không đọc được ảnh"*, bảo tải tệp khác | Không đạt, ghi lại | Sai sự thật: tệp đang được OCR, chờ là xong |
 | Chip treo *Đang xử lý…* quá 2 phút | Dừng case, xem terminal `document` / `index` | Lỗi chuẩn bị. Sau 300 s chip ra *Xử lí lỗi. Hãy tải lại* (`document_stale_after_seconds`) |

@@ -146,3 +146,9 @@ ba là hỏi lại. Câu *"Ba cổng vẫn là ba"* ở trên đọc là hai c�
 - **Phép đối chiếu nhẹ của ADR-30 bị gỡ** (hậu ký 20/10/2026 của ADR-30), nên dòng *"Thứ thay cho
   phép chứng minh từng chữ là phép đối chiếu nhẹ"* của hậu ký 17/10 thôi áp dụng: không còn gì thay.
   Job vẫn chỉ nhận các mục; giáo viên thấy lệch ở panel và sửa ở đó.
+
+## Hậu ký 20/10/2026 (đường dẫn)
+
+Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
+`graphs/propose/`: `_AGREES` và `_approved_plan` nay ở `propose/outline.py`. Tên hàm và luật không
+đổi.

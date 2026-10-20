@@ -236,3 +236,9 @@ Lời sửa 10/10/2026 định bỏ job kể lại như một bước cứng. Co
 `docs/plans/backlog.md`, mục *Hai món nợ còn hiệu lực của plan hai pha*, chờ plan 4 (Jev và skill); nó
 chạm AGENT, nên cũng nằm ngoài đợt tất định 18/10/2026, đợt khoá AGENT.
 Tới lúc ấy, đoạn sửa 10/10 mô tả hướng đi, không mô tả code. Ghi lại theo plan `wave-1-small-fixes`.
+
+## Hậu ký 20/10/2026 (đường dẫn)
+
+Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
+`graphs/propose/`: prompt pha 1 ở `propose/prompt.py`, đường trả về plan ở `propose/choose.py` và
+`propose/graph.py`. Tên hàm và luật không đổi.

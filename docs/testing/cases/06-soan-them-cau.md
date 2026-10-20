@@ -39,7 +39,8 @@ oke soạn đi
 ```
 
 Câu lượt 1 có cụm `thêm 2 câu` là cố ý: khớp `_ADDS` (`thêm\s+\d+\s+câu`) trong
-`propose.py`, nên `_right_purpose` sửa dàn ý `for=new` thành `for=more` khi đoạn chat đã có đề.
+`propose/outline.py`, nên `_right_purpose` sửa dàn ý `for=new` thành `for=more` khi đoạn chat
+đã có đề.
 Cách nói *"thêm cho mình 2 câu"* **không** khớp (chữ chen giữa `thêm` và số) và chỉ còn trông vào
 model tự ghi `for=more`. Không gõ cụm `đề mới`, `đề khác`, `đề nữa` ở bất kỳ lượt nào của case
 này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mới. `oke soạn đi` khớp `_AGREES`
