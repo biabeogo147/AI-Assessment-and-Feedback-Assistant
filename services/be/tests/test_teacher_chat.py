@@ -2789,11 +2789,11 @@ def _outline_item(**overrides: object) -> OutlineItem:
 
 
 def _outline_step(*items: OutlineItem, first: int | None = None, **args: str) -> NextStepCompleted:
-    """Một lượt dàn ý model nêu: các mục, và **lời Kriky** khớp chúng (ADR-30).
+    """Một lượt dàn ý model nêu: các mục, và **lời Kriky** nói về chúng (ADR-30).
 
-    Lời nêu `Câu k` đầu mỗi mục, một công thức của mục và một câu hỏi -- đủ để qua phép đối chiếu
-    nhẹ của `outline.check_message`. Câu đầu suy từ việc: đề mới là 1, thay câu là chính câu ấy,
-    soạn thêm là 3 (các test soạn thêm chạy trên một đề 2 câu); `first` ghi đè.
+    Lời nêu `Câu k` đầu mỗi mục, một công thức của mục và một câu hỏi, như một lời dàn ý thật. BE
+    không kiểm lời ấy (hậu ký 20/10/2026 của ADR-30). Câu đầu suy từ việc: đề mới là 1, thay câu là
+    chính câu ấy, soạn thêm là 3 (các test soạn thêm chạy trên một đề 2 câu); `first` ghi đè.
     """
     outline = items or (_outline_item(),)
     purpose = args.get("for", "new")
@@ -2894,9 +2894,10 @@ async def test_an_outline_without_a_book_points_at_no_lesson(stack) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_message_that_drifts_from_its_outline_goes_back_to_the_model(stack) -> None:
-    """ADR-30: lời không nhắc câu đầu của mục, hay không hỏi giáo viên, bị trả về model như một kết
-    quả tool; giáo viên chỉ thấy lời đã khớp các mục."""
+async def test_a_message_that_drifts_from_its_outline_is_shown_as_kriky_wrote_it(stack) -> None:
+    """Hậu ký 20/10/2026 của ADR-30: lời Kriky lên khung chat nguyên vẹn, kể cả khi không nhắc câu
+    đầu của mục hay không hỏi giáo viên. BE không đối chiếu lời với các mục, nên không hỏi model lần
+    hai."""
     client, _, monkeypatch = stack
     drifted = NextStepCompleted(
         request_id="x",
@@ -2904,8 +2905,26 @@ async def test_a_message_that_drifts_from_its_outline_goes_back_to_the_model(sta
         text="Mình soạn hai câu về đọc số tự nhiên nhé.",
         outline=(_outline_item(source_nodes=()),),
     )
+    agent = ScriptedAgent(drifted)
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    reply = await client.post(
+        "/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER
+    )
+
+    assert len(agent.asked) == 1
+    assert reply.json()["text"] == drifted.text
+
+
+@pytest.mark.asyncio
+async def test_an_empty_outline_message_still_goes_back_to_the_model(stack) -> None:
+    """Một bong bóng rỗng không phải một cách nói: lời trống vẫn bị trả về."""
+    client, _, monkeypatch = stack
+    empty = NextStepCompleted(
+        request_id="x", kind="outline", text="  ", outline=(_outline_item(source_nodes=()),)
+    )
     good = _outline_step(_outline_item(source_nodes=()))
-    agent = ScriptedAgent(drifted, good)
+    agent = ScriptedAgent(empty, good)
     monkeypatch.setattr(teacher_chat, "run_task", agent)
 
     reply = await client.post(
@@ -2913,7 +2932,7 @@ async def test_a_message_that_drifts_from_its_outline_goes_back_to_the_model(sta
     )
 
     told = agent.asked[1]["history"][-1]
-    assert told["tool_name"] == "outline" and "Câu 1" in told["tool_result"]["error"]
+    assert told["tool_name"] == "outline" and "trống" in told["tool_result"]["error"]
     assert reply.json()["text"] == good.text
 
 
@@ -2925,8 +2944,11 @@ async def test_a_refused_outline_still_counts_the_tokens_it_spent(stack) -> None
     drifted = NextStepCompleted(
         request_id="x",
         kind="outline",
-        text="Mình soạn hai câu về đọc số tự nhiên nhé.",
-        outline=(_outline_item(source_nodes=()),),
+        text="Mình soạn mười một câu nhé?",
+        outline=(
+            _outline_item(questions=6, source_nodes=()),
+            _outline_item(questions=5, source_nodes=()),
+        ),
         model_tokens=7,
     )
     good = _outline_step(_outline_item(source_nodes=())).model_copy(update={"model_tokens": 5})
@@ -2947,8 +2969,11 @@ async def test_an_outline_refused_twice_for_the_same_reason_stops_the_turn(stack
     drifted = NextStepCompleted(
         request_id="x",
         kind="outline",
-        text="Mình soạn hai câu về đọc số tự nhiên nhé.",
-        outline=(_outline_item(source_nodes=()),),
+        text="Mình soạn mười một câu nhé?",
+        outline=(
+            _outline_item(questions=6, source_nodes=()),
+            _outline_item(questions=5, source_nodes=()),
+        ),
     )
     agent = ScriptedAgent(*[drifted for _ in range(20)])
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -2968,11 +2993,10 @@ async def test_an_outline_refused_for_changing_reasons_stops_at_the_third(stack)
     """Thử tay 17/10/2026 (pha 6 plan `backlog-tier-1`): lời trả về xen kẽ *mục 2*, *mục 3* thì
     luật *cùng lý do hai lần* không bắt, và lượt chạy tới bảy lần gọi model."""
     client, _, monkeypatch = stack
-    loose = "Nếu $a<b$ thì $a<c$"
 
     def broken(where: int) -> NextStepCompleted:
         items = [_outline_item(questions=1, source_nodes=()) for _ in range(3)]
-        items[where] = _outline_item(questions=1, source_nodes=(), formulas=(loose,))
+        items[where] = _outline_item(questions=1, source_nodes=(), knowledge="x" * 601)
         return NextStepCompleted(
             request_id="x", kind="outline", text="Mình đề xuất 3 câu nhé?", outline=tuple(items)
         )

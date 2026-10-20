@@ -243,7 +243,7 @@ class NextStepCompleted(BaseModel):
       trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
     - `outline`: một dàn ý đề cho giáo viên duyệt (ADR-29); `outline` là các mục -- thứ duy nhất
       đi vào job -- và `text` là **cả lời** Kriky trình bày dàn ý cho giáo viên (Markdown, ADR-30).
-      Lượt kết thúc ở đây: BE đối chiếu nhẹ lời với các mục, lưu, in lời ra chat, và chỉ soạn ở một
+      Lượt kết thúc ở đây: BE kiểm các mục, lưu, in lời ra chat nguyên vẹn, và chỉ soạn ở một
       lượt **sau**.
 
     `ask_clarify` là cổng đầu vào của ADR-05, và luật của nó -- kể cả việc một câu hỏi làm rõ được

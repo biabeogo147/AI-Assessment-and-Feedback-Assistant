@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã chốt, đang thi hành (trừ khung kèm học của học sinh, xem bảng cuối)
 - **Ngày:** 2026-10-17
+- **Sửa:** 2026-10-20 — BE thôi đối chiếu lời dàn ý với các mục, thôi bắt hình dạng công
+  thức. Xem *Hậu ký 20/10/2026*.
 
 ## Bối cảnh
 
@@ -92,9 +94,30 @@ sau một lượt thử tay mười ca trên Claude Haiku 5.5 —
 | Code không đặt câu cố định vào lời Kriky; câu hệ thống chỉ đi dưới `kind="notice"` | `be/notices.py`; `teacher_chat._go`; `propose`; `handlers.propose_next_step`, `report_plan` | `check_kriky_says_nothing_fixed` (`tools/check_contract.py`), `test_a_fixed_sentence_in_kriky_s_mouth_is_caught` |
 | Model hỏng, chạm trần, không kể lại được, plan cứ bị từ chối → thông báo hệ thống | `be/notices.py`; `handlers._MODEL_DOWN`, `propose._UNCLEAR` (`notice=True`); `teacher_chat._go` (`stuck`, `refused`) | `test_a_model_that_breaks_gives_a_system_notice_not_the_mock`, `test_the_ceiling_streams_a_notice_not_kriky_s_words`, `test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck`, `test_the_turn_survives_a_model_that_cannot_tell_what_happened` |
 | Thông báo là một lượt riêng, không avatar; model đọc nó như ghi chú, nó không làm mất lời duyệt dàn ý | contracts `TurnRecord.kind`, `NextStepCompleted.notice`; FE `Chat.blocks`, `Notice`, `voiced`; `propose._compose`, `_approved_plan`; `teacher_chat._shown_outline` | `test_a_notice_from_the_agent_is_stored_as_a_system_notice`, *"thông báo hệ thống là một dòng riêng…"*, *"lượt đang chạy chỉ có thông báo hệ thống…"*, `test_a_system_notice_in_history_reads_as_a_note_not_as_kriky_s_words`, `test_an_agreement_retyped_after_a_system_notice_still_drafts` |
-| Lời dàn ý là lời model; BE đối chiếu nhẹ năm tiêu chí, kể cả không in số node | `be/outline.check_message`; `teacher_chat.outline_turn` | `test_a_message_in_kriky_s_own_words_passes`, `test_a_message_that_drifts_from_its_items_goes_back_to_the_model`, `test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored` |
+| Lời dàn ý là lời model, lên khung chat nguyên vẹn; BE chỉ trả về lời trống (hậu ký 20/10/2026) | `teacher_chat.outline_turn` | `test_a_message_that_drifts_from_its_outline_is_shown_as_kriky_wrote_it`, `test_an_empty_outline_message_still_goes_back_to_the_model`, `test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored` |
 | Lời mở plan là lời model, không thì không có | `propose._approved_plan`, `_choose` | `test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan` |
 | Câu hỏi sai điều sau danh sách tài liệu: hỏi model lại kèm lý do, không đè chữ | `propose._which_book`, `_asks_which_book`, `_WrongQuestion.hint` | `test_a_question_right_after_the_library_asks_which_document`, `test_a_question_still_off_the_second_time_keeps_the_model_s_words`, `test_a_question_about_which_document_is_told_apart` |
 | Mọi lời Kriky dựng Markdown, toán dựng y như `MathText`, không HTML thô | FE `KrikyText` (`inline` → `span.line`) | `kriky-text.test.tsx` |
 | Phần tử giao diện tất định: tên bước một nguồn, lúc chạy như sau F5 | FE `ActionCard.STEP_TITLE`, `titleOf`, `stepFor`; BE `TurnEvent.tool_name`, `result` | `test_a_lookup_before_the_plan_shows_while_it_runs`, *"bước tra cứu trước plan hiện lúc đang chạy…"* |
 | **Chưa thi hành:** khung kèm học của học sinh — model hỏng thì `explain` vẫn lùi về lời giảng soạn sẵn | `handlers.explain` | — (đổi nó cần sửa hợp đồng và màn học sinh; ghi ở mục *Ngoài phạm vi* của plan) |
+
+## Hậu ký 20/10/2026
+
+Viết sau bốn vòng thử tay đầu-cuối trên Claude Haiku 5.5
+(`docs/testing/ket-qua/2026-10-20-48919a3-dau-cuoi-claude-haiku-5-5.md`).
+
+- **BE không đụng vào lời dàn ý nữa.** Phép đối chiếu nhẹ (`outline.check_message`) bị gỡ: lời Kriky
+  lên khung chat đúng như model viết, kể cả khi không nhắc câu đầu của một mục, không lặp công thức,
+  hay không kết bằng câu hỏi. Chỉ lời **trống** còn bị trả về — đó là một bong bóng rỗng, không phải
+  một cách nói.
+- **BE cũng thôi bắt hình dạng công thức** (ADR-29: *đúng một cặp `$`*). Công thức chỉ đi vào prompt
+  soạn câu, nơi chữ quanh nó vẫn đọc được.
+- **Vì sao.** Bốn vòng trả về 59 dàn ý, cả 59 vì hai luật này (50 vì hình dạng công thức, 9 vì đối
+  chiếu); 21 lượt dừng ở thông báo *"Kriky chưa nêu được dàn ý…"*, và một vòng không qua được bước
+  soạn đề. Giáo viên thấy một câu hệ thống thay cho lời Kriky: đúng thứ ADR này muốn bỏ.
+- **Cái mất.** Lời có thể lệch các mục mà không gì bắt: nói *3 câu* trong khi các mục là 4. Job vẫn
+  chỉ nhận các mục, và cổng duyệt đề (ADR-05) vẫn đứng trước học sinh, nên lệch lộ ra ở panel, nơi
+  giáo viên sửa được. Mục *Quyết định* nói *"BE đối chiếu nhẹ"* và đoạn *Vì sao* về phép đối chiếu
+  thôi áp dụng; phần còn lại giữ nguyên.
+- **Luật còn sống ở `outline.validate`**: tổng 1–10 câu, mục có kiến thức và cách làm, mỗi phần tối
+  đa 600 ký tự, tối đa 6 công thức mỗi mục và 200 ký tự mỗi công thức, `source_nodes` có thật.

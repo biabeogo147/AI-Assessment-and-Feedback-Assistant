@@ -78,9 +78,9 @@ Từ [ADR-29](../decisions/adr-29-dan-y-de-truoc-khi-soan.md) mọi đề đi qu
 lượt ấy (`kind: "outline"`) vẽ **đúng như một câu Kriky nói** — cùng `Message turn` (Vai=agent), cùng
 `KrikyText`, không thẻ mới, không nút duyệt. Từ ADR-30 dàn ý là **hai trường**: lời Kriky tự viết cho
 giáo viên (Markdown — mỗi mục nêu `Câu k`, kiến thức, công thức, cách làm, bài nguồn khi có sách, rồi
-một câu hỏi xin đồng ý của chính nó), và các mục có cấu trúc — thứ duy nhất đi vào job. BE **đối chiếu
-nhẹ** hai thứ (`be/outline.check_message`, tiêu chí ở ADR-30); lệch thì trả lý do cho model sửa
-trong cùng lượt. Giáo viên duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau.
+một câu hỏi xin đồng ý của chính nó), và các mục có cấu trúc — thứ duy nhất đi vào job. BE chỉ kiểm
+các mục (`be/outline.validate`); lời Kriky lên chat nguyên vẹn (hậu ký 20/10/2026 của ADR-30).
+Giáo viên duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau.
 Sau F5 lượt dàn ý dựng lại đúng lời ấy (`spoken()` coi `outline` là lời trợ lý). Bước *"Thay một câu"* có dòng kết quả riêng: *"đã thay câu
 N"*, hay *"câu N giữ nguyên: câu mới soạn không đạt"* — câu cũ ở lại khi câu mới không qua ADR-18.
 

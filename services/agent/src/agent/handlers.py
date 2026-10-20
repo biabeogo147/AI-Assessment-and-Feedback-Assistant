@@ -792,8 +792,8 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         # có model, nên dàn ý là một mục phủ mọi câu, nói đúng phạm vi giáo viên gõ. Có chip sách
         # thì BE từ chối dàn ý không bài nguồn và mock lặp tới trần bước: máy dev không key chỉ soạn
         # được đề không sách.
-        # Lời soạn sẵn của chế độ demo (ngoại lệ của ADR-30) vẫn phải qua phép đối chiếu nhẹ của BE
-        # (`outline.check_message`): nêu câu đầu của mục và hỏi giáo viên.
+        # Lời soạn sẵn của chế độ demo (ngoại lệ của ADR-30) nêu câu đầu của mục và hỏi giáo viên,
+        # như một lời dàn ý model viết; BE không kiểm lời ấy (hậu ký 20/10/2026 của ADR-30).
         span = "Câu 1" if int(wanted) == 1 else f"Câu 1–{wanted}"
         return NextStepCompleted(
             request_id=request.request_id,

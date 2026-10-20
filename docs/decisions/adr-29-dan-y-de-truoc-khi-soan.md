@@ -4,6 +4,8 @@
 - **Ngày:** 2026-10-15
 - **Sửa:** 2026-10-17 — chữ dàn ý trên màn hình do Kriky viết, BE đối chiếu nhẹ với các mục
   ([ADR-30](adr-30-loi-kriky-do-model-viet.md)). Xem *Hậu ký 17/10/2026*.
+- **Sửa:** 2026-10-20 — BE thôi đối chiếu lời với các mục và thôi bắt hình dạng công thức. Xem
+  *Hậu ký 20/10/2026*.
 
 ## Bối cảnh
 
@@ -90,10 +92,11 @@ thử trên trình duyệt).
 | Luật | Sống ở | Test canh |
 |---|---|---|
 | Mọi đề qua một dàn ý đã hiện ở lượt ngay trước, chưa dùng, đúng việc, đúng sách, đúng đề | `teacher_chat._shown_outline`, `guard_drafting`; `teacher_tools._start_drafting` từ chối khi không có dàn ý | `test_no_question_is_drafted_before_the_teacher_has_seen_an_outline`, `test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once`, `test_an_outline_from_before_the_last_teacher_message_is_not_an_approval`, `test_drafting_without_an_outline_seen_is_refused` |
-| ~~BE dựng chữ dàn ý, gọi công thức là của Kriky~~ — thôi áp dụng 17/10/2026: lời dàn ý là lời model, BE đối chiếu nhẹ (ADR-30) | `be/outline.check_message` (`render` đã gỡ) | xem bảng của ADR-30 |
+| ~~BE dựng chữ dàn ý, gọi công thức là của Kriky~~ — thôi áp dụng 17/10/2026: lời dàn ý là lời model; từ 20/10/2026 BE không kiểm lời ấy (ADR-30) | `teacher_chat.outline_turn` (`render`, `check_message` đã gỡ) | xem bảng của ADR-30 |
 | Job chỉ nhận mục của nó, không chữ tài liệu thô | `drafting.fire`, `drafting.item_fields`; agent `authoring.draft_brief` | `test_a_job_receives_exactly_its_outline_item`, `check_drafting_reads_no_document_text` |
 | Thay câu giữ câu cũ tới khi câu mới đạt; thay câu theo luật xoá ADR-28 | `drafting.replace`, `harvest`, `drop_question`; `teacher_tools._replace_question` | `test_a_replaced_question_stays_until_its_successor_lands`, `test_a_replacement_whose_job_breaks_leaves_the_old_question`, `test_a_replacement_step_says_whether_the_question_changed` |
 | Mười câu mỗi lần | `be/outline.validate`, `teacher_tools.MOST_QUESTIONS_ASKED` | `test_more_than_ten_questions_in_one_go_is_refused` |
+| Công thức không bị bắt hình dạng (hậu ký 20/10/2026) | `be/outline.validate` | `test_a_formula_with_words_around_it_is_not_refused` |
 | Pha 2 không đổi | contracts | `test_phase_two_has_no_room_for_an_outline_item` |
 
 ## Hậu ký 17/10/2026
@@ -133,3 +136,13 @@ Nay:
 ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
 ([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ
 ba là hỏi lại. Câu *"Ba cổng vẫn là ba"* ở trên đọc là hai cổng. Dàn ý vẫn nằm ở cổng thứ ba (đầu vào).
+
+## Hậu ký 20/10/2026
+
+- **BE thôi bắt hình dạng công thức.** Luật *mỗi phần tử `formulas` là đúng một cặp `$`* bị gỡ khỏi
+  `outline.validate`: ở bốn vòng thử tay đầu-cuối 20/10/2026 nó trả về 50 trong 59 dàn ý, gần hết là
+  mệnh đề có chữ ngoài cặp `$` (*"$f'(x)>0 \Rightarrow f$ đồng biến"*). Công thức chỉ đi vào prompt
+  soạn câu, nơi chữ ấy vẫn đọc được. Trần 6 công thức mỗi mục và 200 ký tự mỗi công thức giữ nguyên.
+- **Phép đối chiếu nhẹ của ADR-30 bị gỡ** (hậu ký 20/10/2026 của ADR-30), nên dòng *"Thứ thay cho
+  phép chứng minh từng chữ là phép đối chiếu nhẹ"* của hậu ký 17/10 thôi áp dụng: không còn gì thay.
+  Job vẫn chỉ nhận các mục; giáo viên thấy lệch ở panel và sửa ở đó.
