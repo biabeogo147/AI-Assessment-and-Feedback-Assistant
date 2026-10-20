@@ -164,8 +164,8 @@ lối **"Khác"** ở cuối -- từ 13/10/2026 là lối để giáo viên tự
   hỏi đang mở thì nút vẫn là nhãn dòng (*"bao nhiêu câu?"* với nút *"12A (3 học sinh)"*) — có từ
   trước hậu ký, không rò, nhưng sai việc. BE không biết câu hỏi hỏi gì; phân biệt cần model nói ra.
 
-Nơi thi hành: `teacher_chat._choices` / `_named` / `_rows_in_play` (BE), `propose._FewChoices` /
-`_choices_wanted` / `_answers` (AGENT hỏi lại model một lần khi thiếu, không đếm câu hỏi, tên mục
+Nơi thi hành: `teacher_chat._choices` / `_named` / `_rows_in_play` (BE), `propose/ask_again.FewChoices` /
+`choices_wanted` / `answers` (AGENT hỏi lại model một lần khi thiếu, không đếm câu hỏi, tên mục
 hay "Khác"), `Clarify` / `questionIn` trong `services/fe/src/screens/teacher/Chat.tsx` (lối
 "Khác" mở ô gõ, lọc "Khác" cũ), Figma `Clarify request` (`64:23`) variant `chờ trả lời` và
 `ghi khác`, artboard `3b`, `services/be/tests/test_clarify_choices.py`,
@@ -178,7 +178,7 @@ lối Khác là để ghi"*, `test_agent_be_and_fe_agree_on_the_other_choice`. `
 ## Hậu ký 18/10/2026
 
 Mục *Nơi luật này đang được thi hành* trỏ `propose.py` — `_SYSTEM`. Tên ấy đã đổi: lời dặn nay nằm
-trong `_CORE` (`services/agent/src/agent/graphs/propose.py`), dòng *"Không đoán khi một cái tên có
+trong `CORE` (`services/agent/src/agent/graphs/propose.py`), dòng *"Không đoán khi một cái tên có
 thể trỏ tới nhiều thứ. Hỏi lại…"*. Luật không đổi. Ghi lại theo plan `wave-1-small-fixes`.
 
 ## Hậu ký 19/10/2026
@@ -192,4 +192,5 @@ bởi ADR-25*, khớp `README.md`.
 ## Hậu ký 20/10/2026 (đường dẫn)
 
 Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
-`graphs/propose/`. `_CORE` nay nằm ở `propose/prompt.py`; tên hàm và luật không đổi.
+`graphs/propose/`. `CORE` nay nằm ở `propose/prompt.py`; luật không đổi; tên các hàm đổi sau đó ở
+plan `propose-names-and-order` (hậu ký 20/10/2026 của ADR-30).

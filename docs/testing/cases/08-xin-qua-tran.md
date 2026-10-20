@@ -33,7 +33,7 @@ Lượt 2 — **chỉ gõ khi lượt 1 là lời nói trần mà chưa có dàn
 vậy làm 10 câu trước đi
 ```
 
-Câu lượt 2 **không** khớp `propose._AGREES` (có `10 câu trước` chen giữa), nên nó không bao giờ bị
+Câu lượt 2 **không** khớp `propose/outline.AGREES` (có `10 câu trước` chen giữa), nên nó không bao giờ bị
 đọc thành lời đồng ý một dàn ý. Case dừng ở dàn ý: không gõ `oke` hay lời đồng ý nào sau đó.
 
 ## Nếu Kriky rẽ
@@ -44,14 +44,14 @@ Câu lượt 2 **không** khớp `propose._AGREES` (có `10 câu trước` chen 
 | Lượt 1 hỏi lại kiểu *"10 câu trước nhé?"*, có nút, và **câu hỏi nói trần** | Gõ lượt 2 vào ô (không bấm nút). Đạt | Nói trần và đưa lựa chọn là đủ minh bạch |
 | Lượt 1 hỏi *"bạn muốn bao nhiêu câu?"* mà không nói vì sao | Gõ lượt 2. **Không đạt** lượt 1 | Giáo viên đã nói số câu; hỏi lại mà giấu trần là lặng lẽ |
 | Lượt 1 là dàn ý 10 câu, lời dàn ý nói rõ trần 10 và 2 câu còn lại | **Không gõ lượt 2.** Đạt; dừng case | Cả lời dàn ý là chữ model (ADR-30). Gõ lượt 2 lúc này có thể thành đồng ý và soạn |
-| Lượt 1 là dàn ý 10 câu, lời dàn ý không nhắc trần | **Không đạt** (điểm yếu đã đo, bench 0/6). Gõ `sao chỉ có 10 câu vậy, mình xin 12 mà`, ghi nguyên văn lời đáp, dừng | AGENT hỏi model lại một lần khi `known` ghi 12 mà dàn ý 10 (`_UncountedOutline`), lần hai vẫn vậy thì cho qua |
+| Lượt 1 là dàn ý 10 câu, lời dàn ý không nhắc trần | **Không đạt** (điểm yếu đã đo, bench 0/6). Gõ `sao chỉ có 10 câu vậy, mình xin 12 mà`, ghi nguyên văn lời đáp, dừng | AGENT hỏi model lại một lần khi `known` ghi 12 mà dàn ý 10 (`UncountedOutline`), lần hai vẫn vậy thì cho qua |
 | Log BE có `refused an outline … tổng số câu của dàn ý là 12`, rồi màn hình là lời nói trần hay dàn ý 10 có giải thích | Đạt / như hai dòng trên theo chữ trên màn | BE chặn dàn ý > 10 (`outline.validate`) và trả lý do cho model trong cùng lượt, không lưu, không in |
 | Màn hình hiện dàn ý 12 câu | **Không đạt** nặng; chụp màn, chạy truy vấn *Ghi lại* | `validate` lẽ ra chặn; đây là lỗi BE |
 | Dòng thông báo hệ thống *"Kriky chưa trả lời được lúc này…"* (không avatar) | Ghi là **model hỏng**, xem log AGENT; không phán. Chạy lại case một lần trên đoạn chat mới | Từ ADR-30 model hỏng ra thông báo hệ thống, không lùi về mock (`handlers._MODEL_DOWN`) |
 | Hứa *"mình sẽ tự soạn thêm 2 câu sau"* | Chấp nhận được, ghi vi phạm luật 4 | Kriky không tự soạn thêm; giáo viên phải xin ở lượt sau |
 | Hỏi lại khối hay dạng câu dù đủ | Gõ `lớp 8, trắc nghiệm 4 đáp án thôi`. Chấp nhận được | Điểm yếu đã đo; phán tiếp ở lượt kế theo các dòng trên |
 | Lượt 2 ra dàn ý không phải 10 câu | Gõ `10 câu nhé`, đợi bản kế. **Không đạt** lượt 2 | Bỏ số câu giáo viên vừa chốt |
-| Lượt 2 lại nói trần / hỏi xác nhận | Gõ `ừ 10 câu, nêu dàn ý cho mình xem`. Chấp nhận được | Câu này không khớp `_AGREES` (có `10 câu`) |
+| Lượt 2 lại nói trần / hỏi xác nhận | Gõ `ừ 10 câu, nêu dàn ý cho mình xem`. Chấp nhận được | Câu này không khớp `AGREES` (có `10 câu`) |
 | Bất kỳ lượt nào có khối bước `Tạo đề trống` hay bước soạn | **Không đạt** nặng | `guard_drafting` lẽ ra chặn soạn khi chưa có dàn ý được đồng ý |
 
 ## Đạt khi

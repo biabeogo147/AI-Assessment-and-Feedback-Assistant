@@ -34,7 +34,7 @@ Lượt 2 — chỉ gõ sau khi dàn ý đã hiện, đọc hết dàn ý trư�
 được rồi, soạn đi nhé
 ```
 
-Câu này nằm trọn trong khuôn đồng ý của AGENT (`propose._AGREES`: *được*, *rồi*, *soạn đi*, *nhé*),
+Câu này nằm trọn trong khuôn đồng ý của AGENT (`propose/outline.AGREES`: *được*, *rồi*, *soạn đi*, *nhé*),
 nên plan soạn dựng thẳng từ dàn ý vừa hiện, không phụ thuộc model đọc hiểu.
 
 ## Nếu Kriky rẽ
@@ -46,7 +46,7 @@ nên plan soạn dựng thẳng từ dàn ý vừa hiện, không phụ thuộc 
 | Dàn ý các mục cùng một chủ đề, không công thức, cách làm chung chung | Vẫn gõ lượt 2. **Không đạt** tiêu chí dàn ý | Dàn ý như vậy không cho giáo viên duyệt được gì (ADR-29 *Vì sao*) |
 | Dàn ý không đủ 5 câu (các mục `Câu …` cộng lại khác 5) | Gõ `mình cần đủ 5 câu nhé`, đợi dàn ý kế, rồi gõ lượt 2. **Không đạt** lượt 1 | Kriky bỏ số câu giáo viên đã nói |
 | Lượt 1 đã có khối bước `Tạo đề trống` / soạn câu | **Không đạt** nặng; chụp màn hình, chạy truy vấn ở *Ghi lại* | Cổng của BE (`guard_drafting`) lẽ ra chặn soạn khi chưa có dàn ý |
-| Lượt 2 không soạn: đưa lại dàn ý hay hỏi tiếp | Nếu là dàn ý mới thì gõ `oke` một lần; vẫn không soạn thì dừng. **Không đạt** | Lời đồng ý khớp khuôn mà không được nhận là lỗi của `_approved_plan` |
+| Lượt 2 không soạn: đưa lại dàn ý hay hỏi tiếp | Nếu là dàn ý mới thì gõ `oke` một lần; vẫn không soạn thì dừng. **Không đạt** | Lời đồng ý khớp khuôn mà không được nhận là lỗi của `approved_plan` |
 | Bước soạn dừng ở 4/5 (một câu hỏng) | **Không đạt** tiêu chí 5/5; soi câu kết có nói đúng 4 không | Luật 3: số trên khối bước và câu nói phải khớp |
 
 ## Đạt khi

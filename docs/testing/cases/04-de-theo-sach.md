@@ -44,10 +44,10 @@ oke
 | Lời dàn ý có mục **không nêu** bài nguồn | Ghi lại, vẫn gõ `oke` cho case sau. Không đạt | BE từ chối mục không có `source_nodes` (`outline.validate`) nhưng không soi bài nguồn trong lời (ADR-30, đối chiếu nhẹ): thiếu là giáo viên không biết câu theo bài nào |
 | Bài nguồn của mọi mục chỉ là `Chương I. …` | Gõ `oke`. Chấp nhận được, ghi lại | Nhãn thật, nhưng không trỏ tới bài |
 | Năm mục cùng một bài (vd chỉ Bài 1) | Gõ `oke`. Chấp nhận được nếu truy vấn A cho thấy đã đọc hết các phần | Chia câu là lựa chọn sư phạm của giáo viên; sửa được bằng "câu 2 đổi sang …" |
-| Truy vấn A: chỉ có `part` 1 trong khi `parts` > 1, `more` = true | Không đạt | `_read_before_outline` phải đọc tiếp tới hết phạm vi trước khi nêu dàn ý |
-| Sau `oke` ra dàn ý mới hay hỏi lại | Gõ `oke` thêm một lần, ghi lại. Không đạt | `oke` khớp khuôn đồng ý: phải ra plan dựng từ dàn ý (`_approved_plan`) |
+| Truy vấn A: chỉ có `part` 1 trong khi `parts` > 1, `more` = true | Không đạt | `read_before_outline` phải đọc tiếp tới hết phạm vi trước khi nêu dàn ý |
+| Sau `oke` ra dàn ý mới hay hỏi lại | Gõ `oke` thêm một lần, ghi lại. Không đạt | `oke` khớp khuôn đồng ý: phải ra plan dựng từ dàn ý (`approved_plan`) |
 | Bước soạn ghi `dừng ở 4/5 câu` | Chấp nhận được nếu câu kết nói đúng con số đó | Job có thể hỏng sau khi thử lại; ghi `last_fault` |
-| Dàn ý tổng khác 5 câu (lần chạy 15/10/2026: 10 câu sau một lượt hỏi lại) | **Không đạt.** Gõ `mình cần 5 câu thôi nhé`, đợi bản kế đúng 5 câu rồi mới `oke` — để case 06, 14 vẫn chạy được | Lượt hỏi lại làm model mất số câu; `_miscounted` chỉ so với `known` của lượt ấy |
+| Dàn ý tổng khác 5 câu (lần chạy 15/10/2026: 10 câu sau một lượt hỏi lại) | **Không đạt.** Gõ `mình cần 5 câu thôi nhé`, đợi bản kế đúng 5 câu rồi mới `oke` — để case 06, 14 vẫn chạy được | Lượt hỏi lại làm model mất số câu; `miscounted` chỉ so với `known` của lượt ấy |
 
 ## Đạt khi
 

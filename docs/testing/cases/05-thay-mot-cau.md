@@ -49,7 +49,7 @@ ghi `for=replace, question=3`. Câu dự phòng dưới đây thì khớp luật
 | Kriky làm gì | Trả lời / phán | Vì sao |
 |---|---|---|
 | Dàn ý một mục `Câu 3` ngay lượt 1 | Gõ `oke`. **Đạt** | Đúng việc, model hiểu lời thường |
-| Nêu lại dàn ý **cả đề** (mục `Câu 1` tới `Câu 5`) | KHÔNG gõ `oke`. Gõ dự phòng: `ko, chỉ thay câu 3 thôi, mấy câu kia giữ nguyên, câu 3 làm bài chia tiền lãi theo vốn góp nhé` → nếu ra mục `Câu 3` thì `oke`. **Chấp nhận được** | `oke` ở đây là mở đề mới. Câu dự phòng khớp `_REPLACES`, `_right_purpose` lấy đúng mục chứa câu 3 |
+| Nêu lại dàn ý **cả đề** (mục `Câu 1` tới `Câu 5`) | KHÔNG gõ `oke`. Gõ dự phòng: `ko, chỉ thay câu 3 thôi, mấy câu kia giữ nguyên, câu 3 làm bài chia tiền lãi theo vốn góp nhé` → nếu ra mục `Câu 3` thì `oke`. **Chấp nhận được** | `oke` ở đây là mở đề mới. Câu dự phòng khớp `_REPLACES`, `right_purpose` lấy đúng mục chứa câu 3 |
 | Dàn ý `Câu 6` (hiểu là soạn thêm) | Như dòng trên. **Chấp nhận được** nếu lần hai ra `Câu 3` | Soạn thêm làm đề 6 câu, không thay gì |
 | Dàn ý thay một câu khác số (`Câu 2`) | Như dòng trên. **Không đạt** nếu lần hai vẫn sai số | Luật AGENT không sửa số câu khi model đã ghi `replace` |
 | Hỏi lại độ khó / dạng câu | `khó hơn chút, tầm vận dụng, vẫn trắc nghiệm 4 đáp án`. **Chấp nhận được** | Lời đã đủ dữ kiện; hỏi thêm là điểm yếu đã đo |

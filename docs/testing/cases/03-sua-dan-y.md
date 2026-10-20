@@ -12,7 +12,7 @@ giữ nguyên các mục khác, và đề được soạn theo bản đã sửa 
 - Đoạn chat **mới**, không đính chip. Không chạy tiếp case 02.
 - Seed như `huong-dan.md` (lớp 12A, 12B). Case không dùng lớp nào, không dùng sách.
 - Lời chat cố ý không có chữ "sách", "tài liệu", "file": có chữ ấy thì Kriky được mời mở thư viện
-  (`propose._LIBRARY`) và case thành case khác.
+  (`propose/prompt.LIBRARY`) và case thành case khác.
 
 ## Lời chat
 
@@ -41,7 +41,7 @@ Trước khi gõ lượt 3, **chép nguyên văn cả bản 1 và bản 2** vào
 | Kriky làm gì | Trả lời / phán | Vì sao |
 |---|---|---|
 | Lượt 1 hỏi lại dù đã đủ (độ khó, xác nhận phạm vi) | Gõ `mức trung bình thôi, bạn cứ ra dàn ý đi`; chấp nhận được, ghi câu hỏi | Điểm yếu đã đo; không phải điểm case này soi |
-| Lượt 1 ra dàn ý khác 4 câu | Không đạt; dừng | Tổng phải bằng `question_count` đã ghi (`_miscounted`) |
+| Lượt 1 ra dàn ý khác 4 câu | Không đạt; dừng | Tổng phải bằng `question_count` đã ghi (`miscounted`) |
 | Câu 3 bản 1 đã là bài vé xem phim lập hệ | Không tính; ghi lại, chạy lại ở đoạn chat mới | Lời sửa không đổi gì thì không chứng minh được gì |
 | Câu 3 bản 1 nằm trong mục gộp `Câu 2–3` | Bản 2 tách thành `Câu 2` + `Câu 3` là đạt, nếu câu 2 giữ ý | Sửa một câu của mục gộp buộc phải tách |
 | Lượt 2 ra khối bước, soạn luôn | **Không đạt**; ghi biên bản và `backlog.md` | Dàn ý ngay trước là bản 1, nên BE soạn theo bản 1 (`guard_drafting` chỉ biết dàn ý đã hiện) |
@@ -49,7 +49,7 @@ Trước khi gõ lượt 3, **chép nguyên văn cả bản 1 và bản 2** vào
 | Bản 2 đổi luôn câu 1, 2 hay 4 (kiến thức, dạng, công thức, cách làm khác) | Không đạt; không gõ "oke" | Prompt: "nêu lại outline ĐỦ mọi mục, chỉ sửa đúng chỗ họ nói" |
 | Bản 2 diễn đạt lại câu 1, 2, 4 nhưng cùng ý | Chấp nhận được; chép cả hai bản của mục ấy | Ý giữ, chữ trôi — đáng theo dõi giữa các lần chạy |
 | Bản 2 tổng khác 4 câu, hoặc câu 3 không phải bài vé xem phim | Không đạt; không gõ "oke" | Sửa sai chỗ, hay sửa thừa |
-| Sau "oke, soạn đi" Kriky hỏi lại hay chỉ nói | Không đạt | "oke, soạn đi" khớp `_AGREES`; `_approved_plan` phải dựng plan từ chính bản 2 |
+| Sau "oke, soạn đi" Kriky hỏi lại hay chỉ nói | Không đạt | "oke, soạn đi" khớp `AGREES`; `approved_plan` phải dựng plan từ chính bản 2 |
 | Bước soạn dừng ở `k/4` | Chấp nhận được nếu câu đã ra theo bản 2 và câu nói khớp số trên khối | Job hỏng không phải điểm case này soi |
 
 ## Đạt khi

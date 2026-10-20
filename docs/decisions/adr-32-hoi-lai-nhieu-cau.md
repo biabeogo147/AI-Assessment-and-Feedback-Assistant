@@ -48,7 +48,7 @@ Plan thi hành: `docs/plans/completed/2026-10-17-assessment-title-and-multi-ques
 | Luật | Nơi thi hành |
 | --- | --- |
 | Tối đa ba câu, mỗi câu nhãn, câu hỏi, nút; chỉ với `ask_clarify` | `packages/contracts` `ClarifyQuestion`, `MOST_CLARIFY_QUESTIONS`, validator của `NextStepCompleted` |
-| Model nêu các câu; quá ba hay ít lựa chọn thì hỏi lại một lần | AGENT `propose._Proposal.asked`, `_choose` (`_TooManyQuestions`, `_FewChoices` từng câu theo `_choices_wanted`); prompt `_CORE`, skill `soan-de` |
+| Model nêu các câu; quá ba hay ít lựa chọn thì hỏi lại một lần | AGENT `propose/proposal._Proposal.asked`, `choose` (`TooManyQuestions`, `FewChoices` từng câu theo `choices_wanted`); prompt `CORE`, skill `soan-de` |
 | Câu về một dòng (ADR-23) thì một lượt một câu | BE `teacher_chat._questions_of` (giữ câu có lựa chọn gọi tên dòng) |
 | Các câu sống trong lượt hỏi, F5 ra lại thẻ; model đọc lại chúng | `tool_result.questions` của lượt `assistant`; AGENT `_asked_back` |
 | Từng câu, không bỏ câu, tóm tắt, gửi gộp *"Nhãn: trả lời · …"* | FE `ClarifySteps.tsx`, `Chat.tsx` (`questionsOf`, `aloud`, `Voiced`); Figma `Clarify request` `629:20`, `629:46` |

@@ -39,19 +39,19 @@ oke soạn đi
 ```
 
 Câu lượt 1 có cụm `thêm 2 câu` là cố ý: khớp `_ADDS` (`thêm\s+\d+\s+câu`) trong
-`propose/outline.py`, nên `_right_purpose` sửa dàn ý `for=new` thành `for=more` khi đoạn chat
+`propose/outline.py`, nên `right_purpose` sửa dàn ý `for=new` thành `for=more` khi đoạn chat
 đã có đề.
 Cách nói *"thêm cho mình 2 câu"* **không** khớp (chữ chen giữa `thêm` và số) và chỉ còn trông vào
 model tự ghi `for=more`. Không gõ cụm `đề mới`, `đề khác`, `đề nữa` ở bất kỳ lượt nào của case
-này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mới. `oke soạn đi` khớp `_AGREES`
-(cả câu chỉ là lời đồng ý), nên `_approved_plan` dựng plan từ chính dàn ý.
+này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mới. `oke soạn đi` khớp `AGREES`
+(cả câu chỉ là lời đồng ý), nên `approved_plan` dựng plan từ chính dàn ý.
 
 ## Nếu Kriky rẽ
 
 | Kriky làm gì | Trả lời / phán | Vì sao |
 |---|---|---|
 | Đọc mục lục / đọc bài 2 trước rồi mới nêu dàn ý (khối bước đọc sách) | Đạt, đợi dàn ý | Dàn ý theo sách phải trỏ về bài có thật (`validate` đòi `source_nodes`) |
-| Hỏi lại bài nào | Gõ `Bài 2 trong sách ấy, phần số La Mã` | Điểm yếu đã đo (backlog: hỏi lại dù đủ mục). Chấp nhận được; câu đáp không chứa cụm nào đổi việc, `_right_purpose` vẫn dò thấy lượt 1 |
+| Hỏi lại bài nào | Gõ `Bài 2 trong sách ấy, phần số La Mã` | Điểm yếu đã đo (backlog: hỏi lại dù đủ mục). Chấp nhận được; câu đáp không chứa cụm nào đổi việc, `right_purpose` vẫn dò thấy lượt 1 |
 | Hỏi đọc hay viết số La Mã, có nút lựa chọn | Gõ `1 câu đọc số, 1 câu viết số` | Như trên. Không bấm nút: chữ trên nút không cố định giữa các lần |
 | Hỏi thêm vào đề vừa soạn hay đề mới | Gõ `thêm vào đề vừa soạn` | Chấp nhận được. Không gõ chữ `mới` sau chữ `đề` |
 | Dàn ý ra `Câu 1–2` | **Không đạt** (dàn ý). Không gõ `oke`; gõ `ko, thêm 2 câu vào đề vừa soạn, nối sau câu 5` rồi ghi xem dàn ý kế có thành `Câu 6–7` không | `Câu 1–2` là `for=new`: `oke` sẽ ra `Tạo đề trống` → đề thứ hai. Lỗi đã sửa một lần — gặp lại là lỗi sản phẩm, ghi backlog |

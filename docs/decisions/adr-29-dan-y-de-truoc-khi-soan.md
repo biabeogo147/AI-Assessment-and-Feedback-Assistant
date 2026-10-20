@@ -115,7 +115,7 @@ Viết khi mở plan `kriky-writes-every-word`. Một luật đổi, các luật
 ## Hậu ký 18/10/2026
 
 Mục *Hệ quả* nói *"oke"* được đọc **bằng model**. Thực ra lời đồng ý dàn ý được đọc bằng regex ở
-AGENT (`services/agent/src/agent/graphs/propose.py`): `_AGREES` nhận lời đồng ý (`_approved_plan`),
+AGENT (`services/agent/src/agent/graphs/propose.py`): `AGREES` nhận lời đồng ý (`approved_plan`),
 còn `_REVISES` và `_NO_CHANGE` nhận lời xin sửa để chặn việc soạn. Bốn vòng
 review của plan `backlog-tier-1` đều ra một ca biên mới của hai regex ấy; nút *Soạn theo dàn ý này*
 (Tier 2 câu 5) là đường thay, đã hoãn cùng đợt khoá AGENT. Hệ quả mục ấy nêu vẫn đúng: đọc nhầm thì
@@ -150,5 +150,5 @@ ba là hỏi lại. Câu *"Ba cổng vẫn là ba"* ở trên đọc là hai c�
 ## Hậu ký 20/10/2026 (đường dẫn)
 
 Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
-`graphs/propose/`: `_AGREES` và `_approved_plan` nay ở `propose/outline.py`. Tên hàm và luật không
-đổi.
+`graphs/propose/`: `AGREES` và `approved_plan` nay ở `propose/outline.py`. Luật không đổi; tên các
+hàm đổi sau đó ở plan `propose-names-and-order` (hậu ký 20/10/2026 của ADR-30).

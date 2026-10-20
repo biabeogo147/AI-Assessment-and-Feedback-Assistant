@@ -92,11 +92,11 @@ sau một lượt thử tay mười ca trên Claude Haiku 5.5 —
 | Luật | Sống ở | Test canh |
 |---|---|---|
 | Code không đặt câu cố định vào lời Kriky; câu hệ thống chỉ đi dưới `kind="notice"` | `be/notices.py`; `teacher_chat._go`; `propose`; `handlers.propose_next_step`, `report_plan` | `check_kriky_says_nothing_fixed` (`tools/check_contract.py`), `test_a_fixed_sentence_in_kriky_s_mouth_is_caught` |
-| Model hỏng, chạm trần, không kể lại được, plan cứ bị từ chối → thông báo hệ thống | `be/notices.py`; `handlers._MODEL_DOWN`, `propose._UNCLEAR` (`notice=True`); `teacher_chat._go` (`stuck`, `refused`) | `test_a_model_that_breaks_gives_a_system_notice_not_the_mock`, `test_the_ceiling_streams_a_notice_not_kriky_s_words`, `test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck`, `test_the_turn_survives_a_model_that_cannot_tell_what_happened` |
-| Thông báo là một lượt riêng, không avatar; model đọc nó như ghi chú, nó không làm mất lời duyệt dàn ý | contracts `TurnRecord.kind`, `NextStepCompleted.notice`; FE `Chat.blocks`, `Notice`, `voiced`; `propose._compose`, `_approved_plan`; `teacher_chat._shown_outline` | `test_a_notice_from_the_agent_is_stored_as_a_system_notice`, *"thông báo hệ thống là một dòng riêng…"*, *"lượt đang chạy chỉ có thông báo hệ thống…"*, `test_a_system_notice_in_history_reads_as_a_note_not_as_kriky_s_words`, `test_an_agreement_retyped_after_a_system_notice_still_drafts` |
+| Model hỏng, chạm trần, không kể lại được, plan cứ bị từ chối → thông báo hệ thống | `be/notices.py`; `handlers._MODEL_DOWN`, `propose/graph._UNCLEAR` (`notice=True`); `teacher_chat._go` (`stuck`, `refused`) | `test_a_model_that_breaks_gives_a_system_notice_not_the_mock`, `test_the_ceiling_streams_a_notice_not_kriky_s_words`, `test_a_turn_that_only_hears_refused_plans_says_where_it_is_stuck`, `test_the_turn_survives_a_model_that_cannot_tell_what_happened` |
+| Thông báo là một lượt riêng, không avatar; model đọc nó như ghi chú, nó không làm mất lời duyệt dàn ý | contracts `TurnRecord.kind`, `NextStepCompleted.notice`; FE `Chat.blocks`, `Notice`, `voiced`; `propose/compose.compose`, `approved_plan`; `teacher_chat._shown_outline` | `test_a_notice_from_the_agent_is_stored_as_a_system_notice`, *"thông báo hệ thống là một dòng riêng…"*, *"lượt đang chạy chỉ có thông báo hệ thống…"*, `test_a_system_notice_in_history_reads_as_a_note_not_as_kriky_s_words`, `test_an_agreement_retyped_after_a_system_notice_still_drafts` |
 | Lời dàn ý là lời model, lên khung chat nguyên vẹn; BE chỉ trả về lời trống (hậu ký 20/10/2026) | `teacher_chat.outline_turn` | `test_a_message_that_drifts_from_its_outline_is_shown_as_kriky_wrote_it`, `test_an_empty_outline_message_still_goes_back_to_the_model`, `test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored` |
-| Lời mở plan là lời model, không thì không có | `propose._approved_plan`, `_choose` | `test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan` |
-| Câu hỏi sai điều sau danh sách tài liệu: hỏi model lại kèm lý do, không đè chữ | `propose._which_book`, `_asks_which_book`, `_WrongQuestion.hint` | `test_a_question_right_after_the_library_asks_which_document`, `test_a_question_still_off_the_second_time_keeps_the_model_s_words`, `test_a_question_about_which_document_is_told_apart` |
+| Lời mở plan là lời model, không thì không có | `propose/outline.approved_plan`, `choose` | `test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan` |
+| Câu hỏi sai điều sau danh sách tài liệu: hỏi model lại kèm lý do, không đè chữ | `propose/read_order.which_book`, `_asks_which_book`, `WrongQuestion.hint` | `test_a_question_right_after_the_library_asks_which_document`, `test_a_question_still_off_the_second_time_keeps_the_model_s_words`, `test_a_question_about_which_document_is_told_apart` |
 | Mọi lời Kriky dựng Markdown, toán dựng y như `MathText`, không HTML thô | FE `KrikyText` (`inline` → `span.line`) | `kriky-text.test.tsx` |
 | Phần tử giao diện tất định: tên bước một nguồn, lúc chạy như sau F5 | FE `ActionCard.STEP_TITLE`, `titleOf`, `stepFor`; BE `TurnEvent.tool_name`, `result` | `test_a_lookup_before_the_plan_shows_while_it_runs`, *"bước tra cứu trước plan hiện lúc đang chạy…"* |
 | **Chưa thi hành:** khung kèm học của học sinh — model hỏng thì `explain` vẫn lùi về lời giảng soạn sẵn | `handlers.explain` | — (đổi nó cần sửa hợp đồng và màn học sinh; ghi ở mục *Ngoài phạm vi* của plan) |
@@ -121,3 +121,11 @@ Viết sau bốn vòng thử tay đầu-cuối trên Claude Haiku 5.5
   thôi áp dụng; phần còn lại giữ nguyên.
 - **Luật còn sống ở `outline.validate`**: tổng 1–10 câu, mục có kiến thức và cách làm, mỗi phần tối
   đa 600 ký tự, tối đa 6 công thức mỗi mục và 200 ký tự mỗi công thức, `source_nodes` có thật.
+
+## Hậu ký 20/10/2026 (tên trong package `propose`)
+
+Plan `propose-names-and-order` bỏ dấu `_` ở mọi tên của package `propose` mà một file khác dùng, và
+xếp hàm trên gọi hàm dưới; logic không đổi. Bảng *Nơi luật này đang được thi hành* đã theo tên mới
+(`propose/outline.approved_plan`, `propose/read_order.which_book`, `WrongQuestion`…); bảng đổi đủ 45
+tên nằm trong `docs/plans/completed/2026-10-20-propose-names-and-order-plan.md`. Năm lớp pydantic
+(`_Proposal` …) giữ tên, vì tên lớp là tên tool và tên `$defs` trong schema model đọc.

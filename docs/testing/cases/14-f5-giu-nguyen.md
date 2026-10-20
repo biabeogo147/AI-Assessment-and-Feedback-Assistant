@@ -45,7 +45,7 @@ oke
 
 Xong lượt 2: F5 một lần nữa, so khối lượt 2 trước và sau.
 
-`thêm 1 câu` khớp `_ADDS` nên dàn ý thành `for=more` (như case 06). `oke` khớp `_AGREES`.
+`thêm 1 câu` khớp `_ADDS` nên dàn ý thành `for=more` (như case 06). `oke` khớp `AGREES`.
 Không gõ `đề mới`, `đề khác`, `đề nữa`.
 
 ## Nếu Kriky rẽ
@@ -55,8 +55,8 @@ Không gõ `đề mới`, `đề khác`, `đề nữa`.
 | Sau F5 khối bước thu còn `Đã làm n bước` | Bấm chevron. Đạt | Khối tự thu lúc lượt xong; nấc mở không được nhớ |
 | Bước đọc sách hiện `Một bước nữa`, hay tên, dòng `— …` của một bước khác giữa lúc chạy và sau F5 | Không đạt | Mọi tool có tên trong `STEP_TITLE` (`ActionCard.tsx`), và lúc chạy FE đặt tên bằng đúng bảng ấy (`kriky-writes-every-word`) |
 | Quay lại từ rail mà panel đóng | Bấm thẻ cuối. Đạt | Panel đi theo route; rail mở `#/teacher/chat/<CID>` không kèm `/de/` |
-| Lượt 1 đọc bài trước dàn ý | Đạt, đợi dàn ý | `_read_before_outline` bắt đọc chữ trước dàn ý có sách |
-| Lượt 1 hỏi lại bài nào | Gõ `Bài 6 trong sách ấy`. Chấp nhận được | Không chứa cụm đổi việc; `_right_purpose` vẫn dò thấy câu `thêm 1 câu` |
+| Lượt 1 đọc bài trước dàn ý | Đạt, đợi dàn ý | `read_before_outline` bắt đọc chữ trước dàn ý có sách |
+| Lượt 1 hỏi lại bài nào | Gõ `Bài 6 trong sách ấy`. Chấp nhận được | Không chứa cụm đổi việc; `right_purpose` vẫn dò thấy câu `thêm 1 câu` |
 | Lượt 1 hỏi khía cạnh của câu lũy thừa (nút: khái niệm / cách tính / ứng dụng) | Gõ `câu tính giá trị lũy thừa thôi`. Chấp nhận được | Một lượt thừa; câu đáp không chứa cụm đổi việc |
 | Dàn ý `Câu 1` | Không đạt, không gõ `oke`, ghi lại | `for=new`: `oke` sẽ mở đề thứ hai (xem case 06) |
 | Dàn ý 2 câu trở lên | Gõ `chỉ 1 câu lũy thừa thôi`, rồi lại đóng tab trước `oke` | Chấp nhận được nếu dàn ý kế đúng `Câu 8` |
