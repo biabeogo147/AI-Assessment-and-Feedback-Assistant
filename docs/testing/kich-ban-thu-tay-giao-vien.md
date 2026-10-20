@@ -1,878 +1,683 @@
-# Kịch bản thử tay — bề mặt giáo viên, từ câu chat đầu tới lúc phát hành
+# Kịch bản thử tay đầu-cuối — từ lúc giáo viên đăng nhập tới bảng điểm của cả lớp
 
-Đây là một **bản thử tay**: một người ngồi gõ từng câu và soi từng dòng Kriky trả về. Không công
-cụ, không tự động, không đo phủ nhánh. Thứ nó mua được mà không bộ test nào mua nổi: **một người
-đọc và thấy câu đó vô lý**.
+Một người ngồi trước trình duyệt, đi hết **một vòng đời** của một bài kiểm tra:
+1. giáo viên đăng nhập và tạo học sinh;
+2. soạn đề với Kriky, duyệt, phát hành;
+3. học sinh làm pha 1 và chữa ở pha 2;
+4. giáo viên đọc báo cáo, bảng điểm, tệp `.xlsx`.
 
-Chạy hết một lượt mất khoảng 25–30 phút và tốn **10 lượt gọi model** — đếm được bằng số mục
-mang dấu `[1 lượt]`. (Thêm vài lượt ẩn: mỗi đoạn chat mới tốn một lượt để model đặt tên.) Mọi mục đánh dấu `[0]` không
-tốn lượt gọi nào — chúng chạy qua nút bấm, không qua chat.
+Mỗi bước có ba phần:
+- **Làm**: bấm gì, gõ gì, nguyên văn.
+- **Phải thấy**: chữ in nghiêng là chữ nguyên văn trên màn; số trong ngoặc là artboard Figma.
+- **Sai nếu**: những hình dạng hỏng đã gặp hay dễ gặp.
 
-> **Mã trong file này KHÔNG phải mã chặng của pipeline.** `A1`, `D5`, `G4`… ở đây là số hiệu
-> **ca thử tay**, và chúng **trùng ký tự nhưng khác nghĩa** với hệ mã A–G của artifact theo dõi
-> pipeline. Ba chỗ dễ nhầm nhất: `D5` ở đây là *sửa chữ một câu* còn ở artifact là *phát hành*;
-> `E` ở đây là *phát hành và thu hồi* còn ở artifact là *học sinh làm bài*; `G` ở đây là *tài liệu*
-> còn ở artifact là *tín hiệu quay lại* — và tài liệu ở artifact là `C`. Hai hệ hoán đổi chữ cái
-> cho cùng một vật.
->
-> Cách chữa đã đề xuất, **chưa làm vì cần người dùng chốt**: đặt tiền tố `KB-` cho toàn bộ mã của
-> file này (`A1` → `KB-A1`). Hệ mã này chỉ sống trong đúng file này, nên đó là một lượt find/replace
-> ~70 chỗ, không chạm code, và theo `AGENTS.md` nó là *"wording fix in docs"* nên không cần plan hay
-> ADR. Tiện thể nó giải luôn chỗ `F5` vừa là mã ca thử vừa là phím refresh.
+Kịch bản này **không** thay bộ ca cố định `cases/`. Bộ ca đo chất lượng lời Kriky ở từng tình huống;
+kịch bản này đo **luồng**: mọi màn nối được với màn sau, không chỗ nào kẹt. Lời Kriky ở chặng 3 vẫn soi
+theo tám luật và hai luật khối bước của `huong-dan.md`.
+
+Kết quả mỗi lần chạy ghi ở `ket-qua/<ngày>-<commit>-dau-cuoi-<model>.md`, **không** ghi vào file này.
 
 ---
 
-## Chuẩn bị và luật soi mọi lượt
+## Chặng 0 — chuẩn bị
 
-Đã dời sang `huong-dan.md` cùng thư mục (15/10/2026): các bước chuẩn bị, tám luật soi mọi lượt Kriky
-và hai luật khối bước dùng chung cho file này lẫn bộ ca cố định trong `cases/`.
-
----
-
-## Chặng A — câu chat đầu tiên
-
-### A1. Nói chuyện không nhờ việc gì `[1 lượt]`
-
-**Gõ:** `chào bạn`
-
-**Phải thấy:** Kriky chào lại. **Không** khối bước, **không** thẻ, **không** nút nào. Rail hiện
-một đoạn chat mới, tên do model đặt theo câu vừa gõ.
-
-**Sai nếu:** có một khối bước (nó đi tra cứu cho một lời chào), hoặc đoạn chat không có tên sau
-khi lượt xong.
-
-### A2. Nhờ việc nhưng thiếu dữ kiện `[1 lượt]`
-
-**Gõ:** `tạo cho mình một đề`
-
-**Phải thấy:** Kriky **hỏi lại** — thiếu môn, khối, phạm vi, số câu. Câu hỏi là một bong bóng
-bình thường, **không** có nút bấm (vì chưa tool nào trả về danh sách để bày ra).
-
-Bốn mục, dù `create_draft` chỉ cần ba: số câu thuộc về `start_drafting`, và một plan soạn đề cần
-**cả hai** bước, nên thiếu con số ấy thì plan vẫn chưa dựng được.
-
-**Sai nếu:**
-- có một bước đánh dấu `✕` — hỏi lại **không phải** một bước hỏng;
-- có thẻ `Đã tạo đề` — tức một đề rỗng vừa được sinh ra cho một câu còn thiếu dữ kiện;
-- nó hỏi từng mục một qua nhiều lượt (phải hỏi gộp một lần).
-
-**Kiểm thêm:** không được có đề nháp mới nào. Rail **không** kiểm được chuyện này — bốn đích đến
-của nó còn trơ, chưa màn hình nào liệt kê đề nháp. Cách duy nhất là đếm thẳng trong database:
-`docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) from assessments;"`
-
-### A3. Trả lời câu hỏi lại `[1 lượt]`
-
-**Gõ:** `Toán 12, chương tích phân, 3 câu`
-
-**Từ 15/10/2026 (ADR-29) lượt này ra một dàn ý**, không chạy plan: chấm dàn ý theo `cases/01-xin-de-mo-ho.md`.
-Gõ `oke` ở lượt sau thì mới tới phần dưới đây.
-
-**Phải thấy:** khối bước chạy với `bước 1/2` rồi `bước 2/2`; dòng dưới bước soạn đếm tăng dần rồi
-dừng ở `— đã soạn 3/3 câu`; một câu kể; và **một thẻ** `Đã tạo đề`. Thẻ **không có nút nào** —
-bấm vào chính nó là mở panel đề.
-
-Thẻ **không nhắc lại con số**: khối bước ngay trên nó đã nói `đã soạn 3/3 câu`, và thẻ trả lời một
-câu khác — *đề này đang ở nấc nào*.
-
-**Sai nếu:**
-- **không thẻ nào** — đây là lỗi vừa sửa, nó quay lại thì đề không còn cửa nào mở ra;
-- thẻ ghi `Đã tạo đề — Chưa có câu hỏi nào`: thẻ của bước trước, trong khi bước sau đã thay nó;
-- hai thẻ;
-- thẻ ghi một con số — thẻ nấc này không có con số nào;
-- khối bước nói `bước 1/8` — `8` là mức trần, không phải số bước của plan.
+1. Hạ tầng (`.\dev.ps1 infra-up`) và ba tiến trình: `.\dev.ps1 be`, `.\dev.ps1 agent`, `.\dev.ps1 fe`
+   (`docs/local-development.md`). Tài liệu không nằm trong luồng chính, nên không cần `ingest`,
+   `document`, `index` (xem *Phụ lục — tài liệu*).
+2. Model là `claude-haiku-5-5` hoặc `gpt-4o-mini`: đọc dòng `model=` trong log AGENT lúc khởi động.
+   Một vòng tốn khoảng 15–30 lượt gọi model: chat giáo viên, sáu job soạn câu, trợ lý của học sinh,
+   câu làm lại. Ước 0,05–0,15 USD với Haiku.
+3. **Không `db-reset`.** Kịch bản chạy được nhiều lần trên cùng một database:
+   - giáo viên luôn là **GV-001** *Cô Phạm Thu Lan* của seed; SĐT, email và mật khẩu ở
+     `SAMPLE_TEACHER` trong `services/be/src/be/seed.py`;
+   - lớp luôn là **12A**;
+   - chọn một **mã vòng** chưa dùng, dạng `V3`, và gắn nó vào tên học sinh, tên đề, SĐT của tài khoản
+     thử ở chặng 1. Nhờ vậy hàng của vòng trước không lẫn vào bảng điểm của vòng này. Mã vòng đã
+     dùng: đọc tên đề trong *Các bài kiểm tra*.
+4. Mở `http://127.0.0.1:5173/#/teacher`, cửa sổ rộng ít nhất 1440 × 900. Dùng `127.0.0.1`, không
+   `localhost` (`docs/local-development.md`).
+5. Ghi giờ bắt đầu. Chặng 4 đặt giờ theo đồng hồ thật, và chặng 8 phải chờ qua hạn chữa: cả vòng mất
+   khoảng 45 phút đồng hồ.
+6. Có sẵn một **cửa sổ ẩn danh** (hay một trình duyệt khác) cho học sinh. Giáo viên và học sinh mỗi vai
+   một cookie (ADR-36), nhưng tách cửa sổ thì không bao giờ nhầm ai đang đăng nhập.
+7. Một tờ giấy (hay ghi chú riêng) để chép mật khẩu học sinh ở 2.4. **Không** ghi mật khẩu vào biên
+   bản.
 
 ---
 
-## Chặng B — những lời từ chối phải nói ra thành tiếng
+## Chặng 1 — tài khoản giáo viên (Figma 26, 26c, 26b, 27)
 
-### B1. Số câu quá lớn `[1 lượt]`
+### 1.1 Màn đăng nhập
 
-**Gõ:** `tạo đề 500 câu Toán 12 về đạo hàm`
+**Làm:** mở `#/teacher` khi chưa đăng nhập. Nếu đang đăng nhập thì bấm ô tài khoản ở góc dưới trái rail,
+bấm *Đăng xuất*.
 
-**Từ 15/10/2026 (ADR-29)** mỗi lần xin tối đa 10 câu: Kriky nói ra mức ấy ngay ở lượt này, không mở
-đề nào. Phần dưới là hành vi trước ADR-29, giữ làm lịch sử.
+**Phải thấy (26):** hộp *Đăng nhập vào Kriky*; **một ô** *Số điện thoại / email*, không có tab SĐT /
+Email; ô *Mật khẩu*; nút *Đăng nhập*; nút *Tiếp tục với Google*; dòng *Chưa có tài khoản? Tạo tài
+khoản*. Rail vẫn có, phần đoạn chat ghi *Đăng nhập để thấy các đoạn chat và tài liệu của bạn.*
 
-**Phải thấy:** bước **1** (`Tạo đề trống`) đánh `✓`, bước **2** (`Soạn câu hỏi`) đánh `✕` với lý do
-nói đúng mức trần (**số câu phải từ 1 đến 50**), plan dừng ở đó, và Kriky thuật lại lý do ấy.
+**Làm tiếp:** bấm *Tiếp tục với Google*.
 
-**Đề trống *có* được tạo, và đó là chủ ý.** Từ 06/10/2026 mức trần ở `start_drafting` chứ không ở
-`create_draft`: một đề trống không có số câu nào để canh. Nên một đề nháp rỗng nằm lại trong
-database, còn giáo viên nhận một lời từ chối đúng chỗ — ở bước xin năm trăm câu, không ở bước mở
-một tờ giấy trắng. Đếm được: `docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select state,
-count(*) from assessments group by state;"` — có thêm một dòng `empty`.
+**Phải thấy:** *Đăng nhập bằng Google chưa có. Hãy dùng số điện thoại hoặc email.*
 
-**Sai nếu:**
-- nó âm thầm cắt xuống 50 và báo thành công — một lời từ chối bị nuốt là thứ tệ hơn một lời từ chối;
-- **năm trăm job đi vào queue** — lời từ chối phải tới **trước** cú `fire`, không sau;
-- bước 1 cũng đánh `✕` — nghĩa là mức trần còn sót lại ở `create_draft`.
+### 1.2 Sai mật khẩu
 
-**Hai thứ đã gặp ngày 06/10/2026, chuẩn bị tinh thần:**
+**Làm:** gõ SĐT của GV-001, mật khẩu `sai-mat-khau`, bấm *Đăng nhập*.
 
-- **Lượt đầu thường không chạm trần.** Model hỏi lại thay vì gọi tool, kể cả khi câu gõ đã đủ môn,
-  khối và phạm vi — nó hỏi lại đúng hai thứ vừa được cho. Phải ép thêm một lượt (*"Tạo đề ngay,
-  đừng hỏi lại nữa"*) mới tới được mức trần. Đây là lý do mục này **không** tính là một lượt.
-- **Câu Kriky nói không thuật lại lý do.** Nó nói *"một mục trong yêu cầu chưa dùng được"* — con số
-  50 chỉ nằm ở dòng bước, không nằm trong lời kể. Thông tin có trên màn hình nhưng không ở chỗ
-  người ta đọc trước.
+**Phải thấy (26c):** dòng đỏ *Số điện thoại, email hoặc mật khẩu không đúng.*; ô SĐT giữ nguyên chữ; vẫn ở
+màn đăng nhập.
 
-### B2. Soạn thêm khi đề đang soạn dở `[1 lượt]`
+**Sai nếu:** câu báo phân biệt *sai mật khẩu* với *không có tài khoản* (ADR-36: không lộ ai có tài
+khoản).
 
-Gõ ngay sau khi vừa bắt đầu một vòng soạn khác, **trong lúc nó còn chạy**.
+### 1.3 Tạo tài khoản thử
 
-**Gõ:** `soạn thêm câu cho đề vừa rồi`
+**Làm:** bấm *Chưa có tài khoản? Tạo tài khoản*. Form có bốn ô:
+- *Họ và tên*: `Thầy Thử Nghiệm <mã vòng>`;
+- *Số điện thoại*: `099900000` + chữ số của mã vòng (ví dụ `0999000003`);
+- *Email*: `thu.<mã vòng>@example.com`, viết thường;
+- *Mật khẩu*: tuỳ ý, ít nhất 8 ký tự.
 
-**Phải thấy:** từ chối với lý do *đề này đang soạn dở; chờ xong rồi hãy soạn thêm*. Từ ADR-29 Kriky
-có thể nêu dàn ý soạn thêm trước; lời từ chối đến ở lượt đồng ý. Soạn thêm bình thường: `cases/06`.
+Bấm *Tạo tài khoản*.
 
-**Sai nếu:** nó bắn thêm một vòng soạn nữa — hai vòng cùng ghi vào một đề.
+**Phải thấy (26b → 27):** vào thẳng bề mặt giáo viên, không phải đăng nhập lại; ô tài khoản góc dưới trái
+có avatar và tên vừa gõ.
 
-### B3. Soạn thêm vào đề **đã duyệt** `[1 lượt]`
+**Làm tiếp:** rail → *Danh sách lớp học*.
 
-Làm sau khi đã duyệt ở mục D3.
+**Phải thấy:** *0 lớp · 0 học sinh* và bảng không có hàng. Tài khoản mới chưa có lớp, và chưa có đường
+tạo lớp (backlog).
 
-**Gõ:** `thêm 2 câu nữa vào đề vừa duyệt`
+### 1.4 Menu tài khoản, đăng xuất, đăng nhập GV-001
 
-**Phải thấy:** từ chối, lý do nói nội dung đã khoá và việc bỏ duyệt làm ở panel bên phải (từ ADR-29
-có thể sau một dàn ý, ở lượt đồng ý).
+**Làm:** bấm ô tài khoản.
 
-**Sai nếu:** Kriky nói *"để mình bỏ duyệt rồi soạn thêm nhé"*. Nó **không có** tool bỏ duyệt, nên
-câu đó là một lời hứa không ai giữ được. Đây là chỗ luật số 4 ở bảng trên bị vi phạm dễ nhất.
+**Phải thấy (27):** menu nổi *Cài đặt*, *Mức sử dụng*, *Ngôn ngữ*, *Trợ giúp*, *Đăng xuất*. Bốn mục đầu
+mờ, chỉ *Đăng xuất* bấm được.
 
----
+**Làm tiếp:** bấm *Đăng xuất*. Đăng nhập lại bằng **email** của GV-001, lần này dùng email để thử ô gộp.
 
-## Chặng C — hỏi lại **có nút**, và đọc lại
-
-### C1. Câu hỏi lại có phương án `[1 lượt]`
-
-**Gõ:** `lớp 12 của mình thế nào`
-
-**Phải thấy:** một thẻ hỏi lại với **hai nút**: `12A (3 học sinh)` và `12B (… học sinh)`.
-
-**Soi kỹ con số học sinh.** Nó do BE đếm từ database, không do model viết. Nếu bạn thấy một lớp
-không có thật, hoặc một con số sai, đó là lỗi nặng nhất trong cả bản này.
-
-**Sai nếu:** câu hỏi hiện **hai lần** — một lần làm bong bóng, một lần làm tiêu đề thẻ.
-
-### C2. F5 ngay tại đây `[0]`
-
-**Phải thấy:** các nút **vẫn còn**. Câu hỏi vẫn chỉ hiện một lần.
-
-**Sai nếu:** nút biến mất và câu hỏi tụt xuống thành một bong bóng thường — đó là hành vi **cũ**,
-trước đợt vừa rồi.
-
-### C3. Bấm một nút `[1 lượt]`
-
-**Phải thấy:** đúng chuỗi trên nút được gửi đi làm câu của bạn, và Kriky trả lời về đúng lớp đó.
-
-### C4. F5 sau một lượt đã xong `[0]`
-
-**Phải thấy:** thẻ `Đã tạo đề` của mục A3 vẫn còn, và bấm vào thẻ vẫn mở được panel. Dòng dưới
-bước soạn vẫn là `— đã soạn 3/3 câu` — **con số sống ở khối bước**, không ở thẻ.
-
-**Sai nếu:** dòng ấy đổi thành `— 3 câu bắt đầu soạn` — tức một lần tải lại làm việc đã xong quay
-về lúc mới bắt đầu.
-
-### C5. Đoạn chat mới, rồi quay lại `[0]`
-
-Bấm **Đoạn chat mới** → màn hình trắng. Bấm lại đoạn cũ trên rail.
-
-**Phải thấy:** đoạn cũ hiện lại đầy đủ.
-
-**Sai nếu:** màn trắng — màn hình tưởng đoạn ấy vẫn đang hiện.
+**Phải thấy:** ô tài khoản ghi *Cô Phạm Thu Lan*; rail có các đoạn chat cũ của GV-001.
 
 ---
 
-## Chặng D — panel đề và các cổng của ADR-05 `[0]`
+## Chặng 2 — lớp và học sinh (Figma 9, 10, 28, 28d, 28b, 28c, 10b)
 
-### D1. Mở panel từ thẻ
+### 2.1 Danh sách lớp học
 
-Bấm vào **chính cái thẻ** (không phải một nút trên nó — thẻ không còn nút nào).
+**Làm:** rail → *Danh sách lớp học*.
 
-**Phải thấy:** panel bên phải mở đúng đề ấy, ba câu hỏi, mỗi câu có đáp án đúng đánh dấu và hai
-cách giải. Địa chỉ trên thanh URL đổi.
+**Phải thấy (9):**
+- bảng các lớp của GV-001;
+- cột *LỚP*, *KHỐI / MÔN*, *SĨ SỐ*, *ĐỀ ĐANG MỞ*, rồi ba cột tiến độ *CHƯA NỘP BÀI*, *XONG GIAI ĐOẠN
+  1*, *XONG GIAI ĐOẠN 2*; mỗi đầu cột một dòng.
 
-**Soi nội dung câu hỏi.** Đây là chỗ duy nhất trong cả bản bạn đọc được thứ model thật sự viết ra.
-Câu hỏi có đúng chương tích phân không? Bốn phương án có phương án nào trùng nhau không? Đáp án
-đánh dấu có đúng không?
+Lớp không có đề đang mở thì ba cột tiến độ ghi *—*. Ghi lại sĩ số của *Lớp 12A*.
 
-### D2. Chặn duyệt một đề **chưa có câu nào**
+### 2.2 Chi tiết lớp 12A
 
-Nhờ Kriky mở một đề trống (`mở cho mình một đề trống Toán 11 chương lượng giác`) rồi vào panel của
-nó và bấm **Duyệt đề**. `[1 lượt]`
+**Làm:** bấm hàng *Lớp 12A*.
 
-**Phải thấy:** từ chối, câu nói *đề chưa có câu hỏi nào nên không duyệt được*.
+**Phải thấy (10):**
+- đầu trang *Lớp 12A*, dòng *N học sinh · Toán 12*, nút *Thêm học sinh*;
+- bảng *Bài kiểm tra đã phát hành cho lớp này*: cột *TÊN ĐỀ*, *TRẠNG THÁI*, *MỞ LÚC*, *ĐÓNG LÚC*,
+  *ĐÃ NỘP*;
+- bảng *Học sinh*: cột *HỌ TÊN*, *MÃ HỌC SINH*, *TÊN ĐĂNG NHẬP*, mỗi hàng một nút *Đặt lại mật khẩu*.
 
-### D3. Duyệt đề đủ câu
+### 2.3 Thêm học sinh — gõ tay, có một tên trùng
 
-Quay lại đề 3 câu, bấm **Duyệt đề**.
+**Làm:** bấm *Thêm học sinh*.
 
-**Phải thấy:** màn hình sang **thẳng** cài đặt phát hành (màn 7), ở đó có `Hoàn tác` trên
-`Phát hành đề`. Và một **biên bản** xuất hiện trong dòng chat — thẻ `Đã duyệt đề …`, một dòng, chip
-*Chưa phát hành cho học sinh* ở mép phải, **không nút nào**.
+**Phải thấy (28):** hộp *Thêm học sinh vào lớp 12A*, hai lựa chọn *Gõ tên* và *Tải tệp .csv / .xlsx*,
+dòng nhắc *Mỗi dòng một học sinh: họ và tên. Mã học sinh và tên đăng nhập do Kriky tạo.*, nút *Đóng*
+và *Xem trước*.
 
-**Sai nếu:** màn hình dừng lại ở panel với hai nút `Hoàn tác` + `Phát hành đề` — đó là chặng 6.5 đã
-bỏ; hoặc lượt duyệt mọc thêm một dòng trong khối bước, vì đó là việc bạn làm chứ không phải việc
-model làm.
-
-**Soi kỹ:** biên bản ấy phải rơi vào **đoạn chat đã sinh ra đề**, không phải đoạn mới nhất. Nếu
-bạn đang đứng ở một đoạn khác lúc bấm Duyệt, hãy quay lại đoạn gốc và kiểm.
-
-### D4. Bỏ duyệt
-
-Bấm **Hoàn tác** ở màn cài đặt phát hành.
-
-**Phải thấy:** thẻ quay về `Đã tạo đề`, đề sửa lại được, và **cài đặt phát hành giữ nguyên**.
-
-**Một đợt cho đúng MỘT thẻ.** Thẻ là *trạng thái của đề*, ba nấc — `Đã tạo đề` → `Đã duyệt đề` →
-`Đã phát hành` — và bỏ duyệt đưa nó **về nấc một**. Bấm duyệt rồi hoàn tác năm lần vẫn phải là một
-thẻ.
-
-**Sai nếu:** mọc thêm một thẻ `Đã bỏ duyệt đề` bên cạnh thẻ cũ. Đó là hành vi của một bản trước, và
-nó cho ra một chồng thẻ nói luân phiên hai câu. Biên bản **không** mất vì thế: nó sống trong
-`teacher_turns`, và thẻ chỉ là ô cửa nhìn vào trạng thái.
-
-### D5. Sửa chữ một câu
-
-Bấm **Sửa** trên một thẻ câu hỏi.
-
-**Phải thấy:** mỗi phương án có một **nút chọn tròn** ở đầu hàng, và nút của đáp án đúng đang được
-chọn. Mỗi phương án nhiễu có **hai** ô — chữ phương án và nhãn lỗi; đáp án đúng chỉ có một ô và
-**không có nút Xoá**; mỗi lời giải có ô tên và ô thân. Hai nút `+ Thêm phương án` và
-`+ Thêm cách giải`.
-
-**Đổi đáp án đúng.** Bấm nút tròn của một phương án khác.
-
-**Phải thấy:** dấu đúng chuyển sang phương án ấy, ô nhãn lỗi của nó **biến mất**, và một ô nhãn lỗi
-**trống** mọc ra ở phương án vừa thôi đúng. Nút `Lưu` **khoá lại**, kèm một dòng tiếng Việt:
-*Phương án X chưa có nhãn lỗi. ADR-18 bắt mọi phương án nhiễu phải có.*
-
-**Sai nếu:** bấm `Lưu` được ngay rồi nhận một câu từ chối **tiếng Anh** dạng
-`distractors ['A'] carry no error label: …` — đó là lời của BE, và nó không dành cho giáo viên đọc.
-Hoặc: nhãn lỗi cũ của phương án vừa thành đúng **bị xoá mất** — bấm nhầm rồi bấm lại là mất chữ đã
-gõ tay, không có đường hoàn lại.
-
-Gõ nhãn lỗi cho phương án vừa thôi đúng rồi `Lưu`: lưu được, và đáp án đúng đã chuyển.
-
-Thêm một phương án, gõ cả chữ lẫn nhãn lỗi, rồi **Lưu**.
-
-**Phải thấy:** thẻ đóng lại, phương án mới hiện trong lưới hai cột.
-
-**Sai nếu:** Lưu trả `Not Found` — BE đang chạy bản cũ không có endpoint sửa câu, khởi động lại nó;
-hoặc Lưu bị từ chối vì một công thức LaTeX nằm ngoài cặp `$` — luật ấy đã bỏ, công thức viết sai thì
-hiện nguyên văn để bạn sửa tay.
-
-#### D5b. Ký tự hỏng, nếu câu đó có
-
-**Mục này chỉ chạy được trên dữ liệu CŨ.** Sau một lần `db-reset`, đề seed không có LaTeX và đề
-vừa soạn đã đi qua bộ khôi phục của ADR-26, nên thường **không ô nào** có dòng đỏ — và đó là kết
-quả đúng, không phải một lần thử trượt. Bỏ qua mục này nếu không tìm thấy ô nào dính.
-
-Một số câu soạn trước ngày 06/10/2026 mang ký tự điều khiển thay cho dấu gạch chéo của LaTeX —
-`0x0C` thay `\f` của `\frac`, `0x09` thay `\t` của `\times`. Chúng **vô hình** trong ô nhập, nên
-dưới mỗi ô dính sẽ có một dòng đỏ: *"Công thức có ký tự hỏng. Bạn có thể hỏi Kriky cách viết lại cho
-đúng nhé!"* (từ 19/10/2026; trước đó là một bản in lại với `␌ ␉ ␈ ␡`).
-
-**Phải thấy:** dòng ấy chỉ hiện ở ô thật sự có ký tự hỏng. Ô lời giải nhiều dòng **không** được
-báo chỉ vì nó xuống dòng. Và chữ trong ô nhập **không** đổi.
-
-Hỏi Kriky cách viết lại, gõ lại công thức trong ô rồi **Lưu**: dòng đỏ biến mất và công thức dựng
-hình được.
-
-**Sai nếu:** một đề **vừa soạn mới** cũng có dòng đỏ ở nhiều ô. Câu mới phải sạch — AGENT dựng lại
-dấu gạch chéo trước khi lưu (ADR-26). Một hai chỗ sót là chuyện thường: hoặc từ điển lệnh thiếu một
-lệnh, hoặc model viết ra một lệnh không có thật như `\bigint`.
-
-### D6. Lời giải mở thành hộp thoại
-
-Bấm **Lời giải · n cách**.
-
-**Phải thấy:** một hộp thoại rộng, các bước của lời giải **xuống dòng đúng chỗ** (không dính thành
-một dải chữ), và ánh xạ mỗi phương án nhiễu gắn một lỗi. Đóng được bằng `Esc`, bằng nút `Đóng`, và
-bằng cách bấm ra nền.
-
-Duyệt lại trước khi sang chặng E.
-
----
-
-## Chặng E — phát hành và thu hồi `[0]`
-
-### E1. Biểu mẫu không gợi sẵn giờ nào
-
-**Phải thấy:** năm ô thời gian **trống**. Đây là cố ý: một giờ gợi sẵn là một giờ sẽ được bấm qua
-mà không ai đọc.
-
-### E2. Ba lý do từ chối, nói **trước** cú bấm
-
-Thử lần lượt, mỗi lần một lỗi. Câu từ chối phải hiện **ngay khi gõ xong**, ngay dưới hai câu luật,
-và nút `Phát hành đề` **khoá lại** — không phải đợi bấm rồi mới biết:
-
-| Nhập | Phải thấy lý do |
-|---|---|
-| giờ mở ở **quá khứ** | *giờ mở phải ở tương lai* |
-| giờ đóng **trước** giờ mở | *giờ đóng phải sau giờ mở* |
-| hạn chữa **trước** giờ nộp cuối pha 1 | *hạn pha 2 phải sau giờ nộp cuối của pha 1* |
-
-Mốc của dòng thứ ba là **giờ nộp cuối** = giờ đóng + phút làm bài, không phải giờ đóng. Thử một hạn
-nằm **giữa** hai mốc ấy: nó phải bị chặn.
-
-**Soi kỹ hai câu luật ngay trên.** Khi cửa sổ vô lý, chúng vẫn in ra một câu đọc xuôi tai
-(*"Vào làm bài tới hết 08:00 — nộp muộn nhất lúc 08:15"*) — đó là lý do lời từ chối phải đứng **cạnh**
-chúng chứ không đợi tới sau cú bấm.
-
-**Sai nếu:** nút vẫn sáng và chỉ bị chặn sau khi bấm; hoặc câu từ chối khác chữ với câu BE trả về.
-
-**Và với nhiều lớp:** cả biểu mẫu **không** được trượt vì một lớp sai. ADR-02 cho phép một lớp nhận
-được và lớp khác không, nên lỗi phải là **lý do của riêng lớp đó** trong bảng kết quả.
-
-### E3. Hộp xác nhận đọc lại đúng cái sắp xảy ra
-
-Nhập giờ hợp lệ cho **cả hai lớp**, bấm xem trước.
-
-**Phải thấy:** hộp xác nhận in lại đúng những giờ bạn vừa gõ, đúng số học sinh, và ba câu luật.
-
-**Soi kỹ múi giờ.** Gõ `08:45`, hộp phải đọc lại `08:45` — không phải `01:45`. Đây là chỗ đã có
-lỗi một lần.
-
-**Và hộp chỉ kể MỘT câu chuyện.** Câu mở đầu, dòng `Thu hồi` và câu luật của BE phải nói cùng
-một mốc. Đo được ngày 06/10/2026: câu mở đầu hứa thu hồi *"cho tới giờ mở của **từng lớp**"*
-trong khi ngay dưới nó dòng luật nói *"cho tới hết giờ mở"* và dòng `Thu hồi` in đúng **một**
-giờ — ba chỗ, hai câu chuyện. Một lần phát hành có một khung giờ (ADR-02, sửa đổi cùng ngày),
-nên *"từng lớp"* không còn thứ gì để chỉ tới. Đã sửa, và `teacher.test.tsx` khẳng định hộp
-không chứa chuỗi `từng lớp`.
-
-**Sai nếu:** bấm xem trước mà đề đã bị phát hành — xem trước **không được ghi gì**; hoặc hộp
-nói hai mốc thu hồi khác nhau.
-
-### E4. Phát hành thật
-
-**Phải thấy:** thẻ `Đã phát hành` — **không** chở tên lớp. Danh sách lớp thuộc về hộp xác nhận
-và bảng kết quả, không thuộc một dòng tiêu đề; một đầu đề đổi chữ theo dữ liệu là một trạng
-thái thứ tư trá hình. Và thẻ ấy **không** nói *"chưa phát hành"*: nó là thẻ duy nhất có hậu
-quả đã xảy ra, nên câu an toàn của nó nói về **thu hồi**, không nói về việc chưa tới tay ai.
-
-**Đếm thẻ: đúng một.** Cả chặng D và E chỉ được để lại **một** thẻ cho đề này, và nó đổi chữ
-theo nấc — `Đã tạo đề` → `Đã duyệt đề` → `Đã phát hành`. Hai thẻ chồng nhau là lỗi.
-
-**Sai nếu:** đầu đề là `Đã phát hành cho 12A và 12B`; hoặc chân panel mời `Phát hành thêm lớp`
-— nút ấy đã bỏ, muốn đổi lớp thì hoàn tác trước.
-
-### E5. Hoàn tác một đề **đã phát hành**, trước giờ mở
-
-Mục này từng ghi **CHƯA LÀM ĐƯỢC**: màn hình hứa việc thu hồi hai lần mà không có nút nào để
-làm, và nút `Hoàn tác` thì có nhưng bấm vào trả 409 — câu 409 ấy lại bị `Panel` nuốt, nên cú
-bấm không làm gì và **không nói gì**. Từ 06/10/2026 đường lùi là **một** đường.
-
-Bấm **Hoàn tác** ở màn cài đặt phát hành, khi chưa tới giờ mở của lớp nào.
-
-**Phải thấy:** đề về thẳng `đang soạn` — hoàn tác thu hồi **mọi** lớp rồi hạ hai nấc trong một
-cú bấm. Nội dung mở ra sửa được. Thẻ quay về `Đã tạo đề`.
-
-**Kiểm bằng SQL**, vì màn hình không vẽ bảng `publications`:
+**Làm:** ở *Gõ tên*, gõ bốn dòng:
 
 ```
-docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select state from assessments where id='<id>';"
-docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select class_id, recalled_at from publications where assessment_id='<id>';"
+Kiều Minh Châu <mã vòng>
+Lò Văn Dũng <mã vòng>
+Mạc Thị Én <mã vòng>
+Nguyễn Minh Anh
 ```
 
-`state` phải là `has_questions`, và **mọi** dòng `publications` phải có `recalled_at`.
+Dòng cuối trùng tên một em đã có trong 12A (seed). Bấm *Xem trước*.
 
-**Sai nếu:** chỉ một lớp bị thu hồi — hoặc tất cả hoặc không gì cả; hoặc `state` vẫn là
-`published` trong khi các dòng đã thu hồi.
+**Phải thấy (28b):** *Kiểm tra lại trước khi tạo tài khoản*; bảng *HỌ VÀ TÊN*, *TÊN ĐĂNG NHẬP*, *GHI
+CHÚ*, *XÁC NHẬN*.
+- Ba dòng đầu ghi *Mới*.
+- Tên đăng nhập theo luật ADR-36: **từ cuối của họ tên** cộng chữ đầu các từ trước, bỏ dấu, viết
+  thường. Mã vòng đứng cuối nên nó thành phần tên, ví dụ `Kiều Minh Châu V3` → `v3kmc`, `Lò Văn Dũng
+  V3` → `v3lvd`, `Mạc Thị Én V3` → `v3mte`.
+- Dòng *Nguyễn Minh Anh* ghi *Trùng tên trong lớp*, tên đăng nhập có số (`anhnm2`), ô xác nhận chưa tick.
+- Chân hộp: *Sẽ tạo 3 tài khoản · 1 học sinh cần xác nhận*, nút *Quay lại* và *Tạo 3 tài khoản*.
 
-### E5b. Hoàn tác khi **đã qua giờ mở**
+**Sai nếu:** dòng trùng được tính vào số tài khoản khi chưa tick; tên đăng nhập còn dấu tiếng Việt.
 
-Đặt một `opens_at` về quá khứ rồi mở lại màn 7:
+### 2.4 Bỏ dòng trùng, tạo tài khoản
+
+**Làm:** **không** tick dòng *Nguyễn Minh Anh*. Bấm *Tạo 3 tài khoản*.
+
+**Phải thấy (28c):**
+- hộp *Đã tạo 3 tài khoản*;
+- câu *Hãy lưu lại mật khẩu — chỉ hiển thị một lần duy nhất.*;
+- bảng *HỌ VÀ TÊN*, *TÊN ĐĂNG NHẬP*, *MẬT KHẨU*;
+- nút *Xuất file Excel (.xlsx)* và *Đã lưu, đóng*.
+
+**Chép tên đăng nhập và mật khẩu của Châu và Dũng** ra giấy: đây là lần duy nhất chúng hiện.
+
+**Làm tiếp:** bấm *Xuất file Excel (.xlsx)*.
+
+**Phải thấy:** tệp *Mật khẩu - 12A.xlsx* tải về, đúng ba hàng như trên màn.
+
+**Làm tiếp:** bấm *Đã lưu, đóng*, rồi F5.
+
+**Phải thấy:**
+- ba em mới có trong bảng *Học sinh*, mã học sinh là số thứ tự do hệ thống cấp;
+- **không** chỗ nào còn hiện mật khẩu;
+- dòng đầu trang và sĩ số ở *Danh sách lớp học* tăng 3.
+
+### 2.5 Thử tải tệp
+
+**Làm:** bấm *Thêm học sinh*, chọn *Tải tệp .csv / .xlsx*.
+
+**Phải thấy (28d):** dòng nhắc *Một cột họ và tên, dòng tiêu đề có thể có. Mã học sinh và tên đăng nhập do
+Kriky tạo.*, nút *Chọn tệp*, dòng *Chưa chọn tệp nào · tối đa 1 MB*.
+
+**Làm:** bấm *Chọn tệp*, chọn một `.csv` hai dòng:
 
 ```
-docker exec aiafa-postgres psql -U aiafa -d aiafa -c "update publications set opens_at = now() - interval '5 minutes' where assessment_id='<id>';"
+Họ và tên
+Kiều Minh Châu <mã vòng>
 ```
 
-**Phải thấy:** nút `Hoàn tác` **hiện nhưng khoá**, kèm câu của BE gọi **tên lớp**: *"Đã qua giờ
-mở của lớp 12A nên không hoàn tác được nữa…"*. Biểu mẫu nói trước cú bấm, cùng khuôn với cách
-nó chặn một cửa sổ thời gian vô lý.
+**Phải thấy:** tên tệp hiện thay cho *Chưa chọn tệp nào*, nút đổi thành *Chọn tệp khác*.
 
-**Sai nếu:** nút biến mất (giáo viên đi tìm một đường lùi không còn tồn tại); hoặc nút bấm được
-rồi mới nhận 409; hoặc câu từ chối nói *"một lớp nào đó"* mà không gọi tên lớp.
+**Làm:** bấm *Xem trước*.
 
-### E6. Phát hành một đề **chưa duyệt**
+**Phải thấy (28b):**
+- dòng ấy ghi *Trùng tên trong lớp*, vì em vừa được tạo ở 2.4;
+- chân hộp *Sẽ tạo 0 tài khoản · 1 học sinh cần xác nhận*;
+- nút *Tạo 0 tài khoản* bị khoá.
 
-Lấy đề trống ở D2, mở biểu mẫu phát hành.
+**Làm:** bấm *Quay lại*, rồi *Đóng*. Không tạo gì.
 
-**Phải thấy:** chặn, với câu nói trạng thái hiện tại.
+### 2.6 Đặt lại mật khẩu
+
+**Làm:** ở hàng *Mạc Thị Én <mã vòng>*, bấm *Đặt lại mật khẩu*.
+
+**Phải thấy (10b):** hộp *Đã đặt lại mật khẩu cho Mạc Thị Én <mã vòng>*, câu *Hãy lưu lại mật khẩu — chỉ
+hiển thị một lần duy nhất.*, bảng một hàng có mật khẩu mới, nút *Đã lưu, đóng*. Đặt lại chạy ngay,
+không hỏi lại; có nên hỏi lại hay không là backlog Tier 2 câu 30.
+
+**Làm:** bấm *Đã lưu, đóng*. Em Én không đăng nhập ở các chặng sau.
 
 ---
 
-## Chặng F — rail `[0]`
+## Chặng 3 — soạn đề với Kriky (Figma 1, 2, 3, 3b, 16, 5, 17, 6, 12, 14, 15, 19b, 19)
 
-| | Làm gì | Phải thấy |
-|---|---|---|
-| F1 | Rê chuột lên một hàng | `⋯` hiện ra, và **tên không bị đẩy ngang** |
-| F2 | `⋯` → Đổi tên → gõ → Enter | Nhãn đổi ngay; F5 vẫn giữ |
-| F3 | `⋯` → Đổi tên → xoá trắng → Enter | Tên cũ ở lại (tên rỗng bị từ chối) |
-| F4 | `⋯` → Đổi tên → gõ → **Esc** | Tên cũ ở lại |
-| F5 | `⋯` ở **hàng cuối** danh sách | Menu hiện **đè lên** ngăn TÀI LIỆU, và mục *Xoá* bấm được |
-| F6 | Mở `⋯` hàng A rồi `⋯` hàng B | Chỉ **một** menu mở |
-| F7 | Mở `⋯` rồi bấm ra ngoài, hoặc bấm Esc | Menu đóng |
-| F8 | `⋯` → Xoá | **Hộp xác nhận** hiện ra trước. Bấm *Giữ lại* thì không có gì xảy ra |
-| F9 | Xoá một đoạn **không** đang mở | Nó rời rail; đoạn đang mở không bị động tới |
-| F10 | Xoá đoạn **đang mở** | Màn hình về *Đoạn chat mới* |
-| F11 | Sau khi xoá, gõ một câu mới `[1 lượt]` | Nó mở một đoạn **khác**, không rơi vào đoạn đã xoá |
+Mỗi lượt Kriky nói: soi tám luật của `huong-dan.md`.
 
-**Và một thứ phải kiểm sau khi xoá:** mở lại một đề đã tạo trong đoạn vừa xoá. Đề **vẫn còn** —
-xoá đoạn chat không xoá đề.
+### 3.1 Đoạn chat mới, lời nhắn
 
----
-
-## Chặng G — tài liệu `[0]`
-
-| | Làm gì | Phải thấy |
-|---|---|---|
-| G1 | Icon tải lên cạnh nhãn `TÀI LIỆU` → chọn một PDF nhỏ | Chip lên rail với **kích thước**, không phải số trang |
-| G2 | Dải dưới ô nhập | Đúng một dòng `Đã tải lên: {tên tệp}`. **Không** nút nào trong dải: tải lên chỉ có một cửa |
-| G3 | Thử một file `.png` | Bị từ chối |
-| G4 | Thử một file **trên 100 MB** | Bị từ chối, và câu từ chối **nói ra con số** 100 MB |
-| G5 | Thử một file `.docx` | Bị từ chối. Từ 08/10/2026 chỉ còn `.pdf`, `.txt`, `.md` — PyMuPDF không đọc được Word, nên nhận là hứa một thứ sẽ phải từ chối muộn hơn |
-| G6 | Sau G1, mở console MinIO ở <http://127.0.0.1:9001> | Object nằm ở `documents/<giáo viên>/<tài liệu>.pdf`. Byte **không** nằm trong Postgres |
-| G7 | Sau G1, **nhìn chip** trên rail | Dòng meta in `kích thước · số trang`, và số trang **khớp số trang thật** của tệp. Mở tệp ra đếm tay để so — một con số sai ở đây thì không màn hình nào nói ra |
-| G8 | Tải lên một PDF **không có chữ nào** (một trang trắng). PDF chụp lại có chữ thì được OCR và lên *sẵn sàng* — xem `cases/13-tai-lieu-scan.md` | Chip đi từ *Đang xử lý…* sang **Không đọc được chữ** màu hổ phách, **không cần F5**. Rê chuột lên chip: `title` nói lý do cụ thể. Thử kéo nó vào ô nhập — **nó không đi** |
-| G9 | Tắt `.\dev.ps1 document`, tải một tệp lên, hạ `DOCUMENT_STALE_AFTER_SECONDS` xuống vài giây rồi đợi | Chip đọc ra **Xử lí lỗi. Hãy tải lại**, **nhưng cột trong Postgres vẫn là `processing`** — xem `psql -c "select state from documents"`. Đó là bằng chứng trạng thái thứ tư được suy ra lúc đọc chứ không ghi gì. Bật `document` lại thì tài liệu ấy **vẫn** được xử lý |
-| G10 | Tải một `.txt` có chữ lên | Dòng meta chỉ có **kích thước**, không có số trang. Không bao giờ in `0 trang`: một tệp văn bản thuần không có trang, và giáo viên sẽ tin con số ấy |
-| G11 | Mở hai tab cùng lúc, tải một tệp ở tab này | Chip trên **cả hai** tab cùng đổi mặt. Kênh SSE theo giáo viên, không theo tab |
-| G12 | Chọn một tệp **trên 100 MB** | Trình duyệt từ chối **ngay**, không request nào rời đi. Mở tab Network mà xem: không có `POST /api/teacher/documents` |
-
-**Sai nếu:** dải dưới ô nhập nói *"phạm vi"* hay gợi ý rằng tài liệu sẽ giới hạn đề. Nội dung tài
-liệu **chưa** đi vào việc soạn đề, và màn hình không được hứa ngược lại.
-
-**Bốn trạng thái, ba màu.** `Đang xử lý…` xanh mòng két, hai trạng thái xấu cùng màu hổ phách.
-Chúng dùng chung màu có chủ ý: Foundations của Figma ghi *"ba màu cùng trọng lượng, cố ý không
-xếp hạng nghiêm trọng"*, và cái phân biệt hai trạng thái xấu là **chữ**, không phải màu. Chip
-*sẵn sàng* không có dòng trạng thái nào — số trang đã là bằng chứng đã đọc được chữ.
-
----
-
-## Chặng H — dàn ý đề trước khi soạn (ADR-29)
-
-Đã dời sang bộ ca cố định (15/10/2026): đề không tài liệu `cases/02`, sửa dàn ý `cases/03`, theo
-sách `cases/04`, thay một câu `cases/05`, soạn thêm `cases/06`, đồng ý kèm điều kiện `cases/07`.
-
----
-
-## Hai thứ đã biết là sai — gặp thì không phải phát hiện mới
-
-1. **Đóng tab giữa lúc Kriky đang làm.** Lượt bị cắt ngay chỗ nó đang đợi: các bước đã ghi còn
-   đó, nhưng **không có câu kết**, và nếu là lượt đầu thì đoạn chat **chưa có tên**. Đây là nợ số
-   1 của ADR-25.
-2. **Hai tab cùng chạy một plan trong một đoạn chat.** Không có khoá nào. Hai dãy bước sẽ cài răng
-   lược trong một đoạn.
-
-Và **một lỗi chưa sửa, đáng để ý nếu gặp**: nếu Kriky trả về một plan **không có bước nào**, màn
-hình sẽ vẽ một khối bước rỗng rồi hiện thông báo hệ thống *"Kriky tra mãi mà chưa ra câu trả lời gọn
-cho câu này"* — câu của mức trần 8 bước, trong khi vòng lặp mới đi một bước. Hiếm, nhưng nếu bạn thấy câu ấy sau
-đúng **một** bước thì bạn vừa gặp nó.
-
----
-
-## Ghi lại
-
-Mỗi lần chạy, ghi ba thứ: **ngày**, **câu nào làm hỏng**, và **nguyên văn** câu Kriky trả lời.
-Nguyên văn quan trọng hơn mô tả — với một model, *"nó trả lời sai"* không sửa được, còn một câu
-chép lại nguyên văn thì sửa được.
-
-| Ngày chạy gần nhất | Ai | Mục hỏng |
-|---|---|---|
-| 2026-10-06 | Claude | E5 (không có nút), A3 (2/3 câu), B1 (phải ép 2 lượt), đánh số câu nhảy 1→3 |
-| 2026-10-06 (lượt hai, sau khi sửa) | Claude | E3 (hộp xác nhận nói *"của từng lớp"*), A2 (hỏi lại thừa) |
-
-### Lần chạy 2026-10-06 — năm đoạn chat, giữ lại để đọc lại
-
-| Đoạn | Mục | Kết quả |
-|---|---|---|
-| `chào bạn` | A1 | đạt |
-| `Tạo đề` | A2, A3, D1, D3–D6, E1–E4 | A3 **2/3 câu**; còn lại đạt |
-| `tạo đề 500 câu…` | B1 | đạt sau khi ép lượt thứ hai |
-| `Kết quả lớp 12` | C1, C2 | đạt |
-
-**Bốn thứ đo được, nguyên văn:**
-
-1. **A3 cho 2/3 câu.** Ba job soạn chạy song song trên cùng một brief; hai câu mở đầu giống hệt
-   nhau (*"Tính giá trị của tích phân sau: $\int…"* và *"…: $\bigg|…"*), BE loại một câu là trùng,
-   `draft_items` còn lại một dòng `retry`. Thẻ ghi `Dừng ở 2/3 câu` và câu kể nói *"chỉ có 2/3 câu.
-   Đề chưa đủ câu"* — **hai chỗ khớp nhau**, nên đây là hệ thống nói thật về một lần soạn hụt, không
-   phải lỗi giao diện.
-
-   **Đã sửa 06/10/2026.** Năm mắt xích, truy được hết: `fire()` tính `banned` **một lần** trước khi
-   đẩy job (rỗng, vì đề mới) → ba job song song cùng cầm danh sách rỗng ấy → hai câu mở đầu giống
-   nhau → ô thứ hai bị đánh `retry` → mà `fire()` chỉ được gọi từ `start_drafting`, nên `retry` thực
-   tế nghĩa là **bỏ dở**. Nay `harvest()` tự bắn lại ngay trong lượt thu, với `banned` **đã có** câu
-   vừa ghi; `attempts` vẫn là trần. Cộng hai thứ biến *"không ai truy được"* thành *"đọc một dòng
-   SQL"*: cột `draft_items.last_fault` chở lý do, và BE **có cấu hình logging** — trước đợt này
-   không có dòng nào, nên mọi `logger.info` của `be.drafting` rơi vào hư không.
-
-2. **Đánh số câu nhảy 1 → 3.** `order_index` giữ chỗ của câu soạn hỏng, và panel in thẳng số ấy. Đầu
-   panel ghi *"2 câu"* trong khi thân ghi *"Câu 1"* rồi *"Câu 3"* — hai con số trên một màn hình nói
-   ngược nhau, và giáo viên đọc ra là có một câu bị giấu.
-
-3. **Model đánh dấu sai đáp án.** `$\int_0^1 (3x^2-2x+1)\,dx$` bằng **1**, nhưng phương án được
-   đánh dấu đúng là `1/3`. Sửa bằng nút chọn trong form (mục D5) thì đi được trọn đường. Và một câu
-   nữa vô nghĩa về mặt toán: *"Tính giá trị của tích phân sau: $\bigg|\frac{1}{2}\bigg| =
-   \bigg|\frac{1}{2}$"* — ADR-26 cho chữ hỏng đi tới giáo viên đúng như đã chốt.
-
-4. **ADR-26 chạy đúng.** Không một ký tự điều khiển nào trong toàn bộ dữ liệu mới (`stem`, `option`,
-   `method` đều 0), panel dựng **10 công thức** với **0 lỗi KaTeX** và **0 dấu đô la lọt ra màn**.
-
-### Lần chạy 2026-10-06, lượt hai — sau khi sửa, trên database vừa tạo lại
-
-Một đoạn chat, một lượt `gpt-4o-mini` soạn đề, rồi đi hết vòng `đã tạo đề → đã duyệt đề → đã
-phát hành → hoàn tác` và quay lại phát hành lần nữa để thử hai ca hết cửa lùi.
-
-**Năm thứ đo được:**
-
-1. **A3 cho 3/3 câu.** Giáo viên xin ba câu, nhận ba câu: `draft_items` là `ready:1, ready:1,
-   ready:1` — không dòng `retry` nào, không lần bắn lại nào. Và cái log **nói ra được**:
-   `be.drafting queued 3 question(s) for draft …`, `be.teacher_tools teacher GV-001 runs
-   start_drafting`. Trước đợt này những dòng ấy đi vào hư không, nên lần soạn hụt đầu tiên
-   không để lại dấu vết nào. `last_fault` đọc được bằng SQL (rỗng, vì không câu nào hỏng).
-
-2. **Thẻ luôn đúng MỘT, đổi chữ theo nấc.** `Đã tạo đề "tên"` → `Đã duyệt đề "tên"` → `Đã
-   phát hành` → (hoàn tác) `Đã tạo đề "tên"`. Nấc đầu chở **hai** việc (`create_draft` và
-   `start_drafting`) mà vẫn một thẻ. `Đã phát hành` **không** chở tên lớp, và nút `Phát hành
-   thêm lớp` không còn tồn tại trên màn hình.
-
-3. **Một khung giờ, đo ở hai chỗ.** Chọn thêm lớp thứ hai **không** làm mọc thêm ô thời gian
-   nào (vẫn đúng 5 ô), và hai dòng `publications` có **cùng** `opens_at`.
-
-4. **Hoàn tác: hoặc tất cả hoặc không gì cả.** Một cú bấm → cả 12A lẫn 12B đều có
-   `recalled_at`, và `state` xuống thẳng `has_questions`. Khi một lớp đã qua giờ mở: BE trả
-   409 và **không** thu hồi lớp nào — `recalled_at` của cả hai vẫn rỗng, `state` vẫn
-   `published`.
-
-5. **Đường lùi nói ra được, ở cả hai nửa.** Mở lại màn 7 khi đã qua giờ mở: nút `Hoàn tác`
-   **hiện nhưng khoá**, kèm `role="status"` chở câu của BE gọi **tên lớp**. Còn khi biểu mẫu
-   trong tay giáo viên là bản cũ — đồng hồ vừa qua giữa lúc họ đang nhìn — cú bấm nhận 409 và
-   câu ấy hiện ra với `role="alert"` **ngay ở màn cài đặt phát hành**, đúng chỗ `Panel` từng
-   nuốt mất nó. Hai câu **giống nhau từng chữ**, vì chúng dùng chung một hàm.
-
-**Một thứ của model, không phải của code:** ở A2, giáo viên viết *"Tạo cho tôi một đề toán lớp
-12 gồm 3 câu về hàm số bậc hai"* — đã có cả khối lớp lẫn phạm vi — mà Kriky vẫn hỏi lại
-*"Bạn vui lòng cho mình biết khối lớp và phạm vi kiến thức nào…"*. Hỏi lại khi đã đủ dữ kiện
-tốn của giáo viên một lượt, và dạy họ rằng câu hỏi lại là thủ tục chứ không phải nhu cầu thật.
-Đây là việc của prompt pha 1, chưa sửa.
-
-### Lần chạy 2026-10-06, lượt ba — bảy lỗi giao diện, đo bằng DOM, **không** lượt model nào
-
-Lượt này không nhờ Kriky một việc gì: cả bảy chỗ hỏng đo được bằng `getBoundingClientRect`,
-`localStorage` và dữ liệu đã có trong database. Database **giữ nguyên**, vì chính nó là bằng
-chứng — câu 3 của đề `d3f40a77` còn nguyên hai phương án trùng.
-
-**Trước khi đo, một thứ phải chữa trước:** trình duyệt tự động không vào được dev server.
-`ERR_CONNECTION_REFUSED` ở `localhost:5173` trong khi `curl` từ shell trả 200 ở đúng URL ấy —
-một triệu chứng đọc ra như server đang chết, và nó ngốn bốn lượt thử. Nguyên nhân: Vite để
-`server.host` mặc định, chuỗi `localhost` phân giải ra `[::1]` nên server **chỉ** bind IPv6,
-còn trình duyệt phân giải `localhost` ra `127.0.0.1` trước. `vite.config.ts` nay ghim
-`host: "127.0.0.1"`.
-
-1. **Màn 6.5 biến mất, đo đúng đường người dùng báo.** Bấm thẻ `Đã phát hành` trong đoạn chat:
-   `.panel` có đúng ba con — `panel-head`, `panel-questions`, `publish-settings` — và **không**
-   `panel-foot`. Một cú bấm tới biểu mẫu, không còn cú bấm `Phát hành đề` nào ở giữa. Link cũ
-   mang hậu tố `/phat-hanh` vẫn mở, và mở ra **cùng** màn ấy.
-
-2. **Tấm trượt phát hành, trên đề đã phát hành `d3f40a77`.** Bung: vùng câu hỏi **94/911**
-   (10,3%), `scrollHeight` 569 so `clientHeight` 94 — phải cuộn. Thu: **720,5/911** (79,1%),
-   `scrollHeight` = `clientHeight` = **721** — không còn phải cuộn. Thanh đầu 51,5. Tổng ba
-   khối `139 + 720,5 + 51,5` = **911** khít đúng, nên không khối nào che khối nào: đó là
-   phương án A đo được, không phải A nói ra.
-
-3. **Icon rail thôi lệch.** Cả bốn đích đến: svg `122→134` tâm **128**, chữ title tâm **128** —
-   lệch **0,00**, và svg lấp đúng cái hộp 12px. Trước: tâm svg 130 so title 128,05, lệch 2px.
-
-4. **Hai ngăn rail thu được.** Ba nấc đo được: mở cả hai **358 / 225** (thanh kéo có mặt), thu
-   `TÀI LIỆU` **568 / 27**, thu cả hai **27 / 27**. Ngăn thu cao đúng 27 = `pane-head`. Thanh
-   kéo biến mất ở cả hai nấc thu. Nút tải lên **không** nằm trong nút thu. Nấc sống qua F5,
-   hai khoá riêng (`...pane-open.history` = `0`, `...documents` = `1`).
-
-   **Và phép đo bắt được một chỗ hở mà không test nào thấy:** thu `ĐOẠN CHAT` để ngăn tài liệu
-   đứng yên ở 225 và bỏ lại ~368px trắng dưới nó, trong khi chiều ngược lại kín chỗ. Lỗi chỉ
-   lộ ra ở **một** trong hai chiều, và Figma vẽ đúng chiều kia. Sau khi sửa: 27/568 và 568/27,
-   tổng **595** = đúng chiều cao `.lists`.
-
-5. **Dấu `$` hết lọt ra màn.** Vùng câu hỏi của đề `d3f40a77`: **0** dấu `$`, trước đợt này
-   đếm được 8. Thẻ câu 3 có 5 khối KaTeX, và cả bốn phương án `$ (1, 8) $` dạng ấy đều dựng
-   thành toán.
-
-6. **Luật hai phương án trùng sống thật trong BE đang chạy.** Một vòng đầy đủ trên đề
-   `f348b4ba`: hoàn tác → `has_questions` → `PATCH` một câu với hai phương án chỉ khác nhau số
-   khoảng trắng → **422 `two options say the same thing`** → gửi lại nguyên bản → 200 → duyệt
-   lại → `approved`. Không để lại dấu nào.
-
-7. **Đổi tên và xoá sống lại.** Bắn đúng chuỗi `pointerdown → pointerup → click` như ngón tay
-   thật: menu `⋯` **sống qua `pointerdown`**, `input.rename` hiện ra mang sẵn tên cũ, gõ tên
-   mới rồi Enter thì `PATCH /api/teacher/conversations/{id}` đi ra với đúng thân
-   `{"title": …}`, hàng rail đổi chữ, ô nhập đóng. Mục `Xoá` mở hộp *"Xoá đoạn chat này?"* với
-   `Giữ lại` / `Xoá đoạn chat`; bấm `Giữ lại` và hai đoạn chat còn nguyên. Tên đã trả về như cũ
-   qua chính đường ấy.
-
-**Hai cái bẫy của phép đo, ghi lại để không mất lần nữa.**
-
-- **Transition đứng im trong tab không được vẽ.** Mũi nhọn của ngăn đã thu đọc ra
-  `matrix(1,0,0,1,0,0)` — ma trận đơn vị — sau 600ms, và `document.getAnimations()` cho thấy
-  một transition còn **đang chạy**. Tab tự động không được paint nên transition không tiến. Tắt
-  `transition` bằng một `<style>` tạm rồi đo lại: `matrix(0,-1,1,0,0,0)` = `rotate(-90deg)` lúc
-  thu, `none` lúc bung. Luật đúng; cái đọc sai là phép đo.
-- **React render không đồng bộ.** Bắn `pointerdown` lên nút `⋯` rồi query `.row-menu` **ngay**
-  trong cùng một biểu thức thì ra `null`, và nó đọc như menu bị tháo — đúng cái bug vừa sửa.
-  Phải `await` một nhịp giữa cú bấm và phép đo.
-
-**Và một con số tôi đã viết sai, Figma sửa theo phép đo chứ không ngược lại.** Tôi ghi tấm trượt
-thu cao **53**, lấy từ một bản clone trên frame quyết định vẫn mang density của trang Components
-(chữ 14px/21). Bề mặt giáo viên định nghĩa lại `--type-label` thành **13px**, và artboard 7 với 8
-đã đè chữ title theo density ấy từ trước — `teacher.css` thậm chí có sẵn một ghi chú cảnh báo
-đúng cái bẫy này. Số thật: Figma **52**, trình duyệt **51,5**; chênh 0,5 là Figma làm tròn hộp
-chữ 13px/150% thành 20 trong khi CSS tính 19,5.
-
-**Chưa sửa, và vẫn là việc của prompt pha 1:** ở A2 Kriky vẫn hỏi lại khi giáo viên đã cho cả
-khối lớp lẫn phạm vi. Lượt này không chạy pha 1 nên không có gì mới về nó.
-
-### Lần chạy 2026-10-06, lượt bốn — cài đặt phát hành nhớ được, và thẻ sửa câu thôi rối
-
-Lượt này cũng **không** nhờ Kriky một việc gì: cả hai đổi đo được bằng `getBoundingClientRect`,
-`localStorage` và dữ liệu đã có trong database. Database giữ nguyên.
-
-Dữ liệu dùng để đo, và nó có sẵn đúng ca khó: đề `d3f40a77` đã phát hành cho **cả hai lớp, lệch
-giờ** (12A 14:21, 12B 15:26); đề `f348b4ba` đã duyệt mà **chưa** phát hành; đề `668251b5` còn nháp.
-
-1. **Biểu mẫu nhớ cái giáo viên vừa gõ.** Trên `f348b4ba`: gõ sáu tham số, F5, cả sáu trở về
-   **từng ký tự một**, chip `12A` vẫn `aria-pressed="true"`, và dòng *"Bản nháp bạn gõ 21:48 ·
-   06/10."* hiện ra kèm nút `Bỏ bản nháp`. Bấm nút ấy: sáu ô về trống, chip bỏ chọn, khoá
-   `kriky.teacher.publish-draft.f348b4ba…` biến mất khỏi `localStorage`.
-
-2. **Nấc thu/bung cũng nhớ.** Bung 658,5 / câu hỏi 140,5 → thu **51,5** / câu hỏi **747,5**, với
-   `scrollHeight` = `clientHeight` = 748. Nấc sống qua F5 (`publish-open…` = `0`). Con số 51,5
-   khớp đúng phép đo lượt trước, tức luật thu không bị đợt này làm xê dịch.
-
-3. **Giờ đã đặt đọc lại được, và ô khoá lại.** Trên `d3f40a77`: hai dòng `ĐÃ PHÁT HÀNH` in đúng
-   giờ của **từng** lớp, cả hai chip `disabled`, năm ô `disabled`, và **không** nút `Phát hành đề`
-   nào — chỉ còn `Cài đặt phát hành` và `Hoàn tác`.
-
-4. **Và phép đo tìm ra một lỗi mà không test nào thấy.** Vì hai lớp lệch giờ nên không có khung
-   chung để điền, và năm ô hiện ra vừa khoá vừa **rỗng**: tấm trượt ăn **805,5 trên 911**, vùng câu
-   hỏi còn **24 pixel**. Ba trăm pixel để nói đúng một điều — *"có năm cái ô, và bạn không được
-   chạm vào"* — trong khi khối ngay trên đã nói đủ. Đây đúng là thứ mà việc *điền giá trị vào ô
-   khoá* sinh ra để chống; ca lệch giờ chỉ là ca không điền được. Sửa: không điền được thì không
-   dựng. **805,5 → 428.**
-
-5. **Rồi một lỗi thứ hai lộ ra ngay trong lúc kiểm lại con số ấy.** Dòng tên lớp cao **40** trong
-   khi một dòng chữ 11px chỉ cần 16,5. Nguyên nhân: tôi đặt tên lớp CSS là `.who`, mà `.teacher
-   .who` đã có chủ từ lâu — nó là hàng avatar của một lượt chat, `display: flex; height: 40px`. Tên
-   trùng thì selector của tôi không ghi đè được, vì tôi không đặt hai thuộc tính ấy. Đổi thành
-   `.lop`: **428 → 381**, vùng câu hỏi **344 → 391**.
-
-   Tổng cho màn này: tấm trượt **805,5 → 381**.
-
-   **Và một chỗ tôi đã đo cẩu thả:** `panel` cao bằng **toàn bộ** cửa sổ, `panel-questions` là
-   phần còn lại — nên con số "vùng câu hỏi 24 → 391" chỉ đúng cho một cửa sổ cao 911, và mọi tỉ
-   lệ `x/911` ở trên cũng thế. Đo lại ở cửa sổ cao 855: tấm trượt vẫn **381**, vùng câu hỏi
-   **335**. Thứ đo được mà không phụ thuộc cửa sổ là chiều cao của **chính tấm trượt**; tôi đã
-   trình bày một con số dẫn xuất như thể nó là hằng số.
-
-6. **Thẻ sửa câu hỏi: ba tầng, một lúc một tầng.** Trên `668251b5`, khung `panel-questions` cao
-   **694,5**: `ĐỀ BÀI` **214,5**, `PHƯƠNG ÁN` **616,9**, `CÁCH GIẢI` **603,6** — cả ba vừa, tầng
-   nặng nhất dư 77,6. Luôn đúng **một** thanh đầu mang `aria-expanded="true"`.
-
-   Và con số của bản phẳng, đo trên chính dữ liệu ấy: phần khung chung 164,5 cộng ba thân
-   50 + 452,4 + 439,1 = **1106**, tức tràn **411,5** khỏi khung. Figma cho 774 trên một câu ngắn
-   hơn; đề thật thì tệ hơn hẳn.
-
-7. **Nhãn nhìn thấy được.** Trong cả ba tầng: **0** `textarea` nào mang `aria-label` trần. Nhãn
-   hiện ra đếm được — `Lỗi của A/C/D` ở tầng phương án, `Tên cách giải 1/2` và `Lời giải 1/2` ở
-   tầng cách giải — còn ô đề bài và ô chữ phương án mượn chữ đã hiện sẵn qua `aria-labelledby`.
-
-**Một cái bẫy mới, ghi lại để không mất lần nữa.** `location.reload()` rồi `await` một `setTimeout`
-trong **cùng một** lượt `javascript_tool` thì lượt ấy chết giữa chừng: *"Inspected target navigated
-or closed"*. Phải tách làm hai lượt — một lượt bắn `reload`, một lượt đo sau đó. Giá trị cần mang
-qua thì gửi bằng `sessionStorage`.
-
-8. **Icon rail: ba phép đo tâm nói cân, mắt nói xệ — và mắt đúng.** Người dùng báo icon vẫn hơi
-   thấp so với chữ, sau khi lượt trước đã đo lệch **0,00**. Đo lại ba cách, cả ba vẫn nói cân: tâm
-   icon 128, tâm hộp dòng 128, tâm thân chữ hoa 128. Nét trong `viewBox` lệch nhiều nhất 0,25.
-
-   **Lần đầu tôi chẩn sai.** Tôi đo *trọng tâm khối mực* — đổ icon ra canvas rồi cân từng dòng theo
-   alpha — và nó cho biểu đồ cột 7,38, ba chấm 6,83, tập giấy 5,95, lưới ô 6,00 trên thang 12. Theo
-   đó tôi nâng **hai** hình. Người dùng quay lại: *"bài kiểm tra và ngân hàng đề vẫn còn lệch"* —
-   đúng hai hình mà mô hình ấy tuyên là đã cân. Mô hình sai, và nó sai một cách kiểm được.
-
-   **Đại lượng đúng là baseline.** Icon cao **12**, thân chữ hoa cao **10**, nên một icon căn giữa
-   hộp dòng thò xuống dưới baseline đúng 1px. Đo mép dưới của mực so với baseline: cột **+1**, tập
-   giấy **+1**, lưới ô **+1**, ba chấm **0** — và số 0 ấy chỉ vì hình ba chấm hụt 1px ở đáy. Mô
-   hình này giải thích **cả hai** lượt người dùng báo, kể cả lượt mà mô hình cũ không giải thích nổi.
-
-   Sửa: vẽ lại ba chấm cho chạm đáy (`cy 9 → 10`), rồi nâng **cả bốn** 1px bằng **một** luật ở mức
-   rail — không phải cờ từng icon. Sau khi nâng, mép mực so với baseline: **0,00** cho cả bốn.
-
-**Và một bài học về phép đo, không phải về code.** Lượt ba tôi đo *"lệch 0,00"* rồi coi việc này là
-xong. Con số ấy **đúng** — nó chỉ không phải con số trả lời câu hỏi. Hộp bao nói hình nằm đâu;
-khối mực nói mắt thấy nó nặng ở đâu. Với hình đối xứng trên dưới thì hai thứ trùng nhau, nên phép
-đo cũ đi lọt qua ba icon và chỉ sai ở hai cái bất đối xứng. *"Đo được"* chưa đủ — còn phải đo đúng
-cái đại lượng mà người dùng đang nhìn.
-
-### Lượt bốn, phần bù — đường mà lượt đầu tôi tick mà không đi
-
-Review độc lập bắt được: tôi tick *"phát hành rồi xem cái khoá có tới không"* mà thật ra chỉ mở
-một đề **đã** phát hành sẵn. Hai đường khác nhau, và đúng đường tôi bỏ qua là đường hỏng —
-`form` không được đọc lại sau khi phát hành, nên cái khoá chỉ tới sau một lần F5.
-
-Đo lại cho đúng, trên `f348b4ba` (đã duyệt, chưa phát hành), **không tải lại trang**:
-
-- Phát hành cho **12A** ⇒ chip 12A `disabled` ngay, dòng `12A · 3 học sinh · 22:54 07/10 →
-  00:54 08/10 · thu hồi được tới 22:54` hiện ra; 12B còn bấm được, CTA còn đó. Đúng cách 1.
-- Phát hành nốt **12B** ⇒ cả **năm ô `disabled`** và mang đúng giá trị đã phát hành, cả hai chip
-  khoá, **CTA biến mất**, hai dòng `ĐÃ PHÁT HÀNH`.
-- Thu hồi cả hai lớp để trả đề về `approved`; `publications` còn 0.
-
-**Và phép đo lộ một chuyện chưa chữa:** ở ca này (hai lớp **chung** khung giờ) năm ô vẫn được
-dựng — chúng mang thông tin thật nên chúng đáng chỗ — và tấm trượt cao **779**, vùng câu hỏi còn
-**24**. Đúng con số đã chữa cho ca lệch giờ, nay quay lại ở ca chung giờ. Nấc thu vẫn là đường
-thoát, và nó nhớ; nhưng mặc định khi đã khoá có lẽ nên là **thu**, vì một biểu mẫu không bấm được
-thì là một biên bản, không phải chỗ làm việc. Chưa làm — cần người dùng chốt.
-
-**Chưa sửa, và vẫn là việc của prompt pha 1:** ở A2 Kriky vẫn hỏi lại khi giáo viên đã cho cả khối
-lớp lẫn phạm vi. Lượt này không chạy pha 1 nên không có gì mới về nó.
-
----
-
-## Lượt năm — 07/10/2026: biên bản thay biểu mẫu, và dải tài liệu thôi dính tay
-
-Không một lượt model nào. Cả hai việc đo bằng DOM và bằng dữ liệu đã có trong database.
-
-### Việc phát hiện ra lỗi: panel giấu ba trong sáu thông số
-
-Người dùng báo *"panel đang không hiển thị giờ phút trong khi đã phát hành"*. Mở đề
-`d3f40a77` (đã phát hành cho 12A và 12B) và đọc DOM:
+**Làm:** rail → *＋ Đoạn chat mới*. Gõ nguyên văn vào ô *Nhắn cho Kriky…*, bấm *Gửi*:
 
 ```
-ĐÃ PHÁT HÀNH
-  12A · 3 học sinh   14:21 · 06/10 → 17:25 · 06/10 · thu hồi được tới 14:21 · 06/10
-  12B · 4 học sinh   15:26 · 06/10 → 17:25 · 06/10 · thu hồi được tới 15:26 · 06/10
-LỚP  [12A] [12B]
+Tạo đề kiểm tra 15 phút chương Hàm số lớp 12, 6 câu trắc nghiệm.
 ```
 
-Số ô nhập: **0**. Và ba thông số **không xuất hiện ở đâu cả**: phút làm bài (**15**), phút
-mỗi câu (**5**), hạn chữa (**14:25 · 07/10**).
+**Phải thấy (1 → 4):**
+- lời nhắn ở bên phải;
+- ô nhắn đổi thành *Đang chờ Kriky trả lời…* và khoá, nút đổi thành *Đang gửi…*;
+- khối bước của Kriky chạy, đúng một hàng có dải sáng.
 
-Nguyên nhân là hai quyết định của lượt bốn đụng nhau. `.published-to` được viết gọn có chủ
-ý, với lý do ghi thẳng trong comment: *"Thứ không suy ra được từ chỗ khác chỉ có: lớp nào,
-mấy học sinh, khung giờ nào, và thu hồi được tới lúc nào."* Câu ấy **chỉ đúng khi năm ô còn
-dựng**. `silent` bỏ năm ô đi khi các lớp lệch giờ, và tiền đề im lặng thành sai. Docstring
-của `silent` còn khẳng định *"khối ĐÃ PHÁT HÀNH ngay trên đã nói đủ cho từng lớp"* — một lời
-không ai kiểm, và nó in 3 trên 6.
+Lượt xong thì ô nhắn mở lại.
 
-Ca này **không hiếm**: giờ mở mặc định là *ngay bây giờ*, nên phát hành cho hai lớp ở hai
-thời điểm là đủ để lệch.
+### 3.2 Hỏi lại, nếu có
 
-### Chữa: đã khoá thì không ô nào
+Kriky có thể hỏi lại (3b): mỗi câu một thẻ, nút riêng, đi từng câu, rồi tóm tắt và gửi gộp.
 
-Khuyết tật là **cấu trúc**, không phải hiển thị. Năm cái ô chỉ diễn tả được **một** khung
-giờ, trong khi `publications` khoá theo `(đề, lớp)` và trả **một khung mỗi lớp**. Nên việc
-điền ô khoá chỉ đúng **tình cờ**, đúng lúc các lớp trùng giờ — và chính sự trùng hợp ấy là
-thứ `shared` đi dò. Bỏ ô đi thì xoá được cả `shared`, `show` và `silent`.
+**Làm:** chọn nút khớp với một trong *Khối 12*, *nhận biết và thông hiểu*, *không dùng tài liệu*, *lớp 12A*.
+Không nút nào khớp thì bấm *Khác…*, ô gõ hiện ra, gõ `Nhận biết và thông hiểu, không dùng tài liệu.` rồi
+gửi. Có nhiều câu thì sau câu cuối là thẻ tóm tắt; bấm gửi gộp. Chờ ô nhắn mở lại.
 
-Mỗi lớp nay một khối **bốn dòng**, đủ sáu thông số, dùng lại đúng từ vựng của biểu mẫu:
+Kriky có thể hỏi một điều lời nhắn đã nói, ví dụ *Đề này dành cho khối nào?* dù lời nhắn ghi *lớp 12*.
+Đó là chất lượng model (backlog Tier 4, *hỏi lại dù đủ mục*); trả lời rồi đi tiếp, ghi vào biên bản.
 
-```
-12A · 3 học sinh
-Làm bài 14:21 · 06/10 → 17:25 · 06/10 · 15 phút
-Chữa bài tới 14:25 · 07/10 · 5 phút/câu
-Thu hồi được tới 14:21 · 06/10
-```
+**Sai nếu:** một nút được đánh dấu *nên chọn*; một nút gợi lớp không có của GV-001.
 
-**Đo sau khi sửa**, cửa sổ 854: tấm trượt **455**, vùng câu hỏi **260**, **0 ô**.
+### 3.3 Dàn ý, đồng ý
 
-### Figma ↔ FE, bằng số
+**Phải thấy (16):** lời dàn ý Kriky tự viết, các mục `Câu k–m` cộng lại đúng 6 câu, công thức dựng
+hình, kết bằng một câu xin đồng ý.
 
-| | Figma (density Teacher) | Trình duyệt | Lệch |
-|---|---|---|---|
-| một dòng chữ | 17 | 16,5 | Figma làm tròn lên |
-| `published-row` | 86 | 84 | `4 × 0,5` |
-| `published-to` | 201 | 196,5 | `9 × 0,5` |
-| tấm trượt | **377** | **377,5** (455 − 65,5 `trouble` − 12 gap) | `0,5` |
+Có thể thay vào đó là thông báo hệ thống *Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!*
+(dòng riêng, không avatar). Đó là lỗi đã biết của model, backlog Tier 4: nó gửi một *công thức* có chữ ngoài
+cặp `$`, BE từ chối. **Làm:** gõ `thử lại`, tối đa **sáu** lần; chương Hàm số gần như lần nào cũng gặp.
+Ghi số lần vào biên bản, vì đó là chỉ số của lỗi; sáu lần vẫn hỏng thì dừng vòng và ghi *không đạt ở
+3.3*.
 
-Cùng `type/caption` = **11**, cùng `line-height: 150%`, cùng padding, cùng gap. Mọi chênh
-lệch còn lại là **Figma làm tròn chiều cao một dòng 16,5 lên 17** — không phải một khác biệt
-thiết kế.
+**Làm:** khi có dàn ý, gõ `oke, soạn đi`.
 
-Hai việc phải sửa trên Figma mới khớp được: text của `published-row` dùng line-height mặc
-định của font (14) thay vì `150%` như CSS, và `gap` của `published-to` là 8 thay vì 6.
+**Phải thấy (5):**
+- lời Kriky viết trước khi chạy (ví dụ *Được, mình soạn đề … ngay.*);
+- khối bước *Đã làm 2 bước*: tạo đề trống, soạn câu hỏi;
+- thẻ *Đã tạo đề "…"* có chip *Chưa duyệt · chưa phát hành*;
+- lời kết (ví dụ *Mình đã soạn xong đề "…" với đủ 6/6 câu hỏi…*) khớp số câu trên thẻ.
 
-**Khối `trouble` (câu `undo_blocked` của BE, 65,5) chưa từng có trên variant Figma** — một
-thiếu sót có từ trước, không phải do lượt này. Chưa thêm.
+Tên đề là tên **BE tự đặt** khi Kriky không truyền tên, thường là *Đề chương Hàm số*. Bước 3.4 đổi nó
+thành tên mang mã vòng.
 
-### Dải tài liệu: đo ra lỗi, rồi chữa
+### 3.4 Panel đề, đổi tên
 
-`grep` cho bốn chỗ nhắc `scope` trong `Chat.tsx`: khai báo `:112`, ghi `:320` (sau upload),
-ghi `:534` (sau khi thả chip), đọc `:490`. **Không chỗ nào xoá.** Và `App.tsx` mount `<Chat>`
-ở ba chỗ (`:71`, `:85`, `:98`) **không chỗ nào truyền `key`**, nên React tái dùng đúng một
-instance qua mọi chuyển cảnh.
+**Làm:** bấm vào chính thẻ *Đã tạo đề*.
 
-Đo:
+**Phải thấy (6):**
+- panel phải: tên đề, dòng *6 câu · Toán 12 · chương Hàm số*;
+- mỗi câu một thẻ: *Câu k*, chip *Kriky soạn*, nút *Sửa* và *Xoá*, dòng *Lời giải · 2 cách*;
+- cuối danh sách là nút *＋ Thêm câu từ ngân hàng*;
+- chân panel: *Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.* và nút *Duyệt đề*.
 
-| | Trước | Sau |
-|---|---|---|
-| sau khi thả chip | `PDF Đã tải lên: dai-so-12.pdf` | `PDF dai-so-12.pdf Bỏ` |
-| bấm *Đoạn chat mới* (đoạn rỗng **0 lượt**) | **còn nguyên** | **mất** |
+Nếu một ô hỏng (17): thẻ *Chưa soạn được* và nút *Thử lại*. Bấm *Thử lại*, đợi ô ấy thành câu.
 
-Chữa bằng cách bỏ **nghĩa thừa** chứ không thêm lệnh dọn: dải từng chở hai nghĩa — *"vừa tải
-lên"* (việc đã xong, thuộc thư viện) và *"đính vào câu đang gõ"* (ý định, thuộc tin nhắn) —
-mà hai nghĩa muốn hai tuổi thọ, nên không luật dọn nào đúng cho cả hai. Nghĩa thứ nhất bị bỏ:
-rail đã đẩy tệp vừa tải lên **đầu** danh sách, nên câu ấy kể lại một việc màn hình vừa nói.
-Còn một nghĩa thì có một tuổi thọ — chết lúc nhấn Gửi, và lúc đổi đoạn chat.
+**Làm:** cạnh tên đề, bấm *Đổi tên*. Xoá chữ cũ, gõ `Hàm số <mã vòng>`, bấm *Lưu*.
 
-### Còn nợ sau lượt này
+**Phải thấy:** đầu panel và thẻ trong chat cùng đổi sang tên mới, không cần F5 (ADR-31).
 
-- **Mặc định thu khi đã khoá: chưa làm.** Tiền đề cũ là tấm trượt **779** / vùng câu hỏi
-  **24px**; nay là **455 / 260**. Con số đã đổi hẳn, nên quyết định phải được hỏi lại.
-- **`publications` hỏng + đề đã khoá ⇒ panel không nói giờ nào cả.** Khối `ĐÃ PHÁT HÀNH`
-  dựng từ `live`, nên lời gọi hỏng là không có khối nào, và không có gì nói rằng một lời gọi
-  vừa hỏng. Test ghi lại sự thật ấy chứ không tán thành nó; lấp nó là thêm chữ ra màn hình.
-- **Khối `trouble` chưa có trên variant Figma.**
-- **Chưa sửa, và vẫn là việc của prompt pha 1:** ở A2 Kriky vẫn hỏi lại khi giáo viên đã cho
-  cả khối lớp lẫn phạm vi. Lượt này không chạy pha 1 nên không có gì mới về nó.
+### 3.5 Lời giải một câu
 
-### Phần bù của lượt năm — ba món còn nợ đã trả
+**Làm:** ở câu 1, bấm *Lời giải · 2 cách*.
 
-**Mặc định thu khi đã khoá.** Xoá mọi nấc đã nhớ rồi mở lại đề `d3f40a77`, cửa sổ 855:
+**Phải thấy (12):**
+- hộp hai cách giải, rồi *MỖI PHƯƠNG ÁN NHIỄU GẮN MỘT LỖI*;
+- phương án đúng ghi *✓ đúng*, mỗi phương án sai một dòng lỗi;
+- công thức dựng hình, không còn dấu `$`.
 
-| | Tấm trượt | Vùng câu hỏi | Khoá đã ghi |
-|---|---|---|---|
-| mặc định (chưa ai bung) | **51,5** | **664,5** | `null` |
-| sau khi tự bung | 455 | 261 | `"1"` |
+**Làm:** bấm *Đóng*.
 
-Thu trả lại **403px** cho vùng câu hỏi. Và mặc định **không ghi gì xuống**: nó là một mặc
-định, không phải lựa chọn của ai — ghi nó là bịa ra một quyết định rồi gán cho giáo viên.
-Hàng rào `knows()` (mới trong `remember.ts`) giữ cho một tấm trượt giáo viên đã tự bung
-không bị đóng sập ở lần mở sau; `readFlag` không phân biệt được *"đã ghi bật"* với
-*"chưa ai ghi"*, nên nó không đủ.
+### 3.6 Sửa một câu
 
-**`publications` hỏng nay nói ra.** Trước đó panel im lặng hoàn toàn về một đề đang chạy.
-Nay một dòng `role="status"` đứng đúng chỗ khối `ĐÃ PHÁT HÀNH` lẽ ra đứng: khung là chữ của
-FE, phần sau là `detail` của BE nguyên văn (`call()` ném nó; BE không nói gì thì là
-`Lỗi {status}`).
+**Làm:** câu 2 → *Sửa*.
 
-**Khối `trouble` nay có trên Figma.** Nó thiếu từ trước, nên variant đọc ra ngắn hơn màn
-hình thật **77,5px** mà không ai thấy — và chính nó là phần lớn của khoảng lệch 89 đo được
-ở đầu lượt. Variant: 366 → **456** (density Teacher), so **455** trên trình duyệt.
+**Phải thấy (14):** thẻ mở thành ô sửa ba tầng *ĐỀ BÀI*, *PHƯƠNG ÁN*, *CÁCH GIẢI*, nhãn *Đang sửa*, nút
+*Huỷ* và *Lưu*. Ô đề bài hiện chữ thô có `$`: đó là chữ để sửa, không phải lỗi.
 
-**Ba lỗi tôi tự gây ra giữa đường.** `useEffect` mới đặt **sau** một `return` sớm nên React
-ném *"Rendered more hooks than during the previous render"* — phải đưa cả `locked` lẫn
-effect lên trước mọi `return` sớm. File test có **ba** hàm cùng tên `open()`; tôi sửa hàm
-của describe khác rồi kết luận sai rằng phép sửa không ăn.
+**Làm:** thêm `(đề vòng <mã vòng>)` vào cuối đề bài, bấm *Lưu*.
 
-Và lỗi thứ ba là lỗi đáng kể nhất, vì **chính phép sửa test của tôi đã che nó đi.** Mặc định
-thu đọc sai một ca: `publish` gọi `setDone(result.classes)` rồi `setReread(+1)`, `form` được
-đọc lại, `locked` bật **giữa tay người đang dùng** — và effect thu tấm trượt ngay lúc ấy, làm
-thẻ `Outcome` biến mất cùng khối `ĐÃ PHÁT HÀNH` mà giáo viên vừa tạo ra. Cú bấm quan trọng
-nhất của màn hình trả lời bằng cách đóng sập chính nó.
+**Phải thấy:** thẻ về dạng đọc, đề bài mới.
 
-Test `"phát hành xong là KHOÁ ngay"` **vẫn xanh suốt**, vì helper `mount()` tôi vừa sửa gieo
-sẵn khoá `"1"`. Tôi gieo nó để các test *nội dung* có trạng thái xác định, và cùng lúc nó đi
-vòng qua đúng cái vừa thêm. Hàng rào thứ ba là `done !== null`: thu là quyết định về **cách
-một đề đã khoá mở ra**, không phải phản ứng với việc *vừa bị khoá*. Cộng một test đi đúng
-đường ấy và **không** gieo khoá; gỡ hàng rào ⇒ đúng nó đỏ.
+**Sai nếu:** dòng đỏ *Công thức có ký tự hỏng…* hiện ở ô không có ký tự hỏng.
+
+### 3.7 Xoá một câu
+
+**Làm:** câu 6 → *Xoá*.
+
+**Phải thấy (15):** hộp *Xoá câu 6 khỏi đề?*, lời dẫn *Câu này chưa có trong ngân hàng câu hỏi — xoá rồi thì
+không lấy lại được.*, nút *Giữ lại* và *Xoá câu*.
+
+**Làm:** bấm *Xoá câu*.
+
+**Phải thấy:** đầu panel *5 câu · …*.
+
+### 3.8 Thêm một câu từ ngân hàng
+
+**Làm:** bấm *＋ Thêm câu từ ngân hàng*.
+
+**Phải thấy (19b):**
+- hộp *Thêm câu từ ngân hàng*, ô tìm *Tìm theo nội dung câu hoặc mục kiến thức…*;
+- mỗi câu một hàng: đề bài, rồi *mục kiến thức · tên đề nguồn*. Câu đã có trong đề này thì mờ, ghi *đã
+  có trong đề này*;
+- chân hộp *Đã chọn 0 câu*, nút *Đóng* và *Thêm vào đề* (khoá).
+
+**Làm:** bấm một hàng không mờ.
+
+**Phải thấy:** hàng đổi sang đã chọn; chân hộp *Đã chọn 1 câu*, nút thành *Thêm 1 câu vào đề*.
+
+**Làm:** bấm *Thêm 1 câu vào đề*.
+
+**Phải thấy (19):** đầu panel *6 câu*; câu 6 mang chip *Từ ngân hàng*.
+
+**Làm tiếp:** đọc câu ấy và tự giải. Câu trong ngân hàng do model soạn ở các vòng trước. Nếu đáp án
+khoá sai, ghi lại làm lỗi sản phẩm; vòng V1 đã gặp một câu như thế.
+
+---
+
+## Chặng 4 — duyệt và phát hành (Figma 7, 8)
+
+### 4.1 Duyệt
+
+**Làm:** chân panel → *Duyệt đề*.
+
+**Phải thấy (7):**
+- các câu khoá, không còn *Sửa*, *Xoá*;
+- thẻ trong chat thành *Đã duyệt đề "Hàm số <mã vòng>"*, chip *Chưa phát hành cho học sinh*;
+- dưới các câu là *Cài đặt phát hành*: dòng *LỚP* với một chip mỗi lớp, khối *PHA 1 — LÀM BÀI VÀ NỘP*
+  (*Làm bài*, *Mở lúc*, *Đóng lúc*) và *PHA 2 — CHỮA BÀI* (*Phút mỗi câu*, *Hạn chữa xong*);
+- nút *Hoàn tác* và *Phát hành đề*.
+
+**Sai nếu:** form gợi sẵn một giờ nào đó.
+
+### 4.2 Cài đặt giờ
+
+**Làm:** bấm chip *12A* (nó hiện dấu ✓). Điền theo đồng hồ thật, gọi `T` là lúc này, làm tròn phút:
+
+| Ô | Giá trị |
+| --- | --- |
+| Làm bài | `6` |
+| Mở lúc | `T + 3 phút` |
+| Đóng lúc | `T + 10 phút` |
+| Phút mỗi câu | `2` |
+| Hạn chữa xong | `T + 30 phút` |
+
+Luật của BE (`teacher_routes.py`): giờ mở phải ở tương lai; hạn chữa phải sau *giờ đóng + thời gian
+làm bài*.
+
+**Phải thấy:** khung vàng dưới form đọc lại đúng giờ: *Vào làm bài tới hết … — nộp muộn nhất lúc …, và không
+dừng người đang làm.* và *Chữa bài tới hết … — mỗi lượt 2 phút một câu; hết hạn thì lượt đang làm bị
+dừng.*
+
+### 4.3 Hộp xác nhận, phát hành
+
+**Làm:** bấm *Phát hành đề*.
+
+**Phải thấy (8):** hộp *Phát hành đề kiểm tra?*, câu *Đề sẽ hiển thị cho N học sinh của lớp 12A. Bạn còn
+thu hồi được tới trước giờ mở.*, các dòng *Đề*, *Lớp*, *Thời gian*, *Hạn chữa*, *Thu hồi*, nút *Xem lại
+cài đặt* và *Phát hành cho N học sinh*. *N* là sĩ số 12A sau 2.4.
+
+**Làm:** bấm *Phát hành cho N học sinh*.
+
+**Phải thấy:** panel ghi *ĐÃ PHÁT HÀNH*, *12A · N học sinh*, giờ mở và câu luật.
+
+Chờ tới giờ mở trước khi sang chặng 5. Trong lúc chờ có thể làm 7.2.
+
+---
+
+## Chặng 5 — học sinh Châu: sai hai câu, rồi chữa (Figma HS 12–23)
+
+Ở **cửa sổ ẩn danh**.
+
+### 5.1 Đăng nhập học sinh
+
+**Làm:** mở `http://127.0.0.1:5173/#/`.
+
+**Phải thấy (HS 12):** *Đăng nhập để làm bài*, ô *Tên đăng nhập* và *Mật khẩu*, nút *Đăng nhập*, dòng *Tên
+đăng nhập và mật khẩu do thầy cô phát cho em. Quên mật khẩu thì nhờ thầy cô đặt lại.*
+
+**Làm:** gõ tên đăng nhập và mật khẩu của Châu đã chép ở 2.4, bấm *Đăng nhập*.
+
+**Phải thấy (HS 13):** thanh trên *Kiều Minh Châu <mã vòng> · Lớp 12A · <mã học sinh>* và nút *Đăng
+xuất*.
+
+### 5.2 Danh sách bài
+
+**Phải thấy (HS 13):** *Bài của tôi*; dòng *Hàm số <mã vòng>*:
+- *Toán · 6 câu · làm bài 6 phút*;
+- *Vào tới <giờ đóng>*, *Chữa tới <hạn chữa>*;
+- trước giờ mở thì chip *Chưa tới giờ mở*, không có nút;
+- từ giờ mở thì *Đang mở* và nút *Bắt đầu* (F5 để thấy).
+
+Đề cũ của 12A cũng có, đúng trạng thái của em; em mới chưa làm đề nào nên đề đã đóng ghi *Đã đóng*.
+
+**Sai nếu:** có chip *Đang chấm*: code không có trạng thái này (ADR-20).
+
+### 5.3 Bắt đầu, làm bài, cố ý sai hai câu
+
+**Làm:** bấm *Bắt đầu*.
+
+**Phải thấy (HS 13b):** hộp *Bắt đầu làm bài?*, câu *Bắt đầu là đồng hồ chạy. Đóng trang hay mất mạng thì
+đồng hồ vẫn chạy, không dừng lại được.*, dòng *Bài*, *Số câu*, *Thời gian làm*, nút *Để sau* và *Bắt đầu
+làm bài*.
+
+**Làm:** bấm *Bắt đầu làm bài*. Ở màn làm bài (HS 14), mỗi câu: bấm số câu ở dải chip bên phải, chọn một
+phương án. Chọn đúng câu 3–6 và **cố ý chọn sai câu 1 và câu 2**. Đáp án đúng đọc ở panel giáo viên
+(dấu ✓).
+
+**Phải thấy:** đầu màn *Câu k / 6*; cột phải *Còn lại* đếm ngược, *CÒN n CÂU CHƯA TRẢ LỜI* giảm dần tới
+0; chip câu đã trả lời đổi màu.
+
+### 5.4 Nộp bài
+
+**Làm:** bấm *Nộp bài*.
+
+**Phải thấy (HS 15):** hộp *Nộp bài?*, *Nộp là kết thúc phần làm bài. Bạn không sửa được câu nào nữa.*,
+*Đã trả lời 6 trên 6 câu*, *Chưa trả lời không còn câu nào*, *Sau khi nộp điểm này là điểm sàn, còn
+nâng được*, nút *Quay lại làm tiếp* và *Nộp bài*. Không có dải cảnh báo câu trống.
+
+**Làm:** bấm *Nộp bài* trong hộp.
+
+### 5.5 Kết quả pha 1
+
+**Phải thấy (HS 16):**
+- *Đã nộp lúc … · còn 2 câu cần chữa*;
+- nút *Hỏi trợ lý và làm lại dạng bài sai*;
+- câu *Bạn có thể nâng điểm các câu sai bằng cách Hỏi trợ lý và làm lại dạng bài sai tới hết …*;
+- mỗi câu một hàng: câu 1, 2 điểm 0; câu 3–6 điểm 1.
+
+### 5.6 Hỏi trợ lý, báo cáo
+
+**Làm:** bấm *Hỏi trợ lý và làm lại dạng bài sai*.
+
+**Phải thấy (HS 17):**
+- lời chào của trợ lý nêu đúng hai câu sai;
+- cột phải *CÁC CÂU EM LÀM SAI*, kèm đáp án em chọn và đáp án đúng;
+- câu *Phần này không tính giờ. Hỏi đến khi hiểu rồi hãy bấm làm bài mới.*;
+- ô nhắn *Hỏi Kriky về bất kỳ câu nào bạn làm sai…*;
+- nút *Làm bài mới · 2 câu · 4 phút*.
+
+**Làm:** gõ `Câu 1 em sai ở đâu ạ?`, bấm *Gửi*. Đợi trợ lý trả lời.
+
+**Phải thấy:** câu trả lời đi theo lời giải đã soạn của câu 1, không có con số độ tin hay mã lỗi.
+Trợ lý trả lời xong lượt đầu thì nút *⚑ Báo cáo Trợ lý giải thích khó hiểu* mới hiện: phải có hơn một
+lượt trợ lý, lời chào tính là một.
+
+**Làm:** bấm *⚑ Báo cáo Trợ lý giải thích khó hiểu*.
+
+**Phải thấy:** *Đã gửi báo cáo tới giáo viên.*
+
+### 5.7 Lượt làm lại
+
+**Làm:** bấm *Làm bài mới · 2 câu · 4 phút*.
+
+**Phải thấy (HS 19):** hộp *Bắt đầu lượt làm lại?*, *Bấm là đồng hồ chạy ngay. Đóng trình duyệt cũng không
+dừng nó.*, dòng:
+- *Lượt này*: 2 câu, câu 1 và câu 2;
+- *Vòng*: vòng 1, mỗi câu còn 3 vòng;
+- *Thời gian*: 2 phút mỗi câu, 4 phút;
+- *Hạn làm lại*.
+
+Nút *Để sau* và *Làm bài mới*.
+
+**Làm:** bấm *Làm bài mới*. Đợi câu sinh xong.
+
+**Phải thấy (HS 21):**
+- *Làm lại dạng bài sai · 2 câu · 4 phút*;
+- *Câu 1 — Lượt làm lại thứ 1 / tối đa 3*;
+- câu **mới**, cùng dạng câu gốc, khác số liệu;
+- cột phải *CÂU CÒN PHẢI LÀM LẠI TRONG LƯỢT NÀY*.
+
+**Làm:** tự giải hai câu, chọn đáp án đúng. Câu do model sinh: nếu có hai phương án cùng đúng về toán,
+chọn phương án được khoá (đọc trong database: `round_items`) và ghi lại làm lỗi sản phẩm; vòng V1 đã gặp.
+Bấm *Nộp bài*.
+
+**Phải thấy (HS 22b):** hộp *Nộp lượt này?*, *Đã trả lời 2 trên 2 câu*, *Sau khi nộp câu làm đúng được 0,5
+điểm*. Bấm *Nộp bài*.
+
+### 5.8 Kết quả sau chữa
+
+**Phải thấy (HS 23):**
+- *Bài đã kết thúc · 5,0 trên 6 câu*, nếu chữa đúng cả hai;
+- dưới câu 1 và câu 2 là hàng *Lượt làm lại · 1 · đúng*, kèm đề của lượt, điểm 0,5.
+
+**Làm:** bấm *Đăng xuất*.
+
+**Phải thấy:** về màn *Đăng nhập để làm bài*.
+
+---
+
+## Chặng 6 — học sinh Dũng đúng hết; học sinh Én không vào
+
+**Làm:** cửa sổ ẩn danh, đăng nhập Dũng; *Bắt đầu* → *Bắt đầu làm bài*; chọn đúng cả sáu câu; *Nộp bài*
+→ *Nộp bài*.
+
+**Phải thấy:** *Bài đã kết thúc · 6,0 trên 6 câu*; không có nút *Hỏi trợ lý và làm lại dạng bài sai*.
+Bấm *Đăng xuất*.
+
+Én không đăng nhập: em là học sinh *chưa nộp* ở chặng 7.
+
+---
+
+## Chặng 7 — giáo viên đọc kết quả (Figma 20, 25, 25b, 21, 9, 10, 11, 23, 22, 22b)
+
+Về cửa sổ giáo viên.
+
+### 7.1 Bảng theo dõi, báo cáo
+
+**Làm:** rail → *Bảng theo dõi*.
+
+**Phải thấy (20):**
+- dòng phụ *k việc cần bạn xem · m lớp có đề đã hết hạn chữa*;
+- khối *Cần bạn xem*: dòng *Giải thích chưa rõ · Hàm số <mã vòng> · 1 học sinh · 1 lượt báo cáo · Xem
+  báo cáo*;
+- khối *Điểm gộp theo lớp* **chưa** tính đề này, vì chưa hết hạn chữa.
+
+**Làm:** bấm dòng ấy.
+
+**Phải thấy (25):**
+- *‹ Bảng theo dõi*, tên đề, *1 lượt báo cáo chưa xem · Lớp 12A*;
+- *CÁC CÂU HỌC SINH BÁO CÁO ĐÃ LÀM SAI*: câu 1, câu 2, mỗi câu *1 trên 1 em báo cáo làm sai câu này* và
+  link *Chỉnh sửa trong Ngân hàng câu hỏi ›*;
+- nút *Đánh dấu đã xem*;
+- *BÁO CÁO CỦA HỌC SINH*: *Kiều Minh Châu <mã vòng> · <giờ>*, *Làm sai: Câu 1, Câu 2*, *Không ghi gì
+  thêm.*, link *Mở hội thoại hỏi trợ lý ›*.
+
+**Làm:** bấm *Mở hội thoại hỏi trợ lý ›*.
+
+**Phải thấy (25b):** hộp *Hội thoại hỏi trợ lý — Kiều Minh Châu <mã vòng>*, *Hàm số <mã vòng> · Lớp 12A ·
+Chỉ đọc*, đúng lời chào, câu Châu hỏi và câu trợ lý trả lời. Bấm *Đóng*.
+
+**Làm:** bấm *Đánh dấu đã xem*.
+
+**Phải thấy:** về *Bảng theo dõi*; nếu không còn việc nào thì khối *Cần bạn xem* ghi *Không có việc nào
+cần bạn xem.*
+
+### 7.2 Các bài kiểm tra
+
+**Làm:** rail → *Các bài kiểm tra*.
+
+**Phải thấy (21):** cột *TÊN ĐỀ*, *TRẠNG THÁI*, *LỚP*, *MỞ LÚC*. *Hàm số <mã vòng>* đứng đầu, trạng thái
+theo lúc xem:
+- trước giờ mở: *Chưa tới giờ mở*, kèm *thu hồi được*;
+- trong giờ: *Đang mở*;
+- sau giờ đóng tới hạn chữa: *Đang chữa bài*, kèm *chữa tới …*;
+- sau hạn chữa: *Đã kết thúc*.
+
+Lớp *12A*, *Mở … · …*, nút *Xem kết quả* từ giờ mở.
+
+### 7.3 Danh sách lớp và tiến độ
+
+**Làm:** rail → *Danh sách lớp học*.
+
+**Phải thấy (9):** hàng *Lớp 12A* tính cả đề này ở *ĐỀ ĐANG MỞ*. Ba cột tiến độ cộng trên mọi đề đang mở:
+- Châu và Dũng ở *XONG GIAI ĐOẠN 2*, vì cả hai đã chốt hết câu;
+- mọi em chưa nộp, gồm Én, ở *CHƯA NỘP BÀI*.
+
+Ba cột cộng lại bằng sĩ số nhân số đề đang mở.
+
+### 7.4 Bảng điểm của đề — đích của kịch bản
+
+**Làm:** *Lớp 12A* → bảng *Bài kiểm tra đã phát hành cho lớp này* → hàng *Hàm số <mã vòng>*. Hoặc nút *Xem
+kết quả* ở 7.2.
+
+**Phải thấy (11):**
+- *‹ Lớp 12A*, tên đề, *Lớp 12A · 2/N đã nộp · thang 6 điểm · đóng lúc …*, nút *Xuất bảng điểm (.xlsx)*;
+- bốn thẻ số: *CAO NHẤT 6,0*, *TRUNG BÌNH 5,5*, *TRUNG VỊ 5,5*, *THẤP NHẤT 5,0*;
+- biểu đồ *PHÂN BỐ ĐIỂM · 2 BÀI*: ô `k` đếm bài trong `[k, k+1)`, bài 6,0 vào ô cuối, nên ô *5* có 2;
+- bảng *HỌ TÊN*, *▾ ĐIỂM*, *SỐ CÂU ĐÚNG*, *THỜI GIAN LÀM*, *NỘP LÚC*, *GHI CHÚ*: hàng *Lò Văn Dũng
+  <mã vòng> · 6,0 · 6/6* trên hàng *Kiều Minh Châu <mã vòng> · 5,0 · 4/6*, cả hai ghi chú *Đã chữa xong*.
+
+*THỜI GIAN LÀM* tính bằng phút làm tròn: làm dưới nửa phút thì ghi *0 phút*.
+
+Em chưa nộp không có hàng; *2/N* đếm các em ấy ở mẫu số. *N* là sĩ số **hiện tại** của 12A, kể cả em
+được thêm sau khi đề phát hành (ví dụ học sinh của một vòng sau). Các em của vòng trước làm đề **khác**,
+nên không có hàng ở đây.
+
+**Sai nếu:** hàng không xếp theo điểm giảm dần rồi tên; trung vị, trung bình không khớp bảng.
+
+### 7.5 Xuất bảng điểm
+
+**Làm:** bấm *Xuất bảng điểm (.xlsx)*, mở tệp *Bảng điểm - Hàm số <mã vòng> - 12A.xlsx*.
+
+**Phải thấy:**
+- cột *Mã học sinh*, *Họ tên*, *Câu 1* … *Câu 6*, *Tổng*;
+- **mọi** học sinh của 12A một hàng; em chưa nộp thì ô trống;
+- Châu: 0,5 · 0,5 · 1 · 1 · 1 · 1 · 5; Dũng: sáu ô 1, tổng 6.
+
+### 7.6 Bài làm của một học sinh
+
+**Làm:** ở màn 11, bấm hàng Châu.
+
+**Phải thấy (23):**
+- *‹ Hàm số <mã vòng> · Lớp 12A*, *Kiều Minh Châu <mã vòng>*, *Mã học sinh … · nộp lúc … · đã chữa xong*;
+- bốn thẻ *ĐIỂM 5,0 / 6*, *ĐÚNG NGAY LẦN ĐẦU 4 / 6*, *LƯỢT CHỮA ĐÃ LÀM 1*, *GIẢI THÍCH CHƯA RÕ 1*;
+- bảng *CÂU*, *EM CHỌN*, *ĐÁP ÁN*, *ĐIỂM*: câu 1, 2 điểm 0,5, còn lại 1.
+
+### 7.7 Ngân hàng câu hỏi, sửa lời giải
+
+**Làm:** rail → *Ngân hàng câu hỏi*.
+
+**Phải thấy (22):** *n câu · từ m lần duyệt đề*; cột *CÂU HỎI*, *MỤC KIẾN THỨC*, *KHỐI / MÔN*. Các câu của
+đề vòng này đã vào ngân hàng lúc duyệt; câu 2 có chữ *(đề vòng <mã vòng>)*.
+
+**Làm:** bấm hàng câu 2.
+
+**Phải thấy (22b):**
+- panel *Sửa câu trong ngân hàng*, dòng mục kiến thức;
+- ô sửa *Câu trong ngân hàng* ba tầng *ĐỀ BÀI*, *PHƯƠNG ÁN*, *CÁCH GIẢI*, nút *Huỷ* và *Lưu*;
+- chân panel *Chỉ sửa bản trong ngân hàng. Câu đã nằm trong đề đã phát hành không đổi; đề sau lấy câu
+  này sẽ dùng bản mới.*
+
+**Làm:** mở tầng *CÁCH GIẢI*, thêm `(sửa ở ngân hàng, vòng <mã vòng>)` vào cuối ô *Lời giải 1*, bấm *Lưu*.
+
+**Phải thấy:** về danh sách ngân hàng. Mở lại câu thì thấy chữ vừa thêm. Câu 2 trong đề đã phát hành
+(màn 23, hay *Lời giải* ở panel) **không** đổi (ADR-35).
+
+---
+
+## Chặng 8 — sau hạn chữa (Figma 20, 11, 21)
+
+**Làm:** chờ qua *Hạn chữa xong* (khoảng `T + 30 phút`). Mở lại *Bảng theo dõi*, *Các bài kiểm tra* và
+màn 11.
+
+**Phải thấy:**
+- *Điểm gộp theo lớp* (20) tính thêm đề này cho 12A: *ĐỀ ĐÃ KẾT THÚC* tăng 1, điểm quy về thang 10
+  (Châu 8,3, Dũng 10,0) gộp với các đề đã kết thúc trước;
+- biểu đồ *TỈ LỆ BÀI SAI THEO MỤC KIẾN THỨC* có mục kiến thức của câu 1, 2;
+- *Các bài kiểm tra*: đề *Đã kết thúc*;
+- màn 11: ghi chú không đổi, vì cả hai em đã chữa xong. Một em còn câu chưa chữa thì ghi *Hết hạn
+  chữa*.
+
+Dòng *Tỉ lệ sai cao* cần trên 20 bài (ADR-34), nên **không tới được** trong một lần thử tay. Không tính
+là trượt.
+
+---
+
+## Phụ lục — tài liệu (tuỳ chọn)
+
+Cần thêm ba tiến trình `.\dev.ps1 ingest`, `document`, `index`.
+
+**Làm:** rail → *TÀI LIỆU* → nút tải lên, chọn một PDF có chữ.
+
+**Phải thấy (1, 2):** chip *Đang xử lý…*, rồi *Đang dựng mục lục…*, rồi sẵn sàng, có số trang. Tệp không
+có chữ thì *Không đọc được chữ*.
+
+Đề theo sách và các tình huống tài liệu đo ở `cases/04` và `cases/13`.
+
+---
+
+## Những thứ đã biết — gặp thì không phải phát hiện mới
+
+1. **Đóng tab giữa lúc Kriky đang làm.** Lượt bị cắt ngay chỗ nó đang đợi: các bước đã ghi còn đó,
+   nhưng **không có câu kết**, và nếu là lượt đầu thì đoạn chat **chưa có tên** (nợ số 1 của ADR-25).
+2. **Chưa có đường tạo lớp**: lớp chỉ đến từ seed (ADR-13, backlog Tier 2 câu 28).
+3. **Dàn ý bị từ chối vì công thức có chữ ngoài `$`** (3.3), và **câu model sinh có đáp án khoá sai hay
+   hai phương án cùng đúng** (3.8, 5.7): chất lượng model, backlog Tier 4.

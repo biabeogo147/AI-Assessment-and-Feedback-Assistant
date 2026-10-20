@@ -206,7 +206,7 @@ type Mode = "in" | "up";
 
 /**
  * Hộp đăng nhập và hộp tạo tài khoản giáo viên (Figma 26 `659:5160`, 26b `659:5311`). Đăng nhập
- * chỉ có **một** ô *Số điện thoại hoặc email*.
+ * chỉ có **một** ô *Số điện thoại / email*.
  *
  * Mở suốt lúc chưa đăng nhập và **không đóng được**: mọi màn giáo viên cần một người, nên không có
  * gì phía sau để quay về. Không có `Esc`, không bấm ra ngoài để đóng -- khác `Veil`.
@@ -267,7 +267,7 @@ export function SignIn() {
             không thì là số điện thoại (`account_routes.teacher_sign_in`). */}
         {mode === "in" ? (
           <Field
-            label="Số điện thoại hoặc email"
+            label="Số điện thoại / email"
             value={login}
             onChange={setLogin}
             autoComplete="username"

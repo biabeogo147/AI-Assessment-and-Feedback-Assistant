@@ -951,7 +951,7 @@ Artboard **26** `659:5160`, **26b** `659:5311`, **26c** `709:5249`, **27** `659:
 
 - **Chưa đăng nhập thì chỉ có hộp đăng nhập.** Màn mở đầu đứng sau màn che, hộp không đóng được và
   không lời gọi nào đi ra. Rail còn nút và bốn đích đến, thay hai ngăn bằng một dòng nhắc; góc dưới
-  ghi *Đăng nhập*. **Một ô** *Số điện thoại hoặc email* (người dùng chốt 19/10/2026; có `@` thì BE
+  ghi *Đăng nhập*. **Một ô** *Số điện thoại / email* (người dùng chốt 19/10/2026; có `@` thì BE
   đọc là email); *Chưa có tài khoản? Tạo tài khoản* đổi sang hộp 26b, gồm bốn ô bắt buộc. Lời từ chối của BE nằm ngay trên nút (26c). Nút Google chỉ là giao diện.
 - **Ô tài khoản ở góc dưới rail** có avatar (chữ đầu của họ và tên, bỏ *Cô* / *Thầy*) và họ tên. Bấm
   thì mở menu 228 rộng, cách ô 6. Năm mục; chỉ *Đăng xuất* bấm được, bốn mục kia vẽ `--ink-faint`.

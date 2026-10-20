@@ -97,7 +97,7 @@ describe("đăng nhập giáo viên (việc 22)", () => {
     const { container } = render(<App />);
     await screen.findByRole("heading", { name: "Đăng nhập vào Kriky" });
 
-    fireEvent.change(screen.getByLabelText("Số điện thoại hoặc email"), { target: { value: "0912345001" } });
+    fireEvent.change(screen.getByLabelText("Số điện thoại / email"), { target: { value: "0912345001" } });
     fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "sai" } });
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
@@ -128,7 +128,7 @@ describe("đăng nhập giáo viên (việc 22)", () => {
 
     // Một ô cho cả hai, không còn tab chọn (người dùng chốt 19/10/2026).
     expect(screen.queryByRole("radio")).toBeNull();
-    expect(screen.getByLabelText("Số điện thoại hoặc email")).toBeTruthy();
+    expect(screen.getByLabelText("Số điện thoại / email")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Chưa có tài khoản? Tạo tài khoản" }));
     expect(screen.getByRole("heading", { name: "Tạo tài khoản giáo viên" })).toBeTruthy();
@@ -215,7 +215,7 @@ describe("phiên hết giữa chừng (review pha 3)", () => {
     await screen.findByRole("heading", { name: "Đăng nhập vào Kriky" });
     expect(container.querySelector(".rail")?.hasAttribute("inert")).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("Số điện thoại hoặc email"), { target: { value: "0912345001" } });
+    fireEvent.change(screen.getByLabelText("Số điện thoại / email"), { target: { value: "0912345001" } });
     fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "dung-mat-khau" } });
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
     await waitFor(() => expect(container.querySelector(".sign-in")).toBeNull());
