@@ -16,7 +16,7 @@ Ba quyết định đến từ jaggedness của `jev-1.13` (`document-agent-hier
 Hỏng theo bất kỳ cách nào -- thiếu khoá, timeout, lỗi mạng, câu trả lời lạ -- thì nạp **mọi** skill
 (D4): đúng bằng prompt trước `kriky-skill-routing`. *"Không bao giờ tệ hơn"* chỉ còn đúng với
 prompt: từ `unbiased-model-text` T5, việc chọn còn bật một luật code --
-`propose.books._opens_library` chỉ mở thư viện ở lượt có `soan-de`, nên nạp thừa `soan-de` thì một
+`propose.books.opens_library` chỉ mở thư viện ở lượt có `soan-de`, nên nạp thừa `soan-de` thì một
 câu hỏi lại ở lượt nhắc sách thành lời gọi `list_documents`.
 """
 

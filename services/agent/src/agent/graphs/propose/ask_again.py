@@ -1,11 +1,11 @@
-"""Các tín hiệu hỏi model lại đúng một lần (`_AskAgain` và họ hàng), kèm lý do cho lần hỏi lại."""
+"""Các tín hiệu hỏi model lại đúng một lần (`AskAgain` và họ hàng), kèm lý do cho lần hỏi lại."""
 
 import re
 
 from contracts import MOST_CLARIFY_QUESTIONS, NextStepCompleted
 
 
-class _AskAgain(ValueError):
+class AskAgain(ValueError):
     """Một đề nghị hỏng theo kiểu hỏi lại model một lần thường là sửa được.
 
     Attributes:
@@ -17,11 +17,11 @@ class _AskAgain(ValueError):
     hint = ""
 
 
-class _NothingToSay(_AskAgain):
+class NothingToSay(AskAgain):
     """Model chọn `say`, `ask_clarify` hay `outline` mà để `text` rỗng."""
 
 
-class _Flawed(_AskAgain):
+class Flawed(AskAgain):
     """Một đề nghị dùng được nhưng thiếu một thứ: mang nó theo, để lần hỏi lại hỏng thì còn nó.
 
     Lưới hỏi lại không bao giờ được làm kết quả tệ hơn khi chưa có nó (review T2b,
@@ -35,7 +35,7 @@ class _Flawed(_AskAgain):
         self.step = step
 
 
-class _IncompletePlan(_Flawed):
+class IncompletePlan(Flawed):
     """Model nêu plan mà một bước thiếu tham số bắt buộc của tool ấy.
 
     Đo được khi `soan-de` bắt ghi giá trị bốn mục vào `known` (`unbiased-model-text` T2b): hỏi thừa
@@ -45,11 +45,11 @@ class _IncompletePlan(_Flawed):
     """
 
 
-class _NoOutline(_AskAgain):
+class NoOutline(AskAgain):
     """Model chọn `outline` mà không nêu mục nào, hay một mục không đọc được (`draft-outline`)."""
 
 
-class _UncountedOutline(_Flawed):
+class UncountedOutline(Flawed):
     """Dàn ý có tổng câu khác số câu model vừa ghi trong `known`, hay dàn ý thay câu không phải đúng
     một mục một câu (`draft-outline`). Đo ở bench run-98: *"6 câu"* ra dàn ý 4 mục × 2 câu; *"thay
     câu 2"* ra dàn ý nêu lại cả đề.
@@ -81,11 +81,11 @@ class _UncountedOutline(_Flawed):
             )
 
 
-# Số câu đúng trong lý do của `_miscounted` (*"known says 5"*, *"the teacher asked for 5"*).
+# Số câu đúng trong lý do của `miscounted` (*"known says 5"*, *"the teacher asked for 5"*).
 _WANTED = re.compile(r"(?:says|asked for) (\d+)")
 
 
-class _PlanOverRevision(_Flawed):
+class PlanOverRevision(Flawed):
     """Model nêu plan soạn ngay sau lời giáo viên **xin sửa** dàn ý: plan ấy soạn theo dàn ý cũ mà
     giáo viên vừa xin đổi (plan `backlog-tier-1`, pha 3: *Plan soạn … sau một lời xin sửa dàn ý vẫn
     qua cổng*; cổng BE chỉ
@@ -97,9 +97,9 @@ class _PlanOverRevision(_Flawed):
     )
 
 
-class _WrongQuestion(_Flawed):
+class WrongQuestion(Flawed):
     """Model hỏi lại ngay sau danh sách tài liệu mà không hỏi tài liệu nào -- nút của câu hỏi là các
-    tài liệu (`_which_book`, `kriky-writes-every-word`)."""
+    tài liệu (`which_book`, `kriky-writes-every-word`)."""
 
     hint = (
         "Câu hỏi vừa rồi không hợp: ngay sau danh sách tài liệu, các nút giáo viên bấm là tên tài "
@@ -107,7 +107,7 @@ class _WrongQuestion(_Flawed):
     )
 
 
-class _TooManyQuestions(_Flawed):
+class TooManyQuestions(Flawed):
     """Model hỏi hơn `MOST_CLARIFY_QUESTIONS` câu một lượt (ADR-32). Đề nghị mang theo đã giữ đủ
     trần -- lần hai vẫn vậy thì ba câu đầu đi tiếp."""
 
@@ -117,6 +117,6 @@ class _TooManyQuestions(_Flawed):
     )
 
 
-class _FewChoices(_Flawed):
+class FewChoices(Flawed):
     """Model hỏi lại mà đưa ít lựa chọn hơn mức người dùng chốt (`unbiased-model-text` T3: ít nhất
     3)."""

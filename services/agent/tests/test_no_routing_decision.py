@@ -32,7 +32,7 @@ from langchain_core.runnables import RunnableLambda
 
 import agent.handlers as handlers
 from agent import llm
-from agent.graphs.propose import _Proposal
+from agent.graphs.propose.proposal import _Proposal
 from agent.worker import WorkerSettings
 from contracts import (
     EXPLAIN_TURN_TASK,

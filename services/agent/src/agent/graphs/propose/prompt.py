@@ -1,4 +1,4 @@
-"""Chữ cố định model đọc: lõi prompt (`_CORE`), quy trình soạn theo tài liệu, chỗ cắm thư viện."""
+"""Chữ cố định model đọc: lõi prompt (`CORE`), quy trình soạn theo tài liệu, chỗ cắm thư viện."""
 
 import re
 
@@ -8,7 +8,7 @@ import re
 # bỏ nó thì *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* tụt 23 → 6/24 (run-93, run-92),
 # thay bằng một câu đúng với hành vi mới (*"Giáo viên ghi câu trả lời của riêng họ thì dùng đúng câu
 # ấy"*) thì 0/24 (run-94). Đổi câu này phải đo lại ca ấy.
-_CORE = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
+CORE = r"""Bạn là trợ lý Kriky, làm việc cùng giáo viên phổ thông Việt Nam.
 
 Lượt này bạn đang ở PHA LÊN PLAN. Bạn tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một plan —
 danh sách những việc sẽ làm. Hệ thống chạy plan ấy ở pha sau, rồi hỏi bạn kể lại kết quả.
@@ -103,7 +103,7 @@ Cách viết:
 # cũng thử rồi bỏ (comment trên `teacher_tools._with_document`), nên luật nối mục bằng `;` không còn
 # nằm trong chữ nào model đọc: model bỏ `nodes` thì `bind_book` chỉ đỡ được khi `topic_scope` trùng
 # đúng một tên mục, hay các tên mục nối bằng `;`.
-_BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệu, nên TRƯỚC khi nêu dàn ý:
+BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệu, nên TRƯỚC khi nêu dàn ý:
 1. call_tool list_chapters — document_id. Cần bài hay mục bên trong một chương thì
    call_tool get_chapter — document_id, node. document_id đã có ở dòng tài liệu đính kèm thì
    không gọi list_documents. Kết quả list_documents có nhiều tài liệu cùng hợp → ask_clarify
@@ -122,9 +122,10 @@ _BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài li�
 5. Giáo viên đồng ý dàn ý → plan như quy trình soạn đề, create_draft thêm document_id và nodes
    (các số node đã chọn)."""
 
+
 # Mở thư viện khi giáo viên nhắc sách mà **không** đính kèm (`unbiased-model-text` T2b). Chỉ đúng ở
 # lượt không có sách, mà chỉ có tác dụng khi đứng **giữa** các nhánh quyết định của `soan-de` -- nên
-# skill để một chỗ trống, `_compose` điền hay xoá theo lượt. Đo:
+# skill để một chỗ trống, `compose` điền hay xoá theo lượt. Đo:
 # - dòng cố định trong skill: nó thắng cả lượt **có** chip -- `tai-lieu-chua-doc` 24 lần, bản đã
 #   commit 22/24, bản có `known` 10/24: model gọi `list_documents` dù `document_id` ở ngay dòng
 #   đính kèm;
@@ -135,9 +136,11 @@ _BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài li�
 #   nó thắng, nhưng đứng đầu ở mọi lượt soạn đề thì model gọi `list_documents` cả khi giáo viên
 #   không nhắc sách (run-26: 0/6 ở mọi ca đủ mục). Nên dòng này chỉ được điền khi chính câu của
 #   giáo viên nhắc tới sách hay tệp (`_BOOK_WORDS`). Từ T5, chữ không còn quyết một mình: lượt có
-#   dòng này mà model hỏi lại hay soạn đề không sách thì `_library_first` gọi `list_documents`.
-_LIBRARY_SLOT = re.compile(r"^([ \t]*)\{thư viện\}[ \t]*\n?", re.MULTILINE)
-_LIBRARY = (
+#   dòng này mà model hỏi lại hay soạn đề không sách thì `library_first` gọi `list_documents`.
+LIBRARY_SLOT = re.compile(r"^([ \t]*)\{thư viện\}[ \t]*\n?", re.MULTILINE)
+
+
+LIBRARY = (
     "- giáo viên nhắc tới một cuốn sách hay tệp đã tải lên để soạn theo mà không đính kèm → "
     "call_tool list_documents TRƯỚC, kể cả khi còn ? -- khối, môn có thể đọc ra từ tên tài liệu;"
 )

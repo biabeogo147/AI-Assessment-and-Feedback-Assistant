@@ -1,4 +1,4 @@
-"""Hình dạng câu trả lời của model (`_Proposal`) và cách nó thành `NextStepCompleted`; kèm `_nfc`,
+"""Hình dạng câu trả lời của model (`_Proposal`) và cách nó thành `NextStepCompleted`; kèm `nfc`,
 chuẩn hoá Unicode các file khác cũng dùng."""
 
 import unicodedata
@@ -15,9 +15,9 @@ from contracts import (
     PlanStep,
 )
 
-
-def _nfc(text: str) -> str:
-    return unicodedata.normalize("NFC", text)
+# Năm lớp dưới giữ dấu `_` dù file khác dùng `_Proposal`: tên lớp chính là tên tool (`_Proposal`)
+# và tên các `$defs` trong schema gửi model, nên đổi tên là đổi thứ model đọc.
+# `test_no_routing_decision` cũng khoá theo `"_Proposal"` (plan `propose-names-and-order`).
 
 
 class _Argument(BaseModel):
@@ -69,51 +69,6 @@ class _Step(BaseModel):
     tool_name: str
     args: tuple[_Argument, ...] = ()
     title: str
-
-
-def _unmangled(proposal: "_Proposal") -> "_Proposal":
-    r"""Trả lại dấu gạch chéo mà bộ giải mã JSON đã nuốt của lời model nói.
-
-    **Chỗ thứ hai, cùng một hỏng hóc.** `authoring` không phải ống structured-output duy
-    nhất: `_Proposal.text` cũng ra từ `with_structured_output`, cũng đi qua cùng bộ giải mã
-    JSON, và cũng kết thúc trong `<MathText>` -- `Chat.tsx` dựng hình nó ở năm chỗ
-    (`block.said`, `live.opening`, `live.report`, `said.opening`, `said.conclusion`).
-
-    Nghĩa là Kriky giải thích một công thức trong khung chat thì `\frac` thành form-feed y
-    hệt, rồi luật pandoc `\$(?![\s$])` từ chối nhận cả cụm là toán và dấu đô la lọt ra màn
-    hình. Cùng nguyên nhân, cùng hậu quả, cùng người nhìn thấy (ADR-26).
-
-    `title` của mỗi bước plan cũng đi qua: nó hiện trong khối bước ngay dưới câu Kriky nói.
-    `tool_name` và `args` thì **không** -- chúng là identifier và giá trị, không phải chữ
-    cho người đọc, và một dấu gạch chéo mọc thêm trong đó là một id hỏng.
-
-    Args:
-        proposal: Thứ model vừa trả lời, ngay sau khi qua bộ giải mã JSON.
-
-    Returns:
-        Một bản mới với mọi chữ dành cho người đọc đã dựng lại.
-    """
-    return proposal.model_copy(
-        update={
-            "text": restore_latex_escapes(proposal.text),
-            "steps": tuple(
-                step.model_copy(update={"title": restore_latex_escapes(step.title)})
-                for step in proposal.steps
-            ),
-            # Mục dàn ý (`draft-outline`): job soạn câu đọc đúng ba trường chữ này -- `\frac`
-            # thành form-feed ở đây là hỏng câu được soạn.
-            "outline": tuple(
-                item.model_copy(
-                    update={
-                        "knowledge": restore_latex_escapes(item.knowledge),
-                        "approach": restore_latex_escapes(item.approach),
-                        "formulas": tuple(restore_latex_escapes(one) for one in item.formulas),
-                    }
-                )
-                for item in proposal.outline
-            ),
-        }
-    )
 
 
 class _Question(BaseModel):
@@ -215,7 +170,7 @@ class _Proposal(BaseModel):
         """Các câu, lời mở và nút của một lượt hỏi lại, đã quy về hợp đồng (ADR-32). Hàm thuần.
 
         Hai câu trở lên đi thành `questions` (tối đa `MOST_CLARIFY_QUESTIONS`, phần dư bỏ --
-        `_choose` đã hỏi lại model khi có dư). Một câu thì là câu hỏi lại thường: lời mở và câu hỏi
+        `choose` đã hỏi lại model khi có dư). Một câu thì là câu hỏi lại thường: lời mở và câu hỏi
         gộp làm `text`, nút của câu thành `choices`.
 
         Returns:
@@ -223,20 +178,20 @@ class _Proposal(BaseModel):
         """
         made = tuple(
             ClarifyQuestion(
-                label=_nfc(one.label).strip() or "Câu hỏi",
-                text=_nfc(one.text).strip() or _nfc(one.label).strip() or "?",
-                choices=tuple(_nfc(choice) for choice in one.choices),
+                label=nfc(one.label).strip() or "Câu hỏi",
+                text=nfc(one.text).strip() or nfc(one.label).strip() or "?",
+                choices=tuple(nfc(choice) for choice in one.choices),
             )
             for one in self.questions
             if one.text.strip() or one.label.strip()
         )
         if len(made) >= 2:
-            return made[:MOST_CLARIFY_QUESTIONS], _nfc(self.text), ()
+            return made[:MOST_CLARIFY_QUESTIONS], nfc(self.text), ()
         if len(made) == 1:
-            lead = _nfc(self.text).strip()
+            lead = nfc(self.text).strip()
             joined = f"{lead}\n\n{made[0].text}" if lead and lead != made[0].text else made[0].text
-            return (), joined, made[0].choices or tuple(_nfc(one) for one in self.choices)
-        return (), _nfc(self.text), tuple(_nfc(one) for one in self.choices)
+            return (), joined, made[0].choices or tuple(nfc(one) for one in self.choices)
+        return (), nfc(self.text), tuple(nfc(one) for one in self.choices)
 
     def completed(self, request_id: str, model_tokens: int) -> NextStepCompleted:
         """Biến câu trả lời của model thành message BE đọc.
@@ -260,19 +215,19 @@ class _Proposal(BaseModel):
         # phân rã -- "ư" + dấu sắc rời (run-57) -- và chữ ấy không khớp nhãn BE, lời giáo viên hay
         # `bind_book`, dù in ra trông y hệt.
         questions, text, choices = (
-            self.asked() if self.kind == "ask_clarify" else ((), _nfc(self.text), ())
+            self.asked() if self.kind == "ask_clarify" else ((), nfc(self.text), ())
         )
         return NextStepCompleted(
             request_id=request_id,
             kind=self.kind,
             text=text,
             tool_name=self.tool_name,
-            tool_args={argument.param: _nfc(argument.value) for argument in self.tool_args},
+            tool_args={argument.param: nfc(argument.value) for argument in self.tool_args},
             steps=tuple(
                 PlanStep(
                     tool_name=step.tool_name,
-                    args={argument.param: _nfc(argument.value) for argument in step.args},
-                    title=_nfc(step.title),
+                    args={argument.param: nfc(argument.value) for argument in step.args},
+                    title=nfc(step.title),
                 )
                 for step in self.steps
             )
@@ -283,9 +238,9 @@ class _Proposal(BaseModel):
             outline=tuple(
                 OutlineItem(
                     questions=item.questions,
-                    knowledge=_nfc(item.knowledge),
-                    formulas=tuple(_nfc(one) for one in item.formulas),
-                    approach=_nfc(item.approach),
+                    knowledge=nfc(item.knowledge),
+                    formulas=tuple(nfc(one) for one in item.formulas),
+                    approach=nfc(item.approach),
                     source_nodes=item.source_nodes,
                 )
                 for item in self.outline
@@ -294,3 +249,52 @@ class _Proposal(BaseModel):
             else (),
             model_tokens=model_tokens,
         )
+
+
+def unmangled(proposal: "_Proposal") -> "_Proposal":
+    r"""Trả lại dấu gạch chéo mà bộ giải mã JSON đã nuốt của lời model nói.
+
+    **Chỗ thứ hai, cùng một hỏng hóc.** `authoring` không phải ống structured-output duy
+    nhất: `_Proposal.text` cũng ra từ `with_structured_output`, cũng đi qua cùng bộ giải mã
+    JSON, và cũng kết thúc trong `<MathText>` -- `Chat.tsx` dựng hình nó ở năm chỗ
+    (`block.said`, `live.opening`, `live.report`, `said.opening`, `said.conclusion`).
+
+    Nghĩa là Kriky giải thích một công thức trong khung chat thì `\frac` thành form-feed y
+    hệt, rồi luật pandoc `\$(?![\s$])` từ chối nhận cả cụm là toán và dấu đô la lọt ra màn
+    hình. Cùng nguyên nhân, cùng hậu quả, cùng người nhìn thấy (ADR-26).
+
+    `title` của mỗi bước plan cũng đi qua: nó hiện trong khối bước ngay dưới câu Kriky nói.
+    `tool_name` và `args` thì **không** -- chúng là identifier và giá trị, không phải chữ
+    cho người đọc, và một dấu gạch chéo mọc thêm trong đó là một id hỏng.
+
+    Args:
+        proposal: Thứ model vừa trả lời, ngay sau khi qua bộ giải mã JSON.
+
+    Returns:
+        Một bản mới với mọi chữ dành cho người đọc đã dựng lại.
+    """
+    return proposal.model_copy(
+        update={
+            "text": restore_latex_escapes(proposal.text),
+            "steps": tuple(
+                step.model_copy(update={"title": restore_latex_escapes(step.title)})
+                for step in proposal.steps
+            ),
+            # Mục dàn ý (`draft-outline`): job soạn câu đọc đúng ba trường chữ này -- `\frac`
+            # thành form-feed ở đây là hỏng câu được soạn.
+            "outline": tuple(
+                item.model_copy(
+                    update={
+                        "knowledge": restore_latex_escapes(item.knowledge),
+                        "approach": restore_latex_escapes(item.approach),
+                        "formulas": tuple(restore_latex_escapes(one) for one in item.formulas),
+                    }
+                )
+                for item in proposal.outline
+            ),
+        }
+    )
+
+
+def nfc(text: str) -> str:
+    return unicodedata.normalize("NFC", text)

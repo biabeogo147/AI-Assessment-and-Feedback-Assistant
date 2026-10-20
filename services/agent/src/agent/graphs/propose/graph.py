@@ -6,18 +6,19 @@ from langgraph.graph import END, StateGraph
 
 from agent import skill_router
 from agent.graphs.propose.ask_again import (
-    _AskAgain,
-    _FewChoices,
-    _Flawed,
-    _NoOutline,
-    _NothingToSay,
+    AskAgain,
+    FewChoices,
+    Flawed,
+    NoOutline,
+    NothingToSay,
 )
-from agent.graphs.propose.choose import _choose
-from agent.graphs.propose.clarify import _choices_in
-from agent.graphs.propose.compose import ProposeState, _compose
+from agent.graphs.propose.choose import choose
+from agent.graphs.propose.clarify import choices_in
+from agent.graphs.propose.compose import ProposeState, compose
 from contracts import NextStepCompleted, NextStepRequested
 
 logger = logging.getLogger("agent.graphs.propose")
+
 
 # Thông báo hệ thống khi model hai lần liền để trống lời (ADR-30, ngoại lệ 1: không giọng Kriky; BE
 # lưu nó thành lượt `notice`). Trung tính có chủ ý: **không** lùi về mock của
@@ -25,24 +26,6 @@ logger = logging.getLogger("agent.graphs.propose")
 # lớp 10 về mệnh đề"* thành câu hỏi *"bạn muốn xem lớp nào?"* (review A1). Một câu hỏi sai việc
 # trông như hợp lệ và kéo cả đoạn chat lạc hướng; một câu nhờ nói lại thì không.
 _UNCLEAR = "Kriky chưa hiểu rõ ý bạn. Bạn nói lại theo cách khác giúp nhé?"
-
-
-def _build() -> object:
-    """Lắp graph.
-
-    Returns:
-        Một graph đã compile, nhận `ProposeState` và điền vào `step`.
-    """
-    graph = StateGraph(ProposeState)
-    graph.add_node("compose", _compose)
-    graph.add_node("choose", _choose)
-    graph.set_entry_point("compose")
-    graph.add_edge("compose", "choose")
-    graph.add_edge("choose", END)
-    return graph.compile()
-
-
-_GRAPH = _build()
 
 
 async def propose(request: NextStepRequested) -> NextStepCompleted:
@@ -64,29 +47,29 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
     state = {"request": request, "skills": chosen, "messages": [], "step": None}
     try:
         final = await _GRAPH.ainvoke(state)
-    except _AskAgain as first:
+    except AskAgain as first:
         # Một lần nữa, không hơn: lần hỏng thứ hai là model đang kẹt, không phải xui.
         logger.warning("%s for %s, asking once more", first, request.request_id)
         try:
             final = await _GRAPH.ainvoke({**state, "hint": first.hint})
-        except _Flawed as again:
+        except Flawed as again:
             # Thiếu lần hai thì để đề nghị đi tiếp, như trước khi có lưới này: plan thiếu tham số
             # thì `vet_plan` của BE nói lời từ chối của nó, câu hỏi ít lựa chọn thì vẫn là một câu
             # hỏi -- giáo viên vẫn tự ghi được qua "Khác". AGENT không bịa tham số hay lựa chọn.
             logger.warning("%s again for %s", again, request.request_id)
             better = again.step
             if (
-                isinstance(again, _FewChoices)
-                and isinstance(first, _FewChoices)
-                and _choices_in(first.step) > _choices_in(again.step)
+                isinstance(again, FewChoices)
+                and isinstance(first, FewChoices)
+                and choices_in(first.step) > choices_in(again.step)
             ):
                 better = first.step
             final = {"step": better}
         except Exception as again:
-            if not isinstance(first, _Flawed):
+            if not isinstance(first, Flawed):
                 # Dàn ý hỏng hai lần cũng vậy: lùi về mock là cho giáo viên xem một dàn ý mock bịa
                 # giữa một lượt chat thật (review đợt 4, `draft-outline`).
-                if isinstance(again, (_NothingToSay, _NoOutline)):
+                if isinstance(again, (NothingToSay, NoOutline)):
                     logger.warning("empty answer twice for %s", request.request_id)
                     return NextStepCompleted(
                         request_id=request.request_id, kind="say", text=_UNCLEAR, notice=True
@@ -105,3 +88,21 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
     step: NextStepCompleted = final["step"]
     logger.info("proposed %s for %s", step.kind, request.request_id)
     return step.model_copy(update={"request_id": request.request_id})
+
+
+def _build() -> object:
+    """Lắp graph.
+
+    Returns:
+        Một graph đã compile, nhận `ProposeState` và điền vào `step`.
+    """
+    graph = StateGraph(ProposeState)
+    graph.add_node("compose", compose)
+    graph.add_node("choose", choose)
+    graph.set_entry_point("compose")
+    graph.add_edge("compose", "choose")
+    graph.add_edge("choose", END)
+    return graph.compile()
+
+
+_GRAPH = _build()

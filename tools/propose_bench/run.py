@@ -163,7 +163,7 @@ def foreign_words(said: str, title: str) -> list[str]:
 
 # Tên các mục của một đề -- nút mang đúng chữ này là nút kể mục, không phải câu trả lời (review T3,
 # `unbiased-model-text`: 15/30 lượt `thieu-het`). Chỉ là thước của bộ đo; AGENT bỏ những nút ấy bằng
-# `_answers`.
+# `answers`.
 _ITEM_NAMES = frozenset(
     {
         "môn",

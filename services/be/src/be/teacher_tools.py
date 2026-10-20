@@ -1328,9 +1328,9 @@ async def bind_book(steps: tuple["PlanStep", ...], document_id: str) -> tuple["P
 _TOOLS: tuple[Tool, ...] = (
     # Bốn tool đọc tài liệu (`draft-from-document`; `read_section` từ `draft-outline`). Mô tả chỉ
     # nói **làm gì và nhận gì**; dùng lúc nào, theo thứ tự nào là việc của quy trình -- skill
-    # `soan-de` mở thư viện khi giáo viên nhắc sách, còn đọc mục lục nằm ở `propose._BOOK_PROCEDURE`
-    # bên AGENT, chỉ chèn ở lượt có sách (`unbiased-model-text`). Một nguồn cho mỗi điều, không lặp
-    # ở hai chỗ.
+    # `soan-de` mở thư viện khi giáo viên nhắc sách, còn đọc mục lục nằm ở
+    # `propose.prompt.BOOK_PROCEDURE` bên AGENT, chỉ chèn ở lượt có sách (`unbiased-model-text`).
+    # Một nguồn cho mỗi điều, không lặp ở hai chỗ.
     Tool(
         spec=ToolSpec(
             name="list_documents",
@@ -1499,7 +1499,7 @@ _DOCUMENT_ARGUMENTS = {
     ),
 }
 # `topic_scope` **không** đổi mô tả ở lượt có sách, dù mô tả chung (*"chép đúng lời giáo viên"*) cãi
-# `_BOOK_PROCEDURE` (*"tên các mục đã chọn"*) -- review T2 (`unbiased-model-text`) thử một mô tả
+# `BOOK_PROCEDURE` (*"tên các mục đã chọn"*) -- review T2 (`unbiased-model-text`) thử một mô tả
 # riêng nói cả hai nguồn, và `tai-lieu-khop-chuong` tụt 18/24 → 9/24: model hỏi *"cả chương hay một
 # phần?"*. Khi model bỏ `nodes`, `bind_book` chỉ đỡ được nếu `topic_scope` trùng tên mục.
 

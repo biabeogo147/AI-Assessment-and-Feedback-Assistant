@@ -705,7 +705,7 @@ async def _filled_brief(
     Thử tay 16-17/10/2026: Haiku để trống `known` từ lượt thứ hai (plan `backlog-tier-1`, pha 1;
     phần còn hở ở backlog *Dàn ý lưu `brief` rỗng khi không có dàn ý trước nào để lấp*), nên dàn ý
     sửa lưu `brief` rỗng -- *"oke"* lùi về plan của model thay vì plan dựng từ dàn ý
-    (`_approved_plan`). Database giữ đủ `tool_result` của mọi dàn ý, nên chỗ trống lấy từ
+    (`approved_plan`). Database giữ đủ `tool_result` của mọi dàn ý, nên chỗ trống lấy từ
     dàn ý gần nhất có giá trị; dàn ý cho đề đã có (*thêm*, *thay*) thì lấy cả từ chính đề ấy.
     Model ghi giá trị nào thì giá trị ấy thắng.
 

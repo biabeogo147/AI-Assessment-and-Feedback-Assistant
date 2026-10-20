@@ -36,7 +36,7 @@ def _in(body: str) -> str:
         + _in('refusal = _PLAN_REFUSED\nyield TurnEvent(kind="say", text=refusal)'),
         '_BOOK = "Tài liệu {filename} chưa dùng được."\n'
         + _in('refusal = _BOOK.format(filename=x)\nyield TurnEvent(kind="say", text=refusal)'),
-        # `_which_book` cũ: đè chữ qua `model_copy`.
+        # `which_book` cũ: đè chữ qua `model_copy`.
         '_WHICH_BOOK = "Bạn soạn theo tài liệu nào?"\n'
         + _in('return step.model_copy(update={"text": _WHICH_BOOK})'),
         # Một nhánh `or` / `if…else` là câu cố định.

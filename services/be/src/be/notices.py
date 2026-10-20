@@ -6,7 +6,8 @@ chạm trần bước, lượt gãy giữa chừng, không với tới AGENT, đ
 hiện như thông báo hệ thống (lượt `notice`), không avatar, không giọng của Kriky.
 
 Một chỗ cho mọi câu ấy **của BE**. Hai câu AGENT nói khi model hỏng (`handlers._MODEL_DOWN`,
-`propose._UNCLEAR`) sống bên AGENT -- hai service không import nhau -- và tự khai `notice=True`.
+`propose/graph._UNCLEAR`) sống bên AGENT -- hai service không import nhau -- và tự khai
+`notice=True`.
 `tools/check_contract.py` (`check_kriky_says_nothing_fixed`) giữ cho không câu cố định nào vào lời
 Kriky: câu ở đây chỉ được đi dưới `kind="notice"`, và một hằng chữ đi vào `say` hay `outline` là một
 câu code nói thay model.

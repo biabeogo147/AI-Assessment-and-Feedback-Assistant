@@ -2,56 +2,19 @@
 
 import re
 
-from agent.graphs.propose.outline import _AGREES
+from agent.graphs.propose.outline import AGREES
 from contracts import NextStepCompleted, NextStepRequested, PlanStep, TurnRecord
 
-# Ký tự điều khiển, trừ tab và xuống dòng. Tham số plan không đi qua `_unmangled` -- chúng là giá
+# Ký tự điều khiển, trừ tab và xuống dòng. Tham số plan không đi qua `unmangled` -- chúng là giá
 # trị, không phải chữ để dựng toán -- nên một ký tự như vậy là chữ hỏng, không phải LaTeX bị nuốt.
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
-def _garbled(steps: tuple[PlanStep, ...]) -> str:
-    """Bước đầu tiên có tham số mang ký tự điều khiển, gọi tên ra; rỗng khi không bước nào.
-
-    Đo được ở `unbiased-model-text` T3: hai lượt trong ~1100 trả *"tỉ lệ th\\x13"*, *"tỉ lệ
-    th\\x1c"* làm `topic_scope` (run-53, run-54; nguồn chưa rõ) -- chữ ấy thành tên đề giáo viên
-    đọc. Hỏi lại model một lần như một plan thiếu tham số.
-
-    Args:
-        steps: Các bước model nêu.
-
-    Returns:
-        Một dòng cho log, hoặc chuỗi rỗng.
-    """
-    for index, step in enumerate(steps, start=1):
-        for key, value in step.args.items():
-            if _CONTROL.search(str(value)):
-                return f"step {index} ({step.tool_name}) has a control character in {key}"
-    return ""
-
-
 # Lời xin sửa dàn ý: *"câu 2 đổi sang tự luận"*, *"thêm một câu hình học"*, *"oke nhưng câu 3 khó
-# hơn"*. Lời đồng ý trọn câu (`_AGREES`) thì không phải.
+# hơn"*. Lời đồng ý trọn câu (`AGREES`) thì không phải.
 _REVISES = re.compile(
     r"\b(?:đổi|sửa|thay|bỏ|thêm|bớt|chuyển|khó hơn|dễ hơn|nhưng|thay vì)\b", re.IGNORECASE
 )
-
-
-def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested) -> bool:
-    """Plan có soạn câu, mà lời giáo viên sau dàn ý gần nhất là lời xin sửa. Hàm thuần."""
-    if not any(one.tool_name in {"start_drafting", "replace_question"} for one in step.steps):
-        return False
-    after: list[TurnRecord] = []
-    for turn in reversed(request.history):
-        if turn.kind == "outline":
-            break
-        after.append(turn)
-    else:
-        return False
-    said = [turn.text for turn in after if turn.kind == "teacher"]
-    if not said or _AGREES.match(said[0]):
-        return False
-    return bool(_REVISES.search(_NO_CHANGE.sub(" ", said[0])))
 
 
 # Lời **không** xin sửa: *"không cần sửa gì"*, *"ko đổi gì nữa"* -- bỏ đi trước khi tìm `_REVISES`,
@@ -71,7 +34,11 @@ def _drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested)
 # Chín vòng review (pha 5) liền ra ca biên mới, nên regex này đi cùng một bộ câu có nhãn
 # (`tests/test_revision_words.py`): sửa regex là chạy lại cả bộ. Ca biên còn lại là Tier 2 câu 5.
 _CHANGE_VERB = r"(?:thay\s+đổi|chỉnh\s+sửa|sửa|đổi|thay|thêm|bớt|bỏ)"
+
+
 _END_PARTICLE = r"(?:nh[éeaá]+n?|ạ+)"
+
+
 # *"gì thêm"* là *"gì nữa"*: *gì* mang theo *thêm* dù có chữ khác theo sau (*"không cần sửa gì thêm
 # soạn đi"*), trừ khi sau *thêm* là tân ngữ -- *"gì thêm 1 câu"* là lời xin thêm câu (vòng 9).
 # `?+` (possessive): *"gì thêm"* khớp được cả một tiểu từ lẫn *gì* + `_TRAILING_MORE`, và để
@@ -82,13 +49,21 @@ _INNER_PARTICLE = (
     r"|phần|bài)))?+"
     r"|nữa|cả|hết+|đâu)"
 )
+
+
 _LONG_PARTICLE = r"(?:luôn|đi)"
+
+
 # *thêm* ở đuôi chỉ khi nó cũng là cuối ý (*"không chỉnh sửa gì thêm"*): theo sau là hết câu, dấu
 # câu, hay một tiểu từ khác -- *"không cần sửa nhé thêm 1 câu"* là lời xin thêm câu (vòng 8).
 _TRAILING_MORE = (
     rf"thêm(?=\s*(?:[,.!?;:)]|$)|\s+(?:{_END_PARTICLE}|{_INNER_PARTICLE}|{_LONG_PARTICLE})\b)"
 )
+
+
 _ANY_PARTICLE = rf"(?:{_END_PARTICLE}|{_INNER_PARTICLE}|{_LONG_PARTICLE}|{_TRAILING_MORE})"
+
+
 _NO_CHANGE = re.compile(
     # *"sao không …"* là lời gợi ý sửa, trừ *"không sao không cần sửa"* (vòng 8).
     r"(?<!(?<!\bkhông\s)(?<!\bko\s)\bsao\s)"
@@ -102,7 +77,7 @@ _NO_CHANGE = re.compile(
 )
 
 
-def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
+def lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
     """Bước đầu tiên thiếu một tham số bắt buộc, gọi tên ra; rỗng khi không bước nào thiếu.
 
     Luật của `vet_plan` bên BE -- tham số khai trong catalog, trừ `optional`, phải **có mặt** -- trừ
@@ -129,3 +104,40 @@ def _lacking(steps: tuple[PlanStep, ...], request: NextStepRequested) -> str:
         if missing:
             return f"step {index} ({step.tool_name}) lacks {sorted(missing)}"
     return ""
+
+
+def garbled(steps: tuple[PlanStep, ...]) -> str:
+    """Bước đầu tiên có tham số mang ký tự điều khiển, gọi tên ra; rỗng khi không bước nào.
+
+    Đo được ở `unbiased-model-text` T3: hai lượt trong ~1100 trả *"tỉ lệ th\\x13"*, *"tỉ lệ
+    th\\x1c"* làm `topic_scope` (run-53, run-54; nguồn chưa rõ) -- chữ ấy thành tên đề giáo viên
+    đọc. Hỏi lại model một lần như một plan thiếu tham số.
+
+    Args:
+        steps: Các bước model nêu.
+
+    Returns:
+        Một dòng cho log, hoặc chuỗi rỗng.
+    """
+    for index, step in enumerate(steps, start=1):
+        for key, value in step.args.items():
+            if _CONTROL.search(str(value)):
+                return f"step {index} ({step.tool_name}) has a control character in {key}"
+    return ""
+
+
+def drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested) -> bool:
+    """Plan có soạn câu, mà lời giáo viên sau dàn ý gần nhất là lời xin sửa. Hàm thuần."""
+    if not any(one.tool_name in {"start_drafting", "replace_question"} for one in step.steps):
+        return False
+    after: list[TurnRecord] = []
+    for turn in reversed(request.history):
+        if turn.kind == "outline":
+            break
+        after.append(turn)
+    else:
+        return False
+    said = [turn.text for turn in after if turn.kind == "teacher"]
+    if not said or AGREES.match(said[0]):
+        return False
+    return bool(_REVISES.search(_NO_CHANGE.sub(" ", said[0])))

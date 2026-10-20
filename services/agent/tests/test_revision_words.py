@@ -4,14 +4,14 @@ Plan `backlog-tier-1`, pha 5: chín vòng review liền nhau đều ra một ca 
 `_REVISES`, và mỗi lần sửa một câu lại làm hỏng một câu khác. Bộ này gom mọi câu các vòng ấy đã thử
 -- sửa regex là chạy lại cả bộ, nên một lần sửa không còn âm thầm làm sai một câu cũ.
 
-Chạy qua đúng đường code dùng (`_drafts_over_a_revision`), không gọi regex trơn. Câu mơ hồ thật,
+Chạy qua đúng đường code dùng (`drafts_over_a_revision`), không gọi regex trơn. Câu mơ hồ thật,
 hay đã biết còn lọt, nằm ở `OPEN` và không được canh: chúng là Tier 2 câu 5 (thay regex bằng nút
 do BE dựng).
 """
 
 import pytest
 
-from agent.graphs.propose import _drafts_over_a_revision
+from agent.graphs.propose.plan_checks import drafts_over_a_revision
 from contracts import NextStepCompleted, NextStepRequested, PlanStep, TurnRecord
 
 # Lời không xin sửa: plan soạn đi tiếp.
@@ -219,12 +219,12 @@ def _after_an_outline(said: str) -> NextStepRequested:
 
 @pytest.mark.parametrize("said", AGREES)
 def test_a_teacher_who_asks_for_no_change_is_not_held_back(said: str) -> None:
-    assert _drafts_over_a_revision(_PLAN, _after_an_outline(said)) is False
+    assert drafts_over_a_revision(_PLAN, _after_an_outline(said)) is False
 
 
 @pytest.mark.parametrize("said", REVISES)
 def test_a_teacher_who_asks_for_a_change_holds_the_plan_back(said: str) -> None:
-    assert _drafts_over_a_revision(_PLAN, _after_an_outline(said)) is True
+    assert drafts_over_a_revision(_PLAN, _after_an_outline(said)) is True
 
 
 @pytest.mark.parametrize(
@@ -237,5 +237,5 @@ def test_a_long_message_does_not_hang_the_check(lead: str) -> None:
 
     said = lead + " gì thêm" * 250 + " x"
     started = time.perf_counter()
-    _drafts_over_a_revision(_PLAN, _after_an_outline(said))
+    drafts_over_a_revision(_PLAN, _after_an_outline(said))
     assert time.perf_counter() - started < 1.0

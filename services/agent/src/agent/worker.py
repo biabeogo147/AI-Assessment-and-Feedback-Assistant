@@ -92,7 +92,7 @@ class WorkerSettings:
     BE.
 
     Một job không phải một lần gọi model: soạn câu thử tới `LLM_MAX_ATTEMPTS` lần, propose có
-    thể gọi lại model một lần khi đề nghị đầu hỏng (`_Flawed`) và hỏi Jev chọn skill trước đó.
+    thể gọi lại model một lần khi đề nghị đầu hỏng (`Flawed`) và hỏi Jev chọn skill trước đó.
     `tools/check_contract.py` (`timeout-order`) so trường hợp xấu nhất ấy với độ kiên nhẫn của BE.
     """
 

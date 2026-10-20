@@ -19,16 +19,10 @@ import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from agent import llm, skill_router
-from agent.graphs.propose import (
-    _answers,
-    _Argument,
-    _asks_which_book,
-    _choices_wanted,
-    _Proposal,
-    _Question,
-    _Step,
-    propose,
-)
+from agent.graphs.propose import propose
+from agent.graphs.propose.clarify import answers, choices_wanted
+from agent.graphs.propose.proposal import _Argument, _Proposal, _Question, _Step
+from agent.graphs.propose.read_order import _asks_which_book
 from contracts import AttachedDocument, NextStepRequested, ToolSpec, TurnRecord
 
 _CATALOG = (
@@ -519,7 +513,7 @@ async def test_a_plan_opening_with_a_read_calls_the_read_first(
     model = Scripted([_opened_by("list_documents")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
-    # Câu không nhắc sách: `_library_first` không đụng tới, chỉ `_reads_first` lật được plan này.
+    # Câu không nhắc sách: `library_first` không đụng tới, chỉ `reads_first` lật được plan này.
     step = await propose(_library_turn("6 câu ôn tập lớp 9, mở thư viện giúp mình"))
 
     assert len(model.prompts) == 1
@@ -760,7 +754,7 @@ async def test_the_library_is_not_forced_on_what_is_not_a_question_or_a_new_draf
 async def test_the_library_opens_only_on_a_drafting_turn(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """Cổng skill của `_opens_library`: lượt chỉ nạp `lop-va-ket-qua` thì không mở thư viện."""
+    """Cổng skill của `opens_library`: lượt chỉ nạp `lop-va-ket-qua` thì không mở thư viện."""
 
     async def routed(history: object) -> tuple[str, ...]:
         return ("lop-va-ket-qua",)
@@ -1034,14 +1028,14 @@ _READY_BOOK = AttachedDocument(document_id="d10", filename="Toán 10 tập 1.pdf
 @pytest.mark.parametrize(
     ("proposed", "later"),
     [
-        # `_misfiled_read`: có chip thì thủ tục sách lo việc đọc mục lục.
+        # `misfiled_read`: có chip thì thủ tục sách lo việc đọc mục lục.
         (_asked_naming("list_chapters", document_id="d10"), ()),
-        # `_picked_book_first`: chữ trùng tên một tài liệu, nhưng đoạn chat đã gắn sách.
+        # `picked_book_first`: chữ trùng tên một tài liệu, nhưng đoạn chat đã gắn sách.
         (
             _draft_plan(*_FULL),
             (_ASKED_BOOK, TurnRecord(kind="teacher", text="Kết nối tri thức Lớp 10 tập 1.pdf")),
         ),
-        # `_which_book`: câu hỏi ngay sau danh sách, nhưng có chip -- không đè chữ model.
+        # `which_book`: câu hỏi ngay sau danh sách, nhưng có chip -- không đè chữ model.
         (_grade_asked(), ()),
     ],
 )
@@ -1353,7 +1347,7 @@ def test_names_of_items_and_other_are_not_answers() -> None:
     đếm vào đủ ba."""
     question = "Bạn cho mình biết môn học, khối lớp, phạm vi kiến thức và số câu hỏi nhé?"
 
-    kept = _answers(("Môn học", "Khối lớp", "Số câu hỏi", "Khác", "khối 6"), question)
+    kept = answers(("Môn học", "Khối lớp", "Số câu hỏi", "Khác", "khối 6"), question)
 
     assert kept == ("khối 6",)
 
@@ -1362,7 +1356,7 @@ def test_a_value_stays_even_when_the_question_names_it() -> None:
     """Có chữ số là một giá trị: *"Bạn muốn 10, 15 hay 20 câu?"* vẫn cho bấm *"20 câu"*."""
     question = "Bạn muốn 10, 15 hay 20 câu?"
 
-    assert _answers(("10 câu", "15 câu", "20 câu"), question) == ("10 câu", "15 câu", "20 câu")
+    assert answers(("10 câu", "15 câu", "20 câu"), question) == ("10 câu", "15 câu", "20 câu")
 
 
 def test_two_rows_from_an_earlier_turn_are_still_enough() -> None:
@@ -1380,10 +1374,10 @@ def test_two_rows_from_an_earlier_turn_are_still_enough() -> None:
         TurnRecord(kind="teacher", text="lớp chuyên ấy"),
     )
 
-    assert _choices_wanted(_asked("x").model_copy(update={"history": history})) == 2
+    assert choices_wanted(_asked("x").model_copy(update={"history": history})) == 2
     # Một plan đã nêu sau danh sách ấy: việc chọn lớp xong rồi, câu hỏi mới lại cần ba.
     planned = (*history[:4], TurnRecord(kind="plan"), TurnRecord(kind="teacher", text="soạn đề"))
-    assert _choices_wanted(_asked("x").model_copy(update={"history": planned})) == 3
+    assert choices_wanted(_asked("x").model_copy(update={"history": planned})) == 3
 
 
 @pytest.mark.asyncio
@@ -1511,7 +1505,7 @@ async def test_the_prompt_calls_the_two_catalogs_by_the_names_it_uses_for_them(
     """Luật và nhãn phải khớp nhau, vì chúng nằm ở hai chỗ khác nhau trong cùng một prompt.
 
     `_SYSTEM` dặn model chọn trong *"tool dùng ngay"* và *"tool nêu được trong plan"*;
-    `_compose` mới là chỗ in hai tiêu đề ấy ra. Đổi tiêu đề mà quên sửa luật -- hoặc ngược
+    `compose` mới là chỗ in hai tiêu đề ấy ra. Đổi tiêu đề mà quên sửa luật -- hoặc ngược
     lại -- để lại một prompt dặn model đọc một mục không tồn tại, và nó sẽ đoán mục nào là
     mục nào.
     """
@@ -1661,7 +1655,7 @@ def test_a_single_question_in_the_list_is_an_ordinary_question_back() -> None:
 
 def test_the_questions_asked_go_back_into_history_so_the_merged_answer_reads() -> None:
     """Câu trả lời gộp chỉ đọc được khi model thấy lại chính các câu nó đã hỏi."""
-    from agent.graphs.propose import _asked_back
+    from agent.graphs.propose.compose import _asked_back
 
     turn = TurnRecord(
         kind="assistant",
@@ -1826,6 +1820,6 @@ async def test_a_blank_extra_question_is_not_a_fourth_question(
 def test_a_teacher_turning_the_book_down_is_not_asking_for_one(said: str, mentions: bool) -> None:
     """Plan `backlog-tier-1`: *"ko cần sách"* từng mở thư viện (`_BOOK_WORDS` không đọc phủ
     định)."""
-    from agent.graphs.propose import _mentions_book
+    from agent.graphs.propose.books import _mentions_book
 
     assert _mentions_book(_asked(said)) is mentions

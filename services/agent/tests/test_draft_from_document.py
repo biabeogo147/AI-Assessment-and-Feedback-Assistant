@@ -12,14 +12,10 @@ from langchain_core.runnables import RunnableLambda
 
 from agent import llm
 from agent.graphs.authoring import draft_brief
-from agent.graphs.propose import (
-    _BOOK_PROCEDURE,
-    _LIBRARY,
-    _compose,
-    _describe_tool,
-    _Proposal,
-    propose,
-)
+from agent.graphs.propose import propose
+from agent.graphs.propose.compose import _describe_tool, compose
+from agent.graphs.propose.prompt import BOOK_PROCEDURE, LIBRARY
+from agent.graphs.propose.proposal import _Proposal
 from contracts import (
     AttachedDocument,
     DraftQuestionRequested,
@@ -124,7 +120,7 @@ async def test_kriky_is_told_the_attached_document_and_its_id(monkeypatch) -> No
     )
 
     assert "Tài liệu giáo viên đính kèm: SGK Toán 6.pdf (document_id = book)." in prompts[0]
-    assert _BOOK_PROCEDURE in prompts[0]
+    assert BOOK_PROCEDURE in prompts[0]
 
 
 _TEACHER = TurnRecord(kind="teacher", text="soạn 10 câu")
@@ -183,7 +179,7 @@ async def test_the_book_procedure_comes_only_with_a_book(
         )
     )
 
-    assert (_BOOK_PROCEDURE in prompts[0]) is told
+    assert (BOOK_PROCEDURE in prompts[0]) is told
 
 
 _BOOK_TALK = TurnRecord(kind="teacher", text="soạn 10 câu chương 2 trong cuốn sách mình tải lên")
@@ -243,10 +239,10 @@ def test_the_library_hint_comes_only_to_a_drafting_turn_without_a_book(
         catalog=(ToolSpec(name="list_documents", description="tra cứu", arguments={}),),
     )
 
-    composed = _compose({"request": request, "skills": chosen, "messages": [], "step": None})
+    composed = compose({"request": request, "skills": chosen, "messages": [], "step": None})
     system = composed["messages"][0].text
 
-    assert (_LIBRARY in system) is told
+    assert (LIBRARY in system) is told
     # Chỗ trống của skill không bao giờ tới model, điền hay xoá.
     assert "{thư viện}" not in system
 
@@ -265,14 +261,14 @@ def test_the_library_line_stands_among_the_drafting_branches() -> None:
         catalog=(ToolSpec(name="list_documents", description="tra cứu", arguments={}),),
     )
 
-    system = _compose({"request": request, "skills": ("soan-de",), "messages": [], "step": None})[
+    system = compose({"request": request, "skills": ("soan-de",), "messages": [], "step": None})[
         "messages"
     ][0].text
 
-    assert system.index("Chỉ mục ghi ? mới được hỏi") < system.index(_LIBRARY)
-    assert system.index(_LIBRARY) < system.index("- còn ? → ask_clarify")
+    assert system.index("Chỉ mục ghi ? mới được hỏi") < system.index(LIBRARY)
+    assert system.index(LIBRARY) < system.index("- còn ? → ask_clarify")
     # Khối thường chỉ có trong tên tài liệu, nên mở thư viện không chờ đủ mục.
-    assert "kể cả khi còn ?" in _LIBRARY
+    assert "kể cả khi còn ?" in LIBRARY
 
 
 @pytest.mark.asyncio

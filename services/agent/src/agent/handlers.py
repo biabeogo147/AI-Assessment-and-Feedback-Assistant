@@ -33,7 +33,8 @@ from agent import llm
 from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_question
 from agent.graphs.explain import speak
 from agent.graphs.naming import name_it
-from agent.graphs.propose import _AGREES, propose
+from agent.graphs.propose import propose
+from agent.graphs.propose.outline import AGREES
 from agent.graphs.reporting import tell_about
 from contracts import (
     ConversationNameCompleted,
@@ -750,7 +751,7 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
     shown = _outline_before(request.history)
     if (
         shown is not None
-        and _AGREES.search(asked)
+        and AGREES.search(asked)
         and {"create_draft", "start_drafting"} <= plannable
     ):
         # ADR-29: giáo viên đồng ý dàn ý ở lượt trước thì mới nêu plan. Số câu để trống: BE điền

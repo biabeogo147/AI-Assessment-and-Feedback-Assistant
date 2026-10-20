@@ -2,8 +2,13 @@
 
 from contracts import NextStepCompleted, NextStepRequested
 
+# Chữ của lối "Khác" mà thẻ hỏi lại tự vẽ (FE, người dùng chốt 13/10/2026): model viết nó vào
+# `choices` thì không phải một lựa chọn (`answers`). Cùng chữ với `teacher_chat.OTHER_CHOICE` bên
+# BE và `OTHER` trong `Chat.tsx` -- ba nơi không import nhau, một test giữ chúng khớp.
+_OTHER = "Khác"
 
-def _answers(choices: tuple[str, ...], question: str) -> tuple[str, ...]:
+
+def answers(choices: tuple[str, ...], question: str) -> tuple[str, ...]:
     """Những lựa chọn thật sự là một câu trả lời để bấm, gộp trùng.
 
     Ba thứ trông như lựa chọn mà không phải, đều đo được ở ca thiếu cả bốn mục
@@ -36,7 +41,31 @@ def _answers(choices: tuple[str, ...], question: str) -> tuple[str, ...]:
     return tuple(kept.values())
 
 
-def _choices_wanted(request: NextStepRequested) -> int:
+def row_names(request: NextStepRequested) -> set[str]:
+    """Tên các dòng (`candidates`) của kết quả tool gần nhất kể từ plan gần nhất, gộp khoảng trắng,
+    không phân biệt hoa thường. Hàm thuần."""
+    for turn in reversed(request.history):
+        if turn.kind == "plan":
+            break
+        if turn.kind == "tool_result":
+            listed = turn.tool_result.get("candidates")
+            if isinstance(listed, list):
+                names = set()
+                for one in listed:
+                    if isinstance(one, dict):
+                        for key in ("name", "label"):
+                            if one.get(key):
+                                names.add(" ".join(str(one[key]).split()).casefold())
+                        # Chữ trên nút BE dựng cho một lớp (`teacher_chat._option`): model chép
+                        # đúng nhãn ấy thì câu vẫn là câu về dòng (review code pha 5).
+                        if one.get("name") and isinstance(one.get("student_count"), int):
+                            button = f"{one['name']} ({one['student_count']} học sinh)"
+                            names.add(" ".join(button.split()).casefold())
+                return names
+    return set()
+
+
+def choices_wanted(request: NextStepRequested) -> int:
     """Một câu hỏi lại lượt này cần ít nhất bao nhiêu lựa chọn.
 
     Ba, theo luật người dùng chốt -- trừ khi số ba không đúng:
@@ -63,38 +92,8 @@ def _choices_wanted(request: NextStepRequested) -> int:
     return 3
 
 
-def _choices_in(step: NextStepCompleted) -> int:
+def choices_in(step: NextStepCompleted) -> int:
     """Tổng số lựa chọn một lượt hỏi lại bày ra, một câu hay nhiều câu (ADR-32). Hàm thuần."""
     if step.questions:
         return sum(len(one.choices) for one in step.questions)
     return len(step.choices)
-
-
-def _row_names(request: NextStepRequested) -> set[str]:
-    """Tên các dòng (`candidates`) của kết quả tool gần nhất kể từ plan gần nhất, gộp khoảng trắng,
-    không phân biệt hoa thường. Hàm thuần."""
-    for turn in reversed(request.history):
-        if turn.kind == "plan":
-            break
-        if turn.kind == "tool_result":
-            listed = turn.tool_result.get("candidates")
-            if isinstance(listed, list):
-                names = set()
-                for one in listed:
-                    if isinstance(one, dict):
-                        for key in ("name", "label"):
-                            if one.get(key):
-                                names.add(" ".join(str(one[key]).split()).casefold())
-                        # Chữ trên nút BE dựng cho một lớp (`teacher_chat._option`): model chép
-                        # đúng nhãn ấy thì câu vẫn là câu về dòng (review code pha 5).
-                        if one.get("name") and isinstance(one.get("student_count"), int):
-                            button = f"{one['name']} ({one['student_count']} học sinh)"
-                            names.add(" ".join(button.split()).casefold())
-                return names
-    return set()
-
-
-# Chữ của lối "Khác" mà thẻ hỏi lại tự vẽ (FE, người dùng chốt 13/10/2026): model viết nó vào
-# `choices` thì không phải một lựa chọn (`_answers`). Cùng chữ với `teacher_chat.OTHER_CHOICE` bên
-# BE và `OTHER` trong `Chat.tsx` -- ba nơi không import nhau, một test giữ chúng khớp.
-_OTHER = "Khác"

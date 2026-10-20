@@ -12,7 +12,7 @@ từ chối và tiêu một vòng để phát hiện lại đúng điều ấy.
 Hai node, và node thứ hai là một lần gọi structured. Nó nhỏ hơn graph soạn đề một cách có
 chủ ý: không có loop tự check nhiều vòng, vì một đề nghị thì hoặc được BE thực thi hoặc bị BE
 từ chối, và BE là phía duy nhất biết được là cái nào. Có **một** phép kiểm phía AGENT với một
-lần gọi lại: đề nghị hỏng hình dạng theo những luật AGENT tự biết (`_Flawed`: plan thiếu bước,
+lần gọi lại: đề nghị hỏng hình dạng theo những luật AGENT tự biết (`Flawed`: plan thiếu bước,
 dàn ý không đếm câu, quá ba câu hỏi, câu tham số ít nút, plan soạn ngay sau lời xin sửa dàn ý)
 thì model được hỏi lại đúng một lần kèm lý do.
 
@@ -27,54 +27,14 @@ chọn phương án nào khi lựa chọn đó là một quyết định sư ph�
 quyền ấy. Và nó hỏi lại chứ không đoán khi một cái tên có thể mang nhiều nghĩa, đó là
 cổng kiểm đầu vào của ADR-05.
 
-Từ `kriky-skill-routing`, prompt là **lõi + skill**. `_CORE` mang những luật không lượt nào được
+Từ `kriky-skill-routing`, prompt là **lõi + skill**. `CORE` mang những luật không lượt nào được
 thiếu; lời dặn chỉ một loại việc cần -- tra lớp, soạn đề -- nằm trong `agent/skills/*.md`, và
 `skill_router` (Jev) chọn skill nào được nạp trước khi graph chạy.
 """
 
-from agent.graphs.propose.books import _DOCUMENT_READS, _mentions_book
-from agent.graphs.propose.clarify import _OTHER, _answers, _choices_wanted
-from agent.graphs.propose.compose import _asked_back, _compose, _describe_tool
-from agent.graphs.propose.graph import _UNCLEAR, propose
-from agent.graphs.propose.outline import (
-    _AGREES,
-    _approved_plan,
-    _brief_in,
-    _miscounted,
-    _right_purpose,
-)
-from agent.graphs.propose.plan_checks import _drafts_over_a_revision
-from agent.graphs.propose.prompt import _BOOK_PROCEDURE, _CORE, _LIBRARY, _LIBRARY_SLOT
-from agent.graphs.propose.proposal import _Argument, _OutlineItem, _Proposal, _Question, _Step
-from agent.graphs.propose.read_order import _asks_which_book, _library_first, _read_before_outline
+# Chỉ `propose` là điểm vào cho code ngoài package; mọi tên khác import thẳng từ submodule của
+# nó. Đừng re-export `compose` hay `choose` ở đây: chúng trùng tên submodule, và re-export là che
+# mất submodule (`agent.graphs.propose.choose` thành hàm).
+from agent.graphs.propose.graph import propose
 
-__all__ = [
-    "_AGREES",
-    "_Argument",
-    "_BOOK_PROCEDURE",
-    "_CORE",
-    "_DOCUMENT_READS",
-    "_LIBRARY",
-    "_LIBRARY_SLOT",
-    "_OTHER",
-    "_OutlineItem",
-    "_Proposal",
-    "_Question",
-    "_Step",
-    "_UNCLEAR",
-    "_answers",
-    "_approved_plan",
-    "_asked_back",
-    "_asks_which_book",
-    "_brief_in",
-    "_choices_wanted",
-    "_compose",
-    "_describe_tool",
-    "_drafts_over_a_revision",
-    "_library_first",
-    "_mentions_book",
-    "_miscounted",
-    "_read_before_outline",
-    "_right_purpose",
-    "propose",
-]
+__all__ = ["propose"]

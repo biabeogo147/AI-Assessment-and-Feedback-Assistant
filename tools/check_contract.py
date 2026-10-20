@@ -910,19 +910,24 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
             )
         ]
         asking += [f"{file.relative_to(graphs).as_posix()}:{node.name}" for node in holders]
+        # Hàm sửa chữ mang tên theo file: `unmangled` là tên public của package `propose` (dùng
+        # chéo file, plan `propose-names-and-order`), `_unmangled` là bản riêng của `authoring.py`.
+        # Đòi đúng tên của từng nơi, không nới một tập tên chung: hàm nào tên `unmangled` cũng qua.
+        in_propose = file.relative_to(graphs).parts[0] == "propose"
+        repairs = {"unmangled" if in_propose else "_unmangled", "restore_latex_escapes"}
         for node in holders:
             called = {
                 inner.func.id
                 for inner in ast.walk(node)
                 if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
             }
-            if not called & {"_unmangled", "restore_latex_escapes"}:
+            if not called & repairs:
                 faults.append(f"{file.relative_to(graphs).as_posix()}:{node.name}")
 
-    if "propose/choose.py:_choose" not in asking:
+    if "propose/choose.py:choose" not in asking:
         return _fail(
             "escape-repair-is-wired-in",
-            f"propose/choose.py:_choose is not among the functions under {graphs} that call "
+            f"propose/choose.py:choose is not among the functions under {graphs} that call "
             f"with_structured_output ({asking}): the check no longer sees where Kriky's chat "
             "asks the model. Point it at where that call lives now.",
         )

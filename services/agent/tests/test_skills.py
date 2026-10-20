@@ -18,7 +18,9 @@ from typesafe_sdk import TypeSafeError
 
 from agent import llm, skill_router, skills
 from agent.config import get_settings
-from agent.graphs.propose import _BOOK_PROCEDURE, _CORE, _LIBRARY_SLOT, _Proposal, propose
+from agent.graphs.propose import propose
+from agent.graphs.propose.prompt import BOOK_PROCEDURE, CORE, LIBRARY_SLOT
+from agent.graphs.propose.proposal import _Proposal
 from contracts import NextStepRequested, TurnRecord
 
 
@@ -59,7 +61,7 @@ def _teacher(text: str) -> TurnRecord:
 
 def _body(name: str) -> str:
     """Thân skill như model đọc ở một lượt không có `list_documents`: chỗ trống thư viện đã xoá."""
-    return _LIBRARY_SLOT.sub("", skills.named((name,))[0].body)
+    return LIBRARY_SLOT.sub("", skills.named((name,))[0].body)
 
 
 class Recording:
@@ -113,10 +115,10 @@ def test_every_skill_reads_and_the_general_one_exists() -> None:
 def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
     """Luật ADR-05 và *không duyệt / không phát hành* nằm ở lõi, không ở skill nào.
 
-    Gỡ một trong số chúng khỏi `_CORE` để đưa vào skill thì test này đỏ: một lượt Jev chọn sai sẽ
+    Gỡ một trong số chúng khỏi `CORE` để đưa vào skill thì test này đỏ: một lượt Jev chọn sai sẽ
     gửi model đi mà không mang luật ấy.
     """
-    assert rule in _CORE
+    assert rule in CORE
     assert not any(rule in skill.body for skill in skills.every())
 
 
@@ -134,7 +136,7 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         "Hỏi thì kèm ít nhất 3 lựa chọn trong choices",
         # Câu này không còn bắn (lối "Khác" gửi câu giáo viên ghi, không gửi chữ "Khác"), nhưng
         # được giữ vì prompt nhạy đúng chỗ ấy: bỏ nó thì ca logarit tụt 23 → 6/24, thay câu khác
-        # thì 0/24 (`unbiased-model-text`, sau T5; run-92..94). Xem comment trên `_CORE`.
+        # thì 0/24 (`unbiased-model-text`, sau T5; run-92..94). Xem comment trên `CORE`.
         'Giáo viên vừa chọn "Khác" thì hỏi lại bằng một câu mở',
         "choices chép đúng name của các lớp",
         "Đừng liệt kê tên lớp trong text",
@@ -173,7 +175,7 @@ def test_the_core_carries_every_safety_rule_on_its_own(rule: str) -> None:
         # `unbiased-model-text` T5: *"kiểm tra nhanh phần logarit"* → *"lớp 11, 10 câu"* -- cụm dùng
         # để suy môn bị coi là đã dùng hết, `topic_scope=? «phần logarit»`, hỏi lại dù đủ bốn mục:
         # bản đã commit 19/24, bản có T2b/T3 5/24, có câu này 24/24 (run-79). Nó kéo
-        # `tai-lieu-khong-dinh` 24 → 16/24 cho tới khi `_library_first` giữ bước đầu của lượt nhắc
+        # `tai-lieu-khong-dinh` 24 → 16/24 cho tới khi `library_first` giữ bước đầu của lượt nhắc
         # sách bằng code.
         "cụm suy\n     ra môn vẫn là phạm vi",
     ],
@@ -184,14 +186,14 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
     Tách prompt là chỗ một câu lặng lẽ biến mất mà cả bộ test vẫn xanh: `test_propose_graph.py`
     chạy với mọi skill nạp, và chỉ kiểm một số cụm.
     """
-    assert rule in _CORE or any(rule in skill.body for skill in skills.every())
+    assert rule in CORE or any(rule in skill.body for skill in skills.every())
 
 
 @pytest.mark.parametrize(
     "rule",
     [
         # `draft-from-document`: tài liệu đọc TRƯỚC khi nêu plan (review B5). Từ `unbiased-model-
-        # text` thủ tục này nằm ở `_BOOK_PROCEDURE`, chỉ chèn ở lượt có sách. Từ ADR-29
+        # text` thủ tục này nằm ở `BOOK_PROCEDURE`, chỉ chèn ở lượt có sách. Từ ADR-29
         # (`draft-outline`): đọc trước khi nêu **dàn ý**, đọc chữ bằng `read_section`, và phép rải
         # số câu theo độ dài thôi tồn tại -- dàn ý thay nó.
         "TRƯỚC khi nêu dàn ý",
@@ -217,7 +219,7 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
     ],
 )
 def test_the_book_procedure_keeps_the_rules_of_plan_4b(rule: str) -> None:
-    assert rule in _BOOK_PROCEDURE
+    assert rule in BOOK_PROCEDURE
 
 
 def test_no_skill_carries_the_book_procedure() -> None:
@@ -226,8 +228,8 @@ def test_no_skill_carries_the_book_procedure() -> None:
     Skill `soan-de` từng mang thủ tục sách, kèm dòng dặn *"không hỏi giáo viên có tài liệu hay
     không"*; model vẫn hỏi đúng câu ấy ~7/108 lượt (run-13), và 0/108 khi thủ tục rời skill
     (run-14). Dòng mở thư viện cũng rời skill ở T2b: nằm trong skill thì nó thắng cả lượt có chip
-    (24 lần: 22/24 → 10/24), nên giờ là `propose._LIBRARY`, chỉ chèn ở lượt không có sách. Mô tả
-    skill thì được nhắc -- Jev đọc nó, model soạn đề không đọc.
+    (24 lần: 22/24 → 10/24), nên giờ là `propose.prompt.LIBRARY`, chỉ chèn ở lượt không có sách.
+    Mô tả skill thì được nhắc -- Jev đọc nó, model soạn đề không đọc.
     """
     for skill in skills.every():
         assert "tài liệu" not in skill.body.casefold()
@@ -245,10 +247,10 @@ async def test_the_prompt_carries_only_the_skills_jev_chose(
     await propose(_asked(_teacher("tạo đề 10 câu chương Hàm số lớp 12A")))
 
     prompt = model.prompts[0]
-    assert _CORE in prompt
+    assert CORE in prompt
     assert _body("soan-de") in prompt
     # Lõi đứng trước: không skill nào nói trước được một luật an toàn.
-    assert prompt.index(_CORE) < prompt.index(_body("soan-de"))
+    assert prompt.index(CORE) < prompt.index(_body("soan-de"))
     assert _body("lop-va-ket-qua") not in prompt
     assert _body("tro-chuyen-chung") not in prompt
 

@@ -6,53 +6,34 @@ from pydantic import ValidationError
 
 from agent import llm
 from agent.graphs.propose.ask_again import (
-    _FewChoices,
-    _IncompletePlan,
-    _NoOutline,
-    _NothingToSay,
-    _PlanOverRevision,
-    _TooManyQuestions,
-    _UncountedOutline,
+    FewChoices,
+    IncompletePlan,
+    NoOutline,
+    NothingToSay,
+    PlanOverRevision,
+    TooManyQuestions,
+    UncountedOutline,
 )
-from agent.graphs.propose.clarify import _answers, _choices_wanted, _row_names
+from agent.graphs.propose.clarify import answers, choices_wanted, row_names
 from agent.graphs.propose.compose import ProposeState
-from agent.graphs.propose.outline import _approved_plan, _brief_in, _miscounted, _right_purpose
-from agent.graphs.propose.plan_checks import _drafts_over_a_revision, _garbled, _lacking
-from agent.graphs.propose.proposal import _Proposal, _unmangled
+from agent.graphs.propose.outline import approved_plan, brief_in, miscounted, right_purpose
+from agent.graphs.propose.plan_checks import drafts_over_a_revision, garbled, lacking
+from agent.graphs.propose.proposal import _Proposal, unmangled
 from agent.graphs.propose.read_order import (
-    _library_first,
-    _misfiled_read,
-    _picked_book_first,
-    _read_before_outline,
-    _reads_first,
-    _toc_first,
-    _which_book,
+    library_first,
+    misfiled_read,
+    picked_book_first,
+    read_before_outline,
+    reads_first,
+    toc_first,
+    which_book,
 )
 from contracts import MOST_CLARIFY_QUESTIONS, NextStepCompleted
 
 logger = logging.getLogger("agent.graphs.propose")
 
 
-def _spent(raw: object) -> int:
-    """Đọc số token mà provider báo, lấy từ một response thô.
-
-    Args:
-        raw: Bất cứ thứ gì provider trả về kèm theo đối tượng đã parse.
-
-    Returns:
-        Tổng số token, hoặc 0 khi provider không báo gì. Số 0 nghĩa là "không được
-        cho biết", không phải "miễn phí": một model giả trong test không báo gì, và
-        một số provider cũng vậy.
-    """
-    usage = getattr(raw, "usage_metadata", None)
-    if isinstance(usage, dict):
-        total = usage.get("total_tokens")
-        if isinstance(total, int):
-            return total
-    return 0
-
-
-async def _choose(state: ProposeState) -> dict:
+async def choose(state: ProposeState) -> dict:
     """Hỏi model một đề nghị, và ghi lại nó tốn bao nhiêu.
 
     `include_raw` là thứ làm cho chi phí biết được. Structured output một mình chỉ
@@ -69,9 +50,9 @@ async def _choose(state: ProposeState) -> dict:
         model.
 
     Raises:
-        _NothingToSay: `say`, `ask_clarify` hay `outline` mà `text` rỗng.
-        _FewChoices: `ask_clarify` ít lựa chọn hơn `_choices_wanted`; mang theo câu hỏi ấy.
-        _IncompletePlan: Plan có bước thiếu tham số bắt buộc; mang theo plan ấy, để `propose`
+        NothingToSay: `say`, `ask_clarify` hay `outline` mà `text` rỗng.
+        FewChoices: `ask_clarify` ít lựa chọn hơn `choices_wanted`; mang theo câu hỏi ấy.
+        IncompletePlan: Plan có bước thiếu tham số bắt buộc; mang theo plan ấy, để `propose`
             còn dùng được nó khi lần hỏi lại hỏng.
     """
     model = llm.with_fallback(lambda chat: chat.with_structured_output(_Proposal, include_raw=True))
@@ -101,7 +82,7 @@ async def _choose(state: ProposeState) -> dict:
     # rỗng hay hỏng sau *"oke"* mà thành câu trung tính thì lời duyệt mất, và lần gõ lại không còn
     # đứng ngay sau dàn ý (review đợt 6).
     # Lời mở là lời model vừa viết cho plan, hay không có lời mở nào (ADR-30): không câu cố định.
-    agreed = _approved_plan(
+    agreed = approved_plan(
         NextStepCompleted(
             request_id="",
             kind="say",
@@ -125,56 +106,54 @@ async def _choose(state: ProposeState) -> dict:
         # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
         # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần. Dàn ý cũng vậy
         # từ ADR-30: lời trình bày dàn ý là lời Kriky viết, không còn khuôn BE dựng thay.
-        raise _NothingToSay(f"model chose {proposal.kind} with nothing to say")
+        raise NothingToSay(f"model chose {proposal.kind} with nothing to say")
     if proposal.kind == "outline" and not proposal.outline:
-        raise _NoOutline("model chose outline with no item")
+        raise NoOutline("model chose outline with no item")
     if proposal.kind == "call_tool" and proposal.tool_name.strip() == "outline":
         # Thử tay 15/10/2026: `outline` là một kind, không phải tool; BE từ chối lời gọi ấy và
         # giáo viên thấy *"không có tool nào tên outline"* trong bằng chứng. Hỏi lại một lần.
-        raise _NoOutline("model called a tool named outline")
+        raise NoOutline("model called a tool named outline")
 
     # `request_id` do `propose` điền, vì đó là chỗ duy nhất biết nó. Để rỗng ở đây sẽ
     # là một lời nói dối nếu nó còn ở lại, nên nó không ở lại.
     request = state["request"]
     try:
-        step = _unmangled(proposal).completed(request_id="", model_tokens=spent)
+        step = unmangled(proposal).completed(request_id="", model_tokens=spent)
     except ValidationError as unusable:
         # Một mục dàn ý sai hình dạng (số câu ngoài 1–10, chữ rỗng): hỏi lại một lần, như một
         # câu rỗng -- không có gì để giáo viên đọc (`draft-outline`).
         if proposal.kind != "outline":
             raise
-        raise _NoOutline(f"unusable outline item: {unusable.errors()[0]['msg']}") from unusable
+        raise NoOutline(f"unusable outline item: {unusable.errors()[0]['msg']}") from unusable
     # Luật thứ tự đọc (`unbiased-model-text` T5): đề nghị đúng việc mà sai bước thì thành **một lời
     # gọi tool đọc**; ở bước kế trong cùng vòng gọi tool của BE, model nêu lại với kết quả trong
     # tay. Bước nào đã đọc rồi thì không gọi lại -- mỗi luật tự kiểm, không thì BE hỏi tới trần rồi
     # báo lỗi.
-    step = _reads_first(step, request)
-    step = _picked_book_first(step, request)
-    step = _misfiled_read(step, request)
-    step = _toc_first(step, request)
-    step = _library_first(step, request, state["skills"])
-    step = _which_book(step, request)
-    step = _read_before_outline(step, request)
-    step = _right_purpose(step, request)
+    step = reads_first(step, request)
+    step = picked_book_first(step, request)
+    step = misfiled_read(step, request)
+    step = toc_first(step, request)
+    step = library_first(step, request, state["skills"])
+    step = which_book(step, request)
+    step = read_before_outline(step, request)
+    step = right_purpose(step, request)
     if step.kind == "outline":
-        # Môn, khối, phạm vi đi cùng dàn ý, cho lượt duyệt (`_approved_plan`).
-        step = step.model_copy(
-            update={"tool_args": {**_brief_in(proposal.known), **step.tool_args}}
-        )
+        # Môn, khối, phạm vi đi cùng dàn ý, cho lượt duyệt (`approved_plan`).
+        step = step.model_copy(update={"tool_args": {**brief_in(proposal.known), **step.tool_args}})
     if step.kind == "plan":
-        lacking = _lacking(step.steps, state["request"]) or _garbled(step.steps)
-        if lacking:
-            raise _IncompletePlan(lacking, step)
-        if _drafts_over_a_revision(step, state["request"]):
-            raise _PlanOverRevision("plan drafts right after the teacher asked to change", step)
+        flaw = lacking(step.steps, state["request"]) or garbled(step.steps)
+        if flaw:
+            raise IncompletePlan(flaw, step)
+        if drafts_over_a_revision(step, state["request"]):
+            raise PlanOverRevision("plan drafts right after the teacher asked to change", step)
     if step.kind == "outline":
-        miscounted = _miscounted(step, proposal.known, request)
-        if miscounted:
-            raise _UncountedOutline(miscounted, step)
+        flaw = miscounted(step, proposal.known, request)
+        if flaw:
+            raise UncountedOutline(flaw, step)
     if step.kind == "ask_clarify" and step.questions:
         # ADR-32: mỗi câu một bộ nút, cùng lưới với câu hỏi thường -- từng câu đủ lựa chọn thật.
         kept = tuple(
-            one.model_copy(update={"choices": _answers(one.choices, one.text)})
+            one.model_copy(update={"choices": answers(one.choices, one.text)})
             for one in step.questions
         )
         step = step.model_copy(update={"questions": kept})
@@ -182,12 +161,12 @@ async def _choose(state: ProposeState) -> dict:
         # phải lý do hỏi lại model (review code 17/10, plan `backlog-tier-1`).
         real = sum(1 for one in proposal.questions if one.text.strip() or one.label.strip())
         if real > MOST_CLARIFY_QUESTIONS:
-            raise _TooManyQuestions(f"{real} questions", step)
+            raise TooManyQuestions(f"{real} questions", step)
         # Câu về **dòng** (lựa chọn gọi tên một `candidate`) theo số dòng có thật -- chỉ có hai lớp
         # thì đòi ba là mời model bịa lớp thứ ba. Câu về **tham số** vẫn đòi ba (review code 17/10:
         # bản trước áp số dòng cho mọi câu, nên *Khối* hai nút cũng lọt).
-        rows = _row_names(state["request"])
-        wanted = _choices_wanted(state["request"])
+        rows = row_names(state["request"])
+        wanted = choices_wanted(state["request"])
         few = [
             one.label
             for one in kept
@@ -199,13 +178,32 @@ async def _choose(state: ProposeState) -> dict:
             )
         ]
         if few:
-            raise _FewChoices(f"too few choices for {few}", step)
+            raise FewChoices(f"too few choices for {few}", step)
     elif step.kind == "ask_clarify":
-        # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`_answers`) -- bấm
+        # Chỉ đếm câu trả lời thật: câu hỏi, tên mục và "Khác" bị bỏ trước (`answers`) -- bấm
         # chúng là gửi đi một thứ không trả lời gì.
-        answers = _answers(step.choices, step.text)
-        step = step.model_copy(update={"choices": answers})
-        wanted = _choices_wanted(state["request"])
-        if len(answers) < wanted:
-            raise _FewChoices(f"{len(answers)} choice(s), wanted {wanted}", step)
+        choices = answers(step.choices, step.text)
+        step = step.model_copy(update={"choices": choices})
+        wanted = choices_wanted(state["request"])
+        if len(choices) < wanted:
+            raise FewChoices(f"{len(choices)} choice(s), wanted {wanted}", step)
     return {"step": step}
+
+
+def _spent(raw: object) -> int:
+    """Đọc số token mà provider báo, lấy từ một response thô.
+
+    Args:
+        raw: Bất cứ thứ gì provider trả về kèm theo đối tượng đã parse.
+
+    Returns:
+        Tổng số token, hoặc 0 khi provider không báo gì. Số 0 nghĩa là "không được
+        cho biết", không phải "miễn phí": một model giả trong test không báo gì, và
+        một số provider cũng vậy.
+    """
+    usage = getattr(raw, "usage_metadata", None)
+    if isinstance(usage, dict):
+        total = usage.get("total_tokens")
+        if isinstance(total, int):
+            return total
+    return 0

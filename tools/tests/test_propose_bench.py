@@ -114,9 +114,9 @@ def _model_text(document: bool = True) -> list[str]:
         for spec in catalog_for(asking, phase, documents=True)
     ]
     texts = [
-        propose._CORE,
-        propose._BOOK_PROCEDURE,
-        propose._LIBRARY,
+        propose.prompt.CORE,
+        propose.prompt.BOOK_PROCEDURE,
+        propose.prompt.LIBRARY,
         authoring._SYSTEM,
         explain._SYSTEM,
         reporting._SYSTEM,
@@ -140,7 +140,7 @@ def _model_text(document: bool = True) -> list[str]:
 
     texts += [
         json.dumps(kind.model_json_schema(), ensure_ascii=False)
-        for kind in (propose._Proposal, GeneratedQuestion)
+        for kind in (propose.proposal._Proposal, GeneratedQuestion)
     ]
     # Câu BE ghi vào lịch sử chat hay gửi kèm lý do từ chối, model đọc lại ở lượt sau.
     from be import notices, teacher_chat
@@ -260,14 +260,15 @@ def test_document_agent_text_names_no_math_topic() -> None:
 
 
 def test_agent_and_be_agree_on_which_tools_read_documents() -> None:
-    """Hai bản `_DOCUMENT_READS` phải là một bộ (review T2, `unbiased-model-text`).
+    """`DOCUMENT_READS` của AGENT và `_DOCUMENT_READS` của BE phải là một bộ (review T2,
+    `unbiased-model-text`).
 
     BE dùng bộ này để mở tool mục lục cho đoạn chat từng đọc tài liệu; AGENT dùng nó để biết lượt
-    nào còn đang chọn sách và chèn `_BOOK_PROCEDURE`. Hai service không import nhau, nên bộ được
+    nào còn đang chọn sách và chèn `BOOK_PROCEDURE`. Hai service không import nhau, nên bộ được
     chép ở hai nơi: BE thêm một tool đọc tài liệu mà quên AGENT thì kết quả của tool ấy không mở
     thủ tục sách, và model soạn đề không sách ngay sau khi vừa đọc mục lục.
     """
-    from agent.graphs.propose import _DOCUMENT_READS as agent_reads
+    from agent.graphs.propose.books import DOCUMENT_READS as agent_reads
     from be.teacher_chat import _DOCUMENT_READS as be_reads
 
     assert agent_reads == be_reads
@@ -280,7 +281,7 @@ def test_agent_be_and_fe_agree_on_the_other_choice() -> None:
     viết khỏi nút, và đọc nút cũ (`_rows_in_play`); AGENT không đếm nó là một lựa chọn. Lệch một
     chữ thì đoạn chat cũ hiện hai nút "Khác", một trong hai gửi đi đúng chữ "Khác".
     """
-    from agent.graphs.propose import _OTHER
+    from agent.graphs.propose.clarify import _OTHER
     from be.teacher_chat import OTHER_CHOICE
 
     chat = (

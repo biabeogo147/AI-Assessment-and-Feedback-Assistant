@@ -9,24 +9,13 @@ import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from agent import llm
-from agent.graphs.propose import (
-    _AGREES,
-    _CORE,
-    _UNCLEAR,
-    _approved_plan,
-    _Argument,
-    _brief_in,
-    _compose,
-    _library_first,
-    _miscounted,
-    _OutlineItem,
-    _Proposal,
-    _read_before_outline,
-    _right_purpose,
-    _Step,
-    propose,
-    read_order,
-)
+from agent.graphs.propose import read_order
+from agent.graphs.propose.compose import compose
+from agent.graphs.propose.graph import _UNCLEAR, propose
+from agent.graphs.propose.outline import AGREES, approved_plan, brief_in, miscounted, right_purpose
+from agent.graphs.propose.prompt import CORE
+from agent.graphs.propose.proposal import _Argument, _OutlineItem, _Proposal, _Step
+from agent.graphs.propose.read_order import library_first, read_before_outline
 from contracts import (
     AttachedDocument,
     NextStepCompleted,
@@ -173,7 +162,7 @@ def test_an_outline_in_the_history_comes_back_with_its_items() -> None:
         "step": None,
     }
 
-    messages = _compose(state)["messages"]
+    messages = compose(state)["messages"]
 
     # Lời Kriky về đúng là lời của nó; các mục đi riêng, như một ghi chú của hệ thống phía người
     # dùng -- không nối vào lời model để nó chép lại (review pha 4, `kriky-writes-every-word`).
@@ -194,7 +183,7 @@ def test_a_superseded_outline_comes_back_as_its_text_only() -> None:
         "step": None,
     }
 
-    replayed = [one.text for one in _compose(state)["messages"] if "bản 1" in one.text]
+    replayed = [one.text for one in compose(state)["messages"] if "bản 1" in one.text]
 
     assert replayed == ["Dàn ý — bản 1"]
 
@@ -230,7 +219,7 @@ def test_a_system_notice_in_history_reads_as_a_note_not_as_kriky_s_words() -> No
         "step": None,
     }
 
-    messages = _compose(state)["messages"]
+    messages = compose(state)["messages"]
 
     noted = [one for one in messages if "Kriky chưa trả lời được lúc này." in one.text]
     assert [type(one).__name__ for one in noted] == ["HumanMessage"]
@@ -256,7 +245,7 @@ def test_an_outline_before_reading_the_book_reads_it_first() -> None:
         ),
     )
 
-    step = _read_before_outline(outline, _with_book(TurnRecord(kind="teacher", text="soạn 6 câu")))
+    step = read_before_outline(outline, _with_book(TurnRecord(kind="teacher", text="soạn 6 câu")))
 
     assert (step.kind, step.tool_name) == ("call_tool", "read_section")
     assert step.tool_args == {"document_id": "book", "nodes": "7,8", "questions": "6", "part": "1"}
@@ -271,7 +260,7 @@ def test_an_outline_after_reading_the_book_stays_an_outline() -> None:
     )
     read = TurnRecord(kind="tool_result", tool_name="read_section", tool_result={"found": True})
 
-    step = _read_before_outline(outline, _with_book(TurnRecord(kind="teacher", text="x"), read))
+    step = read_before_outline(outline, _with_book(TurnRecord(kind="teacher", text="x"), read))
 
     assert step.kind == "outline"
 
@@ -279,7 +268,7 @@ def test_an_outline_after_reading_the_book_stays_an_outline() -> None:
 def test_a_bookless_outline_on_a_turn_that_names_a_book_opens_the_library(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(read_order, "_opens_library", lambda request, chosen: True)
+    monkeypatch.setattr(read_order, "opens_library", lambda request, chosen: True)
     outline = NextStepCompleted(
         request_id="r1",
         kind="outline",
@@ -287,7 +276,7 @@ def test_a_bookless_outline_on_a_turn_that_names_a_book_opens_the_library(
         outline=(OutlineItem(questions=1, knowledge="A", approach="B"),),
     )
 
-    step = _library_first(outline, _asked(), ("soan-de",))
+    step = library_first(outline, _asked(), ("soan-de",))
 
     assert (step.kind, step.tool_name) == ("call_tool", "list_documents")
 
@@ -299,18 +288,18 @@ def test_only_an_outline_turn_carries_items_to_be() -> None:
 
 
 def test_the_core_prompt_carries_the_outline_rules() -> None:
-    assert "outline: đề xuất DÀN Ý đề" in _CORE
-    assert "chỉ nêu SAU KHI giáo viên đã đồng ý một dàn ý ở lượt trước" in _CORE
-    assert "nêu lại outline ĐỦ mọi mục" in _CORE
-    assert "for = new (đề mới), more" in _CORE
-    assert "replace (thay một câu: một mục một câu, kèm question" in _CORE
+    assert "outline: đề xuất DÀN Ý đề" in CORE
+    assert "chỉ nêu SAU KHI giáo viên đã đồng ý một dàn ý ở lượt trước" in CORE
+    assert "nêu lại outline ĐỦ mọi mục" in CORE
+    assert "for = new (đề mới), more" in CORE
+    assert "replace (thay một câu: một mục một câu, kèm question" in CORE
 
 
 @pytest.mark.parametrize(
     "said", ["oke", "OK luôn", "được", "Đồng ý nhé", "chốt", "Được rồi", "ok, soạn đi", "vâng ạ."]
 )
 def test_the_mock_hears_an_agreement(said: str) -> None:
-    assert _AGREES.search(said) is not None
+    assert AGREES.search(said) is not None
 
 
 @pytest.mark.parametrize(
@@ -331,8 +320,8 @@ def test_an_agreement_with_a_change_is_not_an_agreement(said: str) -> None:
     """Review đợt 6: khớp đầu câu thì những câu này soạn theo dàn ý giáo viên vừa xin đổi."""
     kept = {"version": 1, "for": "more", "items": [{"questions": 1}]}
 
-    assert _AGREES.search(said) is None
-    assert _approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
+    assert AGREES.search(said) is None
+    assert approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
 
 
 def _counted(*questions: int, purpose: str = "new") -> NextStepCompleted:
@@ -361,7 +350,7 @@ def test_an_outline_must_add_up_to_what_was_asked(
 ) -> None:
     """Bench run-98 (`draft-outline`): *"6 câu"* ra 4 mục × 2 câu; *"thay câu 2"* ra cả đề."""
     silent = _asked(TurnRecord(kind="teacher", text="soạn đề chương 1"))
-    assert bool(_miscounted(step, known, silent)) is wrong
+    assert bool(miscounted(step, known, silent)) is wrong
 
 
 @pytest.mark.parametrize(
@@ -385,7 +374,7 @@ def test_without_a_count_in_known_the_teacher_s_own_count_is_used(
 ) -> None:
     step = _counted(total)
     asked = _asked(*(TurnRecord(kind="teacher", text=text) for text in said))
-    assert bool(_miscounted(step, "topic_scope=chương 1", asked)) is wrong
+    assert bool(miscounted(step, "topic_scope=chương 1", asked)) is wrong
 
 
 @pytest.mark.asyncio
@@ -444,7 +433,7 @@ def test_replacing_question_three_takes_the_item_holding_question_three() -> Non
         history=(_DRAFTED, TurnRecord(kind="teacher", text="thay câu 3 bằng một câu khó hơn")),
     )
 
-    step = _right_purpose(_whole("A", "B", "C"), asked)
+    step = right_purpose(_whole("A", "B", "C"), asked)
 
     assert step.tool_args == {"for": "replace", "question": "3"}
     assert [(item.knowledge, item.questions) for item in step.outline] == [("B", 1)]
@@ -456,7 +445,7 @@ def test_drafting_more_on_a_drafted_thread_is_for_more() -> None:
         history=(_DRAFTED, TurnRecord(kind="teacher", text="soạn thêm 3 câu nữa")),
     )
 
-    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
+    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
 
 
 @pytest.mark.parametrize(
@@ -465,7 +454,7 @@ def test_drafting_more_on_a_drafted_thread_is_for_more() -> None:
 def test_without_a_draft_in_the_thread_the_purpose_stays(said: str) -> None:
     asked = NextStepRequested(request_id="r1", history=(TurnRecord(kind="teacher", text=said),))
 
-    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
+    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
 
 
 def test_drafting_more_is_heard_across_the_questions_kriky_asked_back() -> None:
@@ -481,7 +470,7 @@ def test_drafting_more_is_heard_across_the_questions_kriky_asked_back() -> None:
         ),
     )
 
-    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
+    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
 
 
 def test_drafting_another_paper_on_a_drafted_thread_stays_new() -> None:
@@ -491,7 +480,7 @@ def test_drafting_another_paper_on_a_drafted_thread_stays_new() -> None:
         history=(_DRAFTED, TurnRecord(kind="teacher", text="soạn thêm một đề mới về hàm số 5 câu")),
     )
 
-    assert _right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
+    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
 
 
 def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
@@ -511,7 +500,7 @@ def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
     )
     call = TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked)
 
-    step = _read_before_outline(
+    step = read_before_outline(
         outline, _with_book(TurnRecord(kind="teacher", text="x"), call, read)
     )
 
@@ -540,7 +529,7 @@ def test_an_outline_after_part_three_that_points_at_part_one_still_reads_on() ->
             ),
         ]
 
-    step = _read_before_outline(outline, _with_book(*turns))
+    step = read_before_outline(outline, _with_book(*turns))
 
     assert (step.kind, step.tool_name) == ("call_tool", "read_section")
     assert step.tool_args["part"] == "4"
@@ -590,7 +579,7 @@ def test_an_outline_is_not_held_back_for_a_read_it_does_not_need(
         outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
     )
 
-    assert _read_before_outline(outline, _with_book(*history)) is outline
+    assert read_before_outline(outline, _with_book(*history)) is outline
 
 
 def _agreed(kept: dict, said: str = "oke") -> NextStepRequested:
@@ -611,8 +600,8 @@ _ASKED_AGAIN = NextStepCompleted(request_id="r1", kind="ask_clarify", text="Kh�
 async def test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """Review pha 5 (`kriky-writes-every-word`): lời mở đi qua `_choose` -- test gọi thẳng
-    `_approved_plan` không thấy được đường chạy thật làm rơi mất nó."""
+    """Review pha 5 (`kriky-writes-every-word`): lời mở đi qua `choose` -- test gọi thẳng
+    `approved_plan` không thấy được đường chạy thật làm rơi mất nó."""
     kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
     planned = _Proposal(
         kind="plan",
@@ -641,7 +630,7 @@ def test_a_system_notice_between_the_outline_and_the_agreement_does_not_hide_it(
         ),
     )
 
-    step = _approved_plan(_ASKED_AGAIN, request)
+    step = approved_plan(_ASKED_AGAIN, request)
 
     assert [one.tool_name for one in step.steps] == ["create_draft", "start_drafting"]
 
@@ -653,7 +642,7 @@ def test_an_agreement_after_an_outline_becomes_its_plan_even_if_the_model_forgot
     """Thử tay 15/10/2026 (`draft-outline`): sau *"oke"* model mất phạm vi và hỏi lại khối."""
     kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
 
-    step = _approved_plan(_ASKED_AGAIN, _agreed(kept))
+    step = approved_plan(_ASKED_AGAIN, _agreed(kept))
 
     assert step.kind == "plan"
     # Model không nêu plan nên không có lời mở nào -- không câu cố định (ADR-30).
@@ -679,7 +668,7 @@ def test_an_agreement_to_more_wins_over_a_plan_that_opens_a_new_draft() -> None:
         ),
     )
 
-    step = _approved_plan(opened, _agreed(kept))
+    step = approved_plan(opened, _agreed(kept))
 
     assert [one.tool_name for one in step.steps] == ["start_drafting"]
     # Lời mở là lời của chính model khi nó vừa nêu plan (ADR-30).
@@ -692,7 +681,7 @@ def test_an_agreement_to_more_wins_over_a_plan_that_opens_a_new_draft() -> None:
 def test_an_agreement_to_more_or_a_replacement_plans_that(purpose: str, tool: str) -> None:
     kept = {"version": 2, "for": purpose, "first": 3, "items": [{"questions": 1}]}
 
-    step = _approved_plan(_ASKED_AGAIN, _agreed(kept))
+    step = approved_plan(_ASKED_AGAIN, _agreed(kept))
 
     assert [one.tool_name for one in step.steps] == [tool]
 
@@ -706,7 +695,7 @@ def test_an_agreement_to_more_or_a_replacement_plans_that(purpose: str, tool: st
     ],
 )
 def test_no_agreement_or_no_brief_leaves_the_model_answer(kept: dict, said: str) -> None:
-    assert _approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
+    assert approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
 
 
 def test_an_agreement_retyped_after_a_turn_that_never_answered_still_plans() -> None:
@@ -723,9 +712,7 @@ def test_an_agreement_retyped_after_a_turn_that_never_answered_still_plans() -> 
         ),
     )
 
-    assert [one.tool_name for one in _approved_plan(_ASKED_AGAIN, asked).steps] == [
-        "start_drafting"
-    ]
+    assert [one.tool_name for one in approved_plan(_ASKED_AGAIN, asked).steps] == ["start_drafting"]
 
 
 @pytest.mark.asyncio
@@ -747,7 +734,7 @@ def test_the_brief_keeps_a_scope_with_a_comma_in_it() -> None:
     """Review đợt 6: *"tỉ lệ thuận, tỉ lệ nghịch"* là một phạm vi, không phải hai mục."""
     known = "topic_scope=tỉ lệ thuận, tỉ lệ nghịch «hai bài»; subject=Toán; grade=7"
 
-    assert _brief_in(known) == {
+    assert brief_in(known) == {
         "topic_scope": "tỉ lệ thuận, tỉ lệ nghịch",
         "subject": "Toán",
         "grade": "7",
@@ -759,7 +746,7 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
         "topic_scope=tỉ lệ thức «tỉ lệ thức»; subject=Toán «Toán»; grade=? «?»; question_count=5"
     )
 
-    assert _brief_in(known) == {"topic_scope": "tỉ lệ thức", "subject": "Toán"}
+    assert brief_in(known) == {"topic_scope": "tỉ lệ thức", "subject": "Toán"}
 
 
 @pytest.mark.parametrize(
@@ -800,7 +787,7 @@ def test_the_brief_is_read_from_what_the_model_knew() -> None:
 def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bool) -> None:
     """Plan `backlog-tier-1`, pha 3: *Plan soạn … sau một lời xin sửa dàn ý vẫn qua cổng*. Cổng BE
     chỉ đòi một dàn ý ở lượt ngay trước, nên plan soạn theo dàn ý cũ đi lọt."""
-    from agent.graphs.propose import _drafts_over_a_revision
+    from agent.graphs.propose.plan_checks import drafts_over_a_revision
 
     plan = NextStepCompleted(
         request_id="r1",
@@ -816,7 +803,7 @@ def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bo
     )
     kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
 
-    assert _drafts_over_a_revision(plan, _agreed(kept, said)) is held
+    assert drafts_over_a_revision(plan, _agreed(kept, said)) is held
 
 
 @pytest.mark.parametrize(
@@ -849,7 +836,7 @@ def test_a_count_after_a_grade_or_a_revision_is_not_the_total(
         else TurnRecord(kind="teacher", text=text)
         for text in said
     )
-    assert bool(_miscounted(_counted(total), "topic_scope=chương 1", _asked(*turns))) is wrong
+    assert bool(miscounted(_counted(total), "topic_scope=chương 1", _asked(*turns))) is wrong
 
 
 def test_a_count_in_known_is_set_aside_after_the_teacher_adds_questions() -> None:
@@ -860,7 +847,7 @@ def test_a_count_in_known_is_set_aside_after_the_teacher_adds_questions() -> Non
         TurnRecord(kind="outline", text="Dàn ý."),
         TurnRecord(kind="teacher", text="thêm 2 câu hình học"),
     )
-    assert _miscounted(_counted(7), "question_count=5 «5 câu»", asked) == ""
+    assert miscounted(_counted(7), "question_count=5 «5 câu»", asked) == ""
 
 
 def test_the_same_scope_spelled_differently_is_still_the_same_scope() -> None:
@@ -884,7 +871,7 @@ def test_the_same_scope_spelled_differently_is_still_the_same_scope() -> None:
             ),
         ]
 
-    step = _read_before_outline(outline, _with_book(*turns))
+    step = read_before_outline(outline, _with_book(*turns))
 
     assert (step.kind, step.tool_name) == ("call_tool", "read_section")
     assert step.tool_args["part"] == "4"

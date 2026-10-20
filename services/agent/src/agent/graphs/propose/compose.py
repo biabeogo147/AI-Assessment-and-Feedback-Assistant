@@ -6,8 +6,8 @@ from typing import Annotated, NotRequired, TypedDict
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from agent import skills
-from agent.graphs.propose.books import _book_in_view, _opens_library
-from agent.graphs.propose.prompt import _BOOK_PROCEDURE, _CORE, _LIBRARY, _LIBRARY_SLOT
+from agent.graphs.propose.books import book_in_view, opens_library
+from agent.graphs.propose.prompt import BOOK_PROCEDURE, CORE, LIBRARY, LIBRARY_SLOT
 from contracts import NextStepCompleted, NextStepRequested, ToolSpec, TurnRecord
 
 
@@ -20,7 +20,7 @@ class ProposeState(TypedDict):
         messages: Những gì model thấy, do `compose` điền.
         step: Đề nghị, do `choose` điền.
         hint: Lý do của lần hỏi lại, `compose` đặt nó cuối cùng như một ghi chú hệ thống; rỗng ở
-            lần đầu (`_AskAgain.hint`).
+            lần đầu (`AskAgain.hint`).
     """
 
     request: NextStepRequested
@@ -30,41 +30,7 @@ class ProposeState(TypedDict):
     hint: NotRequired[str]
 
 
-def _describe_tool(tool: ToolSpec) -> str:
-    """Viết một tool ra để model chọn.
-
-    Args:
-        tool: Tool đúng như BE mô tả nó.
-
-    Returns:
-        Một khối gọi tên tool chính xác như cách BE dispatch, rồi tới việc nó làm,
-        rồi tới các argument của nó.
-    """
-    lines = [f"- {tool.name}: {tool.description}"]
-    for argument, meaning in tool.arguments.items():
-        mark = " (tùy chọn)" if argument in tool.optional else ""
-        lines.append(f"    {argument}{mark}: {meaning}")
-    return "\n".join(lines)
-
-
-def _describe_result(turn: TurnRecord) -> str:
-    """Viết kết quả tool ra dưới dạng dữ liệu, không phải một câu kể về dữ liệu.
-
-    JSON chứ không phải văn xuôi, vì model phải đọc các giá trị ra từ đó -- một id nó
-    sẽ truyền cho tool tiếp theo, một con số nó sẽ dẫn lại cho giáo viên. Văn xuôi mời
-    gọi việc làm tròn và mời gọi việc bịa.
-
-    Args:
-        turn: Một lượt `tool_result`.
-
-    Returns:
-        Một dòng gọi tên tool, rồi kết quả của nó dưới dạng JSON.
-    """
-    body = json.dumps(turn.tool_result, ensure_ascii=False, sort_keys=True)
-    return f"Kết quả của {turn.tool_name}:\n{body}"
-
-
-def _compose(state: ProposeState) -> dict:
+def compose(state: ProposeState) -> dict:
     """Biến request thành những message model thấy.
 
     Lịch sử hội thoại trở thành các message theo đúng thứ tự. Một lần gọi tool và kết
@@ -83,15 +49,15 @@ def _compose(state: ProposeState) -> dict:
     # Lõi trước, rồi skill, rồi tên giáo viên: phần đứng đầu càng ít đổi giữa hai lượt thì prompt
     # cache của provider càng dùng lại được nhiều. Skill nằm **sau** lõi, nên không skill nào nói
     # trước được một luật an toàn.
-    opening = [_CORE]
-    library = _opens_library(request, state["skills"])
+    opening = [CORE]
+    library = opens_library(request, state["skills"])
     # Một hàm chứ không một chuỗi thay thế: `re.sub` đọc `\` trong chuỗi thay thế như escape, và một
-    # ngày `_LIBRARY` có dấu `\` (LaTeX) thì chuỗi ấy hỏng lặng lẽ (review T2b,
+    # ngày `LIBRARY` có dấu `\` (LaTeX) thì chuỗi ấy hỏng lặng lẽ (review T2b,
     # `unbiased-model-text`).
     for skill in skills.named(state["skills"]):
         opening.append(
-            _LIBRARY_SLOT.sub(
-                lambda slot: f"{slot.group(1)}{_LIBRARY}\n" if library else "", skill.body
+            LIBRARY_SLOT.sub(
+                lambda slot: f"{slot.group(1)}{LIBRARY}\n" if library else "", skill.body
             )
         )
     if request.teacher_name:
@@ -122,8 +88,8 @@ def _compose(state: ProposeState) -> dict:
                 "Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng tài liệu này không dùng "
                 "được và nhờ họ đính tài liệu khác; đừng soạn đề không tài liệu thay cho nó."
             )
-    if _book_in_view(request):
-        opening.append(_BOOK_PROCEDURE)
+    if book_in_view(request):
+        opening.append(BOOK_PROCEDURE)
     if request.catalog:
         catalog = "\n".join(_describe_tool(tool) for tool in request.catalog)
         opening.append(f"Tool dùng ngay (call_tool) lượt này:\n{catalog}")
@@ -169,6 +135,23 @@ def _compose(state: ProposeState) -> dict:
     return {"messages": messages}
 
 
+def _describe_tool(tool: ToolSpec) -> str:
+    """Viết một tool ra để model chọn.
+
+    Args:
+        tool: Tool đúng như BE mô tả nó.
+
+    Returns:
+        Một khối gọi tên tool chính xác như cách BE dispatch, rồi tới việc nó làm,
+        rồi tới các argument của nó.
+    """
+    lines = [f"- {tool.name}: {tool.description}"]
+    for argument, meaning in tool.arguments.items():
+        mark = " (tùy chọn)" if argument in tool.optional else ""
+        lines.append(f"    {argument}{mark}: {meaning}")
+    return "\n".join(lines)
+
+
 def _asked_back(turn: TurnRecord) -> str:
     """Lời của một lượt Kriky trong lịch sử, kèm các câu nếu đó là lượt hỏi nhiều câu (ADR-32).
     Hàm thuần.
@@ -212,3 +195,20 @@ def _outline_items(turn: TurnRecord) -> str:
         sort_keys=True,
     )
     return f"(Ghi chú của hệ thống, giáo viên không thấy: các mục của dàn ý vừa rồi — {compact})"
+
+
+def _describe_result(turn: TurnRecord) -> str:
+    """Viết kết quả tool ra dưới dạng dữ liệu, không phải một câu kể về dữ liệu.
+
+    JSON chứ không phải văn xuôi, vì model phải đọc các giá trị ra từ đó -- một id nó
+    sẽ truyền cho tool tiếp theo, một con số nó sẽ dẫn lại cho giáo viên. Văn xuôi mời
+    gọi việc làm tròn và mời gọi việc bịa.
+
+    Args:
+        turn: Một lượt `tool_result`.
+
+    Returns:
+        Một dòng gọi tên tool, rồi kết quả của nó dưới dạng JSON.
+    """
+    body = json.dumps(turn.tool_result, ensure_ascii=False, sort_keys=True)
+    return f"Kết quả của {turn.tool_name}:\n{body}"

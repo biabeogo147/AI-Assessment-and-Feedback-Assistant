@@ -10,7 +10,7 @@ Mỗi skill là một file Markdown trong `agent/skills/`, đầu file là một
   (`document-agent-hierarchy`).
 
 Thân file là tiếng Việt: đó là lời dặn Kriky đọc. Luật an toàn **không** bao giờ nằm ở đây -- Jev
-chọn sai thì một skill vắng mặt, nên mọi luật mà vắng nó là nguy hiểm thuộc về lõi (`_CORE` của
+chọn sai thì một skill vắng mặt, nên mọi luật mà vắng nó là nguy hiểm thuộc về lõi (`CORE` của
 `graphs/propose/prompt.py`).
 """
 
