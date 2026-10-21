@@ -1973,6 +1973,15 @@
   gap: 6px;
 }
 
+/* Thẻ đang sửa gọi tên câu to và đậm như tiêu đề của nó (Figma 14, `Câu 4` 13 SemiBold `ink`), cùng
+   cỡ với `.edit-title` của màn 22b; thẻ đọc giữ số nhỏ, nhạt ở trên. */
+.teacher .qcard.editing .num {
+  color: var(--ink);
+  font-size: var(--type-label);
+  /* Như `.edit-title`: dòng của thẻ, không `1.5` của số nhỏ. */
+  line-height: inherit;
+}
+
 .teacher .qcard .edit-mark {
   color: var(--accent);
   font-size: var(--type-caption);
@@ -2091,10 +2100,9 @@
 }
 
 .teacher .qcard .tang-head .label {
-  /* Chữ hoa bằng CSS, không gõ hoa vào nội dung: nội dung là **tên trợ năng** của ô bên
-   * trong tầng (ô ấy mượn nó qua `aria-labelledby`), và một cái tên gõ hoa đọc lên khác
-   * hẳn một cái tên viết thường được trình bày hoa. */
-  text-transform: uppercase;
+  /* Viết thường như component `531:181` (*Đề bài / Phương án / Cách giải*, `textCase ORIGINAL`);
+   * bản in hoa cũ khớp một ghi đè trên artboard 22b, đã gỡ (người dùng chốt 21/10/2026). Nội dung
+   * vẫn là **tên trợ năng** của ô bên trong tầng, qua `aria-labelledby`. */
   color: var(--ink-muted);
   font-size: var(--type-caption);
   font-weight: 600;

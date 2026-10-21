@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { type TeacherConversation, type TeacherDocument } from "../../api";
@@ -97,6 +97,23 @@ export default function Rail({
   // kéo. Một ref thì không chờ render.
   const wanted = useRef(documentsHeight);
   const below = useRef(0);
+
+  /** Kết thúc cú kéo, dù bằng thả tay hay bằng trình duyệt huỷ pointer. */
+  function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    // `releasePointerCapture` ở dưới tự bắn `lostpointercapture`, tức gọi lại hàm này: lần sau
+    // không còn gì để làm.
+    if (!dragging.current) return;
+    dragging.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    // Ghi khi thả tay, và ghi từ **ref** chứ không từ state. Hai bản trước đều sai ở đây: bản
+    // đầu ghi trong một effect nghe `documentsHeight` và effect không chạy lại vì giá trị không
+    // đổi; bản thứ hai ghi trong handler này nhưng đọc state của render cũ. Một phép đo có
+    // `await` giữa `pointermove` và `pointerup` làm cả hai bản *trông như* chạy được — chuột
+    // thật thì hai sự kiện rơi vào cùng một task.
+    writeNumber(SPLIT_KEY, wanted.current);
+  }
 
   // Một menu đang mở thì bấm chỗ khác, hoặc Esc, phải đóng nó. Không có đường này thì menu
   // chỉ đóng bằng cách chọn một mục — tức bấm nhầm `⋯` là kẹt một menu trên màn hình.
@@ -232,17 +249,12 @@ export default function Rail({
             wanted.current = Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, asked));
             setDocumentsHeight(wanted.current);
           }}
-          onPointerUp={(event) => {
-            dragging.current = false;
-            event.currentTarget.releasePointerCapture(event.pointerId);
-            // Ghi khi thả tay, và ghi từ **ref** chứ không từ state. Hai bản trước đều
-            // sai ở đây: bản đầu ghi trong một effect nghe `documentsHeight` và effect
-            // không chạy lại vì giá trị không đổi; bản thứ hai ghi trong handler này
-            // nhưng đọc state của render cũ. Một phép đo có `await` giữa `pointermove`
-            // và `pointerup` làm cả hai bản *trông như* chạy được — chuột thật thì hai
-            // sự kiện rơi vào cùng một task.
-            writeNumber(SPLIT_KEY, wanted.current);
-          }}
+          onPointerUp={endDrag}
+          // Trình duyệt huỷ pointer (cử chỉ hệ thống, mất focus) thì không có `pointerup`:
+          // không nghe hai sự kiện này thì `dragging` đứng mãi, và lần rê sau, không bấm, vẫn
+          // kéo ngăn theo (review vòng 1 Tier 1, 21/10/2026). Cú kéo dừng ở chỗ đã tới.
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
         >
           <div className="grip" />
         </div>

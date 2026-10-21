@@ -309,7 +309,7 @@ Nếu một ô hỏng (17): thẻ *Chưa soạn được* và nút *Thử lại*
 
 **Làm:** câu 2 → *Sửa*.
 
-**Phải thấy (14):** thẻ mở thành ô sửa ba tầng *ĐỀ BÀI*, *PHƯƠNG ÁN*, *CÁCH GIẢI*, nhãn *Đang sửa*, nút
+**Phải thấy (14):** thẻ mở thành ô sửa ba tầng *Đề bài*, *Phương án*, *Cách giải*, nhãn *Đang sửa*, nút
 *Huỷ* và *Lưu*. Ô đề bài hiện chữ thô có `$`: đó là chữ để sửa, không phải lỗi.
 
 **Làm:** thêm `(đề vòng <mã vòng>)` vào cuối đề bài, bấm *Lưu*.
@@ -659,11 +659,11 @@ nên không có hàng ở đây.
 
 **Phải thấy (22b):**
 - panel *Sửa câu trong ngân hàng*, dòng mục kiến thức;
-- ô sửa *Câu trong ngân hàng* ba tầng *ĐỀ BÀI*, *PHƯƠNG ÁN*, *CÁCH GIẢI*, nút *Huỷ* và *Lưu*;
+- ô sửa *Câu trong ngân hàng* ba tầng *Đề bài*, *Phương án*, *Cách giải*, nút *Huỷ* và *Lưu*;
 - chân panel *Chỉ sửa bản trong ngân hàng. Câu đã nằm trong đề đã phát hành không đổi; đề sau lấy câu
   này sẽ dùng bản mới.*
 
-**Làm:** mở tầng *CÁCH GIẢI*, thêm `(sửa ở ngân hàng, vòng <mã vòng>)` vào cuối ô *Lời giải 1*, bấm *Lưu*.
+**Làm:** mở tầng *Cách giải*, thêm `(sửa ở ngân hàng, vòng <mã vòng>)` vào cuối ô *Lời giải 1*, bấm *Lưu*.
 
 **Phải thấy:** về danh sách ngân hàng. Mở lại câu thì thấy chữ vừa thêm. Câu 2 trong đề đã phát hành
 (màn 23, hay *Lời giải* ở panel) **không** đổi (ADR-35).

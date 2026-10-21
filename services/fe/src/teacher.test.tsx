@@ -3102,7 +3102,7 @@ describe("sửa chữ của một câu", () => {
 
     fireEvent.click(screen.getByText("Sửa"));
 
-    // Tầng ĐỀ BÀI mở sẵn; phương án nằm sau một cú bấm, như mọi tầng khác.
+    // Tầng Đề bài mở sẵn; phương án nằm sau một cú bấm, như mọi tầng khác.
     expect(screen.getByLabelText("Đề bài")).toBeTruthy();
     openTang("Phương án");
     expect(screen.getByLabelText("Phương án A")).toBeTruthy();
@@ -4618,6 +4618,7 @@ describe("hai ngăn của rail thu được bằng chính tiêu đề của chú
     // rung chuột 1px cũng đặt một chiều cao lệch đúng bằng phần dưới ấy.
     Element.prototype.setPointerCapture = vi.fn();
     Element.prototype.releasePointerCapture = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn(() => true);
     vi.stubGlobal("PointerEvent", MouseEvent);
     routes(SPOKEN, THREADS);
     const { container } = render(
@@ -4637,6 +4638,35 @@ describe("hai ngăn của rail thu được bằng chính tiêu đề của chú
     expect(docs().style.flex).toBe("0 0 265px");
     expect(window.localStorage.getItem("kriky.teacher.documents-height")).toBe("265");
   });
+
+  it.each(["pointerCancel", "lostPointerCapture"] as const)(
+    "%s giữa cú kéo thì cú kéo dừng ở chỗ đã tới, rê sau đó không đổi gì",
+    async (ended) => {
+      // Review vòng 1 Tier 1 (21/10/2026): trình duyệt huỷ pointer (cử chỉ hệ thống, mất focus)
+      // thì không có `pointerup`, và `dragging` còn đứng mãi: lần rê chuột sau, không bấm, vẫn
+      // kéo ngăn theo.
+      Element.prototype.setPointerCapture = vi.fn();
+      Element.prototype.releasePointerCapture = vi.fn();
+      Element.prototype.hasPointerCapture = vi.fn(() => true);
+      vi.stubGlobal("PointerEvent", MouseEvent);
+      routes(SPOKEN, THREADS);
+      const { container } = render(
+        <Chat conversationId="c1" fresh={false} openPaper={null} />,
+      );
+      await waitFor(() => expect(screen.getByText("Đề giữa kỳ")).toBeTruthy());
+      const bar = container.querySelector(".split-handle") as Element;
+      const docs = () => container.querySelector(".pane.documents") as HTMLElement;
+
+      fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500 });
+      fireEvent.pointerMove(bar, { pointerId: 1, clientY: 470 });
+      fireEvent[ended](bar, { pointerId: 1 });
+      expect(docs().style.flex).toBe("0 0 255px");
+      expect(window.localStorage.getItem("kriky.teacher.documents-height")).toBe("255");
+
+      fireEvent.pointerMove(bar, { pointerId: 1, clientY: 400 });
+      expect(docs().style.flex).toBe("0 0 255px");
+    },
+  );
 
   it("thu một ngăn thì ngăn kia lấy hết chỗ trống — ở CẢ HAI chiều", async () => {
     // Chiều thu `TÀI LIỆU` đúng miễn phí vì `.pane.history` là `flex: 1`. Chiều kia thì
@@ -5258,7 +5288,7 @@ describe("thẻ đang sửa mở một lúc một tầng", () => {
     return view;
   }
 
-  it("vào màn thì ĐỀ BÀI mở, hai tầng kia đóng", async () => {
+  it("vào màn thì Đề bài mở, hai tầng kia đóng", async () => {
     // Bấm `Sửa` thường là vì đọc thấy một chữ sai trong đề bài, và tầng ấy cũng là tầng
     // nhẹ nhất nên nó không bắt ai cuộn ngay cú bấm đầu tiên.
     serving();
@@ -5276,7 +5306,7 @@ describe("thẻ đang sửa mở một lúc một tầng", () => {
     ]);
   });
 
-  it("mở CÁCH GIẢI thì PHƯƠNG ÁN RỜI khỏi cây DOM — đó là luật chặn chiều cao", async () => {
+  it("mở Cách giải thì Phương án RỜI khỏi cây DOM — đó là luật chặn chiều cao", async () => {
     // Đây là cả lý do của việc vẽ lại màn này. Đo ngày 06/10/2026 ở density Teacher,
     // trong khung `panel-questions` cao 658: bản phẳng **774**, tức tràn 116 — sửa một
     // câu là chắc chắn không thấy hết thẻ đang gõ, kể cả khi đề chỉ có một câu. Ba tầng

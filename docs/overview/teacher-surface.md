@@ -679,11 +679,11 @@ một cột 420px. Ba con số nói ra chỗ hỏng, và cả ba đo được:
 
 Ba chỗ chữa, mỗi chỗ cho một con số:
 
-- **Ba tầng `ĐỀ BÀI` / `PHƯƠNG ÁN` / `CÁCH GIẢI`, mở một lúc một tầng.** Mở `Cách giải` thì
+- **Ba tầng `Đề bài` / `Phương án` / `Cách giải`, mở một lúc một tầng.** Mở `Cách giải` thì
   `Phương án` tự thu. Đó là **cả luật**, không phải một sở thích: chiều cao thẻ bị chặn trên bởi
   tầng nặng nhất, nên cho mở cả ba là về lại đúng bản phẳng. Đo trên trình duyệt: **214,5 / 616,9 /
   603,6** trong khung **694,5** — tầng nặng nhất dư 77,6. Thanh đầu mượn nguyên từ vựng của tấm
-  trượt phát hành: `<button>` mang `aria-expanded`, mũi nhọn **quay**. Vào màn thì `ĐỀ BÀI` mở, vì
+  trượt phát hành: `<button>` mang `aria-expanded`, mũi nhọn **quay**. Vào màn thì `Đề bài` mở, vì
   bấm `Sửa` thường là vì đọc thấy một chữ sai trong đề bài.
 - **Mỗi phương án và mỗi cách giải có vỏ** — nền chìm cộng viền. Khoảng cách **giữa** hai khối (6)
   vẫn lớn hơn khoảng cách **trong** một khối (4): viền nói nhóm, khoảng cách nói thứ bậc, và hai
