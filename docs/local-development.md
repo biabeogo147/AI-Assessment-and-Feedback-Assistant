@@ -537,6 +537,8 @@ phiên thu thêm test ở thư mục khác thì dừng ngay. Không có tuỳ ch
 
 **BE không lên lại, hay vẫn chạy code cũ, sau khi sửa code BE.** `.\dev.ps1 be` nạp lại bằng `watchfiles`, khoảng 2,5 s mỗi lần sửa; log in thêm một dòng `Started server process [PID]`. Không thấy dòng mới thì xem ai đang giữ cổng: `netstat -ano | findstr :8000`. Một process `python` còn nghe sau khi đã tắt BE là uvicorn mồ côi: `Stop-Process` vào riêng `watchfiles` không giết process con của nó. Dừng cả cây bằng `taskkill /F /T /PID <pid của watchfiles>`, hay giết thẳng PID đang giữ cổng, rồi chạy lại `.\dev.ps1 be`. Trước 21/10/2026 lệnh này dùng `uvicorn --reload`, cái hay treo với `WinError 10038` khi chạy nền (comment ở `dev.ps1`).
 
+**Màn FE chạy CSS cũ, hay báo thiếu một export vừa thêm, sau khi sửa file.** Trước 21/10/2026: hai lần ghi cùng một file cách nhau dưới 50 ms chỉ cho watcher của Vite một sự kiện (chokidar chặn `change` lặp trong 50 ms), và Vite giữ bản của lần ghi thứ nhất. Nay `vite.config.ts` đặt `server.watch.awaitWriteFinish`, nên HMR chờ file đứng yên 100 ms rồi mới đọc. Vẫn gặp thì xem bản Vite đang phục vụ: `curl "http://127.0.0.1:5173/src/<file>?t=1"`; bản ấy khác file trên đĩa thì chạm vào file là đúng lại (`touch <file>` trong Git Bash, `(Get-Item <file>).LastWriteTime = Get-Date` trong PowerShell). Đổi `vite.config.ts` thì dev server tự khởi động lại, nạp lại tab sau đó.
+
 **Nộp bài xong mà kết quả không bao giờ về.** AGENT không nhận được job. Xem dòng `AGENT worker ready: queue=...` trong log của worker và so với `AGENT_QUEUE_NAME` trong `.env`. Lệch tên queue là lỗi im lặng: không bên nào báo gì cả.
 
 **Chip tài liệu đứng mãi ở *đang xử lý*, rồi đổi sang *xử lý hỏng*.** Không ai đọc tệp. Theo thứ

@@ -26,6 +26,25 @@ export default defineConfig({
      */
     host: "127.0.0.1",
     port: 5173,
+    /*
+     * Chờ file **đứng yên** rồi mới báo đổi.
+     *
+     * chokidar 3 (Vite 5 đóng gói sẵn) bỏ mọi `change` đến trong 50 ms sau sự kiện trước của cùng
+     * file (`_throttle(EV_CHANGE, path, 50)`), và không phát bù khi hết 50 ms. Nên hai lần ghi cách
+     * nhau dưới 50 ms (hai lần sửa liền, hay một công cụ ghi hai nhịp) chỉ cho **một** sự kiện. Tab
+     * đang mở đã hỏi lại module ngay sau sự kiện ấy, nên Vite giữ bản transform của lần ghi thứ nhất
+     * cho tới lần đổi file kế -- màn chạy CSS cũ, hay thiếu một export vừa thêm. Đo 21/10/2026 trên
+     * `teacher.css` với một tab mở: ghi đôi cách 3, 10, 30 ms thì 7/40, 39/40, 40/40 lần bản cũ, một
+     * dòng `hmr update` cho mỗi lần ghi đôi; 8/8 lần bản cũ còn nguyên sau 20 s. Sau khi đặt dòng
+     * dưới: 0/140.
+     * `awaitWriteFinish` đi một nhánh trước bộ chặn ấy: nó poll `stat` tới khi kích thước đứng yên
+     * `stabilityThreshold` ms, và mọi sự kiện thô đến trong lúc chờ (kể cả lần ghi giữ nguyên kích
+     * thước, hay `touch`) đặt lại mốc chờ; rồi báo một lần, đọc bản cuối. Cái giá là HMR chậm thêm
+     * chừng ấy. `vitest run` không mở watcher nên không chịu.
+     */
+    watch: {
+      awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 20 },
+    },
     proxy: {
       "/api": {
         target: "http://localhost:8000",

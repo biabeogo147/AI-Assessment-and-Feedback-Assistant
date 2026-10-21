@@ -3341,11 +3341,14 @@
 
 /*
  * Ô câu Kriky chưa soạn được -- component `Failed slot` (`652:3635`), plan `wave-3-draft-panel`.
- * Cùng khung với `qcard` (padding 13/15 cộng viền 1 = 14/16 của Figma), nét đứt vì chỗ này chưa có
- * câu. Chip đỏ họ `answer/incorrect`: hệ thống không làm được việc (ADR-12).
+ * Nét đứt vì chỗ này chưa có câu. Chip đỏ họ `answer/incorrect`: hệ thống không làm được việc
+ * (ADR-12). Khung như thẻ đang sửa: Figma tính viền vào layout, nên nội dung bắt đầu ở 15/17
+ * (đệm 14/16 cộng viền 1). Đo lại 21/10/2026 trên artboard 17 (`652:3869`): hàng đầu 20, lời 40,
+ * nút 40, cả thẻ 146; bản cũ thấp hơn 3,7px.
  */
 .teacher .qcard.slot {
   border-style: dashed;
+  padding: 14px 16px;
 }
 
 .teacher .slot-chip {
@@ -3355,7 +3358,8 @@
   color: var(--answer-incorrect);
   font-size: var(--type-caption);
   font-weight: 500;
-  line-height: 1.25;
+  /* 14 chẵn: chip cao 20 trên artboard 17 (đệm 3 mỗi bên); `1.25` cho 19,75. */
+  line-height: 14px;
 }
 
 .teacher .slot-chip.redrafting {
@@ -3376,13 +3380,14 @@
   background: currentColor;
 }
 
+/* Dòng 20 như artboard 17 (hai dòng cao 40); `1.5` của chữ 13 cho 19,5. */
 .teacher .slot-says {
   color: var(--ink-muted);
   font-size: var(--type-label);
-  line-height: 1.5;
+  line-height: 20px;
 }
 
-/* Nút secondary 41px của Figma: 9/15 cộng viền 1 = 10/16. */
+/* Nút secondary 40px của artboard 17: 9/15 cộng viền 1 = 10/16, dòng 20. */
 .teacher .slot-retry {
   padding: 9px 15px;
   border: 1px solid var(--line-strong);
@@ -3390,7 +3395,7 @@
   color: var(--accent);
   font-size: var(--type-label);
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 20px;
 }
 
 /* Nút tắt giữ màu, chỉ mờ đi 0,45 như variant *đang soạn lại* (`652:3623`). */
