@@ -1,0 +1,35 @@
+output "url" {
+  description = "Địa chỉ của lab. Chứng chỉ HTTPS có sau vài phút đầu, khi bootstrap bật xong Caddy."
+  value       = "https://${local.site_address}"
+}
+
+output "instance_id" {
+  value = aws_instance.lab.id
+}
+
+output "session" {
+  description = "Vào máy lab (cần Session Manager plugin của aws CLI)."
+  value       = "aws ssm start-session --region ${var.region} --target ${aws_instance.lab.id}"
+}
+
+output "ssh" {
+  description = "SSH vào máy, khi đã đặt ssh_cidrs và ssh_public_key."
+  value       = length(var.ssh_cidrs) > 0 && var.ssh_public_key != "" ? "ssh ubuntu@${aws_eip.lab.public_ip}" : "không mở SSH"
+}
+
+output "bootstrap_log" {
+  description = "Xem bootstrap chạy tới đâu, sau khi vào máy."
+  value       = "sudo tail -f /var/log/cloud-init-output.log"
+}
+
+output "read_passwords" {
+  description = "Đọc mật khẩu basic auth (người dùng: lab) và mật khẩu chung của tài khoản seed."
+  value = {
+    basic_auth = "aws ssm get-parameter --region ${var.region} --name ${var.ssm_prefix}/BASIC_AUTH_PASSWORD --with-decryption --query Parameter.Value --output text"
+    accounts   = "aws ssm get-parameter --region ${var.region} --name ${var.ssm_prefix}/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text"
+  }
+}
+
+output "backup_bucket" {
+  value = aws_s3_bucket.backup.bucket
+}

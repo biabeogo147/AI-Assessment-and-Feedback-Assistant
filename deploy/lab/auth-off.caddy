@@ -1,0 +1,1 @@
+# Không có basic auth. Chỉ cho stack lab chạy ở local (LAB_AUTH=off) -- máy EC2 không bao giờ dùng.

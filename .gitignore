@@ -83,3 +83,12 @@ docs/report/*.log
 # bằng nó. Thứ commit được là mã benchmark, thước đo, test của thước đo, và bảng
 # số trong plan.
 data/
+
+# Terraform của lab (deploy/lab/terraform): state chứa mật khẩu do random_password sinh, nên không
+# bao giờ vào git; .terraform/ là provider đã tải. Biến riêng (email cảnh báo…) để trong *.tfvars.
+# deploy/lab/.env (bí mật từ SSM) đã nằm dưới luật `.env` ở trên.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log

@@ -1,0 +1,17 @@
+#!/bin/bash
+# Lần khởi động đầu của máy lab: ghi cấu hình, clone repo public, giao phần còn lại cho
+# deploy/lab/bootstrap.sh. Log ở /var/log/cloud-init-output.log.
+set -euxo pipefail
+
+cat >/etc/aiafa-lab.conf <<'CONF'
+AIAFA_DIR=/opt/aiafa
+AIAFA_REF=${git_ref}
+AWS_REGION=${region}
+SSM_PREFIX=${ssm_prefix}
+BACKUP_BUCKET=${backup_bucket}
+CONF
+
+apt-get -o DPkg::Lock::Timeout=600 update -q
+apt-get -o DPkg::Lock::Timeout=600 install -y -q git
+git clone --depth 1 --branch ${git_ref} ${repo_url} /opt/aiafa
+bash /opt/aiafa/deploy/lab/bootstrap.sh

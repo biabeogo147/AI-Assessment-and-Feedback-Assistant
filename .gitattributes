@@ -1,0 +1,4 @@
+# Script chạy trên máy lab (Linux): một CRLF là `$'\r': command not found` ở lần boot đầu, không
+# phải ở máy dev. Luật ở đây giữ LF cả khi ai đó bật core.autocrlf (plan `lab-deploy-aws`).
+*.sh text eol=lf
+*.tftpl text eol=lf

@@ -70,7 +70,7 @@ switch ($Task) {
         Invoke-Step 'install agent' { & $Python -m pip install -e "$RepoRoot\services\agent[test]" }
         Invoke-Step 'install document' { & $Python -m pip install -e "$RepoRoot\services\document[test]" }
         Invoke-Step 'install ingest' { & $Python -m pip install -e "$RepoRoot\services\ingest[test]" }
-        Invoke-Step 'install dev tooling' { & $Python -m pip install ruff import-linter pre-commit }
+        Invoke-Step 'install dev tooling' { & $Python -m pip install ruff import-linter pre-commit pyyaml }
         Invoke-Step 'install frontend' { pnpm install }
         Write-Host "Done. Run '.\dev.ps1 check' to verify the import boundary." -ForegroundColor Green
     }

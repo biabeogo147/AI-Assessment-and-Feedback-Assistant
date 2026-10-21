@@ -1,0 +1,176 @@
+# Toàn bộ lab trên một máy (plan `lab-deploy-aws`). Chạy từ gốc repo:
+#
+#   docker compose -p aiafa-lab -f deploy/lab/docker-compose.lab.yml up -d --build
+#
+# Bí mật đọc từ deploy/lab/.env (do `render-env.sh` dựng từ SSM; compose tự đọc file ấy cạnh file
+# này để thay `${...}`). Giá trị không bí mật ở `lab.env`. Ở máy local, `.env.overrides` (không bắt
+# buộc) đè lên `lab.env` -- xem docs/deploy-lab.md.
+#
+# **Chỉ caddy mở cổng ra ngoài.** Redis, Postgres, MinIO, Mongo và BE chỉ nói trong mạng nội bộ
+# của compose (`tools/tests/test_lab_deploy.py` khoá điều đó).
+
+x-app: &app
+  env_file:
+    - path: lab.env
+    - path: .env.overrides
+      required: false
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+    mongo:
+      condition: service_healthy
+    minio:
+      condition: service_started
+
+# Mỗi image chỉ **một** service dựng (be, document); service còn lại dùng lại image ấy và không bao
+# giờ pull. Hai service cùng `build` một tag thì buildx dựng song song rồi báo `image
+# "aiafa-lab-app:latest": already exists` ở lần dựng đầu trên máy lab.
+x-app-image: &app-image
+  build:
+    context: ../..
+    dockerfile: deploy/lab/python.Dockerfile
+    target: app
+  image: aiafa-lab-app
+
+x-document-image: &document-image
+  build:
+    context: ../..
+    dockerfile: deploy/lab/python.Dockerfile
+    target: document
+  image: aiafa-lab-document
+
+x-app-image-reused: &app-image-reused
+  image: aiafa-lab-app
+  pull_policy: never
+
+x-document-image-reused: &document-image-reused
+  image: aiafa-lab-document
+  pull_policy: never
+
+services:
+  caddy:
+    build:
+      context: ../..
+      dockerfile: deploy/lab/caddy.Dockerfile
+    image: aiafa-lab-caddy
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?chạy deploy/lab/render-env.sh trước}
+      LAB_AUTH: ${LAB_AUTH:-on}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-lab}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
+    ports:
+      - "${LAB_HTTP_PUBLISH:-80}:80"
+      - "${LAB_HTTPS_PUBLISH:-443}:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      be:
+        condition: service_healthy
+
+  be:
+    <<: [*app, *app-image]
+    command: ["uvicorn", "be.main:app", "--host", "0.0.0.0", "--port", "8000",
+              "--timeout-graceful-shutdown", "3", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aiafa:${POSTGRES_PASSWORD:?chạy deploy/lab/render-env.sh trước}@postgres:5432/aiafa
+      MINIO_ACCESS_KEY: aiafa
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?chạy deploy/lab/render-env.sh trước}
+      MONGO_URL: mongodb://aiafa:${MONGO_PASSWORD:?chạy deploy/lab/render-env.sh trước}@mongo:27017/?authSource=admin
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  ingest:
+    <<: [*app, *app-image-reused]
+    command: ["arq", "ingest.worker.WorkerSettings"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aiafa:${POSTGRES_PASSWORD:?chạy deploy/lab/render-env.sh trước}@postgres:5432/aiafa
+
+  agent:
+    <<: [*app, *app-image-reused]
+    command: ["arq", "agent.worker.WorkerSettings"]
+    environment:
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+
+  document:
+    <<: [*app, *document-image]
+    command: ["arq", "document.ocr_worker.WorkerSettings"]
+    environment: &document-env
+      MINIO_ACCESS_KEY: aiafa
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?chạy deploy/lab/render-env.sh trước}
+      MONGO_URL: mongodb://aiafa:${MONGO_PASSWORD:?chạy deploy/lab/render-env.sh trước}@mongo:27017/?authSource=admin
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+
+  index:
+    <<: [*app, *document-image-reused]
+    command: ["arq", "document.index_worker.WorkerSettings"]
+    environment: *document-env
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aiafa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?chạy deploy/lab/render-env.sh trước}
+      POSTGRES_DB: aiafa
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiafa"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Cùng ảnh và cùng lý do với docker-compose.infra.yml: ảnh chính chủ đã rời Docker Hub.
+  minio:
+    image: chainguard/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data"]
+    user: "65532:65532"
+    environment:
+      MINIO_ROOT_USER: aiafa
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?chạy deploy/lab/render-env.sh trước}
+    volumes:
+      - miniodata:/data
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: aiafa
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?chạy deploy/lab/render-env.sh trước}
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  caddy-data:
+  caddy-config:
+  pgdata:
+  miniodata:
+  mongodata:

@@ -1,0 +1,10 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!services/fe
+!deploy/lab/Caddyfile
+!deploy/lab/auth-on.caddy
+!deploy/lab/auth-off.caddy
+**/node_modules
+**/dist

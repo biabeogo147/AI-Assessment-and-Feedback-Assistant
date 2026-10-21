@@ -1,0 +1,13 @@
+# Image Python chỉ cần packages/ và services/ (trừ FE). Mọi thứ khác ở ngoài, nhất là data/ (tài
+# liệu thật), .env (khoá thật) và node_modules.
+*
+!packages/contracts
+!packages/schema
+!services/be
+!services/agent
+!services/ingest
+!services/document
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache
+**/tests
