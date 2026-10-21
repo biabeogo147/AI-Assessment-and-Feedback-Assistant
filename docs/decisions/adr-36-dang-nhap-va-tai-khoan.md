@@ -76,6 +76,7 @@ nhập nào đã có, và lần sai tốn cùng một khoảng thời gian dù t
   - `AccountSession`.
 - `services/be/src/be/accounts.py`: băm, phiên, tên đăng nhập, mã học sinh, mật khẩu phát.
 - `services/be/src/be/account_routes.py`: đăng ký, đăng nhập, đăng xuất.
+- `services/be/src/be/sign_in_limit.py`: khoá tạm sau nhiều lần đăng nhập sai.
 - `services/be/src/be/identity.py`: cookie thắng `X-Actor`.
 - `services/be/src/be/config.py`: `dev_identity_enabled` mặc định tắt; `services/be/tests/conftest.py`
   bật nó cho test.
@@ -101,3 +102,30 @@ dùng chọn chặn ở BE, D1 của plan). `SESSION_COOKIE_SECURE=true` ở lab
 cờ `Secure`; máy dev vẫn để tắt vì chạy HTTP. Mặc định của cả hai biến giữ nguyên hành vi máy dev.
 Thi hành ở `be/config.py`, `be/account_routes.py`, `services/be/tests/test_accounts.py`, và
 `deploy/lab/lab.env` (`tools/tests/test_lab_deploy.py`).
+
+## Hậu ký 21/10/2026
+
+**Đăng nhập sai nhiều lần thì khoá tạm** (plan `tier-1-loop-1`, đóng việc *"Giới hạn số lần thử
+đăng nhập cũng chưa có"* ở trên). Cả hai vai, đếm trong cửa sổ trượt 15 phút:
+
+- **5 lần sai cho một tên** (tên đã chuẩn hoá như lúc tra người: SĐT chỉ chữ số, email chữ thường,
+  tên học sinh chữ thường) thì tên ấy khoá tới khi lần sai cũ trôi khỏi cửa sổ. Tên không có thật
+  cũng đếm và khoá y như vậy, để câu trả lời không lộ tên nào có. Giáo viên có **hai** tên (SĐT
+  và email), mỗi tên một bộ đếm, nên một tài khoản giáo viên chịu tới 10 lần sai mỗi 15 phút --
+  biết, chấp nhận: gộp hai tên thì phải tra người trước khi đếm, tức đếm sau một `await`.
+  Tên dài quá cột (`login` 254, `username` 64) bị 422 trước khi vào sổ.
+- **50 lần sai từ một địa chỉ** thì địa chỉ ấy khoá, mọi tên. Ngưỡng cao vì cả lớp đăng nhập sau một
+  NAT của trường; một em gõ nhầm không khoá bạn bên cạnh.
+- Khoá kiểm **trước** mật khẩu: đang khoá thì mật khẩu đúng cũng nhận 429 *"Bạn nhập sai quá nhiều
+  lần. Thử lại sau N phút."*. Lần thử vào sổ **trước** khi tra người và chạy `scrypt`, nên các request
+  gửi song song thấy nhau (review: ghi sau thì 40 request song song cùng qua). Đăng nhập đúng đếm lại
+  tên ấy từ đầu và gỡ lần thử của chính nó khỏi sổ của địa chỉ, nhưng không xoá các lần sai khác
+  của địa chỉ.
+- **Đánh đổi đã biết:** ai biết SĐT một giáo viên thì giữ được tài khoản ấy bị khoá, 5 lần sai mỗi
+  15 phút; một em trong NAT của trường gõ sai 50 lần thì khoá mọi người sau NAT ấy 15 phút. Khoá theo
+  cặp tên + địa chỉ, hay làm chậm dần thay vì khoá, là câu hỏi Tier 2 của backlog.
+- Bộ đếm ở trong bộ nhớ của một tiến trình BE (dev và lab đều một uvicorn). Khởi động lại BE là mở
+  khoá. Có BE thứ hai thì nó phải dời ra Redis.
+
+FE không đổi: câu 429 hiện ở chỗ báo lỗi sẵn có của hộp đăng nhập (Figma 26c, 12b). Thi hành ở
+`be/sign_in_limit.py`, `be/account_routes.py`, `services/be/tests/test_accounts.py`.

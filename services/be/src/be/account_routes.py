@@ -8,8 +8,8 @@ không đọc được token -- và `SameSite=Lax`, nên một trang lạ không
 sau, như mọi lần mở trang. Một hình dạng `me` duy nhất cho mỗi vai, không phải hai.
 """
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
-from pydantic import BaseModel
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,7 @@ from be.accounts import (
 )
 from be.config import Settings, get_settings
 from be.db import get_session
+from be.sign_in_limit import SignInLimit, address_of, get_sign_in_limit, refused
 from schema.models import Student, Teacher
 
 router = APIRouter(prefix="/api", tags=["accounts"])
@@ -58,11 +59,13 @@ class TeacherSignIn(BaseModel):
     """Đăng nhập giáo viên (Figma 26): `login` là SĐT **hoặc** email -- có `@` thì là email.
 
     Attributes:
-        login: SĐT hay email.
+        login: SĐT hay email. Trần 254 là cột `teachers.email`: dài hơn thì không tài khoản nào
+            khớp, và chuỗi ấy là **khoá** của `be.sign_in_limit` -- không có trần thì mỗi lần gõ sai
+            giữ một chuỗi tuỳ ý dài trong bộ nhớ 15 phút (review vòng 1 Tier 1, 21/10/2026).
         password: Mật khẩu.
     """
 
-    login: str
+    login: str = Field(max_length=254)
     password: str
 
 
@@ -70,11 +73,12 @@ class StudentSignIn(BaseModel):
     """Đăng nhập học sinh (Figma 12, trang học sinh) bằng tài khoản giáo viên phát.
 
     Attributes:
-        username: Tên đăng nhập, như `tinhlk`.
+        username: Tên đăng nhập, như `tinhlk`. Trần 64 là cột `students.username`, cùng lý do
+            với `TeacherSignIn.login`.
         password: Mật khẩu.
     """
 
-    username: str
+    username: str = Field(max_length=64)
     password: str
 
 
@@ -155,29 +159,42 @@ async def teacher_sign_up(
 @router.post("/teacher/sign-in", status_code=204)
 async def teacher_sign_in(
     body: TeacherSignIn,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
+    limit: SignInLimit = Depends(get_sign_in_limit),
 ) -> None:
     """Đăng nhập giáo viên bằng SĐT hoặc email.
 
     Raises:
-        HTTPException: 401 với **một** câu cho mọi lần sai -- không nói SĐT nào đã đăng ký.
+        HTTPException: 429 khi tên hay địa chỉ đã sai quá nhiều lần (`be.sign_in_limit`), kiểm
+            trước cả mật khẩu; 401 với **một** câu cho mọi lần sai -- không nói SĐT nào đã đăng ký.
 
     Side effects:
-        Thêm một dòng `sessions`; đặt cookie `aiafa_teacher`.
+        Ghi lần thử vào bộ đếm trước khi kiểm mật khẩu, gỡ nó và xoá bộ đếm của tên khi đúng;
+        thêm một dòng `sessions`; đặt cookie `aiafa_teacher`.
     """
     login = body.login.strip()
     if "@" in login:
         email = normal_email(login)
         where = Teacher.email == email if email else None
+        key = f"teacher:{email or login.lower()}"
     else:
         phone = normal_phone(login)
         where = Teacher.phone == phone if phone else None
+        key = f"teacher:{phone or login.lower()}"
+    address = address_of(request)
+    minutes = limit.wait_minutes(key, address)
+    if minutes is not None:
+        raise HTTPException(status_code=429, detail=refused(minutes))
+    # Vào sổ trước mọi `await`: các request song song thấy lần thử của nhau.
+    stamp = limit.attempt(key, address)
     teacher = await session.scalar(select(Teacher).where(where)) if where is not None else None
     if not await matches(body.password, teacher.password_hash if teacher else None):
         raise HTTPException(status_code=401, detail=_WRONG_TEACHER)
     assert teacher is not None
+    limit.succeeded(key, address, stamp)
     _set_cookie(
         response,
         TEACHER_COOKIE,
@@ -205,23 +222,34 @@ async def teacher_sign_out(
 @router.post("/sign-in", status_code=204)
 async def student_sign_in(
     body: StudentSignIn,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
+    limit: SignInLimit = Depends(get_sign_in_limit),
 ) -> None:
     """Đăng nhập học sinh bằng tên đăng nhập và mật khẩu giáo viên phát.
 
     Raises:
-        HTTPException: 401 với một câu cho mọi lần sai.
+        HTTPException: 429 khi tên hay địa chỉ đã sai quá nhiều lần, kiểm trước mật khẩu; 401 với
+            một câu cho mọi lần sai.
 
     Side effects:
-        Thêm một dòng `sessions`; đặt cookie `aiafa_student`.
+        Ghi lần thử vào bộ đếm trước khi kiểm mật khẩu, gỡ nó và xoá bộ đếm của tên khi đúng;
+        thêm một dòng `sessions`; đặt cookie `aiafa_student`.
     """
     username = body.username.strip().lower()
+    key = f"student:{username}"
+    address = address_of(request)
+    minutes = limit.wait_minutes(key, address)
+    if minutes is not None:
+        raise HTTPException(status_code=429, detail=refused(minutes))
+    stamp = limit.attempt(key, address)
     student = await session.scalar(select(Student).where(Student.username == username))
     if not await matches(body.password, student.password_hash if student else None):
         raise HTTPException(status_code=401, detail=_WRONG_STUDENT)
     assert student is not None
+    limit.succeeded(key, address, stamp)
     _set_cookie(
         response,
         STUDENT_COOKIE,

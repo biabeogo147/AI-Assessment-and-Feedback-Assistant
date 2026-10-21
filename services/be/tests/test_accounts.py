@@ -4,6 +4,8 @@ Phần route chạy qua cookie thật của `httpx`: một test gửi `X-Actor` 
 hay header bị bỏ qua khi cờ dev tắt.
 """
 
+import asyncio
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -28,6 +30,7 @@ from be.accounts import (
 )
 from be.db import bind_sessions
 from be.seed import SAMPLE_STUDENTS, SAMPLE_TEACHER, give_sample_sign_in, seed_if_empty
+from be.sign_in_limit import SignInLimit
 from be.student_routes import router as student_router
 from be.teacher_routes import router as teacher_router
 from schema.ddl import prepare_schema
@@ -41,8 +44,14 @@ SIGN_UP = {
 }
 
 
+@pytest.fixture
+def clock():
+    """Đồng hồ giả của bộ đếm đăng nhập sai: test đẩy `clock.now` thay cho chờ 15 phút."""
+    return SimpleNamespace(now=0.0)
+
+
 @pytest_asyncio.fixture
-async def stack():
+async def stack(clock):
     engine = create_async_engine("sqlite+aiosqlite://")
     await prepare_schema(engine)
     bind_sessions(engine)
@@ -54,6 +63,7 @@ async def stack():
     app.include_router(account_router)
     app.include_router(student_router)
     app.include_router(teacher_router)
+    app.state.sign_in_limit = SignInLimit(clock=lambda: clock.now)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
         yield http, maker
     await engine.dispose()
@@ -407,3 +417,167 @@ def test_lab_switches_default_like_dev(monkeypatch):
     settings = Settings(_env_file=None)
     assert settings.teacher_sign_up_enabled is True
     assert settings.session_cookie_secure is False
+
+
+# ------------------------------------------------------------ giới hạn số lần thử đăng nhập
+
+_LOCKED = "Bạn nhập sai quá nhiều lần. Thử lại sau 15 phút."
+
+
+@pytest.mark.asyncio
+async def test_five_wrong_passwords_lock_the_teacher_even_with_the_right_one(stack, clock):
+    http, _ = stack
+    _, phone, _, password = SAMPLE_TEACHER
+    for _ in range(5):
+        wrong = await http.post("/api/teacher/sign-in", json={"login": phone, "password": "sai"})
+        assert wrong.status_code == 401
+    # Khoá kiểm trước mật khẩu: lần thứ sáu đúng mật khẩu vẫn bị từ chối, nên đoán trúng lúc
+    # đang khoá cũng không biết là trúng.
+    right = await http.post("/api/teacher/sign-in", json={"login": phone, "password": password})
+    assert right.status_code == 429
+    assert right.json()["detail"] == _LOCKED
+    # Cùng một người, gõ SĐT kiểu khác: vẫn là một tên.
+    spaced = " ".join([phone[:4], phone[4:7], phone[7:]])
+    assert (
+        await http.post("/api/teacher/sign-in", json={"login": spaced, "password": password})
+    ).status_code == 429
+
+    clock.now += 15 * 60
+    assert (
+        await http.post("/api/teacher/sign-in", json={"login": phone, "password": password})
+    ).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_lock_opens_minute_by_minute_and_says_how_long(stack, clock):
+    http, _ = stack
+    _, username, password = SAMPLE_STUDENTS[0]
+    for _ in range(5):
+        await http.post("/api/sign-in", json={"username": username, "password": "sai"})
+        clock.now += 60
+    # Lần sai đầu ở phút 0, nay là phút 5: còn 10 phút.
+    locked = await http.post(
+        "/api/sign-in", json={"username": username.upper(), "password": password}
+    )
+    assert locked.status_code == 429
+    assert locked.json()["detail"] == "Bạn nhập sai quá nhiều lần. Thử lại sau 10 phút."
+    clock.now = 15 * 60
+    assert (
+        await http.post("/api/sign-in", json={"username": username, "password": password})
+    ).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_a_right_password_starts_the_count_again(stack):
+    http, _ = stack
+    _, username, password = SAMPLE_STUDENTS[0]
+    for _ in range(4):
+        await http.post("/api/sign-in", json={"username": username, "password": "sai"})
+    assert (
+        await http.post("/api/sign-in", json={"username": username, "password": password})
+    ).status_code == 204
+    for _ in range(4):
+        assert (
+            await http.post("/api/sign-in", json={"username": username, "password": "sai"})
+        ).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_name_locks_the_same_way(stack):
+    # Tên không có thật cũng khoá sau 5 lần: khác đi là câu trả lời lộ tên nào có thật.
+    http, _ = stack
+    for _ in range(5):
+        assert (
+            await http.post("/api/sign-in", json={"username": "khong-co", "password": "x"})
+        ).status_code == 401
+    locked = await http.post("/api/sign-in", json={"username": "khong-co", "password": "x"})
+    assert locked.status_code == 429
+    assert locked.json()["detail"] == _LOCKED
+
+
+@pytest.mark.asyncio
+async def test_one_name_locked_leaves_the_rest_of_the_class_alone(stack):
+    http, _ = stack
+    (_, first, _), (_, second, password) = SAMPLE_STUDENTS[0], SAMPLE_STUDENTS[1]
+    for _ in range(5):
+        await http.post("/api/sign-in", json={"username": first, "password": "sai"})
+    # Cùng một địa chỉ (cả lớp sau một NAT), tên khác: vẫn vào được.
+    assert (
+        await http.post("/api/sign-in", json={"username": second, "password": password})
+    ).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_fifty_wrong_tries_from_one_address_lock_every_name(stack):
+    http, _ = stack
+    for one in range(50):
+        await http.post("/api/sign-in", json={"username": f"doan-{one}", "password": "x"})
+    _, username, password = SAMPLE_STUDENTS[0]
+    locked = await http.post("/api/sign-in", json={"username": username, "password": password})
+    assert locked.status_code == 429
+    # Giáo viên đăng nhập từ cùng địa chỉ ấy cũng chờ: khoá là của địa chỉ, không của vai.
+    _, phone, _, teacher_password = SAMPLE_TEACHER
+    assert (
+        await http.post("/api/teacher/sign-in", json={"login": phone, "password": teacher_password})
+    ).status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_parallel_wrong_tries_cannot_slip_past_the_lock(stack):
+    # Review 21/10/2026: ghi lần sai **sau** `scrypt` thì 40 request song song đều qua bước kiểm
+    # trước khi lần sai đầu vào sổ. Nay lần thử vào sổ trước mọi `await`.
+    http, _ = stack
+    _, username, _ = SAMPLE_STUDENTS[0]
+    answers = await asyncio.gather(
+        *(
+            http.post("/api/sign-in", json={"username": username, "password": "sai"})
+            for _ in range(20)
+        )
+    )
+    assert Counter(one.status_code for one in answers) == {401: 5, 429: 15}
+
+
+@pytest.mark.asyncio
+async def test_right_sign_ins_from_one_address_never_lock_it(stack):
+    # Cả lớp đăng nhập đúng sau một NAT: lần đúng rời sổ của địa chỉ, nên lần thứ 51 vẫn vào.
+    http, _ = stack
+    _, username, password = SAMPLE_STUDENTS[0]
+    for _ in range(51):
+        right = await http.post("/api/sign-in", json={"username": username, "password": password})
+        assert right.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_a_name_past_the_column_never_reaches_the_count(stack):
+    # Review vòng 1 Tier 1 (21/10/2026): tên là khoá của bộ đếm, nên tên dài tuỳ ý là bộ nhớ tuỳ ý.
+    # Trần ở model trả 422 trước handler: 60 lần như vậy, quá ngưỡng 50 của địa chỉ, vẫn không khoá.
+    http, _ = stack
+    for _ in range(60):
+        assert (
+            await http.post("/api/sign-in", json={"username": "a" * 65, "password": "x"})
+        ).status_code == 422
+        assert (
+            await http.post("/api/teacher/sign-in", json={"login": "a" * 255, "password": "x"})
+        ).status_code == 422
+    _, username, password = SAMPLE_STUDENTS[0]
+    assert (
+        await http.post("/api/sign-in", json={"username": username, "password": password})
+    ).status_code == 204
+
+
+def test_names_that_never_failed_leave_nothing_behind():
+    # Hỏi khoá của 1000 tên ngẫu nhiên không được để lại 1000 khoá rỗng.
+    limit = SignInLimit()
+    for one in range(1000):
+        assert limit.wait_minutes(f"student:ai-{one}", "10.0.0.1") is None
+    assert limit._tries == {}
+
+
+def test_expired_tries_are_swept_away():
+    now = SimpleNamespace(t=0.0)
+    limit = SignInLimit(clock=lambda: now.t)
+    for one in range(SignInLimit._SWEEP_EVERY - 1):
+        limit.attempt(f"student:ai-{one}", f"10.0.{one // 250}.{one % 250}")
+    now.t = 16 * 60
+    limit.attempt("student:cuoi", "10.9.9.9")
+    assert set(limit._tries) == {("login", "student:cuoi"), ("address", "10.9.9.9")}
