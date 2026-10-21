@@ -987,7 +987,7 @@ def test_the_greeting_counts_correctly(
     Dữ liệu mẫu có đúng hai câu, và đó chính là cách một câu văn chỉ đúng với hai được viết
     ra rồi không bao giờ bị đem ra hỏi lại.
     """
-    said = student_routes._greeting(numbers)
+    said = student_routes.greeting(numbers)
 
     assert must_say in said
     assert must_not_say not in said

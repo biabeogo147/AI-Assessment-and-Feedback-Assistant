@@ -350,3 +350,60 @@ def test_dev_identity_is_off_unless_asked(monkeypatch):
 
     monkeypatch.delenv("DEV_IDENTITY_ENABLED", raising=False)
     assert Settings(_env_file=None).dev_identity_enabled is False
+
+
+# --- máy lab: đăng ký tắt, cookie Secure (plan `lab-deploy-aws`) ---------------------------------
+
+
+def _settings(http, **change):
+    """Thay `get_settings` của app test bằng một bản đổi vài cờ."""
+    from be.config import Settings, get_settings
+
+    http._transport.app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None, **change
+    )
+
+
+@pytest.mark.asyncio
+async def test_sign_up_closed_refuses_and_writes_nothing(stack):
+    http, maker = stack
+    _settings(http, teacher_sign_up_enabled=False)
+    response = await http.post("/api/teacher/sign-up", json=SIGN_UP)
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Máy này không mở đăng ký. Hãy nhờ người quản trị tạo tài khoản."
+    )
+    assert "aiafa_teacher" not in http.cookies
+    async with maker() as session:
+        assert await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-002")) is None
+    # Đăng nhập vẫn chạy: chỉ cửa tự tạo tài khoản đóng.
+    _, phone, _, password = SAMPLE_TEACHER
+    signed = await http.post("/api/teacher/sign-in", json={"login": phone, "password": password})
+    assert signed.status_code == 204
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("secure", [True, False])
+async def test_session_cookie_secure_follows_the_setting(stack, secure):
+    http, _ = stack
+    _settings(http, session_cookie_secure=secure)
+    _, phone, _, password = SAMPLE_TEACHER
+    teacher = await http.post("/api/teacher/sign-in", json={"login": phone, "password": password})
+    _, username, student_password = SAMPLE_STUDENTS[0]
+    student = await http.post(
+        "/api/sign-in", json={"username": username, "password": student_password}
+    )
+    for response in (teacher, student):
+        assert response.status_code == 204
+        assert ("; secure" in response.headers["set-cookie"].lower()) is secure
+
+
+def test_lab_switches_default_like_dev(monkeypatch):
+    """Thiếu biến thì như máy dev: đăng ký mở, cookie không Secure (HTTP thuần vẫn đăng nhập)."""
+    from be.config import Settings
+
+    monkeypatch.delenv("TEACHER_SIGN_UP_ENABLED", raising=False)
+    monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.teacher_sign_up_enabled is True
+    assert settings.session_cookie_secure is False

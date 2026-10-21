@@ -90,3 +90,14 @@ nhập nào đã có, và lần sai tốn cùng một khoảng thời gian dù t
   - trang giáo viên: 26 `659:5160`, 26b `659:5311`, 26c `709:5249`, 27 `659:5460`, 28 `660:5367`,
     28b `660:5512`, 28c `660:5677`, 28d `711:5287`, 10 `183:874`, 10b `707:5377`;
   - trang học sinh: 12 `659:5676`, 12b `713:830`, 13c `714:836`.
+
+## Hậu ký 20/10/2026
+
+**Đăng ký giáo viên tắt được theo máy; cookie có cờ `Secure` sau HTTPS** (plan `lab-deploy-aws`).
+Máy lab cho năm người trong team mở ra Internet, nên `TEACHER_SIGN_UP_ENABLED=false` ở đó:
+`POST /api/teacher/sign-up` trả 403 *"Máy này không mở đăng ký…"*, và tài khoản chỉ đến từ seed
+lab (`python -m be.lab_seed`). FE không đổi: lời từ chối của BE hiện ngay trên hộp đăng ký (người
+dùng chọn chặn ở BE, D1 của plan). `SESSION_COOKIE_SECURE=true` ở lab đóng việc còn treo ở trên về
+cờ `Secure`; máy dev vẫn để tắt vì chạy HTTP. Mặc định của cả hai biến giữ nguyên hành vi máy dev.
+Thi hành ở `be/config.py`, `be/account_routes.py`, `services/be/tests/test_accounts.py`, và
+`deploy/lab/lab.env` (`tools/tests/test_lab_deploy.py`).

@@ -1620,7 +1620,7 @@ _GREETING = (
 )
 
 
-def _greeting(numbers: tuple[int, ...] | list[int]) -> str:
+def greeting(numbers: tuple[int, ...] | list[int]) -> str:
     """Viết lượt mở đầu.
 
     Args:
@@ -1750,14 +1750,14 @@ async def stream_reply(
     last_student = next((m.text for m in reversed(history) if m.role == "student"), "")
 
     if not history:
-        # Lượt mở đầu không bao giờ tới AGENT. Xem `_greeting`: nó là một câu cố định cộng
+        # Lượt mở đầu không bao giờ tới AGENT. Xem `greeting`: nó là một câu cố định cộng
         # với một danh sách số, và trả tiền cho một model để viết nó một lần trên mỗi bài
         # thì chẳng mua được gì.
         opening = ChatMessage(
             attempt_id=attempt_id,
             sequence=1,
             role="assistant",
-            text=_greeting(numbers),
+            text=greeting(numbers),
             created_at=_now(),
         )
         #

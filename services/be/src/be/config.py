@@ -55,6 +55,12 @@ class Settings(BaseSettings):
             Mặc định **tắt**: một cài đặt thiếu biến này không được nhận một danh tính tự
             khai, vì mã `GV-00n` và mã học sinh `1, 2, 3…` đều đoán được (Decision 4 của
             plan). Bật thì BE cũng đặt đăng nhập mẫu cho một database rỗng.
+        teacher_sign_up_enabled: Giáo viên có tự tạo tài khoản được không. Tắt thì
+            `POST /api/teacher/sign-up` trả 403 và tài khoản chỉ đến từ người quản trị -- máy
+            lab tắt (plan `lab-deploy-aws`, D1). Mặc định bật, như máy dev từ trước tới nay.
+        session_cookie_secure: Cookie phiên có cờ `Secure` không -- trình duyệt chỉ gửi nó
+            qua HTTPS. Bật ở mọi máy chạy sau TLS; tắt ở máy dev, vốn là HTTP thuần, nếu
+            không trình duyệt không bao giờ gửi cookie về và không ai đăng nhập được.
         agent_job_timeout_seconds: BE chờ một job của AGENT bao lâu trước khi bỏ
             cuộc. Phải trùm hết một job trọn vẹn, kể cả mọi lần thử mà vòng retry
             bên trong AGENT làm -- `tools/check_contract.py` ép điều đó, vì không
@@ -105,6 +111,8 @@ class Settings(BaseSettings):
     mongo_database: str = "aiafa_content"
     dev_identity_header: str = "X-Actor"
     dev_identity_enabled: bool = False
+    teacher_sign_up_enabled: bool = True
+    session_cookie_secure: bool = False
     agent_job_timeout_seconds: int = 70
     stream_silence_timeout_seconds: float = 25.0
     max_tool_steps: int = 8

@@ -27,6 +27,7 @@ from be.accounts import (
     normal_phone,
     open_session,
 )
+from be.config import Settings, get_settings
 from be.db import get_session
 from schema.models import Student, Teacher
 
@@ -34,6 +35,7 @@ router = APIRouter(prefix="/api", tags=["accounts"])
 
 _WRONG_TEACHER = "Số điện thoại, email hoặc mật khẩu không đúng."
 _WRONG_STUDENT = "Tên đăng nhập hoặc mật khẩu không đúng."
+_SIGN_UP_CLOSED = "Máy này không mở đăng ký. Hãy nhờ người quản trị tạo tài khoản."
 
 
 class TeacherSignUp(BaseModel):
@@ -76,7 +78,7 @@ class StudentSignIn(BaseModel):
     password: str
 
 
-def _set_cookie(response: Response, name: str, token: str) -> None:
+def _set_cookie(response: Response, name: str, token: str, *, secure: bool) -> None:
     response.set_cookie(
         name,
         token,
@@ -84,21 +86,28 @@ def _set_cookie(response: Response, name: str, token: str) -> None:
         path="/api",
         httponly=True,
         samesite="lax",
+        secure=secure,
     )
 
 
 @router.post("/teacher/sign-up", status_code=204)
 async def teacher_sign_up(
-    body: TeacherSignUp, response: Response, session: AsyncSession = Depends(get_session)
+    body: TeacherSignUp,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> None:
     """Tạo tài khoản giáo viên rồi đăng nhập luôn.
 
     Raises:
-        HTTPException: 422 khi một ô sai dạng; 409 khi SĐT hay email đã có tài khoản.
+        HTTPException: 403 khi máy này tắt đăng ký (`teacher_sign_up_enabled`); 422 khi một ô
+            sai dạng; 409 khi SĐT hay email đã có tài khoản.
 
     Side effects:
         Thêm một dòng `teachers`, một dòng `sessions`; đặt cookie `aiafa_teacher`.
     """
+    if not settings.teacher_sign_up_enabled:
+        raise HTTPException(status_code=403, detail=_SIGN_UP_CLOSED)
     full_name = " ".join(body.full_name.split())
     phone = normal_phone(body.phone)
     email = normal_email(body.email)
@@ -135,12 +144,20 @@ async def teacher_sign_up(
             status_code=409,
             detail="Chưa tạo được tài khoản vì có người vừa đăng ký cùng lúc. Hãy thử lại.",
         ) from exc
-    _set_cookie(response, TEACHER_COOKIE, await open_session(session, teacher=teacher))
+    _set_cookie(
+        response,
+        TEACHER_COOKIE,
+        await open_session(session, teacher=teacher),
+        secure=settings.session_cookie_secure,
+    )
 
 
 @router.post("/teacher/sign-in", status_code=204)
 async def teacher_sign_in(
-    body: TeacherSignIn, response: Response, session: AsyncSession = Depends(get_session)
+    body: TeacherSignIn,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> None:
     """Đăng nhập giáo viên bằng SĐT hoặc email.
 
@@ -161,7 +178,12 @@ async def teacher_sign_in(
     if not await matches(body.password, teacher.password_hash if teacher else None):
         raise HTTPException(status_code=401, detail=_WRONG_TEACHER)
     assert teacher is not None
-    _set_cookie(response, TEACHER_COOKIE, await open_session(session, teacher=teacher))
+    _set_cookie(
+        response,
+        TEACHER_COOKIE,
+        await open_session(session, teacher=teacher),
+        secure=settings.session_cookie_secure,
+    )
 
 
 @router.post("/teacher/sign-out", status_code=204)
@@ -182,7 +204,10 @@ async def teacher_sign_out(
 
 @router.post("/sign-in", status_code=204)
 async def student_sign_in(
-    body: StudentSignIn, response: Response, session: AsyncSession = Depends(get_session)
+    body: StudentSignIn,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> None:
     """Đăng nhập học sinh bằng tên đăng nhập và mật khẩu giáo viên phát.
 
@@ -197,7 +222,12 @@ async def student_sign_in(
     if not await matches(body.password, student.password_hash if student else None):
         raise HTTPException(status_code=401, detail=_WRONG_STUDENT)
     assert student is not None
-    _set_cookie(response, STUDENT_COOKIE, await open_session(session, student=student))
+    _set_cookie(
+        response,
+        STUDENT_COOKIE,
+        await open_session(session, student=student),
+        secure=settings.session_cookie_secure,
+    )
 
 
 @router.post("/sign-out", status_code=204)

@@ -14,10 +14,12 @@ rồi vẫn xoá thì chỉ thêm một bước; cái bảo vệ thật nằm �
 import asyncio
 import logging
 
+from sqlalchemy.ext.asyncio import AsyncEngine
+
 from be.config import get_settings
 from be.db import bind_sessions, create_engine, get_session
 from be.seed import give_sample_sign_in, seed_if_empty
-from be.storage import create_store
+from be.storage import MinioObjectStore, create_store
 from schema.ddl import reset_schema
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -28,29 +30,44 @@ async def main() -> None:
     """Xoá schema, dựng lại, rồi seed.
 
     Side effects:
-        **Xoá toàn bộ** dữ liệu trong database đã cấu hình, rồi ghi lại dữ liệu demo, rồi
-        **xoá sạch bucket** tài liệu.
+        **Xoá toàn bộ** dữ liệu trong database đã cấu hình và **xoá sạch bucket** tài liệu, rồi
+        ghi lại dữ liệu demo.
     """
     settings = get_settings()
     engine = create_engine(settings)
-    store = create_store(settings)
     try:
-        logger.info("dropping and recreating the schema at %s", settings.database_url)
-        await reset_schema(engine)
+        await wipe(engine, create_store(settings))
         bind_sessions(engine)
         async for session in get_session():
             if await seed_if_empty(session):
                 logger.info("seeded the demo class, roster and published assessment")
                 await give_sample_sign_in(session)
-        # Hàng trước, object sau -- **ngược** với đường ghi, và cố ý. Đường ghi chọn
-        # "object mồ côi rẻ hơn hàng trỏ vào hư không"; cùng một ưu tiên ấy, trên đường
-        # xoá, bắt phải bỏ hàng trước: hỏng giữa chừng thì còn lại rác dọn được, chứ
-        # không phải một bảng `documents` trỏ vào một bucket đã sạch.
-        await store.ensure_ready()
-        await store.clear()
         logger.info("done — database and document bucket now match the models in code")
     finally:
         await engine.dispose()
+
+
+async def wipe(engine: AsyncEngine, store: MinioObjectStore) -> None:
+    """Xoá sạch database và bucket tài liệu, dựng lại bảng rỗng theo model.
+
+    Nơi duy nhất ngoài `schema.ddl` được gọi `reset_schema` (check *one-schema-builder*):
+    `main` ở trên và seed lab (`python -m be.lab_seed --reset`) cùng đi qua đây.
+
+    Args:
+        engine: Engine của database đã cấu hình.
+        store: Bucket tài liệu.
+
+    Side effects:
+        **Xoá toàn bộ** bảng và mọi object trong bucket.
+    """
+    logger.info("dropping and recreating the schema")
+    await reset_schema(engine)
+    # Hàng trước, object sau -- **ngược** với đường ghi, và cố ý. Đường ghi chọn
+    # "object mồ côi rẻ hơn hàng trỏ vào hư không"; cùng một ưu tiên ấy, trên đường
+    # xoá, bắt phải bỏ hàng trước: hỏng giữa chừng thì còn lại rác dọn được, chứ
+    # không phải một bảng `documents` trỏ vào một bucket đã sạch.
+    await store.ensure_ready()
+    await store.clear()
 
 
 if __name__ == "__main__":

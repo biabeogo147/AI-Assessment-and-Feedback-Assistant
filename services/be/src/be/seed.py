@@ -45,7 +45,7 @@ _MONOTONY = (
 )
 
 # (stem, objective, [(label, text, is_correct, error_label)], [(title, body)])
-_QUESTIONS = (
+DEMO_QUESTIONS = (
     (
         "Đạo hàm của y = x² + 3x là gì?",
         "Đạo hàm của đa thức",
@@ -191,7 +191,7 @@ async def seed_if_empty(session: AsyncSession) -> bool:
     session.add(assessment)
     await session.flush()
 
-    for order, (stem, objective, options, methods) in enumerate(_QUESTIONS, start=1):
+    for order, (stem, objective, options, methods) in enumerate(DEMO_QUESTIONS, start=1):
         question = Question(
             assessment_id=assessment.id,
             order_index=order,
