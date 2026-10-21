@@ -39,7 +39,8 @@ export function TopBar({ me }: { me: Me | null }) {
             <span>·</span>
             <span>Lớp {me.class_name}</span>
             <span>·</span>
-            <span className="code">{me.student_code}</span>
+            {/* Nhãn "Mã" theo Figma HS 12–23 (`281:13`): con số trần đọc lẫn với khối (Tier 2 câu 32). */}
+            <span className="code">Mã {me.student_code}</span>
           </span>
           {refused && (
             <span className="signout-refused" role="alert">

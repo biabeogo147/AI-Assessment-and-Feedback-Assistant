@@ -1558,6 +1558,11 @@ export async function streamReply(
   if (!response.ok || response.body === null) {
     // 401 là phiên vừa hết: về màn đăng nhập như mọi lời gọi khác (review pha 5).
     noticeSignedOut("student", response);
+    // 429 của bộ chặn request dồn (`be/burst_limit.py`) mang câu riêng cho học sinh: đọc nó.
+    if (response.status === 429) {
+      const said = await response.json().catch(() => null);
+      if (typeof said?.detail === "string") throw new Error(said.detail);
+    }
     throw new Error("Trợ lý chưa trả lời được.");
   }
 

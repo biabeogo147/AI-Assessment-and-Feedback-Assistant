@@ -6,7 +6,7 @@
  * lại của các màn hình thì được kiểm bằng cách nhìn vào chúng.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { countdown, listed, moment } from "./api";
@@ -106,6 +106,31 @@ describe("the score sheet", () => {
   });
 });
 
+describe("the score sheet's link to the tutor", () => {
+  it("is offered while a question is below full marks", async () => {
+    stubFetch(resultPayload("hết-hạn-chữa", "chưa-chữa"));
+    render(<Result me={ME} attemptId="a1" />);
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Xem lại phần chữa các câu sai" })).toBeTruthy();
+  });
+
+  it("is gone when no question was wrong", async () => {
+    // Thử tay đầu-cuối 20/10/2026: Dũng 6,0/6 vẫn có link, mở ra thì "Bài này không có câu nào sai."
+    const payload = resultPayload("hết-hạn-chữa", "đúng");
+    payload.items[0].mark = 1;
+    stubFetch(payload);
+    render(<Result me={ME} attemptId="a1" />);
+    await waitFor(() => expect(screen.getByText(/Câu 4/)).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /Xem lại phần chữa|Hỏi trợ lý/ })).toBeNull();
+  });
+
+  it("labels the student code in the top bar (Figma HS 12–23)", async () => {
+    stubFetch(resultPayload("cần-chữa", "chưa-chữa"));
+    render(<Result me={ME} attemptId="a1" />);
+    expect(await screen.findByText("Mã HS2026-1204")).toBeTruthy();
+  });
+});
+
 describe("the assignment list", () => {
   it("renders the buttons BE said the row has, in BE's order", async () => {
     stubFetch([
@@ -188,6 +213,16 @@ describe("the tutoring screen", () => {
     expect(screen.queryByText(/Làm bài mới/)).toBeNull();
     // Việc báo cáo sống lâu hơn `Attempt`: nó không chặn gì cả (ADR-19).
     expect(screen.getByText(/Báo cáo Trợ lý giải thích khó hiểu/)).toBeTruthy();
+  });
+
+  it("turns the report button into a quiet done mark, not a red strip", async () => {
+    // Thử tay đầu-cuối 20/10/2026: câu xác nhận đi qua `setError`, nên hiện thành dải lỗi đỏ.
+    stubTwo({ attempt_id: "a1", locked: true, messages: [] });
+    render(<Tutor me={ME} attemptId="a1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Báo cáo Trợ lý giải thích khó hiểu/ }));
+    const done = await screen.findByRole("button", { name: "Đã báo cho cô" });
+    expect((done as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("names three open questions the way a person would", async () => {

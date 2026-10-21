@@ -4,6 +4,7 @@ import { moment, teacher, type RosterAccount, type StudentRow } from "../../api"
 import { go } from "../../App";
 import { BoardHead, BoardWaiting, classLabel, NONE, useBoard } from "./Board";
 import Roster, { Passwords } from "./Roster";
+import Veil from "./Veil";
 
 /**
  * Màn 10 · *Chi tiết lớp* (`183:874`), plan `teacher-rail-screens`, việc 18.
@@ -12,8 +13,9 @@ import Roster, { Passwords } from "./Roster";
  * Bấm một đề là sang kết quả của đề ấy trong lớp này (màn 11).
  *
  * Cột *Tên đăng nhập*, nút *Đặt lại mật khẩu* và *Thêm học sinh* có từ việc 22 (plan
- * `sign-in-and-accounts`): thêm học sinh mở hộp ba bước (`Roster`), đặt lại mật khẩu thì đặt ngay và
- * hiện mật khẩu mới một lần (10b). Dòng phụ không có *năm học* vì không dữ liệu nào chở nó.
+ * `sign-in-and-accounts`): thêm học sinh mở hộp ba bước (`Roster`), đặt lại mật khẩu thì hỏi lại một
+ * lần (Tier 2 câu 30, 21/10/2026: một cú bấm nhầm hàng làm mất mật khẩu cũ của em), rồi hiện mật khẩu
+ * mới một lần (10b). Dòng phụ không có *năm học* vì không dữ liệu nào chở nó.
  *
  * @param classId - Lớp nào.
  */
@@ -25,6 +27,8 @@ export default function ClassDetail({ classId }: { classId: string }) {
   // khẩu một lúc, và cú bấm thứ hai không được nuốt im lặng (review pha 4).
   const [resetting, setResetting] = useState<string | null>(null);
   const [refused, setRefused] = useState("");
+  // Em đang được hỏi lại trước khi đặt lại mật khẩu (hộp xác nhận 10b).
+  const [asking, setAsking] = useState<StudentRow | null>(null);
 
   /** Đọc lại lớp sau khi thêm học sinh hay cấp tên đăng nhập: bảng phía sau hộp phải đúng. */
   function reread() {
@@ -151,7 +155,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
               className="reset-password"
               type="button"
               disabled={resetting !== null}
-              onClick={() => resetPassword(one)}
+              onClick={() => setAsking(one)}
             >
               Đặt lại mật khẩu
             </button>
@@ -166,6 +170,31 @@ export default function ClassDetail({ classId }: { classId: string }) {
           onCreated={reread}
           onClose={() => setAdding(false)}
         />
+      )}
+      {asking !== null && (
+        <Veil onClose={() => setAsking(null)}>
+          <h3>Đặt lại mật khẩu cho {asking.full_name}?</h3>
+          <p className="lead">
+            Mật khẩu cũ của em sẽ không dùng được nữa. Nếu em đang làm bài, em phải đăng nhập lại bằng
+            mật khẩu mới.
+          </p>
+          <div className="confirm-actions">
+            {/* Focus vào đường huỷ: Enter ngay sau khi hộp mở không đổi mật khẩu của ai. */}
+            <button className="btn" type="button" autoFocus onClick={() => setAsking(null)}>
+              Giữ mật khẩu cũ
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => {
+                resetPassword(asking);
+                setAsking(null);
+              }}
+            >
+              Đặt lại mật khẩu
+            </button>
+          </div>
+        </Veil>
       )}
       {reset !== null && (
         <Passwords

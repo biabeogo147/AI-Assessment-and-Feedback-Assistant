@@ -112,6 +112,12 @@ describe("màn 10: tên đăng nhập và đặt lại mật khẩu", () => {
 
     const row = screen.getByText("Đỗ Văn Hùng").closest(".board-row") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Đặt lại mật khẩu" }));
+    // Tier 2 câu 30 (21/10/2026): hỏi lại trước, chưa gửi gì.
+    const asked = screen.getByRole("heading", { name: "Đặt lại mật khẩu cho Đỗ Văn Hùng?" });
+    expect(sent.some((one) => one.url.endsWith("/password"))).toBe(false);
+    fireEvent.click(
+      within(asked.closest(".confirm") as HTMLElement).getByRole("button", { name: "Đặt lại mật khẩu" }),
+    );
 
     expect(await screen.findByRole("heading", { name: "Đã đặt lại mật khẩu cho Đỗ Văn Hùng" })).toBeTruthy();
     expect(screen.getByText("xyz-mnp-qr")).toBeTruthy();
@@ -136,7 +142,21 @@ describe("màn 10: tên đăng nhập và đặt lại mật khẩu", () => {
     render(<ClassDetail classId="c12a" />);
     const row = (await screen.findByText("Nguyễn Minh Anh")).closest(".board-row") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Đặt lại mật khẩu" }));
+    const asked = screen.getByRole("heading", { name: "Đặt lại mật khẩu cho Nguyễn Minh Anh?" });
+    fireEvent.click(
+      within(asked.closest(".confirm") as HTMLElement).getByRole("button", { name: "Đặt lại mật khẩu" }),
+    );
     expect((await screen.findByRole("alert")).textContent).toBe("Không tìm thấy học sinh này trong lớp.");
+  });
+
+  it("hộp hỏi lại: Giữ mật khẩu cũ thì không gửi gì", async () => {
+    const sent = backend();
+    render(<ClassDetail classId="c12a" />);
+    const row = (await screen.findByText("Nguyễn Minh Anh")).closest(".board-row") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Đặt lại mật khẩu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Giữ mật khẩu cũ" }));
+    expect(screen.queryByRole("heading", { name: "Đặt lại mật khẩu cho Nguyễn Minh Anh?" })).toBeNull();
+    expect(sent.some((one) => one.url.endsWith("/password"))).toBe(false);
   });
 });
 

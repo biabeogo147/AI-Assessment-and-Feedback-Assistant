@@ -118,8 +118,9 @@ export default function Dashboard() {
               <div className="objective-rows">
                 {data.objectives.map((one) => (
                   <div className="objective" key={one.learning_objective}>
+                    {/* `title` giữ chữ gốc: thuộc tính không dựng được công thức. */}
                     <span className="label" title={one.learning_objective}>
-                      {one.learning_objective}
+                      <MathText>{one.learning_objective}</MathText>
                     </span>
                     <span className="track">
                       <span className="fill" style={{ width: `${one.percent}%` }} />

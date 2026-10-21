@@ -128,7 +128,7 @@ export default function BankPicker({
                     <MathText>{one.stem}</MathText>
                   </span>
                   <span className="meta">
-                    {one.learning_objective} ·{" "}
+                    <MathText>{one.learning_objective}</MathText> ·{" "}
                     {one.in_this_paper ? "đã có trong đề này" : one.from_title}
                   </span>
                 </span>

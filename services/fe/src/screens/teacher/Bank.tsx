@@ -68,7 +68,9 @@ export default function Bank({ open = null }: { open?: string | null }) {
             <span className="name">
               <MathText>{one.stem}</MathText>
             </span>
-            <span className="cell-muted">{one.learning_objective}</span>
+            <span className="cell-muted">
+              <MathText>{one.learning_objective}</MathText>
+            </span>
             <span className="cell-muted">{one.course}</span>
             <span className="chevron" aria-hidden="true">
               ›
@@ -142,7 +144,13 @@ export function BankEditor({ bankId }: { bankId: string }) {
           </button>
         </div>
         <div className="meta">
-          {found === null ? "" : [found.learning_objective, found.course].join(" · ")}
+          {found === null ? (
+            ""
+          ) : (
+            <>
+              <MathText>{found.learning_objective}</MathText> · {found.course}
+            </>
+          )}
         </div>
       </div>
       <div className="panel-questions">

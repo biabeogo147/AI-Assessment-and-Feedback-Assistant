@@ -77,6 +77,9 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
   // lượt không có nghĩa là câu đó đóng, và việc tự đếm lượt ở đây làm sai con số
   // ngay từ lúc một học sinh dùng hết một lượt.
   const openCount = result.items.filter((item) => item.mark_reason === "chưa-chữa").length;
+  // Câu nào dưới trọn điểm là câu đã sai ở pha 1 (kể cả câu đã chữa lên 0,5). Không có câu nào như
+  // thế thì không có phần chữa để xem: màn trợ lý chỉ còn nói "Bài này không có câu nào sai."
+  const anyWrong = result.items.some((item) => item.mark < 1);
 
   return (
     <>
@@ -91,13 +94,15 @@ export default function Result({ me, attemptId }: { me: Me; attemptId: string })
                 : `Bài đã kết thúc · ${result.total_score.toFixed(1).replace(".", ",")} trên ${result.question_count} câu`}
             </div>
           </div>
-          <button
-            className="btn-cta"
-            type="button"
-            onClick={() => go(`/attempt/${attemptId}/tutor`)}
-          >
-            {stillOpen ? "Hỏi trợ lý và làm lại dạng bài sai" : "Xem lại phần chữa các câu sai"}
-          </button>
+          {anyWrong ? (
+            <button
+              className="btn-cta"
+              type="button"
+              onClick={() => go(`/attempt/${attemptId}/tutor`)}
+            >
+              {stillOpen ? "Hỏi trợ lý và làm lại dạng bài sai" : "Xem lại phần chữa các câu sai"}
+            </button>
+          ) : null}
         </div>
 
         {/* Artboard 16b: màn này vừa được lượt chữa tự nộp vì hết giờ. Cờ của BE, nên còn nguyên sau

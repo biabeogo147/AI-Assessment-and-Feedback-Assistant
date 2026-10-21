@@ -2245,11 +2245,12 @@
   cursor: default;
 }
 
+/* Dòng 15 như nhãn `Phương án A · đáp án đúng` của `531:182`: hàng không có nút Xoá cao 15, không 16,5. */
 .teacher .qcard .edit-option-head .tag {
   color: var(--ink-muted);
   font-size: var(--type-caption);
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 15px;
 }
 
 /* Đáp án đúng mang màu ngữ nghĩa của ADR-12, không mang màu nhấn. */
@@ -2265,16 +2266,21 @@
   flex: 1;
 }
 
+/* Nút *Xoá* theo `btn` của `531:182`: chữ 12 thường màu `ink-muted`, đệm 5/11, cao 25. Bản cũ là
+   chữ trơ đệm 0/4, cao 14, đậm 600 (review vòng 4 Tier 1, 21/10/2026). */
 .teacher .qcard .edit-option-head .quiet,
 .teacher .qcard .edit-method-head .quiet {
   flex: none;
   border: none;
+  border-radius: 4px;
   background: none;
-  padding: 0 4px;
+  padding: 5px 11px;
   font-family: inherit;
-  color: var(--ink-faint);
-  font-size: var(--type-caption);
-  font-weight: 600;
+  color: var(--ink-muted);
+  /* 12 viết thẳng: bề mặt giáo viên hạ `--type-caption` xuống 11, còn `btn` của Figma là 12. */
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
   cursor: pointer;
 }
 
@@ -3757,14 +3763,17 @@
   color: var(--ink);
 }
 
+/* Khối thường, không flex: `MathText` trả nhiều khúc liền nhau (chữ, công thức, chữ), và flex
+   cột biến mỗi khúc thành một hàng, nên "Cho hàm số $y = f(x)$ có đạo hàm" vỡ làm ba dòng (màn 23,
+   thử tay đầu-cuối 20/10/2026). Nhãn "Câu N" đứng một dòng riêng bằng `display: block`. */
 .teacher .board-row .stem-cell {
-  display: flex;
-  flex-direction: column;
+  display: block;
   font-size: var(--type-label);
   line-height: 1.5;
 }
 
 .teacher .board-row .stem-cell .small {
+  display: block;
   font-weight: 600;
 }
 

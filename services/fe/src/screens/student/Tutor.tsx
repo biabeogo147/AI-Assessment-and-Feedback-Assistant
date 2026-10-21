@@ -69,6 +69,8 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
   const [solutionOrder, setSolutionOrder] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Đã báo trong lần mở màn này. F5 thì nút về như cũ: báo hai lần không chặn ai (ADR-19).
+  const [reported, setReported] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
@@ -248,18 +250,28 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
             {history.messages.filter((message) => message.role === "assistant").length > 1 ||
             locked ? (
-            <button
-              className="btn-report"
-              type="button"
-              onClick={() =>
-                api
-                  .report(attemptId, null)
-                  .then(() => setError("Đã gửi báo cáo tới giáo viên."))
-                  .catch((cause: Error) => setError(cause.message))
-              }
-            >
-              ⚑ Báo cáo Trợ lý giải thích khó hiểu
-            </button>
+            reported ? (
+              // Variant `đã báo` của `Report control` (`281:24`): báo xong thì nút tự đổi chữ, không
+              // qua dải lỗi. Trước đây câu xác nhận đi qua `setError`, nên hiện thành dải đỏ.
+              <button className="btn-report done" type="button" disabled>
+                <span aria-hidden="true">✓</span>
+                <span>Đã báo cho cô</span>
+              </button>
+            ) : (
+              <button
+                className="btn-report"
+                type="button"
+                onClick={() =>
+                  api
+                    .report(attemptId, null)
+                    .then(() => setReported(true))
+                    .catch((cause: Error) => setError(cause.message))
+                }
+              >
+                <span aria-hidden="true">⚑</span>
+                <span>Báo cáo Trợ lý giải thích khó hiểu</span>
+              </button>
+            )
             ) : null}
             {locked ? null : panel.open_round_id ? (
               // Đang có một lượt mở (tab khác, trước F5): vào lại đúng lượt ấy. Xin lượt mới là

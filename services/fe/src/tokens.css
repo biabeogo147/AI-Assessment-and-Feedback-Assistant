@@ -278,15 +278,30 @@ button:disabled {
   background: var(--accent-hover);
 }
 
-/* Nút báo lỗi là một viên thuốc có viền, không phải một cái link trơ. */
+/* Nút báo lỗi là một viên thuốc có viền, không phải một cái link trơ. Biểu tượng và chữ là hai
+   khúc cách 6, chữ 12 dòng 15, nên nút cao 27 như `Report control` (`281:25`). */
 .btn-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 15px;
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   font-size: var(--type-caption);
   font-weight: 600;
-  padding: 6px 10px;
+  /* Figma vẽ viền vào trong khung; CSS cộng viền ra ngoài, nên đệm trừ đi 1 để cao đúng 27. */
+  padding: 5px 9px;
+}
+
+/* Đã báo: cùng khung, nền lõm, chữ nhạt, không bấm lại được (Figma `Report control`, `281:24`). */
+.btn-report.done {
+  background: var(--sunken);
+  color: var(--ink-muted);
+  cursor: default;
+  /* `button:disabled` làm mờ một nửa; trạng thái này là một dấu đã xong, không phải nút tắt. */
+  opacity: 1;
 }
 
 /* Cái nút duy nhất kết thúc một pha: cao hơn, và label cỡ 14. */

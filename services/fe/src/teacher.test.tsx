@@ -7214,6 +7214,35 @@ describe("các màn của rail, phần hai (việc 18, plan `teacher-rail-screen
     expect(rows[2].textContent).toContain("0,5");
   });
 
+  it("ngân hàng: công thức trong mục kiến thức được dựng, ở bảng lẫn dòng phụ của panel", async () => {
+    // Thử tay đầu-cuối 20/10/2026: cột MỤC KIẾN THỨC hiện nguyên `$f'(x)$`.
+    const objective = "Đạo hàm $f'(x)$";
+    serving({
+      "/teacher/bank": {
+        approvals: 1,
+        questions: [{ bank_id: "b1", stem: "Câu?", learning_objective: objective, course: "Toán 12" }],
+      },
+      "/teacher/bank/b1": {
+        bank_id: "b1",
+        stem: "Câu?",
+        learning_objective: objective,
+        course: "Toán 12",
+        options: [],
+        methods: [],
+      },
+    });
+    const { container } = render(
+      <>
+        <Bank open="b1" />
+        <BankEditor bankId="b1" />
+      </>,
+    );
+    await screen.findByText("1 câu · từ 1 lần duyệt đề");
+    await waitFor(() => expect(container.querySelector(".bank-editor .meta .katex")).toBeTruthy());
+    expect(container.querySelector(".board-row .cell-muted .katex")).toBeTruthy();
+    expect(container.textContent).not.toContain("$f'(x)$");
+  });
+
   it("ngân hàng: bấm câu mở panel sửa; lưu gửi PATCH bản ngân hàng", async () => {
     const detail = {
       bank_id: "b1",
