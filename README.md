@@ -5,6 +5,7 @@ Hệ thống hỗ trợ giáo viên tạo đề, chấm bài, phân tích lỗi 
 | Tài liệu | Trả lời câu hỏi |
 | --- | --- |
 | [Local Development](docs/local-development.md) | Chạy, demo và chẩn đoán sự cố trên máy |
+| [Triển khai lab](docs/deploy-lab.md) | Đưa hệ thống lên AWS cho năm người trong team dùng thử |
 | [Project Overview](docs/overview/project-overview.md) | Project giải quyết vấn đề gì, cho ai |
 | [Architecture](docs/overview/architecture.md) | Hệ thống được chia thế nào và vì sao |
 | [Decisions](docs/decisions/README.md) | Quyết định nghiệp vụ: cái gì không đảo ngược được, ai được làm gì |
@@ -48,6 +49,7 @@ Nếu có bước nào không chạy như mô tả, [Local Development](docs/loc
 | `packages/contracts` | Message contract dùng chung. Chỉ có dữ liệu, không có logic |
 | `packages/schema` | Schema Postgres, dùng chung bởi hai service cùng ghi vào nó |
 | `tools/` | Check ở tầng repo mà không service nào tự kiểm được cho mình |
+| `deploy/lab/` | Triển khai lab: Terraform, image, compose, Caddy, script vận hành |
 | `docs/` | Tài liệu nghiệp vụ, kiến trúc và vận hành |
 
 Mỗi service có `AGENTS.md` riêng ghi ràng buộc cục bộ của nó.

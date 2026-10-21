@@ -4,7 +4,7 @@ Tài liệu này hướng dẫn dựng môi trường, chạy **năm process** c
 
 Mọi lệnh và mọi output trong tài liệu này đều đã được chạy thật trên Windows 11 với PowerShell. Nếu bạn thấy khác, phần [Chẩn đoán sự cố](#chẩn-đoán-sự-cố) ở cuối gần như chắc chắn có câu trả lời.
 
-Kiến trúc và lý do đằng sau các ranh giới nằm trong [Architecture](overview/architecture.md).
+Kiến trúc và lý do đằng sau các ranh giới nằm trong [Architecture](overview/architecture.md). Đưa hệ thống lên máy lab cho cả team: [Triển khai lab](deploy-lab.md).
 
 ## Yêu cầu
 
