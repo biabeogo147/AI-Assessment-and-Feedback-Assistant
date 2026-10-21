@@ -145,6 +145,11 @@ MINIO_IMPORT = re.compile(r"^\s*(?:from|import)\s+minio\b", re.MULTILINE)
 # -- và nó không ném gì cả, chỉ làm mọi thứ chậm đi trong lúc ai đó tải một cuốn sách lên.
 PYMUPDF_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:pymupdf|fitz)\b", re.MULTILINE)
 
+# PaddleOCR: sync, CPU-bound, 3,6–5,3 giây một trang (`LayoutReader.read`), nặng hơn PyMuPDF nhiều.
+# Hai model không liên quan nhau dùng nó, nên danh sách cho phép là **hai** file chứ không một
+# (Tier 2 câu 16 = A, 21/10/2026): gom về một cửa là thêm một lớp gián tiếp chỉ để giữ chữ "một".
+PADDLE_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:paddleocr|paddle)\b", re.MULTILINE)
+
 # Client của kho nội dung (MongoDB). Async thuần nên không chặn event loop như hai SDK trên, nhưng
 # luật "một module, một cửa" vẫn áp: một chỗ ghi Mongo thì một chỗ phải hỏi *"có ghi đúng thứ tự
 # nội dung trước, `state` sau không"*.
@@ -330,8 +335,12 @@ def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
     agent = AgentSettings()
     # Lần thứ ba một lời gọi mới xuất hiện trước model (`kriky-skill-routing`): Jev chọn skill trước
     # mỗi lần propose, có trần riêng, nên trường hợp xấu nhất cộng thêm trần ấy.
+    # Mỗi lần thử có thể chạy hai model nối nhau (`llm.with_fallback`) khi có model dự phòng; SDK
+    # không tự thử lại (`llm._build`, `max_retries=0`, Tier 2 câu 14 = A, 21/10/2026).
+    models = 2 if agent.llm_fallback_provider and agent.llm_fallback_model else 1
     worst_case = (
-        agent.skill_router_timeout_seconds + agent.llm_timeout_seconds * agent.llm_max_attempts
+        agent.skill_router_timeout_seconds
+        + agent.llm_timeout_seconds * agent.llm_max_attempts * models
     )
     job_patience = BeSettings().agent_job_timeout_seconds
 
@@ -340,7 +349,8 @@ def check_model_call_fits_inside_the_job_waiting_for_it() -> str | None:
             "timeout-order",
             f"a job may take SKILL_ROUTER_TIMEOUT_SECONDS={agent.skill_router_timeout_seconds} + "
             f"LLM_TIMEOUT_SECONDS={agent.llm_timeout_seconds} x "
-            f"LLM_MAX_ATTEMPTS={agent.llm_max_attempts} = {worst_case}s, which is not under "
+            f"LLM_MAX_ATTEMPTS={agent.llm_max_attempts} x {models} model(s) = {worst_case}s, "
+            "which is not under "
             f"AGENT_JOB_TIMEOUT_SECONDS={job_patience}; a slow model would look "
             "like a dead one to BE while the worker is still busy",
         )
@@ -1751,6 +1761,17 @@ def check_only_one_module_per_service_talks_to_a_sync_sdk() -> str | None:
             "pymupdf",
             PYMUPDF_IMPORT,
             (REPO_ROOT / "services" / "document" / "src" / "document" / "pdf.py",),
+            ("document",),
+        ),
+        (
+            # Hai file, cả hai được gọi qua `asyncio.to_thread` (`ocr_handlers.py`). File thứ ba
+            # import paddle là check đỏ: đi qua một trong hai (Tier 2 câu 16 = A, 21/10/2026).
+            "paddleocr",
+            PADDLE_IMPORT,
+            (
+                REPO_ROOT / "services" / "document" / "src" / "document" / "ocr" / "layout.py",
+                REPO_ROOT / "services" / "document" / "src" / "document" / "ocr" / "textline.py",
+            ),
             ("document",),
         ),
         (

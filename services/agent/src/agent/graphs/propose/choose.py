@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from agent import llm
 from agent.graphs.propose.ask_again import (
+    AskedWhatWasKnown,
     FewChoices,
     IncompletePlan,
     NoOutline,
@@ -16,10 +17,17 @@ from agent.graphs.propose.ask_again import (
 )
 from agent.graphs.propose.clarify import answers, choices_wanted, row_names
 from agent.graphs.propose.compose import ProposeState
-from agent.graphs.propose.outline import approved_plan, brief_in, miscounted, right_purpose
+from agent.graphs.propose.outline import (
+    approved_plan,
+    brief_in,
+    knows_everything,
+    miscounted,
+    right_purpose,
+)
 from agent.graphs.propose.plan_checks import drafts_over_a_revision, garbled, lacking
-from agent.graphs.propose.proposal import _Proposal, unmangled
+from agent.graphs.propose.proposal import _Proposal, nfc, unmangled
 from agent.graphs.propose.read_order import (
+    just_listed,
     library_first,
     misfiled_read,
     picked_book_first,
@@ -86,7 +94,9 @@ async def choose(state: ProposeState) -> dict:
         NextStepCompleted(
             request_id="",
             kind="say",
-            text=proposal.text.strip() if proposal.kind == "plan" else "",
+            # Qua bước sửa chữ như mọi lời khác (`_Proposal.completed`): `\frac` bị bộ giải mã JSON
+            # nuốt thành form-feed thì trả lại, rồi NFC.
+            text=nfc(unmangled(proposal).text.strip()) if proposal.kind == "plan" else "",
             model_tokens=spent,
         ),
         state["request"],
@@ -184,6 +194,11 @@ async def choose(state: ProposeState) -> dict:
         # chúng là gửi đi một thứ không trả lời gì.
         choices = answers(step.choices, step.text)
         step = step.model_copy(update={"choices": choices})
+        # Câu 33 = A (21/10/2026), đúng ca thử tay V6: `known` đủ bốn mục mà model hỏi lại **không
+        # câu hỏi, không nút nào** -- giáo viên kẹt. Chỉ ca ấy: hỏi lại có nút (mục nào trong nhiều
+        # mục khớp, lớp nào, bao nhiêu câu sau lời sửa) vẫn hợp lệ dù `known` đủ (review vòng 1).
+        if not choices and knows_everything(proposal.known) and not just_listed(request):
+            raise AskedWhatWasKnown("asked again with nothing to ask though known is full", step)
         wanted = choices_wanted(state["request"])
         if len(choices) < wanted:
             raise FewChoices(f"{len(choices)} choice(s), wanted {wanted}", step)

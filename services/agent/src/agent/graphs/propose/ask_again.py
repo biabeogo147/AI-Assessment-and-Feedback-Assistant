@@ -1,7 +1,6 @@
 """Các tín hiệu hỏi model lại đúng một lần (`AskAgain` và họ hàng), kèm lý do cho lần hỏi lại."""
 
-import re
-
+from agent.graphs.propose.outline import Miscount
 from contracts import MOST_CLARIFY_QUESTIONS, NextStepCompleted
 
 
@@ -58,31 +57,42 @@ class UncountedOutline(Flawed):
     model không biết sai ở đâu, và lần hai ra đúng dàn ý ấy.
     """
 
-    def __init__(self, flaw: str, step: NextStepCompleted) -> None:
-        super().__init__(flaw, step)
-        wanted = _WANTED.search(flaw)
-        if flaw.startswith("replace"):
+    def __init__(self, flaw: Miscount, step: NextStepCompleted) -> None:
+        super().__init__(str(flaw), step)
+        # Đọc trường của `Miscount`, không đọc chuỗi log: đổi câu log từng đổi lời nhắc mà không
+        # test nào đỏ (backlog, chia `propose.py` 20/10/2026).
+        if flaw.source == "replace":
             self.hint = (
                 "Dàn ý thay câu chỉ có đúng một mục, mục ấy một câu: chỉ cho câu bị thay. Nêu lại."
             )
-        elif wanted and "known says" in flaw:
+        elif flaw.source == "known":
             # Con số là của **model** (`known`), không phải lời giáo viên: nói đúng nguồn, để model
             # tự xét lại cả `known` khi giáo viên vừa đổi số câu (review code vòng 2).
-            n = wanted.group(1)
+            n = flaw.wanted
             self.hint = (
                 f"Bạn ghi question_count={n} trong known mà tổng số câu của dàn ý khác {n}. Nêu "
                 "lại dàn ý đủ đúng số câu giáo viên xin, và sửa known nếu giáo viên vừa đổi số câu."
             )
-        elif wanted:
-            n = wanted.group(1)
+        else:
+            n = flaw.wanted
             self.hint = (
                 f"Giáo viên xin {n} câu: tổng số câu của các mục trong dàn ý phải đúng {n}. "
                 "Nêu lại dàn ý."
             )
 
 
-# Số câu đúng trong lý do của `miscounted` (*"known says 5"*, *"the teacher asked for 5"*).
-_WANTED = re.compile(r"(?:says|asked for) (\d+)")
+class AskedWhatWasKnown(Flawed):
+    """Model hỏi lại trong khi chính `known` của nó đã ghi đủ bốn mục (Tier 2 câu 33 = A, 21/10).
+
+    Thử tay V6 (20/10/2026, Haiku): *"Bạn cho mình biết thêm một điều nhé:"* rồi hết -- không câu
+    hỏi, không nút, giáo viên kẹt; 4/10 lần hỏi lại hôm ấy `known` đã đủ. Hỏi lại model một lần, kèm
+    lời nhắc nêu dàn ý.
+    """
+
+    hint = (
+        "Bạn đã ghi đủ môn, khối, phạm vi và số câu trong known, nên không còn gì để hỏi "
+        "giáo viên. Đừng hỏi lại: hãy nêu dàn ý (kind=outline)."
+    )
 
 
 class PlanOverRevision(Flawed):

@@ -203,6 +203,21 @@ def test_claude_gets_its_key_and_its_thinking_and_effort(monkeypatch: pytest.Mon
     assert seen["effort"] == "low"
 
 
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_the_sdk_never_retries_on_its_own(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
+    """Tier 2 câu 14 = A (21/10/2026): SDK tự thử lại hai lần thì một job tính đủ là
+    3 + 20 × 3 × 3 = 183 s, vượt 70 s BE chờ, mà check `timeout-order` không thấy. Chỉ AGENT thử
+    lại (`LLM_MAX_ATTEMPTS`), nên phép tính của check là phép tính thật."""
+    seen = _built_with(
+        monkeypatch,
+        llm_provider=provider,
+        llm_model="m",
+        claude_api_key="claude-key",
+        openai_api_key="openai-key",
+    )
+    assert seen["max_retries"] == 0
+
+
 def test_claude_without_its_key_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     """Có key OpenAI mà thiếu key Claude thì vẫn từ chối: mỗi provider một key."""
     monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)

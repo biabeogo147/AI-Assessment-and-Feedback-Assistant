@@ -95,7 +95,10 @@ def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
             có. Thất bại ở đây tốt hơn thất bại bên trong một job, nơi lý do tới
             kèm trong một lỗi queue.
     """
-    extra: dict[str, object] = {"timeout": settings.llm_timeout_seconds}
+    # `max_retries=0`: SDK OpenAI và Anthropic tự thử lại hai lần nếu để mặc định, nhân trần thời
+    # gian của một job lên ba mà check `timeout-order` không thấy. Thử lại là việc của AGENT, ở một
+    # chỗ đếm được (`LLM_MAX_ATTEMPTS`) -- Tier 2 câu 14 = A, 21/10/2026.
+    extra: dict[str, object] = {"timeout": settings.llm_timeout_seconds, "max_retries": 0}
 
     attribute = _CREDENTIAL.get(provider)
     if attribute is not None:

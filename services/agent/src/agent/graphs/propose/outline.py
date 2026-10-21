@@ -3,6 +3,8 @@
 import logging
 import re
 import unicodedata
+from dataclasses import dataclass
+from typing import Literal
 
 from agent.graphs.propose.history import since_plan
 from contracts import NextStepCompleted, NextStepRequested, PlanStep
@@ -216,8 +218,42 @@ def brief_in(known: str) -> dict[str, str]:
     return found
 
 
-def miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) -> str:
-    """Vì sao số câu của một dàn ý không khớp việc được nhờ; rỗng khi khớp. Hàm thuần.
+def knows_everything(known: str) -> bool:
+    """`known` đã ghi đủ môn, khối, phạm vi và số câu: bốn mục `soan-de` hỏi. Hàm thuần."""
+    brief = brief_in(known)
+    return all(key in brief for key in ("subject", "grade", "topic_scope")) and bool(
+        _COUNT_IN_KNOWN.search(known)
+    )
+
+
+@dataclass(frozen=True)
+class Miscount:
+    """Số câu của một dàn ý lệch ở đâu. Giá trị có cấu trúc, để lời nhắc (`UncountedOutline`)
+    đọc trường chứ không đọc chuỗi log (backlog, chia `propose.py` 20/10/2026).
+
+    Attributes:
+        source: `replace` (dàn ý thay câu không phải một mục một câu), `known` (lệch số model ghi
+            trong `known`), hay `teacher` (lệch số giáo viên nói).
+        total: Tổng số câu của dàn ý.
+        items: Số mục của dàn ý.
+        wanted: Số câu đúng; `None` với `replace`.
+    """
+
+    source: Literal["replace", "known", "teacher"]
+    total: int
+    items: int
+    wanted: int | None = None
+
+    def __str__(self) -> str:
+        if self.source == "replace":
+            return f"replace outline has {self.items} item(s), {self.total} question(s)"
+        if self.source == "known":
+            return f"outline totals {self.total}, known says {self.wanted}"
+        return f"outline totals {self.total}, the teacher asked for {self.wanted}"
+
+
+def miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) -> Miscount | None:
+    """Vì sao số câu của một dàn ý không khớp việc được nhờ; `None` khi khớp. Hàm thuần.
 
     Đối chiếu với chính thứ model đã ghi: `question_count=N` trong `known` (quy trình `soan-de` bắt
     ghi nó). `known` không có số câu -- Haiku hay để trống nó từ lượt thứ hai -- thì đối chiếu với
@@ -232,24 +268,25 @@ def miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) 
         request: Lượt đang hỏi, để đọc lời giáo viên.
 
     Returns:
-        Lý do, hoặc chuỗi rỗng.
+        Chỗ lệch, hoặc `None`.
     """
     total = sum(item.questions for item in step.outline)
+    items = len(step.outline)
     if str(step.tool_args.get("for") or "") == "replace":
-        if len(step.outline) != 1 or total != 1:
-            return f"replace outline has {len(step.outline)} item(s), {total} question(s)"
-        return ""
+        if items != 1 or total != 1:
+            return Miscount("replace", total, items)
+        return None
     if _count_revised(request):
-        return ""
+        return None
     found = _COUNT_IN_KNOWN.search(known)
     if found:
         if int(found.group(1)) != total:
-            return f"outline totals {total}, known says {found.group(1)}"
-        return ""
+            return Miscount("known", total, items, int(found.group(1)))
+        return None
     said = _count_said(request)
     if said is not None and said != total:
-        return f"outline totals {total}, the teacher asked for {said}"
-    return ""
+        return Miscount("teacher", total, items, said)
+    return None
 
 
 def _count_said(request: NextStepRequested) -> int | None:
@@ -263,9 +300,11 @@ def _count_said(request: NextStepRequested) -> int | None:
     if _count_revised(request):
         return None
     for turn in reversed(since_plan(request)):
-        if turn.kind != "teacher" or _REPLACES.search(turn.text):
+        # NFC trước mọi regex: chữ gõ từ bàn phím NFD (macOS, iOS) không khớp *"câu"* của regex.
+        text = unicodedata.normalize("NFC", turn.text)
+        if turn.kind != "teacher" or _REPLACES.search(text):
             continue
-        said = _COUNT_SAID.findall(_GRADE_NUMBER.sub("", turn.text))
+        said = _COUNT_SAID.findall(_GRADE_NUMBER.sub("", text))
         if said:
             return int(said[-1])
     return None
@@ -287,12 +326,13 @@ def _count_revised(request: NextStepRequested) -> bool:
     # vòng 3).
     for at in range(len(since) - 1, -1, -1):
         turn = since[at]
-        if turn.kind != "teacher" or _REPLACES.search(turn.text):
+        text = unicodedata.normalize("NFC", turn.text)
+        if turn.kind != "teacher" or _REPLACES.search(text):
             continue
-        if (_ADDS.search(turn.text) or _TRIMS.search(turn.text)) and any(
+        if (_ADDS.search(text) or _TRIMS.search(text)) and any(
             earlier.kind == "outline" for earlier in since[:at]
         ):
             return True
-        if _COUNT_SAID.search(_GRADE_NUMBER.sub("", turn.text)):
+        if _COUNT_SAID.search(_GRADE_NUMBER.sub("", text)):
             return False
     return False

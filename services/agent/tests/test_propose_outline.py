@@ -847,7 +847,7 @@ def test_a_count_in_known_is_set_aside_after_the_teacher_adds_questions() -> Non
         TurnRecord(kind="outline", text="Dàn ý."),
         TurnRecord(kind="teacher", text="thêm 2 câu hình học"),
     )
-    assert miscounted(_counted(7), "question_count=5 «5 câu»", asked) == ""
+    assert miscounted(_counted(7), "question_count=5 «5 câu»", asked) is None
 
 
 def test_the_same_scope_spelled_differently_is_still_the_same_scope() -> None:
@@ -875,3 +875,175 @@ def test_the_same_scope_spelled_differently_is_still_the_same_scope() -> None:
 
     assert (step.kind, step.tool_name) == ("call_tool", "read_section")
     assert step.tool_args["part"] == "4"
+
+
+# --- chữ gõ từ bàn phím NFD (macOS, iOS): plan `muc-1-2-loop-1`, 21/10/2026 ----------------------
+
+
+def _nfd(text: str) -> str:
+    import unicodedata
+
+    return unicodedata.normalize("NFD", text)
+
+
+def test_a_count_typed_in_nfd_is_still_the_count_asked_for() -> None:
+    asked = _asked(TurnRecord(kind="teacher", text=_nfd("soạn 5 câu chương 1")))
+    assert miscounted(_counted(7), "topic_scope=chương 1", asked)
+
+
+def test_an_added_count_typed_in_nfd_still_revises_the_outline() -> None:
+    asked = _asked(
+        TurnRecord(kind="teacher", text="soạn 5 câu"),
+        TurnRecord(kind="outline", text="Dàn ý."),
+        TurnRecord(kind="teacher", text=_nfd("thêm 2 câu hình học")),
+    )
+    assert not miscounted(_counted(7), "topic_scope=chương 1", asked)
+
+
+def test_a_revision_typed_in_nfd_still_holds_the_drafting_plan_back() -> None:
+    from agent.graphs.propose.plan_checks import drafts_over_a_revision
+
+    plan = NextStepCompleted(
+        request_id="r1",
+        kind="plan",
+        text="Mình soạn.",
+        steps=(
+            PlanStep(
+                tool_name="start_drafting",
+                args={"assessment_id": "p1", "question_count": "2"},
+                title="Soạn câu hỏi",
+            ),
+        ),
+    )
+    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    assert drafts_over_a_revision(plan, _agreed(kept, _nfd("đổi câu 2 sang tự luận")))
+
+
+@pytest.mark.asyncio
+async def test_an_agreement_gives_back_the_backslashes_of_the_plan_s_opening(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Lời mở của plan đã đồng ý đi qua bước sửa chữ như mọi lời khác: `\frac` bị bộ giải mã JSON
+    nuốt thành form-feed thì được trả lại (backlog, *Lời mở của plan đã đồng ý bỏ qua bước sửa
+    chữ*)."""
+    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    planned = _Proposal(
+        kind="plan",
+        text=_nfd("Mình soạn câu về $") + chr(12) + "rac{a}{b}$ nhé.",
+        steps=(_Step(tool_name="create_draft", title="Tạo đề trống"),),
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([planned]),))
+
+    step = await propose(_agreed(kept))
+
+    assert step.kind == "plan"
+    assert step.text == "Mình soạn câu về $" + chr(92) + "frac{a}{b}$ nhé."
+
+
+def _part_one_read(nodes: object) -> tuple[NextStepCompleted, TurnRecord, TurnRecord]:
+    outline = NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+    )
+    asked = {"document_id": "book", "nodes": "0", "questions": "5", "part": "1"}
+    call = TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked)
+    read = TurnRecord(
+        kind="tool_result",
+        tool_name="read_section",
+        tool_result={"found": True, "part": 1, "parts": 5, "more": True, "nodes": nodes},
+    )
+    return outline, call, read
+
+
+def test_a_read_with_no_result_does_not_shift_the_pairs_after_it() -> None:
+    """Backlog (chia `propose.py`, 20/10/2026): ghép lời gọi với kết quả theo chỉ số thì một lời gọi
+    không có kết quả làm lệch mọi cặp sau, và phần đã đọc thành phần của lời gọi khác."""
+    outline, call, read = _part_one_read([1, 2])
+    elsewhere = TurnRecord(
+        kind="tool_call",
+        tool_name="read_section",
+        tool_args={"document_id": "book", "nodes": "9", "questions": "5"},
+    )
+    step = read_before_outline(
+        outline, _with_book(TurnRecord(kind="teacher", text="x"), elsewhere, call, read)
+    )
+    assert (step.kind, step.tool_name) == ("call_tool", "read_section")
+    assert step.tool_args["part"] == "2"
+
+
+def test_a_node_that_is_not_a_number_does_not_break_the_turn() -> None:
+    """`int(node)` trên một node lạ từng ném `ValueError`, và lượt gãy thành *model hỏng*."""
+    outline, call, read = _part_one_read(["1", "mục 2"])
+    step = read_before_outline(
+        outline, _with_book(TurnRecord(kind="teacher", text="x"), call, read)
+    )
+    assert step.tool_args["part"] == "2"
+
+
+_KNOWN_ALL = "subject=Toán; grade=12; topic_scope=chương Hàm số; question_count=5 «5 câu»"
+
+
+@pytest.mark.asyncio
+async def test_asking_again_with_every_field_known_is_asked_once_more(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Tier 2 câu 33 = A (21/10/2026): thử tay V6, `known` đủ bốn mục mà model vẫn hỏi lại, không
+    câu hỏi nào, giáo viên kẹt. AGENT hỏi model lại một lần, kèm lời nhắc nêu dàn ý."""
+    empty = _Proposal(
+        kind="ask_clarify", text="Bạn cho mình biết thêm một điều nhé:", known=_KNOWN_ALL
+    )
+    outline = _Proposal(
+        kind="outline",
+        text="Mình đề xuất dàn ý.",
+        known=_KNOWN_ALL,
+        outline=(_item(questions=5),),
+        tool_args=(_Argument(param="for", value="new"),),
+    )
+    scripted = Scripted([empty, outline])
+    monkeypatch.setattr(llm, "chat_models", lambda: (scripted,))
+
+    step = await propose(_asked(TurnRecord(kind="teacher", text="soạn 5 câu chương Hàm số lớp 12")))
+
+    assert step.kind == "outline"
+    assert "nêu dàn ý" in scripted.prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_asking_again_with_a_field_missing_stays_a_question(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    known = "subject=Toán; grade=?; topic_scope=chương Hàm số; question_count=5 «5 câu»"
+    ask = _Proposal(
+        kind="ask_clarify",
+        text="Đề này cho khối nào?",
+        known=known,
+        choices=("Khối 10", "Khối 11", "Khối 12"),
+    )
+    monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([ask]),))
+
+    step = await propose(_asked(TurnRecord(kind="teacher", text="soạn 5 câu chương Hàm số")))
+
+    assert step.kind == "ask_clarify"
+
+
+@pytest.mark.asyncio
+async def test_asking_which_section_with_every_field_known_stays_a_question(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review vòng 1 (21/10/2026): phạm vi khớp nhiều mục thì hỏi lại kèm nút là hợp lệ dù `known`
+    đủ bốn mục; chỉ lời hỏi lại không câu hỏi, không nút nào mới bị hỏi lại."""
+    ask = _Proposal(
+        kind="ask_clarify",
+        text="Phạm vi này khớp ba mục, bạn chọn mục nào?",
+        known=_KNOWN_ALL,
+        choices=("1. Đồng biến", "2. Cực trị", "3. Giá trị lớn nhất"),
+    )
+    scripted = Scripted([ask])
+    monkeypatch.setattr(llm, "chat_models", lambda: (scripted,))
+
+    step = await propose(_asked(TurnRecord(kind="teacher", text="soạn 5 câu chương Hàm số lớp 12")))
+
+    assert step.kind == "ask_clarify"
+    assert len(scripted.prompts) == 1

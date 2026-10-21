@@ -6,9 +6,9 @@ Adds to the root contract. Constraints only.
   page count, and a sentence a teacher can understand. BE owns the row.
 - No credential for any store of record. Everything needed arrives in the job payload, which is
   why the payloads carry `storage_key`, not a row id. `tools/check_contract.py` enforces it.
-- One SDK, one module: `pdf.py` imports `pymupdf`, `storage.py` imports `minio`,
-  `content_store.py` imports `pymongo`, `index/jev.py` imports `typesafe_sdk`,
-  `index/llm.py` imports `langchain` (and passes the API key in). Sync SDKs go through
+- One SDK, one module: `pdf.py` imports `pymupdf`, `storage.py` `minio`, only `ocr/layout.py` and
+  `ocr/textline.py` `paddleocr`, `content_store.py` `pymongo`, `index/jev.py` `typesafe_sdk`,
+  `index/llm.py` `langchain` (and passes the API key in). Sync SDKs go through
   `asyncio.to_thread`, never `run_in_threadpool`. `probe.py` and `index/rules.py` hold the
   thresholds, never an SDK.
 - MongoDB is the content store, not a store of record. Raw pages are written only by the

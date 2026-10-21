@@ -28,6 +28,7 @@ sinh ra bên dưới:
 
 import logging
 import re
+import unicodedata
 
 from agent import llm
 from agent.graphs.authoring import draft_brief, normalise, retry_brief, write_question
@@ -530,7 +531,7 @@ def _question_in_focus(request: ExplainTurnRequested) -> GeneratedQuestion | Non
     numbers = _numbers(request)
 
     def by_number(text: str) -> GeneratedQuestion | None:
-        match = re.search(r"câu\s*(\d+)", text, re.IGNORECASE)
+        match = re.search(r"câu\s*(\d+)", unicodedata.normalize("NFC", text), re.IGNORECASE)
         if match is None:
             return None
         wanted = int(match.group(1))
@@ -712,7 +713,7 @@ def _outline_before(history: tuple[TurnRecord, ...]) -> str | None:
         return None
     for turn in reversed(rows[:-2]):
         if turn.kind == "teacher":
-            return turn.text
+            return unicodedata.normalize("NFC", turn.text)
     return None
 
 
@@ -740,7 +741,10 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
     """
     turn = _current_turn(request.history)
     harvested = next((step for step in reversed(turn) if step.kind == "tool_result"), None)
-    asked = next((step.text for step in reversed(turn) if step.kind == "teacher"), "")
+    # NFC trước mọi regex của mock, như đường thật: chữ NFD (macOS, iOS) lọt khỏi `AGREES`.
+    asked = unicodedata.normalize(
+        "NFC", next((step.text for step in reversed(turn) if step.kind == "teacher"), "")
+    )
     plannable = {tool.name for tool in request.plannable}
 
     wants_a_paper = (

@@ -1,6 +1,7 @@
 """Kiểm hình dạng một plan: tham số hỏng, thiếu tham số, soạn ngay sau lời xin sửa dàn ý."""
 
 import re
+import unicodedata
 
 from agent.graphs.propose.outline import AGREES
 from contracts import NextStepCompleted, NextStepRequested, PlanStep, TurnRecord
@@ -137,7 +138,8 @@ def drafts_over_a_revision(step: NextStepCompleted, request: NextStepRequested) 
         after.append(turn)
     else:
         return False
-    said = [turn.text for turn in after if turn.kind == "teacher"]
+    # NFC như `approved_plan`: chữ NFD (macOS, iOS) lọt khỏi `_REVISES` và `AGREES`.
+    said = [unicodedata.normalize("NFC", turn.text) for turn in after if turn.kind == "teacher"]
     if not said or AGREES.match(said[0]):
         return False
     return bool(_REVISES.search(_NO_CHANGE.sub(" ", said[0])))

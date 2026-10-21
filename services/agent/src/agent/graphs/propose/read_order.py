@@ -268,13 +268,18 @@ def which_book(step: NextStepCompleted, request: NextStepRequested) -> NextStepC
     listed = listed_documents(request)
     if not listed:
         return step
-    spoken = [turn for turn in since_plan(request) if turn.kind in {"teacher", "tool_result"}]
-    last = spoken[-1] if spoken else None
-    if last is None or last.kind != "tool_result" or last.tool_name != "list_documents":
+    if not just_listed(request):
         return step
     if _asks_which_book(" ".join([step.text, *(one.text for one in step.questions)]), listed):
         return step
     raise WrongQuestion("asked something else right after listing the documents", step)
+
+
+def just_listed(request: NextStepRequested) -> bool:
+    """Lượt nói gần nhất (giáo viên hay kết quả tool) là kết quả một `list_documents`. Hàm thuần."""
+    spoken = [turn for turn in since_plan(request) if turn.kind in {"teacher", "tool_result"}]
+    last = spoken[-1] if spoken else None
+    return last is not None and last.kind == "tool_result" and last.tool_name == "list_documents"
 
 
 def _asks_which_book(text: str, listed: list[dict]) -> bool:
@@ -297,6 +302,11 @@ def _asks_which_book(text: str, listed: list[dict]) -> bool:
     names = [unicodedata.normalize("NFC", str(one.get("label") or "")).casefold() for one in listed]
     stems = [name.rsplit(".", 1)[0] if "." in name else name for name in names]
     return any(stem and stem in lowered for stem in stems)
+
+
+def _numbers(value: object) -> set[int]:
+    """Mọi số nguyên viết trong một giá trị: `"1, 2"`, `[1, 2]`, `["1", "mục 2"]`. Hàm thuần."""
+    return {int(one) for one in re.findall(r"\d+", str(value or ""))}
 
 
 def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> NextStepCompleted:
@@ -328,9 +338,17 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
         # hay lần đọc của lượt trước, không bắt đọc hết phần còn lại (review đợt 6).
         asked_at = max((at for at, turn in enumerate(since) if turn.kind == "teacher"), default=-1)
         current = [turn for turn in since[asked_at + 1 :] if turn.tool_name == "read_section"]
-        calls = [turn for turn in current if turn.kind == "tool_call"]
-        done = [turn.tool_result for turn in current if turn.kind == "tool_result"]
-        last = done[-1] if done else {}
+        # Ghép mỗi kết quả với **lời gọi ngay trước nó**, không theo chỉ số: một lời gọi không có
+        # kết quả từng làm lệch mọi cặp sau (backlog, chia `propose.py` 20/10/2026).
+        calls: list[TurnRecord] = []
+        answers: list[dict | None] = []
+        for turn in current:
+            if turn.kind == "tool_call":
+                calls.append(turn)
+                answers.append(None)
+            elif turn.kind == "tool_result" and answers and answers[-1] is None:
+                answers[-1] = turn.tool_result
+        last = (answers[-1] if answers else None) or {}
         sources = {node for item in step.outline for node in item.source_nodes}
 
         # **Cả** phạm vi đã đọc trong lượt -- mọi phần, mọi lời gọi --, không chỉ phần cuối: đọc
@@ -349,11 +367,12 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
             }
 
         same = [at for at, call in enumerate(calls) if calls and scope(call) == scope(calls[-1])]
-        read = {int(node) for at in same if at < len(done) for node in done[at].get("nodes") or ()}
+        # Đọc số trong chữ, không `int(node)`: một node lạ trong kết quả từng ném `ValueError`, và
+        # lượt gãy thành thông báo *model hỏng* thay vì đi tiếp.
+        read: set[int] = set()
         for at in same:
-            read |= {
-                int(node) for node in re.findall(r"\d+", str(calls[at].tool_args.get("nodes")))
-            }
+            read |= _numbers((answers[at] or {}).get("nodes"))
+            read |= _numbers(calls[at].tool_args.get("nodes"))
         if (
             last.get("found") is True
             and last.get("more") is True
