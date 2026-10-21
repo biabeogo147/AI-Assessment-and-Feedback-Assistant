@@ -413,8 +413,8 @@ Chờ tới giờ mở trước khi sang chặng 5. Trong lúc chờ có thể l
 
 **Làm:** mở `http://127.0.0.1:5173/#/`.
 
-**Phải thấy (HS 12):** *Đăng nhập để làm bài*, ô *Tên đăng nhập* và *Mật khẩu*, nút *Đăng nhập*, dòng *Tên
-đăng nhập và mật khẩu do thầy cô phát cho em. Quên mật khẩu thì nhờ thầy cô đặt lại.*
+**Phải thấy (HS 12):** *Đăng nhập để làm bài*, ô *Tên đăng nhập* và *Mật khẩu*, nút *Đăng nhập*; dưới
+nút không có dòng chữ nào.
 
 **Làm:** gõ tên đăng nhập và mật khẩu của Châu đã chép ở 2.4, bấm *Đăng nhập*.
 

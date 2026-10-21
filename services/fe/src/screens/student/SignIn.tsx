@@ -81,9 +81,6 @@ export default function SignIn({ onSignedIn }: { onSignedIn: (me: Me) => void })
           <button className="student-sign-in-button" type="submit" disabled={busy}>
             Đăng nhập
           </button>
-          <p className="note">
-            Tên đăng nhập và mật khẩu do thầy cô phát cho em. Quên mật khẩu thì nhờ thầy cô đặt lại.
-          </p>
         </form>
       </main>
     </>

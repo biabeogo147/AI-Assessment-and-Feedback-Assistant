@@ -73,7 +73,8 @@ describe("đăng nhập học sinh (việc 22)", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Đăng nhập để làm bài" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Đăng xuất" })).toBeNull();
-    expect(screen.getByText(/do thầy cô phát cho em/)).toBeTruthy();
+    // Hộp đăng nhập chỉ có hai ô và nút: không còn dòng nhắc ai phát mật khẩu.
+    expect(screen.queryByText(/do thầy cô phát cho em/)).toBeNull();
   });
 
   it("sai thì câu của BE ngay trên nút; đúng thì vào Bài của tôi, không gửi X-Actor", async () => {
