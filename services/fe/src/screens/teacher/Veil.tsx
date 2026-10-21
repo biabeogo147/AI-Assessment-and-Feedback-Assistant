@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 
 /**
  * Màn che và cái hộp đứng trên nó — khuôn chung của mọi hộp thoại bề mặt giáo viên.
@@ -17,19 +17,25 @@ import { useEffect, type ReactNode, type RefObject } from "react";
  *   **huỷ**, không phải đường xác nhận.
  * @param wide - Hộp rộng 680 thay vì 460. Lời giải cần chỗ; một hộp xác nhận thì không.
  * @param className - Class thêm cho hộp có khung riêng, như hộp chọn câu ngân hàng (`picker`).
+ * @param inert - Cho phần ngoài hộp thôi nhận focus (`useInert`). Bật cho hộp mà một Tab lạc ra ngoài
+ *   là đổi đối tượng của chính hộp, như hộp hỏi lại *Đặt lại mật khẩu* (review vòng 1, 21/10/2026).
  * @param children - Ruột của hộp.
  */
 export default function Veil({
   onClose,
   wide = false,
   className = "",
+  inert = false,
   children,
 }: {
   onClose: () => void;
   wide?: boolean;
   className?: string;
+  inert?: boolean;
   children: ReactNode;
 }) {
+  const veil = useRef<HTMLDivElement>(null);
+  useInert(veil, inert);
   useEffect(() => {
     const shut = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -39,7 +45,7 @@ export default function Veil({
   }, [onClose]);
 
   return (
-    <div className="veil" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="veil" role="dialog" aria-modal="true" onClick={onClose} ref={veil}>
       <div
         className={["confirm", wide ? "wide" : "", className].filter(Boolean).join(" ")}
         onClick={(event) => event.stopPropagation()}
@@ -60,9 +66,11 @@ export default function Veil({
  * Đi từ hộp lên tới `body`, đánh dấu anh em của từng tầng; chỉ bỏ dấu những gì chính nó đã đánh.
  *
  * @param dialog - Phần tử màn che của hộp.
+ * @param enabled - Tắt thì không đánh dấu gì (cho `Veil`, nơi hook luôn được gọi).
  */
-export function useInert(dialog: RefObject<HTMLElement>): void {
+export function useInert(dialog: RefObject<HTMLElement>, enabled = true): void {
   useEffect(() => {
+    if (!enabled) return undefined;
     const marked: Element[] = [];
     for (
       let node: HTMLElement | null = dialog.current;
@@ -77,5 +85,5 @@ export function useInert(dialog: RefObject<HTMLElement>): void {
       }
     }
     return () => marked.forEach((one) => one.removeAttribute("inert"));
-  }, [dialog]);
+  }, [dialog, enabled]);
 }

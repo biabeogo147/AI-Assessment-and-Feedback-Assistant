@@ -172,7 +172,7 @@ export default function ClassDetail({ classId }: { classId: string }) {
         />
       )}
       {asking !== null && (
-        <Veil onClose={() => setAsking(null)}>
+        <Veil onClose={() => setAsking(null)} inert>
           <h3>Đặt lại mật khẩu cho {asking.full_name}?</h3>
           <p className="lead">
             Mật khẩu cũ của em sẽ không dùng được nữa. Nếu em đang làm bài, em phải đăng nhập lại bằng

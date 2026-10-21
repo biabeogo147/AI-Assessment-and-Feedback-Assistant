@@ -149,6 +149,21 @@ describe("màn 10: tên đăng nhập và đặt lại mật khẩu", () => {
     expect((await screen.findByRole("alert")).textContent).toBe("Không tìm thấy học sinh này trong lớp.");
   });
 
+  it("hộp hỏi lại chặn Tab: phần ngoài hộp mang inert trong lúc hộp mở", async () => {
+    // Review vòng 1 (21/10/2026): Tab đi xuyên hộp tới nút của em khác, Enter ở đó đổi người.
+    backend();
+    const { container } = render(<ClassDetail classId="c12a" />);
+    const row = (await screen.findByText("Nguyễn Minh Anh")).closest(".board-row") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Đặt lại mật khẩu" }));
+    // jsdom không mô phỏng việc `inert` chặn focus: test canh dấu được gắn đúng chỗ, còn "Tab không
+    // ra ngoài hộp" đã thử tay trên trình duyệt (plan `muc-1-2-loop-2`).
+    const table = container.querySelector(".class-students") as HTMLElement;
+    expect(table.closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("dialog").closest("[inert]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Giữ mật khẩu cũ" }));
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
   it("hộp hỏi lại: Giữ mật khẩu cũ thì không gửi gì", async () => {
     const sent = backend();
     render(<ClassDetail classId="c12a" />);
