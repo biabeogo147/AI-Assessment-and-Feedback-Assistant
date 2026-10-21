@@ -16,12 +16,12 @@ thành ADR, không phải những **tính năng** chưa dựng.
 | --- | --- |
 | *Bảng theo dõi* chỉ có đầu trang | Ba đích đến kia đã dẫn tới màn thật (việc 18, 18/10/2026); thân màn này là việc 19 |
 | Nút *Tạo lớp* (artboard 9) | **Chưa quyết** (18/10/2026): chưa thuộc việc nào của đợt tất định, và BE chưa có đường tạo lớp. Màn 9 cố ý không vẽ nút |
-| Bản sửa ở ngân hàng mất khi đề gốc được duyệt lại | **Chưa quyết** (18/10/2026): `file_approved` ghi bản ngân hàng theo `question_id`, nên bỏ duyệt rồi duyệt lại đề gốc đè lên bản giáo viên đã sửa ở màn 22b |
+| Bản sửa ở ngân hàng mất khi đề gốc được duyệt lại | **Đã làm** 21/10/2026 (chốt A): bản đã sửa thắng, duyệt lại không ghi đè -- plan `muc-1-2-loop-1`. Trước đó: `file_approved` ghi bản ngân hàng theo `question_id`, nên bỏ duyệt rồi duyệt lại đề gốc đè lên bản giáo viên đã sửa ở màn 22b |
 | Ngân hàng không gộp câu trùng nội dung | Chưa cần: hai đề có cùng một câu cho hai dòng ngân hàng (thấy trên DB dev, đề seed và đề mock). Gộp thì phải chọn bản sửa nào thắng |
 | Quên mật khẩu, đổi mật khẩu của giáo viên; đăng nhập Google thật | Ngoài phạm vi việc 22 (ADR-36). Quên mật khẩu cần một kênh gửi (email hay SMS) mà hệ thống chưa có; nút Google hiện chỉ là giao diện |
-| Khoá đăng nhập dùng được để khoá người khác | **Chưa quyết** (21/10/2026, review vòng 1 Tier 1): ai biết SĐT một giáo viên thì giữ được tài khoản ấy bị khoá (5 lần sai mỗi 15 phút), và 50 lần sai sau NAT của trường khoá mọi người sau NAT ấy 15 phút. A giữ như nay · B khoá theo cặp tên + địa chỉ · C làm chậm dần (chờ 1, 2, 4… giây) thay vì khoá. ADR-36 hậu ký 21/10 |
-| Trần 1 MB của tệp danh sách lớp kiểm **sau** khi nhận hết tệp | Chặn bởi chỗ triển khai: Starlette đã nhận và ghi tệp ra đĩa trước khi route đọc; trần thật đặt ở proxy |
-| *Đặt lại mật khẩu* chạy ngay, không hỏi lại | **Chưa quyết** (19/10/2026): đúng Figma 10b đã duyệt, nhưng một cú bấm nhầm đổi mật khẩu và đẩy em ấy ra khỏi bài đang làm. Review pha 4 của việc 22 hỏi có thêm một bước xác nhận không |
+| Khoá đăng nhập dùng được để khoá người khác | **Đã làm** 21/10/2026 (chốt B): khoá theo cặp tên + địa chỉ -- plan `muc-1-2-loop-1`. Ghi từ review vòng 1 Tier 1: ai biết SĐT một giáo viên thì giữ được tài khoản ấy bị khoá (5 lần sai mỗi 15 phút), và 50 lần sai sau NAT của trường khoá mọi người sau NAT ấy 15 phút. A giữ như nay · B khoá theo cặp tên + địa chỉ · C làm chậm dần (chờ 1, 2, 4… giây) thay vì khoá. ADR-36 hậu ký 21/10 |
+| Trần 1 MB của tệp danh sách lớp kiểm **sau** khi nhận hết tệp | Chờ người dùng commit phần `deploy/` đang sửa dở (21/10/2026), rồi thêm `request_body { max_size 1MB }` vào `deploy/lab/Caddyfile`. Chặn bởi chỗ triển khai: Starlette đã nhận và ghi tệp ra đĩa trước khi route đọc; trần thật đặt ở proxy |
+| *Đặt lại mật khẩu* chạy ngay, không hỏi lại | **Đã làm** 21/10/2026 (chốt B): thêm hộp xác nhận -- plan `muc-1-2-loop-1`. Ghi 19/10/2026: đúng Figma 10b đã duyệt, nhưng một cú bấm nhầm đổi mật khẩu và đẩy em ấy ra khỏi bài đang làm. Review pha 4 của việc 22 hỏi có thêm một bước xác nhận không |
 | Danh sách đoạn chat không phân trang | Một giáo viên dùng một năm sẽ có vài trăm hàng, và lúc ấy rail cần một đường **tìm kiếm** chứ không phải một danh sách dài hơn |
 | Mỗi lớp một bộ giờ riêng | **Đã bác**, không phải việc chưa làm: ngày 06/10/2026 chốt phát hành là một việc với một khung giờ. Schema vẫn cho phép vì `Publication` khoá theo `(đề, lớp)` |
 | `services/fe` nay là tên sai | **Không làm** (17/10/2026): không người dùng nào chạm tới. Nó phục vụ **hai** bề mặt; đổi tên chạm `pnpm-workspace.yaml`, `dev.ps1`, `check_contract.py`, `AGENTS.md`, `local-development.md` |
@@ -59,7 +59,7 @@ không — đặc biệt là độ dài tên lớp và cách đặt tên.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Xuất bảng điểm ra file | Không bị chặn. Chưa dựng vì chưa quyết định dạng file và ai được xuất |
+| Xuất bảng điểm ra file | **Đã làm**: tệp `.xlsx` chung ở việc 20 (18/10/2026); phần khớp sổ điểm vnEdu/SMAS người dùng bỏ (21/10/2026) |
 | Đánh dấu bài **cần giáo viên xem lại** ngay trên bảng điểm | Đã dựng rồi gỡ đi — xem dưới |
 
 ### Vì sao "cần xem lại" bị gỡ khỏi bảng điểm
@@ -167,7 +167,7 @@ chỉ hiện một lần, hậu ký ADR-13 và [ADR-36](../decisions/adr-36-dang
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Trục trạng thái *chưa mở* / *đã mở* cho `Action result card` | Không bị chặn. Chưa dựng vì nó nhân đôi số variant |
+| Trục trạng thái *chưa mở* / *đã mở* cho `Action result card` | **Không còn đúng** (đo 21/10/2026, plan `muc-1-2-loop-1`): cả thẻ `đã-phát-hành` (`10:45`) lẫn `ActionCard.tsx` đều không có nút Thu hồi. Thu hồi nằm ở `PublishSettings` và đã theo `recallable`; thẻ chỉ nói luật bằng câu an toàn. Đoạn dưới tả một bản Figma cũ |
 
 [ADR-02](../decisions/adr-02-phat-hanh-va-cua-so-thu-hoi.md) chốt thu hồi được **cho tới hết giờ mở**,
 và đòi nút Thu hồi **mất đi** khi đã qua mốc đó. Thẻ `đã-phát-hành` (`10:45`) nay có nút, nhưng
@@ -231,7 +231,7 @@ bốn tiếng là chừng 22 triệu request đi qua proxy của dev server.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Tầng phòng thủ thứ hai cho vòng lặp client | **Tier 2: ngưỡng chặn tần suất là quyết định (đặt sai thì cắt nhầm học sinh thật)** (plan `backlog-tier-1`, pha 4). Không bị chặn. Chưa quyết định đặt ở đâu |
+| Tầng phòng thủ thứ hai cho vòng lặp client | **Đã làm** 21/10/2026 (chốt A): BE trả 429 khi một bài làm xin lịch sử hội thoại từ 10 lần trong một giây -- plan `muc-1-2-loop-1` |
 
 Bản sửa là một cái chốt: xin nhiều nhất một lần cho mỗi bài làm. Nó đúng và đủ cho nguyên nhân gốc,
 nhưng nó nằm ở **client** — mà client là thứ ta ít kiểm soát nhất. Một tầng thứ hai ở BE (chặn tần
@@ -490,7 +490,7 @@ chặn; thứ còn thiếu là luật *một module* của check.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Mở seam thứ ba cho `paddle`/`paddleocr`, hoặc dựng một `ocr/engine.py` làm cửa duy nhất | **Tier 2: chọn hình dạng (danh sách ba file hay một cửa ocr/engine.py) là quyết định** (plan `backlog-tier-1`, pha 4). Chưa quyết hình dạng. Danh sách ba file giữ được luật grep được nhưng phá câu *"đúng một module"*; một cửa duy nhất giữ câu ấy nhưng thêm một lớp gián tiếp cho ba model không liên quan nhau |
+| Mở seam thứ ba cho `paddle`/`paddleocr`, hoặc dựng một `ocr/engine.py` làm cửa duy nhất | **Đã làm** 21/10/2026 (chốt A): thêm paddle vào check với danh sách hai file -- plan `muc-1-2-loop-1`. Chưa quyết hình dạng. Danh sách ba file giữ được luật grep được nhưng phá câu *"đúng một module"*; một cửa duy nhất giữ câu ấy nhưng thêm một lớp gián tiếp cho ba model không liên quan nhau |
 
 ## PP-DocLayout mù với trang mục lục, và không gì báo động
 
@@ -770,7 +770,7 @@ thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Check `timeout-order` không tính mô hình dự phòng** (`agent/llm.py:106-107`: mỗi lần thử có thể chạy hai mô hình nối nhau) **và số lần thử lại mặc định của SDK OpenAI** (`max_retries` không đặt) | **Tier 2: tính đủ lần thử lại của SDK thì check đỏ (3 + 20 × 3 × 3 = 183 s so với 70 s); bỏ thử lại SDK hay nới ngân sách là quyết định** (plan `backlog-tier-1`, pha 4). Không bị chặn; chưa làm |
+| **Check `timeout-order` không tính mô hình dự phòng** (`agent/llm.py:106-107`: mỗi lần thử có thể chạy hai mô hình nối nhau) **và số lần thử lại mặc định của SDK OpenAI** (`max_retries` không đặt) | **Đã làm** 21/10/2026 (chốt A): bỏ thử lại của SDK, check tính cả model dự phòng -- plan `muc-1-2-loop-1`. Trước đó: tính đủ lần thử lại của SDK thì check đỏ (3 + 20 × 3 × 3 = 183 s so với 70 s). Không bị chặn; chưa làm |
 | **Lời đồng ý dàn ý chỉ được đọc trong `agent`** (regex `AGREES`, `graphs/propose/outline.py`). `guard_drafting` chứng minh được dàn ý đã hiện ở lượt hội thoại ngay trước, không chứng minh được giáo viên đã đồng ý | Chưa quyết `backend` có cần tự đọc lời đồng ý không |
 
 ### Luật chưa ép
@@ -827,16 +827,16 @@ cáo. Bốn giới hạn mà mục ấy nêu (giờ kết thúc của một lư�
 ## Chốt đợt tất định (18/10/2026)
 
 Người dùng khoá AGENT và document cho đợt này. Lộ trình 23 việc nằm ở artifact *Pipeline E2E của
-Kriky*, mục *Đợt tất định*. Dưới đây là những gì **hoãn** vì chạm AGENT hay document, và những chỗ hở
+Kriky*, mục *Đợt tất định*. Dưới đây là những gì **hoãn** vì chạm AGENT hay document (khoá ấy gỡ ngày 21/10/2026), và những chỗ hở
 chuyển từ bảng *Mười hai chỗ hở* của artifact ấy (bảng đã xoá) mà file này chưa ghi.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Dàn ý bị trả về tới trần** (`_MOST_OUTLINE_REFUSALS` = 3, `teacher_chat.py`). Hướng người dùng chốt: *"nâng trần lên 5, và khi chạy 3 lần bị lỗi thì lịch sử conversation gửi llm bỏ đi các dàn ý lỗi. có thể llm bị bias do dàn ý lỗi."* | Hoãn: đổi thứ model đọc, tức hành vi model. Thẻ báo `OUTLINE_REFUSED` (chưa đẹp) thì làm lại ngay ở việc 14 của đợt. **Thẻ đã làm** 18/10/2026 (plan `wave-3-draft-panel`): thẻ trắng viền mảnh, vòng `!` trung tính, chữ mới *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*; phần trần và lịch sử vẫn hoãn |
-| **Tắt retry của SDK** (`agent/llm.py`, dòng *Check `timeout-order`* ở mục *Lộ ra khi viết chương 7*) | Hoãn: chạm AGENT |
-| **Nút *Soạn theo dàn ý này*** (dòng *Phân biệt đồng ý với xin sửa* ở mục *Lộ ra khi làm plan Tier 1*) | Hoãn: BE phải chép logic dựng plan của `propose/outline.py` (`approved_plan`) |
-| **Luật dàn ý ở BE**: tối đa 2 câu một mục, dàn ý đề mới thiếu môn/khối/phạm vi, hai dàn ý đề mới liền nhau | Hoãn: prompt không nêu các luật này, nên BE từ chối dễ dẫn tới `OUTLINE_REFUSED`; đổi prompt cùng lúc là việc của AGENT |
-| **Kriky chưa trả lời câu hỏi về nội dung một bài từ sách** (cần đọc một đoạn, `get_chunk`), và **pha 2 không nhận nội dung tài liệu nào** cho tới khi có cách lọc bài tập (hậu ký ADR-27). Soạn đề theo sách thì đã có từ plan 4b | Hoãn: chạm document và AGENT. Công thức chưa đọc được là plan 3d, ở mục *sympy kiểm công thức* |
+| **Dàn ý bị trả về tới trần** (`_MOST_OUTLINE_REFUSALS` = 3, `teacher_chat.py`). Hướng người dùng chốt: *"nâng trần lên 5, và khi chạy 3 lần bị lỗi thì lịch sử conversation gửi llm bỏ đi các dàn ý lỗi. có thể llm bị bias do dàn ý lỗi."* | Chưa lên lịch: đổi thứ model đọc, tức hành vi model (AGENT hết khoá từ 21/10/2026). Thẻ báo `OUTLINE_REFUSED` (chưa đẹp) thì làm lại ngay ở việc 14 của đợt. **Thẻ đã làm** 18/10/2026 (plan `wave-3-draft-panel`): thẻ trắng viền mảnh, vòng `!` trung tính, chữ mới *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*; phần trần và lịch sử vẫn hoãn |
+| **Tắt retry của SDK** (`agent/llm.py`, dòng *Check `timeout-order`* ở mục *Lộ ra khi viết chương 7*) | **Đã làm** 21/10/2026 (chốt A): bỏ thử lại của SDK, chỉ AGENT tự thử lại -- plan `muc-1-2-loop-1` |
+| **Nút *Soạn theo dàn ý này*** (dòng *Phân biệt đồng ý với xin sửa* ở mục *Lộ ra khi làm plan Tier 1*) | Chưa quyết (Tier 2 câu 5): BE phải chép logic dựng plan của `propose/outline.py` (`approved_plan`) |
+| **Luật dàn ý ở BE**: tối đa 2 câu một mục, dàn ý đề mới thiếu môn/khối/phạm vi, hai dàn ý đề mới liền nhau | Chưa quyết (Tier 2 câu 6, 21): prompt không nêu các luật này, nên BE từ chối dễ dẫn tới `OUTLINE_REFUSED`; đổi prompt cùng lúc là việc của AGENT |
+| **Kriky chưa trả lời câu hỏi về nội dung một bài từ sách** (cần đọc một đoạn, `get_chunk`), và **pha 2 không nhận nội dung tài liệu nào** cho tới khi có cách lọc bài tập (hậu ký ADR-27). Soạn đề theo sách thì đã có từ plan 4b | Chưa lên lịch (Tier 3 P6). Công thức chưa đọc được là plan 3d, ở mục *sympy kiểm công thức* |
 | **Mastery của học sinh** | Chưa thiết kế, và cần lịch sử làm bài đủ dài. Thống kê gộp theo lớp thì làm ở việc 19 |
 | **Hàng đợi review không nằm trên tuyến.** `decide_review` và `ReviewReason` bị xoá ngày 09/10/2026 cùng đường chấm cũ (hậu ký ADR-07, ADR-08), nên loại `ANOMALY` cũng không còn trong code | Việc 19 của đợt: hàng đợi trên màn *Bảng theo dõi*, chứa báo cáo *giải thích chưa rõ* (ADR-19) và câu có tỉ lệ sai bất thường |
 | **Không tạo được lớp hay tài khoản học sinh**: dữ liệu lớp đến từ seed; `list_class` + `get_class` chỉ đọc lớp đã có | Việc 18 (màn *Danh sách lớp học*) và 22 (tài khoản học sinh) của đợt. **Tài khoản đã làm** 19/10/2026 (việc 22); tạo lớp vẫn chưa, chờ nút *Tạo lớp* |
@@ -846,7 +846,7 @@ chuyển từ bảng *Mười hai chỗ hở* của artifact ấy (bảng đã x
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Thông báo *"Lượt chữa vừa rồi đã hết giờ…"* ở lại mãi** trên màn xem điểm: `last_round_ran_out` nói về lượt nộp gần nhất, nên câu ấy còn hiện nhiều ngày sau, kể cả khi hạn chữa đã qua -- review pha 4 đợt 2 | Tier 2: chỉ hiện ngay sau lần tự chuyển màn, hiện tới lượt kế, hay thôi hiện khi hết hạn chữa -- quyết định về sản phẩm |
+| **Thông báo *"Lượt chữa vừa rồi đã hết giờ…"* ở lại mãi** trên màn xem điểm: `last_round_ran_out` nói về lượt nộp gần nhất, nên câu ấy còn hiện nhiều ngày sau, kể cả khi hạn chữa đã qua -- review pha 4 đợt 2 | **Đã làm** 21/10/2026 (chốt B + C): ẩn khi mở lượt kế, hay khi hết hạn chữa -- plan `muc-1-2-loop-1` |
 | **Thử tay việc 2 (panel tự đọc lại khi một lượt soạn vào đề đang mở) chưa làm được bằng AGENT mock**: mock nhờ soạn câu nào cũng tạo đề mới, không có đường *soạn thêm vào đề này*. Vitest phủ nhánh `revision` từ đợt 1 | Cần một lượt model thật (Haiku 5.5), chỉ khi người dùng cho |
 
 ## Lộ ra khi chạy kịch bản thử tay đầu-cuối (20/10/2026)
@@ -864,10 +864,10 @@ Plan `2026-10-20-end-to-end-manual-script-plan.md`. Biên bản:
 | **Công thức trong mục kiến thức không dựng hình**: cột *MỤC KIẾN THỨC* ở *Ngân hàng câu hỏi*, dòng phụ của panel sửa câu ngân hàng, dòng phụ mỗi hàng của hộp *Thêm câu từ ngân hàng* (`BankPicker.tsx`), và nhãn biểu đồ *TỈ LỆ BÀI SAI THEO MỤC KIẾN THỨC* ở *Bảng theo dõi* hiện nguyên `$f'(x)$` | FE: mục kiến thức đi qua chữ thường, không qua `MathText` |
 | **Học sinh không sai câu nào vẫn có link *Xem lại phần chữa các câu sai*** ở màn xem điểm (Dũng, 6,0/6) | FE `Result.tsx`; mở ra thì màn trợ lý ghi *Bài này không có câu nào sai.* |
 | **Màn trống của đoạn chat ghi *"Kriky sẽ tạo lớp, soạn đề…"*** trong khi chưa có đường tạo lớp (Tier 2 câu 28) | Chữ ở FE; đổi cùng quyết định về nút *Tạo lớp* |
-| **Lệch Figma: thanh trên của học sinh ghi mã trần** (*Kiều Minh Châu V3 · Lớp 12A · 12*), Figma HS 12–23 ghi *Mã 1204* | FE `components.tsx` hay Figma: chọn một bên rồi làm cho hai bên bằng nhau |
+| **Lệch Figma: thanh trên của học sinh ghi mã trần** (*Kiều Minh Châu V3 · Lớp 12A · 12*), Figma HS 12–23 ghi *Mã 1204* | **Đã làm** 21/10/2026 (chốt A): code theo Figma, thêm nhãn *Mã* -- plan `muc-1-2-loop-1` |
 | **Đề bài có công thức vỡ thành nhiều dòng ở màn bài làm của một học sinh** (23): *"Cho hàm số / y = f(x) / có đạo hàm…"*. `.stem-cell { display: flex; flex-direction: column }` (`teacher.css`) biến mỗi khúc của `MathText` thành một hàng | FE: bỏ `flex` khỏi ô đề bài, hay bọc `MathText` trong một khối |
 | **Câu báo thành công mang kiểu lỗi**: *"Đã gửi báo cáo tới giáo viên."* hiện qua `setError` (`Tutor.tsx`), tức dải đỏ `role="alert"` của `ErrorStrip` | FE: một dòng xác nhận riêng; đối chiếu Figma HS 17 |
-| **Kriky hỏi lại mà không có câu hỏi nào** (V6, sau khi sửa dàn ý): *"Mình soạn đề chương Hàm số lớp 12 cho bạn. Bạn cho mình biết thêm một điều nhé:"* rồi hết -- không câu hỏi, không nút, không ô *Khác…*. Ghi chú `known` của model ghi đủ bốn mục (lần hai còn tự ghi *"không có mục nào thiếu… không cần hỏi thêm"*) mà vẫn chọn `ask_clarify`, 0 lựa chọn, hai lần liền. Trong 10 lần hỏi lại hôm ấy, 4 lần `known` đủ mà vẫn hỏi; V5 cũng dính, nhẹ hơn (một nút *Khối 12* cho câu *"Đề này cho khối nào?"*) | Bốn lớp cùng để lọt: (1) model không theo luật *không còn ? → nêu dàn ý* của `soan-de.md`; (2) `FewChoices` (`propose/ask_again.py`) hỏi lại **không `hint`**; (3) `graph.propose` hỏng lần hai vẫn giữ câu hỏi ít nút, tin rằng giáo viên tự ghi qua *Khác*; (4) FE `Chat.tsx` `questionIn` trả `null` khi 0 nút, nên không có ô *Khác*. Ba hướng chưa chọn: (A) `propose/choose.choose` từ chối `ask_clarify` khi `known` đủ bốn mục, hỏi lại kèm lời nhắc nêu dàn ý; (B) cho `FewChoices` một `hint`; (C) câu hỏi rỗng thành thông báo hệ thống, hay FE vẽ thẻ chỉ có *Khác*. Log AGENT không ghi câu trả lời thô của model, nên chưa biết model để trống `questions` hay `answers` lọc mất lựa chọn |
+| **Kriky hỏi lại mà không có câu hỏi nào** (V6, sau khi sửa dàn ý): *"Mình soạn đề chương Hàm số lớp 12 cho bạn. Bạn cho mình biết thêm một điều nhé:"* rồi hết -- không câu hỏi, không nút, không ô *Khác…*. Ghi chú `known` của model ghi đủ bốn mục (lần hai còn tự ghi *"không có mục nào thiếu… không cần hỏi thêm"*) mà vẫn chọn `ask_clarify`, 0 lựa chọn, hai lần liền. Trong 10 lần hỏi lại hôm ấy, 4 lần `known` đủ mà vẫn hỏi; V5 cũng dính, nhẹ hơn (một nút *Khối 12* cho câu *"Đề này cho khối nào?"*) | Bốn lớp cùng để lọt: (1) model không theo luật *không còn ? → nêu dàn ý* của `soan-de.md`; (2) `FewChoices` (`propose/ask_again.py`) hỏi lại **không `hint`**; (3) `graph.propose` hỏng lần hai vẫn giữ câu hỏi ít nút, tin rằng giáo viên tự ghi qua *Khác*; (4) FE `Chat.tsx` `questionIn` trả `null` khi 0 nút, nên không có ô *Khác*. **Đã làm** 21/10/2026 (chốt A) -- plan `muc-1-2-loop-1`: `known` đủ bốn mục mà hỏi lại không nút, không câu hỏi thì AGENT hỏi model lại một lần kèm lời nhắc nêu dàn ý. Còn lại: lần hai vẫn rỗng thì câu hỏi rỗng vẫn tới màn hình (hướng C chưa chọn). Ba hướng đã nêu: (A) `propose/choose.choose` từ chối `ask_clarify` khi `known` đủ bốn mục, hỏi lại kèm lời nhắc nêu dàn ý; (B) cho `FewChoices` một `hint`; (C) câu hỏi rỗng thành thông báo hệ thống, hay FE vẽ thẻ chỉ có *Khác*. Log AGENT không ghi câu trả lời thô của model, nên chưa biết model để trống `questions` hay `answers` lọc mất lựa chọn |
 
 ## Lộ ra khi chia `propose.py` thành package (20/10/2026)
 
@@ -877,7 +877,21 @@ không sửa. Subagent thiết kế đọc trọn file và thấy chúng.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Lượt `plan` tới model như một kết quả tool không tên**: nhánh `else` của `propose/compose.compose` (chỗ TODO thứ hai của người dùng) dựng mọi lượt còn lại bằng `_describe_result`, nên lượt `kind="plan"` thành *"Kết quả của :"* kèm `{"steps", "total"}` -- BE lưu lượt plan không có `tool_name` (`teacher_chat._go`) | Tier 4: đổi thứ model đọc là hành vi model; đo trên bench trước khi đổi |
-| **Chuẩn hoá NFC không đồng đều**: `outline._count_said`, `outline._count_revised`, `propose/plan_checks.drafts_over_a_revision` (và `handlers` gọi `AGREES.search`) khớp chữ thô, trong khi `books._mentions_book`, `propose/outline.approved_plan`, `propose/outline.right_purpose` đưa về NFC trước. BE không chuẩn hoá chữ lưu, nên *"đổi"*, *"5 câu"* gõ từ bàn phím NFD (macOS, iOS) lọt khỏi `_REVISES`, `_COUNT_SAID` | Tier 2: một dòng `nfc` mỗi chỗ, kèm test NFD |
-| **Lời mở của plan đã đồng ý bỏ qua bước sửa chữ**: `propose/outline.approved_plan` lấy `proposal.text.strip()` thô, không qua `unmangled` hay `nfc` như mọi đường đi qua `_Proposal.completed` | Tier 2: `\frac` trong lời mở thành form-feed |
-| **`propose/read_order.read_before_outline` ghép lời gọi với kết quả theo chỉ số**: một `read_section` không có kết quả làm lệch mọi cặp sau; `int(node)` trên node kết quả có thể ném `ValueError`, không phải `AskAgain`, nên lượt gãy thành thông báo *model hỏng* | Tier 3 P6 (đọc tài liệu) |
-| **`UncountedOutline` chọn lời nhắc bằng cách đọc chuỗi log tiếng Anh** mà `propose/outline.miscounted` trả về (`startswith("replace")`, *"known says"*, `_WANTED`); từ khi chia, hai bên nằm ở hai file (`ask_again.py`, `outline.py`) | Tier 3: đổi chuỗi log là đổi lời nhắc mà không test nào đỏ; nên trả một giá trị có cấu trúc |
+| **Chuẩn hoá NFC không đồng đều**: `outline._count_said`, `outline._count_revised`, `propose/plan_checks.drafts_over_a_revision` (và `handlers` gọi `AGREES.search`) khớp chữ thô, trong khi `books._mentions_book`, `propose/outline.approved_plan`, `propose/outline.right_purpose` đưa về NFC trước. BE không chuẩn hoá chữ lưu, nên *"đổi"*, *"5 câu"* gõ từ bàn phím NFD (macOS, iOS) lọt khỏi `_REVISES`, `_COUNT_SAID` | **Đã làm** 21/10/2026: một dòng `nfc` mỗi chỗ, kèm test NFD -- plan `muc-1-2-loop-1` |
+| **Lời mở của plan đã đồng ý bỏ qua bước sửa chữ**: `propose/outline.approved_plan` lấy `proposal.text.strip()` thô, không qua `unmangled` hay `nfc` như mọi đường đi qua `_Proposal.completed` | **Đã làm** 21/10/2026: `\frac` trong lời mở thành form-feed -- plan `muc-1-2-loop-1` |
+| **`propose/read_order.read_before_outline` ghép lời gọi với kết quả theo chỉ số**: một `read_section` không có kết quả làm lệch mọi cặp sau; `int(node)` trên node kết quả có thể ném `ValueError`, không phải `AskAgain`, nên lượt gãy thành thông báo *model hỏng* | **Đã làm** 21/10/2026 -- plan `muc-1-2-loop-1` |
+| **`UncountedOutline` chọn lời nhắc bằng cách đọc chuỗi log tiếng Anh** mà `propose/outline.miscounted` trả về (`startswith("replace")`, *"known says"*, `_WANTED`); từ khi chia, hai bên nằm ở hai file (`ask_again.py`, `outline.py`) | **Đã làm** 21/10/2026: đổi chuỗi log là đổi lời nhắc mà không test nào đỏ; nên trả một giá trị có cấu trúc -- plan `muc-1-2-loop-1` |
+
+## Lộ ra khi làm plan Mức 1–2, vòng 1 (21/10/2026)
+
+Plan `2026-10-21-muc-1-2-loop-1-plan.md`. Review code ba lượt và một lượt so ảnh trình duyệt với Figma.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Thẻ *phát-hành-thất-bại*** (`76:23`) vẽ đầu đề thứ năm *"Phát hành chưa xong"* cho ca phát hành hỏng **một phần**, trái luật *bốn đầu đề* của chính set `10:63` và của check `tools/check_contract.py` (đếm dòng `HEAD` trong `ActionCard.tsx`); chữ mẫu còn tự mâu thuẫn (*"12B đã nhận"* rồi nút *"Thử lại cho 12B"*). BE `_note_publication` vẫn chỉ ghi khi có lớp nhận | Tier 2: A thêm đầu đề thứ năm (đổi luật và check) · B dùng nấc `failed` sẵn có với câu riêng cho phát hành · C không vẽ thẻ, chỉ ghi một bước ✕ |
+| **Công thức trong nhãn 11px của biểu đồ *Tỉ lệ bài sai theo mục kiến thức*** (Bảng theo dõi): KaTeX dựng phân số xếp chồng, tử và mẫu còn ~6–7px; nhãn dài bị cắt bằng "…" ngay giữa công thức. Figma `666:5690` chỉ vẽ nhãn chữ thường | Tier 2: A phân số viết ngang trong nhãn (`a/b`) · B Figma thêm nhãn có công thức và giữ KaTeX · C để nguyên |
+| **Nút báo cáo đã gửi ghi *"Đã báo cho cô"*** (Figma `281:24`, code theo Figma): xưng *cô* là đoán giới tính giáo viên, đúng lỗi backlog đã ghi cho lời Kriky | Tier 2: A giữ *cô* · B *"Đã báo cho giáo viên"* (Figma và code cùng đổi) |
+| **Hộp hỏi lại *Đặt lại mật khẩu* không chặn Tab** (`ClassDetail.tsx`): `Veil` không gọi `useInert` như `Roster`/`Passwords`, nên Tab đi xuyên hộp tới nút của em khác; Enter ở đó đổi người trong tiêu đề hộp | Tier 1: `useInert` cho hộp (Veil cần một ref) |
+| **Cột *Mục kiến thức* ở Ngân hàng** (`.board-table.bank`, cột 200px): công thức KaTeX dài không xuống dòng được, có thể tràn sang cột *Khối / Môn* | Tier 1: đo với một công thức dài, rồi cho KaTeX cuộn hay cắt trong ô |
+| Radio đáp án đúng dùng radio gốc (`accent-color`), Figma vẽ chấm đặc; ô nhập có tay kéo `resize: vertical`, Figma không vẽ | **Không làm**: cả hai là chủ ý ghi trong `teacher.css` (radio thật giữ bàn phím và vùng bấm; tay kéo là thứ trình duyệt cho) |
+| DB của lab cần `ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;` trước khi đưa bản này lên, không thì `check_schema` dừng BE | Việc của người dùng ở phần `deploy/` đang sửa dở; câu lệnh ở `docs/local-development.md` |

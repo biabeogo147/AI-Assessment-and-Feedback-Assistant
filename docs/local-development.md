@@ -474,6 +474,12 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 CREATE UNIQUE INDEX IF NOT EXISTS students_username_key ON students (username);
 ```
 
+Bản ngân hàng đã sửa thắng lần duyệt lại (21/10/2026, Tier 2 câu 29) thêm một cột:
+
+```sql
+ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+```
+
 Đường chấm cũ (`POST /api/submissions` rồi poll `GET /api/jobs/{id}`) **đã bị gỡ** ngày
 09/10/2026, cùng với ý định đưa kết quả chấm vào một hàng đợi chặn -- thứ chưa bao giờ được dựng
 và nay đã bỏ (ADR-37). Hàng đợi *Cần bạn xem* của giáo viên (ADR-34) không chặn gì. Việc chấm chạy
@@ -533,7 +539,9 @@ phiên thu thêm test ở thư mục khác thì dừng ngay. Không có tuỳ ch
 2. Redis mới lên và chưa `healthy`. Đợi `docker compose -f docker-compose.infra.yml ps` báo `(healthy)`.
 3. `REDIS_URL` trong `.env` đang dùng `localhost`. **Phải dùng `127.0.0.1`.** Trên Windows, `localhost` phân giải ra `::1` trước, và cổng IPv6 mà Docker Desktop publish không nhận kết nối, nên client đợi hết timeout rồi service chết. `Test-NetConnection` của PowerShell che mất lỗi này vì nó tự fallback sang IPv4, nên đừng dùng nó để kết luận.
 
-**Hộp đăng nhập báo *"Bạn nhập sai quá nhiều lần. Thử lại sau N phút."*.** Tên ấy đã sai 5 lần trong 15 phút, hay địa chỉ ấy đã sai 50 lần (`be/sign_in_limit.py`). Bộ đếm nằm trong bộ nhớ của BE, nên khởi động lại `.\dev.ps1 be` là mở mọi khoá.
+**Hộp đăng nhập báo *"Bạn nhập sai quá nhiều lần. Thử lại sau N phút."*.** Cặp tên + địa chỉ ấy đã sai 5 lần trong 15 phút, hay địa chỉ ấy đã sai 50 lần (`be/sign_in_limit.py`). Bộ đếm nằm trong bộ nhớ của BE, nên khởi động lại `.\dev.ps1 be` là mở mọi khoá.
+
+**Màn trợ lý của học sinh báo *"Màn này tải lại quá nhanh. Chờ một chút rồi thử lại."*.** Một bài làm đã xin `/chat` hay `/chat/stream` từ 10 lần trong một giây (`be/burst_limit.py`, 21/10/2026). Người dùng thật không chạm tới ngưỡng ấy: gặp nó gần như luôn là một effect phía FE tự gọi lại mình. Log BE có dòng `burst: student …, refused with 429`; dừng một giây là mở.
 
 **BE không lên lại, hay vẫn chạy code cũ, sau khi sửa code BE.** `.\dev.ps1 be` nạp lại bằng `watchfiles`, khoảng 2,5 s mỗi lần sửa; log in thêm một dòng `Started server process [PID]`. Không thấy dòng mới thì xem ai đang giữ cổng: `netstat -ano | findstr :8000`. Một process `python` còn nghe sau khi đã tắt BE là uvicorn mồ côi: `Stop-Process` vào riêng `watchfiles` không giết process con của nó. Dừng cả cây bằng `taskkill /F /T /PID <pid của watchfiles>`, hay giết thẳng PID đang giữ cổng, rồi chạy lại `.\dev.ps1 be`. Trước 21/10/2026 lệnh này dùng `uvicorn --reload`, cái hay treo với `WinError 10038` khi chạy nền (comment ở `dev.ps1`).
 
