@@ -533,6 +533,10 @@ phiên thu thêm test ở thư mục khác thì dừng ngay. Không có tuỳ ch
 2. Redis mới lên và chưa `healthy`. Đợi `docker compose -f docker-compose.infra.yml ps` báo `(healthy)`.
 3. `REDIS_URL` trong `.env` đang dùng `localhost`. **Phải dùng `127.0.0.1`.** Trên Windows, `localhost` phân giải ra `::1` trước, và cổng IPv6 mà Docker Desktop publish không nhận kết nối, nên client đợi hết timeout rồi service chết. `Test-NetConnection` của PowerShell che mất lỗi này vì nó tự fallback sang IPv4, nên đừng dùng nó để kết luận.
 
+**Hộp đăng nhập báo *"Bạn nhập sai quá nhiều lần. Thử lại sau N phút."*.** Tên ấy đã sai 5 lần trong 15 phút, hay địa chỉ ấy đã sai 50 lần (`be/sign_in_limit.py`). Bộ đếm nằm trong bộ nhớ của BE, nên khởi động lại `.\dev.ps1 be` là mở mọi khoá.
+
+**BE không lên lại, hay vẫn chạy code cũ, sau khi sửa code BE.** `.\dev.ps1 be` nạp lại bằng `watchfiles`, khoảng 2,5 s mỗi lần sửa; log in thêm một dòng `Started server process [PID]`. Không thấy dòng mới thì xem ai đang giữ cổng: `netstat -ano | findstr :8000`. Một process `python` còn nghe sau khi đã tắt BE là uvicorn mồ côi: `Stop-Process` vào riêng `watchfiles` không giết process con của nó. Dừng cả cây bằng `taskkill /F /T /PID <pid của watchfiles>`, hay giết thẳng PID đang giữ cổng, rồi chạy lại `.\dev.ps1 be`. Trước 21/10/2026 lệnh này dùng `uvicorn --reload`, cái hay treo với `WinError 10038` khi chạy nền (comment ở `dev.ps1`).
+
 **Nộp bài xong mà kết quả không bao giờ về.** AGENT không nhận được job. Xem dòng `AGENT worker ready: queue=...` trong log của worker và so với `AGENT_QUEUE_NAME` trong `.env`. Lệch tên queue là lỗi im lặng: không bên nào báo gì cả.
 
 **Chip tài liệu đứng mãi ở *đang xử lý*, rồi đổi sang *xử lý hỏng*.** Không ai đọc tệp. Theo thứ

@@ -96,14 +96,27 @@ switch ($Task) {
     }
 
     'be' {
-        # Chỉ theo dõi code BE chạy: không có --reload-dir thì uvicorn theo cả repo, và sửa một
-        # test của AGENT cũng làm BE nạp lại. --timeout-graceful-shutdown vì kênh SSE của mỗi tab
-        # không tự đóng, nên không có trần thì process cũ đứng mãi ở "Waiting for connections to
-        # close" và BE thôi trả lời (đo 12/10/2026).
-        & $Python -m uvicorn be.main:app --reload `
-            --reload-dir "$RepoRoot\services\be\src" --reload-dir "$RepoRoot\packages\contracts\src" `
-            --reload-dir "$RepoRoot\packages\schema\src" `
-            --timeout-graceful-shutdown 3 --host 127.0.0.1 --port 8000
+        # Nạp lại bằng `watchfiles`, không bằng `uvicorn --reload`. Trên Windows reloader của
+        # uvicorn tắt worker cũ bằng `CTRL_C_EVENT`, mà tín hiệu ấy chỉ tới được process con khi
+        # hai bên chung một console: chạy nền (không console) thì worker cũ không bao giờ nhận
+        # lệnh tắt, vẫn phục vụ code cũ, và process con mồ côi còn giữ cổng sau khi cha chết. Đo
+        # 21/10/2026 trên một app tối giản cùng cờ: --reload treo ngay lần nạp đầu, có hay không
+        # có kênh SSE; watchfiles qua 15/15 lần với 30 kênh SSE mở. Trên BE thật (21/10/2026): 10/10
+        # lần với kênh tài liệu của một tab đang mở, 2,4-2,6 s mỗi lần, một process giữ cổng.
+        # watchfiles dừng và chạy lại **cả** uvicorn, nên không có socket nào chia giữa cha và con.
+        # Trên Windows nó dừng uvicorn bằng `TerminateProcess` (`os.kill` với SIGINT), tức giết
+        # cứng: phần tắt của lifespan không chạy lúc nạp lại. Ở dev thì được -- BE không giữ gì
+        # phải ghi ra lúc tắt.
+        # Chỉ theo dõi code BE chạy: theo cả repo thì sửa một test của AGENT cũng làm BE nạp lại.
+        # --timeout-graceful-shutdown cho lần Ctrl+C trong một console (lúc ấy uvicorn nhận tín
+        # hiệu thật): kênh SSE của mỗi tab không tự đóng, nên không có trần thì nó đứng mãi ở
+        # "Waiting for connections to close" (đo 12/10/2026).
+        # Giết process watchfiles bằng Stop-Process thì uvicorn con vẫn sống và giữ cổng: dừng cả
+        # cây (`taskkill /T`), như mục "BE không lên lại" của docs/local-development.md.
+        # Lệnh con được tách bằng shlex không theo POSIX: AIAFA_PYTHON có khoảng trắng sẽ vỡ.
+        & $Python -m watchfiles --filter python `
+            "$Python -m uvicorn be.main:app --timeout-graceful-shutdown 3 --host 127.0.0.1 --port 8000" `
+            "$RepoRoot\services\be\src" "$RepoRoot\packages\contracts\src" "$RepoRoot\packages\schema\src"
     }
 
     'ingest' {
