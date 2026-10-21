@@ -2,7 +2,8 @@
 
 Lab là một bản chạy thật cho **năm người trong team**, trên một máy EC2 ở Singapore, sau HTTPS và
 basic auth. Mọi thứ nằm ở `deploy/lab/`; plan là `docs/plans/active/2026-10-20-lab-deploy-aws-plan.md`.
-Chạy trên máy mình thì đọc [Local Development](local-development.md).
+Chạy trên máy mình thì đọc [Local Development](local-development.md). Bản đồ của mọi thành phần và lý do
+của chúng: [Kiến trúc lab](deploy-lab-architecture.md).
 
 ```text
 Internet ──443──► Caddy (basic auth, FE tĩnh, /api) ──► be ──► Postgres · Redis · MinIO · Mongo
@@ -64,9 +65,9 @@ Bỏ `ssh_cidrs` thì không mở cổng 22, chỉ vào bằng SSM. IP nhà mạ
 subnet: Terraform tạo subnet mặc định ở một AZ có bán loại máy (`aws_default_subnet`).
 
 `alert_email` bật cảnh báo chi phí của AWS Budgets (50 % và 100 % của `budget_usd`, mặc định 30 USD);
-để trống thì không có budget. Apply tạo khoảng 28 tài nguyên: máy, subnet, key pair, Elastic IP,
-security group, IAM role, bucket backup, budget, và năm mật khẩu ngẫu nhiên trong SSM (Postgres,
-MinIO, Mongo, basic auth, mật khẩu chung của tài khoản lab).
+để trống thì không có budget. Apply tạo 27 tài nguyên (26 khi không có budget): máy, subnet, key
+pair, Elastic IP, security group, IAM role, bucket backup, budget, và năm mật khẩu ngẫu nhiên trong
+SSM (Postgres, MinIO, Mongo, basic auth, mật khẩu chung của tài khoản lab).
 
 **3. Chờ bootstrap.** Máy tự cài docker, clone repo, dựng image, bật stack và seed dữ liệu lab. Lần
 đầu mất **15–25 phút**, phần lớn là image `document` (torch, paddle, model OCR). Theo dõi:

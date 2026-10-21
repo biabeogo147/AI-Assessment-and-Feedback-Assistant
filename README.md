@@ -6,6 +6,7 @@ Hệ thống hỗ trợ giáo viên tạo đề, chấm bài, phân tích lỗi 
 | --- | --- |
 | [Local Development](docs/local-development.md) | Chạy, demo và chẩn đoán sự cố trên máy |
 | [Triển khai lab](docs/deploy-lab.md) | Đưa hệ thống lên AWS cho năm người trong team dùng thử |
+| [Kiến trúc lab](docs/deploy-lab-architecture.md) | Lab gồm những gì, ai nói với ai, vì sao chọn như vậy |
 | [Project Overview](docs/overview/project-overview.md) | Project giải quyết vấn đề gì, cho ai |
 | [Architecture](docs/overview/architecture.md) | Hệ thống được chia thế nào và vì sao |
 | [Decisions](docs/decisions/README.md) | Quyết định nghiệp vụ: cái gì không đảo ngược được, ai được làm gì |
