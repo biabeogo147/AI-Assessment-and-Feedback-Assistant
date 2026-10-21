@@ -316,7 +316,8 @@ class BankQuestion(Base):
     hai vòng đời: đề đã khoá thì nội dung đứng yên, còn bản ở đây là thứ sau này phải sửa được.
 
     `question_id` là câu trong đề mà dòng này chép từ, và là khoá để **duyệt lại ghi đè**: mỗi
-    câu trong đề có nhiều nhất một bản ở đây. Câu bị xoá khỏi đề thì cột về `NULL` và dòng ở lại
+    câu trong đề có nhiều nhất một bản ở đây. Bản giáo viên đã sửa (`edited_at`) thì duyệt lại
+    không ghi đè. Câu bị xoá khỏi đề thì cột về `NULL` và dòng ở lại
     -- xoá trong đề không xoá ngân hàng. `ondelete="SET NULL"` là lưới của database cho đúng luật
     ấy; đường xoá vẫn gọi `question_bank.release` trước, vì SQLite của phần lớn test không bật
     khoá ngoại.
@@ -345,6 +346,10 @@ class BankQuestion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Lần duyệt gần nhất đã ghi dòng này. Bằng `created_at` cho tới lần duyệt lại đầu tiên.
     approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Lần giáo viên sửa bản này ở màn Ngân hàng câu hỏi (22b); `None` khi chưa sửa lần nào. Có giá
+    # trị thì duyệt lại đề gốc **không** ghi đè nội dung nữa: bản đã sửa thắng (Tier 2 câu 29 = A,
+    # 21/10/2026).
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Publication(Base):

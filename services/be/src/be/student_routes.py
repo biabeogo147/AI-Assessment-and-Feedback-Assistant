@@ -36,6 +36,7 @@ from be.agent_gateway import (
     validate_question,
     validate_retry,
 )
+from be.burst_limit import hold_back_bursts
 from be.config import get_settings
 from be.db import get_session
 from be.identity import current_student
@@ -195,6 +196,7 @@ class ResultOut(BaseModel):
     # Lượt chữa nộp gần nhất được nộp **sau** hết giờ (`submitted_at > ends_at`, cùng biên với chỗ
     # `save_round_answer` thôi nhận câu): màn xem điểm báo *"Lượt chữa vừa rồi đã hết giờ nên được
     # nộp luôn"* (artboard 16b). Suy từ cột có sẵn, không cột mới (plan `wave-2-time-marks-titles`).
+    # Thôi báo khi học sinh đã mở lượt kế, hay khi hạn chữa đã qua (Tier 2 câu 27, 21/10/2026).
     last_round_ran_out: bool = False
 
 
@@ -960,10 +962,14 @@ async def attempt_result(
     )
     history: dict[str, list[RoundOut]] = {}
     last_done: RemediationRound | None = None
+    # Có lượt nào mở **sau** lượt nộp gần nhất: lượt đang làm, chưa nộp.
+    opened_after = False
     for rnd in rounds:
         if rnd.submitted_at is None:
+            opened_after = True
             continue
         last_done = rnd
+        opened_after = False
         for item in rnd.items:
             history.setdefault(item.origin_question_id, []).append(
                 RoundOut(index=rnd.index, stem=item.stem, outcome=item.outcome or "chưa-trả-lời")
@@ -982,17 +988,24 @@ async def attempt_result(
         if question.id in outcomes
     ]
 
+    deadline = _aware(publication.remediation_deadline)
+    # Tier 2 câu 27 = B + C (21/10/2026): thôi báo khi đã mở lượt kế, hay khi hạn chữa đã qua.
+    ran_out = (
+        last_done is not None
+        and _aware(last_done.submitted_at) > _aware(last_done.ends_at)
+        and not opened_after
+        and _now() < deadline
+    )
     return ResultOut(
         attempt_id=attempt_id,
         title=assessment.title,
-        state=attempt_state(outcomes, True, _aware(publication.remediation_deadline), _now()),
+        state=attempt_state(outcomes, True, deadline, _now()),
         total_score=total([item.mark for item in items]),
         question_count=len(items),
         submitted_at=_aware(attempt.submitted_at),
-        remediation_deadline=_aware(publication.remediation_deadline),
+        remediation_deadline=deadline,
         items=items,
-        last_round_ran_out=last_done is not None
-        and _aware(last_done.submitted_at) > _aware(last_done.ends_at),
+        last_round_ran_out=ran_out,
     )
 
 
@@ -1251,7 +1264,11 @@ async def _is_locked(session: AsyncSession, attempt: Attempt) -> bool:
     return state in {"đã-hoàn-thành", "hết-hạn-chữa"}
 
 
-@router.get("/attempts/{attempt_id}/chat", response_model=ChatHistoryOut)
+@router.get(
+    "/attempts/{attempt_id}/chat",
+    response_model=ChatHistoryOut,
+    dependencies=[Depends(hold_back_bursts)],
+)
 async def chat_history(
     attempt_id: str,
     student: Student = Depends(current_student),
@@ -1702,7 +1719,7 @@ def _replay(message: ChatMessage) -> AsyncIterator[str]:
     return _sse(message.text, message.id)
 
 
-@router.get("/attempts/{attempt_id}/chat/stream")
+@router.get("/attempts/{attempt_id}/chat/stream", dependencies=[Depends(hold_back_bursts)])
 async def stream_reply(
     attempt_id: str,
     request: Request,

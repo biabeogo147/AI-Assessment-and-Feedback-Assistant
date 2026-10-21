@@ -10,14 +10,16 @@ Chiều ngược lại -- **giáo viên lấy câu từ ngân hàng vào một �
 `picker` liệt kê ngân hàng cho hộp chọn. Kriky rút câu từ ngân hàng khi soạn thì chưa có (chạm
 AGENT, đang khoá).
 
-**Một chỗ còn hở:** duyệt lại một đề ghi đè bản ngân hàng theo `question_id`, nên một bản đã sửa
-tay ở màn ngân hàng mất khi đề gốc được bỏ duyệt rồi duyệt lại. Chờ người dùng chốt (backlog).
+**Bản đã sửa thắng** (Tier 2 câu 29 = A, 21/10/2026): duyệt lại một đề ghi đè bản ngân hàng theo
+`question_id`, **trừ** bản giáo viên đã sửa tay ở màn ngân hàng (`BankQuestion.edited_at`). Trước
+đó bản sửa mất khi đề gốc được bỏ duyệt rồi duyệt lại.
 
 Sáu luật, mỗi hàm một luật:
 
 - `file_approved` -- duyệt chép mọi câu **Kriky soạn** của đề; duyệt lại thì **ghi đè** bản của
-  cùng câu, khoá theo `BankQuestion.question_id`. Mỗi câu trong đề có nhiều nhất một bản. Câu lấy từ
-  ngân hàng không chép lại: bản của nó đã có, và chép là hai bản của một câu.
+  cùng câu, khoá theo `BankQuestion.question_id`, trừ bản giáo viên đã sửa. Mỗi câu trong đề có
+  nhiều nhất một bản. Câu lấy từ ngân hàng không chép lại: bản của nó đã có, và chép là hai bản
+  của một câu.
 - `release` -- xoá câu khỏi đề **không** xoá nó khỏi ngân hàng: dòng ở lại, chỉ thôi trỏ về câu.
 - `in_bank` -- câu nào đang có bản. Hộp thoại xoá câu đọc nó để nói đúng điều sắp xảy ra.
 - `picker` -- ngân hàng của giáo viên, mỗi câu kèm cờ *đã có trong đề này*.
@@ -58,7 +60,8 @@ async def file_approved(session: AsyncSession, assessment: Assessment) -> int:
 
     Câu chưa có bản thì thêm; câu đã có bản -- đề từng được duyệt, bị bỏ duyệt, rồi duyệt lại
     -- thì bản ấy bị ghi đè bằng nội dung hiện tại. Lần duyệt gần nhất là lần kiểm gần nhất, và
-    giáo viên bỏ duyệt thường để sửa một chỗ sai: giữ bản cũ là giữ chỗ sai trong kho.
+    giáo viên bỏ duyệt thường để sửa một chỗ sai: giữ bản cũ là giữ chỗ sai trong kho. Trừ bản giáo
+    viên đã sửa ở màn ngân hàng (`edited_at`): bản ấy giữ nội dung, chỉ đổi `approved_at`.
 
     Câu `source="bank"` bị bỏ qua (việc 17): bản ngân hàng của nó đã có, và chép là hai bản của
     một câu; ghi đè dòng gốc thì một lần sửa trong đề lặng lẽ đổi ngân hàng, ngược điều người dùng
@@ -69,7 +72,7 @@ async def file_approved(session: AsyncSession, assessment: Assessment) -> int:
         assessment: Đề vừa được duyệt. Chủ của nó là chủ của ngân hàng.
 
     Returns:
-        Số câu đã ghi, kể cả câu ghi đè.
+        Số câu Kriky soạn của đề, kể cả câu ghi đè và câu giữ bản đã sửa.
 
     Side effects:
         Thêm hoặc ghi đè các dòng `BankQuestion`.
@@ -124,12 +127,15 @@ async def file_approved(session: AsyncSession, assessment: Assessment) -> int:
                 )
             )
             continue
+        row.approved_at = now
+        if row.edited_at is not None:
+            # Giáo viên đã sửa bản này ở màn ngân hàng: bản ấy thắng câu trong đề.
+            continue
         # List mới, không sửa tại chỗ: cột JSON không theo dõi thay đổi bên trong một list.
         row.stem = question.stem
         row.learning_objective = question.learning_objective
         row.options = options
         row.methods = methods
-        row.approved_at = now
 
     await session.flush()
     return len(questions)

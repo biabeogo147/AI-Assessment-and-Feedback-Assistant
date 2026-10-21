@@ -129,3 +129,15 @@ Thi hành ở `be/config.py`, `be/account_routes.py`, `services/be/tests/test_ac
 
 FE không đổi: câu 429 hiện ở chỗ báo lỗi sẵn có của hộp đăng nhập (Figma 26c, 12b). Thi hành ở
 `be/sign_in_limit.py`, `be/account_routes.py`, `services/be/tests/test_accounts.py`.
+
+## Hậu ký 21/10/2026 (lần hai)
+
+**Khoá theo cặp tên + địa chỉ** (người dùng chọn B cho câu Tier 2 *"khoá đăng nhập dùng được để khoá
+người khác"*; plan `muc-1-2-loop-1`). Bộ đếm 5 lần sai nay khoá **cặp** tên đã chuẩn hoá + địa chỉ, không
+khoá tên trần: kẻ biết SĐT một giáo viên, gõ sai từ máy khác, chỉ khoá chính cặp của mình, còn giáo
+viên ở trường vẫn vào được. Giới hạn: kẻ ngồi **cùng** NAT với giáo viên (một học sinh trong mạng
+của trường) có cùng cặp với giáo viên, nên vẫn khoá được giáo viên ấy 15 phút. Cái giá đã biết: kẻ đổi
+địa chỉ liên tục đoán được 5 lần mỗi địa chỉ.
+Ngưỡng 50 lần sai mỗi địa chỉ giữ nguyên, vì nó là thứ chặn một địa chỉ thử hàng loạt tên; nên một em
+trong NAT của trường gõ sai 50 lần vẫn khoá mọi người sau NAT ấy 15 phút. Thi hành ở
+`be/sign_in_limit.py` (`_keys`), test `test_wrong_tries_from_elsewhere_do_not_lock_the_teacher_out`.

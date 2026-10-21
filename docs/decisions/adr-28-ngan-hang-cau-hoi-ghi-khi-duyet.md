@@ -146,3 +146,15 @@ Hai đường đọc và một đường ghi ngược đã có; chip nguồn th�
 **Màn đọc báo cáo dẫn tới ngân hàng, không tới đề.** Màn báo cáo và màn câu có tỉ lệ sai cao của *Bảng
 theo dõi* chỉ đọc. Nút *Chỉnh sửa trong Ngân hàng câu hỏi* mở bản ngân hàng của câu ở màn 22b, đọc
 theo cả hai chiều chép ([ADR-35](adr-35-sua-loi-giai-sau-phat-hanh.md)).
+
+## Hậu ký 21/10/2026
+
+**Bản đã sửa ở ngân hàng thắng lần duyệt lại** (người dùng chọn A cho Tier 2 câu 29; plan
+`muc-1-2-loop-1`). *Duyệt lại ghi đè* vẫn là luật, trừ một ca: bản giáo viên đã sửa ở màn Ngân hàng câu
+hỏi (22b, [ADR-35](adr-35-sua-loi-giai-sau-phat-hanh.md)) mang `bank_questions.edited_at`, và lần duyệt
+lại đề gốc chỉ cập nhật `approved_at` của nó, không chép đè nội dung. Trước đó bỏ duyệt rồi duyệt lại đề
+gốc làm mất công sửa mà không ai báo. Câu chưa sửa ở ngân hàng vẫn theo lần duyệt mới nhất. Thi hành ở
+`schema/models.py` (`BankQuestion.edited_at`), `be/teacher_reads.py` (`edit_bank_question`),
+`be/question_bank.py` (`file_approved`); test
+`test_approving_again_leaves_a_bank_copy_the_teacher_edited`. DB có sẵn cần một `ALTER` (xem
+`docs/local-development.md`, mục *Database cũ hơn model*).

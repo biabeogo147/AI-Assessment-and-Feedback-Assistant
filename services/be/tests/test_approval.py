@@ -28,6 +28,7 @@ from be.config import get_settings
 from be.db import bind_sessions
 from be.seed import seed_if_empty
 from be.teacher_chat import router as chat_router
+from be.teacher_reads import router as reads_router
 from be.teacher_routes import router as assessment_router
 from contracts import DraftQuestionCompleted, GeneratedOption, GeneratedQuestion, SolutionMethod
 from schema.ddl import prepare_schema
@@ -112,6 +113,7 @@ async def stack(monkeypatch):
     app = FastAPI()
     app.include_router(chat_router)
     app.include_router(assessment_router)
+    app.include_router(reads_router)
     app.state.queue_pool = queue
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
@@ -854,6 +856,83 @@ async def test_approving_again_overwrites_the_bank_copy_of_the_same_question(sta
     assert aware(edited.approved_at) > an_hour_ago + timedelta(minutes=30)
     # Lần vào ngân hàng đầu tiên thì không đổi: ghi đè là ghi đè nội dung, không phải tạo lại.
     assert abs(aware(edited.created_at) - an_hour_ago) < timedelta(seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_approving_again_leaves_a_bank_copy_the_teacher_edited(stack) -> None:
+    """Tier 2 câu 29 = A (21/10/2026): bản đã sửa ở màn ngân hàng thắng lần duyệt lại đề gốc."""
+    client, maker, _ = stack
+    draft = await _draft(maker, questions=2)
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+    ).status_code == 200
+    rows = [row for row in await _bank(maker) if row.assessment_id == draft]
+    kept, other = rows[0], rows[1]
+    # Câu của `_draft` chỉ có một phương án; bản sửa phải qua ADR-18 nên mang đủ phần của nó.
+    wanted = {
+        "stem": "Bản giáo viên sửa ở ngân hàng?",
+        "learning_objective": kept.learning_objective,
+        "options": [
+            {"label": "A", "text": "đúng", "is_correct": True, "error_label": None},
+            {"label": "B", "text": "sai", "is_correct": False, "error_label": "nhầm dấu"},
+        ],
+        "methods": [{"title": "Cách 1", "body": "..."}, {"title": "Cách 2", "body": "..."}],
+    }
+    edited = await client.patch(f"/api/teacher/bank/{kept.id}", json=wanted, headers=TEACHER)
+    assert edited.status_code == 200, edited.text
+
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/unapprove", headers=TEACHER)
+    ).status_code == 200
+    async with maker() as session:
+        for question in await session.scalars(
+            select(Question).where(Question.assessment_id == draft)
+        ):
+            question.stem = f"Đề gốc sửa lại {question.order_index}?"
+        await session.commit()
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+    ).status_code == 200
+
+    again = {row.id: row for row in await _bank(maker) if row.assessment_id == draft}
+    assert again[kept.id].stem == "Bản giáo viên sửa ở ngân hàng?"
+    assert again[kept.id].edited_at is not None
+    # Câu chưa sửa ở ngân hàng thì vẫn theo lần duyệt mới, như cũ.
+    assert again[other.id].stem.startswith("Đề gốc sửa lại")
+
+
+@pytest.mark.asyncio
+async def test_saving_a_bank_copy_unchanged_leaves_no_edit_mark(stack) -> None:
+    """Review pha 1 (21/10/2026): bấm Lưu mà không sửa gì không được khoá bản này khỏi đề gốc."""
+    client, maker, _ = stack
+    draft = await _draft(maker, questions=1)
+    assert (
+        await client.post(f"/api/teacher/assessments/{draft}/approve", headers=TEACHER)
+    ).status_code == 200
+    row = [one for one in await _bank(maker) if one.assessment_id == draft][0]
+    same = {
+        "stem": row.stem,
+        "learning_objective": row.learning_objective,
+        "options": row.options,
+        "methods": row.methods,
+    }
+    # `_draft` soạn câu một phương án, nên PATCH bị ADR-18 từ chối: dựng câu hợp lệ trước.
+    valid = {
+        **same,
+        "options": [
+            {"label": "A", "text": "đúng", "is_correct": True, "error_label": None},
+            {"label": "B", "text": "sai", "is_correct": False, "error_label": "nhầm dấu"},
+        ],
+        "methods": [{"title": "Cách 1", "body": "..."}, {"title": "Cách 2", "body": "..."}],
+    }
+    async with maker() as session:
+        found = await session.get(BankQuestion, row.id)
+        found.options, found.methods = valid["options"], valid["methods"]
+        await session.commit()
+    saved = await client.patch(f"/api/teacher/bank/{row.id}", json=valid, headers=TEACHER)
+    assert saved.status_code == 200, saved.text
+    after = [one for one in await _bank(maker) if one.id == row.id][0]
+    assert after.edited_at is None
 
 
 @pytest.mark.asyncio

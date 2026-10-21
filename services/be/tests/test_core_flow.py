@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import agent_gateway, student_routes
 from be import db as db_module
+from be.burst_limit import BurstLimit
 from be.db import bind_sessions
 from be.scoring import MARK_REMEDIATED
 from be.seed import seed_if_empty
@@ -401,6 +402,44 @@ async def test_a_round_that_ran_out_says_so_to_the_screen(client: AsyncClient) -
     assert after["last_round_ran_out"] is True
 
 
+async def _ran_out_once(client: AsyncClient) -> str:
+    """Một lượt chữa hết giờ rồi được nộp; trả `attempt_id`."""
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    rnd = (await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)).json()
+    maker = await _sessionmaker()
+    async with maker() as session:
+        row = await session.get(RemediationRound, rnd["round_id"])
+        row.ends_at = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+    await client.post(f"/api/rounds/{rnd['round_id']}/submit", headers=STUDENT)
+    result = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    assert result["last_round_ran_out"] is True
+    return attempt_id
+
+
+@pytest.mark.asyncio
+async def test_the_ran_out_notice_goes_once_the_next_round_opens(client: AsyncClient) -> None:
+    """Tier 2 câu 27 = B (21/10/2026): mở lượt kế là thôi báo lượt trước hết giờ, chưa cần nộp."""
+    attempt_id = await _ran_out_once(client)
+    await client.post(f"/api/attempts/{attempt_id}/rounds", headers=STUDENT)
+    result = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    assert result["last_round_ran_out"] is False
+
+
+@pytest.mark.asyncio
+async def test_the_ran_out_notice_goes_once_the_deadline_passes(client: AsyncClient) -> None:
+    """Tier 2 câu 27 = C (21/10/2026): hết hạn chữa thì thôi báo, kể cả nhiều ngày sau."""
+    attempt_id = await _ran_out_once(client)
+    maker = await _sessionmaker()
+    async with maker() as session:
+        for one in await session.scalars(select(Publication)):
+            one.remediation_deadline = datetime.now(UTC) - timedelta(minutes=1)
+        await session.commit()
+    result = (await client.get(f"/api/attempts/{attempt_id}/result", headers=STUDENT)).json()
+    assert result["last_round_ran_out"] is False
+
+
 @pytest.mark.asyncio
 async def test_a_round_handed_in_on_time_does_not_read_as_ran_out(client: AsyncClient) -> None:
     """Cờ nói về lượt nộp **gần nhất**: lượt trước hết giờ, lượt sau nộp kịp, thì màn xem điểm thôi
@@ -620,6 +659,38 @@ async def test_the_assistant_does_not_greet_twice(client: AsyncClient) -> None:
     await client.get(f"/api/attempts/{attempt_id}/chat/stream", headers=STUDENT)
     after = (await client.get(f"/api/attempts/{attempt_id}/chat", headers=STUDENT)).json()
     assert [m["role"] for m in after["messages"]] == ["assistant", "student", "assistant"]
+
+
+@pytest.mark.asyncio
+async def test_a_burst_of_history_reads_is_refused_with_429(client: AsyncClient) -> None:
+    """Tier 2 câu 34 = A (21/10/2026): 10 request trong một giây cho một bài làm là quá nhiều.
+
+    Lưới thứ hai cho vòng lặp kiểu 29/09 (1 500 request mỗi giây từ một effect tự nuôi mình).
+    """
+    now = SimpleNamespace(t=0.0)
+    client._transport.app.state.burst_limit = BurstLimit(clock=lambda: now.t)
+    submitted = await _start_and_submit(client, correct_count=4)
+    attempt_id = submitted["attempt_id"]
+    paths = [f"/api/attempts/{attempt_id}/chat", f"/api/attempts/{attempt_id}/chat/stream"]
+
+    codes = [(await client.get(paths[one % 2], headers=STUDENT)).status_code for one in range(10)]
+    assert codes == [200] * 9 + [429]
+    refused = await client.get(paths[0], headers=STUDENT)
+    assert refused.json()["detail"] == "Màn này tải lại quá nhanh. Chờ một chút rồi thử lại."
+
+    # Dừng một giây là mở lại.
+    now.t += 1.0
+    assert (await client.get(paths[0], headers=STUDENT)).status_code == 200
+
+
+def test_the_burst_count_is_per_attempt():
+    now = SimpleNamespace(t=0.0)
+    limit = BurstLimit(clock=lambda: now.t)
+    assert all(limit.allows(("s1", "a1")) for _ in range(9))
+    assert not limit.allows(("s1", "a1"))
+    # Bài làm khác, hay học sinh khác, không chịu chung bộ đếm.
+    assert limit.allows(("s1", "a2"))
+    assert limit.allows(("s2", "a1"))
 
 
 @pytest.mark.asyncio

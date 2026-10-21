@@ -449,6 +449,27 @@ async def test_five_wrong_passwords_lock_the_teacher_even_with_the_right_one(sta
 
 
 @pytest.mark.asyncio
+async def test_wrong_tries_from_elsewhere_do_not_lock_the_teacher_out(stack):
+    # Tier 2 câu 31 = B (21/10/2026): khoá theo cặp tên + địa chỉ. Kẻ biết SĐT giáo viên, gõ sai
+    # từ máy của hắn, chỉ khoá chính cặp ấy; giáo viên ở trường vẫn vào được.
+    http, _ = stack
+    _, phone, _, password = SAMPLE_TEACHER
+    elsewhere = ASGITransport(app=http._transport.app, client=("203.0.113.9", 4000))
+    async with AsyncClient(transport=elsewhere, base_url="http://test") as stranger:
+        for _ in range(5):
+            wrong = await stranger.post(
+                "/api/teacher/sign-in", json={"login": phone, "password": "sai"}
+            )
+            assert wrong.status_code == 401
+        assert (
+            await stranger.post("/api/teacher/sign-in", json={"login": phone, "password": "sai"})
+        ).status_code == 429
+    assert (
+        await http.post("/api/teacher/sign-in", json={"login": phone, "password": password})
+    ).status_code == 204
+
+
+@pytest.mark.asyncio
 async def test_lock_opens_minute_by_minute_and_says_how_long(stack, clock):
     http, _ = stack
     _, username, password = SAMPLE_STUDENTS[0]
@@ -580,4 +601,4 @@ def test_expired_tries_are_swept_away():
         limit.attempt(f"student:ai-{one}", f"10.0.{one // 250}.{one % 250}")
     now.t = 16 * 60
     limit.attempt("student:cuoi", "10.9.9.9")
-    assert set(limit._tries) == {("login", "student:cuoi"), ("address", "10.9.9.9")}
+    assert set(limit._tries) == {("login", "student:cuoi", "10.9.9.9"), ("address", "10.9.9.9")}

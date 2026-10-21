@@ -974,6 +974,7 @@ async def edit_bank_question(
     except (AgentError, ValueError) as refused:
         raise HTTPException(status_code=422, detail=str(refused)) from refused
 
+    before = (row.stem, row.learning_objective, row.options, row.methods)
     # List mới, không sửa tại chỗ: cột JSON không theo dõi thay đổi bên trong một list.
     row.stem = wanted.stem
     row.learning_objective = wanted.learning_objective
@@ -987,6 +988,10 @@ async def edit_bank_question(
         for one in wanted.options
     ]
     row.methods = [{"title": one.title, "body": one.body} for one in wanted.methods]
+    # Dấu để `question_bank.file_approved` biết bản này của giáo viên: duyệt lại không chép đè. Chỉ
+    # khi nội dung đổi thật: bấm Lưu không sửa gì mà cũng đặt dấu là khoá bản này khỏi đề gốc mãi.
+    if (row.stem, row.learning_objective, row.options, row.methods) != before:
+        row.edited_at = _now()
     await session.commit()
     logger.info("teacher %s edited bank question %s", teacher.teacher_code, bank_id)
     return _bank_detail(row, paper)

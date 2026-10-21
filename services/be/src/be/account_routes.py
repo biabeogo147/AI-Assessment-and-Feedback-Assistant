@@ -168,11 +168,13 @@ async def teacher_sign_in(
     """Đăng nhập giáo viên bằng SĐT hoặc email.
 
     Raises:
-        HTTPException: 429 khi tên hay địa chỉ đã sai quá nhiều lần (`be.sign_in_limit`), kiểm
-            trước cả mật khẩu; 401 với **một** câu cho mọi lần sai -- không nói SĐT nào đã đăng ký.
+        HTTPException: 429 khi cặp tên + địa chỉ, hay riêng địa chỉ, đã sai quá nhiều lần
+            (`be.sign_in_limit`), kiểm trước cả mật khẩu; 401 với **một** câu cho mọi lần sai --
+            không nói SĐT nào đã đăng ký.
 
     Side effects:
-        Ghi lần thử vào bộ đếm trước khi kiểm mật khẩu, gỡ nó và xoá bộ đếm của tên khi đúng;
+        Ghi lần thử vào bộ đếm trước khi kiểm mật khẩu, gỡ nó và xoá bộ đếm của cặp tên + địa
+        chỉ khi đúng;
         thêm một dòng `sessions`; đặt cookie `aiafa_teacher`.
     """
     login = body.login.strip()
@@ -231,11 +233,12 @@ async def student_sign_in(
     """Đăng nhập học sinh bằng tên đăng nhập và mật khẩu giáo viên phát.
 
     Raises:
-        HTTPException: 429 khi tên hay địa chỉ đã sai quá nhiều lần, kiểm trước mật khẩu; 401 với
-            một câu cho mọi lần sai.
+        HTTPException: 429 khi cặp tên + địa chỉ, hay riêng địa chỉ, đã sai quá nhiều lần, kiểm
+            trước mật khẩu; 401 với một câu cho mọi lần sai.
 
     Side effects:
-        Ghi lần thử vào bộ đếm trước khi kiểm mật khẩu, gỡ nó và xoá bộ đếm của tên khi đúng;
+        Ghi lần thử vào bộ đếm trước khi kiểm mật khẩu, gỡ nó và xoá bộ đếm của cặp tên + địa
+        chỉ khi đúng;
         thêm một dòng `sessions`; đặt cookie `aiafa_student`.
     """
     username = body.username.strip().lower()

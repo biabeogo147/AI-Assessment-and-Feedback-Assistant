@@ -3,13 +3,15 @@
 Không có bộ đếm này thì một script thử được bao nhiêu mật khẩu cũng được: `scrypt` chạy ngoài
 event loop nên BE không đứng, nhưng cũng không chặn ai. Hai khoá, vì hai cách đoán khác nhau:
 
-- **Theo tên đăng nhập** (đã chuẩn hoá như lúc tra người): 5 lần sai trong 15 phút thì tên ấy
-  khoá tới khi lần sai cũ nhất trôi khỏi cửa sổ. Đếm cả tên không có thật, để câu trả lời không
-  lộ tên nào có.
+- **Theo cặp tên đăng nhập + địa chỉ** (tên đã chuẩn hoá như lúc tra người): 5 lần sai trong 15
+  phút thì cặp ấy khoá tới khi lần sai cũ nhất trôi khỏi cửa sổ. Đếm cả tên không có thật, để câu
+  trả lời không lộ tên nào có. Cặp chứ không tên trần (Tier 2 câu 31 = B, 21/10/2026): khoá theo tên
+  trần thì ai biết SĐT một giáo viên, gõ sai từ máy của mình, là giữ giáo viên ấy ngoài cửa mãi.
+  Cái giá: kẻ đổi địa chỉ liên tục đoán được 5 lần mỗi địa chỉ.
 - **Theo địa chỉ**: ngưỡng cao hơn hẳn, 50, vì cả một lớp đăng nhập sau cùng một địa chỉ NAT của
   trường, và mười em gõ nhầm không được khoá cả lớp.
 
-Đăng nhập đúng xoá bộ đếm của tên ấy, không xoá bộ đếm của địa chỉ: một tài khoản đúng không làm
+Đăng nhập đúng xoá bộ đếm của cặp ấy, không xoá bộ đếm của địa chỉ: một tài khoản đúng không làm
 sạch được một địa chỉ đang thử hàng loạt tên khác.
 
 Bộ đếm ở trong bộ nhớ của **một** tiến trình BE. Dev và lab đều chạy một uvicorn, không
@@ -41,7 +43,7 @@ class SignInLimit:
     Args:
         clock: Đồng hồ đơn điệu, giây. Test tiêm một đồng hồ giả để khỏi chờ 15 phút.
         window: Độ dài cửa sổ, giây.
-        per_login: Số lần sai một tên chịu được trong cửa sổ.
+        per_login: Số lần sai một cặp tên + địa chỉ chịu được trong cửa sổ.
         per_address: Số lần sai một địa chỉ chịu được trong cửa sổ.
     """
 
@@ -59,11 +61,11 @@ class SignInLimit:
         self._clock = clock
         self._window = window
         self._limits = {"login": per_login, "address": per_address}
-        self._tries: dict[tuple[str, str], deque[float]] = {}
+        self._tries: dict[tuple[str, ...], deque[float]] = {}
         self._since_sweep = 0
 
     def wait_minutes(self, login: str, address: str) -> int | None:
-        """Tên hay địa chỉ này còn bị khoá bao lâu.
+        """Cặp tên + địa chỉ, hay riêng địa chỉ, còn bị khoá bao lâu.
 
         Args:
             login: Khoá của tên, gồm cả vai (`teacher:...`, `student:...`).
@@ -74,7 +76,7 @@ class SignInLimit:
         """
         now = self._clock()
         waits = []
-        for key in (("login", login), ("address", address)):
+        for key in self._keys(login, address):
             tries = self._fresh(key, now)
             if len(tries) >= self._limits[key[0]]:
                 # Mở lại khi lần thử cũ nhất trong số cần thiết trôi khỏi cửa sổ.
@@ -96,7 +98,7 @@ class SignInLimit:
             Dấu thời gian của lần thử, để `succeeded` gỡ đúng nó.
         """
         now = self._clock()
-        for key in (("login", login), ("address", address)):
+        for key in self._keys(login, address):
             self._tries.setdefault(key, deque()).append(now)
         self._since_sweep += 1
         if self._since_sweep >= self._SWEEP_EVERY:
@@ -106,7 +108,7 @@ class SignInLimit:
         return now
 
     def succeeded(self, login: str, address: str, stamp: float) -> None:
-        """Đăng nhập đúng: tên này đếm lại từ đầu, và lần thử vừa rồi rời sổ của địa chỉ.
+        """Đăng nhập đúng: cặp tên + địa chỉ đếm lại từ đầu, lần thử vừa rồi rời sổ của địa chỉ.
 
         Địa chỉ giữ các lần sai khác của nó: một tài khoản đúng không làm sạch được một địa chỉ
         đang thử hàng loạt tên khác. Nhưng lần đúng thì không được tính, kẻo một lớp 50 em đăng
@@ -117,7 +119,7 @@ class SignInLimit:
             address: Địa chỉ người gọi.
             stamp: Giá trị `attempt` đã trả cho lần thử này.
         """
-        self._tries.pop(("login", login), None)
+        self._tries.pop(self._keys(login, address)[0], None)
         tries = self._tries.get(("address", address))
         if tries is not None:
             # Đã bị quét khỏi cửa sổ thì không còn gì để gỡ.
@@ -126,7 +128,13 @@ class SignInLimit:
             if not tries:
                 del self._tries[("address", address)]
 
-    def _fresh(self, key: tuple[str, str], now: float) -> deque[float]:
+    @staticmethod
+    def _keys(login: str, address: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        # Khoá thứ nhất là cặp tên + địa chỉ, khoá thứ hai là riêng địa chỉ. Phần tử đầu là tên
+        # của ngưỡng trong `_limits`.
+        return ("login", login, address), ("address", address)
+
+    def _fresh(self, key: tuple[str, ...], now: float) -> deque[float]:
         tries = self._tries.get(key)
         if tries is None:
             return deque()
