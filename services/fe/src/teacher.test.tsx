@@ -4629,11 +4629,11 @@ describe("hai ngăn của rail thu được bằng chính tiêu đề của chú
     const docs = () => container.querySelector(".pane.documents") as HTMLElement;
     expect(docs().style.flex).toBe("0 0 225px");
 
-    fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500 });
-    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 499 });
+    fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500, buttons: 1 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 499, buttons: 1 });
     expect(docs().style.flex).toBe("0 0 226px");
 
-    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 460 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 460, buttons: 1 });
     fireEvent.pointerUp(bar, { pointerId: 1, clientY: 460 });
     expect(docs().style.flex).toBe("0 0 265px");
     expect(window.localStorage.getItem("kriky.teacher.documents-height")).toBe("265");
@@ -4657,16 +4657,75 @@ describe("hai ngăn của rail thu được bằng chính tiêu đề của chú
       const bar = container.querySelector(".split-handle") as Element;
       const docs = () => container.querySelector(".pane.documents") as HTMLElement;
 
-      fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500 });
-      fireEvent.pointerMove(bar, { pointerId: 1, clientY: 470 });
+      fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500, buttons: 1 });
+      fireEvent.pointerMove(bar, { pointerId: 1, clientY: 470, buttons: 1 });
       fireEvent[ended](bar, { pointerId: 1 });
       expect(docs().style.flex).toBe("0 0 255px");
       expect(window.localStorage.getItem("kriky.teacher.documents-height")).toBe("255");
 
-      fireEvent.pointerMove(bar, { pointerId: 1, clientY: 400 });
+      fireEvent.pointerMove(bar, { pointerId: 1, clientY: 400, buttons: 1 });
       expect(docs().style.flex).toBe("0 0 255px");
     },
   );
+
+  it("rê mà không nút nào đang bấm thì cú kéo đã hết, kể cả khi không ai báo", async () => {
+    // Review vòng 2 Tier 1 (21/10/2026): thanh bị gỡ khỏi DOM giữa cú kéo (thu một ngăn bằng bàn
+    // phím lúc đang giữ chuột) thì `lostpointercapture` rơi vào `document`, React không nghe được.
+    // `buttons === 0` ở lần rê kế là bằng chứng chắc chắn nút đã nhả.
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn(() => false);
+    vi.stubGlobal("PointerEvent", MouseEvent);
+    routes(SPOKEN, THREADS);
+    const { container } = render(
+      <Chat conversationId="c1" fresh={false} openPaper={null} />,
+    );
+    await waitFor(() => expect(screen.getByText("Đề giữa kỳ")).toBeTruthy());
+    const bar = container.querySelector(".split-handle") as Element;
+    const docs = () => container.querySelector(".pane.documents") as HTMLElement;
+
+    fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500, buttons: 1 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 470, buttons: 1 });
+    expect(docs().style.flex).toBe("0 0 255px");
+
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 400, buttons: 0 });
+    expect(docs().style.flex).toBe("0 0 255px");
+    expect(window.localStorage.getItem("kriky.teacher.documents-height")).toBe("255");
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 380, buttons: 1 });
+    expect(docs().style.flex).toBe("0 0 255px");
+  });
+
+  it("thanh kéo rời DOM giữa cú kéo thì cú kéo hết theo nó", async () => {
+    // Review vòng 3 Tier 1 (21/10/2026): thu rồi bung lại một ngăn lúc đang giữ chuột, rồi giữ
+    // chuột từ chỗ khác (bôi chọn chữ) rê qua thanh mới: `buttons` là 1 nên chỉ luật `buttons === 0`
+    // không đủ.
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn(() => false);
+    vi.stubGlobal("PointerEvent", MouseEvent);
+    routes(SPOKEN, THREADS);
+    const { container } = render(
+      <Chat conversationId="c1" fresh={false} openPaper={null} />,
+    );
+    await waitFor(() => expect(screen.getByText("Đề giữa kỳ")).toBeTruthy());
+    const docs = () => container.querySelector(".pane.documents") as HTMLElement;
+
+    fireEvent.pointerDown(container.querySelector(".split-handle") as Element, {
+      pointerId: 1,
+      clientY: 500,
+      buttons: 1,
+    });
+    fireEvent.click(screen.getByText("TÀI LIỆU"));
+    expect(container.querySelector(".split-handle")).toBeNull();
+    fireEvent.click(screen.getByText("TÀI LIỆU"));
+
+    fireEvent.pointerMove(container.querySelector(".split-handle") as Element, {
+      pointerId: 1,
+      clientY: 400,
+      buttons: 1,
+    });
+    expect(docs().style.flex).toBe("0 0 225px");
+  });
 
   it("thu một ngăn thì ngăn kia lấy hết chỗ trống — ở CẢ HAI chiều", async () => {
     // Chiều thu `TÀI LIỆU` đúng miễn phí vì `.pane.history` là `flex: 1`. Chiều kia thì

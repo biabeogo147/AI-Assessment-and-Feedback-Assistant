@@ -98,6 +98,14 @@ export default function Rail({
   const wanted = useRef(documentsHeight);
   const below = useRef(0);
 
+  // Thanh kéo chỉ có mặt khi cả hai ngăn bung. Nó rời DOM giữa cú kéo thì cú kéo hết theo nó: không
+  // còn ai nhận `pointerup`, và giữ chuột từ chỗ khác rồi rê qua thanh mới (`buttons` 1) vẫn kéo
+  // ngăn theo (review vòng 3 Tier 1, 21/10/2026). Effect chứ không ref callback: ref viết tại chỗ
+  // được gọi lại với `null` ở mỗi lần vẽ, tức mỗi bước của chính cú kéo.
+  useEffect(() => {
+    if (!(historyOpen && documentsOpen)) dragging.current = false;
+  }, [historyOpen, documentsOpen]);
+
   /** Kết thúc cú kéo, dù bằng thả tay hay bằng trình duyệt huỷ pointer. */
   function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
     // `releasePointerCapture` ở dưới tự bắn `lostpointercapture`, tức gọi lại hàm này: lần sau
@@ -242,6 +250,13 @@ export default function Rail({
           }}
           onPointerMove={(event) => {
             if (!dragging.current) return;
+            // Không nút nào đang bấm: cú kéo đã hết ở một chỗ React không nghe được (review vòng 2
+            // Tier 1, 21/10/2026). Lưới cuối, sau `pointerup`/`pointercancel`/`lostpointercapture`
+            // và effect dọn cú kéo khi thanh rời DOM.
+            if (event.buttons === 0) {
+              endDrag(event);
+              return;
+            }
             // Đo từ **mép dưới cửa sổ** chứ không cộng dồn delta: cộng dồn thì mỗi lần
             // chạm biên 120/520 là một pixel bị nuốt mất, và sau vài lần kéo thanh ngăn
             // trôi khỏi con trỏ.
