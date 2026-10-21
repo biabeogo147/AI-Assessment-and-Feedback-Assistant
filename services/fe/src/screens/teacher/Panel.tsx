@@ -392,6 +392,8 @@ export default function Panel({
   // Nút lấy câu từ ngân hàng (việc 17) theo cờ của BE, như *Xoá đề* theo `erasable`: hai cửa từ
   // chối của BE (đề đã khoá, còn câu đang soạn) là luật của BE, không phải của màn hình.
   const offersBank = paper.bank_pick_open;
+  // Câu dưới chân panel; rỗng thì không vẽ ô nào, để `gap` của chân panel không đẩy nút xuống.
+  const footNote = trouble ?? _note(paper.state, paper.question_count);
 
   return (
     <aside className="panel">
@@ -584,7 +586,7 @@ export default function Panel({
         </>
       ) : (
         <div className="panel-foot">
-          <div className="note">{trouble ?? _note(paper.state)}</div>
+          {footNote !== "" && <div className="note">{footNote}</div>}
           {/* Nhánh này nay **chỉ** còn của đề chưa duyệt, nên cái nút thôi phải chọn giữa
             hai nhãn: đề đã khoá thì nhánh trên đã nhận nó. *Hoàn tác* sống ở màn cài đặt
             phát hành — để đường lùi ở cả hai chỗ là một việc có hai chỗ bấm. */}
@@ -772,11 +774,18 @@ function Solution({
  * in ra nữa. Hàm vẫn nhận `state` và vẫn trả chuỗi rỗng cho hai nấc ấy, để nếu một ngày
  * nhánh kia quay lại thì nó không im lặng một cách tình cờ.
  *
+ * Đề chưa có câu thì không có câu nào: Figma 18 (`653:2917`) chỉ vẽ nút *Duyệt đề* đã tắt, câu
+ * nhắc *"Đề chưa có câu nào…"* có trong frame nhưng bị ẩn (người dùng chọn bỏ dòng nhắc theo
+ * Figma, 21/10/2026). Thân panel đã nói đề trống và mời thêm câu ngay phía trên.
+ *
  * @param state - Trạng thái đề, nguyên văn từ BE.
- * @returns Câu để in. Chuỗi rỗng cho `approved` và `published` — đường không tới được.
+ * @param questions - Số câu của đề.
+ * @returns Câu để in. Chuỗi rỗng cho đề trống, và cho `approved` và `published` — đường không
+ *   tới được.
  */
-function _note(state: string): string {
+function _note(state: string, questions: number): string {
   if (state === "approved" || state === "published") return "";
+  if (questions === 0) return "";
   return "Bạn duyệt xong mới phát hành được. Học sinh chưa nhìn thấy đề này.";
 }
 

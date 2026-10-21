@@ -176,7 +176,8 @@ describe("đăng nhập giáo viên (việc 22)", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Đăng xuất" }));
     expect(await screen.findByRole("heading", { name: "Đăng nhập vào Kriky" })).toBeTruthy();
     expect(sent.some((one) => one.url === "/api/teacher/sign-out" && one.method === "POST")).toBe(true);
-    expect(container.querySelector(".rail .account-box")).toBeNull();
+    expect(container.querySelector(".rail .account.signed-out")).toBeTruthy();
+    expect(container.querySelector(".rail .account-box .avatar")).toBeNull();
   });
 
   it("phiên hết giữa chừng: một 401 bất kỳ đưa về hộp đăng nhập", async () => {

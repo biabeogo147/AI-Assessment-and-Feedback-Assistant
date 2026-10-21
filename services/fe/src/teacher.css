@@ -977,6 +977,13 @@
   gap: 20px;
 }
 
+/* Nhịp 6 là của **câu chữ** dưới avatar (`label-row` → lời trong `Message turn`). Khối bước là
+   một `Thinking` đứng riêng trong `thread`, cách lượt trên nó 20 (artboard 4, 5, 16): lượt không
+   có câu mở thì khối bước đứng ngay dưới avatar, và khoảng ấy là 20 chứ không phải 6. */
+.teacher .turn-body > .steps-block:first-child {
+  margin-top: 14px;
+}
+
 /* ------------------------------------------------- khối các bước (`Thinking` 83:76) */
 
 /*
@@ -1961,8 +1968,9 @@
  * dòng được, và một ô một dòng biến một lời giải ba bước thành một dải chữ cuộn ngang.
  * Số đo lấy từ component `Question card — đang sửa` (`468:2050`).
  */
+/* 6 như mọi instance `Question card — đang sửa · ba tầng` trên artboard 14 và 22b (đo 21/10/2026). */
 .teacher .qcard.editing {
-  gap: 8px;
+  gap: 6px;
 }
 
 .teacher .qcard .edit-mark {
@@ -2091,7 +2099,9 @@
   font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.06em;
-  line-height: 1.5;
+  /* 14 chẵn: chiều cao `tier-head` trên artboard 14 và 22b (chữ 11, line-height AUTO). `1.5`
+     cho 16,5 và đẩy mỗi tầng xuống thêm 2-3px. */
+  line-height: 14px;
 }
 
 /* Tầng đang mở đậm hơn: thanh đầu của nó thôi là một lối đi và thành một tiêu đề. */
@@ -2103,7 +2113,9 @@
 .teacher .qcard .tang-head .summary {
   color: var(--ink-faint);
   font-size: var(--type-caption);
-  line-height: 1.5;
+  /* Cùng 14 với `.label`: trên artboard 14 và 22b câu tóm cũng cao 14, nên giữ `1.5` thì tầng thu
+     gọn vẫn cao 16,5 dù tên tầng đã 14. */
+  line-height: 14px;
 }
 
 .teacher .qcard .tang-body {
@@ -2372,6 +2384,9 @@
 .teacher .panel-foot .cta:disabled {
   background: var(--sunken);
   color: var(--ink-faint);
+  /* `button:disabled` của `tokens.css` làm mờ thêm một nửa, và nền `--sunken` đã là trạng thái
+     tắt: không có dòng này thì nút nhạt hơn Figma 18 (`#F8F8F7` so với `#F2F2EF`). */
+  opacity: 1;
 }
 
 /* Cột giữa hẹp lại khi panel mở — đúng 760, và dòng lượt nói còn 660. */
@@ -4171,10 +4186,15 @@
   line-height: 14px;
 }
 
-/* Ô tài khoản ở góc dưới rail (`Account`, Figma 26/27): 228 × 44, dán đáy nhờ `.lists` co giãn. */
+/* Ô tài khoản ở góc dưới rail (`Account`, Figma 26/27): 228 × 44, dán đáy nhờ `.lists` co giãn.
+   Đường kẻ trên tách nó khỏi khối danh sách (người dùng 20/10/2026: không có thì khó nhìn), cùng
+   màu với đường của thanh kéo; Figma vẽ nó ở frame `account-box` bọc instance `Account`. Cả lúc
+   chưa đăng nhập cũng có hộp này. */
 .rail .account-box {
   position: relative;
   flex: none;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 
 .rail .account {
@@ -4199,14 +4219,16 @@
   color: var(--accent);
 }
 
-/* Đã đăng nhập: avatar 28 + họ tên, đệm 10, khe 10. Menu mở thì ô mang nền `--sunken` của Figma 27. */
-.rail .account-box .account {
+/* Đã đăng nhập: avatar 28 + họ tên, đệm 10, khe 10. Menu mở thì ô mang nền `--sunken` của Figma 27.
+   `:not(.signed-out)`: ô *Đăng nhập* cũng nằm trong `.account-box`, và không được nhận chữ mực,
+   đệm 10 hay nền hover của ô này (review 21/10/2026). */
+.rail .account-box .account:not(.signed-out) {
   gap: 10px;
   padding: 0 10px;
   color: var(--ink);
 }
 
-.rail .account-box .account:hover,
+.rail .account-box .account:not(.signed-out):hover,
 .rail .account-box .account[aria-expanded="true"] {
   background: var(--sunken);
 }
@@ -4244,7 +4266,8 @@
   z-index: 20;
   left: 0;
   right: 0;
-  bottom: calc(100% + 6px);
+  /* 6px trên nút 44, đo từ đáy hộp: `100%` nay gồm cả đường kẻ và đệm trên của `.account-box`. */
+  bottom: 50px;
   display: flex;
   flex-direction: column;
   padding: 6px 0;

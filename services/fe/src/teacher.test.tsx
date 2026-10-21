@@ -4612,6 +4612,32 @@ describe("hai ngăn của rail thu được bằng chính tiêu đề của chú
     expect(container.querySelector(".split-handle")).toBeNull();
   });
 
+  it("bấm thanh kéo mà chưa rê thì ngăn TÀI LIỆU đứng yên, rê bao nhiêu đi bấy nhiêu", async () => {
+    // Người dùng 20/10/2026: vừa bấm, chưa kéo, thanh đã tự nhảy lên. Bản cũ đo từ mép
+    // dưới cửa sổ trừ một hằng 26, có từ trước khi ô tài khoản đứng dưới ngăn tài liệu, nên
+    // rung chuột 1px cũng đặt một chiều cao lệch đúng bằng phần dưới ấy.
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    vi.stubGlobal("PointerEvent", MouseEvent);
+    routes(SPOKEN, THREADS);
+    const { container } = render(
+      <Chat conversationId="c1" fresh={false} openPaper={null} />,
+    );
+    await waitFor(() => expect(screen.getByText("Đề giữa kỳ")).toBeTruthy());
+    const bar = container.querySelector(".split-handle") as Element;
+    const docs = () => container.querySelector(".pane.documents") as HTMLElement;
+    expect(docs().style.flex).toBe("0 0 225px");
+
+    fireEvent.pointerDown(bar, { pointerId: 1, clientY: 500 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 499 });
+    expect(docs().style.flex).toBe("0 0 226px");
+
+    fireEvent.pointerMove(bar, { pointerId: 1, clientY: 460 });
+    fireEvent.pointerUp(bar, { pointerId: 1, clientY: 460 });
+    expect(docs().style.flex).toBe("0 0 265px");
+    expect(window.localStorage.getItem("kriky.teacher.documents-height")).toBe("265");
+  });
+
   it("thu một ngăn thì ngăn kia lấy hết chỗ trống — ở CẢ HAI chiều", async () => {
     // Chiều thu `TÀI LIỆU` đúng miễn phí vì `.pane.history` là `flex: 1`. Chiều kia thì
     // không: `.pane.documents` nhận một `style="flex: 0 0 225px"` từ JSX, và một chiều cao
@@ -7324,6 +7350,11 @@ describe("thêm câu từ ngân hàng (việc 17, plan `question-bank-into-draft
     const first = mount();
     await screen.findByText("Hoặc nhắn cho Kriky để soạn câu mới vào đề này.");
     expect(first.container.querySelector(".panel-empty.start .from-bank")).toBeTruthy();
+    // Chân panel chỉ có nút *Duyệt đề* đã tắt: Figma 18 (`653:2917`) ẩn câu nhắc.
+    expect(first.container.querySelector(".panel-foot .note")).toBeNull();
+    expect(
+      (first.container.querySelector(".panel-foot .cta") as HTMLButtonElement).disabled,
+    ).toBe(true);
     first.unmount();
 
     serving({ ...empty, still_drafting: 2, bank_pick_open: false });

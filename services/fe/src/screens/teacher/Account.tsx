@@ -81,15 +81,17 @@ export function AccountCell() {
 
   if (out) {
     return (
-      <div className="account signed-out">
-        <span className="icon" aria-hidden="true">
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 2H9.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5H6" />
-            <path d="M1.5 6H7" />
-            <path d="M5 4L7 6L5 8" />
-          </svg>
-        </span>
-        Đăng nhập
+      <div className="account-box">
+        <div className="account signed-out">
+          <span className="icon" aria-hidden="true">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2H9.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5H6" />
+              <path d="M1.5 6H7" />
+              <path d="M5 4L7 6L5 8" />
+            </svg>
+          </span>
+          Đăng nhập
+        </div>
       </div>
     );
   }

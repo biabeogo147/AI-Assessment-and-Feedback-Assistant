@@ -35,10 +35,6 @@ export default function Dashboard() {
 
       <div className="board-part">
         <h2>Cần bạn xem</h2>
-        <p>
-          Báo cáo giải thích chưa rõ của học sinh, gom theo đề, và câu có tỉ lệ sai cao khi bài đã kết
-          thúc.
-        </p>
       </div>
       <div className="board-table queue" role="table">
         <div className="board-row head" role="row">
@@ -90,7 +86,6 @@ export default function Dashboard() {
 
       <div className="board-part">
         <h2>Điểm gộp theo lớp</h2>
-        <p>Chỉ tính các đề đã hết hạn chữa bài. Điểm quy về thang 10 trước khi gộp.</p>
       </div>
       {data.classes.length > 0 && (
         <div className="board-charts">

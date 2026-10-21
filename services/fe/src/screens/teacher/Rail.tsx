@@ -96,6 +96,7 @@ export default function Rail({
   // handler lúc thả tay vẫn là handler của render cũ và nó ghi lại con số **trước** cú
   // kéo. Một ref thì không chờ render.
   const wanted = useRef(documentsHeight);
+  const below = useRef(0);
 
   // Một menu đang mở thì bấm chỗ khác, hoặc Esc, phải đóng nó. Không có đường này thì menu
   // chỉ đóng bằng cách chọn một mục — tức bấm nhầm `⋯` là kẹt một menu trên màn hình.
@@ -215,6 +216,11 @@ export default function Rail({
           aria-orientation="horizontal"
           onPointerDown={(event) => {
             dragging.current = true;
+            // Khoảng từ mép dưới cửa sổ tới con trỏ mà **không** thuộc ngăn tài liệu (ô tài
+            // khoản, gap, padding của rail), đo lúc bấm. Bản cũ ghi cứng 26, có từ trước khi
+            // ô tài khoản đứng dưới ngăn, nên vừa bấm mà rê 1px thanh đã nhảy lên ~60px
+            // (người dùng, 20/10/2026).
+            below.current = window.innerHeight - event.clientY - documentsHeight;
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerMove={(event) => {
@@ -222,7 +228,7 @@ export default function Rail({
             // Đo từ **mép dưới cửa sổ** chứ không cộng dồn delta: cộng dồn thì mỗi lần
             // chạm biên 120/520 là một pixel bị nuốt mất, và sau vài lần kéo thanh ngăn
             // trôi khỏi con trỏ.
-            const asked = window.innerHeight - event.clientY - 26;
+            const asked = window.innerHeight - event.clientY - below.current;
             wanted.current = Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, asked));
             setDocumentsHeight(wanted.current);
           }}
