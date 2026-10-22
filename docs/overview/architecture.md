@@ -123,8 +123,7 @@ bảng:
 | `write_draft_question` | **một câu** của bộ đề giáo viên yêu cầu | kiểm theo ADR-18 rồi lưu vào đúng vị trí đã yêu cầu |
 | `generate_retry_question` | viết trước: lúc học sinh nộp bài pha 1, lúc mở phần chữa bài, và sau mỗi lượt làm lại được nộp; viết tại chỗ chỉ khi học sinh mở lượt mà chưa có câu viết trước | kiểm rồi lưu kèm đáp án đúng, để BE tự chấm lượt |
 | `explain_turn` | mỗi tin nhắn học sinh gửi trong chat pha 2 (lời chào mở đầu do BE viết, không qua AGENT) | chuyển tiếp từng mảnh ra SSE, lưu khi câu trả lời đã trọn vẹn, rồi gửi `done` |
-| `propose_next_step` | mỗi bước của một lượt chat giáo viên, trước khi có plan | lưu lời nói hay câu hỏi lại, hiện dàn ý chờ giáo viên đồng ý, chạy tool đọc; hoặc kiểm cả plan rồi chạy các việc ghi của nó |
-| `report_plan` | sau khi cả một plan của lượt chat đã chạy | lưu lời kể vào lịch sử đoạn chat |
+| `propose_next_step` | mỗi bước của một lượt chat giáo viên, trước khi có plan; và một lượt kể lại sau khi plan đã chạy (ADR-25, hậu ký 22/10/2026) | lưu lời nói hay câu hỏi lại, hiện dàn ý chờ giáo viên đồng ý, chạy tool đọc; hoặc kiểm cả plan rồi chạy các việc ghi của nó. Ở lượt kể lại: chỉ tool đọc (cả `last_plan`), lời nói thành câu kết |
 | `name_conversation` | lượt đầu của một đoạn chat giáo viên | đặt tên đoạn chat |
 
 `write_draft_question` viết **một** câu một job, không phải cả bộ. Đó không phải khẩu vị mà là số

@@ -242,3 +242,25 @@ Tới lúc ấy, đoạn sửa 10/10 mô tả hướng đi, không mô tả code
 Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
 `graphs/propose/`: prompt pha 1 ở `propose/prompt.py`, đường trả về plan ở `propose/choose.py` và
 `propose/graph.py`. Tên hàm và luật không đổi.
+
+## Hậu ký 22/10/2026 — kể lại là một lượt propose, không còn là một job riêng
+
+Lời sửa 10/10 nay thành code (plan `report-into-propose`). Luật mới thay cho câu *"Pha 2 xong thì model
+báo cáo… trong một lời gọi riêng"*:
+
+- **Lượt có chạy plan thì BE hỏi `propose` thêm một lượt kể lại**, sau bước cuối của pha 2 (kể cả khi
+  plan hỏng giữa chừng). Lượt ấy nhận catalog **chỉ có tool đọc** của pha 1, cộng tool `last_plan` kể
+  gọn plan vừa chạy (bước nào xong, bước nào hỏng, bước nào không chạy, tiến độ soạn); `plannable` rỗng,
+  nên lượt kể lại không mở thêm việc ghi nào. Trần: hai bước đọc.
+- **Kể hay không là việc của skill.** `soan-de.md` bước 6 dặn cách kể; model nói một câu kết thì câu ấy
+  là câu kết trên màn hình (event `report`), model không nói gì thì lượt kết thúc không câu kết, không
+  thông báo. Lượt kể lại hỏng (model lỗi) thì như trước: một thông báo hệ thống.
+- **Gỡ:** job `report_plan`, `PlanReportRequested`, `PlanReportCompleted`, `graphs/reporting.py`, và check
+  *report-is-its-own-job*. Lý do cũ (*"báo cáo có đầu vào khác: nó đọc kết quả của cả plan, không đọc
+  catalog"*) nay do `last_plan` và catalog chỉ-đọc gánh: model đọc kết quả qua một tool, và không còn
+  tool ghi nào để gọi nhầm.
+- Đóng tab giữa pha 2 thì lượt kể lại không chạy, như trước (mục *chưa ép* ở trên vẫn đúng).
+- Danh sách *nơi thi hành* ở trên: dòng `graphs/reporting.py` nay là `_tell_after_plan` ở
+  `be/teacher_chat.py` cùng bước 6 của `agent/skills/soan-de.md`; tool `last_plan` ở `be/teacher_tools.py`
+  và `be/plan_outcomes.py`; check thứ tám nay là `telling-turn-only-reads` (lượt kể lại gọi
+  `_ask_agent` với `plannable=()`, catalog và `execute` đều ở `PHASE_PLAN`).

@@ -190,7 +190,7 @@ Với ba worker, không có endpoint nào để gọi, nên bằng chứng chún
 động:
 
 ```text
-Starting worker for 6 functions: write_draft_question, generate_retry_question, explain_turn, name_conversation, propose_next_step, report_plan
+Starting worker for 5 functions: write_draft_question, generate_retry_question, explain_turn, name_conversation, propose_next_step
 AGENT worker ready: queue=aiafa:grading redis=redis://127.0.0.1:6379/0 model=off (canned)
 ```
 
