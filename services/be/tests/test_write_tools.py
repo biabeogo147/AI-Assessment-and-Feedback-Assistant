@@ -435,7 +435,9 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
     # `draft-outline` thêm `read_section`: cũng chỉ đọc, cũng cùng hai phép kiểm ấy -- chữ đọc được
     # tới Kriky để viết dàn ý, không tới học sinh nào. Và `replace_question`: một tool **ghi** đảo
     # ngược được như `start_drafting` -- chỉ chạm đề chưa duyệt, câu cũ ở lại tới khi câu mới đạt.
+    # `report-into-propose` thêm `last_plan`: chỉ đọc lại các bước của chính đoạn chat này.
     assert offered == {
+        "last_plan",
         "list_class",
         "get_class",
         "list_assessment",
@@ -680,6 +682,7 @@ async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
     working = {spec.name for spec in catalog_for(asking, PHASE_WORK)}
 
     assert planning == {
+        "last_plan",
         "list_class",
         "get_class",
         "list_assessment",

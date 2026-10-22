@@ -125,7 +125,7 @@ function dash(text: string): string {
 /**
  * Ba con số của một bước soạn đã đóng, đọc thành một dòng.
  *
- * Soi lại `_how_many` của BE từng nhánh một, và đó là chủ ý chứ không phải trùng lặp tình
+ * Soi lại `how_many` của BE (`be/plan_outcomes.py`) từng nhánh một, và đó là chủ ý chứ không phải trùng lặp tình
  * cờ: cùng một bước được vẽ bằng hai đường — `detail` do BE gửi khi lượt đang chạy, và
  * `tool_result` đã lưu sau một lần F5 — nên hai đường phải cho cùng một câu. Lệch một chữ
  * là một lần tải lại làm đổi nghĩa một việc đã xong.

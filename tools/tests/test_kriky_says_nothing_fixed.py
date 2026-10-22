@@ -46,8 +46,8 @@ def _in(body: str) -> str:
         _in('yield TurnEvent(kind="say", text=CEILING_REACHED)'),
         # Kind không đọc ra được thì có thể là lời Kriky.
         _in('yield TurnEvent(kind=pick(), text="Mình chưa rõ.")'),
-        # Lời kể cuối lượt cũng là lời Kriky.
-        _in('return PlanReportCompleted(request_id="r", text="Mình đã tạo đề.")'),
+        # Câu kết của lượt kể lại cũng là lời Kriky (ADR-25, hậu ký 22/10/2026).
+        _in('return NextStepCompleted(request_id="r", kind="say", text="Mình đã tạo đề.")'),
         # Handler lùi về mock khi model hỏng.
         "async def propose_next_step(ctx, payload):\n"
         "    try:\n"

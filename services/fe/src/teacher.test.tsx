@@ -1474,7 +1474,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
   });
 
   it("đề thiếu câu vẫn đứng ở nấc một, và vẫn KHÔNG mời duyệt", () => {
-    // Cùng một luật đã đứng trong `reporting._progress` của AGENT: duyệt một đề thiếu câu là
+    // Cùng một luật đã đứng ở bước 6 của skill `soan-de` (từ 22/10/2026; trước đó `reporting._progress`): duyệt một đề thiếu câu là
     // phát hành một bài kiểm tra dở. Lời kể và thẻ phải nói cùng một câu.
     //
     // Luật ấy **đổi chỗ** hai lần, và chỗ cuối là chỗ chắc nhất. Đầu tiên nó sống trong
@@ -1540,7 +1540,7 @@ describe("thẻ kết quả của một lượt soạn đề", () => {
   it("dòng dưới bước nói cùng một câu với BE, cả ba nhánh", () => {
     // `detail` do BE gửi lúc lượt đang chạy, `tool_result` đã lưu sau một lần F5 — hai
     // đường, một bước. Lệch một chữ là một lần tải lại làm đổi nghĩa một việc đã xong, nên
-    // cả ba nhánh của `_how_many` đều phải được soi lại, không chỉ nhánh đi-đúng-đường.
+    // cả ba nhánh của `how_many` đều phải được soi lại, không chỉ nhánh đi-đúng-đường.
     const line = (written: number, asked: number, running: number) =>
       stepFor(
         blank({

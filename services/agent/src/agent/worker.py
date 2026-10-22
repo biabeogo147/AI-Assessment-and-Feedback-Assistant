@@ -22,7 +22,6 @@ from agent.handlers import (
     generate_retry_question,
     name_conversation,
     propose_next_step,
-    report_plan,
     ring_bell,
     write_draft_question,
 )
@@ -31,7 +30,6 @@ from contracts import (
     GENERATE_RETRY_QUESTION_TASK,
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
-    REPORT_PLAN_TASK,
     WRITE_DRAFT_QUESTION_TASK,
 )
 
@@ -105,11 +103,9 @@ class WorkerSettings:
         # không hoàn thành việc nào của riêng mình: BE gọi nó một lần cho mỗi bước
         # của một loop mà BE sở hữu, nên một job ở đây là một lần gọi model và
         # invariant về timeout vẫn đúng trên đường này.
+        # Cũng là lượt kể lại sau khi một plan đã chạy (ADR-25, hậu ký 22/10/2026): task
+        # `report_plan` riêng đã gỡ.
         func(propose_next_step, name=PROPOSE_NEXT_STEP_TASK),
-        # Lời kể sau khi một plan đã chạy. Một task riêng chứ không phải một vòng nữa
-        # của task trên: đầu vào của nó là kết quả cả plan, không phải một catalog
-        # (ADR-25). Nhờ vậy một job vẫn là một lần gọi model.
-        func(report_plan, name=REPORT_PLAN_TASK),
     ]
     queue_name = _settings.agent_queue_name
     redis_settings = _redis_settings()

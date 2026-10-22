@@ -36,7 +36,6 @@ from agent.graphs.explain import speak
 from agent.graphs.naming import name_it
 from agent.graphs.propose import propose
 from agent.graphs.propose.outline import AGREES
-from agent.graphs.reporting import tell_about
 from contracts import (
     ConversationNameCompleted,
     ConversationNameRequested,
@@ -49,8 +48,6 @@ from contracts import (
     NextStepCompleted,
     NextStepRequested,
     OutlineItem,
-    PlanReportCompleted,
-    PlanReportRequested,
     PlanStep,
     RetryQuestionCompleted,
     RetryQuestionRequested,
@@ -746,6 +743,10 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         "NFC", next((step.text for step in reversed(turn) if step.kind == "teacher"), "")
     )
     plannable = {tool.name for tool in request.plannable}
+    if not plannable and any(step.kind == "plan" for step in turn):
+        # Lượt kể lại sau plan (ADR-25, hậu ký 22/10/2026): kể từ chính kết quả các bước, không
+        # đổ JSON thô như nhánh *có kết quả tool* bên dưới.
+        return _telling(request, turn)
 
     wants_a_paper = (
         _ASKS_TO_MAKE.search(asked) is not None
@@ -1136,67 +1137,49 @@ def conversation_name(request: ConversationNameRequested) -> ConversationNameCom
     return ConversationNameCompleted(request_id=request.request_id, title=" ".join(words[:6]))
 
 
-def plan_report(request: PlanReportRequested) -> PlanReportCompleted:
-    """Kể lại một plan đã chạy, không cần model.
+# Sáu cờ *việc ấy có xảy ra không* mà tool BE trả lời bằng một trong chúng -- cùng bộ với
+# `be.plan_outcomes.DID_IT_HAPPEN`, để mock đọc một bước hỏng như BE đọc.
+_DID_IT_HAPPEN = ("found", "created", "started", "approved", "unapproved", "published")
 
-    Mock: ghép từ chính `outcomes`. Nó khô hơn hẳn một câu model viết, và nó **đúng** --
-    nó không thể nói quá, vì nó không có gì ngoài những dòng BE đã viết.
+
+def _telling(request: NextStepRequested, turn: tuple[TurnRecord, ...]) -> NextStepCompleted:
+    """Câu kết của lượt kể lại, không cần model: ghép từ chính kết quả các bước sau plan.
+
+    Mock thay cho `plan_report` cũ. Khô hơn hẳn một câu model viết, và **đúng**: nó không nói được
+    gì ngoài những dòng BE đã ghi.
 
     Args:
-        request: Câu giáo viên đã nhờ và kết quả từng bước.
+        request: Lượt đang hỏi.
+        turn: Các dòng của lượt hiện tại, cũ nhất trước.
 
     Returns:
-        Một câu kết.
+        Một `say`.
     """
-    done = [one for one in request.outcomes if one.ok]
-    broke = next((one for one in request.outcomes if not one.ok), None)
-    did = "; ".join(one.title.lower() for one in done)
+    at = max(index for index, step in enumerate(turn) if step.kind == "plan")
+    titles = [str(one) for one in turn[at].tool_result.get("steps") or ()]
+    results = [step.tool_result for step in turn[at + 1 :] if step.kind == "tool_result"]
+    done: list[str] = []
+    broke: tuple[str, str] | None = None
+    for title, result in zip(titles, results, strict=False):
+        if result.get("error") or any(result.get(flag) is False for flag in _DID_IT_HAPPEN):
+            # Lời BE viết cho giáo viên (`said`), hay một câu theo cờ của kết quả như
+            # `be.plan_outcomes.said_about`; không bao giờ `reason` (chữ viết cho model).
+            told = str(result.get("said") or "")
+            if not told and result.get("missing"):
+                told = "thiếu thông tin để làm bước này"
+            broke = (title, told)
+            break
+        done.append(title)
+    did = "; ".join(one.lower() for one in done)
     if broke is None:
         text = f"Mình đã {did}." if did else "Mình chưa làm được bước nào."
-    elif did:
-        tail = f" ({broke.detail})" if broke.detail else ""
-        text = f"Mình đã {did}, nhưng dừng ở bước {broke.title.lower()}{tail}."
     else:
-        tail = f" ({broke.detail})" if broke.detail else ""
-        text = f"Mình chưa làm được bước {broke.title.lower()}{tail}."
-    return PlanReportCompleted(request_id=request.request_id, text=text)
-
-
-async def report_plan(ctx: dict, payload: dict) -> dict:
-    """Điểm vào arq cho lời kể sau khi một plan đã chạy.
-
-    Một job riêng, không phải một vòng nữa của `propose_next_step`: đầu vào của nó là kết
-    quả của cả plan, không phải một catalog (ADR-25). Một job là một lần gọi model, nên
-    invariant về timeout vẫn đúng trên đường này.
-
-    Args:
-        ctx: Ngữ cảnh của arq. Không dùng: task này không stream và không chạm Redis.
-        payload: `PlanReportRequested` dưới dạng JSON.
-
-    Returns:
-        `PlanReportCompleted` dưới dạng JSON. Mọi cách model hỏng đều ra lời rỗng, không ném
-        lên: lượt chat đã chạy xong và đã ghi đủ trước khi task này được gọi, nên một exception
-        từ phần kể lại sẽ biến một lượt đã thành công thành một lỗi. Lời rỗng thì BE ra một
-        thông báo hệ thống (ADR-30); mock chỉ còn cho `LLM_ENABLED=false`.
-
-    Raises:
-        ValidationError: Khi `payload` không phải một `PlanReportRequested`. Nằm ngoài
-            `try` có chủ ý, như ba handler kia: payload do BE tự dựng, nên một payload sai
-            hình dạng là lỗi lập trình và phải nổ ở chỗ gần nguyên nhân.
-    """
-    request = PlanReportRequested.model_validate(payload)
-    if not llm.enabled():
-        return plan_report(request).model_dump(mode="json")
-
-    try:
-        text = await tell_about(request)
-    except Exception:
-        logger.exception("model failed to report a plan for %s", request.request_id)
-        # Lời rỗng: BE ra thông báo hệ thống thay cho lời kể (ADR-30, ngoại lệ 1); câu dọn trước
-        # chỉ còn cho `LLM_ENABLED=false`.
-        return PlanReportCompleted(request_id=request.request_id, text="").model_dump(mode="json")
-
-    return PlanReportCompleted(request_id=request.request_id, text=text).model_dump(mode="json")
+        tail = f" ({broke[1]})" if broke[1] else ""
+        if did:
+            text = f"Mình đã {did}, nhưng dừng ở bước {broke[0].lower()}{tail}."
+        else:
+            text = f"Mình chưa làm được bước {broke[0].lower()}{tail}."
+    return NextStepCompleted(request_id=request.request_id, kind="say", text=text)
 
 
 async def name_conversation(ctx: dict, payload: dict) -> dict:

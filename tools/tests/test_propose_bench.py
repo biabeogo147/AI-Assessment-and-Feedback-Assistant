@@ -102,7 +102,7 @@ def test_a_word_that_names_the_task_is_not_copying() -> None:
 def _model_text(document: bool = True) -> list[str]:
     """Mọi text model đọc mà repo này viết ra; `document=False` bỏ phần của document agent."""
     from agent import skill_router, skills
-    from agent.graphs import authoring, explain, naming, propose, reporting
+    from agent.graphs import authoring, explain, naming, propose
     from be.identity import Asking
     from be.teacher_tools import PHASE_PLAN, PHASE_WORK, catalog_for
     from document.index import jev, llm
@@ -119,7 +119,6 @@ def _model_text(document: bool = True) -> list[str]:
         propose.prompt.LIBRARY,
         authoring.prompt.SYSTEM,
         explain.prompt.SYSTEM,
-        reporting._SYSTEM,
         naming.prompt.SYSTEM,
         skill_router._INSTRUCTIONS,
     ]

@@ -614,100 +614,71 @@ def check_invented_data_lives_in_one_file() -> str | None:
     return None
 
 
-def check_the_report_is_a_job_of_its_own() -> str | None:
-    """Lời kể cuối lượt là một task riêng, và nó **không cầm tool nào**.
+def check_the_telling_turn_only_reads() -> str | None:
+    """Lượt kể lại sau plan chỉ đọc: không tool ghi nào, không tool nào để nêu plan (ADR-25).
 
-    ADR-25 dựng cả vòng chạy quanh một ranh giới: pha 1 lên plan với một catalog tool, pha 2 chạy
-    plan, rồi **một lời gọi model riêng** kể lại. Câu quyết định của ADR là vế sau: *"lời gọi ấy
-    đọc kết quả của cả plan và **không** đọc catalog — đó là lý do nó không thể đề nghị thêm một
-    bước nữa."*
-
-    Bản đầu của check này chỉ đếm xem lời gọi có nằm trong một vòng `for` hay không. Review đo
-    được bảy cách phá luật mà nó vẫn xanh, trong đó có cách đúng-chữ-ADR nhất: thêm một field
-    `catalog` vào `PlanReportRequested`, nhồi catalog pha 2 vào đó, và dặn model *"còn có thể gọi
-    các tool sau"*. Không một test nào đỏ. Nên check nay nhìn vào thứ chịu lực:
-
-    1. `worker.py` **đăng ký** `report_plan` dưới `REPORT_PLAN_TASK` — một task riêng thật.
-    2. `PlanReportRequested` **không có field nào chở tool**: không `catalog`, không `tools`,
-       không `plannable`. Hợp đồng là nơi duy nhất một cái catalog đi được sang AGENT.
-    3. Graph viết lời kể **không chạm `ToolSpec`** và không import gì từ catalog.
-
-    Thứ check này cố ý **không** làm: đếm vòng lặp quanh lời gọi. Luật *"báo cáo viết ở lần quan
-    sát kế tiếp"* của cùng ADR gần như chắc chắn sẽ là một vòng lặp qua những lượt chưa báo cáo,
-    và một check chặn nó là một check chặn chính ADR mình đang giữ.
+    Từ 22/10/2026 (plan `report-into-propose`, ADR-25 hậu ký) lời kể sau plan là một lượt `propose`
+    nữa, không còn là job `report_plan` riêng không cầm tool. Ranh giới cũ -- *"lời kể không đề nghị
+    thêm việc được"* -- nay đứng trên hai tham số của đúng một lời gọi, `_tell_after_plan` gọi
+    `_ask_agent`: catalog lấy từ `catalog_for(..., PHASE_PLAN)` (chỉ tool đọc, gồm `last_plan`) và
+    `plannable` là `()`. Đổi một trong hai là lượt kể lại mở được một vòng ghi thứ hai sau plan mà
+    giáo viên chưa duyệt, và bản `_ask_agent` giả trong test BE không thấy được điều đó.
 
     Returns:
-        None khi luật còn đứng, ngược lại là một thông báo thất bại gọi tên chỗ hỏng.
+        None khi check đạt, ngược lại là một thông báo thất bại.
     """
-    import ast
-
-    worker = (REPO_ROOT / "services" / "agent" / "src" / "agent" / "worker.py").read_text(
-        encoding="utf-8"
-    )
-    registered = False
-    for node in ast.walk(ast.parse(worker)):
-        if not isinstance(node, ast.Call) or getattr(node.func, "id", "") != "func":
-            continue
-        first = node.args[0] if node.args else None
-        named = next((one for one in node.keywords if one.arg == "name"), None)
-        if (
-            isinstance(first, ast.Name)
-            and first.id == "report_plan"
-            and named is not None
-            and getattr(named.value, "id", "") == "REPORT_PLAN_TASK"
-        ):
-            registered = True
-    if not registered:
-        return _fail(
-            "report-is-its-own-job",
-            "worker.py no longer registers report_plan under REPORT_PLAN_TASK. BE would keep "
-            "enqueueing the job, nobody would consume it, and every closing line would quietly "
-            "fall back to a sentence BE wrote (ADR-25).",
-        )
-
-    contracts = (
-        REPO_ROOT / "packages" / "contracts" / "src" / "contracts" / "teacher_chat.py"
-    ).read_text(encoding="utf-8")
-    asked = next(
+    chat = REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py"
+    tree = ast.parse(chat.read_text(encoding="utf-8"))
+    telling = next(
         (
             node
-            for node in ast.walk(ast.parse(contracts))
-            if isinstance(node, ast.ClassDef) and node.name == "PlanReportRequested"
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "_tell_after_plan"
         ),
         None,
     )
-    if asked is None:
+    if telling is None:
         return _fail(
-            "report-is-its-own-job",
-            "PlanReportRequested is gone; the closing line no longer has a payload of its own.",
+            "telling-turn-only-reads",
+            f"{chat.name} has no _tell_after_plan: the check no longer sees the turn that tells "
+            "about a plan. Point it at where that turn lives now.",
         )
-    carries_tools = sorted(
-        node.target.id
-        for node in asked.body
-        if isinstance(node, ast.AnnAssign)
-        and isinstance(node.target, ast.Name)
-        and any(word in node.target.id for word in ("catalog", "tool", "plannable"))
-    )
-    if carries_tools:
+    calls = [
+        node
+        for node in ast.walk(telling)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"_ask_agent", "catalog_for", "execute"}
+    ]
+    asks = [one for one in calls if one.func.id == "_ask_agent"]
+    catalogs = [one for one in calls if one.func.id == "catalog_for"]
+    runs = [one for one in calls if one.func.id == "execute"]
+    problems = []
+    if not asks:
+        problems.append("it never calls _ask_agent")
+    for one in asks:
+        named = {word.arg: word.value for word in one.keywords}
+        plannable = one.args[4] if len(one.args) > 4 else named.get("plannable")
+        if not (isinstance(plannable, ast.Tuple) and not plannable.elts):
+            problems.append(f"line {one.lineno}: plannable is not ()")
+    if not catalogs or any(
+        not (len(one.args) > 1 and getattr(one.args[1], "id", "") == "PHASE_PLAN")
+        for one in catalogs
+    ):
+        problems.append("its catalog is not catalog_for(..., PHASE_PLAN)")
+    # Cổng quyền ghi thật là `execute(..., phase=…)`: catalog chỉ là thứ model được kể.
+    for one in runs:
+        phase = {word.arg: word.value for word in one.keywords}.get("phase")
+        if getattr(phase, "id", "") != "PHASE_PLAN":
+            problems.append(f"line {one.lineno}: execute is not given phase=PHASE_PLAN")
+    if any(isinstance(node, ast.Name) and node.id == "PHASE_WORK" for node in ast.walk(telling)):
+        problems.append("it names PHASE_WORK")
+    if problems:
         return _fail(
-            "report-is-its-own-job",
-            f"PlanReportRequested now carries {carries_tools}. The closing call reads the plan's "
-            "results and NOT the catalog -- that is the whole reason it cannot propose one more "
-            "step (ADR-25). A tool list in this payload removes the boundary without failing a "
-            "single test.",
+            "telling-turn-only-reads",
+            f"_tell_after_plan in {chat.name}: {'; '.join(problems)}. The turn after a plan reads "
+            "and speaks; it must not be handed a write tool or a way to plan (ADR-25).",
         )
-
-    graphs = REPO_ROOT / "services" / "agent" / "src" / "agent" / "graphs"
-    telling = (graphs / "reporting.py").read_text(encoding="utf-8")
-    for node in ast.walk(ast.parse(telling)):
-        named = [one.name for one in node.names] if isinstance(node, ast.ImportFrom) else []
-        if any(one in {"ToolSpec", "NextStepRequested"} for one in named):
-            return _fail(
-                "report-is-its-own-job",
-                "reporting.py imports a tool type. The model that writes the closing line must "
-                "not be handed a catalog at the one moment there is nothing left to call "
-                "(ADR-25).",
-            )
     return None
 
 
@@ -806,8 +777,8 @@ def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
     nó in bản hình cũ. Người đọc không có cách nào biết, kể cả người viết. Nên lưới ở đây là
     một manifest ghi sha256 của `.drawio` tại thời điểm xuất, và phép so lại chính nó.
 
-    Tên hàm cố ý không có chữ `report`: `check_the_report_is_a_job_of_its_own` ở trên nói về
-    báo cáo của agent trong ADR-25, một thứ khác hẳn.
+    Tên hàm cố ý không có chữ `report`: lời kể sau plan của ADR-25
+    (`check_the_telling_turn_only_reads` ở trên) là một thứ khác hẳn.
 
     Returns:
         None khi mọi hình khớp sơ đồ của nó, ngược lại là một thông báo thất bại.
@@ -2057,18 +2028,17 @@ def check_plan_codes_in_comments_name_their_plan() -> str | None:
 
 # Kind nào của mỗi lời gọi là **lời Kriky** -- chỗ ADR-30 cấm code đặt chữ cố định. `notice` và
 # `done` không nằm đây: `notice` là thông báo hệ thống (ngoại lệ 1), `done` chỉ chở lại chữ của sự
-# kiện trước nó. `NextStepCompleted` và `PlanReportCompleted` là lời model viết, nên mọi kind đều
-# tính -- trừ khi lời gọi tự khai `notice=True`.
+# kiện trước nó. `NextStepCompleted` là lời model viết, nên mọi kind đều tính -- trừ khi lời gọi tự
+# khai `notice=True`.
 _KRIKY_KINDS = {
     "TurnEvent": {"say", "clarify", "outline", "report"},
     "TurnRecord": {"assistant", "outline"},
     "NextStepCompleted": None,
-    "PlanReportCompleted": None,
 }
 
 # Đường lùi về chế độ demo: gọi chúng trong một `except` của handler gọi model là để mock nói thay
 # model đang hỏng (ADR-30). Gọi khi `LLM_ENABLED=false` thì đúng là chế độ demo, không bị soi.
-_MOCK_SPEAKERS = {"next_step", "plan_report"}
+_MOCK_SPEAKERS = {"next_step"}
 
 
 def _module_strings(tree: ast.Module) -> set[str]:
@@ -2176,7 +2146,7 @@ def fixed_kriky_words(
     """Những chỗ code đặt một câu cố định vào lời Kriky (ADR-30). Hàm thuần.
 
     Bắt: một `TurnEvent`/`TurnRecord` với kind có thể là lời Kriky (kể cả kind không đọc ra được),
-    một `NextStepCompleted`/`PlanReportCompleted` không khai `notice=True`, hay một
+    một `NextStepCompleted` không khai `notice=True`, hay một
     `model_copy(update={"text": ...})`, mà `text` có thể là câu cố định (`_fixed`); và một lời gọi
     mock (`_MOCK_SPEAKERS`) trong một `except`. Câu của `notices` cũng là câu cố định: chúng chỉ
     được đi dưới `kind="notice"`.
@@ -2241,11 +2211,11 @@ def check_kriky_says_nothing_fixed() -> str | None:
 
     Người dùng chốt 17/10/2026 (`kriky-writes-every-word`): câu cố định nói dưới giọng Kriky là code
     nói thay model. Chỗ một câu như thế quay lại là các hàm dựng lượt -- `_go` của BE, graph
-    `propose` và `reporting`, hai handler gọi model của AGENT. Ngoại lệ có tên: câu của
-    `be/notices.py` dưới `kind="notice"`, và lời AGENT tự khai `notice=True` khi model không có mặt.
-    Chế độ demo không model (`handlers.next_step`, `plan_report` khi `LLM_ENABLED=false`) là ngoại
-    lệ ADR-30 ghi, nên của `handlers.py` chỉ hai handler kia bị soi. Dạng nào check không bắt: xem
-    `fixed_kriky_words`.
+    `propose`, và handler gọi model của AGENT. Ngoại lệ có tên: câu của `be/notices.py` dưới
+    `kind="notice"`, và lời AGENT tự khai `notice=True` khi model không có mặt. Chế độ demo không
+    model (`handlers.next_step`, kể cả `_telling` của lượt kể lại, khi `LLM_ENABLED=false`) là
+    ngoại lệ ADR-30 ghi, nên của `handlers.py` chỉ `propose_next_step` bị soi. Dạng nào check không
+    bắt: xem `fixed_kriky_words`.
 
     Returns:
         None khi luật còn đứng, ngược lại là một thông báo thất bại gọi tên từng chỗ.
@@ -2267,8 +2237,7 @@ def check_kriky_says_nothing_fixed() -> str | None:
     files = (
         (REPO_ROOT / "services" / "be" / "src" / "be" / "teacher_chat.py", None, notices),
         *((one, None, notices | shared) for one in package),
-        (agent / "graphs" / "reporting.py", None, notices),
-        (agent / "handlers.py", {"propose_next_step", "report_plan"}, notices),
+        (agent / "handlers.py", {"propose_next_step"}, notices),
     )
     bad = []
     for path, within, known in files:
@@ -2487,7 +2456,7 @@ CHECKS = (
     check_no_tool_changes_an_assessment_state,
     check_drafting_reads_no_document_text,
     check_invented_data_lives_in_one_file,
-    check_the_report_is_a_job_of_its_own,
+    check_the_telling_turn_only_reads,
     check_the_form_fills_the_slots_the_wording_declares,
     check_every_figure_matches_the_diagram_it_came_from,
     check_the_model_text_passes_through_the_escape_repair,

@@ -33,12 +33,12 @@ from be.config import get_settings
 from be.content_reader import MemoryContentReader, bind_reader
 from be.db import bind_sessions
 from be.identity import Asking
+from be.plan_outcomes import plan_summary, step_detail
 from be.seed import seed_if_empty
 from be.teacher_chat import router as teacher_router
 from be.teacher_tools import UnknownTool, execute
 from contracts import (
     NAME_CONVERSATION_TASK,
-    REPORT_PLAN_TASK,
     BlockRef,
     ClarifyQuestion,
     ConversationNameCompleted,
@@ -51,7 +51,6 @@ from contracts import (
     IndexNode,
     NextStepCompleted,
     OutlineItem,
-    PlanReportCompleted,
     PlanStep,
     SolutionMethod,
     TitleSource,
@@ -83,10 +82,13 @@ class ScriptedAgent:
     mức trần ở mọi lượt mà nhìn từ bên ngoài vẫn thấy đúng.
     """
 
-    def __init__(self, *steps: NextStepCompleted) -> None:
+    def __init__(
+        self, *steps: NextStepCompleted, telling: str = "Mình đã làm xong các bước."
+    ) -> None:
         self.steps = list(steps)
         self.asked: list[dict] = []
         self.reported: list[dict] = []
+        self.telling = telling
 
     async def __call__(self, pool, settings, task_name, payload) -> dict:
         # Một cái cửa, nhiều loại việc. Từ khi BE nhờ AGENT đặt tên đoạn chat, bản giả
@@ -96,13 +98,13 @@ class ScriptedAgent:
             return ConversationNameCompleted(
                 request_id=payload["request_id"], title="đề do model đặt tên"
             ).model_dump(mode="json")
-        if task_name == REPORT_PLAN_TASK:
-            # Lời kể cuối lượt cũng là một job riêng, nên bản giả phải biết nó —
-            # và nó cũng không vào `asked`, vì nó không phải một lần trợ lý được hỏi
-            # "làm gì tiếp".
+        if _is_telling(payload):
+            # Lượt kể lại (ADR-25, hậu ký 22/10/2026) là một lần hỏi `propose` sau plan, nhận chỉ
+            # tool đọc và không tool nào để nêu plan. Nó không vào `asked` -- `asked` là các bước
+            # của pha 1 -- và trả lời bằng `telling` (rỗng: model chọn im).
             self.reported.append(payload)
-            return PlanReportCompleted(
-                request_id=payload["request_id"], text="Mình đã làm xong các bước."
+            return NextStepCompleted(
+                request_id=payload["request_id"], kind="say", text=self.telling
             ).model_dump(mode="json")
         self.asked.append(payload)
         step = (
@@ -113,6 +115,27 @@ class ScriptedAgent:
             )
         )
         return step.model_copy(update={"request_id": payload["request_id"]}).model_dump(mode="json")
+
+
+def _is_telling(payload: dict) -> bool:
+    """Lần hỏi `propose` này là lượt kể lại: sau dòng `plan` của lượt, không tool để nêu plan."""
+    if payload.get("plannable"):
+        return False
+    for turn in reversed(payload.get("history") or []):
+        if turn.get("kind") == "teacher":
+            return False
+        if turn.get("kind") == "plan":
+            return True
+    return False
+
+
+async def _told(maker) -> dict:
+    """Thứ `last_plan` kể về đoạn chat mới nhất: thay cho payload của job `report_plan` cũ."""
+    async with maker() as session:
+        thread = await session.scalar(
+            select(TeacherConversation.id).order_by(TeacherConversation.started_at.desc()).limit(1)
+        )
+        return await plan_summary(session, thread)
 
 
 def _outline_shown(monkeypatch, total: int, purpose: str = "new") -> None:
@@ -1026,7 +1049,7 @@ async def test_a_plan_passes_the_id_from_one_step_into_the_next(stack) -> None:
         "tool_result",
         "tool_call",
         "tool_result",
-        "assistant",  # lời kể cuối lượt
+        "assistant",  # câu kết của lượt kể lại
     ]
 
     # Plan lưu đủ để vẽ khối bằng chứng mà không cần đoán: tiêu đề từng bước và tổng số.
@@ -1049,14 +1072,19 @@ async def test_a_plan_passes_the_id_from_one_step_into_the_next(stack) -> None:
     assert [one.tool_name for one in calls] == ["create_draft", "start_drafting"]
     assert calls[1].tool_args["assessment_id"] == made["tool_result"]["assessment_id"]
 
-    # Lời kể nhận đủ hai bước, theo đúng thứ tự, dưới dạng kết quả chứ không phải một bản
-    # tóm tắt do BE viết. Bước hai báo hỏng ở harness này vì `app.state.queue_pool` là một
-    # `object()` trần — không có hàng đợi thì không đẩy job được, và đó là một kết quả
-    # thật chứ không phải một lỗi của test.
+    # Lượt kể lại (ADR-25, hậu ký 22/10/2026): đúng một lần hỏi `propose` sau plan, với chỉ tool
+    # đọc -- có `last_plan` -- và không tool nào để nêu plan.
     assert len(agent.reported) == 1
-    titles = [one["title"] for one in agent.reported[0]["outcomes"]]
-    assert titles == ["Tạo đề trống", "Soạn câu hỏi"]
-    assert agent.reported[0]["outcomes"][0]["ok"] is True
+    offered = {one["name"] for one in agent.reported[0]["catalog"]}
+    assert "last_plan" in offered
+    assert not offered & {"create_draft", "start_drafting", "replace_question"}
+    assert agent.reported[0]["plannable"] == []
+    # `last_plan` kể đủ hai bước, theo đúng thứ tự. Bước hai báo hỏng ở harness này vì
+    # `app.state.queue_pool` là một `object()` trần — không có hàng đợi thì không đẩy job được,
+    # và đó là một kết quả thật chứ không phải một lỗi của test.
+    told = await _told(maker)
+    assert [one["title"] for one in told["steps"]] == ["Tạo đề trống", "Soạn câu hỏi"]
+    assert told["steps"][0]["status"] == "xong"
 
 
 @pytest.mark.asyncio
@@ -1097,16 +1125,14 @@ async def test_a_failed_step_stops_the_plan_and_still_reports(stack) -> None:
     # Đúng HAI cặp tool_call/tool_result: bước ba không chạy.
     assert kinds.count("tool_call") == 2
 
-    outcomes = agent.reported[0]["outcomes"]
-    assert len(outcomes) == 2
-    assert outcomes[0]["ok"] is True
-    assert outcomes[1]["ok"] is False
+    steps = (await _told(maker))["steps"]
+    assert [one["status"] for one in steps] == ["xong", "hỏng", "không chạy"]
 
     # Lời kể nói bằng lời người, không chở chữ viết cho model. `reason` của
     # `start_drafting` là "question_count phải là một con số, ví dụ 10" — một câu dặn
     # model, chở theo đúng cái tên field mà giáo viên không cần thấy: `question_count`
     # trên màn hình là mặt trong của hệ thống.
-    detail = outcomes[1]["detail"]
+    detail = steps[1]["detail"]
     assert detail == "một mục trong yêu cầu chưa dùng được"
     assert "hãy hỏi giáo viên" not in detail
     assert "question_count" not in detail
@@ -1172,7 +1198,7 @@ async def test_the_turn_survives_a_model_that_cannot_tell_what_happened(stack) -
 
     class Mute(ScriptedAgent):
         async def __call__(self, pool, settings, task_name, payload):
-            if task_name == REPORT_PLAN_TASK:
+            if _is_telling(payload):
                 raise RuntimeError("model im lặng")
             return await super().__call__(pool, settings, task_name, payload)
 
@@ -1392,15 +1418,137 @@ async def test_the_planning_phase_sees_the_working_tools_without_being_able_to_c
 
 
 @pytest.mark.asyncio
+async def test_a_model_that_chooses_to_say_nothing_ends_the_turn_quietly(stack) -> None:
+    """ADR-25, hậu ký 22/10/2026: kể lại là việc của skill, không còn là một bước cứng.
+
+    Model im ở lượt kể lại thì lượt kết thúc không câu kết và không thông báo hệ thống: im lặng
+    là một lựa chọn, không phải một lỗi.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _plan(PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống")), telling=""
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    body = answer.json()
+    kinds = [turn["kind"] for turn in body["turns"]]
+    assert kinds[-1] == "tool_result"
+    assert "notice" not in kinds
+    assert body["text"] == ""
+    assert len(agent.reported) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_notice_from_the_telling_turn_is_a_notice_not_kriky_s_words(stack) -> None:
+    """Review `report-into-propose` (N1, N2): AGENT trả câu hệ thống (`notice=True`, model hỏng hay
+    hai lần không ra lời) thì BE ra `REPORT_MISSING` dưới `notice`, không lưu nó thành lời Kriky."""
+    http, maker, monkeypatch = stack
+
+    class Down(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload):
+            if _is_telling(payload):
+                return NextStepCompleted(
+                    request_id=payload["request_id"],
+                    kind="say",
+                    text="Kriky chưa trả lời được lúc này.",
+                    notice=True,
+                ).model_dump(mode="json")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    agent = Down(_plan(PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống")))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu"}, headers=TEACHER
+    )
+
+    body = answer.json()
+    assert body["text"] == notices.REPORT_MISSING
+    assert [turn["kind"] for turn in body["turns"]][-1] == "notice"
+    assert "Kriky chưa trả lời được lúc này." not in str(body)
+
+
+@pytest.mark.asyncio
+async def test_the_last_ask_of_the_telling_turn_offers_no_tool(stack) -> None:
+    """Hai lần đọc là trần: lần hỏi thứ ba không còn tool nào, chỉ nói hay im."""
+    http, maker, monkeypatch = stack
+
+    class Greedy(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload):
+            if _is_telling(payload):
+                self.reported.append(payload)
+                if payload["catalog"]:
+                    return NextStepCompleted(
+                        request_id=payload["request_id"], kind="call_tool", tool_name="last_plan"
+                    ).model_dump(mode="json")
+                return NextStepCompleted(
+                    request_id=payload["request_id"], kind="say", text="Xong rồi."
+                ).model_dump(mode="json")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    agent = Greedy(_plan(PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống")))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu"}, headers=TEACHER
+    )
+
+    assert answer.json()["text"] == "Xong rồi."
+    assert [bool(one["catalog"]) for one in agent.reported] == [True, True, False]
+
+
+@pytest.mark.asyncio
+async def test_the_telling_turn_may_read_the_last_plan_before_it_speaks(stack) -> None:
+    """Lượt kể lại được gọi `last_plan`, và kết quả về lại model trước khi nó nói."""
+    http, maker, monkeypatch = stack
+
+    class Reader(ScriptedAgent):
+        async def __call__(self, pool, settings, task_name, payload):
+            if _is_telling(payload) and not any(
+                turn.get("tool_name") == "last_plan" for turn in payload["history"]
+            ):
+                self.reported.append(payload)
+                return NextStepCompleted(
+                    request_id=payload["request_id"], kind="call_tool", tool_name="last_plan"
+                ).model_dump(mode="json")
+            return await super().__call__(pool, settings, task_name, payload)
+
+    agent = Reader(_plan(PlanStep(tool_name="create_draft", args=_BRIEF, title="Tạo đề trống")))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    answer = await http.post(
+        "/api/teacher/chat/messages", json={"text": "Tạo đề 3 câu"}, headers=TEACHER
+    )
+
+    assert answer.status_code == 200
+    assert answer.json()["text"] == "Mình đã làm xong các bước."
+    read = next(
+        turn
+        for turn in agent.reported[-1]["history"]
+        if turn["kind"] == "tool_result" and turn["tool_name"] == "last_plan"
+    )
+    assert [one["title"] for one in read["tool_result"]["steps"]] == ["Tạo đề trống"]
+    # Lần đọc của lượt kể lại không ghi vào lịch sử đoạn chat: F5 không vẽ thêm bước nào.
+    async with maker() as session:
+        names = list(await session.scalars(select(TeacherTurn.tool_name)))
+    assert "last_plan" not in names
+
+
+@pytest.mark.asyncio
 async def test_a_reference_that_cannot_be_resolved_does_not_leak_field_names(stack) -> None:
     """Lý do một bước không ghép được dữ liệu là chữ cho log, không phải chữ cho giáo viên.
 
     `Unresolvable` nói "bước 1 trả về assessment_id rỗng" hoặc trích nguyên văn `{1.id}` —
     đúng thứ một người sửa lỗi cần, và đúng thứ giáo viên không cần. Chuỗi ấy đi qua **ba**
-    cửa nếu không ai chặn: `step_failed.detail` ra màn hình, `StepOutcome.detail` vào prompt
+    cửa nếu không ai chặn: `step_failed.detail` ra màn hình, dòng kết quả `last_plan` vào prompt
     của lời kể (model sẽ nhắc lại nguyên văn), và câu ghép dự phòng của BE.
 
-    Đây là đúng cái lỗ mà `_said_about` đã bịt ở nhánh thường, và nhánh này đi vòng qua nó.
+    Đây là đúng cái lỗ mà `said_about` đã bịt ở nhánh thường, và nhánh này đi vòng qua nó.
     """
     http, maker, monkeypatch = stack
     agent = ScriptedAgent(
@@ -1424,7 +1572,18 @@ async def test_a_reference_that_cannot_be_resolved_does_not_leak_field_names(sta
     )
 
     assert answer.status_code == 200
-    detail = next(one["detail"] for one in agent.reported[0]["outcomes"] if not one["ok"])
+    detail = next(one["detail"] for one in (await _told(maker))["steps"] if one["status"] == "hỏng")
+    # Bước không ghép được nay để lại dòng của nó (`last_plan` đọc nó thành *hỏng*), và dòng ấy
+    # cũng không chở tên field: chữ của nó đi vào lịch sử model đọc.
+    async with maker() as session:
+        broke = await session.scalar(
+            select(TeacherTurn)
+            .where(TeacherTurn.kind == "tool_result", TeacherTurn.tool_name == "start_drafting")
+            .order_by(TeacherTurn.sequence.desc())
+            .limit(1)
+        )
+    assert broke is not None
+    assert "khong_co_field_nay" not in str(broke.tool_result)
     assert "khong_co_field_nay" not in detail
     assert "{" not in detail
     assert detail == "chưa ghép được dữ liệu từ bước trước"
@@ -3523,7 +3682,9 @@ async def test_a_replacement_step_says_whether_the_question_changed(
             "replaced_question_id": question.id if standing == "old" else "id-cũ",
             "still_drafting": running,
         }
-        result, detail = await teacher_chat._replacement_outcome(session, paper.id, before, "")
+        result = await teacher_chat._replacement_outcome(session, paper.id, before)
+    # Dòng kết quả nay do `step_detail` đọc từ kết quả, một luật cho pha 2 và `last_plan`.
+    detail = step_detail("replace_question", result)
 
     assert detail == said
     assert result["replaced"] is replaced

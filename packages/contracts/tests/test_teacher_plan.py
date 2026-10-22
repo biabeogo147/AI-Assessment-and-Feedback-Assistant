@@ -1,20 +1,17 @@
 """Hình dạng của một plan, thứ hai service dựa vào để nói cùng một chuyện.
 
 Mấy test này canh hợp đồng của ADR-25: pha 1 trả về một plan, pha 2 chạy nó, rồi một
-task riêng kể lại kết quả. Chúng không kiểm pydantic — chúng kiểm những điều khoản mà
-một lần sửa vô ý có thể phá mà không bên nào đỏ lên.
+lượt `propose` nữa kể lại (hậu ký 22/10/2026; task `report_plan` riêng đã gỡ). Chúng không
+kiểm pydantic — chúng kiểm những điều khoản mà một lần sửa vô ý có thể phá mà không bên nào đỏ
+lên.
 """
 
 import pytest
 from pydantic import ValidationError
 
 from contracts import (
-    PROPOSE_NEXT_STEP_TASK,
-    REPORT_PLAN_TASK,
     NextStepCompleted,
-    PlanReportRequested,
     PlanStep,
-    StepOutcome,
 )
 
 
@@ -55,35 +52,6 @@ def test_a_step_without_a_tool_is_refused() -> None:
         PlanStep(tool_name="", args={}, title="Làm gì đó")
 
 
-def test_the_report_task_is_not_the_thinking_task() -> None:
-    """Báo cáo là một job riêng vì đầu vào của nó khác: kết quả của plan, không phải catalog.
-
-    Test này canh được đúng một nửa của luật — hai tên không trùng nhau. Nửa còn lại, *một job
-    một lời gọi model*, không check nào hôm nay bắt được, và ADR-25 đã nói thẳng điều đó; nó
-    được mua bằng một check riêng ở Task 12 của `hai-pha-mot-luot-chat`.
-    """
-    assert REPORT_PLAN_TASK != PROPOSE_NEXT_STEP_TASK
-
-
-def test_the_report_payload_carries_no_identifier_to_look_up() -> None:
-    """AGENT không có credential database, nên payload phải tự chứa (ADR-25).
-
-    Kiểm theo **hình dạng** chứ không theo một danh sách tên: thêm `draft_id` hay `thread_id`
-    vào payload cũng là thêm một thứ AGENT không tra được, và một test liệt kê tên sẽ không
-    thấy chúng.
-    """
-    fields = set(PlanReportRequested.model_fields)
-    looked_up = {name for name in fields if name.endswith("_id") and name != "request_id"}
-    assert looked_up == set()
-    assert {"said", "outcomes"} <= fields
-
-
-def test_a_report_of_a_refused_plan_carries_no_outcome() -> None:
-    """Plan bị từ chối trước khi chạy bước nào thì không có bước nào để kể."""
-    asked = PlanReportRequested(request_id="r1", said="tạo đề")
-    assert asked.outcomes == ()
-
-
 def test_a_step_cannot_be_rewritten_after_it_is_built() -> None:
     """Một message đi qua queue mà sửa được là một message hai bên đọc ra hai nghĩa.
 
@@ -95,10 +63,6 @@ def test_a_step_cannot_be_rewritten_after_it_is_built() -> None:
         step.title = "Đổi tên"
     with pytest.raises(ValidationError):
         step.tool_name = "start_drafting"
-
-    outcome = StepOutcome(title="Tạo đề trống", ok=True, detail="")
-    with pytest.raises(ValidationError):
-        outcome.ok = False
 
 
 def test_only_a_plan_carries_steps() -> None:

@@ -17,6 +17,7 @@ from agent.graphs.propose.ask_again import (
 )
 from agent.graphs.propose.clarify import answers, choices_wanted, row_names
 from agent.graphs.propose.compose import ProposeState
+from agent.graphs.propose.history import telling
 from agent.graphs.propose.outline import (
     approved_plan,
     brief_in,
@@ -108,10 +109,15 @@ async def choose(state: ProposeState) -> dict:
     questioned = proposal.kind == "ask_clarify" and any(
         one.text.strip() or one.label.strip() for one in proposal.questions
     )
+    # Lượt kể lại được phép im (`soan-de` bước 6: không có gì đáng nói thì không cần nói): một `say`
+    # rỗng ở đó là lựa chọn, không phải đầu ra hỏng -- hỏi lại nó chỉ đẻ ra một câu *chưa hiểu ý
+    # bạn* sai chỗ (review plan `report-into-propose`).
+    silent = proposal.kind == "say" and telling(state["request"])
     if (
         proposal.kind in {"say", "ask_clarify", "outline"}
         and not proposal.text.strip()
         and not questioned
+        and not silent
     ):
         # Đo được khi thêm `known`: model viết câu hỏi vào ghi chú rồi để `text` rỗng. Một bong
         # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần. Dàn ý cũng vậy

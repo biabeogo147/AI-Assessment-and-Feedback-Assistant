@@ -1,8 +1,9 @@
 """Pha lên plan của một lượt chat giáo viên: dựng prompt, rồi chọn.
 
 Module này là **pha 1** của ADR-25. Nó tra cứu, hỏi lại, và khi đã đủ dữ kiện thì nêu một
-plan — chứ không bao giờ ghi gì. Lời kể sau khi plan chạy nằm ở `reporting.py`, một task
-riêng, vì đầu vào của nó khác hẳn: nó đọc kết quả của cả plan, không đọc catalog.
+plan — chứ không bao giờ ghi gì. Lời kể sau khi plan chạy cũng đi qua đây (ADR-25, hậu ký
+22/10/2026): BE hỏi thêm một lượt với chỉ tool đọc (có `last_plan`) và `plannable` rỗng; kể thế nào
+là bước 6 của skill `soan-de`.
 
 Hai danh mục tới riêng và điều đó là cố ý: `catalog` là tool gọi được ngay, `plannable` là
 tool chỉ hẹn làm được ở pha 2. Model phải thấy cả hai — nó nêu tên tool và tên tham số

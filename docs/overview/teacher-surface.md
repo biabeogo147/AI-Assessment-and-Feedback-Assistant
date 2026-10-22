@@ -1035,7 +1035,7 @@ bóng chat** của cả hai bên. Từ ADR-30 lời Kriky trong bong bóng (cả
 dựng y như cũ.
 
 Hai nhóm cuối suýt bị bỏ sót, và bỏ sót chúng thì đợt này làm mọi thứ **tệ hơn trước**: ba prompt
-`propose`, `reporting`, `explain` sinh ra lời kể trong khung chat, và chúng vừa đổi từ *cấm LaTeX*
+`propose`, `reporting` (gộp vào `propose` từ 22/10/2026), `explain` sinh ra lời kể trong khung chat, và chúng vừa đổi từ *cấm LaTeX*
 sang *bắt viết LaTeX* — nếu chỗ hiển thị không dựng hình thì giáo viên và học sinh nhận nguyên văn
 `$\frac{1}{3}$` ở đúng ba bề mặt trước đây vẫn sạch. Nhãn lỗi thì hiện ngay trong hộp lời giải, cạnh
 những công thức đã dựng hình đẹp. Hai bề mặt đi cùng một lượt: giáo

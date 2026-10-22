@@ -62,6 +62,22 @@ def tables_read(request: NextStepRequested) -> set[str]:
     }
 
 
+def telling(request: NextStepRequested) -> bool:
+    """Lần hỏi này là lượt kể lại sau plan (ADR-25, hậu ký 22/10/2026). Hàm thuần.
+
+    BE hỏi lượt ấy với `plannable` rỗng, ngay sau các bước pha 2 của **chính lượt này**: có một dòng
+    `plan` sau lời giáo viên gần nhất. Pha 1 thì luôn có `plannable`.
+    """
+    if request.plannable:
+        return False
+    for turn in reversed(request.history):
+        if turn.kind == "teacher":
+            return False
+        if turn.kind == "plan":
+            return True
+    return False
+
+
 def since_plan(request: NextStepRequested) -> list[TurnRecord]:
     """Các lượt từ sau plan gần nhất, cũ nhất trước. Hàm thuần."""
     turns: list[TurnRecord] = []

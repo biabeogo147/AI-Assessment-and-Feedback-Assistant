@@ -19,7 +19,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = 1
+# 2 từ 22/10/2026: gỡ `report_plan` cùng `PlanReportRequested`, `PlanReportCompleted` và
+# `StepOutcome`; lời kể sau plan là một lượt `propose` (ADR-25, hậu ký 22/10/2026).
+SCHEMA_VERSION = 2
 
 # Tên task của arq. BE enqueue bằng chuỗi và không bao giờ import package AGENT.
 PROPOSE_NEXT_STEP_TASK = "propose_next_step"
@@ -358,76 +360,3 @@ class ConversationNameCompleted(BaseModel):
     schema_version: int = SCHEMA_VERSION
     request_id: str
     title: str = ""
-
-
-# Tên task của arq, cũng như trên: BE enqueue bằng chuỗi.
-REPORT_PLAN_TASK = "report_plan"
-
-
-class StepOutcome(BaseModel):
-    """Một bước của plan đã chạy, và nó ra sao.
-
-    Attributes:
-        title: Câu đã hiện trên khối bằng chứng, chép lại từ `PlanStep.title`.
-        ok: Bước đó xong hay hỏng.
-        detail: Con số hoặc lý do, bằng lời của BE. Rỗng khi không có gì đáng nói.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    title: str
-    ok: bool
-    detail: str = ""
-
-
-class PlanReportRequested(BaseModel):
-    """Kể lại cho giáo viên những gì plan vừa làm.
-
-    Payload tự chứa: nó chở câu giáo viên đã gõ và kết quả từng bước, không chở id nào để AGENT đi
-    tra -- AGENT không có credential database.
-
-    Đây là một task riêng chứ không phải một vòng nữa của `propose_next_step`, vì đầu vào của nó
-    khác hẳn: nó đọc kết quả của cả plan, không đọc catalog.
-
-    Attributes:
-        schema_version: Phiên bản hình dạng.
-        request_id: Id của yêu cầu, dội lại trong câu trả lời.
-        said: Câu giáo viên đã gõ, để lời kể trả lời đúng thứ họ hỏi.
-        outcomes: Các bước đã chạy, theo thứ tự. Không bao giờ rỗng: một plan bị từ chối thì
-            không bước nào chạy và BE không gọi tới task này.
-        written: Đề đã có bao nhiêu câu, **đếm từ database** chứ không đếm từ số tiếng chuông --
-            chuông có thể mất, và một vị trí thử lại rung hai lần.
-        asked_for: Giáo viên xin bao nhiêu câu. `written == asked_for` là lúc nói "xong".
-        still_drafting: Còn bao nhiêu câu đang soạn. Lớn hơn 0 thì lời kể nói "đang soạn".
-
-    Ba con số cuối tồn tại để luật *"nói đang soạn chứ đừng nói đã xong"* là **dữ liệu**, không
-    phải một câu cứng trong prompt. Câu cứng ấy đúng chừng nào báo cáo còn chạy trước lúc soạn
-    xong; từ khi đường SSE đợi hết câu rồi mới kể, chính nó thành máy sinh lời nói sai chiều
-    ngược lại (ADR-25).
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    schema_version: int = SCHEMA_VERSION
-    request_id: str
-    said: str = Field(min_length=1, max_length=2000)
-    outcomes: tuple[StepOutcome, ...] = ()
-    written: int = 0
-    asked_for: int = 0
-    still_drafting: int = 0
-
-
-class PlanReportCompleted(BaseModel):
-    """Lời kể của Kriky sau khi plan chạy xong.
-
-    Attributes:
-        schema_version: Phiên bản hình dạng.
-        request_id: Dội lại từ yêu cầu.
-        text: Câu kết. Rỗng nghĩa là model không nói được, và BE lùi về một câu dựng từ `outcomes`.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    schema_version: int = SCHEMA_VERSION
-    request_id: str
-    text: str = ""

@@ -39,7 +39,6 @@ from contracts import (
     GENERATE_RETRY_QUESTION_TASK,
     NAME_CONVERSATION_TASK,
     PROPOSE_NEXT_STEP_TASK,
-    REPORT_PLAN_TASK,
     WRITE_DRAFT_QUESTION_TASK,
     ConversationNameRequested,
     DraftQuestionRequested,
@@ -47,10 +46,8 @@ from contracts import (
     GeneratedOption,
     GeneratedQuestion,
     NextStepRequested,
-    PlanReportRequested,
     RetryQuestionRequested,
     SolutionMethod,
-    StepOutcome,
     ToolSpec,
     TurnRecord,
 )
@@ -147,15 +144,6 @@ PAYLOADS: dict[str, dict] = {
         teacher_name="Cô Lan",
         catalog=(ToolSpec(name="list_class", description="Liệt kê lớp của giáo viên"),),
         history=(TurnRecord(kind="teacher", text="Lớp nào đang học đạo hàm?"),),
-    ).model_dump(mode="json"),
-    REPORT_PLAN_TASK: PlanReportRequested(
-        request_id="gv-2",
-        said="tạo đề",
-        outcomes=(
-            StepOutcome(title="Mở đề nháp", ok=True),
-            StepOutcome(title="Soạn câu 3", ok=False, detail="model trả về câu thiếu lời giải"),
-        ),
-        written=2,
     ).model_dump(mode="json"),
     NAME_CONVERSATION_TASK: ConversationNameRequested(
         request_id="gv-3",

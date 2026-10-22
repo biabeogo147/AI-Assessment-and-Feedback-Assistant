@@ -59,6 +59,7 @@ from be.drafting import (
 )
 from be.identity import Asking
 from be.outline import MOST_QUESTIONS_ASKED
+from be.plan_outcomes import plan_summary
 from be.resolve import Candidate, capped, classes_with_counts, normalise
 from be.titles import clipped, default_title
 from be.toc import heading, parts, scope_of, title_path
@@ -692,8 +693,8 @@ async def _start_drafting(running: Running, args: dict) -> dict:
         # Không giống thiếu field. Báo "chưa đủ thông tin" cho một field model đã điền
         # rồi là đẩy nó đi một vòng để điền lại đúng giá trị đó.
         #
-        # `unreadable` là cờ cho người kể, không phải cho model: `_said_about` đọc nó để
-        # nói "một mục trong yêu cầu chưa dùng được" mà không in `reason` ra màn hình --
+        # `unreadable` là cờ cho người kể, không phải cho model: `plan_outcomes.said_about` đọc nó
+        # để nói "một mục trong yêu cầu chưa dùng được" mà không in `reason` ra màn hình --
         # `reason` chở theo tên field, và tên field là mặt trong của hệ thống.
         return {
             "started": False,
@@ -985,6 +986,18 @@ async def _tree_of(running: Running, args: dict) -> tuple[list[IndexNode], dict 
     if found is None:
         return [], {"found": False, "reason": "tài liệu này chưa có mục lục"}
     return found[1], None
+
+
+async def _last_plan(running: Running, args: dict) -> dict:
+    """Kể gọn plan gần nhất của đoạn chat này: từng bước xong, hỏng hay không chạy, và tiến độ soạn.
+
+    Tool đọc của lượt kể lại (ADR-25, hậu ký 22/10/2026): model đọc nó thay cho một danh sách kết
+    quả BE dựng sẵn trong một lời gọi riêng. Ở pha 1 nó cũng có mặt -- *"lúc nãy làm tới đâu rồi?"*
+    là một câu hỏi thật. Chỉ đọc đoạn chat của chính lượt này, nên không cần tham số nào.
+    """
+    if not running.conversation_id:
+        return {"found": False, "reason": "Lượt này không gắn với đoạn chat nào."}
+    return await plan_summary(running.session, running.conversation_id)
 
 
 async def _list_documents(running: Running, args: dict) -> dict:
@@ -1331,6 +1344,17 @@ _TOOLS: tuple[Tool, ...] = (
     # `soan-de` mở thư viện khi giáo viên nhắc sách, còn đọc mục lục nằm ở
     # `propose.prompt.BOOK_PROCEDURE` bên AGENT, chỉ chèn ở lượt có sách (`unbiased-model-text`).
     # Một nguồn cho mỗi điều, không lặp ở hai chỗ.
+    Tool(
+        spec=ToolSpec(
+            name="last_plan",
+            description=(
+                "Kể gọn plan gần nhất của đoạn chat này: từng bước xong, hỏng hay không chạy, kèm "
+                "lý do ngắn, và tiến độ soạn câu của đề (đã có, xin, còn đang soạn)."
+            ),
+            arguments={},
+        ),
+        run=_last_plan,
+    ),
     Tool(
         spec=ToolSpec(
             name="list_documents",
