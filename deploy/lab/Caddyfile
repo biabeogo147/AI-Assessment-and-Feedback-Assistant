@@ -1,9 +1,10 @@
 # Cửa duy nhất của lab: FE tĩnh và /api của BE trên cùng một origin, như proxy của Vite ở máy dev --
 # nên BE không phải bật CORS.
 #
-# SITE_ADDRESS: trên EC2 là `<ip>.sslip.io`, Caddy tự xin chứng chỉ Let's Encrypt; ở máy local là
-# `:80` (HTTP thuần). LAB_AUTH: `on` (mặc định) bật basic auth trước **cả** site, `off` chỉ dành cho
-# stack lab chạy ở local -- trình duyệt tự động không gõ được vào hộp basic auth.
+# SITE_ADDRESS: trên EC2 là hai tên `teacher.…, student.…` do Terraform dựng từ `base_domain`. Một
+# khối cho cả hai: FE tự chọn vai theo tên máy, Caddy xin mỗi tên một chứng chỉ Let's Encrypt. Ở máy
+# local là `:80` (HTTP thuần). LAB_AUTH: `on` (mặc định) bật basic auth trước **cả** site, `off` chỉ
+# dành cho stack lab chạy ở local -- trình duyệt tự động không gõ được vào hộp basic auth.
 
 {
 	admin off

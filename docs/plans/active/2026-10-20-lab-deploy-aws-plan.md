@@ -23,7 +23,7 @@ cộng vài key trong SSM là có một URL HTTPS dùng được, đã có dữ 
   `DEMO_QUESTIONS` vì seed lab dùng lại sáu câu ấy.
 - Mới `deploy/lab/` (Dockerfile, Caddyfile, compose, `lab.env`, script) và `deploy/lab/terraform/`.
 - Mới test ở `tools/tests/` cho `lab.env` và compose lab.
-- Mới `docs/deploy-lab.md`; sửa `README.md`, `docs/local-development.md`, `.gitignore`, hậu ký
+- Mới `docs/deploy-lab.md` (nay `docs/operation/deploy-lab.md`); sửa `README.md`, `docs/local-development.md`, `.gitignore`, hậu ký
   ADR-36; `dev.ps1 install` cài thêm `pyyaml` (test cấu hình lab đọc file compose).
 
 ## Ordered Tasks

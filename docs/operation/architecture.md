@@ -27,7 +27,7 @@ flowchart TB
         anthropic["Anthropic API<br/>claude-haiku-5-5"]
         jev["JEV API<br/>agent: chọn skill · index: xếp tiêu đề"]
         letsencrypt["Let's Encrypt"]
-        sslip["sslip.io<br/>1-2-3-4.sslip.io → 1.2.3.4"]
+        dns["DNS của tên miền<br/>A: teacher.·student. → Elastic IP"]
     end
 
     subgraph aws["AWS account · ap-southeast-1"]
@@ -62,7 +62,7 @@ flowchart TB
     end
 
     team -->|HTTPS · basic auth| eip
-    sslip -.->|phân giải tên| eip
+    dns -.->|phân giải tên| eip
     eip --> caddy
     caddy -->|"/api/* · không đệm"| be
     be --> postgres
@@ -99,7 +99,7 @@ flowchart TB
     class ssm,s3_backup,iam,budget,subnet,sg,eip tf
     class bootstrap,render_env,backup boot
     class caddy,be,agent,ingest,document,index,redis,postgres,minio,mongo dc
-    class team,ops,github,anthropic,jev,letsencrypt,sslip ext
+    class team,ops,github,anthropic,jev,letsencrypt,dns ext
 ```
 
 Đọc sơ đồ:
@@ -203,12 +203,32 @@ role.
 
 ## Tên miền và chứng chỉ
 
-Lab không mua tên miền. **sslip.io** phân giải `1-2-3-4.sslip.io` về `1.2.3.4`, nên Elastic IP tự có
-một tên, và Let's Encrypt cấp chứng chỉ cho tên đó qua HTTP-01. Elastic IP giữ nguyên qua stop/start
-máy, nên URL không đổi. Đổi Elastic IP (destroy rồi apply lại) là đổi URL.
+Mỗi vai một tên: giáo viên `teacher.<base_domain>`, học sinh `student.<base_domain>`. Terraform dựng
+hai tên từ biến `base_domain` và ghi cả hai vào tham số SSM `SITE_ADDRESS` (`teacher.…, student.…`).
+Caddy nhận cả hai trong **một** khối site: cùng basic auth, cùng FE tĩnh, cùng `/api`, mỗi tên một
+chứng chỉ. BE không biết tên miền nào: FE và `/api` cùng một origin, cookie chỉ gắn theo host, nên mỗi
+tên giữ phiên của riêng nó.
 
-Cái giá: lab phụ thuộc vào một dịch vụ DNS miễn phí của bên thứ ba, và Let's Encrypt giới hạn số chứng
-chỉ mỗi tuần cho từng tên miền gốc. Với một lab, cả hai đều chấp nhận được.
+FE là một bản build phục vụ cả hai tên, nên nó nhận ra vai qua `location.hostname` (`surfaceFor` ở
+`services/fe/src/App.tsx`): trên hai tên lab, **tên máy thắng hash**. Caddy không làm được việc này
+vì trình duyệt không gửi hash lên server. Hai tiền tố `teacher.` / `student.` vì vậy là một quy ước
+giữa Terraform và FE; `tools/tests/test_lab_deploy.py` đòi chúng khớp nhau. Ở mọi tên khác (máy dev,
+stack lab ở local) FE chọn vai theo hash như trước.
+
+Tách tên là **giao diện, không phải ranh giới quyền.** Hai tên đứng sau cùng basic auth và cùng một
+BE; BE không kiểm Host. Ai cũng gõ được `teacher.…`, và một cookie giáo viên dùng được ở cả hai tên.
+Quyền vẫn ở BE: mỗi vai một cookie phiên, cấp sau khi đúng mật khẩu.
+
+`base_domain` nằm trong `terraform.tfvars` và không có giá trị mặc định. Hai bản ghi A trỏ về
+Elastic IP, do người quản DNS của tên miền tạo tay: Terraform không quản bản ghi ấy, để `destroy` lab
+không đụng vào một zone có thể dùng chung với dự án khác. Vì vậy lần đầu apply làm hai bước: xin
+Elastic IP (`-target=aws_eip.lab`), tạo bản ghi, rồi mới dựng máy.
+
+Let's Encrypt cấp chứng chỉ qua HTTP-01, nên tên phải phân giải về máy **trước** khi Caddy xin, không
+có bản ghi AAAA trỏ đi nơi khác (Let's Encrypt thử IPv6 trước), và CAA của zone, nếu có, phải cho phép
+`letsencrypt.org`. Giới hạn tần suất của Let's Encrypt tính theo tên miền gốc, nên dùng chung với mọi
+tên con khác của zone. Elastic IP giữ nguyên qua stop/start máy; destroy rồi apply lại là đổi IP, phải
+sửa bản ghi A. Đổi tên miền thì người dùng đăng nhập lại: cookie và `localStorage` gắn theo host.
 
 ## Lộ trình dựng
 
@@ -216,6 +236,7 @@ Câu hỏi sơ đồ trả lời: *từ `terraform apply` tới một URL dùng 
 
 ```mermaid
 flowchart LR
+    s0["0 · Elastic IP + bản ghi A<br/>apply -target, DNS tạo tay"] --> s1
     s1["1 · terraform apply<br/>máy, mạng, SSM, IAM, S3"] --> s2["2 · cloud-init<br/>ghi /etc/aiafa-lab.conf, git clone"]
     s2 --> s3["3 · bootstrap.sh<br/>docker, swap, systemd, cron"]
     s3 --> s4["4 · render-env.sh<br/>SSM → .env"]
@@ -226,6 +247,7 @@ flowchart LR
 
 | Bước | Làm gì | Công cụ | Ở đâu |
 | --- | --- | --- | --- |
+| 0 | Xin Elastic IP (`terraform apply -target=aws_eip.lab`); tạo hai bản ghi A `teacher`, `student` → IP ấy, chờ phân giải được | Terraform; DNS của tên miền, tạo tay | máy người vận hành |
 | 1 | VPC mặc định + subnet mặc định, security group, Elastic IP, key pair, EC2, IAM role, năm mật khẩu SSM, bucket backup, budget | Terraform, người vận hành chạy | `deploy/lab/terraform/` |
 | 2 | Ghi cấu hình không bí mật (thư mục, nhánh, region, bucket), cài git, clone nhánh `main` | cloud-init, `user_data.sh.tftpl` | máy lab |
 | 3 | Cài docker, compose, aws CLI; bật 2 GB swap; cài unit systemd và cron **trước** khi dựng | `bootstrap.sh` | máy lab |
@@ -247,6 +269,7 @@ Mỗi bước chỉ dùng thứ bước trước **giao**, không với vào bê
 
 | Bước giao | Giao cái gì | Ràng buộc bắt buộc |
 | --- | --- | --- |
+| 0 → 5 | `teacher.…` và `student.…` phân giải về Elastic IP | Caddy xin chứng chỉ ngay khi bật ở bước 5; tên chưa phân giải là Let's Encrypt từ chối, hỏng nhiều lần là chạm giới hạn tần suất |
 | 1 → 2 | Máy có instance profile; mọi tham số SSM do Terraform quản đã tồn tại | `aws_instance` `depends_on` các tham số SSM và policy IAM: bootstrap đọc SSM ngay ở lần khởi động đầu |
 | 2 → 3 | `/etc/aiafa-lab.conf` và repo ở `/opt/aiafa` | Nhánh được clone phải có `deploy/lab/`; repo phải public vì máy clone không kèm khoá |
 | 3 → 4 | docker, aws CLI ở `/snap/bin` | cron và systemd không có `/snap/bin` trong PATH: `lib.sh` tự thêm |
@@ -279,7 +302,7 @@ Các ràng buộc dưới đây đến từ code của các service, không từ
 | Loại máy | **`m7i-flex.large`**: đã kiểm thuộc free tier của account ở Singapore | Free plan đổi danh sách thì đổi `instance_type` |
 | Mạng | **VPC mặc định, không NAT** | Account mới có thể có VPC mặc định mà không có subnet: Terraform tạo subnet mặc định bằng `aws_default_subnet` (gặp thật lúc apply 21/10/2026) |
 | Reverse proxy | **Caddy** (20/10/2026) | Một lối vào làm cả HTTPS, basic auth, FE tĩnh, proxy |
-| Tên miền | **sslip.io** theo Elastic IP | Không mua tên miền; URL đổi khi đổi Elastic IP |
+| Tên miền | **Mỗi vai một subdomain của `base_domain`** (22/10/2026) | Bản ghi A tạo tay, Terraform không quản DNS; FE chọn vai theo tiền tố tên máy; đổi Elastic IP là sửa bản ghi |
 | OCR | **Có** (20/10/2026) | Image `document` riêng (D3), máy 8 GB |
 | Đăng ký giáo viên | **Tắt, chặn ở BE**; giữ basic auth (D1) | FE không đổi |
 | Tài khoản seed | **Một mật khẩu chung** cho giáo viên và học sinh (D4) | Chỉ chấp nhận được sau basic auth |
@@ -299,13 +322,15 @@ Các ràng buộc dưới đây đến từ code của các service, không từ
 
 Monitoring và cảnh báo của ứng dụng (chỉ có AWS Budgets cho tiền), log tập trung (đọc bằng `docker
 compose logs` trên máy), CI/CD (deploy bằng tay qua `deploy.sh`), dự phòng và tự phục hồi ngoài
-`restart: unless-stopped`, migration, tên miền riêng. Một môi trường cho trường thật sẽ cần ít nhất:
-migration, database có backup theo thời điểm (RDS), tên miền và chứng chỉ của trường, đăng nhập không
-sau basic auth, và log tập trung.
+`restart: unless-stopped`, migration, quản bản ghi DNS bằng Terraform. Một môi trường cho trường thật
+sẽ cần ít nhất: migration, database có backup theo thời điểm (RDS), tên miền và chứng chỉ của trường,
+đăng nhập không sau basic auth, và log tập trung.
 
 ## Hiện trạng (21/10/2026)
 
 - Đã `apply` 26 tài nguyên (chưa có budget); máy chạy đủ 10 container; seed đã chạy.
+- **Chưa chuyển sang hai subdomain** (22/10/2026): DNS của `recruitai.io.vn` còn SERVFAIL. Máy vẫn
+  chạy tên cũ cho tới khi `teacher.recruitai.io.vn` và `student.recruitai.io.vn` phân giải được.
 - Khoá Claude và JEV đã có trong SSM; model bật.
 - `smoke.sh` qua 14/14 mục từ Internet. Đã thử tay trên trình duyệt cả phía giáo viên (bảng theo dõi,
   đề, lớp, kết quả, báo cáo, tài liệu và OCR, soạn đề với model thật, duyệt, phát hành, hoàn tác) lẫn

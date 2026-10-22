@@ -29,7 +29,7 @@ resource "aws_ssm_parameter" "secret" {
 resource "aws_ssm_parameter" "site_address" {
   name  = "${var.ssm_prefix}/SITE_ADDRESS"
   type  = "String"
-  value = local.site_address
+  value = "${local.teacher_host}, ${local.student_host}"
 }
 
 resource "aws_ssm_parameter" "basic_auth_user" {

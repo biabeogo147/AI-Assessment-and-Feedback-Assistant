@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dump Postgres của lab lên S3, một tệp mỗi ngày; bucket tự xoá tệp cũ hơn 7 ngày (Terraform).
-# Cron gọi hằng đêm (bootstrap.sh). Khôi phục: docs/deploy-lab.md.
+# Cron gọi hằng đêm (bootstrap.sh). Khôi phục: docs/operation/deploy-lab.md.
 #
 # Chỉ Postgres: tài liệu trong MinIO và bản đọc trong Mongo tải lại được, còn bài làm thì không.
 

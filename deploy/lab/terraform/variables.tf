@@ -28,6 +28,16 @@ variable "git_ref" {
   default     = "main"
 }
 
+variable "base_domain" {
+  description = "Tên miền gốc, ví dụ `example.com`. Giáo viên vào `teacher.<base_domain>`, học sinh vào `student.<base_domain>`; hai bản ghi A phải trỏ về Elastic IP **trước** khi Caddy xin chứng chỉ. Đặt trong terraform.tfvars."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\\.[a-z][a-z0-9-]*[a-z0-9]$", var.base_domain))
+    error_message = "base_domain là một tên miền viết thường (không phải IP), không có https:// hay dấu / ở cuối."
+  }
+}
+
 variable "ssm_prefix" {
   description = "Tiền tố mọi tham số SSM của lab."
   type        = string

@@ -2,8 +2,8 @@
 
 Lab là một bản chạy thật cho **năm người trong team**, trên một máy EC2 ở Singapore, sau HTTPS và
 basic auth. Mọi thứ nằm ở `deploy/lab/`; plan là `docs/plans/active/2026-10-20-lab-deploy-aws-plan.md`.
-Chạy trên máy mình thì đọc [Local Development](local-development.md). Bản đồ của mọi thành phần và lý do
-của chúng: [Kiến trúc lab](deploy-lab-architecture.md).
+Chạy trên máy mình thì đọc [Local Development](../local-development.md). Bản đồ của mọi thành phần
+và lý do của chúng: [Kiến trúc lab](architecture.md).
 
 ```text
 Internet ──443──► Caddy (basic auth, FE tĩnh, /api) ──► be ──► Postgres · Redis · MinIO · Mongo
@@ -13,7 +13,7 @@ Internet ──443──► Caddy (basic auth, FE tĩnh, /api) ──► be ─�
 | Thứ | Ở đâu |
 | --- | --- |
 | Máy | Một EC2 `m7i-flex.large` (8 GB, free-tier ở account này), Ubuntu 24.04, ổ 30 GB |
-| Tên miền | `<ip-có-gạch>.sslip.io` theo Elastic IP; Caddy tự xin chứng chỉ Let's Encrypt |
+| Tên miền | Giáo viên `teacher.<base_domain>`, học sinh `student.<base_domain>`; `base_domain` trong `terraform.tfvars`, hai bản ghi A trỏ về Elastic IP; Caddy tự xin chứng chỉ Let's Encrypt |
 | Vào máy | SSH (cổng 22 chỉ mở cho IP trong `ssh_cidrs`), hoặc SSM Session Manager |
 | Bí mật | SSM Parameter Store, tiền tố `/aiafa/lab/` |
 | Backup | `pg_dump` hằng đêm lên một bucket S3, giữ 7 ngày |
@@ -52,13 +52,29 @@ email không vào git):
 ssh_cidrs      = ["<IPv4 của mạng team>/32"]   # curl -s https://checkip.amazonaws.com
 ssh_public_key = "ssh-ed25519 AAAA… aiafa-lab"   # nội dung ~/.ssh/aiafa-lab.pub
 alert_email    = "ban@example.com"
+base_domain    = "example.com"                  # bắt buộc: teacher.example.com, student.example.com
 ```
 
 ```bash
 cd deploy/lab/terraform
 terraform init
+terraform apply -target=aws_eip.lab    # chỉ xin Elastic IP
+terraform output -raw public_ip
+```
+
+Tạo hai bản ghi A, `teacher` và `student`, trỏ về IP ấy ở nơi quản DNS của `base_domain`. Chờ cả hai
+phân giải được rồi mới dựng phần còn lại:
+
+```bash
+nslookup teacher.example.com 8.8.8.8      # phải ra đúng IP
+nslookup student.example.com 8.8.8.8
 terraform apply
 ```
+
+Terraform không quản bản ghi DNS: tên miền có thể dùng chung với dự án khác, và `destroy` lab không
+được đụng vào zone của nó. Bản ghi phải **phân giải được trước** khi Caddy chạy, vì Let's Encrypt kiểm
+tên qua HTTP-01: xin hỏng nhiều lần là chạm giới hạn tần suất của Let's Encrypt. Cũng kiểm hai tên ấy
+**không** có bản ghi AAAA trỏ đi nơi khác, và CAA của zone (nếu có) cho phép `letsencrypt.org`.
 
 Bỏ `ssh_cidrs` thì không mở cổng 22, chỉ vào bằng SSM. IP nhà mạng đổi thì sửa `ssh_cidrs` rồi
 `apply` lại: chỉ security group đổi, máy giữ nguyên. Account mới có thể có VPC mặc định mà không có
@@ -83,7 +99,7 @@ Hỏng giữa chừng (log ghi bước nào) thì sửa rồi chạy lại cả 
 **4. Kiểm từ bên ngoài.**
 
 ```bash
-export LAB_URL=$(terraform output -raw url)
+export LAB_URL="$(terraform output -raw teacher_url) $(terraform output -raw student_url)"
 export BASIC_AUTH_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
   --name /aiafa/lab/BASIC_AUTH_PASSWORD --with-decryption --query Parameter.Value --output text)
 export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
@@ -94,6 +110,9 @@ bash ../smoke.sh
 Trên Windows, `curl` của Git Bash (mingw, Schannel) trả `000` với lỗi 43 cho mọi yêu cầu HTTPS tới
 lab; `curl.exe` của Windows thì không. Đặt một `curl` gọi `/c/Windows/System32/curl.exe "$@"` lên
 đầu `PATH` trước khi chạy `smoke.sh`.
+
+Xong thì giáo viên vào `teacher_url`, học sinh vào `student_url`. Trên hai tên ấy FE chọn vai theo tên
+máy, không theo hash: `teacher.…` luôn là màn giáo viên, `student.…/#/teacher` tự về màn học sinh.
 
 `smoke.sh` kiểm: thiếu basic auth thì 401; đăng ký giáo viên 403; `X-Actor` không thay được đăng
 nhập; giáo viên seed đăng nhập được và cookie có cờ `Secure`; HTTP chuyển sang HTTPS; các cổng 5432,
@@ -139,6 +158,7 @@ Mọi lệnh dưới đây chạy **trên máy lab**, sau `$(terraform output -r
 | Xem log một service | `… logs -f --tail 200 be` (hay `agent`, `document`, `index`, `ingest`, `caddy`) |
 | Đổi một khoá | `aws ssm put-parameter --overwrite …` ở máy mình; trên máy lab `sudo bash /opt/aiafa/deploy/lab/render-env.sh` rồi `… up -d` |
 | Backup ngay | `sudo bash /opt/aiafa/deploy/lab/backup.sh` |
+| Đổi tên miền | Hai bản ghi A `teacher`, `student` của tên gốc mới trỏ về `public_ip` và phân giải được; sửa `base_domain` rồi `terraform apply` ở máy mình (chỉ tham số SSM đổi); trên máy lab `render-env.sh` rồi `… up -d caddy`. **Đừng apply khi tên mới chưa phân giải được:** mỗi lần boot máy chạy lại `render-env.sh`, nên một lần khởi động lại là Caddy sang tên mới, xin chứng chỉ không được, và lab tắt |
 
 **Không có migration** (D5): bản mới đổi model database thì BE từ chối khởi động (`docker compose
 logs be` ghi rõ cột nào thiếu). Cách ra là `seed.sh` — dữ liệu lab mất, dựng lại từ đầu.

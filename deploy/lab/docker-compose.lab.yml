@@ -4,7 +4,7 @@
 #
 # Bí mật đọc từ deploy/lab/.env (do `render-env.sh` dựng từ SSM; compose tự đọc file ấy cạnh file
 # này để thay `${...}`). Giá trị không bí mật ở `lab.env`. Ở máy local, `.env.overrides` (không bắt
-# buộc) đè lên `lab.env` -- xem docs/deploy-lab.md.
+# buộc) đè lên `lab.env` -- xem docs/operation/deploy-lab.md.
 #
 # **Chỉ caddy mở cổng ra ngoài.** Redis, Postgres, MinIO, Mongo và BE chỉ nói trong mạng nội bộ
 # của compose (`tools/tests/test_lab_deploy.py` khoá điều đó).

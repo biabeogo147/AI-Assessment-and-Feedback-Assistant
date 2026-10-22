@@ -1,6 +1,6 @@
 # Lab trên một EC2 (plan `lab-deploy-aws`). Người dùng tự chạy `terraform apply`; xem
-# docs/deploy-lab.md. State để local -- một người vận hành -- và không bao giờ vào git: nó chứa các
-# mật khẩu do `random_password` sinh.
+# docs/operation/deploy-lab.md. State để local -- một người vận hành -- và không bao giờ vào git: nó
+# chứa các mật khẩu do `random_password` sinh.
 
 terraform {
   required_version = ">= 1.6"
@@ -108,7 +108,8 @@ resource "aws_eip_association" "lab" {
 }
 
 locals {
-  # sslip.io phân giải `1-2-3-4.sslip.io` về 1.2.3.4: một tên miền cho Let's Encrypt mà không phải
-  # mua tên miền nào.
-  site_address = "${replace(aws_eip.lab.public_ip, ".", "-")}.sslip.io"
+  # Hai tiền tố là một quy ước với FE: `surfaceFor` ở services/fe/src/App.tsx chọn vai theo đúng
+  # chúng (tools/tests/test_lab_deploy.py giữ hai bên khớp nhau).
+  teacher_host = "teacher.${var.base_domain}"
+  student_host = "student.${var.base_domain}"
 }

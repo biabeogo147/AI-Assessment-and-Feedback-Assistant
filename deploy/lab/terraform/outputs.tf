@@ -1,6 +1,16 @@
-output "url" {
-  description = "Địa chỉ của lab. Chứng chỉ HTTPS có sau vài phút đầu, khi bootstrap bật xong Caddy."
-  value       = "https://${local.site_address}"
+output "teacher_url" {
+  description = "Địa chỉ của giáo viên. Chứng chỉ HTTPS có sau vài phút đầu, khi Caddy đã bật."
+  value       = "https://${local.teacher_host}"
+}
+
+output "student_url" {
+  description = "Địa chỉ của học sinh."
+  value       = "https://${local.student_host}"
+}
+
+output "public_ip" {
+  description = "Elastic IP: hai bản ghi A, teacher và student, trỏ về đây."
+  value       = aws_eip.lab.public_ip
 }
 
 output "instance_id" {
