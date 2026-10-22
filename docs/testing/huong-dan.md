@@ -16,34 +16,50 @@ trước không?"*.
 
 ## Chuẩn bị
 
-Mọi lần chạy bộ ca bắt đầu từ cùng một chỗ, nên không bỏ bước nào.
+Bộ ca chạy trên **database đang có**, không `db-reset` (người dùng chốt 22/10/2026: không phải mỗi
+lần thử là xoá được dữ liệu). Hai lần chạy phân biệt nhau bằng **mã vòng** và bằng truy vấn đầu ca,
+không bằng một database sạch. Không bỏ bước nào.
 
-1. `.\dev.ps1 infra-up`, rồi `.\dev.ps1 db-reset`. Seed (`services/be/src/be/seed.py`): giáo viên
-   **Cô Phạm Thu Lan** (`GV-001`), lớp **12A** ba học sinh, đề **"Kiểm tra 15 phút — Hàm số"** đã
-   phát hành cho 12A.
-2. Sáu terminal: `.\dev.ps1 be`, `agent`, `ingest`, `document`, `index`, `fe`
+1. `.\dev.ps1 infra-up`. **Không** `db-reset`. Seed (`services/be/src/be/seed.py`) chỉ ghi khi
+   database rỗng, nên một database cũ vẫn có: giáo viên **Cô Phạm Thu Lan** (`GV-001`), lớp **12A**,
+   đề **"Kiểm tra 15 phút — Hàm số"** đã phát hành cho 12A -- cùng mọi thứ các lần chạy trước để lại
+   (lớp thêm học sinh, đề, bài làm). Database cũ hơn model thì `ALTER` theo
+   `docs/local-development.md`, mục *Database cũ hơn model*.
+2. **Mã vòng** `Cn` (C1, C2…, tăng mỗi lần chạy bộ ca; kịch bản đầu-cuối dùng `Vn`). Ghi nó vào đầu
+   biên bản. Mọi tên giáo viên **gõ ra** trong case -- tên đề, tên học sinh -- mang mã vòng ở cuối,
+   để truy vấn lọc đúng hàng của lần này. Lời chat thì gõ **y nguyên văn** như case viết. Tên đề do
+   BE tự đặt (*"Đề chương Hàm số"*) có thể trùng đề của lần trước: mọi truy vấn lọc theo tên đề lấy
+   đề **mới nhất** (`order by created_at desc limit 1`).
+3. Sáu terminal: `.\dev.ps1 be`, `agent`, `ingest`, `document`, `index`, `fe`
    (`docs/local-development.md`). Thiếu `ingest`, `document` hay `index` thì tài liệu treo ở
    *Đang xử lý…* mãi mà không báo gì.
-3. Model là **`gpt-4o-mini`** hoặc **`claude-haiku-5-5`** (`.env` dev, kiểm dòng `model=` trong log
+4. Model là **`gpt-4o-mini`** hoặc **`claude-haiku-5-5`** (`.env` dev, kiểm dòng `model=` trong log
    khởi động AGENT); model khác phải xin phép. Ghi model vào tên biên bản.
-4. Mở **`http://127.0.0.1:5173/#/teacher`** — `127.0.0.1`, không `localhost`.
-5. **Thêm lớp 12B** (case 11 cần hai lớp khớp chữ *"12"*; chưa có màn hình hay tool tạo lớp):
+5. Mở **`http://127.0.0.1:5173/#/teacher`** — `127.0.0.1`, không `localhost`.
+6. **Lớp 12B** (case 11 cần hai lớp khớp chữ *"12"*; chưa có màn hình hay tool tạo lớp). Câu dưới
+   chạy lại bao nhiêu lần cũng chỉ có **một** lớp 12B:
 
    ```
-   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "insert into classes (id, teacher_id, name) select gen_random_uuid()::text, id, '12B' from teachers limit 1;"
+   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "insert into classes (id, teacher_id, name) select gen_random_uuid()::text, t.id, '12B' from teachers t where t.teacher_code = 'GV-001' and not exists (select 1 from classes c where c.teacher_id = t.id and c.name = '12B');"
    ```
 
-6. **Tệp sách:** `data/Kết nối tri thức Lớp 6 tập 1 (tr6-28).pdf` (SGK Toán 6 tập 1, trang 6–28,
+7. **Sĩ số và đề của lớp không cố định** (kịch bản đầu-cuối thêm học sinh vào 12A, phát hành đề cho
+   12A). Ca nào nói sĩ số, số đề hay số bài nộp thì so với **truy vấn đầu ca** (`N` học sinh), không
+   so với một con số viết sẵn.
+8. **Tệp sách:** `data/Kết nối tri thức Lớp 6 tập 1 (tr6-28).pdf` (SGK Toán 6 tập 1, trang 6–28,
    chương I). Tệp là ảnh quét, không có lớp chữ: nó đi đường OCR rồi dựng mục lục, mất vài phút.
-   Tải lên một lần ở đầu buổi, đợi chip lên *sẵn sàng* (có số trang) rồi mới chạy case 04.
-7. **Tệp scan** cho case 13 — một trang SGK chụp lại, không có lớp chữ. Dựng một lần:
+   **Đã có trong thư viện** từ lần trước và đang *sẵn sàng* thì dùng lại, không tải lại: hai bản cùng
+   tên làm Kriky hỏi lại cuốn nào. Chưa có thì tải lên một lần ở đầu buổi, đợi chip lên *sẵn sàng*
+   (có số trang) rồi mới chạy case 04.
+9. **Tệp scan** cho case 13 — một trang SGK chụp lại, không có lớp chữ. Dựng một lần (đã có trong
+   `data/` thì thôi):
 
    ```
    python -c "import pymupdf; s=pymupdf.open('data/Kết nối tri thức Lớp 6 tập 1 (tr6-28).pdf'); p=s[0].get_pixmap(dpi=120); d=pymupdf.open(); d.new_page(width=p.width, height=p.height).insert_image(d[0].rect, pixmap=p); d.save('data/scan-mot-trang.pdf')"
    ```
 
    `data/` không bao giờ được commit.
-8. **Mỗi case một đoạn chat mới**, trừ khi case ghi rõ là chạy tiếp trên đoạn chat của case trước.
+10. **Mỗi case một đoạn chat mới**, trừ khi case ghi rõ là chạy tiếp trên đoạn chat của case trước.
    Một đoạn dài làm mọi lượt sau mang ngữ cảnh lượt trước, và khi một câu trả lời sai thì không biết
    nó sai vì luật hay vì đọc nhầm câu cũ.
 
@@ -135,7 +151,8 @@ chuỗi nối nhau:
   hụt.
 - **13 sau 04**: tệp scan cũng lên *sẵn sàng*, tải trước case 04 thì thư viện có hai cuốn.
 - 01, 03, 07, 08, 11, 12: mỗi case một đoạn chat mới, không dựa vào đề của case nào.
-- 16 là ca của **học sinh**, chạy sau cùng trên đề seed: không dựa vào đề nào của giáo viên.
+- 16 là ca của **học sinh**, chạy sau cùng: giáo viên thêm một học sinh mang mã vòng và phát hành
+  một đề của chính lần chạy này (case 16, *Chuẩn bị*), nên không cần `db-reset`.
 
 Một case trong chuỗi không đạt thì các case sau vẫn chạy nếu trạng thái chúng cần vẫn có (ví dụ đề
 vẫn đủ câu); không có thì ghi *"không chạy được — case NN hỏng"* thay vì đoán.
@@ -146,7 +163,7 @@ vẫn đủ câu); không có thì ghi *"không chạy được — case NN hỏ
 
 Mỗi lần chạy bộ ca là một file `ket-qua/<YYYY-MM-DD>-<commit ngắn>.md`:
 
-- đầu file: ngày, commit, model, ai chạy, chi phí ước tính;
+- đầu file: ngày, commit, model, **mã vòng**, ai chạy, chi phí ước tính;
 - một bảng: case, **đạt / chấp nhận được / không đạt**, một dòng lý do;
 - dưới bảng, mỗi case một mục: **nguyên văn** câu Kriky ở các lượt quan trọng (dàn ý, câu kết, lời
   từ chối) và những gì trái với *Đạt khi*.

@@ -11,19 +11,19 @@ khen "các em làm khá tốt".
 ## Chuẩn bị
 
 - Theo `docs/testing/huong-dan.md` mục *Chuẩn bị* (có cả lớp 12B). **Đoạn chat mới**, không chip.
-- Seed (`seed.py`) cho: lớp 12A ba học sinh; đề "Kiểm tra 15 phút — Hàm số" **6 câu**, phát hành
-  cho 12A (`published_at` = lúc seed chạy trừ 2 giờ, mở từ −1 tới +6 giờ); **không có bài làm,
-  không có điểm nào**. Trước lượt 1, chạy và dán ba kết quả vào biên bản:
+- Seed (`seed.py`) cho đề "Kiểm tra 15 phút — Hàm số" **6 câu**, phát hành cho 12A. Database không
+  reset (`huong-dan.md`), nên 12A có thể đã thêm học sinh, thêm đề (kịch bản đầu-cuối phát hành *Hàm
+  số Vn*) và có bài làm. Trước lượt 1, chạy và dán ba kết quả vào biên bản; mọi tiêu chí dưới **chấm
+  theo số đo được ở đây**:
 
   ```
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select c.name, count(s.id) as hoc_sinh from classes c left join students s on s.class_id = c.id group by c.name order by c.name;"
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select a.title, a.state, (select count(*) from questions q where q.assessment_id = a.id) as so_cau, p.published_at, p.closes_at, p.recalled_at from publications p join assessments a on a.id = p.assessment_id join classes c on c.id = p.class_id where c.name = '12A';"
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) as da_mo, count(t.submitted_at) as da_nop, (select count(*) from question_outcomes) as dong_diem from attempts t join students s on s.id = t.student_id join classes c on c.id = s.class_id where c.name = '12A';"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select c.name, count(s.id) as hoc_sinh from classes c join teachers t on t.id = c.teacher_id left join students s on s.class_id = c.id where t.teacher_code = 'GV-001' group by c.name order by c.name;"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select a.title, a.state, (select count(*) from questions q where q.assessment_id = a.id) as so_cau, p.published_at, p.closes_at, p.recalled_at from publications p join assessments a on a.id = p.assessment_id join classes c on c.id = p.class_id where c.name = '12A' and p.recalled_at is null;"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) as da_mo, count(t.submitted_at) as da_nop from attempts t join assessments a on a.id = t.assessment_id join students s on s.id = t.student_id join classes c on c.id = s.class_id where c.name = '12A' and a.title = 'Kiểm tra 15 phút — Hàm số';"
   ```
 
-  Chờ: 12A 3, 12B 0; một dòng đề, `published`, 6 câu, `recalled_at` rỗng; `da_mo 0, da_nop 0,
-  dong_diem 0`. Khác thế (một case trước đã phát hành thêm đề cho 12A) thì **chấm theo số đo
-  được**, không theo dòng này, và ghi rõ trong biên bản.
+  Ghi **N** = sĩ số 12A, **D** = số đề của 12A (có `Kiểm tra 15 phút — Hàm số`, 6 câu), **K** =
+  số bài đã nộp của đề ấy. Mọi chỗ dưới ghi `N`, `D`, `K` đọc theo ba truy vấn này.
 
 ## Lời chat
 
@@ -35,19 +35,19 @@ bài kiểm tra 15 phút hàm số của 12A các em làm thế nào rồi
 
 Đường đúng theo skill `lop-va-ket-qua`: `list_class` (name 12A) → `list_assessment` →
 `class_assessment_summary`, rồi nói. Tool cuối trả về `assessment_title`, `question_count: 6`,
-`submitted_count: 0`, `note: "chưa có học sinh nào nộp bài"` — **không** có điểm trung bình, không
-mốc giờ, không gì về từng câu. Sĩ số 3 chỉ có từ `list_class`.
+`submitted_count: K` (K = 0 thì kèm `note: "chưa có học sinh nào nộp bài"`) — **không** có điểm trung bình, không
+mốc giờ, không gì về từng câu. Sĩ số N chỉ có từ `list_class`.
 
 ## Nếu Kriky rẽ
 
 | Kriky làm gì | Trả lời / phán | Vì sao |
 |---|---|---|
-| Ba bước ✓ rồi nói chưa em nào nộp | **Đạt** | Đúng đường skill |
+| Ba bước ✓ rồi nói đúng K/N em đã nộp | **Đạt** | Đúng đường skill |
 | Bước đầu `Xem các lớp — 2 lớp` (không lọc tên) rồi tự đi tiếp với 12A | **Đạt**; ghi lại | Giáo viên đã gọi tên 12A, 12B không khớp; bench chấm thiếu `name` nhưng màn đúng |
-| Hỏi lại lớp nào, nút `12A (3 học sinh)`, `12B (0 học sinh)` | Bấm `12A (3 học sinh)`. **Chấp nhận được** nếu sau đó đạt | Thừa một lượt (điểm yếu đã đo), không sai dữ liệu |
-| Hỏi lại đề nào, dù 12A chỉ có một đề | Gõ `bài 15 phút hàm số ấy`. **Chấp nhận được** nếu câu hỏi chỉ nhắc đúng tên đề có thật | Thừa một lượt; giáo viên đã gọi tên đề và chỉ có một. Nêu tên đề không tồn tại là **không đạt** (luật 2) |
+| Hỏi lại lớp nào, nút `12A (N học sinh)`, `12B (M học sinh)` | Bấm `12A (N học sinh)`. **Chấp nhận được** nếu sau đó đạt | Thừa một lượt (điểm yếu đã đo), không sai dữ liệu |
+| Hỏi lại đề nào | Gõ `bài 15 phút hàm số ấy`. **Chấp nhận được** nếu câu hỏi chỉ nhắc đúng tên đề có thật (D > 1 thì hỏi lại là hợp lý) | Thừa một lượt khi D = 1; giáo viên đã gọi tên đề. Nêu tên đề không tồn tại là **không đạt** (luật 2) |
 | Có bước ✕, rồi tự gọi lại đúng và trả lời đúng | **Không đạt** nếu dòng ✕ hiện chữ như `list_assessment`, `class_id`, `không có tool nào tên …`; ghi tách: câu trả lời đúng hay sai | Lý do từ chối của BE chở tên tool, FE in nguyên (`stepFor` → `why`): luật 7, lỗi sản phẩm → backlog |
-| `Bạn có lớp 12A với 3 học sinh.`, `Mình tra được: …`, hay `Bạn đang dạy nhiều lớp. Bạn muốn xem lớp nào?` | **Không đạt**. Không gõ lại | Câu kiểu mock (`handlers.next_step`) -- từ ADR-30 model hỏng không lùi về mock nữa, nên câu này là chính model nói trần. Đúng hồi quy bench `tra-lop-ket-qua` 6/6 → 2/6 |
+| `Bạn có lớp 12A với N học sinh.`, `Mình tra được: …`, hay `Bạn đang dạy nhiều lớp. Bạn muốn xem lớp nào?` | **Không đạt**. Không gõ lại | Câu kiểu mock (`handlers.next_step`) -- từ ADR-30 model hỏng không lùi về mock nữa, nên câu này là chính model nói trần. Đúng hồi quy bench `tra-lop-ket-qua` 6/6 → 2/6 |
 | Dòng thông báo hệ thống *"Kriky chưa trả lời được lúc này…"* (không avatar) | **Không đạt**. Không gõ lại | Model hỏng (ADR-30, ngoại lệ 1); terminal AGENT có `model could not propose a next step` |
 | Dòng thông báo hệ thống *"Kriky tra mãi mà chưa ra câu trả lời gọn…"* (không avatar) | **Không đạt**. Không gõ lại | Chạm trần 8 bước của pha 1 (ADR-30, ngoại lệ 1) |
 | Nói 12A chưa có bài kiểm tra nào | **Không đạt** | Trái truy vấn đề ở *Chuẩn bị* |
@@ -57,11 +57,12 @@ mốc giờ, không gì về từng câu. Sĩ số 3 chỉ có từ `list_class`
 ## Đạt khi
 
 - Một khối Kriky, **một** hàng avatar (luật 1). Khối bước, theo thứ tự, mọi hàng ✓:
-  `Xem các lớp — 1 lớp` (hay `— 2 lớp`), `Xem các đề của lớp — 1 đề`, `Xem kết quả một đề`. Hàng cuối
+  `Xem các lớp — 1 lớp` (hay `— 2 lớp`), `Xem các đề của lớp — D đề`, `Xem kết quả một đề`. Hàng cuối
   **không** có dòng kết quả — FE không có dòng cho tool này (`ActionCard.outcome`), đúng thiết kế.
-  Thêm hàng `Xem một lớp — 12A, 3 học sinh` cũng đạt.
-- Câu trả lời nằm **dưới** khối bước, gọi đúng tên đề, nói rõ **chưa có học sinh nào nộp bài** (hay
-  0/3 em). Nếu nhắc số, chỉ được: 3 học sinh, 6 câu, 0 bài nộp, 1 đề — mỗi số có trong kết quả tool.
+  Thêm hàng `Xem một lớp — 12A, N học sinh` cũng đạt.
+- Câu trả lời nằm **dưới** khối bước, gọi đúng tên đề `Kiểm tra 15 phút — Hàm số` (không lẫn với đề
+  khác của 12A), nói đúng **K/N em đã nộp** (K = 0 thì nói chưa em nào nộp). Nếu nhắc số, chỉ được
+  những số có trong kết quả tool: N học sinh, 6 câu, K bài nộp, D đề, và điểm nếu tool trả.
 - Không đánh giá, không đoán vì sao chưa nộp, không mốc giờ, không câu nào về câu dễ hay khó.
 - Không thẻ nào: tool đọc không lên thẻ (`STATE_OF`). Không ký tự Markdown nguyên văn, UUID hay tên tool (luật 5, 7).
 - Database: mọi con số trong câu nói khớp ba truy vấn ở *Chuẩn bị*, và khớp chính kết quả tool:
@@ -70,7 +71,7 @@ mốc giờ, không gì về từng câu. Sĩ số 3 chỉ có từ `list_class`
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, kind, tool_name, tool_args::text, left(tool_result::text, 300), left(text, 300) from teacher_turns where conversation_id = (select conversation_id from teacher_turns order by created_at desc limit 1) order by sequence;"
   ```
 
-  Có `tool_result` của `class_assessment_summary` mang `"submitted_count": 0` và `"question_count":
+  Có `tool_result` của `class_assessment_summary` mang `"submitted_count": K` và `"question_count":
   6`; các `tool_call` có `tool_name` không rỗng, `class_id`/`assessment_id` lấy từ kết quả bước
   trước (không id tự đoán).
 

@@ -10,8 +10,9 @@ hộp xác nhận đọc lại đúng lớp, giờ, số câu, và trước gi�
 ## Chuẩn bị
 
 - Chạy tiếp **đúng đoạn chat của case 09**, ngay sau thao tác cuối của nó: đề Toán 7 tỉ lệ thức
-  **4 câu, đã duyệt, chưa phát hành**, panel đang mở ở màn `Cài đặt phát hành`. Có hai lớp 12A
-  (3 học sinh) và 12B (bước 5 của *Chuẩn bị chung*). Không gõ gì vào ô chat suốt case.
+  **4 câu, đã duyệt, chưa phát hành**, panel đang mở ở màn `Cài đặt phát hành`. Có hai lớp 12A và
+  12B (bước 6 của *Chuẩn bị chung*). Sĩ số 12A không cố định: ghi **N** từ truy vấn dưới, mọi chỗ
+  ghi `N học sinh` ở case này đọc theo nó. Không gõ gì vào ô chat suốt case.
 - Tính trước **H** = giờ tròn kế tiếp **cộng một giờ** (đang 14:20 thì H = 16:00). H luôn cách
   lúc chạy 60–120 phút, đủ cho cả case. Chạy trước 19:00 để mọi mốc cùng một ngày.
 - Lấy id đề **của case 02** theo tên ở biên bản (case 07 đã tạo đề sau nó) và chụp trạng thái
@@ -20,6 +21,7 @@ hộp xác nhận đọc lại đúng lớp, giờ, số câu, và trước gi�
   ```
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select id, title, state from assessments where title = '<tên>' order by created_at desc limit 1;"
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select c.name, p.opens_at at time zone 'Asia/Ho_Chi_Minh' as mo, p.phase1_minutes, p.recalled_at from publications p join classes c on c.id = p.class_id where p.assessment_id = '<ID>';"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) as n from students s join classes c on c.id = s.class_id join teachers t on t.id = c.teacher_id where c.name = '12A' and t.teacher_code = 'GV-001';"
   ```
 
   `state` phải là `approved`, truy vấn thứ hai **0 dòng**. Khác thì case 09 chưa đạt: dừng, ghi lại.
@@ -35,7 +37,7 @@ B2. Chưa chọn lớp. Điền: Làm bài 15 · Mở lúc H−3:00 · Đóng l�
 B3. Bấm chip 12A.
 B4. Sửa Mở lúc thành H:00.
 B5. Bấm "Phát hành đề" → đọc hộp → bấm "Xem lại cài đặt". Chạy lại truy vấn publications.
-B6. Bấm "Phát hành đề" lần nữa → "Phát hành cho 3 học sinh".
+B6. Bấm "Phát hành đề" lần nữa → "Phát hành cho N học sinh".
 B7. Đọc thẻ trong chat và khối ĐÃ PHÁT HÀNH. Chạy lại hai truy vấn.
 B8. (Trước H) Bấm "Hoàn tác". Đọc panel, thẻ, chạy lại hai truy vấn.
 ```
@@ -67,14 +69,14 @@ Không có model; nhánh rẽ là của màn hình và đồng hồ.
 - **B3:** **ngay khi bấm chip**, chưa cần bấm gì thêm: dòng đỏ `giờ mở phải ở tương lai` hiện dưới
   hai câu luật, nút vẫn khoá.
 - **B4:** dòng đỏ biến mất, nút `Phát hành đề` sáng.
-- **B5:** hộp `Phát hành đề kiểm tra?`, câu mở `Đề sẽ hiển thị cho 3 học sinh của lớp 12A. Bạn còn
-  thu hồi được tới trước giờ mở.` Các dòng: `Đề` = `4 câu · <tên đề>`; `Lớp` = `12A · 3 học sinh`;
+- **B5:** hộp `Phát hành đề kiểm tra?`, câu mở `Đề sẽ hiển thị cho N học sinh của lớp 12A. Bạn còn
+  thu hồi được tới trước giờ mở.` Các dòng: `Đề` = `4 câu · <tên đề>`; `Lớp` = `12A · N học sinh`;
   `Thời gian` = `mở H:00 · <ngày> · đóng H+1:00 · <ngày>`; `Hạn chữa` = `tới hết H+3:00 · …`;
   `Thu hồi` = `được tới trước H:00 · …`. Ba câu luật cùng số, câu cuối `Thu hồi được tới trước giờ
-  mở. …`. Nút `Phát hành cho 3 học sinh`. Sau `Xem lại cài đặt`: publications vẫn **0 dòng** —
+  mở. …`. Nút `Phát hành cho N học sinh`. Sau `Xem lại cài đặt`: publications vẫn **0 dòng** —
   xem trước không ghi gì.
 - **B6–B7:** dưới biểu mẫu có hàng kết quả `12A` cùng câu pha 1; khối `ĐÃ PHÁT HÀNH` năm dòng:
-  `12A · 3 học sinh`, `Mở H:00 · … · làm bài 15 phút`, hai câu luật, `Thu hồi được tới H:00 · …`.
+  `12A · N học sinh`, `Mở H:00 · … · làm bài 15 phút`, hai câu luật, `Thu hồi được tới H:00 · …`.
   Chip 12A khoá. Thẻ trong chat thành `Đã phát hành` (không tên lớp) với dòng
   `Thu hồi được tới trước giờ mở, từ giờ mở thì không`. DB: `state = published`; một dòng 12A,
   `mo` = H:00 đúng ngày, `phase1_minutes = 15`, `recalled_at` rỗng.
@@ -92,7 +94,14 @@ Không có model; nhánh rẽ là của màn hình và đồng hồ.
 - **Chặn đề chưa duyệt ở BE** (sau B8, PowerShell; `<CLASS>` lấy bằng `docker exec aiafa-postgres
   psql -U aiafa -d aiafa -Atc "select id from classes where name = '12A';"`):
 
-  BE phải chạy với `DEV_IDENTITY_ENABLED=true` thì mới nhận header `X-Actor` (việc 22).
+  BE dev mặc định **không** bật `DEV_IDENTITY_ENABLED`, nên header `X-Actor` ra 401 (việc 22). Gọi
+  từ chính tab giáo viên đang đăng nhập: DevTools → Console, dán (cookie phiên đi kèm):
+
+  ```
+  await fetch("/api/teacher/assessments/<ID>/publications", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({schedule: {opens_at: "2030-01-01T08:00:00+07:00", closes_at: "2030-01-01T09:00:00+07:00", phase1_minutes: 15, phase2_minutes_per_question: 3, remediation_deadline: "2030-01-01T12:00:00+07:00"}, class_ids: ["<CLASS>"], preview: true})}).then(async r => [r.status, await r.text()])
+  ```
+
+  BE bật `DEV_IDENTITY_ENABLED=true` thì dùng được đường PowerShell cũ:
 
   ```
   $h = @{ "X-Actor" = "teacher:GV-001"; "Content-Type" = "application/json" }

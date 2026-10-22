@@ -11,10 +11,11 @@ Giáo viên đọc và duyệt **kế hoạch từng câu** (kiến thức, côn
 ## Chuẩn bị
 
 - Theo `docs/testing/huong-dan.md` mục *Chuẩn bị*. **Đoạn chat mới**, không đính chip tài liệu nào.
-- Trước lượt 1, chạy và ghi lại: chỉ có đề seed.
+- Trước lượt 1, chạy và ghi lại **số đề** đang có (database không reset, nên có cả đề của các lần
+  chạy trước):
 
   ```
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select title, state from assessments order by created_at;"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) from assessments;"
   ```
 
 - **Để lại cho case sau:** đoạn chat này và đề nó tạo ra — **không** duyệt, không phát hành, không
@@ -57,8 +58,8 @@ Lượt 1:
   dựng hình (vd $\frac{a}{b}=\frac{c}{d}$, $ad=bc$).
 - Các mục **khác nhau thật**: không hai mục nào trùng cả kiến thức lẫn cách làm; dàn ý chạm cả
   tỉ lệ thức lẫn dãy tỉ số bằng nhau. Không nêu bài nguồn (không có sách).
-- Không khối bước nào chứa `Tạo đề trống` hay bước soạn; truy vấn ở *Chuẩn bị* chạy lại vẫn chỉ ra
-  đề seed.
+- Không khối bước nào chứa `Tạo đề trống` hay bước soạn; truy vấn ở *Chuẩn bị* chạy lại vẫn ra đúng
+  số đề đã ghi.
 
 Lượt 2:
 

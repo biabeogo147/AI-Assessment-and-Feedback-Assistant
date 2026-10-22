@@ -387,17 +387,11 @@ một client không stream.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Bỏ bước báo cáo cứng, đưa việc kể lại vào quy trình của skill | Chờ plan 4 (Jev và skill). Không phải một lượt sửa `teacher_chat.py`: nó gỡ một luật của ADR-25 |
+| Bỏ bước báo cáo cứng, đưa việc kể lại vào quy trình của skill | **Đã làm** 22/10/2026 (plan `report-into-propose`, ADR-25 hậu ký): lượt kể lại là một lượt `propose` với chỉ tool đọc (có `last_plan`), kể theo bước 6 của `soan-de`; job `report_plan`, `graphs/reporting.py` và check cũ đã gỡ, check `telling-turn-only-reads` thay |
 | Cờ *"lượt này đã báo cáo chưa"* trong `teacher_turns` | **Đã bỏ**, không phải đang chờ (người dùng, 10/10/2026). Cái cờ chỉ có nghĩa khi còn một bước báo cáo cứng để đếm xem lượt nào còn nợ một câu kết; bỏ bước ấy thì không còn gì để đếm. Nó cũng đòi đẩy pha 2 sang một job arq, tức một đường chạy nền thứ hai trong BE mà ADR-25 cố ý tránh. ADR-25 đã ghi lại ở khối *Sửa ngày 10/10/2026* |
-| Cấp ngân sách cho `_report` và `_name_the_thread` như một đường vá tạm | **Cố ý không làm.** Đường lùi đã có — `_report` nuốt mọi exception và trả câu do BE viết (`teacher_chat.py:594-596`) — nên hết ngân sách không phải một lượt chết. Vá nó là làm chắc một bước sắp bị bỏ |
+| Cấp ngân sách cho `_report` và `_name_the_thread` như một đường vá tạm | **Không còn**: `_report` đã gỡ (22/10/2026). Lượt kể lại là một `run_task` của `propose` với trần `agent_job_timeout_seconds` như mọi lần hỏi `propose`; lỗi của nó ra `REPORT_MISSING` |
 
-**Người làm sau cần biết thứ tự.** Bước báo cáo không chỉ là code: ADR-25 chốt nó thành luật
-(*"Pha 2 xong thì model báo cáo... trong một lời gọi riêng"*), và `check_the_report_is_a_job_of_its_own`
-trong `tools/check_contract.py` canh đúng luật ấy ở ba chỗ chịu lực — task riêng trong
-`agent/worker.py`, `PlanReportRequested` không có field nào chở tool, và graph kể lại không chạm
-`ToolSpec`. Nên đường đi là **sửa ADR-25 trước**, rồi mới tới check, rồi mới tới code
-(`agent/graphs/reporting.py`, `REPORT_PLAN_TASK`, `PlanReportRequested`, `PlanReportCompleted`).
-Gỡ check trước là gỡ nơi thi hành của một luật vẫn còn hiệu lực.
+**Đã đi đúng thứ tự** 22/10/2026 (plan `report-into-propose`): ADR-25 hậu ký trước, rồi check (`report-is-its-own-job` thay bằng `telling-turn-only-reads`), rồi code (`agent/graphs/reporting.py`, `REPORT_PLAN_TASK`, `PlanReportRequested`, `PlanReportCompleted` đã gỡ).
 
 ## Hai món nợ còn hiệu lực của plan hai pha
 
@@ -410,8 +404,8 @@ Món thứ năm — hai tab cùng một đoạn chat — đã làm xong trong
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| Luật *"nói đang soạn, chứ không nói đã soạn xong"* còn là một câu trong prompt (`agent/graphs/reporting.py`, `_SYSTEM`) chứ chưa là dữ liệu | Không bị chặn, nhưng **đang đúng vì ăn may**: nó đúng chỉ vì báo cáo hôm nay chạy ngay sau bước cuối, lúc arq còn đang soạn. Ngày nào pha 2 xong trước lúc báo cáo thì chính dòng ấy thành máy sinh lời nói sai chiều ngược lại. Chỗ chữa là đưa *còn bao nhiêu câu đang soạn* vào `PlanReportRequested` rồi xoá dòng prompt. Việc này nay vướng quyết định lớn hơn: bước báo cáo cứng ở cuối lượt sẽ tan vào skill, nên sửa prompt trước là sửa một chỗ sắp biến mất |
-| `StepOutcome` không có field nào chở con số thật | Không bị chặn, và đây là món **đắt dần**: `detail` của `start_drafting` mãi là *"10 câu bắt đầu soạn"*, còn câu kết mà artboard 5 đã vẽ — *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* — không có đường nào đi qua hợp đồng. Thêm field sau khi hợp đồng deploy là một lần bump `SCHEMA_VERSION`; hôm nay thì chưa |
+| Luật *"nói đang soạn, chứ không nói đã soạn xong"* | **Đã làm** 22/10/2026: luật nay ở bước 6 của `soan-de`, và tiến độ là dữ liệu `last_plan` đếm lại lúc model hỏi (`written`, `asked_for`, `still_drafting`) |
+| `StepOutcome` không có field nào chở con số thật | **Không còn đúng** (22/10/2026): `StepOutcome` đã gỡ cùng job kể lại. Câu kết *"8 câu lấy từ ngân hàng, 2 câu tôi soạn thêm"* của artboard 5 nay cần `last_plan` (hay kết quả `start_drafting`) chở nguồn câu -- đi cùng đường đọc ngân hàng (Tier 3 P1) |
 
 ## sympy kiểm công thức, và vòng sửa phải có trần kép — plan 3d của đợt đọc PDF
 
@@ -778,7 +772,7 @@ thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Câu biến thể giữ cấu trúc của câu gốc (ADR-17):** ngoài các phép kiểm chung, chỉ có phép so đề bài; không gì so cấu trúc | Đã có dòng *"chưa ép"* trong `AGENTS.md`; chưa làm |
-| **Đóng tab giữa một lượt hội thoại thì lượt ấy không có lời kể lại** (ADR-25) | Chưa làm |
+| **Đóng tab giữa một lượt hội thoại thì lượt ấy không có lời kể lại** (ADR-25) | Vẫn đúng sau 22/10/2026: lượt kể lại chạy trong cùng generator của lượt, đóng tab là mất nó. Lần mở lại đoạn chat, giáo viên hỏi *"lúc nãy làm tới đâu?"* thì model gọi được `last_plan` |
 | **Chương 04 (`04:121-123`) nói giáo viên xem được báo cáo *"giải thích chưa rõ"* của học sinh**, nhưng `backend` chỉ có đường ghi `file_report`; không api hay tool nào đọc bảng `reports` | Chưa làm |
 
 ### Tài liệu nói sai về code, ngoài phạm vi plan báo cáo
@@ -904,3 +898,21 @@ Plan `2026-10-22-split-agent-graphs-plan.md`: chia không đổi logic, nên ch�
 | --- | --- |
 | **Biến cục bộ che tên hàm**: `authoring/checks.py` có `faults = []` trong chính hàm `faults` (bản gốc là hàm `_faults`, biến `faults`; bỏ `_` vì dùng chéo file). Vô hại vì hàm không gọi đệ quy | Không gì: đổi tên biến khi có lượt sửa thân hàm kế tiếp |
 | **`propose/` lệch luật *hàm gọi đứng trên hàm bị gọi*** ở `outline.py` (quanh dòng 221) và `read_order.py` (quanh dòng 312) | Không gì: đảo thứ tự khi sửa hai file ấy lần tới |
+
+## Lộ ra khi chạy bộ ca C1 và kịch bản V3 (22/10/2026)
+
+Plan `2026-10-22-report-into-propose-plan.md`, pha 5. Biên bản:
+`docs/testing/ket-qua/2026-10-22-b177ea0-claude-haiku-5-5.md`. Câu kết sau plan (lượt kể lại mới) có ở
+mọi lượt soạn, đúng tiến độ; model không gọi `last_plan` lần nào vì lịch sử đã đủ.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Model ghi tên tool vào `kind`** (case 04, hai lần liền): sau `Xem mục lục`, Haiku trả `kind="read_section"`; `_Proposal` không parse được, `propose/choose.choose` ném `ValueError`, lượt thành thông báo *"Kriky chưa trả lời được lúc này…"*. Lần ba mới chạy | AGENT: hỏi model lại một lần khi parse hỏng (như các `AskAgain`), hay đọc `kind` là tên một tool của catalog thành `call_tool`. Đo bench trước |
+| **Đáp án khoá sai trong câu Kriky soạn, chưa duyệt đã tới học sinh**: case 07 câu 4 *n(A)=15, n(B)=12, n(A∩B)=5* khoá *27* (đúng 22); case 03 câu 2 hệ *3x−2y=4, 2x+5y=1* khoá *(2; 1)* (không thoả phương trình hai), đề bài còn lọt dòng *"Ghi chú: hệ có nghiệm nguyên (2; 1) để kiểm tra…"*, nhãn lỗi phương án B vô nghĩa. Case 07 câu 1 đề bài hai câu hỏi chồng (*"…câu nào là mệnh đề đúng? / Đáp án nào sau đây đúng?"*) | Tier 4 *toán sai*, cùng nhóm Tier 2 câu 3 (*kiểm toán học của đề model sinh*). Giáo viên duyệt không giải lại từng câu |
+| **Mục kiến thức lưu gạch chéo đôi**: `learning_objective` của câu soạn ghi `$P \Rightarrow Q$`, `$n(A \cup B) = …$` (cả bản ngân hàng), nên hộp *Thêm câu từ ngân hàng* dựng thành *"P RightarrowQ"*, *"n(A cupB)"*. Đề bài và phương án cùng câu thì đúng | AGENT `authoring`: `repair.unmangled` có áp `restore_latex_escapes` cho `learning_objective`, nhưng hàm ấy chỉ dựng lại lệnh bị nuốt, không gộp `\` model tự viết đôi. Xem đầu ra thô của job trước khi sửa |
+| **Hội thoại hỏi trợ lý ở màn giáo viên (25b) in Markdown nguyên văn**: *"lỗi được ghi là \*\*nhầm dấu đạo hàm\*\*"*. `Dashboard.tsx` dựng lời Kriky bằng `MathText`, không qua bộ dựng Markdown như màn học sinh | FE: dùng `KrikyText` như `Tutor.tsx`; so Figma 25b |
+| **Tệp đang xử lý không có trong `list_documents`** (case 13): giáo viên vừa tải trang scan, Kriky chỉ thấy cuốn cũ và nói *"Tài liệu bạn up là Kết nối tri thức Lớp 6 tập 1"* -- sai tệp. Từ plan `wave-1-small-fixes` tải lên không tự đính, nên lượt ấy không còn chip *đang xử lý* nào nhắc model | BE `teacher_tools._list_documents` lọc `ready`; trả thêm tệp đang xử lý (không đọc được) để model nói thật. Case 13 đã viết lại theo hành vi này |
+| **Sửa dàn ý sửa thừa** (case 07): *"câu 2 đổi sang giao, hợp của 2 khoảng"* → bản 2 nói *"chỉ đổi Câu 2"* nhưng dời câu 2 cũ xuống câu 3 và bỏ kiến thức câu 3 cũ | Tier 4, hành vi model; skill `soan-de` bước 3 đã dặn *chỉ sửa đúng chỗ họ nói* |
+| **Xin 12 câu: model nêu dàn ý 12 câu hai lần**, BE chặn cả hai, giáo viên chỉ thấy *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*, không một lời nào về trần 10 (case 08) | Cùng mục *`vuot-tran-12-cau` 0/6* ở trên; nay hỏng nặng hơn: không còn lời nào cho giáo viên |
+| **Lời tra lớp lạc đề hay hứa**: case 11 bấm *12A* mà câu trả lời còn kể *"Lớp 12B hiện chưa có học sinh nào"*; case 12 kết *"Khi các em bắt đầu nộp, mình sẽ tổng hợp điểm trung bình cho bạn."* (Kriky không tự làm gì sau lượt, tool không trả điểm trung bình) | Tier 4, skill `lop-va-ket-qua` |
+| **Câu kết lặp chữ *Đề***: *"Đề **Đề Hàm số** đã có đủ 6/6 câu…"* -- tên đề BE đặt đã bắt đầu bằng *Đề*. Mọi câu kết còn kèm *"không còn câu nào đang soạn"* dù không ai hỏi | Skill `soan-de` bước 6: gọi đề bằng tên trong ngoặc, hay *"đề …"* viết thường |

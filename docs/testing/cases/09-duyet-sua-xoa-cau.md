@@ -17,7 +17,7 @@ vẫn còn trong ngân hàng, các câu sau dồn số, và không có gì xảy
 - Không gõ gì vào ô chat trong cả case. Chụp trạng thái **trước**:
 
   ```
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select id, state from assessments where title = '<TÊN>';"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select id, state from assessments where title = '<TÊN>' order by created_at desc limit 1;"
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select order_index, id, md5(stem) from questions where assessment_id = '<ID>' order by order_index;"
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select b.question_id is null as da_go, q.order_index as cau, md5(b.stem), right(b.stem, 30) as duoi, b.approved_at > b.created_at as ghi_de from bank_questions b left join questions q on q.id = b.question_id where b.assessment_id = '<ID>' order by q.order_index nulls last;"
   ```

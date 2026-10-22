@@ -1,6 +1,6 @@
 # Plan — Gộp báo cáo cuối lượt vào propose, tool `last_plan`, thử tay không cần db-reset
 
-- **Mở:** 22/10/2026
+- **Mở:** 22/10/2026 · **Đóng:** 22/10/2026
 
 ## Context
 
@@ -134,3 +134,24 @@ ADR-25 hậu ký 22/10/2026:
 - `check` và `test` xanh. Subagent review sau mỗi pha; review ảnh câu kết so với artboard 5 (`12:46`).
 - Commit theo pha (docs luật, BE, AGENT + contracts + check, docs thử tay + biên bản). Đóng plan, cập
   nhật artifact *Backlog theo tier* (Tier 3 P4: bỏ bước báo cáo cứng) và roadmap.
+
+## Status
+
+Đóng 22/10/2026. `check` 26/26, pytest 1886, vitest 368 xanh.
+
+- Pha 1–4 commit ở `e30d7cf` (ADR-25 hậu ký, ADR-30, kiến trúc, local-development) và `b177ea0` (BE
+  `plan_outcomes.py`, tool `last_plan`, lượt kể lại `_tell_after_plan`; AGENT gỡ `reporting`, mock kể
+  lại, `soan-de` bước 6; contracts `SCHEMA_VERSION` 2; check `telling-turn-only-reads`, bẻ thử đỏ đúng).
+- Pha 5: `huong-dan.md` và các case chạy trên database đang có (mã vòng `Cn`, 12B idempotent, sĩ số
+  theo truy vấn đầu ca, tên đề lấy bản mới nhất). Chạy bộ ca **C1** và kịch bản **V3** trên Claude
+  Haiku 5.5: biên bản `docs/testing/ket-qua/2026-10-22-b177ea0-claude-haiku-5-5.md`.
+  - Câu kết sau plan có ở cả tám lượt soạn, đúng tiến độ; model không gọi `last_plan` lần nào.
+  - Case cũ đã sửa: 04, 15 (tên đề bỏ số trang), 10 (chặn BE bằng `fetch`), 12 (bỏ bản thu hồi), 13
+    (tải lên không tự đính, tệp mang mã vòng); kịch bản 2.6, 5.6, 7.7.
+  - Lỗi mới ghi backlog, mục *Lộ ra khi chạy bộ ca C1 và kịch bản V3*, và artifact *Backlog theo
+    tier* (Tier 1 năm dòng, Tier 4 một dòng); roadmap ghi lượt kể lại.
+- **Không làm:** so ảnh câu kết với artboard 5 (`12:46`): chụp màn hình qua extension treo (CDP hết
+  giờ) suốt buổi. Plan này không đổi FE (event `report` giữ nguyên), nên lượt so ảnh còn nợ, chưa
+  phải trượt. Hai lần *Xuất .xlsx* của kịch bản không bấm (tải tệp cần người dùng cho phép).
+- Review subagent cho docs thử tay: 12 phát hiện, đã sửa cả (11, 12, 13 chấm lại *không đạt*; truy
+  vấn và chữ case 04, 12, 13, 15; hai dòng backlog).

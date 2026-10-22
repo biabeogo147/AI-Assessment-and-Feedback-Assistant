@@ -11,7 +11,7 @@ duyệt thì khoá cả tên (ADR-31).
 ## Chuẩn bị
 
 - Chạy **sau cùng**, tiếp trên **đoạn chat của case 04, 06, 14**: đề theo sách, chưa duyệt, tên
-  `Đề Kết nối tri thức Lớp 6 tập 1 (tr6-28)`. Chạy cuối vì các case trước lọc database theo tên đề.
+  `Đề Kết nối tri thức Lớp 6 tập 1`. Chạy cuối vì các case trước lọc database theo tên đề.
 - Đoạn chat có ít nhất hai thẻ `Đã tạo đề` (case 04 và 06). Bấm thẻ cuối để mở panel; chép `<CID>`
   và `<id>` từ địa chỉ `#/teacher/chat/<CID>/de/<id>`.
 - Không đính chip.
@@ -31,7 +31,7 @@ Kiểm tra chương I số tự nhiên lớp 6 tập hợp cách ghi số và th
 A4. Đọc ô và bộ đếm. Xoá hết, gõ tên mới rồi Enter:
 
 ```
-Kiểm tra 15 phút — Số tự nhiên
+Kiểm tra 15 phút — Số tự nhiên Cn
 ```
 
 **Phần B — khoá theo trạng thái.**
@@ -58,11 +58,11 @@ B2. Bấm `Hoàn tác`. Panel về nội dung đề; đọc tiêu đề panel.
 
 ## Đạt khi
 
-- **A1:** tiêu đề thành ô nhập viền màu nhấn, bên phải bộ đếm `40/60` (tên tệp 40 ký tự), `Lưu`,
+- **A1:** tiêu đề thành ô nhập viền màu nhấn, bên phải bộ đếm `31/60` (tên đề 31 ký tự), `Lưu`,
   `Huỷ`. `Đóng` ẩn lúc đang sửa (variant `rename`, `626:2730`).
 - **A2:** tiêu đề về nguyên tên cũ; truy vấn bên dưới chưa đổi.
 - **A3:** ô chỉ giữ **60** ký tự đầu của chuỗi dán, bộ đếm `60/60`.
-- **A4:** tiêu đề panel đọc `Kiểm tra 15 phút — Số tự nhiên`; **mọi** thẻ `Đã tạo đề` của đoạn
+- **A4:** tiêu đề panel đọc `Kiểm tra 15 phút — Số tự nhiên Cn` (`Cn` là mã vòng); **mọi** thẻ `Đã tạo đề` của đoạn
   chat (case 04 lẫn 06) và mọi dòng `— đề "…"` dưới bước đều đọc tên mới, không cần F5. F5 vẫn
   vậy. Rê chuột lên tên trên thẻ thấy đủ tên.
 - **B1:** tiêu đề panel không có nút `Đổi tên`. **B2:** nút `Đổi tên` hiện lại.

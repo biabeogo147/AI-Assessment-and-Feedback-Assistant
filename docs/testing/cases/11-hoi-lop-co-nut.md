@@ -10,19 +10,20 @@ thật của đúng lớp ấy, không nhận xét bịa.
 
 ## Chuẩn bị
 
-- Đã làm đủ phần *Chuẩn bị* chung trong `docs/testing/huong-dan.md`, **gồm bước 5 thêm lớp 12B**.
+- Đã làm đủ phần *Chuẩn bị* chung trong `docs/testing/huong-dan.md`, **gồm bước 6 thêm lớp 12B**.
 - **Đoạn chat mới**, không chip tài liệu nào đính kèm.
 - Ghi lại sự thật trong database trước khi gõ (các case khác có thể đã phát hành thêm đề hay có
   bài nộp; tiêu chí dưới so với kết quả này, không so với seed):
 
   ```
-  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select c.name, count(s.id) as si_so from classes c left join students s on s.class_id = c.id group by c.name order by c.name;"
+  docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select c.name, count(s.id) as si_so from classes c join teachers t on t.id = c.teacher_id left join students s on s.class_id = c.id where t.teacher_code = 'GV-001' group by c.name order by c.name;"
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select a.title, p.recalled_at from publications p join assessments a on a.id = p.assessment_id join classes c on c.id = p.class_id where c.name = '12A';"
   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select count(*) from attempts t join students s on s.id = t.student_id join classes c on c.id = s.class_id where c.name = '12A' and t.submitted_at is not null;"
   ```
 
-  Sau db-reset mong đợi: `12A | 3`, `12B | 0`; 12A có `Kiểm tra 15 phút — Hàm số`, chưa thu hồi;
-  0 bài đã nộp. Có lớp thứ ba chứa "12" thì dừng — case cần đúng hai lớp khớp.
+  Ghi **N** = sĩ số 12A, **M** = sĩ số 12B, và các đề của 12A. Database không reset (`huong-dan.md`),
+  nên N, M và số bài nộp là của lúc chạy; mọi chỗ dưới ghi `N`/`M` đọc theo truy vấn này. Có lớp
+  thứ ba chứa "12" thì dừng — case cần đúng hai lớp khớp.
 
 ## Lời chat
 
@@ -32,13 +33,13 @@ Lượt 1 — gõ vào ô chat:
 lớp 12 của mình dạo này sao rồi bạn
 ```
 
-Lượt 2 — **bấm nút** `12A (3 học sinh)` trên thẻ hỏi lại (không gõ). Bấm là gửi đúng chữ trên nút.
+Lượt 2 — **bấm nút** `12A (N học sinh)` trên thẻ hỏi lại (không gõ). Bấm là gửi đúng chữ trên nút.
 
 ## Nếu Kriky rẽ
 
 | Kriky làm gì | Trả lời / phán | Vì sao |
 | --- | --- | --- |
-| Lượt 1: bước `Xem các lớp — 2 lớp`, thẻ hỏi lại hai nút `12A (3 học sinh)`, `12B (0 học sinh)`, hàng `Khác…` | Bấm `12A (3 học sinh)`. **Đạt** | Đúng đường ADR-23: model hỏi, BE dựng nút từ `candidates` |
+| Lượt 1: bước `Xem các lớp — 2 lớp`, thẻ hỏi lại hai nút `12A (N học sinh)`, `12B (M học sinh)`, hàng `Khác…` | Bấm `12A (N học sinh)`. **Đạt** | Đúng đường ADR-23: model hỏi, BE dựng nút từ `candidates` |
 | Hai nút đúng nhưng 12B đứng trước | Bấm nút 12A. **Đạt** | Model chép đúng tên chỉ đổi được thứ tự (`_choices`), không đổi tập nút |
 | Chữ câu hỏi liệt kê sẵn "12A hay 12B" | Bấm nút 12A. **Đạt**, ghi lại | Skill dặn đừng liệt kê, nhưng tên đúng thì không hại |
 | Câu hỏi hỏi *nội dung* ("muốn xem sĩ số hay kết quả?") mà nút vẫn là hai lớp | Bấm nút 12A. **Chấp nhận được** | Lỗi đã biết ở hậu ký ADR-23: câu hỏi sau `candidates` luôn mang nút dòng |
@@ -49,7 +50,7 @@ Lượt 2 — **bấm nút** `12A (3 học sinh)` trên thẻ hỏi lại (khôn
 | Lượt 1 hỏi bằng bong bóng thường, không thẻ, tên lớp trong chữ đúng | Gõ `12A nhé`. **Chấp nhận được** | Không đoán, nhưng mất phần lựa chọn từ dữ liệu; ghi lại |
 | Lượt 2 hỏi lại muốn biết gì về 12A | Gõ `thì sĩ số với mấy bài kiểm tra của lớp ấy`. **Chấp nhận được** | Câu gốc mơ hồ cả về nội dung; lớp thì đã rõ |
 | Lượt 2 hỏi lại lớp nào, hay bày lại hai nút | Dừng. **Không đạt** | Bấm một nhãn là đã trả lời xong (`_rows_in_play`) |
-| Lượt 2 báo không tìm thấy lớp "12A (3 học sinh)" | Dừng. **Không đạt** | Chữ nút do chính BE dựng; Kriky phải dùng id lớp đã tra ở lượt 1 |
+| Lượt 2 báo không tìm thấy lớp "12A (N học sinh)" | Dừng. **Không đạt** | Chữ nút do chính BE dựng; Kriky phải dùng id lớp đã tra ở lượt 1 |
 | Lượt 2 chỉ nói sĩ số, không nhắc đề | **Chấp nhận được** | Dữ kiện đúng nhưng mỏng — điểm yếu đã đo của câu trả lời tra lớp |
 | Lượt 2 nói điểm, nhận xét "các em làm tốt", khi chưa có bài nộp | **Không đạt** | Luật 2: con số và nhận xét không có trong kết quả tool |
 | Lượt 2 nói "chưa em nào nộp bài" | **Đạt** nếu đếm bài nộp ở *Chuẩn bị* là 0 | Đúng `note` của `class_assessment_summary` |
@@ -60,16 +61,15 @@ Lượt 1:
 
 - Đúng một lượt Kriky. Có khối bước với hàng `Xem các lớp — 2 lớp`, đánh `✓`.
 - Một thẻ hỏi lại, câu hỏi hiện **một lần** (không vừa bong bóng vừa tiêu đề thẻ).
-- Đúng hai nút: `12A (3 học sinh)` và `12B (0 học sinh)` — tên và sĩ số khớp truy vấn đầu tiên
+- Đúng hai nút: `12A (N học sinh)` và `12B (M học sinh)` — tên và sĩ số khớp truy vấn đầu tiên
   ở *Chuẩn bị*. Không nút thứ ba nào. Hàng cuối là `Khác…`.
 - Không câu nào nói lớp nào "có vẻ đúng hơn", không số liệu về lớp nào.
 
 Lượt 2:
 
-- Bong bóng của giáo viên ghi đúng `12A (3 học sinh)`.
-- Kriky nói về **12A**: sĩ số 3; đề đã phát hành cho lớp là `Kiểm tra 15 phút — Hàm số` (tên khớp
-  truy vấn thứ hai). Nếu nói về bài nộp thì đúng con số truy vấn thứ ba (sau db-reset: chưa em nào
-  nộp), và điểm nếu có thì kèm thang "trên … câu", không thang 10.
+- Bong bóng của giáo viên ghi đúng `12A (N học sinh)`.
+- Kriky nói về **12A**: sĩ số N; đề đã phát hành cho lớp đúng tên trong truy vấn thứ hai. Nếu nói
+  về bài nộp thì đúng con số truy vấn thứ ba, và điểm nếu có thì kèm thang "trên … câu", không thang 10.
 - Không một chữ nào về 12B. Khối bước (nếu có) gồm các hàng tra lớp/đề như `Xem các đề của lớp`,
   `Xem kết quả một đề`, tất cả `✓`.
 
@@ -80,9 +80,9 @@ docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select sequence, kind, too
 ```
 
 - Có hàng `tool_call`/`tool_result` của `list_class` **trước** hàng `assistant` đầu tiên.
-- Hàng `assistant` ấy có `choices` = `["12A (3 học sinh)", "12B (0 học sinh)"]` (thứ tự có thể
+- Hàng `assistant` ấy có `choices` = `["12A (N học sinh)", "12B (M học sinh)"]` (thứ tự có thể
   đảo), không có `"Khác"`.
-- Hàng `teacher` kế tiếp có text đúng `12A (3 học sinh)`. Không hàng `plan`, `outline` nào.
+- Hàng `teacher` kế tiếp có text đúng `12A (N học sinh)`. Không hàng `plan`, `outline` nào.
 
 ## Không đạt khi
 

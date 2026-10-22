@@ -206,9 +206,12 @@ Kiều Minh Châu <mã vòng>
 
 **Làm:** ở hàng *Mạc Thị Én <mã vòng>*, bấm *Đặt lại mật khẩu*.
 
+**Phải thấy:** hộp hỏi lại *Đặt lại mật khẩu cho Mạc Thị Én <mã vòng>?*, câu *Mật khẩu cũ của em sẽ không
+dùng được nữa. Nếu em đang làm bài, em phải đăng nhập lại bằng mật khẩu mới.*, nút *Giữ mật khẩu cũ* và
+*Đặt lại mật khẩu* (Tier 2 câu 30, làm 21/10/2026). Bấm *Đặt lại mật khẩu*.
+
 **Phải thấy (10b):** hộp *Đã đặt lại mật khẩu cho Mạc Thị Én <mã vòng>*, câu *Hãy lưu lại mật khẩu — chỉ
-hiển thị một lần duy nhất.*, bảng một hàng có mật khẩu mới, nút *Đã lưu, đóng*. Đặt lại chạy ngay,
-không hỏi lại; có nên hỏi lại hay không là backlog Tier 2 câu 30.
+hiển thị một lần duy nhất.*, bảng một hàng có mật khẩu mới, nút *Đã lưu, đóng*.
 
 **Làm:** bấm *Đã lưu, đóng*. Em Én không đăng nhập ở các chặng sau.
 
@@ -260,11 +263,11 @@ Kriky có thể hỏi một điều lời nhắn đã nói, ví dụ *Đề này
 **Phải thấy (16):** lời dàn ý Kriky tự viết, các mục `Câu k–m` cộng lại đúng 6 câu, công thức dựng
 hình, kết bằng một câu xin đồng ý.
 
-Có thể thay vào đó là thông báo hệ thống *Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!*
-(dòng riêng, không avatar). Đó là lỗi đã biết của model, backlog Tier 4: nó gửi một *công thức* có chữ ngoài
-cặp `$`, BE từ chối. **Làm:** gõ `thử lại`, tối đa **sáu** lần; chương Hàm số gần như lần nào cũng gặp.
-Ghi số lần vào biên bản, vì đó là chỉ số của lỗi; sáu lần vẫn hỏng thì dừng vòng và ghi *không đạt ở
-3.3*.
+Từ 20/10/2026 BE thôi bắt hình dạng công thức và thôi đối chiếu lời dàn ý (plan `outline-hands-off`),
+nên dàn ý thường ra ngay lần đầu. Vẫn có thể gặp thông báo hệ thống *Kriky chưa nêu được dàn ý cho đề
+này. Bạn hãy thử lại nhé!* (dòng riêng, không avatar) khi model nêu dàn ý sai số câu. **Làm:** gõ
+`thử lại`, tối đa **ba** lần; ghi số lần vào biên bản. Ba lần vẫn hỏng thì dừng vòng và ghi *không đạt
+ở 3.3*.
 
 **Làm:** khi có dàn ý, gõ `oke, soạn đi`.
 
@@ -485,8 +488,7 @@ lượt trợ lý, lời chào tính là một.
 
 **Làm:** bấm *⚑ Báo cáo Trợ lý giải thích khó hiểu*.
 
-**Phải thấy:** *Đã gửi báo cáo tới giáo viên.* Câu này hiện trong dải đỏ của thông báo lỗi; đó là lỗi đã
-biết (xem cuối file), không phải báo cáo hỏng.
+**Phải thấy:** nút đổi thành *✓ Đã báo cho cô* và khoá (Figma `281:24`); không dải đỏ nào.
 
 ### 5.7 Lượt làm lại
 
@@ -665,7 +667,7 @@ nên không có hàng ở đây.
 
 **Làm:** mở tầng *Cách giải*, thêm `(sửa ở ngân hàng, vòng <mã vòng>)` vào cuối ô *Lời giải 1*, bấm *Lưu*.
 
-**Phải thấy:** về danh sách ngân hàng. Mở lại câu thì thấy chữ vừa thêm. Câu 2 trong đề đã phát hành
+**Phải thấy:** ô sửa đóng, panel vẫn mở ở câu ấy và đọc chữ vừa thêm (`Bank.tsx` giữ câu vừa lưu). Câu 2 trong đề đã phát hành
 (màn 23, hay *Lời giải* ở panel) **không** đổi (ADR-35).
 
 ---
@@ -705,13 +707,13 @@ có chữ thì *Không đọc được chữ*.
 
 1. **Đóng tab giữa lúc Kriky đang làm.** Lượt bị cắt ngay chỗ nó đang đợi: các bước đã ghi còn đó,
    nhưng **không có câu kết**, và nếu là lượt đầu thì đoạn chat **chưa có tên** (nợ số 1 của ADR-25).
+   Câu kết sau plan nay là một lượt `propose` kể lại theo bước 6 của skill `soan-de` (ADR-25, hậu ký
+   22/10/2026): model có thể gọi `last_plan` trước khi nói, và được phép không nói gì.
 2. **Chưa có đường tạo lớp**: lớp chỉ đến từ seed (ADR-13, backlog Tier 2 câu 28).
-3. **Dàn ý bị từ chối vì công thức có chữ ngoài `$`** (3.3), và **câu model sinh có đáp án khoá sai hay
-   hai phương án cùng đúng** (3.8, 5.7): chất lượng model, backlog Tier 4.
-4. Lỗi giao diện ghi ở backlog, mục *Lộ ra khi chạy kịch bản thử tay đầu-cuối*:
-   - công thức trong mục kiến thức hiện nguyên `$…$` (Ngân hàng, hộp thêm câu, biểu đồ ở Bảng theo dõi);
-   - link *Xem lại phần chữa các câu sai* hiện cả khi không sai câu nào (6);
-   - màn trống của đoạn chat ghi *Kriky sẽ tạo lớp…*;
-   - thanh trên của học sinh ghi mã trần, Figma ghi *Mã …* (5.1);
-   - đề bài có công thức vỡ dòng ở màn 23 (7.6);
-   - *Đã gửi báo cáo tới giáo viên.* hiện trong dải lỗi (5.6).
+3. **Câu model sinh có đáp án khoá sai hay hai phương án cùng đúng** (3.8, 5.7): chất lượng model,
+   backlog Tier 4.
+4. Lỗi giao diện còn ghi ở backlog, mục *Lộ ra khi chạy kịch bản thử tay đầu-cuối*: màn trống của
+   đoạn chat ghi *Kriky sẽ tạo lớp…*. Năm lỗi khác của mục ấy đã sửa 21/10/2026 (plan
+   `muc-1-2-loop-1`): công thức trong mục kiến thức, link phần chữa khi không sai câu nào, nhãn *Mã*
+   ở thanh trên học sinh, công thức vỡ dòng ở màn 23, câu *đã báo cáo* trong dải lỗi -- gặp lại là
+   hồi quy.

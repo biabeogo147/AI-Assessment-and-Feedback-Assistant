@@ -1,7 +1,7 @@
 # 16. Lượt chữa bài làm tiếp ở tab mới
 
-Nhóm: Học sinh · Lượt model: ~1 mỗi câu sai (câu biến thể) · Chạy sau: một đề đã phát hành có học
-sinh làm sai ít nhất hai câu (đề seed sau `db-reset` là đủ)
+Nhóm: Học sinh · Lượt model: ~1 mỗi câu sai (câu biến thể) · Chạy sau: mọi case khác; cần một đề
+của lần chạy này đã phát hành, và một học sinh mới làm sai ít nhất hai câu
 
 ## Cho người xem thấy gì
 
@@ -11,8 +11,15 @@ Học sinh mở một lượt làm lại, chọn đáp án, rồi đóng tab gi�
 
 ## Chuẩn bị
 
-- `db-reset`, khởi động lại BE và AGENT (`model=` trong log AGENT là model của lần chạy).
-- Đăng nhập học sinh `HS2026-1204` (tên đăng nhập `anhnm`, mật khẩu ở `docs/local-development.md`). Làm bài pha 1, cố ý sai **ít nhất
+Không `db-reset` (`huong-dan.md`): học sinh và đề là **của lần chạy này**, mang mã vòng `Cn`.
+
+- Khởi động lại AGENT nếu vừa đổi model (`model=` trong log AGENT là model của lần chạy).
+- Giáo viên, ở *Danh sách lớp học* → *12A* → *Thêm học sinh*: gõ tên `Học sinh Cn`, tạo, chép **tên
+  đăng nhập và mật khẩu** từ hộp *chỉ hiện một lần*.
+- Giáo viên mở đề **của case 07** (đã soạn đủ câu, không case nào dùng tiếp; đề ấy không đủ câu thì
+  dùng đề của case 03), *Duyệt đề*, rồi *Phát hành*: lớp 12A, giờ mở = phút tròn kế tiếp, làm bài 15
+  phút, hạn vào và hạn chữa ít nhất 2 giờ sau. Phát hành cho cả 12A là vô hại: các em khác không làm.
+- Mở **cửa sổ ẩn danh**, đăng nhập học sinh mới. Đợi tới giờ mở, làm bài pha 1, cố ý sai **ít nhất
   hai câu**, nộp. Chép `<attempt>` từ địa chỉ `#/attempt/<attempt>/…`.
 
 ## Lời chat

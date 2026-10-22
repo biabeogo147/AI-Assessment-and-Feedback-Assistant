@@ -10,9 +10,10 @@ có thật trong sách, và chữ OCR thô của sách không đi thẳng vào c
 ## Chuẩn bị
 
 - Đã làm đủ phần *Chuẩn bị* của `huong-dan.md`. Chip `Kết nối tri thức Lớp 6 tập 1 (tr6-28).pdf`
-  trong ngăn TÀI LIỆU ở trạng thái *sẵn sàng* (dòng meta có số trang). Chưa tải tệp scan của case 13:
-  nó cũng lên *sẵn sàng* (OCR đọc được) và sẽ thành cuốn thứ hai trong thư viện.
-- Bấm *Đoạn chat mới*. Chip tự đính lúc tải lên đã bị dọn khi đổi đoạn chat, nên phải đính lại.
+  trong ngăn TÀI LIỆU ở trạng thái *sẵn sàng* (dòng meta có số trang). Lần chạy đầu trên một
+  database chưa có tệp scan của case 13 thì thư viện chỉ một cuốn; từ lần thứ hai tệp scan đã *sẵn
+  sàng* và thư viện có hai cuốn -- chip đính sẵn nên Kriky vẫn biết cuốn nào.
+- Bấm *Đoạn chat mới*. Tải lên không tự đính (plan `wave-1-small-fixes`), nên luôn phải đính.
 - **Thao tác đính:** kéo chip của tệp từ rail, thả vào ô nhập (viền ô đổi màu lúc kéo qua). Phải
   thấy dải trên ô nhập ghi tên tệp kèm nút *Bỏ*. Rồi mới gõ lượt 1. Chip chỉ đi cùng câu ấy; lượt 2
   không cần đính lại.
@@ -63,8 +64,9 @@ oke
    `part` 1, 2, … liên tiếp, phần cuối `more` = false.
 4. **Lượt 2:** không câu mở cố định, bước `Tạo đề trống` → `Soạn câu hỏi` (cùng tên lúc chạy)
    với dòng `— đã soạn 5/5 câu`, một thẻ
-   `Đã tạo đề "Đề Kết nối tri thức Lớp 6 tập 1 (tr6-28)"` có `Chưa duyệt · chưa phát hành` — đề
-   theo sách mang **tên tệp** bỏ đuôi (ADR-31), một dòng trên thẻ. Bấm thẻ: panel có 5 câu, câu k
+   `Đã tạo đề "Đề Kết nối tri thức Lớp 6 tập 1"` có `Chưa duyệt · chưa phát hành` — đề
+   theo sách mang **tên tệp** bỏ đuôi và bỏ cụm số trang `(tr6-28)` (ADR-31, `be/titles.py`), một
+   dòng trên thẻ. Bấm thẻ: panel có 5 câu, câu k
    bám kiến thức của mục chứa câu k, toán dựng hình; tiêu đề panel cùng tên ấy.
 5. **Truy vấn B:** `dung_sach` = t, `scope_nodes` không rỗng, 5 mục dàn ý mỗi mục có `source_nodes`;
    5 hàng `draft_items` `ready`, `outline_item` không rỗng.

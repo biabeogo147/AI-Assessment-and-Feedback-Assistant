@@ -69,7 +69,7 @@ này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mớ
    k/n: …` ngay lúc chạy. Lượt này không có bước soạn nào chạy.
 2. Lượt 2: khối bước **một** bước `Soạn câu hỏi` (cùng tên lúc chạy; không `Tạo đề trống`), dòng
    dưới ghi
-   `đã soạn 7/7 câu` — `_count_questions` đếm cả đề, không chỉ 2 câu mới.
+   `đã soạn 7/7 câu` — `plan_outcomes.count_questions` đếm cả đề, không chỉ 2 câu mới.
 3. Thẻ cuối `Đã tạo đề "<tên>"` — **cùng tên** đề case 04 — với `Chưa duyệt · chưa phát hành`.
    Bấm thẻ: panel có 7 câu; câu 6, 7 về số La Mã; câu 1–5 cùng chữ như trước.
 4. Câu kể của Kriky khớp con số trên khối bước (luật 3) và không khen câu nó không đọc (luật 2).
@@ -77,8 +77,8 @@ này: `_ANOTHER_PAPER` gặp chúng thì dừng dò và việc thành đề mớ
    thành 7; năm dòng `md5(stem)` của câu 1–5 trùng hệt. Thêm:
 
    ```
-   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select d.ordinal, d.outline_item, d.status from draft_items d join assessments a on a.id = d.assessment_id where a.title = '<tên>' order by d.ordinal;"
-   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select b.question_count, json_array_length(b.outline) from draft_briefs b join assessments a on a.id = b.assessment_id where a.title = '<tên>';"
+   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select d.ordinal, d.outline_item, d.status from draft_items d join assessments a on a.id = d.assessment_id where a.id = (select id from assessments where title = '<tên>' order by created_at desc limit 1) order by d.ordinal;"
+   docker exec aiafa-postgres psql -U aiafa -d aiafa -c "select b.question_count, json_array_length(b.outline) from draft_briefs b where b.assessment_id = (select id from assessments where title = '<tên>' order by created_at desc limit 1);"
    ```
 
    Ordinal 1–7, đều `ready`; `outline_item` của 6, 7 lớn hơn mọi `outline_item` của 1–5;
