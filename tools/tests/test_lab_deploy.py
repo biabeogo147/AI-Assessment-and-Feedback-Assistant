@@ -1,6 +1,6 @@
 """Cấu hình lab (plan `lab-deploy-aws`): ranh giới của máy dev vẫn đứng trên máy lab.
 
-Đọc thẳng `deploy/lab/` -- không chạy docker. Bốn điều:
+Đọc thẳng `deploy/lab/` -- không chạy docker. Năm điều:
 
 - **Chỉ caddy mở cổng.** Redis, Postgres, MinIO, Mongo không mật khẩu hay BE trần ra Internet là
   đúng cái lỗ mà basic auth đứng chắn.
@@ -9,6 +9,8 @@
 - **Mỗi service chỉ cầm credential của nó**, như ở máy dev: AGENT và DOCUMENT không có URL database,
   BE và INGEST không có khoá model.
 - **Lab tắt những gì máy dev bật**: danh tính tự khai, đăng ký giáo viên; cookie có cờ Secure.
+- **Mỗi vai một tên máy** (plan `lab-subdomains`): Terraform dựng `teacher.` / `student.` trước tên
+  gốc, và FE nhận ra vai từ đúng hai tiền tố ấy.
 """
 
 import re
@@ -122,3 +124,18 @@ def test_render_env_writes_every_secret_compose_requires():
     used = set(re.findall(r"\$\{([A-Z_]+)", compose))
     defaulted = set(re.findall(r"\$\{([A-Z_]+):-", compose))
     assert used <= required | defaulted
+
+
+def test_terraform_and_fe_agree_on_the_two_host_prefixes():
+    """Đổi một tiền tố ở Terraform mà quên FE thì trên lab, cả hai tên đều chọn vai theo hash."""
+    terraform = (LAB / "terraform" / "main.tf").read_text(encoding="utf-8")
+    hosts = dict(re.findall(r'(\w+)_host\s*=\s*"(\w+)\.\$\{var\.base_domain\}"', terraform))
+    assert hosts == {"teacher": "teacher", "student": "student"}
+    ssm = (LAB / "terraform" / "ssm.tf").read_text(encoding="utf-8")
+    assert '"${local.teacher_host}, ${local.student_host}"' in ssm
+    app = (ROOT / "services" / "fe" / "src" / "App.tsx").read_text(encoding="utf-8")
+    for surface, prefix in hosts.items():
+        # Tiền tố nào ứng với vai nào, không chỉ "có mặt": đảo hai nhánh ở FE cũng phải đỏ.
+        assert re.search(
+            rf'startsWith\("{prefix}\."\)\) \{{\s*return \{{ surface: "{surface}"', app
+        ), surface

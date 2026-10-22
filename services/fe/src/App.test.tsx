@@ -10,6 +10,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { countdown, listed, moment } from "./api";
+import { surfaceFor } from "./App";
 import AssignmentList from "./screens/student/AssignmentList";
 import Result from "./screens/student/Result";
 import Round from "./screens/student/Round";
@@ -54,6 +55,23 @@ function stubFetch(payload: unknown) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("choosing the surface", () => {
+  // Trên lab tên máy thắng hash (plan `lab-subdomains`); ở mọi tên khác, hash quyết định như trước.
+  it.each([
+    ["teacher.example.com", "/", "teacher", "/teacher"],
+    ["teacher.example.com", "/bai/a1", "teacher", "/teacher"],
+    ["teacher.example.com", "/teacher/lop", "teacher", null],
+    ["student.example.com", "/teacher", "student", "/"],
+    ["student.example.com", "/teacher/lop/c1", "student", "/"],
+    ["student.example.com", "/", "student", null],
+    ["127.0.0.1", "/teacher", "teacher", null],
+    ["127.0.0.1", "/", "student", null],
+    ["127.0.0.1", "/teachers", "student", null],
+  ])("on %s at %s draws %s and moves to %s", (hostname, route, surface, redirect) => {
+    expect(surfaceFor(hostname, route)).toEqual({ surface, redirect });
+  });
 });
 
 describe("the score sheet", () => {

@@ -43,6 +43,39 @@ export function go(route: string): void {
   window.location.hash = route;
 }
 
+/** Bề mặt mà một trang vẽ: giáo viên hay học sinh. */
+export type Surface = "teacher" | "student";
+
+/**
+ * Chọn bề mặt từ tên máy và route.
+ *
+ * Trên lab mỗi vai một tên: `teacher.<tên gốc>` và `student.<tên gốc>` (plan `lab-subdomains`).
+ * Hai tên phục vụ cùng một bản build, nên chỉ `location.hostname` cho biết trang đang ở đâu. Ở đó
+ * **tên máy thắng hash**: `#/teacher` trên tên học sinh về màn học sinh, và giáo viên gõ tên của
+ * mình là vào thẳng màn giáo viên. Đây là giao diện, không phải quyền: quyền là cookie theo vai mà
+ * BE cấp. Hai tiền tố là quy ước chung với `deploy/lab/terraform/main.tf`;
+ * `tools/tests/test_lab_deploy.py` giữ hai bên khớp nhau.
+ *
+ * Mọi tên máy khác (`127.0.0.1` ở máy dev, stack lab ở local) chọn theo hash như trước.
+ *
+ * @param hostname `location.hostname` của trang.
+ * @param route Route hiện tại, từ `useRoute`.
+ * @returns Bề mặt phải vẽ, và route phải chuyển tới trước khi vẽ (`null` khi route đã đúng).
+ */
+export function surfaceFor(
+  hostname: string,
+  route: string,
+): { surface: Surface; redirect: string | null } {
+  const teacherRoute = route === "/teacher" || route.startsWith("/teacher/");
+  if (hostname.startsWith("teacher.")) {
+    return { surface: "teacher", redirect: teacherRoute ? null : "/teacher" };
+  }
+  if (hostname.startsWith("student.")) {
+    return { surface: "student", redirect: teacherRoute ? "/" : null };
+  }
+  return { surface: teacherRoute ? "teacher" : "student", redirect: null };
+}
+
 /**
  * Chọn bề mặt theo route, trước khi bất cứ request nào bay ra.
  *
@@ -54,11 +87,19 @@ export function go(route: string): void {
  * Hai vai không chia sẻ state nào. Đó là chủ ý: mỗi vai một cookie phiên (việc 22), hai
  * người này là hai phiên khác nhau, và một `me` dùng chung sẽ là chỗ đầu tiên điều đó bị
  * quên.
+ *
+ * Route sai với tên máy thì đổi bằng `location.replace`, không bằng `go`: nút back không được đưa
+ * về đúng cái route vừa bị từ chối. Trong nhịp chờ `hashchange` thì chưa vẽ gì, để không bề mặt nào
+ * kịp gọi BE.
  */
 export default function App() {
   const route = useRoute();
-  if (route === "/teacher" || route.startsWith("/teacher/")) return <Teacher />;
-  return <Student />;
+  const { surface, redirect } = surfaceFor(window.location.hostname, route);
+  useEffect(() => {
+    if (redirect !== null) window.location.replace(`#${redirect}`);
+  }, [redirect]);
+  if (redirect !== null) return null;
+  return surface === "teacher" ? <Teacher /> : <Student />;
 }
 
 /**
