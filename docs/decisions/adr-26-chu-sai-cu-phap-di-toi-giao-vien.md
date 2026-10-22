@@ -115,3 +115,9 @@ Nơi thi hành đã dời: `services/fe/src/screens/teacher/Editing.tsx` (`MANGL
 ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin thấp) đã bỏ
 ([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ
 ba là hỏi lại. Chữ *ba cổng người* ở mục Vì sao đọc là hai cổng; lý do không đổi.
+
+## Hậu ký 22/10/2026
+
+`graphs/authoring.py` thành package (plan `split-agent-graphs`). Hàm sửa chữ nay là
+`graphs/authoring/repair.py` `unmangled()`, vẫn được gọi trong `_write()` ở `graphs/authoring/graph.py`
+ngay sau `ainvoke`. Check `escape-repair-is-wired-in` đòi tên `unmangled` ở mọi package.

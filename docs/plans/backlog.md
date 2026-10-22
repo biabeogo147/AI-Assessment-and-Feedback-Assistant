@@ -685,7 +685,7 @@ ghi ở đây.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Dàn ý sửa không tách mục gộp** (03): sửa câu 3 của mục `Câu 3–4` thì câu 4 thành cùng dạng | Chưa có luật; `right_purpose` không biết câu nào trong mục bị đổi |
-| **Tên đoạn chat chép lời dặn**: *"Soạn đề toán lớp 6 chương 1 (từ chối? không) — tiêu đề: Soạn"* | `naming.py` trên Haiku; chưa đo lại |
+| **Tên đoạn chat chép lời dặn**: *"Soạn đề toán lớp 6 chương 1 (từ chối? không) — tiêu đề: Soạn"* | `naming/` trên Haiku; chưa đo lại |
 | **"Cả chương" mà chỉ đọc một phần chương** (04): `read_section` với `nodes` 1, 3, 6, 17 do model chọn, bỏ bốn bài, mà lời dàn ý vẫn nói *"lấy từ bài 1 đến thứ tự thực hiện các phép tính"* | Model chọn nút; `read_before_outline` chỉ đòi đọc hết phạm vi **đã gọi**, không đối chiếu với phạm vi giáo viên nói |
 
 ## Lộ ra khi thử tay plan tên đề và hỏi nhiều câu
@@ -699,7 +699,7 @@ trong buổi, không ghi ở đây.
 | **Nút của câu hỏi phạm vi là *loại* phạm vi** (01): *"Một chương đang học"*, *"Một chủ đề cụ thể"* — không bấm được thành một phạm vi | `answers` bỏ tên mục và câu hỏi, không nhận ra một *loại*; luật skill chưa nói nút phạm vi phải là tên một phần kiến thức |
 | **Lời dàn ý gộp bài nguồn ở cuối** (04) thay vì nêu theo từng mục | ADR-30 chỉ đối chiếu nhẹ lời dàn ý; `source_nodes` từng mục vẫn đúng, chỉ chữ không nói |
 | **Phương án rác `$4\,volume$`** (04, câu 3) do job soạn câu viết, và đáp án đánh dấu theo đó sai | Không lưới nào soi chữ không phải toán trong phương án số |
-| **Tên đoạn chat là lời trợ lý** (04): *"Bạn gửi kèm sách hoặc chụp các trang chương 1 Toán 6 giúp mì…"* | Cùng gốc với dòng *"Tên đoạn chat chép lời dặn"* ở trên (`naming.py` trên Haiku) |
+| **Tên đoạn chat là lời trợ lý** (04): *"Bạn gửi kèm sách hoặc chụp các trang chương 1 Toán 6 giúp mì…"* | Cùng gốc với dòng *"Tên đoạn chat chép lời dặn"* ở trên (`naming/` trên Haiku) |
 | **Lời mở lượt soạn chép nguyên ví dụ trong prompt** (02, 04): *"Được, mình soạn đề ngay."* | Ví dụ nằm trong `propose/prompt.CORE`; lời model nhưng đọc như câu cố định (ADR-30). Bỏ ví dụ nguyên văn, hay cho nhiều ví dụ |
 
 ## Lộ ra khi review code `/code-review high` (17/10/2026)
@@ -752,7 +752,7 @@ lại nên không ghi lại: nút của câu hỏi phạm vi là *loại* phạm
 | **Panel đề không đọc lại khi Kriky soạn thêm vào chính đề đang mở**: *"Thêm cho mình 2 câu về luỹ thừa nữa nhé"*, 7/7 xong mà panel vẫn ghi *5 câu*, phải đóng rồi mở lại -- `Panel.tsx` chỉ tải đề khi `assessmentId` đổi | Tier 1: không gì chặn. `Chat` báo panel đọc lại khi một lượt soạn vào đề ấy xong |
 | **Khối bước đang chạy lớn dần xuống dưới ô nhập**: dòng chỉ cuộn xuống đáy khi `turns.length` hay `pending` đổi (`Chat.tsx`, effect *"Lượt mới đẩy dòng xuống đáy"*), không khi `live` thêm một bước, nên giáo viên không thấy Kriky đang làm gì nếu không tự cuộn. Khi quay GIF phải cuộn bằng JS | Tier 1: bám đáy khi `live` đổi, nhưng chỉ lúc dòng đang ở đáy -- giữ ý của comment ấy (không giật người đang đọc lại câu cũ) |
 | **Chữ OCR rác của mục lục hiện thẳng ra dòng chi tiết bước**: *"PHÉP CỘN@"*, *"sỐ"*, tên bài in hoa toàn bộ -- tên nút cây Lớp 6 tập 1 lấy nguyên từ OCR | Tier 3 P6 (đọc tài liệu): cùng gốc với tiêu đề OCR rác ở dòng *Cây Lớp 10 tập 1* (mục *Soạn đề: lỗi lộ ra khi thử tay plan 4c T5*); đo trên cây vàng trước khi sửa tên nút |
-| **Khoá đáp án trái với chính lời giải** (lượt quay 4, câu 5): cả hai cách giải tính ra 23 000 đồng, cách 1 còn tự ghi *"phương án A là đáp án đúng cần kiểm lại"*, mà khoá là *B. 27 000 đồng*; nhãn lỗi của A lại là *"Bỏ qua thứ tự thực hiện phép tính"* -- `authoring._faults` chỉ đếm số phương án đúng, nhãn lỗi và số cách giải, không đối chiếu kết luận của lời giải với phương án khoá | **Đã làm phần lưới rẻ** 18/10/2026 (đợt tất định việc 13): lời giải nêu *"chọn X"* / *"đáp án là X"* khác phương án khoá thì ô được thử lại; phương án trùng chữ thì gộp. Phần so số cuối của cách giải (phương án A của Tier 2 câu 25) chưa làm |
+| **Khoá đáp án trái với chính lời giải** (lượt quay 4, câu 5): cả hai cách giải tính ra 23 000 đồng, cách 1 còn tự ghi *"phương án A là đáp án đúng cần kiểm lại"*, mà khoá là *B. 27 000 đồng*; nhãn lỗi của A lại là *"Bỏ qua thứ tự thực hiện phép tính"* -- `authoring.checks.faults` chỉ đếm số phương án đúng, nhãn lỗi và số cách giải, không đối chiếu kết luận của lời giải với phương án khoá | **Đã làm phần lưới rẻ** 18/10/2026 (đợt tất định việc 13): lời giải nêu *"chọn X"* / *"đáp án là X"* khác phương án khoá thì ô được thử lại; phương án trùng chữ thì gộp. Phần so số cuối của cách giải (phương án A của Tier 2 câu 25) chưa làm |
 | **Thẻ kết quả của lượt soạn lại hay soạn thêm vẫn ghi *"Đã tạo đề …"*** dù không tạo đề nào | **Giữ nguyên** (người dùng, 18/10/2026, Tier 2 câu 26): đúng thiết kế bốn đầu đề chốt 06/10, như dòng *Mục dàn ý của câu đã bị thay* ở mục *Lộ ra khi làm plan dàn ý đề* |
 | **Lời dàn ý thay câu và câu soạn lại lệch số liệu**: dàn ý thay câu 5 hứa *"đáp án đúng là 23 000 đồng cho trường hợp 3 quyển vở và 2 cây bút"*, câu soạn ra là 4 vở và 3 bút (33 000) vì brief cấm đề bài của câu bị thay | **Giữ nguyên** (người dùng, 18/10/2026, Tier 2 câu 23): brief vẫn cấm đề bài của câu bị thay. Chỗ lệch là lời dàn ý hứa số liệu cũ, tức hành vi model -- hoãn cùng đợt khoá AGENT |
 | **Thẻ hỏi lại nhiều câu dựng nút cho mọi câu cùng lúc**, nên nút phạm vi không biết khối giáo viên sắp chọn: *"Số hữu tỉ"*, *"Phương trình bậc nhất"* rồi giáo viên chọn khối 6 (lượt quay 4, lần thử 4) | Tier 4: giới hạn của thẻ nhiều câu (ADR-32) cộng hành vi model. Nút phạm vi nên là phạm vi chung, hay câu phạm vi chỉ hỏi sau khi biết khối |
@@ -895,3 +895,12 @@ Plan `2026-10-21-muc-1-2-loop-1-plan.md`. Review code ba lượt và một lư�
 | **Cột *Mục kiến thức* ở Ngân hàng** (`.board-table.bank`, cột 200px): công thức KaTeX dài không xuống dòng được, có thể tràn sang cột *Khối / Môn* | **Không làm** (đo 22/10/2026, plan `muc-1-2-loop-2`): KaTeX tự xuống dòng ở toán tử; khúc dài nhất của một tích phân bốn số hạng lố 4,5px vào khe 24px giữa hai cột, không chạm *Khối / Môn*. Chỉ một khúc không bẻ được dài hơn ~224px mới đè |
 | Radio đáp án đúng dùng radio gốc (`accent-color`), Figma vẽ chấm đặc; ô nhập có tay kéo `resize: vertical`, Figma không vẽ | **Không làm**: cả hai là chủ ý ghi trong `teacher.css` (radio thật giữ bàn phím và vùng bấm; tay kéo là thứ trình duyệt cho) |
 | DB của lab cần `ALTER TABLE bank_questions ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;` trước khi đưa bản này lên, không thì `check_schema` dừng BE | Việc của người dùng ở phần `deploy/` đang sửa dở; câu lệnh ở `docs/local-development.md` |
+
+## Lộ ra khi chia graph AGENT thành package (22/10/2026)
+
+Plan `2026-10-22-split-agent-graphs-plan.md`: chia không đổi logic, nên chỉ ghi.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Biến cục bộ che tên hàm**: `authoring/checks.py` có `faults = []` trong chính hàm `faults` (bản gốc là hàm `_faults`, biến `faults`; bỏ `_` vì dùng chéo file). Vô hại vì hàm không gọi đệ quy | Không gì: đổi tên biến khi có lượt sửa thân hàm kế tiếp |
+| **`propose/` lệch luật *hàm gọi đứng trên hàm bị gọi*** ở `outline.py` (quanh dòng 221) và `read_order.py` (quanh dòng 312) | Không gì: đảo thứ tự khi sửa hai file ấy lần tới |
