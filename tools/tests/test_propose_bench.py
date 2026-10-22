@@ -117,10 +117,10 @@ def _model_text(document: bool = True) -> list[str]:
         propose.prompt.CORE,
         propose.prompt.BOOK_PROCEDURE,
         propose.prompt.LIBRARY,
-        authoring._SYSTEM,
-        explain._SYSTEM,
+        authoring.prompt.SYSTEM,
+        explain.prompt.SYSTEM,
         reporting._SYSTEM,
-        naming._SYSTEM,
+        naming.prompt.SYSTEM,
         skill_router._INSTRUCTIONS,
     ]
     if document:

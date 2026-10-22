@@ -304,7 +304,7 @@ async def test_json_an_mat_dau_gach_cheo_thi_duoc_dung_lai(
 
     # Gom **mọi** field chữ của `GeneratedQuestion`, không gom một phần. Bản đầu của
     # phép khẳng định này bỏ qua `learning_objective` và `error_label`, nên nó xanh
-    # trong khi `_unmangled` thật sự thiếu `learning_objective` -- một test tự nhận là
+    # trong khi `unmangled` thật sự thiếu `learning_objective` -- một test tự nhận là
     # kiểm "mọi field" mà lại chừa đúng field bị quên. Danh sách dưới đây phải đi cùng
     # `GeneratedQuestion` ở `contracts/authoring.py`: thêm field chữ thì thêm vào đây.
     everything = " ".join(
@@ -324,7 +324,7 @@ def test_a_learning_objective_always_fits_its_column(length: int) -> None:
     words = ("Thứ tự thực hiện các phép tính trong biểu thức có nhiều lớp ngoặc " * 10)[:length]
     question = _mangled().model_copy(update={"learning_objective": words})
 
-    kept = authoring._unmangled(question).learning_objective
+    kept = authoring.repair.unmangled(question).learning_objective
 
     assert len(kept) <= 160
     assert kept == words.strip() if length <= 160 else kept.endswith("…")

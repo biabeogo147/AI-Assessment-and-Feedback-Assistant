@@ -1007,7 +1007,7 @@ async def write_draft_question(ctx: dict, payload: dict) -> dict:
     if not llm.enabled():
         return draft_question(request).model_dump(mode="json")
 
-    # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `_faults` so
+    # Normalise ở đây, bằng luật của chính AGENT, vì đó là luật mà `faults` so
     # sánh theo. BE gửi các stem đúng như nó đã lưu: hai bộ normalise buộc phải
     # khớp nhau qua một ranh giới service là một lần lệch nhau đã hẹn trước ngày --
     # và bản đầu tiên của dòng này đã chứng minh điều đó, đem bộ normalise tên lớp

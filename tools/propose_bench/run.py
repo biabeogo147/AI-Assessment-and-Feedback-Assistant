@@ -12,7 +12,8 @@ Ba phần, cùng lệ với `skill_bench`: không chạy trong `.\\dev.ps1 check
 - `author`: gọi `write_question` với brief như BE dựng, chấm bằng `validate_question` của BE
   (ADR-18).
 - `name`: đặt tên đoạn chat; ghi những chữ của tiêu đề **không** có trong câu giáo viên -- dấu hiệu
-  model chép chữ từ ví dụ (`agent/graphs/naming.py`) -- và dấu `<>` của khuôn ví dụ bị chép theo.
+  model chép chữ từ ví dụ (`agent/graphs/naming/prompt.py`) -- và dấu `<>` của khuôn ví dụ bị
+  chép theo.
 
 Mỗi lượt ghi vào `data/results/run-<n>/model-text-<nhãn>/`: `report.txt` và `answers.jsonl`.
 

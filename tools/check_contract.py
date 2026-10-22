@@ -877,13 +877,13 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
     hệ thống, cách đó ba service -- và đó là lý do nó tốn một buổi để tìm.
 
     Thứ dễ mất không phải bản thân phép thay chữ: `test_latex_escapes.py` ghim nó kỹ. Thứ dễ mất là
-    **lời gọi** -- một lần dọn dẹp thấy `_unmangled` trông như một lớp bọc thừa và gỡ nó đi, rồi mọi
+    **lời gọi** -- một lần dọn dẹp thấy `unmangled` trông như một lớp bọc thừa và gỡ nó đi, rồi mọi
     test của hàm vẫn xanh trong khi dữ liệu thật lại hỏng. Check này đứng ở đúng chỗ ấy.
 
     **Hỏi bằng `ast` chứ không bằng grep**, và khác biệt ấy đo được: bản grep đầu tiên tìm chuỗi
-    `_unmangled(` trong file, mà chuỗi ấy khớp luôn với dòng `def _unmangled(` -- nên gỡ lời gọi đi
+    `unmangled(` trong file, mà chuỗi ấy khớp luôn với dòng `def unmangled(` -- nên gỡ lời gọi đi
     thì check vẫn xanh. Một luật không đỏ khi bị vi phạm thì không phải luật. Ở đây câu hỏi đúng là
-    *"thân hàm `_write` có một lời gọi tới `_unmangled` không"*, và chỉ cây cú pháp trả lời được.
+    *"thân hàm `_write` có một lời gọi tới `unmangled` không"*, và chỉ cây cú pháp trả lời được.
 
     Returns:
         None khi lời gọi còn đó, ngược lại là một thông báo thất bại.
@@ -920,11 +920,10 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
             )
         ]
         asking += [f"{file.relative_to(graphs).as_posix()}:{node.name}" for node in holders]
-        # Hàm sửa chữ mang tên theo file: `unmangled` là tên public của package `propose` (dùng
-        # chéo file, plan `propose-names-and-order`), `_unmangled` là bản riêng của `authoring.py`.
-        # Đòi đúng tên của từng nơi, không nới một tập tên chung: hàm nào tên `unmangled` cũng qua.
-        in_propose = file.relative_to(graphs).parts[0] == "propose"
-        repairs = {"unmangled" if in_propose else "_unmangled", "restore_latex_escapes"}
+        # Hàm sửa chữ tên `unmangled` ở mọi package: từ 22/10/2026 cả `authoring` cũng là package,
+        # và hàm sửa ở file `repair.py` dùng chéo file nên bỏ `_` (plan `split-agent-graphs`, theo
+        # luật đặt tên của `propose-names-and-order`).
+        repairs = {"unmangled", "restore_latex_escapes"}
         for node in holders:
             called = {
                 inner.func.id
