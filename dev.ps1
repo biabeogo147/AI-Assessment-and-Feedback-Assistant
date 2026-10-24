@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'lab-ui', 'help')]
     [string]$Task = 'help'
 )
 
@@ -81,6 +81,119 @@ switch ($Task) {
 
     'infra-down' {
         Invoke-Step 'stop redis, postgres, minio, mongo and their admin UIs' { docker compose -f "$RepoRoot\docker-compose.infra.yml" down }
+    }
+
+    'lab-ui' {
+        # Bốn UI như của infra-up, nhưng nhìn vào dữ liệu LAB: UI chạy ở máy này
+        # (deploy/lab/admin-ui.yml) và đi vào lab qua một SSH tunnel; máy lab không chạy UI
+        # nào ngoài FE. Chạy tới khi Ctrl+C, rồi tắt UI và đóng tunnel. Plan `lab-admin-ui`.
+        $Key = if ($env:AIAFA_LAB_SSH_KEY) { $env:AIAFA_LAB_SSH_KEY } else { "$HOME\.ssh\aiafa-lab" }
+        $Region = if ($env:AIAFA_LAB_REGION) { $env:AIAFA_LAB_REGION } else { 'ap-southeast-1' }
+        $UiCompose = @('compose', '-p', 'aiafa-lab-ui', '-f', "$RepoRoot\deploy\lab\admin-ui.yml")
+        # Kho -> (cổng tunnel ở máy này, cổng trong container). Cổng khác cổng của infra-up để
+        # hai bên chạy song song (D3).
+        $Stores = [ordered]@{ postgres = 15432, 5432; redis = 16379, 6379; minio = 19000, 9000; mongo = 27018, 27017 }
+        $Secrets = [ordered]@{ POSTGRES_PASSWORD = 'LAB_POSTGRES_PASSWORD'; MONGO_PASSWORD = 'LAB_MONGO_PASSWORD'; MINIO_SECRET_KEY = 'LAB_MINIO_SECRET_KEY' }
+
+        # Mật khẩu nằm trong một biến cục bộ và chỉ vào môi trường của phiên trong lúc một lệnh
+        # compose đang chạy (D2): một Ctrl+C rơi vào chỗ khác không bỏ chúng lại trong phiên gọi
+        # `.\dev.ps1`. Chưa đọc được thì điền giá trị giả -- `down` cũng nội suy `${…:?}` nhưng
+        # không dùng tới mật khẩu, nên vẫn dọn được UI sót từ một lần chạy bị ngắt.
+        $values = @{}
+        $withSecrets = {
+            param([string[]]$Command)
+            foreach ($name in $Secrets.Values) {
+                Set-Item "env:$name" $(if ($values[$name]) { $values[$name] } else { 'unset' })
+            }
+            try { & docker @UiCompose @Command } finally {
+                foreach ($name in $Secrets.Values) { Remove-Item "env:$name" -ErrorAction SilentlyContinue }
+            }
+        }
+
+        $previous = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $tunnel = $null
+        try {
+            Write-Host '==> find the lab' -ForegroundColor Cyan
+            $ip = & terraform "-chdir=$RepoRoot\deploy\lab\terraform" output -raw public_ip
+            if ($LASTEXITCODE -ne 0) { throw 'terraform output public_ip failed' }
+            $ssh = @('-i', $Key, '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=accept-new')
+
+            # IP container đổi mỗi lần container được tạo lại, nên tra ngay trước khi mở tunnel
+            # (D1): compose của lab không publish cổng hạ tầng nào, kể cả trên 127.0.0.1.
+            $names = $Stores.Keys | ForEach-Object { "aiafa-lab-$_-1" }
+            $inspect = & ssh @ssh "ubuntu@$ip" sudo docker inspect @names
+            if ($LASTEXITCODE -ne 0) { throw 'docker inspect over ssh failed: is every lab container running?' }
+            $address = @{}
+            foreach ($container in ($inspect -join "`n" | ConvertFrom-Json)) {
+                $network = $container.NetworkSettings.Networks.PSObject.Properties | Select-Object -First 1
+                $name = $container.Name.TrimStart('/')
+                # Container dừng mà chưa xoá vẫn qua `docker inspect`, chỉ là không có IP.
+                if (-not $container.State.Running -or -not $network.Value.IPAddress) { throw "$name is not running on the lab" }
+                $address[$name] = $network.Value.IPAddress
+            }
+
+            Write-Host '==> read the lab passwords from SSM' -ForegroundColor Cyan
+            $parameters = $Secrets.Keys | ForEach-Object { "/aiafa/lab/$_" }
+            $pairs = & aws ssm get-parameters --region $Region --names @parameters --with-decryption --query 'Parameters[].[Name,Value]' --output json
+            if ($LASTEXITCODE -ne 0) { throw 'aws ssm get-parameters failed' }
+            foreach ($pair in ($pairs -join "`n" | ConvertFrom-Json)) {
+                $values[$Secrets[$pair[0].Split('/')[-1]]] = $pair[1]
+            }
+            # Tên không có trong SSM nằm ở InvalidParameters, và aws vẫn trả exit code 0.
+            $missing = $Secrets.Keys | Where-Object { -not $values[$Secrets[$_]] }
+            if ($missing) { throw "missing in SSM: $(($missing | ForEach-Object { "/aiafa/lab/$_" }) -join ', ')" }
+
+            Write-Host '==> open the ssh tunnel' -ForegroundColor Cyan
+            $forwards = foreach ($store in $Stores.Keys) {
+                $local, $remote = $Stores[$store]
+                '-L'; "127.0.0.1:${local}:$($address["aiafa-lab-$store-1"]):$remote"
+            }
+            # Start-Process nối mảng bằng dấu cách mà không thêm nháy: đường dẫn khoá có dấu cách
+            # phải tự bọc, khác với `& ssh` ở trên.
+            $arguments = $ssh + @('-N', '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30') + $forwards + "ubuntu@$ip" |
+                ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }
+            $tunnel = Start-Process ssh -ArgumentList $arguments -NoNewWindow -PassThru
+            # Giữ handle ngay: thiếu nó thì ExitCode của một Start-Process -PassThru là rỗng.
+            $null = $tunnel.Handle
+            # Chờ tới khi cả bốn cổng nghe: UI bật trước tunnel thì kết nối đầu của chúng hỏng.
+            foreach ($store in $Stores.Keys) {
+                $port = $Stores[$store][0]
+                for ($try = 0; ; $try++) {
+                    if ($tunnel.HasExited) { throw "ssh tunnel exited with code $($tunnel.ExitCode)" }
+                    $probe = New-Object Net.Sockets.TcpClient
+                    try { $probe.Connect('127.0.0.1', $port); break } catch { if ($try -ge 30) { throw "tunnel port $port never opened" } } finally { $probe.Close() }
+                    Start-Sleep -Milliseconds 500
+                }
+            }
+            # Một tunnel cũ còn giữ cổng thì vòng trên qua ngay, còn ssh mới thoát vì
+            # ExitOnForwardFailure: hỏi lại sau khi ssh kịp thử bind.
+            Start-Sleep -Seconds 1
+            if ($tunnel.HasExited) { throw "ssh tunnel exited with code $($tunnel.ExitCode): is another lab-ui still holding the ports?" }
+
+            Write-Host '==> start the admin UIs' -ForegroundColor Cyan
+            & $withSecrets -Command up, -d, --quiet-pull
+            if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed: is Docker Desktop running?' }
+
+            Write-Host @'
+
+Lab data, no sign-in -- every UI can write to the real lab:
+  Postgres  http://127.0.0.1:18081
+  Redis     http://127.0.0.1:18082
+  Mongo     http://127.0.0.1:18083
+  MinIO     http://127.0.0.1:18084
+
+Ctrl+C to stop the UIs and close the tunnel.
+'@ -ForegroundColor Green
+            # Ngủ từng nhịp chứ không WaitForExit(): Ctrl+C không ngắt được một lời gọi .NET đang chặn.
+            while (-not $tunnel.HasExited) { Start-Sleep -Milliseconds 500 }
+            Write-Host "ssh tunnel exited with code $($tunnel.ExitCode)" -ForegroundColor Yellow
+        } finally {
+            Write-Host '==> stop the admin UIs and close the tunnel' -ForegroundColor Cyan
+            if ($tunnel -and -not $tunnel.HasExited) { Stop-Process -Id $tunnel.Id -Force }
+            & $withSecrets -Command down 2>$null | Out-Null
+            $ErrorActionPreference = $previous
+        }
     }
 
     'db-reset' {
@@ -213,6 +326,7 @@ Usage: .\dev.ps1 <task>
   check        Run ruff, the import boundary check and the repo contract checks
   fmt          Format and autofix
   report       Build docs/report/report.pdf with XeLaTeX
+  lab-ui       Open the lab's Postgres, Redis, Mongo and MinIO in local admin UIs over ssh
 
 First run in a session may need:
   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass

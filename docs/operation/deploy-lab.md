@@ -163,6 +163,30 @@ Mọi lệnh dưới đây chạy **trên máy lab**, sau `$(terraform output -r
 **Không có migration** (D5): bản mới đổi model database thì BE từ chối khởi động (`docker compose
 logs be` ghi rõ cột nào thiếu). Cách ra là `seed.sh` — dữ liệu lab mất, dựng lại từ đầu.
 
+### Xem dữ liệu lab
+
+`.\dev.ps1 lab-ui` (PowerShell, **ở máy mình**) mở Postgres, Redis, Mongo và MinIO của lab bằng bốn UI
+quen thuộc của stack dev, không đăng nhập lần nào. UI chạy bằng Docker ở máy mình
+(`deploy/lab/admin-ui.yml`) và đi vào lab qua một SSH tunnel; máy lab không chạy UI nào ngoài FE, kể
+cả console của MinIO (`MINIO_BROWSER=off`).
+
+| Kho | URL | UI |
+| --- | --- | --- |
+| Postgres | `http://127.0.0.1:18081` | pgweb |
+| Redis | `http://127.0.0.1:18082` | redis-commander |
+| Mongo | `http://127.0.0.1:18083` | mongo-express |
+| MinIO | `http://127.0.0.1:18084` | s3manager (console của MinIO luôn bắt đăng nhập) |
+
+Cần: Docker Desktop đang chạy, `terraform` đã apply ở máy này (lệnh đọc `public_ip`), khoá SSH ở
+`~/.ssh/aiafa-lab` (đổi bằng `AIAFA_LAB_SSH_KEY`) và IP mình nằm trong `ssh_cidrs`, aws CLI đọc được
+SSM (region đổi bằng `AIAFA_LAB_REGION`). Lệnh tra IP container qua SSH, mở tunnel ở `127.0.0.1:15432`,
+`16379`, `19000`, `27018`, đọc mật khẩu từ SSM (giữ trong bộ nhớ, không ghi file; chỉ vào biến môi
+trường trong lúc một lệnh `docker compose` chạy), bật UI rồi in bốn URL. Ctrl+C tắt UI và đóng tunnel. Cổng khác cổng của `infra-up`, nên
+chạy song song với stack dev được.
+
+**Cả bốn UI ghi được vào dữ liệu thật của lab**, cái tester đang dùng. Deploy hay khởi động lại một
+container giữa chừng làm IP của nó đổi và tunnel chết: chạy lại `lab-ui`.
+
 ### Khôi phục từ backup
 
 ```bash

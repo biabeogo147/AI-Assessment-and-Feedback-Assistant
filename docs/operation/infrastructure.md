@@ -158,6 +158,11 @@ sản phẩm. Người dùng chọn vậy ngày 24/10/2026, khi bỏ basic auth 
 public, IP của team không vào git. IP nhà mạng đổi thì sửa biến rồi `terraform apply`; chỉ security
 group đổi, máy giữ nguyên. Bỏ trống `ssh_cidrs` thì cổng 22 đóng hẳn.
 
+SSH cũng là đường **duy nhất** tới các kho dữ liệu: `.\dev.ps1 lab-ui` mở một tunnel tới IP container
+của Postgres, Redis, MinIO, Mongo (tra lại mỗi lần chạy, vì compose không publish cổng nào của chúng)
+và bật bốn UI quản trị **ở máy người vận hành** (`deploy/lab/admin-ui.yml`, chỉ `127.0.0.1`). Máy lab
+không chạy UI nào ngoài FE: console có sẵn của MinIO tắt bằng `MINIO_BROWSER=off`
+(plan `2026-10-24-lab-admin-ui-plan.md`).
 
 ## Bí mật
 

@@ -1,6 +1,6 @@
 """Cấu hình lab (plan `lab-deploy-aws`): ranh giới của máy dev vẫn đứng trên máy lab.
 
-Đọc thẳng `deploy/lab/` -- không chạy docker. Năm điều:
+Đọc thẳng `deploy/lab/` -- không chạy docker. Sáu điều:
 
 - **Chỉ caddy mở cổng.** Redis, Postgres, MinIO, Mongo hay BE trần ra Internet thì không còn gì
   đứng giữa chúng và người ngoài.
@@ -11,6 +11,8 @@
 - **Lab tắt những gì máy dev bật**: danh tính tự khai, đăng ký giáo viên; cookie có cờ Secure.
 - **Mỗi vai một tên máy** (plan `lab-subdomains`): Terraform dựng `teacher.` / `student.` trước tên
   gốc, và FE nhận ra vai từ đúng hai tiền tố ấy.
+- **Lab không chạy UI quản trị nào** (plan `lab-admin-ui`): UI xem dữ liệu chạy ở máy mình, chỉ trên
+  127.0.0.1.
 """
 
 import re
@@ -133,3 +135,18 @@ def test_terraform_and_fe_agree_on_the_two_host_prefixes():
         assert re.search(
             rf'startsWith\("{prefix}\."\)\) \{{\s*return \{{ surface: "{surface}"', app
         ), surface
+
+
+def test_lab_runs_no_admin_ui():
+    r"""Lab chỉ chạy FE (plan `lab-admin-ui`): console có sẵn của MinIO tắt, UI xem dữ liệu chạy ở
+    máy mình qua `.\dev.ps1 lab-ui`."""
+    assert _compose()["services"]["minio"]["environment"]["MINIO_BROWSER"] == "off"
+
+
+def test_local_admin_uis_bind_only_loopback():
+    """Bốn UI của `lab-ui` không hỏi mật khẩu mà ghi được vào dữ liệu thật của lab: một cổng mở ra
+    LAN là ai cùng mạng cũng sửa được lab."""
+    services = yaml.safe_load((LAB / "admin-ui.yml").read_text(encoding="utf-8"))["services"]
+    assert set(services) == {"pgweb", "redis-commander", "mongo-express", "s3manager"}
+    for name, spec in services.items():
+        assert spec["ports"] and all(p.startswith("127.0.0.1:") for p in spec["ports"]), name

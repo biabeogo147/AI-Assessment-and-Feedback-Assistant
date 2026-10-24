@@ -1,0 +1,53 @@
+# Bốn UI xem dữ liệu **của lab**, chạy ở máy mình -- máy lab không chạy UI nào ngoài FE. Đừng gọi
+# thẳng: `.\dev.ps1 lab-ui` mở SSH tunnel tới các kho của lab, đọc mật khẩu từ SSM rồi mới bật file
+# này (project `aiafa-lab-ui`). Mỗi UI đi vào tunnel qua `host.docker.internal`, nơi ssh nghe trên
+# 127.0.0.1 của máy mình.
+#
+# Không UI nào hỏi mật khẩu và cả bốn ghi được vào dữ liệu thật của lab, nên mọi cổng chỉ bind
+# 127.0.0.1. Cổng khác cổng của docker-compose.infra.yml để chạy song song với stack dev.
+
+x-host: &host
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: "no"
+
+services:
+  pgweb:
+    <<: *host
+    image: sosedoff/pgweb:0.16.2
+    command: ["pgweb", "--bind=0.0.0.0", "--listen=8081",
+              "--url=postgres://aiafa:${LAB_POSTGRES_PASSWORD:?chạy qua dev.ps1 lab-ui}@host.docker.internal:15432/aiafa?sslmode=disable"]
+    ports:
+      - "127.0.0.1:18081:8081"
+
+  redis-commander:
+    <<: *host
+    image: rediscommander/redis-commander:latest
+    environment:
+      REDIS_HOSTS: "lab:host.docker.internal:16379:0"
+    ports:
+      - "127.0.0.1:18082:8081"
+
+  mongo-express:
+    <<: *host
+    image: mongo-express:1.0.2
+    environment:
+      ME_CONFIG_MONGODB_URL: "mongodb://aiafa:${LAB_MONGO_PASSWORD:?chạy qua dev.ps1 lab-ui}@host.docker.internal:27018/?authSource=admin&directConnection=true"
+      # Mặc định của image bật basic auth với admin/pass; tắt để mở là vào thẳng.
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "127.0.0.1:18083:8081"
+
+  # Thay cho console của MinIO: console luôn bắt đăng nhập, và lab đã tắt nó (MINIO_BROWSER=off).
+  s3manager:
+    <<: *host
+    image: cloudlena/s3manager:v0.11.1
+    environment:
+      S3_1_NAME: lab
+      S3_1_ENDPOINT: "host.docker.internal:19000"
+      S3_1_ACCESS_KEY_ID: aiafa
+      S3_1_SECRET_ACCESS_KEY: ${LAB_MINIO_SECRET_KEY:?chạy qua dev.ps1 lab-ui}
+      S3_1_USE_SSL: "false"
+      S3_1_BUCKET_LOOKUP: Path
+    ports:
+      - "127.0.0.1:18084:8080"
