@@ -8,7 +8,8 @@ cộng vài key trong SSM là có một URL HTTPS dùng được, đã có dữ 
 
 ## Scope
 
-- Một EC2, một `docker compose`; Caddy phục vụ FE tĩnh, proxy `/api`, basic auth trước cả site.
+- Một EC2, một `docker compose`; Caddy phục vụ FE tĩnh, proxy `/api`, basic auth trước cả site (bỏ
+  24/10/2026, xem hậu ký D1).
 - BE: đăng ký giáo viên tắt được theo môi trường (lab tắt; **FE không đổi**, lời từ chối của BE hiện
   sẵn trên hộp đăng nhập); cookie phiên có cờ `Secure` khi chạy HTTPS.
 - Seed lab không gọi model; giáo viên và học sinh dùng **chung một mật khẩu** (lab, người dùng chốt
@@ -48,7 +49,8 @@ cộng vài key trong SSM là có một URL HTTPS dùng được, đã có dữ 
 ## Decision Records
 
 - **D1 — đăng ký chặn ở BE, không ẩn ở FE.** Người dùng chọn 20/10/2026: basic auth đã chặn người
-  ngoài, nên một lời từ chối rõ ràng là đủ và Figma không phải đổi.
+  ngoài, nên một lời từ chối rõ ràng là đủ và Figma không phải đổi. *Hậu ký 24/10/2026:* người dùng
+  bỏ hẳn basic auth để tester vào thẳng; đăng ký vẫn chặn ở BE, giờ là lớp chặn duy nhất.
 - **D2 — `deploy/` là thư mục gốc mới**, chủ sở hữu là việc triển khai. Nó không phải một service:
   không code sản phẩm, không import từ `services/`. Ghi ở bảng *Cấu trúc* của `README.md`, **chưa**
   ở bảng layout của `AGENTS.md`: file ấy đang đúng trần 184 dòng của `contract-length`, và nâng
@@ -56,6 +58,8 @@ cộng vài key trong SSM là có một URL HTTPS dùng được, đã có dữ 
 - **D3 — hai image Python.** `app` (be, agent, ingest) không mang torch/paddle; `document` mang. Một
   image chung làm mọi process kéo vài GB không dùng tới.
 - **D4 — một mật khẩu chung cho tài khoản seed**, băm một lần. Chỉ cho lab; nằm trong SSM, không in ra.
+  *Hậu ký 24/10/2026:* không còn basic auth đứng trước, nên biết URL, SĐT seed và mật khẩu này là vào
+  được mọi tài khoản; người dùng chấp nhận, bảo mật để sau.
 - **D5 — không có migration** (như `be/db.py`): đổi model thì seed lại lab. Chấp nhận được với dữ liệu
   seed; ngày lab có dữ liệu thật thì quyết định này phải xem lại.
 
@@ -65,7 +69,7 @@ cộng vài key trong SSM là có một URL HTTPS dùng được, đã có dữ 
 - `terraform fmt -check`, `terraform validate` sạch; `terraform plan` chỉ có tài nguyên đã liệt kê.
 - Stack lab local: mọi container *healthy*; một PDF có chữ và một PDF scan đi tới *sẵn sàng*.
 - Seed: đếm qua SQL đúng 5/30/1000; ảnh thử tay qua chấm.
-- `smoke.sh`: 401 khi thiếu basic auth; đăng ký 403; `X-Actor` vô hiệu; cổng hạ tầng đóng.
+- `smoke.sh`: trang chủ 200 (401 khi thiếu basic auth, tới 24/10/2026); đăng ký 403; `X-Actor` vô hiệu; cổng hạ tầng đóng.
 
 ## Status
 

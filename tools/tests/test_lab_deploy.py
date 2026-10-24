@@ -2,8 +2,8 @@
 
 Đọc thẳng `deploy/lab/` -- không chạy docker. Năm điều:
 
-- **Chỉ caddy mở cổng.** Redis, Postgres, MinIO, Mongo không mật khẩu hay BE trần ra Internet là
-  đúng cái lỗ mà basic auth đứng chắn.
+- **Chỉ caddy mở cổng.** Redis, Postgres, MinIO, Mongo hay BE trần ra Internet thì không còn gì
+  đứng giữa chúng và người ngoài.
 - **Mọi núm của lab có thật.** Khoá trong `lab.env` hay `environment:` của một service Python phải
   có ở `.env.example` -- nơi `check_env_example_has_no_orphans` đã buộc mỗi khoá có người đọc.
 - **Mỗi service chỉ cầm credential của nó**, như ở máy dev: AGENT và DOCUMENT không có URL database,
@@ -102,12 +102,6 @@ def test_images_never_carry_secrets_or_books():
         assert rules[0] == "*", ignore.name
         reopened = [line for line in rules if line.startswith("!")]
         assert not [line for line in reopened if ".env" in line or "data" in line], ignore.name
-
-
-def test_basic_auth_is_on_unless_turned_off():
-    caddy = _compose()["services"]["caddy"]["environment"]
-    assert caddy["LAB_AUTH"] == "${LAB_AUTH:-on}"
-    assert "import auth-{$LAB_AUTH:on}.caddy" in (LAB / "Caddyfile").read_text(encoding="utf-8")
 
 
 def test_render_env_writes_every_secret_compose_requires():

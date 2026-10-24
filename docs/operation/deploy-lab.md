@@ -1,12 +1,12 @@
 # Triển khai lab
 
-Lab là một bản chạy thật cho **năm người trong team**, trên một máy EC2 ở Singapore, sau HTTPS và
-basic auth. Mọi thứ nằm ở `deploy/lab/`; plan là `docs/plans/active/2026-10-20-lab-deploy-aws-plan.md`.
+Lab là một bản chạy thật cho **năm người trong team**, trên một máy EC2 ở Singapore, sau HTTPS.
+Mọi thứ nằm ở `deploy/lab/`; plan là `docs/plans/active/2026-10-20-lab-deploy-aws-plan.md`.
 Chạy trên máy mình thì đọc [Local Development](../local-development.md). Bản đồ của mọi thành phần
-và lý do của chúng: [Kiến trúc lab](architecture.md).
+và lý do của chúng: [Kiến trúc lab](infrastructure.md).
 
 ```text
-Internet ──443──► Caddy (basic auth, FE tĩnh, /api) ──► be ──► Postgres · Redis · MinIO · Mongo
+Internet ──443──► Caddy (FE tĩnh, /api) ──► be ──► Postgres · Redis · MinIO · Mongo
                                                         agent · ingest · document · index
 ```
 
@@ -81,9 +81,10 @@ Bỏ `ssh_cidrs` thì không mở cổng 22, chỉ vào bằng SSM. IP nhà mạ
 subnet: Terraform tạo subnet mặc định ở một AZ có bán loại máy (`aws_default_subnet`).
 
 `alert_email` bật cảnh báo chi phí của AWS Budgets (50 % và 100 % của `budget_usd`, mặc định 30 USD);
-để trống thì không có budget. Apply tạo 27 tài nguyên (26 khi không có budget): máy, subnet, key
-pair, Elastic IP, security group, IAM role, bucket backup, budget, và năm mật khẩu ngẫu nhiên trong
-SSM (Postgres, MinIO, Mongo, basic auth, mật khẩu chung của tài khoản lab).
+để trống thì không có budget. Apply tạo 24 tài nguyên (bớt một khi không có budget, bớt một nữa khi
+không có `ssh_public_key`): máy, subnet, key pair, Elastic IP, security group, IAM role, bucket backup,
+budget, và bốn mật khẩu ngẫu nhiên trong SSM (Postgres, MinIO, Mongo, mật khẩu chung của tài khoản
+lab).
 
 **3. Chờ bootstrap.** Máy tự cài docker, clone repo, dựng image, bật stack và seed dữ liệu lab. Lần
 đầu mất **15–25 phút**, phần lớn là image `document` (torch, paddle, model OCR). Theo dõi:
@@ -100,8 +101,6 @@ Hỏng giữa chừng (log ghi bước nào) thì sửa rồi chạy lại cả 
 
 ```bash
 export LAB_URL="$(terraform output -raw teacher_url) $(terraform output -raw student_url)"
-export BASIC_AUTH_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
-  --name /aiafa/lab/BASIC_AUTH_PASSWORD --with-decryption --query Parameter.Value --output text)
 export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
   --name /aiafa/lab/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text)
 bash ../smoke.sh
@@ -114,12 +113,12 @@ lab; `curl.exe` của Windows thì không. Đặt một `curl` gọi `/c/Windows
 Xong thì giáo viên vào `teacher_url`, học sinh vào `student_url`. Trên hai tên ấy FE chọn vai theo tên
 máy, không theo hash: `teacher.…` luôn là màn giáo viên, `student.…/#/teacher` tự về màn học sinh.
 
-`smoke.sh` kiểm: thiếu basic auth thì 401; đăng ký giáo viên 403; `X-Actor` không thay được đăng
+`smoke.sh` kiểm: trang chủ 200; đăng ký giáo viên 403; `X-Actor` không thay được đăng
 nhập; giáo viên seed đăng nhập được và cookie có cờ `Secure`; HTTP chuyển sang HTTPS; các cổng 5432,
 6379, 8000, 9000, 9001, 27017 đóng.
 
-**5. Đưa cho team.** URL, người dùng basic auth `lab` và mật khẩu của nó, mật khẩu chung của tài
-khoản lab. Gửi qua kênh riêng, không dán vào nhóm chat chung.
+**5. Đưa cho team.** Hai URL và mật khẩu chung của tài khoản lab
+(`terraform output -raw read_password` in lệnh đọc nó). Gửi qua kênh riêng, không dán vào nhóm chat chung.
 
 ## Dữ liệu lab
 
@@ -133,8 +132,9 @@ câu khó hẳn, để *Bảng theo dõi* có một dòng *tỉ lệ sai cao* th
 | Giáo viên | SĐT `0912000101` … `0912000105`, hay email `nhung.nguyen@example.com`, `bao.tran@…`, `thu.le@…`, `duc.hoang@…`, `ha.vu@…` |
 | Học sinh | Tên đăng nhập theo luật của ADR-36 (vd. `anhnm`); `seed.sh` in học sinh đầu tiên của mỗi lớp |
 
-**Mọi tài khoản dùng chung một mật khẩu**, `LAB_ACCOUNT_PASSWORD` trong SSM. Chỉ chấp nhận được vì
-đây là lab sau basic auth (D4 của plan).
+**Mọi tài khoản dùng chung một mật khẩu**, `LAB_ACCOUNT_PASSWORD` trong SSM. Không có lớp nào
+đứng trước màn đăng nhập (bỏ basic auth 24/10/2026), nên ai biết URL, SĐT seed và mật khẩu này là vào
+được mọi tài khoản; người dùng chấp nhận, bảo mật để sau (D4 của plan).
 
 Seed không dựng tài liệu và hội thoại Kriky: chúng cần byte trong MinIO và model thật, nên thử bằng
 cách tải tệp thật và chat thật.
@@ -200,11 +200,11 @@ còn lại trong SSM: `aws ssm delete-parameter --name /aiafa/lab/CLAUDE_API_KEY
 `127.0.0.1:8088`, không đụng cổng của `docker-compose.infra.yml`):
 
 ```bash
-bash deploy/lab/local-env.sh        # .env (mật khẩu ngẫu nhiên, không basic auth) + .env.overrides
+bash deploy/lab/local-env.sh        # .env (mật khẩu ngẫu nhiên) + .env.overrides
 docker compose -p aiafa-lab -f deploy/lab/docker-compose.lab.yml up -d --build
 read -rs PW && printf '%s\n' "$PW" | docker compose -p aiafa-lab -f deploy/lab/docker-compose.lab.yml \
   exec -T be python -m be.lab_seed --reset
-SMOKE_NO_AUTH=1 LAB_URL=http://127.0.0.1:8088 LAB_ACCOUNT_PASSWORD="$PW" bash deploy/lab/smoke.sh
+LAB_URL=http://127.0.0.1:8088 LAB_ACCOUNT_PASSWORD="$PW" bash deploy/lab/smoke.sh
 ```
 
 `.env.overrides` tắt model (`LLM_ENABLED=false`) và cờ `Secure` (HTTP thuần). Dọn: `docker compose

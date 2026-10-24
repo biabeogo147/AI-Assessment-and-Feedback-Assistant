@@ -79,7 +79,6 @@ resource "aws_instance" "lab" {
   depends_on = [
     aws_ssm_parameter.secret,
     aws_ssm_parameter.site_address,
-    aws_ssm_parameter.basic_auth_user,
     aws_iam_role_policy.lab,
     aws_iam_role_policy_attachment.session_manager,
   ]

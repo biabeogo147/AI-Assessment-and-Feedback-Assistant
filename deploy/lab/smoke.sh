@@ -3,21 +3,15 @@
 # hay nhiều URL cách nhau bằng dấu cách; mỗi URL chạy đủ bộ kiểm:
 #
 #   tf="terraform -chdir=deploy/lab/terraform"
-#   LAB_URL="$($tf output -raw teacher_url) $($tf output -raw student_url)" \
-#     BASIC_AUTH_PASSWORD=… bash deploy/lab/smoke.sh
+#   LAB_URL="$($tf output -raw teacher_url) $($tf output -raw student_url)" bash deploy/lab/smoke.sh
 #
 # Tuỳ chọn: LAB_ACCOUNT_PASSWORD=… để thử đăng nhập một giáo viên seed và xem cookie có cờ Secure.
-# Stack lab ở local chạy LAB_AUTH=off thì đặt SMOKE_NO_AUTH=1 và bỏ BASIC_AUTH_PASSWORD.
-#
 # Lấy mật khẩu từ SSM, đừng gõ vào lịch sử shell:
-#   export BASIC_AUTH_PASSWORD=$(aws ssm get-parameter --name /aiafa/lab/BASIC_AUTH_PASSWORD \
-#     --with-decryption --query Parameter.Value --output text)
+#   export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
+#     --name /aiafa/lab/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text)
 
 set -uo pipefail
 : "${LAB_URL:?đặt LAB_URL, ví dụ https://teacher.example.com https://student.example.com}"
-if [[ -z "${SMOKE_NO_AUTH:-}" ]]; then
-	: "${BASIC_AUTH_PASSWORD:?đặt BASIC_AUTH_PASSWORD (hay SMOKE_NO_AUTH=1 cho stack local)}"
-fi
 failed=0
 ports_scanned=""
 
@@ -36,24 +30,17 @@ smoke_site() { # url
 	host=${host%%[:/]*}
 	echo "== $url"
 
-	local auth=()
-	if [[ -z "${SMOKE_NO_AUTH:-}" ]]; then
-		check "thiếu basic auth thì bị chặn" 401 "$(status "$url/")"
-		check "thiếu basic auth thì /api cũng bị chặn" 401 "$(status "$url/api/teacher/me")"
-		auth=(-u "${BASIC_AUTH_USER:-lab}:$BASIC_AUTH_PASSWORD")
-	fi
-
-	check "trang chủ" 200 "$(status "${auth[@]}" "$url/")"
-	check "đăng ký giáo viên đã tắt" 403 "$(status "${auth[@]}" -X POST \
+	check "trang chủ" 200 "$(status "$url/")"
+	check "đăng ký giáo viên đã tắt" 403 "$(status -X POST \
 		-H 'Content-Type: application/json' \
 		-d '{"full_name":"Thử","phone":"0900000000","email":"thu@example.com","password":"12345678"}' \
 		"$url/api/teacher/sign-up")"
-	check "X-Actor không thay được đăng nhập" 401 "$(status "${auth[@]}" -H 'X-Actor: teacher:GV-001' \
+	check "X-Actor không thay được đăng nhập" 401 "$(status -H 'X-Actor: teacher:GV-001' \
 		"$url/api/teacher/me")"
 
 	if [[ -n "${LAB_ACCOUNT_PASSWORD:-}" ]]; then
 		local headers secure
-		headers=$(curl -s -D - -o /dev/null --max-time 15 "${auth[@]}" -X POST \
+		headers=$(curl -s -D - -o /dev/null --max-time 15 -X POST \
 			-H 'Content-Type: application/json' \
 			-d "{\"login\":\"0912000101\",\"password\":\"$LAB_ACCOUNT_PASSWORD\"}" \
 			"$url/api/teacher/sign-in")

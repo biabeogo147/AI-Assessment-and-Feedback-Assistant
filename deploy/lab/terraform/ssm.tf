@@ -8,7 +8,6 @@ locals {
     POSTGRES_PASSWORD    = 32
     MINIO_SECRET_KEY     = 32
     MONGO_PASSWORD       = 32
-    BASIC_AUTH_PASSWORD  = 20
     LAB_ACCOUNT_PASSWORD = 12 # mật khẩu chung của mọi tài khoản seed (D4)
   }
 }
@@ -30,10 +29,4 @@ resource "aws_ssm_parameter" "site_address" {
   name  = "${var.ssm_prefix}/SITE_ADDRESS"
   type  = "String"
   value = "${local.teacher_host}, ${local.student_host}"
-}
-
-resource "aws_ssm_parameter" "basic_auth_user" {
-  name  = "${var.ssm_prefix}/BASIC_AUTH_USER"
-  type  = "String"
-  value = "lab"
 }

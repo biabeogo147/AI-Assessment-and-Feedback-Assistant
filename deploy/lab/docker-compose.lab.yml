@@ -59,9 +59,6 @@ services:
     restart: unless-stopped
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:?chạy deploy/lab/render-env.sh trước}
-      LAB_AUTH: ${LAB_AUTH:-on}
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-lab}
-      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
     ports:
       - "${LAB_HTTP_PUBLISH:-80}:80"
       - "${LAB_HTTPS_PUBLISH:-443}:443"

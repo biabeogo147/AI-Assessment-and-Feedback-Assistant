@@ -15,5 +15,5 @@ RUN pnpm --filter fe build
 
 
 FROM caddy:2.10-alpine
-COPY deploy/lab/Caddyfile deploy/lab/auth-on.caddy deploy/lab/auth-off.caddy /etc/caddy/
+COPY deploy/lab/Caddyfile /etc/caddy/
 COPY --from=fe /src/services/fe/dist /srv

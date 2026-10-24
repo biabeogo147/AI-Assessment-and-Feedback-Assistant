@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Dựng deploy/lab/.env và .env.overrides để chạy **stack lab ở máy mình** (Git Bash được), song
 # song với stack dev mà không đụng nhau: project `aiafa-lab`, chỉ caddy mở cổng, và chỉ trên
-# 127.0.0.1:8088. Mật khẩu hạ tầng sinh ngẫu nhiên; không basic auth (trình duyệt tự động không
-# gõ được vào hộp ấy), không gọi model, cookie không Secure (HTTP thuần).
+# 127.0.0.1:8088. Mật khẩu hạ tầng sinh ngẫu nhiên; không gọi model, cookie không Secure (HTTP
+# thuần).
 #
 #   bash deploy/lab/local-env.sh
 #   docker compose -p aiafa-lab -f deploy/lab/docker-compose.lab.yml up -d --build
@@ -20,7 +20,6 @@ umask 077
 cat >"$lab/.env" <<EOF
 # Dựng bởi local-env.sh -- chỉ cho stack lab ở máy dev. Đừng commit.
 SITE_ADDRESS=':80'
-LAB_AUTH='off'
 LAB_HTTP_PUBLISH='127.0.0.1:8088'
 LAB_HTTPS_PUBLISH='127.0.0.1:8443'
 POSTGRES_PASSWORD='$(random)'

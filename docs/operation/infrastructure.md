@@ -46,7 +46,7 @@ flowchart TB
                 backup["cron 2 giờ sáng<br/>backup.sh"]
                 render_env["render-env.sh<br/>SSM → .env"]
                 subgraph compose["docker compose · project aiafa-lab"]
-                    caddy["Caddy :80 · :443<br/>basic auth · FE tĩnh · /api"]
+                    caddy["Caddy :80 · :443<br/>FE tĩnh · /api"]
                     be["be :8000"]
                     agent["agent<br/>arq worker"]
                     ingest["ingest<br/>arq worker"]
@@ -61,7 +61,7 @@ flowchart TB
         end
     end
 
-    team -->|HTTPS · basic auth| eip
+    team -->|HTTPS| eip
     dns -.->|phân giải tên| eip
     eip --> caddy
     caddy -->|"/api/* · không đệm"| be
@@ -128,13 +128,12 @@ Những gì sơ đồ cố ý giản lược:
 
 Câu hỏi mục này trả lời: *vì sao chỉ có Caddy, không load balancer, không ingress?*
 
-Năm người dùng một máy, nên một reverse proxy trên chính máy đó là đủ. Caddy làm bốn việc mà nếu tách
+Năm người dùng một máy, nên một reverse proxy trên chính máy đó là đủ. Caddy làm ba việc mà nếu tách
 ra thì mỗi việc sẽ cần một dịch vụ tính tiền:
 
 | Việc | Caddy làm thế nào | Thay cho |
 | --- | --- | --- |
 | HTTPS | Tự xin và gia hạn chứng chỉ Let's Encrypt qua HTTP-01 trên cổng 80 | ACM + load balancer |
-| Chặn người ngoài | `basic_auth` trước **cả** site, kể cả `/api`; hash bcrypt, không bao giờ mật khẩu rõ | VPN hay whitelist IP |
 | FE tĩnh | `file_server` từ `/srv`, ảnh dựng sẵn `dist/` của FE vào image Caddy | S3 + CloudFront |
 | Proxy `/api` | `reverse_proxy be:8000` với `flush_interval -1` | Ingress |
 
@@ -143,8 +142,8 @@ phiên không phải là cookie bên thứ ba. `index.html` mang `Cache-Control:
 deploy trình duyệt không giữ bản trỏ vào asset đã xoá; asset có hash trong tên nên cache bao lâu cũng
 được.
 
-Basic auth là **lớp ngoài**, không thay cho đăng nhập của sản phẩm: vượt qua nó rồi vẫn phải đăng nhập
-bằng tài khoản giáo viên hay học sinh. Hai lớp dùng hai mật khẩu khác nhau, cả hai trong SSM.
+Không có lớp chặn nào trước site: ai biết URL cũng mở được trang, và cửa duy nhất là đăng nhập của
+sản phẩm. Người dùng chọn vậy ngày 24/10/2026, khi bỏ basic auth để tester vào thẳng.
 
 ## Hai đường vào máy
 
@@ -158,6 +157,7 @@ bằng tài khoản giáo viên hay học sinh. Hai lớp dùng hai mật khẩu
 `ssh_cidrs` và khoá công khai nằm trong `deploy/lab/terraform/terraform.tfvars`, **gitignore**: repo
 public, IP của team không vào git. IP nhà mạng đổi thì sửa biến rồi `terraform apply`; chỉ security
 group đổi, máy giữ nguyên. Bỏ trống `ssh_cidrs` thì cổng 22 đóng hẳn.
+
 
 ## Bí mật
 
@@ -177,10 +177,9 @@ flowchart LR
 | `POSTGRES_PASSWORD` | Terraform | `postgres`, và `be`, `ingest` qua `DATABASE_URL` |
 | `MINIO_SECRET_KEY` | Terraform | `minio`, `be`, `document`, `index` |
 | `MONGO_PASSWORD` | Terraform | `mongo`, và `be`, `document`, `index` qua `MONGO_URL` |
-| `BASIC_AUTH_PASSWORD` | Terraform | Không service nào cầm bản rõ: `render-env.sh` băm bcrypt thành `BASIC_AUTH_HASH` cho `caddy` |
 | `LAB_ACCOUNT_PASSWORD` | Terraform | Chỉ `seed.sh`, qua stdin của `python -m be.lab_seed` |
 | `CLAUDE_API_KEY`, `JEV_API_KEY`, `OPENAI_API_KEY` (tuỳ chọn) | **Người dùng tự thêm** | `agent`, `document`, `index`. **Không** `be` |
-| `SITE_ADDRESS`, `BASIC_AUTH_USER` | Terraform (String) | `caddy` |
+| `SITE_ADDRESS` | Terraform (String) | `caddy` |
 
 Ba nguyên tắc:
 
@@ -205,7 +204,7 @@ role.
 
 Mỗi vai một tên: giáo viên `teacher.<base_domain>`, học sinh `student.<base_domain>`. Terraform dựng
 hai tên từ biến `base_domain` và ghi cả hai vào tham số SSM `SITE_ADDRESS` (`teacher.…, student.…`).
-Caddy nhận cả hai trong **một** khối site: cùng basic auth, cùng FE tĩnh, cùng `/api`, mỗi tên một
+Caddy nhận cả hai trong **một** khối site: cùng FE tĩnh, cùng `/api`, mỗi tên một
 chứng chỉ. BE không biết tên miền nào: FE và `/api` cùng một origin, cookie chỉ gắn theo host, nên mỗi
 tên giữ phiên của riêng nó.
 
@@ -215,8 +214,8 @@ vì trình duyệt không gửi hash lên server. Hai tiền tố `teacher.` / `
 giữa Terraform và FE; `tools/tests/test_lab_deploy.py` đòi chúng khớp nhau. Ở mọi tên khác (máy dev,
 stack lab ở local) FE chọn vai theo hash như trước.
 
-Tách tên là **giao diện, không phải ranh giới quyền.** Hai tên đứng sau cùng basic auth và cùng một
-BE; BE không kiểm Host. Ai cũng gõ được `teacher.…`, và một cookie giáo viên dùng được ở cả hai tên.
+Tách tên là **giao diện, không phải ranh giới quyền.** Hai tên dùng chung một BE; BE không kiểm
+Host. Ai cũng gõ được `teacher.…`, và một cookie giáo viên dùng được ở cả hai tên.
 Quyền vẫn ở BE: mỗi vai một cookie phiên, cấp sau khi đúng mật khẩu.
 
 `base_domain` nằm trong `terraform.tfvars` và không có giá trị mặc định. Hai bản ghi A trỏ về
@@ -248,13 +247,13 @@ flowchart LR
 | Bước | Làm gì | Công cụ | Ở đâu |
 | --- | --- | --- | --- |
 | 0 | Xin Elastic IP (`terraform apply -target=aws_eip.lab`); tạo hai bản ghi A `teacher`, `student` → IP ấy, chờ phân giải được | Terraform; DNS của tên miền, tạo tay | máy người vận hành |
-| 1 | VPC mặc định + subnet mặc định, security group, Elastic IP, key pair, EC2, IAM role, năm mật khẩu SSM, bucket backup, budget | Terraform, người vận hành chạy | `deploy/lab/terraform/` |
+| 1 | VPC mặc định + subnet mặc định, security group, Elastic IP, key pair, EC2, IAM role, bốn mật khẩu SSM, bucket backup, budget | Terraform, người vận hành chạy | `deploy/lab/terraform/` |
 | 2 | Ghi cấu hình không bí mật (thư mục, nhánh, region, bucket), cài git, clone nhánh `main` | cloud-init, `user_data.sh.tftpl` | máy lab |
 | 3 | Cài docker, compose, aws CLI; bật 2 GB swap; cài unit systemd và cron **trước** khi dựng | `bootstrap.sh` | máy lab |
-| 4 | Dựng `.env` từ SSM; băm basic auth | `render-env.sh` | máy lab |
+| 4 | Dựng `.env` từ SSM | `render-env.sh` | máy lab |
 | 5 | Dựng image `app`, `document`, `caddy`; bật stack; chờ `be` healthy | `docker compose` | máy lab |
 | 6 | Seed dữ liệu lab, **một lần** (dấu `/var/lib/aiafa-lab/seeded`) | `seed.sh` | máy lab |
-| 7 | Kiểm basic auth, đăng ký tắt, `X-Actor` vô hiệu, cookie `Secure`, HTTP → HTTPS, cổng nội bộ đóng | `smoke.sh` | máy người vận hành |
+| 7 | Kiểm trang chủ, đăng ký tắt, `X-Actor` vô hiệu, cookie `Secure`, HTTP → HTTPS, cổng nội bộ đóng | `smoke.sh` | máy người vận hành |
 
 Lần đầu mất **15–25 phút**, phần lớn ở bước 5: image `document` tải torch CPU và model OCR. Bootstrap
 chạy lại an toàn; hỏng ở bước nào thì sửa rồi chạy lại cả script.
@@ -273,7 +272,7 @@ Mỗi bước chỉ dùng thứ bước trước **giao**, không với vào bê
 | 1 → 2 | Máy có instance profile; mọi tham số SSM do Terraform quản đã tồn tại | `aws_instance` `depends_on` các tham số SSM và policy IAM: bootstrap đọc SSM ngay ở lần khởi động đầu |
 | 2 → 3 | `/etc/aiafa-lab.conf` và repo ở `/opt/aiafa` | Nhánh được clone phải có `deploy/lab/`; repo phải public vì máy clone không kèm khoá |
 | 3 → 4 | docker, aws CLI ở `/snap/bin` | cron và systemd không có `/snap/bin` trong PATH: `lib.sh` tự thêm |
-| 4 → 5 | `deploy/lab/.env` (chmod 600), có thể kèm `.env.overrides` | Ba mật khẩu hạ tầng và `SITE_ADDRESS` dùng `${X:?…}`: thiếu một biến là compose dừng ngay, không bật một service cầm mật khẩu rỗng. Khoá model và `BASIC_AUTH_HASH` được phép rỗng (`${X:-}`) |
+| 4 → 5 | `deploy/lab/.env` (chmod 600), có thể kèm `.env.overrides` | Ba mật khẩu hạ tầng và `SITE_ADDRESS` dùng `${X:?…}`: thiếu một biến là compose dừng ngay, không bật một service cầm mật khẩu rỗng. Khoá model được phép rỗng (`${X:-}`) |
 | 5 → 6 | `be` healthy | Bootstrap seed **một lần** nhờ dấu `/var/lib/aiafa-lab/seeded`. `seed.sh` luôn gọi `--reset`: gọi tay là xoá sạch dữ liệu lab |
 | Trong 5 | Ba image | **Mỗi image chỉ một service dựng** (`be`, `document`, `caddy`); service còn lại dùng lại image với `pull_policy: never`. Hai service cùng `build` một tag thì buildx dựng song song và báo `already exists` |
 
@@ -301,11 +300,12 @@ Các ràng buộc dưới đây đến từ code của các service, không từ
 | Đóng gói | **Một EC2, một `docker compose`** | Không cluster, không dự phòng; máy chết là lab chết, dựng lại bằng `apply` và backup |
 | Loại máy | **`m7i-flex.large`**: đã kiểm thuộc free tier của account ở Singapore | Free plan đổi danh sách thì đổi `instance_type` |
 | Mạng | **VPC mặc định, không NAT** | Account mới có thể có VPC mặc định mà không có subnet: Terraform tạo subnet mặc định bằng `aws_default_subnet` (gặp thật lúc apply 21/10/2026) |
-| Reverse proxy | **Caddy** (20/10/2026) | Một lối vào làm cả HTTPS, basic auth, FE tĩnh, proxy |
+| Reverse proxy | **Caddy** (20/10/2026) | Một lối vào làm cả HTTPS, FE tĩnh, proxy |
 | Tên miền | **Mỗi vai một subdomain của `base_domain`** (22/10/2026) | Bản ghi A tạo tay, Terraform không quản DNS; FE chọn vai theo tiền tố tên máy; đổi Elastic IP là sửa bản ghi |
 | OCR | **Có** (20/10/2026) | Image `document` riêng (D3), máy 8 GB |
-| Đăng ký giáo viên | **Tắt, chặn ở BE**; giữ basic auth (D1) | FE không đổi |
-| Tài khoản seed | **Một mật khẩu chung** cho giáo viên và học sinh (D4) | Chỉ chấp nhận được sau basic auth |
+| Đăng ký giáo viên | **Tắt, chặn ở BE** (D1) | FE không đổi |
+| Tài khoản seed | **Một mật khẩu chung** cho giáo viên và học sinh (D4) | Biết URL, biết SĐT seed và mật khẩu ấy là vào được mọi tài khoản |
+| Basic auth | **Không có** (24/10/2026; trước đó có, từ 20/10) | Ai biết URL cũng tới được màn đăng nhập; bảo mật để sau |
 | Khoá model | **Người dùng tự thêm vào SSM** | Không qua Terraform, không vào state |
 | Vào máy | **SSH theo IP whitelist + SSM** (21/10/2026) | IP và khoá công khai trong `terraform.tfvars` gitignore |
 | Migration | **Không có** (D5) | Xem lại ngày lab có dữ liệu thật |
@@ -324,16 +324,18 @@ Monitoring và cảnh báo của ứng dụng (chỉ có AWS Budgets cho tiền)
 compose logs` trên máy), CI/CD (deploy bằng tay qua `deploy.sh`), dự phòng và tự phục hồi ngoài
 `restart: unless-stopped`, migration, quản bản ghi DNS bằng Terraform. Một môi trường cho trường thật
 sẽ cần ít nhất: migration, database có backup theo thời điểm (RDS), tên miền và chứng chỉ của trường,
-đăng nhập không sau basic auth, và log tập trung.
+mật khẩu riêng cho từng tài khoản, và log tập trung.
 
-## Hiện trạng (21/10/2026)
+## Hiện trạng (24/10/2026)
 
-- Đã `apply` 26 tài nguyên (chưa có budget); máy chạy đủ 10 container; seed đã chạy.
-- **Chưa chuyển sang hai subdomain** (22/10/2026): DNS của `recruitai.io.vn` còn SERVFAIL. Máy vẫn
-  chạy tên cũ cho tới khi `teacher.recruitai.io.vn` và `student.recruitai.io.vn` phân giải được.
+- 23 tài nguyên (có khoá SSH, chưa có budget); máy chạy đủ 10 container; seed đã chạy.
+- Chạy trên `teacher.recruitai.io.vn` và `student.recruitai.io.vn` (từ 24/10/2026), chứng chỉ Let's
+  Encrypt cho cả hai; DNS của `recruitai.io.vn` ở Vinahost. Không còn basic auth.
 - Khoá Claude và JEV đã có trong SSM; model bật.
-- `smoke.sh` qua 14/14 mục từ Internet. Đã thử tay trên trình duyệt cả phía giáo viên (bảng theo dõi,
-  đề, lớp, kết quả, báo cáo, tài liệu và OCR, soạn đề với model thật, duyệt, phát hành, hoàn tác) lẫn
-  phía học sinh (làm bài, trợ lý, vòng chữa).
+- `smoke.sh` qua trên cả hai tên từ Internet (24/10/2026). Đã thử tay trên trình duyệt: chọn vai theo
+  tên máy, phiên giáo viên và học sinh song song ở hai tab; trước đó (21/10/2026) cả phía giáo viên
+  (bảng theo dõi, đề, lớp, kết quả, báo cáo, tài liệu và OCR, soạn đề với model thật, duyệt, phát
+  hành, hoàn tác) lẫn phía học sinh (làm bài, trợ lý, vòng chữa).
+- Bản 24/10/2026 thêm cột `bank_questions.edited_at`; database lab đã `ALTER` tay, giữ dữ liệu.
 - Code trên máy là bản đẩy lên bằng `git archive`, chưa phải một bản clone của `main`. **Phải push
   các commit của lab lên `main`** thì `deploy.sh` mới dùng được.

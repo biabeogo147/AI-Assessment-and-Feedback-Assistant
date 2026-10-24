@@ -32,12 +32,9 @@ output "bootstrap_log" {
   value       = "sudo tail -f /var/log/cloud-init-output.log"
 }
 
-output "read_passwords" {
-  description = "Đọc mật khẩu basic auth (người dùng: lab) và mật khẩu chung của tài khoản seed."
-  value = {
-    basic_auth = "aws ssm get-parameter --region ${var.region} --name ${var.ssm_prefix}/BASIC_AUTH_PASSWORD --with-decryption --query Parameter.Value --output text"
-    accounts   = "aws ssm get-parameter --region ${var.region} --name ${var.ssm_prefix}/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text"
-  }
+output "read_password" {
+  description = "Đọc mật khẩu chung của tài khoản seed."
+  value       = "aws ssm get-parameter --region ${var.region} --name ${var.ssm_prefix}/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text"
 }
 
 output "backup_bucket" {

@@ -1,5 +1,0 @@
-# Basic auth trước cả site, kể cả /api. Hash là bcrypt do `caddy hash-password` sinh từ mật khẩu
-# trong SSM (`render-env.sh`), không bao giờ là mật khẩu rõ.
-basic_auth {
-	{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
-}
