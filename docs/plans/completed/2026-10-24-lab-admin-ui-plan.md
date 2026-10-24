@@ -44,7 +44,8 @@ SSH tunnel; máy lab không chạy UI nào ngoài FE (người dùng chốt 24/1
 - [x] Test: mọi cổng của `admin-ui.yml` bind `127.0.0.1`; console MinIO của lab tắt.
 - [x] Docs.
 - [x] Thử thật (24/10/2026): `lab-ui` mở bốn URL, cả bốn thấy dữ liệu lab không qua đăng nhập; giết
-      tunnel thì UI, network và biến mật khẩu được dọn sạch. Ctrl+C trong một console thật chưa thử.
+      tunnel thì UI, network và biến mật khẩu được dọn sạch. Người dùng thử Ctrl+C trong một console
+      thật: dọn đúng.
 - [x] Một subagent review (24/10/2026); đã sửa: escape trong docstring test, báo đúng tham số SSM
       thiếu, nháy cho đường dẫn khoá có dấu cách, container dừng, mật khẩu chỉ vào môi trường quanh
       lệnh compose, tunnel cũ còn giữ cổng. Chạy lại `lab-ui` thật sau khi sửa: bốn UI lên, dọn sạch.
@@ -58,4 +59,4 @@ SSH tunnel; máy lab không chạy UI nào ngoài FE (người dùng chốt 24/1
 
 ## Status
 
-Xong phần code và thử thật (24/10/2026); còn người dùng thử Ctrl+C trong một console thật.
+Xong (24/10/2026).
