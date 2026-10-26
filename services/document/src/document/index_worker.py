@@ -16,10 +16,11 @@ import logging
 
 from arq.worker import func
 
-from contracts import INDEX_DOCUMENT_TASK
+from contracts import INDEX_DOCUMENT_TASK, READ_FORMULAS_TASK
 from document.config import get_settings
 from document.content_store import ContentStore
-from document.index.llm import claude_options, model_for
+from document.formula_handlers import read_formulas_job
+from document.index.llm import FORMULA_CLAUDE, claude_options, model_for
 from document.index_handlers import index_document
 from document.ocr_handlers import MAX_TRIES
 from document.ocr_worker import _redis_settings
@@ -34,17 +35,27 @@ _settings = get_settings()
 # luna ~2 s mỗi banner; tóm tắt ~90 nút với 8 lời gọi song song. Mười phút rộng gấp nhiều lần, và
 # `DocumentProgress` gửi ở mỗi chặng giữ chip khỏi *xử lý hỏng* trong lúc chờ.
 _JOB_TIMEOUT_SECONDS = 600
+# Đọc công thức có người chờ (`formulas-on-demand`): BE chờ có trần trong một lượt chat, nên job của
+# nó có trần riêng ngắn, giữ kết quả đủ lâu cho BE đọc, và không chạy lại -- lần thử thứ hai tới khi
+# BE đã thôi chờ. Hai task kia vẫn `keep_result = 0`.
+# Trần job rộng hơn `LLM_TIMEOUT_SECONDS` của một lời gọi (60): một lời gọi chạm trần của nó vẫn để
+# job kịp ghi những trang khác.
+# Giữ kết quả chỉ hơi dài hơn trần chờ của BE (`FORMULA_WAIT_SECONDS`, 15): BE đẩy job bằng
+# `_job_id` cố định, và arq từ chối id còn kết quả -- giữ lâu thì một lần xin lại (trang lỗi lẻ)
+# trong khoảng ấy chỉ nhận kết quả cũ, không đọc lại (review pha 3, `formulas-on-demand`).
+_FORMULA_TIMEOUT_SECONDS = 90
+_FORMULA_KEEP_RESULT_SECONDS = 20
 
 
 async def startup(ctx: dict) -> None:
-    """Mở kho nội dung, reader của object storage, và hai chat model.
+    """Mở kho nội dung, reader của object storage, và ba chat model.
 
     Mongo chưa lên thì worker chết ở đây, cùng lý do `document.ocr_worker`: một job không ghi được
     cây là một job phải ném rồi chờ.
 
     Args:
         ctx: Context worker của arq. Nhận `store`, `reader`, `jev_limit`, `banner_model`,
-            `summary_model`.
+            `summary_model`, `formula_model`, `formula_limit`.
 
     Raises:
         Exception: Khi Mongo không với tới được.
@@ -66,18 +77,25 @@ async def startup(ctx: dict) -> None:
         ctx["banner_model"] = banner
     if summary is not None:
         ctx["summary_model"] = summary
+    formula = model_for(
+        _settings, _settings.formula_provider, _settings.formula_model, claude=FORMULA_CLAUDE
+    )
+    if formula is not None:
+        ctx["formula_model"] = formula
+    ctx["formula_limit"] = asyncio.Semaphore(_settings.llm_concurrency)
     claude = ""
     if "anthropic" in {_settings.summary_provider, _settings.banner_provider}:
         options = claude_options(_settings.llm_thinking, _settings.llm_effort)
         claude = f" claude={options or 'model defaults'}"
     logger.info(
         "DOCUMENT INDEX worker ready: consuming=%s handing back to=%s jev=%s summary=%s "
-        "banner=%s%s",
+        "banner=%s formula=%s%s",
         _settings.document_index_queue_name,
         _settings.ingest_queue_name,
         _settings.jev_model if _settings.jev_api_key else "off (rules only)",
         f"{_settings.summary_provider}/{_settings.summary_model}" if summary else "off",
         f"{_settings.banner_provider}/{_settings.banner_model}" if banner else "off",
+        f"{_settings.formula_provider}/{_settings.formula_model}" if formula else "off",
         claude,
     )
 
@@ -96,7 +114,16 @@ async def shutdown(ctx: dict) -> None:
 class WorkerSettings:
     """Cấu hình worker dựng cây."""
 
-    functions = [func(index_document, name=INDEX_DOCUMENT_TASK)]
+    functions = [
+        func(index_document, name=INDEX_DOCUMENT_TASK),
+        func(
+            read_formulas_job,
+            name=READ_FORMULAS_TASK,
+            timeout=_FORMULA_TIMEOUT_SECONDS,
+            keep_result=_FORMULA_KEEP_RESULT_SECONDS,
+            max_tries=1,
+        ),
+    ]
     queue_name = _settings.document_index_queue_name
     redis_settings = _redis_settings()
     job_timeout = _JOB_TIMEOUT_SECONDS

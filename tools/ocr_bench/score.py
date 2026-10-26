@@ -402,6 +402,165 @@ def latex_distance(truth: str, read: str) -> float:
     return error_rate(normalise_latex(truth), normalise_latex(read))
 
 
+# Dấu nhân: sách in `2 . 3`, nhãn vàng gõ `\,.\,`, model gõ `\cdot` hay `\times`; dấu trừ in thành
+# gạch nối dài. Cùng nghĩa trong sách Toán phổ thông, nên thước lỏng gom chúng (khảo sát VLM
+# 11/10/2026 và đo lại 26/10/2026 đều chấm tay theo luật này).
+_LOOSE_SYNONYMS = (
+    (re.compile(r"\\mathrm(?![a-zA-Z])"), r"\\text"),
+    # `\text{?}`, `\text{( )}`, `\text{\{\ \}}`: chữ thường bọc quanh một ký hiệu không có chữ cái
+    # nào. Chạy **trước** khi gom dấu nhân, vì `\cdot` mang chữ cái.
+    (re.compile(r"\\text\{((?:[^{}A-Za-zÀ-ỹ\\]|\\[{} ])*)\}"), r"\1"),
+    (re.compile(r"\\,\.\\,|\\times(?![a-zA-Z])|×|·"), r"\\cdot "),
+    (re.compile(r"[–−]"), "-"),
+    (re.compile(r"\{\\([{}])\}"), r"\\\1"),
+)
+# Vỏ `aligned` và dấu `&` chỉ là cách dàn dòng. Xuống dòng thành `;` chứ không thành khoảng trắng:
+# khoảng trắng bị bỏ hết, và hai dòng `…\cdot 3` rồi `60 = …` dính thành `\cdot360` -- mất ranh giới
+# mà phép *nằm trong* cần.
+_LOOSE_LAYOUT = re.compile(r"\\begin\{aligned\}|\\end\{aligned\}|&")
+_LOOSE_NEWLINE = re.compile(r"\\\\")
+# Ranh giới của phép *nằm trong*: đầu, cuối, hay một dấu ngăn công thức.
+_FORMULA_EDGES = "=;,"
+# Chỗ một ô nhãn vàng nối hai công thức: `;`, khoảng `\quad`, hay chữ *và*, *hoặc* giữa hai vế --
+# chỉ ở **ngoài** mọi ngoặc, vì `;` cũng ngăn phần tử trong tập hợp `\{a; b\}`.
+_GOLD_JOINS = re.compile(r";|\\q?quad|\\text\{\s*(?:và|hoặc)\s*\}")
+_BRACES = re.compile(r"\\[{}]|[{}()\[\]]")
+# Ngưỡng của phép chấm công thức (khảo sát VLM 26/10/2026, plan `formulas-on-demand`).
+_FORMULA_SAME = 0.05
+_FORMULA_NEAR = 0.08
+_FORMULA_FAR = 0.6
+# Một ô vàng ngắn hơn ngần này ký tự (sau chuẩn hoá) không được tính là *nằm trong* một bản đọc dài
+# hơn: `a^{n}` nằm trong gần mọi bản đọc của trang luỹ thừa.
+_FORMULA_MIN_INSIDE = 8
+
+
+def normalise_latex_loose(latex: str) -> str:
+    """`normalise_latex`, cộng gom dấu nhân, dấu trừ, ngoặc `{\\{}` và vỏ `aligned`.
+
+    Đây là thước để **so model với model** khi chấm đọc công thức từ ảnh: nó bỏ những khác biệt
+    về cách gõ mà sách và người đánh nhãn không thống nhất. `normalise_latex` giữ nguyên, vì bảng
+    điểm OCR cũ dựa vào nó.
+
+    Args:
+        latex: Chuỗi LaTeX.
+
+    Returns:
+        Chuỗi đã chuẩn hoá, bỏ dấu chấm, chấm phẩy, phẩy ở cuối.
+    """
+    loose = latex
+    for pattern, instead in _LOOSE_SYNONYMS:
+        loose = pattern.sub(instead, loose)
+    loose = _LOOSE_NEWLINE.sub(";", _LOOSE_LAYOUT.sub(" ", loose))
+    return normalise_latex(loose).strip(".;,")
+
+
+def _inside(short: str, long: str) -> bool:
+    """`short` đứng trọn trong `long`, giữa hai ranh giới (`_FORMULA_EDGES` hay hai đầu). Hàm thuần.
+
+    Không có ranh giới thì `12345678` *nằm trong* `912345678` (review pha 1, `formulas-on-demand`).
+    """
+    start = long.find(short)
+    while start >= 0:
+        end = start + len(short)
+        before = start == 0 or long[start - 1] in _FORMULA_EDGES
+        after = end == len(long) or long[end] in _FORMULA_EDGES
+        if before and after:
+            return True
+        start = long.find(short, start + 1)
+    return False
+
+
+def _gold_parts(truth: str) -> list[str]:
+    """Các công thức một ô vàng nối lại, tách ở `_GOLD_JOINS` nằm ngoài mọi ngoặc. Hàm thuần."""
+    depth = 0
+    cuts: list[tuple[int, int]] = []
+    at = 0
+    while at < len(truth):
+        brace = _BRACES.match(truth, at)
+        if brace:
+            # Ngoặc lệch số (`a) x=1; b) x=2`) không được làm depth âm và nuốt mọi chỗ nối sau.
+            depth = depth + 1 if brace.group()[-1] in "{([" else max(0, depth - 1)
+            at = brace.end()
+            continue
+        join = _GOLD_JOINS.match(truth, at)
+        if join and depth == 0:
+            cuts.append(join.span())
+            at = join.end()
+            continue
+        at += 1
+    parts, start = [], 0
+    for begin, end in cuts:
+        parts.append(truth[start:begin])
+        start = end
+    parts.append(truth[start:])
+    return [part for part in parts if normalise_latex_loose(part)]
+
+
+def _unwrapped(latex: str) -> str:
+    """Bỏ một cặp ngoặc tròn bao trọn công thức: `(n \\in A)` là `n \\in A`."""
+    bare = normalise_latex_loose(latex)
+    if bare.startswith("(") and bare.endswith(")") and bare.count("(") == 1:
+        return bare[1:-1]
+    return bare
+
+
+def _loose_distance(truth: str, read: str) -> float:
+    return error_rate(_unwrapped(truth), _unwrapped(read))
+
+
+def formula_verdicts(gold: list[str], read: list[str]) -> list[str]:
+    """Chấm từng công thức vàng của một trang theo danh sách công thức model đọc ra.
+
+    Mỗi ô vàng nhận một nhãn:
+
+    - `khop`: một bản đọc trùng nó sau chuẩn hoá lỏng, hay chứa trọn nó (model gộp hai ô làm một);
+    - `tach`: ô vàng nối nhiều công thức, và mỗi mảnh khớp một bản đọc riêng -- đủ nội dung;
+    - `gan`: bản đọc gần nhất lệch không quá `_FORMULA_NEAR`;
+    - `lech`: có bản đọc tương ứng nhưng sai;
+    - `thieu`: không bản đọc nào đủ gần.
+
+    Bản đọc dư (công thức nội dòng nhãn vàng không ghi) không bị phạt: nhãn vàng chỉ ghi khối công
+    thức, còn lời dặn VLM xin mọi biểu thức trên trang.
+
+    Hai luật về việc **dùng lại** bản đọc: nhãn `khop` theo phép *nằm trong* và nhãn `tach` không
+    giữ bản đọc lại -- một bản đọc gộp hai ô phải phục vụ được cả hai ô; chỉ phép ghép theo khoảng
+    cách tiêu bản đọc, để hai ô không cùng ăn một bản đọc gần đúng. Ô vàng ngắn hơn
+    `_FORMULA_MIN_INSIDE` ký tự không bao giờ được nhận là nằm trong một bản đọc gộp.
+
+    Args:
+        gold: LaTeX nhãn vàng của trang, theo thứ tự đọc.
+        read: LaTeX model đọc ra.
+
+    Returns:
+        Một nhãn cho mỗi ô vàng, cùng thứ tự.
+    """
+    verdicts: list[str] = []
+    free = list(range(len(read)))
+    for truth in gold:
+        loose = normalise_latex_loose(truth)
+        parts = _gold_parts(truth)
+        if len(loose) >= _FORMULA_MIN_INSIDE and any(
+            _inside(loose, normalise_latex_loose(one)) for one in read
+        ):
+            verdicts.append("khop")
+            continue
+        if len(parts) > 1 and all(
+            any(_loose_distance(part, one) <= _FORMULA_SAME for one in read) for part in parts
+        ):
+            verdicts.append("tach")
+            continue
+        best = min(free, key=lambda index: _loose_distance(truth, read[index]), default=None)
+        far = 1.0 if best is None else _loose_distance(truth, read[best])
+        if best is None or far > _FORMULA_FAR:
+            verdicts.append("thieu")
+            continue
+        free.remove(best)
+        verdicts.append(
+            "khop" if far <= _FORMULA_SAME else "gan" if far <= _FORMULA_NEAR else "lech"
+        )
+    return verdicts
+
+
 def label_accuracy(truth: list[str], read: list[str]) -> float:
     """Chuỗi nhãn khối engine đoán được, so với chuỗi nhãn thật.
 

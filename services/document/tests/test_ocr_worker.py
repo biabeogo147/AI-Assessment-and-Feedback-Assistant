@@ -79,7 +79,14 @@ async def test_the_index_worker_loads_no_ocr_model_and_reads_its_own_queue(
     assert store.closed
 
     settings = index_worker.WorkerSettings
-    assert {function.name for function in settings.functions} == {"index_document"}
+    assert {function.name for function in settings.functions} == {"index_document", "read_formulas"}
+    # Chỉ đọc công thức có người chờ (`formulas-on-demand`): giữ kết quả, không chạy lại.
+    read = next(function for function in settings.functions if function.name == "read_formulas")
+    assert read.keep_result_s and read.max_tries == 1
+    # BE chờ có trần (`FORMULA_WAIT_SECONDS`); job không được treo lâu hơn nhiều so với trần ấy.
+    assert read.timeout_s == 90
+    assert settings.keep_result == 0
+    assert "formula_limit" in ctx
     assert settings.queue_name == index_worker.get_settings().document_index_queue_name
     assert settings.queue_name != worker.WorkerSettings.queue_name
     assert settings.max_jobs > 1

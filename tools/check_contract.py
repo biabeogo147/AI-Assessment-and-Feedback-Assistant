@@ -918,6 +918,57 @@ def check_the_model_text_passes_through_the_escape_repair() -> str | None:
             "comes back. That text must pass through restore_latex_escapes, or `\\frac` "
             "arrives as a form-feed and the teacher sees `$rac{1}{2}$` on screen (ADR-26).",
         )
+    return _document_formulas_are_repaired(repair)
+
+
+def _document_formulas_are_repaired(agent_copy: Path) -> str | None:
+    """`services/document` đọc công thức bằng VLM (plan `formulas-on-demand`): cùng bẫy JSON.
+
+    VLM trả một object JSON tự viết (như banner), không qua `with_structured_output`, nên luật
+    *"theo hành vi"* ở trên không thấy nó. Hai điều được canh bằng tên: `parse_formulas` của
+    `document/index/llm.py` gọi `restore_latex_escapes`, và bản chép `document/latex_escapes.py` --
+    hai service không import nhau -- trùng từng byte với bản của AGENT. Lệch một bên là một bên
+    sửa lỗi mà bên kia không.
+
+    Args:
+        agent_copy: `agent/latex_escapes.py`.
+
+    Returns:
+        None khi cả hai điều đúng, ngược lại là một thông báo thất bại.
+    """
+    document = REPO_ROOT / "services" / "document" / "src" / "document"
+    copy = document / "latex_escapes.py"
+    llm = document / "index" / "llm.py"
+    if not copy.exists() or copy.read_bytes() != agent_copy.read_bytes():
+        return _fail(
+            "escape-repair-is-wired-in",
+            f"{copy} must be a byte-for-byte copy of {agent_copy}: the two services cannot "
+            "import each other, and a fix made in one copy only leaves the other broken.",
+        )
+    tree = ast.parse(llm.read_text(encoding="utf-8"))
+    parse = next(
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "parse_formulas"
+        ),
+        None,
+    )
+    called = (
+        set()
+        if parse is None
+        else {
+            inner.func.id
+            for inner in ast.walk(parse)
+            if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
+        }
+    )
+    if "restore_latex_escapes" not in called:
+        return _fail(
+            "escape-repair-is-wired-in",
+            f"{llm}: parse_formulas is missing or never calls restore_latex_escapes, so a "
+            "formula the VLM wrote as `\\frac` reaches Kriky as a form-feed plus `rac`.",
+        )
     return None
 
 

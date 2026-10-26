@@ -46,10 +46,10 @@ lại; sympy lùi thành **3d**.
 | 2a | [`2026-10-08-document-service-text-layer-gate-plan.md`](2026-10-08-document-service-text-layer-gate-plan.md) | `GET /api/teacher/documents` trả `state` đi từ `processing` sang `ready` hoặc `no_text_layer`, và `page_count` khớp số trang thật | không |
 | 2b | [`2026-10-08-document-chip-four-states-plan.md`](2026-10-08-document-chip-four-states-plan.md) | một PDF scan làm **chip** đứng ở *không đọc được chữ*; Figma và FE đo bằng số thì khớp | không |
 | 2c | [`2026-10-08-ingest-service-split-plan.md`](2026-10-08-ingest-service-split-plan.md) | `services/ingest` **không import nổi một dòng nào** của `be` — `lint-imports` đỏ nếu thử — và một check đỏ khi schema bị dựng ngoài chỗ sở hữu nó | không |
-| 3a | [`2026-10-10-document-ocr-text-and-latex-plan.md`](../completed/2026-10-10-document-ocr-text-and-latex-plan.md) — **đóng 11/10/2026** | 50 trang SGK có nhãn vàng, và bộ đo nói chất lượng chữ Việt bằng **số**. Đổi hướng giữa chừng: upload **chỉ đọc chữ**; công thức đọc bằng VLM lúc ra đề (ba lựa chọn đã chốt, chưa viết code — xem `backlog.md`) | không |
+| 3a | [`2026-10-10-document-ocr-text-and-latex-plan.md`](../completed/2026-10-10-document-ocr-text-and-latex-plan.md) — **đóng 11/10/2026** | 50 trang SGK có nhãn vàng, và bộ đo nói chất lượng chữ Việt bằng **số**. Đổi hướng giữa chừng: upload **chỉ đọc chữ**; công thức đọc bằng VLM lúc ra đề -- làm ở plan [`2026-10-26-formulas-on-demand-plan.md`](../completed/2026-10-26-formulas-on-demand-plan.md) bằng Claude Haiku 5.5, không phải ba lựa chọn OpenAI đã chốt 11/10 | không |
 | 3b | [`2026-10-11-mongo-content-store-plan.md`](../completed/2026-10-11-mongo-content-store-plan.md) — MongoDB làm kho nội dung, bản thô vào Mongo — **đóng 11/10/2026**, mở lại cùng ngày để làm nốt Task 3: Mongo + bản thô của mọi tài liệu; PDF scan đi OCR theo lô (cuốn Lớp 6 tập 1, 125 trang, về *sẵn sàng* sau 9 phút) | một cuốn SGK scan tải lên qua màn hình giáo viên ra đủ trang trong Mongo, chip về *sẵn sàng* không qua *xử lý hỏng* | không |
 | 3c | [`2026-10-11-document-agent-hierarchy-plan.md`](../completed/2026-10-11-document-agent-hierarchy-plan.md) — *document agent* trong `services/document`: Jev xếp cấp, cây **ba cấp**, `gpt-4o-mini` tóm tắt, chip *sẵn sàng* chờ cây — **đóng 11/10/2026**: SGK Lớp 6 tập 1 ra 87 nút, P ≥ 97% mọi cấp; trên cuốn này luật gánh phần chính, Jev chưa hơn luật | một cuốn sách thật ra đủ chương, `get_chapter` trả metadata | **có** |
-| 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết* | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
+| 3d | sympy kiểm công thức **do VLM đọc lúc ra đề**, cùng bước LLM tự dựng lại — *chưa viết*. Từ 26/10/2026 tách đôi: phần VLM đọc công thức là [`2026-10-26-formulas-on-demand-plan.md`](../completed/2026-10-26-formulas-on-demand-plan.md); sympy để sau (người dùng chốt 26/10/2026, `backlog.md`) | một công thức VLM đọc sai bị bắt, và bản sửa không vượt trần khoảng cách sửa | **có** |
 | 4a | [`2026-10-12-kriky-skill-routing-plan.md`](../completed/2026-10-12-kriky-skill-routing-plan.md) — Jev **trong AGENT** chọn skill cho Kriky; prompt gốc thành lõi + ba skill quy trình, `known` trước `kind` — **đóng 12/10/2026** | recall của skill `soan-de` và `lop-va-ket-qua` bằng 100% trên bộ nhãn, và Kriky không kém hôm nay trên trình duyệt | **có** |
 | 4b | [`2026-10-12-draft-from-document-plan.md`](../completed/2026-10-12-draft-from-document-plan.md) — **đóng 12/10/2026** — soạn đề theo tài liệu: chip đi kèm tin nhắn, tool đọc cây, `ask_clarify` bằng tên chương/bài, mỗi câu một ô kiến thức | mười câu của một đề đứng trên mười ô kiến thức khác nhau của tài liệu | **có** |
 | 4c | [`2026-10-12-unbiased-model-text-plan.md`](../completed/2026-10-12-unbiased-model-text-plan.md) — **đóng 13/10/2026** — text model đọc không bám một chương Toán (Kriky lẫn document agent); Kriky không hỏi thừa khi đủ bốn mục; câu hỏi lại có ít nhất ba lựa chọn, lối "Khác" là ô ghi rõ; soạn đề theo tài liệu không chip đọc mục lục trước khi mở đề | `propose_bench` cả bộ không tụt so với baseline (127/132), không text model đọc gọi tên chủ đề Toán nào; cây Lớp 6 tập 1 không tụt | **có** |
@@ -349,7 +349,7 @@ HTTP ghi một hàng).
 - [x] **Plan 2b — chip bốn trạng thái** (Figma trước, rồi FE)
 - [x] **Plan 2c — `services/ingest`, service thứ năm** (không mã pipeline; dọn nợ của 2a)
 - [x] **Plan 3a — OCR ra chữ** (không mã pipeline; nó là bước SGK scan bắt buộc phải có). Đóng
-      11/10/2026; LaTeX chuyển sang VLM lúc ra đề, phần chưa làm nằm ở `backlog.md`
+      11/10/2026; LaTeX chuyển sang VLM lúc ra đề, làm ở plan `formulas-on-demand` (26/10/2026)
 - [x] **Plan 3b — Mongo làm kho nội dung, OCR vào luồng upload** (không mã pipeline; nền của 3c).
       Đóng 11/10/2026 sau Task 2, rồi mở lại cùng ngày theo lời người dùng và làm nốt Task 3: PDF
       scan đi OCR theo lô vào Mongo. Nợ còn lại ở `backlog.md`, mục *Nợ của plan 3b*
@@ -357,6 +357,9 @@ HTTP ghi một hàng).
       11/10/2026; cổng đạt một nửa -- đủ chương, còn `get_chapter` thuộc plan 5. Nợ ở `backlog.md`,
       mục *Nợ của plan 3c*
 - [ ] **Plan 3d — sympy kiểm công thức** (không mã pipeline)
+  - [x] Phần VLM: `2026-10-26-formulas-on-demand-plan.md` -- `read_section` kèm công thức Haiku đọc
+        từ ảnh trang, cache `page_formulas`. Đóng 26/10/2026
+  - [ ] sympy và vòng sửa -- để sau, `backlog.md` mục *sympy kiểm công thức*
 - [x] **Plan 4a — Jev chọn skill cho Kriky, prompt thành lõi + skill** (mã **C4**). Đóng
       12/10/2026; soạn đề đủ mục nêu plan ~4/6 lần (trước 0/8), nợ ở Status của plan
 - [x] **Plan 4b — soạn đề theo tài liệu** (đóng **B10** cùng plan 5). Đóng 12/10/2026: SGK Lớp 6, mười

@@ -10,6 +10,7 @@ from ocr_bench.score import (
     align,
     cer,
     diacritic_error_rate,
+    formula_verdicts,
     has_mark,
     label_accuracy,
     latex_distance,
@@ -18,6 +19,7 @@ from ocr_bench.score import (
     match_blocks,
     missing_words,
     normalise_latex,
+    normalise_latex_loose,
     order_inversions,
     wer,
     without_marks,
@@ -176,6 +178,61 @@ def test_latex_distance_tells_one_wrong_character_from_a_ruined_read() -> None:
     ruined = latex_distance("P(x)=R(x)-C(x)", "lap-100=")
     assert 0.0 < nearly < 0.15
     assert ruined > 0.5
+
+
+def test_the_loose_ruler_reads_the_book_multiplication_dot_as_cdot() -> None:
+    """Sách in `2 . 3`, nhãn vàng gõ `\\,.\\,`, model gõ `\\cdot`: cùng một phép nhân."""
+    assert normalise_latex_loose(r"1 + 2 \,.\, 3^2 = 19.") == normalise_latex_loose(
+        r"1 + 2 \cdot 3^{2} = 19"
+    )
+    # Vỏ `aligned` và `&` bỏ; xuống dòng giữ thành `;` để phép *nằm trong* còn ranh giới.
+    assert normalise_latex_loose(r"\begin{aligned} a &= b \\ &= c \end{aligned}") == "a=b;=c"
+
+
+def test_a_misread_divides_sign_is_still_wrong_under_the_loose_ruler() -> None:
+    """`⋮` (chia hết) đọc thành `:` (chia) đổi nghĩa -- thước lỏng không được tha nó."""
+    gold = [r"\text{Nếu } a \vdots b \text{ thì } \mathrm{ƯCLN}(a, b) = b."]
+    assert formula_verdicts(gold, [r"\text{Nếu } a : b \text{ thì } \text{ƯCLN}(a, b) = b"]) == [
+        "lech"
+    ]
+
+
+def test_a_gold_cell_read_as_two_formulas_counts_as_split_not_missing() -> None:
+    """Một ô vàng nối hai công thức bằng *và*; `;` trong tập hợp không phải chỗ nối."""
+    gold = [r"A = \{a;\ b\} \text{ và } B = \{b;\ d\}."]
+    assert formula_verdicts(gold, [r"A = \{a; b\}", r"B = \{b; d\}"]) == ["tach"]
+    # Nửa ô vàng không ai đọc: không được tính là đủ.
+    assert formula_verdicts(gold, [r"A = \{a; b\}"]) == ["thieu"]
+
+
+def test_text_around_a_symbol_is_unwrapped_but_text_around_words_is_not() -> None:
+    """Haiku đọc dãy ngoặc trang 26 thành `\\text{\\{\\ \\}}`: cùng ký hiệu, chỉ khác cách gõ."""
+    gold = [r"(\ ) \rightarrow [\ ] \rightarrow \{\ \}."]
+    read = [r"\text{( )} \rightarrow \text{[ ]} \rightarrow \text{\{\ \}}"]
+    assert formula_verdicts(gold, read) == ["khop"]
+    assert normalise_latex_loose(r"\mathrm{?}") == "?"
+    assert normalise_latex_loose(r"\text{ƯCLN}") == r"\text{ƯCLN}"
+
+
+def test_inside_needs_a_boundary_on_both_ends() -> None:
+    assert formula_verdicts([r"12345678"], [r"912345678"]) != ["khop"]
+    assert formula_verdicts([r"12345678"], [r"x = 12345678"]) == ["khop"]
+
+
+def test_an_unbalanced_bracket_does_not_hide_the_joins_after_it() -> None:
+    gold = [r"a) x = 10; b) y = 20"]
+    assert formula_verdicts(gold, [r"a) x = 10", r"b) y = 20"]) == ["tach"]
+
+
+def test_two_gold_cells_merged_into_one_read_are_both_found() -> None:
+    gold = [r"24 = 2^{3} \cdot 3;", r"60 = 2^{2} \cdot 3 \cdot 5."]
+    read = [r"\begin{aligned}24 &= 2^3 \cdot 3\\60 &= 2^2 \cdot 3 \cdot 5\end{aligned}"]
+    assert formula_verdicts(gold, read) == ["khop", "khop"]
+
+
+def test_extra_inline_reads_are_not_punished_and_nothing_read_is_missing() -> None:
+    assert formula_verdicts([r"x + 1 = 2"], [r"n \in \mathbb{N}", r"x + 1 = 2"]) == ["khop"]
+    assert formula_verdicts([r"x + 1 = 2"], []) == ["thieu"]
 
 
 def test_label_accuracy_forgives_one_merge_instead_of_blaming_everything_after_it() -> None:

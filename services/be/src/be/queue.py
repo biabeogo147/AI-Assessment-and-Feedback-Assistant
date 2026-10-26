@@ -6,8 +6,11 @@ arq. Nó không bao giờ import package AGENT: tên task là một hằng trong
 trên code.
 """
 
+import asyncio
+
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
+from arq.jobs import Job, JobStatus
 
 from be.config import Settings
 from contracts import (
@@ -93,3 +96,64 @@ async def enqueue_probe(
     if job is None:
         raise RuntimeError(f"arq refused to enqueue document {request.document_id}")
     return job.job_id
+
+
+# Nhịp hỏi trạng thái một job đang chờ. Chung cho AGENT và `services/document`.
+POLL_SECONDS = 0.2
+
+
+class JobFailed(RuntimeError):
+    """Một job BE đang chờ không cho ra kết quả: queue từ chối, hết giờ, hay job hỏng."""
+
+
+async def run_job(
+    pool: ArqRedis,
+    queue_name: str,
+    task_name: str,
+    payload: dict,
+    timeout: float,
+    job_id: str | None = None,
+) -> dict:
+    """Đẩy một job rồi chờ kết quả của nó, có trần.
+
+    Một chỗ cho mọi lần BE chờ một job: lượt chat chờ AGENT (`agent_gateway.run_task`), và
+    `read_section` chờ `services/document` đọc công thức (`formulas-on-demand`). Worker phải giữ
+    kết quả (`keep_result`), không thì job xong mà không ai đọc được gì.
+
+    Args:
+        pool: Pool arq đã kết nối.
+        queue_name: Queue của bên tiêu thụ.
+        task_name: Một hằng tên task trong `contracts`.
+        payload: Message yêu cầu đã serialise.
+        timeout: Trần giây chờ.
+        job_id: Id cố định khi hai lần xin giống nhau phải gặp **một** job: arq từ chối job thứ hai
+            cùng id, và lần xin sau chờ chính job đang chạy thay vì bắn thêm một lần.
+
+    Returns:
+        Kết quả của job.
+
+    Raises:
+        JobFailed: Khi queue từ chối, job không xong trong `timeout`, hay job hỏng.
+
+    Side effects:
+        Ghi một job lên queue Redis.
+    """
+    fixed = {} if job_id is None else {"_job_id": job_id}
+    job = await pool.enqueue_job(task_name, payload, _queue_name=queue_name, **fixed)
+    if job is None and job_id is not None:
+        job = Job(job_id, redis=pool, _queue_name=queue_name)
+    if job is None:
+        raise JobFailed(f"arq refused task {task_name}")
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        status = await job.status()
+        if status is JobStatus.complete:
+            finished = Job(job.job_id, redis=pool, _queue_name=queue_name)
+            info = await finished.result_info()
+            if info is None or not info.success:
+                raise JobFailed(f"task {task_name} failed")
+            return info.result
+        await asyncio.sleep(POLL_SECONDS)
+    raise JobFailed(f"task {task_name} did not finish in {timeout}s")

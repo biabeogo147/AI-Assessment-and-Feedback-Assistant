@@ -200,6 +200,9 @@ def test_no_rule_of_the_old_prompt_fell_between_core_and_skills(rule: str) -> No
         "call_tool list_chapters — document_id",
         "call_tool read_section — document_id, nodes",
         "công thức trong dàn ý là bạn tự viết",
+        # `formulas-on-demand`: phần đọc có thể kèm công thức Haiku đọc từ ảnh trang; dàn ý chép
+        # chúng thay vì tự viết (hậu ký ADR-29, 26/10/2026).
+        "formulas chép công thức của khối ấy",
         "create_draft thêm document_id và nodes",
         # `unbiased-model-text` T2b: chương không có trong sách thì model lấy một chương khác thay
         # vào (run-25).

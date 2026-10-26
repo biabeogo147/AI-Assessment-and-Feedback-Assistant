@@ -23,12 +23,14 @@ from contracts import (
     IndexHeader,
     IndexMethod,
     IndexNode,
+    PageFormulas,
     RawBlock,
     RawDocument,
     RawPage,
     RawSource,
     TitleSource,
     chunk_key,
+    formula_key,
     label_key,
     node_key,
     page_key,
@@ -276,7 +278,7 @@ class _Logged:
 def _logged_store(log: list[str], raw_started_at: datetime | None = _AT) -> ContentStore:
     """Một kho giả có đầu mục bản thô mang `raw_started_at` (cắt mili giây như Mongo giữ)."""
     store = ContentStore("mongodb://127.0.0.1:1", "unused")
-    names = ("pages", "indexes", "nodes", "chunks", "block_labels")
+    names = ("pages", "indexes", "nodes", "chunks", "block_labels", "page_formulas")
     store._db = {name: _Logged(name, log) for name in names}
     raw = []
     if raw_started_at is not None:
@@ -363,7 +365,23 @@ async def test_reading_a_document_again_kills_its_index() -> None:
     store = _logged_store(log)
     await store.begin(RawDocument(document_id="doc-1", source=RawSource.OCR, started_at=_AT))
     assert log[:4] == ["delete indexes", "delete nodes", "delete chunks", "delete block_labels"]
-    assert log[4:] == ["delete pages", "replace documents"]
+    # Công thức đọc từ ảnh theo bản thô (`formulas-on-demand`): đọc lại tài liệu thì chết theo.
+    assert log[4:] == ["delete pages", "delete page_formulas", "replace documents"]
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_the_formulas_of_a_few_pages_go_in_one_round_trip_keyed_by_page() -> None:
+    log: list[str] = []
+    store = _logged_store(log)
+    rows = [
+        PageFormulas(document_id="doc-1", page=n, model="m", formulas=("x",), read_at=_AT)
+        for n in (3, 4)
+    ]
+    await store.put_formulas(rows)
+    await store.put_formulas([])
+    assert log == ["bulk page_formulas 2"]
+    assert index_document(rows[0])["_id"] == formula_key("doc-1", 3)
     await store.close()
 
 

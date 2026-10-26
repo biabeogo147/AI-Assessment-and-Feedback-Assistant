@@ -16,6 +16,7 @@ from arq.connections import ArqRedis
 from arq.jobs import Job, JobStatus
 
 from be.config import Settings
+from be.queue import JobFailed, run_job
 from contracts import (
     GENERATE_RETRY_QUESTION_TASK,
     GeneratedQuestion,
@@ -24,8 +25,6 @@ from contracts import (
 )
 
 logger = logging.getLogger(__name__)
-
-_POLL_SECONDS = 0.2
 
 # Một lần đọc channel stream chờ bao lâu trước khi vòng lặp quay lại nhìn job. Nhỏ đủ
 # để việc job xong được nhận ra ngay, lớn đủ để một stream đang rỗi không thành một
@@ -68,23 +67,16 @@ async def run_task(
     """
     if pool is None:
         raise AgentError("hàng đợi chưa sẵn sàng")
-
-    job = await pool.enqueue_job(task_name, payload, _queue_name=settings.agent_queue_name)
-    if job is None:
-        raise AgentError(f"arq refused task {task_name}")
-
-    deadline = asyncio.get_running_loop().time() + settings.agent_job_timeout_seconds
-    while asyncio.get_running_loop().time() < deadline:
-        status = await job.status()
-        if status is JobStatus.complete:
-            finished = Job(job.job_id, redis=pool, _queue_name=settings.agent_queue_name)
-            info = await finished.result_info()
-            if info is None or not info.success:
-                raise AgentError(f"task {task_name} failed inside AGENT")
-            return info.result
-        await asyncio.sleep(_POLL_SECONDS)
-
-    raise AgentError(f"task {task_name} did not finish in {settings.agent_job_timeout_seconds}s")
+    try:
+        return await run_job(
+            pool,
+            settings.agent_queue_name,
+            task_name,
+            payload,
+            settings.agent_job_timeout_seconds,
+        )
+    except JobFailed as exc:
+        raise AgentError(f"{exc} (AGENT)") from exc
 
 
 async def stream_task(

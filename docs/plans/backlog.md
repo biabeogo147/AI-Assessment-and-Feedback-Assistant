@@ -439,34 +439,6 @@ biệt hai lớp trước khi sympy được gọi.
   học nào kêu lên được. Lưới cho hình dạng ấy phải so với **ảnh của khối**, không so với **toán** —
   tức nó là một việc khác hẳn, và gộp nó vào vòng sympy là tự lừa mình.
 
-## Đọc công thức bằng VLM lúc ra đề — việc còn lại của plan 3a
-
-Ghi ngày 11/10/2026, khi plan 3a đóng. Chi tiết, số đo và lý do nằm ở `Status` của
-`completed/2026-10-10-document-ocr-text-and-latex-plan.md`.
-
-Đường upload giờ **chỉ đọc chữ**. Công thức được đọc lúc ra đề, chỉ ở phần tài liệu được tham chiếu,
-bằng VLM của OpenAI trên **cả ảnh trang**. Người dùng chốt ba lựa chọn: `gpt-4.1-mini` (mặc định,
-nhanh nhất), `gpt-5.6-luna` (chính xác nhất trên mẫu 19 công thức, chậm 2,6 lần), `gpt-6-luna` (rẻ
-nhất). Chưa dòng code nào của đường này được viết.
-
-| Việc | Cái gì đang chặn |
-| --- | --- |
-| `agent/vision.py` + `vision_provider`/`vision_model` trong `agent/config.py` + `vision_model()` trong `llm.py`; structured output; đi qua bước sửa thoát ký tự; test không gọi mạng | không gì -- hướng đã chốt ở plan duyệt 11/10/2026 |
-| Prompt cho `⋮` (`\vdots`, không phải `:`) và `\underbrace`, đo lại 5 trang của `data/results/run-5` | không gì; dưới 1 cent |
-| Thước công thức chuẩn hoá mạnh + ghép phủ-đủ vào `tools/ocr_bench/score.py`, có test | không gì -- hiện chỉ ở script khảo sát ngoài repo |
-| Benchmark 50 trang cho ba lựa chọn (≈ $0,13) | người dùng cho phép (lệ đặt 11/10/2026: chi phí báo trước, benchmark sau) |
-| Nối vào lúc ra đề: chunk → dải trang, message mới, byte ảnh đi `document` → AGENT, cache theo trang | plan 3c (chưa có chunk) |
-
-**Ba cái bẫy đã đo, phải mang vào thiết kế:**
-
-- **JSON nuốt dấu `\` của LaTeX.** `gpt-4.1-nano` trả `\text` không thoát, nên `\t` thành tab; cùng
-  bẫy biến `\frac`, `\neq` thành ký tự điều khiển. Repo đã có bước sửa cho chữ model trả về và một check
-  canh nó (`check_the_model_text_passes_through_the_escape_repair`).
-- **`gpt-4o-mini` -- model chat đang dùng -- không hợp cho ảnh**: 36 890 token cho một trang, gấp ~15
-  lần các model khác, và đọc sai `ƯCLN`. Đường vision phải có model riêng, không mượn `LLM_MODEL`.
-- **Gửi ảnh trang SGK ra OpenAI** là điều người dùng đã chấp nhận khi chọn GPT vision; ghi ra để plan
-  nối đường không phải hỏi lại, nhưng cũng không quên nó.
-
 ## Paddle chưa có seam, và lỗ đã rộng ba file
 
 Ghi ngày 10/10/2026, từ review Task 4 của plan 3a.
@@ -916,3 +888,29 @@ mọi lượt soạn, đúng tiến độ; model không gọi `last_plan` lần 
 | **Xin 12 câu: model nêu dàn ý 12 câu hai lần**, BE chặn cả hai, giáo viên chỉ thấy *"Kriky chưa nêu được dàn ý cho đề này. Bạn hãy thử lại nhé!"*, không một lời nào về trần 10 (case 08) | Cùng mục *`vuot-tran-12-cau` 0/6* ở trên; nay hỏng nặng hơn: không còn lời nào cho giáo viên |
 | **Lời tra lớp lạc đề hay hứa**: case 11 bấm *12A* mà câu trả lời còn kể *"Lớp 12B hiện chưa có học sinh nào"*; case 12 kết *"Khi các em bắt đầu nộp, mình sẽ tổng hợp điểm trung bình cho bạn."* (Kriky không tự làm gì sau lượt, tool không trả điểm trung bình) | Tier 4, skill `lop-va-ket-qua` |
 | **Câu kết lặp chữ *Đề***: *"Đề **Đề Hàm số** đã có đủ 6/6 câu…"* -- tên đề BE đặt đã bắt đầu bằng *Đề*. Mọi câu kết còn kèm *"không còn câu nào đang soạn"* dù không ai hỏi | Skill `soan-de` bước 6: gọi đề bằng tên trong ngoặc, hay *"đề …"* viết thường |
+
+## Lộ ra khi làm plan công thức đọc bằng Haiku khi cần (26/10/2026)
+
+Plan `2026-10-26-formulas-on-demand-plan.md`. Plan này thay mục cũ *Đọc công thức bằng VLM lúc ra
+đề*, tức hướng `agent/vision.py` + OpenAI của plan 3a:
+
+- công thức nay do `services/document` đọc bằng Claude Haiku 5.5;
+- chỉ đọc khi `read_section` chạm trang có khối `formula`;
+- kết quả cache ở `page_formulas`.
+
+Biên bản: `docs/testing/ket-qua/2026-10-26-dc9035e-claude-haiku-5-5.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Job công thức chung `max_jobs=4` với `index_document`**: lúc nhiều cuốn đang dựng cây, `read_formulas` nằm chờ quá `FORMULA_WAIT_SECONDS`, nên phần đọc chỉ có chữ và `formulas_pending` (đã ghi ở docstring `formula_handlers`) | Cho task có người chờ một queue riêng, hay một worker thứ ba; đo khi có giáo viên thứ hai tải sách cùng lúc |
+| **`formula_limit` cộng `llm_concurrency`**: hai semaphore riêng, nên lúc job dựng cây và job công thức cùng chạy, số lời gọi model bay cùng lúc có thể gấp đôi trần đã đặt | Đặt một trần chung cho cả worker index; chưa thấy chạm rate limit Anthropic |
+| **Nhánh *max retries exceeded* của arq bỏ qua `keep_result` riêng của task**: `max_tries=1` nên chưa gặp; ai nâng nó lên thì kết quả lần hỏng giữ theo trần chung | Đọc mã arq trước khi đổi `max_tries` |
+| **`_job_id` cố định + `keep_result=20`** (review pha 3), hai ca chưa gặp ở thử tay. (1) Trong 20 s sau một job, lần xin lại một trang lỗi lẻ (model hỏng, trang không có hàng) nhận kết quả cũ: trả `formulas_pending` mà không có gì đang chạy. (2) Kết quả hết hạn đúng giữa lúc `enqueue` trả None và lúc gọi `status()`: poll trọn 15 s cho không | Khi `status` là `complete` hay `not_found` thì xoá result key rồi enqueue lại |
+| **Haiku đọc cả số và chú thích thành công thức**: trang 20 có `$215$`, `$902$`, *"1 tròn = 2^1 trắng"*, tổng 38 công thức một trang. Nhiễu, chiếm chỗ của `_FORMULA_CHARS` | Sửa `_FORMULA_PROMPT` để chỉ lấy biểu thức có phép toán hay dấu so sánh; đo lại bằng `tools/ocr_bench/vision.py` trước khi đổi |
+| **Lỗi nội dung thật của Haiku** trên 24 trang vàng `run-102`: trang 38 thiếu cả dòng `\underbrace`; trang 50 đọc `B(6)` thành `B()` | Giáo viên duyệt dàn ý; sympy (plan 3d phần sau) không bắt được chỗ thiếu |
+| **Hai chỗ đổi chữ ở `AGENT` chưa đo bench, mới thử tay case 04, 06, 17** (review pha 4): câu *công thức của sách* ở `CORE`, nay tới cả lượt không có sách; và bước 4 của `BOOK_PROCEDURE` | Chạy lại các ca sách của `tools/propose_bench` (tốn tiền model thật, phải xin phép) |
+| **Trang 21 có khối `formula` mà không đoạn chữ nào của bài *Luỹ thừa* phủ tới**: `nodes` ghi bài kéo tới trang 21, nhưng `chunks` của node 14 dừng ở trang 20, nên công thức trang 21 không bao giờ được xin cho bài ấy | `document/index`: so dải trang của chunk với của node; xem trang 21 có chữ nào không |
+| **`brief` rỗng ở 4/5 dàn ý của lần chạy 26/10** (chỉ dàn ý soạn thêm của case 06 có, nhờ lấp từ đề; cùng mục *Dàn ý lưu `brief` rỗng…* của plan Tier 1): case 04 gõ `oke` hai lần không ra plan, phải nói lại môn và khối | Tier 2 câu 24 (ba hướng A/B/C đã nêu ở mục Tier 1) |
+| **Case 04 hỏi lại hai lần**: hỏi chương dù sách chỉ một chương và giáo viên đã nói *chương 1*, rồi hỏi bài. Bảng rẽ của case chấp nhận được, nhưng thừa hai lượt | Tier 4, skill `soan-de` / `BOOK_PROCEDURE` bước 2 |
+| **Nguồn bài viết bằng thứ tự, không bằng tên** (case 17): *"Nguồn: bài 1, mục 1 của chương"*, dù `labels` có tên bài | `CORE` đã dặn *gọi bằng tên bài*; Tier 4 |
+| **Thử tay vượt ước chi phí**: ước ≤ 0,05 USD, thật 0,20–0,28 USD. Tổng 531 nghìn token chat, riêng case 04 291 nghìn (hai lần hỏi lại, hai dàn ý, một lượt rẽ); phần VLM chỉ ~0,005 USD | Ước chi phí thử tay phải tính cả case 04 đọc trọn chương (~350 nghìn token), không chỉ phần mới. Truy vấn D của case 17 lúc đầu dùng `documents.filename` của Mongo (không có trường ấy); đã sửa sang id từ Postgres |

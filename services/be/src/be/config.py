@@ -28,6 +28,9 @@ class Settings(BaseSettings):
             tiêu thụ nó. Đặt tên theo **bên tiêu thụ** chứ không theo công việc, vì
             `aiafa:grading` đã mục ruỗng đúng theo cách kia: tên nói về chấm bài và
             nay chở sáu task và không task nào chấm bài.
+        document_index_queue_name: Queue của *document agent* (`services/document`
+            `index_worker`). BE chỉ đẩy vào đây việc đọc công thức trên ảnh trang và **chờ**
+            nó (`formulas-on-demand`); dựng cây do chính `services/document` tự giao.
         document_stale_after_seconds: Một tài liệu đứng ở `processing` bao lâu thì
             coi là job đã chết. Áp **lúc đọc**, không ghi gì -- một process đi canh
             những process đã chết thì cũng chết được y như vậy.
@@ -83,6 +86,10 @@ class Settings(BaseSettings):
             giây (`draft-outline`, ADR-29): giáo viên xin N câu thì phạm vi gộp thành tối đa N phần,
             và Kriky phải đọc hết chúng trong một lượt mà vẫn còn bước để nộp dàn ý. Trần cứng là
             `max_tool_steps` cộng mười phần -- trần mười câu mỗi lần xin.
+        formula_wait_seconds: `read_section` chờ `services/document` đọc công thức trên ảnh các
+            trang chưa có trong cache tối đa bao lâu (`formulas-on-demand`). Hết trần thì phần đọc
+            chỉ có chữ, job vẫn chạy và lấp cache cho lần sau. Lượt được thêm đúng số giây đã
+            chờ. Đo 26/10/2026: Claude Haiku 5.5 2--4 s một trang, các trang chạy song song.
         turn_lock_stale_seconds: Một khoá "đoạn chat này đang chạy một lượt" được coi
             là quá hạn sau bao lâu. Đường nhả khoá bình thường nằm trong `finally` và có
             `shield` nên nó sống qua cả một lần ngắt kết nối; mức này là lưới cuối cho ca
@@ -100,6 +107,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     agent_queue_name: str = "aiafa:grading"
     document_queue_name: str = "aiafa:document"
+    document_index_queue_name: str = "aiafa:document-index"
     document_stale_after_seconds: int = 300
     database_url: str = "postgresql+asyncpg://aiafa:aiafa@127.0.0.1:5432/aiafa"
     minio_endpoint: str = "127.0.0.1:9000"
@@ -118,6 +126,7 @@ class Settings(BaseSettings):
     max_tool_steps: int = 8
     turn_budget_seconds: float = 90.0
     read_step_seconds: float = 10.0
+    formula_wait_seconds: float = 15.0
     turn_lock_stale_seconds: int = 600
     log_level: str = "INFO"
 

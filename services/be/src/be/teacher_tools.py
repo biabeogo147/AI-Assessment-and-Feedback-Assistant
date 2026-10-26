@@ -33,6 +33,8 @@ Hai luật mà mọi tool đều tuân theo:
   credential nào của database.
 """
 
+import asyncio
+import contextlib
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -60,10 +62,20 @@ from be.drafting import (
 from be.identity import Asking
 from be.outline import MOST_QUESTIONS_ASKED
 from be.plan_outcomes import plan_summary
+from be.queue import JobFailed, run_job
 from be.resolve import Candidate, capped, classes_with_counts, normalise
 from be.titles import clipped, default_title
 from be.toc import heading, parts, scope_of, title_path
-from contracts import DocumentState, IndexNode, PlanStep, ToolSpec
+from contracts import (
+    MOST_FORMULA_PAGES,
+    READ_FORMULAS_TASK,
+    DocumentState,
+    FormulaReadRequested,
+    IndexNode,
+    PageFormulas,
+    PlanStep,
+    ToolSpec,
+)
 from schema.models import (
     Assessment,
     Attempt,
@@ -121,8 +133,9 @@ class Running:
     Attributes:
         session: Session của database.
         asking: Ai đang hỏi. Mọi query đều filter theo `asking.teacher_id`.
-        pool: Pool của arq, hoặc None khi không với tới được queue. Chỉ các tool ghi
-            đọc nó.
+        pool: Pool của arq, hoặc None khi không với tới được queue. Các tool ghi đọc nó, và
+            `read_section` dùng nó xin đọc công thức (`formulas-on-demand`); None thì phần đọc chỉ
+            có chữ.
         settings: Settings của process, cung cấp tên queue.
         outline: Dàn ý giáo viên đã xem mà bước này soạn theo (ADR-29, `draft-outline`) -- chính
             `tool_result` của lượt dàn ý, do cổng duyệt của vòng lượt tìm ra. `None` khi lượt
@@ -870,6 +883,12 @@ _SUMMARY_CHARS = 200
 # một chương dài sẽ nhét cả chương vào một bước. Phần vượt trần thì **mỗi đơn vị** bị cắt theo tỉ lệ
 # độ dài của nó, giữ phần đầu -- định nghĩa và ví dụ mẫu thường đứng đầu bài.
 _PART_CHARS = 8000
+# Trần chữ của các khối *công thức đọc từ ảnh* của **cả một phần đọc** (`formulas-on-demand`), chia
+# đều cho các đơn vị: một trang dày công thức là ~30 công thức ngắn; trần giữ phần đọc khỏi phình.
+_FORMULA_CHARS = 3000
+# Khoá trong kết quả `read_section` chở số giây đã chờ `services/document` đọc công thức. Vòng lượt
+# gỡ nó ra trước khi kết quả vào lịch sử, để cộng đúng chừng ấy giây cho lượt; model không thấy nó.
+FORMULA_SECONDS = "formula_seconds"
 _NO_SUCH_DOCUMENT = {
     "found": False,
     "reason": "không có tài liệu sẵn sàng nào như vậy trong thư viện của bạn",
@@ -1081,8 +1100,68 @@ def _units(every: list[IndexNode], chunks: list, scope: list[int]) -> list[tuple
     return [(ordinal, owned[ordinal]) for ordinal in sorted(owned)]
 
 
-def _part_text(every: list[IndexNode], units: list[tuple[int, list[str]]]) -> str:
-    """Chữ một phần đọc: mỗi đơn vị một dòng tiêu đề rồi chữ của nó, cắt theo `_PART_CHARS`."""
+def _unit_pages(chunks: list, ordinals: list[int]) -> dict[int, list[int]]:
+    """Trang tệp của từng đơn vị đọc, theo `page_start`..`page_end` của các đoạn của nó. Hàm thuần.
+
+    Một trang chung hai đơn vị chỉ thuộc đơn vị **đầu**: công thức của trang ấy in một lần.
+    """
+    seen: set[int] = set()
+    pages: dict[int, list[int]] = {}
+    for ordinal in ordinals:
+        own = sorted(
+            {
+                page
+                for chunk in chunks
+                if chunk.node_ordinal == ordinal
+                for page in range(chunk.page_start, chunk.page_end + 1)
+            }
+            - seen
+        )
+        seen.update(own)
+        pages[ordinal] = own
+    return pages
+
+
+def _formula_block(pages: list[int], read: dict[int, PageFormulas], room: int) -> str:
+    """Khối *công thức đọc từ ảnh* của một đơn vị, `""` khi không trang nào có. Hàm thuần.
+
+    Cắt ở ranh giới **công thức** khi quá `room` ký tự: cắt giữa chừng để lại một `$` lẻ, và
+    nửa công thức là công thức sai (review pha 3, `formulas-on-demand`).
+    """
+    lines: list[str] = []
+    used = 0
+    cut = False
+    for page in pages:
+        row = read.get(page)
+        if row is None or not row.formulas or cut:
+            continue
+        kept: list[str] = []
+        for one in row.formulas:
+            piece = f"${one}$"
+            if used + len(piece) > room:
+                cut = True
+                break
+            kept.append(piece)
+            used += len(piece) + 2
+        if kept:
+            lines.append(f"Trang {page}: " + "; ".join(kept))
+    if not lines:
+        return ""
+    block = "\n".join(lines) + (" …" if cut else "")
+    return f"\n[Công thức đọc từ ảnh trang sách -- máy đọc, có thể sai]\n{block}"
+
+
+def _part_text(
+    every: list[IndexNode],
+    units: list[tuple[int, list[str]]],
+    formulas: dict[int, str] | None = None,
+) -> str:
+    """Chữ một phần đọc: mỗi đơn vị một dòng tiêu đề rồi chữ của nó, cắt theo `_PART_CHARS`.
+
+    `formulas` (`formulas-on-demand`): khối công thức đọc từ ảnh của từng đơn vị, nối sau chữ đã
+    cắt -- nó không bị cắt theo tỉ lệ cùng chữ OCR, vì nó là phần chữ OCR thiếu.
+    """
+    formulas = formulas or {}
     bodies = ["\n".join(texts) for _, texts in units]
     total = sum(len(body) for body in bodies)
     # Sàn mỗi đơn vị không vượt phần chia đều của trần: một câu trên cả cuốn sách là ~150 đơn vị
@@ -1095,8 +1174,74 @@ def _part_text(every: list[IndexNode], units: list[tuple[int, list[str]]]) -> st
             keep = max(floor, _PART_CHARS * len(body) // total)
             if len(body) > keep:
                 body = body[:keep] + "\n[… phần sau của mục này không đọc trong lượt này]"
-        out.append(f"## {title_path(every, ordinal)}\n{body}")
+        out.append(f"## {title_path(every, ordinal)}\n{body}{formulas.get(ordinal, '')}")
     return "\n\n".join(out)
+
+
+async def _book_formulas(
+    running: Running, document_id: str, pages: dict[int, list[int]]
+) -> tuple[dict[int, str], bool, float]:
+    """Công thức đọc từ ảnh cho các đơn vị của một phần đọc (`formulas-on-demand`).
+
+    Chỉ trang có khối `formula` (nhãn OCR lúc tải lên). Trang đã có trong cache thì dùng ngay;
+    trang chưa có thì xin `services/document` đọc và chờ tối đa `formula_wait_seconds`. Mọi hỏng
+    hóc ở đây -- kho không đọc được, job hỏng, hết giờ -- chỉ làm phần đọc thiếu công thức như
+    trước plan này, không bao giờ làm hỏng phần đọc.
+
+    Args:
+        running: Lượt đang chạy (pool, settings).
+        document_id: Tài liệu, đã kiểm là của giáo viên và *sẵn sàng*.
+        pages: Đơn vị → trang tệp của nó (`_unit_pages`).
+
+    Returns:
+        Đơn vị → khối công thức; còn trang có công thức mà chưa đọc được không; số giây đã chờ.
+    """
+    every_page = sorted({page for own in pages.values() for page in own})
+    reader = get_reader()
+    try:
+        marked = await reader.formula_pages(document_id, every_page)
+        if not marked:
+            return {}, False, 0.0
+        read = await reader.formulas(document_id, marked)
+    except ContentUnavailable:
+        return {}, False, 0.0
+    missing = sorted(marked - read.keys())[:MOST_FORMULA_PAGES]
+    waited = 0.0
+    if missing and running.pool is not None:
+        owned = await ready_document(running.session, running.asking, document_id)
+        if owned is not None:
+            asked = FormulaReadRequested(
+                document_id=document_id, storage_key=owned.storage_key, pages=tuple(missing)
+            )
+            loop = asyncio.get_running_loop()
+            started = loop.time()
+            try:
+                await run_job(
+                    running.pool,
+                    running.settings.document_index_queue_name,
+                    READ_FORMULAS_TASK,
+                    asked.model_dump(mode="json"),
+                    running.settings.formula_wait_seconds,
+                    job_id=f"formulas:{document_id}:{','.join(map(str, missing))}",
+                )
+            except JobFailed as exc:
+                logger.warning("formulas of %s pages %s: %s", document_id, missing, exc)
+            # Ranh giới của Redis: queue chập chờn (`ConnectionError`, kết quả không giải mã được)
+            # chỉ là *chưa có công thức*, không được làm mất chữ của phần đọc (review pha 3).
+            except Exception:
+                logger.exception("formulas of %s pages %s: queue failed", document_id, missing)
+            waited = loop.time() - started
+            with contextlib.suppress(ContentUnavailable):
+                read = await reader.formulas(document_id, marked)
+    # Trần chung cho cả phần, chia đều cho các đơn vị: cache tích qua nhiều lượt không bị
+    # `MOST_FORMULA_PAGES` chặn (trần ấy chỉ cho trang còn thiếu), nên trần mỗi đơn vị không đủ.
+    room = _FORMULA_CHARS // max(len(pages), 1)
+    blocks = {ordinal: _formula_block(own, read, room) for ordinal, own in pages.items()}
+    return (
+        {ordinal: block for ordinal, block in blocks.items() if block},
+        bool(marked - read.keys()),
+        waited,
+    )
 
 
 # Lời cho **giáo viên** khi `reason` chở tên tool hay tên tham số (`said`, plan `backlog-tier-1`):
@@ -1124,8 +1269,9 @@ async def _read_section(running: Running, args: dict) -> dict:
 
     Kriky đọc trước khi viết dàn ý (`draft-outline`, ADR-29). Phạm vi -- các nút giáo viên chọn và
     cây con của chúng -- được gộp **không tách nút** thành `min(questions, số đơn vị)` phần liên
-    tiếp (`toc.parts`), nên số lần đọc không vượt số câu xin. Chữ là chữ OCR: công thức và hình
-    không có, và Kriky được dặn công thức trong dàn ý là của nó.
+    tiếp (`toc.parts`), nên số lần đọc không vượt số câu xin. Chữ là chữ OCR, không có hình. Trang
+    có khối `formula` thì phần đọc kèm công thức Haiku đọc từ ảnh trang (`_book_formulas`,
+    `formulas-on-demand`); chưa đọc kịp trong trần chờ thì `formulas_pending`, lần sau có.
 
     Args:
         running: Session và giáo viên đang hỏi.
@@ -1134,7 +1280,8 @@ async def _read_section(running: Running, args: dict) -> dict:
 
     Returns:
         `found`, `part`, `parts`, `more` (còn phần chưa đọc), `nodes` (các nút trong phần này --
-        nguồn cho dàn ý), `labels`, `text`; hoặc `found: False` kèm `reason`.
+        nguồn cho dàn ý), `labels`, `text`, có thể `formulas_pending` và `FORMULA_SECONDS` (vòng
+        lượt gỡ khoá sau); hoặc `found: False` kèm `reason`.
     """
     every, refused = await _tree_of(running, args)
     if refused is not None:
@@ -1180,15 +1327,25 @@ async def _read_section(running: Running, args: dict) -> dict:
         }
     chosen = [units[index] for index in grouped[part - 1]]
     by_ordinal = {node.ordinal: node for node in every}
-    return {
+    formulas, pending, waited = await _book_formulas(
+        running, document_id, _unit_pages(chunks, [ordinal for ordinal, _ in chosen])
+    )
+    told = {
         "found": True,
         "part": part,
         "parts": len(grouped),
         "more": part < len(grouped),
         "nodes": [ordinal for ordinal, _ in chosen],
         "labels": [node_label(by_ordinal[ordinal]) for ordinal, _ in chosen],
-        "text": _part_text(every, chosen),
+        "text": _part_text(every, chosen, formulas),
     }
+    if pending:
+        told["formulas_pending"] = True
+    if waited:
+        # Không tới model, không vào database: vòng lượt gỡ nó ra để cộng thêm giờ cho lượt
+        # (`teacher_chat`, `FORMULA_SECONDS`).
+        told[FORMULA_SECONDS] = round(waited, 2)
+    return told
 
 
 def _refusal(reason: str, said: str = "") -> dict:
@@ -1385,7 +1542,9 @@ _TOOLS: tuple[Tool, ...] = (
             description=(
                 "Đọc chữ của phạm vi tài liệu để viết dàn ý. Phạm vi được gộp thành tối đa "
                 "questions phần; đọc lần lượt part 1, 2, … tới khi more là false. Chữ đọc từ ảnh "
-                "quét: công thức và hình không có."
+                "quét, không có hình. Công thức đọc từ ảnh trang, nếu có, nằm trong khối riêng "
+                "của text; formulas_pending là còn công thức chưa đọc xong -- không đọc lại phần "
+                "ấy, công thức còn thiếu thì tự viết."
             ),
             arguments={
                 "document_id": "id tài liệu",

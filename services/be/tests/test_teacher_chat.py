@@ -525,6 +525,8 @@ def test_the_longest_reading_turn_still_ends_before_its_lock_goes_stale() -> Non
     longest = (
         settings.turn_budget_seconds
         + 10 * settings.read_step_seconds
+        # Giờ chờ đọc công thức cộng thêm, có trần (`formulas-on-demand`).
+        + teacher_chat.MOST_FORMULA_WAITS * settings.formula_wait_seconds
         + settings.agent_job_timeout_seconds
     )
 
@@ -1319,6 +1321,53 @@ async def test_a_lookup_before_the_plan_shows_while_it_runs(stack) -> None:
     turns = (await http.get("/api/teacher/chat", headers=TEACHER)).json()["turns"]
     stored = next(one for one in turns if one["kind"] == "tool_result")
     assert stored["tool_result"] == done.result
+
+
+@pytest.mark.asyncio
+async def test_the_wait_for_formulas_extends_the_turn_and_never_reaches_the_history(stack) -> None:
+    """`formulas-on-demand`: giờ `read_section` chờ đọc công thức là của bước đọc, lượt được cộng.
+
+    Khoá `FORMULA_SECONDS` chỉ để vòng lượt đọc: model không thấy nó ở lần hỏi kế, database không
+    lưu nó, client không nhận nó.
+    """
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        NextStepCompleted(request_id="x", kind="call_tool", tool_name="read_section", tool_args={}),
+        NextStepCompleted(request_id="x", kind="say", text="Mình đã đọc xong bài."),
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    async def execute(*_args, **_kwargs) -> dict:
+        return {
+            "found": True,
+            "part": 1,
+            "parts": 1,
+            "more": False,
+            "text": "chữ",
+            teacher_chat.FORMULA_SECONDS: 3.5,
+        }
+
+    monkeypatch.setattr(teacher_chat, "execute", execute)
+
+    teacher = await _teacher(maker, "GV-001")
+    seen = []
+    async with maker() as session:
+        async for event in teacher_chat.run_turn(
+            teacher_chat.Said(text="đọc bài 1 giúp mình"),
+            _request(),
+            teacher,
+            session,
+            get_settings(),
+        ):
+            seen.append(event)
+
+    assert seen[-1].kind == "done"
+    assert teacher_chat.FORMULA_SECONDS not in json.dumps(agent.asked[-1])
+    done = next(one for one in seen if one.kind == "step_done")
+    assert teacher_chat.FORMULA_SECONDS not in done.result
+    turns = (await http.get("/api/teacher/chat", headers=TEACHER)).json()["turns"]
+    stored = next(one for one in turns if one["kind"] == "tool_result")
+    assert teacher_chat.FORMULA_SECONDS not in stored["tool_result"]
 
 
 @pytest.mark.asyncio

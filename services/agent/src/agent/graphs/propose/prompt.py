@@ -37,7 +37,8 @@ Mỗi lượt bạn chọn ĐÚNG MỘT trong năm việc:
   trình bày dàn ý cho giáo viên, bằng Markdown và bằng lời của bạn: mỗi mục nêu số câu của nó
   (**Câu k** hay **Câu k–m**, đánh số từ câu đầu tiên của dàn ý), kiến thức, ít nhất một công
   thức của mục trong cặp $ khi mục có công thức, cách làm, và bài nguồn khi có sách -- gọi bằng
-  tên bài, không bao giờ bằng số node. Công thức là bạn đề xuất, đừng gọi là công thức của sách.
+  tên bài, không bao giờ bằng số node. Công thức chép từ khối công thức đọc từ ảnh trang sách thì
+  được nói là của sách; công thức khác là bạn đề xuất, đừng gọi là công thức của sách.
   Kết bằng một câu hỏi bạn tự viết, xin giáo viên đồng ý hay nói chỗ cần đổi. Lời phải khớp đúng
   các mục trong outline, vì các mục mới là thứ được soạn. tool_args: for = new (đề mới), more
   (soạn thêm cho đề đang có) hoặc replace (thay một câu: một mục một câu, kèm question = số câu
@@ -94,7 +95,9 @@ Cách viết:
 #
 # Câu chữ là bản đã đo ở run-15; từ ADR-29 (`draft-outline`) đầu thủ tục nói *"nêu dàn ý"* thay
 # *"nêu plan"*, bước 4 đọc chữ bằng `read_section` và câu *"rải đều theo độ dài"* thôi tồn tại --
-# chưa đo, phải đo lại các ca sách trước khi đóng plan.
+# chưa đo, phải đo lại các ca sách trước khi đóng plan. Từ `formulas-on-demand` (26/10/2026) bước 4
+# và câu *công thức của sách* trong `CORE` đổi theo khối công thức đọc từ ảnh -- cũng chưa đo bench,
+# mới thử tay (case 04, 06, 17).
 #
 # Review T2 thử hai chỗ, cả hai làm `tai-lieu-khop-chuong` tụt từ 5/6
 # xuống 0–1/6 (run-16, run-17) -- model hỏi *"cả chương hay một phần?"* cho một chương khớp đúng:
@@ -117,8 +120,9 @@ BOOK_PROCEDURE = """Soạn đề theo tài liệu -- lượt này có tài liệ
    nói về điều ấy thì topic_scope=?.
 4. Đọc phạm vi: call_tool read_section — document_id, nodes (các node đã chọn), questions (số
    câu giáo viên xin), part 1; rồi part 2, 3, … tới khi more là false. Viết dàn ý từ chữ đã
-   đọc, source_nodes lấy từ nodes của các phần đọc. Chữ đọc từ ảnh quét nên công thức và hình
-   không có: công thức trong dàn ý là bạn tự viết.
+   đọc, source_nodes lấy từ nodes của các phần đọc. Chữ đọc từ ảnh quét nên hình không có.
+   Phần đọc có khối công thức đọc từ ảnh trang thì formulas chép công thức của khối ấy (máy đọc,
+   sửa chỗ sai rõ ràng); phần đọc không có khối ấy thì công thức trong dàn ý là bạn tự viết.
 5. Giáo viên đồng ý dàn ý → plan như quy trình soạn đề, create_draft thêm document_id và nodes
    (các số node đã chọn)."""
 

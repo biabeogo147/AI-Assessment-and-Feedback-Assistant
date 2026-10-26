@@ -40,9 +40,11 @@ from contracts import (
     IndexChunk,
     IndexHeader,
     IndexNode,
+    PageFormulas,
     RawDocument,
     RawPage,
     chunk_key,
+    formula_key,
     label_key,
     node_key,
     page_key,
@@ -63,6 +65,9 @@ _INDEXES = "indexes"
 _NODES = "nodes"
 _CHUNKS = "chunks"
 _LABELS = "block_labels"
+# Công thức đọc từ ảnh trang khi BE xin (`formulas-on-demand`). Theo bản thô, không theo cây:
+# dựng lại cây không đổi ảnh trang, đọc lại tài liệu thì đổi (`begin` xoá chúng).
+_FORMULAS = "page_formulas"
 
 
 class ContentStoreUnavailable(RuntimeError):
@@ -166,7 +171,7 @@ def _to_bson_time(field: str, value: datetime) -> datetime:
     return value.replace(microsecond=value.microsecond // 1000 * 1000)
 
 
-type IndexModel = IndexHeader | IndexNode | IndexChunk | BlockLabel
+type IndexModel = IndexHeader | IndexNode | IndexChunk | BlockLabel | PageFormulas
 
 
 def index_document(model: IndexModel) -> dict[str, Any]:
@@ -189,6 +194,8 @@ def index_document(model: IndexModel) -> dict[str, Any]:
         body["_id"] = node_key(model.document_id, model.ordinal)
     elif isinstance(model, IndexChunk):
         body["_id"] = chunk_key(model.document_id, model.ordinal)
+    elif isinstance(model, PageFormulas):
+        body["_id"] = formula_key(model.document_id, model.page)
     else:
         body["_id"] = label_key(model.document_id, model.ref)
     return body
@@ -307,8 +314,8 @@ class ContentStore:
 
         Side effects:
             Index duy nhất `pages(document_id, page)`, `nodes(document_id, ordinal)`,
-            `chunks(document_id, ordinal)`, và index `block_labels(document_id)`. Tạo lại một index
-            đã có là không làm gì.
+            `chunks(document_id, ordinal)`, `page_formulas(document_id, page)`, và index
+            `block_labels(document_id)`. Tạo lại một index đã có là không làm gì.
         """
         await self._db[_PAGES].create_index(
             [("document_id", ASCENDING), ("page", ASCENDING)], unique=True
@@ -318,6 +325,9 @@ class ContentStore:
                 [("document_id", ASCENDING), ("ordinal", ASCENDING)], unique=True
             )
         await self._db[_LABELS].create_index([("document_id", ASCENDING)])
+        await self._db[_FORMULAS].create_index(
+            [("document_id", ASCENDING), ("page", ASCENDING)], unique=True
+        )
 
     async def begin(self, header: RawDocument) -> None:
         """Mở bản thô của một tài liệu, xoá bản thô cũ nếu có.
@@ -335,11 +345,12 @@ class ContentStore:
             ContentStoreUnavailable: Khi Mongo không ghi được lúc này.
 
         Side effects:
-            Xoá cây và mọi trang của tài liệu này, rồi ghi đè đầu mục.
+            Xoá cây, mọi trang và mọi công thức đã đọc của tài liệu này, rồi ghi đè đầu mục.
         """
         async with _translated("begin", header.document_id):
             await self._drop_index(header.document_id)
             await self._db[_PAGES].delete_many({"document_id": header.document_id})
+            await self._db[_FORMULAS].delete_many({"document_id": header.document_id})
             await self._db[_DOCUMENTS].replace_one(
                 {"_id": header.document_id}, as_document(header), upsert=True
             )
@@ -498,6 +509,44 @@ class ContentStore:
             found = self._db[_PAGES].find({"document_id": document_id}).sort("page", ASCENDING)
             rows = await found.to_list()
         return [from_document(RawPage, row) for row in rows]
+
+    async def put_formulas(self, read: list[PageFormulas]) -> None:
+        """Ghi công thức đọc từ ảnh vài trang. Ghi lại cùng trang là ghi đè.
+
+        Args:
+            read: Mỗi trang một hàng.
+
+        Raises:
+            ContentStoreUnavailable: Khi Mongo không ghi được lúc này.
+        """
+        if not read:
+            return
+        writes = [
+            ReplaceOne({"_id": (body := index_document(one))["_id"]}, body, upsert=True)
+            for one in read
+        ]
+        async with _translated("write the formulas of", read[0].document_id):
+            await self._db[_FORMULAS].bulk_write(writes, ordered=False)
+
+    async def formulas(self, document_id: str) -> list[PageFormulas]:
+        """Mọi công thức đã đọc của một tài liệu -- cho test và bộ đo; BE đọc bằng reader riêng.
+
+        Args:
+            document_id: Id tài liệu.
+
+        Returns:
+            Các hàng, theo trang.
+
+        Raises:
+            ContentStoreUnavailable: Khi Mongo không đọc được lúc này.
+        """
+        async with _translated("read the formulas of", document_id):
+            rows = (
+                await self._db[_FORMULAS]
+                .find({"document_id": document_id}, sort=[("page", ASCENDING)])
+                .to_list()
+            )
+        return [from_document(PageFormulas, row) for row in rows]
 
     async def put_index(
         self,

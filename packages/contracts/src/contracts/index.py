@@ -240,6 +240,54 @@ class BlockLabel(BaseModel):
     schema_version: int = SCHEMA_VERSION
 
 
+class PageFormulas(BaseModel):
+    """Công thức đọc từ ảnh một trang. Một document trong collection `page_formulas`.
+
+    Đọc **khi cần** (plan `formulas-on-demand`): một lượt chat đọc tới trang có khối `formula` thì
+    `services/document` đọc ảnh trang bằng VLM và ghi hàng này; lần đọc sau dùng lại nó. Không đọc
+    lúc tải lên -- đọc cả cuốn là trả tiền cho trang không ai dùng.
+
+    Attributes:
+        document_id: Tài liệu.
+        page: Trang tệp, đếm từ 1 như `RawPage.page`.
+        model: Model đã đọc (`FORMULA_MODEL`).
+        formulas: Công thức LaTeX, không bọc `$`, theo thứ tự đọc. Rỗng khi trang không có công
+            thức hay model từ chối.
+        refused: Model từ chối đọc trang này (`stop_reason` *refusal*). Không đọc lại.
+        tokens: Token vào + ra của lời gọi.
+        read_at: Lúc đọc.
+        schema_version: Phiên bản hình dạng.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str
+    page: int = Field(ge=1)
+    model: str
+    formulas: tuple[str, ...] = ()
+    refused: bool = False
+    tokens: int = Field(default=0, ge=0)
+    read_at: datetime
+    schema_version: int = SCHEMA_VERSION
+
+
+def formula_key(document_id: str, page: int) -> str:
+    """Khoá `_id` của công thức một trang -- ở đây vì BE đọc đúng khoá ấy, như `page_key`.
+
+    Không mang tên model: đổi `FORMULA_MODEL` không làm cache cũ thành vô dụng, và một trang chỉ có
+    một bản đọc. Muốn đọc lại bằng model khác thì đọc lại tài liệu (`ContentStore.begin` xoá cả
+    công thức).
+
+    Args:
+        document_id: Id tài liệu.
+        page: Trang tệp, đếm từ 1.
+
+    Returns:
+        `"<document_id>:f<page>"`.
+    """
+    return f"{document_id}:f{page}"
+
+
 def node_key(document_id: str, ordinal: int) -> str:
     """Khoá `_id` của một nút -- ở đây vì bên đọc phải dựng đúng khoá ấy, như `page_key`.
 

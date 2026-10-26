@@ -15,7 +15,7 @@ sở hữu một luật mà không service nào chịu trách nhiệm.
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Số phiên bản của họ message này. Mỗi họ tự khai số của chính nó, như `authoring` và
 # `teacher_chat` -- một họ đổi hình dạng thì chỉ số của nó nhích, không kéo theo họ khác.
@@ -35,6 +35,10 @@ DOCUMENT_PROGRESS_TASK = "document_progress"
 # nó còn chờ cây. Job dựng cây chạy trên queue **riêng** của `services/document` (D4), và chỉ nó gửi
 # `READY`.
 INDEX_DOCUMENT_TASK = "index_document"
+# Từ `formulas-on-demand`: BE xin đọc công thức trên ảnh vài trang, **và chờ kết quả** -- task duy
+# nhất của `services/document` có người chờ. Chạy trên queue của job dựng cây (chờ mạng, không chờ
+# CPU).
+READ_FORMULAS_TASK = "read_formulas"
 
 
 def documents_channel(teacher_id: str) -> str:
@@ -209,3 +213,53 @@ class DocumentIndexRequested(BaseModel):
     storage_key: str
     filename: str
     page_count: int | None = Field(default=None, ge=1)
+
+
+# Một lần xin đọc chở tối đa ngần này trang. Một phần đọc của `read_section` là ~8 nghìn ký tự,
+# vài trang sách; trần này chặn một lời gọi lỡ tay xin cả cuốn.
+MOST_FORMULA_PAGES = 12
+
+
+class FormulaReadRequested(BaseModel):
+    """BE xin `services/document` đọc công thức trên ảnh vài trang của một tài liệu
+    (plan `formulas-on-demand`).
+
+    Chỉ trang có khối `formula` (nhãn của bước OCR lúc tải lên) và chưa có trong cache
+    `page_formulas`; BE chọn trang, `services/document` chỉ đọc và ghi.
+
+    Attributes:
+        document_id: Tài liệu.
+        storage_key: Khoá byte của tệp trong object storage -- ảnh trang dựng từ đó.
+        pages: Trang tệp, đếm từ 1, không trùng.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    document_id: str
+    storage_key: str
+    pages: tuple[int, ...] = Field(min_length=1, max_length=MOST_FORMULA_PAGES)
+
+    @field_validator("pages")
+    @classmethod
+    def _distinct_pages_from_one(cls, pages: tuple[int, ...]) -> tuple[int, ...]:
+        if len(set(pages)) != len(pages) or min(pages) < 1:
+            raise ValueError("pages must be distinct file pages counted from 1")
+        return pages
+
+
+class FormulasRead(BaseModel):
+    """Kết quả của `FormulaReadRequested`: trang nào đã có công thức trong cache.
+
+    Không chở công thức: chúng nằm trong `page_formulas`, và BE đọc từ đó như mọi nội dung khác.
+
+    Attributes:
+        document_id: Tài liệu.
+        pages: Trang đã ghi vào cache, kể cả trang model từ chối (`PageFormulas.refused`).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = SCHEMA_VERSION
+    document_id: str
+    pages: tuple[int, ...] = ()

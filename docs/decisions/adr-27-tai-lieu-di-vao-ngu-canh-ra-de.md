@@ -8,6 +8,8 @@
   ở cuối. Phần trên giữ nguyên làm lịch sử.
 - **Sửa:** 2026-10-15 — *mỗi câu một mục* và phép rải theo độ dài nhường cho ADR-29 (dàn ý đề). Xem
   *Hậu ký 15/10/2026*.
+- **Sửa:** 2026-10-26 — bản đọc của tài liệu có thêm công thức đọc từ ảnh trang, khi cần. Xem
+  *Hậu ký 26/10/2026*.
 
 ## Bối cảnh
 
@@ -217,3 +219,18 @@ ADR-05 nay còn **hai** cổng: cổng thứ hai (kết quả chấm độ tin t
 ([ADR-37](adr-37-bo-cong-do-tin-thap.md)). Số thứ tự giữ nguyên: cổng thứ nhất là duyệt đề, cổng thứ ba
 là hỏi lại. Câu *"Ba cổng của ADR-05 vẫn là ba"* ở trên đọc là hai cổng. *Đang xử lý* vẫn không phải một
 cổng.
+
+## Hậu ký 26/10/2026
+
+Tài liệu tới Kriky nay mang thêm **công thức đọc từ ảnh** ở trang có khối công thức, đọc lúc một lượt
+chat đọc tới trang ấy chứ không lúc tải lên, rồi giữ lại cho lần sau. Luật của ADR này không đổi: tài
+liệu vẫn **cung cấp kiến thức và giới hạn phạm vi**, vẫn tới Kriky rồi tới dàn ý, không tới job; *pha
+2 không nhận tài liệu* giữ nguyên. Chi tiết ở hậu ký 26/10/2026 của
+[ADR-29](adr-29-dan-y-de-truoc-khi-soan.md) và plan `formulas-on-demand`.
+
+Bốn trạng thái của chip không thêm trạng thái nào: đọc công thức không phải một bước của việc xử lý
+tệp, nên một tài liệu *sẵn sàng* vẫn dùng được ngay; trang chưa đọc kịp công thức thì lần đọc ấy chỉ
+có chữ.
+
+Thi hành: như hậu ký 26/10/2026 của ADR-29 -- `services/document` đọc ảnh và ghi cache theo trang,
+`services/be/src/be/teacher_tools.py` `_read_section` đẩy việc đọc và chờ có trần.

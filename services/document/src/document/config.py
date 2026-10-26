@@ -84,6 +84,14 @@ class Settings(BaseSettings):
         banner_provider: Provider của `banner_model`, như `summary_provider`. Ảnh trang sách đi tới
             provider này.
         banner_model: Model đọc tên chương trên ảnh banner (D9; người dùng chọn `gpt-5.6-luna`).
+        formula_provider: Provider của `formula_model`, như `summary_provider`. Ảnh cả trang sách đi
+            tới provider này (hậu ký 26/10/2026 của ADR-29).
+        formula_model: VLM đọc công thức trên ảnh trang khi BE xin (`formulas-on-demand`). Đo
+            26/10/2026 trên 5 trang `run-5`: `claude-haiku-5-5`, tắt thinking, sai 1/19 công thức,
+            `gpt-4.1-mini` sai 3/19, cùng 3,4 s/trang. Chạy tắt thinking, effort `low`, không theo
+            `LLM_THINKING` / `LLM_EFFORT` chung.
+        formula_dpi: Độ phân giải dựng ảnh trang cho VLM. 150 là mức đã đo; bản scan trong `data/`
+            ở khoảng 144 DPI, nên cao hơn không thêm chi tiết.
         llm_thinking: Thinking của Claude, cùng biến `LLM_THINKING` với AGENT; chỉ đi tới
             `anthropic`. Banner trên OpenAI vẫn chạy `reasoning_effort="low"` như cũ.
         llm_effort: Effort của Claude, cùng biến `LLM_EFFORT` với AGENT.
@@ -118,6 +126,9 @@ class Settings(BaseSettings):
     summary_model: str = "gpt-4o-mini"
     banner_provider: Literal["openai", "anthropic"] = "openai"
     banner_model: str = "gpt-5.6-luna"
+    formula_provider: Literal["openai", "anthropic"] = "anthropic"
+    formula_model: str = "claude-haiku-5-5"
+    formula_dpi: int = Field(default=150, ge=72, le=300)
     llm_thinking: Literal["", "adaptive", "disabled"] = ""
     llm_effort: Literal["", "low", "medium", "high", "xhigh", "max"] = ""
     llm_timeout_seconds: float = Field(default=60, gt=0)

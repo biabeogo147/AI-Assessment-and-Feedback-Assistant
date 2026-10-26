@@ -6,6 +6,8 @@
   ([ADR-30](adr-30-loi-kriky-do-model-viet.md)). Xem *Hậu ký 17/10/2026*.
 - **Sửa:** 2026-10-20 — BE thôi đối chiếu lời với các mục và thôi bắt hình dạng công thức. Xem
   *Hậu ký 20/10/2026*.
+- **Sửa:** 2026-10-26 — công thức của dàn ý có thể lấy từ sách: trang có công thức được đọc bằng
+  ảnh khi Kriky đọc tới. Xem *Hậu ký 26/10/2026*.
 
 ## Bối cảnh
 
@@ -152,3 +154,23 @@ ba là hỏi lại. Câu *"Ba cổng vẫn là ba"* ở trên đọc là hai c�
 Plan `split-propose-package` chia `services/agent/src/agent/graphs/propose.py` thành package
 `graphs/propose/`: `AGREES` và `approved_plan` nay ở `propose/outline.py`. Luật không đổi; tên các
 hàm đổi sau đó ở plan `propose-names-and-order` (hậu ký 20/10/2026 của ADR-30).
+
+## Hậu ký 26/10/2026
+
+**Công thức trong dàn ý có thể là công thức của sách.** Câu *"bản đọc của sách hiện chỉ có chữ, nên
+không công thức nào chép được từ sách"* hết đúng: khi Kriky đọc một phạm vi (`read_section`), trang
+nào có khối công thức (nhãn `formula` của bước OCR lúc tải lên) được đọc thêm bằng ảnh, và kết quả
+đọc mang *công thức đọc từ ảnh trang N* bên cạnh chữ (plan `formulas-on-demand`). Kriky được dùng
+chúng trong dàn ý, và gọi chúng là công thức của sách; công thức Kriky tự đề xuất vẫn là của Kriky.
+
+Ba điều không đổi: **giáo viên vẫn duyệt dàn ý trước khi soạn**, nên một công thức đọc sai từ ảnh
+dừng ở đó như một công thức Kriky viết sai; **chữ tài liệu thô vẫn không tới job nào** -- công thức đi
+tới job chỉ qua mục dàn ý; **pha 2 không nhận tài liệu**.
+
+Ảnh trang chỉ được đọc khi một lượt chat cần tới nó, không đọc trước lúc tải lên (người dùng chốt
+26/10/2026: đọc cả cuốn trả tiền cho trang không ai dùng). Ảnh trang sách được gửi tới nhà cung
+cấp VLM cấu hình ở `services/document` (`FORMULA_PROVIDER`, `FORMULA_MODEL`); hiện là Claude Haiku
+5.5 của Anthropic, cùng nhà cung cấp đang trả lời chat.
+
+Thi hành: `services/document` (đọc ảnh, ghi cache theo trang), `services/be/src/be/teacher_tools.py`
+`_read_section` (đẩy việc đọc và chờ có trần), `propose/prompt.py` (lời dặn về công thức).

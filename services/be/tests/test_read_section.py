@@ -7,6 +7,7 @@ sàng**, trả từng phần kèm nút nguồn -- thứ dàn ý sẽ trỏ về.
 Kho nội dung là `MemoryContentReader`: không Mongo thật nào.
 """
 
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -19,16 +20,19 @@ from be import teacher_tools
 from be.content_reader import ContentUnavailable, MemoryContentReader, bind_reader, get_reader
 from be.db import bind_sessions
 from be.identity import Asking
+from be.queue import JobFailed
 from be.seed import seed_if_empty
-from be.teacher_tools import PHASE_PLAN, execute
+from be.teacher_tools import FORMULA_SECONDS, PHASE_PLAN, execute
 from be.toc import parts
 from contracts import (
+    READ_FORMULAS_TASK,
     BlockRef,
     DocumentState,
     IndexChunk,
     IndexHeader,
     IndexMethod,
     IndexNode,
+    PageFormulas,
     TitleSource,
 )
 from schema.ddl import prepare_schema
@@ -258,3 +262,133 @@ async def test_a_content_store_that_fails_mid_read_says_so(stack, monkeypatch) -
 
     assert read["found"] is False
     assert "tạm thời" in read["reason"]
+
+
+# ------------------------------------------------------------------ công thức đọc từ ảnh
+
+
+def _row(page: int, *formulas: str) -> PageFormulas:
+    return PageFormulas(
+        document_id="book",
+        page=page,
+        model="claude-haiku-5-5",
+        formulas=formulas,
+        refused=False,
+        tokens=10,
+        read_at=_BUILT,
+    )
+
+
+async def _read_with_pool(maker, pool: object) -> dict:
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        asked = {"document_id": "book", "nodes": "1", "questions": "1", "part": "1"}
+        return await execute(
+            session, Asking.of(teacher), "read_section", asked, pool=pool, phase=PHASE_PLAN
+        )
+
+
+@pytest.fixture
+def jobs(monkeypatch) -> list[dict]:
+    """Mọi job đọc công thức `read_section` đẩy; mặc định job ghi một công thức vào cache."""
+    seen: list[dict] = []
+
+    async def run_job(pool, queue_name, task_name, payload, timeout, job_id=None) -> dict:
+        seen.append({"task": task_name, "payload": payload, "job_id": job_id})
+        await asyncio.sleep(0.05)
+        for page in payload["pages"]:
+            get_reader().page_formulas.setdefault("book", {})[page] = _row(page, "a^{m}")
+        return {"document_id": "book", "pages": payload["pages"]}
+
+    monkeypatch.setattr(teacher_tools, "run_job", run_job)
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_a_part_without_formula_pages_asks_for_no_reading(stack, jobs) -> None:
+    read = await _read_with_pool(stack, object())
+
+    assert jobs == []
+    assert "Công thức đọc từ ảnh" not in read["text"]
+    assert "formulas_pending" not in read and FORMULA_SECONDS not in read
+
+
+@pytest.mark.asyncio
+async def test_formulas_already_read_come_from_the_cache_without_a_job(stack, jobs) -> None:
+    get_reader().formula_marks["book"] = {1}
+    get_reader().page_formulas["book"] = {1: _row(1, r"\frac{1}{2}")}
+
+    read = await _read_with_pool(stack, object())
+
+    assert jobs == []
+    assert r"Trang 1: $\frac{1}{2}$" in read["text"]
+    assert FORMULA_SECONDS not in read
+
+
+@pytest.mark.asyncio
+async def test_a_page_not_read_yet_is_asked_for_once_and_waited_on(stack, jobs) -> None:
+    get_reader().formula_marks["book"] = {1}
+
+    read = await _read_with_pool(stack, object())
+
+    assert [(one["task"], one["payload"]["pages"]) for one in jobs] == [(READ_FORMULAS_TASK, [1])]
+    assert jobs[0]["payload"]["storage_key"] == "k/book"
+    # Id cố định theo (tài liệu, trang): hai lượt cùng đọc gặp một job, không bắn hai lần.
+    assert jobs[0]["job_id"] == "formulas:book:1"
+    assert "Trang 1: $a^{m}$" in read["text"]
+    assert "formulas_pending" not in read
+    # Giờ chờ đi về vòng lượt để cộng vào ngân sách (`teacher_chat`).
+    assert read[FORMULA_SECONDS] >= 0.05
+
+
+@pytest.mark.asyncio
+async def test_a_reading_past_its_wait_still_returns_the_text(stack, monkeypatch) -> None:
+    get_reader().formula_marks["book"] = {1}
+
+    async def slow(*_args: object, **_kwargs: object) -> dict:
+        raise JobFailed("task read_formulas did not finish in 15s")
+
+    monkeypatch.setattr(teacher_tools, "run_job", slow)
+
+    read = await _read_with_pool(stack, object())
+
+    assert read["found"] is True
+    assert "chữ A1" in read["text"]
+    assert read["formulas_pending"] is True
+
+
+@pytest.mark.asyncio
+async def test_no_queue_means_text_only_and_pending(stack, jobs) -> None:
+    get_reader().formula_marks["book"] = {1}
+
+    read = await _read_with_pool(stack, None)
+
+    assert jobs == []
+    assert read["formulas_pending"] is True
+    assert FORMULA_SECONDS not in read
+
+
+@pytest.mark.asyncio
+async def test_a_queue_that_breaks_still_returns_the_text(stack, monkeypatch) -> None:
+    """Redis chập chờn không phải `JobFailed`, mà phần đọc vẫn phải có chữ (review pha 3)."""
+    get_reader().formula_marks["book"] = {1}
+
+    async def broken(*_args: object, **_kwargs: object) -> dict:
+        raise ConnectionError("redis went away")
+
+    monkeypatch.setattr(teacher_tools, "run_job", broken)
+
+    read = await _read_with_pool(stack, object())
+
+    assert read["found"] is True and "chữ A1" in read["text"]
+    assert read["formulas_pending"] is True
+
+
+def test_a_long_formula_block_is_cut_between_formulas() -> None:
+    read = {1: _row(1, "a" * 10, "b" * 10, "c" * 10)}
+
+    block = teacher_tools._formula_block([1], read, 26)
+
+    # Hai công thức vừa (12 + 2 + 12), cái thứ ba không: không còn `$` lẻ nào.
+    assert block.endswith(f"Trang 1: ${'a' * 10}$; ${'b' * 10}$ …")
+    assert block.count("$") % 2 == 0

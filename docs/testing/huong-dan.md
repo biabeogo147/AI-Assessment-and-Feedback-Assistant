@@ -139,7 +139,7 @@ Mọi file trong `cases/` theo đúng bảy mục này, đúng thứ tự:
 
 ## Thứ tự chạy
 
-Thứ tự: **01–08, 11, 12, 09, 10, 13, 14, 15, 16**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở
+Thứ tự: **01–08, 11, 12, 09, 10, 13, 14, 15, 16, 17**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở
 case 10 chỉ thu hồi mềm: bản phát hành cho 12A còn lại với `recalled_at`. Từ 17/10/2026
 `list_assessment` đã lọc bản thu hồi, nhưng thứ tự giữ nguyên để các lần chạy so được với nhau. Bốn
 chuỗi nối nhau:
@@ -153,6 +153,9 @@ chuỗi nối nhau:
 - 01, 03, 07, 08, 11, 12: mỗi case một đoạn chat mới, không dựa vào đề của case nào.
 - 16 là ca của **học sinh**, chạy sau cùng: giáo viên thêm một học sinh mang mã vòng và phát hành
   một đề của chính lần chạy này (case 16, *Chuẩn bị*), nên không cần `db-reset`.
+- 17 sau 04: cùng cuốn sách, hai đoạn chat mới, không soạn đề. Chạy sau 04 thì trang bài luỹ thừa
+  đã có trong cache `page_formulas` (04 đọc cả chương): muốn thử đường *chưa có cache* thì xoá hàng
+  theo lệnh dưới truy vấn D của case 17 trước đoạn chat 1.
 
 Một case trong chuỗi không đạt thì các case sau vẫn chạy nếu trạng thái chúng cần vẫn có (ví dụ đề
 vẫn đủ câu); không có thì ghi *"không chạy được — case NN hỏng"* thay vì đoán.

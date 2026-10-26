@@ -1,4 +1,4 @@
-"""Hai lời gọi model sinh chữ của document agent. Module duy nhất trong `services/document` import
+"""Ba lời gọi model của document agent. Module duy nhất trong `services/document` import
 `langchain`.
 
 - **Đọc banner** (D9): `gpt-5.6-luna` nhìn phần trên của một trang mở chương và đọc **số và tên
@@ -7,6 +7,8 @@
   đo trên trang 7, luna nhận nhầm một trang bài thường là *"phần mở đầu"*.
 - **Tóm tắt** (D6): `gpt-4o-mini`, một lời gọi mỗi nút, để model ở plan sau lần xuống cây bằng tiêu
   đề và tóm tắt (PageIndex).
+- **Đọc công thức** (`formulas-on-demand`): Claude Haiku 5.5, tắt thinking, đọc mọi công thức trên
+  ảnh cả trang -- chỉ trang có khối `formula`, chỉ khi một lượt chat của BE đọc tới trang ấy.
 
 Cùng khuôn với `agent/llm.py`, và cùng hai bài học: **credential được truyền vào** (`.env` của repo
 không bao giờ tới `os.environ`), và mọi lời gọi qua đúng một module -- đổi model là sửa `.env`, test
@@ -18,6 +20,7 @@ Claude trả `content` là một list block, và `str()` của list ấy không 
 import base64
 import json
 import logging
+import re
 from dataclasses import dataclass
 
 from langchain.chat_models import init_chat_model
@@ -25,6 +28,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from document.config import Settings
+from document.latex_escapes import restore_latex_escapes
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,42 @@ _SUMMARY_SYSTEM = (
     "đừng chép lỗi, đừng bịa thêm khái niệm không có trong đoạn.\n"
     "- Không mở đầu bằng 'Phần này' hay nhắc lại tiêu đề."
 )
+
+
+# Lời dặn đọc công thức (plan `formulas-on-demand`): chữ của khảo sát 11/10/2026 và lần đo lại
+# 26/10/2026 trên 5 trang `run-5`, cộng một dòng cho `⋮` -- mọi model đã đo đều đọc nó thành `:`,
+# đổi *chia hết* thành *chia*. Trả JSON tự viết như banner, không structured output: hai đường cùng
+# bẫy JSON nuốt gạch chéo, và đường này đi qua `restore_latex_escapes` (`parse_formulas`).
+_FORMULA_PROMPT = (
+    "Ảnh là một trang sách giáo khoa Toán tiếng Việt. Liệt kê MỌI phương trình, công thức, biểu "
+    "thức toán học có trên trang, theo thứ tự đọc (trên xuống, trái sang). Mỗi phần tử là một công "
+    "thức viết bằng LaTeX, không bọc $ hay \\[ \\]. Chữ tiếng Việt nằm trong công thức (ví dụ "
+    "ƯCLN, “với”, “người”) đặt trong \\text{}. Công thức nhiều dòng dùng "
+    "\\begin{aligned}...\\end{aligned}. "
+    "Dấu ba chấm dọc ⋮ (chia hết, như trong a ⋮ b) viết là \\vdots, KHÔNG viết là dấu hai chấm. "
+    "KHÔNG chép văn xuôi, tiêu đề hay lời giải thích. Trả về đúng một object JSON "
+    '{"cong_thuc": ["<công thức>", ...]}; trang không có công thức thì danh sách rỗng.'
+)
+# Đọc công thức chạy tắt thinking, effort `low`, không theo `LLM_THINKING` / `LLM_EFFORT` chung: đo
+# 26/10/2026, thinking làm chậm gấp đôi mà không bớt lỗi nào.
+FORMULA_CLAUDE: dict[str, object] = {"thinking": {"type": "disabled"}, "effort": "low"}
+# Gỡ phần bọc model hay thêm dù đã dặn: `$…$`, `\[…\]`, `\(…\)`.
+_FORMULA_WRAPS = ((r"\[", r"\]"), (r"\(", r"\)"), ("$$", "$$"), ("$", "$"))
+
+
+@dataclass(frozen=True)
+class FormulaReading:
+    """Thứ VLM đọc được trên ảnh một trang.
+
+    Attributes:
+        formulas: Công thức LaTeX, đã sửa gạch chéo và gỡ phần bọc, bỏ chuỗi rỗng.
+        refused: Model từ chối (`stop_reason` *refusal*).
+        tokens: Token vào + ra.
+    """
+
+    formulas: tuple[str, ...]
+    refused: bool
+    tokens: int
 
 
 @dataclass(frozen=True)
@@ -131,7 +171,11 @@ def chat_model(
 
 
 def model_for(
-    settings: Settings, provider: str, model: str, **openai_extra: object
+    settings: Settings,
+    provider: str,
+    model: str,
+    claude: dict[str, object] | None = None,
+    **openai_extra: object,
 ) -> BaseChatModel | None:
     """Model của một lời gọi theo provider nó chọn, hay `None` khi thiếu khoá của provider ấy.
 
@@ -142,6 +186,9 @@ def model_for(
         settings: Settings của process.
         provider: `openai` hay `anthropic` (`Settings` đã từ chối giá trị khác).
         model: Id model.
+        claude: Tham số Claude riêng của lời gọi này, thay cho `LLM_THINKING` / `LLM_EFFORT` chung
+            -- đọc công thức chạy tắt thinking, effort `low` dù tóm tắt chạy thế nào
+            (`formulas-on-demand`). `None` là theo cấu hình chung.
         **openai_extra: Tham số chỉ OpenAI nhận (`reasoning_effort` của luna); Claude nhận
             `claude_options` thay vào.
 
@@ -151,7 +198,9 @@ def model_for(
     if provider == "anthropic":
         key, extra = (
             settings.claude_api_key,
-            claude_options(settings.llm_thinking, settings.llm_effort),
+            claude
+            if claude is not None
+            else claude_options(settings.llm_thinking, settings.llm_effort),
         )
     else:
         key, extra = settings.openai_api_key, dict(openai_extra)
@@ -239,3 +288,94 @@ async def summarise(model: BaseChatModel, title: str, body: str) -> Summary:
         ]
     )
     return Summary(answer.text.strip(), _tokens(answer))
+
+
+# Một gạch chéo trong chữ model: cặp `\\` và `\"` (đã thoát đúng), `\uXXXX` (chữ Unicode), hay một
+# gạch chéo đơn. Công thức không bao giờ chứa xuống dòng hay tab **thật**, nên mọi gạch chéo đơn đều
+# là của LaTeX: `\frac`, `\neq`, `\rho`, `\in`. Nhân đôi chúng **trước** khi giải mã -- trông vào
+# `restore_latex_escapes` sau đó là để `\neq` thành xuống dòng thật + `eq`, vì luật ngưỡng của nó
+# đúng cho lời giải có xuống dòng, sai cho công thức (review pha 2, `formulas-on-demand`).
+_BACKSLASH_TOKEN = re.compile(r'\\\\|\\"|\\u[0-9a-fA-F]{4}|\\')
+
+
+def _latex_safe(body: str) -> str:
+    """Nhân đôi mọi gạch chéo đơn trong chữ JSON model trả, giữ escape đã đúng. Hàm thuần."""
+    return _BACKSLASH_TOKEN.sub(
+        lambda found: "\\\\" if found.group() == "\\" else found.group(), body
+    )
+
+
+def _unwrapped(formula: str) -> str:
+    """Gỡ một lớp bọc `$…$`, `\\[…\\]`, `\\(…\\)` -- chỉ khi bên trong không còn dấu ấy.
+
+    `$a$ và $b$` giữ nguyên: gỡ hai đầu của nó là ra `a$ và $b`.
+    """
+    bare = formula.strip()
+    for opening, closing in _FORMULA_WRAPS:
+        inner = bare[len(opening) : -len(closing)]
+        if (
+            bare.startswith(opening)
+            and bare.endswith(closing)
+            and len(bare) > len(opening) * 2
+            and opening not in inner
+            and closing not in inner
+        ):
+            bare = inner.strip()
+    return bare
+
+
+def parse_formulas(raw: str, tokens: int, refused: bool = False) -> FormulaReading:
+    """Đọc JSON VLM trả về cho một trang. Hàm thuần.
+
+    Mỗi công thức đi qua `restore_latex_escapes` -- đúng bẫy `\frac` thành form-feed mà check
+    `escape-repair-is-wired-in` canh -- rồi gỡ phần bọc `$…$`. Một câu trả lời không đọc được thì
+    trang ấy không có công thức nào: không bịa, và lần đọc sau vẫn chỉ có chữ như trước plan này.
+
+    Args:
+        raw: Chữ model trả.
+        tokens: Token của lời gọi.
+        refused: Model đã từ chối.
+
+    Returns:
+        Kết quả đọc.
+    """
+    if refused:
+        return FormulaReading((), True, tokens)
+    body = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        data = json.loads(_latex_safe(body), strict=False)
+    except json.JSONDecodeError:
+        logger.warning("formula reader returned no json: %r", raw[:200])
+        return FormulaReading((), False, tokens)
+    found = data.get("cong_thuc") if isinstance(data, dict) else None
+    # `restore_latex_escapes` vẫn chạy sau: `_latex_safe` không chạm ký tự điều khiển model tự gõ
+    # thẳng vào chuỗi (`strict=False` nhận chúng), và đó đúng là hình dạng bộ sửa ấy dựng lại.
+    formulas = tuple(
+        bare
+        for one in (found if isinstance(found, list) else [])
+        if isinstance(one, str) and (bare := _unwrapped(restore_latex_escapes(one)))
+    )
+    return FormulaReading(formulas, False, tokens)
+
+
+async def read_formulas(model: BaseChatModel, png: bytes) -> FormulaReading:
+    """Hỏi VLM mọi công thức trên ảnh cả trang (plan `formulas-on-demand`).
+
+    Args:
+        model: Chat model của `formula_model` -- thinking tắt, effort `low`.
+        png: Ảnh cả trang.
+
+    Returns:
+        Kết quả đọc. Model từ chối thì `refused`, không ném: Claude Haiku không có fallback, và một
+        trang bị từ chối chỉ là một trang không có công thức.
+    """
+    image = "data:image/png;base64," + base64.b64encode(png).decode()
+    message = HumanMessage(
+        content=[
+            {"type": "image_url", "image_url": {"url": image}},
+            {"type": "text", "text": _FORMULA_PROMPT},
+        ]
+    )
+    answer = await model.ainvoke([message])
+    stop = (getattr(answer, "response_metadata", None) or {}).get("stop_reason")
+    return parse_formulas(answer.text, _tokens(answer), refused=stop == "refusal")

@@ -26,7 +26,7 @@ from pymongo import ASCENDING, AsyncMongoClient
 from pymongo.errors import PyMongoError
 
 from be.config import Settings
-from contracts import IndexChunk, IndexHeader, IndexNode
+from contracts import IndexChunk, IndexHeader, IndexNode, PageFormulas
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 _INDEXES = "indexes"
 _NODES = "nodes"
 _CHUNKS = "chunks"
+# Bản thô (`mongo-content-store`) -- BE chỉ hỏi nó một câu: trang nào có khối `formula`.
+_PAGES = "pages"
+# Công thức đọc từ ảnh trang (`formulas-on-demand`), `services/document` ghi khi BE xin.
+_FORMULAS = "page_formulas"
+_FORMULA_KIND = "formula"
 
 
 class ContentUnavailable(RuntimeError):
@@ -74,8 +79,42 @@ class ContentReader(Protocol):
         """
         ...
 
+    async def formula_pages(self, document_id: str, pages: Iterable[int]) -> set[int]:
+        """Những trang trong `pages` có ít nhất một khối `formula` (nhãn PP-DocLayout lúc tải lên).
 
-def _model[M: IndexHeader | IndexNode | IndexChunk](kind: type[M], body: dict) -> M:
+        Đây là cổng của việc đọc công thức bằng ảnh (`formulas-on-demand`): trang không có khối ấy
+        thì không ai trả tiền đọc ảnh nó. Tệp có lớp chữ hay tệp văn bản thì không có khối nào
+        mang nhãn này -- mọi khối của chúng là `text`.
+
+        Args:
+            document_id: Tài liệu.
+            pages: Trang tệp, đếm từ 1.
+
+        Returns:
+            Tập con của `pages`.
+
+        Raises:
+            ContentUnavailable: Khi không đọc được kho.
+        """
+        ...
+
+    async def formulas(self, document_id: str, pages: Iterable[int]) -> dict[int, PageFormulas]:
+        """Công thức đã đọc của những trang này, theo trang.
+
+        Args:
+            document_id: Tài liệu.
+            pages: Trang tệp, đếm từ 1.
+
+        Returns:
+            Trang đã có trong cache → hàng của nó. Trang chưa đọc thì không có khoá.
+
+        Raises:
+            ContentUnavailable: Khi không đọc được kho.
+        """
+        ...
+
+
+def _model[M: IndexHeader | IndexNode | IndexChunk | PageFormulas](kind: type[M], body: dict) -> M:
     return kind.model_validate({key: value for key, value in body.items() if key != "_id"})
 
 
@@ -131,6 +170,38 @@ class MongoContentReader:
             logger.warning("content store unreadable for %s: %s", document_id, exc)
             raise ContentUnavailable(str(exc)) from exc
 
+    async def formula_pages(self, document_id: str, pages: Iterable[int]) -> set[int]:
+        """Xem `ContentReader.formula_pages`."""
+        wanted = sorted(set(pages))
+        if not wanted:
+            return set()
+        try:
+            found = self._db[_PAGES].find(
+                {
+                    "document_id": document_id,
+                    "page": {"$in": wanted},
+                    "blocks.kind": _FORMULA_KIND,
+                },
+                {"page": 1, "_id": 0},
+            )
+            return {int(row["page"]) for row in await found.to_list()}
+        except PyMongoError as exc:
+            logger.warning("content store unreadable for %s: %s", document_id, exc)
+            raise ContentUnavailable(str(exc)) from exc
+
+    async def formulas(self, document_id: str, pages: Iterable[int]) -> dict[int, PageFormulas]:
+        """Xem `ContentReader.formulas`."""
+        wanted = sorted(set(pages))
+        if not wanted:
+            return {}
+        try:
+            found = self._db[_FORMULAS].find({"document_id": document_id, "page": {"$in": wanted}})
+            rows = [_model(PageFormulas, row) for row in await found.to_list()]
+            return {row.page: row for row in rows}
+        except (PyMongoError, ValidationError) as exc:
+            logger.warning("content store unreadable for %s: %s", document_id, exc)
+            raise ContentUnavailable(str(exc)) from exc
+
     async def close(self) -> None:
         """Đóng client."""
         await self._client.close()
@@ -142,6 +213,8 @@ class MemoryContentReader:
     Attributes:
         trees: `document_id` → (đầu mục, nút).
         pieces: `document_id` → đoạn.
+        formula_marks: `document_id` → trang có khối `formula`.
+        page_formulas: `document_id` → trang → công thức đã đọc.
         broken: Đặt True để mọi lời đọc ném `ContentUnavailable`.
     """
 
@@ -149,6 +222,8 @@ class MemoryContentReader:
         """Kho rỗng."""
         self.trees: dict[str, tuple[IndexHeader, list[IndexNode]]] = {}
         self.pieces: dict[str, list[IndexChunk]] = {}
+        self.formula_marks: dict[str, set[int]] = {}
+        self.page_formulas: dict[str, dict[int, PageFormulas]] = {}
         self.broken = False
 
     async def tree(self, document_id: str) -> tuple[IndexHeader, list[IndexNode]] | None:
@@ -163,6 +238,19 @@ class MemoryContentReader:
             raise ContentUnavailable("broken on purpose")
         wanted = set(nodes)
         return [one for one in self.pieces.get(document_id, []) if one.node_ordinal in wanted]
+
+    async def formula_pages(self, document_id: str, pages: Iterable[int]) -> set[int]:
+        """Xem `ContentReader.formula_pages`."""
+        if self.broken:
+            raise ContentUnavailable("broken on purpose")
+        return set(pages) & self.formula_marks.get(document_id, set())
+
+    async def formulas(self, document_id: str, pages: Iterable[int]) -> dict[int, PageFormulas]:
+        """Xem `ContentReader.formulas`."""
+        if self.broken:
+            raise ContentUnavailable("broken on purpose")
+        read = self.page_formulas.get(document_id, {})
+        return {page: read[page] for page in set(pages) if page in read}
 
 
 _READER: ContentReader | None = None

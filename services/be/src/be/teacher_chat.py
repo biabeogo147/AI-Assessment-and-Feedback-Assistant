@@ -91,6 +91,7 @@ from be.plan_outcomes import (
 )
 from be.teacher_documents import believed_state
 from be.teacher_tools import (
+    FORMULA_SECONDS,
     LOOKS_LIKE_REFERENCE,
     PHASE_PLAN,
     PHASE_WORK,
@@ -140,6 +141,10 @@ _MOST_STEPS = 8
 # của plan `backlog-tier-1`): một dàn ý đọc sách mang theo cả phần sách đã đọc, nên mỗi lần gọi lại
 # là vài chục nghìn token, mà giáo viên vẫn chưa thấy gì.
 _MOST_OUTLINE_REFUSALS = 3
+# Số lần chờ đọc công thức trọn `formula_wait_seconds` mà một lượt được cộng giờ (`formulas-on-
+# demand`): bằng số phần đọc tối đa của một lần xin, nên mười phần đọc trang mới đều được chờ, còn
+# một model đọc lại mãi không kéo lượt qua `turn_lock_stale_seconds`.
+MOST_FORMULA_WAITS = 10
 
 router = APIRouter(prefix="/api", tags=["teacher-chat"])
 
@@ -1397,6 +1402,7 @@ async def _tell_after_plan(
                     }
                 finally:
                     await session.rollback()
+                result.pop(FORMULA_SECONDS, None)
                 seen.append(
                     TurnRecord(kind="tool_call", tool_name=step.tool_name, tool_args=step.tool_args)
                 )
@@ -2411,6 +2417,7 @@ async def _go(
     offered, offered_more = _offered(in_play)
     offered_named: dict[str, str] = _named(in_play)
     deadline = asyncio.get_running_loop().time() + settings.turn_budget_seconds
+    formula_room = MOST_FORMULA_WAITS * settings.formula_wait_seconds
     plan: tuple[PlanStep, ...] = ()
     # Trần bước **động** (`draft-outline`): mỗi phần đọc `read_section` báo cho lượt thêm một bước
     # và `read_step_seconds` giây, tới mười phần.
@@ -2722,6 +2729,14 @@ async def _go(
 
         # Thay hẳn, không gộp vào. Giữ lại candidate của tool trước nghĩa là một câu hỏi
         # về chuyện khác đến nơi mà vẫn còn dính chúng.
+        # Giờ chờ `services/document` đọc công thức (`formulas-on-demand`) là giờ của chính bước
+        # đọc ấy, không phải giờ model loay hoay: lượt được cộng đúng chừng ấy. Gỡ ra trước khi
+        # kết quả vào lịch sử -- model và database không thấy nó.
+        # Có trần tổng: mỗi lần đọc thiếu công thức có thể chờ trọn `formula_wait_seconds`, và một
+        # model đọc lại mãi không được kéo lượt quá khoá của nó (review pha 3).
+        waited = min(float(result.pop(FORMULA_SECONDS, 0) or 0), formula_room)
+        formula_room -= waited
+        deadline += waited
         offered, offered_more = _offered(result)
         offered_named = _named(result)
         history.append(TurnRecord(kind="tool_result", tool_name=step.tool_name, tool_result=result))
