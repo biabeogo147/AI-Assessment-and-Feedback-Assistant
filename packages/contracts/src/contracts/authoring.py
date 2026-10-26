@@ -189,6 +189,11 @@ class RetryQuestionRequested(BaseModel):
             thứ tư hay không.
         previous_stems: Những stem đã dùng ở các vòng trước của chính câu này, để vòng hai không
             phải là vòng một viết lại bằng từ khác.
+        item_knowledge: Kiến thức của mục dàn ý mà câu gốc soạn theo (ADR-29, hậu ký ADR-17
+            26/10/2026). Rỗng khi câu không có mục -- câu ngân hàng, câu seed, câu trước ADR-29.
+        item_formulas: Công thức của mục ấy.
+        item_approach: Cách làm của mục ấy. Ba trường là thứ giáo viên đã duyệt; pha 2 vẫn không
+            nhận chữ tài liệu nào.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -200,6 +205,9 @@ class RetryQuestionRequested(BaseModel):
     error_label: str | None = None
     round_index: int = Field(ge=1)
     previous_stems: tuple[str, ...] = ()
+    item_knowledge: str = ""
+    item_formulas: tuple[str, ...] = ()
+    item_approach: str = ""
 
 
 class RetryQuestionCompleted(BaseModel):

@@ -75,11 +75,18 @@ def retry_brief(request: RetryQuestionRequested) -> str:
         Brief.
     """
     origin = request.origin
-    lines = [
-        "Viết MỘT câu hỏi mới để kiểm tra lại đúng kiến thức của câu dưới đây.",
-        "",
-        f"Câu gốc: {origin.stem}",
-    ]
+    lines = ["Viết MỘT câu hỏi mới để kiểm tra lại đúng kiến thức của câu dưới đây.", ""]
+    if request.item_knowledge.strip():
+        # Hậu ký ADR-17 (26/10/2026, plan `retry-sees-its-outline-item`): câu gốc soạn theo một mục
+        # dàn ý giáo viên đã duyệt. Mục đứng trước câu gốc, để câu làm lại bám điều câu gốc kiểm,
+        # không chỉ bám chữ của nó. Không có chữ tài liệu nào ở đây: pha 2 không nhận tài liệu.
+        lines.append(f"Kiến thức câu gốc kiểm (giáo viên đã duyệt): {request.item_knowledge}")
+        if request.item_formulas:
+            lines.append("Công thức: " + "; ".join(request.item_formulas))
+        if request.item_approach.strip():
+            lines.append(f"Cách làm: {request.item_approach}")
+        lines.append("")
+    lines.append(f"Câu gốc: {origin.stem}")
     for option in origin.options:
         mark = " (đáp án đúng)" if option.is_correct else ""
         lines.append(f"  {option.label}. {option.text}{mark}")
@@ -97,6 +104,13 @@ def retry_brief(request: RetryQuestionRequested) -> str:
         "- Độ khó tương đương, không dễ hơn.",
         "- Phải có một phương án nhiễu ứng với đúng lỗi trên, để biết em đã sửa được chưa.",
     ]
+    if request.item_knowledge.strip():
+        # Một mục dàn ý có thể phủ hai câu (review pha 3): gọi tên *mục dàn ý ở đầu*, không viết
+        # *"trên"* -- chữ ấy từng trỏ nhầm sang danh sách khác (review code vòng 12, 13).
+        lines.append(
+            "- Mục dàn ý ở đầu có thể rộng hơn câu gốc: chỉ kiểm phần câu gốc kiểm, đừng hỏi "
+            "sang phần khác của mục."
+        )
     if request.previous_stems:
         lines.append("- KHÔNG được trùng bất kỳ đề nào sau đây:")
         lines += [f"  · {stem}" for stem in request.previous_stems]

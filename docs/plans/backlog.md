@@ -931,3 +931,17 @@ tới `run-117`.
 | **Model quên `questions` khi soạn thì thành đọc hỏi đáp mà không ai báo**: trước plan thiếu `questions` bị từ chối; nay chữ không ở lại lượt sau và `read_before_outline` bắt đọc lại -- tốn một vòng tool | Chưa thấy ở bench; một ca soạn đề kiểm `questions` luôn có |
 | **KaTeX dựng chữ có dấu trong `\text` dưới `\underbrace` thành *"thừa s o ˆ ˊ"*** (case 18 lần 1, 2: công thức trang 18 từ khối ảnh). Lỗi dựng hình ở FE | FE `MathText`/KaTeX: thử `\text` với `unicode` hay font; so Figma |
 | **Bench hỏi đáp còn lỏng** (review pha 4): `hoi-sach-tra-loi` đạt khi chỉ chép label; chưa có ca `propose` cho *hỏi rồi soạn* trong một tin; chưa có ca đáp ngắn *"chương 2"* có chip ở `skill_bench`; các ca `du-*`, `thieu-*`, `chung-*`, `tra-*` chưa chạy lại sau khi `compose` và mô tả `read_section` đổi | ~0,15 USD cho cả bộ × 3; xin phép trước |
+
+## Lộ ra khi làm plan câu làm lại nhận mục dàn ý (26/10/2026)
+
+Plan `2026-10-27-retry-sees-its-outline-item-plan.md`. Biên bản:
+`docs/testing/ket-qua/2026-10-26-b11190d-pha-2-claude-haiku-5-5.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Giáo viên sửa tay một câu thì ô vẫn giữ mục cũ**: viết lại câu sang kiến thức khác, câu làm lại ở pha 2 vẫn nhận mục của lần soạn (ghi ở hậu ký ADR-17) | Người dùng quyết: bỏ mục khi `stem` đổi, hay chấp nhận |
+| **Đường soạn câu làm lại tại chỗ** (`start_round`, khi chưa có câu chạy trước) chưa có test, chưa thử tay; lần chạy C4 cả 7 câu đến từ `_write_ahead` | Một test BE dựng lượt khi không có `PregeneratedItem` |
+| **Dòng *"Mục dàn ý ở đầu có thể rộng hơn câu gốc…"* của `retry_brief` chưa thử tay** (thêm sau khi AGENT đã khởi động cho lần C4) | Lần thử tay case 16 kế tiếp |
+| **Đáp án khoá sai ở cả câu gốc đã duyệt lẫn câu biến thể** (C4): câu gốc 5 tính ra 13 mà khoá 7; biến thể 5 tính ra 37 mà khoá 11, và không phương án nào bằng 37; biến thể 2 tính ra 90 mà khoá 900. Không gì kiểm tính đúng của đáp án; mục dàn ý không chữa được chuyện này | Tier 2 câu 3 (*kiểm đáp án bằng máy*), Tier 4 *toán sai*; sympy (3d) chỉ kiểm công thức |
+| **Câu biến thể lượt 2 gần trùng lượt 1** (C4, câu 3): *"x > y, y > z"* sau *"m > n, n > p"* -- chỉ đổi tên biến. `previous_stems` không bắt được kiểu trùng này | AGENT `retry_brief` / BE `validate_retry`: so cấu trúc thay vì chữ |
+| **Check `outline-only` chỉ bắt tên ngay trong `drafting.py` và `student_routes.py`**: một hàm đọc tài liệu import từ module khác, hay một lời gọi HTTP sang `document`, lọt qua (ghi ở docstring) | Một check import-linter: `be.student_routes` không import `be.content_reader` |

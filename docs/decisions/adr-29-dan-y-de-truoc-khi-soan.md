@@ -8,6 +8,7 @@
   *Hậu ký 20/10/2026*.
 - **Sửa:** 2026-10-26 — công thức của dàn ý có thể lấy từ sách: trang có công thức được đọc bằng
   ảnh khi Kriky đọc tới. Xem *Hậu ký 26/10/2026*.
+- **Sửa:** 2026-10-26 — mục dàn ý cũng tới pha 2. Xem *Hậu ký 26/10/2026 (pha 2)*.
 
 ## Bối cảnh
 
@@ -174,3 +175,11 @@ cấp VLM cấu hình ở `services/document` (`FORMULA_PROVIDER`, `FORMULA_MODE
 
 Thi hành: `services/document` (đọc ảnh, ghi cache theo trang), `services/be/src/be/teacher_tools.py`
 `_read_section` (đẩy việc đọc và chờ có trần), `propose/prompt.py` (lời dặn về công thức).
+
+## Hậu ký 26/10/2026 (pha 2)
+
+Mục dàn ý không chỉ tới job soạn câu nữa. Khi học sinh làm sai một câu soạn từ mục ấy, câu làm lại ở
+pha 2 ([ADR-17](adr-17-ba-vong-moi-cau.md)) cũng nhận kiến thức, công thức và cách làm của mục. Luật
+*job nhận đúng thứ giáo viên đã thấy* nay áp cho cả hai pha. *Pha 2 không nhận tài liệu* (hậu ký
+26/10/2026 ở trên) vẫn đúng từng chữ: cái pha 2 nhận là mục dàn ý, không phải chữ sách. Thi hành:
+xem hậu ký 26/10/2026 của ADR-17.

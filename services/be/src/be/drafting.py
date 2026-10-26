@@ -324,6 +324,28 @@ def place_items(outline: dict, first_index: int, start: int) -> dict[int, tuple[
     return placed
 
 
+def outline_item_fields(brief: DraftBrief | None, index: int | None) -> dict:
+    """Kiến thức, công thức, cách làm của một mục dàn ý -- phần chung của job soạn câu và câu làm
+    lại ở pha 2 (hậu ký ADR-17, 26/10/2026). Hàm thuần.
+
+    Args:
+        brief: Brief mang `outline`, hay None khi đề không có brief.
+        index: Chỉ số mục; None ở ô không có mục.
+
+    Returns:
+        `item_knowledge`, `item_formulas`, `item_approach`; rỗng khi không có mục ấy.
+    """
+    items = list((brief.outline if brief is not None else None) or [])
+    if index is None or not 0 <= index < len(items):
+        return {}
+    item = items[index]
+    return {
+        "item_knowledge": str(item.get("knowledge") or ""),
+        "item_formulas": tuple(str(one) for one in item.get("formulas") or ()),
+        "item_approach": str(item.get("approach") or ""),
+    }
+
+
 def item_fields(brief: DraftBrief, index: int | None, part: int) -> dict:
     """Các trường dàn ý của `DraftQuestionRequested` cho một ô (ADR-29). Hàm thuần.
 
@@ -352,9 +374,7 @@ def item_fields(brief: DraftBrief, index: int | None, part: int) -> dict:
             others.append(knowledge)
     parts = max(1, int(item.get("questions") or 1))
     return {
-        "item_knowledge": str(item.get("knowledge") or ""),
-        "item_formulas": tuple(str(one) for one in item.get("formulas") or ()),
-        "item_approach": str(item.get("approach") or ""),
+        **outline_item_fields(brief, index),
         "item_part": min(max(1, part), parts),
         "item_parts": parts,
         "other_items": tuple(others[:_OTHER_ITEMS]),
@@ -790,11 +810,13 @@ def _keep_the_old(row: DraftItem) -> None:
 
     Thay câu giữ câu cũ cho tới khi câu mới qua ADR-18 (Decision *thay một câu*): job hỏng hay hết
     lượt thử thì giáo viên còn nguyên câu đang tốt, không phải một ô trống. Mục dàn ý của ô quay về
-    mục cũ không được -- chỉ số mục cũ không còn giữ --, nên ô trỏ mục mới mà câu là câu cũ; lần
-    thay sau ghi đè lại.
+    mục cũ không được -- chỉ số mục cũ không còn giữ --, nên ô **bỏ** mục: trỏ mục mới mà câu là câu
+    cũ thì câu làm lại ở pha 2 nhận sai kiến thức (review pha 2, `retry-sees-its-outline-item`).
+    Câu cũ khi ấy chạy như câu không có mục; lần thay sau ghi lại mục.
     """
     row.status = "ready"
     row.replacing = False
+    row.outline_item = None
     logger.warning(
         "replacing position %d of %s gave up; the old question stays: %s",
         row.ordinal,

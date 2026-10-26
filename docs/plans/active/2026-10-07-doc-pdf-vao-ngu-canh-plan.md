@@ -54,7 +54,7 @@ lại; sympy lùi thành **3d**.
 | 4b | [`2026-10-12-draft-from-document-plan.md`](../completed/2026-10-12-draft-from-document-plan.md) — **đóng 12/10/2026** — soạn đề theo tài liệu: chip đi kèm tin nhắn, tool đọc cây, `ask_clarify` bằng tên chương/bài, mỗi câu một ô kiến thức | mười câu của một đề đứng trên mười ô kiến thức khác nhau của tài liệu | **có** |
 | 4c | [`2026-10-12-unbiased-model-text-plan.md`](../completed/2026-10-12-unbiased-model-text-plan.md) — **đóng 13/10/2026** — text model đọc không bám một chương Toán (Kriky lẫn document agent); Kriky không hỏi thừa khi đủ bốn mục; câu hỏi lại có ít nhất ba lựa chọn, lối "Khác" là ô ghi rõ; soạn đề theo tài liệu không chip đọc mục lục trước khi mở đề | `propose_bench` cả bộ không tụt so với baseline (127/132), không text model đọc gọi tên chủ đề Toán nào; cây Lớp 6 tập 1 không tụt | **có** |
 | 5a | [`2026-10-15-draft-outline-plan.md`](../completed/2026-10-15-draft-outline-plan.md) — **đóng 15/10/2026** — **dàn ý đề** (ADR-29): Kriky đọc phạm vi bằng `read_section`, đề xuất dàn ý (kiến thức, công thức, cách làm), BE in ra chat, giáo viên duyệt bằng chat; job chỉ nhận mục dàn ý, không chữ tài liệu thô | một đề 5 câu theo chương đi qua dàn ý → sửa → duyệt → 5 câu bám dàn ý; không payload job nào có chữ chunk | **có** |
-| 5 | Nội dung vào prompt — *chưa viết*. Từ 12/10/2026 4b nhận ba tool đọc và nội dung vào prompt **soạn đề**; từ 15/10/2026 phần soạn đề chuyển sang 5a (chữ thô thôi tới job, Kriky đọc bằng `read_section`); plan 5 còn lại: Kriky trả lời câu hỏi về nội dung tài liệu trong chat (dùng lại `read_section`), và quyết định riêng cho pha 2 (hậu ký ADR-27) | ~~không payload nào rời BE mang chunk nhãn bài tập~~ (rút 12/10/2026); cổng viết khi tới lượt | có |
+| 5 | Nội dung vào prompt — **đóng 26/10/2026** bằng [`2026-10-27-ask-the-document-plan.md`](../completed/2026-10-27-ask-the-document-plan.md) và [`2026-10-27-retry-sees-its-outline-item-plan.md`](../completed/2026-10-27-retry-sees-its-outline-item-plan.md). Từ 12/10/2026 4b nhận ba tool đọc và nội dung vào prompt **soạn đề**; từ 15/10/2026 phần soạn đề chuyển sang 5a (chữ thô thôi tới job, Kriky đọc bằng `read_section`); plan 5 còn lại: Kriky trả lời câu hỏi về nội dung tài liệu trong chat (dùng lại `read_section`), và quyết định riêng cho pha 2 (hậu ký ADR-27) | ~~không payload nào rời BE mang chunk nhãn bài tập~~ (rút 12/10/2026); cổng viết khi tới lượt | có |
 
 Hai plan sau **cố ý chưa có file** (3d, 5): `AGENTS.md` cấm tạo file rỗng hoặc chỉ có heading,
 và thiết kế chi tiết của chúng chưa xong. Mỗi file được viết khi tới lượt nó.
@@ -370,8 +370,11 @@ HTTP ghi một hàng).
 - [x] **Plan 5a — dàn ý đề** (thêm 15/10/2026, tách từ plan 5; ADR-29). Đóng 15/10/2026: dàn ý
       → sửa → duyệt bằng chat → câu bám dàn ý, thay câu, soạn thêm, trên trình duyệt; việc còn lại ở
       `backlog.md`, mục *Lộ ra khi làm plan dàn ý đề*
-- [ ] **Plan 5 — nội dung vào prompt** (đóng **B10**) -- phần còn lại sau 5a: Kriky trả lời câu hỏi
-      tự do về tài liệu (dùng lại `read_section` của 5a), quyết định pha 2
+- [x] **Plan 5 — nội dung vào prompt** (đóng **B10**) -- phần còn lại sau 5a: Kriky trả lời câu hỏi
+      tự do về tài liệu (dùng lại `read_section` của 5a), quyết định pha 2. Đóng 26/10/2026 bằng hai
+      plan: `2026-10-27-ask-the-document-plan.md` (hỏi đáp tài liệu) và
+      `2026-10-27-retry-sees-its-outline-item-plan.md` (pha 2 nhận mục dàn ý, không nhận tài liệu --
+      người dùng chốt 26/10/2026). **B10 đóng** cùng plan `formulas-on-demand`.
 
 ## Validation Checks
 
@@ -398,7 +401,9 @@ file từ 11/10/2026: `2026-10-11-document-agent-hierarchy-plan.md`, đóng cùn
 Plan 3a và plan 3b đóng 11/10/2026 và cả hai đã về `completed/`. Plan 3b đóng sớm sau Task 2 (commit
 `0ccf7ee`, chung với 3a), rồi được mở lại cùng ngày và làm nốt Task 3: **PDF scan giờ đi OCR theo lô
 vào Mongo** và về *sẵn sàng* -- cổng của 3b đạt trên cuốn Lớp 6 tập 1 (125 trang, 9 phút). 3c đọc bản
-thô ấy. Ba plan chưa viết là lý do duy nhất file này còn nằm trong `active/`.
+thô ấy. Ba plan chưa viết là lý do duy nhất file này còn nằm trong `active/`. **Từ 26/10/2026** chỉ
+còn phần sympy của plan 3d (phần VLM là `formulas-on-demand`; plan 5 đã đóng): đó là lý do duy nhất
+file này còn ở `active/`.
 
 **Thứ tự đổi 12/10/2026** (người dùng): plan 4 làm trước 3d và 5, và chia đôi -- 4a (skill + Jev
 trong AGENT) rồi 4b (soạn đề theo tài liệu). Người dùng chốt cùng ngày: tài liệu đi vào prompt là

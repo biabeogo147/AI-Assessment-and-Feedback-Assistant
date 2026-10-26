@@ -549,22 +549,30 @@ def check_drafting_reads_no_document_text() -> str | None:
     bắt -- đường chính vẫn bị, vì không có `get_reader`/`.chunks(`/`content_reader` thì không có
     chữ tài liệu nào để đặt vào khoá ấy.
 
+    Từ plan `retry-sees-its-outline-item` (hậu ký ADR-17, 26/10/2026) câu làm lại ở pha 2 cũng nhận
+    mục dàn ý, và payload của nó dựng ở `student_routes.py`: file ấy cũng phải sạch -- pha 2 không
+    nhận tài liệu. Giới hạn: chỉ bắt tên ngay trong hai file ấy -- một hàm đọc tài liệu import từ
+    module khác, hay một lời gọi HTTP sang `document`, lọt qua.
+
     Returns:
-        None khi `drafting.py` sạch, ngược lại là một thông báo thất bại kèm mọi dòng vi phạm.
+        None khi `drafting.py` và `student_routes.py` sạch, ngược lại là một thông báo thất bại kèm
+        mọi dòng vi phạm.
     """
-    drafting = REPO_ROOT / "services" / "be" / "src" / "be" / "drafting.py"
-    if not drafting.exists():
-        return _fail("outline-only", f"{drafting} is missing; the check cannot run")
-    offenders = [
-        f"{drafting.name}:{number}"
-        for number, line in enumerate(_code_only(drafting.read_text(encoding="utf-8")), 1)
-        if DOCUMENT_TEXT_READS.search(line)
-    ]
+    offenders: list[str] = []
+    for name in ("drafting.py", "student_routes.py"):
+        builder = REPO_ROOT / "services" / "be" / "src" / "be" / name
+        if not builder.exists():
+            return _fail("outline-only", f"{builder} is missing; the check cannot run")
+        offenders += [
+            f"{builder.name}:{number}"
+            for number, line in enumerate(_code_only(builder.read_text(encoding="utf-8")), 1)
+            if DOCUMENT_TEXT_READS.search(line)
+        ]
     if offenders:
         return _fail(
             "outline-only",
-            f"drafting reads document text at {offenders}. A drafting job receives the "
-            "outline item the teacher saw, never raw document text (ADR-29).",
+            f"a job payload reads document text at {offenders}. A drafting or retry job "
+            "receives the outline item the teacher saw, never raw document text (ADR-29, ADR-17).",
         )
     return None
 

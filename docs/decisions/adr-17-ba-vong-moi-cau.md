@@ -2,6 +2,7 @@
 
 - **Trạng thái:** đã chốt, và đã thi hành ở backend (cập nhật 2026-10-10; lưới *giữ nguyên dạng đề*: chưa có)
 - **Ngày:** 2026-09-10
+- **Sửa:** 2026-10-26 — biến thể nhận thêm mục dàn ý của câu gốc. Xem *Hậu ký 26/10/2026*.
 
 ## Bối cảnh
 
@@ -130,3 +131,34 @@ Số dòng ở mục Hệ quả và mục *Nơi luật này đang được thi h
 Gạch *câu đóng ở 0 điểm là một tín hiệu bị bỏ rơi* vẫn đúng. Hàng đợi *Cần bạn xem*
 ([ADR-34](adr-34-hang-doi-review-va-diem-gop.md)) gom tỉ lệ sai của **một câu qua nhiều bài**, không
 báo từng em hết ba vòng.
+
+## Hậu ký 26/10/2026
+
+Biến thể nay sinh từ câu gốc **và mục dàn ý** mà câu gốc được soạn theo: kiến thức, công thức, cách
+làm ([ADR-29](adr-29-dan-y-de-truoc-khi-soan.md)). Trước đây AGENT chỉ thấy câu gốc, nên phải tự đoán
+câu ấy kiểm điều gì; mục dàn ý nói thẳng điều ấy, và giáo viên đã duyệt nó. Người dùng chốt ngày
+26/10/2026: pha 2 nhận *mục dàn ý cộng câu gốc*, không nhận tài liệu.
+
+Hai điều không đổi:
+
+- **Pha 2 không nhận chữ tài liệu.** Mục dàn ý là thứ Kriky đã lọc và giáo viên đã thấy; chữ OCR
+  của sách không đi qua đường này.
+- **Câu không có mục chạy như trước.** Ba trường mới để rỗng ở câu lấy từ ngân hàng, câu seed, và
+  câu soạn trước ADR-29.
+
+Mục của một câu là mục của **ô soạn** ra nó: `draft_items` cùng đề, cùng số thứ tự, đã `ready`.
+Hai giới hạn đã biết:
+
+- **Thay câu mà job hỏng tới hết lượt.** Câu cũ ở lại, và ô **bỏ** mục: chỉ số mục cũ không còn
+  giữ, mà trỏ mục mới thì sai.
+- **Giáo viên sửa tay câu.** Ô vẫn giữ mục. Viết lại sang kiến thức khác thì câu làm lại nhận mục
+  cũ: mục là thứ giáo viên đã duyệt lúc soạn, không phải lúc sửa. Đã ghi vào backlog.
+
+Thi hành:
+
+- `services/be/src/be/student_routes.py` `_retry_ask` cùng hai nơi gọi nó;
+- `drafting.outline_item_fields`, hàm dùng chung với `item_fields`;
+- `services/agent/src/agent/graphs/authoring/brief.py` `retry_brief`;
+- check `outline-only` (`check_drafting_reads_no_document_text`), nay quét cả `student_routes.py`.
+
+Plan `retry-sees-its-outline-item`.

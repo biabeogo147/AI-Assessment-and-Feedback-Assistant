@@ -118,10 +118,23 @@ def test_the_last_part_of_an_item_is_a_part() -> None:
     assert _job(item_part=2, item_parts=2).item_part == 2
 
 
-@pytest.mark.parametrize("phase_two", [RetryQuestionRequested, ExplainTurnRequested])
-def test_phase_two_has_no_room_for_an_outline_item(phase_two: type) -> None:
-    """ADR-29: pha 2 không đổi -- không nhận tài liệu, không qua dàn ý."""
-    fields = set(phase_two.model_fields)
+def test_a_retry_carries_the_outline_item_of_its_origin_and_nothing_of_the_document() -> None:
+    """Hậu ký ADR-17 (26/10/2026): câu làm lại nhận mục dàn ý của câu gốc -- đúng ba trường giáo
+    viên đã duyệt -- và không có chỗ nào cho chữ tài liệu (ADR-29: pha 2 không nhận tài liệu)."""
+    fields = set(RetryQuestionRequested.model_fields)
+
+    assert {name for name in fields if name.startswith("item_")} == {
+        "item_knowledge",
+        "item_formulas",
+        "item_approach",
+    }
+    assert not any("focus" in name or "chunk" in name or "document" in name for name in fields)
+    assert "other_items" not in fields
+
+
+def test_the_tutor_turn_still_has_no_room_for_an_outline_item() -> None:
+    """Gia sư pha 2 không đổi: không nhận tài liệu, không qua dàn ý."""
+    fields = set(ExplainTurnRequested.model_fields)
 
     assert not any(name.startswith("item_") or "outline" in name for name in fields)
     assert "other_items" not in fields

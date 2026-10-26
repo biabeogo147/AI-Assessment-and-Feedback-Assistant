@@ -157,3 +157,41 @@ def test_a_job_carries_its_own_content(payload) -> None:
     for question in questions:
         assert question["stem"], "a job must carry the question text, not a question id"
         assert question["options"], "a job must carry the options, not an id to look them up"
+
+
+def test_a_retry_brief_names_the_outline_item_of_its_origin_before_the_origin() -> None:
+    """Hậu ký ADR-17 (26/10/2026): câu làm lại bám mục dàn ý giáo viên đã duyệt, rồi câu gốc."""
+    from agent.graphs.authoring.brief import retry_brief
+
+    brief = retry_brief(
+        RetryQuestionRequested(
+            request_id="r1",
+            origin=_ORIGIN,
+            wrong_option_label="B",
+            round_index=1,
+            item_knowledge="nhân hai luỹ thừa cùng cơ số",
+            item_formulas=(r"$a^m \cdot a^n = a^{m+n}$",),
+            item_approach="giữ nguyên cơ số, cộng số mũ",
+        )
+    )
+
+    assert brief.index("nhân hai luỹ thừa cùng cơ số") < brief.index("Câu gốc:")
+    assert brief.index("giữ nguyên cơ số, cộng số mũ") < brief.index("Câu gốc:")
+    assert "chỉ kiểm phần câu gốc kiểm" in brief
+    assert "Cùng DẠNG và cùng cách làm với câu gốc" in brief
+    assert r"$a^m \cdot a^n = a^{m+n}$" in brief
+    assert "giữ nguyên cơ số, cộng số mũ" in brief
+
+
+def test_a_retry_without_an_outline_item_reads_as_before() -> None:
+    from agent.graphs.authoring.brief import retry_brief
+
+    brief = retry_brief(
+        RetryQuestionRequested(
+            request_id="r1", origin=_ORIGIN, wrong_option_label="B", round_index=1
+        )
+    )
+
+    assert "giáo viên đã duyệt" not in brief
+    assert "Mục dàn ý ở đầu" not in brief
+    assert brief.splitlines()[2].startswith("Câu gốc:")

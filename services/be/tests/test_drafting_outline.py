@@ -339,6 +339,9 @@ async def test_a_replacement_out_of_attempts_leaves_the_old_question(stack, monk
 
     assert stems[1] == "Câu một cũ"
     assert (row.status, row.replacing) == ("ready", False)
+    # Ô thôi trỏ mục mới: câu ở đó là câu cũ, và câu làm lại ở pha 2 đọc mục của ô
+    # (`retry-sees-its-outline-item`, review pha 2).
+    assert row.outline_item is None
 
 
 @pytest.mark.asyncio

@@ -39,6 +39,7 @@ from be.agent_gateway import (
 from be.burst_limit import hold_back_bursts
 from be.config import get_settings
 from be.db import get_session
+from be.drafting import outline_item_fields
 from be.identity import current_student
 from be.remediation import attempt_state, round_budget_minutes, round_ends_at, will_be_cut
 from be.scoring import (
@@ -67,6 +68,8 @@ from schema.models import (
     Assessment,
     Attempt,
     ChatMessage,
+    DraftBrief,
+    DraftItem,
     PregeneratedItem,
     Publication,
     Question,
@@ -1351,12 +1354,57 @@ async def post_chat_message(
     )
 
 
+async def _outline_items(session: AsyncSession, questions: list[Question]) -> dict[str, dict]:
+    """Mục dàn ý mà mỗi câu gốc soạn theo (hậu ký ADR-17, 26/10/2026), theo `question.id`.
+
+    Mục của một câu là mục của **ô soạn** ra nó: `draft_items` cùng đề, cùng số thứ tự (mỗi số thứ
+    tự một ô -- ràng buộc duy nhất của bảng), đã `ready`. Câu không do Kriky soạn
+    (`source = "bank"`), câu seed và câu soạn trước ADR-29 không có ô hay ô không có mục: không có
+    trong kết quả, và câu làm lại của nó chạy như trước. Chỉ đọc database của BE, không bao giờ đọc
+    kho nội dung: pha 2 không nhận tài liệu (check `outline-only`).
+
+    Args:
+        session: Session của database.
+        questions: Các câu gốc.
+
+    Returns:
+        `question.id` → các trường `item_*` của `RetryQuestionRequested`.
+    """
+    papers = {question.assessment_id for question in questions if question.source == "kriky"}
+    if not papers:
+        return {}
+    briefs = {
+        brief.assessment_id: brief
+        for brief in await session.scalars(
+            select(DraftBrief).where(DraftBrief.assessment_id.in_(papers))
+        )
+    }
+    cells = {
+        (cell.assessment_id, cell.ordinal): cell
+        for cell in await session.scalars(
+            select(DraftItem).where(
+                DraftItem.assessment_id.in_(papers), DraftItem.status == "ready"
+            )
+        )
+    }
+    found: dict[str, dict] = {}
+    for question in questions:
+        cell = cells.get((question.assessment_id, question.order_index))
+        if question.source != "kriky" or cell is None:
+            continue
+        fields = outline_item_fields(briefs.get(question.assessment_id), cell.outline_item)
+        if fields:
+            found[question.id] = fields
+    return found
+
+
 def _retry_ask(
     attempt_id: str,
     question: Question,
     picked_option_id: str | None,
     round_index: int,
     previous_stems: tuple[str, ...],
+    item: dict | None = None,
 ) -> RetryQuestionRequested:
     """Dựng lời yêu cầu cho round tiếp theo của một câu hỏi.
 
@@ -1370,6 +1418,7 @@ def _retry_ask(
         picked_option_id: Thứ học sinh đã chọn, hoặc None nếu không chọn gì.
         round_index: Đây sẽ là round thứ mấy, đếm từ 1.
         previous_stems: Những stem đã dùng cho câu hỏi này.
+        item: Mục dàn ý của câu gốc (`_outline_items`), hay None khi câu không có mục.
 
     Returns:
         Lời yêu cầu, sẵn sàng để serialise.
@@ -1393,6 +1442,7 @@ def _retry_ask(
         error_label=picked.error_label if picked else None,
         round_index=round_index,
         previous_stems=previous_stems,
+        **(item or {}),
     )
 
 
@@ -1592,6 +1642,9 @@ async def _write_ahead(
         )
     )
 
+    items = await _outline_items(
+        session, [question for question in questions if question.id not in already]
+    )
     for question in questions:
         if question.id in already:
             continue
@@ -1602,6 +1655,7 @@ async def _write_ahead(
             chosen.get(question.id),
             round_index,
             tuple((spent or {}).get(question.id, ())),
+            items.get(question.id),
         )
         job_id = await enqueue_task(
             pool, settings, GENERATE_RETRY_QUESTION_TASK, ask.model_dump(mode="json")
@@ -1969,6 +2023,7 @@ async def start_round(
     }
 
     items: list[RoundItemOut] = []
+    outline = await _outline_items(session, open_questions)
     for order, question in enumerate(open_questions, start=1):
         waiting = ready.get(question.id)
         if waiting is not None and waiting.round_index == outcomes[question.id].rounds_used + 1:
@@ -1990,6 +2045,7 @@ async def start_round(
             chosen.get(question.id),
             outcomes[question.id].rounds_used + 1,
             tuple(spent.get(question.id, ())),
+            outline.get(question.id),
         )
         try:
             generated = await ask_for_retry_question(
