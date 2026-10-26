@@ -81,6 +81,23 @@ class UncountedOutline(Flawed):
             )
 
 
+class AnsweredUnread(Flawed):
+    """Lượt hỏi về sách mà model trả lời khi chưa mở mục nào kể từ câu hỏi (`ask-the-document`).
+
+    Thử tay case 18 (26/10/2026, Haiku): *"bài nào nói về số La Mã?"* -- mục ấy là mục con của *Cách
+    ghi số tự nhiên*, label chương không lộ ra, và model nói *"mình chưa đọc nên chưa chỉ đúng
+    trang"* thay vì mở mục. Hai lần đổi chữ `BOOK_QUESTIONS` không giữ được nó. Hỏi lại một lần;
+    lần hai vẫn trả lời thì giữ lần hai -- *"sách không có phần này"* đọc từ mục lục là lời đúng.
+    """
+
+    hint = (
+        "Bạn trả lời về tài liệu mà lượt này chưa mở mục nào. Điều được hỏi có thể nằm trong một "
+        "bài hay mục con: gọi get_chapter các node có thể chứa nó, hay read_section (không "
+        "questions) mục nói về nó, rồi mới trả lời. Chỉ trả lời ngay khi mục lục đã cho thấy "
+        "tài liệu không có điều ấy."
+    )
+
+
 class AskedWhatWasKnown(Flawed):
     """Model hỏi lại trong khi chính `known` của nó đã ghi đủ bốn mục (Tier 2 câu 33 = A, 21/10).
 

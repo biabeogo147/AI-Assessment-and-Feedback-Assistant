@@ -14,7 +14,7 @@ from agent import llm
 from agent.graphs.authoring import draft_brief
 from agent.graphs.propose import propose
 from agent.graphs.propose.compose import _describe_tool, compose
-from agent.graphs.propose.prompt import BOOK_PROCEDURE, LIBRARY
+from agent.graphs.propose.prompt import BOOK_PROCEDURE, BOOK_QUESTIONS, LIBRARY, LIBRARY_ASK
 from agent.graphs.propose.proposal import _Proposal
 from contracts import (
     AttachedDocument,
@@ -245,6 +245,70 @@ def test_the_library_hint_comes_only_to_a_drafting_turn_without_a_book(
     assert (LIBRARY in system) is told
     # Chỗ trống của skill không bao giờ tới model, điền hay xoá.
     assert "{thư viện}" not in system
+
+
+@pytest.mark.parametrize(
+    ("chosen", "drafting", "answering"),
+    [
+        (("soan-de",), True, False),
+        (("hoi-tai-lieu",), False, True),
+        (("hoi-tai-lieu", "soan-de"), True, True),
+        (("tro-chuyen-chung",), False, False),
+    ],
+)
+def test_each_book_procedure_comes_with_its_own_skill(chosen, drafting, answering) -> None:
+    """`ask-the-document`: lượt chỉ hỏi về sách không nhận thủ tục dặn nêu dàn ý, và ngược lại."""
+    request = NextStepRequested(request_id="r1", history=(_BOOK_TALK,), attached_document=_READY)
+
+    system = compose({"request": request, "skills": chosen, "messages": [], "step": None})[
+        "messages"
+    ][0].text
+
+    assert (BOOK_PROCEDURE in system) is drafting
+    assert (BOOK_QUESTIONS in system) is answering
+
+
+def test_a_question_about_a_book_not_attached_opens_the_library_with_its_own_line() -> None:
+    request = NextStepRequested(
+        request_id="r1",
+        history=(TurnRecord(kind="teacher", text="cuốn sách mình tải lên nói gì về chương 2"),),
+        catalog=(ToolSpec(name="list_documents", description="tra cứu", arguments={}),),
+    )
+
+    state = {"request": request, "skills": ("hoi-tai-lieu",), "messages": [], "step": None}
+    system = compose(state)["messages"][0].text
+
+    assert LIBRARY_ASK in system
+    assert LIBRARY not in system
+    assert "{thư viện}" not in system
+
+
+def test_a_question_answered_from_a_book_closes_the_book_for_the_next_paper() -> None:
+    """Review pha 3 (`ask-the-document`): hỏi về sách không chip, được trả lời, rồi xin một đề
+    khác -- thủ tục sách không còn tới."""
+    from agent.graphs.propose.books import book_in_view
+
+    answered = TurnRecord(
+        kind="tool_result",
+        tool_name="read_section",
+        tool_result={"found": True, "answering": True},
+    )
+    request = NextStepRequested(
+        request_id="r1",
+        history=(
+            TurnRecord(kind="teacher", text="cuốn sách mình tải lên nói gì về chương 2"),
+            answered,
+            TurnRecord(kind="assistant", text="Chương 2 nói về …"),
+            TurnRecord(kind="teacher", text="soạn 5 câu lớp 7"),
+        ),
+    )
+
+    assert book_in_view(request) is False
+
+
+def test_the_answering_procedure_reads_without_questions() -> None:
+    assert "KHÔNG có questions" in BOOK_QUESTIONS
+    assert "tài liệu không có" in BOOK_QUESTIONS
 
 
 def test_the_library_line_stands_among_the_drafting_branches() -> None:

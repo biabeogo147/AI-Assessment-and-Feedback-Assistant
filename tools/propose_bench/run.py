@@ -71,6 +71,10 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
     banned = [word for word in expect.get("text_lacks", []) if word.casefold() in text.casefold()]
     if banned:
         return False, f"text có {banned[0]!r}"
+    # Lời đáp về sách phải dẫn được chỗ đã đọc (`ask-the-document`): một trong các chữ ấy.
+    wanted = expect.get("text_has_any", [])
+    if wanted and not any(word.casefold() in text.casefold() for word in wanted):
+        return False, f"text thiếu cả {wanted}"
     if kind == "call_tool" and step.get("tool_name") != expect.get("tool"):
         return False, f"tool {step.get('tool_name')}"
     if kind == "call_tool":
@@ -80,6 +84,10 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
             allowed = value if isinstance(value, list) else [value]
             if str(args.get(key, "")).strip() not in allowed:
                 return False, f"tool {key} {args.get(key)!r} / args {sorted(args)}"
+        # Tham số **không** được có: đọc để trả lời thì không `questions` (`ask-the-document`).
+        extra = [key for key in expect.get("args_lack", []) if str(args.get(key) or "").strip()]
+        if extra:
+            return False, f"tool có {extra[0]} {args.get(extra[0])!r}"
     if kind == "ask_clarify" and len(step.get("choices") or []) < expect.get("min_choices", 0):
         return False, f"chỉ {len(step.get('choices') or [])} phương án"
     if kind == "outline":

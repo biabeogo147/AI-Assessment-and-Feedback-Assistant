@@ -75,6 +75,20 @@ def test_a_read_not_yet_written_into_an_outline_keeps_its_text() -> None:
     assert records[1].tool_result == _READ
 
 
+def test_a_read_to_answer_a_question_never_stays_for_the_next_turn() -> None:
+    """`ask-the-document`: lượt hỏi đã trả lời xong; chữ ấy không phải phạm vi của dàn ý nào."""
+    answered = {**_READ, "answering": True}
+    records = _as_records(
+        [
+            _turn(0, "tool_result", tool_name="read_section", tool_result=answered),
+            _turn(1, "assistant", text="Sách định nghĩa ở Bài 6, trang 22."),
+        ]
+    )
+
+    assert "text" not in records[0].tool_result
+    assert records[0].tool_result["answering"] is True
+
+
 def test_reads_waiting_for_an_outline_never_pile_up_past_ten_parts() -> None:
     turns = [
         _turn(sequence, "tool_result", tool_name="read_section", tool_result=_READ)

@@ -148,3 +148,33 @@ LIBRARY = (
     "- giáo viên nhắc tới một cuốn sách hay tệp đã tải lên để soạn theo mà không đính kèm → "
     "call_tool list_documents TRƯỚC, kể cả khi còn ? -- khối, môn có thể đọc ra từ tên tài liệu;"
 )
+
+
+# Dòng mở thư viện của skill **hỏi** về sách (`ask-the-document`). Không sửa `LIBRARY` cho cả hai
+# việc: chữ ấy đứng giữa các nhánh quyết định của `soan-de` và đã đo từng câu (comment trên), còn
+# lượt hỏi không có khối, môn hay `?` nào để nói tới.
+LIBRARY_ASK = (
+    "- giáo viên hỏi về một cuốn sách hay tệp đã tải lên mà không đính kèm → call_tool "
+    "list_documents TRƯỚC;"
+)
+
+
+# Thủ tục đọc để **trả lời** (`ask-the-document`, hậu ký ADR-27 26/10/2026), chèn khi lượt có sách
+# và skill `hoi-tai-lieu` được chọn -- như `BOOK_PROCEDURE` cho `soan-de`. `read_section` không
+# `questions`: BE chia phạm vi theo độ dài và đánh dấu lần đọc `answering`, để lượt soạn đề sau
+# không viết dàn ý từ nó. Chưa đo bench lúc viết.
+BOOK_QUESTIONS = """Hỏi về nội dung tài liệu -- lượt này có tài liệu, nên TRƯỚC khi trả lời:
+1. call_tool list_chapters — document_id. Cần bài hay mục bên trong một chương thì
+   call_tool get_chapter — document_id, node. document_id đã có ở dòng tài liệu đính kèm thì
+   không gọi list_documents.
+2. Chọn các node mà label nói về điều giáo viên hỏi. Điều ấy có thể nằm trong một bài hay mục
+   con mà label của chương không nói ra → call_tool get_chapter các node có thể chứa nó, tới mức
+   bài, rồi mới kết luận. Label của chương đã cho thấy điều ấy không thuộc chương nào, hay đã xem
+   tới mức bài mà không label nào nói về nó → say rằng tài liệu không có phần này, kể vài chương
+   tài liệu có; không cần đọc chữ.
+3. Có node nói về điều ấy → call_tool read_section — document_id, nodes (các node đã chọn),
+   KHÔNG có questions, part 1; rồi part 2, 3, … khi more là true và phần đã đọc chưa đủ để trả
+   lời. Nội dung chỉ trả lời sau khi đã đọc.
+4. say: trả lời chỉ từ chữ đã đọc, kể cả khối công thức đọc từ ảnh trang; nêu bài và trang lấy
+   từ labels của phần đọc. Chữ quét có thể lỗi: diễn đạt lại cho sạch, không chép nguyên đoạn
+   dài. Chữ đã đọc không nói tới điều được hỏi → nói tài liệu không có."""

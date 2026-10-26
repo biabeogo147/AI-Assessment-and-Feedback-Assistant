@@ -914,3 +914,20 @@ Biên bản: `docs/testing/ket-qua/2026-10-26-dc9035e-claude-haiku-5-5.md`.
 | **Case 04 hỏi lại hai lần**: hỏi chương dù sách chỉ một chương và giáo viên đã nói *chương 1*, rồi hỏi bài. Bảng rẽ của case chấp nhận được, nhưng thừa hai lượt | Tier 4, skill `soan-de` / `BOOK_PROCEDURE` bước 2 |
 | **Nguồn bài viết bằng thứ tự, không bằng tên** (case 17): *"Nguồn: bài 1, mục 1 của chương"*, dù `labels` có tên bài | `CORE` đã dặn *gọi bằng tên bài*; Tier 4 |
 | **Thử tay vượt ước chi phí**: ước ≤ 0,05 USD, thật 0,20–0,28 USD. Tổng 531 nghìn token chat, riêng case 04 291 nghìn (hai lần hỏi lại, hai dàn ý, một lượt rẽ); phần VLM chỉ ~0,005 USD | Ước chi phí thử tay phải tính cả case 04 đọc trọn chương (~350 nghìn token), không chỉ phần mới. Truy vấn D của case 17 lúc đầu dùng `documents.filename` của Mongo (không có trường ấy); đã sửa sang id từ Postgres |
+
+## Lộ ra khi làm plan Kriky trả lời câu hỏi về tài liệu (26/10/2026)
+
+Plan `2026-10-27-ask-the-document-plan.md`. Biên bản:
+`docs/testing/ket-qua/2026-10-26-c4c767f-hoi-sach-claude-haiku-5-5.md`. Bench: `data/results/run-103`
+tới `run-117`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **`brief` rỗng nay ở 6/7 dàn ý của ngày 26/10** (mọi dàn ý đầu đoạn chat, 5/5; ngày 22/10 là 6/13): `oke` đầu tiên của case 04 không ra plan ở cả hai vòng C2 và C3. Mục *Dàn ý lưu `brief` rỗng…* của plan Tier 1 nay chặn lượt soạn đề theo sách gần như mọi lần | Tier 2 câu 24 (A/B/C). Nên quyết trước khi thử tay tiếp |
+| **Lời đáp về sách bù bằng hiểu biết riêng**. Case 18 lượt 2 kể các chữ số La Mã khi lượt ấy chỉ gọi `get_chapter`, không đọc chữ. Lượt 3 và bench `hoi-sach-khong-co` thêm *"có thể nằm trong tập 2"*, *"số phức học ở lớp 12"* (đúng) hay *"lớp 9"* (sai, 1/4 lần ở run-114, run-116, run-117). Hai lần đổi chữ `BOOK_QUESTIONS` không bỏ được | Tier 4. Một luật code giống `AnsweredUnread` cho lời có nội dung mà chưa `read_section`? Đo trước |
+| **`AnsweredUnread` tốn một lần hỏi lại model** ở mọi lời đáp *"sách không có"* khi lượt ấy chưa mở mục nào, kể cả khi mục lục đã đủ để kết luận (bench `hoi-sach-khong-co`: *hỏi lại model: 4*/4). Có chip mà Jev chọn `hoi-tai-lieu` cho một lời chào thì lời nhắc đẩy model mở sách vô ích (review pha 5) | Chấp nhận: rẻ hơn một lời đáp không đọc sách; đếm lại nếu có ca thật hỏi *"có … không"* nhiều |
+| **Hai thủ tục cùng tới khi nạp mọi skill** (Jev hỏng, hay không có `JEV_API_KEY`): `tai-lieu-khong-khop` 2/3 ở run-111; thủ tục hỏi đáp (*"say rằng tài liệu không có"*) thắng bước hỏi lại của soạn đề. Thân skill `hoi-tai-lieu` (*"nhờ giáo viên đính kèm"*) cũng tới mọi lượt soạn đề không sách, đúng kiểu lỗi run-13 | Đo cả bộ `propose_bench` khi `JEV_API_KEY` rỗng; hay chỉ chèn `BOOK_QUESTIONS` khi `soan-de` **không** được chọn |
+| **Hỏi về sách không chip rồi muốn soạn theo chính cuốn ấy**: lần đọc hỏi đáp khép việc chọn sách (`book_in_view`), nên giáo viên phải đính chip hay nhắc lại sách | Hành vi chủ ý (review pha 3); xem lại nếu thử tay thấy giáo viên kẹt |
+| **Model quên `questions` khi soạn thì thành đọc hỏi đáp mà không ai báo**: trước plan thiếu `questions` bị từ chối; nay chữ không ở lại lượt sau và `read_before_outline` bắt đọc lại -- tốn một vòng tool | Chưa thấy ở bench; một ca soạn đề kiểm `questions` luôn có |
+| **KaTeX dựng chữ có dấu trong `\text` dưới `\underbrace` thành *"thừa s o ˆ ˊ"*** (case 18 lần 1, 2: công thức trang 18 từ khối ảnh). Lỗi dựng hình ở FE | FE `MathText`/KaTeX: thử `\text` với `unicode` hay font; so Figma |
+| **Bench hỏi đáp còn lỏng** (review pha 4): `hoi-sach-tra-loi` đạt khi chỉ chép label; chưa có ca `propose` cho *hỏi rồi soạn* trong một tin; chưa có ca đáp ngắn *"chương 2"* có chip ở `skill_bench`; các ca `du-*`, `thieu-*`, `chung-*`, `tra-*` chưa chạy lại sau khi `compose` và mô tả `read_section` đổi | ~0,15 USD cho cả bộ × 3; xin phép trước |

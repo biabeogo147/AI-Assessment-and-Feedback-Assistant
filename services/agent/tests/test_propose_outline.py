@@ -265,6 +265,91 @@ def test_an_outline_after_reading_the_book_stays_an_outline() -> None:
     assert step.kind == "outline"
 
 
+def test_a_read_to_answer_a_question_does_not_count_as_reading_for_the_outline() -> None:
+    """`ask-the-document`: hỏi về bài 7 rồi xin soạn đề bài 7 -- lượt soạn vẫn phải đọc phạm vi."""
+    outline = NextStepCompleted(
+        request_id="r1",
+        kind="outline",
+        text="Dàn ý.",
+        outline=(OutlineItem(questions=2, knowledge="A", approach="B", source_nodes=(7,)),),
+    )
+    asked = TurnRecord(
+        kind="tool_call", tool_name="read_section", tool_args={"document_id": "book", "nodes": "7"}
+    )
+    answered = TurnRecord(
+        kind="tool_result",
+        tool_name="read_section",
+        tool_result={"found": True, "part": 1, "parts": 1, "more": False, "answering": True},
+    )
+
+    step = read_before_outline(
+        outline,
+        _with_book(
+            TurnRecord(kind="teacher", text="bài 7 nói gì"),
+            asked,
+            answered,
+            TurnRecord(kind="assistant", text="Bài 7 nói về …"),
+            TurnRecord(kind="teacher", text="soạn 2 câu bài ấy"),
+        ),
+    )
+
+    assert (step.kind, step.tool_name) == ("call_tool", "read_section")
+    assert step.tool_args["questions"] == "2"
+
+
+@pytest.mark.parametrize(
+    ("since_question", "chosen", "asks_again"),
+    [
+        ((), ("hoi-tai-lieu",), True),
+        ((("list_chapters", {}),), ("hoi-tai-lieu",), True),
+        ((("get_chapter", {"node": "3"}),), ("hoi-tai-lieu",), False),
+        ((("read_section", {"nodes": "4"}),), ("hoi-tai-lieu",), False),
+        ((), ("tro-chuyen-chung",), False),
+    ],
+)
+def test_an_answer_about_the_book_needs_a_look_inside_it(
+    since_question, chosen, asks_again
+) -> None:
+    """`ask-the-document`, thử tay case 18: trả lời khi chưa mở mục nào thì hỏi model lại."""
+    from agent.graphs.propose.read_order import answered_unread
+
+    calls = tuple(
+        TurnRecord(kind="tool_call", tool_name=name, tool_args=args)
+        for name, args in since_question
+    )
+    request = _with_book(TurnRecord(kind="teacher", text="bài nào nói về số La Mã?"), *calls)
+    said = NextStepCompleted(request_id="r1", kind="say", text="Sách không có.")
+
+    assert answered_unread(said, request, chosen) is asks_again
+
+
+def test_a_look_inside_from_an_earlier_question_does_not_count() -> None:
+    """Mở mục ở câu hỏi trước không thay cho câu hỏi mới nhất (review pha 5, `ask-the-document`)."""
+    from agent.graphs.propose.read_order import answered_unread
+
+    request = _with_book(
+        TurnRecord(kind="teacher", text="sách định nghĩa luỹ thừa thế nào?"),
+        TurnRecord(kind="tool_call", tool_name="get_chapter", tool_args={"node": "0"}),
+        TurnRecord(kind="assistant", text="Sách định nghĩa …"),
+        TurnRecord(kind="teacher", text="bài nào nói về số La Mã?"),
+    )
+    said = NextStepCompleted(request_id="r1", kind="say", text="Ở mục 2.")
+
+    assert answered_unread(said, request, ("hoi-tai-lieu",)) is True
+
+
+def test_only_an_answer_on_a_turn_with_a_book_is_held_back() -> None:
+    from agent.graphs.propose.read_order import answered_unread
+
+    asked = TurnRecord(kind="teacher", text="bài nào nói về số La Mã?")
+    said = NextStepCompleted(request_id="r1", kind="say", text="Ở mục 2.")
+    question = NextStepCompleted(request_id="r1", kind="ask_clarify", text="Chương nào?")
+    bookless = NextStepRequested(request_id="r1", history=(asked,))
+
+    assert answered_unread(question, _with_book(asked), ("hoi-tai-lieu",)) is False
+    assert answered_unread(said, bookless, ("hoi-tai-lieu",)) is False
+
+
 def test_a_bookless_outline_on_a_turn_that_names_a_book_opens_the_library(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -91,9 +91,9 @@ def _asked(*history: TurnRecord) -> NextStepRequested:
 
 
 def test_every_skill_reads_and_the_general_one_exists() -> None:
-    """Ba skill, frontmatter đọc được, `description` tiếng Anh vì nó là `criteria` của Jev."""
+    """Bốn skill, frontmatter đọc được, `description` tiếng Anh vì nó là `criteria` của Jev."""
     names = [skill.name for skill in skills.every()]
-    assert names == ["lop-va-ket-qua", "soan-de", "tro-chuyen-chung"]
+    assert names == ["hoi-tai-lieu", "lop-va-ket-qua", "soan-de", "tro-chuyen-chung"]
     assert skills.GENERAL in names
     for skill in skills.every():
         assert skill.description.isascii(), skill.name

@@ -340,3 +340,19 @@ def test_a_replacing_outline_scores_on_the_question_it_replaces() -> None:
     assert score_propose({"kind": "outline", "for": "replace", "question": "3"}, step)[1] == (
         "question '2'"
     )
+
+
+def test_a_read_to_answer_that_still_asks_for_questions_is_named() -> None:
+    """`ask-the-document`: đọc để trả lời thì không `questions`."""
+    expect = {"kind": "call_tool", "tool": "read_section", "args_lack": ["questions"]}
+    asked = {"kind": "call_tool", "tool_name": "read_section", "tool_args": {"questions": "5"}}
+
+    assert score_propose(expect, asked)[0] is False
+    assert score_propose(expect, {**asked, "tool_args": {"nodes": "9"}}) == (True, "")
+
+
+def test_an_answer_that_cites_nothing_read_is_named() -> None:
+    expect = {"kind": "say", "text_has_any": ["35", "Bài 6"]}
+
+    assert score_propose(expect, {"kind": "say", "text": "a^2 - b^2 = (a-b)(a+b)"})[0] is False
+    assert score_propose(expect, {"kind": "say", "text": "Bài 6, trang 35."}) == (True, "")

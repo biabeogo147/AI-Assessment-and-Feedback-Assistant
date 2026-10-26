@@ -304,6 +304,35 @@ def _asks_which_book(text: str, listed: list[dict]) -> bool:
     return any(stem and stem in lowered for stem in stems)
 
 
+# Tool mở **bên trong** sách: mục con hay chữ. `list_chapters` chỉ cho tên chương.
+_LOOKS_INSIDE = frozenset({"get_chapter", "read_section"})
+
+
+def answered_unread(
+    step: NextStepCompleted, request: NextStepRequested, chosen: tuple[str, ...]
+) -> bool:
+    """Lượt hỏi về sách mà `step` trả lời khi chưa mở mục nào từ câu hỏi mới nhất. Hàm thuần.
+
+    Chỉ ở lượt có sách mà skill `hoi-tai-lieu` được chọn (`ask-the-document`). Xem `AnsweredUnread`.
+
+    Args:
+        step: Đề nghị model vừa nêu.
+        request: Lượt đang hỏi.
+        chosen: Tên các skill Jev chọn.
+
+    Returns:
+        True khi nên hỏi model lại một lần.
+    """
+    if step.kind != "say" or "hoi-tai-lieu" not in chosen or not book_in_view(request):
+        return False
+    for turn in reversed(request.history):
+        if turn.kind == "teacher":
+            return True
+        if turn.kind == "tool_call" and turn.tool_name in _LOOKS_INSIDE:
+            return False
+    return True
+
+
 def _numbers(value: object) -> set[int]:
     """Mọi số nguyên viết trong một giá trị: `"1, 2"`, `[1, 2]`, `["1", "mục 2"]`. Hàm thuần."""
     return {int(one) for one in re.findall(r"\d+", str(value or ""))}
@@ -330,7 +359,13 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
         return step
     since = since_plan(request)
     reads = [turn for turn in since if turn.tool_name == "read_section"]
-    results = [turn for turn in reads if turn.kind == "tool_result"]
+    # Lần đọc để **trả lời** (`answering`, plan `ask-the-document`) không phải đọc phạm vi của dàn
+    # ý: hỏi về bài A rồi xin soạn đề bài A thì lượt soạn vẫn phải đọc (hậu ký ADR-27, 26/10/2026).
+    results = [
+        turn
+        for turn in reads
+        if turn.kind == "tool_result" and not (turn.tool_result or {}).get("answering")
+    ]
     if results:
         # Đọc dở (`more`): thử tay 15/10/2026 đọc phần 1/5 của chương rồi viết dàn ý, nên dàn ý chỉ
         # phủ đầu chương. Còn phần chưa đọc thì đọc phần kế, cùng phạm vi, trước khi nêu dàn ý.
@@ -342,11 +377,17 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
         # kết quả từng làm lệch mọi cặp sau (backlog, chia `propose.py` 20/10/2026).
         calls: list[TurnRecord] = []
         answers: list[dict | None] = []
+        answering = False
         for turn in current:
             if turn.kind == "tool_call":
-                calls.append(turn)
-                answers.append(None)
-            elif turn.kind == "tool_result" and answers and answers[-1] is None:
+                # Lời gọi không `questions` là đọc để trả lời: nó và kết quả của nó không vào phép
+                # đọc tiếp, như ở `results` trên.
+                given = turn.tool_args.get("questions")
+                answering = given is None or not str(given).strip()
+                if not answering:
+                    calls.append(turn)
+                    answers.append(None)
+            elif turn.kind == "tool_result" and not answering and answers and answers[-1] is None:
                 answers[-1] = turn.tool_result
         last = (answers[-1] if answers else None) or {}
         sources = {node for item in step.outline for node in item.source_nodes}

@@ -206,6 +206,35 @@ async def test_a_part_past_the_last_is_refused(stack) -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_read_without_questions_is_a_read_to_answer(stack) -> None:
+    """`ask-the-document`: không số câu thì chia theo độ dài, kết quả nói đây là đọc để trả lời."""
+    read = await _read(stack, document_id="book", nodes=0, part=1)
+
+    # Ba bài chương I cộng lại dưới `_PART_CHARS`: một phần đọc hết, không chia theo số câu nào.
+    assert (read["found"], read["parts"], read["more"]) == (True, 1, False)
+    assert read["nodes"] == [1, 2, 3]
+    assert read["answering"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_long_scope_to_answer_from_splits_by_length(stack, monkeypatch) -> None:
+    monkeypatch.setattr(teacher_tools, "_PART_CHARS", 400)
+
+    read = await _read(stack, document_id="book", nodes=0, part=1)
+
+    # 700 + 300 + 300 ký tự, trần 400: bốn phần theo độ dài, nhưng ba bài không tách được (`parts`
+    # không chặt một nút) nên còn ba.
+    assert read["parts"] == 3
+
+
+@pytest.mark.asyncio
+async def test_a_read_for_an_outline_is_not_a_read_to_answer(stack) -> None:
+    read = await _read(stack, document_id="book", nodes=0, questions=2, part=1)
+
+    assert "answering" not in read
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("questions", [0, 11])
 async def test_more_than_ten_questions_is_not_a_reading_plan(stack, questions: int) -> None:
     read = await _read(stack, document_id="book", nodes=0, questions=questions, part=1)
@@ -392,3 +421,14 @@ def test_a_long_formula_block_is_cut_between_formulas() -> None:
     # Hai công thức vừa (12 + 2 + 12), cái thứ ba không: không còn `$` lẻ nào.
     assert block.endswith(f"Trang 1: ${'a' * 10}$; ${'b' * 10}$ …")
     assert block.count("$") % 2 == 0
+
+
+@pytest.mark.asyncio
+async def test_zero_questions_sent_as_a_number_is_still_refused(stack) -> None:
+    """Chỉ thiếu `questions` mới là đọc để trả lời; số 0 là số câu sai (review pha 2)."""
+    async with stack() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        asked = {"document_id": "book", "nodes": "0", "questions": 0, "part": "1"}
+        read = await execute(session, Asking.of(teacher), "read_section", asked, phase=PHASE_PLAN)
+
+    assert read["found"] is False

@@ -1724,11 +1724,15 @@ def _as_records(turns: list[TeacherTurn], titles: dict[str, str] | None = None) 
     latest_outline = outlines[-1] if outlines else None
     # Chữ đọc sau dàn ý mới nhất còn đang chờ thành dàn ý; giữ tối đa `MOST_QUESTIONS_ASKED` phần
     # mới nhất -- vài lượt đọc liền không có dàn ý không được cộng dồn thành cả cuốn sách.
+    # Lần đọc để **trả lời** (`answering`, plan `ask-the-document`) không bao giờ ở lại: lượt của nó
+    # đã trả lời xong, và chữ ấy không phải phạm vi của một dàn ý nào -- giữ nó thì lượt soạn đề sau
+    # viết dàn ý từ một lần đọc không dành cho nó (hậu ký ADR-27, 26/10/2026).
     unwritten = [
         turn.sequence
         for turn in turns
         if turn.kind == "tool_result"
         and turn.tool_name == "read_section"
+        and not (turn.tool_result or {}).get("answering")
         and (latest_outline is None or turn.sequence > latest_outline)
     ]
     kept_reads = set(unwritten[-MOST_QUESTIONS_ASKED:])

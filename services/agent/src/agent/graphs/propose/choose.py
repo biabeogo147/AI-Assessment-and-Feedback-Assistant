@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from agent import llm
 from agent.graphs.propose.ask_again import (
+    AnsweredUnread,
     AskedWhatWasKnown,
     FewChoices,
     IncompletePlan,
@@ -28,6 +29,7 @@ from agent.graphs.propose.outline import (
 from agent.graphs.propose.plan_checks import drafts_over_a_revision, garbled, lacking
 from agent.graphs.propose.proposal import _Proposal, nfc, unmangled
 from agent.graphs.propose.read_order import (
+    answered_unread,
     just_listed,
     library_first,
     misfiled_read,
@@ -166,6 +168,8 @@ async def choose(state: ProposeState) -> dict:
         flaw = miscounted(step, proposal.known, request)
         if flaw:
             raise UncountedOutline(flaw, step)
+    if answered_unread(step, request, state["skills"]):
+        raise AnsweredUnread("answered a question about the book without opening it", step)
     if step.kind == "ask_clarify" and step.questions:
         # ADR-32: mỗi câu một bộ nút, cùng lưới với câu hỏi thường -- từng câu đủ lựa chọn thật.
         kept = tuple(

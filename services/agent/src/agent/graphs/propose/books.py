@@ -70,6 +70,11 @@ def book_in_view(request: NextStepRequested) -> bool:
     còn giáo viên nhắc sách thì skill `soan-de` mở thư viện lại. Chip chưa sẵn sàng thì không: chưa
     có mục lục, và dòng báo chip đã dặn đừng soạn.
 
+    Một lần đọc để **trả lời** (`answering`, plan `ask-the-document`) cũng khép việc ấy như plan:
+    câu hỏi đã được trả lời, không có sách nào đang chọn dở. Không thì mọi lượt soạn đề sau một câu
+    hỏi không chip nhận thủ tục sách và mất dòng mở thư viện (review pha 3). Giáo viên muốn soạn
+    theo chính cuốn ấy thì đính nó, hay nhắc nó để thư viện mở lại.
+
     Args:
         request: Lượt đang hỏi.
 
@@ -82,7 +87,7 @@ def book_in_view(request: NextStepRequested) -> bool:
         if turn.kind == "plan":
             return False
         if turn.kind == "tool_result" and turn.tool_name in DOCUMENT_READS:
-            return True
+            return not (turn.tool_result or {}).get("answering")
     return False
 
 

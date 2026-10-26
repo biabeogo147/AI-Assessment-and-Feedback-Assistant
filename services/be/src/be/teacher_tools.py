@@ -1273,15 +1273,20 @@ async def _read_section(running: Running, args: dict) -> dict:
     có khối `formula` thì phần đọc kèm công thức Haiku đọc từ ảnh trang (`_book_formulas`,
     `formulas-on-demand`); chưa đọc kịp trong trần chờ thì `formulas_pending`, lần sau có.
 
+    Không `questions` là đọc để **trả lời** (skill `hoi-tai-lieu`, plan `ask-the-document`): phạm
+    vi chia theo độ dài, mỗi phần chừng `_PART_CHARS` ký tự, tối đa `MOST_QUESTIONS_ASKED` phần, và
+    kết quả mang `answering` -- `teacher_chat` không giữ chữ ấy sang lượt sau, AGENT không tính nó
+    là lần đọc trước dàn ý (hậu ký ADR-27, 26/10/2026).
+
     Args:
         running: Session và giáo viên đang hỏi.
         args: `document_id`, `nodes` (các số node cách nhau bằng dấu phẩy), `questions` (số câu
-            giáo viên xin), `part` (đếm từ 1; trống là 1).
+            giáo viên xin; trống là đọc để trả lời), `part` (đếm từ 1; trống là 1).
 
     Returns:
         `found`, `part`, `parts`, `more` (còn phần chưa đọc), `nodes` (các nút trong phần này --
-        nguồn cho dàn ý), `labels`, `text`, có thể `formulas_pending` và `FORMULA_SECONDS` (vòng
-        lượt gỡ khoá sau); hoặc `found: False` kèm `reason`.
+        nguồn cho dàn ý), `labels`, `text`, có thể `answering`, `formulas_pending` và
+        `FORMULA_SECONDS` (vòng lượt gỡ khoá sau); hoặc `found: False` kèm `reason`.
     """
     every, refused = await _tree_of(running, args)
     if refused is not None:
@@ -1289,7 +1294,11 @@ async def _read_section(running: Running, args: dict) -> dict:
     raw = str(args.get("nodes") or "").strip()
     try:
         scope = _node_list(raw)
-        questions = int(str(args.get("questions") or "").strip())
+        # Chỉ `None` và chuỗi rỗng là *không xin số câu*: số 0 model gửi vẫn là số câu sai, bị từ
+        # chối như trước, không lặng lẽ thành đọc để trả lời (review pha 2, `ask-the-document`).
+        given = args.get("questions")
+        asked = "" if given is None else str(given).strip()
+        questions = int(asked) if asked else 0
         part = int(str(args.get("part") or "1").strip())
     except ValueError:
         return {
@@ -1304,7 +1313,8 @@ async def _read_section(running: Running, args: dict) -> dict:
             "reason": "nodes phải là số node lấy từ list_chapters/get_chapter",
             "said": _SAID_NO_SUCH_PART,
         }
-    if not 1 <= questions <= MOST_QUESTIONS_ASKED:
+    answering = not asked
+    if not answering and not 1 <= questions <= MOST_QUESTIONS_ASKED:
         return {
             "found": False,
             "reason": f"questions là số câu giáo viên xin, 1 đến {MOST_QUESTIONS_ASKED}",
@@ -1318,7 +1328,12 @@ async def _read_section(running: Running, args: dict) -> dict:
     units = _units(every, chunks, scope)
     if not units:
         return {"found": False, "reason": "phạm vi này không có chữ nào đọc được"}
-    grouped = parts([sum(len(text) for text in texts) for _, texts in units], questions)
+    sizes = [sum(len(text) for text in texts) for _, texts in units]
+    if answering:
+        # Đọc để trả lời: không có số câu nào chặn số phần, nên chia theo độ dài -- một bài ngắn
+        # đọc một lần, một chương dài vài lần, không bao giờ quá trần phần của một lần xin.
+        questions = min(MOST_QUESTIONS_ASKED, max(1, -(-sum(sizes) // _PART_CHARS)))
+    grouped = parts(sizes, questions)
     if not 1 <= part <= len(grouped):
         return {
             "found": False,
@@ -1339,6 +1354,8 @@ async def _read_section(running: Running, args: dict) -> dict:
         "labels": [node_label(by_ordinal[ordinal]) for ordinal, _ in chosen],
         "text": _part_text(every, chosen, formulas),
     }
+    if answering:
+        told["answering"] = True
     if pending:
         told["formulas_pending"] = True
     if waited:
@@ -1540,8 +1557,10 @@ _TOOLS: tuple[Tool, ...] = (
         spec=ToolSpec(
             name="read_section",
             description=(
-                "Đọc chữ của phạm vi tài liệu để viết dàn ý. Phạm vi được gộp thành tối đa "
-                "questions phần; đọc lần lượt part 1, 2, … tới khi more là false. Chữ đọc từ ảnh "
+                "Đọc chữ của phạm vi tài liệu, để viết dàn ý hay để trả lời câu hỏi về nội dung. "
+                "Phạm vi được gộp thành tối đa questions phần (đọc để trả lời thì bỏ trống "
+                "questions, phạm vi chia theo độ dài); đọc lần lượt part 1, 2, … tới khi more là "
+                "false. Chữ đọc từ ảnh "
                 "quét, không có hình. Công thức đọc từ ảnh trang, nếu có, nằm trong khối riêng "
                 "của text; formulas_pending là còn công thức chưa đọc xong -- không đọc lại phần "
                 "ấy, công thức còn thiếu thì tự viết."
@@ -1549,7 +1568,7 @@ _TOOLS: tuple[Tool, ...] = (
             arguments={
                 "document_id": "id tài liệu",
                 "nodes": "các số node của phạm vi, cách nhau bằng dấu phẩy",
-                "questions": "số câu giáo viên xin, 1 đến 10",
+                "questions": "số câu giáo viên xin, 1 đến 10; bỏ trống khi đọc để trả lời",
                 "part": "phần thứ mấy, đếm từ 1",
             },
         ),

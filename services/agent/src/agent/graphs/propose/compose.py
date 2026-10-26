@@ -7,8 +7,19 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from agent import skills
 from agent.graphs.propose.books import book_in_view, opens_library
-from agent.graphs.propose.prompt import BOOK_PROCEDURE, CORE, LIBRARY, LIBRARY_SLOT
+from agent.graphs.propose.prompt import (
+    BOOK_PROCEDURE,
+    BOOK_QUESTIONS,
+    CORE,
+    LIBRARY,
+    LIBRARY_ASK,
+    LIBRARY_SLOT,
+)
 from contracts import NextStepCompleted, NextStepRequested, ToolSpec, TurnRecord
+
+# Dòng mở thư viện theo skill: skill hỏi về sách có dòng của nó; mọi skill khác (chỉ `soan-de` có
+# chỗ trống) dùng `LIBRARY` đã đo.
+_LIBRARY_FOR = {"hoi-tai-lieu": LIBRARY_ASK}
 
 
 class ProposeState(TypedDict):
@@ -55,9 +66,10 @@ def compose(state: ProposeState) -> dict:
     # ngày `LIBRARY` có dấu `\` (LaTeX) thì chuỗi ấy hỏng lặng lẽ (review T2b,
     # `unbiased-model-text`).
     for skill in skills.named(state["skills"]):
+        line = _LIBRARY_FOR.get(skill.name, LIBRARY)
         opening.append(
             LIBRARY_SLOT.sub(
-                lambda slot: f"{slot.group(1)}{LIBRARY}\n" if library else "", skill.body
+                lambda slot, line=line: f"{slot.group(1)}{line}\n" if library else "", skill.body
             )
         )
     if request.teacher_name:
@@ -88,8 +100,14 @@ def compose(state: ProposeState) -> dict:
                 "Nếu giáo viên nhờ soạn đề từ tài liệu này, nói rằng tài liệu này không dùng "
                 "được và nhờ họ đính tài liệu khác; đừng soạn đề không tài liệu thay cho nó."
             )
+    # Thủ tục theo **việc** của lượt (`ask-the-document`): soạn đề đọc để viết dàn ý, hỏi về sách
+    # đọc để trả lời. Trước plan ấy `BOOK_PROCEDURE` tới mọi lượt có sách, kể cả lượt chỉ hỏi --
+    # và nó dặn nêu dàn ý. Jev hỏng thì mọi skill được nạp, nên cả hai thủ tục cùng tới.
     if book_in_view(request):
-        opening.append(BOOK_PROCEDURE)
+        if "soan-de" in state["skills"]:
+            opening.append(BOOK_PROCEDURE)
+        if "hoi-tai-lieu" in state["skills"]:
+            opening.append(BOOK_QUESTIONS)
     if request.catalog:
         catalog = "\n".join(_describe_tool(tool) for tool in request.catalog)
         opening.append(f"Tool dùng ngay (call_tool) lượt này:\n{catalog}")

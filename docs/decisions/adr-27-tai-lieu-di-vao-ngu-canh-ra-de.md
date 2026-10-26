@@ -10,6 +10,8 @@
   *Hậu ký 15/10/2026*.
 - **Sửa:** 2026-10-26 — bản đọc của tài liệu có thêm công thức đọc từ ảnh trang, khi cần. Xem
   *Hậu ký 26/10/2026*.
+- **Sửa:** 2026-10-26 — tài liệu cũng là nguồn **trả lời câu hỏi** trong chat. Xem
+  *Hậu ký 26/10/2026 (hỏi đáp)*.
 
 ## Bối cảnh
 
@@ -234,3 +236,33 @@ có chữ.
 
 Thi hành: như hậu ký 26/10/2026 của ADR-29 -- `services/document` đọc ảnh và ghi cache theo trang,
 `services/be/src/be/teacher_tools.py` `_read_section` đẩy việc đọc và chờ có trần.
+
+## Hậu ký 26/10/2026 (hỏi đáp)
+
+Tài liệu nay còn là nguồn để Kriky **trả lời câu hỏi** của giáo viên về nội dung sách. Ví dụ:
+*"sách định nghĩa luỹ thừa thế nào?"*, *"bài nào nói về số La Mã?"*. Skill `hoi-tai-lieu` đọc mục
+bằng `read_section` **không `questions`**, trả lời chỉ từ chữ đã đọc, nêu bài và trang, và nói *không
+có* khi sách không có.
+
+Ba điều của ADR này giữ nguyên:
+
+- **Chỉ đọc.** Một lượt hỏi không mở đề, không gọi tool ghi, không tạo job soạn câu nào; nó chỉ có
+  thể xin đọc công thức từ ảnh trang, như mọi lần đọc (hậu ký 26/10/2026 ở trên). Chữ sách tới
+  Kriky, không tới đâu khác. Đây là luật của skill và thủ tục trong prompt: BE không phân biệt một
+  lượt hỏi với một lượt soạn, nên một plan có bước ghi nêu ở lượt hỏi vẫn qua các cổng thường lệ
+  của pha thực hiện plan (ADR-25), như ở mọi lượt.
+- **Pha 2 không nhận tài liệu.** Không đổi.
+- **Một lượt hỏi không thành phạm vi của đề.** Chữ của lần đọc hỏi đáp không ở lại sang lượt sau,
+  và luật *đọc phạm vi trước khi nêu dàn ý* (`read_order.read_before_outline`) không tính nó. Lượt
+  soạn đề sau đó, trong cùng đoạn chat, vẫn phải đọc phạm vi của chính nó.
+
+Thi hành:
+
+- `services/be/src/be/teacher_tools.py` `_read_section`: `questions` tuỳ chọn, kết quả mang cờ
+  `answering`;
+- `services/be/src/be/teacher_chat.py` `_as_records`: thu gọn chữ của lần đọc có cờ ấy;
+- AGENT: `propose/read_order.py` (`read_before_outline` bỏ qua lần đọc hỏi đáp; `answered_unread`
+  hỏi model lại một lần khi nó trả lời về sách mà chưa mở mục nào), `propose/books.py`
+  `book_in_view`, `propose/prompt.py` `BOOK_QUESTIONS`, skill `hoi-tai-lieu`.
+
+Plan `ask-the-document`.
