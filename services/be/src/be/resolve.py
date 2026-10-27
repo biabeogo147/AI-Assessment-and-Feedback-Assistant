@@ -64,6 +64,7 @@ _MOST_CANDIDATES = 6
 # mất một lớp mà giáo viên đang đứng trước mặt.
 _PREFIX = re.compile(r"^\s*l[oơớờởỡợôốồổỗộóòỏõọ]p\s*[:.\-–—]?\s*", re.IGNORECASE)
 _SPACES = re.compile(r"\s+")
+_DIGIT_FIRST = re.compile(r"\d")
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,27 @@ def normalise(name: str) -> str:
     """
     composed = unicodedata.normalize("NFC", name)
     return _SPACES.sub("", _PREFIX.sub("", composed)).casefold()
+
+
+def tidy_name(raw: str) -> str:
+    """Tên lớp như sẽ lưu khi tạo lớp: NFC, gộp khoảng trắng, bỏ chữ *"lớp"* đứng đầu. Hàm thuần.
+
+    Cùng hai khuôn với `normalise`, nhưng giữ chữ hoa và một dấu cách: đây là tên in ra màn hình,
+    không phải khoá để so. Màn hình tự thêm *Lớp* trước tên bắt đầu bằng số (`Board.classLabel`),
+    nên lưu *"Lớp 12C"* là in ra *"Lớp Lớp 12C"* (hậu ký ADR-13, 27/10/2026).
+
+    Args:
+        raw: Đúng chữ giáo viên gõ.
+
+    Returns:
+        Tên đã chuẩn, có thể rỗng.
+    """
+    composed = unicodedata.normalize("NFC", raw).strip()
+    # Chỉ bỏ *"lớp"* khi phần sau mở bằng số, cùng luật với `classLabel`: *"Lớp chuyên Toán"* giữ
+    # nguyên, không thành *"chuyên Toán"* (review plan `tao-lop`).
+    stripped = _PREFIX.sub("", composed)
+    kept = stripped if _DIGIT_FIRST.match(stripped) else composed
+    return _SPACES.sub(" ", kept).strip()
 
 
 async def classes_with_counts(session: AsyncSession, asking: Asking) -> list[Candidate]:

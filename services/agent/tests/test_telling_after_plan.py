@@ -105,3 +105,64 @@ async def test_the_model_may_say_nothing_on_the_telling_turn(
     assert len(scripted.prompts) == 1
     # Bước 6 của `soan-de` có trong prompt dù bộ chọn skill có chọn gì (V4).
     assert "6. Plan vừa chạy xong" in scripted.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_a_class_plan_is_told_with_the_class_skill_not_the_drafting_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plan `tao-lop`: plan tạo lớp mà kể bằng bước 6 của `soan-de` thì model nói về đề và câu đang
+    soạn cho một việc không có đề nào. Lượt kể lại nạp skill của tool plan vừa chạy."""
+    from langchain_core.runnables import RunnableLambda
+
+    from agent import llm, skill_router
+    from agent.graphs.propose.graph import propose
+    from agent.graphs.propose.proposal import _Proposal
+
+    prompts: list[str] = []
+
+    class Scripted:
+        def with_structured_output(self, schema: object, **kwargs: object) -> RunnableLambda:
+            def answer(messages: object) -> _Proposal:
+                prompts.append(chr(10).join(message.text for message in messages))
+                return _Proposal(kind="say", text="Đã tạo lớp 12C.")
+
+            return RunnableLambda(answer)
+
+    async def only_general(history: object) -> tuple[str, ...]:
+        return ("tro-chuyen-chung",)
+
+    monkeypatch.setattr(llm, "enabled", lambda: True)
+    monkeypatch.setattr(llm, "chat_models", lambda: (Scripted(),))
+    monkeypatch.setattr(skill_router, "choose", only_general)
+    turns = (
+        TurnRecord(kind="teacher", text="tạo lớp 12C"),
+        TurnRecord(kind="plan", tool_result={"steps": ["Tạo lớp 12C"], "total": 1}),
+        TurnRecord(kind="tool_call", tool_name="create_class"),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="create_class",
+            tool_result={"created": True, "class_id": "c1", "name": "12C"},
+        ),
+    )
+
+    await propose(NextStepRequested(request_id="r1", history=turns, catalog=_READ))
+
+    assert "6. Plan tạo lớp vừa chạy xong" in prompts[0]
+    assert "6. Plan vừa chạy xong" not in prompts[0]
+
+
+def test_a_plan_that_makes_a_class_and_a_paper_is_told_with_both_skills() -> None:
+    """Review plan `tao-lop`: plan *tạo lớp rồi soạn đề* cần cả bước kể lại của hai skill."""
+    from agent.graphs.propose.history import telling_skills
+
+    turns = (
+        TurnRecord(kind="teacher", text="tạo lớp 12C rồi soạn 3 câu"),
+        TurnRecord(kind="plan", tool_result={"steps": ["Tạo lớp", "Tạo đề trống"], "total": 2}),
+        TurnRecord(kind="tool_result", tool_name="create_class", tool_result={"created": True}),
+        TurnRecord(kind="tool_result", tool_name="create_draft", tool_result={"created": True}),
+    )
+
+    told = telling_skills(NextStepRequested(request_id="r1", history=turns, catalog=_READ))
+
+    assert told == {"lop-va-ket-qua", "soan-de"}

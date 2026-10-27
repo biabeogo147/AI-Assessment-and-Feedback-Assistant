@@ -436,7 +436,11 @@ async def test_the_catalog_offers_only_reversible_writes(stack) -> None:
     # tới Kriky để viết dàn ý, không tới học sinh nào. Và `replace_question`: một tool **ghi** đảo
     # ngược được như `start_drafting` -- chỉ chạm đề chưa duyệt, câu cũ ở lại tới khi câu mới đạt.
     # `report-into-propose` thêm `last_plan`: chỉ đọc lại các bước của chính đoạn chat này.
+    # `tao-lop` thêm `create_class` (hậu ký ADR-13, 27/10/2026): một tool **ghi** chưa đảo ngược
+    # được, vì chưa có đường xoá lớp -- nhưng lớp mới **rỗng**, nên nó không chạm tới học sinh nào,
+    # và ranh giới của ADR-05 là việc không lấy lại được *với học sinh*. Trùng tên thì BE từ chối.
     assert offered == {
+        "create_class",
         "last_plan",
         "list_class",
         "get_class",
@@ -689,7 +693,7 @@ async def test_the_planning_phase_sees_no_tool_that_writes(stack) -> None:
         "class_assessment_summary",
         "list_documents",
     }
-    assert working == {"create_draft", "start_drafting", "replace_question"}
+    assert working == {"create_class", "create_draft", "start_drafting", "replace_question"}
     assert planning & working == set()
 
     # Có tài liệu thì hai tool đọc mục lục và tool đọc chữ hiện thêm -- vẫn chỉ ở pha lên plan

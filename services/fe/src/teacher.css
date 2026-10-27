@@ -3077,6 +3077,8 @@
 .teacher .confirm-actions .btn:disabled {
   background: var(--sunken);
   color: var(--ink-faint);
+  /* `button:disabled` của tokens.css làm mờ .5 lần nữa; màu khoá đã đủ (như `.picker-actions`). */
+  opacity: 1;
 }
 
 /* Câu giải thích khi panel chưa có câu hỏi nào. */
@@ -4207,6 +4209,12 @@
   font-weight: 600;
   line-height: 1.5;
   cursor: pointer;
+}
+
+/* Màn 9 không có link quay về (*Tạo lớp*, plan `tao-lop`): nút đứng giữa hàng tiêu đề 56 của
+ * `page-header` (`181:814`), tức 8 dưới đỉnh tiêu đề như Figma. */
+.teacher .board-head:not(:has(.crumb)) .board-export {
+  margin-top: 8px;
 }
 
 .teacher .board-head .board-export:disabled {

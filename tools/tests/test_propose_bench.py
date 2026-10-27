@@ -65,6 +65,22 @@ def test_a_plan_with_every_argument_right_passes() -> None:
     assert score_propose(_EXPECT, step) == (True, "")
 
 
+def test_a_class_plan_scores_on_its_one_step_and_the_name() -> None:
+    """Plan `tao-lop`: plan tạo lớp không có `create_draft`, nên chấm bằng `plan_tool`."""
+    expect = {"kind": "plan", "plan_tool": "create_class", "args": {"name": ["12C", "lớp 12C"]}}
+
+    def plan(*steps: tuple[str, dict]) -> dict:
+        return {
+            "kind": "plan",
+            "steps": [{"tool_name": name, "args": args} for name, args in steps],
+        }
+
+    assert score_propose(expect, plan(("create_class", {"name": "12C"}))) == (True, "")
+    assert score_propose(expect, plan(("create_class", {"name": "12B"})))[1].startswith("name")
+    wrong = plan(("list_class", {}), ("create_class", {"name": "12C"}))
+    assert score_propose(expect, wrong)[1].startswith("plan")
+
+
 @pytest.mark.parametrize(
     ("create", "why"),
     [

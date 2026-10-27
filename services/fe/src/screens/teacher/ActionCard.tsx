@@ -17,6 +17,7 @@ const STEP_TITLE: Record<string, string> = {
   get_class: "Xem một lớp",
   list_assessment: "Xem các đề của lớp",
   class_assessment_summary: "Xem kết quả một đề",
+  create_class: "Tạo lớp",
   create_draft: "Tạo đề trống",
   start_drafting: "Soạn câu hỏi",
   // `draft-outline`: soạn lại một câu theo dàn ý thay câu (ADR-29).
@@ -175,6 +176,10 @@ function outcome(turn: Turn): string {
   if (turn.tool_name === "list_assessment") {
     const shown = Array.isArray(result.assessments) ? result.assessments.length : 0;
     return `${shown} đề`;
+  }
+  if (turn.tool_name === "create_class") {
+    // Cùng câu với BE `plan_outcomes.step_detail` (plan `tao-lop`).
+    return `lớp "${String(result.name ?? "")}", chưa có học sinh`;
   }
   // `create_draft` thôi nói số câu: một đề trống chưa có số câu nào để nói. Con số ấy về
   // `start_drafting`, và dòng dưới đây là chỗ nó được đọc ra.

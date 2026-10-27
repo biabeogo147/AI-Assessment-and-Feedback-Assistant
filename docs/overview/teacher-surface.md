@@ -206,7 +206,7 @@ plan có hai bước (ADR-25) và trạng thái "trống" không còn đứng v�
 | `thiếu-câu` (`455:16`) | Đầu đề chở con số, mà con số đã nằm ở khối `Thinking` ngay trên thẻ |
 | `đang-soạn-dở` (`456:16`) | Như trên |
 | `phát-hành-thất-bại` (`76:23`) | **Dùng lại từ 27/10/2026** (Tier 2 câu 35, hướng B), không còn là variant riêng: `_note_publication` ghi cả lần không lớp nào nhận, kèm `failed`; thẻ là nấc `failed` với đầu đề *Chưa phát hành được đề* và câu an toàn gọi tên lớp chưa nhận, không nút. Phát hành được một phần thì thẻ `published` thêm *Chưa nhận: …* |
-| `tạo-lớp` (`10:34`) | Không tool nào tạo lớp |
+| `tạo-lớp` (`10:34`) | Từ 27/10/2026 Kriky tạo được lớp (`create_class`), nhưng thẻ là máy trạng thái của **một đề** (hậu ký ADR-13): lớp vừa tạo hiện ở dòng bước và câu kết |
 
 Giữ lại chứ không xoá khỏi Figma: chúng là bản ghi của những nấc đã thử và đã bỏ. Variant
 `thêm-câu-hỏi` thì **chưa bao giờ tồn tại** trong component set — nó là một cái tên đi lạc vào
@@ -889,7 +889,9 @@ dõi* (20) là việc 19.
 - **Ô không có gì để đếm ghi *"—"***, không *"0"*: lớp không có đề đang mở, đề chưa ai nộp.
 - **Màn 22b chỉ sửa bản trong ngân hàng.** Dùng lại thẻ sửa ba tầng của panel đề; chân panel nói câu
   trong đề đã phát hành không đổi.
-- **Cố ý khác Figma:** không nút *Tạo lớp* (chưa có đường tạo lớp); không cột *Tên đăng nhập*, nút
+- **Nút *Tạo lớp* ở màn 9** (plan `tao-lop`, 27/10/2026) mở hộp nhập tên (Figma 9b `799:5123`, trùng
+  tên 9c `799:6269`); chưa có lớp nào thì bảng có một hàng *Chưa có lớp nào*.
+- **Cố ý khác Figma:** không cột *Tên đăng nhập*, nút
   *Đặt lại mật khẩu*, *Thêm học sinh* (việc 22); giờ in
   `HH:MM · DD/MM` như mọi màn, không *"hôm nay"*.
 

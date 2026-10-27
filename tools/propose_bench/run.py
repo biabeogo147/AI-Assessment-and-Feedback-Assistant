@@ -96,6 +96,15 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
         return True, ""
 
     steps = list(step.get("steps") or [])
+    if "plan_tool" in expect:
+        # Plan không soạn đề (plan `tao-lop`): đúng một bước, đúng tool, đúng tham số.
+        if [one.get("tool_name") for one in steps] != [expect["plan_tool"]]:
+            return False, f"plan {[one.get('tool_name') for one in steps]}"
+        for key, value in expect.get("args", {}).items():
+            allowed = value if isinstance(value, list) else [value]
+            if str((steps[0].get("args") or {}).get(key, "")).strip() not in allowed:
+                return False, f"{key} {(steps[0].get('args') or {}).get(key)!r}"
+        return True, ""
     args = _create_args(steps)
     if not args:
         return False, "plan không có create_draft"

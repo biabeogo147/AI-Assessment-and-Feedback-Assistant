@@ -134,3 +134,28 @@ dựng phần còn thiếu ở trên.
 - Mục *Vẫn chưa có ở backend* phía trên đã cũ từ trước việc 22: `packages/contracts/.../messages.py` bị
   xoá ngày 09/10/2026, và `api.ts` thôi gán `"stu-demo"`. Không còn `student_id` nào trong contract
   để luật *student_id là mã học sinh* áp vào.
+
+## Hậu ký 27/10/2026
+
+Plan `2026-10-27-tao-lop-plan.md` (roadmap C5, Tier 2 câu 28 hướng A). Người dùng chốt ngày 27/10/2026:
+tạo lớp có ở **cả hai** bề mặt, và trùng tên với một lớp của chính mình thì từ chối.
+
+- **Giáo viên tạo lớp ở màn 9 và qua Kriky.** Màn 9 có nút *Tạo lớp* mở một hộp nhập tên;
+  chat có tool ghi `create_class`, đi plan như mọi tool ghi khác (ADR-25). Hai đường gọi **một** hàm
+  `be.classes.create_class`, nên luật tên chỉ sống ở một chỗ.
+- **Luật tên.** Bỏ khoảng trắng thừa, NFC, bỏ chữ *"lớp"* đứng đầu (giáo viên gõ *"Lớp 12C"* thì lưu
+  `12C`, vì màn hình tự thêm *Lớp* trước tên bắt đầu bằng số), 1–64 ký tự.
+- **Trùng tên với một lớp của chính giáo viên ấy thì từ chối**, gọi tên lớp đã có. So bằng
+  `resolve.normalise`, đúng phép so mà `list_class` dùng để tìm lớp, nên hai lớp đã qua cổng này không
+  bao giờ làm Kriky phải hỏi lại *"lớp nào"* chỉ vì tên. Một lớp năm sau đặt tên khác (*"12A 2027"*).
+  Docstring *một giáo viên dùng lại tên qua nhiều năm* của `SchoolClass` không còn đúng cho lớp tạo
+  mới; hai giáo viên khác nhau vẫn trùng tên được, và lớp đã có trong database không bị đụng tới.
+- **Lớp mới rỗng.** Học sinh thêm bằng đường *Thêm học sinh* sẵn có (màn 10).
+- **Không thẻ kết quả cho tạo lớp.** Thẻ là máy trạng thái của **một đề** (luật người dùng chốt
+  06/10/2026, check 12), nên variant `tạo-lớp` (`10:34`) vẫn *(không dùng)*. Lớp vừa tạo hiện ở dòng
+  bước của khối `Thinking` và ở câu kết của Kriky.
+- **Tên mở bằng chữ thì giữ nguyên:** *"Lớp chuyên Toán"* lưu như gõ; chữ *"lớp"* chỉ bỏ khi phần
+  sau mở bằng số, cùng luật với `classLabel` của màn hình.
+- **Tool tự commit** như mọi tool ghi khác: một plan có bước sau hỏng thì lớp đã tạo vẫn ở lại. Lớp
+  rỗng nên không hại ai, nhưng chưa có đường xoá nên nó ở lại mãi.
+- **Chưa có:** đổi tên lớp, xoá lớp. Xoá lớp đụng tới tài khoản người thật (đoạn *Hệ quả* ở trên).

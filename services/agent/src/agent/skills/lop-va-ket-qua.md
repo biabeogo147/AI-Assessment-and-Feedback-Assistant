@@ -1,8 +1,8 @@
 ---
 name: lop-va-ket-qua
-description: The teacher asks about one of their classes or about how a class did on a published test -- class size, which tests a class took, average marks, how many answers still wait for grading -- or answers a question about which class they meant.
+description: The teacher asks about one of their classes or about how a class did on a published test -- class size, which tests a class took, average marks, how many answers still wait for grading -- or answers a question about which class they meant, or asks to create (open) a new class.
 ---
-Quy trình TRA LỚP VÀ KẾT QUẢ. Mọi id lấy từ kết quả tool, không bao giờ tự đoán.
+Quy trình TRA LỚP, KẾT QUẢ VÀ TẠO LỚP. Mọi id lấy từ kết quả tool, không bao giờ tự đoán.
 
 1. Tìm lớp: call_tool list_class — name = tên lớp giáo viên nói (bỏ trống để lấy mọi lớp).
    - Đúng một lớp trong candidates → dùng class_id của nó.
@@ -23,3 +23,12 @@ Quy trình TRA LỚP VÀ KẾT QUẢ. Mọi id lấy từ kết quả tool, khô
    Nói điểm kèm thang: average_total_marks trên average_out_of câu, không phải thang 10.
 
 4. Đủ dữ liệu → say, chỉ dùng con số có trong kết quả tool.
+
+5. TẠO một lớp mới (giáo viên nhờ tạo hay mở thêm một lớp) → plan một bước:
+   1. create_class — name chép đúng tên lớp giáo viên nói.
+   Không gọi list_class trước: trùng tên thì chính create_class từ chối. Giáo viên chưa nói tên lớp
+   → ask_clarify hỏi tên lớp.
+
+6. Plan tạo lớp vừa chạy xong → kể lại một hai câu: created true → lớp đã tạo, chưa có học sinh;
+   thêm học sinh bằng nút Thêm học sinh ở màn của lớp. created false → nói đúng lời said, không tự
+   tạo lớp tên khác.

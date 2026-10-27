@@ -15,7 +15,7 @@ thành ADR, không phải những **tính năng** chưa dựng.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | *Bảng theo dõi* chỉ có đầu trang | Ba đích đến kia đã dẫn tới màn thật (việc 18, 18/10/2026); thân màn này là việc 19 |
-| Nút *Tạo lớp* (artboard 9) | **Chưa quyết** (18/10/2026): chưa thuộc việc nào của đợt tất định, và BE chưa có đường tạo lớp. Màn 9 cố ý không vẽ nút |
+| Nút *Tạo lớp* (artboard 9) | **Đã làm** 27/10/2026 (plan `tao-lop`, Tier 2 câu 28 chốt A): nút ở màn 9 mở hộp tạo lớp (Figma 9b `799:5123`, 9c `799:6269`), và tool ghi `create_class` cho Kriky; trùng tên với lớp của chính giáo viên thì từ chối. Hậu ký ADR-13 |
 | Bản sửa ở ngân hàng mất khi đề gốc được duyệt lại | **Đã làm** 21/10/2026 (chốt A): bản đã sửa thắng, duyệt lại không ghi đè -- plan `muc-1-2-loop-1`. Trước đó: `file_approved` ghi bản ngân hàng theo `question_id`, nên bỏ duyệt rồi duyệt lại đề gốc đè lên bản giáo viên đã sửa ở màn 22b |
 | Ngân hàng không gộp câu trùng nội dung | Chưa cần: hai đề có cùng một câu cho hai dòng ngân hàng (thấy trên DB dev, đề seed và đề mock). Gộp thì phải chọn bản sửa nào thắng |
 | Quên mật khẩu, đổi mật khẩu của giáo viên; đăng nhập Google thật | Ngoài phạm vi việc 22 (ADR-36). Quên mật khẩu cần một kênh gửi (email hay SMS) mà hệ thống chưa có; nút Google hiện chỉ là giao diện |
@@ -805,7 +805,7 @@ chuyển từ bảng *Mười hai chỗ hở* của artifact ấy (bảng đã x
 | **Kriky chưa trả lời câu hỏi về nội dung một bài từ sách** (cần đọc một đoạn, `get_chunk`), và **pha 2 không nhận nội dung tài liệu nào** cho tới khi có cách lọc bài tập (hậu ký ADR-27). Soạn đề theo sách thì đã có từ plan 4b | Chưa lên lịch (Tier 3 P6). Công thức chưa đọc được là plan 3d, ở mục *sympy kiểm công thức* |
 | **Mastery của học sinh** | Chưa thiết kế, và cần lịch sử làm bài đủ dài. Thống kê gộp theo lớp thì làm ở việc 19 |
 | **Hàng đợi review không nằm trên tuyến.** `decide_review` và `ReviewReason` bị xoá ngày 09/10/2026 cùng đường chấm cũ (hậu ký ADR-07, ADR-08), nên loại `ANOMALY` cũng không còn trong code | Việc 19 của đợt: hàng đợi trên màn *Bảng theo dõi*, chứa báo cáo *giải thích chưa rõ* (ADR-19) và câu có tỉ lệ sai bất thường |
-| **Không tạo được lớp hay tài khoản học sinh**: dữ liệu lớp đến từ seed; `list_class` + `get_class` chỉ đọc lớp đã có | Việc 18 (màn *Danh sách lớp học*) và 22 (tài khoản học sinh) của đợt. **Tài khoản đã làm** 19/10/2026 (việc 22); tạo lớp vẫn chưa, chờ nút *Tạo lớp* |
+| **Không tạo được lớp hay tài khoản học sinh**: dữ liệu lớp đến từ seed; `list_class` + `get_class` chỉ đọc lớp đã có | **Đã làm**: tài khoản học sinh từ 19/10/2026 (việc 22); tạo lớp từ 27/10/2026 (plan `tao-lop`) |
 | **BE không có worker chạy nền**: giữa một lượt, job xong chỉ được thu hoạch ở *lần quan sát kế tiếp* -- chuông tiến độ, hay một lần đọc đề | Chưa cần: hai đường ấy cắt được độ trễ. Vì vậy Pha A tới Pha D của đường ghi ra cùng một lần release |
 
 ### Lộ ra khi làm đợt 2 và đợt 3 (18/10/2026)
@@ -829,7 +829,7 @@ Plan `2026-10-20-end-to-end-manual-script-plan.md`. Biên bản:
 | **Câu làm lại có hai phương án cùng đúng**: V1 câu 2 và V2 câu 1, *"y = x³ − 6x² + 1 (hay + 2) đồng biến trên khoảng nào"*, cả (−∞; 0) lẫn (4; +∞) đúng, chỉ (4; +∞) được khoá; (−∞; 0) mang một nhãn lỗi bịa. Học sinh chọn đúng toán vẫn bị chấm sai | Tier 4 *toán sai*; F11 *kiểm câu biến thể trước khi tới tay học sinh*, Tier 2 câu 2. `validate_retry` chỉ so đề bài |
 | **Công thức trong mục kiến thức không dựng hình**: cột *MỤC KIẾN THỨC* ở *Ngân hàng câu hỏi*, dòng phụ của panel sửa câu ngân hàng, dòng phụ mỗi hàng của hộp *Thêm câu từ ngân hàng* (`BankPicker.tsx`), và nhãn biểu đồ *TỈ LỆ BÀI SAI THEO MỤC KIẾN THỨC* ở *Bảng theo dõi* hiện nguyên `$f'(x)$` | FE: mục kiến thức đi qua chữ thường, không qua `MathText` |
 | **Học sinh không sai câu nào vẫn có link *Xem lại phần chữa các câu sai*** ở màn xem điểm (Dũng, 6,0/6) | FE `Result.tsx`; mở ra thì màn trợ lý ghi *Bài này không có câu nào sai.* |
-| **Màn trống của đoạn chat ghi *"Kriky sẽ tạo lớp, soạn đề…"*** trong khi chưa có đường tạo lớp (Tier 2 câu 28) | Chữ ở FE; đổi cùng quyết định về nút *Tạo lớp* |
+| **Màn trống của đoạn chat ghi *"Kriky sẽ tạo lớp, soạn đề…"*** trong khi chưa có đường tạo lớp (Tier 2 câu 28) | **Đã đúng** 27/10/2026 (plan `tao-lop`): Kriky tạo được lớp, nên câu không đổi |
 | **Lệch Figma: thanh trên của học sinh ghi mã trần** (*Kiều Minh Châu V3 · Lớp 12A · 12*), Figma HS 12–23 ghi *Mã 1204* | **Đã làm** 21/10/2026 (chốt A): code theo Figma, thêm nhãn *Mã* -- plan `muc-1-2-loop-1` |
 | **Đề bài có công thức vỡ thành nhiều dòng ở màn bài làm của một học sinh** (23): *"Cho hàm số / y = f(x) / có đạo hàm…"*. `.stem-cell { display: flex; flex-direction: column }` (`teacher.css`) biến mỗi khúc của `MathText` thành một hàng | FE: bỏ `flex` khỏi ô đề bài, hay bọc `MathText` trong một khối |
 | **Câu báo thành công mang kiểu lỗi**: *"Đã gửi báo cáo tới giáo viên."* hiện qua `setError` (`Tutor.tsx`), tức dải đỏ `role="alert"` của `ErrorStrip` | FE: một dòng xác nhận riêng; đối chiếu Figma HS 17 |
@@ -970,3 +970,16 @@ Plan `2026-10-27-tier-2-m1-m2-plan.md`. Ảnh: `docs/report/screenshot/27_10/tie
 | **Thẻ phát hành hỏng không có `entity_id`**, nên đề bị xoá sau đó thì thẻ vẫn bấm được vào một đề không còn | Nhẹ: `_note_publication` ghi `entity_*` từ `assessment_id` cả khi hỏng, hay FE đọc `titles` theo `assessment_id` |
 | **Chữ toán trong nhãn biểu đồ cỡ ~13px** trong dòng chữ 11px: KaTeX mặc định 1.21em, CSS không chỉnh | Nhẹ: `.objective .katex { font-size: 1em }` nếu cần; so Figma (`666:5690` chưa có nhãn toán) |
 | **Mock `_telling` của AGENT** (`handlers.py`) ghép mọi `tool_result` sau plan, kể cả `teacher.*`: một lần phát hành ở panel giữa lúc plan chạy đọc thành một bước hỏng | Chỉ ở mock (không key model); đã đúng như thế với lần phát hành thành công |
+
+## Lộ ra khi làm plan tạo lớp (27/10/2026)
+
+Plan `2026-10-27-tao-lop-plan.md`. Biên bản: `docs/testing/ket-qua/2026-10-27-6050d6f-tao-lop-claude-haiku-5-5.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Chưa có đổi tên lớp, xoá lớp**: một plan có bước sau hỏng thì lớp đã tạo vẫn ở lại; lớp tạo nhầm ở lại mãi | Xoá lớp đụng tài khoản người thật (ADR-13): người dùng quyết có cho xoá lớp **rỗng** không |
+| **Hai lần tạo cùng tên chạy cùng lúc trên SQLite** vẫn cùng qua phép kiểm trùng: `with_for_update` chỉ xếp hàng trên Postgres. FE đã khoá nút khi đang gửi | Nhẹ: dev chạy Postgres; unique index trên tên đã chuẩn hoá cần cột mới và migration |
+| **Câu hỏi tên lớp không có nút**: `tao-lop-chua-ten` hỏi lại model cả 3 lần vì `FewChoices` đòi ba nút, lần hai vẫn không nút | Cho `choices_wanted` trả 0 khi câu hỏi là tên tự do, hay chấp nhận một lần hỏi lại; đo bench |
+| **Kriky đọc lại lời dặn của skill thành câu nói** (*"Mình cũng không đổi tên lớp để tạo bản sao"*, thử tay T27) | Tier 4: chữ bước 6 của `lop-va-ket-qua` |
+| **Khối bước *thất bại* lệch Figma `83:75`** (chấm ảnh plan `tao-lop`, có từ trước): *Dừng ở bước 1* nhạt vì `button:disabled` làm mờ .5; viền khối vẫn `--line`, Figma `answer/incorrect`; tiêu đề bước hỏng chữ thường `ink-muted`, Figma SemiBold `ink` | Ba dòng CSS (`.steps-head:disabled { opacity: 1 }`, `.steps-block.broken`, `.step.failed .title`); ảnh + so Figma |
+| **`chung-phat-hanh` nạp thêm `lop-va-ket-qua`** ở 0,32 (skill_bench `run-118`, ngưỡng 0,3): mô tả mới có *create a class* | Nhẹ: chỉ thêm chữ vào prompt; đo lại nếu ca thật lạc việc |

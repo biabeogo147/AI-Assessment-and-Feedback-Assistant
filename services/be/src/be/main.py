@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from be.account_routes import router as account_router
+from be.classes import router as classes_router
 from be.config import get_settings
 from be.content_reader import bind_reader, create_reader
 from be.db import bind_sessions, create_engine
@@ -156,3 +157,4 @@ app.include_router(teacher_document_router)
 app.include_router(teacher_reads_router)
 app.include_router(teacher_board_router)
 app.include_router(roster_router)
+app.include_router(classes_router)

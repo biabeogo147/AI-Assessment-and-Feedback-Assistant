@@ -707,9 +707,10 @@ có chữ thì *Không đọc được chữ*.
 
 1. **Đóng tab giữa lúc Kriky đang làm.** Lượt bị cắt ngay chỗ nó đang đợi: các bước đã ghi còn đó,
    nhưng **không có câu kết**, và nếu là lượt đầu thì đoạn chat **chưa có tên** (nợ số 1 của ADR-25).
-   Câu kết sau plan nay là một lượt `propose` kể lại theo bước 6 của skill `soan-de` (ADR-25, hậu ký
-   22/10/2026): model có thể gọi `last_plan` trước khi nói, và được phép không nói gì.
-2. **Chưa có đường tạo lớp**: lớp chỉ đến từ seed (ADR-13, backlog Tier 2 câu 28).
+   Câu kết sau plan nay là một lượt `propose` kể lại theo skill của plan vừa chạy: bước 6 của
+   `soan-de` (ADR-25, hậu ký 22/10/2026), hay bước 6 của `lop-va-ket-qua` cho plan tạo lớp (plan
+   `tao-lop`). Model có thể gọi `last_plan` trước khi nói, và được phép không nói gì.
+2. **Chưa đổi tên hay xoá được lớp**: tạo lớp có từ 27/10/2026 (plan `tao-lop`), ở màn 9 và qua Kriky.
 3. **Câu model sinh có đáp án khoá sai hay hai phương án cùng đúng** (3.8, 5.7): chất lượng model,
    backlog Tier 4.
 4. Lỗi giao diện còn ghi ở backlog, mục *Lộ ra khi chạy kịch bản thử tay đầu-cuối*: màn trống của

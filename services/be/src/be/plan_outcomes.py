@@ -148,7 +148,13 @@ def step_detail(tool_name: str, result: dict) -> str:
             and result.get("reason")
         ):
             return str(result["reason"])
+        if tool_name == "create_class" and result.get("said"):
+            # `said` của tạo lớp là câu cho giáo viên (*Bạn đã có lớp "12C".*), không phải chữ
+            # viết cho model, nên in được (hậu ký ADR-13, 27/10/2026).
+            return str(result["said"])
         return said_about(result)
+    if tool_name == "create_class" and result.get("created"):
+        return f'lớp "{result.get("name", "")}", chưa có học sinh'
     if tool_name == "replace_question" and "replaced" in result:
         number = result.get("question_number")
         if result["replaced"]:

@@ -78,6 +78,33 @@ def telling(request: NextStepRequested) -> bool:
     return False
 
 
+# Skill kể lại một plan, theo tool plan ấy đã chạy (plan `tao-lop`, 27/10/2026). Tool không có ở đây
+# thì kể theo `soan-de`, như trước khi có tool ghi nào khác ngoài soạn đề.
+_TELLS = {"create_class": "lop-va-ket-qua"}
+_DRAFTING = "soan-de"
+
+
+def telling_skills(request: NextStepRequested) -> frozenset[str]:
+    """Các skill dặn cách kể lại plan vừa chạy: skill của mọi tool trong plan ấy. Hàm thuần.
+
+    Lượt kể lại từng luôn nạp `soan-de`, vì đó là skill duy nhất nêu plan. Plan tạo lớp mà kể bằng
+    bước 6 của `soan-de` thì model nói về đề và câu đang soạn cho một việc không có đề nào. Plan vừa
+    tạo lớp vừa soạn đề thì cần cả hai (review plan `tao-lop`).
+
+    Args:
+        request: Lượt kể lại (`telling` đúng).
+
+    Returns:
+        Tên các skill; `soan-de` khi plan chưa có bước nào chạy.
+    """
+    told = {
+        _TELLS.get(turn.tool_name, _DRAFTING)
+        for turn in since_plan(request)
+        if turn.kind == "tool_result"
+    }
+    return frozenset(told or {_DRAFTING})
+
+
 def since_plan(request: NextStepRequested) -> list[TurnRecord]:
     """Các lượt từ sau plan gần nhất, cũ nhất trước. Hàm thuần."""
     turns: list[TurnRecord] = []

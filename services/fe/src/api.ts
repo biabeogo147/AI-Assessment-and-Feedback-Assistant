@@ -1334,6 +1334,15 @@ export const teacher = {
   classes: () => call<ClassList>("teacher", "/teacher/classes"),
   classDetail: (classId: string) => call<ClassDetail>("teacher", `/teacher/classes/${classId}`),
   /**
+   * Mở một lớp rỗng (plan `tao-lop`). 409 khi giáo viên đã có lớp cùng tên, 422 khi tên rỗng hay
+   * quá dài; cả hai mang câu tiếng Việt của BE trong `message`.
+   */
+  createClass: (name: string) =>
+    call<{ class_id: string; name: string }>("teacher", "/teacher/classes", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  /**
    * Bảng xem trước khi thêm học sinh (việc 22, plan `sign-in-and-accounts`, Figma 28b), từ các tên
    * đã gõ. Không ghi gì ở BE.
    */

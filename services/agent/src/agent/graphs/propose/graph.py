@@ -15,7 +15,7 @@ from agent.graphs.propose.ask_again import (
 from agent.graphs.propose.choose import choose
 from agent.graphs.propose.clarify import choices_in
 from agent.graphs.propose.compose import ProposeState, compose
-from agent.graphs.propose.history import telling
+from agent.graphs.propose.history import telling, telling_skills
 from contracts import NextStepCompleted, NextStepRequested
 
 logger = logging.getLogger("agent.graphs.propose")
@@ -27,10 +27,6 @@ logger = logging.getLogger("agent.graphs.propose")
 # lớp 10 về mệnh đề"* thành câu hỏi *"bạn muốn xem lớp nào?"* (review A1). Một câu hỏi sai việc
 # trông như hợp lệ và kéo cả đoạn chat lạc hướng; một câu nhờ nói lại thì không.
 _UNCLEAR = "Kriky chưa hiểu rõ ý bạn. Bạn nói lại theo cách khác giúp nhé?"
-
-
-# Skill của quy trình soạn đề, nơi bước 6 dặn cách kể lại sau plan.
-DRAFTING = "soan-de"
 
 
 async def propose(request: NextStepRequested) -> NextStepCompleted:
@@ -49,11 +45,13 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
             báo hệ thống (ADR-30).
     """
     chosen = await skill_router.choose(request.history)
-    if telling(request) and DRAFTING not in chosen:
-        # Lượt kể lại kể theo bước 6 của `soan-de` (ADR-25, hậu ký 22/10/2026). Bộ chọn skill đọc
-        # lời cuối là của giáo viên, mà ở lượt kể lại lời cuối có thể là lời mở của plan: đừng để
-        # nó rơi về skill bao quát rồi mất cách kể.
-        chosen = tuple(one.name for one in skills.every() if one.name in {*chosen, DRAFTING})
+    tells = telling_skills(request) if telling(request) else frozenset()
+    if not tells <= set(chosen):
+        # Lượt kể lại kể theo skill của plan vừa chạy: bước 6 của `soan-de` (ADR-25, hậu ký
+        # 22/10/2026), hay bước tạo lớp của `lop-va-ket-qua` (plan `tao-lop`). Bộ chọn skill đọc lời
+        # cuối là của giáo viên, mà ở lượt kể lại lời cuối có thể là lời mở của plan: đừng để nó rơi
+        # về skill bao quát rồi mất cách kể.
+        chosen = tuple(one.name for one in skills.every() if one.name in {*chosen, *tells})
     state = {"request": request, "skills": chosen, "messages": [], "step": None}
     try:
         final = await _GRAPH.ainvoke(state)

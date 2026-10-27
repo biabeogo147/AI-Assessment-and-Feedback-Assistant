@@ -46,6 +46,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.assessment_state import AssessmentState
+from be.classes import ClassRefused, create_class
 from be.config import Settings, get_settings
 from be.content_reader import ContentUnavailable, get_reader
 from be.drafting import (
@@ -475,6 +476,32 @@ _NO_SUCH_DRAFT = {
     "started": False,
     "reason": "không có đề nháp nào như vậy trong danh sách của bạn",
 }
+
+
+async def _create_class(running: Running, args: dict) -> dict:
+    """Mở một lớp rỗng (hậu ký ADR-13, 27/10/2026), qua đúng hàm nút *Tạo lớp* của màn 9 gọi.
+
+    Args:
+        running: Session và giáo viên đang hỏi, người sẽ thành chủ lớp.
+        args: `name`, tên lớp giáo viên nói.
+
+    Returns:
+        `{"created": True, "class_id", "name"}`, hay `{"created": False, "reason", "said"}` khi tên
+        rỗng, quá dài, hay trùng một lớp đã có. `said` là câu cho giáo viên, `reason` cho model.
+    """
+    try:
+        created = await create_class(running.session, running.asking, str(args.get("name", "")))
+    except ClassRefused as refused:
+        return {
+            "created": False,
+            "reason": f"{refused.said} Nói lại với giáo viên; đừng tự đổi tên lớp.",
+            "said": refused.said,
+        }
+    # Tự commit như mọi tool ghi khác (`create_draft` qua `rebrief`): vòng pha 2 của `teacher_chat`
+    # rollback sau mỗi bước, nên một lớp chỉ `flush` thì mất -- mà dòng bước vẫn kể đã tạo (review
+    # plan `tao-lop`).
+    await running.session.commit()
+    return {"created": True, "class_id": created.id, "name": created.name}
 
 
 async def _create_draft(running: Running, args: dict) -> dict:
@@ -1654,6 +1681,18 @@ _TOOLS: tuple[Tool, ...] = (
             },
         ),
         run=_class_assessment_summary,
+    ),
+    Tool(
+        spec=ToolSpec(
+            name="create_class",
+            description=(
+                "Mở một lớp mới, chưa có học sinh. Từ chối khi giáo viên đã có một lớp cùng tên. "
+                "Học sinh thêm sau ở màn của lớp."
+            ),
+            arguments={"name": "tên lớp, chép đúng lời giáo viên"},
+        ),
+        run=_create_class,
+        writes=True,
     ),
     Tool(
         spec=ToolSpec(

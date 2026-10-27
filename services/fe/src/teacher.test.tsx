@@ -899,6 +899,29 @@ describe("một lượt của Kriky", () => {
     expect(named("Kiểm tra 15 phút")).toBe('— đề "Kiểm tra 15 phút"');
   });
 
+  it("bước tạo lớp: cùng câu với BE, trùng tên thì in câu BE nói (plan `tao-lop`)", () => {
+    const made = stepFor(
+      blank({
+        kind: "tool_result",
+        tool_name: "create_class",
+        tool_result: { created: true, class_id: "c9", name: "12C" },
+      }),
+    );
+    expect([made.title, made.mark, made.result]).toEqual([
+      "Tạo lớp",
+      "done",
+      '— lớp "12C", chưa có học sinh',
+    ]);
+    const refused = stepFor(
+      blank({
+        kind: "tool_result",
+        tool_name: "create_class",
+        tool_result: { created: false, reason: "…", said: 'Bạn đã có lớp "12C".' },
+      }),
+    );
+    expect([refused.mark, refused.result]).toEqual(["failed", '— Bạn đã có lớp "12C".']);
+  });
+
   it("dòng ✕ in câu cho giáo viên, không in tên tool của lời từ chối", () => {
     // Plan `backlog-tier-1`: `reason` viết cho model (*"gọi list_class để lấy id"*); BE kèm `said`.
     const step = stepFor(
@@ -6890,6 +6913,97 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
     rerender(<Chat conversationId="c9" fresh={false} openPaper={null} />);
 
     await waitFor(() => expect(calls).toContain("/api/teacher/chat?conversation_id=c9"));
+  });
+
+  describe("Tạo lớp (plan `tao-lop`)", () => {
+    function creating(refusal?: { status: number; detail: string }) {
+      const posted: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((_url: string, init?: RequestInit) => {
+          if ((init?.method ?? "GET").toUpperCase() === "POST") {
+            posted.push(String(init?.body));
+            if (refusal)
+              return Promise.resolve({
+                ok: false,
+                status: refusal.status,
+                json: () => Promise.resolve({ detail: refusal.detail }),
+              });
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ class_id: "c9", name: "12C" }),
+            });
+          }
+          return Promise.resolve({ ok: true, json: () => Promise.resolve(CLASSES) });
+        }),
+      );
+      return posted;
+    }
+
+    afterEach(() => {
+      window.location.hash = "";
+    });
+
+    it("nút Tạo lớp mở hộp; Enter tạo và sang màn của lớp mới", async () => {
+      const posted = creating();
+      render(<Classes />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tạo lớp" }));
+      const dialog = screen.getByRole("dialog");
+      const box = within(dialog).getByLabelText("Tên lớp");
+      expect(document.activeElement).toBe(box);
+      fireEvent.change(box, { target: { value: "12C" } });
+      fireEvent.keyDown(box, { key: "Enter" });
+
+      await waitFor(() => expect(window.location.hash).toBe("#/teacher/lop/c9"));
+      expect(posted).toEqual([JSON.stringify({ name: "12C" })]);
+    });
+
+    it("trùng tên: hộp ở lại và in câu BE nói, gõ tiếp thì câu ấy đi", async () => {
+      creating({ status: 409, detail: 'Bạn đã có lớp "12A".' });
+      render(<Classes />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tạo lớp" }));
+      const dialog = screen.getByRole("dialog");
+      const box = within(dialog).getByLabelText("Tên lớp");
+      fireEvent.change(box, { target: { value: "12A" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Tạo lớp" }));
+
+      expect((await within(dialog).findByRole("alert")).textContent).toBe('Bạn đã có lớp "12A".');
+      expect(window.location.hash).toBe("");
+      fireEvent.change(box, { target: { value: "12A 2027" } });
+      expect(within(dialog).queryByRole("alert")).toBeNull();
+    });
+
+    it("tên rỗng thì nút Tạo lớp khoá; Huỷ đóng hộp mà không gửi gì", async () => {
+      const posted = creating();
+      render(<Classes />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Tạo lớp" }));
+      const dialog = screen.getByRole("dialog");
+      const make = within(dialog).getByRole("button", { name: "Tạo lớp" }) as HTMLButtonElement;
+      expect(make.disabled).toBe(true);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Huỷ" }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(posted).toEqual([]);
+    });
+
+    it("chưa có lớp nào: một hàng empty state, nút Tạo lớp vẫn ở đầu màn", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ classes: [], student_total: 0 }),
+          }),
+        ),
+      );
+      const { container } = render(<Classes />);
+
+      expect((await screen.findByText(/Chưa có lớp nào/)).className).toContain("empty");
+      expect(container.querySelector(".board-head .board-export")?.textContent).toBe("Tạo lớp");
+    });
   });
 
   it("màn lớp: lớp không có đề đang mở ghi —, rê chuột lên ô tiến độ thì chia theo đề", async () => {
