@@ -238,7 +238,7 @@ describe("the tutoring screen", () => {
     stubTwo({ attempt_id: "a1", locked: true, messages: [] });
     render(<Tutor me={ME} attemptId="a1" />);
     fireEvent.click(await screen.findByRole("button", { name: /Báo cáo Trợ lý giải thích khó hiểu/ }));
-    const done = await screen.findByRole("button", { name: "Đã báo cho cô" });
+    const done = await screen.findByRole("button", { name: "Đã báo cho giáo viên" });
     expect((done as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole("alert")).toBeNull();
   });

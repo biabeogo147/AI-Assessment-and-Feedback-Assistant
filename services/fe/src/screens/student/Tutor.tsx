@@ -255,7 +255,7 @@ export default function Tutor({ me, attemptId }: { me: Me; attemptId: string }) 
               // qua dải lỗi. Trước đây câu xác nhận đi qua `setError`, nên hiện thành dải đỏ.
               <button className="btn-report done" type="button" disabled>
                 <span aria-hidden="true">✓</span>
-                <span>Đã báo cho cô</span>
+                <span>Đã báo cho giáo viên</span>
               </button>
             ) : (
               <button

@@ -1003,9 +1003,9 @@ async def _note_publication(
     session: AsyncSession,
     asking: Asking,
     assessment_id: str,
-    landed: list[ClassResult],
+    results: list[ClassResult],
 ) -> None:
-    """Ghi lần phát hành vào hội thoại của giáo viên.
+    """Ghi lần phát hành vào hội thoại của giáo viên, kể cả khi không lớp nào nhận.
 
     Cùng luật với `_note`: nuốt lỗi và log, vì lúc này các hàng `Publication` đã commit
     rồi và một transcript thiếu một dòng tệ ít hơn hẳn một request nói "lỗi" về một việc
@@ -1018,11 +1018,21 @@ async def _note_publication(
         session: Session của database.
         asking: Ai đã phát hành.
         assessment_id: Đề nào.
-        landed: Những lớp đã nhận được.
+        results: Kết quả từng lớp. `published` là True khi ít nhất một lớp nhận được; lớp hỏng
+            đi ở `failed` kèm lý do, để thẻ nói lớp nào chưa nhận và vì sao (Tier 2 câu 35).
 
     Side effects:
         Chèn một bước và commit, hoặc ghi log khi việc đó thất bại.
     """
+    landed = [row.class_name or row.class_id for row in results if row.published]
+    missed = [
+        {"class": row.class_name or row.class_id, "reason": row.reason}
+        for row in results
+        if not row.published
+    ]
+    outcome: dict = {"published": bool(landed), "assessment_id": assessment_id, "classes": landed}
+    if missed:
+        outcome["failed"] = missed
     try:
         await note_action(
             session,
@@ -1034,11 +1044,7 @@ async def _note_publication(
                 # được.
                 tool_name="teacher.publish",
                 tool_args={"assessment_id": assessment_id},
-                tool_result={
-                    "published": True,
-                    "assessment_id": assessment_id,
-                    "classes": [row.class_name or row.class_id for row in landed],
-                },
+                tool_result=outcome,
             ),
         )
     except Exception:  # noqa: BLE001 -- xem docstring
@@ -1222,8 +1228,9 @@ async def publish(
         advance(assessment, AssessmentState.PUBLISHED)
     await session.commit()
 
-    if landed:
-        await _note_publication(session, asking, assessment_id, landed)
+    # Ghi cả khi không lớp nào nhận: thẻ `failed` của khung chat đọc chính lượt này (Tier 2 câu 35,
+    # hướng B). Trước đây lần phát hành hỏng không để lại dấu gì trong đoạn chat.
+    await _note_publication(session, asking, assessment_id, results)
 
     return PublishResult(
         assessment_id=assessment_id,

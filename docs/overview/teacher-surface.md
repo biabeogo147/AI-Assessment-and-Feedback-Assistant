@@ -198,14 +198,14 @@ nấc**: đề vừa mở còn rỗng thì có thêm một nút mời bước ti
 trạng thái. `tạo-đề-trống` chỉ mọc cho một lượt *chỉ* mở đề — khi giáo viên nói *"tạo đề 10 câu"* thì
 plan có hai bước (ADR-25) và trạng thái "trống" không còn đứng vững, vì chính bước sau đã thay nó.
 
-**Năm variant khác đã thành *(không dùng)*, và lý do nằm ở dữ liệu chứ không ở màn hình:**
+**Năm variant khác đã thành *(không dùng)*, và lý do nằm ở dữ liệu chứ không ở màn hình** (`phát-hành-thất-bại` dùng lại từ 27/10/2026, dưới nấc `failed`):
 
 | Variant | Vì sao không ai tới được |
 | --- | --- |
 | `bỏ-duyệt` (`76:10`) | Bỏ duyệt đưa đề **về** nấc một, nên nó không có thẻ riêng — thẻ quay lại kể *đã tạo đề* |
 | `thiếu-câu` (`455:16`) | Đầu đề chở con số, mà con số đã nằm ở khối `Thinking` ngay trên thẻ |
 | `đang-soạn-dở` (`456:16`) | Như trên |
-| `phát-hành-thất-bại` (`76:23`) | `_note_publication` **chỉ** ghi lượt khi phát hành thành công, nên một lần phát hành hỏng không bao giờ tới đây. Biểu mẫu phát hành phải tự hiện phần thất bại tại chỗ |
+| `phát-hành-thất-bại` (`76:23`) | **Dùng lại từ 27/10/2026** (Tier 2 câu 35, hướng B), không còn là variant riêng: `_note_publication` ghi cả lần không lớp nào nhận, kèm `failed`; thẻ là nấc `failed` với đầu đề *Chưa phát hành được đề* và câu an toàn gọi tên lớp chưa nhận, không nút. Phát hành được một phần thì thẻ `published` thêm *Chưa nhận: …* |
 | `tạo-lớp` (`10:34`) | Không tool nào tạo lớp |
 
 Giữ lại chứ không xoá khỏi Figma: chúng là bản ghi của những nấc đã thử và đã bỏ. Variant

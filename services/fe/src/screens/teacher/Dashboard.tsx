@@ -121,7 +121,7 @@ export default function Dashboard() {
                   <div className="objective" key={one.learning_objective}>
                     {/* `title` giữ chữ gốc: thuộc tính không dựng được công thức. */}
                     <span className="label" title={one.learning_objective}>
-                      <MathText>{one.learning_objective}</MathText>
+                      <MathText>{flatFractions(one.learning_objective)}</MathText>
                     </span>
                     <span className="track">
                       <span className="fill" style={{ width: `${one.percent}%` }} />
@@ -178,6 +178,71 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+/**
+ * Phân số của một nhãn biểu đồ, viết ngang: `\frac{a}{b}` thành `a/b` (Tier 2 câu 36, hướng A).
+ *
+ * Nhãn cao 11px; phân số xếp chồng còn tử và mẫu cỡ 6–7px, đọc lướt không ra. Tử có hơn một hạng
+ * tử, hay mẫu không phải một ký hiệu đơn, thì thêm ngoặc: `\frac{a+b}{2x}` thành `(a+b)/(2x)`, không
+ * thành `a+b/2x`. Phân số có số mũ ngay sau thì cả phân số vào ngoặc. `\dfrac`, `\tfrac` cũng vậy;
+ * phân số lồng nhau viết ngang từ trong ra. Hàm thuần, chỉ dùng cho nhãn: đề bài vẫn xếp chồng.
+ *
+ * @param label - Mục kiến thức như API trả.
+ * @returns Nhãn với mọi phân số đã viết ngang. Một `\frac` thiếu ngoặc nhọn thì để nguyên, và các
+ *   phân số khác của nhãn vẫn được viết ngang.
+ */
+export function flatFractions(label: string): string {
+  const head = /\\[dt]?frac\s*\{/g;
+  let text = label;
+  // Chỉ tìm trước mốc này: một `\frac` hỏng thì lùi mốc qua nó và đi tiếp, không bỏ cả nhãn.
+  let limit = text.length;
+  for (let guard = 0; guard < 40; guard += 1) {
+    head.lastIndex = 0;
+    let found: RegExpExecArray | null = null;
+    let last: RegExpExecArray | null;
+    // Phân số trong cùng trước: `\frac{` cuối cùng còn lại trước mốc.
+    while ((last = head.exec(text)) !== null && last.index < limit) found = last;
+    if (found === null) return text;
+    const top = group(text, found.index + found[0].length - 1);
+    const opening = top === null ? null : text.slice(top.end).match(/^\s*\{/);
+    const bottom =
+      top === null || opening === null ? null : group(text, top.end + opening[0].length - 1);
+    if (top === null || bottom === null) {
+      limit = found.index;
+      continue;
+    }
+    const plain = `${grouped(top.body, false)}/${grouped(bottom.body, true)}`;
+    const flat = /^\s*\^/.test(text.slice(bottom.end)) ? `(${plain})` : plain;
+    text = text.slice(0, found.index) + flat + text.slice(bottom.end);
+    limit = text.length;
+  }
+  return text;
+}
+
+/** Một cặp ngoặc nhọn bắt đầu ở `open`: phần bên trong và chỗ ngay sau ngoặc đóng. */
+function group(text: string, open: number): { body: string; end: number } | null {
+  let depth = 0;
+  for (let at = open; at < text.length; at += 1) {
+    if (text[at] === "{") depth += 1;
+    if (text[at] === "}") {
+      depth -= 1;
+      if (depth === 0) return { body: text.slice(open + 1, at), end: at + 1 };
+    }
+  }
+  return null;
+}
+
+/**
+ * Tử hay mẫu, đã thêm ngoặc khi cần. Tử vào ngoặc khi có hơn một hạng tử (cộng, trừ, chia, nhân,
+ * dấu cách). Mẫu chặt hơn: chỉ một ký hiệu đơn mới đứng trần (`2`, `x`, `\pi`, `x^2`), vì `1/2x`
+ * đọc được là *(1/2)·x*.
+ */
+function grouped(part: string, denominator: boolean): string {
+  const body = part.trim();
+  const single = /^(?:\d+(?:[.,]\d+)?|[A-Za-z]|\\[A-Za-z]+)(?:\^(?:\w|\{\w+\}))?$/.test(body);
+  if (denominator) return single ? body : `(${body})`;
+  return single || !/[+\-/\s]|\\(?:cdot|times|pm|div)/.test(body) ? body : `(${body})`;
 }
 
 /**

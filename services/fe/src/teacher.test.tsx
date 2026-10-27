@@ -23,7 +23,7 @@ import ClassDetail from "./screens/teacher/ClassDetail";
 import ClassResults from "./screens/teacher/ClassResults";
 import Classes from "./screens/teacher/Classes";
 import Papers from "./screens/teacher/Papers";
-import Dashboard, { BoardQuestion, BoardReports } from "./screens/teacher/Dashboard";
+import Dashboard, { BoardQuestion, BoardReports, flatFractions } from "./screens/teacher/Dashboard";
 import StudentWork from "./screens/teacher/StudentWork";
 import Panel from "./screens/teacher/Panel";
 import PublishSettings from "./screens/teacher/PublishSettings";
@@ -4424,6 +4424,52 @@ describe("thẻ kết quả là một máy trạng thái ba nấc", () => {
     }
   });
 
+  it("phát hành không lớp nào nhận: nấc failed, câu riêng, gọi tên lớp và lý do, không nút", () => {
+    // Tier 2 câu 35 (hướng B): không đầu đề thứ năm; câu riêng đọc từ `published: false`.
+    const { container } = render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: "teacher.publish",
+          tool_result: {
+            published: false,
+            assessment_id: "p1",
+            classes: [],
+            failed: [{ class: "12B", reason: "giờ mở đã qua" }],
+          },
+        })}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    const card = container.querySelector(".action-card") as HTMLElement;
+    expect(card.querySelector(".head .what")?.textContent).toBe("Chưa phát hành được đề");
+    expect(card.textContent).toContain("Chưa có gì được thay đổi · Chưa nhận: 12B: giờ mở đã qua");
+    expect(within(card).queryByRole("button", { name: "Thử lại" })).toBeNull();
+  });
+
+  it("phát hành được một phần: vẫn Đã phát hành, câu an toàn gọi tên lớp chưa nhận", () => {
+    const { container } = render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: "teacher.publish",
+          tool_result: {
+            published: true,
+            assessment_id: "p1",
+            classes: ["12A"],
+            failed: [{ class: "12B", reason: "lớp đang làm bài" }],
+          },
+        })}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    const card = container.querySelector(".action-card") as HTMLElement;
+    expect(card.querySelector(".head .what")?.textContent).toBe("Đã phát hành");
+    expect(card.textContent).toContain("Chưa nhận: 12B: lớp đang làm bài");
+  });
+
   it("bỏ duyệt đưa đề VỀ nấc một, không sinh nấc thứ tư", () => {
     expect(
       cardState(
@@ -7605,6 +7651,21 @@ describe("thêm câu từ ngân hàng (việc 17, plan `question-bank-into-draft
 describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () => {
   afterEach(() => {
     window.location.hash = "";
+  });
+
+  it("nhãn biểu đồ viết phân số ngang (Tier 2 câu 36)", () => {
+    expect(flatFractions(String.raw`Cộng hai phân số $\frac{a}{b} + \dfrac{c}{d}$`)).toBe(
+      String.raw`Cộng hai phân số $a/b + c/d$`,
+    );
+    // Mẫu không phải ký hiệu đơn thì vào ngoặc: `1/2x` đọc được là (1/2)·x.
+    expect(flatFractions(String.raw`$\frac{x^2 + 1}{2x}$`)).toBe(String.raw`$(x^2 + 1)/(2x)$`);
+    expect(flatFractions(String.raw`$\frac{\frac{1}{2}}{3}$`)).toBe(String.raw`$(1/2)/3$`);
+    expect(flatFractions(String.raw`$\frac{\pi}{4}$`)).toBe(String.raw`$\pi/4$`);
+    expect(flatFractions(String.raw`$\frac{a}{b}^2$`)).toBe(String.raw`$(a/b)^2$`);
+    // Một `\frac` hỏng để nguyên, phân số lành trong cùng nhãn vẫn viết ngang.
+    expect(flatFractions(String.raw`$\frac{a}{b}$ và \frac{c}`)).toBe(String.raw`$a/b$ và \frac{c}`);
+    expect(flatFractions(String.raw`$\frac12$ và \frac{a}`)).toBe(String.raw`$\frac12$ và \frac{a}`);
+    expect(flatFractions("Cực trị")).toBe("Cực trị");
   });
 
   function serving(routes: Record<string, unknown>) {

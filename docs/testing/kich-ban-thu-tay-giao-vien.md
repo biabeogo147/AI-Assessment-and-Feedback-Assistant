@@ -488,7 +488,7 @@ lượt trợ lý, lời chào tính là một.
 
 **Làm:** bấm *⚑ Báo cáo Trợ lý giải thích khó hiểu*.
 
-**Phải thấy:** nút đổi thành *✓ Đã báo cho cô* và khoá (Figma `281:24`); không dải đỏ nào.
+**Phải thấy:** nút đổi thành *✓ Đã báo cho giáo viên* và khoá (Figma `281:24`); không dải đỏ nào.
 
 ### 5.7 Lượt làm lại
 

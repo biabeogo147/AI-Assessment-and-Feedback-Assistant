@@ -1867,7 +1867,11 @@ async def note_action(session: AsyncSession, asking: Asking, record: TurnRecord)
         Mở một hội thoại nếu giáo viên chưa có, rồi chèn một bước và commit.
     """
     _, subject = _subject(record.tool_result)
-    thread = (await conversation_of(session, asking, subject)) if subject else None
+    # Một việc **không** xảy ra không có chủ thể (`_subject`), nhưng vẫn nói về một đề: lần phát
+    # hành không lớp nào nhận (Tier 2 câu 35) phải rơi vào đoạn chat đã sinh ra đề ấy, không vào
+    # đoạn đang mở -- ở đó nó thay mất thẻ của một đề khác (review plan `tier-2-m1-m2`).
+    paper = subject or str(record.tool_result.get("assessment_id") or "")
+    thread = (await conversation_of(session, asking, paper)) if paper else None
     if thread is None:
         thread = await _conversation(session, asking)
     stored = await _stored_turns(session, thread)

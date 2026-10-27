@@ -741,6 +741,97 @@ async def test_publishing_leaves_the_class_names_in_the_transcript(stack) -> Non
 
 
 @pytest.mark.asyncio
+async def test_a_publication_no_class_took_still_leaves_its_reason_in_the_transcript(stack) -> None:
+    """Tier 2 câu 35 (hướng B): lần phát hành hỏng có thẻ `failed` -- nên nó phải để lại lượt,
+    kèm lớp nào chưa nhận và vì sao. Trước đây không lớp nào nhận thì không ghi gì."""
+    client, maker = stack
+    paper = await _approved(maker)
+    morning = await _class_id(maker, "12A")
+
+    response = await client.post(
+        f"/api/teacher/assessments/{paper}/publications",
+        headers=TEACHER,
+        json=_body(morning, opens_in_hours=-1),
+    )
+
+    assert response.status_code == 200
+    assert not any(row["published"] for row in response.json()["classes"])
+    async with maker() as session:
+        turns = list(await session.scalars(select(TeacherTurn).order_by(TeacherTurn.sequence)))
+    assert [turn.tool_name for turn in turns] == ["teacher.publish"]
+    result = turns[0].tool_result
+    assert (result["published"], result["classes"]) == (False, [])
+    assert [one["class"] for one in result["failed"]] == ["12A"]
+    assert result["failed"][0]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_publication_lands_in_the_chat_that_wrote_the_paper(stack) -> None:
+    """Review plan `tier-2-m1-m2`: một việc không xảy ra không có chủ thể, nên lượt từng rơi vào
+    đoạn chat **mới nhất** -- và thay mất thẻ của một đề khác ở đó. Nó về đoạn đã sinh ra đề."""
+    from schema.models import TeacherConversation
+
+    client, maker = stack
+    paper = await _approved(maker)
+    morning = await _class_id(maker, "12A")
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        wrote = TeacherConversation(teacher_id=teacher.id, started_at=datetime.now(UTC))
+        newer = TeacherConversation(
+            teacher_id=teacher.id, started_at=datetime.now(UTC) + timedelta(minutes=5)
+        )
+        session.add_all([wrote, newer])
+        await session.flush()
+        session.add(
+            TeacherTurn(
+                conversation_id=wrote.id,
+                sequence=0,
+                kind="tool_result",
+                tool_name="create_draft",
+                tool_result={"created": True, "assessment_id": paper},
+                entity_kind="assessment",
+                entity_id=paper,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+        wrote_id, newer_id = wrote.id, newer.id
+
+    await client.post(
+        f"/api/teacher/assessments/{paper}/publications",
+        headers=TEACHER,
+        json=_body(morning, opens_in_hours=-1),
+    )
+
+    async with maker() as session:
+        noted = await session.scalar(
+            select(TeacherTurn).where(TeacherTurn.tool_name == "teacher.publish")
+        )
+    assert noted.conversation_id == wrote_id != newer_id
+    assert noted.tool_result["published"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_publication_some_classes_took_names_the_ones_that_did_not(stack) -> None:
+    """Phát hành được một phần: lượt vẫn là `published`, và `failed` gọi tên lớp chưa nhận."""
+    client, maker = stack
+    paper = await _approved(maker)
+    morning = await _class_id(maker, "12A")
+
+    await client.post(
+        f"/api/teacher/assessments/{paper}/publications",
+        headers=TEACHER,
+        json=_body(morning, "khong-co-lop-nay", opens_in_hours=8),
+    )
+
+    async with maker() as session:
+        turns = list(await session.scalars(select(TeacherTurn).order_by(TeacherTurn.sequence)))
+    result = turns[-1].tool_result
+    assert (result["published"], result["classes"]) == (True, ["12A"])
+    assert result["failed"] == [{"class": "khong-co-lop-nay", "reason": "không tìm thấy lớp"}]
+
+
+@pytest.mark.asyncio
 async def test_a_student_cannot_start_an_attempt_on_a_recalled_publication(stack) -> None:
     """Cửa thứ hai của việc thu hồi, và nó là cửa dễ quên hơn.
 

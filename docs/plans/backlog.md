@@ -249,7 +249,7 @@ Ghi ngày 2026-09-30, khi đóng `2026-09-30-teacher-harness-foundation-plan.md`
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| `entity_kind`/`entity_id` đủ cho bảy variant `Action result card` | **Tier 3: BE chưa ghi lần phát hành hỏng (`_note_publication`), không phải việc FE** (plan `backlog-tier-1`, pha 4). Còn **một** variant: `phát-hành-thất-bại` |
+| `entity_kind`/`entity_id` đủ cho bảy variant `Action result card` | **Đã làm** 27/10/2026 (plan `tier-2-m1-m2`): BE ghi lần phát hành hỏng; `phát-hành-thất-bại` dùng lại dưới nấc `failed` |
 
 Sáu trong bảy nay có dữ liệu: `tạo-đề-trống` và `thêm-câu-hỏi` từ
 Pha 3, `đã-duyệt`/`bỏ-duyệt` từ Pha 4, `đã-phát-hành` từ Pha 5, `tạo-lớp` từ `find_class`. Thiếu
@@ -854,9 +854,9 @@ Plan `2026-10-21-muc-1-2-loop-1-plan.md`. Review code ba lượt và một lư�
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Thẻ *phát-hành-thất-bại*** (`76:23`) vẽ đầu đề thứ năm *"Phát hành chưa xong"* cho ca phát hành hỏng **một phần**, trái luật *bốn đầu đề* của chính set `10:63` và của check `tools/check_contract.py` (đếm dòng `HEAD` trong `ActionCard.tsx`); chữ mẫu còn tự mâu thuẫn (*"12B đã nhận"* rồi nút *"Thử lại cho 12B"*). BE `_note_publication` vẫn chỉ ghi khi có lớp nhận | Tier 2: A thêm đầu đề thứ năm (đổi luật và check) · B dùng nấc `failed` sẵn có với câu riêng cho phát hành · C không vẽ thẻ, chỉ ghi một bước ✕ |
-| **Công thức trong nhãn 11px của biểu đồ *Tỉ lệ bài sai theo mục kiến thức*** (Bảng theo dõi): KaTeX dựng phân số xếp chồng, tử và mẫu còn ~6–7px; nhãn dài bị cắt bằng "…" ngay giữa công thức. Figma `666:5690` chỉ vẽ nhãn chữ thường | Tier 2: A phân số viết ngang trong nhãn (`a/b`) · B Figma thêm nhãn có công thức và giữ KaTeX · C để nguyên |
-| **Nút báo cáo đã gửi ghi *"Đã báo cho cô"*** (Figma `281:24`, code theo Figma): xưng *cô* là đoán giới tính giáo viên, đúng lỗi backlog đã ghi cho lời Kriky | Tier 2: A giữ *cô* · B *"Đã báo cho giáo viên"* (Figma và code cùng đổi) |
+| **Thẻ *phát-hành-thất-bại*** (`76:23`) vẽ đầu đề thứ năm *"Phát hành chưa xong"* cho ca phát hành hỏng **một phần**, trái luật *bốn đầu đề* của chính set `10:63` và của check `tools/check_contract.py` (đếm dòng `HEAD` trong `ActionCard.tsx`); chữ mẫu còn tự mâu thuẫn (*"12B đã nhận"* rồi nút *"Thử lại cho 12B"*). BE `_note_publication` vẫn chỉ ghi khi có lớp nhận | **Đã làm** 27/10/2026 (plan `tier-2-m1-m2`, chốt B): `_note_publication` ghi cả lần không lớp nào nhận, kèm `failed`; thẻ là nấc `failed` với đầu đề *Chưa phát hành được đề*, câu an toàn gọi tên lớp chưa nhận, không nút; phát hành một phần thì thẻ `published` thêm *Chưa nhận: …*. Lượt về đoạn chat đã sinh ra đề (`note_action` đọc `assessment_id`). Figma `76:23`, `795:7` |
+| **Công thức trong nhãn 11px của biểu đồ *Tỉ lệ bài sai theo mục kiến thức*** (Bảng theo dõi): KaTeX dựng phân số xếp chồng, tử và mẫu còn ~6–7px; nhãn dài bị cắt bằng "…" ngay giữa công thức. Figma `666:5690` chỉ vẽ nhãn chữ thường | **Đã làm** 27/10/2026 (plan `tier-2-m1-m2`, chốt A): `Dashboard.flatFractions` viết ngang `\frac`, `\dfrac`, `\tfrac`, thêm ngoặc cho tử nhiều hạng tử và mẫu không phải ký hiệu đơn |
+| **Nút báo cáo đã gửi ghi *"Đã báo cho cô"*** (Figma `281:24`, code theo Figma): xưng *cô* là đoán giới tính giáo viên, đúng lỗi backlog đã ghi cho lời Kriky | **Đã làm** 27/10/2026 (plan `tier-2-m1-m2`, chốt B): *"Đã báo cho giáo viên"*, Figma `281:24` cùng đổi |
 | **Hộp hỏi lại *Đặt lại mật khẩu* không chặn Tab** (`ClassDetail.tsx`): `Veil` không gọi `useInert` như `Roster`/`Passwords`, nên Tab đi xuyên hộp tới nút của em khác; Enter ở đó đổi người trong tiêu đề hộp | **Đã làm** 22/10/2026 (plan `muc-1-2-loop-2`): `Veil` có cờ `inert`, hộp hỏi lại bật nó |
 | **Cột *Mục kiến thức* ở Ngân hàng** (`.board-table.bank`, cột 200px): công thức KaTeX dài không xuống dòng được, có thể tràn sang cột *Khối / Môn* | **Không làm** (đo 22/10/2026, plan `muc-1-2-loop-2`): KaTeX tự xuống dòng ở toán tử; khúc dài nhất của một tích phân bốn số hạng lố 4,5px vào khe 24px giữa hai cột, không chạm *Khối / Môn*. Chỉ một khúc không bẻ được dài hơn ~224px mới đè |
 | Radio đáp án đúng dùng radio gốc (`accent-color`), Figma vẽ chấm đặc; ô nhập có tay kéo `resize: vertical`, Figma không vẽ | **Không làm**: cả hai là chủ ý ghi trong `teacher.css` (radio thật giữ bàn phím và vùng bấm; tay kéo là thứ trình duyệt cho) |
@@ -957,3 +957,16 @@ Plan `2026-10-27-tier-1-plan.md`. Biên bản: `docs/testing/ket-qua/2026-10-27-
 | **Lời hỏi lại của `Unparsed` cho lượt kể lại** liệt kê cả `plan`, mà lượt ấy không được nêu plan (review pha 2) | Nhẹ; chỉ sửa nếu bench thấy model nêu plan ở lượt kể lại |
 | **Tệp quá 2 MB nhận 413 của proxy, không qua FE kiểm trước**: FE không xem `file.size` trước khi tải | Nhẹ: lời 413 đã đúng tiếng Việt; một dòng kiểm ở `Roster` thì tiết kiệm một lần tải |
 | **Hộp 25b rộng 624px, Figma 622px** (chấm ảnh pha 3): có từ trước plan này | Đo lại padding của `.chat-read`, sửa code hay Figma |
+
+## Lộ ra khi làm plan Tier 2 mức M1–M2 (27/10/2026)
+
+Plan `2026-10-27-tier-2-m1-m2-plan.md`. Ảnh: `docs/report/screenshot/27_10/tier-2/`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Cột *Dạng sai nhiều nhất* của bảng lớp ở màn Bảng theo dõi in nguyên LaTeX** (`$\frac{a}{b} …$`, ảnh `04`): cột ấy không qua `MathText` | Một dòng FE, cùng `flatFractions` như biểu đồ; ảnh + so Figma |
+| **Thẻ kết quả trong code đệm 15px, Figma set `10:63` đệm 24px** (`teacher.css:1586`, chấm ảnh plan này): có từ trước | Đo instance thẻ trên artboard chat của *Screen — Teacher*, rồi sửa code hay Figma |
+| **Variant `đã-phát-hành` (`10:45`) vẽ câu an toàn thành dòng thứ hai**, code vẽ chip trên hàng đầu đề (đã ghi ở `teacher-surface.md`). `795:7` mới đã theo code; `10:45` chưa | Vẽ lại `10:45` theo `795:7` |
+| **Thẻ phát hành hỏng không có `entity_id`**, nên đề bị xoá sau đó thì thẻ vẫn bấm được vào một đề không còn | Nhẹ: `_note_publication` ghi `entity_*` từ `assessment_id` cả khi hỏng, hay FE đọc `titles` theo `assessment_id` |
+| **Chữ toán trong nhãn biểu đồ cỡ ~13px** trong dòng chữ 11px: KaTeX mặc định 1.21em, CSS không chỉnh | Nhẹ: `.objective .katex { font-size: 1em }` nếu cần; so Figma (`666:5690` chưa có nhãn toán) |
+| **Mock `_telling` của AGENT** (`handlers.py`) ghép mọi `tool_result` sau plan, kể cả `teacher.*`: một lần phát hành ở panel giữa lúc plan chạy đọc thành một bước hỏng | Chỉ ở mock (không key model); đã đúng như thế với lần phát hành thành công |

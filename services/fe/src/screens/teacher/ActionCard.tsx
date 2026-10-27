@@ -104,8 +104,26 @@ function refusal(result: Record<string, unknown>): boolean {
     Boolean(result.error) ||
     result.found === false ||
     result.created === false ||
-    result.started === false
+    result.started === false ||
+    // Lần phát hành không lớp nào nhận (Tier 2 câu 35): BE nay ghi lượt cả khi ấy.
+    result.published === false
   );
+}
+
+/**
+ * Các lớp chưa nhận đề của một lần phát hành, kèm lý do BE nói: `12B: giờ mở đã qua`. Rỗng khi
+ * lượt không có `failed`.
+ */
+function missedClasses(result: Record<string, unknown>): string {
+  const missed = Array.isArray(result.failed) ? result.failed : [];
+  return missed
+    .map((one) => {
+      const row = (one ?? {}) as Record<string, unknown>;
+      const reason = String(row.reason ?? "");
+      return reason === "" ? String(row.class ?? "") : `${String(row.class ?? "")}: ${reason}`;
+    })
+    .filter((one) => one !== "")
+    .join("; ");
 }
 
 /**
@@ -390,6 +408,15 @@ const STATE_OF: Record<string, CardState> = {
 };
 
 /**
+ * Đầu đề của nấc `failed`. Cùng một nấc, câu riêng cho lần phát hành hỏng (Tier 2 câu 35, hướng
+ * B). Câu chọn theo chính kết quả (`published: false`), không theo tên tool: check 12 cấm rẽ theo
+ * tool trong vùng vẽ thẻ.
+ */
+function failedHead(result: Record<string, unknown>): string {
+  return result.published === false ? "Chưa phát hành được đề" : "Không tạo được đề";
+}
+
+/**
  * Bốn đầu đề, và **chỉ** bốn.
  *
  * Một bảng chứ không phải một dãy `if`: số dòng ở đây là số trạng thái đọc được trên màn
@@ -400,11 +427,11 @@ const STATE_OF: Record<string, CardState> = {
  * về hộp xác nhận và bảng kết quả, không thuộc một dòng tiêu đề — một thẻ ghi *"Đã phát
  * hành cho 12A và 12B"* là một trạng thái thứ tư trá hình, vì nó đổi chữ theo dữ liệu.
  */
-const HEAD: Record<CardState, (named: string) => string> = {
+const HEAD: Record<CardState, (named: string, result: Record<string, unknown>) => string> = {
   drafted: (named) => `Đã tạo đề${named}`,
   approved: (named) => `Đã duyệt đề${named}`,
   published: () => "Đã phát hành",
-  failed: () => "Không tạo được đề",
+  failed: (_named, result) => failedHead(result),
 };
 
 /** Câu an toàn của từng nấc: việc vừa xong đã tới tay học sinh chưa, và còn lùi được không. */
@@ -444,8 +471,8 @@ export function cardState(turn: Turn): CardState | null {
  * - **Nút mời bước tiếp theo**, không phải `Xem`. Bấm vào chính cái thẻ là mở panel đề.
  *
  * Năm variant của Figma đã thành *(không dùng)*, và lý do nằm ở dữ liệu chứ không ở màn
- * hình: *tạo-lớp* không có tool nào sinh ra; *phát-hành-thất-bại* không bao giờ tới đây vì
- * `_note_publication` chỉ ghi lượt khi phát hành **thành công**; *thiếu-câu* và
+ * hình: *tạo-lớp* không có tool nào sinh ra; *phát-hành-thất-bại* nay là nấc `failed` với câu
+ * riêng *"Chưa phát hành được đề"* (Tier 2 câu 35), không phải một variant riêng; *thiếu-câu* và
  * *đang-soạn-dở* chở con số câu hỏi, mà con số ấy đã nằm ở khối `Thinking` ngay trên thẻ;
  * và *bỏ-duyệt* thì bỏ duyệt đưa đề **về** nấc một nên nó không có nấc riêng.
  *
@@ -482,9 +509,14 @@ export default function ActionCard({
   // Đề trống ấy đã bị xoá (ADR-33, variant `tạo-đề-trống — đã xoá` `652:3900`): đầu đề giữ *Đã tạo
   // đề*, câu an toàn nói đề đã xoá, không nút, không mở được -- mở là mở một đề không còn.
   const gone = turn.entity_gone === true;
+  // Lớp chưa nhận của một lần phát hành: hỏng toàn bộ hay một phần, câu an toàn gọi tên chúng.
+  const missed = missedClasses(result);
+  // Phát hành không phải tool chat: *Thử lại* điền ô nhập là mời một việc Kriky không làm được.
+  // Bấm thẻ mở panel, nơi có biểu mẫu phát hành.
+  const unpublished = result.published === false;
 
   const actions =
-    gone
+    gone || unpublished
       ? []
       : state === "failed"
       ? [{ label: "Thử lại", onClick: () => onCompose(""), primary: true }]
@@ -502,9 +534,15 @@ export default function ActionCard({
     <Card
       onOpen={paper === "" || gone ? undefined : () => onOpen(paper)}
       tone={state === "failed" ? "refused" : state === "published" ? "settled" : ""}
-      head={HEAD[state](named)}
+      head={HEAD[state](named, result)}
       safety={
-        gone ? "Đề trống này đã xoá" : empty ? "Đề trống, chưa phát hành được" : SAFETY[state]
+        gone
+          ? "Đề trống này đã xoá"
+          : empty
+            ? "Đề trống, chưa phát hành được"
+            : missed === ""
+              ? SAFETY[state]
+              : `${SAFETY[state]} · Chưa nhận: ${missed}`
       }
       actions={actions}
     />
