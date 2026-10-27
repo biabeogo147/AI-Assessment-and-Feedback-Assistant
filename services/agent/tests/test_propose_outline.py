@@ -815,6 +815,36 @@ async def test_a_broken_reply_to_an_agreement_still_plans(
     assert step.kind == "plan" and [one.tool_name for one in step.steps] == ["start_drafting"]
 
 
+@pytest.mark.asyncio
+async def test_an_unreadable_reply_to_an_agreement_still_plans_without_asking_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Review plan `tier-1` (27/10/2026): đầu ra không parse được sau *"oke"* không tốn một lần hỏi
+    lại -- plan dựng từ dàn ý, như mọi lần hỏi lại khác."""
+    from types import SimpleNamespace
+
+    from langchain_core.runnables import RunnableLambda
+
+    calls: list[int] = []
+
+    class Unreadable:
+        def with_structured_output(self, schema: object, **kwargs: object):
+            def answer(messages: object) -> dict:
+                calls.append(1)
+                raw = SimpleNamespace(usage_metadata=None, tool_calls=[])
+                return {"parsed": None, "raw": raw, "parsing_error": "hỏng"}
+
+            return RunnableLambda(answer)
+
+    monkeypatch.setattr(llm, "chat_models", lambda: (Unreadable(),))
+    kept = {"version": 2, "for": "more", "first": 6, "items": [{"questions": 2}]}
+
+    step = await propose(_agreed(kept))
+
+    assert step.kind == "plan" and [one.tool_name for one in step.steps] == ["start_drafting"]
+    assert len(calls) == 1
+
+
 def test_the_brief_keeps_a_scope_with_a_comma_in_it() -> None:
     """Review đợt 6: *"tỉ lệ thuận, tỉ lệ nghịch"* là một phạm vi, không phải hai mục."""
     known = "topic_scope=tỉ lệ thuận, tỉ lệ nghịch «hai bài»; subject=Toán; grade=7"

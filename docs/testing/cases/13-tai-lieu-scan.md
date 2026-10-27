@@ -52,7 +52,7 @@ Dừng ở dàn ý, **không** gõ đồng ý: soạn câu theo sách đã có �
 | Kriky làm gì | Trả lời / phán | Vì sao |
 | --- | --- | --- |
 | Chip đã *sẵn sàng* trước khi kịp gửi lượt 1 | Bỏ lượt 2, chấm lượt 1 theo *Đạt khi* 3–4. Ghi lại | Lượt 1 không còn đo được nhánh *đang xử lý* |
-| Lượt 1: nói tệp vừa tải là **một cuốn khác** trong thư viện (vd cuốn của case 04) | Không đạt; vẫn chạy lượt 2 | `list_documents` chỉ trả tệp *sẵn sàng* (backlog 22/10/2026): model không thấy tệp đang xử lý |
+| Lượt 1: nói tệp vừa tải là **một cuốn khác** trong thư viện (vd cuốn của case 04), hay hỏi chọn giữa các cuốn đã sẵn sàng | Không đạt; vẫn chạy lượt 2 | Từ plan `tier-1` (27/10/2026), `list_documents` trả tệp đang đọc ở `processing`, kèm `note` dặn nói tệp chưa đọc xong |
 | Lượt 1: hỏi môn hay khối, **có** nói tệp đang xử lý | Gõ `toán 6`. Chấp nhận được | Câu hỏi lại vô hại nếu đã nói thật về tệp |
 | Lượt 1: hỏi lại hay hứa soạn mà **không** nhắc tệp | Không đạt | Giáo viên vừa nói đã tải tệp; Kriky phải tra (`list_documents`) hay nói chưa thấy, không lờ đi |
 | Lượt 1: nêu dàn ý không sách, hay soạn đề | Không đạt | Giáo viên xin soạn *từ trang đó*; dòng prompt *đang xử lý* và việc gỡ `create_draft` chỉ có khi chip đính mà chưa dùng được (`teacher_chat.py`), lượt này không có chip |

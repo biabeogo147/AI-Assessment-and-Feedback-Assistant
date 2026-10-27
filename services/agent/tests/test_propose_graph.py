@@ -371,6 +371,65 @@ async def test_two_empty_bubbles_end_in_a_neutral_ask_not_the_mock(
     assert step.request_id == "r1"
 
 
+class Unreadable:
+    """Một chat model theo hình dạng `include_raw`: các lần đầu không parse được, rồi một đề nghị.
+
+    `kinds` là `kind` model viết ở mỗi lần hỏng, nằm trong `args` của tool call như structured
+    output của LangChain trả về.
+    """
+
+    def __init__(self, kinds: list[str], then: _Proposal | None) -> None:
+        self.kinds = kinds
+        self.then = then
+        self.prompts: list[str] = []
+
+    def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
+        def answer(messages: object) -> dict:
+            self.prompts.append("\n".join(message.text for message in messages))
+            if self.kinds:
+                raw = SimpleNamespace(
+                    usage_metadata=None,
+                    tool_calls=[{"name": "_Proposal", "args": {"kind": self.kinds.pop(0)}}],
+                )
+                return {"parsed": None, "raw": raw, "parsing_error": "kind không hợp lệ"}
+            return {"parsed": self.then, "raw": SimpleNamespace(usage_metadata=None)}
+
+        return RunnableLambda(answer)
+
+
+@pytest.mark.asyncio
+async def test_a_tool_name_written_as_the_kind_is_asked_again_naming_the_slip(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Thử tay case 04 (26/10/2026): `kind="read_section"` làm cả lượt thành thông báo model hỏng.
+    Nay hỏi lại một lần, và lần hỏi lại nói `get_class` là tên tool."""
+    model = Unreadable(["get_class"], _wants("get_class", class_id="c1"))
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    step = await propose(_asked("lớp 12A có mấy em"))
+
+    assert (step.kind, step.tool_name) == ("call_tool", "get_class")
+    assert len(model.prompts) == 2
+    assert '"get_class" là tên tool' in model.prompts[1]
+    assert '"get_class" là tên tool' not in model.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_two_unreadable_answers_fail_as_before(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Lần hai vẫn không đọc được thì lỗi đi lên, như trước khi có lưới hỏi lại: `handlers` biến
+    nó thành thông báo hệ thống. Không hỏi lần thứ ba."""
+    model = Unreadable(["bừa", "bừa"], None)
+    monkeypatch.setattr(llm, "chat_models", lambda: (model,))
+
+    with pytest.raises(ValueError, match="usable proposal"):
+        await propose(_asked("lớp 12A có mấy em"))
+
+    assert len(model.prompts) == 2
+    assert "kind chỉ là say" in model.prompts[1]
+
+
 @pytest.mark.asyncio
 async def test_a_plan_keeps_its_steps_in_order_and_its_references_intact(
     monkeypatch: pytest.MonkeyPatch, on: None

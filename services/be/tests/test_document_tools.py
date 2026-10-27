@@ -9,7 +9,7 @@ vào `DraftBrief`, rồi `rebrief` thay **cả** phạm vi ấy khi brief đổi
 Kho nội dung là `MemoryContentReader`: không Mongo thật nào.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -136,12 +136,30 @@ async def _run(maker, name: str, args: dict, phase: int = PHASE_PLAN) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_the_library_lists_only_my_ready_documents(stack) -> None:
+async def test_the_library_lists_my_ready_documents_and_names_the_ones_still_reading(stack) -> None:
     maker, _ = stack
 
     found = await _run(maker, "list_documents", {})
 
-    assert found == {"candidates": [{"document_id": "book", "label": "SGK Toán 6.pdf"}], "more": 0}
+    # Tệp đang đọc không thành nút bấm, nhưng model vẫn biết nó tồn tại (case 13).
+    assert found["candidates"] == [{"document_id": "book", "label": "SGK Toán 6.pdf"}]
+    assert (found["more"], found["processing"]) == (0, ["Đang đọc.pdf"])
+    # Thử tay 27/10/2026: chỉ có key thì model vẫn bày cuốn khác; lời dặn đi kèm kết quả.
+    assert "đừng hỏi chọn một cuốn khác" in found["note"]
+
+
+@pytest.mark.asyncio
+async def test_a_file_whose_job_died_is_not_told_as_still_reading(stack) -> None:
+    """Cùng sự thật với thư viện: `processing` im quá lâu là `failed`, không phải *"đang đọc"*."""
+    maker, _ = stack
+    async with maker() as session:
+        busy = await session.get(DocumentRow, "busy")
+        busy.uploaded_at = datetime.now(UTC) - timedelta(days=1)
+        await session.commit()
+
+    found = await _run(maker, "list_documents", {})
+
+    assert "processing" not in found and "note" not in found
 
 
 @pytest.mark.asyncio

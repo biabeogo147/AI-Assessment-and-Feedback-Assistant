@@ -317,6 +317,22 @@ async def test_json_an_mat_dau_gach_cheo_thi_duoc_dung_lai(
     assert not any(ch in everything for ch in "\x08\x09\x0c"), "không còn byte hỏng nào sót"
 
 
+def test_a_backslash_the_model_doubled_in_the_objective_is_made_single() -> None:
+    r"""Backlog 22/10/2026: model tự viết `\\Rightarrow`, `\\cup` vào mục kiến thức, và hộp ngân
+    hàng dựng thành *"P RightarrowQ"*. Đề bài giữ `\\` vì ma trận dùng nó thật."""
+    question = _mangled().model_copy(
+        update={
+            "learning_objective": r"Mệnh đề $P \\Rightarrow Q$ và $n(A \\\cup B)$",
+            "stem": r"Ma trận $\begin{pmatrix} 1 \\x \end{pmatrix}$",
+        }
+    )
+
+    repaired = authoring.repair.unmangled(question)
+
+    assert repaired.learning_objective == r"Mệnh đề $P \Rightarrow Q$ và $n(A \cup B)$"
+    assert repaired.stem == r"Ma trận $\begin{pmatrix} 1 \\x \end{pmatrix}$"
+
+
 @pytest.mark.parametrize("length", [160, 168, 400])
 def test_a_learning_objective_always_fits_its_column(length: int) -> None:
     """Thử tay 17/10/2026 (`kriky-writes-every-word`): 168 ký tự làm `harvest` của BE gãy cả

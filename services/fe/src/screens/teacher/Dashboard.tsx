@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { moment, teacher, type ReportChat } from "../../api";
 import { go } from "../../App";
+import KrikyText from "../../KrikyText";
 import MathText from "../../MathText";
 import { BoardHead, BoardWaiting, classLabel, classesLabel, NONE, useBoard, vn } from "./Board";
 import Veil from "./Veil";
@@ -331,9 +332,17 @@ function ChatDialog({ reportId, onClose }: { reportId: string; onClose: () => vo
             {data.messages.map((one, index) => (
               <div className={`chat-line ${one.role === "student" ? "student" : ""}`} key={index}>
                 <span className="byline">{one.role === "student" ? data.student.toUpperCase() : "KRIKY"}</span>
-                <span className="said">
-                  <MathText>{one.text}</MathText>
-                </span>
+                {/* Lời Kriky là Markdown (ADR-30), như ở màn học sinh (`Tutor.tsx`); câu học sinh gõ
+                    thì in như gõ. Một `div`: Markdown dựng đoạn văn, danh sách. */}
+                {one.role === "student" ? (
+                  <span className="said">
+                    <MathText>{one.text}</MathText>
+                  </span>
+                ) : (
+                  <div className="said">
+                    <KrikyText>{one.text}</KrikyText>
+                  </div>
+                )}
               </div>
             ))}
           </div>

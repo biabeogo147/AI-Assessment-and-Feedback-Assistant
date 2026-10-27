@@ -53,7 +53,10 @@ def said_about(result: dict) -> str:
         return f"{result['queued']} câu bắt đầu soạn"
     if "title" in result:
         asked = result.get("question_count")
-        named = f'đề "{result["title"]}"'
+        title = str(result["title"])
+        # Tên tự đặt đã mở bằng *Đề* (`titles.default_title`): thêm *đề* nữa là *đề "Đề Hàm số"*,
+        # và câu kết của Kriky chép lại thành *Đề **Đề Hàm số*** (backlog 22/10/2026).
+        named = f'"{title}"' if title.casefold().startswith("đề") else f'đề "{title}"'
         return named if asked is None else f"{named}, cần {asked} câu"
     return ""
 

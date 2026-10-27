@@ -135,7 +135,7 @@ async def test_a_plan_that_ran_tells_each_step_and_counts_again(maker) -> None:
 
     assert summary["found"] is True
     assert summary["steps"] == [
-        {"title": "Tạo đề trống", "status": "xong", "detail": 'đề "Đề", cần 3 câu'},
+        {"title": "Tạo đề trống", "status": "xong", "detail": '"Đề", cần 3 câu'},
         # Dòng của bước là con số **lúc chạy**, như trên màn hình lúc ấy.
         {
             "title": "Soạn câu hỏi",
@@ -203,9 +203,7 @@ async def test_only_the_latest_plan_and_its_own_steps_are_told(maker) -> None:
         )
         summary = await plan_summary(session, thread)
 
-    assert summary["steps"] == [
-        {"title": "Tạo đề trống", "status": "xong", "detail": 'đề "Đề mới"'}
-    ]
+    assert summary["steps"] == [{"title": "Tạo đề trống", "status": "xong", "detail": '"Đề mới"'}]
 
 
 @pytest.mark.asyncio

@@ -64,6 +64,7 @@ from be.outline import MOST_QUESTIONS_ASKED
 from be.plan_outcomes import plan_summary
 from be.queue import JobFailed, run_job
 from be.resolve import Candidate, capped, classes_with_counts, normalise
+from be.teacher_documents import believed_state
 from be.titles import clipped, default_title
 from be.toc import heading, parts, scope_of, title_path
 from contracts import (
@@ -1022,29 +1023,51 @@ async def _last_plan(running: Running, args: dict) -> dict:
 async def _list_documents(running: Running, args: dict) -> dict:
     """Những tài liệu *sẵn sàng* trong thư viện của giáo viên, mới nhất trước.
 
+    Tệp còn đang đọc đi ở key riêng `processing`, không ở `candidates`: `candidates` thành nút
+    bấm, mà một tệp chưa đọc được thì không chọn được. Thiếu key ấy thì model không biết tệp giáo
+    viên vừa tải tồn tại, và gọi cuốn khác là *"tệp vừa tải"* (case 13, 22/10/2026). Trạng thái
+    đọc qua `believed_state`, như thư viện: một job đã chết không được kể là *"đang đọc"*.
+
     Args:
         running: Session và giáo viên đang hỏi.
         args: Không có.
 
     Returns:
         `candidates` (mỗi tài liệu `document_id`, `label` là tên tệp) và `more`. `label` là thứ
-        `teacher_chat._offered` vẽ thành nút khi model hỏi lại *"tài liệu nào"*.
+        `teacher_chat._offered` vẽ thành nút khi model hỏi lại *"tài liệu nào"*. Có tệp đang đọc
+        thì thêm `processing`: tên các tệp ấy, mới nhất trước.
     """
     rows = list(
         await running.session.scalars(
             select(Document)
             .where(
                 Document.teacher_id == running.asking.teacher_id,
-                Document.state == DocumentState.READY.value,
+                Document.state.in_((DocumentState.READY.value, DocumentState.PROCESSING.value)),
             )
             .order_by(Document.uploaded_at.desc(), Document.id)
         )
     )
-    kept = rows[:_MOST_NODES]
-    return {
+    stale = running.settings.document_stale_after_seconds
+    ready = [one for one in rows if one.state == DocumentState.READY.value]
+    reading = [
+        one.filename for one in rows if believed_state(one, stale) == DocumentState.PROCESSING.value
+    ]
+    kept = ready[:_MOST_NODES]
+    found: dict = {
         "candidates": [{"document_id": one.id, "label": one.filename} for one in kept],
-        "more": max(0, len(rows) - len(kept)),
+        "more": max(0, len(ready) - len(kept)),
     }
+    if reading:
+        found["processing"] = reading[:_MOST_NODES]
+        # Thử tay 27/10/2026 (case 13): chỉ có key `processing` thì model vẫn theo luật *nhiều tài
+        # liệu → hỏi tài liệu nào*, bày hai cuốn cũ cho câu *"mình vừa up 1 trang"*. Lời dặn đi kèm
+        # chính kết quả, như `reason` của các tool khác.
+        found["note"] = (
+            "Các tệp ở processing còn đang đọc, chưa mở được. Giáo viên nói tới tệp vừa tải thì "
+            "đó là tệp đang đọc: say rằng tệp ấy chưa đọc xong và nhờ chờ rồi nhắn lại; đừng hỏi "
+            "chọn một cuốn khác thay."
+        )
+    return found
 
 
 async def _list_chapters(running: Running, args: dict) -> dict:
@@ -1532,7 +1555,11 @@ _TOOLS: tuple[Tool, ...] = (
     Tool(
         spec=ToolSpec(
             name="list_documents",
-            description="Liệt kê tài liệu đã sẵn sàng trong thư viện của giáo viên.",
+            description=(
+                "Liệt kê tài liệu đã sẵn sàng trong thư viện của giáo viên. Tệp còn đang đọc "
+                "nằm ở processing: chưa mở được, nói với giáo viên là tệp ấy chưa đọc xong; "
+                "đừng gọi một cuốn khác là tệp vừa tải."
+            ),
             arguments={},
         ),
         run=_list_documents,

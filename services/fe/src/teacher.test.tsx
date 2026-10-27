@@ -889,6 +889,16 @@ describe("một lượt của Kriky", () => {
     expect(step.result).toBe("— bước 1 chạy không xong");
   });
 
+  it("dòng bước tạo đề không lặp chữ Đề của tên tự đặt", () => {
+    // Backlog 22/10/2026: `đề "Đề Hàm số"`, và câu kết của Kriky chép thành *Đề **Đề Hàm số***.
+    const named = (title: string) =>
+      stepFor(
+        blank({ kind: "tool_result", tool_name: "create_draft", tool_result: { created: true, title } }),
+      ).result;
+    expect(named("Đề Hàm số")).toBe('— "Đề Hàm số"');
+    expect(named("Kiểm tra 15 phút")).toBe('— đề "Kiểm tra 15 phút"');
+  });
+
   it("dòng ✕ in câu cho giáo viên, không in tên tool của lời từ chối", () => {
     // Plan `backlog-tier-1`: `reason` viết cho model (*"gọi list_class để lấy id"*); BE kèm `said`.
     const step = stepFor(
@@ -7756,8 +7766,12 @@ describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () =
         title: "Kiểm tra 15 phút",
         class_name: "12A",
         messages: [
-          { role: "assistant", text: "Chào em.", created_at: "2026-10-18T07:30:00+00:00" },
-          { role: "student", text: "Em chưa hiểu.", created_at: "2026-10-18T07:31:00+00:00" },
+          {
+            role: "assistant",
+            text: "Lỗi được ghi là **nhầm dấu đạo hàm**.",
+            created_at: "2026-10-18T07:30:00+00:00",
+          },
+          { role: "student", text: "Em **chưa** hiểu.", created_at: "2026-10-18T07:31:00+00:00" },
         ],
       },
     });
@@ -7767,6 +7781,11 @@ describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () =
     await screen.findByText("Hội thoại hỏi trợ lý — Anh");
     const lines = [...container.querySelectorAll(".chat-line")];
     expect(lines.map((one) => one.classList.contains("student"))).toEqual([false, true]);
+    // Lời Kriky là Markdown, như ở màn học sinh (backlog 22/10/2026: 25b in nguyên `**`); câu học
+    // sinh gõ thì in như gõ.
+    expect(lines[0].querySelector("strong")?.textContent).toBe("nhầm dấu đạo hàm");
+    expect(lines[0].textContent).not.toContain("**");
+    expect(lines[1].textContent).toContain("**chưa**");
     expect(container.querySelector(".chat-read textarea, .chat-read input")).toBeNull();
     fireEvent.click(within(container.querySelector(".chat-read") as HTMLElement).getByText("Đóng"));
     expect(container.querySelector(".chat-read")).toBeNull();

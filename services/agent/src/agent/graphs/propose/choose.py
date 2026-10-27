@@ -1,5 +1,7 @@
 """Node 2 của graph: gọi model một lần, rồi áp các luật lên đề nghị của nó."""
 
+import contextlib
+import json
 import logging
 
 from pydantic import ValidationError
@@ -15,6 +17,7 @@ from agent.graphs.propose.ask_again import (
     PlanOverRevision,
     TooManyQuestions,
     UncountedOutline,
+    Unparsed,
 )
 from agent.graphs.propose.clarify import answers, choices_wanted, row_names
 from agent.graphs.propose.compose import ProposeState
@@ -61,6 +64,7 @@ async def choose(state: ProposeState) -> dict:
         model.
 
     Raises:
+        Unparsed: Đầu ra không đọc được thành một đề nghị (ví dụ tên tool ghi vào `kind`).
         NothingToSay: `say`, `ask_clarify` hay `outline` mà `text` rỗng.
         FewChoices: `ask_clarify` ít lựa chọn hơn `choices_wanted`; mang theo câu hỏi ấy.
         IncompletePlan: Plan có bước thiếu tham số bắt buộc; mang theo plan ấy, để `propose`
@@ -79,9 +83,24 @@ async def choose(state: ProposeState) -> dict:
             # exception nằm dưới `parsing_error`, trong khi `include_raw=False` thì
             # đã raise nó kèm luôn đầu ra có vấn đề. Để nó đi qua là đổi một thông
             # báo gọi tên đầu ra xấu lấy một `AttributeError` trên None, mà cái đó
-            # chẳng gọi tên gì cả.
-            raise ValueError(
-                f"model did not produce a usable proposal: {answered.get('parsing_error')}"
+            # chẳng gọi tên gì cả. Hỏi lại một lần (`Unparsed`): ở case 04 model ghi tên tool
+            # vào `kind`, và lần hỏi lại nói đúng chỗ sai. Nhưng giáo viên vừa đồng ý dàn ý thì
+            # plan dựng từ dàn ý trước, như mọi lần hỏi lại khác: nó không cần lời model nào.
+            agreed = approved_plan(
+                NextStepCompleted(
+                    request_id="",
+                    kind="say",
+                    text="",
+                    model_tokens=_spent(answered.get("raw")),
+                ),
+                state["request"],
+            )
+            if agreed.kind == "plan":
+                return {"step": agreed}
+            raise Unparsed(
+                f"model did not produce a usable proposal: {answered.get('parsing_error')}",
+                _raw_kind(answered.get("raw")),
+                frozenset(tool.name for tool in state["request"].catalog),
             )
         proposal: _Proposal = parsed
         spent = _spent(answered.get("raw"))
@@ -213,6 +232,31 @@ async def choose(state: ProposeState) -> dict:
         if len(choices) < wanted:
             raise FewChoices(f"{len(choices)} choice(s), wanted {wanted}", step)
     return {"step": step}
+
+
+def _raw_kind(raw: object) -> str:
+    """`kind` model đã viết trong một response thô không parse được, hay rỗng.
+
+    Structured output của LangChain đi qua tool call, nên `kind` nằm ở `args` của tool call đầu;
+    provider trả JSON trong chữ thì đọc chữ ấy.
+
+    Args:
+        raw: Response thô `include_raw` trả kèm.
+
+    Returns:
+        Chuỗi `kind` model viết, rỗng khi không đọc ra.
+    """
+    for call in getattr(raw, "tool_calls", None) or ():
+        args = call.get("args") if isinstance(call, dict) else None
+        if isinstance(args, dict) and isinstance(args.get("kind"), str):
+            return args["kind"].strip()
+    content = getattr(raw, "content", None)
+    if isinstance(content, str):
+        with contextlib.suppress(ValueError):
+            body = json.loads(content)
+            if isinstance(body, dict) and isinstance(body.get("kind"), str):
+                return body["kind"].strip()
+    return ""
 
 
 def _spent(raw: object) -> int:

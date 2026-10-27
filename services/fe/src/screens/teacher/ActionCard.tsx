@@ -161,7 +161,10 @@ function outcome(turn: Turn): string {
   // `create_draft` thôi nói số câu: một đề trống chưa có số câu nào để nói. Con số ấy về
   // `start_drafting`, và dòng dưới đây là chỗ nó được đọc ra.
   if (turn.tool_name === "create_draft") {
-    return `đề "${String(result.title ?? "")}"`;
+    // Cùng luật với BE `plan_outcomes.said_about`: tên tự đặt đã mở bằng *Đề*, thêm *đề* nữa là
+    // `đề "Đề Hàm số"`, và câu kết của Kriky chép lại thành *Đề **Đề Hàm số***.
+    const title = String(result.title ?? "");
+    return title.toLocaleLowerCase("vi").startsWith("đề") ? `"${title}"` : `đề "${title}"`;
   }
   if (turn.tool_name === "start_drafting") {
     // Bước đã đợi xong thì nó mang con số **thật**, và dòng này phải nói đúng câu mà khối

@@ -1,7 +1,13 @@
 """Các tín hiệu hỏi model lại đúng một lần (`AskAgain` và họ hàng), kèm lý do cho lần hỏi lại."""
 
+from typing import get_args
+
 from agent.graphs.propose.outline import Miscount
+from agent.graphs.propose.proposal import _Proposal
 from contracts import MOST_CLARIFY_QUESTIONS, NextStepCompleted
+
+# Năm `kind` model được viết, đọc từ chính khuôn `_Proposal` chứ không chép lại.
+KINDS = frozenset(get_args(_Proposal.model_fields["kind"].annotation))
 
 
 class AskAgain(ValueError):
@@ -18,6 +24,32 @@ class AskAgain(ValueError):
 
 class NothingToSay(AskAgain):
     """Model chọn `say`, `ask_clarify` hay `outline` mà để `text` rỗng."""
+
+
+class Unparsed(AskAgain):
+    """Đầu ra của model không đọc được thành một đề nghị.
+
+    Thử tay case 04 (26/10/2026, Haiku, hai lần liền): model ghi tên tool vào `kind`
+    (`"read_section"`), structured output từ chối, và cả lượt thành thông báo *model hỏng*. Hỏi lại
+    một lần; `kind` là tên một tool của catalog thì lời hỏi lại nói đúng chỗ sai. Lần hai vẫn hỏng
+    thì lỗi đi lên như trước khi có lưới này.
+    """
+
+    def __init__(self, flaw: str, kind: str, tools: frozenset[str]) -> None:
+        super().__init__(flaw)
+        if kind in tools:
+            self.hint = (
+                f'"{kind}" là tên tool, không phải kind. Gọi tool thì kind là call_tool và tên '
+                "tool đặt ở tool_name."
+            )
+        elif kind in KINDS:
+            # `kind` đúng, chỗ hỏng nằm ở field khác: đừng đổ cho `kind`.
+            self.hint = "Câu trả lời trước không đúng khuôn của đề nghị: trả lời lại theo khuôn ấy."
+        else:
+            self.hint = (
+                "Câu trả lời trước không đúng khuôn: kind chỉ là say, call_tool, ask_clarify, "
+                "plan hay outline."
+            )
 
 
 class Flawed(AskAgain):

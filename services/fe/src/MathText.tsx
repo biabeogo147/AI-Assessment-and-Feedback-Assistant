@@ -70,11 +70,49 @@ const MATH =
  * @returns HTML của KaTeX, hoặc chính chuỗi gốc khi nó không dựng được.
  */
 export function drawn(source: string, display: boolean): string {
-  return katex.renderToString(source, {
+  const kept: string[] = [];
+  const held = source.replace(PLAIN_TEXT, (whole, body: string) => {
+    if (!/[^\u0000-\u007f]/.test(body)) return whole;
+    kept.push(body);
+    return `\\text{${HOLD}${kept.length - 1}${HOLD}}`;
+  });
+  const html = katex.renderToString(held, {
     displayMode: display,
     throwOnError: false,
     strict: false,
   });
+  if (kept.length === 0) return html;
+  return html.replace(HELD, (_whole, at: string) =>
+    escaped(kept[Number(at)] ?? "").replace(/ /g, " "),
+  );
+}
+
+/**
+ * `\text{…}` chỉ có chữ: không lệnh, không ngoặc nhọn, không `$` lồng bên trong.
+ *
+ * Chữ có dấu trong đó không đi qua KaTeX (backlog 26/10/2026, case 18). KaTeX 0.19 tách mọi chữ
+ * mang dấu nằm trong bảng dấu của nó thành chữ gốc cộng các dấu xếp chồng: *"số"* thành `s` `o`
+ * `ˆ` `ˊ`, cả khi chữ đã là NFC. Đo bằng KaTeX của FE: *ố*, *â*, *ê* tách; *ừ*, *ủ* (dấu móc, dấu
+ * hỏi) giữ nguyên. Dưới `\underbrace`, ở cỡ chữ chỉ số, chồng dấu ấy đọc thành *"thừa s o ˆ ˊ"*.
+ * Nên `drawn` dựng một chỗ giữ trong `\text{}`, rồi đặt chữ thật đã escape vào HTML.
+ */
+const PLAIN_TEXT = /\\text\{([^{}\\$]*)\}/g;
+
+/**
+ * Dấu bao chỗ giữ. U+FFF0 chưa gán, và nằm trong dải ký tự lexer của KaTeX nhận
+ * (`豈-￿`); dải dùng riêng U+E000 thì KaTeX từ chối.
+ */
+const HOLD = "￰";
+const HELD = /￰(\d+)￰/g;
+
+/** Chữ an toàn để đặt vào HTML: chỉ năm ký tự đặc biệt của HTML được thay. */
+function escaped(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** Một mảnh của chuỗi: chữ thường, hay một cụm toán (không gồm dấu). */

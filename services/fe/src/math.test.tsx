@@ -114,6 +114,30 @@ describe("MathText", () => {
     expect(drawn(container)).toBe(0);
   });
 
+  it("chữ có dấu trong \\text giữ nguyên, kể cả dưới \\underbrace", () => {
+    // Backlog 26/10/2026 (case 18): KaTeX tách "số" thành s o ˆ ˊ xếp chồng, nên dưới `\underbrace`
+    // giáo viên đọc thấy "thừa s o ˆ ˊ".
+    const { container } = render(
+      <MathText>{String.raw`$a^n = \underbrace{a \cdots a}_{n \text{ thừa số}}$ và $\text{ở <đây>}$`}</MathText>,
+    );
+    const text = (container.textContent ?? "").replace(/ /g, " ");
+    expect(text).toContain("n thừa số");
+    expect(text).toContain("ở <đây>");
+    expect(container.querySelector(".accent")).toBeNull();
+    expect(container.querySelector(".katex-error")).toBeNull();
+    // Chữ đặt vào HTML đã escape: `<đây>` không thành một thẻ.
+    expect(container.querySelector("đây")).toBeNull();
+  });
+
+  it("\\text không dấu, hay có lệnh bên trong, vẫn để KaTeX dựng", () => {
+    const { container } = render(
+      <MathText>{String.raw`$\text{area} + \text{góc \textbf{B}}$`}</MathText>,
+    );
+    expect(container.textContent).toContain("area");
+    expect(container.querySelector(".mord.textbf")?.textContent).toBe("B");
+    expect(drawn(container)).toBe(1);
+  });
+
   it("công thức hỏng KHÔNG làm trắng màn hình", () => {
     // `throwOnError: false`: một câu hỏi xấu vẫn phải đọc được, và một exception ở đây sẽ
     // giết cả panel vì một dấu ngoặc thiếu.

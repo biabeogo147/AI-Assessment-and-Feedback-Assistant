@@ -10,6 +10,19 @@
 }
 
 {$SITE_ADDRESS} {
+	# Trần của tệp danh sách lớp phải chặn ở đây: Starlette nhận và ghi trọn tệp ra đĩa trước khi
+	# route `preview-file` kịp đếm `MOST_FILE_BYTES` (1 MB). Trần proxy rộng hơn chút cho phần đầu
+	# multipart, để một tệp vừa quá 1 MB vẫn tới BE và nhận lời 413 bằng tiếng Việt.
+	@roster_file path_regexp ^/api/teacher/classes/[^/]+/roster/preview-file$
+	request_body @roster_file {
+		max_size 2MB
+	}
+	# Tệp quá trần proxy nhận đúng lời 413 mà BE nói cho tệp quá 1 MB, không một thân rỗng.
+	handle_errors 413 {
+		header Content-Type application/json
+		respond `{"detail":"Tệp danh sách lớn hơn 1 MB."}` 413
+	}
+
 	handle /api/* {
 		# Không đệm: SSE của chat phải tới trình duyệt từng sự kiện một.
 		reverse_proxy be:8000 {

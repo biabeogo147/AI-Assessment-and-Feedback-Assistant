@@ -1,6 +1,8 @@
 """Sửa đầu ra structured output trước khi kiểm: dấu gạch chéo bộ giải mã JSON nuốt, mục kiến
 thức dài quá cột."""
 
+import re
+
 from agent.latex_escapes import restore_latex_escapes
 from contracts import GeneratedQuestion
 
@@ -9,6 +11,9 @@ from contracts import GeneratedQuestion
 # vào đây, 168 ký tự, và `harvest` của BE gãy cả lượt -- các câu còn lại treo `pending`. Không ai
 # đọc chữ này trên màn (form sửa không có ô cho nó), nên cắt gọn ở đây rẻ hơn mọi lần hỏi lại model.
 _MOST_OBJECTIVE = 160
+
+# Hai gạch chéo trở lên liền nhau rồi một chữ cái: `\\Rightarrow` trong chữ đã giải mã.
+_DOUBLED = re.compile(r"\\{2,}(?=[A-Za-z])")
 
 
 def unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
@@ -37,7 +42,9 @@ def unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
             # thế nó là field **cần** nhất ở đây: form sửa không có ô nào cho nó, nên nếu
             # hỏng thì không ai sửa được bằng tay. Nó đi vào báo cáo (ADR-17).
             # Và nó phải vừa cột của nó (`_MOST_OBJECTIVE`).
-            "learning_objective": _clipped(restore_latex_escapes(question.learning_objective)),
+            "learning_objective": _clipped(
+                _single_backslashed(restore_latex_escapes(question.learning_objective))
+            ),
             "options": tuple(
                 option.model_copy(
                     update={
@@ -62,6 +69,30 @@ def unmangled(question: GeneratedQuestion) -> GeneratedQuestion:
             ),
         }
     )
+
+
+def _single_backslashed(text: str) -> str:
+    r"""Gộp `\\` model **tự viết đôi** trước một tên lệnh thành một `\`. Hàm thuần.
+
+    Khác `restore_latex_escapes`: hàm ấy trả lại gạch chéo JSON đã nuốt, còn đây là gạch chéo
+    thừa. Model chép mục dàn ý vào `learning_objective` và đôi khi thoát gạch chéo hai lần, nên chữ
+    lưu là `$P \\Rightarrow Q$`. KaTeX đọc `\\` là xuống dòng, và hộp ngân hàng dựng thành
+    *"P RightarrowQ"* (backlog, 22/10/2026).
+
+    Không so với `LATEX_COMMANDS`: bảng ấy chỉ giữ những lệnh mở đầu bằng một chữ JSON nuốt được
+    (`b`, `f`, `n`, `r`, `t`), còn lỗi này rơi vào `\cup`, `\Rightarrow`. Trong một nhãn một dòng,
+    `\\` liền trước một chữ cái không bao giờ là xuống dòng có chủ ý, nên mọi tên lệnh đều gộp.
+
+    Chỉ dùng cho `learning_objective`. Đề bài và lời giải có thể có ma trận hay hệ phương trình
+    dùng `\\` thật, nên không đi qua đây.
+
+    Args:
+        text: Mục kiến thức đã dựng lại gạch chéo bị nuốt.
+
+    Returns:
+        Chữ với mọi `\\<chữ cái>` thành `\<chữ cái>`.
+    """
+    return _DOUBLED.sub(lambda _: "\\", text)
 
 
 def _clipped(text: str) -> str:

@@ -1086,3 +1086,69 @@ def test_one_turn_per_position_is_the_database_s_job() -> None:
     }
 
     assert ("attempt_id", "sequence") in unique
+
+
+@pytest.mark.asyncio
+async def test_a_retry_written_on_the_spot_carries_the_outline_item(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Hậu ký ADR-17 (26/10/2026): câu làm lại soạn **tại chỗ** -- khi chưa có câu chạy trước nào
+    xong -- cũng nhận mục dàn ý của câu gốc, như đường `_write_ahead` lúc nộp bài."""
+    from schema.models import DraftBrief, DraftItem, Question
+
+    asked: list[dict] = []
+
+    async def _recording(pool, settings, task_name, payload) -> dict:
+        if task_name.endswith("retry_question"):
+            asked.append(payload)
+        return await _fake_run_task(pool, settings, task_name, payload)
+
+    monkeypatch.setattr(agent_gateway, "run_task", _recording)
+    submitted = await _start_and_submit(client, correct_count=4)
+    maker = await _sessionmaker()
+    async with maker() as session:
+        wrong = list(
+            await session.scalars(
+                select(Question).where(Question.id.in_(submitted["wrong_question_ids"]))
+            )
+        )
+        assessment_id = wrong[0].assessment_id
+        session.add(
+            DraftBrief(
+                assessment_id=assessment_id,
+                topic_scope="hàm số",
+                question_count=len(wrong),
+                outline=[
+                    {
+                        "questions": 1,
+                        "knowledge": f"kiến thức câu {one.order_index}",
+                        "formulas": [],
+                        "approach": "cách làm",
+                        "source_nodes": [],
+                    }
+                    for one in wrong
+                ],
+                created_at=datetime.now(UTC),
+            )
+        )
+        for index, one in enumerate(wrong):
+            session.add(
+                DraftItem(
+                    assessment_id=assessment_id,
+                    ordinal=one.order_index,
+                    job_id=f"draft-{one.order_index}",
+                    status="ready",
+                    brief_version=1,
+                    attempts=1,
+                    outline_item=index,
+                    created_at=datetime.now(UTC),
+                )
+            )
+        await session.commit()
+        # Theo đề bài của câu gốc, để một lỗi tráo mục giữa hai câu sai cũng đỏ.
+        expected = {one.stem: f"kiến thức câu {one.order_index}" for one in wrong}
+
+    opened = await client.post(f"/api/attempts/{submitted['attempt_id']}/rounds", headers=STUDENT)
+
+    assert opened.status_code == 201
+    assert {payload["origin"]["stem"]: payload["item_knowledge"] for payload in asked} == expected
