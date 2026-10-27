@@ -159,3 +159,23 @@ tạo lớp có ở **cả hai** bề mặt, và trùng tên với một lớp c
 - **Tool tự commit** như mọi tool ghi khác: một plan có bước sau hỏng thì lớp đã tạo vẫn ở lại. Lớp
   rỗng nên không hại ai, nhưng chưa có đường xoá nên nó ở lại mãi.
 - **Chưa có:** đổi tên lớp, xoá lớp. Xoá lớp đụng tới tài khoản người thật (đoạn *Hệ quả* ở trên).
+
+## Hậu ký 27/10/2026 (xoá lớp rỗng)
+
+Plan `2026-10-27-erase-empty-class-plan.md`. Người dùng trả lời câu *"có cho xoá lớp **rỗng**
+không"* bằng *"Làm thêm Xoá lớp"*.
+
+- **Chỉ lớp rỗng xoá được.** Lớp rỗng là lớp không học sinh, **chưa từng** nhận đề, và không lượt làm
+  bài nào ghi lớp ấy. *Chưa từng nhận đề* tính cả lần phát hành đã thu hồi, vì hàng `Publication` ở
+  lại. Xoá một lớp như thế không đụng tài khoản hay bài làm của ai, nên đoạn *Hệ quả* ở trên không áp
+  vào. Một phép cho mọi chỗ: `be.classes.why_not_erasable`.
+- **Xoá cứng, như đề trống** ([ADR-33](adr-33-chi-de-trong-moi-xoa-duoc.md)).
+  - `DELETE /api/teacher/classes/{id}` trả 204.
+  - Lớp không có, hay thuộc người khác, trả 404.
+  - Lớp không rỗng trả 409, kèm câu nói vì sao.
+- **Chỉ ở màn 10.** Nút *Xoá lớp* hiện theo cờ `ClassDetail.erasable` và hỏi lại một lần. Kriky tạo
+  được lớp nhưng **không** xoá được lớp: xoá là việc của màn vật thể, cùng luật với xoá đề trống.
+- **Lớp có học sinh vẫn không xoá được**, và chưa có đổi tên lớp.
+- Figma: 10e `802:5401` (lớp rỗng có nút), 10f `802:5652` (hộp hỏi lại), 10g `806:5529` (bị từ
+  chối: câu của BE thay lời dẫn).
+

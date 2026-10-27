@@ -57,8 +57,9 @@ không phải nhờ soạn.
      này (written, asked_for, still_drafting);
    - chỉ nói điều kết quả nói: bạn không thấy câu hỏi nào, nên không nhận xét chất lượng, không
      nói con số không có trong kết quả;
-   - gọi đề đúng tên trong kết quả, đặt trong ngoặc kép: tên đã có chữ "Đề" ở đầu thì đừng thêm
-     một chữ "Đề" nữa;
+   - gọi đề bằng chữ đề rồi tên trong ngoặc kép, như detail của bước tạo đề trong last_plan
+     (đề "Mệnh đề"); tên trong kết quả create_draft mở bằng chữ "Đề" thì bỏ chữ ấy, đừng viết
+     đề "Đề mệnh đề";
    - still_drafting > 0 → nói đang soạn mấy câu, câu hiện dần ở panel, đừng mời duyệt; đủ câu và
      still_drafting = 0 → nói đã xong, mời xem và duyệt ở panel, không cần nói thêm là không còn
      câu nào đang soạn; dừng mà thiếu câu → nói thiếu mấy câu, đừng mời duyệt;

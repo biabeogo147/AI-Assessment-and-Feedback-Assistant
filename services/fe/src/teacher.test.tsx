@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ActionCard, {
   cardState,
   cardTurns,
+  spokenTitle,
   stepFor,
 } from "./screens/teacher/ActionCard";
 import App from "./App";
@@ -895,8 +896,32 @@ describe("một lượt của Kriky", () => {
       stepFor(
         blank({ kind: "tool_result", tool_name: "create_draft", tool_result: { created: true, title } }),
       ).result;
-    expect(named("Đề Hàm số")).toBe('— "Đề Hàm số"');
+    // Tier 2 câu 38: bỏ chữ *Đề* của tên, như đầu thẻ.
+    expect(named("Đề Hàm số")).toBe('— đề "Hàm số"');
     expect(named("Kiểm tra 15 phút")).toBe('— đề "Kiểm tra 15 phút"');
+  });
+
+  it("đầu thẻ bỏ chữ Đề của tên tự đặt: Đã tạo đề \"Mệnh đề\" (Tier 2 câu 38)", () => {
+    expect(spokenTitle("Đề mệnh đề")).toBe("Mệnh đề");
+    expect(spokenTitle("Đề Bài 1. TẬP HỢP")).toBe("Bài 1. TẬP HỢP");
+    expect(spokenTitle("Đề".normalize("NFD") + " 15 phút")).toBe("15 phút");
+    expect(spokenTitle("Tích phân")).toBe("Tích phân");
+    expect(spokenTitle("Đề")).toBe("Đề");
+    expect(spokenTitle("Đề cương ôn tập")).toBe("Đề cương ôn tập");
+    expect(spokenTitle("Đề cương, ôn tập")).toBe("Đề cương, ôn tập");
+    expect(spokenTitle("Đề án lớp 12")).toBe("Đề án lớp 12");
+    render(
+      <ActionCard
+        turn={blank({
+          kind: "tool_result",
+          tool_name: "create_draft",
+          tool_result: { created: true, assessment_id: "p1", title: "Đề mệnh đề" },
+        })}
+        onOpen={() => undefined}
+        onCompose={() => undefined}
+      />,
+    );
+    expect(screen.getByText('Đã tạo đề "Mệnh đề"')).toBeTruthy();
   });
 
   it("bước tạo lớp: cùng câu với BE, trùng tên thì in câu BE nói (plan `tao-lop`)", () => {
@@ -2279,7 +2304,7 @@ describe("đổi tên đề (ADR-31)", () => {
     );
 
     const what = container.querySelector(".action-card .head .what") as HTMLElement;
-    expect(what.getAttribute("title")).toBe(`Đã tạo đề "${long}"`);
+    expect(what.getAttribute("title")).toBe(`Đã tạo đề "${long.slice("Đề ".length)}"`);
   });
 });
 
@@ -6813,7 +6838,7 @@ describe("đề nháp trống: xoá được (việc 15, ADR-33, plan `wave-3-dr
       />,
     );
 
-    expect(screen.getByText('Đã tạo đề "Đề 15 phút"')).toBeTruthy();
+    expect(screen.getByText('Đã tạo đề "15 phút"')).toBeTruthy();
     expect(screen.getByText("Đề trống này đã xoá")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Thêm câu hỏi" })).toBeNull();
     fireEvent.click(container.querySelector(".action-card") as Element);
@@ -7078,6 +7103,95 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
     expect(later.classList.contains("open-able")).toBe(false);
     fireEvent.click(later);
     expect(window.location.hash).toBe("");
+  });
+
+  /** Lớp rỗng `c12c`; `refuse` là câu BE từ chối lần xoá (lớp vừa có học sinh ở tab khác). */
+  function emptyClass(refuse = "") {
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        calls.push({ url, method });
+        if (method === "DELETE") {
+          return Promise.resolve(
+            refuse === ""
+              ? { ok: true, status: 204, json: () => Promise.resolve(null) }
+              : { ok: false, status: 409, json: () => Promise.resolve({ detail: refuse }) },
+          );
+        }
+        const body = {
+          class_id: "c12c",
+          name: "12C",
+          student_count: 0,
+          courses: "",
+          papers: [],
+          students: [],
+          erasable: refuse === "" || calls.filter((one) => one.method === "DELETE").length === 0,
+        };
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+      }),
+    );
+    return calls;
+  }
+
+  it("lớp rỗng: Xoá lớp hỏi lại một lần, xoá xong về màn 9 (plan `erase-empty-class`)", async () => {
+    const calls = emptyClass();
+    window.location.hash = "#/teacher/lop/c12c";
+    render(<ClassDetail classId="c12c" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Xoá lớp" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Xoá lớp “12C”?" })).toBeTruthy();
+    // Focus ở đường huỷ: Enter ngay sau khi hộp mở không xoá gì.
+    expect(document.activeElement?.textContent).toBe("Giữ lại");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xoá lớp" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/teacher/lop"));
+    expect(calls.filter((one) => one.method === "DELETE").map((one) => one.url)).toEqual([
+      "/api/teacher/classes/c12c",
+    ]);
+  });
+
+  it("lớp không rỗng: không có nút Xoá lớp", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              class_id: "c12a",
+              name: "12A",
+              student_count: 1,
+              courses: "",
+              papers: [],
+              students: [{ student_id: "s1", full_name: "An", student_code: "1", username: "an" }],
+              erasable: false,
+            }),
+        }),
+      ),
+    );
+    render(<ClassDetail classId="c12a" />);
+
+    expect(await screen.findByRole("button", { name: "Thêm học sinh" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Xoá lớp" })).toBeNull();
+  });
+
+  it("BE từ chối xoá lớp: hộp ở lại, câu của BE thay lời dẫn, màn đọc lại", async () => {
+    const calls = emptyClass("Lớp còn 1 học sinh nên không xoá được.");
+    window.location.hash = "#/teacher/lop/c12c";
+    render(<ClassDetail classId="c12c" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Xoá lớp" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xoá lớp" }));
+
+    expect(await within(dialog).findByText("Lớp còn 1 học sinh nên không xoá được.")).toBeTruthy();
+    // Câu của BE thay lời dẫn *"chưa có học sinh"*: không hai câu trái nhau trong một hộp.
+    expect(within(dialog).queryByText(/chưa có học sinh và chưa nhận đề/)).toBeNull();
+    expect(window.location.hash).toBe("#/teacher/lop/c12c");
+    await waitFor(() => expect(calls.filter((one) => one.method === "GET").length).toBe(2));
   });
 
   it("route của màn rail đi qua hash: App vẽ đúng màn, panel ngân hàng ở cột phải", async () => {

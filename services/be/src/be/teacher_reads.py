@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from be.agent_gateway import AgentError, validate_question
+from be.classes import why_not_erasable
 from be.db import get_session
 from be.identity import Asking, current_teacher
 from be.remediation import attempt_state
@@ -309,6 +310,9 @@ class ClassDetail(BaseModel):
     courses: str
     papers: tuple[PaperInClass, ...]
     students: tuple[StudentRow, ...]
+    # Lớp xoá được không (hậu ký ADR-13, 27/10/2026): chỉ lớp rỗng. Màn 10 chỉ hiện nút *Xoá lớp*
+    # khi cờ đúng; luật sống ở `classes.why_not_erasable`, màn không tự suy.
+    erasable: bool
 
 
 def _roster_order(student: Student) -> tuple[int, int, str]:
@@ -370,6 +374,7 @@ async def class_detail(
             )
             for one in students
         ),
+        erasable=not await why_not_erasable(session, school_class),
     )
 
 

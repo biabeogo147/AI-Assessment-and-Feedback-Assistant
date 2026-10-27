@@ -4,6 +4,7 @@ Ba thứ được canh: tên hệ thống đặt (hàm thuần `be.titles`), rou
 lượt đọc lại một đoạn chat -- thẻ cũ phải mang tên **hiện tại**, không phải tên lúc tạo.
 """
 
+import unicodedata
 from datetime import UTC, datetime
 
 import pytest
@@ -19,7 +20,7 @@ from be.db import bind_sessions
 from be.seed import seed_if_empty
 from be.teacher_chat import router as chat_router
 from be.teacher_routes import router as teacher_router
-from be.titles import MOST_TITLE, clipped, default_title, tidy
+from be.titles import MOST_TITLE, clipped, default_title, spoken_title, tidy
 from schema.ddl import prepare_schema
 from schema.models import (
     Assessment,
@@ -87,6 +88,24 @@ def test_a_word_that_fits_is_kept_when_the_cut_falls_on_a_space() -> None:
 def test_quotes_are_dropped_only_when_they_wrap_the_whole_name() -> None:
     assert clipped('"Đề tỉ lệ thức"') == "Đề tỉ lệ thức"
     assert clipped('Ôn tập chương "Số nguyên"') == 'Ôn tập chương "Số nguyên"'
+
+
+def test_a_title_said_after_the_word_de_drops_its_own_de() -> None:
+    """Tier 2 câu 38: *Đã tạo đề "Mệnh đề"*, không *đề "Đề mệnh đề"*."""
+    assert spoken_title("Đề mệnh đề") == "Mệnh đề"
+    assert spoken_title("Đề Bài 1. TẬP HỢP") == "Bài 1. TẬP HỢP"
+    assert spoken_title("đề 15 phút") == "15 phút"
+    # Dạng tách dấu vẫn nhận ra *Đề*.
+    assert spoken_title(unicodedata.normalize("NFD", "Đề mệnh đề")) == "Mệnh đề"
+
+
+def test_a_title_keeps_de_when_it_is_the_name_or_part_of_a_word() -> None:
+    assert spoken_title("Tích phân") == "Tích phân"
+    assert spoken_title("Đề") == "Đề"
+    assert spoken_title("Đề cương ôn tập") == "Đề cương ôn tập"
+    assert spoken_title("Đề cương, ôn tập") == "Đề cương, ôn tập"
+    assert spoken_title("Đề án lớp 12") == "Đề án lớp 12"
+    assert spoken_title("Đềmục") == "Đềmục"
 
 
 def test_a_renamed_paper_is_renamed_inside_lists_too() -> None:

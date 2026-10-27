@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.drafting import pending_count
+from be.titles import spoken_title
 from schema.models import DraftBrief, Question, TeacherTurn
 
 # Sáu cờ, một câu hỏi: việc đó có xảy ra không. Mọi tool trả lời bằng đúng một trong
@@ -53,10 +54,10 @@ def said_about(result: dict) -> str:
         return f"{result['queued']} câu bắt đầu soạn"
     if "title" in result:
         asked = result.get("question_count")
-        title = str(result["title"])
-        # Tên tự đặt đã mở bằng *Đề* (`titles.default_title`): thêm *đề* nữa là *đề "Đề Hàm số"*,
-        # và câu kết của Kriky chép lại thành *Đề **Đề Hàm số*** (backlog 22/10/2026).
-        named = f'"{title}"' if title.casefold().startswith("đề") else f'đề "{title}"'
+        # Tên tự đặt đã mở bằng *Đề* (`titles.default_title`): *đề "Đề Hàm số"* lặp chữ, và câu kết
+        # của Kriky chép lại thành *Đề **Đề Hàm số*** (backlog 22/10/2026). Bỏ chữ ấy, như thẻ
+        # (Tier 2 câu 38).
+        named = f'đề "{spoken_title(str(result["title"]))}"'
         return named if asked is None else f"{named}, cần {asked} câu"
     return ""
 

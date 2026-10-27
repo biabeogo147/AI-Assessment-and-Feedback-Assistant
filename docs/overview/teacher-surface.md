@@ -193,6 +193,11 @@ lên thẻ ở nấc `drafted`.
 | `published` | `Đã phát hành` | `đã-phát-hành` (`10:45`) | — |
 | `failed` | `Không tạo được đề` | `tạo-thất-bại` (`10:54`) | `Thử lại` (điền ô nhập) |
 
+`{tên}` là tên đề bỏ chữ *Đề* ở đầu, viết hoa chữ đầu phần còn lại (Tier 2 câu 38, người dùng chốt
+27/10/2026): đề *"Đề mệnh đề"* lên thẻ thành *Đã tạo đề "Mệnh đề"*. Tên mở bằng *Đề cương* giữ
+nguyên. Panel và các bảng in nguyên tên. Luật này ở hai chỗ, BE `titles.spoken_title` và FE
+`ActionCard.spokenTitle`; dòng bước `create_draft` và `last_plan` dùng cùng luật.
+
 **Năm variant, bốn đầu đề.** `tạo-đề-trống` và `đã-tạo-đề` dùng chung đầu đề vì chúng là **cùng một
 nấc**: đề vừa mở còn rỗng thì có thêm một nút mời bước tiếp theo, và một cái nút không phải một
 trạng thái. `tạo-đề-trống` chỉ mọc cho một lượt *chỉ* mở đề — khi giáo viên nói *"tạo đề 10 câu"* thì
@@ -891,6 +896,10 @@ dõi* (20) là việc 19.
   trong đề đã phát hành không đổi.
 - **Nút *Tạo lớp* ở màn 9** (plan `tao-lop`, 27/10/2026) mở hộp nhập tên (Figma 9b `799:5123`, trùng
   tên 9c `799:6269`); chưa có lớp nào thì bảng có một hàng *Chưa có lớp nào*.
+- **Nút *Xoá lớp* ở màn 10** (plan `erase-empty-class`, 27/10/2026) chỉ hiện ở lớp rỗng, theo cờ
+  `ClassDetail.erasable` (Figma 10e `802:5401`). Hộp hỏi lại 10f (`802:5652`) có *Giữ lại* /
+  *Xoá lớp*; xoá xong thì về màn 9. BE từ chối thì câu của BE thay lời dẫn (10g `806:5529`). Kriky
+  không có tool xoá lớp.
 - **Cố ý khác Figma:** không cột *Tên đăng nhập*, nút
   *Đặt lại mật khẩu*, *Thêm học sinh* (việc 22); giờ in
   `HH:MM · DD/MM` như mọi màn, không *"hôm nay"*.

@@ -996,6 +996,8 @@ export interface ClassDetail {
   courses: string;
   papers: PaperInClass[];
   students: StudentRow[];
+  /** Lớp xoá được không: chỉ lớp rỗng (plan `erase-empty-class`). Luật là của BE. */
+  erasable: boolean;
 }
 
 /** Một đề trên màn *Các bài kiểm tra*. `status` là nhãn BE dựng theo vòng đời và giờ BE. */
@@ -1333,6 +1335,12 @@ export const teacher = {
   // Các màn của rail (plan `teacher-rail-screens`). Chỉ đọc, trừ sửa bản ngân hàng.
   classes: () => call<ClassList>("teacher", "/teacher/classes"),
   classDetail: (classId: string) => call<ClassDetail>("teacher", `/teacher/classes/${classId}`),
+  /**
+   * Xoá cứng một lớp **rỗng** (plan `erase-empty-class`, hậu ký ADR-13). 409 khi lớp còn học sinh
+   * hay đã nhận đề, mang câu tiếng Việt của BE trong `message`.
+   */
+  eraseClass: (classId: string) =>
+    silent("teacher", `/teacher/classes/${classId}`, { method: "DELETE" }),
   /**
    * Mở một lớp rỗng (plan `tao-lop`). 409 khi giáo viên đã có lớp cùng tên, 422 khi tên rỗng hay
    * quá dài; cả hai mang câu tiếng Việt của BE trong `message`.

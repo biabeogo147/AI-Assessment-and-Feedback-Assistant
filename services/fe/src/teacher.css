@@ -4217,6 +4217,34 @@
   margin-top: 8px;
 }
 
+/* Hai nút ở đầu màn 10 (plan `erase-empty-class`, Figma 10e): *Xoá lớp* đứng trước *Thêm học
+ * sinh*, cách 8. Hàng nút giữ đúng chỗ đứng mà nút một mình đã có (34 dưới đỉnh đầu màn). */
+.teacher .board-head .board-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-top: 34px;
+}
+
+.teacher .board-head .board-actions .board-export {
+  margin-top: 0;
+}
+
+/* `Button` secondary, như nút phụ của hộp xác nhận: nền trắng, viền đậm, chữ accent. */
+.teacher .board-head .board-erase {
+  height: 40px;
+  padding: 9px 15px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-label);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
 .teacher .board-head .board-export:disabled {
   background: var(--sunken);
   color: var(--ink-faint);

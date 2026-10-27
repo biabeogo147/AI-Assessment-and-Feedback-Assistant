@@ -4,6 +4,8 @@
 Seed có lớp 12A của GV-001.
 """
 
+from datetime import UTC, datetime
+
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
@@ -21,7 +23,7 @@ from be.seed import seed_if_empty
 from be.teacher_reads import router as reads_router
 from be.teacher_tools import PHASE_PLAN, PHASE_WORK, catalog_for, execute
 from schema.ddl import prepare_schema
-from schema.models import SchoolClass, Teacher
+from schema.models import Assessment, Publication, SchoolClass, Teacher
 
 TEACHER = {"X-Actor": "teacher:GV-001"}
 STRANGER = {"X-Actor": "teacher:GV-002"}
@@ -160,3 +162,92 @@ async def test_kriky_is_refused_a_duplicate_name_in_words_for_the_teacher(stack)
     assert refused["created"] is False
     assert refused["said"] == 'Bạn đã có lớp "12A".'
     assert step_detail("create_class", refused) == 'Bạn đã có lớp "12A".'
+
+
+# ------------------------------------------------- xoá lớp rỗng (plan `erase-empty-class`)
+
+
+async def _new_class(client: AsyncClient, name: str) -> str:
+    created = await client.post("/api/teacher/classes", headers=TEACHER, json={"name": name})
+    assert created.status_code == 201
+    return created.json()["class_id"]
+
+
+@pytest.mark.asyncio
+async def test_an_empty_class_is_erasable_and_erasing_it_drops_it_from_the_list(stack) -> None:
+    client, maker = stack
+    class_id = await _new_class(client, "12C")
+    detail = (await client.get(f"/api/teacher/classes/{class_id}", headers=TEACHER)).json()
+    assert detail["erasable"] is True
+
+    erased = await client.delete(f"/api/teacher/classes/{class_id}", headers=TEACHER)
+
+    assert erased.status_code == 204
+    async with maker() as session:
+        assert await session.get(SchoolClass, class_id) is None
+    gone = await client.get(f"/api/teacher/classes/{class_id}", headers=TEACHER)
+    assert gone.status_code == 404
+    # Tên đã thôi bị giữ: tạo lại cùng tên được.
+    assert await _new_class(client, "12C")
+
+
+@pytest.mark.asyncio
+async def test_a_class_with_students_is_not_erasable(stack) -> None:
+    client, maker = stack
+    async with maker() as session:
+        seeded = await session.scalar(select(SchoolClass).where(SchoolClass.name == "12A"))
+        class_id = seeded.id
+    detail = (await client.get(f"/api/teacher/classes/{class_id}", headers=TEACHER)).json()
+    assert detail["erasable"] is False
+
+    refused = await client.delete(f"/api/teacher/classes/{class_id}", headers=TEACHER)
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"].endswith("học sinh nên không xoá được.")
+    async with maker() as session:
+        assert await session.get(SchoolClass, class_id) is not None
+
+
+@pytest.mark.asyncio
+async def test_a_class_that_received_a_paper_is_not_erasable_even_without_students(stack) -> None:
+    """Hàng `Publication` ở lại sau thu hồi: lớp ấy có lịch sử, không phải lớp rỗng."""
+    client, maker = stack
+    class_id = await _new_class(client, "12C")
+    async with maker() as session:
+        paper = await session.scalar(select(Assessment).limit(1))
+        now = datetime.now(UTC)
+        session.add(
+            Publication(
+                assessment_id=paper.id,
+                class_id=class_id,
+                opens_at=now,
+                closes_at=now,
+                phase1_minutes=15,
+                phase2_minutes_per_question=5,
+                remediation_deadline=now,
+                published_at=now,
+                recalled_at=now,
+            )
+        )
+        await session.commit()
+
+    detail = (await client.get(f"/api/teacher/classes/{class_id}", headers=TEACHER)).json()
+    refused = await client.delete(f"/api/teacher/classes/{class_id}", headers=TEACHER)
+
+    assert detail["erasable"] is False
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        "Lớp đã nhận đề nên không xoá được.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_another_teachers_class_is_not_found_and_stays(stack) -> None:
+    client, maker = stack
+    class_id = await _new_class(client, "12C")
+
+    refused = await client.delete(f"/api/teacher/classes/{class_id}", headers=STRANGER)
+
+    assert refused.status_code == 404
+    async with maker() as session:
+        assert await session.get(SchoolClass, class_id) is not None

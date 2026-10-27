@@ -952,7 +952,7 @@ Plan `2026-10-27-tier-1-plan.md`. Biên bản: `docs/testing/ket-qua/2026-10-27-
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Câu kết vẫn viết *đề "Đề mệnh đề"*** (thử tay T27, một mẫu): bước 6 mới bỏ được *Đề **Đề …*** và câu *"không còn câu nào đang soạn"*, nhưng model đặt chữ *đề* thường trước tên đã mở bằng *Đề*. Đầu đề thẻ *Đã tạo đề "Đề mệnh đề"* cũng lặp, theo khuôn `HEAD` đã chốt trong Figma | Tier 4: đo bench câu kết; thẻ thì người dùng quyết có đổi khuôn `Đã tạo đề "X"` khi tên đã mở bằng *Đề* không |
+| **Câu kết vẫn viết *đề "Đề mệnh đề"*** (thử tay T27, một mẫu): bước 6 mới bỏ được *Đề **Đề …*** và câu *"không còn câu nào đang soạn"*, nhưng model đặt chữ *đề* thường trước tên đã mở bằng *Đề*. **Thẻ đã đổi** 27/10/2026 (Tier 2 câu 38, plan `erase-empty-class`): *Đã tạo đề "Mệnh đề"*; `last_plan` và bước 6 nay đọc cùng cụm *đề "Mệnh đề"* | Tier 4: đo câu kết trên Haiku xem model chép cụm mới chưa |
 | **Không biết gạch chéo đôi của mục kiến thức sinh ra ở đâu**: Docker tắt lúc sửa nên không xem được đầu ra thô của job. Nếu model viết đôi ngay ở `knowledge` của dàn ý thì `DraftBrief.outline`, thẻ dàn ý và `item_knowledge` của câu làm lại cũng mang nó (`proposal.unmangled` chỉ dựng lại gạch chéo bị nuốt). Các hàng đã lưu trong `questions` và `bank_questions` không được sửa | Soi đầu ra thô của một job có lỗi; đếm hàng hỏng trong database rồi quyết có sửa dữ liệu không |
 | **Lời hỏi lại của `Unparsed` cho lượt kể lại** liệt kê cả `plan`, mà lượt ấy không được nêu plan (review pha 2) | Nhẹ; chỉ sửa nếu bench thấy model nêu plan ở lượt kể lại |
 | **Tệp quá 2 MB nhận 413 của proxy, không qua FE kiểm trước**: FE không xem `file.size` trước khi tải | Nhẹ: lời 413 đã đúng tiếng Việt; một dòng kiểm ở `Roster` thì tiết kiệm một lần tải |
@@ -977,9 +977,19 @@ Plan `2026-10-27-tao-lop-plan.md`. Biên bản: `docs/testing/ket-qua/2026-10-27
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Chưa có đổi tên lớp, xoá lớp**: một plan có bước sau hỏng thì lớp đã tạo vẫn ở lại; lớp tạo nhầm ở lại mãi | Xoá lớp đụng tài khoản người thật (ADR-13): người dùng quyết có cho xoá lớp **rỗng** không |
+| **Chưa có đổi tên lớp**: xoá lớp **rỗng** đã làm 27/10/2026 (plan `erase-empty-class`); lớp có học sinh vẫn không xoá được | Đổi tên lớp chưa ai xin; nhẹ |
 | **Hai lần tạo cùng tên chạy cùng lúc trên SQLite** vẫn cùng qua phép kiểm trùng: `with_for_update` chỉ xếp hàng trên Postgres. FE đã khoá nút khi đang gửi | Nhẹ: dev chạy Postgres; unique index trên tên đã chuẩn hoá cần cột mới và migration |
 | **Câu hỏi tên lớp không có nút**: `tao-lop-chua-ten` hỏi lại model cả 3 lần vì `FewChoices` đòi ba nút, lần hai vẫn không nút | Cho `choices_wanted` trả 0 khi câu hỏi là tên tự do, hay chấp nhận một lần hỏi lại; đo bench |
 | **Kriky đọc lại lời dặn của skill thành câu nói** (*"Mình cũng không đổi tên lớp để tạo bản sao"*, thử tay T27) | Tier 4: chữ bước 6 của `lop-va-ket-qua` |
 | **Khối bước *thất bại* lệch Figma `83:75`** (chấm ảnh plan `tao-lop`, có từ trước): *Dừng ở bước 1* nhạt vì `button:disabled` làm mờ .5; viền khối vẫn `--line`, Figma `answer/incorrect`; tiêu đề bước hỏng chữ thường `ink-muted`, Figma SemiBold `ink` | Ba dòng CSS (`.steps-head:disabled { opacity: 1 }`, `.steps-block.broken`, `.step.failed .title`); ảnh + so Figma |
 | **`chung-phat-hanh` nạp thêm `lop-va-ket-qua`** ở 0,32 (skill_bench `run-118`, ngưỡng 0,3): mô tả mới có *create a class* | Nhẹ: chỉ thêm chữ vào prompt; đo lại nếu ca thật lạc việc |
+
+## Lộ ra khi làm plan xoá lớp rỗng (27/10/2026)
+
+Plan `2026-10-27-erase-empty-class-plan.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Một học sinh được thêm vào lớp đúng lúc lớp đang bị xoá** thì lần xoá vấp khoá ngoại và trả 500, không phải 409: phép kiểm và lần xoá cùng giao dịch, nhưng đường thêm học sinh không khoá hàng lớp | Nhẹ: hai tab cùng giáo viên, cùng giây; khoá hàng lớp ở đường roster nếu thấy thật |
+| **Câu kết cũ trong đoạn chat vẫn ghi *đề "Đề mệnh đề"***: đó là chữ model đã viết và đã lưu, không dựng lại | Không sửa: chỉ lượt mới đọc cụm mới |
+| **Lớp đã bị xoá ở tab khác**: bấm *Xoá lớp* ở tab này nhận 404, hộp in câu ấy, và màn phía sau vẫn vẽ lớp không còn, không tự về màn 9 | Nhẹ: FE đọc mã 404 của lần xoá thì về màn 9 |

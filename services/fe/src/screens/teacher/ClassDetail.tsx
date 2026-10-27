@@ -17,6 +17,9 @@ import Veil from "./Veil";
  * lần (Tier 2 câu 30, 21/10/2026: một cú bấm nhầm hàng làm mất mật khẩu cũ của em), rồi hiện mật khẩu
  * mới một lần (10b). Dòng phụ không có *năm học* vì không dữ liệu nào chở nó.
  *
+ * Nút *Xoá lớp* chỉ hiện ở lớp rỗng, theo cờ `erasable` của BE (plan `erase-empty-class`, Figma
+ * 10e/10f): hỏi lại một lần, xoá xong thì về màn 9. Kriky không xoá lớp.
+ *
  * @param classId - Lớp nào.
  */
 export default function ClassDetail({ classId }: { classId: string }) {
@@ -29,6 +32,10 @@ export default function ClassDetail({ classId }: { classId: string }) {
   const [refused, setRefused] = useState("");
   // Em đang được hỏi lại trước khi đặt lại mật khẩu (hộp xác nhận 10b).
   const [asking, setAsking] = useState<StudentRow | null>(null);
+  // Hộp *Xoá lớp*: đang mở, đang gửi, và câu BE từ chối (lớp vừa có học sinh từ tab khác).
+  const [erasing, setErasing] = useState(false);
+  const [eraseBusy, setEraseBusy] = useState(false);
+  const [eraseRefused, setEraseRefused] = useState("");
 
   /** Đọc lại lớp sau khi thêm học sinh hay cấp tên đăng nhập: bảng phía sau hộp phải đúng. */
   function reread() {
@@ -57,6 +64,21 @@ export default function ClassDetail({ classId }: { classId: string }) {
       .finally(() => setResetting(null));
   }
 
+  /** Xoá lớp rỗng này. Bị từ chối thì hộp ở lại kèm lý do, và màn đọc lại lớp. */
+  async function eraseClass() {
+    setEraseRefused("");
+    setEraseBusy(true);
+    try {
+      await teacher.eraseClass(classId);
+    } catch (cause) {
+      setEraseRefused((cause as Error).message);
+      setEraseBusy(false);
+      reread();
+      return;
+    }
+    go("/teacher/lop");
+  }
+
   const back = { label: "Danh sách lớp học", to: "/teacher/lop" };
 
   if (data === null) {
@@ -75,9 +97,23 @@ export default function ClassDetail({ classId }: { classId: string }) {
         title={classLabel(data.name)}
         sub={[`${data.student_count} học sinh`, data.courses].filter(Boolean).join(" · ")}
         action={
-          <button className="board-export" type="button" onClick={() => setAdding(true)}>
-            Thêm học sinh
-          </button>
+          <div className="board-actions">
+            {data.erasable && (
+              <button
+                className="board-erase"
+                type="button"
+                onClick={() => {
+                  setEraseRefused("");
+                  setErasing(true);
+                }}
+              >
+                Xoá lớp
+              </button>
+            )}
+            <button className="board-export" type="button" onClick={() => setAdding(true)}>
+              Thêm học sinh
+            </button>
+          </div>
         }
       />
       {refused !== "" && (
@@ -192,6 +228,43 @@ export default function ClassDetail({ classId }: { classId: string }) {
               }}
             >
               Đặt lại mật khẩu
+            </button>
+          </div>
+        </Veil>
+      )}
+      {erasing && (
+        // Cùng khuôn với hộp xoá đề nháp trống (`652:3899`): lớp rỗng không có gì để mất, nên chỉ
+        // câu hỏi, một dòng nói lớp đi đâu, và hai nút. Đang gửi thì không đóng được.
+        <Veil onClose={() => !eraseBusy && setErasing(false)} inert>
+          <h3>Xoá lớp “{data.name}”?</h3>
+          {/* Bị từ chối thì câu của BE thay lời dẫn: *"chưa có học sinh"* nằm trên *"Lớp còn 1 học
+              sinh"* là hai câu trái nhau (review plan `erase-empty-class`). */}
+          {eraseRefused === "" ? (
+            <p className="lead">
+              Lớp chưa có học sinh và chưa nhận đề nào. Xoá rồi thì không lấy lại được.
+            </p>
+          ) : (
+            <p className="refused" role="alert">
+              {eraseRefused}
+            </p>
+          )}
+          <div className="confirm-actions">
+            <button
+              className="btn"
+              type="button"
+              autoFocus
+              disabled={eraseBusy}
+              onClick={() => setErasing(false)}
+            >
+              Giữ lại
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={eraseBusy}
+              onClick={() => void eraseClass()}
+            >
+              Xoá lớp
             </button>
           </div>
         </Veil>

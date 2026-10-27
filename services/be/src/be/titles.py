@@ -7,6 +7,7 @@ viên sửa.
 """
 
 import re
+import unicodedata
 
 # Trần của tên đề (ADR-31). Thẻ *Đã tạo đề "…"* rộng 820px còn chỗ cho chừng 70 ký tự; mở panel thì
 # cột chat hẹp lại, nên 60.
@@ -70,3 +71,35 @@ def default_title(scope: str, filename: str = "") -> str:
         stem = name.rsplit(".", 1)[0] if "." in name else name
         return clipped(f"Đề {_PAGES.sub('', stem)}")
     return clipped(f"Đề {_PAGES.sub('', scope)}")
+
+
+# Chữ đi liền sau *Đề* mà bỏ *Đề* thì đổi nghĩa: *"Đề cương ôn tập"* không phải đề *"Cương ôn tập"*.
+# Cùng danh sách với FE `ActionCard.DE_IS_PART_OF_THE_WORD`.
+_DE_IS_PART_OF_THE_WORD = ("cương", "án", "tài", "xuất", "nghị", "mục")
+
+# Phần chữ đầu một từ, bỏ dấu câu đi liền (*"cương,"* là *cương*).
+_LETTERS = re.compile(r"\w+")
+
+
+def spoken_title(title: str) -> str:
+    """Tên đề như đứng sau chữ *đề* trong một câu: *Đã tạo đề "Mệnh đề"*. Hàm thuần.
+
+    Tên tự đặt mở bằng *Đề* (`default_title`), nên *đề "Đề mệnh đề"* lặp chữ (Tier 2 câu 38, người
+    dùng chốt 27/10/2026). Bỏ chữ *Đề* đầu và viết hoa chữ đầu phần còn lại. Chỉ cho câu có chữ *đề*
+    đứng trước; panel và các bảng vẫn in nguyên tên.
+
+    Args:
+        title: Tên đề đã lưu.
+
+    Returns:
+        Tên bỏ chữ *Đề* đầu; nguyên tên khi không mở bằng *Đề* + khoảng trắng, khi sau *Đề*
+        không còn gì, hay khi *Đề* là một phần của từ (*Đề cương*, *Đề án*…).
+    """
+    head, _, rest = unicodedata.normalize("NFC", title).partition(" ")
+    rest = rest.strip()
+    if head.casefold() != "đề" or not rest:
+        return title
+    word = _LETTERS.match(rest)
+    if word and word.group().casefold() in _DE_IS_PART_OF_THE_WORD:
+        return title
+    return rest[0].upper() + rest[1:]

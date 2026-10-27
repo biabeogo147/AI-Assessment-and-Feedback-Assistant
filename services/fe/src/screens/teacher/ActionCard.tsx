@@ -184,10 +184,8 @@ function outcome(turn: Turn): string {
   // `create_draft` thôi nói số câu: một đề trống chưa có số câu nào để nói. Con số ấy về
   // `start_drafting`, và dòng dưới đây là chỗ nó được đọc ra.
   if (turn.tool_name === "create_draft") {
-    // Cùng luật với BE `plan_outcomes.said_about`: tên tự đặt đã mở bằng *Đề*, thêm *đề* nữa là
-    // `đề "Đề Hàm số"`, và câu kết của Kriky chép lại thành *Đề **Đề Hàm số***.
-    const title = String(result.title ?? "");
-    return title.toLocaleLowerCase("vi").startsWith("đề") ? `"${title}"` : `đề "${title}"`;
+    // Cùng luật với BE `plan_outcomes.said_about`: `đề "Hàm số"`, không `đề "Đề Hàm số"`.
+    return `đề "${spokenTitle(String(result.title ?? ""))}"`;
   }
   if (turn.tool_name === "start_drafting") {
     // Bước đã đợi xong thì nó mang con số **thật**, và dòng này phải nói đúng câu mà khối
@@ -421,6 +419,29 @@ function failedHead(result: Record<string, unknown>): string {
   return result.published === false ? "Chưa phát hành được đề" : "Không tạo được đề";
 }
 
+// Chữ đi liền sau *Đề* mà bỏ *Đề* thì đổi nghĩa: *"Đề cương ôn tập"* không phải *"Cương ôn tập"*.
+// Cùng danh sách với BE `titles._DE_IS_PART_OF_THE_WORD`.
+const DE_IS_PART_OF_THE_WORD = ["cương", "án", "tài", "xuất", "nghị", "mục"];
+
+/**
+ * Tên đề như đứng sau chữ *đề* trong một câu (Tier 2 câu 38, người dùng chốt 27/10/2026). Cùng luật
+ * với BE `titles.spoken_title`: tên tự đặt mở bằng *Đề*, nên bỏ chữ ấy và viết hoa chữ đầu phần còn
+ * lại. Panel và các bảng vẫn in nguyên tên.
+ *
+ * @param title - Tên đề đã lưu.
+ * @returns Tên bỏ chữ *Đề* đầu; nguyên tên khi không mở bằng *Đề* + khoảng trắng, khi sau *Đề* không
+ *   còn gì, hay khi *Đề* là một phần của từ (*Đề cương*, *Đề án*…).
+ */
+export function spokenTitle(title: string): string {
+  const [head, ...words] = title.normalize("NFC").split(" ");
+  const rest = words.join(" ").trim();
+  if (head.toLocaleLowerCase("vi") !== "đề" || rest === "") return title;
+  // Chữ đầu bỏ dấu câu đi liền: *"cương,"* là *cương*.
+  const word = (rest.match(/^[\p{L}\p{N}_]+/u) ?? [""])[0].toLocaleLowerCase("vi");
+  if (DE_IS_PART_OF_THE_WORD.includes(word)) return title;
+  return rest[0].toLocaleUpperCase("vi") + rest.slice(1);
+}
+
 /**
  * Bốn đầu đề, và **chỉ** bốn.
  *
@@ -500,7 +521,8 @@ export default function ActionCard({
   const result = turn.tool_result;
   const paper = String(result.assessment_id ?? turn.entity_id ?? "");
   const title = String(result.title ?? "");
-  const named = title === "" ? "" : ` "${title}"`;
+  // Đầu thẻ đã có chữ *đề*: *Đã tạo đề "Mệnh đề"*, không *Đã tạo đề "Đề mệnh đề"* (Tier 2 câu 38).
+  const named = title === "" ? "" : ` "${spokenTitle(title)}"`;
   const state = cardState(turn);
 
   // Không nấc nào thì **không vẽ gì**. `cardTurns` đã lọc, nên đường này không tới được
