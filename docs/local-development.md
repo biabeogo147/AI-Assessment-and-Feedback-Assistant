@@ -89,6 +89,13 @@ job một lúc) và một worker dựng cây mục lục (plan 3c, chờ mạng 
 process cũ chờ các kênh SSE đang mở tối đa 3 giây rồi tắt hẳn, nên một tab giáo viên đang mở không làm
 BE kẹt. AGENT và các worker thì không tự nạp lại: sửa code của chúng thì khởi động lại terminal ấy.
 
+**Tên bản ở máy mình.** `.\dev.ps1 be` và `.\dev.ps1 fe` đặt `AIAFA_VERSION` bằng tag `lab-*` mới
+nhất (`git describe --tags --abbrev=0 --match "lab-*"`), nên tên bản trên màn (chân rail giáo viên, góc dưới phải màn học sinh) và `GET /api/version` ghi
+cùng tên với bản lab mới nhất, dù code đang chạy đã sửa thêm. Chưa có tag nào, hay `git` lỗi, thì ghi
+`chưa có phiên bản`; chạy `pnpm --filter fe dev` thẳng (không qua `dev.ps1`) thì FE cũng ghi vậy. Tag mới chỉ có sau `.\dev.ps1 release` (xem
+[Triển khai lab](operation/deploy-lab.md#đặt-tên-bản)); khởi động lại `be` và `fe` để nhận nó. FE so tên
+của mình với BE mỗi lần mở và mỗi lần tab hiện lại: khác nhau thì trang tự tải lại một lần.
+
 **Thiếu `ingest`, `document` hoặc `index` thì hệ thống trông y hệt lúc bình thường**, chỉ có mọi
 tài liệu đứng ở *đang xử lý* rồi năm phút sau đổi sang *xử lý hỏng*. Không lỗi nào hiện ra,
 vì không có gì sai — chỉ là không có ai làm việc.

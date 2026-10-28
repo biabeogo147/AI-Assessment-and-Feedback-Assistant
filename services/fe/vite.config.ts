@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 /**
  * Cấu hình Vite cho dev server của FE.
@@ -9,8 +9,19 @@ import { defineConfig } from "vite";
  * BE cross-origin và server phải bật CORS. Proxy là phương án rẻ hơn trong hai
  * cách, và giữ cho BE không phải chứa cấu hình riêng của frontend.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  /*
+   * Tên bản lab (plan `lab-version`) dựng vào bundle. `AIAFA_VERSION` do `.\dev.ps1 fe` đặt bằng tag
+   * `lab-*` gần nhất, và do `caddy.Dockerfile` đặt bằng tag `deploy.sh` vừa lấy. `loadEnv` đọc cả
+   * biến môi trường mang tiền tố ấy, nên không cần `process` (FE không khai `@types/node`). Không
+   * đặt thì cùng chữ với BE khi chưa có tag.
+   */
+  define: {
+    __AIAFA_VERSION__: JSON.stringify(
+      loadEnv(mode, ".", "AIAFA_").AIAFA_VERSION?.trim() || "chưa có phiên bản",
+    ),
+  },
   server: {
     /*
      * `127.0.0.1` chứ không để mặc định.
@@ -60,4 +71,4 @@ export default defineConfig({
     // cũng xanh (review code pha 5, plan `backlog-tier-1`).
     env: { TZ: "Asia/Ho_Chi_Minh" },
   },
-});
+}));

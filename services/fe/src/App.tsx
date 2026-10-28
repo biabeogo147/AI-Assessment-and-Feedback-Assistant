@@ -11,6 +11,7 @@ import SignIn from "./screens/student/SignIn";
 import Sitting from "./screens/student/Sitting";
 import Tutor from "./screens/student/Tutor";
 import { SessionContext } from "./screens/teacher/Account";
+import { VersionTag, useVersionCheck } from "./Version";
 import Chat from "./screens/teacher/Chat";
 import Bank, { BankEditor } from "./screens/teacher/Bank";
 import Dashboard, { BoardQuestion, BoardReports } from "./screens/teacher/Dashboard";
@@ -94,12 +95,21 @@ export function surfaceFor(
  */
 export default function App() {
   const route = useRoute();
+  // Một lần cho cả app, trước mọi lối ra sớm: màn đăng nhập cũng so tên bản (plan `lab-version`).
+  useVersionCheck();
   const { surface, redirect } = surfaceFor(window.location.hostname, route);
   useEffect(() => {
     if (redirect !== null) window.location.replace(`#${redirect}`);
   }, [redirect]);
   if (redirect !== null) return null;
-  return surface === "teacher" ? <Teacher /> : <Student />;
+  if (surface === "teacher") return <Teacher />;
+  // Học sinh không có rail: tên bản ở góc dưới phải, một lần cho mọi màn kể cả màn đăng nhập.
+  return (
+    <>
+      <Student />
+      <VersionTag corner />
+    </>
+  );
 }
 
 /**

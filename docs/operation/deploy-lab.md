@@ -114,8 +114,10 @@ Xong thì giáo viên vào `teacher_url`, học sinh vào `student_url`. Trên h
 máy, không theo hash: `teacher.…` luôn là màn giáo viên, `student.…/#/teacher` tự về màn học sinh.
 
 `smoke.sh` kiểm: trang chủ 200; đăng ký giáo viên 403; `X-Actor` không thay được đăng
-nhập; giáo viên seed đăng nhập được và cookie có cờ `Secure`; HTTP chuyển sang HTTPS; các cổng 5432,
-6379, 8000, 9000, 9001, 27017 đóng.
+nhập; BE có tên bản `lab-…` (đặt `LAB_VERSION=lab-…` để đòi đúng tên ấy; lab vừa bootstrap chạy
+`main` nên chỉ in *chú ý*, chưa có tên cho tới lần `deploy.sh <tag>` đầu); giáo viên seed đăng nhập
+được và cookie có cờ `Secure`; HTTP chuyển sang HTTPS; các cổng 5432, 6379, 8000, 9000, 9001, 27017
+đóng.
 
 **5. Đưa cho team.** Hai URL và mật khẩu chung của tài khoản lab
 (`terraform output -raw read_password` in lệnh đọc nó). Gửi qua kênh riêng, không dán vào nhóm chat chung.
@@ -152,7 +154,7 @@ Mọi lệnh dưới đây chạy **trên máy lab**, sau `$(terraform output -r
 
 | Việc | Lệnh |
 | --- | --- |
-| Đưa bản mới lên | `sudo bash /opt/aiafa/deploy/lab/deploy.sh [nhánh-hay-commit]` |
+| Đưa bản mới lên | `sudo bash /opt/aiafa/deploy/lab/deploy.sh lab-2026.0.1` (một tag, xem *Đặt tên bản*) |
 | Seed lại (xoá sạch dữ liệu) | `sudo bash /opt/aiafa/deploy/lab/seed.sh` |
 | Xem container | `sudo docker compose -p aiafa-lab -f /opt/aiafa/deploy/lab/docker-compose.lab.yml ps` |
 | Xem log một service | `… logs -f --tail 200 be` (hay `agent`, `document`, `index`, `ingest`, `caddy`) |
@@ -162,6 +164,31 @@ Mọi lệnh dưới đây chạy **trên máy lab**, sau `$(terraform output -r
 
 **Không có migration** (D5): bản mới đổi model database thì BE từ chối khởi động (`docker compose
 logs be` ghi rõ cột nào thiếu). Cách ra là `seed.sh` — dữ liệu lab mất, dựng lại từ đầu.
+
+### Đặt tên bản
+
+Lab chỉ chạy một **tag** `lab-<năm>.<z>.<x>`; FE và BE cùng mang tên ấy, và tên hiện ở chân rail giáo
+viên, góc dưới phải mọi màn học sinh (kể cả màn đăng nhập), và ở `GET /api/version`. Luật tăng số ở đầu
+[`CHANGELOG.md`](../../CHANGELOG.md). Ở máy mình, từ gốc repo:
+
+1. Viết mục `## lab-… — <ngày>` lên đầu `CHANGELOG.md`, commit, push lên `main`. Chưa biết tên kế
+   tiếp thì chạy bước 2 trước: ngay sau khi lấy tag từ `origin`, nó in tên ấy và các commit từ bản
+   trước, rồi dừng vì mục changelog chưa có.
+2. `.\dev.ps1 release` (thêm `-Minor` khi tăng `z`). Lệnh từ chối khi không ở `main`, `main` chưa push,
+   HEAD đã có tên, hay mục của bản ấy chưa đứng đầu `CHANGELOG.md`; còn sửa dở thì chỉ cảnh báo, vì
+   tag trỏ vào HEAD và không chở phần chưa commit. Qua hết thì nó tạo tag ở máy
+   mình và in lệnh push; **nó không tự push**.
+3. `git push origin lab-…`, rồi trên máy lab `sudo bash /opt/aiafa/deploy/lab/deploy.sh lab-…`.
+   **Lần đầu dùng tag** (máy lab còn `deploy.sh` cũ, không ghi tên bản): chạy lệnh ấy **hai lần**.
+   Lần một lấy code của tag, kể cả `deploy.sh` mới; lần hai mới ghi tên bản cho FE và BE.
+
+Dựng lại tay bằng `… up -d --build` (không qua `deploy.sh`) thì image caddy mất tên bản, trong khi BE
+vẫn đọc `.env.version`: trước lệnh ấy, `set -a; source /opt/aiafa/deploy/lab/.env.version; set +a`.
+Chạy lại `bootstrap.sh` cũng dựng lại như vậy, nên sau nó thì `deploy.sh <tag>`.
+
+`deploy.sh` cần tham số tag, và từ chối mọi ref không phải tag `lab-*`, kể cả `main` và một mã commit: bản không tên thì
+ticket không nói được lỗi thuộc bản nào. Nó ghi tên bản vào `deploy/lab/.env.version`, nên BE vẫn
+mang đúng tên sau một lần reboot hay `render-env.sh`.
 
 ### Xem dữ liệu lab
 
@@ -243,5 +270,7 @@ LAB_URL=http://127.0.0.1:8088 LAB_ACCOUNT_PASSWORD="$PW" bash deploy/lab/smoke.s
 | Kriky trả lời bằng nội dung dựng sẵn | Chưa có `CLAUDE_API_KEY`, nên `render-env.sh` đã tắt model. Thêm khoá vào SSM, rồi `render-env.sh` và `up -d` |
 | Kriky báo model hỏng ở mọi lượt | Có khoá mà khoá sai hay hết hạn mức. `logs agent` ghi lỗi của nhà cung cấp |
 | Tài liệu đứng ở *đang xử lý* rồi *xử lý hỏng* | `logs document` và `logs index`; lần đọc scan đầu chậm hơn các lần sau |
+| `deploy.sh`: *chỉ deploy một tag lab-…* | Ref không phải tag `lab-*`. Đặt tên bằng `.\dev.ps1 release` ở máy mình rồi push tag (mục *Đặt tên bản*) |
+| Chữ tên bản trên màn khác `GET /api/version`, hay một bên ghi `chưa có phiên bản` | Chữ trên màn là tên FE, dựng vào image caddy; `/api/version` là tên BE, đọc từ `deploy/lab/.env.version` (`cat` file ấy trên máy lab). Image dựng không qua `deploy.sh`, hay file ấy chưa có (lab còn chạy bản trước `lab-2026.0.1`): chạy lại `deploy.sh <tag>` |
 | BE không lên sau `deploy.sh` | Đổi model database: `seed.sh` (mục *Việc thường ngày*) |
 | `apply` báo instance type không được phép | Free plan đổi danh sách. `aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true`, rồi `-var instance_type=…` |

@@ -7,6 +7,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import { VERSION } from "./Version";
 
 const ANH = {
   student_id: "s1",
@@ -75,6 +76,13 @@ describe("đăng nhập học sinh (việc 22)", () => {
     expect(screen.queryByRole("button", { name: "Đăng xuất" })).toBeNull();
     // Hộp đăng nhập chỉ có hai ô và nút: không còn dòng nhắc ai phát mật khẩu.
     expect(screen.queryByText(/do thầy cô phát cho em/)).toBeNull();
+  });
+
+  it("màn 12 cũng mang tên bản ở góc dưới phải (Figma 12v, plan `lab-version`)", async () => {
+    backend();
+    const { container } = render(<App />);
+    await screen.findByRole("heading", { name: "Đăng nhập để làm bài" });
+    expect(container.querySelector(".version-tag.corner")?.textContent).toBe(VERSION);
   });
 
   it("sai thì câu của BE ngay trên nút; đúng thì vào Bài của tôi, không gửi X-Actor", async () => {

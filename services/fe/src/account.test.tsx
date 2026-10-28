@@ -87,8 +87,9 @@ describe("đăng nhập giáo viên (việc 22)", () => {
       "Đăng nhập để thấy các đoạn chat và tài liệu của bạn.",
     );
     expect(container.querySelector(".rail .account.signed-out")?.textContent).toBe("Đăng nhập");
-    // Chỉ một lời hỏi phiên: không đoạn chat, thư viện hay kênh nào đi ra để nhận 401.
-    expect(sent.map((one) => one.url)).toEqual(["/api/teacher/me"]);
+    // Chỉ một lời hỏi phiên: không đoạn chat, thư viện hay kênh nào đi ra để nhận 401. Tên bản
+    // (`/api/version`, plan `lab-version`) không cần phiên, nên nó cũng đi ra.
+    expect(sent.map((one) => one.url).sort()).toEqual(["/api/teacher/me", "/api/version"]);
   });
 
   it("đăng nhập sai thì hiện câu của BE; đúng thì vào màn và không còn gửi X-Actor", async () => {

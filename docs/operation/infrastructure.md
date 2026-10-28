@@ -264,7 +264,8 @@ Lần đầu mất **15–25 phút**, phần lớn ở bước 5: image `documen
 chạy lại an toàn; hỏng ở bước nào thì sửa rồi chạy lại cả script.
 
 Sau reboot, unit `aiafa-lab.service` lặp lại bước 4 và `compose up -d` (không dựng lại image). Bản mới
-lên bằng `deploy.sh`: `git fetch` nhánh hay commit, bước 4, `compose up -d --build --remove-orphans`,
+lên bằng `deploy.sh <tag>`: chỉ nhận tag `lab-*` (đặt bằng `.\dev.ps1 release`), `git fetch` tag ấy,
+ghi tên bản vào `deploy/lab/.env.version`, bước 4, `compose up -d --build --remove-orphans`,
 rồi dọn image và build cache cũ, vì mỗi lần dựng lại image `document` để lại vài GB trên ổ 30 GB.
 
 ## Hợp đồng giữa các bước
@@ -314,7 +315,7 @@ Các ràng buộc dưới đây đến từ code của các service, không từ
 | Khoá model | **Người dùng tự thêm vào SSM** | Không qua Terraform, không vào state |
 | Vào máy | **SSH theo IP whitelist + SSM** (21/10/2026) | IP và khoá công khai trong `terraform.tfvars` gitignore |
 | Migration | **Không có** (D5) | Xem lại ngày lab có dữ liệu thật |
-| Code trên máy | **Clone nhánh `main` của repo public** | Code chưa push thì đưa lên bằng `git archive` + `scp`, như lần dựng đầu 21/10/2026 |
+| Code trên máy | **Clone nhánh `main` của repo public** | Lần dựng đầu 21/10/2026 đưa code chưa push lên bằng `git archive` + `scp`. Từ bản `lab-2026.0.1`, `deploy.sh` chỉ nhận một tag `lab-*` đã push |
 
 ## Quyết định còn mở
 

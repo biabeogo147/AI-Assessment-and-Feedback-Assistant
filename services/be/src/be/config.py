@@ -7,6 +7,7 @@ BE được phép hardcode một host, port, tên queue hay ngưỡng.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Neo vào gốc repository, chứ không để tương đối theo thư mục làm việc. Nếu để
@@ -15,6 +16,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # một bộ default đầy đủ. Triệu chứng thuộc loại tệ nhất: một key không có ở đó,
 # một công tắc cứ nằm ở off, và không có thông báo nào ở đâu nói ra điều đó.
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
+
+# Cùng chữ với `vite.config.ts`: FE và BE chưa có tên thì ghi như nhau.
+UNNAMED_VERSION = "chưa có phiên bản"
 
 
 class Settings(BaseSettings):
@@ -100,6 +104,10 @@ class Settings(BaseSettings):
         log_level: Mức log của cây logger `be.*`. `INFO` là mặc định vì đúng những
             dòng cần nhất khi truy một đề thiếu câu -- *vì sao* một câu bị loại --
             nằm ở mức đó. Hạ xuống `WARNING` là tự bịt mắt mình.
+        aiafa_version: Tên bản lab (`lab-YYYY.z.x`, plan `lab-version`) mà `GET /api/version` trả,
+            để FE so với tên của chính nó và tester ghi vào ticket. Trên lab `deploy.sh` ghi nó
+            vào `deploy/lab/.env.version`; ở máy dev `.\\dev.ps1 be` đặt nó bằng tag `lab-*` mới
+            nhất. Trống hay không đặt thì là `chưa có phiên bản`.
     """
 
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
@@ -129,6 +137,13 @@ class Settings(BaseSettings):
     formula_wait_seconds: float = 15.0
     turn_lock_stale_seconds: int = 600
     log_level: str = "INFO"
+    aiafa_version: str = UNNAMED_VERSION
+
+    @field_validator("aiafa_version")
+    @classmethod
+    def _blank_is_unnamed(cls, value: str) -> str:
+        # `.env.example` khai biến này để trống; trống nghĩa là chưa có tên, không phải tên rỗng.
+        return value.strip() or UNNAMED_VERSION
 
 
 @lru_cache

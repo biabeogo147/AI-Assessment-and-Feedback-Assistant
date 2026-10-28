@@ -111,7 +111,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # (`task_code_in`, test quét id ca đo, `propose_bench` từ chối `--label`). Một id ca đo hay nhãn
 # lượt đo như *"t5-…"* sống lâu hơn plan, và khi plan đã đóng thì không ai giải được nó. Decision
 # record nằm ở 2026-10-12-unbiased-model-text-plan.md.
-AGENTS_MD_MAX_LINES = 184
+# Nâng 184 -> 185 ngày 28/10/2026, tiêu đúng một dòng: hàng ownership của `CHANGELOG.md`, chở luật
+# *tên bản lab là tag `lab-YYYY.z.x` chỉ `.\dev.ps1 release` tạo* (người dùng chốt). Tester ghi tên
+# ấy vào ticket, nên một tag đặt tay hay một bản deploy không tên làm ticket không đọc được. Luật
+# đầy đủ ở đầu CHANGELOG.md. Decision record nằm ở 2026-10-28-lab-version-plan.md.
+AGENTS_MD_MAX_LINES = 185
 CHILD_AGENTS_MD_MAX_LINES = 25
 
 CHILD_AGENTS_FILES = (

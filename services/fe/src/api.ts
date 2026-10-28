@@ -715,6 +715,15 @@ async function download(
 }
 
 export const api = {
+  /**
+   * Tên bản lab của BE (plan `lab-version`), không cần đăng nhập. Gọi thẳng `fetch`, không qua
+   * `call`: không có vai nào, và một lần hỏng không được đẩy ai ra màn đăng nhập.
+   */
+  version: async (): Promise<{ version: string }> => {
+    const response = await fetch("/api/version");
+    if (!response.ok) throw new Error(`/api/version: ${response.status}`);
+    return response.json();
+  },
   me: () => call<Me>("student", "/me"),
   /**
    * Đăng nhập học sinh (Figma 12) bằng tên đăng nhập và mật khẩu giáo viên phát. BE đặt cookie

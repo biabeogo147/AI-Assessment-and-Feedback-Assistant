@@ -993,3 +993,13 @@ Plan `2026-10-27-erase-empty-class-plan.md`.
 | **Một học sinh được thêm vào lớp đúng lúc lớp đang bị xoá** thì lần xoá vấp khoá ngoại và trả 500, không phải 409: phép kiểm và lần xoá cùng giao dịch, nhưng đường thêm học sinh không khoá hàng lớp | Nhẹ: hai tab cùng giáo viên, cùng giây; khoá hàng lớp ở đường roster nếu thấy thật |
 | **Câu kết cũ trong đoạn chat vẫn ghi *đề "Đề mệnh đề"***: đó là chữ model đã viết và đã lưu, không dựng lại | Không sửa: chỉ lượt mới đọc cụm mới |
 | **Lớp đã bị xoá ở tab khác**: bấm *Xoá lớp* ở tab này nhận 404, hộp in câu ấy, và màn phía sau vẫn vẽ lớp không còn, không tự về màn 9 | Nhẹ: FE đọc mã 404 của lần xoá thì về màn 9 |
+
+## Lộ ra khi làm plan phiên bản lab (28/10/2026)
+
+Plan `2026-10-28-lab-version-plan.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **CI deploy tự động khi đẩy tag `lab-*`**: nay người dùng tự push tag rồi chạy `deploy.sh <tag>` qua SSM | Cần một role OIDC từ GitHub Actions vào AWS (`ssm:SendCommand` lên đúng máy lab), và repo chưa có `.github/`. Chưa cần khi năm người deploy vài lần một tuần |
+| **Máy lab có thể chưa phải một bản clone dùng được**: `infrastructure.md` (*Hiện trạng 24/10*) ghi code trên máy là bản đẩy bằng `git archive`. `deploy.sh lab-2026.0.1` cần `git fetch` trong `/opt/aiafa` | Lần deploy đầu bằng tag sẽ cho biết; hỏng thì clone lại `/opt/aiafa` (giữ `deploy/lab/.env`) rồi chạy lại |
+| **Dựng lại image không qua `deploy.sh` thì FE mất tên bản**: `bootstrap.sh` chạy lại hay một lệnh `… up -d --build` tay dựng lại caddy với `chưa có phiên bản`, trong khi BE vẫn đọc `.env.version`; FE tự tải lại một lần rồi đứng lệch (review Pha 3) | `lib.sh` nạp `.env.version` và `export AIAFA_VERSION` khi có file -- `lib.sh` ngoài các file plan được sửa; nay `deploy-lab.md` dặn `source` file ấy trước khi dựng tay |

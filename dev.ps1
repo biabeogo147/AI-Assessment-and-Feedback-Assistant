@@ -22,8 +22,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'lab-ui', 'help')]
-    [string]$Task = 'help'
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'lab-ui', 'release', 'help')]
+    [string]$Task = 'help',
+
+    # Chỉ cho `release`: tăng z của tên bản lab, x về 0.
+    [switch]$Minor
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +59,28 @@ function Invoke-Step {
     try { & $Body } finally { $ErrorActionPreference = $previous }
 
     if ($LASTEXITCODE -ne 0) { Write-Error "$Label failed with exit code $LASTEXITCODE" }
+}
+
+function Set-LabVersion {
+    # Tên bản lab cho `be` và `fe` (plan `lab-version`): tag `lab-*` gần nhất của HEAD, để máy dev
+    # ghi cùng tên với bản lab mới nhất. BE đọc biến lúc chạy, Vite dựng nó vào FE. Không có tag
+    # hay không có git thì bỏ biến, và cả hai bên ghi `chưa có phiên bản`. Windows PowerShell 5.1
+    # biến stderr của git thành lỗi dưới `Stop`, nên đọc dưới `Continue`.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $tag = git -C $RepoRoot describe --tags --abbrev=0 --match 'lab-*' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $tag) {
+            $env:AIAFA_VERSION = "$tag".Trim()
+            Write-Host "==> lab version $env:AIAFA_VERSION" -ForegroundColor Cyan
+        } else {
+            # Phiên PowerShell giữ biến của lần chạy trước: không có tag thì đừng mang tên cũ.
+            Remove-Item Env:AIAFA_VERSION -ErrorAction SilentlyContinue
+        }
+    } catch {
+    } finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 switch ($Task) {
@@ -227,6 +252,7 @@ Ctrl+C to stop the UIs and close the tunnel.
         # Giết process watchfiles bằng Stop-Process thì uvicorn con vẫn sống và giữ cổng: dừng cả
         # cây (`taskkill /T`), như mục "BE không lên lại" của docs/local-development.md.
         # Lệnh con được tách bằng shlex không theo POSIX: AIAFA_PYTHON có khoảng trắng sẽ vỡ.
+        Set-LabVersion
         & $Python -m watchfiles --filter python `
             "$Python -m uvicorn be.main:app --timeout-graceful-shutdown 3 --host 127.0.0.1 --port 8000" `
             "$RepoRoot\services\be\src" "$RepoRoot\packages\contracts\src" "$RepoRoot\packages\schema\src"
@@ -257,6 +283,7 @@ Ctrl+C to stop the UIs and close the tunnel.
     }
 
     'fe' {
+        Set-LabVersion
         pnpm --filter fe dev
     }
 
@@ -307,6 +334,15 @@ Ctrl+C to stop the UIs and close the tunnel.
         }
     }
 
+    'release' {
+        # Đặt tên một bản lab (plan `lab-version`): tạo tag `lab-YYYY.z.x` trên HEAD khi `main` đã
+        # push và mục của bản ấy đứng đầu CHANGELOG.md. Không tự push; luật ở tools/release.py.
+        $releaseArgs = @()
+        if ($Minor) { $releaseArgs += '--minor' }
+        & $Python "$RepoRoot\tools\release.py" @releaseArgs
+        exit $LASTEXITCODE
+    }
+
     default {
         Write-Host @'
 Usage: .\dev.ps1 <task>
@@ -327,6 +363,7 @@ Usage: .\dev.ps1 <task>
   fmt          Format and autofix
   report       Build docs/report/report.pdf with XeLaTeX
   lab-ui       Open the lab's Postgres, Redis, Mongo and MinIO in local admin UIs over ssh
+  release      Tag HEAD as the next lab version (lab-YYYY.z.x); -Minor bumps z. Never pushes
 
 First run in a session may need:
   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass

@@ -55,6 +55,10 @@ services:
     build:
       context: ../..
       dockerfile: deploy/lab/caddy.Dockerfile
+      args:
+        # FE nhận tên bản lúc build; chỉ `deploy.sh` đặt biến này. Mặc định chứ không `:?`, vì
+        # compose thay `${…}` ở mọi lệnh, kể cả `ps` và `logs`.
+        AIAFA_VERSION: ${AIAFA_VERSION:-chưa có phiên bản}
     image: aiafa-lab-caddy
     restart: unless-stopped
     environment:
@@ -71,6 +75,16 @@ services:
 
   be:
     <<: [*app, *app-image]
+    # Như `x-app`, cộng tên bản (`AIAFA_VERSION`) do deploy.sh ghi (plan `lab-version`). Env file
+    # chứ không phải `${…}`: unit systemd lúc boot chạy `up -d` không có biến ấy trong shell. Chỉ be
+    # đọc: gắn vào `x-app` thì mỗi lần deploy đổi env của mọi service, và compose dựng lại cả
+    # `document` (nạp lại model OCR). Chưa có file thì BE ghi `chưa có phiên bản`.
+    env_file:
+      - path: lab.env
+      - path: .env.overrides
+        required: false
+      - path: .env.version
+        required: false
     command: ["uvicorn", "be.main:app", "--host", "0.0.0.0", "--port", "8000",
               "--timeout-graceful-shutdown", "3", "--proxy-headers", "--forwarded-allow-ips", "*"]
     environment:

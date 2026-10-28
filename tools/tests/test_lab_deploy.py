@@ -150,3 +150,42 @@ def test_local_admin_uis_bind_only_loopback():
     assert set(services) == {"pgweb", "redis-commander", "mongo-express", "s3manager"}
     for name, spec in services.items():
         assert spec["ports"] and all(p.startswith("127.0.0.1:") for p in spec["ports"]), name
+
+
+def test_deploy_takes_only_a_lab_tag():
+    """`deploy.sh` nhận đúng dạng tên mà `release.py` đặt (plan `lab-version`), và lấy tag ấy chứ
+    không lấy một nhánh trùng tên."""
+    from release import TAG
+
+    script = (LAB / "deploy.sh").read_text(encoding="utf-8")
+    pattern = re.search(r'\[\[ ! "\$ref" =~ (\S+) \]\]', script).group(1)
+    for ref in (
+        "lab-2026.0.1",
+        "lab-2027.12.40",
+        "main",
+        "abc1234",
+        "lab-2026.0",
+        "lab-26.0.1",
+        "lab-2026.00.1",
+    ):
+        assert bool(re.fullmatch(pattern, ref)) == bool(TAG.match(ref)), ref
+    assert 'fetch --depth 1 origin "refs/tags/$ref"' in script
+    assert "AIAFA_REF" not in script.split("source ", 1)[1]
+
+
+def test_fe_and_be_get_the_version_deploy_sh_names():
+    """Caddy dựng FE với tên bản làm build arg; BE đọc `.env.version` mà `deploy.sh` ghi -- env
+    file chứ không `${…}`, nên tên còn sau một lần boot."""
+    compose = _compose()
+    assert compose["services"]["caddy"]["build"]["args"]["AIAFA_VERSION"].startswith(
+        "${AIAFA_VERSION:-"
+    )
+    be_files = [entry["path"] for entry in compose["services"]["be"]["env_file"]]
+    app_files = [entry["path"] for entry in compose["x-app"]["env_file"]]
+    assert be_files == [*app_files, ".env.version"]  # be giữ đủ env file của mọi app
+    script = (LAB / "deploy.sh").read_text(encoding="utf-8")
+    assert '>"$LAB_DIR/.env.version"' in script
+    assert "export AIAFA_VERSION=$ref" in script
+    dockerfile = (LAB / "caddy.Dockerfile").read_text(encoding="utf-8")
+    assert dockerfile.index("ARG AIAFA_VERSION") < dockerfile.index("RUN pnpm --filter fe build")
+    assert dockerfile.index("RUN pnpm install") < dockerfile.index("ARG AIAFA_VERSION")

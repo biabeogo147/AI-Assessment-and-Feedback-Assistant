@@ -20,6 +20,7 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `packages/contracts` | Messages crossing the queue. Data only |
 | `packages/schema` | The Postgres schema both writers share. Declarations and DDL only |
 | `tools/` | Repo-level checks no single service can make about itself |
+| `CHANGELOG.md` | What each lab version changed, for testers. A version is a tag `lab-YYYY.z.x` that only `.\dev.ps1 release` makes |
 | `docs/local-development.md` | Running, demoing and troubleshooting locally |
 | `docs/testing/` | By-hand browser testing: fixed cases, the UI walkthrough, run records |
 | `docs/overview/project-overview.md` | Problem, actors, scope, glossary |

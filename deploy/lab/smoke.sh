@@ -5,6 +5,9 @@
 #   tf="terraform -chdir=deploy/lab/terraform"
 #   LAB_URL="$($tf output -raw teacher_url) $($tf output -raw student_url)" bash deploy/lab/smoke.sh
 #
+# Tuỳ chọn: LAB_VERSION=lab-2026.0.1 để đòi `/api/version` trả đúng tên vừa deploy; không đặt thì
+# chỉ đòi một tên dạng lab-YYYY.z.x (plan `lab-version`).
+#
 # Tuỳ chọn: LAB_ACCOUNT_PASSWORD=… để thử đăng nhập một giáo viên seed và xem cookie có cờ Secure.
 # Lấy mật khẩu từ SSM, đừng gõ vào lịch sử shell:
 #   export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
@@ -37,6 +40,21 @@ smoke_site() { # url
 		"$url/api/teacher/sign-up")"
 	check "X-Actor không thay được đăng nhập" 401 "$(status -H 'X-Actor: teacher:GV-001' \
 		"$url/api/teacher/me")"
+
+	local version
+	version=$(curl -s --max-time 15 "$url/api/version" |
+		sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p')
+	if [[ -n "${LAB_VERSION:-}" ]]; then
+		check "BE chạy bản $LAB_VERSION" "$LAB_VERSION" "$version"
+	elif [[ "$version" =~ ^lab-[0-9]{4}\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+		check "BE có tên bản ($version)" có có
+	elif [[ "$version" == "chưa có phiên bản" ]]; then
+		# Lab vừa dựng bằng bootstrap (chạy `main`), hay stack lab ở máy mình: chưa qua deploy.sh
+		# nên chưa có tên. Không đỏ, nhưng tester chưa ghi được bản vào ticket.
+		echo "chú ý  BE chưa có tên bản: chạy deploy.sh <tag> trước khi mời tester"
+	else
+		check "BE có tên bản lab-YYYY.z.x" có "'$version'"
+	fi
 
 	if [[ -n "${LAB_ACCOUNT_PASSWORD:-}" ]]; then
 		local headers secure

@@ -4282,6 +4282,36 @@
   border-top: 1px solid var(--line);
 }
 
+/* Tên bản lab (plan `lab-version`, Figma `Version tag` `810:6501`): chữ caption mực nhạt, cao 16.
+   Một nút để bấm chép tên; trông như chữ thường, không nền không viền. */
+.version-tag {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--type-caption);
+  line-height: 16px;
+  color: var(--ink-faint);
+  text-align: left;
+  cursor: copy;
+}
+
+/* Chân rail (Figma 9v `810:6503`): dòng đầu của `account-box`, đệm trái 10 như họ tên, khe 8 tới
+   ô tài khoản. Caption ở đây 11px vì `.teacher` hạ `--type-caption`, như mode Teacher của Figma. */
+.rail .account-box .version-tag {
+  display: block;
+  margin: 0 0 8px 10px;
+}
+
+/* Màn học sinh (Figma 13v `810:7200`, 12v `810:7215`): góc dưới phải, cách phải 24, cách đáy 16,
+   neo vào cửa sổ chứ không vào trang, nên mọi màn và cả màn đăng nhập ở cùng một chỗ. */
+.version-tag.corner {
+  position: fixed;
+  right: 24px;
+  bottom: 16px;
+  z-index: 5;
+}
+
 .rail .account {
   display: flex;
   align-items: center;
