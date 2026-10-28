@@ -1001,5 +1001,5 @@ Plan `2026-10-28-lab-version-plan.md`.
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **CI deploy tự động khi đẩy tag `lab-*`**: nay người dùng tự push tag rồi chạy `deploy.sh <tag>` qua SSM | Cần một role OIDC từ GitHub Actions vào AWS (`ssm:SendCommand` lên đúng máy lab), và repo chưa có `.github/`. Chưa cần khi năm người deploy vài lần một tuần |
-| **Máy lab có thể chưa phải một bản clone dùng được**: `infrastructure.md` (*Hiện trạng 24/10*) ghi code trên máy là bản đẩy bằng `git archive`. `deploy.sh lab-2026.0.1` cần `git fetch` trong `/opt/aiafa` | Lần deploy đầu bằng tag sẽ cho biết; hỏng thì clone lại `/opt/aiafa` (giữ `deploy/lab/.env`) rồi chạy lại |
+| **Máy lab có thể chưa phải một bản clone dùng được** | **Không còn** (28/10/2026): `/opt/aiafa` là bản clone; `deploy.sh lab-2026.0.1` lấy được tag và `checkout --force` đè phần `git archive` cũ |
 | **Dựng lại image không qua `deploy.sh` thì FE mất tên bản**: `bootstrap.sh` chạy lại hay một lệnh `… up -d --build` tay dựng lại caddy với `chưa có phiên bản`, trong khi BE vẫn đọc `.env.version`; FE tự tải lại một lần rồi đứng lệch (review Pha 3) | `lib.sh` nạp `.env.version` và `export AIAFA_VERSION` khi có file -- `lib.sh` ngoài các file plan được sửa; nay `deploy-lab.md` dặn `source` file ấy trước khi dựng tay |

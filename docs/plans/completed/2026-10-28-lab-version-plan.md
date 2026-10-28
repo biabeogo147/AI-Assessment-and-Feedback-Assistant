@@ -70,8 +70,10 @@ Người dùng chốt ngày 28/10/2026:
       tải lại mãi (vừa, đã sửa: không nhớ được thì không tải), kiểm kiểu `version`. Ảnh `01`–`03` ở
       `docs/report/screenshot/28_10/phien-ban/` (chụp lại sau khi mở cửa sổ Chrome); subagent chấm cả
       ba khớp Figma.
-- [ ] Pha 6 — mục `lab-2026.0.1` của changelog; `.\dev.ps1 check`, `test`, `typecheck`; commit (chờ
-      duyệt); người dùng push; `.\dev.ps1 release` tạo tag ở máy; người dùng tự push tag và deploy.
+- [x] Pha 6 — mục `lab-2026.0.1`; `check`, `test` (2028 pytest, 392 vitest), `typecheck` xanh;
+      commit `af139cd` (người dùng duyệt 28/10/2026), push `main`; `.\dev.ps1 release` tạo tag
+      `lab-2026.0.1`, push tag; `deploy.sh lab-2026.0.1` hai lần qua SSM. `/api/version` của cả hai
+      tên trả `lab-2026.0.1`, bundle FE mang cùng tên, `LAB_VERSION=lab-2026.0.1 smoke.sh` qua hết.
 
 ## Decision Records
 
@@ -134,4 +136,5 @@ khai (và image lab cài bằng `--frozen-lockfile`). `.\dev.ps1 fe` đã đặt
 
 ## Status
 
-Pha 0 duyệt 28/10/2026; Pha 1–5 xong và đã review; `check`, `test`, `typecheck` xanh. Còn Pha 6 (commit chờ người dùng duyệt, rồi `release`).
+Xong 28/10/2026: lab chạy `lab-2026.0.1`. Việc còn lại ở backlog (CI deploy khi đẩy tag; `lib.sh`
+nạp `.env.version` khi dựng tay).

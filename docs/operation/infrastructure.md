@@ -343,5 +343,6 @@ mật khẩu riêng cho từng tài khoản, và log tập trung.
   (bảng theo dõi, đề, lớp, kết quả, báo cáo, tài liệu và OCR, soạn đề với model thật, duyệt, phát
   hành, hoàn tác) lẫn phía học sinh (làm bài, trợ lý, vòng chữa).
 - Bản 24/10/2026 thêm cột `bank_questions.edited_at`; database lab đã `ALTER` tay, giữ dữ liệu.
-- Code trên máy là bản đẩy lên bằng `git archive`, chưa phải một bản clone của `main`. **Phải push
-  các commit của lab lên `main`** thì `deploy.sh` mới dùng được.
+- Từ 28/10/2026 máy chạy tag `lab-2026.0.1`, đưa lên bằng `deploy.sh` (lần đầu chạy hai lần); FE và
+  BE cùng ghi tên ấy, `smoke.sh` có `LAB_VERSION` qua trên cả hai tên. Phần đẩy bằng `git archive`
+  trước đó đã bị `checkout --force` đè.
