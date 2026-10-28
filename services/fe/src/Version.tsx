@@ -75,7 +75,7 @@ function remember(version: string): boolean {
  * Chữ tên bản (Figma `Version tag` `810:6501`, một nấc `state=default`). Bấm thì chép
  * "Phiên bản lab-…" để dán vào ticket; chữ trên màn không đổi (người dùng chốt 28/10/2026).
  *
- * @param corner Góc dưới phải của màn học sinh (Figma `13v` `810:7200`, `12v` `810:7215`); không có
+ * @param corner Góc dưới trái của màn học sinh (Figma `13v` `810:7200`, `12v` `810:7215`); không có
  *   thì là dòng ở chân rail giáo viên (`9v` `810:6503`).
  */
 export function VersionTag({ corner = false }: { corner?: boolean }) {

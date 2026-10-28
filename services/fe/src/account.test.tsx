@@ -87,6 +87,8 @@ describe("đăng nhập giáo viên (việc 22)", () => {
       "Đăng nhập để thấy các đoạn chat và tài liệu của bạn.",
     );
     expect(container.querySelector(".rail .account.signed-out")?.textContent).toBe("Đăng nhập");
+    // Tên bản nằm dưới ô tài khoản, góc trái dưới màn (Figma 9v, plan `lab-version`).
+    expect(container.querySelector(".rail .account-box > :last-child")?.className).toBe("version-tag");
     // Chỉ một lời hỏi phiên: không đoạn chat, thư viện hay kênh nào đi ra để nhận 401. Tên bản
     // (`/api/version`, plan `lab-version`) không cần phiên, nên nó cũng đi ra.
     expect(sent.map((one) => one.url).sort()).toEqual(["/api/teacher/me", "/api/version"]);
@@ -163,6 +165,8 @@ describe("đăng nhập giáo viên (việc 22)", () => {
     window.location.hash = "#/teacher";
     const { container } = render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Phạm Thu Lan" }));
+    // Đã đăng nhập cũng vậy: tên bản là dòng cuối, dưới avatar (Figma 9v, plan `lab-version`).
+    expect(container.querySelector(".rail .account-box > :last-child")?.className).toBe("version-tag");
 
     const items = screen.getAllByRole("menuitem");
     expect(items.map((one) => one.textContent)).toEqual([

@@ -78,7 +78,7 @@ describe("đăng nhập học sinh (việc 22)", () => {
     expect(screen.queryByText(/do thầy cô phát cho em/)).toBeNull();
   });
 
-  it("màn 12 cũng mang tên bản ở góc dưới phải (Figma 12v, plan `lab-version`)", async () => {
+  it("màn 12 cũng mang tên bản ở góc dưới trái (Figma 12v, plan `lab-version`)", async () => {
     backend();
     const { container } = render(<App />);
     await screen.findByRole("heading", { name: "Đăng nhập để làm bài" });

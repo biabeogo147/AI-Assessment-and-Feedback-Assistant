@@ -103,7 +103,7 @@ export default function App() {
   }, [redirect]);
   if (redirect !== null) return null;
   if (surface === "teacher") return <Teacher />;
-  // Học sinh không có rail: tên bản ở góc dưới phải, một lần cho mọi màn kể cả màn đăng nhập.
+  // Học sinh không có rail: tên bản ở góc dưới trái, một lần cho mọi màn kể cả màn đăng nhập.
   return (
     <>
       <Student />

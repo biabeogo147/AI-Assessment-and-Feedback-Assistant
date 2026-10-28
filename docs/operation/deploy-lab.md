@@ -168,7 +168,7 @@ logs be` ghi rõ cột nào thiếu). Cách ra là `seed.sh` — dữ liệu lab
 ### Đặt tên bản
 
 Lab chỉ chạy một **tag** `lab-<năm>.<z>.<x>`; FE và BE cùng mang tên ấy, và tên hiện ở chân rail giáo
-viên, góc dưới phải mọi màn học sinh (kể cả màn đăng nhập), và ở `GET /api/version`. Luật tăng số ở đầu
+viên, góc dưới trái mọi màn học sinh (kể cả màn đăng nhập), và ở `GET /api/version`. Luật tăng số ở đầu
 [`CHANGELOG.md`](../../CHANGELOG.md). Ở máy mình, từ gốc repo:
 
 1. Viết mục `## lab-… — <ngày>` lên đầu `CHANGELOG.md`, commit, push lên `main`. Chưa biết tên kế

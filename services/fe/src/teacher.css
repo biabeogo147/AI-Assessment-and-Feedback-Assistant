@@ -4296,18 +4296,19 @@
   cursor: copy;
 }
 
-/* Chân rail (Figma 9v `810:6503`): dòng đầu của `account-box`, đệm trái 10 như họ tên, khe 8 tới
-   ô tài khoản. Caption ở đây 11px vì `.teacher` hạ `--type-caption`, như mode Teacher của Figma. */
+/* Chân rail (Figma 9v `810:6503`): dòng cuối của `account-box`, dưới ô tài khoản 4, đệm trái 10
+   để thẳng mép avatar (người dùng 28/10/2026: góc trái dưới màn). Caption ở đây 11px vì `.teacher`
+   hạ `--type-caption`, như mode Teacher của Figma. */
 .rail .account-box .version-tag {
   display: block;
-  margin: 0 0 8px 10px;
+  margin: 4px 0 0 10px;
 }
 
-/* Màn học sinh (Figma 13v `810:7200`, 12v `810:7215`): góc dưới phải, cách phải 24, cách đáy 16,
+/* Màn học sinh (Figma 13v `810:7200`, 12v `810:7215`): góc dưới trái, cách trái 24, cách đáy 16,
    neo vào cửa sổ chứ không vào trang, nên mọi màn và cả màn đăng nhập ở cùng một chỗ. */
 .version-tag.corner {
   position: fixed;
-  right: 24px;
+  left: 24px;
   bottom: 16px;
   z-index: 5;
 }
@@ -4381,8 +4382,8 @@
   z-index: 20;
   left: 0;
   right: 0;
-  /* 6px trên nút 44, đo từ đáy hộp: `100%` nay gồm cả đường kẻ và đệm trên của `.account-box`. */
-  bottom: 50px;
+  /* 6px trên nút 44, đo từ đáy hộp: dưới nút còn dòng tên bản 16 và khe 4 (plan `lab-version`). */
+  bottom: 70px;
   display: flex;
   flex-direction: column;
   padding: 6px 0;

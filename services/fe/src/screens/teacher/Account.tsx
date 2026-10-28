@@ -83,7 +83,6 @@ export function AccountCell() {
   if (out) {
     return (
       <div className="account-box">
-        <VersionTag />
         <div className="account signed-out">
           <span className="icon" aria-hidden="true">
             <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
@@ -94,6 +93,7 @@ export function AccountCell() {
           </span>
           Đăng nhập
         </div>
+        <VersionTag />
       </div>
     );
   }
@@ -101,7 +101,6 @@ export function AccountCell() {
 
   return (
     <div className="account-box" ref={box}>
-      <VersionTag />
       {open && (
         <div className="account-menu" role="menu" aria-label="Tài khoản">
           {SOON.map((one) => (
@@ -153,6 +152,7 @@ export function AccountCell() {
         </span>
         <span className="account-name">{me.full_name}</span>
       </button>
+      <VersionTag />
     </div>
   );
 }
