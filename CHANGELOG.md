@@ -8,6 +8,10 @@ Tên dạng `lab-<năm>.<z>.<x>`. `lab` là tên môi trường. Mỗi bản m�
 phụ trách yêu cầu, và khi ấy `x` về `0`. Sang năm mới thì về `<năm>.0.1`. Tên chỉ đặt bằng
 `.\dev.ps1 release`, sau khi mục của bản ấy đã có ở đầu file này.
 
+## lab-2026.0.3 — 29/10/2026
+
+- **Đổi:** tiêu đề tab trình duyệt ghi *Kriky*, ở cả trang giáo viên lẫn học sinh.
+
 ## lab-2026.0.2 — 28/10/2026
 
 - **Đổi:** tên bản dời xuống góc trái dưới màn: ở màn giáo viên nằm dưới avatar, ở màn học sinh cách
