@@ -222,8 +222,13 @@ chương 01, 02, 04, 05:
 | `use-case` | 05 | đề nháp, nháp, phát hành |
 | `vong-hoc` | 02 | duyệt, điểm |
 | `system-architecture` | 06 | **không chữ nào** |
-| `teacher-chat-turn` | 07 | **không chữ nào** |
+| `document-upload` | 06 | **không chữ nào** |
+| `teacher-chat-turn` và ba phần tách (`-propose`, `-plan-check`, `-execute`) | 07 | **không chữ nào** |
+| `draft-question-life` | 07 | duyệt |
+| `submit-and-remediate` | 07 | **không chữ nào** |
+| `propose-three-layers` | 07 | **không chữ nào** |
 | `document-pipeline` | 07 | **không chữ nào** |
+| `document-false-failure` | 07 | **không chữ nào** |
 
 Luật này áp cho mọi chữ, không chỉ năm chữ trong bảng. Lượt viết lại mục Document của chương 7
 (16/10/2026) đổi ba nhãn của `document-pipeline` *trước* khi đổi văn bản: *"những hàm chạy lâu"* (thay
@@ -231,8 +236,9 @@ Luật này áp cho mọi chữ, không chỉ năm chữ trong bảng. Lượt v
 hàng mô hình ở đáy hình thành *"Mô hình ngoài"* (thay *"Model Provider"*, vì Jev không phải một
 Model Provider).
 
-Chương 06 và 07 nhúng hình không chứa chữ nào trong năm chữ ấy, nên chỉ ở hai chương ấy mới Anh
-hoá được. Chương 06 dùng giấy phép ấy; chương 07 không cần, và vẫn viết "duyệt" bằng tiếng Việt.
+Chương 06 nhúng hình không chứa chữ nào trong năm chữ ấy, nên chỉ ở chương ấy mới Anh hoá được, và
+chương 06 dùng giấy phép ấy. Chương 07 thì không còn được: `draft-question-life` (31/10/2026) vẽ chữ
+"duyệt", và chương 07 vẫn viết "duyệt" bằng tiếng Việt.
 **Giấy phép chỉ gồm `draft` và `approve`**: "phát hành" và "điểm" giữ tiếng Việt ở **mọi**
 chương, kể cả 06. Đừng đọc mục này rồi đi đổi `06:250` thành *"Sáu tham số
 publish"* — đó đúng là câu đã bị phá một lần.
@@ -249,13 +255,12 @@ sẽ để lại bốn câu trỏ vào hư không, và đó đúng là việc đ
 **Một tham chiếu phải đáng công đi.** Chỉ `\ref` sang chỗ nói **nhiều hơn** chỗ đang đứng; `\ref` tới
 một mục nói ít hơn là bắt người đọc đi không.
 
-**Nhưng đừng đòi mọi `\label` phải có ai `\ref`.** Hiện 47 nhãn, 31 được trỏ tới, và phần lớn số
-còn lại có việc riêng: `ch:` và `tab:`/`fig:` phục vụ mục lục, `\listoffigures` và `\listoftables`.
-Thứ thật sự là gánh nặng là một `sec:` không ai trỏ — hiện có **7** cái; chương 7 không thêm cái
-nào, vì hai nhãn mục không ai trỏ tới đã bị bỏ, và mục backend viết lại của nó trỏ tới
-`sec:hang-doi`, vốn chưa ai trỏ. Và `fig:use-case` không được `\ref` từ văn xuôi
-nào, tức chương 05 nhúng một hình mà không có câu nào dẫn vào nó, khác hẳn 01, 02, 04, 06, 07 đều
-mở bằng `Hình~\ref{...}`.
+**Nhưng đừng đòi mọi `\label` phải có ai `\ref`.** Hiện 56 nhãn, 40 được trỏ tới (đếm 31/10/2026),
+và phần lớn số còn lại có việc riêng: `ch:` và `tab:`/`fig:` phục vụ mục lục, `\listoffigures` và
+`\listoftables`. Thứ thật sự là gánh nặng là một `sec:` không ai trỏ — hiện có **8** cái, trong đó
+`sec:hang-doi` của chương 06: mục backend chương 7 từng trỏ tới nó, nay không còn câu nào trỏ.
+Mọi hình đều có câu dẫn `Hình~\ref{...}`; `fig:use-case` của chương 05 là hình cuối cùng được thêm
+câu dẫn (31/10/2026).
 
 **Bảng cũng cần một câu dẫn.** Một tiêu đề mục đứng ngay trên một bảng, không câu nào ở giữa, là
 một mục không có thân bài: lần đầu viết chương 7, hai bảng luật đứng như vậy, và tiêu đề kế tiếp
@@ -269,7 +274,7 @@ Nên bề rộng hình khổ ngang là `width=\linewidth`, trần chiều cao l�
 `\textheight` làm bề rộng — cái tên nghe có vẻ đúng — cho ra hình **hẹp hơn đáng có 37%**, và build
 vẫn xanh.
 
-Khuôn hình ngang, 5/8 hình dùng:
+Khuôn hình ngang, 5/16 hình dùng (các hình đứng đầu chương 01, 02, 04, 05, 06):
 
 ```latex
 \begin{landscape}
@@ -282,15 +287,22 @@ Khuôn hình ngang, 5/8 hình dùng:
 \end{landscape}
 ```
 
-Ba ngoại lệ, mỗi cái một lý do:
+Hình giữa một mục thì đứng trên trang **dọc**: `landscape` ép `\clearpage`, nên một hình ngang giữa
+một mục để lại nửa trang trống; mọi hình ngang hiện có đều đứng đầu chương. Các hình ấy, mỗi nhóm
+một lý do:
 
 - `business-workflows` (`04:133`): `[htbp]`, không landscape, vì khối hình chỉ cao 425pt và trang
   trước còn 585pt trống, nên nó chia trang được với văn xuôi.
-- `document-pipeline` (chương 07): `[htbp]` với `height=0.5\textheight` — một hình rộng chia trang
-  với văn xuôi.
-- `teacher-chat-turn` (chương 07): `[p]` trên trang **dọc**, không landscape. `landscape` ép
-  `\clearpage`, nên một hình ngang giữa một mục để lại nửa trang trống; mọi hình ngang hiện có đều
-  đứng đầu chương. Sequence lại cao hơn rộng, nên trang dọc hợp với nó hơn.
+- `document-pipeline` và `document-false-failure` (chương 07): `[htbp]` với `height=0.5\textheight`
+  — hình rộng chia trang với văn xuôi.
+- Sequence và sơ đồ luồng (`document-upload` ở 06; ba phần tách của `teacher-chat-turn`,
+  `submit-and-remediate`, `propose-three-layers`, `draft-question-life` ở 07): `[htbp]`,
+  `width=\linewidth` cùng một trần `height` từ 0,6 tới 0,9 `\textheight`, chọn sao cho chữ nhỏ nhất
+  vẫn ≥ 7pt. Cả nhóm có chiều rộng gần bằng nhau trong `.drawio` (≈ 950px), nên chữ in ra
+  7,2–7,5pt; rộng thêm là xuống dưới ngưỡng.
+- `teacher-chat-turn` (cuối mục backend chương 07): `[H]`. Đặt `[htbp]` thì nó trôi qua
+  `\section{Agent}` ngay sau, và câu *"ở cuối mục"* trỏ sai chỗ. Nó là **bản tổng quan** của ba phần
+  tách, không phải phép ghép nguyên: ghép nguyên thì cao gấp đôi một trang, chữ xuống ~6pt.
 
 **Chữ trong hình đọc được trên giấy**: chữ nhỏ nhất ≥ 7pt *sau khi* hình bị co vào khổ — đo trên
 PDF, không đo trên `.drawio`. Chữ không chạm viền làn hay viền khung, và đường sống của sequence

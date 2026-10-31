@@ -7,21 +7,53 @@
     "source": "docs/diagrams/business-workflows.drawio",
     "sha256": "d89b0a1bfea91f6ac85f1dbd4faccd262d20861df3b25153cf3c8aa1bc7de66f"
   },
+  "document-false-failure.pdf": {
+    "source": "docs/diagrams/document-false-failure.drawio",
+    "sha256": "966f30b8e0366b5a8f5f1de5e17dafda73cde6dbb17a67b860b04da3c37ed065"
+  },
   "document-pipeline.pdf": {
     "source": "docs/diagrams/document-pipeline.drawio",
     "sha256": "684e040cce1f8472ecc492f244308289869d2b8baae65ce726ca04f5b3b86206"
+  },
+  "document-upload.pdf": {
+    "source": "docs/diagrams/document-upload.drawio",
+    "sha256": "8a468aea31512dc96f7ccb2634bfb900b4f4696b57aa0b4ff72bd4bc299d0004"
   },
   "domain-context.pdf": {
     "source": "docs/diagrams/domain-context.drawio",
     "sha256": "6b9dde9bcf358e9e7edc6ff807a779329153b1df4328b58a30df93e7959b7f8d"
   },
+  "draft-question-life.pdf": {
+    "source": "docs/diagrams/draft-question-life.drawio",
+    "sha256": "9428373beef468cdc0249f055edd04d338b4b3e7b186bcfbdc143e895bc15a7f"
+  },
+  "propose-three-layers.pdf": {
+    "source": "docs/diagrams/propose-three-layers.drawio",
+    "sha256": "cd25a4bc9a9436ff5723085887a6c9de4801314497f0b8ddb2b8070c3157763a"
+  },
+  "submit-and-remediate.pdf": {
+    "source": "docs/diagrams/submit-and-remediate.drawio",
+    "sha256": "5dbf10fdcae63118a426b5d1ec55739b17ce4c2693fac3587657afd5f43c1897"
+  },
   "system-architecture.pdf": {
     "source": "docs/diagrams/system-architecture.drawio",
     "sha256": "43bf433bfa1b820cc53850e8234f944a9e759e29f00249f71607f6886e6ef0f4"
   },
+  "teacher-chat-turn-execute.pdf": {
+    "source": "docs/diagrams/teacher-chat-turn-execute.drawio",
+    "sha256": "1a3505c31ee9d39c13c5aeb334780dbcea5526d94b963221b471a891029bb337"
+  },
+  "teacher-chat-turn-plan-check.pdf": {
+    "source": "docs/diagrams/teacher-chat-turn-plan-check.drawio",
+    "sha256": "a2e2ec222c2cbc6dcd2a59915f97696cfbce4edd4405d08ee71925d1baf88524"
+  },
+  "teacher-chat-turn-propose.pdf": {
+    "source": "docs/diagrams/teacher-chat-turn-propose.drawio",
+    "sha256": "ba6261299487b3b19c543b151386e3dccf133f5ad28a9d0f867aade2a557d945"
+  },
   "teacher-chat-turn.pdf": {
     "source": "docs/diagrams/teacher-chat-turn.drawio",
-    "sha256": "d12d69f951a34ea927dbd553d09f29868e8335705c97dd378b3be7052725c4c8"
+    "sha256": "ac6b6b4521de996ad74c3823adb3cc6854ba591859f0247e393bd69263669e60"
   },
   "use-case.pdf": {
     "source": "docs/diagrams/use-case.drawio",

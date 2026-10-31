@@ -80,14 +80,27 @@ Ví dụ, đối với việc soạn đề:
 Bốn store ấy là bốn loại khác nhau: postgres là một \textbf{database} (cơ sở dữ liệu) giữ dữ liệu
 có cấu trúc, redis là một \textbf{queue} (hàng đợi), minio là một \textbf{object store}
 (kho tệp) giữ \textbf{byte} (dữ liệu gốc) của tệp, và mongodb là một \textbf{content store} (kho
-nội dung) giữ nội dung đã xử lí.
+nội dung) giữ nội dung đã xử lí. Bảng~\ref{tab:service-store} cho biết service nào đọc, service
+nào ghi từng store.
 
-\paragraph{Database thuộc về \texttt{backend} và \texttt{ingest}.} Nó giữ lớp, học sinh, đề,
-lần làm bài, sổ điểm ba mức, bộ đếm vòng, từng lượt làm lại kèm đề đã sinh ra, các đoạn hội
-thoại, và các báo cáo.
-
-\paragraph{Object store giữ byte của tài liệu, tức chính tệp giáo viên tải lên.}
-\texttt{backend} ghi vào, \texttt{document} đọc ra, và không có chiều ngược lại.
+\begin{table}[htb]
+\centering
+\caption[Service nào đọc, ghi store nào]{Service nào đọc, service nào ghi từng store}
+\label{tab:service-store}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{Store} & \texttt{backend} & \texttt{agent} & \texttt{document} & \texttt{ingest} \\
+\midrule
+postgres (database) & đọc, ghi & --- & --- & đọc, ghi \\
+\addlinespace
+minio (object store) & ghi & --- & đọc & --- \\
+\addlinespace
+mongodb (content store) & đọc & --- & đọc, ghi & --- \\
+\addlinespace
+redis (queue) & đọc, ghi & đọc, ghi & đọc, ghi & đọc, ghi \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Content store giữ thứ đọc được từ tài liệu.} Sau khi đọc một tệp, \texttt{document} ghi
 vào nội dung của từng trang và cây mục lục dựng từ chúng. \texttt{backend} chỉ đọc ra, để đưa mục
@@ -115,24 +128,25 @@ giờ nói chuyện thẳng với worker; kết quả, nếu cần, cũng đi v�
 khác khi có dữ liệu mới hoặc trạng thái thay đổi. Khác với hàng đợi job, thông báo Pub/Sub không được 
 lưu lại để xử lý sau mà chỉ được gửi đến những thành phần đang đăng ký theo dõi channel tại thời điểm phát thông báo.
 
-Ví dụ, khi giáo viên tải lên một tài liệu, \texttt{frontend} hiển thị trạng thái ``Đang xử lý…'', còn \texttt{backend} 
-đưa job xử lý tài liệu vào hàng đợi. \texttt{document} đọc dữ liệu tệp từ \texttt{object store}, trích xuất nội dung và lưu vào \texttt{content store}. 
-Sau đó, \texttt{document} tạo một job cho \texttt{ingest} để cập nhật trạng thái tài liệu trong \texttt{database}.
+Hình~\ref{fig:document-upload} minh họa cả ba hình thức khi giáo viên tải lên một tài liệu.
 
-Khi \texttt{ingest} hoàn tất việc ghi dữ liệu, nó phát một thông báo lên channel của \texttt{redis}. \texttt{backend} 
-nhận thông báo này và gửi một event đến \texttt{frontend}. Vì event chỉ đóng vai trò báo hiệu, không chứa dữ liệu cập nhật, 
-\texttt{frontend} cần gọi lại API để lấy danh sách tài liệu mới nhất và hiển thị trạng thái đã sẵn sàng.
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth,height=0.9\textheight,keepaspectratio]{document-upload.pdf}
+  \caption[Tải lên một tài liệu]{Tải lên một tài liệu: gọi API, giao job qua queue, thông báo qua channel}
+  \label{fig:document-upload}
+\end{figure}
 
 \section{Job nào đi qua queue, job nào không}
 \label{sec:hang-doi}
 
 Mọi job cần gọi \textbf{Model Provider} (nhà cung cấp mô hình) đều chạy qua một queue, đường
-duy nhất tới \texttt{agent} và \texttt{document}. Có bảy task như vậy: sáu của \texttt{agent}, một
+duy nhất tới \texttt{agent} và \texttt{document}. Có sáu task như vậy: năm của \texttt{agent}, một
 của \texttt{document}.
 
 \begin{table}[H]
 \centering
-\caption[Bảy task gọi Model Provider]{Bảy task gọi Model Provider}
+\caption[Sáu task gọi Model Provider]{Sáu task gọi Model Provider}
 \label{tab:bay-viec}
 \begin{tabular}{@{}L{4.2cm}lL{7.4cm}@{}}
 \toprule
@@ -144,9 +158,7 @@ Sinh câu biến thể & \texttt{agent} & Khi học sinh nộp bài giai đoạn
 \addlinespace
 Trả lời một tin nhắn của học sinh & \texttt{agent} & Khi học sinh cần giải đáp thắc mắc ở giai đoạn 2 \\
 \addlinespace
-Đề xuất bước tiếp theo & \texttt{agent} & Khi giáo viên gửi một tin nhắn / yêu cầu / thắc mắc \\
-\addlinespace
-Báo cáo kết quả một plan & \texttt{agent} & Sau khi \texttt{backend} chạy xong các việc của một plan \\
+Đề xuất bước tiếp theo & \texttt{agent} & Khi giáo viên gửi một tin nhắn / yêu cầu / thắc mắc; và một lần nữa sau khi \texttt{backend} chạy xong các việc của một plan, để kể lại kết quả \\
 \addlinespace
 Đặt tên một đoạn hội thoại & \texttt{agent} & Khi giáo viên gửi tin nhắn đầu tiên và Kriky trả lời \\
 \addlinespace

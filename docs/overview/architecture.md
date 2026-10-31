@@ -13,7 +13,20 @@ Diagram liên quan:
   worker, ba nhánh sau khi dò tệp, bảy khâu dựng cây, ba model ngoài và đường lùi về luật.
 - [Teacher Chat Turn](../diagrams/teacher-chat-turn.drawio) -- sequence của một lượt chat giáo viên
   qua SSE: giữ đoạn chat, pha 1 hỏi AGENT qua queue, pha 2 chạy plan và nghe chuông soạn đề, kể
-  lại, nhả đoạn chat.
+  lại, nhả đoạn chat. Báo cáo chương 7 tách nó làm ba phần đặt cạnh lời văn:
+  [pha đề xuất](../diagrams/teacher-chat-turn-propose.drawio),
+  [kiểm plan](../diagrams/teacher-chat-turn-plan-check.drawio) -- hai cửa kiểm, hỏng mỗi cửa một
+  kết cục, và [pha thực thi](../diagrams/teacher-chat-turn-execute.drawio).
+- [Document Upload](../diagrams/document-upload.drawio) -- sequence tải lên một tài liệu, qua đủ ba
+  hình thức giao tiếp: API, job qua queue, thông báo qua channel; event không mang dữ liệu.
+- [Submit and Remediate](../diagrams/submit-and-remediate.drawio) -- sequence nộp bài, chuẩn bị
+  trước câu biến thể, hỏi trợ lí qua SSE, rồi mở một lượt của giai đoạn 2.
+- [Propose Three Layers](../diagrams/propose-three-layers.drawio) -- luồng ba tầng một đề xuất bước
+  tiếp theo đi qua: mô hình, luật trong AGENT, `backend`.
+- [Draft Question Life](../diagrams/draft-question-life.drawio) -- luồng đời một câu hỏi của đề:
+  viết và tự kiểm ở AGENT, thu hoạch, bỏ phiên bản cũ, kiểm ở `backend`, giao lại.
+- [Document False Failure](../diagrams/document-false-failure.drawio) -- Gantt bảy cuốn đọc xen kẽ
+  từng lô: hai lần báo tiến độ của một cuốn cách nhau quá 300 giây, `backend` báo hỏng oan.
 
 ## Năm service, sáu process
 
@@ -95,7 +108,7 @@ FE --HTTP /api--> BE --aiafa:grading--> Redis --> AGENT ──> model provider
 
 Đường xuống `document` và đường về `ingest` là **hai queue riêng**, không phải một đường hai
 chiều, và mọi queue ở đây đặt tên theo **bên tiêu thụ** chứ không theo công việc. Lý do nằm ngay ở dòng trên:
-`aiafa:grading` đặt tên theo công việc, rồi nhận thêm task khác, và nay chở sáu task mà
+`aiafa:grading` đặt tên theo công việc, rồi nhận thêm task khác, và nay chở năm task mà
 không task nào chấm bài -- tên ấy nói dối. Một queue thì chỉ có một worker đứng sau, nên tên nói về bên tiêu
 thụ không hết đúng được.
 
@@ -323,12 +336,15 @@ Cách duy nhất biết hàng rào còn sống là thử phá nó: thêm `import
 
 ## Diagram nào đã có, và vì sao chưa có các loại khác
 
-Repo có tám diagram: năm diagram nghiệp vụ (`activity-overview`, `business-workflows`,
-`domain-context`, `use-case`, `vong-hoc`), một diagram kiến trúc (`system-architecture`), và hai
+Repo có mười sáu diagram: năm diagram nghiệp vụ (`activity-overview`, `business-workflows`,
+`domain-context`, `use-case`, `vong-hoc`), một diagram kiến trúc (`system-architecture`), hai
 diagram bên trong service, vẽ cho chương 7 của báo cáo ngày 16/10/2026 (`document-pipeline`,
-`teacher-chat-turn`).
+`teacher-chat-turn`), và tám diagram vẽ ngày 31/10/2026 để thay những đoạn văn dài của chương 6 và
+7: ba phần tách từ `teacher-chat-turn`, `document-upload`, `submit-and-remediate`,
+`propose-three-layers`, `draft-question-life`, `document-false-failure`.
 
-**Sequence Diagram** đã có một: `teacher-chat-turn`. Điều kiện đặt ra ở đây từ trước -- luồng có
+**Sequence Diagram** đã có ba, chưa kể ba phần tách: `teacher-chat-turn`, `document-upload`,
+`submit-and-remediate`. Với `teacher-chat-turn`, điều kiện đặt ra ở đây từ trước -- luồng có
 nhiều hơn một bước bất đồng bộ -- đã đạt từ lâu: một lượt chat giáo viên đi qua queue ít nhất hai
 lần (đề xuất bước tiếp theo, kể lại kết quả), có thể nghe chuông soạn đề qua pub/sub, và pha 1 của
 nó kết thúc theo nhiều cách. Lời văn ở mục "Đường giao tiếp" không còn đủ để thấy thứ tự ấy.

@@ -1003,3 +1003,16 @@ Plan `2026-10-28-lab-version-plan.md`.
 | **CI deploy tự động khi đẩy tag `lab-*`**: nay người dùng tự push tag rồi chạy `deploy.sh <tag>` qua SSM | Cần một role OIDC từ GitHub Actions vào AWS (`ssm:SendCommand` lên đúng máy lab), và repo chưa có `.github/`. Chưa cần khi năm người deploy vài lần một tuần |
 | **Máy lab có thể chưa phải một bản clone dùng được** | **Không còn** (28/10/2026): `/opt/aiafa` là bản clone; `deploy.sh lab-2026.0.1` lấy được tag và `checkout --force` đè phần `git archive` cũ |
 | **Dựng lại image không qua `deploy.sh` thì FE mất tên bản**: `bootstrap.sh` chạy lại hay một lệnh `… up -d --build` tay dựng lại caddy với `chưa có phiên bản`, trong khi BE vẫn đọc `.env.version`; FE tự tải lại một lần rồi đứng lệch (review Pha 3) | `lib.sh` nạp `.env.version` và `export AIAFA_VERSION` khi có file -- `lib.sh` ngoài các file plan được sửa; nay `deploy-lab.md` dặn `source` file ấy trước khi dựng tay |
+
+## Lộ ra khi đổi văn xuôi thành sơ đồ trong báo cáo (31/10/2026)
+
+Plan `2026-10-31-report-diagrams-plan.md`. Chín hình mới ở chương 06 và 07 (`docs/diagrams/`), một
+bảng mới cho các thao tác trên đề, và các câu chương 07 lệch code đã sửa theo lời người dùng.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **D6: sơ đồ trạng thái của đề** (rỗng → có câu hỏi → đã duyệt → đã phát hành, cùng các cạnh bỏ duyệt, thu hồi). Bảng `tab:be-thao-tac-de` đứng tạm chỗ ấy | ADR-01 chốt bộ nhãn trạng thái: bốn nhãn đang có ba bộ chữ (`docs/report/rules.md`, *Những chỗ đã biết là còn sai*, mục 1) |
+| **Văn mục backend chương 07 và chữ trong hình lệch nhau:** văn viết *kế hoạch, công cụ, công việc, giải phóng khóa, khóa*; hình theo từ điển viết *plan, tool, việc, mở khoá, khoá* | Văn là phần người dùng viết; chưa quyết đổi bên nào (`rules.md` §2, §6) |
+| **Hình `propose-three-layers` đặt mọi phép kiểm sau tám luật;** code bắt *đề xuất không có chữ* và *dàn ý rỗng* trước các luật (`agent/graphs/propose/choose.py:139-151`). Văn đã sửa thành *"Trước và sau các luật sửa"* | Nhẹ: thêm một hình thoi trước hộp tám luật |
+| **Ba lối ra hình chưa vẽ:** `document-upload` không vẽ nhánh *không đưa được job vào queue* (`be/teacher_documents.py:397-404`) và các lần báo tiến độ; `submit-and-remediate` không vẽ lối ra khi một câu biến thể hỏng cả ba lần (cả lượt trả 503, `be/student_routes.py:2058-2064`); `teacher-chat-turn-plan-check` không vẽ *cùng một lý do bị từ chối hai lần thì dừng lượt* | Nhẹ: văn cũng không nói; thêm khi văn nói |
+| **`sec:hang-doi` (chương 06) không còn câu nào trỏ tới** | Nhẹ: `rules.md` §7 đã ghi |
