@@ -113,7 +113,7 @@ switch ($Task) {
         # (deploy/lab/admin-ui.yml) và đi vào lab qua một SSH tunnel; máy lab không chạy UI
         # nào ngoài FE. Chạy tới khi Ctrl+C, rồi tắt UI và đóng tunnel. Plan `lab-admin-ui`.
         $Key = if ($env:AIAFA_LAB_SSH_KEY) { $env:AIAFA_LAB_SSH_KEY } else { "$HOME\.ssh\aiafa-lab" }
-        $Region = if ($env:AIAFA_LAB_REGION) { $env:AIAFA_LAB_REGION } else { 'ap-southeast-1' }
+        $Region = if ($env:AIAFA_LAB_REGION) { $env:AIAFA_LAB_REGION } else { 'us-east-2' }
         $UiCompose = @('compose', '-p', 'aiafa-lab-ui', '-f', "$RepoRoot\deploy\lab\admin-ui.yml")
         # Kho -> (cổng tunnel ở máy này, cổng trong container). Cổng khác cổng của infra-up để
         # hai bên chạy song song (D3).

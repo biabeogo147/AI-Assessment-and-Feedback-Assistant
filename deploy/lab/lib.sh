@@ -15,7 +15,7 @@ if [[ -f /etc/aiafa-lab.conf ]]; then
 fi
 AIAFA_DIR=${AIAFA_DIR:-/opt/aiafa}
 AIAFA_REF=${AIAFA_REF:-main}
-AWS_REGION=${AWS_REGION:-ap-southeast-1}
+AWS_REGION=${AWS_REGION:-us-east-2}
 SSM_PREFIX=${SSM_PREFIX:-/aiafa/lab}
 export AWS_REGION AWS_DEFAULT_REGION=$AWS_REGION
 

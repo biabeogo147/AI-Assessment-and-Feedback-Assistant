@@ -10,7 +10,7 @@
 #
 # Tuỳ chọn: LAB_ACCOUNT_PASSWORD=… để thử đăng nhập một giáo viên seed và xem cookie có cờ Secure.
 # Lấy mật khẩu từ SSM, đừng gõ vào lịch sử shell:
-#   export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
+#   export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region us-east-2 \
 #     --name /aiafa/lab/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text)
 
 set -uo pipefail

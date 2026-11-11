@@ -30,7 +30,7 @@ flowchart TB
         dns["DNS của tên miền<br/>A: teacher.·student. → Elastic IP"]
     end
 
-    subgraph aws["AWS account · ap-southeast-1"]
+    subgraph aws["AWS account · us-east-2"]
         subgraph aws_services["Dịch vụ AWS ngoài VPC"]
             ssm[("SSM Parameter Store<br/>/aiafa/lab/*")]
             s3_backup[("S3: backup<br/>giữ 7 ngày")]
@@ -304,7 +304,7 @@ Các ràng buộc dưới đây đến từ code của các service, không từ
 | --- | --- | --- |
 | Công cụ hạ tầng | **Terraform**, state local, gitignore (20/10/2026) | Một người vận hành giữ state; state chứa mật khẩu do `random_password` sinh |
 | Đóng gói | **Một EC2, một `docker compose`** | Không cluster, không dự phòng; máy chết là lab chết, dựng lại bằng `apply` và backup |
-| Loại máy | **`m7i-flex.large`**: đã kiểm thuộc free tier của account ở Singapore | Free plan đổi danh sách thì đổi `instance_type` |
+| Loại máy | **`m7i-flex.large`**: đã kiểm thuộc free tier của account ở us-east-2 (04/11/2026) | Free plan đổi danh sách thì đổi `instance_type` |
 | Mạng | **VPC mặc định, không NAT** | Account mới có thể có VPC mặc định mà không có subnet: Terraform tạo subnet mặc định bằng `aws_default_subnet` (gặp thật lúc apply 21/10/2026) |
 | Reverse proxy | **Caddy** (20/10/2026) | Một lối vào làm cả HTTPS, FE tĩnh, proxy |
 | Tên miền | **Mỗi vai một subdomain của `base_domain`** (22/10/2026) | Bản ghi A tạo tay, Terraform không quản DNS; FE chọn vai theo tiền tố tên máy; đổi Elastic IP là sửa bản ghi |

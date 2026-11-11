@@ -1016,3 +1016,15 @@ bảng mới cho các thao tác trên đề, và các câu chương 07 lệch co
 | **Hình `propose-three-layers` đặt mọi phép kiểm sau tám luật;** code bắt *đề xuất không có chữ* và *dàn ý rỗng* trước các luật (`agent/graphs/propose/choose.py:139-151`). Văn đã sửa thành *"Trước và sau các luật sửa"* | Nhẹ: thêm một hình thoi trước hộp tám luật |
 | **Ba lối ra hình chưa vẽ:** `document-upload` không vẽ nhánh *không đưa được job vào queue* (`be/teacher_documents.py:397-404`) và các lần báo tiến độ; `submit-and-remediate` không vẽ lối ra khi một câu biến thể hỏng cả ba lần (cả lượt trả 503, `be/student_routes.py:2058-2064`); `teacher-chat-turn-plan-check` không vẽ *cùng một lý do bị từ chối hai lần thì dừng lượt* | Nhẹ: văn cũng không nói; thêm khi văn nói |
 | **`sec:hang-doi` (chương 06) không còn câu nào trỏ tới** | Nhẹ: `rules.md` §7 đã ghi |
+
+## Lộ ra khi chuyển lab sang account mới (11/11/2026)
+
+Account lab mới nằm trong một AWS Organization mà SCP chỉ mở `us-east-2`; region mặc định đã đổi theo.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **`bootstrap.sh` cài aws CLI bằng snap, và snap store có lúc không vào được**: máy mới ở `us-east-2` timeout ở `api.snapcraft.io` trong khi GitHub, Docker Hub, PyPI vẫn vào được; bootstrap dừng ngay bước ấy. Lần này sửa tay trên máy (bộ cài zip chính thức của AWS vào `/usr/bin`) rồi chạy lại bootstrap | Đổi `bootstrap.sh` sang bộ cài zip, hoặc snap rồi lùi về zip. Cron backup chỉ có `/snap/bin:/usr/bin` trong `PATH`, nên đặt `aws` ở `/usr/bin` |
+| **Hạn mức 16 vCPU dùng chung với dự án khác cùng account**: `apply` hỏng `VcpuLimitExceeded` khi tám máy của dự án khác đang chạy | Không có gì trong repo chặn được; trước `apply` xem `describe-instances` của account, hay xin nâng hạn mức `L-1216C47A` |
+| **Khoá model trong SSM dính `\r` thì mọi lượt Kriky hỏng** (*"Kriky chưa trả lời được lúc này"*): chép khoá bằng `aws … --output text \| read` trong Git Bash giữ CR của Windows; `render-env.sh` chép nguyên giá trị vào `.env` | `render-env.sh` cắt khoảng trắng và CR ở hai đầu mọi giá trị đọc từ SSM; `deploy-lab.md` dặn `tr -d '\r'` khi chép khoá |
+| **Log của `agent` in nguyên khoá API** khi header không hợp lệ: `httpcore` đưa giá trị header vào thông báo lỗi, và traceback ấy vào `docker compose logs` | Lọc chuỗi `sk-…` / `Bearer …` khỏi log của agent, hay bắt `APIConnectionError` và chỉ log loại lỗi |
+| **Kriky đoán `assessment_id` dù vừa có danh sách đề** (thử tay lab 11/11, `claude-haiku-5-5`): hỏi *"Lớp 12A3 câu nào sai nhiều nhất?"* thì gọi `list_class`, `list_assessment`, rồi `class_assessment_summary` hai lần đều *không tìm thấy*; hỏi lại kèm tên đề thì một bước ra đúng số | Cần xem tham số model đã truyền (log BE chỉ ghi tên tool); có thể do câu hỏi *câu nào sai nhiều nhất* chưa có tool theo từng câu |

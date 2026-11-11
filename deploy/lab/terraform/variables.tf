@@ -1,7 +1,7 @@
 variable "region" {
-  description = "Region AWS. Singapore là region gần Việt Nam nhất."
+  description = "Region AWS. Account lab nằm trong một AWS Organization mà SCP chỉ mở us-east-2 (Ohio), kiểm 04/11/2026: region khác bị từ chối kể cả với quyền admin."
   type        = string
-  default     = "ap-southeast-1"
+  default     = "us-east-2"
 }
 
 variable "instance_type" {

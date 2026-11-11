@@ -1,6 +1,6 @@
 # Triển khai lab
 
-Lab là một bản chạy thật cho **năm người trong team**, trên một máy EC2 ở Singapore, sau HTTPS.
+Lab là một bản chạy thật cho **năm người trong team**, trên một máy EC2 ở Ohio (`us-east-2`), sau HTTPS.
 Mọi thứ nằm ở `deploy/lab/`; plan là `docs/plans/active/2026-10-20-lab-deploy-aws-plan.md`.
 Chạy trên máy mình thì đọc [Local Development](../local-development.md). Bản đồ của mọi thành phần
 và lý do của chúng: [Kiến trúc lab](infrastructure.md).
@@ -31,7 +31,7 @@ Internet ──443──► Caddy (FE tĩnh, /api) ──► be ──► Postgr
 `read -s` để khoá không vào lịch sử shell:
 
 ```bash
-read -rs KEY && aws ssm put-parameter --region ap-southeast-1 --type SecureString \
+read -rs KEY && aws ssm put-parameter --region us-east-2 --type SecureString \
   --name /aiafa/lab/CLAUDE_API_KEY --value "$KEY" && unset KEY
 ```
 
@@ -101,7 +101,7 @@ Hỏng giữa chừng (log ghi bước nào) thì sửa rồi chạy lại cả 
 
 ```bash
 export LAB_URL="$(terraform output -raw teacher_url) $(terraform output -raw student_url)"
-export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region ap-southeast-1 \
+export LAB_ACCOUNT_PASSWORD=$(aws ssm get-parameter --region us-east-2 \
   --name /aiafa/lab/LAB_ACCOUNT_PASSWORD --with-decryption --query Parameter.Value --output text)
 bash ../smoke.sh
 ```
