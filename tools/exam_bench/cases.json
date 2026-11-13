@@ -1,0 +1,101 @@
+[
+  {
+    "id": "tap-hop-6",
+    "grade": "6",
+    "count": 5,
+    "source": "Kết nối tri thức Lớp 6 tập 1, Bài 1 Tập hợp, trang 5",
+    "ask": "Soạn giúp mình 5 câu trắc nghiệm về tập hợp và phần tử của tập hợp cho học sinh lớp 6",
+    "gold": [
+      "Nhận biết tập hợp và các phần tử của nó.",
+      "Mô tả một tập hợp (cho một tập hợp).",
+      "Sử dụng kí hiệu và cách diễn đạt toán học nhờ tập hợp."
+    ]
+  },
+  {
+    "id": "luy-thua-6",
+    "grade": "6",
+    "count": 6,
+    "source": "Kết nối tri thức Lớp 6 tập 1, Bài 6 Luỹ thừa với số mũ tự nhiên, trang 22",
+    "ask": "Lớp 6 của mình đang học luỹ thừa với số mũ tự nhiên, bạn ra đề 6 câu nhé",
+    "gold": [
+      "Thực hiện phép tính nâng lên luỹ thừa với số mũ tự nhiên.",
+      "Nhân, chia hai luỹ thừa cùng cơ số với số mũ tự nhiên.",
+      "Giải quyết được những vấn đề thực tiễn gắn với thực hiện phép tính luỹ thừa với số mũ tự nhiên."
+    ]
+  },
+  {
+    "id": "hang-dang-thuc-8",
+    "grade": "8",
+    "count": 8,
+    "source": "Kết nối tri thức Lớp 8 tập 1, Bài 6 Hiệu hai bình phương. Bình phương của một tổng hay một hiệu (trang 29) và Bài 7 Lập phương của một tổng hay một hiệu (trang 34)",
+    "ask": "Cần một đề 8 câu cho lớp 8 gồm hiệu hai bình phương, bình phương và lập phương của một tổng, một hiệu",
+    "gold": [
+      "Nhận biết hằng đẳng thức.",
+      "Mô tả hằng đẳng thức hiệu hai bình phương, bình phương của một tổng, bình phương của một hiệu.",
+      "Vận dụng ba hằng đẳng thức hiệu hai bình phương, bình phương của một tổng, bình phương của một hiệu để tính nhanh, rút gọn biểu thức.",
+      "Mô tả hằng đẳng thức lập phương của một tổng và lập phương của một hiệu.",
+      "Vận dụng hai hằng đẳng thức lập phương của một tổng, lập phương của một hiệu để khai triển, rút gọn biểu thức."
+    ]
+  },
+  {
+    "id": "menh-de-10",
+    "grade": "10",
+    "count": 6,
+    "source": "Kết nối tri thức Lớp 10 tập 1, Bài 1 Mệnh đề, trang 5",
+    "ask": "Bạn ra giúp 6 câu kiểm tra bài mệnh đề cho lớp 10",
+    "gold": [
+      "Thiết lập và phát biểu mệnh đề phủ định, mệnh đề đảo, mệnh đề kéo theo, mệnh đề tương đương.",
+      "Thiết lập và phát biểu các mệnh đề có chứa kí hiệu ∀, ∃.",
+      "Xác định tính đúng sai của một mệnh đề trong những trường hợp đơn giản."
+    ]
+  },
+  {
+    "id": "bat-phuong-trinh-hai-an-10",
+    "grade": "10",
+    "count": 5,
+    "source": "Kết nối tri thức Lớp 10 tập 1, Bài 3 Bất phương trình bậc nhất hai ẩn, trang 22",
+    "ask": "Làm cho mình đề 5 câu về bất phương trình bậc nhất hai ẩn, khối 10",
+    "gold": [
+      "Nhận biết bất phương trình bậc nhất hai ẩn.",
+      "Biết biểu diễn miền nghiệm của bất phương trình bậc nhất hai ẩn trên mặt phẳng toạ độ.",
+      "Vận dụng kiến thức về bất phương trình bậc nhất hai ẩn vào giải quyết bài toán thực tiễn."
+    ]
+  },
+  {
+    "id": "tong-hieu-vecto-10",
+    "grade": "10",
+    "count": 6,
+    "source": "Kết nối tri thức Lớp 10 tập 1, Bài 8 Tổng và hiệu của hai vectơ, trang 51",
+    "ask": "Đề 6 câu phần tổng và hiệu của hai vectơ cho các em lớp 10",
+    "gold": [
+      "Thực hiện các phép toán cộng, trừ vectơ.",
+      "Mô tả trung điểm của đoạn thẳng, trọng tâm của tam giác bằng vectơ.",
+      "Vận dụng vectơ trong bài toán tổng hợp lực, tổng hợp vận tốc."
+    ]
+  },
+  {
+    "id": "so-dac-trung-trung-tam-10",
+    "grade": "10",
+    "count": 7,
+    "source": "Kết nối tri thức Lớp 10 tập 1, Bài 13 Các số đặc trưng đo xu thế trung tâm, trang 78",
+    "ask": "Mình muốn kiểm tra 7 câu về số trung bình, trung vị, tứ phân vị và mốt, lớp 10",
+    "gold": [
+      "Lựa chọn và tính các số đặc trưng đo xu thế trung tâm của một mẫu số liệu: số trung bình, trung vị, tứ phân vị, mốt.",
+      "Giải thích ý nghĩa, vai trò của các số đặc trưng trong mẫu số liệu thực tiễn.",
+      "Rút ra kết luận từ ý nghĩa của các số đặc trưng đo xu thế trung tâm."
+    ]
+  },
+  {
+    "id": "don-dieu-cuc-tri-12",
+    "grade": "12",
+    "count": 10,
+    "source": "Kết nối tri thức Lớp 12 tập 1, Bài 1 Tính đơn điệu và cực trị của hàm số, trang 5",
+    "ask": "Soạn 10 câu về tính đơn điệu và cực trị của hàm số cho lớp 12",
+    "gold": [
+      "Nhận biết tính đồng biến, nghịch biến của một hàm số trên một khoảng dựa vào dấu đạo hàm cấp một của nó.",
+      "Thể hiện tính đồng biến, nghịch biến của hàm số trong bảng biến thiên.",
+      "Nhận biết tính đơn điệu của hàm số thông qua bảng biến thiên hoặc thông qua hình ảnh hình học của đồ thị hàm số.",
+      "Nhận biết điểm cực trị, giá trị cực trị của hàm số thông qua bảng biến thiên hoặc thông qua hình ảnh hình học của đồ thị hàm số."
+    ]
+  }
+]

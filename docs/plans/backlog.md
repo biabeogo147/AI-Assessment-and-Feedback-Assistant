@@ -1042,6 +1042,21 @@ Hai lượt review của plan `tier-1` (pha 1 BE/AGENT/deploy, pha 2 FE/Figma).
 | **KaTeX dựng công thức ở 1,21em** cạnh chữ 13px ở mọi bảng, nhãn | Nhẹ: quy ước chung của app, quyết ở mức toàn app nếu đổi |
 | **Bộ cài aws CLI trong `bootstrap.sh` không kiểm chữ ký GPG** như tài liệu AWS gợi ý | Nhẹ: thêm bước kiểm chữ ký nếu lab ra ngoài phạm vi thử nghiệm |
 
+## Lộ ra khi làm bench chất lượng ra đề (12/11/2026)
+
+Pilot 8 ca của `tools/exam_bench` (plan `exam-quality-bench`, `data/results/run-130`), kết quả và cách
+đo ở `docs/overview/grading-design.md`.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Khoá sai nghiêng về đề agent**: panel giải mù ra khác khoá ở 17/106 câu `agent` (16%), 3/53 câu `naive` (6%); cùng chiều ở 6/7 ca không hoà, Fisher p ≈ 0,08, `naive` một lượt, 9/17 câu từ hai ca -- chưa khẳng định được. Đọc tay 14/17 câu: panel đúng cả 14. Dấu hiệu: ở 16/17 câu ấy, lời giải (`methods`) của chính job đã mâu thuẫn với khoá (*"kết quả là 15"*, *"cần đối chiếu lại"*); ở `naive` 1/3 | Tier 2 câu 3 (*kiểm đáp án bằng máy*) nay có số đo. Hướng rẻ nhất để thử: phép kiểm lúc harvest so kết luận của `methods` với khoá (regex thô cũng khớp 12/89 câu khoá đúng -- cần chặt hơn), hay bắt job viết lời giải trước khi chọn khoá. Đo lại bằng `exam_bench` với ≥ 2 lượt `naive` |
+| **Câu nhiều đáp án đúng** (10 câu `agent`, 3 `naive`): hai phương án khác nhau mà cùng đúng (cả $(-\infty;1)$ và $(3;+\infty)$ đều là khoảng đồng biến). Danh mục lỗi nặng của bench không có mã cho trường hợp này, nên rater dồn vào *hai phương án tương đương* (32 phiếu `agent`, 10 `naive`); đọc tay 11 câu đa số gắn mã ấy, chỉ 3 câu tương đương thật | Tier 4: luật prompt soạn câu *mỗi phương án nhiễu phải sai với mọi cách hiểu đề*; bench thêm mã *nhieu-dap-an-dung* (đổi `PROMPT_VERSION`, chấm lại -- tốn tiền, xin phép) |
+| **Lượt dàn ý để trống `subject`/`grade`/`topic_scope` ở 13/16 đề**: bench lấp từ ca; BE lấp từ dàn ý trước, đoạn chat mới thì không có gì để lấp | Cùng gốc Tier 2 câu 24 (*dàn ý lưu brief rỗng*); nay có số đo |
+| **Kriky hỏi lại dù câu xin đủ mục**: 3/16 đề (khối, hay môn); chạy khói *"mệnh đề toán 10"* không đọc *toán 10* là lớp 10 | Tier 4 dòng *Hỏi lại* |
+| **Độ dao động giữa hai lượt của cùng một ca lớn** (`don-dieu-cuc-tri-12` 3 và 7 câu dùng được) | Trước khi so hai phiên bản prompt bằng bench: ≥ 3 lượt mỗi ca, thêm ca, và khoảng tin cậy bootstrap theo đề |
+| **Cặp rater Sonnet 5.5 – Opus 4.8 lệch ở *lỗi nặng*** (κ 0,33; AC1 cả panel 0,78) | Nhẹ: thêm ví dụ ngắn cho từng loại lỗi trong prompt chấm, đổi `PROMPT_VERSION`, chấm lại từ đề đã sinh |
+| **Bench chưa có ca đính kèm tài liệu, chưa có ablation *bỏ dàn ý***, và không đếm token Haiku của nhánh `agent` | Ca tài liệu cần đường `read_section` không qua Mongo; ablation dùng nhánh brief không mục của `draft_brief` |
+
 ## Lộ ra khi làm plan dàn ý Markdown, agent chia việc (13/11/2026)
 
 Plan `markdown-outline-agent-split` (ADR-38): dàn ý chỉ là lời Markdown kèm số câu; Kriky tự chia

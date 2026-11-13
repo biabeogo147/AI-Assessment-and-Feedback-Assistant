@@ -28,13 +28,12 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `docs/overview/use-case-specification.md` | UC-01 to UC-06 |
 | `docs/overview/architecture.md` | Services, communication, boundaries, service naming |
 | `docs/overview/data-model.md` | The database schema and why it is shaped that way |
+| `docs/overview/grading-design.md` | How the quality of model-written content is measured: the exam bench, its panel, rubric and results |
 | `docs/diagrams/*.drawio` | Every diagram, as source of truth |
 | `docs/report/` | The course report, and the figures exported from `docs/diagrams/` |
 | `docs/decisions/` | Records business rules. They outlive every plan |
 | `docs/plans/` | Plans, their technical decision records, and `backlog.md` for deferred work |
 | `docs/raw-idea/` | Historical input only. Never cite as current truth |
-
-Reserved: `docs/overview/grading-design.md` for prompts, model choice, evaluation. Not written yet.
 
 ## Invariants That Must Not Break
 

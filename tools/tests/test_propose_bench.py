@@ -188,6 +188,11 @@ def _measured_sentences() -> list[str]:
     said += [case["text"] for case in cases["name"]]
     routing = json.loads((_TOOLS / "skill_bench" / "cases.json").read_text(encoding="utf-8"))
     said += [row[1] for case in routing for row in case["history"] if row[0] == "teacher"]
+    # Câu giáo viên của bench chất lượng ra đề (plan `exam-quality-bench`).
+    from exam_bench.run import answer_back
+
+    exam = json.loads((_TOOLS / "exam_bench" / "cases.json").read_text(encoding="utf-8"))
+    said += [case["ask"] for case in exam] + [answer_back(case) for case in exam]
     return sorted({one.casefold() for one in said if len(one) > 12})
 
 
