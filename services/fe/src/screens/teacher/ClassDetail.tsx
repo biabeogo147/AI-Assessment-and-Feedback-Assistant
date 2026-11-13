@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { moment, teacher, type RosterAccount, type StudentRow } from "../../api";
+import { ApiError, moment, teacher, type RosterAccount, type StudentRow } from "../../api";
 import { go } from "../../App";
 import { BoardHead, BoardWaiting, classLabel, NONE, useBoard } from "./Board";
 import Roster, { Passwords } from "./Roster";
@@ -64,13 +64,21 @@ export default function ClassDetail({ classId }: { classId: string }) {
       .finally(() => setResetting(null));
   }
 
-  /** Xoá lớp rỗng này. Bị từ chối thì hộp ở lại kèm lý do, và màn đọc lại lớp. */
+  /**
+   * Xoá lớp rỗng này. Bị từ chối thì hộp ở lại kèm lý do, và màn đọc lại lớp. Lớp đã không còn (xoá ở
+   * tab khác: 404) thì việc giáo viên muốn đã xong -- về màn 9, không vẽ tiếp một lớp không còn (Tier
+   * 1, 12/11/2026).
+   */
   async function eraseClass() {
     setEraseRefused("");
     setEraseBusy(true);
     try {
       await teacher.eraseClass(classId);
     } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 404) {
+        go("/teacher/lop");
+        return;
+      }
       setEraseRefused((cause as Error).message);
       setEraseBusy(false);
       reread();

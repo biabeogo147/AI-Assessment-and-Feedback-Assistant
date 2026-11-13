@@ -953,10 +953,10 @@ Plan `2026-10-27-tier-1-plan.md`. Biên bản: `docs/testing/ket-qua/2026-10-27-
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **Câu kết vẫn viết *đề "Đề mệnh đề"*** (thử tay T27, một mẫu): bước 6 mới bỏ được *Đề **Đề …*** và câu *"không còn câu nào đang soạn"*, nhưng model đặt chữ *đề* thường trước tên đã mở bằng *Đề*. **Thẻ đã đổi** 27/10/2026 (Tier 2 câu 38, plan `erase-empty-class`): *Đã tạo đề "Mệnh đề"*; `last_plan` và bước 6 nay đọc cùng cụm *đề "Mệnh đề"* | Tier 4: đo câu kết trên Haiku xem model chép cụm mới chưa |
-| **Không biết gạch chéo đôi của mục kiến thức sinh ra ở đâu**: Docker tắt lúc sửa nên không xem được đầu ra thô của job. Nếu model viết đôi ngay ở `knowledge` của dàn ý thì `DraftBrief.outline`, thẻ dàn ý và `item_knowledge` của câu làm lại cũng mang nó (`proposal.unmangled` chỉ dựng lại gạch chéo bị nuốt). Các hàng đã lưu trong `questions` và `bank_questions` không được sửa | Soi đầu ra thô của một job có lỗi; đếm hàng hỏng trong database rồi quyết có sửa dữ liệu không |
+| **Không biết gạch chéo đôi của mục kiến thức sinh ra ở đâu**: Docker tắt lúc sửa nên không xem được đầu ra thô của job. Nếu model viết đôi ngay ở `knowledge` của dàn ý thì `DraftBrief.outline`, thẻ dàn ý và `item_knowledge` của câu làm lại cũng mang nó (`proposal.unmangled` chỉ dựng lại gạch chéo bị nuốt). Các hàng đã lưu trong `questions` và `bank_questions` không được sửa | **Đã làm** 12/11/2026 (plan `tier-1`): soi 3 lượt Haiku, 0/20 chữ thô có `\\` (dàn ý nay viết `⇒` bằng chữ) -- không tái hiện, không đổi code. DB dev 2 hàng `questions`, 2 hàng `bank_questions` hỏng từ trước 27/10, đã sửa tay; seed lab không có |
 | **Lời hỏi lại của `Unparsed` cho lượt kể lại** liệt kê cả `plan`, mà lượt ấy không được nêu plan (review pha 2) | Nhẹ; chỉ sửa nếu bench thấy model nêu plan ở lượt kể lại |
-| **Tệp quá 2 MB nhận 413 của proxy, không qua FE kiểm trước**: FE không xem `file.size` trước khi tải | Nhẹ: lời 413 đã đúng tiếng Việt; một dòng kiểm ở `Roster` thì tiết kiệm một lần tải |
-| **Hộp 25b rộng 624px, Figma 622px** (chấm ảnh pha 3): có từ trước plan này | Đo lại padding của `.chat-read`, sửa code hay Figma |
+| **Tệp quá 2 MB nhận 413 của proxy, không qua FE kiểm trước**: FE không xem `file.size` trước khi tải | **Đã làm** 12/11/2026 (plan `tier-1`): `Roster` kiểm `file.size` lúc chọn tệp, cùng trần và cùng câu với BE; artboard 28e `830:5783` |
+| **Hộp 25b rộng 624px, Figma 622px** (chấm ảnh pha 3): có từ trước plan này | **Đã làm** 12/11/2026 (plan `tier-1`): bên lệch là Figma -- `699:5916` tính viền vào layout, khác khuôn `Solution dialog`; đặt `strokesIncludedInLayout=false`, nội dung 624 như code |
 
 ## Lộ ra khi làm plan Tier 2 mức M1–M2 (27/10/2026)
 
@@ -964,10 +964,10 @@ Plan `2026-10-27-tier-2-m1-m2-plan.md`. Ảnh: `docs/report/screenshot/27_10/tie
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Cột *Dạng sai nhiều nhất* của bảng lớp ở màn Bảng theo dõi in nguyên LaTeX** (`$\frac{a}{b} …$`, ảnh `04`): cột ấy không qua `MathText` | Một dòng FE, cùng `flatFractions` như biểu đồ; ảnh + so Figma |
-| **Thẻ kết quả trong code đệm 15px, Figma set `10:63` đệm 24px** (`teacher.css:1586`, chấm ảnh plan này): có từ trước | Đo instance thẻ trên artboard chat của *Screen — Teacher*, rồi sửa code hay Figma |
+| **Cột *Dạng sai nhiều nhất* của bảng lớp ở màn Bảng theo dõi in nguyên LaTeX** (`$\frac{a}{b} …$`, ảnh `04`): cột ấy không qua `MathText` | **Đã làm** 12/11/2026 (plan `tier-1`): qua `MathText` + `flatFractions`, một dòng cắt `…`, `title` giữ chữ gốc |
+| **Thẻ kết quả trong code đệm 15px, Figma set `10:63` đệm 24px** (`teacher.css:1586`, chấm ảnh plan này): có từ trước | **Đã làm** 12/11/2026 (plan `tier-1`): instance trên màn đều đệm 16 như code; main `10:63` về 16, `10:45` vẽ lại theo `795:7` (chip) |
 | **Variant `đã-phát-hành` (`10:45`) vẽ câu an toàn thành dòng thứ hai**, code vẽ chip trên hàng đầu đề (đã ghi ở `teacher-surface.md`). `795:7` mới đã theo code; `10:45` chưa | Vẽ lại `10:45` theo `795:7` |
-| **Thẻ phát hành hỏng không có `entity_id`**, nên đề bị xoá sau đó thì thẻ vẫn bấm được vào một đề không còn | Nhẹ: `_note_publication` ghi `entity_*` từ `assessment_id` cả khi hỏng, hay FE đọc `titles` theo `assessment_id` |
+| **Thẻ phát hành hỏng không có `entity_id`**, nên đề bị xoá sau đó thì thẻ vẫn bấm được vào một đề không còn | **Đã làm** 12/11/2026 (plan `tier-1`): `_note_publication` ghi `found: true`, lượt hỏng có `entity_id` của đề |
 | **Chữ toán trong nhãn biểu đồ cỡ ~13px** trong dòng chữ 11px: KaTeX mặc định 1.21em, CSS không chỉnh | Nhẹ: `.objective .katex { font-size: 1em }` nếu cần; so Figma (`666:5690` chưa có nhãn toán) |
 | **Mock `_telling` của AGENT** (`handlers.py`) ghép mọi `tool_result` sau plan, kể cả `teacher.*`: một lần phát hành ở panel giữa lúc plan chạy đọc thành một bước hỏng | Chỉ ở mock (không key model); đã đúng như thế với lần phát hành thành công |
 
@@ -979,7 +979,7 @@ Plan `2026-10-27-tao-lop-plan.md`. Biên bản: `docs/testing/ket-qua/2026-10-27
 | --- | --- |
 | **Chưa có đổi tên lớp**: xoá lớp **rỗng** đã làm 27/10/2026 (plan `erase-empty-class`); lớp có học sinh vẫn không xoá được | Đổi tên lớp chưa ai xin; nhẹ |
 | **Hai lần tạo cùng tên chạy cùng lúc trên SQLite** vẫn cùng qua phép kiểm trùng: `with_for_update` chỉ xếp hàng trên Postgres. FE đã khoá nút khi đang gửi | Nhẹ: dev chạy Postgres; unique index trên tên đã chuẩn hoá cần cột mới và migration |
-| **Câu hỏi tên lớp không có nút**: `tao-lop-chua-ten` hỏi lại model cả 3 lần vì `FewChoices` đòi ba nút, lần hai vẫn không nút | Cho `choices_wanted` trả 0 khi câu hỏi là tên tự do, hay chấp nhận một lần hỏi lại; đo bench |
+| **Câu hỏi tên lớp không có nút**: `tao-lop-chua-ten` hỏi lại model cả 3 lần vì `FewChoices` đòi ba nút, lần hai vẫn không nút | **Đã làm** 12/11/2026 (plan `tier-1`): `choices_wanted` trả 0 cho câu xin tên lớp mới (`asks_a_new_name`); bench `run-123` 6/6, không lần nào hỏi lại |
 | **Kriky đọc lại lời dặn của skill thành câu nói** (*"Mình cũng không đổi tên lớp để tạo bản sao"*, thử tay T27) | Tier 4: chữ bước 6 của `lop-va-ket-qua` |
 | **Khối bước *thất bại* lệch Figma `83:75`** (chấm ảnh plan `tao-lop`, có từ trước): *Dừng ở bước 1* nhạt vì `button:disabled` làm mờ .5; viền khối vẫn `--line`, Figma `answer/incorrect`; tiêu đề bước hỏng chữ thường `ink-muted`, Figma SemiBold `ink` | Ba dòng CSS (`.steps-head:disabled { opacity: 1 }`, `.steps-block.broken`, `.step.failed .title`); ảnh + so Figma |
 | **`chung-phat-hanh` nạp thêm `lop-va-ket-qua`** ở 0,32 (skill_bench `run-118`, ngưỡng 0,3): mô tả mới có *create a class* | Nhẹ: chỉ thêm chữ vào prompt; đo lại nếu ca thật lạc việc |
@@ -990,9 +990,9 @@ Plan `2026-10-27-erase-empty-class-plan.md`.
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **Một học sinh được thêm vào lớp đúng lúc lớp đang bị xoá** thì lần xoá vấp khoá ngoại và trả 500, không phải 409: phép kiểm và lần xoá cùng giao dịch, nhưng đường thêm học sinh không khoá hàng lớp | Nhẹ: hai tab cùng giáo viên, cùng giây; khoá hàng lớp ở đường roster nếu thấy thật |
+| **Một học sinh được thêm vào lớp đúng lúc lớp đang bị xoá** thì lần xoá vấp khoá ngoại và trả 500, không phải 409: phép kiểm và lần xoá cùng giao dịch, nhưng đường thêm học sinh không khoá hàng lớp | **Đã làm** 12/11/2026 (plan `tier-1`): trên Postgres `FOR UPDATE` của lần xoá chặn cuộc đua, nên lượt **thêm** mới vấp: `roster.create` trả 404 khi lớp không còn, phát hành trả 409; lần xoá giữ lưới phòng thủ |
 | **Câu kết cũ trong đoạn chat vẫn ghi *đề "Đề mệnh đề"***: đó là chữ model đã viết và đã lưu, không dựng lại | Không sửa: chỉ lượt mới đọc cụm mới |
-| **Lớp đã bị xoá ở tab khác**: bấm *Xoá lớp* ở tab này nhận 404, hộp in câu ấy, và màn phía sau vẫn vẽ lớp không còn, không tự về màn 9 | Nhẹ: FE đọc mã 404 của lần xoá thì về màn 9 |
+| **Lớp đã bị xoá ở tab khác**: bấm *Xoá lớp* ở tab này nhận 404, hộp in câu ấy, và màn phía sau vẫn vẽ lớp không còn, không tự về màn 9 | **Đã làm** 12/11/2026 (plan `tier-1`): lần xoá nhận 404 thì FE về màn 9 |
 
 ## Lộ ra khi làm plan phiên bản lab (28/10/2026)
 
@@ -1002,7 +1002,7 @@ Plan `2026-10-28-lab-version-plan.md`.
 | --- | --- |
 | **CI deploy tự động khi đẩy tag `lab-*`**: nay người dùng tự push tag rồi chạy `deploy.sh <tag>` qua SSM | Cần một role OIDC từ GitHub Actions vào AWS (`ssm:SendCommand` lên đúng máy lab), và repo chưa có `.github/`. Chưa cần khi năm người deploy vài lần một tuần |
 | **Máy lab có thể chưa phải một bản clone dùng được** | **Không còn** (28/10/2026): `/opt/aiafa` là bản clone; `deploy.sh lab-2026.0.1` lấy được tag và `checkout --force` đè phần `git archive` cũ |
-| **Dựng lại image không qua `deploy.sh` thì FE mất tên bản**: `bootstrap.sh` chạy lại hay một lệnh `… up -d --build` tay dựng lại caddy với `chưa có phiên bản`, trong khi BE vẫn đọc `.env.version`; FE tự tải lại một lần rồi đứng lệch (review Pha 3) | `lib.sh` nạp `.env.version` và `export AIAFA_VERSION` khi có file -- `lib.sh` ngoài các file plan được sửa; nay `deploy-lab.md` dặn `source` file ấy trước khi dựng tay |
+| **Dựng lại image không qua `deploy.sh` thì FE mất tên bản**: `bootstrap.sh` chạy lại hay một lệnh `… up -d --build` tay dựng lại caddy với `chưa có phiên bản`, trong khi BE vẫn đọc `.env.version`; FE tự tải lại một lần rồi đứng lệch (review Pha 3) | **Đã làm** 12/11/2026 (plan `tier-1`): `lib.sh` nạp `.env.version` khi `AIAFA_VERSION` chưa đặt; lệnh `up --build` gõ tay vẫn phải `source` (đã dặn ở `deploy-lab.md`) |
 
 ## Lộ ra khi đổi văn xuôi thành sơ đồ trong báo cáo (31/10/2026)
 
@@ -1023,8 +1023,21 @@ Account lab mới nằm trong một AWS Organization mà SCP chỉ mở `us-east
 
 | Việc | Cái gì đang chặn |
 | --- | --- |
-| **`bootstrap.sh` cài aws CLI bằng snap, và snap store có lúc không vào được**: máy mới ở `us-east-2` timeout ở `api.snapcraft.io` trong khi GitHub, Docker Hub, PyPI vẫn vào được; bootstrap dừng ngay bước ấy. Lần này sửa tay trên máy (bộ cài zip chính thức của AWS vào `/usr/bin`) rồi chạy lại bootstrap | Đổi `bootstrap.sh` sang bộ cài zip, hoặc snap rồi lùi về zip. Cron backup chỉ có `/snap/bin:/usr/bin` trong `PATH`, nên đặt `aws` ở `/usr/bin` |
+| **`bootstrap.sh` cài aws CLI bằng snap, và snap store có lúc không vào được**: máy mới ở `us-east-2` timeout ở `api.snapcraft.io` trong khi GitHub, Docker Hub, PyPI vẫn vào được; bootstrap dừng ngay bước ấy. Lần này sửa tay trên máy (bộ cài zip chính thức của AWS vào `/usr/bin`) rồi chạy lại bootstrap | **Đã làm** 12/11/2026 (plan `tier-1`): bộ zip chính thức vào `/usr/bin`, kiểm `[[ -x /usr/bin/aws ]]`; thử thật trên máy lab |
 | **Hạn mức 16 vCPU dùng chung với dự án khác cùng account**: `apply` hỏng `VcpuLimitExceeded` khi tám máy của dự án khác đang chạy | Không có gì trong repo chặn được; trước `apply` xem `describe-instances` của account, hay xin nâng hạn mức `L-1216C47A` |
-| **Khoá model trong SSM dính `\r` thì mọi lượt Kriky hỏng** (*"Kriky chưa trả lời được lúc này"*): chép khoá bằng `aws … --output text \| read` trong Git Bash giữ CR của Windows; `render-env.sh` chép nguyên giá trị vào `.env` | `render-env.sh` cắt khoảng trắng và CR ở hai đầu mọi giá trị đọc từ SSM; `deploy-lab.md` dặn `tr -d '\r'` khi chép khoá |
-| **Log của `agent` in nguyên khoá API** khi header không hợp lệ: `httpcore` đưa giá trị header vào thông báo lỗi, và traceback ấy vào `docker compose logs` | Lọc chuỗi `sk-…` / `Bearer …` khỏi log của agent, hay bắt `APIConnectionError` và chỉ log loại lỗi |
-| **Kriky đoán `assessment_id` dù vừa có danh sách đề** (thử tay lab 11/11, `claude-haiku-5-5`): hỏi *"Lớp 12A3 câu nào sai nhiều nhất?"* thì gọi `list_class`, `list_assessment`, rồi `class_assessment_summary` hai lần đều *không tìm thấy*; hỏi lại kèm tên đề thì một bước ra đúng số | Cần xem tham số model đã truyền (log BE chỉ ghi tên tool); có thể do câu hỏi *câu nào sai nhiều nhất* chưa có tool theo từng câu |
+| **Khoá model trong SSM dính `\r` thì mọi lượt Kriky hỏng** (*"Kriky chưa trả lời được lúc này"*): chép khoá bằng `aws … --output text \| read` trong Git Bash giữ CR của Windows; `render-env.sh` chép nguyên giá trị vào `.env` | **Đã làm** 12/11/2026 (plan `tier-1`): `render-env.sh` cắt CR và khoảng trắng hai đầu; `deploy-lab.md` dặn `tr -d '\r'` |
+| **Log của `agent` in nguyên khoá API** khi header không hợp lệ: `httpcore` đưa giá trị header vào thông báo lỗi, và traceback ấy vào `docker compose logs` | **Đã làm** 12/11/2026 (plan `tier-1`): `agent/redact.py` che theo giá trị khoá và theo hình dạng, phủ cả handler arq gắn lúc `dictConfig` (gắn lại trong `startup`) |
+| **Kriky đoán `assessment_id` dù vừa có danh sách đề** (thử tay lab 11/11, `claude-haiku-5-5`): hỏi *"Lớp 12A3 câu nào sai nhiều nhất?"* thì gọi `list_class`, `list_assessment`, rồi `class_assessment_summary` hai lần đều *không tìm thấy*; hỏi lại kèm tên đề thì một bước ra đúng số | **Chuyển Tier 3 (P2)** 12/11/2026 (plan `tier-1`): ca bench `ket-qua-hai-de` 0/3 (`run-122`) -- lớp có hai đề mà giáo viên chưa nói đề nào thì model gọi `class_assessment_summary` **thiếu** `assessment_id`. Sửa đúng cần `list_assessment` trả `candidates` để BE dựng nút đề (ADR-23), và một tool thống kê theo từng câu. Ca ấy là ca đỏ thường trực cho tới khi làm |
+
+## Lộ ra khi làm plan Tier 1 (12/11/2026)
+
+Hai lượt review của plan `tier-1` (pha 1 BE/AGENT/deploy, pha 2 FE/Figma).
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Hộp *Thêm học sinh* khi lớp đã bị xoá ở tab khác**: `POST …/roster` nay trả 404 *"Không tìm thấy lớp này…"*, hộp in câu ấy rồi giữ giáo viên lại trong hộp và màn của một lớp không còn | Nhẹ, M1: `Roster` đọc 404 thì đóng hộp và về màn 9, như nút *Xoá lớp* |
+| **Chip câu an toàn của thẻ phát hành một phần có thể đẩy đầu đề về 0**: `.action-card .safety` là `flex: none`, không `max-width`; chip dài (*"… · Chưa nhận: 12B: lớp này đang làm đề…"*) ép `.what` co hết và có thể tràn thẻ. Figma `795:7` và `76:23` vẽ ngược (đầu đề ôm chữ, chip giãn gói ba dòng), `10:45` vẽ như code | Nhẹ, M1: chụp trình duyệt một ca phát hành một phần, chốt mẫu nào đúng rồi sửa bên lệch |
+| **`document` giữ khoá model (OpenAI, Jev) mà log không che**: cùng `httpcore` như `agent`, nên khoá dính `\r` cũng in ra traceback | Nhẹ, M1: phép che như `agent/redact.py` (service không import nhau và `contracts` không chở logic, nên chép module) |
+| **Thẻ phát hành hỏng của một đề sau đó bị xoá in *"Đề trống này đã xoá"*** dưới đầu đề *"Chưa phát hành được đề"*: lượt hỏng nay có `entity_id`, nên được đánh `entity_gone`; câu an toàn ấy viết cho variant *tạo đề trống* | Nhẹ: một câu riêng cho `gone && unpublished` (cần Figma) |
+| **KaTeX dựng công thức ở 1,21em** cạnh chữ 13px ở mọi bảng, nhãn | Nhẹ: quy ước chung của app, quyết ở mức toàn app nếu đổi |
+| **Bộ cài aws CLI trong `bootstrap.sh` không kiểm chữ ký GPG** như tài liệu AWS gợi ý | Nhẹ: thêm bước kiểm chữ ký nếu lab ra ngoài phạm vi thử nghiệm |

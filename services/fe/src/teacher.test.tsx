@@ -7105,8 +7105,11 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
     expect(window.location.hash).toBe("");
   });
 
-  /** Lớp rỗng `c12c`; `refuse` là câu BE từ chối lần xoá (lớp vừa có học sinh ở tab khác). */
-  function emptyClass(refuse = "") {
+  /**
+   * Lớp rỗng `c12c`; `refuse` là câu BE từ chối lần xoá (lớp vừa có học sinh ở tab khác), `status`
+   * là mã của lời từ chối ấy.
+   */
+  function emptyClass(refuse = "", status = 409) {
     const calls: { url: string; method: string }[] = [];
     vi.stubGlobal(
       "fetch",
@@ -7117,7 +7120,7 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
           return Promise.resolve(
             refuse === ""
               ? { ok: true, status: 204, json: () => Promise.resolve(null) }
-              : { ok: false, status: 409, json: () => Promise.resolve({ detail: refuse }) },
+              : { ok: false, status, json: () => Promise.resolve({ detail: refuse }) },
           );
         }
         const body = {
@@ -7192,6 +7195,17 @@ describe("các màn của rail (việc 18, plan `teacher-rail-screens`)", () => 
     expect(within(dialog).queryByText(/chưa có học sinh và chưa nhận đề/)).toBeNull();
     expect(window.location.hash).toBe("#/teacher/lop/c12c");
     await waitFor(() => expect(calls.filter((one) => one.method === "GET").length).toBe(2));
+  });
+
+  it("lớp đã bị xoá ở tab khác: lần xoá nhận 404 thì về màn 9 (Tier 1, 12/11/2026)", async () => {
+    emptyClass("Không tìm thấy lớp này trong danh sách của bạn.", 404);
+    window.location.hash = "#/teacher/lop/c12c";
+    render(<ClassDetail classId="c12c" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Xoá lớp" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Xoá lớp" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/teacher/lop"));
   });
 
   it("route của màn rail đi qua hash: App vẽ đúng màn, panel ngân hàng ở cột phải", async () => {
@@ -7969,6 +7983,20 @@ describe("Bảng theo dõi (việc 19, 21, plan `dashboard-review-queue`)", () =
     expect(stat.textContent).toContain("10,0");
     fireEvent.click(stat);
     expect(window.location.hash).toBe("#/teacher/lop/c1");
+  });
+
+  it("cột Dạng sai nhiều nhất dựng công thức như nhãn biểu đồ, không in LaTeX (Tier 1, 12/11/2026)", async () => {
+    const weakest = String.raw`Cộng phân số $\frac{a}{b} + \frac{c}{d}$ (40% bài sai)`;
+    serving({
+      "/teacher/board": { ...BOARD, classes: [{ ...BOARD.classes[0], weakest }] },
+    });
+    const { container } = render(<Dashboard />);
+
+    await screen.findByText("2 việc cần bạn xem · 1 lớp có đề đã hết hạn chữa");
+    const cell = container.querySelector(".board-table.class-stats .board-row:not(.head) .cell-muted");
+    expect(cell?.querySelector(".katex")).not.toBeNull();
+    expect(cell?.textContent).not.toContain(String.raw`\frac`);
+    expect(cell?.getAttribute("title")).toBe(weakest);
   });
 
   it("hàng đợi rỗng là tin tốt, không vẽ như lỗi; chưa đề nào hết hạn thì không có biểu đồ", async () => {

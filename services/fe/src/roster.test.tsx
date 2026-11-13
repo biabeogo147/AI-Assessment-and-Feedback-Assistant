@@ -270,6 +270,28 @@ describe("thêm học sinh: ba bước (28, 28b, 28c)", () => {
     expect(screen.getByRole("heading", { name: "Thêm học sinh vào lớp 12A" })).toBeTruthy();
   });
 
+  it("tệp quá 1 MB bị từ chối ngay, không tải lên (Tier 1, 12/11/2026)", async () => {
+    const sent = backend();
+    await open();
+    fireEvent.click(screen.getByRole("radio", { name: "Tải tệp .csv / .xlsx" }));
+    const input = document.querySelector(".roster-file input[type=file]") as HTMLInputElement;
+    const big = new File(["a"], "lop-to.csv");
+    Object.defineProperty(big, "size", { value: 1_000_001 });
+    fireEvent.change(input, { target: { files: [big] } });
+
+    expect(screen.getByRole("alert").textContent).toBe("Tệp danh sách lớn hơn 1 MB.");
+    expect(screen.getByText("Chưa chọn tệp nào · tối đa 1 MB")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Xem trước" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(sent.some((one) => one.url.endsWith("/preview-file"))).toBe(false);
+
+    // Tệp vừa trần thì nhận.
+    const fits = new File(["a"], "lop.csv");
+    Object.defineProperty(fits, "size", { value: 1_000_000 });
+    fireEvent.change(input, { target: { files: [fits] } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("lop.csv")).toBeTruthy();
+  });
+
   it("xác nhận dòng trùng thì gửi confirmed: true và tạo cả hai em", async () => {
     const sent = backend();
     await open();

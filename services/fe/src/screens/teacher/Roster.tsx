@@ -5,6 +5,9 @@ import { useInert } from "./Veil";
 
 type Via = "type" | "file";
 
+// Trần cỡ tệp danh sách, đúng `roster.MOST_FILE_BYTES` của BE (1 MB thập phân).
+const MOST_FILE_BYTES = 1_000_000;
+
 /**
  * *Thêm học sinh* của màn 10 (việc 22, plan `sign-in-and-accounts`): ba bước trong một hộp 760.
  *
@@ -238,9 +241,18 @@ export default function Roster({
                 // Huỷ hộp chọn tệp thì giữ tệp đã chọn; chọn lại đúng tệp ấy (vừa sửa xong) vẫn phải
                 // chạy `onChange`, nên ô được xoá sau mỗi lần chọn (review pha 4).
                 const chosen = event.target.files?.[0];
-                if (chosen) setFile(chosen);
                 event.target.value = "";
                 setRefused(null);
+                if (!chosen) return;
+                // Trình duyệt biết cỡ tệp ngay từ `file.size`: tệp quá trần thì nói ngay, không tải
+                // lên rồi mới nhận 413 (Tier 1, 12/11/2026). Cùng số và cùng lời với
+                // `roster.MOST_FILE_BYTES` của BE; BE vẫn là chỗ thi hành.
+                if (chosen.size > MOST_FILE_BYTES) {
+                  setFile(null);
+                  setRefused("Tệp danh sách lớn hơn 1 MB.");
+                  return;
+                }
+                setFile(chosen);
               }}
             />
             <button

@@ -957,8 +957,8 @@ qua CDP chép từ Figma:
 
 Việc 22 (plan `sign-in-and-accounts`, [ADR-36](../decisions/adr-36-dang-nhap-va-tai-khoan.md)).
 Artboard **26** `659:5160`, **26b** `659:5311`, **26c** `709:5249`, **27** `659:5460`, **28**
-`660:5367`, **28b** `660:5512`, **28c** `660:5677`, **28d** `711:5287`, **10** `183:874`, **10b**
-`707:5377`.
+`660:5367`, **28b** `660:5512`, **28c** `660:5677`, **28d** `711:5287`, **28e** `830:5783`, **10**
+`183:874`, **10b** `707:5377`.
 
 - **Chưa đăng nhập thì chỉ có hộp đăng nhập.** Màn mở đầu đứng sau màn che, hộp không đóng được và
   không lời gọi nào đi ra. Rail còn nút và bốn đích đến, thay hai ngăn bằng một dòng nhắc; góc dưới
@@ -970,7 +970,8 @@ Artboard **26** `659:5160`, **26b** `659:5311`, **26c** `709:5249`, **27** `659:
   kênh thư viện, phủ hộp đăng nhập lên màn đang đứng. Đăng nhập lại đúng người thì làm tiếp. Người khác
   vào thì màn dựng lại ở màn mở đầu.
 - **Hộp thêm học sinh rộng 760, ba bước, không đóng bằng `Esc`.**
-  - Bước 1 nhập: gõ tên, mỗi dòng một em, hay tải `.csv` / `.xlsx` (vùng viền đứt, 28d).
+  - Bước 1 nhập: gõ tên, mỗi dòng một em, hay tải `.csv` / `.xlsx` (vùng viền đứt, 28d). Tệp quá
+    1 MB bị từ chối ngay khi chọn, không tải lên: câu đỏ cạnh hàng nút, *Xem trước* khoá (28e).
   - Bước 2 xem trước: cột *Xác nhận* chỉ bật ở dòng *Trùng tên trong lớp*. Rê chuột hay focus vào ô thì
     hiện *"Xác nhận thêm học sinh"*. Hàng nút ghi *Sẽ tạo N tài khoản · M học sinh cần xác nhận*.
   - Bước 3 mật khẩu, kèm *Xuất file Excel (.xlsx)*.

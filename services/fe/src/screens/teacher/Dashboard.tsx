@@ -168,7 +168,11 @@ export default function Dashboard() {
               <span className="num">{one.mean === null ? NONE : vn(one.mean, true)}</span>
               <span className="num">{one.highest === null ? NONE : vn(one.highest, true)}</span>
               <span className="num">{one.lowest === null ? NONE : vn(one.lowest, true)}</span>
-              <span className="cell-muted">{one.weakest || NONE}</span>
+              {/* Mục kiến thức là chữ model viết, có công thức: dựng như nhãn biểu đồ phía trên,
+                  không in nguyên LaTeX (Tier 1, 12/11/2026). `title` giữ chữ gốc. */}
+              <span className="cell-muted weakest" title={one.weakest || undefined}>
+                {one.weakest ? <MathText>{flatFractions(one.weakest)}</MathText> : NONE}
+              </span>
               <span className="chevron" aria-hidden="true">
                 ›
               </span>

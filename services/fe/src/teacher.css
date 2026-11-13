@@ -3974,6 +3974,16 @@
   line-height: 1.5;
 }
 
+/* *Dạng sai nhiều nhất*: một dòng, cắt `…` như ô Figma và như nhãn biểu đồ phía trên -- công thức
+ * dựng bằng KaTeX từng bẻ giữa `P ⇒` / `Q` và đẩy hàng lên 53px (review pha 2, plan `tier-1`).
+ * `title` của ô giữ chữ gốc. */
+.teacher .board-table.class-stats .weakest {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Hai biểu đồ cạnh nhau, khe 24 (`charts` `666:5644`). */
 .teacher .board-charts {
   display: grid;
