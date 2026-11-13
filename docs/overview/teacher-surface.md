@@ -140,6 +140,21 @@ thu gọn được nhưng không bao giờ mất."* Giáo viên đứng trước
 | `đã xong — mở` (`83:74`) | Người dùng bấm chevron | Mở lại đầy đủ các bước | Được |
 | `thất bại` (`83:75`) | Lượt dừng vì một bước hỏng | Mở sẵn. Header `Dừng ở bước {k}` — **không** nhắc lại lý do, vì lý do đã nằm ở dòng của chính bước hỏng; bước ấy đánh `✕` | **Không.** Thu một lỗi lại là giấu lỗi |
 
+```mermaid
+stateDiagram-v2
+    [*] --> dangChay: lượt bắt đầu
+    dangChay: đang chạy (mở, bước k/n)
+    daXong: đã xong (thu, Đã làm n bước)
+    daXongMo: đã xong — mở
+    thatBai: thất bại (mở, Dừng ở bước k)
+    dangChay --> daXong: lượt thành công, đọc lại từ database
+    dangChay --> thatBai: một bước của plan hỏng
+    dangChay --> dangChay: bấm chevron (thu, mở)
+    daXong --> daXongMo: bấm chevron
+    daXongMo --> daXong: bấm chevron
+    note right of thatBai: không thu được — thu một lỗi lại là giấu lỗi
+```
+
 Một bước gồm ba phần: **dấu** (`✓` xong, `○` đang chạy, `✕` hỏng), **tiêu đề việc**, và tuỳ chọn một
 **dòng kết quả** mở đầu bằng `— `. Dòng kết quả là chữ của BE; FE in nguyên văn, không viết lại.
 
@@ -193,6 +208,20 @@ lên thẻ ở nấc `drafted`.
 đợt xử lí, không được phép xuất hiện hai lần liên tiếp. Trên đó chỉ hiện ba trạng thái: đã tạo đề →
 đã duyệt đề → đã phát hành. Nếu chọn bỏ duyệt đề thì quay lại 'đã tạo đề'."* Cộng một nấc cho việc
 **không** xảy ra, là bốn.
+
+```mermaid
+stateDiagram-v2
+    drafted: drafted — Đã tạo đề
+    approved: approved — Đã duyệt đề
+    published: published — Đã phát hành
+    failed: failed — Không tạo được đề / Chưa phát hành được đề
+    [*] --> drafted
+    drafted --> approved: duyệt
+    approved --> drafted: bỏ duyệt
+    approved --> published: phát hành
+    published --> drafted: hoàn tác (thu hồi mọi lớp, hạ hai nấc)
+    note right of failed: lời gọi tool nào bị từ chối cũng ra nấc này,<br/>thắng mọi nấc khác
+```
 
 | Nấc | Head | Variant Figma | Nút chính |
 | --- | --- | --- | --- |
@@ -890,6 +919,17 @@ Bốn đích đến của rail dẫn tới màn thật từ 18/10/2026 (plan `te
 trong lớp* (11, `205:1000`) → *Bài làm của một học sinh* (23, `656:4089`); *Các bài kiểm tra* (21,
 `655:4929`); *Ngân hàng câu hỏi* (22, `655:5226`) cùng panel sửa một câu (22b, `666:5816`). *Bảng theo
 dõi* (20) là việc 19.
+
+```mermaid
+flowchart LR
+    rail(["Rail"]) --> m9["9 · Danh sách lớp học"] --> m10["10 · Chi tiết lớp"]
+    m10 --> m11["11 · Kết quả bài kiểm tra<br/>trong lớp"] --> m23["23 · Bài làm của<br/>một học sinh"]
+    rail --> m21["21 · Các bài kiểm tra"]
+    m21 -- "Xem kết quả" --> m11
+    m21 -- "Mở đoạn chat" --> chat["Đoạn chat, panel đề"]
+    rail --> m22["22 · Ngân hàng câu hỏi"] --> m22b["22b · panel sửa một câu"]
+    rail --> m20["20 · Bảng theo dõi"]
+```
 
 - **Cùng một khung với đoạn chat.** Rail giữ nguyên; cột giữa vẽ màn ấy thay cho dòng hội thoại
   (`Chat` nhận `view`), không ô nhập. Panel 22b đứng đúng chỗ panel đề (`aside`).

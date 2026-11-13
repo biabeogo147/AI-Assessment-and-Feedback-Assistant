@@ -5,9 +5,11 @@ Mọi thứ nằm ở `deploy/lab/`; plan là `docs/plans/active/2026-10-20-lab-
 Chạy trên máy mình thì đọc [Local Development](../local-development.md). Bản đồ của mọi thành phần
 và lý do của chúng: [Kiến trúc lab](infrastructure.md).
 
-```text
-Internet ──443──► Caddy (FE tĩnh, /api) ──► be ──► Postgres · Redis · MinIO · Mongo
-                                                        agent · ingest · document · index
+```mermaid
+flowchart LR
+    internet(["Internet"]) -- "443" --> caddy["Caddy<br/>FE tĩnh, /api"] --> be["be"]
+    be --> stores[("Postgres · Redis · MinIO · Mongo")]
+    workers["agent · ingest · document · index"] --> stores
 ```
 
 | Thứ | Ở đâu |

@@ -6,10 +6,56 @@ Tài liệu này mô tả các use case nghiệp vụ chính của project **Kri
 
 Nội dung tập trung vào actor nghiệp vụ, mục tiêu, điều kiện trước, luồng chính và ngoại lệ. Tài liệu này chưa mô tả API, database schema, service boundary hoặc AI agent internals.
 
-Diagram liên quan:
+Use Case Diagram nằm ở mục [Use Case Diagram](#use-case-diagram) ngay dưới. Thứ tự các bước trong
+workflow nằm ở Activity Overview của [Business Workflows](business-workflows.md).
 
-- [Use Case Diagram](../diagrams/use-case.drawio)
-- [Activity Overview Diagram](../diagrams/activity-overview.drawio)
+## Use Case Diagram
+
+Mermaid không có ký pháp use case, nên sơ đồ dùng flowchart: actor là hình viên thuốc có biểu tượng người,
+use case là hình chữ nhật bo góc, nét đứt là `<<include>>` hay `<<extend>>`. Màu theo bảng ở mục
+[Quy ước màu](#quy-ước-màu-trong-use-case-diagram).
+
+```mermaid
+flowchart LR
+    teacher(["👤 Teacher"])
+    student(["👤 Student"])
+    subgraph kriky["Kriky"]
+        createDraft("Tạo đề nháp")
+        generateDraft("Sinh nội dung đề, lời giải<br/>và distractor gắn lỗi")
+        clarify("Hỏi bổ sung yêu cầu")
+        reviewPublish("Review và phát hành đề")
+        regenerate("Tạo lại nội dung đề")
+        submit("Làm và nộp bài (pha 1)")
+        fix("Chữa bài sau khi nộp (pha 2)")
+        grade("Chấm bài")
+        explainAsk("Yêu cầu giải thích cách làm")
+        report("Báo cáo giải thích chưa rõ")
+        practice("Làm câu biến thể,<br/>tối đa ba vòng")
+        makeVariant("Tạo câu biến thể<br/>của chính câu sai")
+    end
+    teacher --- createDraft
+    teacher --- reviewPublish
+    student --- submit
+    student --- fix
+    student --- report
+    createDraft -. "&lt;&lt;include&gt;&gt;" .-> generateDraft
+    clarify -. "&lt;&lt;extend&gt;&gt;" .-> createDraft
+    regenerate -. "&lt;&lt;extend&gt;&gt;" .-> reviewPublish
+    fix -. "&lt;&lt;include&gt;&gt;" .-> grade
+    fix -. "&lt;&lt;include&gt;&gt;" .-> practice
+    explainAsk -. "&lt;&lt;extend&gt;&gt;" .-> fix
+    report -. "&lt;&lt;extend&gt;&gt;" .-> fix
+    practice -. "&lt;&lt;include&gt;&gt;" .-> makeVariant
+
+    classDef teacherGoal fill:#e7f5ff,stroke:#1971c2,color:#000
+    classDef studentGoal fill:#ebfbee,stroke:#2f9e44,color:#000
+    classDef systemRequired fill:#fff4e6,stroke:#e8590c,color:#000
+    classDef conditional fill:#fff0f6,stroke:#c2255c,color:#000
+    class createDraft,reviewPublish teacherGoal
+    class submit,fix,report,practice studentGoal
+    class generateDraft,grade,makeVariant systemRequired
+    class clarify,regenerate,explainAsk conditional
+```
 
 ## Actor nghiệp vụ
 

@@ -24,8 +24,54 @@ và chỉ BE; AGENT không có credential nào và không bao giờ có.
 
 > **Con số trong tiêu đề cũ đã lệch.** `models.py` có **23** `__tablename__` (19/10/2026, thêm `sessions`); tài liệu này từng nói
 > mười ba. Đợt 06/10/2026 chỉ bổ sung hai bảng nháp bên dưới — những bảng còn thiếu
-> (`pregenerated_items`, `question_outcomes`, …) là món nợ của một đợt rà soát riêng, ghi ra đây
+> (nay chỉ còn `pregenerated_items`) là món nợ của một đợt rà soát riêng, ghi ra đây
 > để nó không nằm im. `documents` đã được trả ngày 08/10/2026, vì đợt ấy đổi hình dạng của nó.
+
+Câu hỏi sơ đồ trả lời: *23 bảng nối với nhau bằng khoá ngoại nào?* Sơ đồ chỉ vẽ quan hệ; cột của
+từng bảng nằm ở các bảng mô tả bên dưới. Đọc từ `models.py` ngày 13/11/2026, kể cả
+`pregenerated_items`, bảng duy nhất chưa có dòng mô tả.
+
+```mermaid
+erDiagram
+    teachers ||--o{ classes : "tạo"
+    teachers ||--o{ assessments : "là tác giả"
+    teachers ||--o{ documents : "tải lên"
+    teachers ||--o{ teacher_conversations : "có"
+    teachers ||--o{ bank_questions : "có ngân hàng"
+    teachers |o--o{ sessions : "đăng nhập"
+    students |o--o{ sessions : "đăng nhập"
+    classes ||--o{ students : "gồm"
+    classes ||--o{ publications : "được giao"
+    assessments ||--o{ publications : "phát hành cho"
+    assessments ||--o| draft_briefs : "yêu cầu soạn"
+    assessments ||--o{ draft_items : "ô đang soạn"
+    assessments ||--o{ questions : "gồm"
+    assessments ||--o{ bank_questions : "nguồn"
+    questions ||--o{ options : "có"
+    questions ||--o{ methods : "có"
+    bank_questions |o--o{ questions : "câu rút từ ngân hàng"
+    questions |o--o| bank_questions : "chép khi duyệt"
+    students ||--o{ attempts : "làm"
+    assessments ||--o{ attempts : "được làm"
+    classes ||--o{ attempts : "lớp lúc bắt đầu"
+    attempts ||--o{ answers : "lựa chọn pha 1"
+    options ||--o{ answers : "được chọn"
+    questions ||--o{ answers : "cho câu"
+    attempts ||--o{ question_outcomes : "sổ điểm"
+    questions ||--o{ question_outcomes : "cho câu"
+    attempts ||--o{ rounds : "lượt làm lại"
+    rounds ||--o{ round_items : "câu của lượt"
+    questions ||--o{ round_items : "biến thể của"
+    attempts ||--o{ pregenerated_items : "câu viết trước"
+    questions ||--o{ pregenerated_items : "biến thể của"
+    attempts ||--o{ chat_messages : "hội thoại pha 2"
+    attempts ||--o{ reports : "báo cáo chưa rõ"
+    teacher_conversations ||--o{ teacher_turns : "các bước"
+```
+
+`teacher_turns.document_id` và `teacher_turns.entity_id` trỏ tới hàng khác mà không là khoá ngoại,
+nên sơ đồ không vẽ chúng. Với `entity_id` đó là chủ ý: lượt chat cũ giữ id của một đề đã xoá cứng
+(ADR-33).
 
 ### Nhóm 1 — người và lớp
 
@@ -75,6 +121,21 @@ Xoá tài liệu ở Postgres **chưa** xoá bản thô ở đây (BE không gi�
 
 Khoá nội dung khi duyệt là một `state` trên `assessments`, không phải một cờ trên từng câu — vì nó là
 một thao tác trên cả đề.
+
+```mermaid
+stateDiagram-v2
+    [*] --> empty
+    empty --> has_questions: câu đầu tiên vào đề<br/>(harvest, hay lấy từ ngân hàng)
+    has_questions --> approved: giáo viên duyệt (endpoint đếm câu ≥ 1,<br/>không còn ô đang soạn)
+    approved --> has_questions: bỏ duyệt
+    approved --> published: phát hành
+    published --> approved: withdraw() — chưa tới giờ mở,<br/>không lớp nào còn giữ
+    empty --> [*]: xoá cứng (ADR-33)
+```
+
+Bốn cạnh `empty → has_questions`, `has_questions → approved`, `approved → has_questions` và
+`approved → published` nằm trong bảng `_ALLOWED` và đi qua `advance()`; cạnh `published → approved`
+thì không.
 
 Cột `state` là một `Enum` có check constraint, không phải chuỗi tự do, và cạnh giữa các trạng thái nằm
 trong `services/be/src/be/assessment_state.py`. `advance()` ở đó là **cửa duy nhất** đổi trạng thái:

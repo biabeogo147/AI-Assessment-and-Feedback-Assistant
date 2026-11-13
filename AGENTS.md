@@ -29,7 +29,8 @@ Each topic has exactly one owning file. Update the owner instead of adding a par
 | `docs/overview/architecture.md` | Services, communication, boundaries, service naming |
 | `docs/overview/data-model.md` | The database schema and why it is shaped that way |
 | `docs/overview/grading-design.md` | How the quality of model-written content is measured: the exam bench, its panel, rubric and results |
-| `docs/diagrams/*.drawio` | Every diagram, as source of truth |
+| `docs/overview/agent-design.md` | How AGENT is built inside: tasks, graphs, the rules after each model call |
+| `docs/diagrams/*.drawio` | The course report's figures, as source of truth |
 | `docs/report/` | The course report, and the figures exported from `docs/diagrams/` |
 | `docs/decisions/` | Records business rules. They outlive every plan |
 | `docs/plans/` | Plans, their technical decision records, and `backlog.md` for deferred work |
@@ -116,10 +117,9 @@ Changing source code means updating the document that owns the affected topic in
 Never create empty files, files containing only headings, or architecture, API, schema and operations
 documents before there is real content for them.
 
-`.drawio` files are the source of truth for diagrams; Markdown links to them and explains them, and
-never becomes a second diagram source. Every overview document links the diagrams it discusses, every
-`.drawio` is referenced by at least one Markdown file, and changing a diagram means changing the
-prose that describes it in the same change set.
+Markdown draws its diagrams in fenced `mermaid` blocks beside the prose, and never links a `.drawio`.
+`.drawio` files are the figures of the course report only. A flow drawn in both is changed in both,
+and changing any diagram means changing the prose that describes it; each in the same change set.
 
 Documentation under `docs/`, plus every comment and docstring, is Vietnamese with English technical
 and domain terms (`Assessment`, `Distractor`, `Misconception`). Identifiers,
@@ -150,7 +150,7 @@ in the language's native style — Python docstrings, JSDoc for TypeScript. `mar
 | `packages/contracts` | Both of the above; it affects BE and AGENT alike |
 | `import-linter`, pre-commit, or a build backend | The boundary probe below, in addition |
 | A `.drawio` file | Confirm it parses as XML, re-export its figure, then `.\dev.ps1 report` |
-| A Markdown file | Confirm it is non-empty and its internal links resolve |
+| A Markdown file | Confirm it is non-empty, its internal links resolve and its `mermaid` blocks render |
 
 Record any check you could not run, and why. Never claim work is complete on an unrun check.
 

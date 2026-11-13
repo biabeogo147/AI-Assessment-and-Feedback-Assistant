@@ -27,8 +27,36 @@ giáo viên của ca chịu luật *câu đo không nằm trong prompt* (`tools/
 
 | Nhánh | Đường đi | Ghi chú |
 | --- | --- | --- |
-| `agent` | `propose` tới lượt dàn ý (lý do từ chối về lại model như BE, tối đa ba lần; Kriky hỏi lại thì giáo viên giả trả lời một lần bằng đủ mục) → giáo viên giả đồng ý, AGENT chia lời dàn ý thành job (`split_outline`, ADR-38) → `item_fields` của BE cho từng job → `write_question` theo đợt như BE → các phép kiểm lúc BE thu hoạch câu, ô hỏng soạn lại tới ba lần | Đúng đường của Kriky, cùng model và cấu hình trong `.env`. Trước ADR-38 (pilot `run-130`): dàn ý có mục cấu trúc, BE chia mục thành ô (`place_items`) |
+| `agent` | Đúng đường của Kriky, vẽ ở sơ đồ dưới | Cùng model và cấu hình trong `.env`. Trước ADR-38 (pilot `run-130`): dàn ý có mục cấu trúc, BE chia mục thành ô (`place_items`) |
 | `naive` | Một lời gọi tới cùng model: *"soạn đề N câu…"* kèm luật hình dạng câu (ADR-18) | Cùng phép kiểm, không soạn lại; đường so để biết agent thêm được gì |
+
+Câu hỏi sơ đồ trả lời: *một ca đi qua bench thế nào, từ câu giáo viên xin tới các chỉ số?*
+
+```mermaid
+flowchart TD
+    case["Ca: bài SGK, câu giáo viên xin, số câu,<br/>dòng vàng (khung KIẾN THỨC, KĨ NĂNG)"]
+    case --> agentBranch
+    case --> naiveBranch
+    subgraph agentBranch["Nhánh agent"]
+        propose["propose tới lượt dàn ý<br/>lý do từ chối về lại model như BE, tối đa ba lần;<br/>Kriky hỏi lại thì giáo viên giả trả lời một lần bằng đủ mục"]
+        propose --> agree["giáo viên giả đồng ý<br/>AGENT chia lời dàn ý thành job (split_outline, ADR-38)"]
+        agree --> fields["item_fields của BE cho từng job"]
+        fields --> write["write_question theo đợt như BE"]
+        write --> harvest["phép kiểm lúc BE thu hoạch câu<br/>ô hỏng soạn lại tới ba lần"]
+    end
+    subgraph naiveBranch["Nhánh naive"]
+        once["một lời gọi: soạn đề N câu<br/>kèm luật hình dạng câu (ADR-18)"] --> sameChecks["cùng phép kiểm, không soạn lại"]
+    end
+    harvest --> paper["Đề"]
+    propose -. "trượt cổng dàn ý,<br/>hay không chia được" .-> noPaper["Không có câu:<br/>P1 tính 0, mọi câu tính hỏng"]
+    sameChecks --> paper
+    paper --> code["score.code_flaws<br/>năm lỗi viết câu đọc bằng máy"]
+    paper --> panel["Panel ba rater, bốn lời chấm<br/>dàn ý · giải mù · duyệt · chia việc"]
+    panel --> majority["Đa số phiếu = nhãn vàng<br/>≥ 2 phiếu trống thì đề chưa chấm"]
+    code --> metrics["P1, P2, Q1, Q1+, đề sạch, Q2, S1, S1b, S2"]
+    majority --> metrics
+    majority --> trust["Thước: Fleiss' kappa, Gwet AC1 ≥ 0,6"]
+```
 
 ### Panel rater và nhãn vàng
 

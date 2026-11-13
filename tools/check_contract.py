@@ -780,7 +780,7 @@ def check_the_form_fills_the_slots_the_wording_declares() -> str | None:
 def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
     """Mỗi hình trong báo cáo phải được xuất lại từ `.drawio` hiện tại, không phải bản cũ.
 
-    `AGENTS.md` để `.drawio` làm source of truth cho mọi diagram, nên báo cáo LaTeX không vẽ
+    `AGENTS.md` để `.drawio` làm source of truth cho hình của báo cáo, nên báo cáo LaTeX không vẽ
     lại sơ đồ mà nhúng hình **xuất ra** từ chúng. Bước xuất ấy là một lệnh riêng, chạy tay:
     không có gì buộc nó chạy lại sau khi một sơ đồ đổi.
 
@@ -843,6 +843,74 @@ def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
 
     if problems:
         return _fail("report-figures", "\n      ".join(problems))
+    return None
+
+
+# Link tới một `.drawio`, ở mọi dạng Markdown cho phép: `[chữ](x.drawio)` (kèm khoảng trắng, `<…>`,
+# tiêu đề, `#mảnh`, `?query`), link tham chiếu `[chữ]: x.drawio`, và `<a href="x.drawio">`. Tên tệp
+# nhắc trong backtick (ADR ghi lại một hình) không phải link: code bị bỏ trước khi so.
+_DRAWIO_LINK = re.compile(
+    r"""(?:\]\(\s*<[^>]*|(?:\]\(\s*|^\s{0,3}\[[^\]]+\]:\s*<?|href\s*=\s*["']?)[^)\s"'>]*)"""
+    r"""\.drawio\b""",
+    re.IGNORECASE,
+)
+_INLINE_CODE = re.compile(r"(`+).*?\1")
+_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+
+
+def drawio_links(markdown: str) -> list[int]:
+    """Số dòng (đếm từ 1) có link Markdown tới một `.drawio`. Hàm thuần.
+
+    Args:
+        markdown: Nội dung một file Markdown.
+
+    Returns:
+        Các số dòng, tăng dần; rỗng khi file không link `.drawio` nào.
+    """
+    found: list[int] = []
+    fenced = False
+    for number, line in enumerate(markdown.splitlines(), start=1):
+        if _FENCE.match(line):
+            fenced = not fenced
+            continue
+        if not fenced and _DRAWIO_LINK.search(_INLINE_CODE.sub("", line)):
+            found.append(number)
+    return found
+
+
+def check_markdown_draws_in_mermaid() -> str | None:
+    """Docs Markdown vẽ sơ đồ bằng Mermaid, không link `.drawio` (plan `agent-design-doc-mermaid`).
+
+    Từ 13/11/2026 `.drawio` chỉ là hình của báo cáo; một doc link tới nó là đẩy người đọc sang một
+    công cụ khác đúng lúc họ đang đọc lời văn -- lý do người dùng nói chưa nắm được thiết kế. Check
+    chỉ chặn được chiều rẻ ấy: nó không so được nội dung Mermaid với drawio, nên luật *một luồng có
+    hai bản thì đổi cùng nhau* vẫn là luật review.
+
+    `docs/report/` là chỗ của drawio; `docs/plans/completed/` là bản ghi đã đóng, không ai sửa.
+
+    Returns:
+        None khi không doc nào link `.drawio`, ngược lại là một thông báo thất bại.
+    """
+    docs = REPO_ROOT / "docs"
+    skipped = (docs / "report", docs / "plans" / "completed")
+    pages = [REPO_ROOT / "README.md"] + [
+        path
+        for path in sorted(docs.rglob("*.md"))
+        if not any(path.is_relative_to(root) for root in skipped)
+    ]
+    offenders = [
+        f"{path.relative_to(REPO_ROOT).as_posix()}:{line}"
+        for path in pages
+        if path.is_file()
+        for line in drawio_links(path.read_text(encoding="utf-8"))
+    ]
+    if offenders:
+        return _fail(
+            "markdown-draws-in-mermaid",
+            f"{', '.join(offenders)} link a `.drawio`. A Markdown document draws its diagram in a "
+            "fenced `mermaid` block beside the prose; `.drawio` files are the report's figures "
+            "only (AGENTS.md, Documentation Rules).",
+        )
     return None
 
 
@@ -2522,6 +2590,7 @@ CHECKS = (
     check_the_telling_turn_only_reads,
     check_the_form_fills_the_slots_the_wording_declares,
     check_every_figure_matches_the_diagram_it_came_from,
+    check_markdown_draws_in_mermaid,
     check_the_model_text_passes_through_the_escape_repair,
     check_the_result_card_has_exactly_three_states,
     check_the_document_chip_draws_every_state_the_backend_can_send,

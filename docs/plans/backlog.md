@@ -752,7 +752,6 @@ thật code mà báo cáo đã tả đúng hiện trạng, hay chỗ tài liệu
 | Việc | Cái gì đang chặn |
 | --- | --- |
 | **ADR ghi trạng thái cũ:** ADR-15, 16, 18, 21, 27 vẫn ghi *"chưa thi hành"* hay *"chưa có ở backend"*; ADR-23:114 trỏ `propose._SYSTEM`, nay là `CORE`; ADR-25 (sửa 10/10) định bỏ job kể lại, code vẫn chạy nó; ADR-27 nói Jev là bộ định tuyến của `document`, đã bị thay ngày 12/10; ADR-29:68 nói lời đồng ý đọc bằng mô hình, thực ra bằng regex | **Đã làm** 18/10/2026 (đợt tất định việc 5): hậu ký có ngày cho ADR-18, 21, 23, 25, 27, 29 |
-| **ERD chưa vẽ**, dù điều kiện cũ trong `architecture.md` (*"khi có Postgres"*) đã đạt | Chưa quyết có cần: `data-model.md` đang nói hai mươi hai bảng bằng bảng và lời |
 
 ### Báo cáo
 

@@ -6,27 +6,22 @@ Tài liệu này mô tả kiến trúc kỹ thuật của giai đoạn đầu Ph
 
 Tài liệu này không mô tả nghiệp vụ. Nghiệp vụ thuộc về [Project Overview](project-overview.md), [Business Workflows](business-workflows.md) và [Use Case Specification](use-case-specification.md).
 
-Diagram liên quan:
+Sơ đồ trong tài liệu này, vẽ bằng Mermaid ngay cạnh lời văn:
 
-- [System Architecture Diagram](../diagrams/system-architecture.drawio)
-- [Document Pipeline](../diagrams/document-pipeline.drawio) -- một tệp đi qua `document`: hai
-  worker, ba nhánh sau khi dò tệp, bảy khâu dựng cây, ba model ngoài và đường lùi về luật.
-- [Teacher Chat Turn](../diagrams/teacher-chat-turn.drawio) -- sequence của một lượt chat giáo viên
-  qua SSE: giữ đoạn chat, pha 1 hỏi AGENT qua queue, pha 2 chạy plan và nghe chuông soạn đề, kể
-  lại, nhả đoạn chat. Báo cáo chương 7 tách nó làm ba phần đặt cạnh lời văn:
-  [pha đề xuất](../diagrams/teacher-chat-turn-propose.drawio),
-  [kiểm plan](../diagrams/teacher-chat-turn-plan-check.drawio) -- hai cửa kiểm, hỏng mỗi cửa một
-  kết cục, và [pha thực thi](../diagrams/teacher-chat-turn-execute.drawio).
-- [Document Upload](../diagrams/document-upload.drawio) -- sequence tải lên một tài liệu, qua đủ ba
-  hình thức giao tiếp: API, job qua queue, thông báo qua channel; event không mang dữ liệu.
-- [Submit and Remediate](../diagrams/submit-and-remediate.drawio) -- sequence nộp bài, chuẩn bị
-  trước câu biến thể, hỏi trợ lí qua SSE, rồi mở một lượt của giai đoạn 2.
-- [Propose Three Layers](../diagrams/propose-three-layers.drawio) -- luồng ba tầng một đề xuất bước
-  tiếp theo đi qua: mô hình, luật trong AGENT, `backend`.
-- [Draft Question Life](../diagrams/draft-question-life.drawio) -- luồng đời một câu hỏi của đề:
-  viết và tự kiểm ở AGENT, thu hoạch, bỏ phiên bản cũ, kiểm ở `backend`, giao lại.
-- [Document False Failure](../diagrams/document-false-failure.drawio) -- Gantt bảy cuốn đọc xen kẽ
-  từng lô: hai lần báo tiến độ của một cuốn cách nhau quá 300 giây, `backend` báo hỏng oan.
+- *System Architecture*: các service, kho dữ liệu và vùng mạng, ở mục
+  [Năm service, sáu process](#năm-service-sáu-process);
+- *Đường giao tiếp*: queue, result store và pub/sub giữa các service, ở mục
+  [Đường giao tiếp](#đường-giao-tiếp);
+- các luồng nhiều bước bất đồng bộ, ở mục [Các luồng chính](#các-luồng-chính):
+  - một lượt chat giáo viên;
+  - đời một câu hỏi của đề;
+  - tải lên một tài liệu;
+  - đường một tệp đi qua `document`;
+  - tài liệu bị báo hỏng oan;
+  - nộp bài và giai đoạn 2.
+
+Bên trong AGENT, gồm ba tầng một đề xuất đi qua (mô hình, luật trong AGENT, `backend`), nằm ở
+[Thiết kế AGENT](agent-design.md).
 
 ## Năm service, sáu process
 
@@ -37,6 +32,50 @@ Diagram liên quan:
 | `agent` | Soạn nội dung bằng AI: câu hỏi của đề, câu của lượt làm lại, câu trả lời cho học sinh ở pha 2; trong chat giáo viên thì đề xuất bước tiếp theo, kể lại kết quả một plan và đặt tên đoạn chat. Phát nội dung, không quyết định. | arq worker, không có cổng |
 | `document` | Đọc tệp giáo viên tải lên: dò chữ có sẵn, OCR bản chụp theo lô, ghi bản thô rồi dựng cây mục lục vào MongoDB, và báo trạng thái về `ingest`. Không sở hữu hàng nào. | hai arq worker (`document.ocr_worker`, `document.index_worker`), không có cổng |
 | `ingest` | Ghi lại thứ `document` báo về. Giữ credential database, sở hữu không quyết định nào. | arq worker, không có cổng |
+
+Câu hỏi sơ đồ trả lời: *có những service và kho nào, nằm ở vùng mạng nào, ai nối tới ai?*
+
+```mermaid
+flowchart TB
+    fe["Frontend - React"]
+    subgraph vpc["VPC"]
+        subgraph public["Public subnet"]
+            be["Backend - FastAPI<br/>giữ mọi quyết định nghiệp vụ"]
+        end
+        subgraph private["Private subnet"]
+            redis[("redis<br/>hàng đợi và lưu cache")]
+            postgres[("postgres<br/>kho dữ liệu chính")]
+            minio[("minio<br/>nội dung thô của<br/>tài liệu giáo viên")]
+            mongo[("mongodb<br/>nội dung đã xử lí của<br/>tài liệu giáo viên")]
+            ingest["ingest<br/>đẩy dữ liệu bất đồng bộ"]
+            agent["agent<br/>trợ lí hỗ trợ giáo viên<br/>và học sinh"]
+            document["document<br/>xử lí tài liệu, giáo án<br/>giáo viên upload"]
+        end
+    end
+    fe -- "HTTP /api" --> be
+    be --> redis
+    be --> postgres
+    be --> minio
+    be --> mongo
+    agent --> redis
+    ingest --> postgres
+    ingest --> redis
+    document --> minio
+    document --> redis
+    document --> mongo
+
+    classDef surface fill:#e7f5ff,stroke:#1971c2,color:#000
+    classDef decides fill:#fff4e6,stroke:#e8590c,color:#000
+    classDef reports fill:#f3f0ff,stroke:#7048e8,color:#000
+    classDef store fill:#ebfbee,stroke:#2f9e44,color:#000
+    class fe surface
+    class be decides
+    class agent,ingest,document reports
+    class redis,postgres,minio,mongo store
+```
+
+Bốn màu: **bề mặt** (vẽ, không giữ luật nào), **quyết định** (mọi luật nghiệp vụ), **báo lại, ghi
+lại** (không quyết định), và **kho**.
 
 **`ingest` giữ credential database, và nó vẫn là một service riêng.** Hai điều ấy
 không mâu thuẫn, nhưng chúng đã từng bị đọc là mâu thuẫn, nên nói thẳng ra: cái làm
@@ -82,29 +121,53 @@ mọi property bản này không nhắc tới thì vẫn do bản kia quyết.
 
 ## Đường giao tiếp
 
-```text
-FE --HTTP /api--> BE --aiafa:grading--> Redis --> AGENT ──> model provider
-                  │ ▲                               │
-                  │ ├────── arq result store ───────┤
-                  │ └────────── pub/sub ────────────┘  (aiafa:stream:<uuid>: chữ hiện dần;
-                  │                                     draft:<assessment_id>: chuông "một câu xong")
-                  │
-                  ├--aiafa:document--> Redis --> DOCUMENT ocr_worker ──┐
-                  │                                │    ▲             │ ocr_pages: lô kế,
-                  │                                │    └─────────────┘ trên chính queue này
-                  │                                │ aiafa:document-index
-                  │                                ▼
-                  │                      DOCUMENT index_worker ──> model provider
-                  │                                │
-                  │       ┌──aiafa:ingest── Redis <┘  (`ocr_worker` cũng báo về đây)
-                  │       ▼
-                  │    INGEST ──> Postgres, rồi một tiếng hích trên `documents:<id>`
-                  └<───────┘  BE nghe tiếng hích ấy và đẩy xuống FE qua SSE
-                  │
-                  ├── Postgres (đề, bài làm, hội thoại, trạng thái tài liệu)
-                  ├── MinIO    (byte của tài liệu)          <-- DOCUMENT đọc trực tiếp
-                  └── MongoDB  (bản thô, cây mục lục, chunk) <-- DOCUMENT ghi; BE chỉ đọc cây và chunk
+Câu hỏi sơ đồ trả lời: *việc đi từ service này sang service kia bằng đường nào?*
+
+```mermaid
+flowchart LR
+    fe["FE"] -- "HTTP /api" --> be["BE"]
+    be -- "SSE" --> fe
+
+    subgraph agentPath["AGENT"]
+        qGrading[["queue aiafa:grading"]] --> agent["AGENT"]
+        agent --> provider1["model provider"]
+        agent -- "kết quả" --> store[("arq result store")]
+        agent -- "aiafa:stream:&lt;uuid&gt;: chữ hiện dần<br/>draft:&lt;assessment_id&gt;: chuông một câu xong" --> pubsub(["pub/sub"])
+    end
+    be --> qGrading
+    store --> be
+    pubsub --> be
+
+    subgraph documentPath["DOCUMENT"]
+        qDocument[["queue aiafa:document"]] --> ocr["ocr_worker"]
+        ocr -- "ocr_pages: lô kế,<br/>trên chính queue này" --> qDocument
+        ocr -- "aiafa:document-index" --> index["index_worker"]
+        index --> provider2["model provider"]
+    end
+    be --> qDocument
+
+    subgraph ingestPath["INGEST"]
+        qIngest[["queue aiafa:ingest"]] --> ingest["INGEST"]
+    end
+    ocr -- "tiến độ, kết quả" --> qIngest
+    index -- "tiến độ, kết quả" --> qIngest
+    ingest -- "tiếng hích trên documents:&lt;id&gt;" --> be
+
+    subgraph stores["Kho"]
+        postgres[("Postgres<br/>đề, bài làm, hội thoại,<br/>trạng thái tài liệu")]
+        minio[("MinIO<br/>byte của tài liệu")]
+        mongo[("MongoDB<br/>bản thô, cây mục lục, chunk")]
+    end
+    be --> postgres
+    be --> minio
+    be -- "chỉ đọc cây và chunk" --> mongo
+    ingest --> postgres
+    ocr -- "đọc trực tiếp" --> minio
+    ocr -- "ghi bản thô" --> mongo
+    index -- "ghi cây, chunk" --> mongo
 ```
+
+BE nghe tiếng hích của `ingest` rồi đẩy xuống FE qua SSE.
 
 Đường xuống `document` và đường về `ingest` là **hai queue riêng**, không phải một đường hai
 chiều, và mọi queue ở đây đặt tên theo **bên tiêu thụ** chứ không theo công việc. Lý do nằm ngay ở dòng trên:
@@ -188,6 +251,356 @@ lí chỉ trả lời lại khi học sinh gửi tin nhắn tiếp theo, vì mà
 sử còn trống (`Tutor.tsx`). Client đọc lại lịch sử bằng REST sau mỗi lần stream.
 
 FE gọi đường tương đối `/api` và Vite proxy sang BE, nên trình duyệt chỉ làm việc với một origin duy nhất và BE không cần cấu hình CORS.
+
+## Các luồng chính
+
+Mỗi luồng ở đây đi qua nhiều hơn một bước bất đồng bộ, nên lời văn ở mục trên không đủ để thấy thứ
+tự của nó. Báo cáo môn học vẽ cùng các luồng này bằng drawio (`docs/diagrams/`); đổi luồng là đổi
+cả hai bản.
+
+### Một lượt chat giáo viên
+
+Câu hỏi sơ đồ trả lời: *một tin nhắn của giáo viên đi qua những gì, từ lúc gửi tới lúc nhả đoạn
+chat?*
+
+```mermaid
+sequenceDiagram
+    participant F as frontend
+    participant B as backend
+    participant R as redis (queue, channel)
+    participant A as agent
+
+    F->>B: gửi tin nhắn (SSE)
+    Note over B: khoá đoạn hội thoại, ghi tin nhắn
+    loop pha 1, pha đề xuất (chi tiết ở hình Pha đề xuất)
+        B->>A: job propose_next_step, qua queue
+        A-->>B: đề xuất, qua redis
+        Note over B: tra cứu, kiểm plan (hình Kiểm một plan),<br/>trả lý do về agent, hay kết thúc lượt
+        B-->>F: bước, lời nói, câu hỏi hay dàn ý
+    end
+    opt pha 2, pha thực thi: có plan (chi tiết ở hình Pha thực thi)
+        loop từng việc của plan, dừng ở việc hỏng đầu tiên
+            alt việc soạn đề
+                B->>A: các job write_draft_question, qua queue
+                A-->>B: câu hỏi vào redis, thông báo qua channel
+                Note over B: thu hoạch câu
+            else việc khác
+                Note over B: chạy việc
+            end
+            B-->>F: bước, tiến độ
+        end
+        B->>A: job propose_next_step (kể lại), qua queue
+        A-->>B: lời kể, qua redis
+        B-->>F: lời kể
+    end
+    Note over B: lượt hội thoại đầu: job name_conversation, ghi tên
+    B-->>F: done
+    Note over B: mở khoá đoạn hội thoại, kể cả khi lỗi
+```
+
+Ba hình dưới tách lượt ấy ra từng phần, mỗi phần đủ nhánh.
+
+**Pha đề xuất**: lặp khi còn tra cứu, hay khi đề xuất bị trả lại.
+
+```mermaid
+sequenceDiagram
+    participant F as frontend
+    participant B as backend
+    participant R as redis (queue, channel)
+    participant A as agent
+
+    F->>B: gửi tin nhắn (SSE)
+    Note over B: khoá đoạn hội thoại (bận thì báo lỗi, dừng),<br/>ghi tin nhắn của giáo viên
+    loop pha đề xuất: lặp khi còn tra cứu, hay khi đề xuất bị trả lại
+        B->>R: job propose_next_step
+        R->>A: giao job
+        A-->>R: đề xuất
+        R-->>B: kết quả
+        alt tool tra cứu
+            Note over B: chạy tool tra cứu, ghi bước
+            B-->>F: bước
+        else tool ghi
+            Note over B: ghi bước hỏng, trả lý do về agent
+            B-->>F: bước hỏng
+        else dàn ý không qua kiểm
+            Note over B: trả lý do về agent
+        else trả lời, hỏi giáo viên, dàn ý
+            Note over B: ghi bước, không có pha thực thi
+            B-->>F: lời nói, câu hỏi hay dàn ý
+        else plan
+            Note over B: kiểm cả plan: qua thì sang pha thực thi,<br/>không qua thì trả lý do về agent
+        end
+    end
+    opt hết 8 bước hay 90 giây (nới thêm theo phần tài liệu đã đọc), hay bị trả lại cùng một lý do hai lần
+        Note over B: báo chưa xong, hay báo lý do vướng,<br/>không có pha thực thi
+        B-->>F: lời nói
+    end
+```
+
+**Kiểm một plan**: hai cửa kiểm, hỏng mỗi cửa một kết cục.
+
+```mermaid
+flowchart TD
+    start(["plan từ agent"]) --> drafts{"plan soạn câu hỏi?"}
+    drafts -- có --> outline{"đã có dàn ý ở lượt trước<br/>và plan khớp?"}
+    outline -- không --> back(["trả lý do về agent,<br/>quay về pha đề xuất"])
+    outline -- có --> fill["bổ sung số câu, đề kiểm tra,<br/>tài liệu tham chiếu từ dàn ý đã lưu"]
+    fill --> rules
+    drafts -- không --> rules["kiểm: không quá tám công việc;<br/>mỗi việc dùng một tool được cho phép, đủ tham số;<br/>chỉ tham chiếu việc đứng trước"]
+    rules --> passes{"qua mọi điều?"}
+    passes -- không --> reject(["từ chối cả plan, không việc nào chạy;<br/>trả lý do về agent, quay về pha đề xuất"])
+    passes -- có --> execute(["sang pha thực thi"])
+```
+
+Từ ADR-38, cửa đầu còn đòi plan soạn mang cách AGENT chia dàn ý, đúng số câu của dàn ý
+(`guard_drafting`); hình báo cáo vẽ trước ADR-38 nên chưa có chi tiết ấy.
+
+**Pha thực thi**: có plan.
+
+```mermaid
+sequenceDiagram
+    participant F as frontend
+    participant B as backend
+    participant R as redis (queue, channel)
+    participant A as agent
+
+    loop từng việc của plan, dừng ở việc hỏng đầu tiên
+        Note over B: ghi bước
+        B-->>F: bước
+        alt việc soạn đề
+            B->>R: nghe channel draft:‹id›
+            B->>R: các job write_draft_question
+            loop mỗi câu
+                R->>A: giao job
+                A-->>R: câu hỏi, rồi thông báo
+                R-->>B: thông báo
+                Note over B: thu hoạch câu
+                B-->>F: tiến độ
+            end
+        else việc khác
+            Note over B: chạy việc
+        end
+        Note over B: ghi kết quả
+        B-->>F: bước
+    end
+    B->>R: job propose_next_step (kể lại)
+    R->>A: giao job
+    A-->>R: lời kể
+    R-->>B: kết quả
+    Note over B: ghi lời kể
+    B-->>F: lời kể
+    Note over B: lượt hội thoại đầu: job name_conversation, ghi tên
+    B-->>F: done
+    Note over B: mở khoá đoạn hội thoại, kể cả khi lỗi
+```
+
+Một đề xuất đi qua ba tầng trước khi tới cửa kiểm plan của `backend`: mô hình, rồi luật trong
+AGENT. Hai tầng đầu được vẽ ở [Thiết kế AGENT](agent-design.md#graph-propose-một-bước-của-lượt-chat-giáo-viên).
+
+### Đời một câu hỏi của đề
+
+Câu hỏi sơ đồ trả lời: *một vị trí câu được viết, kiểm, thu hoạch và ghi thế nào?*
+
+```mermaid
+flowchart TD
+    subgraph b1["backend"]
+        send["giao một job cho mỗi vị trí câu,<br/>kèm số phiên bản của bản yêu cầu;<br/>đề đã có học sinh bắt đầu làm bài thì không được thay câu"]
+    end
+    subgraph r1["redis"]
+        queue[["queue của agent"]]
+    end
+    subgraph a["agent"]
+        write["viết câu"]
+        self["tự kiểm bốn điều: đúng một đáp án đúng,<br/>mọi phương án nhiễu gắn một lỗi,<br/>ít nhất hai lời giải, đề bài không trùng đề bài bị cấm"]
+        selfOk{"đạt?"}
+        broken["sau ba lần vẫn không đạt:<br/>job hỏng, không có câu thay"]
+    end
+    subgraph r2["redis"]
+        result[("kết quả, hay job hỏng, giữ tối đa một giờ;<br/>thông báo chỉ mang số thứ tự câu")]
+    end
+    subgraph b2["backend"]
+        harvest["thu hoạch: khi có yêu cầu về đề<br/>(xem, sửa, duyệt), hay khi nhận thông báo"]
+        stale{"phiên bản cũ,<br/>hay đề đã duyệt?"}
+        drop["bỏ qua kết quả"]
+        check["kiểm: job hỏng hay kết quả hết hạn là không đạt;<br/>đúng một đáp án đúng, phương án không trùng,<br/>mọi phương án nhiễu gắn một lỗi, ít nhất hai lời giải,<br/>không trùng câu đã có"]
+        ok{"đạt?"}
+        save["ghi vào đúng vị trí, dù job nào xong trước;<br/>thay câu thì câu cũ ở lại tới khi câu mới đạt,<br/>trong một lần ghi"]
+        tries{"đã thử<br/>ba lần?"}
+        again["giao lại vị trí ấy,<br/>kèm đề bài các câu hiện có"]
+        giveUp["dừng, lưu lý do thất bại"]
+    end
+    send --> queue --> write --> self --> selfOk
+    selfOk -- "chưa đạt: gửi lý do về" --> write
+    selfOk -- "sau ba lần" --> broken --> result
+    selfOk -- đạt --> result
+    result --> harvest --> stale
+    stale -- có --> drop
+    stale -- không --> check --> ok
+    ok -- đạt --> save
+    ok -- không --> tries
+    tries -- chưa --> again -- "giao lại" --> queue
+    tries -- rồi --> giveUp
+```
+
+### Tải lên một tài liệu
+
+Câu hỏi sơ đồ trả lời: *một tệp đi qua đủ ba hình thức giao tiếp (API, job qua queue, thông báo qua
+channel) thế nào?*
+
+```mermaid
+sequenceDiagram
+    participant F as frontend
+    participant B as backend
+    participant M as minio (object store)
+    participant P as postgres (database)
+    participant R as redis (queue, channel)
+    participant D as document
+    participant I as ingest
+
+    F->>B: mở thư viện: kết nối SSE
+    B->>R: nghe channel tài liệu
+    B-->>F: event: tải lại danh sách
+    F->>B: tải tệp lên (API)
+    Note over B: kiểm định dạng, kích thước, tệp không rỗng
+    B->>M: lưu byte tệp
+    B->>P: tạo bản ghi tài liệu
+    alt tạo bản ghi hỏng
+        B->>M: xoá tệp vừa lưu
+        B-->>F: báo lỗi, dừng
+    else tạo bản ghi được
+        B->>R: job xử lý tệp
+        B-->>F: Đang xử lý…
+        R->>D: giao job
+        D->>M: đọc byte của tệp
+        Note over D: trích nội dung, ghi vào content store
+        D->>R: job cho ingest
+        R->>I: giao job
+        I->>P: cập nhật trạng thái tài liệu
+        I->>R: thông báo lên channel
+        R-->>B: thông báo
+        B-->>F: event, không mang dữ liệu
+        F->>B: gọi lại API: danh sách
+        B->>P: đọc danh sách
+        Note over B: đang xử lý mà quá 300 giây không có tiến độ<br/>thì hiển thị là xử lý thất bại
+        B-->>F: danh sách: sẵn sàng
+    end
+```
+
+### Một tệp đi qua `document`
+
+Câu hỏi sơ đồ trả lời: *hai worker của `document` làm gì với một tệp, và mô hình ngoài nào được gọi
+ở khâu nào?*
+
+```mermaid
+flowchart LR
+    subgraph ocrWorker["worker đọc tệp: một job một lúc"]
+        probe["job probe_document<br/>từ backend"] --> sniff["đọc tệp từ object store,<br/>dò chữ"]
+        sniff -- "bản chụp" --> lot["OCR một lô:<br/>tối đa 10 trang hay 90 giây"]
+        lot -- "lô kế (ocr_pages)" --> lot
+        raw[("bản thô<br/>(content store)")]
+    end
+    sniff -- "có chữ" --> raw
+    lot -- "mỗi lô ghi trang;<br/>lô cuối chốt" --> raw
+    ingestQ[["queue của ingest<br/>dựng cây cũng báo tiến độ ở những hàm chạy lâu,<br/>và báo hỏng nếu hỏng"]]
+    sniff -- "hỏng hay rỗng" --> ingestQ
+    lot -- "tiến độ, hoặc kết quả" --> ingestQ
+    subgraph indexWorker["worker dựng cây: bốn job song song"]
+        load["load<br/>đọc bản thô"] --> banners["banners<br/>đọc tên chương"] --> classify["classify<br/>xếp cấp tiêu đề"]
+        classify --> assemble["assemble<br/>ghép cây"] --> chunk["chunk<br/>cắt chunk"] --> summarise["summarise<br/>tóm tắt nút"] --> writeTree["write<br/>ghi cây"]
+    end
+    raw -- "job index_document,<br/>queue riêng" --> load
+    writeTree -- "sẵn sàng" --> ingestQ
+    subgraph models["Mô hình ngoài"]
+        luna["gpt-5.6-luna"]
+        jev["Jev"]
+        mini["gpt-4o-mini"]
+    end
+    luna -. "không trả lời: chương mang nhãn số" .-> banners
+    jev -. "không trả lời hay dưới ngưỡng:<br/>luật quyết thay" .-> classify
+    mini -. "không trả lời: nút không có tóm tắt" .-> summarise
+```
+
+### Tài liệu bị báo hỏng oan
+
+Câu hỏi sơ đồ trả lời: *bảy cuốn đọc xen kẽ từng lô thì vì sao `backend` báo hỏng một cuốn vẫn
+đang chạy?*
+
+```mermaid
+gantt
+    dateFormat X
+    axisFormat %s
+    section cuốn 1
+        lô 1 : 0, 45
+        lô 2 : 315, 360
+    section cuốn 2
+        lô 1 : 45, 90
+    section cuốn 3
+        lô 1 : 90, 135
+    section cuốn 4
+        lô 1 : 135, 180
+    section cuốn 5
+        lô 1 : 180, 225
+    section cuốn 6
+        lô 1 : 225, 270
+    section cuốn 7
+        lô 1 : 270, 315
+    section backend thấy cuốn 1
+        đang xử lý : 0, 345
+        báo hỏng : crit, 345, 360
+        đang xử lý : 360, 405
+```
+
+Trục là giây. Từ giây 45 tới giây 345, cuốn 1 không có tiến độ nào: 300 giây, đúng ngưỡng. `backend`
+báo cuốn 1 hỏng từ giây 345 tới khi lô 2 của nó báo tiến độ ở giây 360.
+
+### Nộp bài và giai đoạn 2
+
+Câu hỏi sơ đồ trả lời: *từ lúc nộp bài tới lúc học sinh nhận câu của một lượt làm lại, những job nào
+chạy và khi nào?*
+
+```mermaid
+sequenceDiagram
+    participant F as frontend
+    participant B as backend
+    participant R as redis (queue, channel)
+    participant A as agent
+
+    F->>B: nộp bài
+    Note over B: chấm ngay, ghi kết quả
+    B->>R: job chuẩn bị trước câu biến thể
+    opt không đưa được job vào queue
+        Note over B: bài nộp vẫn được ghi nhận
+    end
+    B-->>F: kết quả giai đoạn 1
+    R->>A: giao job
+    A-->>R: câu biến thể, giữ trong redis
+    loop học sinh hỏi trợ lí, phần giải thích không tính giờ
+        F->>B: gửi tin nhắn (SSE)
+        B->>R: nghe channel
+        B->>R: job explain_turn
+        R->>A: giao job
+        loop mỗi mảnh chữ, 25 giây không có mảnh mới thì báo lỗi
+            A-->>R: mảnh chữ
+            R-->>B: mảnh chữ
+            B-->>F: mảnh chữ (SSE)
+        end
+        A-->>R: câu trả lời trọn vẹn
+        R-->>B: kết quả
+        Note over B: lưu câu trả lời
+        B-->>F: hoàn tất, hay báo lỗi (SSE)
+    end
+    F->>B: bấm làm bài: mở lượt
+    Note over B: kiểm: chưa hết hạn giai đoạn 2, không có lượt đang chạy,<br/>cắt giờ kết thúc lượt về hạn
+    Note over B: thu hoạch câu đã chuẩn bị trước,<br/>câu không qua phép kiểm thì bỏ
+    loop mỗi câu chưa có sẵn: tối đa ba lần thử, tới khi có câu qua phép kiểm
+        B->>R: job câu biến thể
+        R->>A: giao job
+        A-->>R: câu biến thể
+        R-->>B: kết quả
+        Note over B: kiểm: đúng hình dạng câu, đề bài không trùng<br/>câu gốc hay các lượt trước
+    end
+    B-->>F: câu của lượt, đồng hồ bắt đầu
+```
 
 ## Ranh giới quyền quyết định
 
@@ -336,28 +749,34 @@ Cách duy nhất biết hàng rào còn sống là thử phá nó: thêm `import
 
 ## Diagram nào đã có, và vì sao chưa có các loại khác
 
-Repo có mười sáu diagram: năm diagram nghiệp vụ (`activity-overview`, `business-workflows`,
-`domain-context`, `use-case`, `vong-hoc`), một diagram kiến trúc (`system-architecture`), hai
-diagram bên trong service, vẽ cho chương 7 của báo cáo ngày 16/10/2026 (`document-pipeline`,
-`teacher-chat-turn`), và tám diagram vẽ ngày 31/10/2026 để thay những đoạn văn dài của chương 6 và
-7: ba phần tách từ `teacher-chat-turn`, `document-upload`, `submit-and-remediate`,
-`propose-three-layers`, `draft-question-life`, `document-false-failure`.
+Từ 13/11/2026 sơ đồ có hai nơi, theo người đọc (`AGENTS.md`, *Documentation Rules*):
 
-**Sequence Diagram** đã có ba, chưa kể ba phần tách: `teacher-chat-turn`, `document-upload`,
-`submit-and-remediate`. Với `teacher-chat-turn`, điều kiện đặt ra ở đây từ trước -- luồng có
-nhiều hơn một bước bất đồng bộ -- đã đạt từ lâu: một lượt chat giáo viên đi qua queue ít nhất hai
-lần (đề xuất bước tiếp theo, kể lại kết quả), có thể nghe chuông soạn đề qua pub/sub, và pha 1 của
-nó kết thúc theo nhiều cách. Lời văn ở mục "Đường giao tiếp" không còn đủ để thấy thứ tự ấy.
+- **Docs Markdown vẽ bằng Mermaid**, ngay cạnh lời văn, vì người đọc là dev mở repo trên GitHub hay
+  trong IDE.
+- **Báo cáo môn học vẽ bằng drawio** (`docs/diagrams/*.drawio`, mười sáu file), vì LaTeX cần PDF
+  vector có bố cục tay. Mỗi file là một hình của báo cáo; `tools/check_contract.py` đỏ khi hình
+  xuất ra cũ hơn file.
 
-**Class Diagram hoặc ERD** vẫn chưa vẽ, dù điều kiện cũ -- *"khi có Postgres"* -- đã đạt: Postgres
-nay có hai mươi hai bảng, và [Data Model](data-model.md) nói về chúng bằng bảng và lời. Vẽ hay chưa
-là việc còn để ngỏ, ghi ở `docs/plans/backlog.md`. `domain-context.drawio` chỉ mô tả boundary và
-tương tác với Teacher, Student; nó không mô tả object nội bộ hay schema.
+Một luồng có trong cả hai thì đổi cả hai cùng lúc. Mọi hình của báo cáo đều có bản Mermaid trong
+docs, trừ `propose-three-layers`: docs vẽ luồng ấy chi tiết hơn và theo code hiện tại, ở
+[Thiết kế AGENT](agent-design.md).
 
-**Deployment Diagram** chưa có riêng. Câu cũ ở đây nói `system-architecture.drawio` cố ý không nói
-nơi chạy; từ khi sơ đồ ấy vẽ VPC cùng public subnet và private subnet, câu ấy không còn đúng: vùng
-mạng của từng service nay nằm ngay trên sơ đồ kiến trúc. Mục "Năm service, sáu process" ở đầu file
-này và `docs/local-development.md` vẫn là nơi nói tiến trình nào chạy bằng gì trên máy local.
+**Sequence Diagram** có ở mục [Các luồng chính](#các-luồng-chính): một lượt chat giáo viên, tải lên
+một tài liệu, nộp bài và giai đoạn 2. Cả ba đạt điều kiện đặt ra ở đây từ trước: luồng có nhiều hơn
+một bước bất đồng bộ. Một lượt chat giáo viên, chẳng hạn, đi qua queue ít nhất hai lần (đề xuất
+bước tiếp theo, kể lại kết quả), có thể nghe chuông soạn đề qua pub/sub, và pha 1 của nó kết thúc
+theo nhiều cách.
+
+**ERD** có từ 13/11/2026, ở [Data Model](data-model.md): quan hệ khoá ngoại của 23 bảng, cùng vòng
+đời trạng thái của một đề. Class Diagram thì không vẽ: code không có lớp miền nào ngoài các model
+của bảng. Domain Context ở
+[Project Overview](project-overview.md) chỉ mô tả boundary và tương tác với Teacher, Student; nó
+không mô tả object nội bộ hay schema.
+
+**Deployment Diagram** chưa có riêng. Vùng mạng của từng service nằm ngay trên sơ đồ ở mục
+[Năm service, sáu process](#năm-service-sáu-process); hạ tầng lab vẽ đủ ở
+[Kiến trúc lab](../operation/infrastructure.md). Mục "Năm service, sáu process" và
+`docs/local-development.md` vẫn là nơi nói tiến trình nào chạy bằng gì trên máy local.
 
 ## Quy ước đặt tên service mới
 

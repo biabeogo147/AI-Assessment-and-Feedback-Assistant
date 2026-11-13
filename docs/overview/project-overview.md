@@ -6,37 +6,36 @@ Tài liệu này cung cấp bức tranh toàn cảnh về project **Kriky** cho 
 
 Nó tập trung vào nghiệp vụ, actor, mục tiêu sản phẩm và phạm vi phát triển đầu tiên. Tài liệu này không mô tả kiến trúc hệ thống, AI agent internals, API hoặc database schema.
 
-Diagram liên quan:
+Sơ đồ trong tài liệu này:
 
-- [Use Case Diagram](../diagrams/use-case.drawio)
-- [Domain Context Diagram](../diagrams/domain-context.drawio)
-- [Vòng học khép kín](../diagrams/vong-hoc.drawio) — tám bước ở mục *Tóm tắt project* vẽ thành
-  hình. Là **bản rút gọn** của [Activity Overview](../diagrams/activity-overview.drawio): cùng
-  một vòng, bỏ nhánh rẽ và ô quyết định, giữ đúng tám bước và đánh số để tham chiếu được.
+- *Vòng học khép kín*, ở mục [Tóm tắt project](#tóm-tắt-project);
+- *Domain Context*, ở mục [Actor nghiệp vụ chính](#actor-nghiệp-vụ-chính).
+
+Use Case Diagram nằm ở [Use Case Specification](use-case-specification.md); Activity Overview, bản
+đủ nhánh của vòng học, nằm ở [Business Workflows](business-workflows.md).
 
 ## Tóm tắt project
 
 Project là một hệ thống hỗ trợ giáo viên tạo đề, duyệt đề, chấm bài, phân tích lỗi sai và tạo vòng luyện tập thích ứng cho học sinh.
 
-Điểm quan trọng của project không chỉ là dùng AI để sinh câu hỏi hoặc chấm trắc nghiệm. Mục tiêu lớn hơn là tạo một vòng học tập khép kín:
+Điểm quan trọng của project không chỉ là dùng AI để sinh câu hỏi hoặc chấm trắc nghiệm. Mục tiêu lớn hơn là tạo một vòng học tập khép kín, gồm tám bước đánh số để tham chiếu được:
 
-```text
-Giáo viên tạo và duyệt đề
-        ↓
-Học sinh làm bài
-        ↓
-AI đánh giá đáp án và cách tư duy
-        ↓
-AI xác định lỗi sai hoặc misconception
-        ↓
-AI giải thích lỗi; học sinh hỏi lại đến khi hiểu
-        ↓
-AI tạo câu biến thể của chính câu sai
-        ↓
-Học sinh làm lại, tối đa ba vòng mỗi câu
-        ↓
-Mỗi câu chốt 1 / 0,5 / 0. Bài kết thúc
+```mermaid
+flowchart LR
+    start(( )) --> s1["1. Giáo viên tạo và duyệt đề"] --> s2["2. Học sinh làm bài và nộp<br/>(giai đoạn 1)"]
+    s2 --> s3["3. Hệ thống chấm điểm"] --> s4["4. Hệ thống xác định<br/>lỗi sai của học sinh"]
+    subgraph phase2["Giai đoạn 2 — chữa bài"]
+        s5["5. Hệ thống giải thích lỗi;<br/>học sinh hỏi lại đến khi hiểu"] --> s6["6. Hệ thống tạo câu<br/>biến thể của câu sai"]
+        s6 --> s7["7. Học sinh làm lại"]
+        s7 -. "Còn lượt làm lại" .-> s5
+        s7 -- "Hết lượt làm lại" --> s8["8. Mỗi câu chốt 1 / 0,5 / 0<br/>Bài kết thúc"]
+    end
+    s8 --> finish((( )))
+    s4 --> s5
 ```
+
+Đây là bản rút gọn của Activity Overview: cùng một vòng, bỏ nhánh rẽ và ô quyết định. Mỗi câu được
+làm lại tối đa ba vòng.
 
 Trong vòng này, giáo viên giữ quyền kiểm soát ở hai điểm: duyệt đề trước khi phát hành, và trả lời khi agent chưa đủ thông tin để làm. Cổng xử lý kết quả chấm có độ tin cậy thấp đã bỏ: trắc nghiệm chấm bằng phép so, không có độ tin nào để chặn. Xem ADR-37.
 
@@ -64,6 +63,24 @@ Hệ thống hướng đến bốn mục tiêu nghiệp vụ chính:
 4. Bắt buộc học sinh chữa lại những câu đã sai, ngay trong cùng bài kiểm tra.
 
 ## Actor nghiệp vụ chính
+
+Hai actor đứng ngoài boundary của hệ thống, và mỗi người tương tác với nó theo hai chiều: đưa vào và
+nhận lại. Các khối là nhóm tương tác chính, không phải object nội bộ.
+
+```mermaid
+flowchart LR
+    teacher(["👤 Teacher"])
+    student(["👤 Student"])
+    subgraph boundary["Kriky Boundary"]
+        system["Hệ thống hỗ trợ đánh giá<br/>và phản hồi học tập"]
+    end
+    tin["Tạo yêu cầu, duyệt đề<br/>và lời giải, phát hành"]
+    tout["Đề nháp, báo cáo tiến độ,<br/>báo cáo giải thích chưa rõ"]
+    sin["Pha 1: làm bài, nộp<br/>Pha 2 bắt buộc: hỏi lại, làm câu<br/>biến thể, báo cáo chỗ chưa rõ"]
+    sout["Bài được giao, giải thích lỗi,<br/>câu biến thể, điểm 1 / 0,5 / 0"]
+    teacher --> tin --> system --> tout --> teacher
+    student --> sin --> system --> sout --> student
+```
 
 ### Teacher
 

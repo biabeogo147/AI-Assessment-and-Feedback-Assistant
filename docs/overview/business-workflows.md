@@ -6,40 +6,86 @@ Tài liệu này mô tả các workflow nghiệp vụ tổng quan của project 
 
 Tài liệu dành cho cả product, giáo viên, BA, engineer và QA. Nội dung tập trung vào luồng nghiệp vụ, chưa mô tả kiến trúc triển khai, API hoặc AI agent internals. Trong workflow, `System/AI` là lane xử lý bên trong hệ thống, không phải actor nghiệp vụ trong Use Case Diagram.
 
-Diagram liên quan:
-
-- [Activity Overview Diagram](../diagrams/activity-overview.drawio)
-- [Business Workflows Swimlane Diagram](../diagrams/business-workflows.drawio)
+Hai sơ đồ ở mục [Workflow tổng quan](#workflow-tổng-quan): Activity Overview chia theo giai đoạn, và
+Swimlane chia theo người làm.
 
 ## Workflow tổng quan
 
-```text
-Teacher tạo yêu cầu
-        ↓
-Hệ thống sinh đề nháp, kèm lời giải nhiều cách và mỗi distractor gắn một lỗi
-        ↓
-Teacher review và duyệt đề
-        ↓
-Teacher phát hành: sáu tham số cho hai pha
-        ↓
-=== PHA 1 ===
-Student làm bài và nộp
-        ↓
-Hệ thống chấm; lỗi sai tra từ distractor đã chọn
-        ↓
-=== PHA 2, bắt buộc ===
-Với mỗi câu sai: hệ thống giải thích lỗi, Student hỏi lại đến khi hiểu
-        ↓
-Student bấm Làm bài mới; đồng hồ lượt bắt đầu chạy
-(đóng tab hay đổi máy giữa lượt: "Làm tiếp lượt đang mở" đọc lại đúng lượt ấy, kể cả lựa chọn đã lưu)
-        ↓
-Student làm câu biến thể của chính câu đó
-        ↓
-Đúng thì câu gốc chốt 0,5đ; sai thì sang vòng tiếp, tối đa ba vòng
-        ↓
-Hết ba vòng, hoặc hết hạn pha 2, thì câu gốc chốt 0đ
-        ↓
-Bài kết thúc. Mỗi câu chốt ở một trong ba mức: 1 / 0,5 / 0
+**Activity Overview**: một bài kiểm tra đi từ yêu cầu tạo đề tới lúc mọi câu đã chốt điểm.
+
+```mermaid
+flowchart TD
+    start(( )) --> request["Teacher yêu cầu tạo đề"]
+    subgraph p1["Giai đoạn 1 — làm bài và nộp"]
+        request --> draft["System/AI sinh đề nháp:<br/>câu hỏi + đáp án + lời giải"]
+        draft --> review["Teacher review"]
+        review --> ok{"Đề phù hợp?"}
+        ok -- Không --> revise["Teacher chỉnh sửa<br/>hoặc yêu cầu tạo lại"]
+        revise --> draft
+        ok -- Có --> publish["Teacher duyệt + phát hành"]
+        publish --> answer["Student làm + nộp bài"]
+        answer --> grade["Hệ thống chấm bài"]
+    end
+    subgraph p2["Giai đoạn 2 — chữa bài"]
+        hasWrong{"Còn câu sai<br/>chưa chốt?"}
+        hasWrong -- Có --> explain["Trợ lí giải thích lỗi theo lời giải<br/>Student hỏi lại đến khi hiểu"]
+        explain --> newRound["Student làm bài mới<br/>do trợ lí tạo"]
+        newRound --> correct{"Từng câu: đúng?"}
+        correct -- Đúng --> half["0,5đ"]
+        correct -- Sai --> rounds{"Còn vòng?"}
+        rounds -- "Còn vòng" --> explain
+        rounds --> zero["0đ"]
+        half --> settle["Chốt điểm"]
+        zero --> settle
+        settle --> hasWrong
+        hasWrong -- Không --> finish((( )))
+        finish -. "Không chặn luồng" .- reports["Teacher xem báo cáo<br/>trợ lí giải thích chưa rõ"]
+    end
+    grade --> hasWrong
+```
+
+Những điều sơ đồ không vẽ:
+- Teacher phát hành với sáu tham số cho hai pha.
+- Lỗi sai tra từ distractor học sinh đã chọn.
+- Đồng hồ lượt bắt đầu chạy khi Student bấm *Làm bài mới*. Đóng tab hay đổi máy giữa lượt thì
+  *"Làm tiếp lượt đang mở"* đọc lại đúng lượt ấy, kể cả lựa chọn đã lưu.
+- Hết hạn pha 2 thì câu gốc cũng chốt 0đ.
+- Bài kết thúc khi mỗi câu đã chốt ở một trong ba mức: 1 / 0,5 / 0.
+
+**Swimlane**: cùng luồng ấy, chia theo ai làm bước nào.
+
+```mermaid
+flowchart LR
+    subgraph teacher["Teacher"]
+        tRequest["Yêu cầu tạo đề"]
+        tReview["Review đề"]
+        tPublish["Duyệt + Phát hành đề"]
+        tReports["Xem báo cáo trợ lí<br/>giải thích chưa rõ"]
+    end
+    subgraph system["System/AI"]
+        sDraft["Sinh đề nháp: câu hỏi<br/>+ đáp án + lời giải"]
+        sGrade["Chấm bài"]
+        sHasWrong{"Còn câu sai<br/>chưa chốt?"}
+        sExplain["Trợ lí giải thích lỗi theo lời giải;<br/>Student hỏi lại đến khi hiểu"]
+        sCorrect{"Từng câu: đúng?"}
+        sRounds{"Còn vòng?"}
+        sHalf["0,5đ"]
+        sZero["0đ"]
+        sSettled["Chốt điểm"]
+    end
+    subgraph student["Student"]
+        stSubmit["Giai đoạn 1:<br/>làm + nộp bài"]
+        stNew["Làm bài mới<br/>do trợ lí tạo"]
+    end
+    tRequest --> sDraft --> tReview --> tPublish --> stSubmit --> sGrade --> sHasWrong
+    sHasWrong -- Có --> sExplain --> stNew --> sCorrect
+    sCorrect -- Đúng --> sHalf --> sSettled
+    sCorrect -- Sai --> sRounds
+    sRounds --> sExplain
+    sRounds -- "Hết vòng" --> sZero --> sSettled
+    sSettled --> sHasWrong
+    sHasWrong -- Không --> done((( )))
+    done -. "Không chặn luồng" .- tReports
 ```
 
 ## Workflow 1 — Teacher tạo và duyệt đề

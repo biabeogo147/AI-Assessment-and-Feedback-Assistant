@@ -141,8 +141,29 @@ Mọi file trong `cases/` theo đúng bảy mục này, đúng thứ tự:
 
 Thứ tự: **01–08, 11, 12, 09, 10, 13, 14, 15, 16, 17, 18**. Case 11 và 12 chạy trước 09–10 vì hoàn tác ở
 case 10 chỉ thu hồi mềm: bản phát hành cho 12A còn lại với `recalled_at`. Từ 17/10/2026
-`list_assessment` đã lọc bản thu hồi, nhưng thứ tự giữ nguyên để các lần chạy so được với nhau. Bốn
-chuỗi nối nhau:
+`list_assessment` đã lọc bản thu hồi, nhưng thứ tự giữ nguyên để các lần chạy so được với nhau.
+
+Câu hỏi sơ đồ trả lời: *case nào phải chạy sau case nào?* Mũi tên là *"chạy sau, và dựa vào trạng
+thái của"*.
+
+```mermaid
+flowchart LR
+    subgraph noBook["Một đề không tài liệu"]
+        c02["02"] --> c05["05"] --> c09["09"] --> c10["10"]
+    end
+    subgraph withBook["Một đề theo sách"]
+        c04["04"] --> c06["06"] --> c14["14"] --> c15["15<br/>cuối chuỗi soạn đề"]
+    end
+    c04 --> c13["13"]
+    c04 --> c17["17"]
+    c04 --> c18["18"]
+    c11["11"] -. "chạy trước" .-> c09
+    c12["12"] -. "chạy trước" .-> c09
+    alone["01 · 03 · 07 · 08<br/>mỗi case một đoạn chat mới"]
+    c16["16 · học sinh<br/>sau cùng"]
+```
+
+Bốn chuỗi nối nhau:
 
 - **02 → 05 → 09 → 10**: cùng một đề không tài liệu — soạn, thay câu 3, sửa / duyệt / xoá câu,
   phát hành rồi hoàn tác. Case 05 quay lại đúng đoạn chat của case 02.
