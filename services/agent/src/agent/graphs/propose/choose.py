@@ -19,7 +19,7 @@ from agent.graphs.propose.ask_again import (
     UncountedOutline,
     Unparsed,
 )
-from agent.graphs.propose.clarify import answers, choices_wanted, row_names
+from agent.graphs.propose.clarify import answers, asks_a_new_name, choices_wanted, row_names
 from agent.graphs.propose.compose import ProposeState
 from agent.graphs.propose.history import telling
 from agent.graphs.propose.outline import (
@@ -205,13 +205,16 @@ async def choose(state: ProposeState) -> dict:
         # thì đòi ba là mời model bịa lớp thứ ba. Câu về **tham số** vẫn đòi ba (review code 17/10:
         # bản trước áp số dòng cho mọi câu, nên *Khối* hai nút cũng lọt).
         rows = row_names(state["request"])
-        wanted = choices_wanted(state["request"])
         few = [
             one.label
             for one in kept
             if len(one.choices)
             < (
-                wanted
+                # Câu xin tên lớp sắp tạo không có nút thật nào -- xét trước dòng, như
+                # `choices_wanted` của lượt một câu (Tier 1 và review pha 1, 12/11/2026).
+                0
+                if asks_a_new_name(f"{one.label} {one.text}")
+                else choices_wanted(state["request"])
                 if any(" ".join(choice.split()).casefold() in rows for choice in one.choices)
                 else 3
             )
@@ -228,7 +231,7 @@ async def choose(state: ProposeState) -> dict:
         # mục khớp, lớp nào, bao nhiêu câu sau lời sửa) vẫn hợp lệ dù `known` đủ (review vòng 1).
         if not choices and knows_everything(proposal.known) and not just_listed(request):
             raise AskedWhatWasKnown("asked again with nothing to ask though known is full", step)
-        wanted = choices_wanted(state["request"])
+        wanted = choices_wanted(state["request"], step.text)
         if len(choices) < wanted:
             raise FewChoices(f"{len(choices)} choice(s), wanted {wanted}", step)
     return {"step": step}

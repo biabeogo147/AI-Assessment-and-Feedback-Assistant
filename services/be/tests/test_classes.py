@@ -192,6 +192,45 @@ async def test_an_empty_class_is_erasable_and_erasing_it_drops_it_from_the_list(
 
 
 @pytest.mark.asyncio
+async def test_a_student_added_while_the_class_is_erased_makes_it_a_409_not_a_500(
+    stack, monkeypatch
+) -> None:
+    """Tab khác thêm học sinh giữa lúc kiểm và lúc xoá: khoá ngoại chặn lần xoá. Giáo viên nhận
+    409 với câu của phép kiểm, lớp ở lại (Tier 1, 12/11/2026)."""
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from schema.models import Student
+
+    client, maker = stack
+    class_id = await _new_class(client, "12C")
+    original = AsyncSession.commit
+    raced = False
+
+    async def commit_after_another_tab(self: AsyncSession) -> None:
+        nonlocal raced
+        if raced:
+            await original(self)
+            return
+        raced = True
+        async with maker() as other:
+            other.add(Student(class_id=class_id, full_name="Lê Văn C", student_code="HS-RACE"))
+            await other.commit()
+        raise IntegrityError("DELETE FROM classes", {}, Exception("FOREIGN KEY constraint failed"))
+
+    monkeypatch.setattr(AsyncSession, "commit", commit_after_another_tab)
+    refused = await client.delete(f"/api/teacher/classes/{class_id}", headers=TEACHER)
+    monkeypatch.setattr(AsyncSession, "commit", original)
+
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        "Lớp còn 1 học sinh nên không xoá được.",
+    )
+    async with maker() as session:
+        assert await session.get(SchoolClass, class_id) is not None
+
+
+@pytest.mark.asyncio
 async def test_a_class_with_students_is_not_erasable(stack) -> None:
     client, maker = stack
     async with maker() as session:

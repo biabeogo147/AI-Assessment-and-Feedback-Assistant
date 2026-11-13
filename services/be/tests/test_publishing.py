@@ -19,7 +19,7 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from be import db as db_module
@@ -763,6 +763,47 @@ async def test_a_publication_no_class_took_still_leaves_its_reason_in_the_transc
     assert (result["published"], result["classes"]) == (False, [])
     assert [one["class"] for one in result["failed"]] == ["12A"]
     assert result["failed"][0]["reason"]
+    # Lần hỏng vẫn nói về đề ấy: đề bị xoá sau đó thì thẻ biết mình trỏ vào một đề không còn
+    # (`entity_gone`), không còn bấm mở được (Tier 1, 12/11/2026).
+    assert (turns[0].entity_kind, turns[0].entity_id) == ("assessment", paper)
+
+
+@pytest.mark.asyncio
+async def test_publishing_to_a_class_erased_meanwhile_is_a_409_not_a_500(
+    stack, monkeypatch
+) -> None:
+    """Review pha 1 (plan `tier-1`, 12/11/2026): lớp bị xoá ở tab khác giữa lúc kiểm và lúc ghi,
+    khoá ngoại của `Publication` vấp lúc commit. Không lớp nào nhận, lời là tiếng Việt."""
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    client, maker = stack
+    paper = await _approved(maker)
+    morning = await _class_id(maker, "12A")
+    original = AsyncSession.commit
+    raced = False
+
+    async def commit_after_the_class_went(self: AsyncSession) -> None:
+        nonlocal raced
+        if raced:
+            await original(self)
+            return
+        raced = True
+        raise IntegrityError("INSERT INTO publications", {}, Exception("FOREIGN KEY failed"))
+
+    monkeypatch.setattr(AsyncSession, "commit", commit_after_the_class_went)
+    response = await client.post(
+        f"/api/teacher/assessments/{paper}/publications", headers=TEACHER, json=_body(morning)
+    )
+    monkeypatch.setattr(AsyncSession, "commit", original)
+
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("Một lớp vừa bị xoá")
+    async with maker() as session:
+        landed = await session.scalar(
+            select(func.count()).select_from(Publication).where(Publication.assessment_id == paper)
+        )
+    assert landed == 0
 
 
 @pytest.mark.asyncio

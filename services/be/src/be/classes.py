@@ -13,6 +13,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from be.db import get_session
@@ -177,6 +178,21 @@ async def erase_empty_class(
     if refused:
         raise HTTPException(status_code=409, detail=refused)
     await session.delete(school_class)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Lưới phòng thủ. Trên Postgres `FOR UPDATE` phía trên đã chặn cuộc đua: một lượt thêm học
+        # sinh chạy trước thì lần xoá chờ rồi đếm thấy học sinh (409 ở trên); lần xoá khoá trước thì
+        # chính lượt **thêm** vấp khoá ngoại (`roster.create`, phát hành đề). Nhánh này chỉ cho một
+        # hàng con nào khác chưa nghĩ tới: nói bằng câu của phép kiểm, không là lỗi 500 (Tier 1 và
+        # review pha 1, 12/11/2026).
+        await session.rollback()
+        again = await session.get(SchoolClass, class_id, populate_existing=True)
+        if again is None:
+            raise HTTPException(
+                status_code=404, detail="Không tìm thấy lớp này trong danh sách của bạn."
+            ) from None
+        refused = await why_not_erasable(session, again) or "Lớp vừa có thay đổi nên chưa xoá được."
+        raise HTTPException(status_code=409, detail=refused) from None
     logger.info("teacher %s erased empty class %s", asking.teacher_code, class_id)
     return Response(status_code=204)

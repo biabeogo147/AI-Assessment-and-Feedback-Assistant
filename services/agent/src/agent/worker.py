@@ -25,6 +25,7 @@ from agent.handlers import (
     ring_bell,
     write_draft_question,
 )
+from agent.redact import hide_secrets_in_logs
 from contracts import (
     EXPLAIN_TURN_TASK,
     GENERATE_RETRY_QUESTION_TASK,
@@ -37,6 +38,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger(__name__)
 
 _settings = get_settings()
+
+# Khoá model không bao giờ được vào log, kể cả trong traceback của `httpcore` (`agent/redact.py`).
+_SECRETS = (
+    _settings.openai_api_key,
+    _settings.google_api_key,
+    _settings.claude_api_key,
+    _settings.jev_api_key,
+)
+hide_secrets_in_logs(_SECRETS)
 
 # arq mặc định timeout kết nối một giây, chặt quá so với Docker Desktop trên
 # Windows: port proxy của nó cần vài giây sau khi container báo healthy mới chịu
@@ -67,8 +77,11 @@ async def startup(ctx: dict) -> None:
         ctx: Context worker của arq. Không dùng.
 
     Side effects:
-        Ghi một dòng log.
+        Ghi một dòng log. Gắn lại phép che khoá: `arq.cli` gọi `dictConfig` **sau** khi import
+        module này, và gắn handler riêng cho logger `arq` -- handler ấy in `str(e)` của job hỏng
+        mà không qua phép che lúc import (review pha 1, plan `tier-1` 12/11/2026).
     """
+    hide_secrets_in_logs(_SECRETS)
     model = f"{_settings.llm_provider}/{_settings.llm_model}" if llm.enabled() else "off (canned)"
     if llm.enabled() and _settings.llm_fallback_provider and _settings.llm_fallback_model:
         model += f" then {_settings.llm_fallback_provider}/{_settings.llm_fallback_model}"

@@ -126,6 +126,79 @@ async def test_preview_file_refusals(stack, name, data, status, detail):
 
 
 @pytest.mark.asyncio
+async def test_adding_students_to_a_class_just_erased_elsewhere_says_it_is_gone(stack, monkeypatch):
+    """Review pha 1 (plan `tier-1`, 12/11/2026): lần xoá lớp khoá hàng lớp trước, nên chính lượt
+    **thêm** vấp khoá ngoại. Bấm lại không được gì -- giáo viên nhận 404 *lớp không còn*, không
+    lời mời bấm lại."""
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    http, maker, _ = stack
+    async with maker() as session:
+        teacher = await session.scalar(select(Teacher).where(Teacher.teacher_code == "GV-001"))
+        empty = SchoolClass(name="12D", teacher_id=teacher.id)
+        session.add(empty)
+        await session.commit()
+        class_id = empty.id
+    original = AsyncSession.commit
+    raced = False
+
+    async def commit_after_the_class_went(self: AsyncSession) -> None:
+        nonlocal raced
+        if raced:
+            await original(self)
+            return
+        raced = True
+        async with maker() as other:
+            await other.delete(await other.get(SchoolClass, class_id))
+            await other.commit()
+        raise IntegrityError("INSERT INTO students", {}, Exception("FOREIGN KEY constraint failed"))
+
+    monkeypatch.setattr(AsyncSession, "commit", commit_after_the_class_went)
+    response = await http.post(
+        f"/api/teacher/classes/{class_id}/roster",
+        headers=TEACHER,
+        json={"rows": [{"full_name": "Lê Kim Tính"}]},
+    )
+    monkeypatch.setattr(AsyncSession, "commit", original)
+
+    assert (response.status_code, response.json()["detail"]) == (
+        404,
+        "Không tìm thấy lớp này trong danh sách của bạn.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_clash_while_the_class_still_exists_asks_to_press_again(stack, monkeypatch):
+    """Lớp còn đó mà commit vấp (một tên đăng nhập hay mã vừa bị lấy): 409, bấm lại là được."""
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    http, _, class_id = stack
+    original = AsyncSession.commit
+    raced = False
+
+    async def commit_clashes_once(self: AsyncSession) -> None:
+        nonlocal raced
+        if raced:
+            await original(self)
+            return
+        raced = True
+        raise IntegrityError("INSERT INTO students", {}, Exception("UNIQUE constraint failed"))
+
+    monkeypatch.setattr(AsyncSession, "commit", commit_clashes_once)
+    response = await http.post(
+        f"/api/teacher/classes/{class_id}/roster",
+        headers=TEACHER,
+        json={"rows": [{"full_name": "Lê Kim Tính"}]},
+    )
+    monkeypatch.setattr(AsyncSession, "commit", original)
+
+    assert response.status_code == 409
+    assert response.json()["detail"].endswith("Hãy bấm lại.")
+
+
+@pytest.mark.asyncio
 async def test_create_skips_unconfirmed_duplicates(stack):
     http, maker, class_id = stack
     response = await http.post(

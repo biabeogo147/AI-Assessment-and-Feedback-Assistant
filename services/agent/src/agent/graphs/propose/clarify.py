@@ -1,5 +1,8 @@
 """Các nút của một câu hỏi lại: lựa chọn nào thật, cần ít nhất bao nhiêu."""
 
+import re
+import unicodedata
+
 from contracts import NextStepCompleted, NextStepRequested
 
 # Chữ của lối "Khác" mà thẻ hỏi lại tự vẽ (FE, người dùng chốt 13/10/2026): model viết nó vào
@@ -65,11 +68,35 @@ def row_names(request: NextStepRequested) -> set[str]:
     return set()
 
 
-def choices_wanted(request: NextStepRequested) -> int:
+# Câu hỏi xin **tên mới** của một lớp sắp tạo: *"Bạn muốn đặt tên lớp là gì?"*, *"Lớp (học) mới tên
+# là gì?"*, *"đặt tên khác cho lớp mới"*, *"tạo lớp tên gì?"*. Tên ấy giáo viên tự đặt, không có giá
+# trị nào để bày thành nút (`tao-lop-chua-ten`, run-119). Ba dạng, đều gắn **tên** với **lớp
+# mới/sắp tạo**: *"cho mình tên lớp cần xem"* hỏi về một lớp có sẵn -- vẫn cần nút, lần hỏi lại đẩy
+# model gọi `list_class`; *"đặt tên cho đề"* là câu thừa model từng hỏi, vẫn phải hỏi lại (review
+# pha 1 và pha 2, plan `tier-1`).
+_ASKS_A_NEW_NAME = re.compile(
+    r"\bđặt\s+tên\s+(?:\S+\s+){0,2}?(?:cho\s+)?lớp\b"
+    r"|\btên\s+(?:\S+\s+){0,3}?lớp(?:\s+học)?\s+mới\b"
+    r"|\blớp(?:\s+học)?\s+mới\s+(?:sẽ\s+)?(?:có\s+)?tên\b"
+    r"|\btạo\s+lớp\s+(?:có\s+)?tên\b",
+    re.IGNORECASE,
+)
+
+
+def asks_a_new_name(asked: str) -> bool:
+    """Câu hỏi có xin một tên mới không -- tên giáo viên tự gõ, không nút nào thật. Hàm thuần."""
+    return bool(_ASKS_A_NEW_NAME.search(unicodedata.normalize("NFC", asked)))
+
+
+def choices_wanted(request: NextStepRequested, asked: str = "") -> int:
     """Một câu hỏi lại lượt này cần ít nhất bao nhiêu lựa chọn.
 
     Ba, theo luật người dùng chốt -- trừ khi số ba không đúng:
 
+    - Câu hỏi xin tên mới (`asks_a_new_name`): tên của một lớp sắp tạo, giáo viên tự gõ vào ô
+      *Khác…*; đòi nút là mời model bịa tên, và mỗi lần đòi tốn một lần hỏi lại model (Tier 1,
+      12/11/2026). Xét **trước** `candidates`: một danh sách lớp vừa tra ở lượt trước không làm câu
+      hỏi tên lớp mới thành câu hỏi về một dòng (review pha 1).
     - Kết quả tool gần nhất có `candidates` ít hơn ba dòng: câu hỏi về một dòng thì chỉ có bấy nhiêu
       lựa chọn **thật**, và đòi ba là mời model bịa dòng thứ ba. Gần nhất tính từ plan gần nhất,
       **qua** các câu của giáo viên (review T3, `unbiased-model-text`): câu hỏi về hai lớp kéo sang
@@ -78,10 +105,13 @@ def choices_wanted(request: NextStepRequested) -> int:
 
     Args:
         request: Lượt đang hỏi.
+        asked: Chữ của câu hỏi -- `text`, hay `label` và `text` của một câu trong lượt nhiều câu.
 
     Returns:
         Số lựa chọn tối thiểu, có thể là 0.
     """
+    if asks_a_new_name(asked):
+        return 0
     for turn in reversed(request.history):
         if turn.kind == "plan":
             break

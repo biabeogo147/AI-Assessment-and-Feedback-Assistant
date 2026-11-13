@@ -31,9 +31,12 @@ Internet ──443──► Caddy (FE tĩnh, /api) ──► be ──► Postgr
 `read -s` để khoá không vào lịch sử shell:
 
 ```bash
-read -rs KEY && aws ssm put-parameter --region us-east-2 --type SecureString \
-  --name /aiafa/lab/CLAUDE_API_KEY --value "$KEY" && unset KEY
+read -rs KEY && KEY=$(printf '%s' "$KEY" | tr -d '\r') && aws ssm put-parameter --region us-east-2 \
+  --type SecureString --name /aiafa/lab/CLAUDE_API_KEY --value "$KEY" && unset KEY
 ```
+
+`tr -d '\r'`: dán khoá trong Git Bash trên Windows có thể kèm `\r`, và khoá dính `\r` làm mọi lượt
+Kriky hỏng. `render-env.sh` cũng tự bỏ `\r` và khoảng trắng hai đầu mỗi giá trị đọc từ SSM.
 
 | Tham số | Bắt buộc? | Dùng cho |
 | --- | --- | --- |
@@ -182,9 +185,10 @@ viên, góc dưới trái mọi màn học sinh (kể cả màn đăng nhập), 
    **Lần đầu dùng tag** (máy lab còn `deploy.sh` cũ, không ghi tên bản): chạy lệnh ấy **hai lần**.
    Lần một lấy code của tag, kể cả `deploy.sh` mới; lần hai mới ghi tên bản cho FE và BE.
 
-Dựng lại tay bằng `… up -d --build` (không qua `deploy.sh`) thì image caddy mất tên bản, trong khi BE
-vẫn đọc `.env.version`: trước lệnh ấy, `set -a; source /opt/aiafa/deploy/lab/.env.version; set +a`.
-Chạy lại `bootstrap.sh` cũng dựng lại như vậy, nên sau nó thì `deploy.sh <tag>`.
+Các script của lab (`bootstrap.sh`, `deploy.sh`) nạp `.env.version` qua `lib.sh`, nên chạy lại
+`bootstrap.sh` giữ tên bản. Một lệnh `… up -d --build` gõ tay thì không: image caddy dựng ra mất tên
+bản trong khi BE vẫn đọc `.env.version`. Trước lệnh ấy,
+`set -a; source /opt/aiafa/deploy/lab/.env.version; set +a`.
 
 `deploy.sh` cần tham số tag, và từ chối mọi ref không phải tag `lab-*`, kể cả `main` và một mã commit: bản không tên thì
 ticket không nói được lỗi thuộc bản nào. Nó ghi tên bản vào `deploy/lab/.env.version`, nên BE vẫn

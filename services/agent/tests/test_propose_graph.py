@@ -1439,6 +1439,88 @@ def test_two_rows_from_an_earlier_turn_are_still_enough() -> None:
     assert choices_wanted(_asked("x").model_copy(update={"history": planned})) == 3
 
 
+def test_asking_the_name_of_a_new_class_wants_no_button() -> None:
+    """Tier 1 (12/11/2026), ca `tao-lop-chua-ten`: tên lớp sắp tạo giáo viên tự gõ. Đòi ba nút là
+    mời model bịa tên, và tốn một lần hỏi lại model mỗi lượt."""
+    asked = _asked("mình muốn mở thêm một lớp mới")
+
+    for question in (
+        "Bạn muốn đặt tên lớp mới là gì?",
+        "Tên của lớp mới là gì vậy?",
+        "Bạn muốn đặt tên cho lớp mới thế nào?",
+        "Lớp mới tên là gì?",
+        "Lớp mới sẽ có tên gì?",
+        "Bạn muốn đặt tên khác cho lớp mới?",
+        "Tên lớp học mới là gì?",
+        "Lớp học mới tên là gì?",
+        "Bạn muốn tạo lớp tên gì?",
+        unicodedata.normalize("NFD", "Lớp mới tên là gì?"),
+    ):
+        assert choices_wanted(asked, question) == 0, question
+    # Câu hỏi khác vẫn đòi ba nút -- kể cả câu thừa *"đặt tên cho đề"* và câu về lớp có sẵn (review
+    # pha 2).
+    for question in (
+        "Bạn muốn soạn đề cho khối nào?",
+        "Bạn có muốn đặt tên cho đề không?",
+        "Bạn muốn xem lớp mới tạo hay lớp có tên khác?",
+    ):
+        assert choices_wanted(asked, question) == 3, question
+
+
+@pytest.mark.asyncio
+async def test_a_question_for_a_new_class_name_is_not_asked_again(
+    monkeypatch: pytest.MonkeyPatch, on: None
+) -> None:
+    """Qua `choose` (review pha 2): câu hỏi tên lớp mới không nút, một câu hay một mục trong
+    `questions`, không bị `FewChoices` bắt hỏi lại model."""
+    one = _Proposal(kind="ask_clarify", text="Lớp mới tên là gì?", choices=())
+    several = _several(
+        _Question(label="Tên lớp", text="Lớp mới tên là gì?", choices=()),
+        _SO_CAU,
+    )
+    for proposal in (one, several):
+        model = Scripted([proposal])
+        monkeypatch.setattr(llm, "chat_models", lambda model=model: (model,))
+
+        step = await propose(_asked("mình muốn mở thêm một lớp mới"))
+
+        assert step.kind == "ask_clarify"
+        assert len(model.prompts) == 1
+
+
+def test_asking_which_existing_class_still_wants_its_rows() -> None:
+    """Câu hỏi về lớp **có sẵn**, kể cả khi model viết *"tên lớp"*: có `candidates` thì nút là các
+    dòng ấy; chưa có thì vẫn đòi ba -- lần hỏi lại đẩy model gọi `list_class` (review pha 1)."""
+    history = (
+        TurnRecord(kind="teacher", text="lớp 12 thế nào"),
+        TurnRecord(
+            kind="tool_result",
+            tool_name="list_class",
+            tool_result={"candidates": [{"name": "12A"}, {"name": "12B"}], "more": 0},
+        ),
+    )
+    asked = _asked("x").model_copy(update={"history": history})
+
+    assert choices_wanted(asked, "Bạn cho mình tên lớp cần xem nhé?") == 2
+    assert choices_wanted(_asked("kết quả lớp"), "Bạn muốn xem lớp nào? Cho mình tên lớp nhé") == 3
+
+
+def test_a_new_class_name_wants_no_button_even_after_listing_classes() -> None:
+    """Review pha 1: giáo viên vừa tra một lớp rồi xin mở lớp mới -- danh sách lớp còn trong lịch sử
+    không làm câu hỏi tên lớp mới đòi nút."""
+    history = (
+        TurnRecord(
+            kind="tool_result",
+            tool_name="list_class",
+            tool_result={"candidates": [{"name": "12A"}, {"name": "12B"}], "more": 0},
+        ),
+        TurnRecord(kind="teacher", text="mở thêm một lớp mới giúp mình"),
+    )
+    asked = _asked("x").model_copy(update={"history": history})
+
+    assert choices_wanted(asked, "Lớp mới tên là gì?") == 0
+
+
 @pytest.mark.asyncio
 async def test_a_second_ask_with_fewer_choices_keeps_the_first(
     monkeypatch: pytest.MonkeyPatch, on: None

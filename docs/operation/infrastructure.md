@@ -277,7 +277,7 @@ Mỗi bước chỉ dùng thứ bước trước **giao**, không với vào bê
 | 0 → 5 | `teacher.…` và `student.…` phân giải về Elastic IP | Caddy xin chứng chỉ ngay khi bật ở bước 5; tên chưa phân giải là Let's Encrypt từ chối, hỏng nhiều lần là chạm giới hạn tần suất |
 | 1 → 2 | Máy có instance profile; mọi tham số SSM do Terraform quản đã tồn tại | `aws_instance` `depends_on` các tham số SSM và policy IAM: bootstrap đọc SSM ngay ở lần khởi động đầu |
 | 2 → 3 | `/etc/aiafa-lab.conf` và repo ở `/opt/aiafa` | Nhánh được clone phải có `deploy/lab/`; repo phải public vì máy clone không kèm khoá |
-| 3 → 4 | docker, aws CLI ở `/snap/bin` | cron và systemd không có `/snap/bin` trong PATH: `lib.sh` tự thêm |
+| 3 → 4 | docker, aws CLI ở `/usr/bin` | aws CLI từ bộ zip chính thức của AWS, không từ snap (snap store có lúc không vào được); cron và systemd chỉ có `/usr/bin:/bin` trong PATH |
 | 4 → 5 | `deploy/lab/.env` (chmod 600), có thể kèm `.env.overrides` | Ba mật khẩu hạ tầng và `SITE_ADDRESS` dùng `${X:?…}`: thiếu một biến là compose dừng ngay, không bật một service cầm mật khẩu rỗng. Khoá model được phép rỗng (`${X:-}`) |
 | 5 → 6 | `be` healthy | Bootstrap seed **một lần** nhờ dấu `/var/lib/aiafa-lab/seeded`. `seed.sh` luôn gọi `--reset`: gọi tay là xoá sạch dữ liệu lab |
 | Trong 5 | Ba image | **Mỗi image chỉ một service dựng** (`be`, `document`, `caddy`); service còn lại dùng lại image với `pull_policy: never`. Hai service cùng `build` một tag thì buildx dựng song song và báo `already exists` |

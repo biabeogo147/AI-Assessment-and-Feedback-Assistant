@@ -13,9 +13,20 @@ say "cài docker, compose, aws CLI"
 export DEBIAN_FRONTEND=noninteractive
 # Lần boot đầu, unattended-upgrades hay giữ khoá dpkg: chờ thay vì chết.
 apt-get -o DPkg::Lock::Timeout=600 update -q
-apt-get -o DPkg::Lock::Timeout=600 install -y -q docker.io docker-compose-v2 docker-buildx git
-snap wait system seed.loaded
-command -v aws >/dev/null || snap install aws-cli --classic
+apt-get -o DPkg::Lock::Timeout=600 install -y -q docker.io docker-compose-v2 docker-buildx git \
+	curl unzip
+# aws CLI từ bộ zip chính thức của AWS, không từ snap: máy mới ở us-east-2 từng timeout ở
+# api.snapcraft.io trong khi GitHub và Docker Hub vẫn vào được (11/11/2026). Đặt ở /usr/bin vì cron
+# và systemd chỉ có /usr/bin:/bin trong PATH. Kiểm đúng đường ấy, không `command -v`: `sudo` trên
+# Ubuntu có /snap/bin trong `secure_path`, nên một aws CLI cũ của snap qua mặt `command -v` mà cron
+# vẫn không thấy nó (review pha 1).
+if [[ ! -x /usr/bin/aws ]]; then
+	cli=$(mktemp -d)
+	curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "$cli/aws.zip"
+	unzip -q "$cli/aws.zip" -d "$cli"
+	"$cli/aws/install" --bin-dir /usr/bin --install-dir /usr/local/aws-cli --update
+	rm -rf "$cli"
+fi
 systemctl enable --now docker
 
 # Instance profile có thể tới chậm vài giây sau lần khởi động đầu.
@@ -58,9 +69,9 @@ systemctl enable aiafa-lab.service
 
 if [[ -n "${BACKUP_BUCKET:-}" ]]; then
 	say "cron backup Postgres lúc 2 giờ sáng giờ Việt Nam"
-	# cron chỉ có /usr/bin:/bin trong PATH; aws CLI của snap ở /snap/bin.
+	# cron chỉ có /usr/bin:/bin trong PATH; aws CLI cài ở /usr/bin (đầu script).
 	cat >/etc/cron.d/aiafa-lab-backup <<CRON
-PATH=/snap/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
 0 19 * * * root /bin/bash $LAB_DIR/backup.sh >>/var/log/aiafa-lab-backup.log 2>&1
 CRON
 fi

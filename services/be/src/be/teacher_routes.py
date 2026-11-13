@@ -46,6 +46,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1030,7 +1031,16 @@ async def _note_publication(
         for row in results
         if not row.published
     ]
-    outcome: dict = {"published": bool(landed), "assessment_id": assessment_id, "classes": landed}
+    # `found`: đề có thật và của giáo viên này (`_owned` đã tra trước khi phát hành), kể cả khi
+    # không lớp nào nhận. Thiếu cờ ấy thì `_subject` coi lần hỏng là không nói về gì, lượt không có
+    # `entity_id`, và đề bị xoá sau đó thì thẻ không biết mình trỏ vào một đề không còn (Tier 1,
+    # 12/11/2026).
+    outcome: dict = {
+        "published": bool(landed),
+        "found": True,
+        "assessment_id": assessment_id,
+        "classes": landed,
+    }
     if missed:
         outcome["failed"] = missed
     try:
@@ -1226,7 +1236,17 @@ async def publish(
     # đây không phải một cạnh mới mà là **không đi cạnh nào**.
     if landed and current is AssessmentState.APPROVED:
         advance(assessment, AssessmentState.PUBLISHED)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        # Một lớp vừa bị xoá ở tab khác giữa lúc kiểm và lúc ghi: khoá ngoại của hàng
+        # `Publication` vấp. Không lớp nào nhận đề -- cả lần ghi lùi lại --, và giáo viên đọc câu
+        # tiếng Việt thay vì một lỗi 500 (review pha 1, plan `tier-1` 12/11/2026).
+        await session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Một lớp vừa bị xoá nên chưa phát hành được. Hãy chọn lại lớp rồi phát hành.",
+        ) from exc
 
     # Ghi cả khi không lớp nào nhận: thẻ `failed` của khung chat đọc chính lượt này (Tier 2 câu 35,
     # hướng B). Trước đây lần phát hành hỏng không để lại dấu gì trong đoạn chat.

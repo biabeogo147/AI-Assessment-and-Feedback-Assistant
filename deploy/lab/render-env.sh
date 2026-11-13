@@ -10,9 +10,17 @@
 
 source "$(dirname "$0")/lib.sh"
 
+# Bỏ CR và khoảng trắng hai đầu mỗi giá trị: khoá chép từ Git Bash trên Windows từng mang `\r` vào
+# SSM, `.env` chở nguyên nó, và mọi lượt Kriky hỏng vì header không hợp lệ (lab 11/11/2026).
+trim() {
+	local text=${1//$'\r'/}
+	text=${text#"${text%%[![:space:]]*}"}
+	printf '%s' "${text%"${text##*[![:space:]]}"}"
+}
+
 declare -A value
 while IFS=$'\t' read -r name text; do
-	[[ -n "$name" ]] && value[${name##*/}]=$text
+	[[ -n "$name" ]] && value[${name##*/}]=$(trim "$text")
 done < <(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive --with-decryption \
 	--query 'Parameters[].[Name,Value]' --output text)
 

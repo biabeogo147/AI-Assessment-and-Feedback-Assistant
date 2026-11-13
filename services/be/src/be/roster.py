@@ -19,7 +19,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from openpyxl import load_workbook
 from pydantic import BaseModel
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,8 +27,8 @@ from be.accounts import hashed, new_password, next_student_codes, plain, usernam
 from be.db import get_session
 from be.identity import Asking, current_teacher
 from be.results_export import PasswordLine, attachment, build_password_workbook
-from be.teacher_reads import _owned_class
-from schema.models import AccountSession, Student, Teacher
+from be.teacher_reads import _NO_CLASS, _owned_class
+from schema.models import AccountSession, SchoolClass, Student, Teacher
 
 router = APIRouter(prefix="/api", tags=["teacher-roster"])
 
@@ -304,6 +304,10 @@ async def create_accounts(
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
+        # Khoá ngoại vấp vì lớp vừa bị xoá ở tab khác (lần xoá giữ khoá hàng lớp trước): bấm lại
+        # cũng không được, nên nói lớp không còn (review pha 1, plan `tier-1` 12/11/2026).
+        if await session.scalar(select(SchoolClass.id).where(SchoolClass.id == class_id)) is None:
+            raise HTTPException(status_code=404, detail=_NO_CLASS) from exc
         raise HTTPException(
             status_code=409, detail="Có giáo viên khác vừa thêm học sinh cùng lúc. Hãy bấm lại."
         ) from exc
