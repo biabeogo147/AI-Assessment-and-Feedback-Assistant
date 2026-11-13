@@ -1041,3 +1041,18 @@ Hai lượt review của plan `tier-1` (pha 1 BE/AGENT/deploy, pha 2 FE/Figma).
 | **Thẻ phát hành hỏng của một đề sau đó bị xoá in *"Đề trống này đã xoá"*** dưới đầu đề *"Chưa phát hành được đề"*: lượt hỏng nay có `entity_id`, nên được đánh `entity_gone`; câu an toàn ấy viết cho variant *tạo đề trống* | Nhẹ: một câu riêng cho `gone && unpublished` (cần Figma) |
 | **KaTeX dựng công thức ở 1,21em** cạnh chữ 13px ở mọi bảng, nhãn | Nhẹ: quy ước chung của app, quyết ở mức toàn app nếu đổi |
 | **Bộ cài aws CLI trong `bootstrap.sh` không kiểm chữ ký GPG** như tài liệu AWS gợi ý | Nhẹ: thêm bước kiểm chữ ký nếu lab ra ngoài phạm vi thử nghiệm |
+
+## Lộ ra khi làm plan dàn ý Markdown, agent chia việc (13/11/2026)
+
+Plan `markdown-outline-agent-split` (ADR-38): dàn ý chỉ là lời Markdown kèm số câu; Kriky tự chia
+việc khi giáo viên đồng ý; lời chia việc trong khối các bước trên chat.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Chất lượng chia việc của `gpt-4o-mini` chưa đo**: S1 49/50 là của Haiku (`agent-split-bench`); `.env` dev nay là `gpt-4o-mini` | Bench `exam_bench` kiểm `LLM_MODEL == claude-haiku-5-5`; đo `gpt-4o-mini` cần cho bench nhận model khác và người dùng duyệt chi phí |
+| **Plan soạn bị từ chối vì thiếu hay lệch cách chia** về lại model với lời *"giáo viên đồng ý lại để chia lại"*: model nêu lại, AGENT chia lại, lượt dừng ở lần trùng lý do thứ hai -- tốn thêm một lời gọi | Nhẹ; chỉ xảy ra khi AGENT không chia (lịch sử không có dàn ý ngay trước) |
+| **Dàn ý hiện trước lúc deploy ADR-38 mà giáo viên đồng ý sau** mang `items`/`source_nodes`, không `nodes`: BE không điền `nodes` cho `create_draft` | Nhẹ; plan chốt không đường dự phòng. Gõ lại yêu cầu thì ra dàn ý mới |
+| **Chưa có test luồng sự kiện cho `TurnEvent(kind="plan").split`**: test chỉ kiểm lượt `plan` đã lưu | Nhẹ: một test SSE trong `test_teacher_chat.py` |
+| **P1/P2 của bench nay chấm job, không chấm mục dàn ý**: không so thẳng được với `run-130` | Ghi ở `grading-design.md`; đo lại cả hai nhánh khi chạy bench lần sau |
+| **Lời chia việc nói *2 câu* cạnh dòng tiến độ *đã soạn 5/7 câu*** khi soạn thêm (review pha 3): tiến độ đếm cả đề, lời chia việc đếm câu của lượt -- hai con số đứng sát nhau dễ đọc nhầm | Nhẹ: tiến độ của bước soạn thêm đếm theo câu của lượt, hay ghi rõ *cả đề* |
+| **Dàn ý soạn thêm đánh số *Câu 1–2*** thay vì *Câu 6–7* (thử tay `gpt-4o-mini`, có từ trước ADR-38) | Lời dặn `outline` trong `propose/prompt.py`: nói rõ soạn thêm thì đánh số tiếp sau câu cuối của đề |

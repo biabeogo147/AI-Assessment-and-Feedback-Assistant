@@ -16,6 +16,8 @@ worker sẽ là vết nứt đầu tiên trên bức tường giữa các servic
 """
 
 import json
+import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -50,9 +52,10 @@ from contracts import (
     IndexMethod,
     IndexNode,
     NextStepCompleted,
-    OutlineItem,
     PlanStep,
     SolutionMethod,
+    Split,
+    SplitJob,
     TitleSource,
 )
 from schema.ddl import prepare_schema
@@ -83,12 +86,18 @@ class ScriptedAgent:
     """
 
     def __init__(
-        self, *steps: NextStepCompleted, telling: str = "Mình đã làm xong các bước."
+        self,
+        *steps: NextStepCompleted,
+        telling: str = "Mình đã làm xong các bước.",
+        splits: bool = True,
     ) -> None:
         self.steps = list(steps)
         self.asked: list[dict] = []
         self.reported: list[dict] = []
         self.telling = telling
+        # Như AGENT (ADR-38): plan soạn theo dàn ý đi kèm cách chia dàn ý, đúng số câu dàn ý đã
+        # xem. `splits=False` là AGENT quên chia -- cổng duyệt của BE phải từ chối.
+        self.splits = splits
 
     async def __call__(self, pool, settings, task_name, payload) -> dict:
         # Một cái cửa, nhiều loại việc. Từ khi BE nhờ AGENT đặt tên đoạn chat, bản giả
@@ -114,7 +123,43 @@ class ScriptedAgent:
                 request_id=payload["request_id"], kind="say", text="hết kịch bản"
             )
         )
+        if self.splits:
+            step = _with_split(step, payload)
         return step.model_copy(update={"request_id": payload["request_id"]}).model_dump(mode="json")
+
+
+# Số câu của dàn ý `_outline_shown` dựng thay cho một lượt dàn ý thật -- để `ScriptedAgent` chia
+# đúng số câu như AGENT, khi lịch sử không có lượt dàn ý nào.
+_SHOWN_TOTAL = 0
+
+
+def _with_split(step: NextStepCompleted, payload: dict) -> NextStepCompleted:
+    """Cách chia AGENT gắn vào một plan soạn (ADR-38): mỗi câu của dàn ý gần nhất một job."""
+    drafting = {"start_drafting", "replace_question"}
+    if step.kind != "plan" or step.split is not None:
+        return step
+    if not any(one.tool_name in drafting for one in step.steps):
+        return step
+    total = (
+        next(
+            (
+                int((turn.get("tool_result") or {}).get("total") or 0)
+                for turn in reversed(payload.get("history") or [])
+                if turn.get("kind") == "outline"
+            ),
+            0,
+        )
+        or _SHOWN_TOTAL
+    )
+    if total < 1:
+        return step
+    jobs = tuple(
+        SplitJob(knowledge=f"Kiến thức câu {at}", approach="Chọn đáp án đúng")
+        for at in range(1, total + 1)
+    )
+    return step.model_copy(
+        update={"split": Split(note="Mình chia dàn ý thành từng câu.", jobs=jobs)}
+    )
 
 
 def _is_telling(payload: dict) -> bool:
@@ -152,18 +197,11 @@ def _outline_shown(monkeypatch, total: int, purpose: str = "new") -> None:
             "total": total,
             "for": purpose,
             "document_id": "",
-            "items": [
-                {
-                    "questions": total,
-                    "knowledge": "Kiến thức của đề",
-                    "formulas": [],
-                    "approach": "Chọn đáp án đúng",
-                    "source_nodes": [],
-                }
-            ],
+            "nodes": [],
         }
 
     monkeypatch.setattr(teacher_chat, "_shown_outline", shown)
+    monkeypatch.setattr(sys.modules[__name__], "_SHOWN_TOTAL", total)
 
 
 def _refusal(agent: "ScriptedAgent") -> str:
@@ -1054,9 +1092,14 @@ async def test_a_plan_passes_the_id_from_one_step_into_the_next(stack) -> None:
         "assistant",  # câu kết của lượt kể lại
     ]
 
-    # Plan lưu đủ để vẽ khối bằng chứng mà không cần đoán: tiêu đề từng bước và tổng số.
+    # Plan lưu đủ để vẽ khối bằng chứng mà không cần đoán: tiêu đề từng bước và tổng số -- và
+    # lời AGENT chia dàn ý, cho khối *thinking* (ADR-38).
     kept = next(turn for turn in body["turns"] if turn["kind"] == "plan")
-    assert kept["tool_result"] == {"steps": ["Tạo đề trống", "Soạn câu hỏi"], "total": 2}
+    assert kept["tool_result"] == {
+        "steps": ["Tạo đề trống", "Soạn câu hỏi"],
+        "total": 2,
+        "split": {"note": "Mình chia dàn ý thành từng câu.", "questions": 3},
+    }
 
     # Bước hai nhận đúng id mà bước một vừa sinh ra: đó là cả điểm của `{1.assessment_id}`.
     # Đọc từ bảng, vì `tool_args` cố ý không đi ra tới client — màn hình không cần tham số
@@ -2984,22 +3027,26 @@ async def test_a_chip_not_yet_usable_takes_draft_opening_off_the_table(stack) ->
 # ------------------------------------------------------------------ dàn ý (`draft-outline`)
 
 
-def _outline_item(**overrides: object) -> OutlineItem:
-    fields: dict[str, object] = {
-        "questions": 2,
-        "knowledge": "Đọc và viết số tự nhiên",
-        "formulas": ("$\\overline{ab} = 10a + b$",),
-        "approach": "Cho một số, chọn cách đọc đúng",
-        "source_nodes": (0,),
-    }
-    fields.update(overrides)
-    return OutlineItem.model_validate(fields)
+@dataclass(frozen=True)
+class _Part:
+    """Một phần của dàn ý trong test: chỉ để dựng **lời** dàn ý và đếm câu, bài nguồn -- từ ADR-38
+    BE không thấy phần nào, chỉ thấy lời, số câu và bài nguồn."""
+
+    questions: int = 2
+    knowledge: str = "Đọc và viết số tự nhiên"
+    formulas: tuple[str, ...] = ("$\\overline{ab} = 10a + b$",)
+    approach: str = "Cho một số, chọn cách đọc đúng"
+    source_nodes: tuple[int, ...] = (0,)
 
 
-def _outline_step(*items: OutlineItem, first: int | None = None, **args: str) -> NextStepCompleted:
-    """Một lượt dàn ý model nêu: các mục, và **lời Kriky** nói về chúng (ADR-30).
+def _outline_item(**overrides: object) -> _Part:
+    return _Part(**overrides)
 
-    Lời nêu `Câu k` đầu mỗi mục, một công thức của mục và một câu hỏi, như một lời dàn ý thật. BE
+
+def _outline_step(*items: _Part, first: int | None = None, **args: str) -> NextStepCompleted:
+    """Một lượt dàn ý model nêu: **lời Kriky** (ADR-30) kèm số câu và bài nguồn (ADR-38).
+
+    Lời nêu `Câu k` đầu mỗi phần, một công thức của phần và một câu hỏi, như một lời dàn ý thật. BE
     không kiểm lời ấy (hậu ký 20/10/2026 của ADR-30). Câu đầu suy từ việc: đề mới là 1, thay câu là
     chính câu ấy, soạn thêm là 3 (các test soạn thêm chạy trên một đề 2 câu); `first` ghi đè.
     """
@@ -3023,14 +3070,15 @@ def _outline_step(*items: OutlineItem, first: int | None = None, **args: str) ->
         request_id="x",
         kind="outline",
         text="\n".join(lines),
-        outline=outline,
+        outline_questions=sum(item.questions for item in outline),
+        outline_nodes=tuple(sorted({node for item in outline for node in item.source_nodes})),
         tool_args=dict(args),
     )
 
 
 @pytest.mark.asyncio
-async def test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored(stack) -> None:
-    """ADR-30: lời dàn ý trên màn hình là lời Kriky viết, nguyên văn; các mục -- thứ đi vào job --
+async def test_the_outline_shown_is_kriky_s_own_words_and_its_count_is_stored(stack) -> None:
+    """ADR-30, ADR-38: lời dàn ý trên màn hình là lời Kriky viết, nguyên văn; số câu và bài nguồn
     lưu cạnh nó; và một lần F5 cho lại đúng lời ấy."""
     client, maker, monkeypatch = stack
     await _a_book(maker, "GV-001", "book")
@@ -3049,7 +3097,8 @@ async def test_the_outline_shown_is_kriky_s_own_words_and_the_items_are_stored(s
     expected = step.text
     assert reply.json()["text"] == expected
     assert row.text == expected
-    assert row.tool_result["items"] == [_outline_item().model_dump(mode="json")]
+    assert (row.tool_result["total"], row.tool_result["nodes"]) == (2, [0])
+    assert "items" not in row.tool_result
     assert (row.tool_result["for"], row.tool_result["first"]) == ("new", 1)
     assert row.tool_result["document_id"] == "book"
     again = await client.get("/api/teacher/chat", headers=TEACHER)
@@ -3111,7 +3160,7 @@ async def test_a_message_that_drifts_from_its_outline_is_shown_as_kriky_wrote_it
         request_id="x",
         kind="outline",
         text="Mình soạn hai câu về đọc số tự nhiên nhé.",
-        outline=(_outline_item(source_nodes=()),),
+        outline_questions=2,
     )
     agent = ScriptedAgent(drifted)
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -3128,9 +3177,7 @@ async def test_a_message_that_drifts_from_its_outline_is_shown_as_kriky_wrote_it
 async def test_an_empty_outline_message_still_goes_back_to_the_model(stack) -> None:
     """Một bong bóng rỗng không phải một cách nói: lời trống vẫn bị trả về."""
     client, _, monkeypatch = stack
-    empty = NextStepCompleted(
-        request_id="x", kind="outline", text="  ", outline=(_outline_item(source_nodes=()),)
-    )
+    empty = NextStepCompleted(request_id="x", kind="outline", text="  ", outline_questions=2)
     good = _outline_step(_outline_item(source_nodes=()))
     agent = ScriptedAgent(empty, good)
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -3153,10 +3200,7 @@ async def test_a_refused_outline_still_counts_the_tokens_it_spent(stack) -> None
         request_id="x",
         kind="outline",
         text="Mình soạn mười một câu nhé?",
-        outline=(
-            _outline_item(questions=6, source_nodes=()),
-            _outline_item(questions=5, source_nodes=()),
-        ),
+        outline_questions=11,
         model_tokens=7,
     )
     good = _outline_step(_outline_item(source_nodes=())).model_copy(update={"model_tokens": 5})
@@ -3178,10 +3222,7 @@ async def test_an_outline_refused_twice_for_the_same_reason_stops_the_turn(stack
         request_id="x",
         kind="outline",
         text="Mình soạn mười một câu nhé?",
-        outline=(
-            _outline_item(questions=6, source_nodes=()),
-            _outline_item(questions=5, source_nodes=()),
-        ),
+        outline_questions=11,
     )
     agent = ScriptedAgent(*[drifted for _ in range(20)])
     monkeypatch.setattr(teacher_chat, "run_task", agent)
@@ -3198,15 +3239,14 @@ async def test_an_outline_refused_twice_for_the_same_reason_stops_the_turn(stack
 
 @pytest.mark.asyncio
 async def test_an_outline_refused_for_changing_reasons_stops_at_the_third(stack) -> None:
-    """Thử tay 17/10/2026 (pha 6 plan `backlog-tier-1`): lời trả về xen kẽ *mục 2*, *mục 3* thì
-    luật *cùng lý do hai lần* không bắt, và lượt chạy tới bảy lần gọi model."""
+    """Thử tay 17/10/2026 (pha 6 plan `backlog-tier-1`): lời trả về xen kẽ hai lý do thì luật *cùng
+    lý do hai lần* không bắt, và lượt chạy tới bảy lần gọi model."""
     client, _, monkeypatch = stack
 
     def broken(where: int) -> NextStepCompleted:
-        items = [_outline_item(questions=1, source_nodes=()) for _ in range(3)]
-        items[where] = _outline_item(questions=1, source_nodes=(), knowledge="x" * 601)
+        # 11 rồi 12 câu: hai lời từ chối khác nhau, cùng một lỗi.
         return NextStepCompleted(
-            request_id="x", kind="outline", text="Mình đề xuất 3 câu nhé?", outline=tuple(items)
+            request_id="x", kind="outline", text="Mình đề xuất nhé?", outline_questions=10 + where
         )
 
     agent = ScriptedAgent(*[broken(1 + n % 2) for n in range(20)])
@@ -3423,9 +3463,9 @@ async def test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once(st
     async with maker() as session:
         brief = await session.scalar(select(DraftBrief))
         rows = list(await session.scalars(select(DraftItem).order_by(DraftItem.ordinal)))
-    # Số câu BE điền từ dàn ý (2), và mỗi câu nhận mục của nó.
-    assert [item["knowledge"] for item in brief.outline] == ["Đọc và viết số tự nhiên"]
-    assert [(row.outline_item, row.item_part) for row in rows] == [(0, 1), (0, 2)]
+    # Số câu BE điền từ dàn ý (2), và mỗi câu nhận job AGENT chia cho nó (ADR-38).
+    assert [item["knowledge"] for item in brief.outline] == ["Kiến thức câu 1", "Kiến thức câu 2"]
+    assert [(row.outline_item, row.item_part) for row in rows] == [(0, 1), (1, 1)]
 
     # Cùng dàn ý ấy, plan thứ hai: không soạn lần nữa.
     await http.post("/api/teacher/chat/messages", json={"text": "soạn lại đi"}, headers=TEACHER)
@@ -3534,7 +3574,7 @@ async def test_drafting_more_needs_an_outline_for_more_and_finds_the_draft_itsel
     assert "Câu 3:" in agent.asked[3]["history"][-2]["text"]  # dàn ý đếm tiếp từ câu 3
     async with maker() as session:
         rows = list(await session.scalars(select(DraftItem).order_by(DraftItem.ordinal)))
-    assert [(row.ordinal, row.outline_item) for row in rows] == [(1, 0), (2, 0), (3, 1)]
+    assert [(row.ordinal, row.outline_item) for row in rows] == [(1, 0), (2, 1), (3, 2)]
     assert reply.status_code == 200
 
 
@@ -3793,13 +3833,16 @@ async def _guarded_more(maker, first: str, second: str):
     )
 
     async def shown(*_args: object) -> dict:
-        return {"version": 2, "for": "more", "total": 2, "assessment_id": "p1", "items": []}
+        return {"version": 2, "for": "more", "total": 2, "assessment_id": "p1", "nodes": []}
 
     async with maker() as session:
         teacher_chat_shown = teacher_chat._shown_outline
         teacher_chat._shown_outline = shown
         try:
-            return await teacher_chat.guard_drafting(session, "t", 5, two)
+            jobs = tuple(SplitJob(knowledge=f"K{at}", approach="A") for at in range(2))
+            return await teacher_chat.guard_drafting(
+                session, "t", 5, two, Split(note="chia", jobs=jobs)
+            )
         finally:
             teacher_chat._shown_outline = teacher_chat_shown
 
@@ -3829,3 +3872,78 @@ async def test_drafting_steps_on_two_papers_are_not_merged(stack) -> None:
     refused = await _guarded_more(maker, "p1", "p2")
 
     assert isinstance(refused, str) and "một plan chỉ soạn một lần" in refused
+
+
+# ------------------------------------------------------------------ chia việc (ADR-38)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("jobs", "wanted"), [(None, "thiếu cách chia"), (3, "cách chia lại có 3")])
+async def test_a_drafting_plan_must_carry_a_split_of_exactly_the_outline_s_count(
+    stack, jobs: int | None, wanted: str
+) -> None:
+    """ADR-38: BE không chia dàn ý, nên plan soạn phải chở cách AGENT chia -- đúng số câu giáo viên
+    đã thấy; thiếu hay lệch thì lời từ chối về model, không câu nào được soạn."""
+    _, maker, _ = stack
+    one = (PlanStep(tool_name="start_drafting", args={"question_count": ""}, title="Soạn"),)
+    split = (
+        None
+        if jobs is None
+        else Split(
+            note="chia", jobs=tuple(SplitJob(knowledge="K", approach="A") for _ in range(jobs))
+        )
+    )
+
+    async def shown(*_args: object) -> dict:
+        return {"version": 2, "for": "more", "total": 2, "assessment_id": "p1", "nodes": []}
+
+    async with maker() as session:
+        kept = teacher_chat._shown_outline
+        teacher_chat._shown_outline = shown
+        try:
+            refused = await teacher_chat.guard_drafting(session, "t", 5, one, split)
+        finally:
+            teacher_chat._shown_outline = kept
+
+    assert isinstance(refused, str) and wanted in refused
+
+
+@pytest.mark.asyncio
+async def test_an_agreed_outline_drafts_each_question_on_the_job_agent_split_for_it(stack) -> None:
+    """ADR-38: các job AGENT chia thành brief của đề, mỗi ô trỏ về job của nó; lượt plan lưu lời
+    chia việc để chat vẽ khối *thinking* lại được sau F5."""
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(_outline_step(_outline_item(source_nodes=())), _open_and_draft(""))
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+    _drafting_stack(http, monkeypatch, rings_for=set(), ready_for=set())
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    reply = await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
+
+    plan = next(turn for turn in reply.json()["turns"] if turn["kind"] == "plan")
+    assert plan["tool_result"]["split"] == {
+        "note": "Mình chia dàn ý thành từng câu.",
+        "questions": 2,
+    }
+    async with maker() as session:
+        brief = await session.scalar(select(DraftBrief))
+    assert [(job["questions"], job["knowledge"]) for job in brief.outline] == [
+        (1, "Kiến thức câu 1"),
+        (1, "Kiến thức câu 2"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_plan_whose_split_is_missing_drafts_nothing(stack) -> None:
+    http, maker, monkeypatch = stack
+    agent = ScriptedAgent(
+        _outline_step(_outline_item(source_nodes=())), _open_and_draft(""), splits=False
+    )
+    monkeypatch.setattr(teacher_chat, "run_task", agent)
+
+    await http.post("/api/teacher/chat/messages", json={"text": "soạn 2 câu"}, headers=TEACHER)
+    await http.post("/api/teacher/chat/messages", json={"text": "oke"}, headers=TEACHER)
+
+    assert "thiếu cách chia" in _refusal(agent)
+    async with maker() as session:
+        assert await session.scalar(select(DraftBrief)) is None

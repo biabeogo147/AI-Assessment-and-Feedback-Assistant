@@ -77,13 +77,18 @@ class IncompletePlan(Flawed):
 
 
 class NoOutline(AskAgain):
-    """Model chọn `outline` mà không nêu mục nào, hay một mục không đọc được (`draft-outline`)."""
+    """Model chọn `outline` mà không nêu số câu, hay gọi `outline` như một tool (ADR-38)."""
+
+    hint = (
+        "Dàn ý là kind=outline, không phải tool: text là cả dàn ý, outline_questions là số câu "
+        "của dàn ý (ít nhất 1). Nêu lại."
+    )
 
 
 class UncountedOutline(Flawed):
-    """Dàn ý có tổng câu khác số câu model vừa ghi trong `known`, hay dàn ý thay câu không phải đúng
-    một mục một câu (`draft-outline`). Đo ở bench run-98: *"6 câu"* ra dàn ý 4 mục × 2 câu; *"thay
-    câu 2"* ra dàn ý nêu lại cả đề.
+    """Dàn ý có số câu khác số câu model vừa ghi trong `known` hay giáo viên vừa nói, hay dàn ý thay
+    câu không phải một câu (`draft-outline`, ADR-38). Đo ở bench run-98: *"6 câu"* ra dàn ý 8 câu;
+    *"thay câu 2"* ra dàn ý nêu lại cả đề.
 
     Lần hỏi lại phải nói **số câu đúng** (review code pha 5, plan `backlog-tier-1`): hint rỗng thì
     model không biết sai ở đâu, và lần hai ra đúng dàn ý ấy.
@@ -95,20 +100,21 @@ class UncountedOutline(Flawed):
         # test nào đỏ (backlog, chia `propose.py` 20/10/2026).
         if flaw.source == "replace":
             self.hint = (
-                "Dàn ý thay câu chỉ có đúng một mục, mục ấy một câu: chỉ cho câu bị thay. Nêu lại."
+                "Dàn ý thay câu chỉ có đúng một câu (outline_questions = 1): chỉ cho câu bị "
+                "thay. Nêu lại."
             )
         elif flaw.source == "known":
             # Con số là của **model** (`known`), không phải lời giáo viên: nói đúng nguồn, để model
             # tự xét lại cả `known` khi giáo viên vừa đổi số câu (review code vòng 2).
             n = flaw.wanted
             self.hint = (
-                f"Bạn ghi question_count={n} trong known mà tổng số câu của dàn ý khác {n}. Nêu "
-                "lại dàn ý đủ đúng số câu giáo viên xin, và sửa known nếu giáo viên vừa đổi số câu."
+                f"Bạn ghi question_count={n} trong known mà dàn ý có số câu khác {n}. Nêu lại "
+                "dàn ý đúng số câu giáo viên xin, và sửa known nếu giáo viên vừa đổi số câu."
             )
         else:
             n = flaw.wanted
             self.hint = (
-                f"Giáo viên xin {n} câu: tổng số câu của các mục trong dàn ý phải đúng {n}. "
+                f"Giáo viên xin {n} câu: dàn ý phải đúng {n} câu (outline_questions = {n}). "
                 "Nêu lại dàn ý."
             )
 

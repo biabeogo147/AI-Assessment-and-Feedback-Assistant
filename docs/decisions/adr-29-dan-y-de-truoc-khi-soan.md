@@ -9,6 +9,9 @@
 - **Sửa:** 2026-10-26 — công thức của dàn ý có thể lấy từ sách: trang có công thức được đọc bằng
   ảnh khi Kriky đọc tới. Xem *Hậu ký 26/10/2026*.
 - **Sửa:** 2026-10-26 — mục dàn ý cũng tới pha 2. Xem *Hậu ký 26/10/2026 (pha 2)*.
+- **Sửa:** 2026-11-13 — mục có cấu trúc và phép chia của BE thay bởi
+  [ADR-38](adr-38-dan-y-markdown-agent-chia-viec.md): dàn ý là lời kèm số câu, Kriky tự chia việc.
+  Xem *Hậu ký 13/11/2026*.
 
 ## Bối cảnh
 
@@ -96,11 +99,11 @@ thử trên trình duyệt).
 |---|---|---|
 | Mọi đề qua một dàn ý đã hiện ở lượt ngay trước, chưa dùng, đúng việc, đúng sách, đúng đề | `teacher_chat._shown_outline`, `guard_drafting`; `teacher_tools._start_drafting` từ chối khi không có dàn ý | `test_no_question_is_drafted_before_the_teacher_has_seen_an_outline`, `test_an_outline_seen_last_turn_becomes_the_draft_once_and_only_once`, `test_an_outline_from_before_the_last_teacher_message_is_not_an_approval`, `test_drafting_without_an_outline_seen_is_refused` |
 | ~~BE dựng chữ dàn ý, gọi công thức là của Kriky~~ — thôi áp dụng 17/10/2026: lời dàn ý là lời model; từ 20/10/2026 BE không kiểm lời ấy (ADR-30) | `teacher_chat.outline_turn` (`render`, `check_message` đã gỡ) | xem bảng của ADR-30 |
-| Job chỉ nhận mục của nó, không chữ tài liệu thô | `drafting.fire`, `drafting.item_fields`; agent `authoring.draft_brief` | `test_a_job_receives_exactly_its_outline_item`, `check_drafting_reads_no_document_text` |
+| Job chỉ nhận job của nó (từ 13/11/2026: job Kriky chia từ dàn ý, ADR-38), không chữ tài liệu thô | `drafting.fire`, `drafting.item_fields`; agent `authoring.draft_brief` | `test_a_job_receives_exactly_its_outline_item`, `test_each_question_gets_its_own_job_and_siblings_are_not_off_limits`, `check_drafting_reads_no_document_text` |
 | Thay câu giữ câu cũ tới khi câu mới đạt; thay câu theo luật xoá ADR-28 | `drafting.replace`, `harvest`, `drop_question`; `teacher_tools._replace_question` | `test_a_replaced_question_stays_until_its_successor_lands`, `test_a_replacement_whose_job_breaks_leaves_the_old_question`, `test_a_replacement_step_says_whether_the_question_changed` |
 | Mười câu mỗi lần | `be/outline.validate`, `teacher_tools.MOST_QUESTIONS_ASKED` | `test_more_than_ten_questions_in_one_go_is_refused` |
-| Công thức không bị bắt hình dạng (hậu ký 20/10/2026) | `be/outline.validate` | `test_a_formula_with_words_around_it_is_not_refused` |
-| Pha 2 không đổi | contracts | `test_phase_two_has_no_room_for_an_outline_item` |
+| ~~Công thức không bị bắt hình dạng (hậu ký 20/10/2026)~~ — thôi áp dụng 13/11/2026: BE không còn thấy công thức nào (ADR-38) | — | — |
+| Pha 2 không nhận tài liệu, không qua dàn ý | contracts | `test_a_retry_carries_the_outline_item_of_its_origin_and_nothing_of_the_document`, `test_the_tutor_turn_still_has_no_room_for_an_outline_item` |
 
 ## Hậu ký 17/10/2026
 
@@ -183,3 +186,24 @@ pha 2 ([ADR-17](adr-17-ba-vong-moi-cau.md)) cũng nhận kiến thức, công th
 *job nhận đúng thứ giáo viên đã thấy* nay áp cho cả hai pha. *Pha 2 không nhận tài liệu* (hậu ký
 26/10/2026 ở trên) vẫn đúng từng chữ: cái pha 2 nhận là mục dàn ý, không phải chữ sách. Thi hành:
 xem hậu ký 26/10/2026 của ADR-17.
+
+## Hậu ký 13/11/2026
+
+**Mục có cấu trúc và phép chia của BE thôi tồn tại: xem [ADR-38](adr-38-dan-y-markdown-agent-chia-viec.md).**
+Dàn ý nay chỉ là lời Markdown của Kriky, kèm số câu và bài nguồn; BE chỉ kiểm hai thứ ấy. Khi giáo
+viên đồng ý, Kriky tự chia lời ấy thành câu (mỗi câu một job), và lời chia việc hiện trên chat.
+
+Ba luật của ADR-29 đổi:
+
+- *"Mỗi mục của dàn ý nói kiến thức, công thức, phương án làm bài"* → lời dàn ý nói những thứ ấy;
+  không còn mục nào BE đọc.
+- *"Thứ giáo viên đọc là đúng thứ các job nhận"* → job nhận thứ agent rút từ lời giáo viên đã đọc;
+  chỗ rút ấy hiện cho giáo viên thấy (lời chia việc trong khối các bước).
+- *"Job soạn câu chỉ nhận mục dàn ý của nó"* → job nhận **job** của nó, vẫn không chữ tài liệu thô.
+
+Còn nguyên:
+
+- mọi đề qua một dàn ý đã hiện ở lượt ngay trước;
+- mười câu mỗi lần;
+- câu cũ ở lại khi thay;
+- công thức của sách chỉ tới job qua dàn ý.

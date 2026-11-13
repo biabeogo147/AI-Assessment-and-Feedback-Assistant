@@ -47,21 +47,23 @@ from schema.models import Assessment, DraftBrief, DraftItem, Question, Teacher
 
 
 def _shown(total: int) -> dict:
-    """Một dàn ý giáo viên đã xem (ADR-29) phủ `total` câu bằng một mục."""
+    """Một dàn ý giáo viên đã xem (ADR-29) phủ `total` câu, kèm các job AGENT chia (ADR-38): đúng
+    hình dạng `teacher_chat.guard_drafting` đưa cho tool soạn."""
     return {
         "version": 1,
         "first": 1,
         "total": total,
         "for": "new",
         "document_id": "",
+        "nodes": [],
         "items": [
             {
-                "questions": total,
-                "knowledge": "Kiến thức của đề",
+                "questions": 1,
+                "knowledge": f"Kiến thức câu {at}",
                 "formulas": [],
                 "approach": "Chọn đáp án đúng",
-                "source_nodes": [],
             }
+            for at in range(1, total + 1)
         ],
     }
 

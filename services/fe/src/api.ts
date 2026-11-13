@@ -826,6 +826,8 @@ export interface TurnEvent {
   tool_name?: string;
   /** Kết quả của một bước tra cứu ở pha lên plan — đúng thứ đọc lại được sau F5; `null` cho bước của plan. */
   result?: Record<string, unknown> | null;
+  /** Lời Kriky chia dàn ý thành câu (`note`, `questions`), chỉ ở sự kiện `plan` soạn theo dàn ý (ADR-38). */
+  split?: Record<string, unknown> | null;
 }
 
 /**

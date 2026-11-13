@@ -144,8 +144,8 @@ async def choose(state: ProposeState) -> dict:
         # bóng rỗng không bao giờ được tới màn hình; `propose` hỏi lại một lần. Dàn ý cũng vậy
         # từ ADR-30: lời trình bày dàn ý là lời Kriky viết, không còn khuôn BE dựng thay.
         raise NothingToSay(f"model chose {proposal.kind} with nothing to say")
-    if proposal.kind == "outline" and not proposal.outline:
-        raise NoOutline("model chose outline with no item")
+    if proposal.kind == "outline" and proposal.outline_questions < 1:
+        raise NoOutline("model chose outline with no question count")
     if proposal.kind == "call_tool" and proposal.tool_name.strip() == "outline":
         # Thử tay 15/10/2026: `outline` là một kind, không phải tool; BE từ chối lời gọi ấy và
         # giáo viên thấy *"không có tool nào tên outline"* trong bằng chứng. Hỏi lại một lần.
@@ -157,11 +157,10 @@ async def choose(state: ProposeState) -> dict:
     try:
         step = unmangled(proposal).completed(request_id="", model_tokens=spent)
     except ValidationError as unusable:
-        # Một mục dàn ý sai hình dạng (số câu ngoài 1–10, chữ rỗng): hỏi lại một lần, như một
-        # câu rỗng -- không có gì để giáo viên đọc (`draft-outline`).
+        # Dàn ý sai hình dạng: hỏi lại một lần, như một câu rỗng (`draft-outline`).
         if proposal.kind != "outline":
             raise
-        raise NoOutline(f"unusable outline item: {unusable.errors()[0]['msg']}") from unusable
+        raise NoOutline(f"unusable outline: {unusable.errors()[0]['msg']}") from unusable
     # Luật thứ tự đọc (`unbiased-model-text` T5): đề nghị đúng việc mà sai bước thì thành **một lời
     # gọi tool đọc**; ở bước kế trong cùng vòng gọi tool của BE, model nêu lại với kết quả trong
     # tay. Bước nào đã đọc rồi thì không gọi lại -- mỗi luật tự kiểm, không thì BE hỏi tới trần rồi

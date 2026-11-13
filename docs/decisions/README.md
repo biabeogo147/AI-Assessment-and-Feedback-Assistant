@@ -37,8 +37,8 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [26](adr-26-chu-sai-cu-phap-di-toi-giao-vien.md) | Chữ sai cú pháp đi tới giáo viên, và giáo viên nhìn thấy chỗ sai (hậu ký 19/10/2026: một câu báo ngắn, bỏ bản in lại ký hiệu) | đã chốt |
 | [27](adr-27-tai-lieu-di-vao-ngu-canh-ra-de.md) | Tài liệu đi vào ngữ cảnh ra đề để cung cấp kiến thức (hậu ký 12/10/2026: lọc bài tập chỉ còn cho pha 2; hậu ký 15/10/2026: *mỗi câu một mục* nhường cho ADR-29) | đã chốt, đang thi hành (hậu ký 18/10/2026: qua dàn ý của ADR-29) |
 | [28](adr-28-ngan-hang-cau-hoi-ghi-khi-duyet.md) | Ngân hàng câu hỏi nhận câu lúc giáo viên duyệt đề; riêng từng giáo viên; xoá trong đề không xoá ngân hàng | đã chốt, đang thi hành (Kriky rút câu từ ngân hàng: chưa có) |
-| [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; job chỉ nhận mục của nó, không chữ tài liệu thô (hậu ký 17/10/2026: lời dàn ý do Kriky viết, ADR-30) | đã chốt, đang thi hành (hậu ký 18/10/2026: lời đồng ý đọc bằng regex; ô câu hỏng soạn lại được) |
-| [30](adr-30-loi-kriky-do-model-viet.md) | Mọi lời Kriky do model viết, bằng Markdown; dàn ý gồm lời và các mục, BE không kiểm lời (hậu ký 20/10); ngoại lệ: thông báo khi model không trả lời được, và phần tử giao diện | đã chốt, đang thi hành (trừ khung học sinh) |
+| [29](adr-29-dan-y-de-truoc-khi-soan.md) | Mọi đề qua một dàn ý giáo viên đã xem; job không nhận chữ tài liệu thô (hậu ký 17/10/2026: lời dàn ý do Kriky viết, ADR-30; 13/11/2026: mục có cấu trúc thay bởi ADR-38) | đã chốt, đang thi hành; luật mục thay bởi ADR-38 |
+| [30](adr-30-loi-kriky-do-model-viet.md) | Mọi lời Kriky do model viết, bằng Markdown; BE không kiểm lời dàn ý (hậu ký 20/10; 13/11: dàn ý chỉ là lời, ADR-38); ngoại lệ: thông báo khi model không trả lời được, và phần tử giao diện | đã chốt, đang thi hành (trừ khung học sinh) |
 | [31](adr-31-ten-de-kiem-tra.md) | Tên đề tối đa 60 ký tự; đề sách mang tên tệp; giáo viên đổi tên khi đề chưa duyệt; mọi chỗ hiện tên hiện tại (hậu ký 18/10/2026: bỏ khoảng trang của tên tệp) | đã chốt, đang thi hành |
 | [32](adr-32-hoi-lai-nhieu-cau.md) | Hỏi lại tối đa ba câu một lượt, mỗi câu một bộ nút; không bỏ câu; tóm tắt rồi gửi gộp một tin | đã chốt, đang thi hành |
 | [33](adr-33-chi-de-trong-moi-xoa-duoc.md) | Chỉ đề trống mới xoá được, và xoá cứng; một đoạn chat dùng lại đề trống của nó | đã chốt, đang thi hành |
@@ -46,6 +46,7 @@ sẽ chuyển sang `docs/plans/completed/`, nơi không ai được sửa.
 | [35](adr-35-sua-loi-giai-sau-phat-hanh.md) | Câu trong đề đã phát hành không bao giờ sửa; sửa lời giải là sửa bản trong ngân hàng | đã chốt, đang thi hành |
 | [36](adr-36-dang-nhap-va-tai-khoan.md) | Đăng nhập bằng phiên cookie, mỗi vai một cookie; giáo viên tự đăng ký; giáo viên phát tài khoản học sinh, dòng trùng tên phải xác nhận | đã chốt, đang thi hành |
 | [37](adr-37-bo-cong-do-tin-thap.md) | Bỏ cổng *kết quả độ tin thấp*; còn hai cổng teacher-in-the-loop; hàng đợi giáo viên là *Cần bạn xem* | đã chốt |
+| [38](adr-38-dan-y-markdown-agent-chia-viec.md) | Dàn ý là lời Markdown kèm số câu; Kriky tự chia việc, lời chia việc hiện trên chat | đã chốt, đang thi hành |
 
 Khuôn cho ADR mới: [adr-00-template.md](adr-00-template.md). Mục cuối — *Nơi luật này đang được thi
 hành* — là mục bắt buộc và là thứ mọi decision record cũ trong `docs/plans/completed/` đều thiếu.

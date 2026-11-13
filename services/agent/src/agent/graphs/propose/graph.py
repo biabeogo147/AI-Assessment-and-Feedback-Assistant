@@ -16,6 +16,7 @@ from agent.graphs.propose.choose import choose
 from agent.graphs.propose.clarify import choices_in
 from agent.graphs.propose.compose import ProposeState, compose
 from agent.graphs.propose.history import telling, telling_skills
+from agent.graphs.propose.split import split_outline
 from contracts import NextStepCompleted, NextStepRequested
 
 logger = logging.getLogger("agent.graphs.propose")
@@ -94,6 +95,9 @@ async def propose(request: NextStepRequested) -> NextStepCompleted:
             )
             final = {"step": first.step}
     step: NextStepCompleted = final["step"]
+    # Plan soạn theo dàn ý thì AGENT tự chia dàn ý thành câu (ADR-38) -- mọi plan soạn, dù dựng từ
+    # lời đồng ý hay do model tự nêu, kể cả plan giữ lại sau một lần hỏi lại hỏng.
+    step = await split_outline(step, request)
     logger.info("proposed %s for %s", step.kind, request.request_id)
     return step.model_copy(update={"request_id": request.request_id})
 

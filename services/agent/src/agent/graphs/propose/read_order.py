@@ -229,9 +229,7 @@ def library_first(
     )
     # Từ ADR-29 nước đi đầu là dàn ý, không phải plan: một dàn ý không trỏ về bài nào ở lượt mở thư
     # viện là dàn ý soạn không sách -- cùng lỗi, hình dạng mới (review đợt 4, `draft-outline`).
-    unbooked = unbooked or (
-        step.kind == "outline" and not any(item.source_nodes for item in step.outline)
-    )
+    unbooked = unbooked or (step.kind == "outline" and not step.outline_nodes)
     if not (step.kind == "ask_clarify" or unbooked) or not opens_library(request, chosen):
         return step
     logger.info("model chose %s on a turn that opens the library -- listing first", step.kind)
@@ -344,7 +342,7 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
     Hàm thuần.
 
     `BOOK_PROCEDURE` dặn đọc trước khi nêu dàn ý, và chữ không giữ được model (review đợt 4,
-    `draft-outline`): nó chép `source_nodes` từ mục lục, BE nhận vì nút có thật, và dàn ý viết từ
+    `draft-outline`): nó chép số node từ mục lục, BE nhận vì nút có thật, và dàn ý viết từ
     tóm tắt chứ không từ bài. Phạm vi đọc là chính các nút dàn ý trỏ tới, số câu là tổng của dàn
     ý -- model nêu lại với chữ trong tay. Đã đọc từ plan gần nhất thì để nguyên.
 
@@ -390,7 +388,7 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
             elif turn.kind == "tool_result" and not answering and answers and answers[-1] is None:
                 answers[-1] = turn.tool_result
         last = (answers[-1] if answers else None) or {}
-        sources = {node for item in step.outline for node in item.source_nodes}
+        sources = set(step.outline_nodes)
 
         # **Cả** phạm vi đã đọc trong lượt -- mọi phần, mọi lời gọi --, không chỉ phần cuối: đọc
         # phần 3/5 xong mà dàn ý trỏ nút của phần 1–2 thì so với phần cuối không giao nhau, và
@@ -436,7 +434,7 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
                 model_tokens=step.model_tokens,
             )
         return step
-    nodes = sorted({node for item in step.outline for node in item.source_nodes})
+    nodes = sorted(set(step.outline_nodes))
     attached = request.attached_document
     document = attached.document_id if attached is not None else ""
     if not document:
@@ -448,7 +446,7 @@ def read_before_outline(step: NextStepCompleted, request: NextStepRequested) -> 
         document = next((one for one in reversed(reads) if one), "")
     if not nodes or not document:
         return step
-    total = min(10, sum(item.questions for item in step.outline))
+    total = min(10, step.outline_questions)
     logger.info("model outlined before reading -- reading %s first", nodes)
     return NextStepCompleted(
         request_id=step.request_id,

@@ -47,11 +47,12 @@ from contracts import (
     GeneratedQuestion,
     NextStepCompleted,
     NextStepRequested,
-    OutlineItem,
     PlanStep,
     RetryQuestionCompleted,
     RetryQuestionRequested,
     SolutionMethod,
+    Split,
+    SplitJob,
     TurnRecord,
 )
 
@@ -714,6 +715,31 @@ def _outline_before(history: tuple[TurnRecord, ...]) -> str | None:
     return None
 
 
+def _mock_split(scope: str, total: int) -> Split:
+    """Chia việc của chế độ demo: mỗi câu một job cùng phạm vi, khác nhau ở số thứ tự (ADR-38).
+
+    Args:
+        scope: Phạm vi giáo viên gõ.
+        total: Số câu của dàn ý.
+
+    Returns:
+        Cách chia, `total` job.
+    """
+    return Split(
+        note=f"Mình chia dàn ý thành {total} câu, mỗi câu một người soạn, theo thứ tự dàn ý.",
+        jobs=tuple(
+            SplitJob(
+                knowledge=f"Kiến thức trong phạm vi {scope}",
+                approach=(
+                    "Câu trắc nghiệm một đáp án đúng, giải theo các bước của bài; "
+                    f"câu {at} của dàn ý, khác các câu kia về số liệu"
+                ),
+            )
+            for at in range(1, total + 1)
+        ),
+    )
+
+
 def next_step(request: NextStepRequested) -> NextStepCompleted:
     """Đề nghị bước tiếp theo trong một lượt của giáo viên mà không gọi model.
 
@@ -764,6 +790,7 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
         brief = _brief_from(shown)
         if brief is not None:
             fields = {key: value for key, value in brief.items() if key != "question_count"}
+            total = int(request.history[-2].tool_result.get("total") or brief["question_count"])
             return NextStepCompleted(
                 request_id=request.request_id,
                 kind="plan",
@@ -776,6 +803,9 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
                         title="Soạn câu hỏi theo dàn ý",
                     ),
                 ),
+                # Chia việc của chế độ demo (ngoại lệ của ADR-30, như lời dàn ý soạn sẵn dưới):
+                # dàn ý mock là một phần phủ mọi câu, nên mỗi câu một job cùng phạm vi (ADR-38).
+                split=_mock_split(brief["topic_scope"], total),
             )
 
     if wants_a_paper and {"create_draft", "start_drafting"} <= plannable:
@@ -808,13 +838,7 @@ def next_step(request: NextStepRequested) -> NextStepCompleted:
                 f"Mình đề xuất dàn ý như sau.\n\n- **{span}:** kiến thức trong phạm vi "
                 f"{brief['topic_scope']}, câu trắc nghiệm một đáp án đúng.\n\nBạn đồng ý chứ?"
             ),
-            outline=(
-                OutlineItem(
-                    questions=int(wanted),
-                    knowledge=f"Kiến thức trong phạm vi {brief['topic_scope']}",
-                    approach="Câu trắc nghiệm một đáp án đúng, giải theo các bước của bài",
-                ),
-            ),
+            outline_questions=int(wanted),
             tool_args={"for": "new"},
         )
 

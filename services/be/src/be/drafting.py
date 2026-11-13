@@ -46,6 +46,7 @@ from contracts import (
     DraftQuestionRequested,
     GeneratedOption,
     GeneratedQuestion,
+    Split,
 )
 from schema.models import AnswerOption, Assessment, DraftBrief, DraftItem, Method, Question
 
@@ -301,27 +302,27 @@ async def too_many(session: AsyncSession, assessment_id: str, wanted: int) -> st
 _OTHER_ITEMS = 30
 
 
-def place_items(outline: dict, first_index: int, start: int) -> dict[int, tuple[int, int]]:
-    """Ô của từng câu mới theo dàn ý: `ordinal` → (chỉ số mục trong `brief.outline`, câu thứ mấy).
-
-    Mục phủ k câu thì k ô liên tiếp, thứ tự đúng như dàn ý giáo viên đã đọc: *"Câu 2–3"* trên màn
-    hình là ô 2 và ô 3. Hàm thuần.
+def split_items(split: Split) -> list[dict]:
+    """Các job AGENT chia (ADR-38) thành mục một câu của `brief.outline` -- hình dạng `fire` và
+    `replace` gán cho từng ô. Một chỗ cho cổng duyệt của BE và cho bench, để bench không lệch
+    đường thật (review pha 4, plan `markdown-outline-agent-split`). Hàm thuần.
 
     Args:
-        outline: Dàn ý đã xem (`tool_result` của lượt dàn ý).
-        first_index: Chỉ số trong `brief.outline` của mục đầu tiên dàn ý này nối thêm.
-        start: Ô cao nhất đang có; câu mới bắt đầu từ `start + 1`.
+        split: Cách chia đi kèm plan soạn.
 
     Returns:
-        Ô → (mục, phần).
+        Mỗi job một dict: `questions` 1, `part`, `knowledge`, `formulas`, `approach`.
     """
-    placed: dict[int, tuple[int, int]] = {}
-    ordinal = start
-    for offset, item in enumerate(outline.get("items", [])):
-        for part in range(1, int(item.get("questions") or 1) + 1):
-            ordinal += 1
-            placed[ordinal] = (first_index + offset, part)
-    return placed
+    return [
+        {
+            "questions": 1,
+            "part": job.part,
+            "knowledge": job.knowledge,
+            "formulas": list(job.formulas),
+            "approach": job.approach,
+        }
+        for job in split.jobs
+    ]
 
 
 def outline_item_fields(brief: DraftBrief | None, index: int | None) -> dict:
@@ -365,12 +366,33 @@ def item_fields(brief: DraftBrief, index: int | None, part: int) -> dict:
         return {}
     item = items[index]
     own = str(item.get("knowledge") or "")
+    label = str(item.get("part") or "").strip()
+    # Nhãn phần chỉ phân biệt được khi cùng bản dàn ý có từ hai nhãn trở lên: model ghi cùng một
+    # nhãn (tên bài) cho mọi job thì nhãn không nói gì (thử khói, plan `agent-split-bench`).
+    labels = {
+        str(one.get("part") or "").strip()
+        for one in items
+        if one.get("version") == item.get("version")
+    } - {""}
     others: list[str] = []
     for at, one in enumerate(items):
         knowledge = str(one.get("knowledge") or "")
         # Hai mục cùng kiến thức, khác cách làm, là chuyện được phép: không dặn một job né chính
-        # kiến thức của nó (review đợt 3, `draft-outline`).
-        if at != index and knowledge and knowledge != own and knowledge not in others:
+        # kiến thức của nó (review đợt 3, `draft-outline`). Từ ADR-38 AGENT viết kiến thức riêng
+        # cho từng job, nên câu anh em cùng phần dàn ý thường khác vài chữ: miễn theo phần.
+        sibling = (
+            len(labels) > 1
+            and bool(label)
+            and one.get("version") == item.get("version")
+            and str(one.get("part") or "").strip() == label
+        )
+        if (
+            at != index
+            and knowledge
+            and knowledge != own
+            and not sibling
+            and knowledge not in others
+        ):
             others.append(knowledge)
     parts = max(1, int(item.get("questions") or 1))
     return {
@@ -405,8 +427,9 @@ async def fire(
             một đề trống chưa có số câu nào để khai, và soạn 3 câu rồi soạn thêm 2 là
             chuyện thường. Mức trần được kiểm ở `start_drafting`, nơi giáo viên nói ra
             con số; chỗ này chỉ chặn một lần nữa cho **tổng** sau khi cộng.
-        outline: Dàn ý giáo viên đã xem cho các câu mới (ADR-29). Các mục được **nối** vào
-            `brief.outline`, và mỗi câu mới được gán một mục trước khi job nào chạy. `None` chỉ ở
+        outline: Dàn ý giáo viên đã xem cho các câu mới, kèm các job AGENT chia ra (`items`, mỗi job
+            một câu -- ADR-38, `teacher_chat.guard_drafting`). Các job được **nối** vào
+            `brief.outline`, và câu mới thứ k nhận job thứ k trước khi job nào chạy. `None` chỉ ở
             đường gọi cũ hơn ADR-29: câu soạn theo `topic_scope`.
 
     Returns:
@@ -477,15 +500,27 @@ async def fire(
         )
         return 0
 
-    # **Mỗi câu một mục dàn ý** (ADR-29): các mục giáo viên đã xem được nối vào brief, và mỗi câu
-    # mới nhận mục của nó trước khi job nào chạy -- bắn lại một ô `retry` hay soạn thêm không xáo
-    # mục của câu đã có. Gán lại cả list: một JSON sửa tại chỗ thì SQLAlchemy không thấy.
-    placed: dict[int, tuple[int, int]] = {}
+    # **Mỗi câu một job** (ADR-38): các job AGENT chia từ dàn ý giáo viên đã xem được nối vào brief,
+    # câu mới thứ k nhận job thứ k trước khi job nào chạy -- BE không chia gì, và bắn lại một ô
+    # `retry` hay soạn thêm không xáo job của câu đã có. Gán lại cả list: một JSON sửa tại chỗ thì
+    # SQLAlchemy không thấy.
+    placed: dict[int, int] = {}
     if outline is not None:
         kept = list(brief.outline or [])
-        placed = place_items(outline, len(kept), start)
+        jobs = list(outline.get("items", []))
+        if len(jobs) != wanted:
+            # Lớp kiểm thứ hai sau `guard_drafting`: câu thiếu job sẽ lặng lẽ soạn theo
+            # `topic_scope`, ngoài mọi thứ giáo viên đã thấy (review pha 2).
+            logger.warning(
+                "nothing queued for %s: %d job(s) for %d question(s)",
+                assessment_id,
+                len(jobs),
+                wanted,
+            )
+            return 0
+        placed = {start + at: len(kept) + at - 1 for at in range(1, len(jobs) + 1)}
         version = outline.get("version")
-        brief.outline = kept + [{**item, "version": version} for item in outline.get("items", [])]
+        brief.outline = kept + [{**job, "version": version} for job in jobs]
 
     # Brief mang **tổng**, vì `harvest` dùng nó để biết ô nào đã cũ so với vòng này.
     brief.question_count = total
@@ -509,7 +544,7 @@ async def fire(
             banned_stems=banned,
             progress_channel=progress_channel(assessment_id),
             **(
-                item_fields(brief, *placed[ordinal])
+                item_fields(brief, placed[ordinal], 1)
                 if ordinal in placed
                 else item_fields(brief, row.outline_item, row.item_part)
                 if row is not None
@@ -533,8 +568,8 @@ async def fire(
                     attempts=1,
                     brief_version=brief.version,
                     created_at=now,
-                    outline_item=placed[ordinal][0] if ordinal in placed else None,
-                    item_part=placed[ordinal][1] if ordinal in placed else 1,
+                    outline_item=placed.get(ordinal),
+                    item_part=1,
                 )
             )
         else:
@@ -611,6 +646,9 @@ async def replace(
         )
     )
     if old is None:
+        return 0
+    if len(outline.get("items", [])) != 1:
+        logger.warning("no replacement for %s: the outline carries no single job", assessment_id)
         return 0
     kept = list(brief.outline or [])
     index = len(kept)

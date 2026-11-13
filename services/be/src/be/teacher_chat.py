@@ -68,7 +68,7 @@ from be.agent_gateway import AgentError, run_task
 from be.config import Settings, get_settings
 from be.content_reader import ContentUnavailable, get_reader
 from be.db import get_session, session_scope
-from be.drafting import _MOST_QUESTIONS, harvest, open_bells
+from be.drafting import _MOST_QUESTIONS, harvest, open_bells, split_items
 from be.identity import Asking, current_teacher
 from be.notices import (
     AGENT_UNAVAILABLE,
@@ -114,8 +114,8 @@ from contracts import (
     DocumentState,
     NextStepCompleted,
     NextStepRequested,
-    OutlineItem,
     PlanStep,
+    Split,
     ToolSpec,
     TurnRecord,
 )
@@ -491,7 +491,11 @@ async def _shown_outline(session: AsyncSession, thread: str, began: int) -> dict
 
 
 async def guard_drafting(
-    session: AsyncSession, thread: str, began: int, steps: tuple[PlanStep, ...]
+    session: AsyncSession,
+    thread: str,
+    began: int,
+    steps: tuple[PlanStep, ...],
+    split: Split | None = None,
 ) -> tuple[tuple[PlanStep, ...], dict | None] | str:
     """Cổng duyệt của ADR-29 cho một plan, và các tham số BE điền hộ từ dàn ý.
 
@@ -501,14 +505,19 @@ async def guard_drafting(
     thứ nó biết mà không phải đoán (Decision *BE điền hộ*): số câu là tổng của dàn ý, đề là đề
     mới nhất của đoạn chat, tài liệu và các nút của `create_draft` lấy từ dàn ý.
 
+    Từ ADR-38, plan soạn chở cách AGENT chia dàn ý (`split`): đúng số câu của dàn ý đã xem, không
+    thì từ chối. Các job thành các mục một câu của dàn ý trả về (`items`) -- thứ `drafting.fire` và
+    `drafting.replace` gán cho từng ô. BE không đọc nội dung job.
+
     Args:
         session: Session của database.
         thread: Đoạn chat.
         began: Dòng đầu tiên của lượt này.
         steps: Các bước model nêu, đã qua `vet_plan`.
+        split: Cách AGENT chia dàn ý, đi kèm plan.
 
     Returns:
-        `(các bước đã điền, dàn ý)`, hoặc lời từ chối cho model đọc.
+        `(các bước đã điền, dàn ý kèm các job)`, hoặc lời từ chối cho model đọc.
     """
     drafting = [one for one in steps if one.tool_name in _DRAFTING_TOOLS]
     if not drafting:
@@ -562,9 +571,14 @@ async def guard_drafting(
         )
     book = str(shown.get("document_id") or "")
     paper = str(shown.get("assessment_id") or "")
-    sources = sorted(
-        {node for item in shown.get("items", []) for node in item.get("source_nodes", [])}
-    )
+    sources = sorted(int(node) for node in shown.get("nodes") or [])
+    # Cách chia của AGENT (ADR-38): đúng số câu giáo viên đã thấy, không hơn không kém.
+    counted = int(shown.get("total") or 0)
+    if split is None:
+        return "plan soạn thiếu cách chia dàn ý thành câu; giáo viên đồng ý lại để chia lại"
+    if len(split.jobs) != counted:
+        return f"dàn ý giáo viên đã xem có {counted} câu, cách chia lại có {len(split.jobs)} câu"
+    shown = {**shown, "items": split_items(split)}
     out = []
     for one in steps:
         args = dict(one.args)
@@ -621,9 +635,8 @@ async def outline_turn(
     history: list[TurnRecord],
     attached: AttachedDocument | None,
 ) -> TurnRecord | dict:
-    """Kiểm các mục của một dàn ý model nêu và dựng lượt dàn ý BE sẽ lưu và in ra (ADR-29,
-    ADR-30). Lời Kriky đi nguyên vẹn: BE không đối chiếu nó với các mục (hậu ký 20/10/2026 của
-    ADR-30).
+    """Kiểm số câu và bài nguồn của một dàn ý model nêu và dựng lượt dàn ý BE sẽ lưu và in ra
+    (ADR-29, ADR-38). Lời Kriky -- chính là dàn ý -- đi nguyên vẹn (ADR-30).
 
     Args:
         session: Session của database.
@@ -634,8 +647,8 @@ async def outline_turn(
         attached: Chip đang gắn, khi có.
 
     Returns:
-        `TurnRecord(kind="outline")` với `text` là lời Kriky (ADR-30) và `tool_result` là các
-        mục; hoặc `{"error": lý do}` để model sửa dàn ý trong cùng lượt.
+        `TurnRecord(kind="outline")` với `text` là lời Kriky (ADR-30) và `tool_result` là số câu,
+        bài nguồn, việc và đề; hoặc `{"error": lý do}` để model sửa dàn ý trong cùng lượt.
     """
     shape = await _outline_shape(session, thread, step)
     if isinstance(shape, str):
@@ -659,14 +672,15 @@ async def outline_turn(
             return {"error": "kho nội dung tài liệu tạm thời không đọc được"}
         nodes = found[1] if found else []
         known = {node.ordinal for node in nodes}
-    items: list[OutlineItem] = list(step.outline)
-    # Chỉ các mục, thứ job soạn câu nhận. Lời Kriky không bị so với chúng (hậu ký 20/10/2026 của
-    # ADR-30): luật ấy và luật hình dạng công thức từng trả về 59 dàn ý trong bốn vòng thử tay
-    # đầu-cuối, và giáo viên chỉ thấy một câu hệ thống thay cho lời Kriky. Lời trống thì vẫn trả
-    # về: đó là một bong bóng rỗng, không phải một cách nói.
-    wrong = validate(items, known, most=most) or (
-        None if step.text.strip() else "lời dàn ý trống: viết lời trình bày dàn ý cho giáo viên"
-    )
+    # Chỉ con số và bài nguồn (ADR-38): lời Kriky là dàn ý, BE không đọc nó (hậu ký 20/10/2026 của
+    # ADR-30). Lời trống thì vẫn trả về: đó là một bong bóng rỗng, không phải một cách nói.
+    wrong = validate(
+        step.outline_questions,
+        step.outline_nodes,
+        known,
+        most=most,
+        replacing=purpose == "replace",
+    ) or (None if step.text.strip() else "lời dàn ý trống: viết lời trình bày dàn ý cho giáo viên")
     if wrong is not None:
         return {"error": wrong}
     version = 1 + int(
@@ -677,7 +691,13 @@ async def outline_turn(
         )
         or 0
     )
-    kept = stored(items, version=version, first=first, document_id=document_id)
+    kept = stored(
+        step.outline_questions,
+        step.outline_nodes,
+        version=version,
+        first=first,
+        document_id=document_id,
+    )
     # Việc và đề của dàn ý đi cùng nó: cổng duyệt so plan với **chính** đề này, không với đề mới
     # nhất lúc plan chạy (review đợt 3).
     kept["for"] = purpose
@@ -1637,14 +1657,18 @@ def _shrunk(turn: TeacherTurn, latest_outline: int | None, kept_reads: set[int])
     Hai thứ to được thu lại. Chữ một phần đọc (`teacher_tools._PART_CHARS`, tới mười phần một
     lượt) chỉ giữ khi nó **chưa thành dàn ý** (`kept_reads`): đọc rồi hỏi lại giáo viên thì lượt
     sau viết dàn ý từ chữ ấy, không đọc lại. Đọc **trước** dàn ý mới nhất thì dàn ý đã chở nó --
-    chỉ còn dấu *đã đọc gì*. Và một dàn ý đã bị thay chỉ còn số bản: mục của nó không còn là thứ
-    giáo viên đang duyệt.
+    chỉ còn dấu *đã đọc gì*. Một dàn ý đã bị thay chỉ còn số bản: nó không còn là thứ giáo viên
+    đang duyệt. Và lời chia việc của một plan (ADR-38) chỉ còn số câu.
     """
     result = dict(turn.tool_result or {})
     if turn.kind == "tool_result" and turn.tool_name == "read_section":
         return result if turn.sequence in kept_reads else _without_text(result)
     if turn.kind == "outline" and turn.sequence != latest_outline:
         return {"version": result.get("version"), "superseded": True}
+    if turn.kind == "plan" and isinstance(result.get("split"), dict):
+        # Lời chia việc (ADR-38) là lời model đã viết cho giáo viên; đọc lại nó trong một kết quả
+        # tool là mời model chép lại. Lượt sau chỉ cần biết đã chia mấy câu (review pha 2).
+        result["split"] = {"questions": result["split"].get("questions")}
     return result
 
 
@@ -2005,6 +2029,9 @@ class TurnEvent(BaseModel):
         began: Lượt này bắt đầu ở vị trí nào trong hội thoại.
         tool_name: Tool của bước, cho ba sự kiện `step_*` (`kriky-writes-every-word`). FE đặt tên
             bước từ đây bằng đúng bảng nó dùng sau F5, nên tên không đổi lúc lượt xong.
+        split: Lời AGENT kể nó chia dàn ý thế nào và số câu (`note`, `questions`), chỉ ở sự kiện
+            `plan` của một plan soạn theo dàn ý (ADR-38). FE vẽ nó thành khối *thinking*, đúng
+            thứ lượt `plan` đã lưu, nên khối không đổi sau F5.
         result: Kết quả của một bước tra cứu ở pha lên plan, cho `step_done`/`step_failed` --
             đúng thứ client đọc lại sau F5 (`_client_result`), nên dòng kết quả cũng không đổi.
             Bước của plan để `None` (lên dây là `null`): dòng của chúng đi trong `detail`. Một
@@ -2026,6 +2053,7 @@ class TurnEvent(BaseModel):
     began: int = 0
     tool_name: str = ""
     result: dict[str, object] | None = None
+    split: dict[str, object] | None = None
 
 
 # **Im lặng** bao lâu thì thôi đợi -- không phải trần cho cả khoảng đợi. Đồng hồ được đặt
@@ -2589,7 +2617,7 @@ async def _go(
             # Cổng duyệt của ADR-29 **trước** `vet_plan`: nó điền các tham số BE biết từ dàn ý,
             # và `vet_plan` từ chối một plan thiếu tham số. Không có dàn ý đã xem thì lời từ chối
             # về với model như một kết quả tool -- việc đúng là nêu dàn ý, ngay trong lượt này.
-            guarded = await guard_drafting(session, thread, began, step.steps)
+            guarded = await guard_drafting(session, thread, began, step.steps, step.split)
             if isinstance(guarded, str):
                 logger.info("held back a drafting plan for %s: %s", asking.teacher_code, guarded)
                 history.append(
@@ -2624,12 +2652,20 @@ async def _go(
                 # một lần F5, và một con số không có chỗ nào lưu là một con số chỉ đúng
                 # chừng nào không ai tải lại trang. Các tiêu đề đi cùng, vì khối bằng
                 # chứng vẽ cả danh sách việc trước khi bước đầu tiên chạy.
+                # Lời AGENT kể nó chia dàn ý thế nào (ADR-38) lưu cùng plan: khối *thinking* của
+                # chat phải dựng lại được sau F5, như `bước k/n`.
+                told = (
+                    {"split": {"note": step.split.note, "questions": len(step.split.jobs)}}
+                    if step.split is not None and outline is not None
+                    else {}
+                )
                 history.append(
                     TurnRecord(
                         kind="plan",
                         tool_result={
                             "steps": [one.title for one in plan],
                             "total": len(plan),
+                            **told,
                         },
                     )
                 )
@@ -2647,6 +2683,7 @@ async def _go(
                     total=len(plan),
                     conversation_id=thread,
                     titles=tuple(one.title for one in plan),
+                    split=told.get("split"),
                 )
                 break
 

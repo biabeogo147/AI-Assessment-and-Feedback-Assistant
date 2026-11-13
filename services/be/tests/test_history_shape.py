@@ -107,20 +107,30 @@ def test_other_tool_results_pass_through_untouched() -> None:
     assert records[0].tool_result == listed
 
 
-def test_only_the_latest_outline_keeps_its_items() -> None:
-    items = [{"questions": 2, "knowledge": "A", "formulas": [], "approach": "B"}]
+def test_only_the_latest_outline_keeps_its_count_and_sources() -> None:
+    kept = {"total": 2, "nodes": [3], "for": "new", "first": 1}
     records = _as_records(
         [
-            _turn(0, "outline", text="bản 1", tool_result={"version": 1, "items": items}),
+            _turn(0, "outline", text="bản 1", tool_result={"version": 1, **kept}),
             _turn(1, "teacher", text="câu 2 đổi sang hình học"),
-            _turn(2, "outline", text="bản 2", tool_result={"version": 2, "items": items}),
+            _turn(2, "outline", text="bản 2", tool_result={"version": 2, **kept}),
         ]
     )
 
     assert records[0].tool_result == {"version": 1, "superseded": True}
-    assert records[2].tool_result == {"version": 2, "items": items}
+    assert records[2].tool_result == {"version": 2, **kept}
     # Chữ BE đã in vẫn ở lại: đó là thứ giáo viên đã đọc.
     assert records[0].text == "bản 1"
+
+
+def test_a_plan_s_split_note_does_not_go_back_to_the_model() -> None:
+    """Review pha 2 (ADR-38): lời chia việc là lời model đã viết cho giáo viên; lượt sau chỉ cần
+    biết đã chia mấy câu. Client vẫn nhận nguyên lời, để vẽ khối chia việc sau F5."""
+    told = {"steps": ["Soạn"], "total": 1, "split": {"note": "Câu 1 lo A.", "questions": 3}}
+    plan = _turn(4, "plan", tool_result=told)
+
+    assert _as_records([plan])[0].tool_result["split"] == {"questions": 3}
+    assert _visible(plan).tool_result["split"]["note"] == "Câu 1 lo A."
 
 
 def test_the_client_never_receives_the_text_read() -> None:

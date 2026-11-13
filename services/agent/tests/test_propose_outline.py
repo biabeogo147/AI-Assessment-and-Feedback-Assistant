@@ -1,26 +1,27 @@
-"""Kriky nêu dàn ý đề (ADR-29, `draft-outline`): hình dạng model trả lời, và lịch sử nó đọc lại.
+"""Kriky nêu dàn ý đề (ADR-29, ADR-38): hình dạng model trả lời, và lịch sử nó đọc lại.
 
-Không model thật nào được gọi. Ba loại khẳng định: một dàn ý đi ngược về BE đủ mục và đủ `for`;
-dấu gạch chéo bị bộ giải mã JSON nuốt được trả lại ở cả ba trường chữ; và một lượt dàn ý trong lịch
-sử tới model kèm các mục, để sửa dàn ý là nêu lại đủ mục.
+Không model thật nào được gọi. Ba loại khẳng định: một dàn ý đi ngược về BE là lời kèm số câu, bài
+nguồn và `for`; dàn ý không có số câu hay lời thì hỏi lại; và một lượt dàn ý trong lịch sử tới model
+kèm số câu và bài nguồn, để sửa dàn ý là nêu lại cả dàn ý.
 """
+
+import re
 
 import pytest
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from agent import llm
-from agent.graphs.propose import read_order
+from agent.graphs.propose import read_order, split
 from agent.graphs.propose.compose import compose
 from agent.graphs.propose.graph import _UNCLEAR, propose
 from agent.graphs.propose.outline import AGREES, approved_plan, brief_in, miscounted, right_purpose
 from agent.graphs.propose.prompt import CORE
-from agent.graphs.propose.proposal import _Argument, _OutlineItem, _Proposal, _Step
+from agent.graphs.propose.proposal import _Argument, _Proposal, _Step
 from agent.graphs.propose.read_order import library_first, read_before_outline
 from contracts import (
     AttachedDocument,
     NextStepCompleted,
     NextStepRequested,
-    OutlineItem,
     PlanStep,
     TurnRecord,
 )
@@ -32,8 +33,20 @@ class Scripted:
     def __init__(self, answers: list[_Proposal]) -> None:
         self.answers = answers
         self.prompts: list[str] = []
+        self.splits: list[str] = []
 
     def with_structured_output(self, schema: object, **kwargs: object) -> Runnable:
+        if schema is split._Split:
+            # Bước chia việc (ADR-38) của một plan soạn: đúng số job lời gọi xin, ghi riêng.
+            def divide(messages: object) -> object:
+                asked = messages[-1].text
+                wanted = int(re.search(r"đúng (\d+) job", asked).group(1))
+                self.splits.append(asked)
+                job = split._Job(part="Câu 1", knowledge="K", formulas=(), approach="A", differs="")
+                return split._Split(note="Mình chia việc.", jobs=(job,) * wanted)
+
+            return RunnableLambda(divide)
+
         def answer(messages: object) -> _Proposal:
             self.prompts.append("\n".join(message.text for message in messages))
             return self.answers.pop(0)
@@ -54,26 +67,24 @@ def _asked(*history: TurnRecord) -> NextStepRequested:
     )
 
 
-def _item(**overrides: object) -> _OutlineItem:
+def _outline(**overrides: object) -> _Proposal:
     fields: dict[str, object] = {
-        "questions": 2,
-        "knowledge": "Lũy thừa",
-        "formulas": ("$a^m \\cdot a^n$",),
-        "approach": "Rút gọn",
-        "source_nodes": (3,),
+        "kind": "outline",
+        "text": "Dàn ý.",
+        "outline_questions": 2,
+        "outline_nodes": (3,),
     }
     fields.update(overrides)
-    return _OutlineItem.model_validate(fields)
+    return _Proposal.model_validate(fields)
 
 
 @pytest.mark.asyncio
-async def test_an_outline_reaches_be_with_its_items_and_its_purpose(
+async def test_an_outline_reaches_be_with_its_count_its_sources_and_its_purpose(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    outline = _Proposal(
-        kind="outline",
+    outline = _outline(
         text="Mình đề xuất dàn ý.",
-        outline=(_item(), _item(questions=1, knowledge="Thứ tự")),
+        outline_questions=3,
         tool_args=(_Argument(param="for", value="new"),),
     )
     monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([outline]),))
@@ -81,35 +92,26 @@ async def test_an_outline_reaches_be_with_its_items_and_its_purpose(
     step = await propose(_asked())
 
     assert step.kind == "outline"
-    assert [(one.questions, one.knowledge) for one in step.outline] == [
-        (2, "Lũy thừa"),
-        (1, "Thứ tự"),
-    ]
-    assert step.outline[0].source_nodes == (3,)
+    assert (step.text, step.outline_questions, step.outline_nodes) == (
+        "Mình đề xuất dàn ý.",
+        3,
+        (3,),
+    )
     assert step.tool_args == {"for": "new"}
 
 
 @pytest.mark.asyncio
-async def test_the_three_text_fields_get_their_backslashes_back(
+async def test_the_outline_text_gets_its_backslashes_back(
     monkeypatch: pytest.MonkeyPatch, on: None
 ) -> None:
-    """`\\frac` qua bộ giải mã JSON thành form-feed + "rac"; BE in mục nguyên văn ra `MathText`."""
+    """`\\frac` qua bộ giải mã JSON thành form-feed + "rac"; lời dàn ý nay là thứ được chia."""
     mangled = "\frac{a}{b}"
-    outline = _Proposal(
-        kind="outline",
-        text="Dàn ý.",
-        outline=(
-            _item(knowledge=f"Phân số ${mangled}$", formulas=(f"${mangled}$",), approach=mangled),
-        ),
-    )
+    outline = _outline(text=f"**Câu 1–2**: phân số ${mangled}$.")
     monkeypatch.setattr(llm, "chat_models", lambda: (Scripted([outline]),))
 
     step = await propose(_asked())
 
-    item = step.outline[0]
-    assert "\\frac{a}{b}" in item.knowledge
-    assert item.formulas == ("$\\frac{a}{b}$",)
-    assert item.approach == "\\frac{a}{b}"
+    assert "\\frac{a}{b}" in step.text
 
 
 @pytest.mark.asyncio
@@ -117,30 +119,28 @@ async def test_the_three_text_fields_get_their_backslashes_back(
     "broken",
     [
         _Proposal(kind="outline", text="Dàn ý."),
-        _Proposal(kind="outline", text="Dàn ý.", outline=(_item(questions=0),)),
-        _Proposal(kind="outline", text="Dàn ý.", outline=(_item(approach=""),)),
         # Thử tay 15/10/2026: `outline` là kind, model lại gọi nó như một tool.
         _Proposal(kind="call_tool", tool_name="outline"),
         # ADR-30: lời trình bày dàn ý là lời Kriky viết, không còn khuôn BE dựng thay -- lời rỗng
         # thì hỏi lại ngay ở AGENT (review pha 4, `kriky-writes-every-word`).
-        _Proposal(kind="outline", text="  ", outline=(_item(),)),
+        _Proposal(kind="outline", text="  ", outline_questions=2),
     ],
+    ids=["no-count", "outline-as-a-tool", "no-text"],
 )
 async def test_an_outline_that_cannot_be_shown_is_asked_again(
     monkeypatch: pytest.MonkeyPatch, on: None, broken: _Proposal
 ) -> None:
-    fixed = _Proposal(kind="outline", text="Dàn ý.", outline=(_item(),))
-    model = Scripted([broken, fixed])
+    model = Scripted([broken, _outline()])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_asked())
 
-    assert step.kind == "outline" and step.outline[0].questions == 2
+    assert step.kind == "outline" and step.outline_questions == 2
     assert len(model.prompts) == 2
 
 
-def test_an_outline_in_the_history_comes_back_with_its_items() -> None:
-    """Sửa dàn ý là nêu lại đủ mục, nên model phải đọc được mục -- kể cả `source_nodes`."""
+def test_an_outline_in_the_history_comes_back_with_its_count_and_sources() -> None:
+    """Sửa dàn ý là nêu lại cả dàn ý, nên model phải đọc lại được số node của bài nguồn."""
     shown = TurnRecord(
         kind="outline",
         text="Dàn ý — 2 câu (bản 1)",
@@ -148,7 +148,8 @@ def test_an_outline_in_the_history_comes_back_with_its_items() -> None:
             "version": 1,
             "for": "new",
             "first": 1,
-            "items": [{"questions": 2, "knowledge": "Lũy thừa", "source_nodes": [3]}],
+            "total": 2,
+            "nodes": [3],
         },
     )
     state = {
@@ -164,12 +165,14 @@ def test_an_outline_in_the_history_comes_back_with_its_items() -> None:
 
     messages = compose(state)["messages"]
 
-    # Lời Kriky về đúng là lời của nó; các mục đi riêng, như một ghi chú của hệ thống phía người
-    # dùng -- không nối vào lời model để nó chép lại (review pha 4, `kriky-writes-every-word`).
+    # Lời Kriky về đúng là lời của nó; số câu và bài nguồn đi riêng, như một ghi chú của hệ thống
+    # phía người dùng -- không nối vào lời model để nó chép lại (review pha 4,
+    # `kriky-writes-every-word`).
     at = next(index for index, one in enumerate(messages) if one.text == "Dàn ý — 2 câu (bản 1)")
     assert type(messages[at]).__name__ == "AIMessage"
     assert type(messages[at + 1]).__name__ == "HumanMessage"
-    assert '"source_nodes": [3]' in messages[at + 1].text
+    noted = messages[at + 1].text
+    assert '"outline_nodes": [3]' in noted and '"outline_questions": 2' in noted
 
 
 def test_a_superseded_outline_comes_back_as_its_text_only() -> None:
@@ -239,10 +242,8 @@ def test_an_outline_before_reading_the_book_reads_it_first() -> None:
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(
-            OutlineItem(questions=4, knowledge="A", approach="B", source_nodes=(8, 7)),
-            OutlineItem(questions=2, knowledge="C", approach="D", source_nodes=(7,)),
-        ),
+        outline_questions=6,
+        outline_nodes=(8, 7),
     )
 
     step = read_before_outline(outline, _with_book(TurnRecord(kind="teacher", text="soạn 6 câu")))
@@ -256,7 +257,8 @@ def test_an_outline_after_reading_the_book_stays_an_outline() -> None:
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(7,)),),
+        outline_questions=1,
+        outline_nodes=(7,),
     )
     read = TurnRecord(kind="tool_result", tool_name="read_section", tool_result={"found": True})
 
@@ -271,7 +273,8 @@ def test_a_read_to_answer_a_question_does_not_count_as_reading_for_the_outline()
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=2, knowledge="A", approach="B", source_nodes=(7,)),),
+        outline_questions=2,
+        outline_nodes=(7,),
     )
     asked = TurnRecord(
         kind="tool_call", tool_name="read_section", tool_args={"document_id": "book", "nodes": "7"}
@@ -358,7 +361,7 @@ def test_a_bookless_outline_on_a_turn_that_names_a_book_opens_the_library(
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B"),),
+        outline_questions=1,
     )
 
     step = library_first(outline, _asked(), ("soan-de",))
@@ -366,18 +369,19 @@ def test_a_bookless_outline_on_a_turn_that_names_a_book_opens_the_library(
     assert (step.kind, step.tool_name) == ("call_tool", "list_documents")
 
 
-def test_only_an_outline_turn_carries_items_to_be() -> None:
-    said = _Proposal(kind="say", text="Chào bạn.", outline=(_item(),))
+def test_only_an_outline_turn_carries_a_count_to_be() -> None:
+    said = _Proposal(kind="say", text="Chào bạn.", outline_questions=3, outline_nodes=(2,))
 
-    assert said.completed(request_id="r1", model_tokens=0).outline == ()
+    completed = said.completed(request_id="r1", model_tokens=0)
+    assert (completed.outline_questions, completed.outline_nodes) == (0, ())
 
 
 def test_the_core_prompt_carries_the_outline_rules() -> None:
     assert "outline: đề xuất DÀN Ý đề" in CORE
     assert "chỉ nêu SAU KHI giáo viên đã đồng ý một dàn ý ở lượt trước" in CORE
-    assert "nêu lại outline ĐỦ mọi mục" in CORE
+    assert "nêu lại CẢ dàn ý" in CORE
     assert "for = new (đề mới), more" in CORE
-    assert "replace (thay một câu: một mục một câu, kèm question" in CORE
+    assert "replace (thay một câu: dàn ý một câu, ghi đúng **Câu N**" in CORE
 
 
 @pytest.mark.parametrize(
@@ -403,18 +407,18 @@ def test_the_mock_hears_an_agreement(said: str) -> None:
 )
 def test_an_agreement_with_a_change_is_not_an_agreement(said: str) -> None:
     """Review đợt 6: khớp đầu câu thì những câu này soạn theo dàn ý giáo viên vừa xin đổi."""
-    kept = {"version": 1, "for": "more", "items": [{"questions": 1}]}
+    kept = {"version": 1, "for": "more", "total": 1}
 
     assert AGREES.search(said) is None
     assert approved_plan(_ASKED_AGAIN, _agreed(kept, said)) is _ASKED_AGAIN
 
 
-def _counted(*questions: int, purpose: str = "new") -> NextStepCompleted:
+def _counted(total: int, purpose: str = "new") -> NextStepCompleted:
     return NextStepCompleted(
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=tuple(OutlineItem(questions=n, knowledge="A", approach="B") for n in questions),
+        outline_questions=total,
         tool_args={"for": purpose},
     )
 
@@ -422,18 +426,17 @@ def _counted(*questions: int, purpose: str = "new") -> NextStepCompleted:
 @pytest.mark.parametrize(
     ("step", "known", "wrong"),
     [
-        (_counted(2, 2, 2), "question_count=6 «6 câu»", False),
-        (_counted(2, 2, 2, 2), "question_count=6 «6 câu»", True),
+        (_counted(6), "question_count=6 «6 câu»", False),
+        (_counted(8), "question_count=6 «6 câu»", True),
         (_counted(3), "topic_scope=x", False),
         (_counted(1, purpose="replace"), "question_count=5 «5 câu»", False),
-        (_counted(1, 1, purpose="replace"), "", True),
         (_counted(2, purpose="replace"), "", True),
     ],
 )
 def test_an_outline_must_add_up_to_what_was_asked(
     step: NextStepCompleted, known: str, wrong: bool
 ) -> None:
-    """Bench run-98 (`draft-outline`): *"6 câu"* ra 4 mục × 2 câu; *"thay câu 2"* ra cả đề."""
+    """Bench run-98 (`draft-outline`): *"6 câu"* ra dàn ý 8 câu; *"thay câu 2"* ra cả đề."""
     silent = _asked(TurnRecord(kind="teacher", text="soạn đề chương 1"))
     assert bool(miscounted(step, known, silent)) is wrong
 
@@ -470,20 +473,20 @@ async def test_a_miscounted_outline_is_asked_again(
         known="question_count=6 «6 câu»",
         kind="outline",
         text="Dàn ý.",
-        outline=(_item(questions=4), _item(questions=4)),
+        outline_questions=8,
     )
     six = _Proposal(
         known="question_count=6 «6 câu»",
         kind="outline",
         text="Dàn ý.",
-        outline=(_item(questions=3), _item(questions=3)),
+        outline_questions=6,
     )
     model = Scripted([eight, six])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
 
     step = await propose(_asked())
 
-    assert sum(item.questions for item in step.outline) == 6
+    assert step.outline_questions == 6
     assert len(model.prompts) == 2
     # Lần hỏi lại nói số câu đúng (review code pha 5), theo đúng nguồn của nó: 6 là con số model
     # ghi trong `known`, không phải lời giáo viên (review code vòng 2).
@@ -498,30 +501,35 @@ _DRAFTED = TurnRecord(
 )
 
 
-def _whole(*knowledge: str) -> NextStepCompleted:
+def _whole(total: int) -> NextStepCompleted:
     return NextStepCompleted(
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=tuple(
-            OutlineItem(questions=2 if one == "B" else 1, knowledge=one, approach="x")
-            for one in knowledge
-        ),
+        outline_questions=total,
         tool_args={"for": "new"},
     )
 
 
-def test_replacing_question_three_takes_the_item_holding_question_three() -> None:
-    """Thử tay H4 (`draft-outline`): *"thay câu 3"* ra cả dàn ý `for=new`; câu 3 nằm trong mục B."""
+def test_replacing_question_three_makes_a_one_question_outline_for_question_three() -> None:
+    """Thử tay H4 (`draft-outline`): *"thay câu 3"* ra cả dàn ý `for=new`. Việc là thay câu 3, một
+    câu; lời dàn ý giữ nguyên, bước chia việc lấy câu 3 từ đó (ADR-38)."""
     asked = NextStepRequested(
         request_id="r1",
         history=(_DRAFTED, TurnRecord(kind="teacher", text="thay câu 3 bằng một câu khó hơn")),
     )
 
-    step = right_purpose(_whole("A", "B", "C"), asked)
+    step = right_purpose(_whole(4), asked)
 
     assert step.tool_args == {"for": "replace", "question": "3"}
-    assert [(item.knowledge, item.questions) for item in step.outline] == [("B", 1)]
+    assert step.outline_questions == 1
+    # Câu 9 không có trong dàn ý 4 câu: không đoán.
+    beyond = NextStepRequested(
+        request_id="r1", history=(_DRAFTED, TurnRecord(kind="teacher", text="thay câu 9"))
+    )
+    assert right_purpose(_whole(4), beyond).tool_args == {"for": "new"}
+    # Dàn ý một câu cho lời *"thay câu 9"* là chính câu thay: việc là thay câu 9.
+    assert right_purpose(_whole(1), beyond).tool_args == {"for": "replace", "question": "9"}
 
 
 def test_drafting_more_on_a_drafted_thread_is_for_more() -> None:
@@ -530,7 +538,7 @@ def test_drafting_more_on_a_drafted_thread_is_for_more() -> None:
         history=(_DRAFTED, TurnRecord(kind="teacher", text="soạn thêm 3 câu nữa")),
     )
 
-    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
+    assert right_purpose(_whole(2), asked).tool_args == {"for": "more"}
 
 
 @pytest.mark.parametrize(
@@ -539,7 +547,7 @@ def test_drafting_more_on_a_drafted_thread_is_for_more() -> None:
 def test_without_a_draft_in_the_thread_the_purpose_stays(said: str) -> None:
     asked = NextStepRequested(request_id="r1", history=(TurnRecord(kind="teacher", text=said),))
 
-    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
+    assert right_purpose(_whole(2), asked).tool_args == {"for": "new"}
 
 
 def test_drafting_more_is_heard_across_the_questions_kriky_asked_back() -> None:
@@ -555,7 +563,7 @@ def test_drafting_more_is_heard_across_the_questions_kriky_asked_back() -> None:
         ),
     )
 
-    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "more"}
+    assert right_purpose(_whole(2), asked).tool_args == {"for": "more"}
 
 
 def test_drafting_another_paper_on_a_drafted_thread_stays_new() -> None:
@@ -565,7 +573,7 @@ def test_drafting_another_paper_on_a_drafted_thread_stays_new() -> None:
         history=(_DRAFTED, TurnRecord(kind="teacher", text="soạn thêm một đề mới về hàm số 5 câu")),
     )
 
-    assert right_purpose(_whole("A", "C"), asked).tool_args == {"for": "new"}
+    assert right_purpose(_whole(2), asked).tool_args == {"for": "new"}
 
 
 def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
@@ -575,7 +583,8 @@ def test_an_outline_after_part_one_of_five_reads_part_two_first() -> None:
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+        outline_questions=1,
+        outline_nodes=(1,),
     )
     asked = {"document_id": "book", "nodes": "0", "questions": "5", "part": "1"}
     read = TurnRecord(
@@ -600,7 +609,8 @@ def test_an_outline_after_part_three_that_points_at_part_one_still_reads_on() ->
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+        outline_questions=1,
+        outline_nodes=(1,),
     )
     turns = [TurnRecord(kind="teacher", text="x")]
     for part, nodes in ((1, [1, 2]), (2, [3, 4]), (3, [5, 6])):
@@ -661,7 +671,8 @@ def test_an_outline_is_not_held_back_for_a_read_it_does_not_need(
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+        outline_questions=1,
+        outline_nodes=(1,),
     )
 
     assert read_before_outline(outline, _with_book(*history)) is outline
@@ -687,7 +698,7 @@ async def test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan(
 ) -> None:
     """Review pha 5 (`kriky-writes-every-word`): lời mở đi qua `choose` -- test gọi thẳng
     `approved_plan` không thấy được đường chạy thật làm rơi mất nó."""
-    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    kept = {"version": 1, "for": "new", "total": 2, "brief": _BRIEF}
     planned = _Proposal(
         kind="plan",
         text="Mình soạn 2 câu theo dàn ý nhé.",
@@ -703,7 +714,7 @@ async def test_an_agreement_keeps_the_words_the_model_wrote_for_its_plan(
 
 def test_a_system_notice_between_the_outline_and_the_agreement_does_not_hide_it() -> None:
     """Review pha 5: model hỏng sau *"oke"*, thông báo dặn gửi lại -- gửi lại vẫn duyệt dàn ý."""
-    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    kept = {"version": 1, "for": "new", "total": 2, "brief": _BRIEF}
     request = NextStepRequested(
         request_id="r1",
         history=(
@@ -725,7 +736,7 @@ _BRIEF = {"subject": "Toán", "grade": "7", "topic_scope": "tỉ lệ thức"}
 
 def test_an_agreement_after_an_outline_becomes_its_plan_even_if_the_model_forgot() -> None:
     """Thử tay 15/10/2026 (`draft-outline`): sau *"oke"* model mất phạm vi và hỏi lại khối."""
-    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    kept = {"version": 1, "for": "new", "total": 2, "brief": _BRIEF}
 
     step = approved_plan(_ASKED_AGAIN, _agreed(kept))
 
@@ -739,7 +750,7 @@ def test_an_agreement_after_an_outline_becomes_its_plan_even_if_the_model_forgot
 
 def test_an_agreement_to_more_wins_over_a_plan_that_opens_a_new_draft() -> None:
     """Thử tay 15/10/2026: *"oke"* cho dàn ý soạn thêm ra plan `create_draft` khối 6."""
-    kept = {"version": 7, "for": "more", "first": 8, "items": [{"questions": 2}]}
+    kept = {"version": 7, "for": "more", "first": 8, "total": 2}
     opened = NextStepCompleted(
         request_id="r1",
         kind="plan",
@@ -764,7 +775,7 @@ def test_an_agreement_to_more_wins_over_a_plan_that_opens_a_new_draft() -> None:
     ("purpose", "tool"), [("more", "start_drafting"), ("replace", "replace_question")]
 )
 def test_an_agreement_to_more_or_a_replacement_plans_that(purpose: str, tool: str) -> None:
-    kept = {"version": 2, "for": purpose, "first": 3, "items": [{"questions": 1}]}
+    kept = {"version": 2, "for": purpose, "first": 3, "total": 1}
 
     step = approved_plan(_ASKED_AGAIN, _agreed(kept))
 
@@ -774,8 +785,8 @@ def test_an_agreement_to_more_or_a_replacement_plans_that(purpose: str, tool: st
 @pytest.mark.parametrize(
     ("kept", "said"),
     [
-        ({"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}, "câu 2 đổi"),
-        ({"version": 1, "for": "new", "items": [{"questions": 2}]}, "oke"),
+        ({"version": 1, "for": "new", "total": 2, "brief": _BRIEF}, "câu 2 đổi"),
+        ({"version": 1, "for": "new", "total": 2}, "oke"),
         ({"version": 1, "superseded": True}, "oke"),
     ],
 )
@@ -786,7 +797,7 @@ def test_no_agreement_or_no_brief_leaves_the_model_answer(kept: dict, said: str)
 def test_an_agreement_retyped_after_a_turn_that_never_answered_still_plans() -> None:
     """Review đợt 6: lượt *"oke"* hỏng trước khi đáp để lại một câu mồ côi; gõ lại *"oke"* vẫn
     duyệt."""
-    kept = {"version": 2, "for": "more", "first": 6, "items": [{"questions": 2}]}
+    kept = {"version": 2, "for": "more", "first": 6, "total": 2}
     asked = NextStepRequested(
         request_id="r1",
         history=(
@@ -808,11 +819,13 @@ async def test_a_broken_reply_to_an_agreement_still_plans(
     duyệt mất."""
     model = Scripted([_Proposal(kind="say", text=""), _Proposal(kind="say", text="")])
     monkeypatch.setattr(llm, "chat_models", lambda: (model,))
-    kept = {"version": 2, "for": "more", "first": 6, "items": [{"questions": 2}]}
+    kept = {"version": 2, "for": "more", "first": 6, "total": 2}
 
     step = await propose(_agreed(kept))
 
     assert step.kind == "plan" and [one.tool_name for one in step.steps] == ["start_drafting"]
+    # ADR-38: plan soạn đi kèm cách AGENT chia dàn ý -- đúng số câu dàn ý đã xem.
+    assert len(step.split.jobs) == 2 and len(model.splits) == 1
 
 
 @pytest.mark.asyncio
@@ -829,6 +842,10 @@ async def test_an_unreadable_reply_to_an_agreement_still_plans_without_asking_ag
 
     class Unreadable:
         def with_structured_output(self, schema: object, **kwargs: object):
+            if schema is split._Split:
+                # Bước chia việc (ADR-38) đọc được: chỉ lời đề nghị là hỏng.
+                return Scripted([]).with_structured_output(schema)
+
             def answer(messages: object) -> dict:
                 calls.append(1)
                 raw = SimpleNamespace(usage_metadata=None, tool_calls=[])
@@ -837,7 +854,7 @@ async def test_an_unreadable_reply_to_an_agreement_still_plans_without_asking_ag
             return RunnableLambda(answer)
 
     monkeypatch.setattr(llm, "chat_models", lambda: (Unreadable(),))
-    kept = {"version": 2, "for": "more", "first": 6, "items": [{"questions": 2}]}
+    kept = {"version": 2, "for": "more", "first": 6, "total": 2}
 
     step = await propose(_agreed(kept))
 
@@ -916,7 +933,7 @@ def test_a_drafting_plan_right_after_a_revision_is_held_back(said: str, held: bo
             ),
         ),
     )
-    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    kept = {"version": 1, "for": "new", "total": 2, "brief": _BRIEF}
 
     assert drafts_over_a_revision(plan, _agreed(kept, said)) is held
 
@@ -972,7 +989,8 @@ def test_the_same_scope_spelled_differently_is_still_the_same_scope() -> None:
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+        outline_questions=1,
+        outline_nodes=(1,),
     )
     turns = [TurnRecord(kind="teacher", text="x")]
     for part, spelled, nodes in ((1, "3,4", [1, 2]), (2, "4, 3", [5, 6]), (3, " 3,4 ", [7, 8])):
@@ -1030,7 +1048,7 @@ def test_a_revision_typed_in_nfd_still_holds_the_drafting_plan_back() -> None:
             ),
         ),
     )
-    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    kept = {"version": 1, "for": "new", "total": 2, "brief": _BRIEF}
     assert drafts_over_a_revision(plan, _agreed(kept, _nfd("đổi câu 2 sang tự luận")))
 
 
@@ -1041,7 +1059,7 @@ async def test_an_agreement_gives_back_the_backslashes_of_the_plan_s_opening(
     """Lời mở của plan đã đồng ý đi qua bước sửa chữ như mọi lời khác: `\frac` bị bộ giải mã JSON
     nuốt thành form-feed thì được trả lại (backlog, *Lời mở của plan đã đồng ý bỏ qua bước sửa
     chữ*)."""
-    kept = {"version": 1, "for": "new", "items": [{"questions": 2}], "brief": _BRIEF}
+    kept = {"version": 1, "for": "new", "total": 2, "brief": _BRIEF}
     planned = _Proposal(
         kind="plan",
         text=_nfd("Mình soạn câu về $") + chr(12) + "rac{a}{b}$ nhé.",
@@ -1060,7 +1078,8 @@ def _part_one_read(nodes: object) -> tuple[NextStepCompleted, TurnRecord, TurnRe
         request_id="r1",
         kind="outline",
         text="Dàn ý.",
-        outline=(OutlineItem(questions=1, knowledge="A", approach="B", source_nodes=(1,)),),
+        outline_questions=1,
+        outline_nodes=(1,),
     )
     asked = {"document_id": "book", "nodes": "0", "questions": "5", "part": "1"}
     call = TurnRecord(kind="tool_call", tool_name="read_section", tool_args=asked)
@@ -1113,7 +1132,7 @@ async def test_asking_again_with_every_field_known_is_asked_once_more(
         kind="outline",
         text="Mình đề xuất dàn ý.",
         known=_KNOWN_ALL,
-        outline=(_item(questions=5),),
+        outline_questions=5,
         tool_args=(_Argument(param="for", value="new"),),
     )
     scripted = Scripted([empty, outline])

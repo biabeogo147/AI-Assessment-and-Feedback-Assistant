@@ -261,9 +261,12 @@ async def test_the_mock_outlines_first_and_plans_both_steps_once_agreed() -> Non
     outlined, agreed = await _outline_then_agree("tạo đề 10 câu Toán về tích phân cho lớp 12A1")
 
     assert outlined["kind"] == "outline"
-    assert outlined["outline"][0]["questions"] == 10
+    assert outlined["outline_questions"] == 10
     assert outlined["tool_args"] == {"for": "new"}
     assert agreed["kind"] == "plan"
+    # ADR-38: plan soạn chở cách chia dàn ý -- ở mock, mỗi câu một job cùng phạm vi.
+    assert len(agreed["split"]["jobs"]) == 10
+    assert agreed["split"]["note"]
     assert [one["tool_name"] for one in agreed["steps"]] == ["create_draft", "start_drafting"]
     assert agreed["steps"][0]["args"]["subject"] == "Toán"
     assert agreed["steps"][0]["args"]["grade"] == "12"
@@ -329,7 +332,8 @@ async def test_the_mock_reads_the_brief_instead_of_remembering_one() -> None:
     """
     outlined, agreed = await _outline_then_agree("soạn đề 8 câu môn Hoá học cho lớp 10B")
 
-    assert outlined["outline"][0]["questions"] == 8
+    assert outlined["outline_questions"] == 8
+    assert len(agreed["split"]["jobs"]) == 8
     args = agreed["steps"][0]["args"]
     assert args["subject"] == "Hoá học"
     assert args["grade"] == "10"

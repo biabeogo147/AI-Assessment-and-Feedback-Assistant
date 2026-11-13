@@ -4922,3 +4922,26 @@
 .teacher .option-rate.top-wrong .option-name {
   color: var(--answer-incorrect);
 }
+
+/* ---------------------------------------- lời chia việc trong khối bước (ADR-38) */
+
+/*
+ * Lượt soạn theo dàn ý: lời Kriky chia dàn ý thành câu đứng **trong** khối các bước, dưới header
+ * và trên danh sách bước -- thuộc tính `Chia việc` của `Thinking` (83:76), artboard 4b, 5b, 5c. Một
+ * lượt, một khối (người dùng chốt 13/11/2026). Thụt thẳng hàng chữ tên bước: Figma đệm 2/14/4/34
+ * với viền INSIDE, CSS trừ 1px viền hai bên như `.steps-list`. Khoảng giữa các đoạn 6.
+ */
+.teacher .steps-block .split-note {
+  padding: 2px 13px 4px 33px;
+  color: var(--ink);
+  font-size: var(--type-body);
+  line-height: 1.5;
+}
+
+.teacher .steps-block .split-note .kriky-text > * {
+  margin: 0;
+}
+
+.teacher .steps-block .split-note .kriky-text > * + * {
+  margin-top: 6px;
+}

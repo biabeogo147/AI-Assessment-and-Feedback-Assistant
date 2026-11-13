@@ -82,39 +82,46 @@ class PlanStep(BaseModel):
     title: str = Field(min_length=1, max_length=120)
 
 
-class OutlineItem(BaseModel):
-    """Một mục của dàn ý đề (ADR-29): một nhóm câu cùng kiến thức, công thức và cách làm.
+class SplitJob(BaseModel):
+    """Một câu của đề, như AGENT chia từ dàn ý giáo viên đã đồng ý (ADR-38).
 
-    Kriky viết mục; BE kiểm, lưu, in nguyên văn ra chat, và khi giáo viên đồng ý thì mỗi job soạn
-    câu nhận đúng một mục. Mục là thứ giáo viên **duyệt**, nên nó phải nói được câu ấy hỏi gì và
-    giải ra sao -- *"câu 1 về hàm hằng"* thì không duyệt được gì.
+    Dàn ý là lời Markdown; khi giáo viên đồng ý, AGENT đọc lại chính lời ấy và viết cho mỗi câu một
+    lời dặn tự đủ -- người soạn câu không thấy dàn ý và không thấy các câu khác. BE không đọc nội
+    dung ở đây: nó đếm số job, lưu chúng vào brief của đề, và mỗi job soạn câu nhận đúng một job.
 
-    Hình dạng thôi; luật nội dung -- chữ không chỉ toàn khoảng trắng, trần độ dài, công thức nằm
-    trong cặp `$`, nút nguồn có trong cây của tài liệu, tổng câu mỗi lần xin -- là của
-    `be/outline.validate` (plan `draft-outline`), nơi có cây để so.
-
-    Không có trường độ khó theo mục: tên ấy nằm trong mẫu tên cấm của
-    `services/agent/tests/test_no_routing_decision.py`, và độ khó vẫn đi theo cả đề (`difficulty`
-    của brief).
+    Không có trường độ khó: tên ấy nằm trong mẫu tên cấm của
+    `services/agent/tests/test_no_routing_decision.py`, và độ khó vẫn đi theo cả đề.
 
     Attributes:
-        questions: Mục này phủ bao nhiêu câu. Hai câu chung một mục thì chung kiến thức nhưng phải
-            khác cách hỏi -- job biết mình là câu thứ mấy của mục.
-        knowledge: Kiến thức câu kiểm, viết sạch bằng lời của Kriky -- không phải chữ OCR chép lại.
-        formulas: Công thức sẽ dùng, mỗi phần tử một công thức trong cặp `$`. Rỗng được, cho môn
-            không có công thức.
-        approach: Phương án làm bài: dạng câu và các bước giải dự kiến.
-        source_nodes: `ordinal` các nút trong cây của tài liệu mà mục dựa vào. Rỗng khi đề không có
-            tài liệu.
+        part: Nhãn phần dàn ý câu này thuộc về, như dàn ý ghi. Các câu cùng phần là câu anh em: BE
+            không dặn câu này né kiến thức của chúng (`drafting.item_fields`). Rỗng được.
+        knowledge: Kiến thức câu này kiểm.
+        formulas: Công thức dàn ý đã nêu cho phần này, mỗi phần tử một công thức; rỗng được.
+        approach: Cách làm bài của riêng câu này -- dạng câu, các bước giải, và câu khác các câu
+            cùng phần dàn ý ở đâu.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    questions: int = Field(ge=1, le=10)
+    part: str = ""
     knowledge: str = Field(min_length=1)
     formulas: tuple[str, ...] = ()
     approach: str = Field(min_length=1)
-    source_nodes: tuple[int, ...] = ()
+
+
+class Split(BaseModel):
+    """Cách AGENT chia một dàn ý đã duyệt thành các câu (ADR-38).
+
+    Attributes:
+        note: Lời Kriky kể nó chia việc thế nào, Markdown -- FE vẽ thành khối *thinking* trên chat,
+            mở trong lúc soạn.
+        jobs: Mỗi câu một job, theo thứ tự câu của dàn ý.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    note: str = ""
+    jobs: tuple[SplitJob, ...] = Field(min_length=1)
 
 
 class ClarifyQuestion(BaseModel):
@@ -243,10 +250,11 @@ class NextStepCompleted(BaseModel):
       giữ (ADR-23, hậu ký `unbiased-model-text` T3). Lối "Khác" -- giáo viên tự ghi -- do FE vẽ.
     - `plan`: đã đủ thông tin để làm; `steps` là các bước ghi, theo thứ tự, và `text` là câu nói
       trước khi bắt tay (ADR-25). Pha 1 kết thúc ở đây và pha 2 mới chạy các bước ấy.
-    - `outline`: một dàn ý đề cho giáo viên duyệt (ADR-29); `outline` là các mục -- thứ duy nhất
-      đi vào job -- và `text` là **cả lời** Kriky trình bày dàn ý cho giáo viên (Markdown, ADR-30).
-      Lượt kết thúc ở đây: BE kiểm các mục, lưu, in lời ra chat nguyên vẹn, và chỉ soạn ở một
-      lượt **sau**.
+    - `outline`: một dàn ý đề cho giáo viên duyệt (ADR-29, ADR-38); `text` là **cả lời** Kriky
+      trình bày dàn ý (Markdown, ADR-30), `outline_questions` là số câu của dàn ý, `outline_nodes`
+      là các bài nguồn khi có sách. Lượt kết thúc ở đây: BE kiểm con số và các nút, lưu, in lời ra
+      chat nguyên vẹn, và chỉ soạn ở một lượt **sau**. Khi giáo viên đồng ý, plan soạn đi kèm
+      `split` -- AGENT chia chính lời ấy thành các câu.
 
     `ask_clarify` là cổng đầu vào của ADR-05, và luật của nó -- kể cả việc một câu hỏi làm rõ được
     phép và không được phép hỏi những gì -- nằm trong chính decision record đó, do BE thi hành. Chép
@@ -264,7 +272,13 @@ class NextStepCompleted(BaseModel):
     tool_args: dict[str, object] = Field(default_factory=dict)
     choices: tuple[str, ...] = ()
     steps: tuple[PlanStep, ...] = ()
-    outline: tuple[OutlineItem, ...] = ()
+    # Dàn ý (ADR-38): chỉ với `outline`. Một con số -- thứ duy nhất BE kiểm của dàn ý, trần mỗi lần
+    # xin và trần cả đề -- và các bài nguồn khi có sách, để mở đề đúng phạm vi đã đọc.
+    outline_questions: int = Field(default=0, ge=0)
+    outline_nodes: tuple[int, ...] = ()
+    # Cách chia dàn ý vừa được đồng ý thành câu (ADR-38): chỉ với `plan`, và chỉ plan soạn theo
+    # dàn ý mang nó.
+    split: Split | None = None
     # Hỏi lại nhiều câu một lượt (ADR-32): 2 tới `MOST_CLARIFY_QUESTIONS` câu, chỉ với
     # `ask_clarify`. Khi có, `text` là lời mở của Kriky và `choices` rỗng -- mỗi câu chở nút của
     # riêng nó.
@@ -295,7 +309,8 @@ class NextStepCompleted(BaseModel):
             ValueError: Khi `kind` là `call_tool` mà `tool_name` rỗng, khi `plan` mà không có bước
                 nào, hoặc khi một `kind` khác lại chở `steps` -- cái cuối là để BE không phải nhớ
                 bỏ qua chúng ở mọi nhánh, vì một luật phải nhớ là một luật sẽ quên. `outline` theo
-                đúng luật ấy: `kind='outline'` phải có mục, kind khác không được chở mục.
+                đúng luật ấy: `kind='outline'` phải có số câu, kind khác không chở số câu hay nút
+                của dàn ý; `split` chỉ đi với `plan`.
         """
         if self.kind == "call_tool" and not self.tool_name.strip():
             raise ValueError("kind='call_tool' needs a tool_name")
@@ -303,10 +318,12 @@ class NextStepCompleted(BaseModel):
             raise ValueError("kind='plan' needs at least one step")
         if self.kind != "plan" and self.steps:
             raise ValueError("only kind='plan' may carry steps")
-        if self.kind == "outline" and not self.outline:
-            raise ValueError("kind='outline' needs at least one item")
-        if self.kind != "outline" and self.outline:
-            raise ValueError("only kind='outline' may carry outline items")
+        if self.kind == "outline" and self.outline_questions < 1:
+            raise ValueError("kind='outline' needs a question count")
+        if self.kind != "outline" and (self.outline_questions or self.outline_nodes):
+            raise ValueError("only kind='outline' may carry an outline count or nodes")
+        if self.split is not None and self.kind != "plan":
+            raise ValueError("only kind='plan' may carry a split")
         if self.notice and self.kind != "say":
             raise ValueError("only kind='say' may be a system notice")
         if self.questions and self.kind != "ask_clarify":

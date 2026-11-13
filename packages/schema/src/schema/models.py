@@ -772,10 +772,11 @@ class DraftBrief(Base):
     document_id: Mapped[str] = mapped_column(String(36), default="")
     scope_nodes: Mapped[list[int]] = mapped_column(JSON, default=list)
     index_built_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # **Dàn ý đã duyệt** (ADR-29, `draft-outline`): các mục giáo viên đã thấy nguyên văn trước
-    # khi soạn, mỗi mục một dict hình dạng `OutlineItem` cộng `version` của dàn ý chứa nó. Chỉ
-    # **nối thêm**: soạn thêm câu nối mục mới, thay một câu nối một mục mới và trỏ ô ấy sang nó --
-    # mục cũ ở lại, vì câu đã soạn vẫn đứng trên nó. Không tăng `version` của brief: tăng là bảo
+    # **Dàn ý đã duyệt** (ADR-29, ADR-38): các job Kriky chia từ dàn ý giáo viên đã đồng ý, mỗi job
+    # một dict một câu (`questions` 1, `part`, `knowledge`, `formulas`, `approach`) cộng `version`
+    # của dàn ý chứa nó. Đề soạn trước ADR-38 còn mục nhiều câu (`questions` > 1). Chỉ **nối
+    # thêm**: soạn thêm câu nối job mới, thay một câu nối một job mới và trỏ ô ấy sang nó -- job cũ
+    # ở lại, vì câu đã soạn vẫn đứng trên nó. Không tăng `version` của brief: tăng là bảo
     # `harvest` bỏ các ô đang chờ.
     outline: Mapped[list[dict]] = mapped_column(JSON, default=list)
 

@@ -29,7 +29,7 @@ Trường hợp artboard `5 · Đã có đề nháp` (`12:46`) chụp lại — 
 | # | Khối | Component | Có mặt khi nào |
 | --- | --- | --- | --- |
 | 1 | Câu mở đầu của Kriky | `Message turn` (Vai=agent) | Khi model nói một câu trước lúc gọi tool |
-| 2 | Khối các bước | `Thinking` (`83:76`) | Khi lượt có từ một bước tool trở lên |
+| 2 | Khối các bước | `Thinking` (`83:76`) | Khi lượt có từ một bước tool trở lên; lượt soạn theo dàn ý thì lời chia việc nằm trong khối này (thuộc tính `Chia việc`, ADR-38) |
 | 3 | Câu kết | `agent-conclusion`, cũng là `Message turn` (Vai=agent) | Khi lượt kết thúc bằng `say` |
 | 4 | Thẻ kết quả | `Action result card` (`10:63`) | **Một thẻ cho việc của model, cộng một thẻ cho mỗi việc giáo viên tự làm** |
 
@@ -72,15 +72,24 @@ bước, kể cả khi lượt kết bằng thông báo. Nó
 cắt khối của Kriky và đứng dưới những gì Kriky đã làm, nên khối bước của một plan đã chạy vẫn ở nguyên
 trên nó. Câu của chúng sống ở `be/notices.py`; lượt sau model đọc lại chúng như ghi chú hệ thống.
 
-### Lượt dàn ý — lời Kriky, mục cho job
+### Lượt dàn ý — lời Kriky; chia việc — trong khối các bước
 
 Từ [ADR-29](../decisions/adr-29-dan-y-de-truoc-khi-soan.md) mọi đề đi qua một **dàn ý** trước khi soạn:
 lượt ấy (`kind: "outline"`) vẽ **đúng như một câu Kriky nói** — cùng `Message turn` (Vai=agent), cùng
-`KrikyText`, không thẻ mới, không nút duyệt. Từ ADR-30 dàn ý là **hai trường**: lời Kriky tự viết cho
-giáo viên (Markdown — mỗi mục nêu `Câu k`, kiến thức, công thức, cách làm, bài nguồn khi có sách, rồi
-một câu hỏi xin đồng ý của chính nó), và các mục có cấu trúc — thứ duy nhất đi vào job. BE chỉ kiểm
-các mục (`be/outline.validate`); lời Kriky lên chat nguyên vẹn (hậu ký 20/10/2026 của ADR-30).
-Giáo viên duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau.
+`KrikyText`, không thẻ mới, không nút duyệt. Từ [ADR-38](../decisions/adr-38-dan-y-markdown-agent-chia-viec.md)
+dàn ý **chỉ là lời** Kriky viết (Markdown — mỗi phần nêu `Câu k`, kiến thức, công thức, cách làm, bài
+nguồn khi có sách, rồi một câu hỏi xin đồng ý của chính nó), kèm số câu và bài nguồn; BE chỉ kiểm hai
+thứ ấy (`be/outline.validate`). Giáo viên duyệt hay sửa **bằng chat**; câu hỏi chỉ được soạn ở lượt sau.
+
+Khi giáo viên đồng ý, Kriky **tự chia** lời dàn ý thành từng câu, và lời chia việc hiện **trong khối
+các bước** của lượt ấy — thuộc tính `Chia việc` của `Thinking` (`83:76`): dưới header, trên danh sách
+bước, thụt thẳng hàng chữ tên bước (artboard **4b** `832:5932` đang soạn, **5b** `832:6086` soạn xong
+thu gọn, **5c** `835:6114` giáo viên mở lại). **Một lượt, một khối Thinking** (người dùng chốt
+13/11/2026): bản đầu vẽ lời chia việc thành khối riêng đứng trên khối bước, và hai khối cho một lượt
+là thừa. Lời chia việc mở và thu cùng khối: mở trong lúc soạn, thu khi lượt xong; F5 thu gọn, bấm mở
+lại được. Header vẫn là *"Đã làm n bước"*. Lời chia việc lưu trên lượt `plan` (`tool_result.split`),
+nên F5 dựng lại đúng lời ấy. FE: prop `told` của `Steps.tsx`.
+
 Sau F5 lượt dàn ý dựng lại đúng lời ấy (`spoken()` coi `outline` là lời trợ lý). Bước *"Thay một câu"* có dòng kết quả riêng: *"đã thay câu
 N"*, hay *"câu N giữ nguyên: câu mới soạn không đạt"* — câu cũ ở lại khi câu mới không qua ADR-18.
 
@@ -809,7 +818,7 @@ component `Failed slot` (`652:3635`), artboard **`17 · Ô câu soạn hỏng �
   lại*. *Đang soạn lại*: chip teal có chấm, lời *"Kriky đang soạn lại câu này. Các câu khác vẫn sửa và
   xoá được."*, nút tắt *Đang soạn…* mờ 0,45. Không ghi số lần đã thử.
 - ***Thử lại* này có endpoint** (`POST …/slots/{order}/redraft`), không điền ô nhập như nút cùng tên
-  trên thẻ `tạo-thất-bại`: mục dàn ý của ô đã được giáo viên xem, nên soạn lại không cần model hiểu
+  trên thẻ `tạo-thất-bại`: job của ô đã có từ dàn ý giáo viên đồng ý (ADR-38), nên soạn lại không cần model hiểu
   thêm câu nào. Ô đang soạn lại là ô có job chạy, nên panel tự đọc lại sau 4 giây như mọi lúc còn câu
   đang soạn.
 - **Đầu panel đếm theo vị trí**: *"10 câu · 1 câu chưa soạn được · Toán 12 · Chương Hàm số"*. Ô đang

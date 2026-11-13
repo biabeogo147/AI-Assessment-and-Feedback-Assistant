@@ -91,7 +91,7 @@ def approved_plan(step: NextStepCompleted, request: NextStepRequested) -> NextSt
     if not earlier:
         return step
     shown = earlier[-1]
-    if shown.kind != "outline" or not shown.tool_result.get("items"):
+    if shown.kind != "outline" or not shown.tool_result.get("total"):
         return step
     if not AGREES.search(unicodedata.normalize("NFC", said.text)):
         return step
@@ -154,10 +154,10 @@ def right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextSt
     """Dàn ý đúng việc giáo viên vừa nói, khi lời họ nói rõ việc ấy. Hàm thuần.
 
     Thử tay 15/10/2026 (H4) và bench run-98 (`dan-y-thay-cau` 2/6): *"thay câu 3 bằng …"* ra một
-    dàn ý **cả đề** `for=new` -- giáo viên gõ *"oke"* là mở một đề mới thay vì thay câu 3. Model
-    viết lại cả dàn ý, chỉ mục chứa câu ấy đổi, nên phép sửa không phải đoán: lấy đúng mục chứa câu
-    N, một câu, `for=replace`. Tương tự *"soạn thêm"* trong đoạn chat đã có đề mà dàn ý là
-    `for=new` thì việc là `for=more`.
+    dàn ý **cả đề** `for=new` -- giáo viên gõ *"oke"* là mở một đề mới thay vì thay câu 3. Việc thì
+    lời giáo viên đã nói rõ: `for=replace`, câu N, một câu. Lời dàn ý giữ nguyên -- khi giáo viên
+    đồng ý, bước chia việc chỉ lấy câu N từ đó (ADR-38). Tương tự *"soạn thêm"* trong đoạn chat
+    đã có đề mà dàn ý là `for=new` thì việc là `for=more`.
 
     Lời nói rõ việc là câu **gần nhất** nói rõ một việc, kể từ plan gần nhất -- không chỉ câu
     cuối: thử tay sau review đợt 6, *"soạn thêm 1 câu về số La Mã"* rồi hai lần bấm lựa chọn Kriky
@@ -191,18 +191,17 @@ def right_purpose(step: NextStepCompleted, request: NextStepRequested) -> NextSt
     replaces = _REPLACES.search(said)
     if replaces and has_draft and purpose != "replace":
         number = int(replaces.group(1))
-        seen = 0
-        for item in step.outline:
-            seen += item.questions
-            if number <= seen:
-                logger.info("outline for %s rewritten to replace question %d", purpose, number)
-                return step.model_copy(
-                    update={
-                        "outline": (item.model_copy(update={"questions": 1}),),
-                        "tool_args": {**step.tool_args, "for": "replace", "question": str(number)},
-                    }
-                )
-        return step
+        # Dàn ý nhiều câu mà không có câu N thì không đoán; dàn ý một câu là chính câu thay
+        # (review pha 1, plan `markdown-outline-agent-split`).
+        if step.outline_questions > 1 and number > step.outline_questions:
+            return step
+        logger.info("outline for %s rewritten to replace question %d", purpose, number)
+        return step.model_copy(
+            update={
+                "outline_questions": 1,
+                "tool_args": {**step.tool_args, "for": "replace", "question": str(number)},
+            }
+        )
     if _ADDS.search(said) and not _ANOTHER_PAPER.search(said) and has_draft and purpose == "new":
         logger.info("outline for new on a turn asking for more -- for=more")
         return step.model_copy(update={"tool_args": {**step.tool_args, "for": "more"}})
@@ -232,21 +231,19 @@ class Miscount:
     đọc trường chứ không đọc chuỗi log (backlog, chia `propose.py` 20/10/2026).
 
     Attributes:
-        source: `replace` (dàn ý thay câu không phải một mục một câu), `known` (lệch số model ghi
-            trong `known`), hay `teacher` (lệch số giáo viên nói).
-        total: Tổng số câu của dàn ý.
-        items: Số mục của dàn ý.
+        source: `replace` (dàn ý thay câu không phải một câu), `known` (lệch số model ghi trong
+            `known`), hay `teacher` (lệch số giáo viên nói).
+        total: Số câu của dàn ý.
         wanted: Số câu đúng; `None` với `replace`.
     """
 
     source: Literal["replace", "known", "teacher"]
     total: int
-    items: int
     wanted: int | None = None
 
     def __str__(self) -> str:
         if self.source == "replace":
-            return f"replace outline has {self.items} item(s), {self.total} question(s)"
+            return f"replace outline has {self.total} question(s)"
         if self.source == "known":
             return f"outline totals {self.total}, known says {self.wanted}"
         return f"outline totals {self.total}, the teacher asked for {self.wanted}"
@@ -260,7 +257,7 @@ def miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) 
     số câu giáo viên đã nói kể từ plan gần nhất (plan `backlog-tier-1`, pha 1: *Mất số câu sau một
     lượt hỏi lại*: xin 5
     câu, hỏi lại một lượt, dàn ý ra 10). Không ai nói thì không đối chiếu -- BE vẫn chặn quá mười
-    câu. Thay câu thì đúng một mục một câu, vì dàn ý ấy chỉ dành cho đúng câu bị thay.
+    câu. Thay câu thì đúng một câu, vì dàn ý ấy chỉ dành cho đúng câu bị thay.
 
     Args:
         step: Dàn ý model nêu.
@@ -270,22 +267,21 @@ def miscounted(step: NextStepCompleted, known: str, request: NextStepRequested) 
     Returns:
         Chỗ lệch, hoặc `None`.
     """
-    total = sum(item.questions for item in step.outline)
-    items = len(step.outline)
+    total = step.outline_questions
     if str(step.tool_args.get("for") or "") == "replace":
-        if items != 1 or total != 1:
-            return Miscount("replace", total, items)
+        if total != 1:
+            return Miscount("replace", total)
         return None
     if _count_revised(request):
         return None
     found = _COUNT_IN_KNOWN.search(known)
     if found:
         if int(found.group(1)) != total:
-            return Miscount("known", total, items, int(found.group(1)))
+            return Miscount("known", total, int(found.group(1)))
         return None
     said = _count_said(request)
     if said is not None and said != total:
-        return Miscount("teacher", total, items, said)
+        return Miscount("teacher", total, said)
     return None
 
 

@@ -17,7 +17,7 @@ import Panel from "./Panel";
 import Rail from "./Rail";
 import { readNumber, writeNumber } from "./remember";
 import Split from "./Split";
-import Steps, { type Step } from "./Steps";
+import Steps, { type Step, type Told, toldIn } from "./Steps";
 import Veil from "./Veil";
 import ClarifySteps from "./ClarifySteps";
 import MathText from "../../MathText";
@@ -739,6 +739,7 @@ export default function Chat({
                       <Steps
                         steps={live.steps}
                         total={live.total || undefined}
+                        told={live.told}
                       />
                     )}
                     {live.report !== "" && (
@@ -983,6 +984,8 @@ type Block = { said: string } | { kriky: Turn[] } | { notice: string };
 interface Spoken {
   /** Câu Kriky nói trước khi bắt tay làm. Rỗng thì không có khối nào. */
   opening: string;
+  /** Lời Kriky chia dàn ý thành câu (ADR-38), khi lượt soạn theo dàn ý; không thì `null`. */
+  told: Told | null;
   /** Các bước tool, vào khối `Thinking`. */
   steps: Step[];
   /** Câu kết sau khi làm xong. */
@@ -1056,7 +1059,9 @@ function spoken(turns: Turn[]): Spoken {
     conclusion = opening;
     opening = "";
   }
-  return { opening, steps, conclusion, cards: cardTurns(turns) };
+  // Lời chia việc sống trên lượt `plan` (ADR-38), nên F5 dựng lại được đúng khối đã thấy.
+  const told = toldIn(turns.find((one) => one.kind === "plan")?.tool_result?.split);
+  return { opening, told, steps, conclusion, cards: cardTurns(turns) };
 }
 
 /**
@@ -1107,6 +1112,8 @@ interface Live {
   steps: Step[];
   /** Plan có bao nhiêu bước — `n` của `bước k/n`, biết được vì plan có trước khi chạy. */
   total: number;
+  /** Lời Kriky chia dàn ý thành câu, tới cùng sự kiện `plan` (ADR-38). */
+  told: Told | null;
   /** Câu kết, có từ lúc model kể lại. */
   report: string;
   /** Thông báo hệ thống khi model không có mặt để nói (ADR-30, ngoại lệ 1). */
@@ -1144,6 +1151,7 @@ export function grow(before: Live | null, event: TurnEvent): Live {
     opening: "",
     steps: [],
     total: 0,
+    told: null,
     report: "",
     notice: "",
   };
@@ -1156,10 +1164,12 @@ export function grow(before: Live | null, event: TurnEvent): Live {
       // (`kriky-writes-every-word`): vẽ khác thứ tự ấy thì F5 lúc lượt xong làm câu nhảy chỗ.
       if (steps.length > 0 && now.total === 0) return { ...now, report: event.text };
       return { ...now, opening: event.text };
-    case "plan":
+    case "plan": {
+      const told = toldIn(event.split);
       if (now.opening === "" && now.report !== "")
-        return { ...now, opening: now.report, report: "", total: event.total };
-      return { ...now, total: event.total };
+        return { ...now, opening: now.report, report: "", total: event.total, told };
+      return { ...now, total: event.total, told };
+    }
     case "step_started":
       steps.push({
         mark: "running",
@@ -1279,7 +1289,9 @@ function Turnful({
   onOpen: (assessmentId: string) => void;
   onCompose: (text: string) => void;
 }) {
-  const steps = said.steps.length > 0 ? <Steps steps={said.steps} /> : null;
+  // Lời chia việc (ADR-38) nằm trong chính khối bước: một lượt, một khối.
+  const steps =
+    said.steps.length > 0 ? <Steps steps={said.steps} told={said.told} /> : null;
 
   // Một khối duy nhất dưới avatar, nhịp 20 giữa các phần — nhịp 6 chỉ nằm giữa avatar và
   // phần đầu tiên. Nhờ vậy thứ tự đọc của thiết kế giữ nguyên dù lượt thiếu phần nào:

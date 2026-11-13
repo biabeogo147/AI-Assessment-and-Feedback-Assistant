@@ -55,7 +55,7 @@ def test_a_question_on_an_outline_item_is_told_exactly_that_item() -> None:
     assert "Cách làm bài: Rút gọn rồi so sánh" in brief
     assert "Mục này có 3 câu; đây là câu thứ 2." in brief
     assert "· Thứ tự thực hiện phép tính" in brief
-    assert "giáo viên đã duyệt" in brief
+    assert "dàn ý giáo viên đã duyệt" in brief
     # Lời nhắc chung *"khía cạnh khác nhau"* nhường chỗ cho mục cụ thể.
     assert "khía cạnh khác nhau" not in brief
 

@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import KrikyText from "../../KrikyText";
+
 /** Một bước Kriky đã làm trong một lượt: một lời gọi tool và kết quả của nó. */
 export interface Step {
   /** `done` đã xong, `running` đang chạy, `failed` hỏng. */
@@ -13,6 +15,27 @@ export interface Step {
    * của plan vào `bước k/n`: `n` là số bước plan (ADR-25). Không ghi thì coi như thuộc plan.
    */
   planned?: boolean;
+}
+
+/** Lời Kriky kể nó chia dàn ý đã duyệt thành câu thế nào (ADR-38), như BE lưu trên lượt `plan`. */
+export interface Told {
+  /** Lời chia việc, Markdown — chính lời model viết. */
+  note: string;
+  /** Số câu đã chia. */
+  questions: number;
+}
+
+/**
+ * Đọc lời chia việc từ `tool_result` của lượt `plan` hay từ sự kiện `plan`; `null` khi plan không
+ * soạn theo dàn ý. Hàm thuần.
+ *
+ * @param raw - `tool_result.split` của lượt plan, hay `split` của sự kiện.
+ */
+export function toldIn(raw: unknown): Told | null {
+  if (raw === null || typeof raw !== "object") return null;
+  const { note, questions } = raw as Record<string, unknown>;
+  if (typeof note !== "string" || note.trim() === "") return null;
+  return { note, questions: typeof questions === "number" ? questions : 0 };
 }
 
 /**
@@ -30,12 +53,25 @@ export interface Step {
  *
  * Luật behavior đầy đủ nằm ở `docs/overview/teacher-surface.md`; đừng suy lại từ bố cục.
  *
+ * **Một lượt, một khối** (người dùng chốt 13/11/2026): lượt soạn theo dàn ý thì lời Kriky chia dàn ý
+ * thành câu (ADR-38) đứng **trong** khối này, dưới header và trên các bước — thuộc tính
+ * `Chia việc` của `Thinking`, artboard 4b, 5b, 5c. Nó mở và thu cùng khối.
+ *
  * @param steps - Các bước, theo đúng thứ tự đã xảy ra.
  * @param total - Plan có bao nhiêu bước. Trong lúc lượt đang chạy, `steps` mới chỉ có những
  *   bước đã bắt đầu, nên `n` của `bước k/n` phải lấy từ plan — nói được `2/5` chính vì plan
  *   có trước khi chạy (ADR-25). Bỏ trống thì đếm theo `steps`, đúng cho một lượt đã xong.
+ * @param told - Lời chia việc của lượt soạn theo dàn ý, khi có.
  */
-export default function Steps({ steps, total }: { steps: Step[]; total?: number }) {
+export default function Steps({
+  steps,
+  total,
+  told = null,
+}: {
+  steps: Step[];
+  total?: number;
+  told?: Told | null;
+}) {
   // Chỉ một bước **của plan** hỏng mới dừng lượt (ADR-25). Một bước tra cứu hỏng thì model đọc lý
   // do rồi đi tiếp, nên nó mang dấu ✕ ở hàng của nó mà không làm cả khối thành `Dừng ở bước k`
   // (review pha 1, `kriky-writes-every-word`).
@@ -77,6 +113,11 @@ export default function Steps({ steps, total }: { steps: Step[]; total?: number 
           </span>
         )}
       </button>
+      {shown && told !== null && (
+        <div className="split-note">
+          <KrikyText>{told.note}</KrikyText>
+        </div>
+      )}
       {shown && (
         <div className="steps-list">
           {steps.map((one, index) => (

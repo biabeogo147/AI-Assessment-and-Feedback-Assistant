@@ -96,6 +96,12 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
         return True, ""
 
     steps = list(step.get("steps") or [])
+    if "split" in expect:
+        # ADR-38: plan soạn theo dàn ý chở cách AGENT chia -- đúng số câu, không thì BE từ chối
+        # (`guard_drafting`). Mỗi ca có ô này tốn thêm một lời gọi model: bước chia việc.
+        jobs = len((step.get("split") or {}).get("jobs") or [])
+        if jobs != expect["split"]:
+            return False, f"chia {jobs} câu"
     if "plan_tool" in expect:
         # Plan không soạn đề (plan `tao-lop`): đúng một bước, đúng tool, đúng tham số.
         if [one.get("tool_name") for one in steps] != [expect["plan_tool"]]:
@@ -125,32 +131,28 @@ def score_propose(expect: dict, step: dict) -> tuple[bool, str]:
 
 
 def _score_outline(expect: dict, step: dict) -> tuple[bool, str]:
-    """Một dàn ý đề (ADR-29, `draft-outline`) có đúng ý ca không. Hàm thuần.
+    """Một dàn ý đề (ADR-29, ADR-38) có đúng ý ca không. Hàm thuần.
 
-    Đúng số câu, đúng việc (`for`), mỗi mục có kiến thức và cách làm, và -- ca có sách -- bài nguồn
-    nằm trong các node ca cho phép. Nội dung kiến thức không chấm ở đây: đó là việc giáo viên duyệt.
+    Đúng số câu, đúng việc (`for`), có lời, và -- ca có sách -- bài nguồn nằm trong các node ca cho
+    phép. Nội dung lời dàn ý không chấm ở đây: đó là việc giáo viên duyệt.
     """
-    items = list(step.get("outline") or [])
-    if not items:
-        return False, "dàn ý không có mục"
-    total = sum(int(item.get("questions") or 0) for item in items)
+    total = int(step.get("outline_questions") or 0)
+    if total < 1:
+        return False, "dàn ý không có số câu"
     if "count" in expect and str(total) != expect["count"]:
-        return False, f"tổng câu {total}"
+        return False, f"số câu {total}"
     purpose = str((step.get("tool_args") or {}).get("for") or "new")
     if purpose != expect.get("for", "new"):
         return False, f"for {purpose!r}"
     question = str((step.get("tool_args") or {}).get("question") or "")
     if "question" in expect and question != expect["question"]:
         return False, f"question {question!r}"
-    if any(
-        not str(item.get("knowledge") or "").strip() or not str(item.get("approach") or "").strip()
-        for item in items
-    ):
-        return False, "mục thiếu kiến thức hay cách làm"
+    if not str(step.get("text") or "").strip():
+        return False, "dàn ý không có lời"
     if "nodes_in" in expect:
-        sources = {node for item in items for node in item.get("source_nodes") or []}
+        sources = set(step.get("outline_nodes") or [])
         if not sources or not sources <= set(expect["nodes_in"]):
-            return False, f"source_nodes {sorted(sources)}"
+            return False, f"outline_nodes {sorted(sources)}"
     return True, ""
 
 

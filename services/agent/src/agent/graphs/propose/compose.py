@@ -142,9 +142,9 @@ def compose(state: ProposeState) -> dict:
             messages.append(HumanMessage(f"(Ghi chú của hệ thống, giáo viên đã thấy: {turn.text})"))
         elif turn.kind == "outline":
             messages.append(AIMessage(turn.text))
-            items = _outline_items(turn)
-            if items:
-                messages.append(HumanMessage(items))
+            facts = _outline_facts(turn)
+            if facts:
+                messages.append(HumanMessage(facts))
         else:
             messages.append(HumanMessage(_describe_result(turn)))
     if state.get("hint"):
@@ -191,28 +191,35 @@ def _asked_back(turn: TurnRecord) -> str:
     return "\n".join(lines)
 
 
-def _outline_items(turn: TurnRecord) -> str:
-    """Các mục của một lượt dàn ý trong lịch sử, như một ghi chú của hệ thống (`draft-outline`). Hàm
-    thuần.
+def _outline_facts(turn: TurnRecord) -> str:
+    """Những gì đi kèm lời của một lượt dàn ý trong lịch sử -- việc, câu đầu, số câu, bài nguồn --
+    như một ghi chú của hệ thống (ADR-38). Hàm thuần.
 
-    Sửa dàn ý là nêu lại **đủ** mục, và `source_nodes` chỉ chép lại được khi nó còn nằm đâu đó. Ghi
-    chú đi **riêng** khỏi lời Kriky -- một tin nhắn của phía người dùng, không nối vào lời của chính
-    model: từ ADR-30 lời ấy là cả dàn ý, và một khối JSON nằm trong lời mình vừa nói là thứ model dễ
-    chép lại vào lời sau (review pha 4, `kriky-writes-every-word`). Dàn ý đã bị thay thì BE chỉ gửi
-    số bản (`teacher_chat._shrunk`), và không có ghi chú nào.
+    Lời dàn ý đã nằm ở lời Kriky; ghi chú chỉ giữ thứ model phải chép lại khi nêu lại dàn ý mà lời
+    không chở: số node của bài nguồn. Ghi chú đi **riêng** khỏi lời Kriky -- một tin nhắn của phía
+    người dùng, không nối vào lời của chính model: một khối JSON nằm trong lời mình vừa nói là thứ
+    model dễ chép lại vào lời sau (review pha 4, `kriky-writes-every-word`). Dàn ý đã bị thay thì BE
+    chỉ gửi số bản (`teacher_chat._shrunk`), và không có ghi chú nào.
 
     Returns:
-        Ghi chú các mục, hoặc chuỗi rỗng khi lượt không còn mục.
+        Ghi chú, hoặc chuỗi rỗng khi lượt không còn gì đi kèm.
     """
     kept = turn.tool_result or {}
-    if not kept.get("items"):
+    if not kept.get("total"):
         return ""
+    # Khoá trùng tên trường model điền khi nêu lại dàn ý (`outline_questions`, `outline_nodes`).
     compact = json.dumps(
-        {key: kept.get(key) for key in ("version", "for", "first", "items")},
+        {
+            "version": kept.get("version"),
+            "for": kept.get("for"),
+            "first": kept.get("first"),
+            "outline_questions": kept.get("total"),
+            "outline_nodes": kept.get("nodes") or [],
+        },
         ensure_ascii=False,
         sort_keys=True,
     )
-    return f"(Ghi chú của hệ thống, giáo viên không thấy: các mục của dàn ý vừa rồi — {compact})"
+    return f"(Ghi chú của hệ thống, giáo viên không thấy: dàn ý vừa rồi — {compact})"
 
 
 def _describe_result(turn: TurnRecord) -> str:

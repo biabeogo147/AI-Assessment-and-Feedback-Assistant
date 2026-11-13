@@ -11,11 +11,10 @@ from contracts import (
     MOST_CLARIFY_QUESTIONS,
     ClarifyQuestion,
     NextStepCompleted,
-    OutlineItem,
     PlanStep,
 )
 
-# Năm lớp dưới giữ dấu `_` dù file khác dùng `_Proposal`: tên lớp chính là tên tool (`_Proposal`)
+# Bốn lớp dưới giữ dấu `_` dù file khác dùng `_Proposal`: tên lớp chính là tên tool (`_Proposal`)
 # và tên các `$defs` trong schema gửi model, nên đổi tên là đổi thứ model đọc.
 # `test_no_routing_decision` cũng khoá theo `"_Proposal"` (plan `propose-names-and-order`).
 
@@ -33,27 +32,6 @@ class _Argument(BaseModel):
 
     param: str = Field(description="Tên tham số, viết đúng như trong danh sách tool.")
     value: str = Field(description="Giá trị của tham số.")
-
-
-class _OutlineItem(BaseModel):
-    """Một mục dàn ý đề (ADR-29, `draft-outline`), dưới hình dạng model trả lời được.
-
-    Object đóng, như `_Step`: structured output chặt nhận một tuple object có field cố định.
-    `contracts.OutlineItem` mới là hình dạng BE đọc, và `completed` dịch sang nó.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    questions: int = Field(description="Mục này phủ bao nhiêu câu.")
-    knowledge: str = Field(description="Kiến thức câu kiểm, viết lại sạch bằng lời của bạn.")
-    formulas: tuple[str, ...] = Field(
-        description="Công thức sẽ dùng, toán trong cặp $. Rỗng khi không có công thức."
-    )
-    approach: str = Field(description="Dạng câu và các bước giải dự kiến.")
-    source_nodes: tuple[int, ...] = Field(
-        description="Số node của bài nguồn, lấy từ nodes của read_section. Rỗng khi không có "
-        "tài liệu."
-    )
 
 
 class _Step(BaseModel):
@@ -125,19 +103,24 @@ class _Proposal(BaseModel):
         default="",
         description=(
             "Lời giáo viên đọc trên màn hình, Markdown. Với ask_clarify, đây là câu hỏi. Với "
-            "outline, đây là cả lời trình bày dàn ý, khớp các mục. Không được rỗng với say, "
-            "ask_clarify và outline."
+            "outline, đây là cả dàn ý. Không được rỗng với say, ask_clarify và outline."
         ),
     )
-    # ADR-29 (`draft-outline`): dàn ý đề, chỉ với kind outline. Đứng **ngay sau `text`**, không ở
-    # cuối: thử tay và bench run-98/run-100 thấy model chọn `outline` rồi để trống mục -- ở cuối,
-    # sau `choices`, `tool_name`, `tool_args`, `steps`, nó đã "nói xong" ở `text` trước khi tới
-    # mục. Model sinh JSON từ trái sang phải, cùng lý do `known` đứng đầu (`kriky-skill-routing`).
-    outline: tuple[_OutlineItem, ...] = Field(
+    # ADR-38: dàn ý là lời `text`; đi kèm chỉ một con số và các bài nguồn. Đứng **ngay sau `text`**,
+    # không ở cuối: thử tay và bench run-98/run-100 thấy model chọn `outline` rồi bỏ trống phần đi
+    # kèm khi nó nằm cuối -- model sinh JSON từ trái sang phải, cùng lý do `known` đứng đầu.
+    outline_questions: int = Field(
+        default=0,
+        description=(
+            "Chỉ với outline: dàn ý có bao nhiêu câu -- ĐÚNG số câu giáo viên xin; thay câu thì 1. "
+            "Các kind khác để 0."
+        ),
+    )
+    outline_nodes: tuple[int, ...] = Field(
         default=(),
         description=(
-            "Chỉ với outline: các mục dàn ý, theo thứ tự câu. Tổng questions của mọi mục ĐÚNG bằng "
-            "số câu giáo viên xin; thay câu thì đúng một mục một câu. Các kind khác để trống."
+            "Chỉ với outline có tài liệu: số node các bài nguồn của dàn ý, lấy từ nodes của "
+            "read_section. Không có tài liệu, hay kind khác, thì để trống."
         ),
     )
     # `unbiased-model-text` T3 (người dùng chốt 12/10/2026): hỏi lại thì có ít nhất 3 lựa chọn do
@@ -235,18 +218,8 @@ class _Proposal(BaseModel):
             else (),
             choices=choices,
             questions=questions,
-            outline=tuple(
-                OutlineItem(
-                    questions=item.questions,
-                    knowledge=nfc(item.knowledge),
-                    formulas=tuple(nfc(one) for one in item.formulas),
-                    approach=nfc(item.approach),
-                    source_nodes=item.source_nodes,
-                )
-                for item in self.outline
-            )
-            if self.kind == "outline"
-            else (),
+            outline_questions=self.outline_questions if self.kind == "outline" else 0,
+            outline_nodes=self.outline_nodes if self.kind == "outline" else (),
             model_tokens=model_tokens,
         )
 
@@ -279,18 +252,6 @@ def unmangled(proposal: "_Proposal") -> "_Proposal":
             "steps": tuple(
                 step.model_copy(update={"title": restore_latex_escapes(step.title)})
                 for step in proposal.steps
-            ),
-            # Mục dàn ý (`draft-outline`): job soạn câu đọc đúng ba trường chữ này -- `\frac`
-            # thành form-feed ở đây là hỏng câu được soạn.
-            "outline": tuple(
-                item.model_copy(
-                    update={
-                        "knowledge": restore_latex_escapes(item.knowledge),
-                        "approach": restore_latex_escapes(item.approach),
-                        "formulas": tuple(restore_latex_escapes(one) for one in item.formulas),
-                    }
-                )
-                for item in proposal.outline
             ),
         }
     )

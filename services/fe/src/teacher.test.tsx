@@ -541,6 +541,58 @@ describe("một lượt của Kriky trên dòng hội thoại", () => {
     );
   });
 
+  it("đọc lại một lượt soạn theo dàn ý: một khối bước, thu gọn, lời chia việc ở trong", async () => {
+    // ADR-38: lời chia việc sống trên lượt `plan`, nên F5 dựng lại nó -- trong chính khối các bước
+    // (một lượt, một khối), thu gọn vì lượt đã xong.
+    Element.prototype.scrollIntoView = vi.fn();
+    const drafted = {
+      ...SPOKEN,
+      turns: [
+        blank({ kind: "teacher", text: "oke" }),
+        blank({ kind: "assistant", text: "Được, mình soạn đề ngay." }),
+        blank({
+          kind: "plan",
+          tool_result: {
+            steps: ["Soạn câu hỏi"],
+            total: 1,
+            split: { note: "Câu 1 lo **liệt kê**.", questions: 1 },
+          },
+        }),
+        blank({
+          kind: "tool_result",
+          tool_name: "start_drafting",
+          tool_result: { started: true, written: 1, asked_for: 1, still_drafting: 0 },
+        }),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(url.startsWith("/api/teacher/chat") ? drafted : []),
+        }),
+      ),
+    );
+
+    render(<Chat conversationId="c1" fresh={false} openPaper={null} />);
+
+    const head = await screen.findByRole("button", { name: "Đã làm 1 bước" });
+    expect(head.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelectorAll(".exchange .steps-block")).toHaveLength(1);
+    const opening = document.querySelector(".reply-text") as Element;
+    expect(opening.compareDocumentPosition(head) & 4).toBe(4);
+
+    fireEvent.click(head);
+
+    const note = document.querySelector(".steps-block .split-note") as Element;
+    expect(note.textContent).toContain("liệt kê");
+    expect(note.compareDocumentPosition(document.querySelector(".steps-list") as Element) & 4).toBe(
+      4,
+    );
+  });
+
   it("thông báo hệ thống là một dòng riêng, không avatar, dưới khối bước của Kriky", async () => {
     // ADR-30, ngoại lệ 1 (`kriky-writes-every-word`): model không kể lại được thì BE lưu một lượt
     // `notice`. Vẽ nó như lời Kriky là để code nói thay model dưới giọng của nó.

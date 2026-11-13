@@ -157,6 +157,18 @@ def _model_text(document: bool = True) -> list[str]:
         json.dumps(kind.model_json_schema(), ensure_ascii=False)
         for kind in (propose.proposal._Proposal, GeneratedQuestion)
     ]
+    # Bước chia việc của AGENT (ADR-38): cùng model đọc prompt, lời trả lại và schema của nó.
+    from agent.graphs.propose import split
+
+    texts += [
+        split.SYSTEM,
+        split.split_prompt("", "", 2, None),
+        split.split_prompt("", "", 1, 3),
+        split.recount(2, 3),
+        split.recount(1, 2, 3),
+        split.DIFFERS_LEAD,
+        json.dumps(split._Split.model_json_schema(), ensure_ascii=False),
+    ]
     # Câu BE ghi vào lịch sử chat hay gửi kèm lý do từ chối, model đọc lại ở lượt sau.
     from be import notices, teacher_chat
 
@@ -332,21 +344,39 @@ def _outline(count: int, purpose: str = "new", nodes: tuple[int, ...] = ()) -> d
         "kind": "outline",
         "text": "Dàn ý.",
         "tool_args": {"for": purpose},
-        "outline": [
-            {"questions": count, "knowledge": "K", "approach": "A", "source_nodes": list(nodes)}
-        ],
+        "outline_questions": count,
+        "outline_nodes": list(nodes),
     }
 
 
 def test_an_outline_scores_on_its_total_its_purpose_and_its_sources() -> None:
-    """`draft-outline`: dàn ý đúng số câu, đúng việc, bài nguồn trong các node ca cho phép."""
+    """`draft-outline`, ADR-38: dàn ý đúng số câu, đúng việc, có lời, bài nguồn trong các node ca
+    cho phép."""
     expect = {"kind": "outline", "count": "6", "nodes_in": [7, 8]}
 
     assert score_propose(expect, _outline(6, nodes=(8,))) == (True, "")
-    assert score_propose(expect, _outline(5, nodes=(8,)))[1] == "tổng câu 5"
+    assert score_propose(expect, _outline(5, nodes=(8,)))[1] == "số câu 5"
+    assert (
+        score_propose(expect, {**_outline(6, nodes=(8,)), "text": " "})[1] == "dàn ý không có lời"
+    )
     assert score_propose(expect, _outline(6, nodes=(99,)))[0] is False
     assert score_propose(expect, _outline(6))[0] is False
     assert score_propose({"kind": "outline"}, _outline(6, purpose="more"))[1] == "for 'more'"
+
+
+def test_a_drafting_plan_scores_on_the_split_it_carries() -> None:
+    """ADR-38: plan soạn theo dàn ý mà thiếu cách chia, hay chia lệch số câu, thì BE từ chối --
+    bench cũng không cho nó đạt."""
+    plan = {
+        "kind": "plan",
+        "steps": [{"tool_name": "start_drafting", "args": {}}],
+        "split": {"note": "chia", "jobs": [{"knowledge": "K", "approach": "A"}] * 2},
+    }
+    expect = {"kind": "plan", "plan_tool": "start_drafting", "split": 2}
+
+    assert score_propose(expect, plan) == (True, "")
+    assert score_propose({**expect, "split": 3}, plan)[1] == "chia 2 câu"
+    assert score_propose(expect, {**plan, "split": None})[1] == "chia 0 câu"
 
 
 def test_a_replacing_outline_scores_on_the_question_it_replaces() -> None:

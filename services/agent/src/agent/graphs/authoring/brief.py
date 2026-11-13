@@ -27,9 +27,10 @@ def draft_brief(request: DraftQuestionRequested) -> str:
     if request.difficulty:
         lines.append(f"Mức độ giáo viên yêu cầu: {request.difficulty}")
     if request.item_knowledge.strip():
-        # ADR-29 (`draft-outline`): câu này đứng trên **một mục của dàn ý** giáo viên đã duyệt --
-        # kiến thức, công thức và cách làm, đúng như giáo viên đã đọc. Hai câu chung một mục thì
-        # được nói mình là câu thứ mấy, vì các job chạy song song và không thấy nhau.
+        # ADR-29, ADR-38: câu này đứng trên **một job** AGENT chia từ dàn ý giáo viên đã duyệt --
+        # kiến thức, công thức và cách làm của riêng câu này; câu khác câu anh em ở đâu nằm trong
+        # cách làm. `item_parts > 1` chỉ còn ở ô của đề soạn trước ADR-38 (mục nhiều câu): câu ấy
+        # được nói mình là câu thứ mấy của mục, vì các job chạy song song và không thấy nhau.
         lines += ["", f"Kiến thức câu này kiểm: {request.item_knowledge}"]
         if request.item_formulas:
             lines.append("Công thức sẽ dùng: " + "; ".join(request.item_formulas))
@@ -43,8 +44,8 @@ def draft_brief(request: DraftQuestionRequested) -> str:
         # sau chúng thì *"trên"* trỏ vào kiến thức hay câu cũ phải tránh, như thể giáo viên đã
         # duyệt chúng (review code vòng 12, 13).
         lines.append(
-            "Bám đúng kiến thức, công thức và cách làm trên: giáo viên đã duyệt chúng trước khi "
-            "câu được soạn."
+            "Bám đúng kiến thức, công thức và cách làm trên: chúng lấy từ dàn ý giáo viên đã "
+            "duyệt trước khi câu được soạn."
         )
         if request.other_items:
             lines.append("Các câu khác của đề lo những kiến thức sau, đừng hỏi sang:")
