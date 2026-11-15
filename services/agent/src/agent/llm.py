@@ -62,6 +62,23 @@ def claude_options(settings: Settings) -> dict[str, object]:
     return options
 
 
+def openai_options(settings: Settings) -> dict[str, object]:
+    """Tham số riêng của OpenAI, đọc từ `.env` (plan `bench-two-models`). Hàm thuần.
+
+    Chỉ provider `openai` nhận `reasoning_effort`: Claude không biết tên này, còn model OpenAI không
+    suy luận (`gpt-4o-mini`) thì từ chối nó -- nên rỗng là không gửi gì.
+
+    Args:
+        settings: Settings của process.
+
+    Returns:
+        `reasoning_effort` khi có đặt; rỗng thì model theo mặc định của nó.
+    """
+    if settings.llm_reasoning_effort:
+        return {"reasoning_effort": settings.llm_reasoning_effort}
+    return {}
+
+
 class ModelNotConfigured(RuntimeError):
     """Có người yêu cầu gọi model, mà không có gì nói là model nào."""
 
@@ -78,7 +95,7 @@ def enabled() -> bool:
     return settings.llm_enabled and bool(settings.llm_model)
 
 
-def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
+def _build(settings: Settings, provider: str, model: str, **overrides: object) -> BaseChatModel:
     """Dựng một chat model.
 
     Args:
@@ -86,6 +103,8 @@ def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
             gọi.
         provider: Tên provider mà LangChain hiểu, ví dụ "openai".
         model: Id model tại provider đó.
+        **overrides: Tham số đè lên mặc định của AGENT. Kriky không dùng; bench dùng cho một lời
+            gọi ra cả đề (`exam_bench`, nhánh `naive`): trần ra và trần thời gian dài hơn.
 
     Returns:
         Một chat model gọi được ngay.
@@ -108,6 +127,9 @@ def _build(settings: Settings, provider: str, model: str) -> BaseChatModel:
         extra["api_key"] = credential
     if provider == "anthropic":
         extra.update(claude_options(settings))
+    if provider == "openai":
+        extra.update(openai_options(settings))
+    extra.update(overrides)
 
     return init_chat_model(model, model_provider=provider, **extra)
 
@@ -133,6 +155,27 @@ def chat_models() -> tuple[BaseChatModel, ...]:
     if settings.llm_fallback_provider and settings.llm_fallback_model:
         models.append(_build(settings, settings.llm_fallback_provider, settings.llm_fallback_model))
     return tuple(models)
+
+
+def standalone(**overrides: object) -> BaseChatModel:
+    """Model chính của `.env`, dựng riêng với tham số đè: không cache, không fallback.
+
+    Chỉ bench dùng (`exam_bench`, nhánh `naive`): cùng model, key, thinking/effort như Kriky, nhưng
+    một lời gọi ra cả đề cần trần ra và trần thời gian dài hơn một lời gọi của Kriky.
+
+    Args:
+        **overrides: Tham số `init_chat_model` đè lên mặc định, ví dụ `max_tokens`, `timeout`.
+
+    Returns:
+        Một chat model gọi được ngay.
+
+    Raises:
+        ModelNotConfigured: Không có id model, hay thiếu credential.
+    """
+    settings = get_settings()
+    if not settings.llm_model:
+        raise ModelNotConfigured("LLM_MODEL is empty; nothing says which model to call")
+    return _build(settings, settings.llm_provider, settings.llm_model, **overrides)
 
 
 def with_fallback(shape: Callable[[BaseChatModel], Runnable]) -> Runnable:

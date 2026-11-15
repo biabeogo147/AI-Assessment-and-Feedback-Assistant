@@ -48,6 +48,12 @@ class Settings(BaseSettings):
             dùng chúng là mất đường ép tool.
         llm_effort: Mức effort của Claude (`output_config.effort`), rỗng theo mặc định của model.
             Người dùng chốt mức thấp nhất cho Kriky, gần gpt-4o-mini nhất (16/10/2026).
+        llm_reasoning_effort: Mức suy luận của model OpenAI (`reasoning_effort`), chỉ đi tới
+            provider `openai`. `none` tắt suy luận -- bản của OpenAI cho *tắt thinking*;
+            `gpt-6-luna` nhận `none` tới `max`, mặc định `medium` (trang model OpenAI, 15/11/2026).
+            Rỗng thì không gửi: `gpt-4o-mini` không suy luận và từ chối tham số này. Người dùng
+            chốt `none` cho luna (15/11/2026, plan `bench-two-models`): ở `medium` dàn ý mất 17 s,
+            sát trần 20 s.
         llm_fallback_provider: Provider được thử khi provider đầu raise.
         llm_fallback_model: Id model tại provider fallback.
         llm_timeout_seconds: Trần thời gian cho một lần gọi model.
@@ -79,6 +85,7 @@ class Settings(BaseSettings):
     claude_api_key: str = ""
     llm_thinking: Literal["", "adaptive", "disabled"] = ""
     llm_effort: Literal["", "low", "medium", "high", "xhigh", "max"] = ""
+    llm_reasoning_effort: Literal["", "none", "low", "medium", "high", "xhigh", "max"] = ""
     llm_fallback_provider: str = ""
     llm_fallback_model: str = ""
     llm_timeout_seconds: int = 20

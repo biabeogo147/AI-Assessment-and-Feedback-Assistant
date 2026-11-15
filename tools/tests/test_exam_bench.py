@@ -640,3 +640,209 @@ def test_a_paper_whose_ratings_came_back_blank_is_unrated_not_unusable() -> None
     arm = summarise({"c": _CASE}, [good, starved, _paper(run=3)], ratings + one_blank)["arms"]
 
     assert (arm["agent"]["papers"], arm["agent"]["unrated"], arm["agent"]["usable"]) == (2, 1, 4)
+
+
+# ------------------------------------------------------------- hai model (plan `bench-two-models`)
+
+
+def test_spend_reads_langchain_usage_where_cached_tokens_sit_inside_input_tokens() -> None:
+    """LangChain gộp token cache **vào** `input_tokens`; SDK Anthropic để chúng ngoài."""
+    spend = rate.Spend(cap=10.0)
+    usage = {
+        "input_tokens": 300_000,
+        "output_tokens": 100_000,
+        "input_token_details": {"cache_read": 200_000},
+    }
+
+    used = spend.add("gpt-6-luna", usage, call=False)
+
+    # 100k vào mới × 0,10 + 200k đọc cache × 0,10 × 0,1 + 100k ra × 0,50, mỗi triệu token.
+    assert used == pytest.approx(0.01 + 0.002 + 0.05)
+    assert spend.calls == 0 and spend.by_model == {"gpt-6-luna": pytest.approx(used)}
+
+
+@pytest.mark.parametrize(
+    ("model", "why"),
+    [("claude-opus-5-5", "là một rater"), ("gpt-4o-mini", "chưa có giá")],
+)
+def test_a_generator_that_cannot_be_measured_stops_before_any_call(model: str, why: str) -> None:
+    from exam_bench import run
+
+    with pytest.raises(SystemExit, match=why):
+        run.check_generator(model)
+
+
+def test_both_models_of_the_bench_can_generate() -> None:
+    from exam_bench import run
+
+    run.check_generator("claude-haiku-5-5")
+    run.check_generator("gpt-6-luna")
+
+
+class _Structured:
+    """`with_structured_output(include_raw=True)` giả: trả đúng một câu trả lời đã dựng sẵn."""
+
+    def __init__(self, answer: dict, seen: list) -> None:
+        self._answer = answer
+        self._seen = seen
+
+    async def ainvoke(self, messages: list) -> dict:
+        self._seen.append(messages)
+        return self._answer
+
+
+class _Chat:
+    def __init__(self, answer: dict, seen: list) -> None:
+        self._answer = answer
+        self._seen = seen
+
+    def with_structured_output(
+        self, schema: type, include_raw: bool = False, method: str = "function_calling"
+    ) -> _Structured:
+        assert include_raw
+        # Ép tool ở cả hai model (pha 5b): Haiku qua Stali không giữ JSON schema.
+        assert method == "function_calling"
+        return _Structured(
+            self._answer(schema) if callable(self._answer) else self._answer, self._seen
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_naive_branch_asks_the_pinned_model_once_with_a_whole_paper_budget(
+    monkeypatch,
+) -> None:
+    """Nhánh `naive` đi qua `agent.llm.standalone`: cùng model và cấu hình Kriky, trần cả đề."""
+    from agent import llm
+    from exam_bench import run
+
+    built: list[dict] = []
+    seen: list = []
+
+    def standalone(**overrides: object) -> _Chat:
+        built.append(overrides)
+        return _Chat(
+            lambda schema: {
+                "parsed": schema(questions=[_good_question("Câu một"), _good_question("Câu hai")]),
+                "raw": None,
+                "parsing_error": None,
+            },
+            seen,
+        )
+
+    monkeypatch.setattr(llm, "standalone", standalone)
+
+    paper = await run.naive_paper(_CASE)
+
+    assert built == [run._NAIVE_CALL] and built[0]["max_tokens"] == 16000
+    assert len(seen) == 1 and "x" in seen[0][0][1]
+    assert [row["question"]["stem"] for row in paper["questions"]] == ["Câu một", "Câu hai"]
+    assert paper["got_count"] == 2 and not paper["gate"]
+
+
+@pytest.mark.asyncio
+async def test_a_naive_paper_the_model_cut_short_is_gated_with_its_stop_reason(monkeypatch) -> None:
+    from langchain_core.messages import AIMessage
+
+    from agent import llm
+    from exam_bench import run
+
+    raw = AIMessage(content="", response_metadata={"finish_reason": "length"})
+    answer = {"parsed": None, "raw": raw, "parsing_error": ValueError("cụt")}
+    monkeypatch.setattr(llm, "standalone", lambda **_: _Chat(answer, []))
+
+    paper = await run.naive_paper(_CASE)
+
+    assert paper["gate"] == "không parse được: 'length'" and paper["questions"] == []
+
+
+@pytest.mark.asyncio
+async def test_generator_tokens_are_counted_even_inside_nested_calls_and_parallel_papers(
+    monkeypatch,
+) -> None:
+    """Callback bắt mọi lời gọi lồng (graph AGENT) và không đếm lẫn giữa các đề song song; mọi lời
+    gọi tính theo giá model đã ghim, dù provider trả tên kèm ngày."""
+    import asyncio
+
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.runnables import RunnableLambda
+
+    from exam_bench import run
+
+    def model(tokens: int) -> GenericFakeChatModel:
+        reply = AIMessage(
+            content="ok",
+            usage_metadata={
+                "input_tokens": tokens,
+                "output_tokens": 10,
+                "total_tokens": tokens + 10,
+            },
+            response_metadata={"model_name": "gpt-6-luna-2026-11-01"},
+        )
+        return GenericFakeChatModel(messages=iter([reply, reply]))
+
+    async def agent_paper(case: dict) -> dict:
+        chat = model(case["tokens"])
+        # Một lời gọi trực tiếp, một lời gọi lồng trong runnable khác -- như node của graph.
+        await chat.ainvoke("a")
+
+        async def node(text: str) -> object:
+            return await chat.ainvoke(text)
+
+        await RunnableLambda(node).ainvoke("b")
+        return {"arm": "agent", "case": case["id"], "gate": "", "items": [], "questions": []}
+
+    monkeypatch.setattr(run, "agent_paper", agent_paper)
+    spend = rate.Spend(cap=10.0)
+
+    one, two = await asyncio.gather(
+        run.generated("agent", {"id": "a", "tokens": 1000}, "gpt-6-luna", spend),
+        run.generated("agent", {"id": "b", "tokens": 5000}, "gpt-6-luna", spend),
+    )
+
+    assert one["tokens"] == {"input": 2000, "output": 20}
+    assert two["tokens"] == {"input": 10000, "output": 20}
+    assert one["model"] == "gpt-6-luna" and set(spend.by_model) == {"gpt-6-luna"}
+    assert spend.usd == pytest.approx((12_000 * 0.10 + 40 * 0.50) / 1e6)
+
+
+def test_the_report_names_the_generator_and_how_long_outlines_took() -> None:
+    from exam_bench import run
+
+    papers = [
+        {
+            "arm": "agent",
+            "case": "c",
+            "run": 1,
+            "gate": "x",
+            "items": [],
+            "questions": [],
+            "outline_seconds": 4.0,
+        },
+        {
+            "arm": "agent",
+            "case": "c",
+            "run": 2,
+            "gate": "x",
+            "items": [],
+            "questions": [],
+            "outline_seconds": 12.0,
+        },
+        {
+            "arm": "agent",
+            "case": "c",
+            "run": 3,
+            "gate": "",
+            "items": [],
+            "questions": [],
+            "infra": "hạ tầng: APITimeoutError",
+            "outline_seconds": 20.5,
+        },
+    ]
+    summary = summarise({"c": _CASE}, papers, [])
+    arm = summary["arms"]["agent"]
+    text = run.report(summary, rate.Spend(cap=1.0), 1.0, [], config="openai/gpt-6-luna · x")
+
+    assert arm["infra"] == 1 and arm["outline_seconds"] == [4.0, 12.0, 20.5]
+    assert "sinh đề openai/gpt-6-luna · x" in text.splitlines()[0]
+    assert "(hỏng hạ tầng 1)" in text and "trung vị 12.0 s, lâu nhất 20.5 s" in text

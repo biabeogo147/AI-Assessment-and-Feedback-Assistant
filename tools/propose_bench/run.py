@@ -15,11 +15,15 @@ Ba phần, cùng lệ với `skill_bench`: không chạy trong `.\\dev.ps1 check
   model chép chữ từ ví dụ (`agent/graphs/naming/prompt.py`) -- và dấu `<>` của khuôn ví dụ bị
   chép theo.
 
-Mỗi lượt ghi vào `data/results/run-<n>/model-text-<nhãn>/`: `report.txt` và `answers.jsonl`.
+Model chọn bằng `--model provider:model` (`tools/bench_model.py`, plan `bench-two-models`), không
+sửa `.env`; dòng đầu `report.txt` ghi model và cấu hình của nó.
+
+Mỗi lượt ghi vào `data/results/run-<n>/model-text-<nhãn>-<model>/`: `report.txt` và `answers.jsonl`.
 
 Dùng:
-    python -m propose_bench.run --label baseline --runs 6
-    python -m propose_bench.run --label du --runs 24 --parts propose --only du-
+    python -m propose_bench.run --model openai:gpt-6-luna --label baseline --runs 6
+    python -m propose_bench.run --model anthropic:claude-haiku-5-5 --label du --runs 24 \\
+        --parts propose --only du-
 """
 
 import argparse
@@ -27,9 +31,12 @@ import asyncio
 import json
 import logging
 import re
+import statistics
 import sys
 import time
 from pathlib import Path
+
+import bench_model
 
 _CASES = Path(__file__).resolve().parent / "cases.json"
 # Kết quả đo nằm riêng ở `data/results/`, tách khỏi thứ bộ đo đọc vào (PDF, `gold/`, `cache/`) --
@@ -321,9 +328,10 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
         # Skill Jev chọn được ghi kèm, để một lần trượt nói được là lỗi định tuyến hay lỗi prompt.
         # Jev nhớ lựa chọn theo state trong process, nên sáu lần của một ca dùng **một** lựa chọn.
         chosen = list(await skill_router.choose(request.history))
-        for _ in range(runs):
+        for _ in range(case.get("_runs", runs)):
             known.last, known.asked_again = "", False
             buttons: list[str] = []
+            started = time.monotonic()
             try:
                 step = (await propose(request)).model_dump(mode="json")
                 ok, why = score_propose(case["expect"], step)
@@ -342,6 +350,7 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
                     # nút là tên mục.
                     ok, why = False, f"{real} nút thật < {wanted}"
             except Exception as exc:  # noqa: BLE001 -- một lần hỏng là một lần trượt, không dừng bộ đo
+                bench_model.stop_if_out_of_money(exc)
                 step, ok, why = {}, False, f"lỗi {exc!r}"[:200]
             rows.append(
                 {
@@ -349,6 +358,9 @@ async def _propose(cases: list[dict], runs: int) -> list[dict]:
                     "id": case["id"],
                     "ok": ok,
                     "why": why,
+                    # Cả lượt `propose`, kể cả lần hỏi lại; không gồm Jev -- skill đã chọn một lần
+                    # cho mọi lượt của ca, trước khi bấm giờ.
+                    "seconds": round(time.monotonic() - started, 1),
                     "skills": chosen,
                     "known": known.last,
                     "asked_again": known.asked_again,
@@ -374,7 +386,7 @@ async def _author(cases: list[dict], runs: int) -> list[dict]:
             ordinal=1,
             of_total=5,
         )
-        for _ in range(runs):
+        for _ in range(case.get("_runs", runs)):
             try:
                 question = await write_question(draft_brief(request))
                 validate_question(question)
@@ -383,6 +395,7 @@ async def _author(cases: list[dict], runs: int) -> list[dict]:
             except AgentError as exc:
                 ok, why, dumped = False, f"ADR-18: {exc}"[:200], {}
             except Exception as exc:  # noqa: BLE001
+                bench_model.stop_if_out_of_money(exc)
                 ok, why, dumped = False, f"lỗi {exc!r}"[:200], {}
             rows.append(
                 {"part": "author", "id": case["id"], "ok": ok, "why": why, "question": dumped}
@@ -396,12 +409,13 @@ async def _name(cases: list[dict], runs: int) -> list[dict]:
 
     rows = []
     for case in cases:
-        for _ in range(runs):
+        for _ in range(case.get("_runs", runs)):
             try:
                 title = await name_it(
                     ConversationNameRequested(request_id=case["id"], said=case["text"])
                 )
             except Exception as exc:  # noqa: BLE001
+                bench_model.stop_if_out_of_money(exc)
                 title = f"lỗi {exc!r}"[:200]
             extra = foreign_words(case["text"], title)
             if re.search(r"[<>]", title):
@@ -420,8 +434,69 @@ async def _name(cases: list[dict], runs: int) -> list[dict]:
     return rows
 
 
-def _report(rows: list[dict], seconds: float) -> str:
-    lines = [f"{len(rows)} lần gọi, {seconds:.0f} s", ""]
+def _waits(rows: list[dict], ceiling: float) -> str:
+    """Thời gian một bước `propose`, và số lần hỏng vì hết giờ. Hàm thuần.
+
+    Args:
+        rows: Hàng của phần `propose`.
+        ceiling: `LLM_TIMEOUT_SECONDS`. Một bước lâu hơn trần ấy **chưa chắc** có lời gọi hết giờ:
+            `propose` có thể gọi model hai lần nối nhau (hỏi lại). Nó chỉ cho biết bước ấy dài hơn
+            một lời gọi được phép; hết giờ thật đếm riêng từ lý do trượt (review pha 5).
+    """
+    took = sorted(row["seconds"] for row in rows if row.get("seconds") is not None)
+    if not took:
+        return ""
+    timeouts = sum("Timeout" in row.get("why", "") for row in rows)
+    over = sum(one > ceiling for one in took)
+    return (
+        f"  thời gian một bước: trung vị {statistics.median(took):.1f} s, "
+        f"lâu nhất {took[-1]:.1f} s, {over} bước dài hơn trần một lời gọi {ceiling:g} s, "
+        f"{timeouts} lần hỏng vì hết giờ"
+    )
+
+
+def resume_plan(
+    previous: list[dict], cases: dict[str, list[dict]], runs: dict[str, int]
+) -> tuple[list[dict], dict[str, list[dict]]]:
+    """Giữ lượt hợp lệ của một lượt chạy dở, và tính lượt còn thiếu của từng ca. Hàm thuần.
+
+    Lượt hỏng vì hết tiền (`bench_model.out_of_money`) không phải lượt đo: bỏ, rồi chạy lại. Pha 6b
+    (15/11/2026): ví Stali cạn giữa `propose_bench`, người dùng dặn chạy nốt chứ không chạy lại từ
+    đầu.
+
+    Args:
+        previous: `answers.jsonl` của lượt chạy dở.
+        cases: Ca theo phần, như `cases.json` (đã lọc `--only`).
+        runs: Số lượt mỗi ca của từng phần.
+
+    Returns:
+        Hàng giữ lại, và ca còn phải chạy theo phần -- mỗi ca mang `_runs` là số lượt còn thiếu.
+    """
+    import bench_model
+
+    kept = [
+        row
+        for row in previous
+        if not bench_model.out_of_money(Exception(row.get("why", "")))
+        and not bench_model.out_of_money(Exception(row.get("title", "")))
+    ]
+    done: dict[tuple[str, str], int] = {}
+    for row in kept:
+        done[(row["part"], row["id"])] = done.get((row["part"], row["id"]), 0) + 1
+    todo: dict[str, list[dict]] = {}
+    for part, listed in cases.items():
+        todo[part] = [
+            {**case, "_runs": runs[part] - done.get((part, case["id"]), 0)}
+            for case in listed
+            if runs.get(part, 0) - done.get((part, case["id"]), 0) > 0
+        ]
+    wanted = {(part, case["id"]) for part, listed in cases.items() for case in listed}
+    return [row for row in kept if (row["part"], row["id"]) in wanted], todo
+
+
+def _report(rows: list[dict], seconds: float, config: str = "", ceiling: float = 20) -> str:
+    """Báo cáo chữ. `config` là model và cấu hình (`bench_model.Pinned.config`), dòng đầu."""
+    lines = [f"{config or '—'} · {len(rows)} lần gọi, {seconds:.0f} s", ""]
     for part in ("propose", "author", "name"):
         mine = [row for row in rows if row["part"] == part]
         if not mine:
@@ -434,6 +509,19 @@ def _report(rows: list[dict], seconds: float) -> str:
             + (f"  (hỏi lại model: {again})" if again else "")
             + (f"  (câu hỏi có nút là tên mục: {named})" if named else "")
         )
+        if part == "propose" and (waits := _waits(mine, ceiling)):
+            lines.append(waits)
+        # Lượt chạy nốt (`--resume`): một lượt có thể đi qua nhiều cổng -- báo riêng từng cổng.
+        gateways = dict.fromkeys(row.get("via", "") for row in mine)
+        if len(gateways) > 1:
+            lines.append(
+                "  theo cổng: "
+                + ", ".join(
+                    f"{via or 'thẳng'} {sum(r['ok'] for r in mine if r.get('via', '') == via)}"
+                    f"/{sum(1 for r in mine if r.get('via', '') == via)}"
+                    for via in gateways
+                )
+            )
         width = max((len(row["id"]) for row in mine), default=24)
         for case in dict.fromkeys(row["id"] for row in mine):
             these = [row for row in mine if row["id"] == case]
@@ -451,6 +539,13 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", required=True)
+    parser.add_argument("--model", required=True, help="provider:model -- vd. openai:gpt-6-luna")
+    parser.add_argument("--via", default="", help="cổng trung gian cho model: stali, openrouter")
+    parser.add_argument(
+        "--resume",
+        default="",
+        help="thư mục một lượt chạy dở: giữ lượt hợp lệ, chạy nốt phần thiếu",
+    )
     parser.add_argument("--runs", type=int, default=6)
     parser.add_argument("--parts", default="propose,author,name")
     # Đo lặp một nhóm ca cho rẻ: dao động ở 6 lần lớn hơn ±3/6 (review T2, `unbiased-model-text`),
@@ -458,11 +553,15 @@ def main() -> None:
     parser.add_argument("--only", default="", help="tiền tố id ca, cách nhau bằng dấu phẩy")
     parsed = parser.parse_args()
 
+    import bench_model
+    from agent.config import get_settings
     from ocr_bench.run import next_run, task_code_in
 
     # Nhãn thành tên thư mục kết quả, sống lâu hơn plan: không mang mã task (luật `AGENTS.md`).
     if code := task_code_in(parsed.label):
         raise SystemExit(f"--label {parsed.label!r} mang mã task {code!r}: đặt theo việc nó đo")
+    pinned = bench_model.pin(parsed.model, via=parsed.via)
+    print(f"model: {pinned.config}", flush=True)
 
     cases = json.loads(_CASES.read_text(encoding="utf-8"))
     if parsed.only:
@@ -473,25 +572,52 @@ def main() -> None:
         }
     started = time.monotonic()
     parts = parsed.parts.split(",")
+    per_case = {"propose": parsed.runs, "author": max(1, parsed.runs // 3)}
+    per_case["name"] = per_case["author"]
+    kept: list[dict] = []
+    if parsed.resume:
+        source = Path(parsed.resume)
+        head = (source / "report.txt").read_text(encoding="utf-8").splitlines()[0]
+        if not head.startswith(f"{pinned.provider}/{pinned.model} "):
+            raise SystemExit(f"--resume {source} không đo {pinned.provider}/{pinned.model}: {head}")
+        # Lượt cũ không ghi cổng vào từng hàng: đọc từ dòng cấu hình (`… · qua stali`).
+        found = re.search(r"qua (\w+)", head)
+        previous = [json.loads(line) for line in (source / "answers.jsonl").open(encoding="utf-8")]
+        for row in previous:
+            row.setdefault("via", found.group(1) if found else "")
+            row.setdefault("carried_from", source.parent.name)
+        kept, cases = resume_plan(previous, {part: cases[part] for part in parts}, per_case)
+        print(
+            f"giữ {len(kept)} lượt của {source.parent.name}; còn chạy "
+            + ", ".join(f"{part} {sum(c['_runs'] for c in cases[part])}" for part in parts),
+            flush=True,
+        )
 
     async def every_part() -> list[dict]:
         # **Một** event loop cho mọi phần: client của provider được cache trong process, và một
         # `asyncio.run` thứ hai gặp một client gắn với loop đã đóng (*"Event loop is closed"*).
         rows: list[dict] = []
+        # Cổng trung gian: một lời thử trước mọi lời gọi đo -- bẩn thì dừng (`bench-two-models`).
+        if checked := await bench_model.check_preflight(pinned):
+            print(checked, flush=True)
         if "propose" in parts:
-            rows += await _propose(cases["propose"], parsed.runs)
+            rows += await _propose(cases["propose"], per_case["propose"])
         if "author" in parts:
-            rows += await _author(cases["author"], max(1, parsed.runs // 3))
+            rows += await _author(cases["author"], per_case["author"])
         if "name" in parts:
-            rows += await _name(cases["name"], max(1, parsed.runs // 3))
+            rows += await _name(cases["name"], per_case["name"])
+        for row in rows:
+            row["via"] = pinned.via
         return rows
 
-    rows = asyncio.run(every_part())
-    report = _report(rows, time.monotonic() - started)
+    rows = kept + asyncio.run(every_part())
+    report = _report(
+        rows, time.monotonic() - started, pinned.config, get_settings().llm_timeout_seconds
+    )
     print(report)
 
     names = [path.name for path in _RUNS.iterdir()] if _RUNS.exists() else []
-    out = _RUNS / f"run-{next_run(names)}" / f"model-text-{parsed.label}"
+    out = _RUNS / f"run-{next_run(names)}" / f"model-text-{parsed.label}-{pinned.slug}"
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.txt").write_text(report + "\n", encoding="utf-8", newline="\n")
     with (out / "answers.jsonl").open("w", encoding="utf-8", newline="\n") as handle:

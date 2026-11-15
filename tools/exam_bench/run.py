@@ -16,6 +16,11 @@ Hai nhánh trên cùng bộ ca (`cases.json`, mỗi ca một bài SGK, vàng là
 - `naive`: một lời gọi tới cùng model sinh đề với cùng cấu hình (`.env`), *"soạn đề N câu…"*, cùng
   luật hình dạng câu (ADR-18) trong prompt, cùng phép kiểm, không soạn lại.
 
+Model sinh đề chọn bằng `--model provider:model` (`tools/bench_model.py`, plan `bench-two-models`):
+cùng một `.env` đo được `anthropic:claude-haiku-5-5` lẫn `openai:gpt-6-luna`; thinking, effort và
+`reasoning_effort` vẫn lấy từ `.env`, và dòng đầu `report.txt` ghi chúng. Model sinh đề không được
+là một rater. Token model sinh đề (cả hai nhánh, đếm qua LangChain) cộng vào chi phí và trần.
+
 Rồi panel ba rater (`rate.py`) chấm; `score.py` gộp phiếu. Chỉ số:
 
 - P1 độ phủ (dàn ý trượt cổng tính 0), P2 mục duyệt được nguyên -- chỉ nhánh `agent`; từ ADR-38
@@ -30,12 +35,13 @@ Rồi panel ba rater (`rate.py`) chấm; `score.py` gộp phiếu. Chỉ số:
 Báo cáo kèm đồng thuận panel từng tiêu chí: Fleiss' kappa, Gwet AC1, đồng thuận thô -- pilot đo
 **thước** trước khi đo agent.
 
-Mỗi lượt ghi vào `data/results/run-<n>/exam-<nhãn>/`: `outlines.jsonl`, `questions.jsonl`,
+Mỗi lượt ghi vào `data/results/run-<n>/exam-<nhãn>-<model>/`: `outlines.jsonl`, `questions.jsonl`,
 `ratings.jsonl`, `summary.json`, `report.txt`.
 
 Dùng:
-    python -m exam_bench.run --label khoi --only menh-de --agent-runs 1 --naive-runs 1
-    python -m exam_bench.run --label pilot --agent-runs 2 --naive-runs 1 --cap 40
+    python -m exam_bench.run --model openai:gpt-6-luna --label khoi --only menh-de --agent-runs 1 \\
+        --naive-runs 1
+    python -m exam_bench.run --model anthropic:claude-haiku-5-5 --label hai-model --cap 20
 """
 
 import argparse
@@ -43,17 +49,17 @@ import asyncio
 import itertools
 import json
 import logging
+import statistics
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import bench_model
 from exam_bench import rate, score
 
 _CASES = Path(__file__).resolve().parent / "cases.json"
 _RUNS = Path("data") / "results"
-GENERATOR = "claude-haiku-5-5"
-
 # Lỗi không phải của model: không tiêu một lần soạn.
 _INFRA = ("RateLimit", "Timeout", "Connection", "Overloaded", "InternalServer")
 
@@ -106,7 +112,7 @@ async def outline_of(case: dict) -> tuple[object | None, dict]:
     history = [TurnRecord(kind="teacher", text=case["ask"])]
     notes: dict = {"asked": "", "refusals": [], "gate": ""}
     for _ in range(2 + _MOST_OUTLINE_REFUSALS):
-        step = await propose(_request(case, tuple(history)))
+        step = await _propose_like_agent(propose, _request(case, tuple(history)), notes)
         if step.kind == "ask_clarify" and not notes["asked"]:
             notes["asked"] = step.text
             history += [
@@ -137,6 +143,30 @@ async def outline_of(case: dict) -> tuple[object | None, dict]:
         )
     notes["gate"] = "hết lượt mà chưa có dàn ý"
     return None, notes
+
+
+async def _propose_like_agent(propose, request, notes: dict):
+    """Một lượt `propose`, lỗi hạ tầng thì thử lại như AGENT (`LLM_MAX_ATTEMPTS`).
+
+    Ở hệ thống thật, AGENT hỏi model một job tới `LLM_MAX_ATTEMPTS` lần trước khi bỏ. Bench gọi
+    thẳng `propose` nên tự thử lại, chỉ với lỗi hạ tầng (timeout, rate limit, mạng): pha 6b (Haiku
+    qua Stali, 15/11/2026) một lời gọi dàn ý quá trần 20 s làm đổ cả lượt. Lỗi khác vẫn ném ra như
+    cũ.
+
+    Raises:
+        Exception: Lỗi hạ tầng còn nguyên sau mọi lần thử, hay mọi lỗi không phải hạ tầng.
+    """
+    from agent.config import get_settings
+
+    attempts = max(1, get_settings().llm_max_attempts)
+    for attempt in range(1, attempts + 1):
+        try:
+            return await propose(request)
+        except Exception as exc:
+            if not _infra(exc) or attempt == attempts:
+                raise
+            notes["infra_retries"] = notes.get("infra_retries", 0) + 1
+    raise AssertionError("không tới được")
 
 
 def _harvest(question, seen: set[str], gists: list[frozenset]) -> tuple[object | None, str]:
@@ -173,10 +203,22 @@ async def agent_paper(case: dict) -> dict:
     from contracts import NextStepCompleted, PlanStep, TurnRecord
 
     paper: dict = {"arm": "agent", "case": case["id"], "gate": "", "items": [], "questions": []}
-    step, notes = await outline_of(case)
+    started = time.monotonic()
+    try:
+        step, notes = await outline_of(case)
+    except Exception as exc:  # noqa: BLE001 -- một đề không ra dàn ý được, không cả bench
+        bench_model.stop_if_out_of_money(exc)
+        if not _infra(exc):
+            raise
+        # Hết lần thử mà vẫn lỗi hạ tầng: đề chưa đo được, như đề chưa chấm.
+        paper["infra"] = f"hạ tầng: {type(exc).__name__}"
+        return paper
+    # Từ lời xin tới dàn ý qua cổng, kể cả lượt hỏi lại và lời BE trả về: cái giáo viên chờ.
+    paper["outline_seconds"] = round(time.monotonic() - started, 1)
     paper["asked_back"] = bool(notes["asked"])
     paper["asked"] = notes["asked"]
     paper["refusals"] = notes["refusals"]
+    paper["infra_retries"] = notes.get("infra_retries", 0)
     if step is None:
         paper["gate"] = notes["gate"]
         return paper
@@ -218,6 +260,7 @@ async def agent_paper(case: dict) -> dict:
     try:
         split = (await split_outline(plan, agreed)).split
     except Exception as exc:  # noqa: BLE001 -- một đề không chia được, không cả bench
+        bench_model.stop_if_out_of_money(exc)
         if _infra(exc):
             # Lỗi hạ tầng không phải lỗi chia: đề chưa đo được, như đề chưa chấm.
             paper["infra"] = f"hạ tầng: {type(exc).__name__}"
@@ -294,6 +337,8 @@ async def _draft_and_harvest(
         again = []
         for ordinal, answer in zip(pending, answers, strict=True):
             row = rows[ordinal]
+            if isinstance(answer, BaseException):
+                bench_model.stop_if_out_of_money(answer)
             if isinstance(answer, BaseException) and _infra(answer):
                 row["faults"].append(f"hạ tầng: {type(answer).__name__}")
                 again.append(ordinal)
@@ -332,11 +377,24 @@ _NAIVE = (
 )
 
 
-async def naive_paper(case: dict, spend: rate.Spend, settings: object) -> dict:
-    """Một đề của nhánh `naive`: một lời gọi, cùng model và cấu hình sinh đề, cùng phép kiểm."""
-    import anthropic
+# Một lời gọi ra cả đề: trần ra như bản gọi thẳng SDK trước plan `bench-two-models`; trần thời gian
+# và số lần SDK tự thử lại riêng của nhánh này -- trần 20 s của Kriky là cho một câu, không cả đề.
+_NAIVE_CALL = {"max_tokens": 16000, "timeout": 300, "max_retries": 4}
+
+# Mọi lượt trước plan `bench-two-models` sinh đề bằng Haiku (khi ấy khoá cứng) và không ghi model:
+# `--from-run` coi đề không mang `model` là của model này (review pha 5).
+LEGACY_GENERATOR = "claude-haiku-5-5"
+
+
+async def naive_paper(case: dict) -> dict:
+    """Một đề của nhánh `naive`: một lời gọi, cùng model và cấu hình sinh đề, cùng phép kiểm.
+
+    Đi qua `agent.llm.standalone`: cùng provider, key, thinking/effort hay `reasoning_effort` của
+    `.env` như Kriky, chỉ trần ra và trần thời gian là của một lời gọi ra cả đề.
+    """
     from pydantic import BaseModel
 
+    from agent import llm
     from contracts import GeneratedQuestion
 
     class Paper(BaseModel):
@@ -344,33 +402,35 @@ async def naive_paper(case: dict, spend: rate.Spend, settings: object) -> dict:
 
     paper: dict = {"arm": "naive", "case": case["id"], "gate": "", "items": [], "questions": []}
     paper["prompt"] = _NAIVE
-    client = anthropic.AsyncAnthropic(api_key=settings.claude_api_key, max_retries=4)
-    extra: dict = {}
-    # Cùng cấu hình Claude của Kriky trong `.env` (`LLM_THINKING`, `LLM_EFFORT`).
-    if settings.llm_thinking:
-        extra["thinking"] = {"type": settings.llm_thinking}
-    if settings.llm_effort:
-        extra["output_config"] = {"effort": settings.llm_effort}
+    # Ép tool ở cả hai provider (plan `bench-two-models` pha 5b): Haiku qua Stali không giữ
+    # `output_config.format` (JSON schema) -- trả chữ thường, 6/6 lần thử 15/11/2026 --, mà ép tool
+    # thì chạy, như đường của Kriky. Hai model cùng một cách để so được với nhau; không còn so thẳng
+    # với nhánh naive của các lượt trước (khi ấy là JSON schema).
+    model = llm.standalone(**_NAIVE_CALL).with_structured_output(
+        Paper, include_raw=True, method="function_calling"
+    )
+    started = time.monotonic()
     try:
-        response = await client.messages.parse(
-            model=GENERATOR,
-            max_tokens=16000,
-            messages=[{"role": "user", "content": _NAIVE.format(ask=case["ask"])}],
-            output_format=Paper,
-            **extra,
-        )
+        answer = await model.ainvoke([("human", _NAIVE.format(ask=case["ask"]))])
     except Exception as exc:  # noqa: BLE001
-        paper["gate"] = f"model không soạn được: {exc!r}"[:200]
+        bench_model.stop_if_out_of_money(exc)
+        if _infra(exc):
+            paper["infra"] = f"hạ tầng: {type(exc).__name__}"
+        else:
+            paper["gate"] = f"model không soạn được: {exc!r}"[:200]
         return paper
-    spend.add(GENERATOR, response.usage)
-    if response.parsed_output is None:
-        paper["gate"] = f"không parse được: {response.stop_reason}"
+    paper["seconds"] = round(time.monotonic() - started, 1)
+    parsed = answer.get("parsed")
+    if parsed is None:
+        meta = getattr(answer.get("raw"), "response_metadata", None) or {}
+        stop = meta.get("stop_reason") or meta.get("finish_reason") or answer.get("parsing_error")
+        paper["gate"] = f"không parse được: {stop!r}"[:200]
         return paper
     from be.drafting import _comparable, _gist
 
     seen: set[str] = set()
     gists: list[frozenset] = []
-    for ordinal, question in enumerate(response.parsed_output.questions, start=1):
+    for ordinal, question in enumerate(parsed.questions, start=1):
         kept, why = _harvest(question, seen, gists)
         row = {"ordinal": ordinal, "item": None, "part": 1, "attempts": 1}
         row["faults"] = [why] if why else []
@@ -382,8 +442,52 @@ async def naive_paper(case: dict, spend: rate.Spend, settings: object) -> dict:
             seen.add(_comparable(kept.stem))
             if twin := _gist(kept.stem):
                 gists.append(twin)
-    paper["got_count"] = len(response.parsed_output.questions)
+    paper["got_count"] = len(parsed.questions)
     return paper
+
+
+async def generated(arm: str, case: dict, model: str, spend: rate.Spend) -> dict:
+    """Một đề của một nhánh, kèm token model sinh đề đã tiêu.
+
+    Token đếm bằng callback của LangChain, nên bắt được mọi lời gọi lồng trong graph của AGENT
+    (dàn ý, chia việc, từng câu) lẫn lời gọi của nhánh `naive`. Callback gắn vào context của task
+    này, nên các đề sinh song song không đếm lẫn của nhau. Mọi lời gọi tính theo giá của `model`:
+    provider có thể trả tên model kèm ngày (`gpt-6-luna-2026-…`), mà process chỉ có một model.
+
+    Args:
+        arm: `agent` hay `naive`.
+        case: Ca bench.
+        model: Id model sinh đề đã ghim, có giá trong `rate`.
+        spend: Chi phí của lượt, cộng thêm token này.
+
+    Returns:
+        Đề, có `model` và `tokens` (vào, ra).
+    """
+    from langchain_core.callbacks import get_usage_metadata_callback
+
+    with get_usage_metadata_callback() as counted:
+        paper = await (agent_paper(case) if arm == "agent" else naive_paper(case))
+    tokens = {"input": 0, "output": 0}
+    for usage in counted.usage_metadata.values():
+        spend.add(model, usage, call=False)
+        tokens["input"] += usage.get("input_tokens", 0) or 0
+        tokens["output"] += usage.get("output_tokens", 0) or 0
+    paper["model"] = model
+    paper["tokens"] = tokens
+    return paper
+
+
+def check_generator(model: str) -> None:
+    """Dừng trước mọi lời gọi khi model sinh đề không đo được. Hàm thuần.
+
+    Raises:
+        SystemExit: Model là một rater (panel phải độc lập với model nó chấm), hay bench chưa có
+            giá của nó (trần chi phí không tính được).
+    """
+    if model in rate.RATER_MODELS:
+        raise SystemExit(f"--model {model!r} là một rater: panel phải độc lập với model sinh đề")
+    if not rate.priced(model):
+        raise SystemExit(f"--model {model!r}: chưa có giá trong exam_bench/rate.py (_PRICES)")
 
 
 # ------------------------------------------------------------------------------------- chấm
@@ -486,6 +590,10 @@ def _new_arm() -> dict:
         "papers": 0,
         "gated": 0,
         "unrated": 0,
+        # Đề hỏng vì hạ tầng (timeout, rate limit, mạng): chưa đo được, nằm trong `unrated`.
+        "infra": 0,
+        # Giây từ lời xin tới dàn ý qua cổng (nhánh agent): trần `LLM_TIMEOUT_SECONDS` có đủ không.
+        "outline_seconds": [],
         "asked_back": 0,
         "refusals": 0,
         "brief_filled": 0,
@@ -555,6 +663,9 @@ def summarise(cases: dict[str, dict], papers: list[dict], ratings: list[dict]) -
             or any(paper.get("jobs") or [])
         )
         key = (paper["arm"], paper["case"], paper["run"])
+        if paper.get("outline_seconds") is not None:
+            arm["outline_seconds"].append(paper["outline_seconds"])
+        arm["infra"] += bool(paper.get("infra"))
         if (
             paper.get("infra")
             or key in thin
@@ -743,10 +854,24 @@ def _num(value: float | None) -> str:
 
 
 def report(
-    summary: dict, spend: rate.Spend, seconds: float, ratings: list[dict], stopped: str = ""
+    summary: dict,
+    spend: rate.Spend,
+    seconds: float,
+    ratings: list[dict],
+    stopped: str = "",
+    config: str = "",
+    from_run: str = "",
 ) -> str:
-    """Báo cáo chữ: chỉ số theo nhánh, đồng thuận từng tiêu chí, độ dao động, câu bất đồng."""
-    lines = [f"exam_bench · {seconds:.0f} s · panel {', '.join(rate.RATERS)}"]
+    """Báo cáo chữ: chỉ số theo nhánh, đồng thuận từng tiêu chí, độ dao động, câu bất đồng.
+
+    Args:
+        config: Model sinh đề và cấu hình của nó (`bench_model.Pinned.config`) -- dòng đầu, để số
+            nào cũng mang theo model đã sinh ra nó.
+        from_run: Lượt nguồn khi chỉ chấm lại (`--from-run`): chi phí khi ấy không có token sinh đề.
+    """
+    lines = [
+        f"exam_bench · {seconds:.0f} s · sinh đề {config or '—'} · panel {', '.join(rate.RATERS)}"
+    ]
     if stopped:
         lines.append(f"DỪNG GIỮA CHỪNG: {stopped} -- đề chưa chấm bị loại khỏi mọi chỉ số")
     lines.append("")
@@ -755,7 +880,14 @@ def report(
         head = f"[{name}] {arm['papers']} đề, {arm['gated']} trượt cổng"
         if arm["unrated"]:
             head += f", {arm['unrated']} chưa chấm"
+        if arm.get("infra"):
+            head += f" (hỏng hạ tầng {arm['infra']})"
         lines.append(head)
+        if arm.get("outline_seconds"):
+            took = sorted(arm["outline_seconds"])
+            lines.append(
+                f"  ra dàn ý: trung vị {statistics.median(took):.1f} s, lâu nhất {took[-1]:.1f} s"
+            )
         if name == "agent":
             lines += [
                 f"  Kriky hỏi lại trước dàn ý {arm['asked_back']} lần; dàn ý bị BE trả về "
@@ -782,7 +914,7 @@ def report(
             f"{arm['wanted']} câu xin; trên câu thu được {_pct(arm['usable'], arm['got'])}; "
             f"ô hỏng {arm['slots_failed']})",
             f"  Q1 lõi              {_pct(arm['core'], arm['wanted'])} ({arm['core']}/"
-            f"{arm['wanted']}; giải mù và luật code, không lỗi nặng)",
+            f"{arm['wanted']}; giải mù và luật code; không xét lỗi nặng)",
         ]
         if name == "agent":
             lines.append(
@@ -808,7 +940,9 @@ def report(
         lines.append("")
     lines.append(
         "Đồng thuận panel trên hàng đủ ba phiếu: κ Fleiss · AC1 Gwet · đồng thuận thô · "
-        "κ Cohen từng cặp (opus5.5-sonnet5.5, opus5.5-opus4.8, sonnet5.5-opus4.8)"
+        "κ Cohen từng cặp ("
+        + ", ".join(f"{a}/{b}" for a, b in itertools.combinations(rate.RATERS, 2))
+        + ")"
     )
     for name, rows in summary["criteria"].items():
         fleiss = score.fleiss_kappa(rows)
@@ -864,7 +998,11 @@ def report(
     lines += [
         "",
         f"Chi phí: {spend.usd:.2f} USD ({spend.calls} lời gọi, {spend.cached} từ cache) · "
-        f"{by_model}. Chưa gồm token Haiku của nhánh agent (gọi qua LangChain).",
+        + (
+            f"{by_model}. Chỉ chấm: đề lấy từ {from_run}, không sinh đề nào."
+            if from_run
+            else f"{by_model}. Gồm token model sinh đề của cả hai nhánh; chưa gồm Jev (chọn skill)."
+        ),
     ]
     return "\n".join(lines)
 
@@ -872,12 +1010,42 @@ def report(
 # ------------------------------------------------------------------------------------- main
 
 
+def _write_papers(out: Path, papers: list[dict]) -> None:
+    """`outlines.jsonl` (mỗi đề một dòng) và `questions.jsonl` (mỗi câu một dòng)."""
+    _write_rows(out / "outlines.jsonl", papers)
+    with (out / "questions.jsonl").open("w", encoding="utf-8", newline="\n") as handle:
+        for paper in papers:
+            for row in paper["questions"]:
+                record = {"arm": paper["arm"], "case": paper["case"], "run": paper["run"], **row}
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _write_rows(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def main() -> None:
-    """Sinh đề, chấm, gộp, ghi."""
+    """Sinh đề, chấm, gộp, ghi.
+
+    `--rate-with` chọn ai chấm (plan `bench-two-models` pha 5b):
+
+    - `api`: panel ba model Claude qua API (`rate.Panel`), như trước.
+    - `export`: sinh đề (hay lấy từ `--from-run`), ghi tác vụ chấm ra `rating/`, **không chấm**;
+      ba subagent chấm theo `subagent_rater.md`.
+    - `import`: `--from-run` là thư mục của lượt `export`; đọc phiếu subagent, gộp, ghi báo cáo vào
+      chính thư mục ấy.
+    """
     sys.stdout.reconfigure(encoding="utf-8")
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", required=True)
+    parser.add_argument(
+        "--model", required=True, help="model sinh đề, provider:model -- vd. openai:gpt-6-luna"
+    )
+    parser.add_argument("--via", default="", help="cổng trung gian cho model sinh đề: stali")
+    parser.add_argument("--rate-with", default="api", choices=("api", "export", "import"))
     parser.add_argument("--agent-runs", type=int, default=2)
     parser.add_argument("--naive-runs", type=int, default=1)
     parser.add_argument("--only", default="", help="tiền tố id ca, cách nhau bằng dấu phẩy")
@@ -885,14 +1053,36 @@ def main() -> None:
     parser.add_argument("--from-run", default="", help="thư mục một lượt cũ: chấm lại đề đã sinh")
     parsed = parser.parse_args()
 
+    import bench_model
     from agent.config import get_settings
+    from exam_bench import subagent
     from ocr_bench.run import next_run, task_code_in
 
     if code := task_code_in(parsed.label):
         raise SystemExit(f"--label {parsed.label!r} mang mã task {code!r}: đặt theo việc nó đo")
+    if parsed.rate_with == "import" and not parsed.from_run:
+        raise SystemExit("--rate-with import cần --from-run <thư mục của lượt export>")
+    if parsed.via and parsed.rate_with == "api":
+        # `--via` đặt `ANTHROPIC_BASE_URL` và key của cổng vào môi trường; SDK của panel API cũng
+        # đọc chúng, nên rater sẽ đi qua cổng -- đúng thứ lời thử không canh (review pha 5b).
+        raise SystemExit("--via chỉ dùng với --rate-with export|import: panel API sẽ đi qua cổng")
+    if parsed.rate_with != "api":
+        # Panel là ba subagent: mọi chỗ đọc `rate.RATERS` lúc gọi (gộp phiếu, đồng thuận, báo cáo).
+        rate.RATERS = subagent.SUBAGENT_RATERS
+    provider, model = bench_model.parse(parsed.model)
+    check_generator(model)
+    pinned = bench_model.pin(parsed.model, via=parsed.via, build=parsed.rate_with != "import")
     settings = get_settings()
-    if settings.llm_model != GENERATOR:
-        raise SystemExit(f"LLM_MODEL là {settings.llm_model!r}; bench này đo {GENERATOR}")
+    # Panel API là Claude, cả khi model sinh đề là OpenAI: thiếu key thì dừng trước khi tiêu tiền
+    # sinh đề, không phải ở lời chấm đầu tiên (review pha 5).
+    if parsed.rate_with == "api" and not settings.claude_api_key:
+        raise SystemExit("panel chấm là Claude: thiếu CLAUDE_API_KEY trong .env")
+    config = f"{pinned.config} (naive: một lời gọi, trần {_NAIVE_CALL['timeout']} s)"
+    source = Path(parsed.from_run) if parsed.from_run else None
+    generation_file = source / "generation.json" if source else None
+    if parsed.rate_with == "import" and generation_file and generation_file.exists():
+        config = json.loads(generation_file.read_text(encoding="utf-8"))["config"]
+    print(f"sinh đề: {config}", flush=True)
     cases = {one["id"]: one for one in json.loads(_CASES.read_text(encoding="utf-8"))}
     if parsed.only:
         wanted = tuple(parsed.only.split(","))
@@ -900,14 +1090,24 @@ def main() -> None:
     spend = rate.Spend(cap=parsed.cap)
     started = time.monotonic()
     stopped = ""
+    preflight = ""
+    counts: dict[str, int] = {}
 
-    async def everything() -> tuple[list[dict], list[dict]]:
-        nonlocal stopped
-        if parsed.from_run:
-            source = Path(parsed.from_run) / "outlines.jsonl"
-            papers = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+    async def everything() -> tuple[list[dict], list[dict], object]:
+        nonlocal stopped, preflight, counts
+        if source:
+            papers = [
+                json.loads(line)
+                for line in (source / "outlines.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
             papers = [one for one in papers if one["case"] in cases]
+            other = {one.get("model") or LEGACY_GENERATOR for one in papers} - {pinned.model}
+            if other:
+                raise SystemExit(f"--from-run sinh bằng {sorted(other)}, không phải {pinned.model}")
         else:
+            # Cổng trung gian: một lời thử trước mọi lời sinh đề -- bẩn thì dừng ở đây.
+            if preflight := await bench_model.check_preflight(pinned):
+                print(preflight, flush=True)
             jobs = []
             for case in cases.values():
                 for run in range(1, parsed.agent_runs + 1):
@@ -918,47 +1118,112 @@ def main() -> None:
 
             async def one(arm: str, run: int, case: dict) -> dict:
                 async with gate:
-                    if arm == "agent":
-                        paper = await agent_paper(case)
-                    else:
-                        paper = await naive_paper(case, spend, settings)
+                    try:
+                        paper = await generated(arm, case, pinned.model, spend)
+                    except Exception as exc:  # noqa: BLE001 -- một đề hỏng không làm mất cả lượt
+                        bench_model.stop_if_out_of_money(exc)
+                        # Ghi lại thay vì làm đổ `gather`: các đề đã sinh vẫn được ghi ra (pha 6b).
+                        logger.warning("sinh %s %s #%d hỏng: %r", arm, case["id"], run, exc)
+                        paper = {
+                            "arm": arm,
+                            "case": case["id"],
+                            "gate": "",
+                            "items": [],
+                            "questions": [],
+                            "infra": f"lỗi không lường: {type(exc).__name__}",
+                            "model": pinned.model,
+                        }
                 paper["run"] = run
                 print(f"  sinh {arm} {case['id']} #{run}: {paper['gate'] or 'xong'}", flush=True)
                 return paper
 
             papers = list(await asyncio.gather(*(one(*job) for job in jobs)))
-        panel = rate.Panel(settings.claude_api_key, spend)
+        if parsed.rate_with == "api":
+            panel = rate.Panel(settings.claude_api_key, spend)
+        elif parsed.rate_with == "export":
+            panel = subagent.TaskPanel()
+        else:
+            tasks = subagent.read_tasks(source / "rating")
+            verdicts, counts = subagent.read_verdicts(source / "rating", tasks)
+            panel = subagent.TaskPanel(verdicts)
         ratings: list[dict] = []
         for paper in papers:
+            panel.case = paper["case"]
             try:
                 ratings += await rate_paper(panel, cases[paper["case"]], paper)
             except rate.BudgetSpent as exc:
                 stopped = str(exc)
                 print(f"DỪNG: {exc}", flush=True)
                 break
-            print(
-                f"  chấm {paper['arm']} {paper['case']} #{paper['run']} · {spend.usd:.2f} USD",
-                flush=True,
-            )
-        return papers, ratings
+            if parsed.rate_with == "api":
+                print(
+                    f"  chấm {paper['arm']} {paper['case']} #{paper['run']} · {spend.usd:.2f} USD",
+                    flush=True,
+                )
+        return papers, ratings, panel
 
-    papers, ratings = asyncio.run(everything())
+    papers, ratings, panel = asyncio.run(everything())
+    names = [path.name for path in _RUNS.iterdir()] if _RUNS.exists() else []
+
+    if parsed.rate_with == "export":
+        out = _RUNS / f"run-{next_run(names)}" / f"exam-{parsed.label}-{pinned.slug}"
+        out.mkdir(parents=True, exist_ok=True)
+        _write_papers(out, papers)
+        written = subagent.write_tasks(out / "rating", panel.tasks)
+        generation = {
+            "model": pinned.model,
+            "config": config,
+            "via": pinned.via,
+            "preflight": preflight,
+            "from_run": parsed.from_run,
+            "seconds": round(time.monotonic() - started),
+            "usd": spend.usd,
+            "by_model": spend.by_model,
+        }
+        (out / "generation.json").write_text(
+            json.dumps(generation, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n"
+        )
+        print(f"\n{len(papers)} đề, {len(panel.tasks)} tác vụ chấm, sinh đề {spend.usd:.2f} USD")
+        for phase, paths in written.items():
+            print(f"  {phase}: {len(paths)} tệp ({', '.join(path.stem for path in paths)})")
+        print(
+            f"ghi vào {out}\nTiếp: chấm đợt blind rồi keyed theo exam_bench/subagent_rater.md, "
+            f"rồi --rate-with import --from-run {out}"
+        )
+        return
+
+    if parsed.rate_with == "import" and generation_file and generation_file.exists():
+        generated_cost = json.loads(generation_file.read_text(encoding="utf-8"))
+        spend.usd, spend.by_model = generated_cost["usd"], generated_cost["by_model"]
     summary = summarise(cases, papers, ratings)
-    text = report(summary, spend, time.monotonic() - started, ratings, stopped)
+    summary["model"] = pinned.model
+    summary["config"] = config
+    summary["from_run"] = parsed.from_run
+    summary["panel"] = list(rate.RATERS)
+    text = report(
+        summary,
+        spend,
+        time.monotonic() - started,
+        ratings,
+        stopped,
+        config,
+        "" if parsed.rate_with == "import" else parsed.from_run,
+    )
+    if parsed.rate_with == "import":
+        counts["thiếu"] = sum(vote is None for row in ratings for vote in row["votes"].values())
+        summary["verdicts"] = counts
+        text += f"\nPanel: {subagent.PANEL_NOTE}. Phiếu: " + ", ".join(
+            f"{name} {value}" for name, value in counts.items()
+        )
     print(text)
 
-    names = [path.name for path in _RUNS.iterdir()] if _RUNS.exists() else []
-    out = _RUNS / f"run-{next_run(names)}" / f"exam-{parsed.label}"
-    out.mkdir(parents=True, exist_ok=True)
-    for name, rows in (("outlines.jsonl", papers), ("ratings.jsonl", ratings)):
-        with (out / name).open("w", encoding="utf-8", newline="\n") as handle:
-            for row in rows:
-                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
-    with (out / "questions.jsonl").open("w", encoding="utf-8", newline="\n") as handle:
-        for paper in papers:
-            for row in paper["questions"]:
-                record = {"arm": paper["arm"], "case": paper["case"], "run": paper["run"], **row}
-                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    if parsed.rate_with == "import":
+        out = source
+    else:
+        out = _RUNS / f"run-{next_run(names)}" / f"exam-{parsed.label}-{pinned.slug}"
+        out.mkdir(parents=True, exist_ok=True)
+        _write_papers(out, papers)
+    _write_rows(out / "ratings.jsonl", ratings)
     (out / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n"
     )

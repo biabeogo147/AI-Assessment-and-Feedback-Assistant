@@ -33,15 +33,28 @@ logger = logging.getLogger("exam_bench.rate")
 PROMPT_VERSION = "2"
 
 RATERS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-opus-4-8")
+# Mọi model từng chấm, theo tên thật: panel API ở trên, và model của panel subagent (pha 5b) --
+# `RATERS` bị thay bằng tên `sonnet-N` khi chấm bằng subagent, nên phép chặn model sinh đề trùng
+# rater đọc danh sách này (review pha 5b).
+RATER_MODELS = (*RATERS, "claude-sonnet-5-5")
 
-# Giá USD mỗi triệu token (vào, ra, hệ số đọc cache) -- bảng của skill `claude-api`, cập nhật
-# 03/11/2026. Ghi cache 1,25 lần giá vào.
+# Giá USD mỗi triệu token (vào, ra, hệ số đọc cache) -- Claude: bảng của skill `claude-api`, cập
+# nhật 03/11/2026; `gpt-6-luna`: trang giá OpenAI (developers.openai.com/api/docs/pricing, standard
+# tier), tra 15/11/2026 -- 0,10 vào, 0,01 vào đã cache, 0,50 ra. Ghi cache 1,25 lần giá vào ở cả
+# hai (OpenAI: 0,125 trên trang model luna).
 _PRICES = {
     "claude-opus-5-5": (4.0, 20.0, 0.05),
     "claude-sonnet-5-5": (2.0, 10.0, 0.05),
     "claude-opus-4-8": (5.0, 25.0, 0.1),
     "claude-haiku-5-5": (0.10, 0.50, 0.1),
+    "gpt-6-luna": (0.10, 0.50, 0.1),
 }
+
+
+def priced(model: str) -> bool:
+    """Bench có giá của model này không -- không có thì dừng trước mọi lời gọi. Hàm thuần."""
+    return model in _PRICES
+
 
 # Tham số mọi lời chấm. Thinking adaptive tường minh: Opus 4.8 bỏ trống thì chạy **không**
 # thinking, và ba rater phải chấm cùng một cách. Effort `medium` cho cả ba (mặc định khác nhau giữa
@@ -74,17 +87,42 @@ class Spend:
     cached: int = 0
     by_model: dict[str, float] = field(default_factory=dict)
 
-    def add(self, model: str, usage: object) -> float:
-        """Cộng chi phí của một lời gọi. Trả số USD vừa cộng."""
+    def add(self, model: str, usage: object, *, call: bool = True) -> float:
+        """Cộng chi phí của một lời gọi. Trả số USD vừa cộng.
+
+        Args:
+            model: Id model, phải có trong `_PRICES`.
+            usage: `usage` của Anthropic SDK (rater), hay `usage_metadata` của LangChain (model sinh
+                đề, mọi provider). Hai dạng đếm khác nhau: SDK để token cache **ngoài**
+                `input_tokens`, LangChain gộp chúng **vào** `input_tokens`.
+            call: Đếm vào `calls`. Token model sinh đề tới gộp theo model (callback của LangChain),
+                không theo lời gọi, nên không đếm.
+        """
         price_in, price_out, read_share = _PRICES[model]
-        read = getattr(usage, "cache_read_input_tokens", 0) or 0
-        wrote = getattr(usage, "cache_creation_input_tokens", 0) or 0
-        fresh = getattr(usage, "input_tokens", 0) or 0
-        out = getattr(usage, "output_tokens", 0) or 0
+        if isinstance(usage, dict):
+            details = usage.get("input_token_details") or {}
+            read = details.get("cache_read", 0) or 0
+            # langchain-anthropic để `cache_creation` 0 và tách ra hai khoá theo thời hạn cache
+            # khi API trả chúng (review pha 5); tính cả ba, cùng giá ghi cache.
+            wrote = sum(
+                details.get(key, 0) or 0
+                for key in (
+                    "cache_creation",
+                    "ephemeral_5m_input_tokens",
+                    "ephemeral_1h_input_tokens",
+                )
+            )
+            fresh = max(0, (usage.get("input_tokens", 0) or 0) - read - wrote)
+            out = usage.get("output_tokens", 0) or 0
+        else:
+            read = getattr(usage, "cache_read_input_tokens", 0) or 0
+            wrote = getattr(usage, "cache_creation_input_tokens", 0) or 0
+            fresh = getattr(usage, "input_tokens", 0) or 0
+            out = getattr(usage, "output_tokens", 0) or 0
         usd = (fresh + read * read_share + wrote * 1.25) * price_in / 1e6
         usd += out * price_out / 1e6
         self.usd += usd
-        self.calls += 1
+        self.calls += call
         self.by_model[model] = self.by_model.get(model, 0.0) + usd
         return usd
 

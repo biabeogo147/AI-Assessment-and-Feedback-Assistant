@@ -339,3 +339,99 @@ def test_the_real_claude_client_sends_thinking_off_and_low_effort(
     shaped = chat.with_structured_output(Shape)
     bound = shaped.first.kwargs
     assert bound["tool_choice"]["type"] == "tool"
+
+
+def test_openai_gets_its_reasoning_effort_and_claude_never_does(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`LLM_REASONING_EFFORT` chỉ đi tới OpenAI (plan `bench-two-models`): Claude không biết tên
+    này."""
+    luna = _built_with(
+        monkeypatch,
+        llm_provider="openai",
+        llm_model="gpt-6-luna",
+        openai_api_key="openai-key",
+        llm_reasoning_effort="none",
+    )
+    haiku = _built_with(
+        monkeypatch,
+        llm_provider="anthropic",
+        llm_model="claude-haiku-5-5",
+        claude_api_key="claude-key",
+        llm_reasoning_effort="none",
+    )
+
+    assert luna["reasoning_effort"] == "none"
+    assert "reasoning_effort" not in haiku
+
+
+def test_an_empty_reasoning_effort_sends_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rỗng thì không gửi: `gpt-4o-mini` không suy luận và từ chối tham số này."""
+    seen = _built_with(
+        monkeypatch,
+        llm_provider="openai",
+        llm_model="gpt-4o-mini",
+        openai_api_key="openai-key",
+    )
+    assert "reasoning_effort" not in seen
+
+
+def test_an_unknown_reasoning_effort_is_refused_when_settings_load() -> None:
+    """Gõ sai hỏng lúc worker khởi động, như hai tham số của Claude."""
+    with pytest.raises(ValueError, match="llm_reasoning_effort"):
+        _isolated(llm_reasoning_effort="off")
+
+
+def test_the_real_openai_client_sends_reasoning_effort_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Qua `ChatOpenAI` thật -- key giả, không gọi mạng: payload mang `reasoning_effort` `none`.
+
+    Test trên chỉ bắt tham số trước `init_chat_model`; langchain đổi cách chuyển tham số thì chỉ
+    test này đỏ.
+    """
+    monkeypatch.setattr(llm, "chat_models", REAL_CHAT_MODELS)
+    monkeypatch.setattr(
+        llm,
+        "get_settings",
+        lambda: _isolated(
+            llm_provider="openai",
+            llm_model="gpt-6-luna",
+            openai_api_key="not-a-real-key",
+            llm_reasoning_effort="none",
+        ),
+    )
+    REAL_CHAT_MODELS.cache_clear()
+    (chat,) = llm.chat_models()
+    REAL_CHAT_MODELS.cache_clear()
+
+    payload = chat._get_request_payload([("human", "chào")])
+    assert payload["reasoning_effort"] == "none"
+
+
+def test_a_standalone_model_keeps_the_agent_options_under_its_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`standalone` (chỉ bench dùng): cùng key và `reasoning_effort` như Kriky, cộng tham số đè."""
+    seen: dict[str, object] = {}
+
+    def capture(model: str, **kwargs: object) -> object:
+        seen.update(kwargs, model=model)
+        return _fake()
+
+    monkeypatch.setattr(llm, "init_chat_model", capture)
+    monkeypatch.setattr(
+        llm,
+        "get_settings",
+        lambda: _isolated(
+            llm_provider="openai",
+            llm_model="gpt-6-luna",
+            openai_api_key="openai-key",
+            llm_reasoning_effort="none",
+        ),
+    )
+    llm.standalone(max_tokens=16000, timeout=180)
+
+    assert seen["api_key"] == "openai-key"
+    assert seen["reasoning_effort"] == "none"
+    assert (seen["max_tokens"], seen["timeout"]) == (16000, 180)

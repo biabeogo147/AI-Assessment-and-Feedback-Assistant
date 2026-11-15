@@ -277,7 +277,7 @@ Chọn bằng `.env`, rồi khởi động lại worker đọc nó (`agent`, `in
 
 | Việc | OpenAI | Claude |
 | --- | --- | --- |
-| Kriky (AGENT) | `LLM_ENABLED=true`, `LLM_PROVIDER=openai`, `LLM_MODEL=gpt-4o-mini`, `OPENAI_API_KEY` | `LLM_ENABLED=true`, `LLM_PROVIDER=anthropic`, `LLM_MODEL=claude-haiku-5-5`, `LLM_THINKING=disabled`, `LLM_EFFORT=low`, `CLAUDE_API_KEY` |
+| Kriky (AGENT) | `LLM_ENABLED=true`, `LLM_PROVIDER=openai`, `LLM_MODEL=gpt-6-luna`, `LLM_REASONING_EFFORT=none`, `OPENAI_API_KEY` | `LLM_ENABLED=true`, `LLM_PROVIDER=anthropic`, `LLM_MODEL=claude-haiku-5-5`, `LLM_THINKING=disabled`, `LLM_EFFORT=low`, `CLAUDE_API_KEY` |
 | Tóm tắt nút cây | `SUMMARY_PROVIDER=openai`, `SUMMARY_MODEL=gpt-4o-mini` | `SUMMARY_PROVIDER=anthropic`, `SUMMARY_MODEL=claude-haiku-5-5` |
 | Đọc banner chương | `BANNER_PROVIDER=openai`, `BANNER_MODEL=gpt-5.6-luna` | `BANNER_PROVIDER=anthropic`, `BANNER_MODEL=claude-haiku-5-5` |
 
@@ -288,6 +288,10 @@ minh: thinking bật thì structured output của Kriky không còn ép model g�
 không tắt được (để `LLM_THINKING` trống), nên với chúng Kriky mất đường ép tool. Key Claude phải gắn
 một workspace, không thì API đòi header `anthropic-workspace-id` ở mọi lời gọi. Banner trên Claude
 nghĩa là ảnh phần trên trang sách được gửi sang Anthropic.
+
+`LLM_REASONING_EFFORT` là bản OpenAI của hai biến trên, và chỉ Kriky đọc nó: `none` tắt suy luận của
+`gpt-6-luna` (để trống thì luna suy luận mức `medium`, dàn ý ~17 s, sát `LLM_TIMEOUT_SECONDS`). Chạy
+`gpt-4o-mini` thì để trống -- model không suy luận từ chối tham số này.
 
 ### Gọi thẳng API, không qua giao diện
 

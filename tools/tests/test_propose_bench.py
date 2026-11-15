@@ -338,7 +338,11 @@ def test_a_label_with_a_task_code_is_refused_before_any_model_call(
         raise AssertionError("bộ đo gọi model trước khi kiểm nhãn")
 
     monkeypatch.setattr(run.asyncio, "run", no_model)
-    monkeypatch.setattr(sys, "argv", ["propose_bench", "--label", label, "--parts", "propose"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["propose_bench", "--label", label, "--model", "openai:gpt-6-luna", "--parts", "propose"],
+    )
 
     with pytest.raises(SystemExit, match="mã task"):
         run.main()
@@ -407,3 +411,56 @@ def test_an_answer_that_cites_nothing_read_is_named() -> None:
 
     assert score_propose(expect, {"kind": "say", "text": "a^2 - b^2 = (a-b)(a+b)"})[0] is False
     assert score_propose(expect, {"kind": "say", "text": "Bài 6, trang 35."}) == (True, "")
+
+
+def test_the_report_names_the_model_and_how_long_a_propose_step_took() -> None:
+    """Plan `bench-two-models`: số nào cũng mang model đã sinh ra nó, và trần 20 s có đủ không."""
+    from propose_bench.run import _report
+
+    rows = [
+        {"part": "propose", "id": "a", "ok": True, "why": "", "seconds": 3.0},
+        {"part": "propose", "id": "a", "ok": True, "why": "", "seconds": 25.0},
+        {"part": "propose", "id": "b", "ok": False, "why": "lỗi APITimeoutError()", "seconds": 61},
+    ]
+
+    text = _report(rows, 90, "openai/gpt-6-luna · reasoning_effort none · trần 20 s", 20)
+
+    assert text.splitlines()[0].startswith("openai/gpt-6-luna · reasoning_effort none")
+    assert "trung vị 25.0 s, lâu nhất 61.0 s" in text
+    assert "2 bước dài hơn trần một lời gọi 20 s, 1 lần hỏng vì hết giờ" in text
+
+
+def test_resume_keeps_real_rows_and_reruns_only_what_money_ran_out_on() -> None:
+    """Pha 6b: ví Stali cạn giữa chừng; người dùng dặn chạy nốt chứ không chạy lại từ đầu."""
+    from propose_bench.run import resume_plan
+
+    out_of_money = "lỗi APIStatusError(\"Error code: 402 - {'type': 'insufficient_balance'}\")"
+    previous = [
+        *({"part": "propose", "id": "a", "ok": True, "why": ""} for _ in range(6)),
+        *({"part": "propose", "id": "b", "ok": False, "why": "kind say"} for _ in range(2)),
+        *({"part": "propose", "id": "b", "ok": False, "why": out_of_money} for _ in range(4)),
+        {"part": "name", "id": "n", "ok": False, "why": "", "title": out_of_money},
+    ]
+    cases = {
+        "propose": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+        "name": [{"id": "n"}],
+    }
+
+    kept, todo = resume_plan(previous, cases, {"propose": 6, "name": 2})
+
+    # Lượt trượt thật (`kind say`) là lượt đo -- giữ; lượt hết tiền thì chạy lại.
+    assert len(kept) == 8
+    assert [(case["id"], case["_runs"]) for case in todo["propose"]] == [("b", 4), ("c", 6)]
+    assert [(case["id"], case["_runs"]) for case in todo["name"]] == [("n", 2)]
+
+
+def test_a_report_spanning_two_gateways_counts_each_apart() -> None:
+    from propose_bench.run import _report
+
+    rows = [
+        {"part": "propose", "id": "a", "ok": True, "why": "", "via": "stali"},
+        {"part": "propose", "id": "a", "ok": False, "why": "x", "via": "stali"},
+        {"part": "propose", "id": "b", "ok": True, "why": "", "via": "openrouter"},
+    ]
+
+    assert "theo cổng: stali 1/2, openrouter 1/1" in _report(rows, 1)
