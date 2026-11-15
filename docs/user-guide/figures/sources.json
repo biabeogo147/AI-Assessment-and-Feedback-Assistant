@@ -1,0 +1,14 @@
+{
+  "trang-thai-de.pdf": {
+    "source": "docs/diagrams/user-guide/trang-thai-de.drawio",
+    "sha256": "667c897514406b748449e8cdf1df01a2ad944302601d8cb7f07b1a0dd489b44d"
+  },
+  "vong-chua-bai.pdf": {
+    "source": "docs/diagrams/user-guide/vong-chua-bai.drawio",
+    "sha256": "677282f1e8ee0cd3bf1a20f4447bf9e8c34f35c0b24a33c1db10bd0f810d8e34"
+  },
+  "vong-doi-bai-kiem-tra.pdf": {
+    "source": "docs/diagrams/user-guide/vong-doi-bai-kiem-tra.drawio",
+    "sha256": "bf5ded66cdbe07b73145042492e8f3d2d6e8ef83b29c99b0b5c8498726e80365"
+  }
+}

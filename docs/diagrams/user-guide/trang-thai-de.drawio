@@ -1,0 +1,94 @@
+<mxfile host="drawio" type="device">
+  <diagram id="trang-thai-de" name="trang-thai-de">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="lane-tay" value="" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#EDF1F7;strokeColor=none;opacity=60;fontFamily=Be Vietnam Pro;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="1040" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="lane-gio" value="" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#F2F2EF;strokeColor=none;opacity=60;fontFamily=Be Vietnam Pro;" vertex="1" parent="1">
+          <mxGeometry x="0" y="200" width="1040" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl-tay" value="Thầy cô và Kriky làm" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontColor=#2E4A7D;fontFamily=Be Vietnam Pro;align=right;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="4" width="506" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl-gio" value="Tự đổi theo giờ thầy cô đã đặt" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=16;fontColor=#5B6472;fontFamily=Be Vietnam Pro;align=right;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="314" width="506" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" value="Đề trống" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E4A7D;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="30" y="58" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="Đang soạn" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E4A7D;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="58" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="Chưa duyệt" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E4A7D;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="570" y="58" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="Đã duyệt" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#EDF1F7;strokeColor=#2E4A7D;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="58" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" value="Chưa tới giờ mở" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#F2F2EF;strokeColor=#5B6472;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="30" y="240" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="Đang mở" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#EDF1EE;strokeColor=#2F6B45;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="240" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="Đang chữa bài" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#F6EFE4;strokeColor=#8A5A22;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="570" y="240" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="Đã kết thúc" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#F2F2EF;strokeColor=#5B6472;strokeWidth=1.5;fontSize=19;fontColor=#1A1F2B;fontFamily=Be Vietnam Pro;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="840" y="240" width="170" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="a12" value="Kriky soạn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="t1" target="t2">
+          <mxGeometry x="0" y="-15" relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a23" value="soạn xong" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="t2" target="t3">
+          <mxGeometry x="0" y="-15" relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a34" value="Duyệt đề" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="t3" target="t4">
+          <mxGeometry x="0" y="-15" relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a4p" value="Phát hành" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="t4" target="p1">
+          <mxGeometry x="-0.55" y="0" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="925.0" y="175" />
+              <mxPoint x="115.0" y="175" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b12" value="giờ mở" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry x="0" y="-15" relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b23" value="giờ đóng" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p2" target="p3">
+          <mxGeometry x="0" y="-15" relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b34" value="hạn chữa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3" target="p4">
+          <mxGeometry x="0" y="-15" relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h43" value="Hoàn tác" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;dashed=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="t4" target="t3">
+          <mxGeometry x="0" y="0" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="925.0" y="30" />
+              <mxPoint x="655.0" y="30" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="h13" value="Hoàn tác (trước giờ mở)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#1A1F2B;strokeWidth=1.5;fontSize=17;fontColor=#5B6472;fontFamily=Be Vietnam Pro;labelBackgroundColor=#FFFFFF;dashed=1;exitX=0.85;exitY=0;exitDx=0;exitDy=0;entryX=0.3;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1" target="t3">
+          <mxGeometry x="0.35" y="-12" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="174.5" y="150" />
+              <mxPoint x="621.0" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

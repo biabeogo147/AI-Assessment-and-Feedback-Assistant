@@ -1,0 +1,341 @@
+% Toàn bộ trang trí của hướng dẫn sử dụng: phông, màu, bìa, trang phần, tiêu đề, ô mẹo, nút, ảnh
+% có số. Nạp bởi user-guide.tex. Luật viết và bảng các lệnh ở rules.md.
+%
+% Khác báo cáo một cách có chủ ý: đây là tài liệu cho giáo viên và học sinh thật, đọc trên màn hình,
+% nên nó mang nhận diện của Kriky (phông, màu của app và chú dế) thay cho khuôn đồ án.
+%
+% BẮT BUỘC XeLaTeX (`.\dev.ps1 user-guide`). Mọi phông nạp thẳng từ tệp .ttf trong fonts/, nên máy
+% build không cần cài phông nào.
+
+% ---------------------------------------------------------------- Phông và ngôn ngữ
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{vietnamese}
+
+% Be Vietnam Pro là phông của app (services/fe/index.html), giấy phép OFL ở fonts/OFL.txt.
+% Scale 0.94: phông này rộng, 11pt của nó trông như 12pt.
+% Bốn độ đậm, mỗi độ một series riêng: m (thường), mb (Medium, nhãn), b (SemiBold, \textbf),
+% eb (Bold, tiêu đề lớn). Đặt Bold vào `b` thì BoldFont đè mất nó (review pha 2).
+\setmainfont{BeVietnamPro}[
+  Path           = fonts/,
+  Extension      = .ttf,
+  Scale          = 0.94,
+  UprightFont    = *-Regular,
+  ItalicFont     = *-Italic,
+  BoldFont       = *-SemiBold,
+  BoldItalicFont = *-BoldItalic,
+  FontFace       = {mb}{n}{*-Medium},
+  FontFace       = {eb}{n}{*-Bold},
+]
+\newcommand{\vua}{\fontseries{mb}\selectfont}     % Medium: nhãn, chữ trên nút
+\newcommand{\datdam}{\fontseries{eb}\selectfont}  % Bold: tiêu đề lớn, số chương
+\linespread{1.22}
+
+\usepackage[a4paper,left=2.3cm,right=2.3cm,top=2.6cm,bottom=2.4cm,headsep=0.8cm,
+  headheight=16pt]{geometry}
+\setlength{\emergencystretch}{3em}
+\tolerance=2000
+\raggedbottom
+
+% ---------------------------------------------------------------- Màu
+% Màu của app lấy đúng mã trong services/fe/src/tokens.css; màu của chú dế lấy từ kriky-hero.png.
+\usepackage[table]{xcolor}
+\definecolor{sunken}{HTML}{F2F2EF}
+\definecolor{ink}{HTML}{1A1F2B}
+\definecolor{inkmuted}{HTML}{5B6472}
+\definecolor{line}{HTML}{E3E5E2}
+\definecolor{accent}{HTML}{2E4A7D}
+\definecolor{accentsurface}{HTML}{EDF1F7}
+\definecolor{correct}{HTML}{2F6B45}
+\definecolor{correctsurface}{HTML}{EDF1EE}
+\definecolor{incorrect}{HTML}{8C3A3A}
+\definecolor{incorrectsurface}{HTML}{F7ECEC}
+\definecolor{needshuman}{HTML}{8A5A22}
+\definecolor{needshumansurface}{HTML}{F6EFE4}
+\definecolor{processing}{HTML}{2F6F73}
+\definecolor{processingsurface}{HTML}{E8F1F1}
+% Chú dế.
+\definecolor{krikyorange}{HTML}{E9740C}
+\definecolor{krikyorangedeep}{HTML}{B65A0A}
+\definecolor{krikyorangesoft}{HTML}{FDF1E2}
+\definecolor{krikyyellow}{HTML}{FEC053}
+\definecolor{krikyyellowsoft}{HTML}{FFF6E0}
+\definecolor{krikygreen}{HTML}{6E8B2E}
+\definecolor{krikygreensoft}{HTML}{EEF3E1}
+
+% Màu của phần đang đọc: xanh cho giáo viên, cam cho học sinh, xanh lá cho phần chung. Chỉ dùng để
+% trang trí (trang phần, vạch tiêu đề, đầu trang, số trang); nút trong sách luôn mang màu nút của app.
+\colorlet{phan}{krikygreen}
+\colorlet{phansoft}{krikygreensoft}
+\color{ink}
+
+% ---------------------------------------------------------------- Gói chung
+\usepackage{graphicx}
+% Ảnh của chú dế đọc thẳng từ app, nên đổi mặt Kriky ở app là sách đổi theo.
+\graphicspath{{screenshots/}{figures/}{../../services/fe/public/}}
+\usepackage{tikz}
+\usetikzlibrary{calc,positioning,shadows.blur}
+\usepackage[most]{tcolorbox}
+\usepackage{fontawesome5}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xltabular}
+\usepackage{enumitem}
+\usepackage{etoolbox}            % \ifstrequal của \trangphan
+\usepackage{needspace}
+\usepackage{titlesec}
+\usepackage{titletoc}
+\usepackage{fancyhdr}
+\usepackage[font=small,labelfont={color=inkmuted},textfont={color=inkmuted}]{caption}
+\usepackage[unicode,colorlinks=true,linkcolor=accent,urlcolor=accent]{hyperref}
+\hypersetup{pdftitle={Hướng dẫn sử dụng Kriky},pdflang={vi}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist{itemsep=0.15em,topsep=0.3em}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\renewcommand{\arraystretch}{1.35}
+
+% ---------------------------------------------------------------- Chữ trên màn hình
+% \nut{Duyệt đề}: một nút của app, vẽ thành viên thuốc màu nút của app, để người đọc nhận ra đúng
+% thứ mình đang tìm trên màn hình. tcbox chứ không \tikz: \tikz trong nhãn danh sách hỏng với
+% polyglossia.
+\newtcbox{\nutbox}{on line, colback=accentsurface, colframe=accent!55, coltext=accent,
+  boxrule=0.5pt, arc=3.5pt, left=3.5pt, right=3.5pt, top=0.6pt, bottom=0.6pt, boxsep=0pt,
+  fontupper=\vua\small}
+\newcommand{\nut}[1]{\nutbox{\strut#1}}
+% \nhan{Tên lớp}: tên một ô, một nhãn hay một dòng chữ trên app (không bấm được).
+% \leavevmode trước \color: đứng đầu một ô bảng, \color mở đoạn mới và đẩy ô xuống một dòng.
+\newcommand{\nhan}[1]{\leavevmode{\vua\color{ink}“#1”}}
+% \go{...}: chữ ngắn người dùng gõ vào, nguyên văn. Cùng phông với app, trên nền xám như ô nhập.
+\newtcbox{\gobox}{on line, colback=sunken, colframe=line, boxrule=0.5pt, arc=2.5pt, left=3pt,
+  right=3pt, top=0.5pt, bottom=0.5pt, boxsep=0pt}
+\newcommand{\go}[1]{\gobox{\strut#1}}
+% \begin{loinhan} ... \end{loinhan}: một câu nhắn dài gửi Kriky, xuống dòng được, như bong bóng
+% chat của giáo viên (nằm bên phải).
+\newtcolorbox{loinhan}{enhanced, breakable, colback=accentsurface, colframe=accentsurface,
+  boxrule=0pt, arc=8pt, left=0.8em, right=0.8em, top=0.4em, bottom=0.4em,
+  width=0.82\linewidth, flush right, before skip=0.4em, after skip=0.6em}
+% Chữ còn chờ người dùng điền (địa chỉ lab…). Cố ý chói, để không lọt ra bản gửi đi.
+\newcommand{\chocandien}[1]{\leavevmode{\color{incorrect}\vua[cần điền: #1]}}
+
+% ---------------------------------------------------------------- Số bước
+% Cùng một chấm cam trên ảnh và trong danh sách bước: số ① trên ảnh là bước ① bên dưới. Cam đậm
+% (krikyorangedeep) để số trắng đủ tương phản.
+\newtcbox{\sobox}{on line, colback=krikyorangedeep, colframe=krikyorangedeep, coltext=white,
+  boxrule=0pt, circular arc, left=0pt, right=0pt, top=0pt, bottom=0pt, boxsep=0pt,
+  fontupper=\datdam\footnotesize, width=1.4em, height=1.4em, valign=center, halign=center,
+  tcbox width=forced center}
+\newcommand{\sobuoc}[1]{\raisebox{-0.3em}{\sobox{#1}}}
+\newlist{buoc}{enumerate}{1}
+\setlist[buoc]{label=\sobuoc{\arabic*}, leftmargin=2.2em, labelsep=0.6em, itemsep=0.35em,
+  topsep=0.4em}
+
+% ---------------------------------------------------------------- Ảnh chụp có số
+% \anh[bề rộng]{tệp}{lớp phủ}. Trong lớp phủ, toạ độ tính theo ảnh: x từ trái 0 → phải 1, y từ
+% trên 0 → dưới 1 (đúng chiều đọc trên màn hình), nên đo vị trí trên ảnh xong là chép vào được.
+%   \diem{2}{0.31}{0.12}           chấm số 2 có tâm tại (31%, 12%): đặt CẠNH chỗ bấm, không đè lên
+%   \khung{0.05}{0.10}{0.40}{0.20} viền cam quanh một vùng (trái, trên, phải, dưới)
+% Ảnh cao quá 0,55 trang thì co theo chiều cao, để không tràn trang.
+\tikzset{
+  sotren/.style={circle, fill=krikyorangedeep, draw=white, line width=1.2pt, text=white,
+    font=\datdam\footnotesize, inner sep=0pt, minimum size=1.45em,
+    blur shadow={shadow blur steps=4, shadow xshift=0.3pt, shadow yshift=-0.4pt,
+      shadow opacity=35}},
+}
+\newcommand{\diem}[3]{\node[sotren] at (#2,{1-#3}) {#1};}
+\newcommand{\khung}[4]{\draw[krikyorangedeep, line width=1.4pt, rounded corners=3pt]
+  (#1,{1-#2}) rectangle (#3,{1-#4});}
+% Ảnh chưa chụp thì in một ô xám chói thay vì làm hỏng cả bản build: một chỗ trống phải thấy được
+% trên trang, không được lặng lẽ biến mất.
+\newcommand{\anh}[3][\dimexpr\linewidth-2pt\relax]{%
+  \IfFileExists{screenshots/#2.png}{\anhco[#1]{#2}{#3}}{%
+    \par\smallskip\begin{center}\fcolorbox{incorrect}{sunken}{\parbox[c][3cm][c]{0.8\linewidth}{%
+      \centering\color{incorrect}\vua ảnh chưa chụp: #2}}\end{center}\smallskip}}
+\newcommand{\anhco}[3][]{%
+  \par\smallskip
+  \begin{center}
+  \begin{tikzpicture}
+    \node[inner sep=0, anchor=south west, blur shadow={shadow blur steps=6, shadow xshift=0pt,
+      shadow yshift=-1pt, shadow opacity=18}] (img) at (0,0)
+      {\includegraphics[width=#1,height=0.55\textheight,keepaspectratio]{#2}};
+    \draw[line, line width=0.6pt] (img.south west) rectangle (img.north east);
+    \begin{scope}[x={(img.south east)}, y={(img.north west)}]
+      #3
+    \end{scope}
+  \end{tikzpicture}
+  \end{center}
+  \smallskip}
+
+% ---------------------------------------------------------------- Các ô
+% Ba ô, ba màu khác hẳn nhau: vàng (lời khuyên của Kriky), hổ phách (cần để ý), đỏ (khi hỏng).
+% Chữ trong ô cùng cỡ thân bài: một câu cảnh báo không được nhỏ hơn câu thường.
+\tcbset{ougo/.style={enhanced, breakable, boxrule=0pt, arc=6pt, left=3.6em, right=0.9em,
+  top=0.6em, bottom=0.6em, before skip=0.7em, after skip=0.7em}}
+\newtcolorbox{machnhobox}{ougo, colback=krikyyellowsoft, colframe=krikyyellowsoft,
+  borderline west={3pt}{0pt}{krikyyellow},
+  overlay unbroken and first={\node[anchor=north west, inner sep=0] at
+    ([xshift=0.7em,yshift=-0.5em]frame.north west)
+    {\includegraphics[width=2.3em]{kriky-face.png}};}}
+\newcommand{\machnho}[1]{\begin{machnhobox}{\vua\color{krikyorangedeep}Kriky mách nhỏ\par}
+  \vspace{0.1em}#1\end{machnhobox}}
+
+\newtcolorbox{luuybox}{ougo, colback=needshumansurface, colframe=needshumansurface,
+  borderline west={3pt}{0pt}{needshuman},
+  overlay unbroken and first={\node[anchor=north west, text=needshuman] at
+    ([xshift=0.95em,yshift=-0.7em]frame.north west) {\LARGE\faExclamationTriangle};}}
+\newcommand{\luuy}[1]{\begin{luuybox}{\datdam\color{needshuman}Lưu ý\par}\vspace{0.1em}#1%
+  \end{luuybox}}
+
+\newtcolorbox{neuloibox}{ougo, colback=incorrectsurface, colframe=incorrectsurface,
+  borderline west={3pt}{0pt}{incorrect},
+  overlay unbroken and first={\node[anchor=north west, text=incorrect] at
+    ([xshift=1em,yshift=-0.7em]frame.north west) {\LARGE\faTools};}}
+\newcommand{\neuloi}[1]{\begin{neuloibox}{\datdam\color{incorrect}Nếu gặp lỗi\par}\vspace{0.1em}#1%
+  \end{neuloibox}}
+
+% \xong{...}: dấu hiệu việc đã xong. Một dòng xanh, dính với danh sách bước ngay trên nó.
+\newcommand{\xong}[1]{\par\nopagebreak\smallskip\leavevmode{\color{correct}\faCheckCircle\enspace\vua Xong
+  khi:}\enspace#1\par}
+
+% ---------------------------------------------------------------- Tiêu đề
+\newcommand{\phanhientai}{}
+\titleformat{\chapter}[display]{\color{ink}}
+  {\tikz\node[fill=phan, text=white, rounded corners=8pt, minimum width=3.1em,
+     minimum height=3.1em, font=\datdam\huge]{\thechapter};}
+  {0.6em}
+  {\datdam\fontsize{24}{30}\selectfont}
+  [\vspace{0.35em}{\color{phan}\titlerule[1.2pt]}]
+\titleformat{name=\chapter,numberless}[display]{\color{ink}}{}{0pt}
+  {\datdam\fontsize{24}{30}\selectfont}[\vspace{0.35em}{\color{phan}\titlerule[1.2pt]}]
+\titlespacing*{\chapter}{0pt}{-1.2em}{1.4em}
+
+% Mỗi "việc" là một \section: tiêu đề có vạch màu của phần bên trái.
+\titleformat{\section}[block]{\color{ink}\vua\Large}
+  {}{0pt}{{\color{phan}\rule[-0.2em]{3.5pt}{1.15em}}\hspace{0.6em}}
+\titlespacing*{\section}{0pt}{1.6em}{0.5em}
+\titleformat{\subsection}[block]{\color{phan}\vua\large}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1.1em}{0.3em}
+\setcounter{secnumdepth}{0}
+% Mục lục chỉ tới chương: người đọc tìm chương của mình, rồi lật tới việc cần làm.
+\setcounter{tocdepth}{0}
+% Một việc mở đầu sát đáy trang thì tiêu đề nằm một trang, ảnh và các bước nằm trang sau: thà sang
+% trang mới ngay từ tiêu đề.
+\newcommand{\viec}[1]{\needspace{0.3\textheight}\section{#1}}
+
+% ---------------------------------------------------------------- Mục lục
+% Mục lục in màu chữ thường, không màu link; dòng phần mang màu của chính phần ấy (ghi vào toc).
+\titlecontents{part}[0pt]{\addvspace{1.2em}\datdam\large}{}{}{\hfill\contentspage}[\addvspace{0.3em}]
+\titlecontents{chapter}[2.4em]{\addvspace{0.45em}\vua}
+  {\contentslabel[\thecontentslabel]{2.4em}}{}{\titlerule*[0.6pc]{.}\contentspage}
+\titlecontents{section}[2.4em]{\small\color{inkmuted}}{}{}{\titlerule*[0.6pc]{.}\contentspage}
+\newcommand{\mucluc}{\begingroup\hypersetup{linkcolor=ink}\tableofcontents\endgroup}
+
+% ---------------------------------------------------------------- Đầu và chân trang
+\newtcbox{\trangbox}{on line, colback=phansoft, colframe=phansoft, coltext=phan, boxrule=0pt,
+  arc=6pt, left=7pt, right=7pt, top=2pt, bottom=2pt, boxsep=0pt, fontupper=\vua\small}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyhead[L]{\small\color{inkmuted}\raisebox{-0.3em}{\includegraphics[height=1.3em]{kriky-face.png}}%
+  \enspace Hướng dẫn sử dụng Kriky}
+\fancyhead[R]{\small\color{phan}\vua\phanhientai}
+\fancyfoot[C]{\trangbox{\thepage}}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\trangbox{\thepage}}}
+
+% ---------------------------------------------------------------- Trang phần
+% \trangphan{gv|hs}{Phần I}{Dành cho thầy cô}{Lời dẫn một câu}{Các chương, mỗi chương một \item}
+% Sang trang, đổi màu của phần, rồi in một trang màu với chú dế và danh sách chương. Đổi màu nằm
+% bên trong lệnh này, nên không có thứ tự ngầm nào để gọi sai.
+\newcommand{\trangphan}[5]{%
+  \cleardoublepage
+  \ifstrequal{#1}{gv}{\colorlet{phan}{accent}\colorlet{phansoft}{accentsurface}%
+    \renewcommand{\phanhientai}{Phần I · Giáo viên}}{}%
+  \ifstrequal{#1}{hs}{\colorlet{phan}{krikyorangedeep}\colorlet{phansoft}{krikyorangesoft}%
+    \renewcommand{\phanhientai}{Phần II · Học sinh}}{}%
+  \thispagestyle{empty}
+  \phantomsection
+  \label{phan:#1}%
+  \ifstrequal{#1}{gv}{\addcontentsline{toc}{part}{\texorpdfstring{\protect\color{accent}#2 \textendash{} #3}{#2 – #3}}}{}%
+  \ifstrequal{#1}{hs}{\addcontentsline{toc}{part}{\texorpdfstring{\protect\color{krikyorangedeep}#2 \textendash{} #3}{#2 – #3}}}{}%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[phan] (current page.south west) rectangle (current page.north east);
+    \fill[white, opacity=0.06] ([xshift=-2cm,yshift=-3cm]current page.north east) circle (6cm);
+    \fill[white, opacity=0.05] ([xshift=3cm,yshift=4cm]current page.south west) circle (5cm);
+    \node[anchor=north west, text=white, font=\vua\Large, inner sep=0]
+      (so) at ([xshift=2.3cm,yshift=-4.2cm]current page.north west) {#2};
+    \node[anchor=north west, text=white, font=\datdam\fontsize{38}{44}\selectfont, inner sep=0,
+      text width=15cm] (ten) at ([yshift=-0.5cm]so.south west) {#3};
+    \node[anchor=north west, text=white, text width=9.5cm, font=\large, inner sep=0]
+      (dan) at ([yshift=-0.7cm]ten.south west) {#4};
+    \node[anchor=north west, text=white, text width=9.5cm, inner sep=0]
+      at ([yshift=-1.4cm]dan.south west) {%
+        {\vua TRONG PHẦN NÀY\par}\vspace{0.4em}
+        \begin{itemize}[leftmargin=1.2em, label={\color{krikyyellow}\textbullet}, itemsep=0.25em]
+          #5
+        \end{itemize}};
+    \node[anchor=south east, inner sep=0] at ([xshift=-1.6cm,yshift=2.2cm]current page.south east)
+      {\includegraphics[height=9.5cm]{kriky-hero.png}};
+  \end{tikzpicture}
+  \clearpage}
+
+% Phần chung (đầu sách, tra nhanh): màu xanh lá, đầu trang không ghi phần.
+\newcommand{\phanchung}{\cleardoublepage
+  \colorlet{phan}{krikygreen}\colorlet{phansoft}{krikygreensoft}%
+  \renewcommand{\phanhientai}{}}
+
+% ---------------------------------------------------------------- Bìa
+\newcommand{\biasach}{%
+  \begin{titlepage}
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[krikyyellowsoft] (current page.south west) rectangle (current page.north east);
+    % Vài vòng tròn nền, màu của chú dế.
+    \fill[krikyyellow!45] ([xshift=-3.6cm,yshift=11.6cm]current page.south east) circle (7cm);
+    \fill[krikygreen!20] ([xshift=2.6cm,yshift=-3.0cm]current page.north west) circle (1.1cm);
+    \fill[krikyorange!60] ([xshift=4.4cm,yshift=-2.4cm]current page.north west) circle (0.22cm);
+    % Chú dế đứng trên dải đáy.
+    \node[anchor=south east, inner sep=0] at ([xshift=-1.4cm,yshift=3.05cm]current page.south east)
+      {\includegraphics[height=13.4cm]{kriky-hero.png}};
+    % Tên sách.
+    \node[anchor=north west, text width=9.5cm, align=left, inner sep=0]
+      (ten) at ([xshift=2.3cm,yshift=-7.2cm]current page.north west) {%
+        {\color{krikyorangedeep}\vua\large HƯỚNG DẪN SỬ DỤNG\par}
+        \vspace{0.35cm}
+        {\color{accent}\datdam\fontsize{64}{64}\selectfont Kriky\par}
+        \vspace{0.45cm}
+        {\color{ink}\fontsize{19}{25}\selectfont Trợ lý giúp thầy cô ra đề\\và giúp các em chữa bài\par}};
+    % Hai lối vào.
+    \node[anchor=north west, inner sep=0] at ([yshift=-1.6cm]ten.south west) {%
+      \begin{tabular}{@{}l@{\enspace}l@{}}
+        {\color{accent}\Large\faChalkboardTeacher} & {\vua\large Thầy cô}\enspace
+          {\color{inkmuted}đọc Phần I} \\[0.5em]
+        {\color{krikyorangedeep}\Large\faUserGraduate} & {\vua\large Học sinh}\enspace
+          {\color{inkmuted}đọc Phần II} \\
+      \end{tabular}};
+    % Dải đáy.
+    \fill[accent] (current page.south west) rectangle ([yshift=3.1cm]current page.south east);
+    \node[anchor=west, text=white, font=\vua\large]
+      at ([xshift=2.3cm,yshift=1.75cm]current page.south west) {Phiên bản \tenban};
+    \node[anchor=west, text=white!80!accent]
+      at ([xshift=2.3cm,yshift=1.05cm]current page.south west) {\ngaysach};
+  \end{tikzpicture}
+  \end{titlepage}
+  % Bìa là trang 1, như trình xem PDF đếm: số in trên trang khớp số trang người đọc thấy.
+  \setcounter{page}{2}}
+
+% ---------------------------------------------------------------- Bảng tra
+% \begin{bangtra}{L{5cm}Y}{Cột 1 & Cột 2} ... \end{bangtra}
+% Ngắt qua trang được (xltabular), hàng đầu lặp lại ở trang sau. Nền xen kẽ bắt đầu từ hàng dữ
+% liệu đầu tiên. Không cắt đệm hai đầu bằng @{}: nền màu tô cả phần đệm, cắt chữ mà không cắt
+% nền thì nền tràn ra lề; và bỏ khe của booktabs quanh vạch để nền không hở.
+\newenvironment{bangtra}[2]
+  {\par\smallskip
+   \setlength{\aboverulesep}{0pt}\setlength{\belowrulesep}{0pt}%
+   \rowcolors{3}{white}{sunken}%
+   \xltabular{\linewidth}{#1}
+   \toprule \rowcolor{phansoft}#2 \\ \midrule \endfirsthead
+   \toprule \rowcolor{phansoft}#2 \\ \midrule \endhead
+   \bottomrule \endlastfoot}
+  {\endxltabular\par\smallskip}
+\newcommand{\dau}[1]{\leavevmode{\color{phan}\vua #1}}

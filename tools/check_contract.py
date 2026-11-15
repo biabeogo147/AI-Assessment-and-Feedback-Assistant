@@ -792,23 +792,57 @@ def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
     Tên hàm cố ý không có chữ `report`: lời kể sau plan của ADR-25
     (`check_the_telling_turn_only_reads` ở trên) là một thứ khác hẳn.
 
+    Từ 15/11/2026 (plan `user-guide`) có hai cặp: sơ đồ của báo cáo nằm thẳng trong
+    `docs/diagrams/`, sơ đồ của hướng dẫn sử dụng nằm trong `docs/diagrams/user-guide/`. Mỗi cặp một
+    `sources.json`. Phép quét dùng `glob` không đệ quy, nên sơ đồ của hướng dẫn không bị đòi phải có
+    hình trong báo cáo.
+
     Returns:
         None khi mọi hình khớp sơ đồ của nó, ngược lại là một thông báo thất bại.
     """
-    diagrams = REPO_ROOT / "docs" / "diagrams"
-    figures = REPO_ROOT / "docs" / "report" / "figures"
+    docs = REPO_ROOT / "docs"
+    pairs = (
+        ("report", docs / "diagrams", docs / "report" / "figures"),
+        ("user guide", docs / "diagrams" / "user-guide", docs / "user-guide" / "figures"),
+    )
+    problems = [
+        problem
+        for book, diagrams, figures in pairs
+        for problem in figure_drift(REPO_ROOT, diagrams, figures, book)
+    ]
+    if problems:
+        return _fail("report-figures", "\n      ".join(problems))
+    return None
+
+
+def figure_drift(root: Path, diagrams: Path, figures: Path, book: str) -> list[str]:
+    """Các chỗ một cuốn sách in hình không khớp `.drawio` của nó.
+
+    Args:
+        root: Gốc repo; `source` trong `sources.json` là đường dẫn tính từ đây.
+        diagrams: Thư mục chứa `.drawio` của cuốn ấy; chỉ quét đúng tầng này, không đệ quy.
+        figures: Thư mục hình đã xuất, có `sources.json` ghi sha256 của `.drawio` lúc xuất.
+        book: Tên cuốn, để thông báo nói rõ cuốn nào thiếu hình.
+
+    Returns:
+        Mỗi chỗ lệch một dòng; rỗng khi khớp hết. Thiếu `sources.json` là lệch, trừ khi cuốn ấy chưa
+        có sơ đồ nào.
+    """
     manifest_path = figures / "sources.json"
+    drawn = sorted(diagrams.glob("*.drawio")) if diagrams.is_dir() else []
 
     if not manifest_path.exists():
-        return _fail("report-figures", f"{manifest_path} is missing; no figure can be trusted")
+        if not drawn:
+            return []
+        return [f"{manifest_path} is missing; no figure of the {book} can be trusted"]
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as broken:
-        return _fail("report-figures", f"sources.json does not parse: {broken}")
+        return [f"{manifest_path.name} of the {book} does not parse: {broken}"]
 
     if not isinstance(manifest, dict) or not manifest:
-        return _fail("report-figures", "sources.json must be a non-empty object keyed by figure")
+        return [f"sources.json of the {book} must be a non-empty object keyed by figure"]
 
     problems: list[str] = []
     accounted: set[str] = set()
@@ -818,7 +852,7 @@ def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
             problems.append(f"{figure}: entry needs both 'source' and 'sha256'")
             continue
 
-        source = REPO_ROOT / entry["source"]
+        source = root / entry["source"]
         if not source.exists():
             problems.append(f"{figure}: source {entry['source']} does not exist")
             continue
@@ -836,14 +870,12 @@ def check_every_figure_matches_the_diagram_it_came_from() -> str | None:
 
     # Chiều ngược lại, và đây là chiều dễ quên: thêm một sơ đồ mới mà không xuất hình thì
     # không hash nào lệch, vì không có entry nào để lệch cả.
-    for diagram in sorted(diagrams.glob("*.drawio")):
-        relative = diagram.relative_to(REPO_ROOT).as_posix()
+    for diagram in drawn:
+        relative = diagram.relative_to(root).as_posix()
         if relative not in accounted:
-            problems.append(f"{relative}: no figure in the report was exported from it")
+            problems.append(f"{relative}: no figure in the {book} was exported from it")
 
-    if problems:
-        return _fail("report-figures", "\n      ".join(problems))
-    return None
+    return problems
 
 
 # Link tới một `.drawio`, ở mọi dạng Markdown cho phép: `[chữ](x.drawio)` (kèm khoảng trắng, `<…>`,
@@ -881,7 +913,8 @@ def drawio_links(markdown: str) -> list[int]:
 def check_markdown_draws_in_mermaid() -> str | None:
     """Docs Markdown vẽ sơ đồ bằng Mermaid, không link `.drawio` (plan `agent-design-doc-mermaid`).
 
-    Từ 13/11/2026 `.drawio` chỉ là hình của báo cáo; một doc link tới nó là đẩy người đọc sang một
+    Từ 13/11/2026 `.drawio` chỉ là hình của sách LaTeX (báo cáo; từ 15/11/2026 cả hướng dẫn sử
+    dụng); một doc link tới nó là đẩy người đọc sang một
     công cụ khác đúng lúc họ đang đọc lời văn -- lý do người dùng nói chưa nắm được thiết kế. Check
     chỉ chặn được chiều rẻ ấy: nó không so được nội dung Mermaid với drawio, nên luật *một luồng có
     hai bản thì đổi cùng nhau* vẫn là luật review.
@@ -908,8 +941,8 @@ def check_markdown_draws_in_mermaid() -> str | None:
         return _fail(
             "markdown-draws-in-mermaid",
             f"{', '.join(offenders)} link a `.drawio`. A Markdown document draws its diagram in a "
-            "fenced `mermaid` block beside the prose; `.drawio` files are the report's figures "
-            "only (AGENTS.md, Documentation Rules).",
+            "fenced `mermaid` block beside the prose; `.drawio` files are the figures of the LaTeX "
+            "books only, the report and the user guide (AGENTS.md, Documentation Rules).",
         )
     return None
 

@@ -1,0 +1,39 @@
+% Hướng dẫn sử dụng Kriky, cho giáo viên và học sinh.
+%
+% Build: .\dev.ps1 user-guide   (latexmk -xelatex). Luật viết: rules.md.
+
+\documentclass[11pt,a4paper,oneside]{book}
+
+\input{style}
+\input{config}
+
+\begin{document}
+
+% polyglossia gọi mục lục là "Mục lục" sẵn; đặt lại sau \begin{document} cho chắc, vì nó nạp nhãn
+% lúc tài liệu bắt đầu (cùng lý do như report.tex).
+\renewcommand{\contentsname}{Mục lục}
+
+\biasach
+
+\phanchung
+\mucluc
+
+\input{parts/00-doc-the-nao}
+\input{parts/01-lam-quen}
+
+\input{parts/10-phan-giao-vien}
+\input{parts/11-dang-nhap}
+\input{parts/12-ban-do}
+\input{parts/13-lop-hoc-sinh}
+\input{parts/14-tai-lieu}
+\input{parts/15-soan-de}
+\input{parts/16-duyet-phat-hanh}
+\input{parts/17-theo-doi}
+\input{parts/18-ngan-hang}
+\input{parts/19-truc-trac-gv}
+
+\input{parts/20-phan-hoc-sinh}
+
+\input{parts/90-tra-nhanh}
+
+\end{document}

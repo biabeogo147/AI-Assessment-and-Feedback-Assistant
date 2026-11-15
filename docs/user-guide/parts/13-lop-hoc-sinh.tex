@@ -1,0 +1,150 @@
+\chapter{Lớp và học sinh}
+\label{chuong:lop}
+
+Mỗi lớp là một danh sách học sinh. Thầy cô thêm học sinh một lần; Kriky tạo tài khoản cho từng em. Lớp
+chưa có học sinh thì chưa em nào nhận được đề.
+
+\viec{Tạo lớp}
+
+\anh[0.6\linewidth]{T/06-tao-lop}{
+  \diem{2}{0.025}{0.62}
+  \diem{3}{0.765}{0.75}
+}
+
+\begin{buoc}
+  \item Ở thanh trái, bấm \nut{Danh sách lớp học}, rồi bấm \nut{Tạo lớp} ở góc phải.
+  \item Gõ \nhan{Tên lớp}, ví dụ \go{12A}.
+  \item Bấm \nut{Tạo lớp}.
+\end{buoc}
+
+\xong{màn của lớp mới mở ra, ghi \nhan{0 học sinh}.}
+
+\machnho{Thầy cô cũng nhắn được cho Kriky: \go{Tạo lớp 12A}.}
+
+\viec{Thêm học sinh bằng cách gõ tên}
+
+\anh{T/08-them-hs-go-ten}{
+  \diem{2}{0.17}{0.225}
+  \khung{0.037}{0.398}{0.963}{0.786}
+  \diem{3}{0.037}{0.398}
+  \khung{0.833}{0.829}{0.963}{0.93}
+  \diem{4}{0.963}{0.829}
+}
+
+\begin{buoc}
+  \item Ở màn của lớp, bấm \nut{Thêm học sinh}.
+  \item Chọn \nut{Gõ tên}.
+  \item Gõ họ và tên, mỗi dòng một em.
+  \item Bấm \nut{Xem trước}.
+\end{buoc}
+
+\xong{thầy cô thấy bảng \nhan{Kiểm tra lại trước khi tạo tài khoản}.}
+
+\machnho{Không cần gõ mã học sinh hay tên đăng nhập. Kriky tự tạo cho từng em.}
+
+\viec{Thêm học sinh bằng tệp Excel hay CSV}
+
+Có sẵn danh sách lớp trong Excel thì tải lên một lần cho nhanh.
+
+\anh{T/09-them-hs-tai-tep}{
+  \diem{1}{0.6}{0.22}
+  \diem{2}{0.41}{0.55}
+  \diem{3}{0.83}{0.8}
+}
+
+\begin{buoc}
+  \item Ở hộp \nhan{Thêm học sinh vào lớp …}, chọn \nut{Tải tệp .csv / .xlsx}.
+  \item Bấm \nut{Chọn tệp} và chọn tệp danh sách. Đã chọn rồi thì nút đổi thành \nut{Chọn tệp khác}.
+  \item Bấm \nut{Xem trước}.
+\end{buoc}
+
+\luuy{Tệp cần một cột họ và tên, dòng tiêu đề có hay không đều được, nặng tối đa 1 MB.}
+
+\viec{Kiểm tra trước khi tạo tài khoản}
+
+\anh{T/10-them-hs-kiem-tra}{
+  \khung{0.03}{0.205}{0.965}{0.29}
+  \diem{1}{0.03}{0.205}
+  \diem{2}{0.935}{0.255}
+  \diem{3}{0.765}{0.89}
+}
+
+\begin{buoc}
+  \item Đọc cột \nhan{GHI CHÚ}. Dòng \nhan{Trùng tên trong lớp} là em có họ tên giống một em đã có.
+  \item Nếu đó đúng là hai em khác nhau, đánh dấu ô ở cột \nhan{XÁC NHẬN}. Không đánh dấu thì dòng ấy
+        bị bỏ qua.
+  \item Bấm \nut{Tạo 19 tài khoản} (số này đổi theo lớp).
+\end{buoc}
+
+\viec{Lưu mật khẩu cho các em}
+
+\anh{T/11-them-hs-mat-khau}{
+  \diem{1}{0.57}{0.87}
+  \diem{2}{0.982}{0.87}
+}
+
+\begin{buoc}
+  \item Bấm \nut{Xuất file Excel (.xlsx)} để lưu bảng tên đăng nhập và mật khẩu.
+  \item Lưu xong thì bấm \nut{Đã lưu, đóng}.
+\end{buoc}
+
+\luuy{Mật khẩu chỉ hiện \textbf{một lần}. Đóng hộp mà chưa lưu thì phải đặt lại mật khẩu cho từng em.}
+
+\machnho{In bảng ra, cắt thành từng dòng và phát cho các em. Mỗi em chỉ cần tên đăng nhập và mật khẩu
+của mình.}
+
+\viec{Đặt lại mật khẩu khi em quên}
+
+\anh[0.6\linewidth]{T/12-dat-lai-mat-khau}{
+  \diem{2}{0.975}{0.76}
+}
+
+\begin{buoc}
+  \item Ở màn của lớp, tìm em ấy trong bảng \nhan{Học sinh}, bấm \nut{Đặt lại mật khẩu}.
+  \item Bấm \nut{Đặt lại mật khẩu} trong hộp hỏi lại.
+\end{buoc}
+
+\xong{hộp \nhan{Đã đặt lại mật khẩu cho …} hiện mật khẩu mới. Đưa mật khẩu ấy cho em.}
+
+\luuy{Mật khẩu cũ thôi dùng được ngay. Nếu em đang làm bài, em phải đăng nhập lại bằng mật khẩu mới.}
+
+\viec{Đọc màn của lớp}
+
+\anh{T/07-chi-tiet-lop}{
+  \diem{1}{0.855}{0.12}
+  \diem{2}{0.3}{0.39}
+  \diem{3}{0.84}{0.63}
+}
+
+\begin{bangtra}{L{1cm}Y}{\dau{Số} & \dau{Dùng để}}
+  \sobuoc{1} & \nut{Thêm học sinh} vào lớp. \\
+  \sobuoc{2} & Các đề đã phát hành cho lớp. Đề đã tới giờ mở thì bấm hàng ấy để xem kết quả của lớp. \\
+  \sobuoc{3} & \nut{Đặt lại mật khẩu} cho một em. \\
+\end{bangtra}
+
+\viec{Xem danh sách lớp}
+
+\anh{T/05-danh-sach-lop}{
+  \diem{1}{0.89}{0.17}
+  \diem{2}{0.1}{0.7}
+}
+
+Bấm \nut{Tạo lớp} \sobuoc{1} để tạo lớp mới, hoặc bấm tên một lớp \sobuoc{2} để mở màn của lớp. Các cột
+cho thầy cô thấy nhanh tình hình:
+
+\begin{bangtra}{L{4.2cm}Y}{\dau{Cột} & \dau{Nghĩa là}}
+  \nhan{SĨ SỐ} & Số học sinh của lớp. \\
+  \nhan{ĐỀ ĐANG MỞ} & Số đề các em đang làm được. \\
+  \nhan{CHƯA NỘP BÀI} & Số em chưa nộp bài. \\
+  \nhan{XONG GIAI ĐOẠN 1} & Số em đã nộp bài, còn đang chữa câu sai. \\
+  \nhan{XONG GIAI ĐOẠN 2} & Số em đã chữa xong các câu sai. \\
+\end{bangtra}
+
+Ba cột cuối cộng trên mọi đề đang mở của lớp. Rê chuột lên một số để xem theo từng đề.
+
+\viec{Xoá lớp}
+
+Nút \nut{Xoá lớp} chỉ hiện khi lớp chưa có học sinh và chưa nhận đề nào, ví dụ một lớp tạo nhầm. Bấm
+nút, rồi xác nhận trong hộp \nhan{Xoá lớp “…”?}.
+
+\luuy{Xoá rồi thì không lấy lại được.}

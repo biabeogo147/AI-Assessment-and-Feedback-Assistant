@@ -22,7 +22,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'lab-ui', 'release', 'help')]
+    [ValidateSet('install', 'infra-up', 'infra-down', 'db-reset', 'be', 'ingest', 'agent', 'document', 'index', 'fe', 'test', 'check', 'typecheck', 'fmt', 'report', 'user-guide', 'lab-ui', 'release', 'help')]
     [string]$Task = 'help',
 
     # Chỉ cho `release`: tăng z của tên bản lab, x về 0.
@@ -334,6 +334,15 @@ Ctrl+C to stop the UIs and close the tunnel.
         }
     }
 
+    'user-guide' {
+        # Hướng dẫn sử dụng cho giáo viên và học sinh (plan `user-guide`). XeLaTeX vì cùng lý do với
+        # `report`: tiếng Việt, và phông Be Vietnam Pro nạp từ docs/user-guide/fonts.
+        Invoke-Step 'latexmk' {
+            & latexmk -xelatex -cd -interaction=nonstopmode -halt-on-error `
+                "$RepoRoot\docs\user-guide\user-guide.tex"
+        }
+    }
+
     'release' {
         # Đặt tên một bản lab (plan `lab-version`): tạo tag `lab-YYYY.z.x` trên HEAD khi `main` đã
         # push và mục của bản ấy đứng đầu CHANGELOG.md. Không tự push; luật ở tools/release.py.
@@ -362,6 +371,7 @@ Usage: .\dev.ps1 <task>
   check        Run ruff, the import boundary check and the repo contract checks
   fmt          Format and autofix
   report       Build docs/report/report.pdf with XeLaTeX
+  user-guide   Build docs/user-guide/user-guide.pdf with XeLaTeX
   lab-ui       Open the lab's Postgres, Redis, Mongo and MinIO in local admin UIs over ssh
   release      Tag HEAD as the next lab version (lab-YYYY.z.x); -Minor bumps z. Never pushes
 

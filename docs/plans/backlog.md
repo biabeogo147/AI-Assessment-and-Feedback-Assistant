@@ -1070,3 +1070,23 @@ việc khi giáo viên đồng ý; lời chia việc trong khối các bước t
 | **P1/P2 của bench nay chấm job, không chấm mục dàn ý**: không so thẳng được với `run-130` | Ghi ở `grading-design.md`; đo lại cả hai nhánh khi chạy bench lần sau |
 | **Lời chia việc nói *2 câu* cạnh dòng tiến độ *đã soạn 5/7 câu*** khi soạn thêm (review pha 3): tiến độ đếm cả đề, lời chia việc đếm câu của lượt -- hai con số đứng sát nhau dễ đọc nhầm | Nhẹ: tiến độ của bước soạn thêm đếm theo câu của lượt, hay ghi rõ *cả đề* |
 | **Dàn ý soạn thêm đánh số *Câu 1–2*** thay vì *Câu 6–7* (thử tay `gpt-4o-mini`, có từ trước ADR-38) | Lời dặn `outline` trong `propose/prompt.py`: nói rõ soạn thêm thì đánh số tiếp sau câu cuối của đề |
+
+## Lộ ra khi chụp ảnh cho hướng dẫn sử dụng (15/11/2026)
+
+Plan `user-guide`: chạy app ở máy dev với dữ liệu mẫu, soạn và phát hành một đề thật để chụp ảnh.
+
+| Việc | Cái gì đang chặn |
+| --- | --- |
+| **Lượt soạn đề trên `gpt-4o-mini` treo tới hết giờ**: 5/5 lần qua skill `soan-de` (trần `LLM_TIMEOUT_SECONDS` 20, 40 rồi 65 s), trong khi lượt khác cùng model về trong khoảng 1 s; giáo viên chỉ thấy *"Kriky chưa trả lời được lúc này"*. Đổi sang `gpt-6-luna` thì dàn ý ra trong 17 s | Chưa tìm gốc. Đoán: `with_structured_output` trong `propose/choose.py` không đặt `max_tokens`, model sinh lan man trong JSON. Tái hiện bằng đúng prompt rồi đặt trần; nếu vẫn treo thì đổi model mặc định của lab |
+| **Xoá một đoạn chat thì đề của nó mất đường mở**: hàng ở *Các bài kiểm tra* không bấm được, link `#/teacher/de/{id}` chuyển về trang chủ; đề chưa duyệt kẹt lại | M2: *Các bài kiểm tra* mở khung đề không cần đoạn chat, hoặc hộp xoá báo trước còn đề chưa phát hành |
+| **App hứa *"Thu hồi được tới trước giờ mở"* ở bốn chỗ mà không có nút nào tên Thu hồi**: thu hồi là nút *Hoàn tác* ở cài đặt phát hành, và nó thu đề khỏi **mọi** lớp; `api.withdraw` (từng lớp) có mà FE không gọi | Quyết định nghiệp vụ: nút thu hồi từng lớp, hoặc đổi chữ cho khớp *Hoàn tác*. Sách hướng dẫn đang dạy *Hoàn tác* |
+| ***Xem kết quả* ở *Các bài kiểm tra* chỉ mở lớp đầu tiên** của đề phát hành cho nhiều lớp (`Papers.tsx`) | M2: một hàng mỗi lớp, hoặc hỏi chọn lớp |
+| **Ô sửa câu hiện chữ kỹ thuật** *"ADR-18 bắt mọi phương án nhiễu phải có."* khi thiếu lỗi của phương án nhiễu (`Editing.tsx`) | M1: câu thường, ví dụ *"Mỗi phương án sai cần ghi lỗi của nó."* |
+| **Cây của *Kết nối tri thức Lớp 12 tập 1* thiếu Chương I**, và tên Chương II đọc thành rác (*"VECTVÀ uẼ TduC Toa Dò…"*); gắn cuốn ấy vào đoạn chat thì Kriky chỉ đưa ra hai chương sai, giáo viên kẹt | Cùng cụm OCR với cây Lớp 10 tập 1 (Tier 3) |
+| **Đề bài model viết** (`gpt-6-luna`): bảng dấu viết bằng dấu `\|` nên khung đề hiện thành dòng rối (2/8 câu); một câu có `\infty` hỏng vẫn tới khung đề, chỉ ô sửa mới báo ký tự hỏng | Chất lượng model, cần bench (Tier 4) |
+| **Kriky không tạo được đề trống có tên hay gắn lớp**: `create_draft` không nhận tên, giáo viên phải tự *Đổi tên* sau | M2, đổi tham số tool trong `contracts` |
+| **Hai chữ cho một việc ở phía học sinh**: hộp *Bắt đầu lượt làm lại?* ghi *"vòng 1 — mỗi câu còn 3 vòng"*, màn làm lại ghi *"Lượt làm lại thứ 1 / tối đa 3"* (`Tutor.tsx`, `Round.tsx`) | M1: thống nhất một chữ, kèm Figma; sách hướng dẫn dùng *lượt* |
+| **Bài làm lần đầu không tự nộp khi hết giờ** (`Sitting.tsx`: `TimeCard` không có `onExpire`; BE cũng không tự nộp): đồng hồ về 00:00 thì em bấm phương án vẫn thấy sáng nhưng không lưu được; không bấm *Nộp bài* thì bài nằm mãi ở *Đang làm*, không có kết quả, không chữa được. Lượt làm lại thì tự nộp | M2, nặng: tự nộp khi hết giờ (FE `onExpire` như `Round.tsx`, và BE nộp hộ bài quá giờ khi đọc lại). Sách hướng dẫn tạm dặn em bấm *Nộp bài* |
+| **Nhãn *Hết hạn làm lại* không bao giờ hiện** ở *Bài của tôi*: `AssignmentList.tsx` ưu tiên *Cần làm lại n câu* theo `wrong_count`, mà quá hạn chữa thì vẫn còn câu chưa đóng | M1: chỉ hiện *Cần làm lại n câu* khi trạng thái là `cần-chữa` |
+| ***"Bài đóng quá 30 ngày không hiện ở đây nữa"*** chỉ là chữ trên màn học sinh; `my_assignments` không lọc theo 30 ngày | M1: lọc ở BE, hoặc bỏ câu ấy |
+| **Sách hướng dẫn chưa gửi được**: `docs/user-guide/config.tex` còn in đỏ *[cần điền: địa chỉ …]* ở hai địa chỉ lab, và tên bản `lab-2026.0.4` chưa có tag | Người dùng quyết: ghi tên miền thật vào repo hay điền lúc build; ra bản lab mới rồi build lại sách |

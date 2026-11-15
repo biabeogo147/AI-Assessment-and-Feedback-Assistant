@@ -63,7 +63,7 @@ vite.config.ts.timestamp-*
 tmp/
 temp/
 
-# LaTeX (docs/report)
+# LaTeX (docs/report, docs/user-guide)
 *.aux
 *.fdb_latexmk
 *.fls
@@ -74,6 +74,7 @@ temp/
 *.toc
 *.xdv
 docs/report/*.log
+docs/user-guide/*.log
 
 # Sách giáo khoa dùng để đo, và nhãn vàng của bộ đo OCR.
 #
