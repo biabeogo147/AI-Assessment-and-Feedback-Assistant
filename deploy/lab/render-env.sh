@@ -5,8 +5,8 @@
 #
 # Mật khẩu chung của tài khoản lab không vào .env: `seed.sh` đọc thẳng từ SSM khi cần.
 #
-# Cũng dựng deploy/lab/.env.overrides: thiếu CLAUDE_API_KEY thì tắt model (LLM_ENABLED=false), để
-# Kriky trả nội dung dựng sẵn thay vì báo model hỏng ở mọi lượt.
+# Cũng dựng deploy/lab/.env.overrides: thiếu khoá của LLM_PROVIDER thì tắt model
+# (LLM_ENABLED=false), để Kriky trả nội dung dựng sẵn thay vì báo model hỏng ở mọi lượt.
 
 source "$(dirname "$0")/lib.sh"
 
@@ -30,6 +30,19 @@ for required in SITE_ADDRESS POSTGRES_PASSWORD MINIO_SECRET_KEY MONGO_PASSWORD; 
 		exit 1
 	fi
 done
+
+# lab.env là dữ liệu cấu hình, không source thành mã shell. Chỉ hai provider này có đường cấp
+# credential trong compose; từ chối provider lạ thay vì âm thầm kiểm tra nhầm khoá.
+provider=$(awk -F= '$1 ~ /^[[:space:]]*LLM_PROVIDER[[:space:]]*$/ {print $2}' "$LAB_DIR/lab.env")
+provider=$(trim "$provider")
+case "$provider" in
+	\"*\"|\'*\') provider=${provider:1:${#provider}-2} ;;
+esac
+case "$provider" in
+	openai) key_name=OPENAI_API_KEY ;;
+	anthropic) key_name=CLAUDE_API_KEY ;;
+	*) echo "LLM_PROVIDER trong lab.env phải là openai hoặc anthropic." >&2; exit 1 ;;
+esac
 
 # Nháy đơn: compose đọc giá trị trong nháy đơn đúng từng ký tự, nên một `$` không bị thay.
 # Dotenv của compose không có cách thoát một nháy đơn bên trong, nên giá trị có nháy đơn bị từ chối.
@@ -55,8 +68,8 @@ mv "$LAB_DIR/.env.tmp" "$LAB_DIR/.env"
 
 {
 	echo "# Dựng bởi render-env.sh. Đè lên lab.env."
-	if [[ -z "${value[CLAUDE_API_KEY]:-}" ]]; then
-		echo "Chưa có $SSM_PREFIX/CLAUDE_API_KEY: tắt model, Kriky trả nội dung dựng sẵn." >&2
+	if [[ -z "${value[$key_name]:-}" ]]; then
+		echo "Chưa có $SSM_PREFIX/$key_name: tắt model, Kriky trả nội dung dựng sẵn." >&2
 		echo "LLM_ENABLED=false"
 	fi
 } >"$LAB_DIR/.env.overrides"

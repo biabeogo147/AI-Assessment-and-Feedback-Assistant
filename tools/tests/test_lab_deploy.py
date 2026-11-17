@@ -15,7 +15,10 @@
   127.0.0.1.
 """
 
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -120,6 +123,59 @@ def test_render_env_writes_every_secret_compose_requires():
     used = set(re.findall(r"\$\{([A-Z_]+)", compose))
     defaulted = set(re.findall(r"\$\{([A-Z_]+):-", compose))
     assert used <= required | defaulted
+
+
+@pytest.mark.parametrize(
+    ("provider", "claude", "openai", "disabled"),
+    [
+        ("openai", "", "sk-test", False),
+        ("openai", "old-key", "", True),
+        ("anthropic", "sk-test", "", False),
+        ("anthropic", "", "sk-test", True),
+        ("  'openai'  \r", "", "sk-test", False),
+    ],
+)
+def test_render_env_checks_the_selected_provider(tmp_path, provider, claude, openai, disabled):
+    """Khoá của provider khác không quyết định Kriky được bật hay tắt."""
+    bash = shutil.which("bash")
+    git_bash = Path("C:/Program Files/Git/bin/bash.exe")
+    if os.name == "nt" and git_bash.exists():
+        bash = str(git_bash)
+    if not bash:
+        pytest.skip("Cần bash để chạy script lab")
+    lab = tmp_path / "deploy" / "lab"
+    lab.mkdir(parents=True)
+    for name in ("lib.sh", "render-env.sh"):
+        shutil.copyfile(LAB / name, lab / name)
+    (lab / "lab.env").write_text(f"LLM_ENABLED=true\nLLM_PROVIDER={provider}\n", encoding="utf-8")
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    aws = binaries / "aws"
+    aws.write_text(
+        "#!/usr/bin/env bash\n"
+        "printf '/aiafa/lab/SITE_ADDRESS\\texample.org\\n'\n"
+        "printf '/aiafa/lab/POSTGRES_PASSWORD\\tpg\\n'\n"
+        "printf '/aiafa/lab/MINIO_SECRET_KEY\\tminio\\n'\n"
+        "printf '/aiafa/lab/MONGO_PASSWORD\\tmongo\\n'\n"
+        f"printf '/aiafa/lab/CLAUDE_API_KEY\\t{claude}\\n'\n"
+        f"printf '/aiafa/lab/OPENAI_API_KEY\\t{openai}\\n'\n",
+        encoding="utf-8",
+    )
+    aws.chmod(0o755)
+    result = subprocess.run(
+        [
+            bash,
+            "-c",
+            'export AIAFA_DIR="$PWD"; export PATH="$PWD/bin:$PATH"; bash deploy/lab/render-env.sh',
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    overrides = (lab / ".env.overrides").read_text(encoding="utf-8")
+    assert ("LLM_ENABLED=false" in overrides) is disabled
 
 
 def test_terraform_and_fe_agree_on_the_two_host_prefixes():

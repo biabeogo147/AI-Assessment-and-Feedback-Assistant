@@ -34,7 +34,7 @@ flowchart LR
 
 ```bash
 read -rs KEY && KEY=$(printf '%s' "$KEY" | tr -d '\r') && aws ssm put-parameter --region us-east-2 \
-  --type SecureString --name /aiafa/lab/CLAUDE_API_KEY --value "$KEY" && unset KEY
+  --type SecureString --name /aiafa/lab/OPENAI_API_KEY --value "$KEY" && unset KEY
 ```
 
 `tr -d '\r'`: dán khoá trong Git Bash trên Windows có thể kèm `\r`, và khoá dính `\r` làm mọi lượt
@@ -42,13 +42,15 @@ Kriky hỏng. `render-env.sh` cũng tự bỏ `\r` và khoảng trắng hai đ�
 
 | Tham số | Bắt buộc? | Dùng cho |
 | --- | --- | --- |
-| `CLAUDE_API_KEY` | có | Kriky (`claude-haiku-5-5`), tóm tắt mục lục, đọc banner chương |
+| `CLAUDE_API_KEY` | khi chọn Anthropic | Các model dùng provider `anthropic` |
 | `JEV_API_KEY` | không | Chọn skill cho Kriky, xếp cấp tiêu đề. Thiếu thì đi đường luật |
-| `OPENAI_API_KEY` | không | Chỉ khi đổi provider trong `deploy/lab/lab.env` |
+| `OPENAI_API_KEY` | khi chọn OpenAI | Các model dùng provider `openai` |
 
 Thêm khoá **sau** khi máy đã lên cũng được: trên máy lab chạy `render-env.sh` rồi `up -d` (mục
-*Việc thường ngày*). Thiếu `CLAUDE_API_KEY` thì `render-env.sh` tắt model (`LLM_ENABLED=false`):
-Kriky trả nội dung dựng sẵn, và mục lục tài liệu không có tóm tắt.
+*Việc thường ngày*). `render-env.sh` đọc `LLM_PROVIDER` trong `lab.env`; nếu thiếu khoá tương ứng,
+script tắt model của Kriky (`LLM_ENABLED=false`). Script chỉ kiểm tra khoá có giá trị, không kiểm tra
+khoá hợp lệ. Các model của `index` chọn provider riêng; thiếu khoá của provider thì chức năng tương
+ứng không được khởi tạo. Đổi model cần thử chat, tóm tắt, banner và đọc công thức trên tài liệu thật.
 
 **2. Apply.** Mở SSH cho mạng của team bằng một `terraform.tfvars` (gitignore: repo public, IP và
 email không vào git):
@@ -273,7 +275,7 @@ LAB_URL=http://127.0.0.1:8088 LAB_ACCOUNT_PASSWORD="$PW" bash deploy/lab/smoke.s
 | --- | --- |
 | Trình duyệt báo chứng chỉ sai vài phút đầu | Caddy chưa xin xong. Xem `logs caddy`; cổng 80 phải mở cho Let's Encrypt |
 | `render-env.sh`: *Thiếu /aiafa/lab/…* | Tham số do Terraform tạo bị xoá tay. `terraform apply` tạo lại |
-| Kriky trả lời bằng nội dung dựng sẵn | Chưa có `CLAUDE_API_KEY`, nên `render-env.sh` đã tắt model. Thêm khoá vào SSM, rồi `render-env.sh` và `up -d` |
+| Kriky trả lời bằng nội dung dựng sẵn | Kiểm tra `LLM_ENABLED` và khoá SSM tương ứng với `LLM_PROVIDER`; sau khi thêm khoá chạy `render-env.sh` rồi `up -d` |
 | Kriky báo model hỏng ở mọi lượt | Có khoá mà khoá sai hay hết hạn mức. `logs agent` ghi lỗi của nhà cung cấp |
 | Tài liệu đứng ở *đang xử lý* rồi *xử lý hỏng* | `logs document` và `logs index`; lần đọc scan đầu chậm hơn các lần sau |
 | `deploy.sh`: *chỉ deploy một tag lab-…* | Ref không phải tag `lab-*`. Đặt tên bằng `.\dev.ps1 release` ở máy mình rồi push tag (mục *Đặt tên bản*) |

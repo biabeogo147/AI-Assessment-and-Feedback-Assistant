@@ -24,7 +24,7 @@ flowchart TB
 
     subgraph external["Bên ngoài AWS"]
         github[("GitHub<br/>repo public")]
-        anthropic["Anthropic API<br/>claude-haiku-5-5"]
+        openai["OpenAI API<br/>model theo lab.env"]
         jev["JEV API<br/>agent: chọn skill · index: xếp tiêu đề"]
         letsencrypt["Let's Encrypt"]
         dns["DNS của tên miền<br/>A: teacher.·student. → Elastic IP"]
@@ -78,9 +78,9 @@ flowchart TB
     document --> mongo
     index --> minio
     index --> mongo
-    agent -->|gọi model| anthropic
+    agent -->|gọi model| openai
     agent --> jev
-    index -->|tóm tắt · đọc banner| anthropic
+    index -->|tóm tắt · đọc banner · công thức| openai
     index -->|xếp cấp tiêu đề| jev
     caddy -->|HTTP-01| letsencrypt
     ops -->|terraform apply| aws
@@ -99,7 +99,7 @@ flowchart TB
     class ssm,s3_backup,iam,budget,subnet,sg,eip tf
     class bootstrap,render_env,backup boot
     class caddy,be,agent,ingest,document,index,redis,postgres,minio,mongo dc
-    class team,ops,github,anthropic,jev,letsencrypt,dns ext
+    class team,ops,github,openai,jev,letsencrypt,dns ext
 ```
 
 Đọc sơ đồ:
@@ -193,8 +193,8 @@ Ba nguyên tắc:
 - **Mỗi service chỉ cầm bí mật của mình**, đúng như ranh giới giữa các service ở máy dev: `agent` không
   có `DATABASE_URL`, `be` không có khoá model. `lab.env` (không bí mật, nằm trong git) không chứa mật
   khẩu nào.
-- Thiếu `CLAUDE_API_KEY` thì `render-env.sh` ghi `LLM_ENABLED=false` vào `.env.overrides`: lab vẫn
-  chạy, Kriky trả nội dung dựng sẵn.
+- Thiếu khoá của `LLM_PROVIDER` trong `lab.env` thì `render-env.sh` ghi `LLM_ENABLED=false` vào
+  `.env.overrides`: lab vẫn chạy, Kriky trả nội dung dựng sẵn. Script không xác thực khoá với provider.
 
 Máy đọc SSM bằng **instance profile**, không có khoá AWS nào trên đĩa. Role gắn
 `AmazonSSMManagedInstanceCore` để Session Manager chạy được, và policy ấy tự nó cho `ssm:GetParameter`
